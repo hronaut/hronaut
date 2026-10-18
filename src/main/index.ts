@@ -141,9 +141,7 @@ import {
   createAutoHideMenuGesture,
   mainWindowChromeOptions,
   titleBarOverlayStyle,
-  type DesktopWindowPlatform,
-  type ScrimColor,
-  type WindowChromeMode
+  type DesktopWindowPlatform
 } from '../shared/title-bar.js'
 import { registerShellIpc } from './shell-ipc.js'
 import { createClipboardOperations } from './clipboard-operations.js'
@@ -160,6 +158,7 @@ import { createWindowStatePersistence } from './windows/window-state-persistence
 import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 import { createMcpControlState } from './mcp-control-state.js'
 import type { McpRuntimeState } from './mcp-runtime.js'
+import type { MainWindowRefs } from './windows/main-window.js'
 
 const mcpRuntime: McpRuntimeState = {
   host: process.env.HRONAUT_MCP_HOST || '127.0.0.1',
@@ -203,8 +202,14 @@ if (process.env.HRONAUT_USER_DATA_DIR) {
   app.setPath('userData', join(app.getPath('appData'), 'hronaut-dev'))
 }
 
-let mainWindow: BrowserWindow | null = null
-let mainWindowChromeMode: WindowChromeMode = 'system'
+const mainWindowRefs: MainWindowRefs = {
+  window: null,
+  chromeMode: 'system',
+  controlsScrim: null,
+  material: null,
+  stateStore: null,
+  lastState: null
+}
 let panelWindow: BrowserWindow | null = null
 interface AddressSuggestionSurface {
   view: WebContentsView
@@ -221,7 +226,7 @@ const tooltipView = new ShellOverlayView({
   name: 'tooltip',
   preload: join(__dirname, '../preload/tooltipOverlay.cjs'),
   url: () => trustedTooltipOverlayUrl(),
-  window: () => mainWindow,
+  window: () => mainWindowRefs.window,
   urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
   onLost: () => shellTooltips.surfaceLost()
 })
@@ -229,7 +234,7 @@ const agentCardView = new ShellOverlayView({
   name: 'agent card',
   preload: join(__dirname, '../preload/agentCard.cjs'),
   url: () => trustedAgentCardUrl(),
-  window: () => mainWindow,
+  window: () => mainWindowRefs.window,
   urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
   onLost: () => agentCards.surfaceLost()
 })
@@ -238,15 +243,15 @@ let agentCardOpen = false
 const agentCards = new AgentCardOverlay({
   surface: () => ensureAgentCardSurface(),
   windowSize: () => {
-    if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible() || mainWindow.isMinimized()) return null
-    const [width = 0, height = 0] = mainWindow.getContentSize()
+    if (!mainWindowRefs.window || mainWindowRefs.window.isDestroyed() || !mainWindowRefs.window.isVisible() || mainWindowRefs.window.isMinimized()) return null
+    const [width = 0, height = 0] = mainWindowRefs.window.getContentSize()
     return { width, height }
   },
   emit: (event: AgentCardEvent) => {
-    if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('agent-card:event', event)
+    if (mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('agent-card:event', event)
   },
   focusShell: () => {
-    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.focus()
+    if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.focus()
   },
   openChanged: (open) => {
     agentCardOpen = open
@@ -259,7 +264,7 @@ const toastOverlayView = new ShellOverlayView({
   name: 'toast',
   preload: join(__dirname, '../preload/toastOverlay.cjs'),
   url: () => trustedToastOverlayUrl(),
-  window: () => mainWindow,
+  window: () => mainWindowRefs.window,
   urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
   onLost: () => toastOverlay.surfaceLost(),
   // A toast is about something the person did; the agent card, a tooltip or address suggestions they open go above it.
@@ -268,14 +273,14 @@ const toastOverlayView = new ShellOverlayView({
 const toastOverlay = new ToastOverlay({
   surface: () => ensureToastOverlaySurface(),
   layout: () => {
-    if (workspaceStartupFailure || !mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return null
+    if (workspaceStartupFailure || !mainWindowRefs.window || mainWindowRefs.window.isDestroyed() || mainWindowRefs.window.webContents.isDestroyed()) return null
     // No page area until the saved workspaces are up, or after they failed to come up; the shell shows its own copy.
     if (!tabsManager || initializedTabsManager !== tabsManager) return null
     const area = tabsManager.pageArea()
-    return area ? { area, zoom: mainWindow.webContents.getZoomFactor() } : null
+    return area ? { area, zoom: mainWindowRefs.window.webContents.getZoomFactor() } : null
   },
   emit: (event: ToastOverlayEvent) => {
-    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('toast-overlay:event', event)
+    if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('toast-overlay:event', event)
   },
   focusOwner: () => {
     const focused = allWebContents.getFocusedWebContents()
@@ -284,7 +289,7 @@ const toastOverlay = new ToastOverlay({
   restoreFocus: (owner) => {
     // Focus moves to the view while the click lands; moving it back in the same task does not stick.
     setImmediate(() => {
-      const window = mainWindow
+      const window = mainWindowRefs.window
       if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return
       const focused = allWebContents.getFocusedWebContents()
       // Only while the view still has it: the toast's action may have moved focus on purpose meanwhile.
@@ -303,8 +308,8 @@ const toastOverlay = new ToastOverlay({
 const shellTooltips = new ShellTooltipOverlay({
   surface: () => ensureTooltipSurface(),
   windowSize: () => {
-    if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible() || mainWindow.isMinimized()) return null
-    const [width = 0, height = 0] = mainWindow.getContentSize()
+    if (!mainWindowRefs.window || mainWindowRefs.window.isDestroyed() || !mainWindowRefs.window.isVisible() || mainWindowRefs.window.isMinimized()) return null
+    const [width = 0, height = 0] = mainWindowRefs.window.getContentSize()
     return { width, height }
   }
 })
@@ -338,17 +343,15 @@ const mcpPortRecovery = new McpPortRecovery({
   changed: () => publishMcpControlState({ refreshHome: false })
 })
 let quitting = false
-let windowStateStore: WindowStateStore | null = null
-let lastWindowState: import('./window-state.js').SavedWindowState | null = null
 const {
   currentState: currentWindowState,
   scheduleSave: scheduleWindowStateSave,
   flush: flushWindowState
 } = createWindowStatePersistence({
-  window: () => mainWindow,
-  store: () => windowStateStore,
-  lastState: () => lastWindowState,
-  setLastState: (state) => { lastWindowState = state },
+  window: () => mainWindowRefs.window,
+  store: () => mainWindowRefs.stateStore,
+  lastState: () => mainWindowRefs.lastState,
+  setLastState: (state) => { mainWindowRefs.lastState = state },
   logPrefix: '[window]'
 })
 let panelWindowStateStore: WindowStateStore | null = null
@@ -403,9 +406,9 @@ let bookmarkStore: BookmarkStore | null = null
 let historyStore: HistoryStore | null = null
 // The person's latest reversible action, until its Undo toast closes.
 const undoOffers = new UndoOffers((offer) => {
-  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('undo:offered', offer)
+  if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('undo:offered', offer)
 }, (token) => {
-  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('undo:ended', token)
+  if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('undo:ended', token)
 }, (action, error) => {
   console.error(`[undo] Could not ${action}:`, error)
   reportBrowserActionFailure(action, error)
@@ -423,7 +426,7 @@ const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloaded
   updateState: () => updateState,
   setUpdateState: (state) => { updateState = state },
   sendToShellWindows,
-  mainWindow: () => mainWindow,
+  mainWindow: () => mainWindowRefs.window,
   panelWindow: () => panelWindow
 })
 let runtimeShutdown: Promise<void> | null = null
@@ -447,7 +450,7 @@ const {
 } = createTrayAttention({
   text,
   showWindow,
-  mainWindow: () => mainWindow,
+  mainWindow: () => mainWindowRefs.window,
   tabs: () => tabsManager,
   mcpServer: () => mcpRuntime.server,
   runNativeBrowserAction,
@@ -475,7 +478,7 @@ const {
   copyPageImageToClipboard
 } = createClipboardOperations({
   text,
-  mainWindow: () => mainWindow
+  mainWindow: () => mainWindowRefs.window
 })
 
 function text(key: MessageKey, parameters?: MessageParameters): string {
@@ -490,8 +493,8 @@ function reportBrowserActionFailure(action: string, error: unknown): void {
       ? text('native.errors.tabUnavailable')
       : rawMessage || text('native.errors.actionFailed')
   }
-  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.send('browser:action-failed', failure)
+  if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) {
+    mainWindowRefs.window.webContents.send('browser:action-failed', failure)
   }
 }
 
@@ -545,7 +548,7 @@ function currentRendererSettingsState(): RendererSettingsState {
     systemTheme: nativeTheme.shouldUseDarkColors ? 'dark' : 'light',
     systemLocale,
     resolvedLocale,
-    windowMaterial: mainWindowMaterial
+    windowMaterial: mainWindowRefs.material
   }
 }
 
@@ -583,23 +586,23 @@ const quitRequestedAtStartup = process.argv.includes('--quit')
 
 function showWindow(): void {
   if (workspaceStartupFailure) return
-  if (!mainWindow) return
-  if (mainWindow.isMinimized()) mainWindow.restore()
-  mainWindow.show()
-  mainWindow.focus()
+  if (!mainWindowRefs.window) return
+  if (mainWindowRefs.window.isMinimized()) mainWindowRefs.window.restore()
+  mainWindowRefs.window.show()
+  mainWindowRefs.window.focus()
   if (panelWindow && !panelWindow.isDestroyed() && !panelWindow.isVisible()) panelWindow.show()
 }
 
 function showWindowInactive(): void {
-  if (!mainWindow) return
+  if (!mainWindowRefs.window) return
   // showInactive can raise an already visible window above another app.
   // Agent requests ensure visibility without changing the current stacking.
-  if (!mainWindow.isVisible() || mainWindow.isMinimized()) mainWindow.showInactive()
+  if (!mainWindowRefs.window.isVisible() || mainWindowRefs.window.isMinimized()) mainWindowRefs.window.showInactive()
   if (panelWindow && !panelWindow.isDestroyed() && !panelWindow.isVisible()) panelWindow.showInactive()
 }
 
 function sendToShellWindows(channel: string, ...args: unknown[]): void {
-  for (const window of [mainWindow, panelWindow]) {
+  for (const window of [mainWindowRefs.window, panelWindow]) {
     if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
       window.webContents.send(channel, ...args)
     }
@@ -607,8 +610,8 @@ function sendToShellWindows(channel: string, ...args: unknown[]): void {
 }
 
 function sendToMainWindow(channel: string, ...args: unknown[]): void {
-  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.send(channel, ...args)
+  if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) {
+    mainWindowRefs.window.webContents.send(channel, ...args)
   }
 }
 
@@ -788,7 +791,7 @@ const { currentBrowsingDataSiteSummary, clearWorkspaceSiteData } = createSiteDat
 const { handleCredentialCandidate, configureCredentialStore } = createCredentialRuntime({
   text,
   showMessageBox,
-  mainWindow: () => mainWindow,
+  mainWindow: () => mainWindowRefs.window,
   credentialStorageStatus: () => credentialStorageStatus,
   setCredentialStorageStatus: (status) => { credentialStorageStatus = status },
   credentialStore: () => credentialStore,
@@ -801,7 +804,7 @@ function publishSitePermissions(): void {
 }
 
 function showMessageBox(options: MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
-  return mainWindow ? dialog.showMessageBox(mainWindow, options) : dialog.showMessageBox(options)
+  return mainWindowRefs.window ? dialog.showMessageBox(mainWindowRefs.window, options) : dialog.showMessageBox(options)
 }
 
 function resolvedTheme(theme: ThemeName): Exclude<ThemeName, 'system'> {
@@ -813,29 +816,24 @@ function desktopWindowPlatform(): DesktopWindowPlatform {
   return 'linux'
 }
 
-/** The backdrop of the dialog open in the main window, laid over the native window controls. */
-let windowControlsScrim: ScrimColor | null = null
-/** The material showing behind the main window's tab rail, or null for the theme's solid surface. */
-let mainWindowMaterial: WindowMaterial | null = null
-
 function clearWindowControlsScrim(): void {
-  if (!windowControlsScrim) return
-  windowControlsScrim = null
+  if (!mainWindowRefs.controlsScrim) return
+  mainWindowRefs.controlsScrim = null
   applyMainWindowTitleBarOverlay()
 }
 
 function applyMainWindowTitleBarOverlay(): void {
   if (
-    mainWindowChromeMode !== 'overlay'
+    mainWindowRefs.chromeMode !== 'overlay'
     || process.platform === 'darwin'
-    || !mainWindow
-    || mainWindow.isDestroyed()
+    || !mainWindowRefs.window
+    || mainWindowRefs.window.isDestroyed()
   ) return
-  mainWindow.setTitleBarOverlay(dimTitleBarOverlay(titleBarOverlayStyle(
+  mainWindowRefs.window.setTitleBarOverlay(dimTitleBarOverlay(titleBarOverlayStyle(
     resolvedTheme(settings.theme),
     settings.tabPosition,
     settings.interfaceScale
-  ), windowControlsScrim))
+  ), mainWindowRefs.controlsScrim))
 }
 
 /** The material behind the main window's tab rail for the current settings and system, if any. */
@@ -845,7 +843,7 @@ function currentWindowMaterial(): WindowMaterial | null {
     osRelease: osRelease(),
     theme: resolvedTheme(settings.theme),
     tabPosition: settings.tabPosition,
-    chrome: mainWindowChromeMode,
+    chrome: mainWindowRefs.chromeMode,
     reducedTransparency: nativeTheme.prefersReducedTransparency,
     forcedColors: nativeTheme.inForcedColorsMode || nativeTheme.shouldUseHighContrastColors
   })
@@ -853,7 +851,7 @@ function currentWindowMaterial(): WindowMaterial | null {
 
 /** Shows or removes the material behind the main window's rail; the shell learns the result from its renderer state. */
 function applyMainWindowBackground(): void {
-  mainWindowMaterial = applyWindowMaterial(mainWindow, process.platform, mainWindowMaterial, currentWindowMaterial(), THEME_BACKGROUND[resolvedTheme(settings.theme)])
+  mainWindowRefs.material = applyWindowMaterial(mainWindowRefs.window, process.platform, mainWindowRefs.material, currentWindowMaterial(), THEME_BACKGROUND[resolvedTheme(settings.theme)])
 }
 
 function applyTheme(theme: ThemeName): void {
@@ -864,7 +862,7 @@ function applyTheme(theme: ThemeName): void {
 }
 
 function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
-  for (const window of [mainWindow, panelWindow]) {
+  for (const window of [mainWindowRefs.window, panelWindow]) {
     if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
       window.webContents.setZoomFactor(scale)
     }
@@ -882,7 +880,7 @@ function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
   publishSettings()
   installApplicationMenu()
   setTrayContextMenu()
-  mainWindow?.setTitle('Hronaut')
+  mainWindowRefs.window?.setTitle('Hronaut')
   if (panelWindow && !panelWindow.isDestroyed() && panelWindowPanel) {
     panelWindow.setTitle(detachedPanelTitle(panelWindowPanel))
   }
@@ -999,7 +997,7 @@ if (process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1') {
 const { installApplicationMenu } = createApplicationMenu({
   text,
   showWindow,
-  mainWindow: () => mainWindow,
+  mainWindow: () => mainWindowRefs.window,
   checkForUpdates,
   setQuitting: (value) => { quitting = value },
   runNativeBrowserAction,
@@ -1119,7 +1117,7 @@ function hideAddressSuggestionOverlay(): void {
   addressSuggestionOverlayVisible = false
   addressSuggestionOverlayBounds = null
   const surface = addressSuggestionSurface
-  const window = mainWindow
+  const window = mainWindowRefs.window
   if (!surface) return
   if (!surface.webContents.isDestroyed()) surface.view.setVisible(false)
   if (window && !window.isDestroyed()) {
@@ -1175,8 +1173,8 @@ async function ensureAddressSuggestionView(sessionId: number): Promise<AddressSu
         addressSuggestionOverlayDismissalPending = true
         hideAddressSuggestionOverlay()
         addressSuggestionSurface = null
-        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-          mainWindow.webContents.send('address-overlay:dismissed', surface.sessionId)
+        if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) {
+          mainWindowRefs.window.webContents.send('address-overlay:dismissed', surface.sessionId)
         }
       })
       webContents.on('render-process-gone', () => {
@@ -1206,7 +1204,7 @@ async function ensureAddressSuggestionView(sessionId: number): Promise<AddressSu
 const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   text,
   trustedShellUrl,
-  mainWindow: () => mainWindow,
+  mainWindow: () => mainWindowRefs.window,
   panelWindow: () => panelWindow,
   setPanelWindow: (window) => { panelWindow = window },
   setPanelWindowUrl: (url) => { panelWindowUrl = url },
@@ -1241,7 +1239,7 @@ function trustedUrlMatches(actual: string | undefined, expected: string): boolea
 function assertTrustedShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
   if (workspaceStartupFailure) throw workspaceStartupFailure
   const actual = event.senderFrame?.url
-  const fromMain = Boolean(mainWindow && event.sender === mainWindow.webContents && trustedUrlMatches(actual, trustedShellUrl()))
+  const fromMain = Boolean(mainWindowRefs.window && event.sender === mainWindowRefs.window.webContents && trustedUrlMatches(actual, trustedShellUrl()))
   const fromPanel = Boolean(panelWindow
     && panelWindowUrl
     && event.sender === panelWindow.webContents
@@ -1252,7 +1250,7 @@ function assertTrustedShellSender(event: Electron.IpcMainInvokeEvent | Electron.
 function assertMainShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
   if (workspaceStartupFailure) throw workspaceStartupFailure
   const actual = event.senderFrame?.url
-  if (!mainWindow || event.sender !== mainWindow.webContents || !trustedUrlMatches(actual, trustedShellUrl())) {
+  if (!mainWindowRefs.window || event.sender !== mainWindowRefs.window.webContents || !trustedUrlMatches(actual, trustedShellUrl())) {
     throw new Error('Rejected IPC from a non-primary renderer')
   }
 }
@@ -1374,15 +1372,15 @@ function registerIpc(): void {
     void ensureAddressSuggestionView(request.sessionId).then(({ view, webContents }) => {
       if (
         generation !== addressSuggestionOverlayGeneration
-        || !mainWindow
-        || mainWindow.isDestroyed()
+        || !mainWindowRefs.window
+        || mainWindowRefs.window.isDestroyed()
         || webContents.isDestroyed()
       ) return
       addressSuggestionOverlayVisible = true
       addressSuggestionOverlayBounds = bounds
       view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: 1 })
       view.setVisible(false)
-      mainWindow.contentView.addChildView(view)
+      mainWindowRefs.window.contentView.addChildView(view)
       webContents.send('address-overlay:state', state)
     }).catch((error) => console.error('[address-overlay] Failed to show suggestions:', error))
   })
@@ -1400,8 +1398,8 @@ function registerIpc(): void {
       !addressSuggestionOverlayVisible
       || !addressSuggestionOverlayBounds
       || !addressSuggestionSurface
-      || !mainWindow
-      || mainWindow.isDestroyed()
+      || !mainWindowRefs.window
+      || mainWindowRefs.window.isDestroyed()
       || typeof value !== 'number'
       || !Number.isFinite(value)
       || value <= 0
@@ -1419,7 +1417,7 @@ function registerIpc(): void {
     addressSuggestionSurface.view.setVisible(true)
     // Re-adding an existing child explicitly makes the overlay the topmost
     // native view, including after a website tab was selected meanwhile.
-    mainWindow.contentView.addChildView(addressSuggestionSurface.view)
+    mainWindowRefs.window.contentView.addChildView(addressSuggestionSurface.view)
   })
   ipcMain.on('address-overlay:select', (event, value: unknown) => {
     if (workspaceStartupFailure) return
@@ -1433,8 +1431,8 @@ function registerIpc(): void {
       throw new TypeError('Invalid address suggestion selection')
     }
     if (selection.sessionId !== addressSuggestionSurface?.sessionId) return
-    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-      mainWindow.webContents.send('address-overlay:selected', selection)
+    if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) {
+      mainWindowRefs.window.webContents.send('address-overlay:selected', selection)
     }
     addressSuggestionOverlayGeneration += 1
     hideAddressSuggestionOverlay()
@@ -1448,7 +1446,7 @@ function registerIpc(): void {
     setPanelWindowPanel: (panel) => { panelWindowPanel = panel },
     setPanelWindowRedocking: (value) => { panelWindowRedocking = value },
     detachedPanelTitle,
-    mainWindow: () => mainWindow
+    mainWindow: () => mainWindowRefs.window
   })
   registerMcpControlIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
@@ -1465,7 +1463,7 @@ function registerIpc(): void {
     status: currentWalletServiceStatus,
     generateWallet: async (input) => {
       const service = requireWalletService()
-      const owner = mainWindow
+      const owner = mainWindowRefs.window
       if (!owner || owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
       return generateWalletWithRecoveryConfirmation(service, input, async (recoveryMaterial) => {
         if (owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
@@ -1523,7 +1521,7 @@ function registerIpc(): void {
     windowFromWebContents: (webContents) => BrowserWindow.fromWebContents(webContents),
     tabs: () => tabsManager,
     toastOverlay: () => toastOverlay,
-    setWindowControlsScrim: (scrim) => { windowControlsScrim = scrim },
+    setWindowControlsScrim: (scrim) => { mainWindowRefs.controlsScrim = scrim },
     applyMainWindowTitleBarOverlay,
     shellFollowAgentActivitySuspended: () => shellFollowAgentActivitySuspended,
     setShellFollowAgentActivitySuspended: (value) => { shellFollowAgentActivitySuspended = value },
@@ -1533,7 +1531,7 @@ function registerIpc(): void {
     handleBrowserIpc,
     workspaceStartupFailure: () => workspaceStartupFailure,
     tabs: () => tabsManager,
-    mainWindow: () => mainWindow,
+    mainWindow: () => mainWindowRefs.window,
     copyTextToClipboard,
     reportClipboardFailure,
     mcpUrl: () => mcpRuntime.url,
@@ -1564,7 +1562,7 @@ function registerIpc(): void {
     mcpServer: () => mcpRuntime.server,
     quietUserAttention,
     endUserAttention,
-    mainWindow: () => mainWindow,
+    mainWindow: () => mainWindowRefs.window,
     showOpenDialog: (window, options) => dialog.showOpenDialog(window, options),
     showSaveDialog: (window, options) => dialog.showSaveDialog(window, options),
     text
@@ -1588,8 +1586,8 @@ function registerIpc(): void {
       fill: () => tabsManager!.importBrowserCookies(destination, cookies)
     })
   })
-  mainWindow?.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) cancelBrowserImport() })
-  mainWindow?.webContents.once('destroyed', cancelBrowserImport)
+  mainWindowRefs.window?.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) cancelBrowserImport() })
+  mainWindowRefs.window?.webContents.once('destroyed', cancelBrowserImport)
   registerNavigationIpc({
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
@@ -1645,8 +1643,8 @@ function registerIpc(): void {
     tabs: () => tabsManager!,
     version: app.getVersion(),
     pickDestination: async () => {
-      if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Browser window is unavailable')
-      const selection = await dialog.showSaveDialog(mainWindow, {
+      if (!mainWindowRefs.window || mainWindowRefs.window.isDestroyed()) throw new Error('Browser window is unavailable')
+      const selection = await dialog.showSaveDialog(mainWindowRefs.window, {
         title: text('incident.save'), defaultPath: 'hronaut-incident.html',
         filters: [{ name: 'HTML', extensions: ['html'] }],
         properties: ['showOverwriteConfirmation', 'dontAddToRecent']
@@ -1660,8 +1658,8 @@ function registerIpc(): void {
     pngDataUrl: (data) => nativeImage.createFromBuffer(data).toDataURL(),
     copyPng: copyPngToClipboard,
     pickVideoAudio: async () => {
-      if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Browser window is unavailable')
-      const selection = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: [{ name: 'PCM WAV audio', extensions: ['wav'] }] })
+      if (!mainWindowRefs.window || mainWindowRefs.window.isDestroyed()) throw new Error('Browser window is unavailable')
+      const selection = await dialog.showOpenDialog(mainWindowRefs.window, { properties: ['openFile'], filters: [{ name: 'PCM WAV audio', extensions: ['wav'] }] })
       return selection.canceled ? undefined : selection.filePaths[0]
     }
   })
@@ -1683,8 +1681,8 @@ function registerIpc(): void {
     defaultDownloadDirectory,
     effectiveDownloadDirectory: () => effectiveDownloadDirectory(),
     chooseDownloadDirectory: () => {
-      if (!mainWindow) throw new Error('The Hronaut window is not available')
-      return dialog.showOpenDialog(mainWindow, {
+      if (!mainWindowRefs.window) throw new Error('The Hronaut window is not available')
+      return dialog.showOpenDialog(mainWindowRefs.window, {
         title: text('native.dialog.chooseDownloadFolder'),
         defaultPath: effectiveDownloadDirectory(),
         buttonLabel: text('native.dialog.useFolder'),
@@ -1713,7 +1711,7 @@ function registerIpc(): void {
     credentialStore: () => credentialStore,
     publishCredentials,
     tabs: () => tabsManager,
-    mainWindow: () => mainWindow,
+    mainWindow: () => mainWindowRefs.window,
     showOpenDialog: (window, options) => dialog.showOpenDialog(window, options),
     showWindowMessageBox: (window, options) => dialog.showMessageBox(window, options),
     text,
@@ -1805,14 +1803,14 @@ async function createWindow(startMinimized = false): Promise<void> {
     console.error(`[wallet] Wallet startup disabled (${walletUnavailableStatus.backend}).`)
   }
   applyTheme(settings.theme)
-  windowStateStore = new WindowStateStore(join(app.getPath('userData'), 'window-state.json'))
+  mainWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'window-state.json'))
   panelWindowStateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))
-  const savedWindowState = await windowStateStore.load()
+  const savedWindowState = await mainWindowRefs.stateStore.load()
   const displays = screen.getAllDisplays()
   const primaryDisplay = screen.getPrimaryDisplay()
   const orderedDisplays = [primaryDisplay, ...displays.filter((display) => display.id !== primaryDisplay.id)]
   const bounds = restoreWindowBounds(savedWindowState, orderedDisplays, { width: 1320, height: 860 })
-  mainWindowChromeMode = settings.useSystemTitleBar ? 'system' : 'overlay'
+  mainWindowRefs.chromeMode = settings.useSystemTitleBar ? 'system' : 'overlay'
   const windowChromeOptions = mainWindowChromeOptions({
     platform: desktopWindowPlatform(),
     useSystemTitleBar: settings.useSystemTitleBar,
@@ -1820,8 +1818,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     tabPosition: settings.tabPosition,
     interfaceScale: settings.interfaceScale
   })
-  mainWindowMaterial = currentWindowMaterial()
-  mainWindow = new BrowserWindow({
+  mainWindowRefs.material = currentWindowMaterial()
+  mainWindowRefs.window = new BrowserWindow({
     ...bounds,
     ...windowChromeOptions,
     minWidth: 760,
@@ -1829,19 +1827,19 @@ async function createWindow(startMinimized = false): Promise<void> {
     show: false,
     title: 'Hronaut',
     backgroundColor: THEME_BACKGROUND[resolvedTheme(settings.theme)],
-    ...windowMaterialOptions(mainWindowMaterial),
+    ...windowMaterialOptions(mainWindowRefs.material),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       additionalArguments: [
         '--hronaut-window-kind=main',
-        `--hronaut-window-chrome=${mainWindowChromeMode}`
+        `--hronaut-window-chrome=${mainWindowRefs.chromeMode}`
       ],
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
     }
   })
-  mainWindow.webContents.setZoomFactor(settings.interfaceScale)
+  mainWindowRefs.window.webContents.setZoomFactor(settings.interfaceScale)
 
   const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletBroker)
   if (!humanWaiting) {
@@ -1865,7 +1863,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     join(app.getPath('userData'), 'audit-receipts'),
     new Set(mcpToolCatalogForSet('complete').filter(tool => tool.name.startsWith('browser_')).map(tool => tool.name))
   )
-  tabsManager = new BrowserTabsManager(mainWindow, {
+  tabsManager = new BrowserTabsManager(mainWindowRefs.window, {
     partition: PARTITION,
     sessionDataPath: app.getPath('sessionData'),
     storePath: join(app.getPath('userData'), 'tabs.json'),
@@ -1921,13 +1919,13 @@ async function createWindow(startMinimized = false): Promise<void> {
         takeOvers.takeOverFromPage(page.tabId, page.workspaceId)
         return
       }
-      if (mainWindow && !mainWindow.webContents.isDestroyed()) {
+      if (mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
         // The page WebContentsView owns native focus when a website shortcut is
         // pressed. Move it to trusted chrome before the renderer focuses a
         // field, otherwise the DOM selection is visible while typed keys keep
         // going to the website.
-        if (action === 'find' || action === 'focus-address') mainWindow.webContents.focus()
-        mainWindow.webContents.send('browser:shortcut-requested', action)
+        if (action === 'find' || action === 'focus-address') mainWindowRefs.window.webContents.focus()
+        mainWindowRefs.window.webContents.send('browser:shortcut-requested', action)
       }
     },
     copyText: copyTextToClipboard,
@@ -1983,8 +1981,8 @@ async function createWindow(startMinimized = false): Promise<void> {
   })
   registerIpc()
 
-  mainWindow.on('blur', () => tabsManager?.cancelSplitDivider())
-  mainWindow.webContents.on('render-process-gone', () => {
+  mainWindowRefs.window.on('blur', () => tabsManager?.cancelSplitDivider())
+  mainWindowRefs.window.webContents.on('render-process-gone', () => {
     tabsManager?.cancelSplitDivider()
     clearWindowControlsScrim()
     shellTooltips.hide()
@@ -1994,9 +1992,9 @@ async function createWindow(startMinimized = false): Promise<void> {
     void undoOffers.end()
   })
   // The previous shell document can still ask for a toast until the new one commits; the new one has none.
-  mainWindow.webContents.on('did-navigate', () => toastOverlay.shellReset())
+  mainWindowRefs.window.webContents.on('did-navigate', () => toastOverlay.shellReset())
   // A new shell document has no dialog or toast open, whatever the previous one reported.
-  mainWindow.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+  mainWindowRefs.window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) {
       clearWindowControlsScrim()
       shellTooltips.hide()
@@ -2007,26 +2005,26 @@ async function createWindow(startMinimized = false): Promise<void> {
   })
   // A tooltip belongs beside a control that just moved, or in a window that is no longer in front.
   for (const change of ['blur', 'resize', 'minimize', 'hide', 'enter-full-screen', 'leave-full-screen'] as const) {
-    mainWindow.on(change as 'blur', () => shellTooltips.hide())
+    mainWindowRefs.window.on(change as 'blur', () => shellTooltips.hide())
     // The card belongs under an avatar that may have moved, in a window that is in front.
-    mainWindow.on(change as 'blur', () => agentCards.dismiss())
+    mainWindowRefs.window.on(change as 'blur', () => agentCards.dismiss())
   }
-  mainWindow.on('resize', () => tabsManager?.layout())
+  mainWindowRefs.window.on('resize', () => tabsManager?.layout())
   // The toast stays at the bottom of the page area, which moves with the window's size.
   for (const change of ['resize', 'maximize', 'unmaximize', 'restore', 'show', 'enter-full-screen', 'leave-full-screen'] as const) {
-    mainWindow.on(change as 'resize', () => toastOverlay.relayout())
+    mainWindowRefs.window.on(change as 'resize', () => toastOverlay.relayout())
   }
-  mainWindow.on('resize', scheduleWindowStateSave)
-  mainWindow.on('move', scheduleWindowStateSave)
-  mainWindow.on('maximize', scheduleWindowStateSave)
-  mainWindow.on('unmaximize', scheduleWindowStateSave)
-  mainWindow.on('enter-full-screen', scheduleWindowStateSave)
-  mainWindow.on('leave-full-screen', scheduleWindowStateSave)
-  mainWindow.on('close', (event) => {
+  mainWindowRefs.window.on('resize', scheduleWindowStateSave)
+  mainWindowRefs.window.on('move', scheduleWindowStateSave)
+  mainWindowRefs.window.on('maximize', scheduleWindowStateSave)
+  mainWindowRefs.window.on('unmaximize', scheduleWindowStateSave)
+  mainWindowRefs.window.on('enter-full-screen', scheduleWindowStateSave)
+  mainWindowRefs.window.on('leave-full-screen', scheduleWindowStateSave)
+  mainWindowRefs.window.on('close', (event) => {
     if (!quitting && settings.hideInTray) {
       event.preventDefault()
       panelWindow?.hide()
-      mainWindow?.hide()
+      mainWindowRefs.window?.hide()
       return
     }
     if (!quitting) {
@@ -2035,7 +2033,7 @@ async function createWindow(startMinimized = false): Promise<void> {
       setImmediate(() => app.quit())
     }
   })
-  mainWindow.on('closed', () => {
+  mainWindowRefs.window.on('closed', () => {
     if (panelWindow && !panelWindow.isDestroyed()) panelWindow.close()
     if (addressSuggestionSurface && !addressSuggestionSurface.webContents.isDestroyed()) {
       addressSuggestionSurface.webContents.close()
@@ -2051,22 +2049,22 @@ async function createWindow(startMinimized = false): Promise<void> {
     agentCardView.close()
     toastOverlay.hide()
     toastOverlayView.close()
-    windowControlsScrim = null
-    mainWindow = null
+    mainWindowRefs.controlsScrim = null
+    mainWindowRefs.window = null
   })
   const autoHideMenuGesture = createAutoHideMenuGesture(desktopWindowPlatform())
   // Alt with a click, an Alt-drag of the window or a switch away from it is not Alt alone.
-  mainWindow.on('blur', autoHideMenuGesture.reset)
-  mainWindow.on('move', autoHideMenuGesture.reset)
-  mainWindow.webContents.on('blur', autoHideMenuGesture.reset)
-  mainWindow.webContents.on('before-input-event', (event, input) => {
+  mainWindowRefs.window.on('blur', autoHideMenuGesture.reset)
+  mainWindowRefs.window.on('move', autoHideMenuGesture.reset)
+  mainWindowRefs.window.webContents.on('blur', autoHideMenuGesture.reset)
+  mainWindowRefs.window.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown' || input.type === 'rawKeyDown') acknowledgeUserAttention()
     const menuGesture = autoHideMenuGesture(input)
     if (menuGesture) event.preventDefault()
-    if (mainWindow && menuGesture === 'toggle') {
-      if (mainWindowChromeMode === 'overlay') {
+    if (mainWindowRefs.window && menuGesture === 'toggle') {
+      if (mainWindowRefs.chromeMode === 'overlay') {
         Menu.getApplicationMenu()?.popup({
-          window: mainWindow,
+          window: mainWindowRefs.window,
           x: 8,
           y: titleBarOverlayStyle(
             resolvedTheme(settings.theme),
@@ -2075,30 +2073,30 @@ async function createWindow(startMinimized = false): Promise<void> {
           ).height
         })
       } else {
-        mainWindow.setMenuBarVisibility(!mainWindow.isMenuBarVisible())
+        mainWindowRefs.window.setMenuBarVisibility(!mainWindowRefs.window.isMenuBarVisible())
       }
     }
   })
-  mainWindow.webContents.on('before-mouse-event', (_event, mouse) => {
+  mainWindowRefs.window.webContents.on('before-mouse-event', (_event, mouse) => {
     if (mouse.type === 'mouseDown' || mouse.type === 'contextMenu') {
       acknowledgeUserAttention()
       autoHideMenuGesture.reset()
     }
   })
-  mainWindow.webContents.on('did-finish-load', () => {
+  mainWindowRefs.window.webContents.on('did-finish-load', () => {
     applyInterfaceScale(settings.interfaceScale)
-    if (tabsManager && mainWindow && !mainWindow.webContents.isDestroyed()) {
-      if (!tabsInitializationPromise) mainWindow.webContents.send('browser:state-changed', tabsManager.getState())
-      mainWindow.webContents.send('updates:changed', updateState)
-      mainWindow.webContents.send('mcp:changed', currentMcpControlState())
-      mainWindow.webContents.send('bookmarks:changed', bookmarkStore?.list() ?? [])
-      mainWindow.webContents.send('visit-history:changed', historyStore?.list() ?? [])
+    if (tabsManager && mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
+      if (!tabsInitializationPromise) mainWindowRefs.window.webContents.send('browser:state-changed', tabsManager.getState())
+      mainWindowRefs.window.webContents.send('updates:changed', updateState)
+      mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
+      mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarkStore?.list() ?? [])
+      mainWindowRefs.window.webContents.send('visit-history:changed', historyStore?.list() ?? [])
     }
   })
-  mainWindow.webContents.on('will-navigate', (event, url) => {
+  mainWindowRefs.window.webContents.on('will-navigate', (event, url) => {
     if (url !== trustedShellUrl()) event.preventDefault()
   })
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  mainWindowRefs.window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
   let releaseTabsInitialization = (): void => undefined
   const currentTabsInitialization = new Promise<void>((resolve) => {
@@ -2108,9 +2106,9 @@ async function createWindow(startMinimized = false): Promise<void> {
   tabsInitializationPromise = currentTabsInitialization
   try {
     if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-      await mainWindow.loadURL(trustedShellUrl())
+      await mainWindowRefs.window.loadURL(trustedShellUrl())
     } else {
-      await mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+      await mainWindowRefs.window.loadFile(join(__dirname, '../renderer/index.html'))
     }
     await tabsManager.initialize()
     initializedTabsManager = tabsManager
@@ -2121,19 +2119,19 @@ async function createWindow(startMinimized = false): Promise<void> {
     releaseTabsInitialization()
     if (tabsInitializationPromise === currentTabsInitialization) tabsInitializationPromise = null
   }
-  if (!mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.send('browser:state-changed', tabsManager.getState())
-    mainWindow.webContents.send('settings:changed', settings)
-    mainWindow.webContents.send('settings:renderer-state-changed', currentRendererSettingsState())
-    mainWindow.webContents.send('updates:changed', updateState)
-    mainWindow.webContents.send('mcp:changed', currentMcpControlState())
-    mainWindow.webContents.send('credentials:changed', credentialStore?.list() ?? [])
-    mainWindow.webContents.send('bookmarks:changed', bookmarkStore?.list() ?? [])
-    mainWindow.webContents.send('visit-history:changed', historyStore?.list() ?? [])
+  if (!mainWindowRefs.window.webContents.isDestroyed()) {
+    mainWindowRefs.window.webContents.send('browser:state-changed', tabsManager.getState())
+    mainWindowRefs.window.webContents.send('settings:changed', settings)
+    mainWindowRefs.window.webContents.send('settings:renderer-state-changed', currentRendererSettingsState())
+    mainWindowRefs.window.webContents.send('updates:changed', updateState)
+    mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
+    mainWindowRefs.window.webContents.send('credentials:changed', credentialStore?.list() ?? [])
+    mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarkStore?.list() ?? [])
+    mainWindowRefs.window.webContents.send('visit-history:changed', historyStore?.list() ?? [])
   }
-  if (savedWindowState?.maximized) mainWindow.maximize()
-  if (savedWindowState?.fullScreen) mainWindow.setFullScreen(true)
-  if (!startMinimized) mainWindow.show()
+  if (savedWindowState?.maximized) mainWindowRefs.window.maximize()
+  if (savedWindowState?.fullScreen) mainWindowRefs.window.setFullScreen(true)
+  if (!startMinimized) mainWindowRefs.window.show()
 }
 
 async function releaseRuntimeResources(): Promise<void> {
@@ -2278,8 +2276,8 @@ function createRuntimeMcpServer(
       if (activity.phase === 'started') activeMcpActivities.add(activity.activityId)
       else activeMcpActivities.delete(activity.activityId)
       tabsManager?.handleMcpTabActivity(activity, agent)
-      if (mainWindow && !mainWindow.webContents.isDestroyed()) {
-        mainWindow.webContents.send('browser:mcp-tab-activity', activity)
+      if (mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
+        mainWindowRefs.window.webContents.send('browser:mcp-tab-activity', activity)
       }
     },
     onAgentPresenceChanged: scheduleAgentPresencePublish,
@@ -2413,7 +2411,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   clearTimeout(commercialLicenseStateTimer)
   quitting = true
-  lastWindowState = currentWindowState() ?? lastWindowState
+  mainWindowRefs.lastState = currentWindowState() ?? mainWindowRefs.lastState
   lastPanelWindowState = currentPanelWindowState() ?? lastPanelWindowState
 })
 
