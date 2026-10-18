@@ -34,6 +34,9 @@ export async function hover<Tab extends AgentPageActionsTab>(access: AgentPageAc
   } finally { authority.dispose() }
 }
 
+/** A key a drag can carry on its mouse events. ControlOrMeta is Meta on macOS and Control elsewhere. */
+export type BrowserDragModifier = 'Shift' | 'Alt' | 'ControlOrMeta'
+
 /** Drags from one control or point to another in the tab's page, through native input. */
 export async function drag<Tab extends AgentPageActionsTab>(access: AgentPageActionsAccess<Tab>, options: {
   tabId?: string
@@ -45,7 +48,9 @@ export async function drag<Tab extends AgentPageActionsTab>(access: AgentPageAct
   startY?: number
   endX?: number
   endY?: number
+  modifiers?: readonly BrowserDragModifier[]
 }, validateInput?: (validateContext: () => void) => void, agent?: AgentPointerIdentity): Promise<unknown> {
+  const modifierBits = options.modifiers === undefined ? 0 : dragModifierBits(options.modifiers, process.platform)
   const source = { ref: options.sourceRef, selector: options.sourceSelector }
   const target = { ref: options.targetRef, selector: options.targetSelector }
   const coordinatePoints = access.coordinateDragPointsOrValidateTargets(options, source, target)
@@ -65,11 +70,23 @@ export async function drag<Tab extends AgentPageActionsTab>(access: AgentPageAct
     await access.showAgentPointer(webContents, from, 'drag-start', { agent })
     await access.withAgentInput(webContents, () => access.withDebugger(
       webContents,
-      () => dispatchNativeDrag(access.agentInputDebugger(webContents, authority.validate), from, to, access.agentInputDebugger(webContents))
+      () => dispatchNativeDrag(access.agentInputDebugger(webContents, authority.validate), from, to, access.agentInputDebugger(webContents), modifierBits)
     ))
     authority.validate()
     await access.showAgentPointer(webContents, to, 'drag-end', { origin: from, agent })
     authority.validate()
-    return { ok: true, from, to }
+    return { ok: true, from, to, ...(options.modifiers ? { modifiers: [...options.modifiers] } : {}) }
   } finally { authority.dispose() }
+}
+
+const DRAG_MODIFIER_BITS = { Alt: 1, Control: 2, Meta: 4, Shift: 8 } as const
+
+/** The CDP mouse event modifier bits for a drag's keys, each named once. */
+function dragModifierBits(modifiers: readonly BrowserDragModifier[], platform: NodeJS.Platform): number {
+  if (!modifiers.length || new Set(modifiers).size !== modifiers.length
+    || modifiers.some(modifier => modifier !== 'Shift' && modifier !== 'Alt' && modifier !== 'ControlOrMeta')) {
+    throw new TypeError('Drag modifiers must name one to three of Shift, Alt or ControlOrMeta, each once.')
+  }
+  return modifiers.reduce((bits, modifier) => bits
+    | (modifier === 'ControlOrMeta' ? DRAG_MODIFIER_BITS[platform === 'darwin' ? 'Meta' : 'Control'] : DRAG_MODIFIER_BITS[modifier]), 0)
 }

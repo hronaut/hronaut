@@ -7,19 +7,28 @@ export interface PointerPoint {
   y: number
 }
 
+/**
+ * Drags with the left button from one viewport point to another: a move, a
+ * press, eight interpolated moves and a release. CDP modifier bits, when
+ * given, ride on every one of those events; no key events are sent, so no
+ * key can stay pressed.
+ */
 export async function dispatchNativeDrag(
   debuggerApi: PointerDebugger,
   from: PointerPoint,
   to: PointerPoint,
-  releaseDebugger: PointerDebugger = debuggerApi
+  releaseDebugger: PointerDebugger = debuggerApi,
+  modifiers = 0
 ): Promise<void> {
+  const modifierParams = modifiers ? { modifiers } : {}
   await debuggerApi.sendCommand('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: from.x,
-    y: from.y
+    y: from.y,
+    ...modifierParams
   })
   await debuggerApi.sendCommand('Input.dispatchMouseEvent', {
-    type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1
+    type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1, ...modifierParams
   })
   let dragFailed = false
   let dragFailure: unknown
@@ -30,7 +39,8 @@ export async function dispatchNativeDrag(
         x: from.x + ((to.x - from.x) * step) / 8,
         y: from.y + ((to.y - from.y) * step) / 8,
         button: 'left',
-        buttons: 1
+        buttons: 1,
+        ...modifierParams
       })
     }
   } catch (error) {
@@ -39,7 +49,7 @@ export async function dispatchNativeDrag(
   }
   try {
     await releaseDebugger.sendCommand('Input.dispatchMouseEvent', {
-      type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1
+      type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1, ...modifierParams
     })
   } catch (releaseFailure) {
     if (!dragFailed) throw releaseFailure

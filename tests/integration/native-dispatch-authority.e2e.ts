@@ -249,7 +249,8 @@ for (const action of ['hover', 'drag', 'press'] as const) {
               expect(observation.history.events.some(event => event.trusted && event.x === 43 && event.y === 37)).toBe(false)
             }
             if (change !== 'unchanged') {
-              const expected = { moves: 0, downs: phase === 'pressed' && action === 'drag' ? 1 : 0, keys: phase === 'pressed' && action === 'press' ? 1 : 0 }
+              // A drag stopped at its press has already sent its first move, which the locked tab's guard admits like the press.
+              const expected = { moves: phase === 'pressed' && action === 'drag' ? 1 : 0, downs: phase === 'pressed' && action === 'drag' ? 1 : 0, keys: phase === 'pressed' && action === 'press' ? 1 : 0 }
               if (control === 'post-boundary' || control === 'held-cleanup') {
                 expect(effects).toEqual({ moves: 1, downs: 0, keys: 0 })
                 expect(observation.history.events.some(event => event.at >= observation.lockAcknowledgedAt && event.phase === 'action' && !event.trusted && event.x === 43 && event.y === 37)).toBe(true)

@@ -205,7 +205,7 @@ import { safeNavigationHistorySnapshot } from './navigation-history.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
 import type { KeyboardDebugger } from './native-keyboard.js'
 import type { PointerDebugger } from './native-pointer.js'
-import { drag, hover } from './agent-page-actions/hover-and-drag.js'
+import { type BrowserDragModifier, drag, hover } from './agent-page-actions/hover-and-drag.js'
 import type { AgentPageActionsAccess, BrowserClickTarget } from './agent-page-actions/agent-page-actions-access.js'
 import { click } from './agent-page-actions/click.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
@@ -3533,6 +3533,7 @@ export class BrowserTabsManager {
     startY?: number
     endX?: number
     endY?: number
+    modifiers?: readonly BrowserDragModifier[]
   }, validateInput?: (validateContext: () => void) => void, agent?: AgentPointerIdentity): Promise<unknown> {
     return drag(this.agentPageActionsAccess(), options, validateInput, agent)
   }
