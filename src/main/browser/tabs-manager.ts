@@ -390,6 +390,8 @@ import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
+import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access.js'
+import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
 import {
   evaluateWorkspaceNavigation,
   normalizeWorkspaceNavigationPolicy,
@@ -438,21 +440,8 @@ const MAX_ACTIVE_WORKSPACES = 50
 const MAX_CLOSED_TABS = MAX_TABS
 const MAX_WORKSPACE_NAME_LENGTH = 80
 const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
-const PAGE_LIFECYCLE_COMMAND_TIMEOUT_MS = 5_000
 /** How long wheel events after an agent's wheel call still count as the agent's. */
 const AGENT_WHEEL_SETTLE_MS = 250
-const HOLD_PAGE_ANIMATIONS_SCRIPT = `(() => {
-  try {
-    return Array.from(document.getAnimations()).slice(0, 10000).map(animation => {
-      const record = {
-        currentTime: animation.currentTime,
-        playbackRate: animation.playbackRate
-      };
-      animation.playbackRate = 0;
-      return record;
-    });
-  } catch { return []; }
-})()`
 const OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS = 1_000
 
 /** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
@@ -2860,205 +2849,44 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  pageLifecycle(tabId: string): BrowserPageLifecycleResult {
-    const tab = this.getTab(tabId)
+  /**
+   * The narrow view freezing and resuming a page gets of this manager's
+   * private tabs, debugger queue, dialog monitoring, DevTools opening, page
+   * presentation and state publication. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's promise
+   * directly, so callers see the same ticks as before.
+   */
+  private pageLifecycleAccess(): PageLifecycleAccess<BrowserTab> {
     return {
-      tabId: tab.id,
-      state: tab.pageLifecycleState,
-      status: tab.pageLifecycleState === 'unknown' ? 'outcome-unknown' : 'unchanged',
-      navigationGeneration: tab.navigationGeneration,
-      retrySafe: tab.pageLifecycleState !== 'unknown',
-      ...(tab.pageLifecycleState === 'unknown' ? {
-        nextAction: 'Do not repeat the ambiguous command. Explicitly request the opposite lifecycle state, or navigate/reload to establish a fresh active document.'
-      } : {})
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      isDestroyed: () => this.destroyed,
+      inDebuggerQueue: (webContentsId, operation) => this.debuggerQueue.run(webContentsId, operation),
+      dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
+      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
+      reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
   }
 
-  async setTabPageLifecycle(
+  pageLifecycle(tabId: string): BrowserPageLifecycleResult {
+    return pageLifecycle(this.pageLifecycleAccess(), tabId)
+  }
+
+  setTabPageLifecycle(
     tabId: string,
     state: Exclude<BrowserPageLifecycleState, 'unknown'>
   ): Promise<BrowserState> {
-    await this.controlPageLifecycle(tabId, state)
-    return this.getState()
+    return setTabPageLifecycle(this.pageLifecycleAccess(), tabId, state)
   }
 
-  async controlPageLifecycle(
+  controlPageLifecycle(
     tabId: string,
     requestedState: Exclude<BrowserPageLifecycleState, 'unknown'>
   ): Promise<BrowserPageLifecycleResult> {
-    const tab = this.getTab(tabId)
-    tab.nativeInputEnvironmentGeneration += 1
-    if (isHronautHomeUrl(tab.url)) throw new Error('Only live page tabs can be frozen or resumed.')
-    if (tab.sleeping || tab.wakePromise) throw new Error('Wake the sleeping tab before changing its page lifecycle.')
-    if (tab.webContents.isDestroyed()) throw new Error('The tab renderer is unavailable.')
-    const pending = tab.pageLifecycleOperation
-    if (pending) {
-      if (pending.requestedState === requestedState) return pending.promise
-      await pending.promise
-      if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()) throw new Error('The tab closed while changing its page lifecycle.')
-      return this.controlPageLifecycle(tab.id, requestedState)
-    }
-    if (tab.pageLifecycleState === requestedState) {
-      return {
-        tabId: tab.id,
-        requestedState,
-        state: requestedState,
-        status: 'unchanged',
-        navigationGeneration: tab.navigationGeneration,
-        retrySafe: true
-      }
-    }
-    if (tab.pageLifecycleState === 'unknown' && tab.pageLifecycleUnknownRequest === requestedState) {
-      return {
-        tabId: tab.id,
-        requestedState,
-        state: 'unknown',
-        status: 'outcome-unknown',
-        navigationGeneration: tab.navigationGeneration,
-        retrySafe: false,
-        nextAction: 'Do not repeat the ambiguous command. Explicitly request the opposite lifecycle state, or navigate/reload to establish a fresh active document.'
-      }
-    }
-    const operation = this.controlPageLifecycleInternal(tab, requestedState)
-    tab.pageLifecycleOperation = { requestedState, promise: operation }
-    try {
-      return await operation
-    } finally {
-      if (tab.pageLifecycleOperation?.promise === operation) tab.pageLifecycleOperation = undefined
-    }
-  }
-
-  private async controlPageLifecycleInternal(
-    tab: BrowserTab,
-    requestedState: Exclude<BrowserPageLifecycleState, 'unknown'>
-  ): Promise<BrowserPageLifecycleResult> {
-    const navigationGeneration = tab.navigationGeneration
-    const webContents = tab.webContents
-    let dispatched = false
-    const assertCurrentDocument = (): void => {
-      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
-        throw new Error('The tab closed before its page lifecycle command was dispatched.')
-      }
-      if (tab.navigationGeneration !== navigationGeneration) {
-        throw new Error('The document changed before its page lifecycle command was dispatched.')
-      }
-    }
-    const command = this.debuggerQueue.run(webContents.id, async () => {
-      assertCurrentDocument()
-      await this.dialogMonitorAttachPromises.get(webContents.id)
-      if (this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
-        throw new Error('Close Developer Tools for this tab before changing its page lifecycle.')
-      }
-      if (!webContents.debugger.isAttached()) {
-        webContents.debugger.attach('1.3')
-        await webContents.debugger.sendCommand('Page.enable')
-      }
-      // Queueing and debugger attachment may outlive the requested document.
-      assertCurrentDocument()
-      if (requestedState === 'frozen') {
-        dispatched = true
-        let records: unknown = []
-        try { records = await webContents.executeJavaScript(HOLD_PAGE_ANIMATIONS_SCRIPT, false) } catch { /* best effort */ }
-        const validRecords = Array.isArray(records) && records.length <= 10_000 && !records.some(record => {
-          if (!record || typeof record !== 'object') return true
-          const candidate = record as { currentTime?: unknown; playbackRate?: unknown }
-          return (candidate.currentTime !== null && (
-            typeof candidate.currentTime !== 'number' || !Number.isFinite(candidate.currentTime)
-          )) || typeof candidate.playbackRate !== 'number' || !Number.isFinite(candidate.playbackRate)
-        })
-        const animationRecords = validRecords ? records as unknown[] : []
-        tab.pageLifecycleAnimations = animationRecords.map(record => ({
-          currentTime: (record as { currentTime: number | null }).currentTime,
-          playbackRate: (record as { playbackRate: number }).playbackRate
-        }))
-        await webContents.debugger.sendCommand('Page.setWebLifecycleState', { state: 'frozen' })
-      } else {
-        dispatched = true
-        await webContents.debugger.sendCommand('Page.setWebLifecycleState', { state: 'active' })
-        const records = tab.pageLifecycleAnimations ?? []
-        const backgroundThrottling = webContents.getBackgroundThrottling()
-        if (backgroundThrottling) webContents.setBackgroundThrottling(false)
-        try {
-          await new Promise(resolve => setTimeout(resolve, 34))
-          await webContents.executeJavaScript(`(() => {
-            try {
-              const records = ${JSON.stringify(records)};
-              const animations = Array.from(document.getAnimations());
-              for (let index = 0; index < records.length; index += 1) {
-                const animation = animations[index];
-                if (!animation) continue;
-                animation.playbackRate = records[index].playbackRate;
-                animation.currentTime = records[index].currentTime;
-              }
-            } catch { /* Animation restoration is best effort for adversarial pages. */ }
-          })()`, false)
-        } finally {
-          if (backgroundThrottling) webContents.setBackgroundThrottling(true)
-        }
-        tab.pageLifecycleAnimations = undefined
-      }
-    })
-    const deadline = Symbol('page-lifecycle-command-timeout')
-    let timer: NodeJS.Timeout | undefined
-    const timeout = new Promise<typeof deadline>((resolve) => {
-      timer = setTimeout(() => resolve(deadline), PAGE_LIFECYCLE_COMMAND_TIMEOUT_MS)
-      timer.unref()
-    })
-    const settled = command.then(
-      () => ({ kind: 'completed' as const }),
-      (error: unknown) => ({ kind: 'failed' as const, error })
-    )
-    const outcome = await Promise.race([settled, timeout])
-    if (timer) clearTimeout(timer)
-    if (outcome === deadline || (outcome.kind === 'failed' && dispatched)) {
-      if (this.tabs.get(tab.id) === tab) {
-        tab.pageLifecycleState = 'unknown'
-        tab.pageLifecycleUnknownRequest = requestedState
-        this.changed(false)
-      }
-      return {
-        tabId: tab.id,
-        requestedState,
-        state: 'unknown',
-        status: 'outcome-unknown',
-        navigationGeneration: tab.navigationGeneration,
-        retrySafe: false,
-        nextAction: 'The command may have reached Chromium. Do not repeat it automatically; explicitly request the opposite state, or navigate/reload to establish a fresh active document.'
-      }
-    }
-    if (outcome.kind === 'failed') throw outcome.error
-    if (
-      this.tabs.get(tab.id) !== tab
-      || webContents.isDestroyed()
-      || tab.navigationGeneration !== navigationGeneration
-    ) {
-      if (this.tabs.get(tab.id) === tab) {
-        tab.pageLifecycleState = 'unknown'
-        tab.pageLifecycleUnknownRequest = requestedState
-        this.changed(false)
-      }
-      return {
-        tabId: tab.id,
-        requestedState,
-        state: 'unknown',
-        status: 'outcome-unknown',
-        navigationGeneration: tab.navigationGeneration,
-        retrySafe: false,
-        nextAction: 'The document changed while Chromium applied the command. Inspect the current tab and navigate/reload if a fresh active document is required.'
-      }
-    }
-    tab.pageLifecycleState = requestedState
-    tab.pageLifecycleUnknownRequest = undefined
-    this.changed(false)
-    if (requestedState === 'active') this.reconcileTabPresentation(tab)
-    return {
-      tabId: tab.id,
-      requestedState,
-      state: requestedState,
-      status: 'changed',
-      navigationGeneration,
-      retrySafe: true
-    }
+    return controlPageLifecycle(this.pageLifecycleAccess(), tabId, requestedState)
   }
 
   private sleepFallbackTab(tab: BrowserTab): BrowserTab | undefined {
