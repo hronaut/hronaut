@@ -2,9 +2,10 @@ import type { WebContents } from 'electron'
 import type { BrowserState } from '../../../shared/types.js'
 
 /**
- * The tab fields opening and closing Developer Tools read and write: the
- * page, its title, its debugger epoch, whether its request conditions are
- * confirmed, and its request routes, which the handoff clears first.
+ * The tab fields opening and closing Developer Tools read and write: its
+ * address, which keeps Home out, the page, its title, its debugger epoch,
+ * whether its request conditions are confirmed, and its request routes,
+ * which the handoff clears first.
  */
 export interface DevToolsTab {
   id: string
