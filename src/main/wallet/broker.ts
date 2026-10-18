@@ -19,7 +19,7 @@ import type {
   WalletUpdateInput
 } from '../../shared/wallet.js'
 import { WalletUpdateInputSchema, walletAllowsWorkspace } from '../../shared/wallet.js'
-import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js'
+import type { WalletMessageSigningInput } from './accounts.js'
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
 import { EvmCallBundleStore } from './evm-call-bundles.js'
@@ -39,7 +39,7 @@ import type {
   WalletChainAdapter,
   WalletNormalizedTransaction
 } from './adapters/types.js'
-import { restoreWalletJson, walletJsonSafe } from './json-safe.js'
+import { walletJsonSafe } from './json-safe.js'
 import {
   isMainnetAgentAutomationPolicy,
   websiteSignInPolicyApplies,
@@ -57,10 +57,8 @@ import {
   trustedMessageRaw
 } from './request-summary.js'
 import {
-  appendTransactionAudit,
   drainConfirmationTasks,
   resumeSubmittedConfirmations,
-  scheduleConfirmation,
   type TransactionConfirmationAccess
 } from './transaction-confirmations.js'
 import {
@@ -94,6 +92,7 @@ import {
   type AgentOperationsAccess
 } from './broker/agent-operations.js'
 import { clearRequestExpiry, createRequest, fail, wait, type RequestRecordsAccess } from './broker/request-records.js'
+import { execute, type RequestExecutionAccess } from './broker/request-execution.js'
 import { sanitizedError } from './broker/sanitized-error.js'
 
 export interface WalletBrokerContext {
@@ -796,117 +795,28 @@ export class WalletBroker {
     }
   }
 
-  private async execute(
-    record: WalletApprovalRecord,
-    activeAgentContext?: WalletBrokerContext,
-    options: { permissionNotAfter?: string } = {}
-  ): Promise<unknown> {
-    this.assertRecordPageActive(record)
-    if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
-    if (record.request.operation === 'connect-account') {
-      const wallet = this.requireWallet(record.request.walletId)
-      if (!walletAllowsWorkspace(wallet, record.request.workspaceId)) {
-        throw new Error('Wallet is no longer attached to the requesting workspace')
-      }
-      if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
-      const permissionScope = {
-        walletId: wallet.id, workspaceId: record.request.workspaceId, origin: record.request.topLevelOrigin,
-        account: wallet.publicAddress, chainFamily: wallet.chainFamily, networkId: wallet.network.id,
-        requester: record.request.requester
-      }
-      let grantedPermissionId: string | undefined
-      let permissionCommitted = false
-      try {
-        if (!this.service.permissions.allows({ ...permissionScope, capability: 'read' }, this.now())) {
-          const permission = await this.service.permissions.grant({
-            ...permissionScope,
-            capabilities: ['read'],
-            // Access granted by a sign-in policy never outlives that policy.
-            expiresAt: new Date(Math.min(
-              this.now().getTime() + 30 * 24 * 60 * 60_000,
-              options.permissionNotAfter ? Date.parse(options.permissionNotAfter) : Number.POSITIVE_INFINITY
-            )).toISOString()
-          })
-          grantedPermissionId = permission.id
-        }
-        this.assertRecordPageActive(record)
-        if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
-        await this.service.approvals.transition(record.id, 'signing', this.now())
-        this.assertRecordPageActive(record)
-        if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
-        await this.service.approvals.transition(record.id, 'confirmed', this.now())
-        permissionCommitted = true
-      } catch (error) {
-        if (grantedPermissionId && !permissionCommitted) {
-          await this.service.permissions.revoke(grantedPermissionId)
-        }
-        throw error
-      }
-      if (wallet.chainFamily === 'evm') {
-        reconcileEvmProviderSessions(this.evmProviderAccess())
-        this.scheduleProviderPermissionExpiry()
-      }
-      return [wallet.publicAddress]
+  /**
+   * The narrow view request execution gets of this broker's private state:
+   * the retained messages, the page checks and the signing path.
+   */
+  private requestExecutionAccess(): RequestExecutionAccess {
+    return {
+      service: this.service,
+      adapters: this.adapters,
+      pendingMessages: this.pendingMessages,
+      assertRecordPageActive: (record) => this.assertRecordPageActive(record),
+      assertRequestContextActive: (context) => this.assertRequestContextActive(context),
+      requireWallet: (walletId) => this.requireWallet(walletId),
+      evmProviderAccess: () => this.evmProviderAccess(),
+      scheduleProviderPermissionExpiry: () => this.scheduleProviderPermissionExpiry(),
+      clearPendingMessage: (requestId) => this.clearPendingMessage(requestId),
+      transactionConfirmationAccess: () => this.transactionConfirmationAccess(),
+      now: () => this.now()
     }
-    const wallet = this.requireWallet(record.request.walletId)
-    if (!walletAllowsWorkspace(wallet, record.request.workspaceId)) {
-      throw new Error('Wallet is no longer attached to the requesting workspace')
-    }
-    if (!this.service.permissions.allows({
-      walletId: wallet.id,
-      workspaceId: record.request.workspaceId,
-      origin: record.request.topLevelOrigin,
-      account: wallet.publicAddress,
-      chainFamily: wallet.chainFamily,
-      networkId: wallet.network.id,
-      requester: record.request.requester,
-      capability: 'read'
-    }, this.now())) {
-      throw new Error('Wallet account access was revoked before signing')
-    }
-    if (record.request.operation === 'sign-message') {
-      const input = this.pendingMessages.get(record.id)
-      if (!input) throw new Error('Wallet message payload is unavailable after restart or cancellation')
-      const serialized = JSON.stringify(walletJsonSafe(input))
-      const messageHash = createHash('sha256')
-        .update('hronaut-wallet-message-v1\u0000')
-        .update(serialized)
-        .digest('hex')
-      if (messageHash !== record.request.payload.messageHash) throw new Error('Approved wallet message has changed')
-      const authorization = this.service.authorizeSigning(record.id)
-      await this.service.approvals.markSigning(record.id, record.request, this.now())
-      this.assertRecordPageActive(record)
-      if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
-      try {
-        const signature = await this.service.withSecret(wallet.id, authorization, (_descriptor, secret) => (
-          signWalletPayload(wallet.chainFamily, secret, input, wallet.publicAddress)
-        ))
-        this.assertRecordPageActive(record)
-        if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
-        await this.service.approvals.transition(record.id, 'confirmed', this.now())
-        return signature
-      } finally {
-        this.clearPendingMessage(record.id)
-      }
-    }
-    const restored = restoreWalletJson(record.request.payload.normalized) as WalletNormalizedTransaction
-    const adapter = this.adapters[wallet.chainFamily]
-    const authorization = this.service.authorizeSigning(record.id)
-    await this.service.approvals.markSigning(record.id, record.request, this.now())
-    this.assertRecordPageActive(record)
-    if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
-    const signed = await this.service.withSecret(wallet.id, authorization, (descriptor, secret) => adapter.sign(descriptor, secret, restored))
-    this.assertRecordPageActive(record)
-    if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
-    if (record.request.operation === 'sign-transaction') {
-      await this.service.approvals.transition(record.id, 'confirmed', this.now())
-      return signed
-    }
-    const transactionHash = await adapter.broadcast(wallet, signed)
-    await this.service.approvals.markSubmitted(record.id, transactionHash, this.now())
-    await appendTransactionAudit(this.transactionConfirmationAccess(), 'transaction-submitted', record, transactionHash)
-    scheduleConfirmation(this.transactionConfirmationAccess(), record.id)
-    return transactionHash
+  }
+
+  private execute(record: WalletApprovalRecord, activeAgentContext?: WalletBrokerContext, options: { permissionNotAfter?: string } = {}): Promise<unknown> {
+    return execute(this.requestExecutionAccess(), record, activeAgentContext, options)
   }
 
   /**
