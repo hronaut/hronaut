@@ -9,7 +9,7 @@ type PublicationGlobal = typeof globalThis & { __screenshotPublicationGate?: Pub
 
 // The file is complete before the call's audit outcome is appended; holding that append lets the person change
 // the call's authority, or the page, after the write and before the result is published.
-for (const change of ['pause', 'workspace access', 'cancel', 'navigation', 'unchanged'] as const) {
+for (const change of ['pause', 'workspace access', 'close', 'cancel', 'navigation', 'unchanged'] as const) {
   test(`screenshot save publication after durable audit append across ${change}`, async ({ capabilities, electronApp, appWindow, profileDirectory }) => {
     const { client, tabId, fixtureUrl } = capabilities
     const abort = new AbortController()
@@ -65,6 +65,8 @@ for (const change of ['pause', 'workspace access', 'cancel', 'navigation', 'unch
           const workspaceId = (await api.getState()).tabs.find(tab => tab.id === id)!.mcpGroupId!
           await api.updateTabGroup(workspaceId, { agentAccess: false })
         }, tabId)
+      } else if (change === 'close') {
+        await appWindow.evaluate(async id => { await (window as unknown as { hronaut: HronautApi }).hronaut.closeTab(id) }, tabId)
       } else if (change === 'navigation') {
         await electronApp.evaluate(async ({ webContents }, url) => {
           await webContents.getAllWebContents().find(page => page.getURL() === url)!.loadURL(`${url}&after=save`)

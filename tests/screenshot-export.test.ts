@@ -20,6 +20,8 @@ function exportPage(options: {
   emulated?: { width: number; height: number }
   scale?: number
   capture?: () => Promise<unknown>
+  /** Stands in for the tab's render queue, which runs the capture in the tab's turn. */
+  render?: <T>(operation: () => Promise<T>) => Promise<T>
   /** Runs once the file's bytes are written, before the writer's last checks. */
   onWritten?: () => void
 } = {}) {
@@ -46,7 +48,7 @@ function exportPage(options: {
     findWorkspace: id => workspaces.get(id),
     inspectionPermission: () => 0,
     isDestroyed: () => false,
-    withRenderableTab: (_tab, operation) => operation(),
+    withRenderableTab: (_tab, operation) => options.render ? options.render(operation) : operation(),
     dismissAgentPointer: async () => undefined,
     captureScale: () => options.scale ?? 1,
     writeUniqueDownload: vi.fn(async (filename: string, data: Buffer, validate?: () => void) => {
@@ -94,8 +96,9 @@ describe('screenshot export', () => {
   })
 
   it('does not count the emulated pixel ratio, which does not change the capture size', async () => {
-    const page = exportPage({ view: { width: 1920, height: 1080 }, emulated: { width: 1920, height: 1080 }, capture: async () => image(1920, 1080) })
-    await expect(saveScreenshot(page.access)).resolves.toMatchObject({ width: 1920, height: 1080 })
+    // At the emulated ratio of 3 this would be 36.9 million pixels, over the bound; the capture has 4.1 million.
+    const page = exportPage({ view: { width: 2560, height: 1600 }, emulated: { width: 2560, height: 1600 }, capture: async () => image(2560, 1600) })
+    await expect(saveScreenshot(page.access)).resolves.toMatchObject({ width: 2560, height: 1600 })
   })
 
   it('refuses a capture that came back larger than its bound', async () => {
@@ -160,12 +163,35 @@ describe('screenshot export', () => {
     await expect(saveScreenshot(page.access)).resolves.toMatchObject({ filename: 'Checkout.png' })
   })
 
+  it('holds no slot while waiting for the tab\'s turn to render, nor after failing before it', async () => {
+    const gates: Array<() => void> = []
+    const queued = exportPage({ render: async operation => { await new Promise<void>(resolve => { gates.push(resolve) }); return operation() } })
+    const waiting = Array.from({ length: SCREENSHOT_EXPORT_MAX_CONCURRENT }, () => saveScreenshot(queued.access))
+    await vi.waitFor(() => expect(gates).toHaveLength(SCREENSHOT_EXPORT_MAX_CONCURRENT))
+    // Exports still waiting for their render turn leave the slots free.
+    await expect(saveScreenshot(exportPage().access)).resolves.toMatchObject({ filename: 'Checkout.png' })
+    for (const release of gates) release()
+    await Promise.all(waiting)
+    // An export whose render turn fails before it starts gives back no slot it never took.
+    const failed = exportPage({ render: async () => { throw new Error('The tab closed while rendering its page.') } })
+    await expect(saveScreenshot(failed.access)).rejects.toThrow('tab closed')
+    let release!: () => void
+    const held = new Promise<void>(resolve => { release = resolve })
+    const busy = exportPage({ capture: async () => { await held; return image(800, 600) } })
+    const running = Array.from({ length: SCREENSHOT_EXPORT_MAX_CONCURRENT }, () => saveScreenshot(busy.access))
+    await vi.waitFor(() => expect(busy.webContents.capturePage).toHaveBeenCalledTimes(SCREENSHOT_EXPORT_MAX_CONCURRENT))
+    await expect(saveScreenshot(busy.access)).rejects.toThrow('already being saved')
+    release()
+    await Promise.all(running)
+  })
+
   it('hands the caller only an authority check once the file is complete', async () => {
     const page = exportPage()
     let pending: PendingScreenshotExport | undefined
     await saveScreenshot(page.access, {}, () => undefined, deferred => { pending = deferred })
     expect(page.webContents.listenerCount('did-navigate')).toBe(0)
-    // A later navigation or closed tab does not change the saved file.
+    // A later navigation does not change the saved file. The export itself
+    // ignores a closed tab too; the tool's own validation refuses it.
     page.webContents.emit('did-navigate')
     page.closeTab()
     expect(() => pending!.assertAuthority()).not.toThrow()

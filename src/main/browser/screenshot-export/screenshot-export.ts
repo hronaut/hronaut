@@ -30,8 +30,10 @@ export interface ScreenshotExport {
 
 /**
  * Held until the MCP response has finished its own checks. The file is already
- * complete, so only the workspace's authority is checked again: a later
- * navigation or closed tab does not change what was saved.
+ * complete, so the document is not checked again: a later navigation does not
+ * change what was saved. Only the call's own validation and the workspace's
+ * authority are; the caller's validation decides whether a closed tab or the
+ * person's input on the page still counts.
  */
 export interface PendingScreenshotExport {
   assertAuthority(): void
@@ -89,9 +91,12 @@ export async function saveScreenshot<Tab extends ScreenshotExportTab>(access: Sc
       }
       exportsUnderWay += 1
       slotTaken = true
+      await access.dismissAgentPointer(webContents)
+      assertCurrent()
       // A capture has the page's viewport in CSS pixels, which an emulated
       // viewport sets even beyond the view showing it, times the display
-      // scale; the emulated pixel ratio does not change its size.
+      // scale; the emulated pixel ratio does not change its size. No await
+      // separates this bound from the capture.
       const view = tab.view.getBounds()
       const emulated = emulatedViewportSize(tab)
       const scale = access.captureScale(tab)
@@ -100,8 +105,6 @@ export async function saveScreenshot<Tab extends ScreenshotExportTab>(access: Sc
       if (!Number.isFinite(width * height) || width * height > SCREENSHOT_EXPORT_MAX_PIXELS) {
         throw new Error('This viewport has more pixels than an 8K frame, so its screenshot was not saved. Make the window or emulated viewport smaller.')
       }
-      await access.dismissAgentPointer(webContents)
-      assertCurrent()
       const captured = await webContents.capturePage()
       return { image: captured, capturedAt: new Date().toISOString() }
     })

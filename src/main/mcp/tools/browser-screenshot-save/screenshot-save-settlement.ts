@@ -3,7 +3,7 @@ import type { PendingScreenshotExport } from '../../../browser/screenshot-export
 import { textResult } from '../../tool-results.js'
 import type { ToolActivityClassification } from '../tool-context.js'
 
-/** A screenshot written to downloads whose call lost its authority before it was confirmed: where it went is withheld. */
+/** A screenshot written to downloads whose call lost its authority or its tab before it was confirmed: where it went is withheld. */
 export function screenshotSavedUnconfirmedResult(): CallToolResult {
   const outcome = {
     status: 'SAVED_UNCONFIRMED',
@@ -11,7 +11,7 @@ export function screenshotSavedUnconfirmedResult(): CallToolResult {
     dispatch: 'dispatched',
     effects: 'file-written',
     retrySafe: false,
-    nextAction: 'A screenshot file was written to the downloads folder, but this call lost its authority before confirming it, so its name and location are withheld. Inspect the page again before saving another; do not save again automatically.'
+    nextAction: 'A screenshot file was written to the downloads folder, but this call lost its authority or its tab before confirming it, so its name and location are withheld. Inspect the page again before saving another; do not save again automatically.'
   }
   return { ...textResult(outcome), structuredContent: outcome, isError: true }
 }
