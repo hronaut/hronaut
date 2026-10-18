@@ -77,6 +77,16 @@ import {
 } from './agent-wallet-requests.js'
 import { providerRequest, type ProviderRequestsAccess } from './broker/provider-requests.js'
 import { approve, reject, type HumanApprovalsAccess } from './broker/human-approvals.js'
+import {
+  assertRecordPageActive,
+  assertRequestContextActive,
+  cancelForNavigation,
+  cancelForTab,
+  cancelForWorkspace,
+  isRequestContextActive,
+  resumeTab,
+  type PageLifecycleAccess
+} from './broker/page-lifecycle.js'
 import { sanitizedError } from './broker/sanitized-error.js'
 
 export interface WalletBrokerContext {
@@ -448,24 +458,33 @@ export class WalletBroker {
     return reject(this.humanApprovalsAccess(), requestId)
   }
 
-  async cancelForNavigation(tabId: string, generation: number): Promise<void> {
-    this.minimumNavigationGeneration.set(
-      tabId,
-      Math.max(generation, this.minimumNavigationGeneration.get(tabId) ?? 0)
-    )
-    this.clearEvmProviderSessions((session) => (
-      session.tabId === tabId && session.navigationGeneration < generation
-    ))
-    this.clearAccountProviderSessions((session) => (
-      session.tabId === tabId && session.navigationGeneration < generation
-    ))
-    await this.queueLifecycle(async () => {
-      try {
-        await this.service.approvals.cancelForNavigation(tabId, generation)
-      } finally {
-        this.rejectCancelled()
-      }
-    })
+  /**
+   * The narrow view page lifecycle handling gets of this broker's private
+   * state. It is built on each call, so it reads whether the broker is
+   * shutting down at the moment a check asks.
+   */
+  private pageLifecycleAccess(): PageLifecycleAccess {
+    return {
+      service: this.service,
+      options: this.options,
+      minimumNavigationGeneration: this.minimumNavigationGeneration,
+      closedTabs: this.closedTabs,
+      evmFilters: this.evmFilters,
+      evmCallBundles: this.evmCallBundles,
+      evmAssetSuggestions: this.evmAssetSuggestions,
+      pageCallFailures: this.pageCallFailures,
+      isShuttingDown: () => this.shuttingDown,
+      clearEvmProviderSessions: (predicate) => this.clearEvmProviderSessions(predicate),
+      clearAccountProviderSessions: (predicate) => this.clearAccountProviderSessions(predicate),
+      isAgentOperationActive: (context) => this.isAgentOperationActive(context),
+      assertAgentOperationActive: (context) => this.assertAgentOperationActive(context),
+      queueLifecycle: (operation) => this.queueLifecycle(operation),
+      rejectCancelled: () => this.rejectCancelled()
+    }
+  }
+
+  cancelForNavigation(tabId: string, generation: number): Promise<void> {
+    return cancelForNavigation(this.pageLifecycleAccess(), tabId, generation)
   }
 
   /**
@@ -480,52 +499,16 @@ export class WalletBroker {
     return (this.pageCallsInProgress.get(tabId) ?? 0) > 0 || this.service.approvals.hasUnsentForTab(tabId, this.now())
   }
 
-  async cancelForTab(tabId: string): Promise<void> {
-    this.closedTabs.add(tabId)
-    this.clearEvmProviderSessions((session) => session.tabId === tabId)
-    this.evmFilters.clear((owner) => owner.tabId === tabId)
-    this.evmAssetSuggestions.clear((page) => page.tabId === tabId)
-    this.pageCallFailures.clear((page) => page.tabId === tabId)
-    this.clearAccountProviderSessions((session) => session.tabId === tabId)
-    await this.queueLifecycle(async () => {
-      try {
-        await this.service.approvals.cancelForTab(tabId)
-      } finally {
-        this.rejectCancelled()
-      }
-    })
+  cancelForTab(tabId: string): Promise<void> {
+    return cancelForTab(this.pageLifecycleAccess(), tabId)
   }
 
-  async resumeTab(tabId: string, navigationGeneration: number): Promise<void> {
-    if (!Number.isSafeInteger(navigationGeneration) || navigationGeneration < 0) {
-      throw new Error('Wallet tab navigation generation is invalid')
-    }
-    await this.queueLifecycle(async () => {
-      this.minimumNavigationGeneration.set(
-        tabId,
-        Math.max(navigationGeneration, this.minimumNavigationGeneration.get(tabId) ?? 0)
-      )
-      this.closedTabs.delete(tabId)
-    })
+  resumeTab(tabId: string, navigationGeneration: number): Promise<void> {
+    return resumeTab(this.pageLifecycleAccess(), tabId, navigationGeneration)
   }
 
-  async cancelForWorkspace(workspaceId: string): Promise<void> {
-    this.clearEvmProviderSessions((session) => session.workspaceId === workspaceId)
-    this.evmFilters.clear((owner) => owner.workspaceId === workspaceId)
-    this.evmCallBundles.clear((owner) => owner.workspaceId === workspaceId)
-    this.evmAssetSuggestions.clear((page) => page.workspaceId === workspaceId)
-    this.pageCallFailures.clear((page) => page.workspaceId === workspaceId)
-    this.clearAccountProviderSessions((session) => session.workspaceId === workspaceId)
-    await this.queueLifecycle(async () => {
-      try {
-        await Promise.all([
-          this.service.approvals.cancelForWorkspace(workspaceId),
-          this.service.permissions.revokeForWorkspace(workspaceId)
-        ])
-      } finally {
-        this.rejectCancelled()
-      }
-    })
+  cancelForWorkspace(workspaceId: string): Promise<void> {
+    return cancelForWorkspace(this.pageLifecycleAccess(), workspaceId)
   }
 
   async cancelForRequester(requesterId: string): Promise<void> {
@@ -1044,29 +1027,15 @@ export class WalletBroker {
   }
 
   private isRequestContextActive(context: WalletBrokerContext): boolean {
-    const minimumGeneration = this.minimumNavigationGeneration.get(context.tabId)
-    return !this.shuttingDown && !this.closedTabs.has(context.tabId)
-      && (minimumGeneration === undefined || context.navigationGeneration >= minimumGeneration)
-      && this.isAgentOperationActive(context)
+    return isRequestContextActive(this.pageLifecycleAccess(), context)
   }
 
   private assertRequestContextActive(context: WalletBrokerContext): void {
-    if (this.shuttingDown) throw new Error('Wallet broker is shutting down')
-    this.assertAgentOperationActive(context)
-    const minimumGeneration = this.minimumNavigationGeneration.get(context.tabId)
-    if (
-      this.closedTabs.has(context.tabId)
-      || (minimumGeneration !== undefined && context.navigationGeneration < minimumGeneration)
-    ) throw new Error('Wallet request page is no longer active')
+    assertRequestContextActive(this.pageLifecycleAccess(), context)
   }
 
   private assertRecordPageActive(record: WalletApprovalRecord): void {
-    if (record.request.requester.type === 'agent') this.options.assertAgentAccess?.()
-    const minimumGeneration = this.minimumNavigationGeneration.get(record.request.tabId)
-    if (
-      this.closedTabs.has(record.request.tabId)
-      || (minimumGeneration !== undefined && record.request.navigationGeneration < minimumGeneration)
-    ) throw new Error('Wallet request page is no longer active')
+    assertRecordPageActive(this.pageLifecycleAccess(), record)
   }
 
   private accessibleWallets(context: WalletBrokerContext, family: WalletChainFamily): WalletDescriptor[] {
