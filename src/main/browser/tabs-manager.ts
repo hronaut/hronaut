@@ -137,7 +137,7 @@ import {
   withWorkspaceSiteDataCleanup,
   workspaceSession
 } from './workspace-data/workspace-data.js'
-import { suggestWorkspaceName } from '../../shared/workspace-names.js'
+import { ensureHumanWorkspace } from './workspace-creation/human-workspace.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
 import { pinnedWorkspacesFirst } from '../../shared/workspace-rail.js'
 import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
@@ -145,7 +145,7 @@ import { resizeViewport } from './emulation/resize-viewport.js'
 import { SplitDividerController } from './split-divider-controller.js'
 import type { TabFaviconAccess } from './tab-favicon/tab-favicon-access.js'
 import { loadFavicon } from './tab-favicon/tab-favicon.js'
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
 import type { FileUploadAccess } from './file-upload/file-upload-access.js'
@@ -205,8 +205,9 @@ import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnostic
 import { recordTrustedCredentialFill } from './trusted-credential-fill.js'
 import { attachConsoleMessageEvents } from './console-messages/console-message-events.js'
 import { securityReport } from './page-audits/security-report.js'
-import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
-import { WorkspaceTemplateImporter } from './workspace-template-import.js'
+import type { WorkspaceCreationAccess } from './workspace-creation/workspace-creation-access.js'
+import { createWorkspace, importWorkspaceTemplate } from './workspace-creation/workspace-creation.js'
+import type { WorkspaceTemplateImporter } from './workspace-template-import.js'
 import type { WorkspaceTemplateImportResult } from '../../shared/workspace-template.js'
 import { performanceReport } from './page-audits/performance-report.js'
 import { designOverview } from './page-audits/design-overview.js'
@@ -255,7 +256,7 @@ import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameG
 import { PAGE_CARD_RADIUS, type PageCardGeometry } from '../../shared/page-card.js'
 import type { PageGeometryAccess } from './page-geometry/page-geometry-access.js'
 import { getEmulationFrames, getPageCards, publishPageGeometry } from './page-geometry/page-geometry.js'
-import { defaultTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
+import type { BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
   isMemorySaverTimeoutMinutes,
@@ -1716,56 +1717,41 @@ export class BrowserTabsManager {
       .digest('base64url')}`
   }
 
-  async importWorkspaceTemplate(text: string): Promise<WorkspaceTemplateImportResult> {
-    this.workspaceTemplateImporter ??= new WorkspaceTemplateImporter({
-      existingWorkspaces: () => [...this.mcpTabGroups.values(), ...this.savedTabGroups.values()]
-        .map(({ id, name }) => ({ id, name })),
-      create: async (entry) => {
-        const workspace = await this.createMcpTabGroup(entry.name, entry.color, 'scratch', undefined, false, undefined, undefined, entry.description)
-        this.updateMcpTabGroup(workspace.id, { agentAccess: false })
-        return workspace.id
-      },
-      openStartPages: async (workspaceId, urls) => {
-        for (const url of urls.length ? urls : ['about:blank']) {
-          await this.createTab({ url, active: false, focus: false, mcpGroupId: workspaceId })
-        }
-      },
-      remove: async (workspaceId) => { await this.closeMcpTabGroup(workspaceId) }
-    })
-    return this.workspaceTemplateImporter.import(text)
+  /**
+   * The narrow view creating workspaces for the person gets of this
+   * manager's private tabs, active tab, open and archived workspaces,
+   * template importer, workspace creation, changes and closing, tab
+   * creation, selection and state publication. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it. The delegates below return the feature's
+   * value or promise directly, so callers see the same ticks as before.
+   */
+  private workspaceCreationAccess(): WorkspaceCreationAccess {
+    return {
+      activeTabId: () => this.activeTabId,
+      tabs: () => this.tabs,
+      mcpTabGroups: () => this.mcpTabGroups,
+      savedTabGroups: () => this.savedTabGroups,
+      assertActiveWorkspaceCapacity: () => this.assertActiveWorkspaceCapacity(),
+      createMcpTabGroup: (name, color, storage, origins, allowDuplicateName, navigationPolicy, sourceWorkspaceId, description, contextClass) => (
+        this.createMcpTabGroup(name, color, storage, origins, allowDuplicateName, navigationPolicy, sourceWorkspaceId, description, contextClass)
+      ),
+      updateMcpTabGroup: (groupId, updates) => this.updateMcpTabGroup(groupId, updates),
+      closeMcpTabGroup: (groupId) => this.closeMcpTabGroup(groupId),
+      createTab: (options) => this.createTab(options),
+      selectTab: (tabId) => this.selectTab(tabId),
+      getState: () => this.getState(),
+      workspaceTemplateImporter: () => this.workspaceTemplateImporter,
+      setWorkspaceTemplateImporter: (importer) => { this.workspaceTemplateImporter = importer }
+    }
   }
 
-  async createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState> {
-    if (!options.name.trim()) throw new TypeError('Workspace name cannot be empty.')
-    const workspace = await this.createMcpTabGroup(
-      options.name,
-      options.color,
-      options.storage,
-      options.origins,
-      false,
-      options.navigationPolicy,
-      options.sourceWorkspaceId,
-      options.description,
-      options.contextClass
-    )
-    if (options.agentAccess !== undefined) this.updateMcpTabGroup(workspace.id, { agentAccess: options.agentAccess })
-    try {
-      if (workspace.activeTabId) this.selectTab(workspace.activeTabId)
-      else await this.createTab({ url: 'about:blank', active: true, mcpGroupId: workspace.id })
-      this.updateMcpTabGroup(workspace.id, { hiddenFromSidebar: options.hiddenFromSidebar === true, deletionProtected: options.deletionProtected === true })
-      return this.getState()
-    } catch (error) {
-      try {
-        await this.closeMcpTabGroup(workspace.id)
-      } catch (cleanupError) {
-        throw new RetainedBrowserWorkspaceError(
-          [error, cleanupError],
-          workspace.id,
-          `Workspace ${workspace.id} could not be created or cleaned up. It remains listed so its isolated data can be deleted safely.`
-        )
-      }
-      throw error
-    }
+  importWorkspaceTemplate(text: string): Promise<WorkspaceTemplateImportResult> {
+    return importWorkspaceTemplate(this.workspaceCreationAccess(), text)
+  }
+
+  createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState> {
+    return createWorkspace(this.workspaceCreationAccess(), options)
   }
 
   async closeWorkspace(workspaceId: string): Promise<BrowserState> {
@@ -5506,28 +5492,7 @@ export class BrowserTabsManager {
   }
 
   private ensureHumanWorkspace(): string {
-    const activeGroupId = this.activeTabId ? this.tabs.get(this.activeTabId)?.mcpGroupId : undefined
-    if (activeGroupId && this.mcpTabGroups.has(activeGroupId)) return activeGroupId
-    const existing = this.mcpTabGroups.keys().next().value as string | undefined
-    if (existing) return existing
-    this.assertActiveWorkspaceCapacity()
-    const now = new Date().toISOString()
-    const id = uuidV7()
-    this.mcpTabGroups.set(id, {
-      id,
-      name: suggestWorkspaceName([...this.mcpTabGroups.values(), ...this.savedTabGroups.values()].map(group => group.name)),
-      description: '',
-      color: defaultTabGroupColor(id),
-      storageId: randomUUID(),
-      createdAt: now,
-      lastUsedAt: now,
-      activeTabId: null,
-      origins: [],
-      navigationPolicy: { mode: 'unrestricted', rules: [] },
-      navigationAudit: [],
-      contextClass: 'standard'
-    })
-    return id
+    return ensureHumanWorkspace(this.workspaceCreationAccess())
   }
 
   private assertActiveWorkspaceCapacity(): void {
