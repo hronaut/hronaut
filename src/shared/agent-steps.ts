@@ -34,6 +34,7 @@ const STEP_BY_TOOL: Readonly<Record<string, AgentStepKind>> = {
   browser_click: 'click',
   browser_dialog: 'click',
   browser_type: 'type',
+  browser_insert_text: 'type',
   browser_fill_form: 'fillForm',
   browser_select: 'choose',
   browser_press: 'pressKey',

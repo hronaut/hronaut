@@ -162,6 +162,8 @@ import type { FileUploadAccess } from './file-upload/file-upload-access.js'
 import { uploadFiles } from './file-upload/file-upload.js'
 import { dropFiles, type FileDropResult } from './file-drop/file-drop.js'
 import type { FileDropAccess } from './file-drop/file-drop-access.js'
+import { insertText, type TextInsertionProgress, type TextInsertionResult } from './text-insertion/text-insertion.js'
+import type { TextInsertionAccess } from './text-insertion/text-insertion-access.js'
 import { shadowSnapshot, type BrowserShadowSnapshot } from './shadow-snapshot/shadow-snapshot.js'
 import type { ShadowSnapshotAccess } from './shadow-snapshot/shadow-snapshot-access.js'
 import { trackedViewportScreenshot, type TrackedScreenshot, type TrackedScreenshotAccess, type TrackedScreenshotOptions } from './screenshot-observations/tracked-screenshot.js'
@@ -4044,6 +4046,33 @@ export class BrowserTabsManager {
     agent?: AgentPointerIdentity
   ): Promise<FileDropResult> {
     return dropFiles(this.fileDropAccess(), target, paths, validateDrop, agent)
+  }
+
+  /**
+   * The narrow view an agent's text insertion gets of this manager's private
+   * tabs, target validation, native input authority, agent input scope,
+   * debugger queue and authorized agent input. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it.
+   */
+  private textInsertionAccess(): TextInsertionAccess<BrowserTab> {
+    return {
+      validateTarget: (target) => this.validateTarget(target),
+      getTab: (tabId) => this.getTab(tabId),
+      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
+      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      agentInputDebugger: (webContents, validateInput) => this.agentInputDebugger(webContents, validateInput)
+    }
+  }
+
+  insertText(
+    target: { tabId?: string; ref?: string; selector?: string },
+    text: string,
+    validateInsertion?: (validateContext: () => void) => void,
+    progress?: TextInsertionProgress
+  ): Promise<TextInsertionResult> {
+    return insertText(this.textInsertionAccess(), target, text, validateInsertion, progress)
   }
 
   /**
