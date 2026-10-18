@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-10-18
+
 ### Added
 
 - Agents can save a screenshot of the visible page as a PNG in the downloads folder without the image coming back in the response, to keep a local QA record their model does not have to look at. `browser_screenshot_save` takes an optional file name and `maxWidth`/`maxHeight`, never overwrites an existing file, and returns only the file's name, path, MIME type, pixel size, byte count and capture time, plus the forced CSS state note when one is applied. Captures with more pixels than an 8K frame, emulated viewports included, and PNGs over 64 MiB are refused. A navigation, a closed tab or a cancelled call before the file is complete fails the save, and Hronaut tries to remove its partial file. When the agents are paused or the workspace's access is withdrawn after the file was written, the agent is told a file was saved but not its name or location. The PNG holds whatever the page shows and stays on your computer. Verified on Linux; macOS and Windows are untested.
@@ -27,6 +29,19 @@ All notable changes to Hronaut are documented in this file.
 - An agent's action no longer hangs when the page's renderer crashes or is stopped. Before, the call waited forever, and because it kept its workspace busy, every later action in that workspace was refused as busy until the tab was closed; reading a crashed page, such as with `browser_snapshot`, also waited forever. Now an action in flight fails as soon as the renderer exits, with its effects reported as unknown, and actions on the crashed page fail at once with a message to reload or close the tab. You can still lock or unlock the crashed tab, and reloading it makes it work again. A key hold or a native click's press that the crash interrupted still asks the agent to close the tab before the next one, as after any unconfirmed release.
 - An agent's hover or drag on a tab whose input you locked now reaches the page. Before, Hronaut's lock kept out every pointer move the agent made: `browser_hover` reported success but the page saw no movement, so no hover menu or tooltip opened, and a drag delivered only its press and release, so a page that follows the pointer while the button is held, such as a canvas editor or a sortable list, saw no drag, although `browser_drag` reported success. Your own pointer input stays locked out.
 - When Hronaut refuses a wallet transaction without asking anyone, for example a send from a watch-only account, the page or agent now gets the reason, such as `Wallet policy rejected the request: wallet-capability-disabled`, instead of "Wallet request was rejected by the user". No person saw those requests. Pages still get error code 4001.
+
+### Known issues
+
+- A panel opened in its own window keeps the operating system's tooltips instead of the themed ones.
+- While a notification such as **Tab closed** shows at the bottom of the page, the page does not get clicks or wheel scrolling in the area just around the notification, about 10 px on each side.
+- `wallet_sendCalls` batches are not atomic: when a later call is rejected, fails or reverts, the earlier calls stay on chain, as separate transactions would. A dApp that requires an atomic batch gets error code 5760. A batch whose transaction the network dropped while its nonce is still unused stays pending, and `wallet_showCallsStatus` is not supported.
+- An EVM node that lags behind for more than a minute, or has pruned old transactions, can make a mined transaction look replaced, so Hronaut reports it as failed.
+- A link or form on a dApp that starts a download, or that the server answers with no content, counts as leaving the page for wallet requests: Hronaut cancels the page's open wallet requests and returns it to its default network without a `chainChanged` event, although the page stays.
+- `wallet_balance` marks an allowance `unlimited` only at 2^160 − 1 or more, so a token that stores allowances in 96 bits, such as UNI, shows its maximum approval as a large amount.
+- Typed-data meta-transactions are recognized by type name, by a `bytes` call-data field named `data`, `callData`, `calldata` or `functionSignature`, or as a MetaMask delegation. One that uses another name and another field name is still signed on mainnet when **Also sign typed data on mainnet** is on, so that switch is not a general spending limit.
+- Wallet policies saved by 2.45.0 or earlier that list a token method (`erc20.`, `trc20.` or `nft.`) do not sign token calls without a click. Remove such a policy and add it again with its token contract, or with **Allow any token contract**.
+- Websites' raw `eth_sign`, Solana and TRON requests still need a person to approve, even under a website sign-in policy, and typed data is signed without a click only by a dedicated agent wallet with the typed-data switch on.
+- Hronaut does not inject `window.tronLink` or `window.tronWeb` as a full TronWeb instance; Tron dApps that require TronLink specifically will not detect it.
 
 ## [3.0.0] - 2026-10-17
 
