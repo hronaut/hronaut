@@ -1993,19 +1993,6 @@ export class BrowserTabsManager {
     return manageStorage(this.siteStorageAccess(), options, cookieWriteHooks, webStorageHooks)
   }
 
-  private inspectionPageGuard(tab: BrowserTab, inspection: string): () => void {
-    const navigationGeneration = tab.navigationGeneration
-    const contents = tab.webContents
-    return () => {
-      if (this.tabs.get(tab.id) !== tab
-        || tab.webContents !== contents
-        || contents.isDestroyed()
-        || tab.navigationGeneration !== navigationGeneration) {
-        throw new Error(`The page changed during ${inspection}. Run a fresh inspection.`)
-      }
-    }
-  }
-
   inspectIndexedDb(options: BrowserIndexedDbOptions = {}, hooks?: StorageInspectionHooks): Promise<BrowserIndexedDbReport> {
     return inspectIndexedDb(this.siteStorageAccess(), options, hooks)
   }
@@ -2023,16 +2010,16 @@ export class BrowserTabsManager {
   }
 
   /**
-   * The narrow view PWA inspection gets of this manager's private tabs,
-   * inspection page guard and debugger lease. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit tests
-   * do) still provide it. The delegate below returns the feature's promise
-   * directly, so no extra ticks separate its final checks from the caller.
+   * The narrow view PWA inspection gets of this manager's private tabs and
+   * debugger lease. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still
+   * provide it. The delegate below returns the feature's promise directly,
+   * so no extra ticks separate its final checks from the caller.
    */
   private pwaInspectionAccess(): PwaInspectionAccess<BrowserTab> {
     return {
       getTab: (tabId) => this.getTab(tabId),
-      inspectionPageGuard: (tab, inspection) => this.inspectionPageGuard(tab, inspection),
+      findTab: (tabId) => this.tabs.get(tabId),
       withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
       isUnavailableCdpMethod: (error) => this.isUnavailableCdpMethod(error)
     }
