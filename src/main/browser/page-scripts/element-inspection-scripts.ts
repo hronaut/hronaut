@@ -508,18 +508,20 @@ export function elementPickerInspectionAtPointScript(
   })()`
 }
 
-export function elementInspectionScript(target: { ref?: string; selector?: string; includeFonts?: boolean; includeScroll?: boolean; includePasswordOccupancy?: boolean; includeValidity?: boolean; includeSizingInputs?: boolean }, occupancyToken?: string, expectedValue?: string): string {
+export function elementInspectionScript(target: { ref?: string; selector?: string; includeFonts?: boolean; includeScroll?: boolean; includePasswordOccupancy?: boolean; includeValidity?: boolean; includeSizingInputs?: boolean; includeFlexContainer?: boolean }, occupancyToken?: string, expectedValue?: string): string {
+  // The flex container context comes with the item's sizing inputs and their guard.
+  const sizing = target.includeSizingInputs === true || target.includeFlexContainer === true
   return `(() => {
     ${elementInspectionHelpersSource()}
     const target = ${JSON.stringify(target)};
-    ${target.includeSizingInputs === true ? sizingLookupSource() : ''}
-    const element = target.includeSizingInputs === true ? sizingLookup()[0] : target.ref
+    ${sizing ? sizingLookupSource() : ''}
+    const element = ${sizing} ? sizingLookup()[0] : target.ref
       ? document.querySelector('[data-hronaut-ref="' + CSS.escape(target.ref) + '"]')
       : target.selector ? document.querySelector(target.selector) : null;
     if (!(element instanceof Element)) throw new Error('Element not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
     return {
       ...hronautInspectElement(element),
-      ...(target.includeSizingInputs === true ? { sizingInputs: ${target.includeSizingInputs === true ? sizingInputsSource(occupancyToken ?? '') : 'undefined'} } : {}),
+      ${sizing ? `...${sizingInputsSource(occupancyToken ?? '', target.includeFlexContainer === true)},` : ''}
       ...(target.includePasswordOccupancy === true ? { passwordOccupancy: ${passwordOccupancySource(occupancyToken ?? '')} } : {}),
       ...(target.includeValidity === true ? { formValidity: ${target.includeValidity === true ? formValiditySource(occupancyToken ?? '') : 'undefined'} } : {}),
       ${expectedValue !== undefined ? `valueComparison: ${valueComparisonSource(occupancyToken ?? '', expectedValue)},` : ''}

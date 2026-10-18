@@ -1,4 +1,5 @@
 import { normalizeSizingInputs } from './element-sizing-inputs.js'
+import { normalizeFlexContainer } from './element-flex-container.js'
 import { normalizeScrollGeometry } from './element-scroll-geometry.js'
 import { normalizeFormValidity } from './form-validity.js'
 import { normalizeValueComparison } from './value-comparison.js'
@@ -126,6 +127,7 @@ export function normalizeElementInspection(input: NormalizeElementInspectionInpu
   return {
     ...(raw.scrollGeometry !== undefined ? { scrollGeometry: normalizeScrollGeometry(raw.scrollGeometry) } : {}),
     ...(raw.sizingInputs !== undefined ? { sizingInputs: normalizeSizingInputs(raw.sizingInputs) } : {}),
+    ...(raw.flexContainer !== undefined ? { flexContainer: normalizeFlexContainer(raw.flexContainer) } : {}),
     ...(raw.formValidity !== undefined ? { formValidity: normalizeFormValidity(raw.formValidity) } : {}),
     ...(raw.valueComparison !== undefined ? { valueComparison: normalizeValueComparison(raw.valueComparison) } : {}),
     tabId: input.tabId,
@@ -220,6 +222,7 @@ export function formatElementInspectionForAgent(report: BrowserElementInspection
     `Element: ${element}`,
     report.passwordOccupancy ? `Password occupancy: ${report.passwordOccupancy} (not authentication evidence)` : '',
     report.sizingInputs ? `Computed sizing inputs: ${JSON.stringify(report.sizingInputs)} (selected element only; not flex participation, applicability, parent context, cause, resolved base size or cascade winner)` : '',
+    report.flexContainer ? `Parent flex container: ${JSON.stringify(report.flexContainer)} (immediate parent only; observed inputs, not which constraint decided the size)` : '',
     report.formValidity ? `Native form validity: ${JSON.stringify(report.formValidity)} (not submission acceptance)` : '',
     report.valueComparison ? `Expected value comparison: ${JSON.stringify(report.valueComparison)} (point-in-time; not saved or accepted)` : '',
     report.text ? `Text: ${JSON.stringify(report.text)}` : '',

@@ -21,6 +21,7 @@ export function registerBrowserElementInspect(context: McpToolContext): void {
         includeScroll: z.boolean().optional(),
         includePasswordOccupancy: z.boolean().optional(),
         includeSizingInputs: z.boolean().optional().describe('Selected-element computed sizing inputs only; no flex participation, applicability, parent context, cause, resolved base size or cascade winner claim. Requires one unique selector in an active tab.'),
+        includeFlexContainer: z.boolean().optional().describe('Also report the immediate parent\'s flex container inputs (direction, wrap, gaps, writing mode) and measured content size, with the sizing inputs and their requirements. Observed inputs only, not which constraint decided the size.'),
         includeValidity: z.boolean().optional(),
         expectedValue: z.string().max(MAX_COMPARED_TEXT_VALUE_LENGTH).optional()
           .describe('Compare one unique rendered native text input or textarea, selected by CSS, with this exact string. Returns only match, mismatch or unavailable; neither value is echoed.')
@@ -35,6 +36,7 @@ export function registerBrowserElementInspect(context: McpToolContext): void {
       includeScroll?: boolean
       includePasswordOccupancy?: boolean
       includeSizingInputs?: boolean
+      includeFlexContainer?: boolean
       includeValidity?: boolean
       expectedValue?: string
     }, call: WorkspaceToolCall<ElementInspectionSettlement>) => {
@@ -45,10 +47,10 @@ export function registerBrowserElementInspect(context: McpToolContext): void {
     }),
     {
       // Sizing inputs describe images, so that report waits for the settled result like browser_image_state.
-      settlement: input => elementInspectionSettlement(input.includeSizingInputs === true),
+      settlement: input => elementInspectionSettlement(input.includeSizingInputs === true || input.includeFlexContainer === true),
       // A guarded inspection reads page-side state without moving the person's view of the page.
       preservesPresentation: input => input.includePasswordOccupancy === true || input.includeValidity === true
-        || input.includeSizingInputs === true || input.expectedValue !== undefined
+        || input.includeSizingInputs === true || input.includeFlexContainer === true || input.expectedValue !== undefined
     }
   )
 }

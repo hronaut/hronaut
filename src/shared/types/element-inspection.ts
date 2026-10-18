@@ -4,6 +4,8 @@ export interface BrowserElementInspectionOptions {
   /** Compared in the page and never returned; requires one unique selector. */
   expectedValue?: string
   includeSizingInputs?: boolean
+  /** Adds the immediate parent's flex container context; implies includeSizingInputs. */
+  includeFlexContainer?: boolean
   includeValidity?: boolean
   includePasswordOccupancy?: boolean
   tabId?: string
@@ -75,6 +77,7 @@ export type BrowserFormValidity = {
 export interface BrowserElementInspection {
   valueComparison?: import('../value-comparison.js').BrowserValueComparison
   sizingInputs?: import('../element-sizing-inputs.js').BrowserSizingInputs
+  flexContainer?: import('../element-flex-container.js').BrowserFlexContainerContext
   formValidity?: BrowserFormValidity
   passwordOccupancy?: 'empty' | 'nonempty' | 'unknown'
   scrollGeometry?: BrowserScrollGeometry
