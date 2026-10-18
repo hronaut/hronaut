@@ -621,12 +621,13 @@ const { currentBrowsingDataSiteSummary, agentSiteData } = createSiteData({
   publishVisitHistory
 })
 
-const { handleCredentialCandidate, configureCredentialStore } = createCredentialRuntime({
+const { offerToSaveCredential, configureCredentialStore } = createCredentialRuntime({
   text,
   showMessageBox,
   mainWindow: () => mainWindowRefs.window,
   state: credentialRuntime,
-  publishCredentials
+  publishCredentials,
+  reportBrowserActionFailure
 })
 
 function publishSitePermissions(): void {
@@ -1178,12 +1179,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     ...walletLifecycleCallbacks,
     onPageVisited: recordPageVisit,
     onPageTitleUpdated: updatePageTitle,
-    onCredentialSubmitted: (candidate) => {
-      void handleCredentialCandidate(candidate).catch((error) => {
-        console.error('[credentials] Failed to save password:', error)
-        reportBrowserActionFailure('save password', error)
-      })
-    }
+    onCredentialSubmitted: offerToSaveCredential
   })
   ipcMain.on('react-inspection:bootstrap', event => {
     event.returnValue = event.senderFrame === event.sender.mainFrame

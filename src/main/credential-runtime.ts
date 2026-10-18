@@ -27,6 +27,8 @@ interface CredentialRuntimeHost {
   /** Secure storage's status and the password store; index.ts creates the record, and other features read it too. */
   state: CredentialRuntimeState
   publishCredentials(): void
+  /** Tells the shell that a browser action failed, such as saving a password a page submitted. */
+  reportBrowserActionFailure(action: string, error: unknown): void
 }
 
 /**
@@ -35,7 +37,7 @@ interface CredentialRuntimeHost {
  * submitted.
  */
 export function createCredentialRuntime(host: CredentialRuntimeHost): {
-  handleCredentialCandidate(candidate: BrowserCredentialCandidate): Promise<void>
+  offerToSaveCredential(candidate: BrowserCredentialCandidate): void
   configureCredentialStore(): Promise<void>
 } {
   async function handleCredentialCandidate(candidate: BrowserCredentialCandidate): Promise<void> {
@@ -63,6 +65,14 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
     host.publishCredentials()
   }
 
+  /** Offers to save a password a page submitted; a failure is logged and reported to the shell. */
+  function offerToSaveCredential(candidate: BrowserCredentialCandidate): void {
+    void handleCredentialCandidate(candidate).catch((error) => {
+      console.error('[credentials] Failed to save password:', error)
+      host.reportBrowserActionFailure('save password', error)
+    })
+  }
+
   async function configureCredentialStore(): Promise<void> {
     const available = await safeStorage.isAsyncEncryptionAvailable()
     const backend = process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : process.platform === 'darwin' ? 'macOS Keychain' : 'Windows DPAPI'
@@ -84,5 +94,5 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
     await host.state.store!.load()
   }
 
-  return { handleCredentialCandidate, configureCredentialStore }
+  return { offerToSaveCredential, configureCredentialStore }
 }
