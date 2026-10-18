@@ -477,6 +477,7 @@ import type { DebuggerEvaluationAccess } from './debugger-evaluation/debugger-ev
 import { evaluateWithAttachedDebugger, mainWorldContextId, releaseDebuggerEvaluationObjects } from './debugger-evaluation/debugger-evaluation.js'
 import type { NativeClickAccess } from './native-click/native-click-access.js'
 import { dispatchNativeClick } from './native-click/native-click.js'
+import { coordinateDragPointsOrValidateTargets, coordinatePointOrValidateTarget, validateTarget } from './input-targets/input-targets.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -6861,27 +6862,14 @@ export class BrowserTabsManager {
   }
 
   private validateTarget(target: { ref?: string; selector?: string }): void {
-    if (!target.ref && !target.selector) throw new Error('Provide ref or selector')
-    if (target.ref && target.selector) throw new Error('Provide either ref or selector, not both')
+    validateTarget(target)
   }
 
   private coordinatePointOrValidateTarget(
     target: { ref?: string; selector?: string; x?: number; y?: number },
     action: 'click' | 'hover'
   ): { x: number; y: number } | undefined {
-    const hasCoordinates = target.x !== undefined || target.y !== undefined
-    if (!hasCoordinates) {
-      this.validateTarget(target)
-      return undefined
-    }
-    if (target.x === undefined || target.y === undefined) {
-      throw new TypeError(`Provide both x and y for a coordinate ${action}`)
-    }
-    if (target.ref || target.selector) throw new TypeError('Provide a target or coordinates, not both')
-    if (!Number.isFinite(target.x) || !Number.isFinite(target.y) || target.x < 0 || target.y < 0) {
-      throw new TypeError(`${action === 'click' ? 'Click' : 'Hover'} coordinates must be finite non-negative numbers`)
-    }
-    return { x: target.x, y: target.y }
+    return coordinatePointOrValidateTarget(target, action)
   }
 
   private coordinateDragPointsOrValidateTargets(
@@ -6898,26 +6886,7 @@ export class BrowserTabsManager {
     source: { ref?: string; selector?: string },
     target: { ref?: string; selector?: string }
   ): { from: { x: number; y: number }; to: { x: number; y: number } } | undefined {
-    const coordinates = [options.startX, options.startY, options.endX, options.endY]
-    const hasCoordinates = coordinates.some((value) => value !== undefined)
-    if (!hasCoordinates) {
-      this.validateTarget(source)
-      this.validateTarget(target)
-      return undefined
-    }
-    if (source.ref || source.selector || target.ref || target.selector) {
-      throw new TypeError('Provide element targets or drag coordinates, not both')
-    }
-    if (coordinates.some((value) => value === undefined)) {
-      throw new TypeError('Provide all four drag coordinates: startX, startY, endX, and endY')
-    }
-    if (coordinates.some((value) => !Number.isFinite(value) || value! < 0)) {
-      throw new TypeError('Drag coordinates must be finite non-negative numbers')
-    }
-    return {
-      from: { x: options.startX!, y: options.startY! },
-      to: { x: options.endX!, y: options.endY! }
-    }
+    return coordinateDragPointsOrValidateTargets(options, source, target)
   }
 
   private async assertPointInsideVisibleViewport(
