@@ -501,6 +501,8 @@ import type { BeforeUnloadStagingAccess } from './tab-close/before-unload-stagin
 import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
 import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
+import type { TabReopeningAccess } from './tab-reopening/tab-reopening-access.js'
+import { duplicateTabAfterLabelSave, rememberClosedTab, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
 import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
 import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import type { BrowserWalletPageContext, WalletPagesAccess } from './wallet-pages/wallet-pages-access.js'
@@ -545,7 +547,6 @@ export const HRONAUT_HOME_URL = 'hronaut://home/'
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
 const MAX_ACTIVE_WORKSPACES = 50
-const MAX_CLOSED_TABS = MAX_TABS
 /** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
 function occlusionSnapshotTimeoutMs(): number {
   const override = Number(process.env.HRONAUT_TEST_OCCLUSION_SNAPSHOT_TIMEOUT_MS)
@@ -2127,52 +2128,39 @@ export class BrowserTabsManager {
   }
 
   reopenClosedTab(closedTabId?: string): Promise<BrowserState> {
-    return this.withTabLabelLifecycle(() => this.reopenClosedTabAfterLabelSave(closedTabId))
+    return this.withTabLabelLifecycle(() => reopenClosedTabAfterLabelSave(this.tabReopeningAccess(), closedTabId))
   }
 
-  private async reopenClosedTabAfterLabelSave(closedTabId?: string): Promise<BrowserState> {
-    await this.reopenClosedTabEntry(closedTabId, true)
-    return this.getState()
-  }
-
-  private async reopenClosedTabEntry(closedTabId: string | undefined, active: boolean): Promise<BrowserTab | undefined> {
-    const index = closedTabId === undefined
-      ? this.closedTabs.length - 1
-      : this.closedTabs.findIndex((tab) => tab.id === closedTabId)
-    if (index < 0) return undefined
-    if (this.tabs.size >= MAX_TABS) throw new Error(`Tab limit reached (${MAX_TABS})`)
-    const [closed] = this.closedTabs.splice(index, 1)
-    if (!closed) return undefined
-    try {
-      return await this.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active, mcpGroupId: closed.mcpGroupId, zoomIsolated: closed.zoomIsolated === true, defaultFontSize: closed.defaultFontSize })
-    } catch (error) {
-      this.closedTabs.splice(index, 0, closed)
-      throw error
+  /**
+   * The narrow view remembering, reopening and duplicating tabs gets of this
+   * manager's private recently closed tabs, tabs, tab creation, navigation
+   * history, tab order and state. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's promise
+   * directly, so callers see the same ticks as before.
+   */
+  private tabReopeningAccess(): TabReopeningAccess<BrowserTab> {
+    return {
+      closedTabs: () => this.closedTabs,
+      tabCount: () => this.tabs.size,
+      getTab: (tabId) => this.getTab(tabId),
+      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
+      createTab: (options) => this.createTab(options),
+      reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
+      getState: () => this.getState()
     }
+  }
+
+  private reopenClosedTabEntry(closedTabId: string | undefined, active: boolean): Promise<BrowserTab | undefined> {
+    return reopenClosedTabEntry(this.tabReopeningAccess(), closedTabId, active)
   }
 
   duplicateTab(tabId: string): Promise<BrowserState> {
     return this.withTabLabelLifecycle(() => this.duplicateTabAfterLabelSave(tabId))
   }
 
-  private async duplicateTabAfterLabelSave(tabId: string): Promise<BrowserState> {
-    const source = this.getTab(tabId)
-    if (isHronautHomeUrl(source.url)) throw new Error('Hronaut Home cannot be duplicated')
-    const navigationHistory = this.navigationHistorySnapshot(source)
-    const duplicate = await this.createTab({
-      url: source.url,
-      title: source.title,
-      label: source.label,
-      pinned: source.pinned,
-      suppressInitialHistory: true,
-      active: true,
-      navigationHistory,
-      mcpGroupId: source.mcpGroupId,
-      zoomIsolated: source.zoomIsolated,
-      defaultFontSize: source.defaultFontSize
-    })
-    this.reorderTab(duplicate.id, source.id, 'after')
-    return this.getState()
+  private duplicateTabAfterLabelSave(tabId: string): Promise<BrowserState> {
+    return duplicateTabAfterLabelSave(this.tabReopeningAccess(), tabId)
   }
 
   private readonly pendingTabLabels = new Set<Promise<unknown>>()
@@ -2952,19 +2940,7 @@ export class BrowserTabsManager {
   }
 
   private rememberClosedTab(tab: BrowserTab): void {
-    if (isHronautHomeUrl(tab.url)) return
-    this.closedTabs.push({
-      id: uuidV7(),
-      title: tab.title || tab.url,
-      ...(tab.label ? { label: tab.label } : {}),
-      url: tab.url,
-      pinned: tab.pinned,
-      closedAt: new Date().toISOString(),
-      ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {}),
-      ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
-      ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {})
-    })
-    if (this.closedTabs.length > MAX_CLOSED_TABS) this.closedTabs.shift()
+    rememberClosedTab(this.tabReopeningAccess(), tab)
   }
 
   private removeTabRecord(tab: BrowserTab): void {
