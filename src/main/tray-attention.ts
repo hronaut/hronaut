@@ -86,6 +86,9 @@ export function createTrayAttention(host: TrayAttentionHost): {
   reconcileUserAttention(state: BrowserState): void
   acknowledgeUserAttention(): void
   requestUserAttention(input: UserAttentionInput): Promise<UserAttentionRequest>
+  userAttentionForAgents(): UserAttentionRequest | null
+  openUserAttentionId(): string | null
+  agentMovedOn(attentionId: string): void
   createTray(): boolean
 } {
   let tray: Tray | null = null
@@ -307,6 +310,22 @@ export function createTrayAttention(host: TrayAttentionHost): {
     return { ...request }
   }
 
+  /** The request agents see in status and preflight, as a copy: open and not yet answered by a click or key. */
+  function userAttentionForAgents(): UserAttentionRequest | null {
+    return host.state.request && !host.state.quiet ? { ...host.state.request } : null
+  }
+
+  /** The id of the request still open for the user, which agents see as needs you even once it is quiet. */
+  function openUserAttentionId(): string | null {
+    return host.state.request?.id ?? null
+  }
+
+  /** The agent that asked for the open plain request acted on a page in its workspace again. */
+  function agentMovedOn(attentionId: string): void {
+    // After the user responded, the agent acting again on a page ends its own request.
+    if (host.state.request?.id === attentionId && host.state.quiet && !host.state.decisionId) endUserAttention({ keepPending: true })
+  }
+
   function createTray(): boolean {
     if (tray && !tray.isDestroyed()) return true
     try {
@@ -345,6 +364,9 @@ export function createTrayAttention(host: TrayAttentionHost): {
     reconcileUserAttention,
     acknowledgeUserAttention,
     requestUserAttention,
+    userAttentionForAgents,
+    openUserAttentionId,
+    agentMovedOn,
     createTray
   }
 }

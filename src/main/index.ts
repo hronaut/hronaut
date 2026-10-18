@@ -448,6 +448,9 @@ const {
   reconcileUserAttention,
   acknowledgeUserAttention,
   requestUserAttention,
+  userAttentionForAgents,
+  openUserAttentionId,
+  agentMovedOn,
   createTray
 } = createTrayAttention({
   text,
@@ -1378,12 +1381,9 @@ function createRuntimeMcpServer(
     toolSet: settingsState.current.mcpToolSet,
     showWindowInactive,
     userAttentionLifecycle,
-    getUserAttention: () => (userAttentionState.request && !userAttentionState.quiet ? { ...userAttentionState.request } : null),
-    getOpenUserAttentionId: () => userAttentionState.request?.id ?? null,
-    onAgentMovedOn: (attentionId) => {
-      // After the user responded, the agent acting again on a page ends its own request.
-      if (userAttentionState.request?.id === attentionId && userAttentionState.quiet && !userAttentionState.decisionId) endUserAttention({ keepPending: true })
-    },
+    getUserAttention: userAttentionForAgents,
+    getOpenUserAttentionId: openUserAttentionId,
+    onAgentMovedOn: agentMovedOn,
     requestUserAttention,
     bookmarks: agentBookmarks,
     history: agentHistory,
