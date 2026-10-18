@@ -53,8 +53,7 @@ import { BookmarkStore } from './bookmark-store.js'
 import { UndoOffers } from './undo-offers.js'
 import { registerUndoIpc } from './undo-ipc.js'
 import { HistoryStore } from './history-store.js'
-import { createCredentialRuntime } from './credential-runtime.js'
-import type { CredentialStore } from './credential-store.js'
+import { createCredentialRuntime, type CredentialRuntimeState } from './credential-runtime.js'
 import { registerCredentialsIpc } from './credentials-ipc.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
 import { createCommercialLicenseRuntime } from './commercial-license-runtime.js'
@@ -100,7 +99,6 @@ import type {
   BrowserActionFailure,
   BrowserBookmark,
   BrowserHistoryEntry,
-  CredentialStorageStatus,
   LanguagePreference,
   ThemeName
 } from '../shared/types.js'
@@ -387,7 +385,10 @@ const { configureBrowserSession, configurePersistentSession } = createBrowserSes
   publishSitePermissions,
   partition: PARTITION
 })
-let credentialStore: CredentialStore | null = null
+const credentialRuntime: CredentialRuntimeState = {
+  storageStatus: { available: false, reason: 'Secure storage is initializing.' },
+  store: null
+}
 let commercialLicenseStore: CommercialLicenseStore | null = null
 let commercialLicenseStateTimer: ReturnType<typeof setTimeout> | undefined
 const {
@@ -399,7 +400,7 @@ const {
   deactivateCommercialLicense
 } = createCommercialLicenseRuntime({
   text,
-  credentialStorageStatus: () => credentialStorageStatus,
+  credentialStorageStatus: () => credentialRuntime.storageStatus,
   quitting: () => quitting,
   sendToShellWindows,
   commercialLicenseStore: () => commercialLicenseStore,
@@ -418,7 +419,6 @@ const undoOffers = new UndoOffers((offer) => {
   console.error(`[undo] Could not ${action}:`, error)
   reportBrowserActionFailure(action, error)
 })
-let credentialStorageStatus: CredentialStorageStatus = { available: false, reason: 'Secure storage is initializing.' }
 let updateState: AppUpdateState = { status: 'idle', currentVersion: app.getVersion() }
 const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloadedUpdate } = createAppUpdates({
   autoUpdater,
@@ -580,7 +580,7 @@ function sendToPanelWindow(channel: string, ...args: unknown[]): void {
 }
 
 function publishCredentials(): void {
-  sendToShellWindows('credentials:changed', credentialStore?.list() ?? [])
+  sendToShellWindows('credentials:changed', credentialRuntime.store?.list() ?? [])
 }
 
 function publishBookmarks(): BrowserBookmark[] {
@@ -636,10 +636,7 @@ const { handleCredentialCandidate, configureCredentialStore } = createCredential
   text,
   showMessageBox,
   mainWindow: () => mainWindowRefs.window,
-  credentialStorageStatus: () => credentialStorageStatus,
-  setCredentialStorageStatus: (status) => { credentialStorageStatus = status },
-  credentialStore: () => credentialStore,
-  setCredentialStore: (store) => { credentialStore = store },
+  state: credentialRuntime,
   publishCredentials
 })
 
@@ -769,7 +766,7 @@ const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   currentRendererSettingsState,
   updateState: () => updateState,
   currentMcpControlState,
-  credentialStore: () => credentialStore,
+  credentialStore: () => credentialRuntime.store,
   sitePermissionStore: () => sitePermissionStore,
   bookmarkStore: () => bookmarkStore,
   historyStore: () => historyStore,
@@ -989,7 +986,7 @@ function registerIpc(): void {
     tabs: () => tabsManager,
     historyStore: () => historyStore,
     bookmarkStore: () => bookmarkStore,
-    credentialStore: () => credentialStore,
+    credentialStore: () => credentialRuntime.store,
     sitePermissionStore: () => sitePermissionStore,
     mcpServer: () => mcpRuntime.server,
     publishVisitHistory,
@@ -1064,8 +1061,8 @@ function registerIpc(): void {
   registerCredentialsIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
-    credentialStorageStatus: () => credentialStorageStatus,
-    credentialStore: () => credentialStore,
+    credentialStorageStatus: () => credentialRuntime.storageStatus,
+    credentialStore: () => credentialRuntime.store,
     publishCredentials,
     tabs: () => tabsManager,
     mainWindow: () => mainWindowRefs.window,
@@ -1357,7 +1354,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     mainWindowRefs.window.webContents.send('settings:renderer-state-changed', currentRendererSettingsState())
     mainWindowRefs.window.webContents.send('updates:changed', updateState)
     mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
-    mainWindowRefs.window.webContents.send('credentials:changed', credentialStore?.list() ?? [])
+    mainWindowRefs.window.webContents.send('credentials:changed', credentialRuntime.store?.list() ?? [])
     mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarkStore?.list() ?? [])
     mainWindowRefs.window.webContents.send('visit-history:changed', historyStore?.list() ?? [])
   }
@@ -1387,7 +1384,7 @@ async function releaseRuntimeResources(): Promise<void> {
         manager?.flushPersist(),
         manager?.flushWorkspaceProfiles(),
         bookmarkStore?.flush(),
-        credentialStore?.flush(),
+        credentialRuntime.store?.flush(),
         historyStore?.flush(),
         sitePermissionStore?.flush(),
         commercialLicenseStore?.flush(),
@@ -1605,7 +1602,7 @@ async function startRuntime(): Promise<void> {
   {
     const refreshLicense = (): void => {
       publishCommercialLicenseState()
-      if (!commercialLicenseStore?.hasActivation() || !credentialStorageStatus.available) return
+      if (!commercialLicenseStore?.hasActivation() || !credentialRuntime.storageStatus.available) return
       void refreshCommercialLicense().catch((error: unknown) => {
         console.error('[license] Background refresh failed:', error)
       })
