@@ -1,7 +1,7 @@
 import type { WebContents } from 'electron'
 import type { PagePointerEventsAccess, PagePointerEventsTab } from './page-pointer-events-access.js'
 
-/** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. The tab manager's keyboard listener keeps its own copy. */
+/** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. The keyboard listener keeps its own copy. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
 
 /**

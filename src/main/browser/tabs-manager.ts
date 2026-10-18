@@ -173,7 +173,9 @@ import {
   type Session,
   type WebContents
 } from 'electron'
-import { browserShortcutAction, type BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
+import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
+import type { PageKeyboardEventsAccess } from './tab-events/page-keyboard-events-access.js'
+import { attachPageKeyboardEvents } from './tab-events/page-keyboard-events.js'
 import { MAX_BROWSER_TABS } from '../../shared/types.js'
 import type { PageFindAccess } from './page-find/page-find-access.js'
 import { findInPage, stopFindInPage } from './page-find/page-find.js'
@@ -555,8 +557,6 @@ function workspaceNameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
 }
 
-/** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. */
-const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
 const ABORTED_LOAD_ERROR = -3
 const MEMORY_SAVER_SWEEP_MS = 30_000
@@ -4907,108 +4907,7 @@ export class BrowserTabsManager {
     const webContents = tab.webContents
     attachPageDestroyedEvents(this.pageDestroyedEventsAccess(), tab, webContents)
     attachPageFocusEvents(this.pageFocusEventsAccess(), tab, webContents)
-    webContents.on('before-input-event', (event, input) => {
-      if (this.browserContentOccluded && !this.agentInputWebContents.has(webContents.id)) {
-        // Trusted chrome is open; the page is only on screen until its snapshot is shown.
-        event.preventDefault()
-        const shortcut = input.type === 'keyDown' ? browserShortcutAction({
-          key: input.key,
-          code: input.code,
-          control: input.control,
-          meta: input.meta,
-          alt: input.alt,
-          shift: input.shift,
-          repeat: input.isAutoRepeat,
-          composing: input.isComposing,
-          mac: process.platform === 'darwin'
-        }) : null
-        if (shortcut) this.options.onShortcutRequested?.(shortcut)
-        return
-      }
-      const screenshotSession = this.screenshotAreaSessions.get(webContents.id)
-      if (screenshotSession && !screenshotSession.canceled && !this.agentInputWebContents.has(webContents.id)) {
-        event.preventDefault()
-        if (
-          input.type === 'keyDown'
-          && input.key === 'Escape'
-          && !input.control
-          && !input.meta
-          && !input.alt
-        ) void this.cancelScreenshotArea(tab.id).catch(() => undefined)
-        return
-      }
-      const elementPickerSession = this.elementPickerSessions.get(webContents.id)
-      if (elementPickerSession && !elementPickerSession.canceled && !this.agentInputWebContents.has(webContents.id)) {
-        event.preventDefault()
-        const shortcut = (input.type === 'keyDown' || input.type === 'rawKeyDown') ? browserShortcutAction({
-          key: input.key,
-          code: input.code,
-          control: input.control,
-          meta: input.meta,
-          alt: input.alt,
-          shift: input.shift,
-          repeat: input.isAutoRepeat,
-          composing: input.isComposing,
-          mac: process.platform === 'darwin'
-        }) : null
-        if (
-          input.type === 'keyDown'
-          && input.key === 'Escape'
-          && !input.control
-          && !input.meta
-          && !input.alt
-        ) void this.cancelElementPicker(tab.id).catch(() => undefined)
-        else if (shortcut === 'pick-element') void this.cancelElementPicker(tab.id).catch(() => undefined)
-        return
-      }
-      const requested = input.type === 'keyDown' ? browserShortcutAction({
-        key: input.key,
-        code: input.code,
-        control: input.control,
-        meta: input.meta,
-        alt: input.alt,
-        shift: input.shift,
-        repeat: input.isAutoRepeat,
-        composing: input.isComposing,
-        mac: process.platform === 'darwin'
-      }) : null
-      // Consume one expected event even on unlocked tabs. An awaited agent
-      // operation does not establish the origin of every arriving key event.
-      const expectedAgentInput = this.consumeExpectedAgentKeyboardInput(webContents.id, input)
-      // Ctrl+. is also a page's own key, such as an editor's quick fix. It opens the agent card only
-      // when a person presses it while there are agents to show; Ctrl+Shift+O likewise takes the page
-      // over only from a person. An agent's debugger keys usually skip this handler; one that arrives
-      // here as expected agent input still reaches the page (pageShortcut).
-      const shortcut = pageShortcut(requested, {
-        available: requested ? this.options.shortcutAvailable?.(requested, tab.mcpGroupId, tab.id) !== false : false,
-        expectedAgentInput
-      })
-      const page = { tabId: tab.id, workspaceId: tab.mcpGroupId }
-      if (this.isHumanInteractionLocked(tab) && !expectedAgentInput) {
-        event.preventDefault()
-        if (shortcut) {
-          this.options.onUserInteraction?.()
-          this.options.onShortcutRequested?.(shortcut, page)
-        }
-        return
-      }
-      if (shortcut) {
-        event.preventDefault()
-        this.options.onUserInteraction?.()
-        this.options.onShortcutRequested?.(shortcut, page)
-        return
-      }
-      this.reproRecorder.observeReproKeyboard(tab, input)
-      // The overview shows the page as it was last seen, after the latest typing settles.
-      if (input.type === 'keyUp') this.scheduleTabOverviewPreview(tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
-      if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !expectedAgentInput) {
-        tab.humanInteractionGeneration += 1
-        tab.lastHumanInteractionAt = Date.now()
-        tab.lastActiveAt = tab.lastHumanInteractionAt
-        this.mcpActivityFollower.noteHumanInput()
-        this.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
-      }
-    })
+    attachPageKeyboardEvents(this.pageKeyboardEventsAccess(), tab, webContents)
     attachPagePointerEvents(this.pagePointerEventsAccess(), tab, webContents)
     attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
     attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
@@ -5114,6 +5013,33 @@ export class BrowserTabsManager {
       writeActiveTabId: (tabId) => { this.activeTabId = tabId },
       markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
       changed: (persist) => this.changed(persist)
+    }
+  }
+
+  /**
+   * The narrow view a page's keyboard listener gets of this manager's private
+   * trusted chrome occlusion, in-flight and expected agent input, native
+   * selection sessions, human input lock, repro recording, tab overview
+   * previews, MCP activity follower and options. It is a prototype method
+   * rather than a field, so managers created without the constructor (as
+   * unit tests do) still provide it. Each member reads the manager when
+   * called.
+   */
+  private pageKeyboardEventsAccess(): PageKeyboardEventsAccess<BrowserTab> {
+    return {
+      browserContentOccluded: () => this.browserContentOccluded,
+      agentInputWebContents: () => this.agentInputWebContents,
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      cancelScreenshotArea: (tabId) => this.cancelScreenshotArea(tabId),
+      elementPickerSessions: () => this.elementPickerSessions,
+      cancelElementPicker: (tabId) => this.cancelElementPicker(tabId),
+      consumeExpectedAgentKeyboardInput: (webContentsId, input) => this.consumeExpectedAgentKeyboardInput(webContentsId, input),
+      pageShortcut: (requested, input) => pageShortcut(requested, input),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      reproRecorder: () => this.reproRecorder,
+      scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
+      mcpActivityFollower: () => this.mcpActivityFollower,
+      options: () => this.options
     }
   }
 
