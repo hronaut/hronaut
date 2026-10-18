@@ -2,14 +2,19 @@ import { z } from 'zod'
 import { EvaluationStoppedError } from '../../../browser/page-evaluation/evaluate.js'
 import { safeValue, textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
-import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import type { McpToolContext, ToolActivityClassification, WorkspaceToolCall } from '../tool-context.js'
 
-/** Whether the call stopped waiting while its script may still run, so its audit records the outcome as unknown. */
+/**
+ * How the call stopped waiting for its script, if it did: one still running
+ * leaves its audit outcome unknown, and one never sent did not dispatch.
+ */
 function evaluationSettlement() {
-  let stillRunning = false
+  let stoppedScript: 'running' | 'unsent' | undefined
   return {
-    stoppedWhileRunning: (): void => { stillRunning = true },
-    effectsPossible: (): boolean => stillRunning
+    stopped: (sent: boolean): void => { stoppedScript = sent ? 'running' : 'unsent' },
+    effectsPossible: (): boolean => stoppedScript === 'running',
+    classifyActivity: (activity: ToolActivityClassification): ToolActivityClassification =>
+      stoppedScript === 'unsent' ? { ...activity, dispatched: false } : activity
   }
 }
 
@@ -36,11 +41,12 @@ export function registerBrowserEvaluate(context: McpToolContext): void {
         return textResult(safeValue(await manager.evaluate(script, tabId, { dialogAction }, { timeoutMs, signal: call.signal })))
       } catch (error) {
         if (!(error instanceof EvaluationStoppedError)) throw error
-        if (error.sent) call.settlement.stoppedWhileRunning()
+        call.settlement.stopped(error.sent)
         const outcome = error.sent
-          ? { status: 'OUTCOME_UNKNOWN', reason: error.reason, retrySafe: false, timeoutMs, detail: error.message,
-              nextAction: 'Inspect fresh page state before continuing; do not repeat the script blindly. Pass a larger timeoutMs for a script that needs more time.' }
-          : { status: 'NOT_DISPATCHED', reason: error.reason, retrySafe: true, timeoutMs, detail: error.message }
+          ? { status: 'OUTCOME_UNKNOWN', reason: error.reason, dispatch: 'dispatched', effects: 'possible', retrySafe: false, timeoutMs, detail: error.message,
+              nextAction: 'Inspect fresh page state before continuing; do not repeat the script blindly. A script that needs more time can pass a larger timeoutMs, within the client\'s own request timeout.' }
+          : { status: 'NOT_DISPATCHED', reason: error.reason, dispatch: 'not-dispatched', effects: 'none', retrySafe: true, timeoutMs, detail: error.message,
+              nextAction: 'Nothing ran. Retry when the tab is ready, with a larger timeoutMs if the deadline passed.' }
         return { ...textResult(outcome), structuredContent: outcome, isError: true }
       }
     }),

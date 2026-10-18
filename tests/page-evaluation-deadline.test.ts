@@ -15,8 +15,10 @@ function fixture({ focused = true } = {}) {
   const contextId = { next: Promise.resolve(1) as Promise<number> }
   const webContents = {
     id: 3,
+    isDestroyed: () => false,
     isDevToolsOpened: () => false,
-    executeJavaScript: vi.fn(() => script.promise)
+    executeJavaScript: vi.fn(() => script.promise),
+    debugger: { sendCommand: vi.fn(async () => ({})) }
   }
   const access = {
     getTab: () => ({ id: 'tab-1', navigationGeneration: 1, webContents }),
@@ -32,77 +34,86 @@ function fixture({ focused = true } = {}) {
       try { return await operation() } finally { state.debuggerBusy = false }
     },
     mainWorldContextId: vi.fn(() => contextId.next),
-    evaluateWithAttachedDebugger: vi.fn(() => debuggerScript.promise)
+    evaluateWithAttachedDebugger: vi.fn((_page: unknown, _expression: string, _contextId?: number) => debuggerScript.promise)
   }
-  return { state, script, debuggerScript, contextId, webContents, access: access as never as Parameters<typeof evaluate>[0] }
+  return { state, script, debuggerScript, contextId, webContents, access, evaluateAccess: access as never as Parameters<typeof evaluate>[0] }
 }
 
 describe('page evaluation deadline', () => {
   it('stops waiting for a foreground script at its deadline and releases the focus guard', async () => {
-    const { state, access } = fixture()
-    const running = evaluate(access, 'new Promise(() => {})', undefined, {}, { timeoutMs: 20 })
+    const { state, evaluateAccess } = fixture()
+    const running = evaluate(evaluateAccess, 'new Promise(() => {})', undefined, {}, { timeoutMs: 20 })
     expect(state.guards).toBe(1)
     await expect(running).rejects.toMatchObject({ name: 'EvaluationStoppedError', reason: 'SCRIPT_TIMEOUT', sent: true })
-    await expect(running).rejects.toThrow('did not finish within 20 ms. It may still be running in the page')
+    await expect(running).rejects.toThrow('The script did not finish within 20 ms. It may still be running in the page')
     expect(state.guards).toBe(0)
   })
 
-  it('releases the debugger for the next command while a background script keeps running', async () => {
-    const { state, access, debuggerScript } = fixture({ focused: false })
-    await expect(evaluate(access, 'new Promise(() => {})', undefined, {}, { timeoutMs: 20 })).rejects.toMatchObject({ reason: 'SCRIPT_TIMEOUT', sent: true })
+  it('releases the debugger for the next command, and the stopped script\'s dialog handling, while it keeps running', async () => {
+    const { state, access, evaluateAccess, debuggerScript, webContents } = fixture({ focused: false })
+    await expect(evaluate(evaluateAccess, 'new Promise(() => {})', undefined, {}, { timeoutMs: 20 })).rejects.toMatchObject({ reason: 'SCRIPT_TIMEOUT', sent: true })
     expect(state).toMatchObject({ guards: 0, debuggerBusy: false })
+    const wrapped = access.evaluateWithAttachedDebugger.mock.calls[0]![1]
+    const evaluationId = /entry\.id !== "([^"]+)"/.exec(wrapped)?.[1]
+    expect(evaluationId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(webContents.debugger.sendCommand).toHaveBeenCalledExactlyOnceWith('Runtime.evaluate', expect.objectContaining({ contextId: 1, silent: true }))
+    const release = (webContents.debugger.sendCommand.mock.calls[0] as unknown as [string, { expression: string }])[1].expression
+    expect(release).toContain(`entry.id !== "${evaluationId}"`)
+    expect(release).not.toContain('await')
     // The page's script settling later reaches nobody and raises nothing.
     debuggerScript.reject(new Error('Execution context was destroyed'))
     await Promise.resolve()
   })
 
   it('stops when the call is cancelled', async () => {
-    const { state, access } = fixture({ focused: false })
+    const { state, evaluateAccess } = fixture({ focused: false })
     const controller = new AbortController()
-    const running = evaluate(access, 'new Promise(() => {})', undefined, {}, { timeoutMs: 60_000, signal: controller.signal })
+    const running = evaluate(evaluateAccess, 'new Promise(() => {})', undefined, {}, { timeoutMs: 60_000, signal: controller.signal })
     await vi.waitFor(() => expect(state.debuggerBusy).toBe(true))
     controller.abort('cancelled by client')
     await expect(running).rejects.toMatchObject({ reason: 'CANCELLED', sent: true })
-    await expect(running).rejects.toThrow('The script was cancelled')
+    await expect(running).rejects.toThrow('The call was cancelled before the script finished. It may still be running')
     expect(state).toMatchObject({ guards: 0, debuggerBusy: false })
   })
 
   it('sends nothing when the call was cancelled before it started', async () => {
-    const { access, webContents } = fixture()
+    const { webContents, evaluateAccess } = fixture()
     const controller = new AbortController()
     controller.abort()
-    await expect(evaluate(access, '1', undefined, {}, { timeoutMs: 1_000, signal: controller.signal }))
-      .rejects.toMatchObject({ reason: 'CANCELLED', sent: false, message: 'The evaluation was cancelled before the script was sent; nothing ran.' })
+    await expect(evaluate(evaluateAccess, '1', undefined, {}, { timeoutMs: 1_000, signal: controller.signal }))
+      .rejects.toMatchObject({ reason: 'CANCELLED', sent: false, message: 'The call was cancelled before the script was sent; nothing ran.' })
     expect(webContents.executeJavaScript).not.toHaveBeenCalled()
   })
 
-  it('sends nothing when the deadline passes while waiting for the debugger', async () => {
-    const { state, access, contextId } = fixture({ focused: false })
+  it('stops at its deadline while a step before sending never answers, and then sends nothing', async () => {
+    const { state, access, evaluateAccess, contextId, webContents } = fixture({ focused: false })
     const context = deferred<number>()
     contextId.next = context.promise
-    const running = evaluate(access, '1', undefined, { dialogAction: 'dismiss' }, { timeoutMs: 20 })
-    await new Promise(resolve => setTimeout(resolve, 40))
+    const running = evaluate(evaluateAccess, '1', undefined, { dialogAction: 'dismiss' }, { timeoutMs: 20 })
+    await expect(running).rejects.toMatchObject({ reason: 'SCRIPT_TIMEOUT', sent: false, message: 'The 20 ms deadline passed before the script was sent; nothing ran.' })
+    expect(state.guards).toBe(0)
     context.resolve(1)
-    await expect(running).rejects.toMatchObject({ reason: 'SCRIPT_TIMEOUT', sent: false })
-    expect((access as never as { evaluateWithAttachedDebugger: ReturnType<typeof vi.fn> }).evaluateWithAttachedDebugger).not.toHaveBeenCalled()
-    expect(state).toMatchObject({ guards: 0, debuggerBusy: false })
+    await vi.waitFor(() => expect(state.debuggerBusy).toBe(false))
+    expect(access.evaluateWithAttachedDebugger).not.toHaveBeenCalled()
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
   })
 
   it('returns a script that finishes in time, passes its failure through, and waits without a deadline', async () => {
     const finished = fixture()
-    const value = evaluate(finished.access, '1 + 1', undefined, {}, { timeoutMs: 1_000 })
+    const value = evaluate(finished.evaluateAccess, '1 + 1', undefined, {}, { timeoutMs: 1_000 })
     finished.script.resolve(2)
     await expect(value).resolves.toBe(2)
 
     const failed = fixture({ focused: false })
-    const failure = evaluate(failed.access, 'boom()', undefined, {}, { timeoutMs: 1_000 })
+    const failure = evaluate(failed.evaluateAccess, 'boom()', undefined, {}, { timeoutMs: 1_000 })
     await vi.waitFor(() => expect(failed.state.debuggerBusy).toBe(true))
     failed.debuggerScript.reject(new Error('ReferenceError: boom is not defined'))
     await expect(failure).rejects.toThrow('boom is not defined')
     await expect(failure).rejects.not.toBeInstanceOf(EvaluationStoppedError)
+    expect(failed.webContents.debugger.sendCommand).not.toHaveBeenCalled()
 
     const unbounded = fixture()
-    const waiting = evaluate(unbounded.access, 'later()')
+    const waiting = evaluate(unbounded.evaluateAccess, 'later()')
     await new Promise(resolve => setTimeout(resolve, 30))
     unbounded.script.resolve('done')
     await expect(waiting).resolves.toBe('done')
