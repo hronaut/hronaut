@@ -459,6 +459,8 @@ import type { NavigationEventsAccess } from './tab-events/navigation-events-acce
 import { attachNavigationEvents } from './tab-events/navigation-events.js'
 import type { PageFocusEventsAccess } from './tab-events/page-focus-events-access.js'
 import { attachPageFocusEvents } from './tab-events/page-focus-events.js'
+import type { PagePointerEventsAccess } from './tab-events/page-pointer-events-access.js'
+import { attachPagePointerEvents } from './tab-events/page-pointer-events.js'
 import type { RendererHealthEventsAccess } from './tab-events/renderer-health-events-access.js'
 import { attachRendererHealthEvents } from './tab-events/renderer-health-events.js'
 import type { WindowOpenHandlerAccess } from './tab-events/window-open-handler-access.js'
@@ -5372,67 +5374,7 @@ export class BrowserTabsManager {
         this.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
       }
     })
-    // Wheel and touch input never reach before-mouse-event; while the person scrolls or touches
-    // the page, following waits.
-    const webContentsId = webContents.id
-    webContents.on('input-event', (_event, input) => {
-      if (input.type !== 'mouseWheel' && input.type !== 'touchStart') return
-      this.scheduleTabOverviewPreview(tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
-      if (this.agentInputWebContents.has(webContentsId) || this.agentWheelUnderWay(webContentsId)) return
-      this.mcpActivityFollower.noteHumanInput()
-    })
-    webContents.once('destroyed', () => this.agentWheel.delete(webContentsId))
-    webContents.on('before-mouse-event', (event, mouse) => {
-      if (this.browserContentOccluded && !this.agentInputWebContents.has(webContents.id)) {
-        // Trusted chrome is open; a click must not give the page focus, activation or the active split pane.
-        event.preventDefault()
-        return
-      }
-      const screenshotSession = this.screenshotAreaSessions.get(webContents.id)
-      if (screenshotSession && !screenshotSession.canceled && !this.agentInputWebContents.has(webContents.id)) {
-        event.preventDefault()
-        if (mouse.type === 'mouseDown' && (mouse.button === undefined || mouse.button === 'left')) {
-          this.queueScreenshotAreaMouseInput(tab, screenshotSession, 'down', mouse)
-        } else if (mouse.type === 'mouseMove') {
-          this.queueScreenshotAreaMouseInput(tab, screenshotSession, 'move', mouse)
-        } else if (mouse.type === 'mouseUp' && (mouse.button === undefined || mouse.button === 'left')) {
-          this.queueScreenshotAreaMouseInput(tab, screenshotSession, 'up', mouse)
-        }
-        return
-      }
-      const elementPickerSession = this.elementPickerSessions.get(webContents.id)
-      if (elementPickerSession && !elementPickerSession.canceled && !this.agentInputWebContents.has(webContents.id)) {
-        event.preventDefault()
-        if (mouse.type === 'mouseDown' && (mouse.button === undefined || mouse.button === 'left')) {
-          this.queueElementPickerMouseInput(tab, elementPickerSession, 'down', mouse)
-        } else if (mouse.type === 'mouseMove') {
-          this.queueElementPickerMouseInput(tab, elementPickerSession, 'move', mouse)
-        } else if (mouse.type === 'mouseUp' && (mouse.button === undefined || mouse.button === 'left')) {
-          this.queueElementPickerMouseInput(tab, elementPickerSession, 'up', mouse)
-        }
-        return
-      }
-      if (this.shouldBlockHumanMouseInput(tab, mouse)) {
-        event.preventDefault()
-        return
-      }
-      this.reproRecorder.observeReproMouse(tab, mouse)
-      if (mouse.type === 'mouseUp') this.scheduleTabOverviewPreview(tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
-      if ((mouse.type === 'mouseDown' || mouse.type === 'contextMenu') && !this.agentInputWebContents.has(webContents.id)) {
-        tab.humanInteractionGeneration += 1
-        tab.lastHumanInteractionAt = Date.now()
-        tab.lastActiveAt = tab.lastHumanInteractionAt
-        this.mcpActivityFollower.noteHumanInput()
-        if (this.splitViewContains(tab.id) && this.activeTabId !== tab.id) {
-          // The person picked the other pane, which following did not show.
-          this.agentFollow = undefined
-          this.activeTabId = tab.id
-          this.markTabActiveInGroup(tab)
-          this.changed()
-        }
-        this.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
-      }
-    })
+    attachPagePointerEvents(this.pagePointerEventsAccess(), tab, webContents)
     attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
     attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
     this.frameObservation.track(webContents)
@@ -5537,6 +5479,40 @@ export class BrowserTabsManager {
       writeActiveTabId: (tabId) => { this.activeTabId = tabId },
       markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
       changed: (persist) => this.changed(persist)
+    }
+  }
+
+  /**
+   * The narrow view a page's mouse, wheel and touch listeners get of this
+   * manager's private trusted chrome occlusion, in-flight agent input, agent
+   * wheel scrolling, native selection sessions, human input lock, repro
+   * recording, tab overview previews, MCP activity follower, split view,
+   * active tab, agent following, workspace activation, state publication and
+   * options. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it.
+   * Each member reads the manager when called.
+   */
+  private pagePointerEventsAccess(): PagePointerEventsAccess<BrowserTab> {
+    return {
+      browserContentOccluded: () => this.browserContentOccluded,
+      agentInputWebContents: () => this.agentInputWebContents,
+      agentWheelUnderWay: (webContentsId) => this.agentWheelUnderWay(webContentsId),
+      agentWheel: () => this.agentWheel,
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      queueScreenshotAreaMouseInput: (tab, session, type, mouse) => this.queueScreenshotAreaMouseInput(tab, session, type, mouse),
+      elementPickerSessions: () => this.elementPickerSessions,
+      queueElementPickerMouseInput: (tab, session, type, mouse) => this.queueElementPickerMouseInput(tab, session, type, mouse),
+      shouldBlockHumanMouseInput: (tab, mouse) => this.shouldBlockHumanMouseInput(tab, mouse),
+      reproRecorder: () => this.reproRecorder,
+      scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
+      mcpActivityFollower: () => this.mcpActivityFollower,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      activeTabId: () => this.activeTabId,
+      writeActiveTabId: (tabId) => { this.activeTabId = tabId },
+      setAgentFollow: (follow) => { this.agentFollow = follow },
+      markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
+      changed: (persist) => this.changed(persist),
+      options: () => this.options
     }
   }
 
