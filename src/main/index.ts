@@ -24,7 +24,7 @@ import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { createTrayAttention } from './tray-attention.js'
 import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { createIpcGuards, trustedShellUrl, trustedUrlMatches } from './ipc-guards.js'
 import {
   app,
   BrowserWindow,
@@ -746,17 +746,6 @@ const { installApplicationMenu } = createApplicationMenu({
   tabs: () => tabsManager
 })
 
-function trustedShellUrl(): string {
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-    const url = new URL(process.env.ELECTRON_RENDERER_URL)
-    if (url.protocol !== 'http:' || !isLoopbackHost(url.hostname)) {
-      throw new Error('ELECTRON_RENDERER_URL must use HTTP on a loopback host')
-    }
-    return url.href
-  }
-  return pathToFileURL(join(__dirname, '../renderer/index.html')).href
-}
-
 const {
   trustedAgentCardUrl,
   ensureAgentCardSurface,
@@ -795,70 +784,25 @@ const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   flushPanelWindowState
 })
 
-function trustedUrlMatches(actual: string | undefined, expected: string): boolean {
-  return Boolean(actual && (actual === expected || actual.startsWith(`${expected}#`)))
-}
-
-function assertTrustedShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
-  if (workspaceStartupFailure) throw workspaceStartupFailure
-  const actual = event.senderFrame?.url
-  const fromMain = Boolean(mainWindowRefs.window && event.sender === mainWindowRefs.window.webContents && trustedUrlMatches(actual, trustedShellUrl()))
-  const fromPanel = Boolean(panelWindowRefs.window
-    && panelWindowRefs.url
-    && event.sender === panelWindowRefs.window.webContents
-    && trustedUrlMatches(actual, panelWindowRefs.url))
-  if (!fromMain && !fromPanel) throw new Error('Rejected IPC from an untrusted renderer')
-}
-
-function assertMainShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
-  if (workspaceStartupFailure) throw workspaceStartupFailure
-  const actual = event.senderFrame?.url
-  if (!mainWindowRefs.window || event.sender !== mainWindowRefs.window.webContents || !trustedUrlMatches(actual, trustedShellUrl())) {
-    throw new Error('Rejected IPC from a non-primary renderer')
-  }
-}
-
-function assertPanelShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
-  if (workspaceStartupFailure) throw workspaceStartupFailure
-  const actual = event.senderFrame?.url
-  if (!panelWindowRefs.window || !panelWindowRefs.url || event.sender !== panelWindowRefs.window.webContents || !trustedUrlMatches(actual, panelWindowRefs.url)) {
-    throw new Error('Rejected IPC from a non-panel renderer')
-  }
-}
-
-// Readiness is separate from sender trust. Never admit browser mutations into
-// the partially initialized model, including while metadata IO is pending.
-function assertWorkspaceInitialized(): void {
-  if (workspaceStartupFailure) throw workspaceStartupFailure
-  if (tabsInitializationPromise) throw new Error('Saved workspaces are still initializing. Try again after startup completes.')
-  if (!tabsManager || initializedTabsManager !== tabsManager) throw new Error('Saved workspaces are unavailable.')
-}
-
-function assertInitializedMainShellSender(event: Electron.IpcMainInvokeEvent): void {
-  assertMainShellSender(event)
-  assertWorkspaceInitialized()
-}
-
-function assertInitializedTrustedShellSender(event: Electron.IpcMainInvokeEvent): void {
-  assertTrustedShellSender(event)
-  assertWorkspaceInitialized()
-}
-
-function runWorkspaceRead<T>(event: Electron.IpcMainInvokeEvent, assertSender: (event: Electron.IpcMainInvokeEvent) => void, read: () => T): Promise<T> {
-  const manager = tabsManager
-  return workspaceStartupReads.run(event, tabsInitializationPromise, () => assertSender(event), () => {
-    assertWorkspaceInitialized()
-    if (tabsManager !== manager) throw new Error('Workspace read is no longer available.')
-  }, read)
-}
-
-function handleBrowserIpc(channel: string, listener: Parameters<typeof ipcMain.handle>[1]): void {
-  ipcMain.handle(channel, (event, ...args) => {
-    if (workspaceStartupFailure) throw workspaceStartupFailure
-    if (!['browser:get-state', 'browser:get-tab-overview-previews', 'browser:get-tab-overview-page-preview', 'split-divider:get', 'emulation-frame:get', 'page-card:get'].includes(channel)) assertWorkspaceInitialized()
-    return listener(event, ...args)
-  })
-}
+const {
+  assertTrustedShellSender,
+  assertMainShellSender,
+  assertPanelShellSender,
+  assertWorkspaceInitialized,
+  assertInitializedMainShellSender,
+  assertInitializedTrustedShellSender,
+  runWorkspaceRead,
+  handleBrowserIpc
+} = createIpcGuards({
+  ipcMain,
+  workspaceStartupFailure: () => workspaceStartupFailure,
+  tabsInitializationPromise: () => tabsInitializationPromise,
+  tabs: () => tabsManager,
+  initializedTabs: () => initializedTabsManager,
+  mainWindowRefs,
+  panelWindowRefs,
+  workspaceStartupReads
+})
 
 function registerIpc(): void {
   registerOverlayViewsIpc(ipcMain, {
