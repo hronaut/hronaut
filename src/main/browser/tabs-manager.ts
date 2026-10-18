@@ -5,7 +5,6 @@ import { assertRightClickPlatform } from './owned-right-click.js'
 import type { PageEvaluationAccess } from './page-evaluation/page-evaluation-access.js'
 import { evaluateFile } from './page-evaluation/evaluate-file.js'
 import type { FileEvaluationSource, FileEvaluationHooks } from '../../shared/file-evaluation.js'
-import { normalizeTabLabel } from '../../shared/tab-label.js'
 import type { StorageComparisonHooks } from './storage-comparison-operation.js'
 import { acquireNativeClickAdmission, nativeClickProgress, nativeClickObserver, NativeClickAdmissionError, type NativeClickProgress } from './native-click-admission.js'
 import type { StorageInspectionHooks } from './storage-inspection-operation.js'
@@ -89,7 +88,7 @@ import { HomeRefresh } from './home-refresh.js'
 import { BrowserDebuggerQueue } from './debugger-queue.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
 import { BrowserCssStatePreview } from './css-state-preview.js'
-import { DEFAULT_FONT_SIZE_LIMITS, isDefaultFontSize, normalizeDefaultFontSize } from '../../shared/default-font-size.js'
+import { normalizeDefaultFontSize } from '../../shared/default-font-size.js'
 import { BrowserLiveRegionRecorder, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
 import type { BrowserNetworkRouteRecord, NetworkConditionsAccess } from './network-conditions/network-conditions-access.js'
@@ -494,6 +493,8 @@ import type { BrowserWalletPageContext, WalletPagesAccess } from './wallet-pages
 import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab } from './wallet-pages/wallet-pages.js'
 import type { WorkspaceScopeAccess } from './workspace-scope/workspace-scope-access.js'
 import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
+import type { NewTabsAccess } from './new-tabs/new-tabs-access.js'
+import { createNewTab, newLabeledAgentTab } from './new-tabs/new-tabs.js'
 import type { AgentPointerAccess } from './agent-pointer/agent-pointer-access.js'
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
 import type { VisualCaptureAccess } from './visual-compare/visual-capture-access.js'
@@ -2216,71 +2217,43 @@ export class BrowserTabsManager {
     return this.newTab(options, this.followAgentActivity)
   }
 
-  async newLabeledAgentTab(options: NewTabOptions, value: string, validateAuthority: () => void, onCreated: (id: string) => void, onCreationAttempt: () => void): Promise<{ createdTabId: string; labelPersistence: 'saved' | 'durability-unconfirmed' | 'not-saved' }> {
-    const label = normalizeTabLabel(value)
-    this.assertTabLabelAdmission()
-    if (!options.mcpGroupId || isHronautHomeUrl(normalizeAddress(options.url ?? 'about:blank', this.options.getSearchEngine?.()))) throw new Error('Labeled agent tabs require an agent workspace and a website address.')
-    validateAuthority()
-    let createdTabId: string | undefined
-    let committed = false
-    let saving: Promise<'saved' | 'durability-unconfirmed' | 'not-saved'> | undefined
-    try {
-      await this.createNewTab(options, this.followAgentActivity, tab => {
-        createdTabId = tab.id
-        // Admit before createTab yields, so later edits and lifecycle copies see
-        // this save on the same queue. The label is staged, not yet visible.
-        saving = this.saveTabLabel(tab.id, label ?? '', validateAuthority, () => { committed = true })
-          .then(result => result.status, () => committed ? 'durability-unconfirmed' as const : 'not-saved' as const)
-        onCreated(tab.id)
-      }, onCreationAttempt)
-    } finally {
-      // Even a synchronous creation observer failure cannot release ownership
-      // while the admitted write is still queued or running.
-      if (saving) await saving
+  /**
+   * The narrow view opening a new tab gets of this manager's private tabs,
+   * workspaces, options, agent follow, workspace navigation checks, tab
+   * creation, Home, label saves and state. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit tests
+   * do) still provide it. The delegates below return the feature's promise
+   * directly, so a labeled tab's save is still admitted before the caller's
+   * next tick.
+   */
+  private newTabsAccess(): NewTabsAccess<BrowserTab> {
+    return {
+      options: () => this.options,
+      followAgentActivity: () => this.followAgentActivity,
+      tabs: () => this.tabs,
+      mcpTabGroups: () => this.mcpTabGroups,
+      ensureHumanWorkspace: () => this.ensureHumanWorkspace(),
+      requireMcpTabGroup: (groupId) => this.requireMcpTabGroup(groupId),
+      assertWorkspaceNavigationAllowed: (groupId, url, source) => this.assertWorkspaceNavigationAllowed(groupId, url, source),
+      createTab: (options) => this.createTab(options),
+      closeMcpTabGroup: (groupId) => this.closeMcpTabGroup(groupId),
+      openHome: () => this.openHome(),
+      assertTabLabelAdmission: () => this.assertTabLabelAdmission(),
+      saveTabLabel: (tabId, value, validateAuthority, onCommitted) => this.saveTabLabel(tabId, value, validateAuthority, onCommitted),
+      getState: () => this.getState()
     }
-    if (!createdTabId || !saving) throw new Error('Labeled tab creation did not produce a website tab.')
-    return { createdTabId, labelPersistence: await saving }
+  }
+
+  newLabeledAgentTab(options: NewTabOptions, value: string, validateAuthority: () => void, onCreated: (id: string) => void, onCreationAttempt: () => void): Promise<{ createdTabId: string; labelPersistence: 'saved' | 'durability-unconfirmed' | 'not-saved' }> {
+    return newLabeledAgentTab(this.newTabsAccess(), options, value, validateAuthority, onCreated, onCreationAttempt)
   }
 
   async newTab(options: NewTabOptions = {}, selectVisible = true): Promise<BrowserState> {
     return this.createNewTab(options, selectVisible)
   }
 
-  private async createNewTab(options: NewTabOptions, selectVisible: boolean, onCreated?: (tab: BrowserTab) => void, onCreationAttempt?: () => void): Promise<BrowserState> {
-    const url = normalizeAddress(options.url ?? 'about:blank', this.options.getSearchEngine?.())
-    if (isHronautHomeUrl(url)) {
-      if (options.mcpGroupId) throw new Error('Hronaut Home is a human application page and cannot be added to an agent workspace.')
-      return this.openHome()
-    }
-    if (this.tabs.size >= MAX_TABS) throw new Error(`Tab limit reached (${MAX_TABS})`)
-    if (options.defaultFontSize !== undefined && !isDefaultFontSize(options.defaultFontSize)) {
-      throw new Error(`defaultFontSize must be an integer from ${DEFAULT_FONT_SIZE_LIMITS.min} to ${DEFAULT_FONT_SIZE_LIMITS.max} CSS pixels`)
-    }
-    const createsWorkspace = !options.mcpGroupId && this.mcpTabGroups.size === 0
-    const groupId = options.mcpGroupId ?? this.ensureHumanWorkspace()
-    this.requireMcpTabGroup(groupId)
-    this.assertWorkspaceNavigationAllowed(groupId, url, 'direct')
-    try {
-      await this.createTab({
-        url,
-        active: options.active ?? true,
-        selectVisible,
-        mcpGroupId: groupId,
-        focus: options.focus,
-        zoomIsolated: options.zoomIsolated === true,
-        defaultFontSize: options.defaultFontSize,
-        onCreated,
-        onCreationAttempt
-      })
-    } catch (error) {
-      if (createsWorkspace) {
-        try { await this.closeMcpTabGroup(groupId) } catch (cleanupError) {
-          throw new AggregateError([error, cleanupError], 'The new tab failed and its workspace could not be cleaned up. The workspace remains available for recovery.')
-        }
-      }
-      throw error
-    }
-    return this.getState()
+  private createNewTab(options: NewTabOptions, selectVisible: boolean, onCreated?: (tab: BrowserTab) => void, onCreationAttempt?: () => void): Promise<BrowserState> {
+    return createNewTab(this.newTabsAccess(), options, selectVisible, onCreated, onCreationAttempt)
   }
 
   reopenClosedTab(closedTabId?: string): Promise<BrowserState> {
