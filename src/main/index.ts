@@ -33,8 +33,6 @@ import { pathToFileURL } from 'node:url'
 import {
   app,
   BrowserWindow,
-  clipboard,
-  ClipboardItem,
   dialog,
   ipcMain,
   Menu,
@@ -48,7 +46,6 @@ import {
   WebContentsView,
   webContents as allWebContents,
   type MessageBoxOptions,
-  type NativeImage,
   type Session,
   type WebContents
 } from 'electron'
@@ -152,7 +149,7 @@ import {
   type WindowChromeMode
 } from '../shared/title-bar.js'
 import { registerShellIpc } from './shell-ipc.js'
-import { writeVerifiedClipboardText } from './verified-clipboard.js'
+import { createClipboardOperations } from './clipboard-operations.js'
 import { createPanelWindow } from './windows/panel-window.js'
 import type {
   AddressSuggestion,
@@ -469,35 +466,18 @@ const {
   publishSettings,
   updateSettings
 })
-// Keep the current clipboard image alive while Hronaut owns the X11 clipboard.
-// This is harmless on Windows/macOS and avoids relying on a temporary NativeImage
-// wrapper being retained by the Linux clipboard backend.
-let _lastScreenshotClipboardImage: NativeImage | null = null
-let _lastCopiedText = ''
-let clipboardOperationQueue: Promise<void> = Promise.resolve()
+const {
+  copyTextToClipboard,
+  reportClipboardFailure,
+  copyPngToClipboard,
+  copyPageImageToClipboard
+} = createClipboardOperations({
+  text,
+  mainWindow: () => mainWindow
+})
 
 function text(key: MessageKey, parameters?: MessageParameters): string {
   return translate(resolvedLocale, key, parameters)
-}
-
-function queueClipboardOperation<T>(operation: () => Promise<T>): Promise<T> {
-  const result = clipboardOperationQueue.then(operation)
-  clipboardOperationQueue = result.then(() => undefined, () => undefined)
-  return result
-}
-
-async function copyTextToClipboard(text: string): Promise<void> {
-  await queueClipboardOperation(async () => {
-    await writeVerifiedClipboardText(text, clipboard)
-    _lastCopiedText = text
-  })
-}
-
-function reportClipboardFailure(error: unknown): void {
-  const message = error instanceof Error ? error.message : text('native.errors.clipboard')
-  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.send('clipboard:failed', message)
-  }
 }
 
 function reportBrowserActionFailure(action: string, error: unknown): void {
@@ -520,68 +500,6 @@ function runNativeBrowserAction(action: string, callback: () => unknown): void {
   } catch (error) {
     reportBrowserActionFailure(action, error)
   }
-}
-
-async function readClipboardImage(): Promise<NativeImage> {
-  const items = await clipboard.read()
-  const item = items.find((entry) => entry.types.includes('image/png'))
-  if (!item) return nativeImage.createEmpty()
-  const blob = await item.getType('image/png')
-  if (!(blob instanceof Blob)) throw new Error('The clipboard PNG payload was not an image')
-  return nativeImage.createFromBuffer(Buffer.from(await blob.arrayBuffer()))
-}
-
-async function writePngToClipboard(data: Buffer): Promise<{ width: number; height: number }> {
-  const image = nativeImage.createFromBuffer(data)
-  if (image.isEmpty()) throw new Error(text('native.errors.screenshotCreate'))
-  const expectedSize = image.getSize()
-  _lastScreenshotClipboardImage = image
-
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    // Do not let a previous image with the same dimensions masquerade as a
-    // successful write when the platform clipboard silently rejects this one.
-    clipboard.clear()
-    await clipboard.write([new ClipboardItem({
-      'image/png': new Blob([new Uint8Array(data)], { type: 'image/png' })
-    })])
-    await new Promise<void>((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
-    const copied = await readClipboardImage()
-    const copiedSize = copied.getSize()
-    if (
-      !copied.isEmpty()
-      && copied.toPNG().byteLength > 0
-      && copiedSize.width === expectedSize.width
-      && copiedSize.height === expectedSize.height
-    ) {
-      return copiedSize
-    }
-  }
-
-  throw new Error('The screenshot was captured, but the system clipboard did not accept the image')
-}
-
-async function copyPngToClipboard(data: Buffer): Promise<{ width: number; height: number }> {
-  return queueClipboardOperation(() => writePngToClipboard(data))
-}
-
-async function copyPageImageToClipboard(webContents: WebContents, x: number, y: number): Promise<void> {
-  await queueClipboardOperation(async () => {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      if (webContents.isDestroyed()) throw new Error('The page closed before its image could be copied')
-      clipboard.clear()
-      webContents.copyImageAt(x, y)
-      await new Promise<void>((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
-      const image = await readClipboardImage()
-      if (!image.isEmpty()) {
-        const png = image.toPNG()
-        if (png.byteLength > 0) {
-          await writePngToClipboard(png)
-          return
-        }
-      }
-    }
-    throw new Error('The page image was selected, but the system clipboard did not accept it')
-  })
 }
 
 function defaultDownloadDirectory(): string {
