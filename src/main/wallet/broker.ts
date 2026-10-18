@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import {
   reconcileAccountProviderSessions,
   type AccountProviderSession,
@@ -38,7 +37,6 @@ import type {
   WalletChainAdapter,
   WalletNormalizedTransaction
 } from './adapters/types.js'
-import { walletJsonSafe } from './json-safe.js'
 import {
   WalletPolicyEngine,
   type WalletPolicyDecision,
@@ -46,7 +44,6 @@ import {
 } from './policy.js'
 import type { WalletService } from './service.js'
 import {
-  agentSummary,
   summary,
   trustedMessageDisplay,
   trustedMessageRaw
@@ -96,6 +93,7 @@ import {
   type AccountConnectionsAccess
 } from './broker/account-connections.js'
 import { transactionRequest, type TransactionRequestsAccess } from './broker/transaction-requests.js'
+import { messageRequest, type MessageRequestsAccess } from './broker/message-requests.js'
 import { sanitizedError } from './broker/sanitized-error.js'
 
 export interface WalletBrokerContext {
@@ -147,15 +145,6 @@ export interface WalletPageCallFailure {
 
 const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
 const MAX_TIMEOUT_MS = 2_147_483_647
-// Size in UTF-8 JSON bytes, as a page sends it; anything unserializable is unbounded.
-function jsonBytes(value: unknown): number {
-  try {
-    return Buffer.byteLength(JSON.stringify(value) ?? '', 'utf8')
-  } catch {
-    return Number.POSITIVE_INFINITY
-  }
-}
-
 export class WalletBroker {
   private readonly adapters: Record<WalletChainFamily, WalletChainAdapter>
   private readonly policy = new WalletPolicyEngine()
@@ -646,61 +635,28 @@ export class WalletBroker {
     return transactionRequest(this.transactionRequestsAccess(), context, wallet, payload, broadcast, returnSummary, prepared)
   }
 
-  private async messageRequest(
-    context: WalletBrokerContext,
-    wallet: WalletDescriptor,
-    input: WalletMessageSigningInput,
-    rawSigning = false,
-    returnSummary = false
-  ): Promise<unknown> {
-    const currentWallet = this.requireAccessibleWallet(context, wallet.id)
-    this.assertAddressPermission(context, currentWallet, 'sign')
-    const retainedInput: WalletMessageSigningInput = input.kind === 'message'
-      ? { kind: 'message', message: Uint8Array.from(input.message) }
-      : structuredClone(input)
-    const serialized = JSON.stringify(walletJsonSafe(retainedInput))
-    const messageHash = createHash('sha256')
-      .update('hronaut-wallet-message-v1\u0000')
-      .update(serialized)
-      .digest('hex')
-    const record = await this.createRequest(context, currentWallet, 'sign-message', 'sign', {
-      messageHash,
-      messageKind: retainedInput.kind,
-      messageLength: Buffer.byteLength(serialized, 'utf8'),
-      rawSigning
-    })
-    this.pendingMessages.set(record.id, retainedInput)
-    try {
-      await this.service.approvals.transition(record.id, 'validated', this.now())
-      await this.service.approvals.recordSimulation(record.id, { attempted: false, success: false }, this.now())
-      await this.service.approvals.transition(record.id, 'simulated', this.now())
-      await this.service.approvals.transition(record.id, 'policy-decision', this.now())
-      const signIn = this.websiteSignInDecision(context, currentWallet, record.id, retainedInput.kind === 'message'
-        ? { kind: 'message', bytes: retainedInput.message, raw: rawSigning }
-        : { kind: 'typed-data', typedData: retainedInput.typedData, serializedBytes: jsonBytes(retainedInput.typedData) })
-      await this.service.audit.append('request-simulated', {
-        requestId: record.id, walletId: wallet.id, success: false, attempted: false,
-        policyDecision: signIn?.decision.outcome ?? 'awaiting-human',
-        reason: signIn?.decision.reason ?? (rawSigning ? 'raw-signing-requires-human' : 'message-signing-requires-human')
-      }, this.now().toISOString())
-      if (signIn?.decision.outcome === 'approved') {
-        const automatic = await this.approveWebsiteSignIn(
-          context, currentWallet, record.id, signIn.policies, signIn.decision.policyId, retainedInput.kind === 'typed-data'
-        )
-        if (automatic.approved) {
-          this.clearRequestExpiry(record.id)
-          this.publish()
-          return automatic.result
-        }
-      }
-      await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
-      if (returnSummary) this.publish()
-      return returnSummary
-        ? agentSummary(this.service.approvals.get(record.id)!, wallet)
-        : this.wait(record.id)
-    } catch (error) {
-      throw await this.fail(record.id, error)
+  /** The narrow view message requests get of this broker's retained messages and request path. */
+  private messageRequestsAccess(): MessageRequestsAccess {
+    return {
+      service: this.service,
+      pendingMessages: this.pendingMessages,
+      requireAccessibleWallet: (context, walletId) => this.requireAccessibleWallet(context, walletId),
+      assertAddressPermission: (context, wallet, capability) => this.assertAddressPermission(context, wallet, capability),
+      createRequest: (context, wallet, operation, capability, payload) => this.createRequest(context, wallet, operation, capability, payload),
+      websiteSignInDecision: (context, wallet, recordId, message) => this.websiteSignInDecision(context, wallet, recordId, message),
+      approveWebsiteSignIn: (context, wallet, recordId, policies, policyId, typedData) => (
+        this.approveWebsiteSignIn(context, wallet, recordId, policies, policyId, typedData)
+      ),
+      clearRequestExpiry: (requestId) => this.clearRequestExpiry(requestId),
+      wait: (requestId) => this.wait(requestId),
+      fail: (requestId, error) => this.fail(requestId, error),
+      publish: () => this.publish(),
+      now: () => this.now()
     }
+  }
+
+  private messageRequest(context: WalletBrokerContext, wallet: WalletDescriptor, input: WalletMessageSigningInput, rawSigning = false, returnSummary = false): Promise<unknown> {
+    return messageRequest(this.messageRequestsAccess(), context, wallet, input, rawSigning, returnSummary)
   }
 
   /**
