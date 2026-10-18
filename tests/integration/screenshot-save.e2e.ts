@@ -83,10 +83,6 @@ test('saves the viewport as a PNG in downloads and returns only where it went', 
     const again = await call<SavedScreenshot>('browser_screenshot_save', { workspaceId, tabId, filename: 'qa-record' })
     expect(again.filename).toBe('qa-record (1).png')
     expect(await readFile(saved.path)).toEqual(first)
-    const together = await Promise.all([save({ filename: 'together' }), save({ filename: 'together' })])
-    const togetherPaths = together.filter(entry => !entry.isError).map(entry => (JSON.parse(textOf(entry)) as SavedScreenshot).path)
-    expect(togetherPaths.length).toBeGreaterThan(0)
-    expect(new Set(togetherPaths).size).toBe(togetherPaths.length)
 
     // maxWidth scales the saved image down.
     const small = await call<SavedScreenshot>('browser_screenshot_save', { workspaceId, tabId, maxWidth: 100 })
@@ -132,6 +128,84 @@ test('saves the viewport as a PNG in downloads and returns only where it went', 
     // An ordinary screenshot still returns its image.
     const ordinary = await client.callTool({ name: 'browser_screenshot', arguments: { workspaceId, tabId } }) as CallToolResult
     expect(ordinary.content.some(part => part.type === 'image')).toBe(true)
+  } finally {
+    await client.close().catch(() => undefined)
+    await closeFixtureServer(server)
+  }
+})
+
+test('saves from two workspaces at once to distinct files and refuses a third while two are capturing', async ({ electronApp, mcpPort, mcpToken, profileDirectory }) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(PAGE)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Page fixture did not expose a port')
+  const origin = `http://127.0.0.1:${address.port}`
+  const client = new Client({ name: 'hronaut-screenshot-save-concurrency-test', version: '1.0.0' })
+  type HeldScope = typeof globalThis & { heldCaptures?: number; captureReleases?: Array<() => void> }
+  try {
+    await expect.poll(async () => {
+      try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization: `Bearer ${mcpToken}` } })).ok } catch { return false }
+    }).toBe(true)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+      requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
+    }))
+    const textOf = (result: CallToolResult): string => result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
+    const call = async <T>(name: string, args: Record<string, unknown>): Promise<T> => {
+      const result = await client.callTool({ name, arguments: args }) as CallToolResult
+      if (result.isError) throw new Error(textOf(result))
+      return JSON.parse(textOf(result)) as T
+    }
+    // One workspace runs one save at a time, so each save here comes from its own workspace.
+    const targets: Array<{ workspaceId: string; tabId: string }> = []
+    for (const name of ['a', 'b', 'c']) {
+      const workspaceId = (await call<{ id: string }>('browser_workspaces', { action: 'create', name: `Screenshot records ${name}` })).id
+      const tabId = (await call<{ activeTabId: string }>('browser_new_tab', { workspaceId, url: `${origin}/${name}` })).activeTabId
+      // Only one tab is on screen, so the others are waited for until attached, not visible.
+      const ready = await client.callTool({ name: 'browser_wait', arguments: { workspaceId, tabId, selector: '#mark', state: 'attached' } }) as CallToolResult
+      expect(ready.isError, textOf(ready)).not.toBe(true)
+      targets.push({ workspaceId, tabId })
+    }
+    const save = (target: { workspaceId: string; tabId: string }, filename: string) =>
+      client.callTool({ name: 'browser_screenshot_save', arguments: { ...target, filename } }) as Promise<CallToolResult>
+    // Hold the captures of pages a and b until both are under way.
+    await electronApp.evaluate(({ webContents }, urls) => {
+      const scope = globalThis as HeldScope
+      scope.heldCaptures = 0
+      scope.captureReleases = []
+      for (const url of urls) {
+        const page = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)!
+        const original = page.capturePage.bind(page)
+        page.capturePage = (async (...args: Parameters<typeof page.capturePage>) => {
+          page.capturePage = original
+          scope.heldCaptures! += 1
+          await new Promise<void>(resolve => { scope.captureReleases!.push(resolve) })
+          return original(...args)
+        }) as typeof page.capturePage
+      }
+    }, [`${origin}/a`, `${origin}/b`])
+    const first = save(targets[0]!, 'together')
+    const second = save(targets[1]!, 'together')
+    try {
+      await expect.poll(() => electronApp.evaluate(() => (globalThis as HeldScope).heldCaptures)).toBe(2)
+      const third = await save(targets[2]!, 'third')
+      expect(third.isError).toBe(true)
+      expect(textOf(third)).toContain('already being saved')
+    } finally {
+      await electronApp.evaluate(() => { for (const release of (globalThis as HeldScope).captureReleases ?? []) release() })
+    }
+    const both = await Promise.all([first, second])
+    for (const result of both) expect(result.isError, textOf(result)).not.toBe(true)
+    const saved = both.map(result => JSON.parse(textOf(result)) as SavedScreenshot)
+    expect(saved.map(entry => entry.filename).sort()).toEqual(['together (1).png', 'together.png'])
+    expect(new Set(saved.map(entry => entry.path)).size).toBe(2)
+    for (const entry of saved) expect((await stat(entry.path)).size).toBe(entry.bytes)
+    expect((await readdir(profileDirectory)).some(name => name.startsWith('third'))).toBe(false)
   } finally {
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)

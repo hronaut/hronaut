@@ -4213,7 +4213,12 @@ export class BrowserTabsManager {
       isDestroyed: () => this.destroyed,
       withRenderableTab: (tab, operation, mode) => this.withRenderableTab(tab, operation, mode),
       dismissAgentPointer: (webContents) => this.dismissAgentPointer(webContents),
-      screenshotPixelRatio: (tab) => this.screenshotPixelRatio(tab),
+      captureScale: (tab) => {
+        this.requireEmulationConfirmed(tab)
+        const scale = Math.max(1, ...screen.getAllDisplays().map((display) => display.scaleFactor))
+        if (!Number.isFinite(scale) || scale > 32) throw new Error('This display uses an unsupported screenshot scale.')
+        return scale
+      },
       writeUniqueDownload: (filename, data, validate) => this.writeUniqueDownload(filename, data, validate),
       screenshotFilename: (requested, title) => screenshotFilename(requested, title)
     }

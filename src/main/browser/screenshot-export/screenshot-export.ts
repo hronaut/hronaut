@@ -2,7 +2,7 @@ import { basename } from 'node:path'
 import { boundedScreenshotSize } from '../../../shared/screenshot.js'
 import type { ScreenshotExportAccess, ScreenshotExportTab } from './screenshot-export-access.js'
 
-/** The most device pixels a viewport capture may have before it is taken: an 8K frame. */
+/** The most device pixels a viewport capture may have, by area: as many as an 8K frame. */
 export const SCREENSHOT_EXPORT_MAX_PIXELS = 7680 * 4320
 /** The largest PNG an export writes. */
 export const SCREENSHOT_EXPORT_MAX_BYTES = 64 * 1024 * 1024
@@ -28,10 +28,13 @@ export interface ScreenshotExport {
   capturedAt: string
 }
 
-/** Held until the MCP response has finished its own checks. The file is already written; discarding this never removes it. */
+/**
+ * Held until the MCP response has finished its own checks. The file is already
+ * complete, so only the workspace's authority is checked again: a later
+ * navigation or closed tab does not change what was saved.
+ */
 export interface PendingScreenshotExport {
-  assertCurrent(): void
-  discard(): void
+  assertAuthority(): void
 }
 
 /**
@@ -39,9 +42,9 @@ export interface PendingScreenshotExport {
  * agent's pointer, and returns where it went, never the image. A capture
  * larger than an 8K frame is refused before it is taken, and a PNG over the
  * byte limit before it is written. It throws when the tab, its document or
- * its workspace's authority changed before the file was complete, removing
- * only its own partial file. A deferred export keeps its document check until
- * the caller publishes it.
+ * its workspace's authority changed before the file was complete, trying to
+ * remove only its own partial file. A deferred export hands the caller its
+ * authority check for publication.
  */
 export async function saveScreenshot<Tab extends ScreenshotExportTab>(access: ScreenshotExportAccess<Tab>, options: ScreenshotExportOptions = {},
   validateExport?: () => void, deferExport?: (pending: PendingScreenshotExport) => void): Promise<ScreenshotExport> {
@@ -52,10 +55,9 @@ export async function saveScreenshot<Tab extends ScreenshotExportTab>(access: Sc
   const webContents = tab.webContents
   const navigationGeneration = tab.navigationGeneration
   let documentCommitted = false
-  let publicationDeferred = false
+  let slotTaken = false
   const onDocumentCommitted = (): void => { documentCommitted = true }
-  const discard = (): void => { webContents.removeListener('did-navigate', onDocumentCommitted) }
-  const assertCurrent = (): void => {
+  const assertAuthority = (): void => {
     validateExport?.()
     if (validateExport) {
       const currentWorkspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
@@ -63,6 +65,9 @@ export async function saveScreenshot<Tab extends ScreenshotExportTab>(access: Sc
         throw new Error('Workspace access changed while saving its screenshot. Save again with current authority.')
       }
     }
+  }
+  const assertCurrent = (): void => {
+    assertAuthority()
     if (access.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
       throw new Error('The tab closed while saving its screenshot. Open the page and save again.')
     }
@@ -71,20 +76,29 @@ export async function saveScreenshot<Tab extends ScreenshotExportTab>(access: Sc
     }
   }
   assertCurrent()
-  if (exportsUnderWay >= SCREENSHOT_EXPORT_MAX_CONCURRENT) {
-    throw new Error(`${SCREENSHOT_EXPORT_MAX_CONCURRENT} screenshots are already being saved. Wait for them to finish, then save again.`)
-  }
-  exportsUnderWay += 1
   try {
     // A navigation may already have started when the export is requested. Its
     // later commit does not increment navigationGeneration a second time.
     webContents.on('did-navigate', onDocumentCommitted)
     const { image, capturedAt } = await access.withRenderableTab(tab, async () => {
       assertCurrent()
+      // The slot is taken only once this tab's turn to render has come, and
+      // held through the write, so waiting behind another export holds none.
+      if (exportsUnderWay >= SCREENSHOT_EXPORT_MAX_CONCURRENT) {
+        throw new Error(`${SCREENSHOT_EXPORT_MAX_CONCURRENT} screenshots are already being saved. Wait for them to finish, then save again.`)
+      }
+      exportsUnderWay += 1
+      slotTaken = true
+      // A capture has the page's viewport in CSS pixels, which an emulated
+      // viewport sets even beyond the view showing it, times the display
+      // scale; the emulated pixel ratio does not change its size.
       const view = tab.view.getBounds()
-      const ratio = access.screenshotPixelRatio(tab)
-      if (view.width * ratio * view.height * ratio > SCREENSHOT_EXPORT_MAX_PIXELS) {
-        throw new Error('This viewport is larger than an 8K frame, so its screenshot was not saved. Make the window or emulated viewport smaller.')
+      const emulated = emulatedViewportSize(tab)
+      const scale = access.captureScale(tab)
+      const width = Math.max(view.width, emulated?.width ?? 0) * scale
+      const height = Math.max(view.height, emulated?.height ?? 0) * scale
+      if (!Number.isFinite(width * height) || width * height > SCREENSHOT_EXPORT_MAX_PIXELS) {
+        throw new Error('This viewport has more pixels than an 8K frame, so its screenshot was not saved. Make the window or emulated viewport smaller.')
       }
       await access.dismissAgentPointer(webContents)
       assertCurrent()
@@ -107,13 +121,20 @@ export async function saveScreenshot<Tab extends ScreenshotExportTab>(access: Sc
     }
     assertCurrent()
     const path = await access.writeUniqueDownload(filename, data, assertCurrent)
-    if (deferExport) {
-      deferExport({ assertCurrent, discard })
-      publicationDeferred = true
-    }
+    deferExport?.({ assertAuthority })
     return { filename: basename(path), path, mimeType: 'image/png', width: size.width, height: size.height, bytes: data.length, capturedAt }
   } finally {
-    exportsUnderWay -= 1
-    if (!publicationDeferred) discard()
+    if (slotTaken) exportsUnderWay -= 1
+    webContents.removeListener('did-navigate', onDocumentCommitted)
+  }
+}
+
+/** The page's emulated viewport in CSS pixels, from the override and the size its view was given for it, whichever is larger. */
+function emulatedViewportSize(tab: ScreenshotExportTab): { width: number; height: number } | undefined {
+  const viewport = tab.emulation.viewport
+  if (!viewport && !tab.emulationViewSize) return undefined
+  return {
+    width: Math.max(viewport?.width ?? 0, tab.emulationViewSize?.width ?? 0),
+    height: Math.max(viewport?.height ?? 0, tab.emulationViewSize?.height ?? 0)
   }
 }

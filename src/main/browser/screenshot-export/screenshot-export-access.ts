@@ -1,6 +1,11 @@
 import type { WebContents, WebContentsView } from 'electron'
+import type { BrowserEmulationState } from '../../../shared/types.js'
 
-/** The tab fields a screenshot export reads: the page and its view, its title, its workspace and its document generation. */
+/**
+ * The tab fields a screenshot export reads: the page and its view, its title,
+ * its workspace, its document generation, and its emulated viewport with the
+ * size its view was given for it.
+ */
 export interface ScreenshotExportTab {
   id: string
   title: string
@@ -8,6 +13,8 @@ export interface ScreenshotExportTab {
   navigationGeneration: number
   webContents: WebContents
   view: WebContentsView
+  emulation: BrowserEmulationState
+  emulationViewSize?: { width: number; height: number }
 }
 
 /**
@@ -25,8 +32,12 @@ export interface ScreenshotExportAccess<Tab extends ScreenshotExportTab> {
   isDestroyed(): boolean
   withRenderableTab<T>(tab: Tab, operation: () => Promise<T>, mode?: 'presented-frame' | 'surface' | 'print'): Promise<T>
   dismissAgentPointer(webContents: WebContents): Promise<void>
-  /** The device pixels per CSS pixel a capture of the tab can have: the display's or the emulated ratio, whichever is larger. */
-  screenshotPixelRatio(tab: Tab): number
+  /**
+   * The device pixels per CSS pixel a capture of the tab can have: the largest
+   * display scale, since a hidden window captures offscreen on whichever
+   * display is nearest. It throws while the tab's emulation is unconfirmed.
+   */
+  captureScale(tab: Tab): number
   writeUniqueDownload(filename: string, data: Buffer, validate?: () => void): Promise<string>
   screenshotFilename(requested: string | undefined, title: string): string
 }
