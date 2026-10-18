@@ -158,17 +158,17 @@ async function controlPageLifecycleInternal<Tab extends PageLifecycleTab>(
       try {
         await new Promise(resolve => setTimeout(resolve, 34))
         await webContents.executeJavaScript(`(() => {
-          try {
-            const records = ${JSON.stringify(records)};
-            const animations = Array.from(document.getAnimations());
-            for (let index = 0; index < records.length; index += 1) {
-              const animation = animations[index];
-              if (!animation) continue;
-              animation.playbackRate = records[index].playbackRate;
-              animation.currentTime = records[index].currentTime;
-            }
-          } catch { /* Animation restoration is best effort for adversarial pages. */ }
-        })()`, false)
+            try {
+              const records = ${JSON.stringify(records)};
+              const animations = Array.from(document.getAnimations());
+              for (let index = 0; index < records.length; index += 1) {
+                const animation = animations[index];
+                if (!animation) continue;
+                animation.playbackRate = records[index].playbackRate;
+                animation.currentTime = records[index].currentTime;
+              }
+            } catch { /* Animation restoration is best effort for adversarial pages. */ }
+          })()`, false)
       } finally {
         if (backgroundThrottling) webContents.setBackgroundThrottling(true)
       }
