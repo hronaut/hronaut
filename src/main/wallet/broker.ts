@@ -32,25 +32,18 @@ import {
 import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js'
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
-import {
-  callBundleError,
-  callBundleStatus,
-  callReceipt,
-  EVM_CALL_BUNDLE_VERSION,
-  EvmCallBundleStore,
-  parseSendCalls,
-  type EvmCallReceipt
-} from './evm-call-bundles.js'
-import { EvmFilterRegistry, isEvmFilterCreateMethod, isEvmFilterId, MAX_EVM_FILTERS_PER_PAGE, type EvmFilterOwner } from './evm-filters.js'
-import {
-  EvmAssetSuggestionLog,
-  parseWatchAsset,
-  watchAssetRefusal,
-  type EvmTokenContractDetails
-} from './evm-watch-asset.js'
+import { EvmCallBundleStore } from './evm-call-bundles.js'
+import { EvmFilterRegistry } from './evm-filters.js'
+import { EvmAssetSuggestionLog } from './evm-watch-asset.js'
 import { WalletPageLog } from './page-log.js'
 import { typedDataDisplay } from './typed-data-display.js'
-import { TYPED_DATA_V3_UNSUPPORTED, typedDataV3MatchesV4 } from './typed-data-v3.js'
+import {
+  evmRequest,
+  reconcileEvmProviderSessions,
+  uninstallEvmFilters,
+  type EvmProviderAccess,
+  type EvmProviderSession
+} from './evm-provider.js'
 import { SolanaWalletAdapter } from './adapters/solana.js'
 import { TronWalletAdapter } from './adapters/tron.js'
 import type {
@@ -58,7 +51,6 @@ import type {
   WalletNormalizedTransaction
 } from './adapters/types.js'
 import { restoreWalletJson, walletJsonSafe } from './json-safe.js'
-import { recoverPersonalSigner } from './evm-ec-recover.js'
 import {
   isMainnetAgentAutomationPolicy,
   websiteSignInPolicyApplies,
@@ -114,16 +106,6 @@ interface AgentOperationLifecycle {
   drainWaiters: Array<() => void>
 }
 
-interface EvmProviderSession {
-  workspaceId: string
-  tabId: string
-  navigationGeneration: number
-  topLevelOrigin: string
-  requester: WalletRequester
-  networkId: string
-  accounts: string[]
-}
-
 export interface WalletBrokerOptions {
   assertAgentAccess?: () => void
   adapters?: Partial<Record<WalletChainFamily, WalletChainAdapter>>
@@ -154,9 +136,6 @@ export interface WalletPageCallFailure {
 }
 
 const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
-// A batch waits for each call to be mined before preparing the next one.
-const EVM_BATCH_CONFIRMATION_POLL_MS = 1_000
-const EVM_BATCH_CONFIRMATION_TIMEOUT_MS = 10 * 60_000
 const MAX_TIMEOUT_MS = 2_147_483_647
 const EXPIRABLE_REQUEST_STATUSES = new Set([
   'draft', 'validated', 'simulated', 'policy-decision', 'awaiting-human', 'approved'
@@ -191,10 +170,6 @@ function jsonBytes(value: unknown): number {
   }
 }
 
-function paramsArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : value === undefined ? [] : [value]
-}
-
 export class WalletBroker {
   private readonly adapters: Record<WalletChainFamily, WalletChainAdapter>
   private readonly policy = new WalletPolicyEngine()
@@ -212,7 +187,7 @@ export class WalletBroker {
   private readonly confirmationTasks = new Set<Promise<void>>()
   private readonly agentOperations = new Map<string, AgentOperationLifecycle>()
   private readonly evmProviderSessions = new Map<string, EvmProviderSession>()
-  private readonly evmFilters = new EvmFilterRegistry((owner, ids) => this.uninstallEvmFilters(owner.wallet, ids))
+  private readonly evmFilters = new EvmFilterRegistry((owner, ids) => uninstallEvmFilters(this.evmProviderAccess(), owner.wallet, ids))
   private readonly evmCallBundles = new EvmCallBundleStore()
   private readonly evmAssetSuggestions = new EvmAssetSuggestionLog()
   private readonly pageCallFailures = new WalletPageLog<WalletPageCallFailure>(MAX_PAGE_CALL_FAILURES_PER_TAB, MAX_PAGE_CALL_FAILURE_TABS)
@@ -297,7 +272,7 @@ export class WalletBroker {
   lock(): Promise<WalletServiceStatus> {
     this.lockGeneration += 1
     this.service.lock()
-    this.reconcileEvmProviderSessions()
+    reconcileEvmProviderSessions(this.evmProviderAccess())
     return this.queueLifecycle(async () => {
       try {
         await this.service.approvals.cancelAll()
@@ -455,7 +430,7 @@ export class WalletBroker {
       this.assertSupportedProviderMethod(input)
       const request = WalletProviderRequestSchema.parse(input)
       const wallets = this.accessibleWallets(context, request.family)
-      if (request.family === 'evm') return await this.evmRequest(context, wallets, request.method, request.params)
+      if (request.family === 'evm') return await evmRequest(this.evmProviderAccess(), context, wallets, request.method, request.params)
       if (request.family === 'solana') return await solanaRequest(this.solanaTronProviderAccess(), context, wallets, request.method, request.params)
       return await tronRequest(this.solanaTronProviderAccess(), context, wallets, request.method, request.params)
     } catch (error) {
@@ -684,81 +659,39 @@ export class WalletBroker {
     if (cancellationError) throw cancellationError
   }
 
-  private async evmRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
-    if (method === 'personal_ecRecover') {
-      const values = paramsArray(params)
-      return recoverPersonalSigner(this.messageBytes(values[0], 'hex-or-utf8'), values[1])
+  /**
+   * The narrow view the EVM page provider gets of this broker's private
+   * state and request path. It is built on each call, so it reads whether
+   * the broker is shutting down at the moment the provider asks, and the
+   * calls below return the provider's promise directly.
+   */
+  private evmProviderAccess(): EvmProviderAccess {
+    return {
+      adapters: this.adapters,
+      options: this.options,
+      evmProviderSessions: this.evmProviderSessions,
+      evmFilters: this.evmFilters,
+      evmCallBundles: this.evmCallBundles,
+      evmAssetSuggestions: this.evmAssetSuggestions,
+      closedTabs: this.closedTabs,
+      replacedTransactionHashes: this.replacedTransactionHashes,
+      isShuttingDown: () => this.shuttingDown,
+      accessibleWallets: (context, family) => this.accessibleWallets(context, family),
+      selectWallet: (wallets) => this.selectWallet(wallets),
+      hasAddressPermission: (context, wallet) => this.hasAddressPermission(context, wallet),
+      assertAddressPermission: (context, wallet, capability) => this.assertAddressPermission(context, wallet, capability),
+      isRequestContextActive: (context) => this.isRequestContextActive(context),
+      assertRequestContextActive: (context) => this.assertRequestContextActive(context),
+      scheduleProviderPermissionExpiry: () => this.scheduleProviderPermissionExpiry(),
+      confirmationPollIntervalMs: () => this.confirmationPollIntervalMs(),
+      connect: (context, wallet) => this.connect(context, wallet),
+      disconnectWallet: (context, wallet) => this.disconnectWallet(context, wallet),
+      transactionRequest: (context, wallet, payload, broadcast) => this.transactionRequest(context, wallet, payload, broadcast),
+      messageRequest: (context, wallet, input, rawSigning) => this.messageRequest(context, wallet, input, rawSigning),
+      messageBytes: (value, encoding) => this.messageBytes(value, encoding),
+      sanitizedError: (error) => sanitizedError(error),
+      now: () => this.now()
     }
-    if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') {
-      const chainId = (paramsArray(params)[0] as { chainId?: unknown } | undefined)?.chainId
-      if (method === 'wallet_addEthereumChain') return this.addEvmChain(context, wallets, chainId)
-      return this.switchEvmChain(context, wallets, chainId)
-    }
-    if (!wallets.length) {
-      if (method === 'eth_accounts') return []
-      if (method === 'wallet_getPermissions') return []
-      throw new Error('No wallet is attached to this workspace for the requested chain')
-    }
-    const activeWallets = this.activeEvmWallets(context, wallets)
-    if (method === 'eth_accounts') return this.permittedAccounts(context, activeWallets)
-    if (method === 'wallet_getPermissions') return this.evmPermissions(context, this.permittedAccounts(context, activeWallets))
-    if (method === 'wallet_revokePermissions') {
-      this.assertEthAccountsPermissionRequest(params)
-      for (const wallet of wallets.filter((entry) => this.hasAddressPermission(context, entry))) {
-        await this.disconnectWallet(context, wallet)
-      }
-      return null
-    }
-    const wallet = this.selectWallet(activeWallets)
-    if (method === 'eth_chainId') return `0x${BigInt(wallet.network.id).toString(16)}`
-    if (method === 'wallet_watchAsset') return this.watchEvmAsset(context, wallet, params)
-    if ((EVM_READ_RPC_METHODS as readonly string[]).includes(method)) {
-      const adapter = this.adapters.evm
-      if (!adapter.readRpc) throw new Error(`Unsupported EVM wallet method: ${method}`)
-      return adapter.readRpc(wallet, method, params)
-    }
-    if ((EVM_FILTER_RPC_METHODS as readonly string[]).includes(method)) return this.evmFilterRequest(context, wallet, method, params)
-    if (method === 'wallet_getCapabilities') return this.evmCapabilities(context, wallets, params)
-    if (method === 'wallet_sendCalls') return this.sendEvmCalls(context, activeWallets, wallet, params)
-    if (method === 'wallet_getCallsStatus') return this.evmCallsStatus(context, params)
-    if (method === 'eth_requestAccounts') {
-      const permitted = this.permittedAccounts(context, activeWallets)
-      return permitted.length ? permitted : this.connect(context, wallet)
-    }
-    if (method === 'wallet_requestPermissions') {
-      this.assertEthAccountsPermissionRequest(params)
-      const permitted = this.permittedAccounts(context, activeWallets)
-      const accounts = permitted.length ? permitted : await this.connect(context, wallet) as string[]
-      return this.evmPermissions(context, accounts)
-    }
-    if (method === 'eth_sendTransaction' || method === 'eth_signTransaction') {
-      const payload = paramsArray(params)[0]
-      const requestedFrom = payload && typeof payload === 'object' && !Array.isArray(payload)
-        ? (payload as { from?: unknown }).from
-        : undefined
-      const selected = requestedFrom === undefined
-        ? wallet
-        : this.selectEvmAccount(activeWallets, requestedFrom)
-      this.assertAddressPermission(context, selected, method === 'eth_sendTransaction' ? 'send' : 'sign')
-      return this.transactionRequest(context, selected, payload, method === 'eth_sendTransaction')
-    }
-    if (method === 'personal_sign' || method === 'eth_sign' || method === 'eth_signTypedData_v4' || method === 'eth_signTypedData_v3') {
-      const values = paramsArray(params)
-      const addressIndex = method === 'personal_sign' ? 1 : 0
-      const messageIndex = method === 'personal_sign' ? 0 : 1
-      const requestedAddress = values[addressIndex]
-      const selected = this.selectEvmAccount(activeWallets, requestedAddress)
-      this.assertAddressPermission(context, selected, 'sign')
-      if (method === 'eth_signTypedData_v4' || method === 'eth_signTypedData_v3') {
-        const typedData = typeof values[messageIndex] === 'string' ? JSON.parse(values[messageIndex]) : values[messageIndex]
-        if (method === 'eth_signTypedData_v3' && !typedDataV3MatchesV4(typedData)) throw new Error(TYPED_DATA_V3_UNSUPPORTED)
-        return this.messageRequest(context, selected, { kind: 'typed-data', typedData })
-      }
-      return this.messageRequest(context, selected, {
-        kind: 'message', message: this.messageBytes(values[messageIndex], 'hex-or-utf8')
-      }, method === 'eth_sign')
-    }
-    throw new Error(`Unsupported EVM wallet method: ${method}`)
   }
 
   /**
@@ -1037,7 +970,7 @@ export class WalletBroker {
         throw error
       }
       if (wallet.chainFamily === 'evm') {
-        this.reconcileEvmProviderSessions()
+        reconcileEvmProviderSessions(this.evmProviderAccess())
         this.scheduleProviderPermissionExpiry()
       }
       return [wallet.publicAddress]
@@ -1424,326 +1357,6 @@ export class WalletBroker {
     return wallet
   }
 
-  private evmProviderSessionKey(context: WalletBrokerContext): string {
-    return JSON.stringify([
-      context.workspaceId,
-      context.tabId,
-      context.navigationGeneration,
-      context.topLevelOrigin,
-      context.requester.type,
-      context.requester.id
-    ])
-  }
-
-  private activeEvmWallets(context: WalletBrokerContext, wallets: WalletDescriptor[]): WalletDescriptor[] {
-    const key = this.evmProviderSessionKey(context)
-    const existing = this.evmProviderSessions.get(key)
-    const fallback = this.selectWallet(wallets)
-    const networkId = existing && wallets.some((wallet) => wallet.network.id === existing.networkId)
-      ? existing.networkId
-      : fallback.network.id
-    this.evmProviderSessions.set(key, {
-      workspaceId: context.workspaceId,
-      tabId: context.tabId,
-      navigationGeneration: context.navigationGeneration,
-      topLevelOrigin: context.topLevelOrigin,
-      requester: structuredClone(context.requester),
-      networkId,
-      accounts: this.permittedAccounts(context, wallets.filter((wallet) => wallet.network.id === networkId))
-    })
-    this.scheduleProviderPermissionExpiry()
-    const active = wallets.filter((wallet) => wallet.network.id === networkId)
-    const next = this.evmProviderSessions.get(key)!
-    if (!existing) {
-      this.options.onProviderEvent?.(context.tabId, {
-        family: 'evm', event: 'connect', payload: { chainId: `0x${BigInt(networkId).toString(16)}` }
-      })
-    } else {
-      if (existing.networkId !== networkId) {
-        this.options.onProviderEvent?.(context.tabId, {
-          family: 'evm', event: 'chainChanged', payload: `0x${BigInt(networkId).toString(16)}`
-        })
-      }
-      if (!isDeepStrictEqual(existing.accounts, next.accounts)) {
-        this.options.onProviderEvent?.(context.tabId, {
-          family: 'evm', event: 'accountsChanged', payload: [...next.accounts]
-        })
-      }
-    }
-    return active
-  }
-
-  private addEvmChain(context: WalletBrokerContext, wallets: WalletDescriptor[], requestedChainId: unknown): null {
-    try {
-      return this.switchEvmChain(context, wallets, requestedChainId)
-    } catch (error) {
-      if (error instanceof Error && error.message === 'Requested EVM chain is not configured for this workspace wallet') {
-        throw new Error('Requested EVM chain was rejected: websites cannot add networks, configure the network on a workspace wallet in Hronaut')
-      }
-      throw error
-    }
-  }
-
-  private assertEthAccountsPermissionRequest(params: unknown): void {
-    const request = paramsArray(params)[0]
-    const keys = request && typeof request === 'object' && !Array.isArray(request) ? Object.keys(request) : []
-    if (keys.length !== 1 || keys[0] !== 'eth_accounts') {
-      throw new Error('Unsupported EVM wallet permission: only eth_accounts can be requested or revoked')
-    }
-  }
-
-  private evmPermissions(context: WalletBrokerContext, accounts: string[]): unknown[] {
-    if (!accounts.length) return []
-    return [{
-      invoker: context.topLevelOrigin,
-      parentCapability: 'eth_accounts',
-      caveats: [{ type: 'restrictReturnedAccounts', value: accounts }]
-    }]
-  }
-
-  private switchEvmChain(
-    context: WalletBrokerContext,
-    wallets: WalletDescriptor[],
-    requestedChainId: unknown
-  ): null {
-    let numericChainId: bigint
-    try {
-      if (typeof requestedChainId !== 'string' || !/^0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)$/.test(requestedChainId)) {
-        throw new Error('invalid')
-      }
-      numericChainId = BigInt(requestedChainId)
-    } catch {
-      throw new Error('Requested EVM chain is invalid')
-    }
-    const matching = wallets.filter((wallet) => BigInt(wallet.network.id) === numericChainId)
-    if (!matching.length) throw new Error('Requested EVM chain is not configured for this workspace wallet')
-    const current = this.activeEvmWallets(context, wallets)
-    const nextNetworkId = matching[0]!.network.id
-    if (current[0]?.network.id === nextNetworkId) return null
-    const key = this.evmProviderSessionKey(context)
-    this.evmProviderSessions.set(key, {
-      workspaceId: context.workspaceId,
-      tabId: context.tabId,
-      navigationGeneration: context.navigationGeneration,
-      topLevelOrigin: context.topLevelOrigin,
-      requester: structuredClone(context.requester),
-      networkId: nextNetworkId,
-      accounts: this.permittedAccounts(context, matching)
-    })
-    this.scheduleProviderPermissionExpiry()
-    const chainId = `0x${numericChainId.toString(16)}`
-    this.options.onProviderEvent?.(context.tabId, { family: 'evm', event: 'chainChanged', payload: chainId })
-    this.options.onProviderEvent?.(context.tabId, {
-      family: 'evm',
-      event: 'accountsChanged',
-      payload: this.permittedAccounts(context, matching)
-    })
-    return null
-  }
-
-  private selectEvmAccount(wallets: WalletDescriptor[], requestedAddress: unknown): WalletDescriptor {
-    if (typeof requestedAddress !== 'string') {
-      throw new Error('EVM transaction signer does not match the selected wallet')
-    }
-    const normalized = requestedAddress.toLowerCase()
-    const wallet = wallets.find((entry) => entry.publicAddress.toLowerCase() === normalized)
-    if (!wallet) throw new Error('EVM transaction signer does not match the selected wallet')
-    return wallet
-  }
-
-  /**
-   * Node filters are forwarded like reads, but a page may poll or remove only
-   * the filters this tab and site created on this node. Any other ID gets the
-   * node's own "filter not found" answer without reaching the node.
-   */
-  private async evmFilterRequest(context: WalletBrokerContext, wallet: WalletDescriptor, method: string, params: unknown): Promise<unknown> {
-    const adapter = this.adapters.evm
-    if (!adapter.readRpc) throw new Error(`Unsupported EVM wallet method: ${method}`)
-    const owner: EvmFilterOwner = { workspaceId: context.workspaceId, tabId: context.tabId, topLevelOrigin: context.topLevelOrigin, wallet }
-    if (isEvmFilterCreateMethod(method)) {
-      // ethers and viem read this message as "filters unsupported" and poll eth_getLogs instead.
-      const full = new Error(`EVM RPC error (code -32601): the method ${method} does not exist/is not available for this page, which already keeps ${MAX_EVM_FILTERS_PER_PAGE} filters`)
-      if (this.evmFilters.isFull(owner)) throw full
-      const id = await adapter.readRpc(wallet, method, params)
-      if (!isEvmFilterId(id)) throw new Error('EVM RPC read request failed')
-      if (this.closedTabs.has(context.tabId) || this.shuttingDown) {
-        this.uninstallEvmFilters(wallet, [id])
-        return id
-      }
-      if (!this.evmFilters.add(owner, id)) {
-        this.uninstallEvmFilters(wallet, [id])
-        throw full
-      }
-      return id
-    }
-    const id = paramsArray(params)[0]
-    if (!this.evmFilters.owns(owner, id)) {
-      if (method === 'eth_uninstallFilter') return false
-      throw new Error('EVM RPC error (code -32000): filter not found')
-    }
-    const result = await adapter.readRpc(wallet, method, params)
-    if (method === 'eth_uninstallFilter') this.evmFilters.remove(owner, id)
-    return result
-  }
-
-  /**
-   * EIP-5792 capabilities of a permitted account on each network it is
-   * permitted on. Hronaut sends batched calls one at a time, so it reports
-   * atomic execution as unsupported.
-   */
-  private evmCapabilities(context: WalletBrokerContext, wallets: WalletDescriptor[], params: unknown): Record<string, unknown> {
-    const [address, chainIds] = paramsArray(params)
-    if (typeof address !== 'string') throw callBundleError(-32602, 'wallet_getCapabilities expects an account address')
-    const accounts = wallets.filter((entry) => (
-      entry.publicAddress.toLowerCase() === address.toLowerCase() && this.hasAddressPermission(context, entry)
-    ))
-    if (!accounts.length) throw callBundleError(4100, 'Wallet account access must be approved before reading its capabilities')
-    const requested = Array.isArray(chainIds)
-      ? new Set(chainIds.map((chainId) => typeof chainId === 'string' && /^0x[0-9a-fA-F]{1,64}$/.test(chainId) ? BigInt(chainId).toString() : ''))
-      : undefined
-    const capabilities: Record<string, unknown> = {}
-    for (const account of accounts) {
-      if (requested && !requested.has(account.network.id)) continue
-      capabilities[`0x${BigInt(account.network.id).toString(16)}`] = { atomic: { status: 'unsupported' } }
-    }
-    return capabilities
-  }
-
-  /**
-   * EIP-5792 batch calls, sent one after another as ordinary transactions:
-   * each goes through the same approval or policy as `eth_sendTransaction`.
-   * Later calls usually depend on earlier ones, such as a swap after its
-   * token approval, so each call is prepared only once the one before it is
-   * mined and succeeded, and Hronaut stops at the first call that is
-   * rejected, fails or reverts. When the first call does not go out, the
-   * request fails with that call's error.
-   */
-  private async sendEvmCalls(
-    context: WalletBrokerContext,
-    activeWallets: WalletDescriptor[],
-    wallet: WalletDescriptor,
-    params: unknown
-  ): Promise<{ id: string }> {
-    const request = parseSendCalls(params)
-    if (BigInt(request.chainId).toString() !== wallet.network.id) {
-      throw callBundleError(5710, `Chain ${request.chainId} is not this tab's active wallet network`)
-    }
-    const selected = request.from === undefined ? wallet : this.selectEvmAccount(activeWallets, request.from)
-    this.assertAddressPermission(context, selected, 'send')
-    const owner = { workspaceId: context.workspaceId, topLevelOrigin: context.topLevelOrigin }
-    const started = this.evmCallBundles.start(owner, selected, request.calls.length, request.id)
-    if (started === 'duplicate') throw callBundleError(5720, 'This site already sent a batch with this ID')
-    if (started === 'full') throw callBundleError(-32005, 'Too many wallet_sendCalls batches are still being sent')
-    try {
-      for (const [index, call] of request.calls.entries()) {
-        const hash = String(await this.transactionRequest(context, selected, {
-          from: selected.publicAddress,
-          ...(call.to === undefined ? {} : { to: call.to }),
-          ...(call.data === undefined ? {} : { data: call.data }),
-          ...(call.value === undefined ? {} : { value: call.value })
-        }, true))
-        started.bundle.hashes.push(hash)
-        if (index < request.calls.length - 1 && !await this.evmCallSucceeded(context, selected, hash)) break
-      }
-    } catch (error) {
-      if (!started.bundle.hashes.length) {
-        this.evmCallBundles.delete(owner, started.id)
-        throw error
-      }
-      // The page already has its batch ID, so only an agent reading the batch learns why it stopped.
-      started.bundle.error = sanitizedError(error).message
-    } finally {
-      started.bundle.finished = true
-    }
-    return { id: started.id }
-  }
-
-  /**
-   * EIP-747 token suggestions, such as a faucet's "Add token to wallet"
-   * button. Hronaut keeps no token list to add them to, so it accepts a valid
-   * suggestion without a prompt: it moves no funds and reveals no account.
-   * Like MetaMask, it refuses an ERC-20 suggestion whose symbol or decimals
-   * disagree with the contract. An agent testing the page sees every
-   * suggestion, refused or not, with the contract's own values in
-   * `wallet_page_requests`.
-   */
-  private async watchEvmAsset(context: WalletBrokerContext, wallet: WalletDescriptor, params: unknown): Promise<true> {
-    const asset = parseWatchAsset(params)
-    let contract: EvmTokenContractDetails = {}
-    if (asset.type === 'ERC20' && this.adapters.evm.tokenContractDetails) {
-      try {
-        contract = await this.adapters.evm.tokenContractDetails(wallet, asset.address)
-      } catch {
-        // As in MetaMask, a contract that cannot be read leaves the page's values unchecked.
-      }
-      this.assertRequestContextActive(context)
-    }
-    const refusal = watchAssetRefusal(asset, contract)
-    if (context.requester.type === 'website') {
-      this.evmAssetSuggestions.add(context, {
-        ...asset,
-        ...(contract.symbol === undefined ? {} : { contractSymbol: contract.symbol }),
-        ...(contract.decimals === undefined ? {} : { contractDecimals: contract.decimals }),
-        ...(refusal ? { refused: refusal.reason } : {}),
-        networkId: wallet.network.id,
-        suggestedAt: this.now().toISOString()
-      })
-    }
-    if (refusal) throw refusal.error
-    return true
-  }
-
-  /**
-   * Waits until a batch call is mined; false when it reverted, another
-   * transaction replaced it, the page left, or it was not mined in time.
-   */
-  private async evmCallSucceeded(context: WalletBrokerContext, wallet: WalletDescriptor, hash: string): Promise<boolean> {
-    const interval = Math.min(this.confirmationPollIntervalMs(), EVM_BATCH_CONFIRMATION_POLL_MS)
-    const deadline = this.now().getTime() + EVM_BATCH_CONFIRMATION_TIMEOUT_MS
-    while (this.isRequestContextActive(context) && this.now().getTime() < deadline) {
-      if (this.replacedTransactionHashes.has(hash.toLowerCase())) return false
-      try {
-        const confirmation = await this.adapters.evm.confirmation(wallet, hash)
-        if (confirmation.failed) return false
-        if (confirmation.confirmed) return true
-      } catch {
-        // A node that cannot answer yet is asked again.
-      }
-      await new Promise((resolve) => setTimeout(resolve, interval))
-    }
-    return false
-  }
-
-  private async evmCallsStatus(context: WalletBrokerContext, params: unknown): Promise<unknown> {
-    const id = paramsArray(params)[0]
-    const bundle = this.evmCallBundles.get({ workspaceId: context.workspaceId, topLevelOrigin: context.topLevelOrigin }, id)
-    if (!bundle) throw callBundleError(5730, 'Unknown batch ID')
-    if (!this.hasAddressPermission(context, bundle.wallet)) {
-      throw callBundleError(4100, 'Wallet account access must be approved before reading this batch')
-    }
-    const adapter = this.adapters.evm
-    if (!adapter.readRpc) throw new Error('Unsupported EVM wallet method: wallet_getCallsStatus')
-    const receipts = await Promise.all(bundle.hashes.map(async (hash) => (
-      callReceipt(await adapter.readRpc!(bundle.wallet, 'eth_getTransactionReceipt', [hash]))
-    )))
-    const replaced = bundle.hashes.map((hash, index) => receipts[index] === undefined && this.replacedTransactionHashes.has(hash.toLowerCase()))
-    return {
-      version: EVM_CALL_BUNDLE_VERSION,
-      id,
-      chainId: `0x${BigInt(bundle.wallet.network.id).toString(16)}`,
-      status: callBundleStatus(bundle, receipts, replaced),
-      atomic: false,
-      receipts: receipts.filter((receipt): receipt is EvmCallReceipt => receipt !== undefined)
-    }
-  }
-
-  /** Removes filters Hronaut no longer tracks from the node; the node expires any it misses. */
-  private uninstallEvmFilters(wallet: WalletDescriptor, ids: string[]): void {
-    for (const id of ids) {
-      void this.adapters.evm.readRpc?.(wallet, 'eth_uninstallFilter', [id]).catch(() => undefined)
-    }
-  }
-
   private clearEvmProviderSessions(predicate: (session: EvmProviderSession) => boolean): void {
     for (const [key, session] of this.evmProviderSessions) {
       if (predicate(session)) this.evmProviderSessions.delete(key)
@@ -1757,7 +1370,7 @@ export class WalletBroker {
   }
 
   private reconcileProviderSessions(): void {
-    this.reconcileEvmProviderSessions()
+    reconcileEvmProviderSessions(this.evmProviderAccess())
     reconcileAccountProviderSessions(this.solanaTronProviderAccess())
     this.scheduleProviderPermissionExpiry()
   }
@@ -1782,64 +1395,6 @@ export class WalletBroker {
       timer.unref()
       return () => clearTimeout(timer)
     })()
-  }
-
-  private reconcileEvmProviderSessions(): void {
-    for (const [key, session] of this.evmProviderSessions) {
-      const context: WalletBrokerContext = {
-        workspaceId: session.workspaceId,
-        tabId: session.tabId,
-        navigationGeneration: session.navigationGeneration,
-        topLevelOrigin: session.topLevelOrigin,
-        requester: structuredClone(session.requester)
-      }
-      const wallets = this.accessibleWallets(context, 'evm')
-      const currentNetworkWallets = wallets.filter((wallet) => wallet.network.id === session.networkId)
-      if (currentNetworkWallets.length) {
-        const accounts = this.permittedAccounts(context, currentNetworkWallets)
-        if (!isDeepStrictEqual(session.accounts, accounts)) {
-          session.accounts = [...accounts]
-          this.evmProviderSessions.set(key, session)
-          this.options.onProviderEvent?.(session.tabId, {
-            family: 'evm', event: 'accountsChanged', payload: accounts
-          })
-        }
-        continue
-      }
-      if (!wallets.length) {
-        this.evmProviderSessions.delete(key)
-        if (session.accounts.length) {
-          this.options.onProviderEvent?.(session.tabId, {
-            family: 'evm', event: 'accountsChanged', payload: []
-          })
-        }
-        this.options.onProviderEvent?.(session.tabId, {
-          family: 'evm', event: 'disconnect', payload: {
-            code: 1000,
-            message: 'EVM provider disconnected'
-          }
-        })
-        continue
-      }
-      const fallback = this.selectWallet(wallets)
-      session.networkId = fallback.network.id
-      session.accounts = this.permittedAccounts(
-        context,
-        wallets.filter((wallet) => wallet.network.id === fallback.network.id)
-      )
-      this.evmProviderSessions.set(key, session)
-      this.options.onProviderEvent?.(session.tabId, {
-        family: 'evm', event: 'chainChanged', payload: `0x${BigInt(fallback.network.id).toString(16)}`
-      })
-      this.options.onProviderEvent?.(session.tabId, {
-        family: 'evm', event: 'accountsChanged',
-        payload: [...session.accounts]
-      })
-    }
-  }
-
-  private permittedAccounts(context: WalletBrokerContext, wallets: WalletDescriptor[]): string[] {
-    return wallets.filter((wallet) => this.hasAddressPermission(context, wallet)).map((wallet) => wallet.publicAddress)
   }
 
   private assertAddressPermission(context: WalletBrokerContext, wallet: WalletDescriptor, capability: 'sign' | 'send'): void {
