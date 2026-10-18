@@ -477,6 +477,7 @@ import { evaluateWithAttachedDebugger, mainWorldContextId, releaseDebuggerEvalua
 import type { NativeClickAccess } from './native-click/native-click-access.js'
 import { dispatchNativeClick } from './native-click/native-click.js'
 import { coordinateDragPointsOrValidateTargets, coordinatePointOrValidateTarget, validateTarget } from './input-targets/input-targets.js'
+import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -3270,31 +3271,7 @@ export class BrowserTabsManager {
   }
 
   private attemptBeforeUnloadClose(webContents: WebContents): Promise<'closed' | 'prevented'> {
-    if (webContents.isDestroyed()) return Promise.resolve('closed')
-    return new Promise((resolve, reject) => {
-      let settled = false
-      const cleanup = (): void => {
-        webContents.removeListener('will-prevent-unload', onPrevented)
-        webContents.removeListener('destroyed', onDestroyed)
-      }
-      const finish = (result: 'closed' | 'prevented'): void => {
-        if (settled) return
-        settled = true
-        cleanup()
-        resolve(result)
-      }
-      const onPrevented = (): void => finish('prevented')
-      const onDestroyed = (): void => finish('closed')
-      webContents.once('will-prevent-unload', onPrevented)
-      webContents.once('destroyed', onDestroyed)
-      try {
-        webContents.close({ waitForBeforeUnload: true })
-        if (webContents.isDestroyed()) finish('closed')
-      } catch (error) {
-        cleanup()
-        reject(error)
-      }
-    })
+    return attemptBeforeUnloadClose(webContents)
   }
 
   private closeTabTransition(tab: BrowserTab): { splitPartnerId: string | null; nextId: string | undefined } {
