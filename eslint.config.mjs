@@ -107,7 +107,7 @@ export default defineConfig(
     languageOptions: { globals: globals.vitest }
   },
   {
-    files: ['src/main/browser/{page-scripts,tabs-manager}.ts', 'src/main/home-page.ts'],
+    files: ['src/main/browser/page-scripts/*.ts', 'src/main/browser/tabs-manager.ts', 'src/main/home-page.ts'],
     rules: {
       // Protocol sanitizers and generated page scripts intentionally spell escapes explicitly.
       'no-control-regex': 'off',
