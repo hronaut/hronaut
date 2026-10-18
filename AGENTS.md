@@ -11,10 +11,12 @@ and connected coding agents. Read `README.md` for the product overview and
   operating-system integration, licensing, updates, and the MCP server.
 - `src/main/mcp/tools/<tool-name>/` holds each MCP tool's input schema,
   handler, registration options and, when it needs one, its settlement.
-  `src/main/mcp/server.ts` admits, guards and settles every call the same way
-  and registers the tools in order. Its call wrappers never branch on a tool's
-  name: a tool declares what differs about its calls in its options and
-  settlement (see `tools/tool-context.ts`). Add a new tool as its own folder.
+  `src/main/mcp/browser-mcp-server.ts` (with `workspace-tool-call.ts` for
+  workspace tools) admits, guards and settles every call the same way and
+  registers the tools in order. Those call wrappers never name a tool: a tool
+  declares what differs about its calls in its options and settlement (see
+  `tools/tool-context.ts`). `server.ts` is the public entry other modules and
+  tests import. Add a new tool as its own folder.
 - `src/preload/` exposes the narrow typed bridge used by trusted renderer code.
 - `src/renderer/` owns Vue UI state. Renderer stores mirror main-process state;
   they do not become the authority for browser or operating-system behavior.

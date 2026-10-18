@@ -13,14 +13,16 @@ import type { HumanWaitingService } from '../human-waiting-service.js'
 import type { TaskRunService } from '../task-run-service.js'
 import type { PostWriteRequest, PreWriteReconciliationRequest } from '../tool-schemas.js'
 import { WorkspaceWriteLeaseRegistry } from '../workspace-write-leases.js'
-import type { BookmarkOperations, HistoryOperations, McpClientActivity, SiteDataOperations, WalletAgentOperations, WalletAgentSessionRegistry, WalletAgentToolTarget } from '../server.js'
+import type { BookmarkOperations, HistoryOperations, SiteDataOperations } from '../browser-data-operations.js'
+import type { McpClientActivity } from '../http-server.js'
+import type { WalletAgentOperations, WalletAgentSessionRegistry, WalletAgentToolTarget } from '../wallet-agent-sessions.js'
 
 export type ResolvedTargetWakePolicy = 'before-handler' | 'handler-owned' | 'never'
 
 /**
  * One admitted workspace tool call, passed to the tool's handler next to its input. It carries the call's
- * target and cancellation signal, and the checks server.ts ran before dispatch, so a tool can repeat them
- * before each step that acts on the page or publishes a result.
+ * target and cancellation signal, and the checks the workspace wrapper (workspace-tool-call.ts) ran before
+ * dispatch, so a tool can repeat them before each step that acts on the page or publishes a result.
  */
 export interface WorkspaceToolCall<S = undefined> {
   /** The call's arguments without its review binding, as the capability and review checks saw them. */
@@ -61,8 +63,8 @@ export interface ToolActivityClassification {
 }
 
 /**
- * A tool's own bookkeeping for one call, when its result needs more than server.ts settles for every tool:
- * a publication guard, a pending capture, dispatch progress. server.ts creates it before admission from the
+ * A tool's own bookkeeping for one call, when its result needs more than the shared wrappers settle for every tool:
+ * a publication guard, a pending capture, dispatch progress. The wrapper creates it before admission from the
  * tool's `settlement` option and calls each hook at a fixed point. A hook that returns undefined leaves the
  * shared handling in place.
  */
@@ -126,7 +128,7 @@ export interface ToolCallSettlement {
   dispose?(): void
 }
 
-/** What any tool may declare about its calls, for the shared wrapper in server.ts that admits and settles them. */
+/** What any tool may declare about its calls, for the shared wrapper in browser-mcp-server.ts that admits and settles them. */
 export interface ToolOptions<S extends ToolCallSettlement | undefined> {
   /** Creates the tool's bookkeeping for one call, or undefined when this call needs none. */
   settlement?: (input: Record<string, unknown>) => S
@@ -153,7 +155,7 @@ export interface ToolOptions<S extends ToolCallSettlement | undefined> {
   leaseTarget?: (input: Record<string, unknown>) => { workspaceId: unknown; saved: boolean }
 }
 
-/** What a workspace tool may also declare about its calls, for the workspace wrapper in server.ts. */
+/** What a workspace tool may also declare about its calls, for the workspace wrapper in workspace-tool-call.ts. */
 export interface WorkspaceToolOptions<S extends ToolCallSettlement | undefined> extends ToolOptions<S> {
   /** Whether a call with this input only reads, for a tool not annotated read-only. */
   readOnly?: (input: Record<string, unknown>) => boolean
@@ -200,7 +202,7 @@ export type WorkspaceToolHandler<T, S = undefined> = ((input: T, call: Workspace
 
 /**
  * What a tool's registration may use from the MCP server it is registered on: the browser, the calling client,
- * its authorizations, and the shared wrappers that admit, guard and settle each call (see server.ts).
+ * its authorizations, and the shared wrappers that admit, guard and settle each call (see browser-mcp-server.ts and workspace-tool-call.ts).
  */
 export interface McpToolContext {
   manager: BrowserTabsManager
