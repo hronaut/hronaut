@@ -492,6 +492,8 @@ import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-acc
 import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import type { BrowserWalletPageContext, WalletPagesAccess } from './wallet-pages/wallet-pages-access.js'
 import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab } from './wallet-pages/wallet-pages.js'
+import type { WorkspaceScopeAccess } from './workspace-scope/workspace-scope-access.js'
+import { getMcpDiscoveryTabs, getMcpGroupState, requireTabInMcpGroup, tabBelongsToMcpGroup } from './workspace-scope/workspace-scope.js'
 import type { AgentPointerAccess } from './agent-pointer/agent-pointer-access.js'
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
 import type { VisualCaptureAccess } from './visual-compare/visual-capture-access.js'
@@ -1872,52 +1874,36 @@ export class BrowserTabsManager {
     })))
   }
 
-  requireTabInMcpGroup(groupId: string, tabId?: string, preserveSelection = false): string {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}. List workspaces with browser_workspaces or create one first.`)
-    const resolvedTabId = tabId
-      ?? (group.activeTabId && this.tabs.get(group.activeTabId)?.mcpGroupId === groupId ? group.activeTabId : undefined)
-      ?? [...this.tabs.values()].find((tab) => tab.mcpGroupId === groupId)?.id
-    if (!resolvedTabId) throw new Error(`Workspace "${group.name}" has no tabs. Open one with browser_new_tab.`)
-    const tab = this.tabs.get(resolvedTabId)
-    if (!tab || tab.mcpGroupId !== groupId) throw new Error(`Tab ${resolvedTabId} does not belong to workspace "${group.name}".`)
-    if (!preserveSelection) {
-      group.activeTabId = resolvedTabId
-      group.lastUsedAt = new Date().toISOString()
+  /**
+   * The narrow view scoping to a workspace gets of this manager's private
+   * tabs, open workspaces and browser state. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit tests
+   * do) still provide it.
+   */
+  private workspaceScopeAccess(): WorkspaceScopeAccess<BrowserTab> {
+    return {
+      tabs: () => this.tabs.values(),
+      findTab: (tabId) => this.tabs.get(tabId),
+      findWorkspace: (groupId) => this.mcpTabGroups.get(groupId),
+      requireMcpTabGroup: (groupId) => this.requireMcpTabGroup(groupId),
+      getState: () => this.getState()
     }
-    return resolvedTabId
+  }
+
+  requireTabInMcpGroup(groupId: string, tabId?: string, preserveSelection = false): string {
+    return requireTabInMcpGroup(this.workspaceScopeAccess(), groupId, tabId, preserveSelection)
   }
 
   tabBelongsToMcpGroup(groupId: string, tabId: string): boolean {
-    return this.tabs.get(tabId)?.mcpGroupId === groupId
+    return tabBelongsToMcpGroup(this.workspaceScopeAccess(), groupId, tabId)
   }
 
   getMcpGroupState(groupId: string): BrowserState {
-    this.requireMcpTabGroup(groupId)
-    const state = this.getState()
-    const tabs = state.tabs.filter((tab) => tab.mcpGroupId === groupId)
-    const group = this.mcpTabGroups.get(groupId)!
-    const { splitView, ...scopedState } = state
-    const visibleSplitView = splitView
-      && tabs.some((tab) => tab.id === splitView.firstTabId)
-      && tabs.some((tab) => tab.id === splitView.secondTabId)
-      ? splitView
-      : undefined
-    return {
-      ...scopedState,
-      tabs,
-      closedTabs: state.closedTabs.filter((tab) => tab.mcpGroupId === groupId),
-      activeTabId: tabs.some((tab) => tab.id === group.activeTabId) ? group.activeTabId : tabs[0]?.id ?? null,
-      ...(visibleSplitView ? { splitView: visibleSplitView } : {}),
-      mcpTabGroups: [this.requireMcpTabGroup(groupId)],
-      savedTabGroups: []
-    }
+    return getMcpGroupState(this.workspaceScopeAccess(), groupId)
   }
 
   getMcpDiscoveryTabs(groupId: string): Array<Pick<BrowserTabState, 'id' | 'title' | 'url'>> {
-    return this.getMcpGroupState(groupId).tabs.map(tab => ({
-      id: tab.id, url: tab.url, title: this.tabs.get(tab.id)?.discoveryTitle.value ?? ''
-    }))
+    return getMcpDiscoveryTabs(this.workspaceScopeAccess(), groupId)
   }
 
   /**
