@@ -413,7 +413,9 @@ import {
 } from './workspace-storage.js'
 import { ISOLATED_WORLDS } from './isolated-worlds.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
-import { handBackNote, pageShortcut, type TakeOverMark } from './take-over.js'
+import { pageShortcut, type TakeOverMark } from './take-over.js'
+import type { AgentPauseAccess } from './agent-pause/agent-pause-access.js'
+import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -4307,82 +4309,49 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
+  /**
+   * The narrow view agent pausing gets of this manager's private tabs, global
+   * pause fields, live region recorder, CSS state preview and state
+   * publication. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. The
+   * delegates below return the feature's value directly, and stay synchronous.
+   */
+  private agentPauseAccess(): AgentPauseAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      tabs: () => this.tabs.values(),
+      allAgentsPaused: () => this.allAgentsPaused,
+      writeAllAgentsPaused: (paused) => { this.allAgentsPaused = paused },
+      agentPauseOverridesAllowed: () => this.agentPauseOverridesAllowed,
+      writeAgentPauseOverridesAllowed: (allowed) => { this.agentPauseOverridesAllowed = allowed },
+      globallyResumedAgentTabIds: () => this.globallyResumedAgentTabIds,
+      releaseLiveRegion: (tab) => this.liveRegionRecorder.release(tab),
+      clearCssStatePreview: (tab, reason) => this.cssStatePreview.clear(tab, reason),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
+    }
+  }
+
   setAllAgentsPaused(paused: boolean, allowTabOverrides = true): void {
-    for (const tab of this.tabs.values()) tab.nativeInputEnvironmentGeneration += 1
-    if (this.allAgentsPaused !== paused || this.agentPauseOverridesAllowed !== allowTabOverrides
-      || this.globallyResumedAgentTabIds.size > 0) {
-      for (const tab of this.tabs.values()) retireNetworkPriorityObservations(tab)
-    }
-    this.allAgentsPaused = paused
-    this.agentPauseOverridesAllowed = allowTabOverrides
-    this.globallyResumedAgentTabIds.clear()
-    if (paused) {
-      for (const tab of this.tabs.values()) {
-        this.liveRegionRecorder.release(tab)
-        void this.cssStatePreview.clear(tab, 'agent-paused').catch(() => undefined)
-      }
-    }
-    for (const tab of this.tabs.values()) this.settleTakeOver(tab)
-    this.changed(false)
+    setAllAgentsPaused(this.agentPauseAccess(), paused, allowTabOverrides)
   }
 
   setTabAgentPaused(tabId: string, paused: boolean, options: { takeOver?: boolean } = {}): BrowserState {
-    const tab = this.getTab(tabId)
-    tab.nativeInputEnvironmentGeneration += 1
-    if (isHronautHomeUrl(tab.url)) throw new Error('Agent control is only available for page tabs.')
-    if (this.allAgentsPaused && !this.agentPauseOverridesAllowed) throw new Error('Agents are temporarily paused for a protected operation.')
-    if (this.isTabAgentPaused(tab.id) !== paused) retireNetworkPriorityObservations(tab)
-    if (this.allAgentsPaused) {
-      if (paused) this.globallyResumedAgentTabIds.delete(tab.id)
-      else this.globallyResumedAgentTabIds.add(tab.id)
-    } else {
-      tab.tabAgentPaused = paused
-    }
-    // A person taking over the tab may reveal text the agent should not read back later.
-    if (this.isTabAgentPaused(tab.id)) {
-      this.liveRegionRecorder.release(tab)
-      void this.cssStatePreview.clear(tab, 'agent-paused').catch(() => undefined)
-      if (options.takeOver && !tab.takeOver) {
-        tab.takeOver = this.takeOverMark(tab)
-        tab.handedBack = undefined
-      }
-    }
-    this.settleTakeOver(tab)
-    this.changed()
-    return this.getState()
-  }
-
-  /** Any resume of a tab the person took over hands it back, and tells its agent what changed. */
-  private settleTakeOver(tab: BrowserTab): void {
-    if (!tab.takeOver || this.isTabAgentPaused(tab.id)) return
-    tab.handedBack = { at: Date.now(), note: handBackNote(tab.takeOver, this.takeOverMark(tab)) }
-    tab.takeOver = undefined
-  }
-
-  private takeOverMark(tab: BrowserTab): TakeOverMark {
-    return {
-      at: Date.now(),
-      url: tab.url,
-      navigationGeneration: tab.navigationGeneration,
-      humanInteractionGeneration: tab.humanInteractionGeneration
-    }
+    return setTabAgentPaused(this.agentPauseAccess(), tabId, paused, options)
   }
 
   /** The person took this tab over from its agent and has not handed it back. */
   isTabTakenOver(tabId: string): boolean {
-    return Boolean(this.tabs.get(tabId)?.takeOver) && this.isTabAgentPaused(tabId)
+    return isTabTakenOver(this.agentPauseAccess(), tabId)
   }
 
   isTabAgentPaused(tabId: string): boolean {
-    const tab = this.tabs.get(tabId)
-    if (!tab) return true
-    return this.allAgentsPaused
-      ? !this.agentPauseOverridesAllowed || !this.globallyResumedAgentTabIds.has(tabId)
-      : tab.tabAgentPaused
+    return isTabAgentPaused(this.agentPauseAccess(), tabId)
   }
 
   hasAgentPauseExceptions(): boolean {
-    return this.allAgentsPaused && this.agentPauseOverridesAllowed && this.globallyResumedAgentTabIds.size > 0
+    return hasAgentPauseExceptions(this.agentPauseAccess())
   }
 
   setTabMuted(tabId: string, muted: boolean): BrowserState {
