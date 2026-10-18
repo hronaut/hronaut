@@ -75,11 +75,9 @@ import { HistoryStore } from './history-store.js'
 import { CredentialStore } from './credential-store.js'
 import { registerCredentialsIpc } from './credentials-ipc.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
-import { CommercialLicenseClient, CommercialLicenseError } from './commercial-license-client.js'
-import { COMMERCIAL_LICENSE_API_BASE_URL } from './commercial-license-links.js'
+import { createCommercialLicenseRuntime } from './commercial-license-runtime.js'
 import { registerLicenseIpc } from './license-ipc.js'
-import { CommercialLicenseOperationCoordinator } from './commercial-license-operations.js'
-import { CommercialLicenseStore, commercialLicenseStateRefreshDelay } from './commercial-license-store.js'
+import type { CommercialLicenseStore } from './commercial-license-store.js'
 import { registerUpdatesIpc } from './updates-ipc.js'
 import { cookieAvailableToOrigin } from './browsing-data-websites.js'
 import { registerBrowsingDataIpc } from './browsing-data-ipc.js'
@@ -135,7 +133,6 @@ import type {
   BrowserHistoryEntry,
   BrowsingDataSiteSummary,
   CredentialStorageStatus,
-  CommercialLicenseState,
   DetachablePanelId,
   LanguagePreference,
   McpControlState,
@@ -179,7 +176,6 @@ import { createWindowStatePersistence } from './windows/window-state-persistence
 
 let MCP_HOST = process.env.HRONAUT_MCP_HOST || '127.0.0.1'
 const MCP_AUTH_DISABLED = process.env.HRONAUT_DISABLE_MCP_AUTH === '1'
-const COMMERCIAL_LICENSE_API_BASE = process.env.HRONAUT_LICENSE_API_BASE || COMMERCIAL_LICENSE_API_BASE_URL
 const PARTITION = 'persist:hronaut'
 const { autoUpdater } = electronUpdater
 
@@ -385,10 +381,24 @@ let startupLaunchManager: StartupLaunchManager | null = null
 let sitePermissionStore: SitePermissionStore | null = null
 let credentialStore: CredentialStore | null = null
 let commercialLicenseStore: CommercialLicenseStore | null = null
-let commercialLicenseClient: CommercialLicenseClient | null = null
-let commercialLicenseMessage: string | undefined
 let commercialLicenseStateTimer: ReturnType<typeof setTimeout> | undefined
-const commercialLicenseOperations = new CommercialLicenseOperationCoordinator()
+const {
+  configureCommercialLicenseStore,
+  currentCommercialLicenseState,
+  publishCommercialLicenseState,
+  activateCommercialLicense,
+  refreshCommercialLicense,
+  deactivateCommercialLicense
+} = createCommercialLicenseRuntime({
+  text,
+  credentialStorageStatus: () => credentialStorageStatus,
+  quitting: () => quitting,
+  sendToShellWindows,
+  commercialLicenseStore: () => commercialLicenseStore,
+  setCommercialLicenseStore: (store) => { commercialLicenseStore = store },
+  commercialLicenseStateTimer: () => commercialLicenseStateTimer,
+  setCommercialLicenseStateTimer: (timer) => { commercialLicenseStateTimer = timer }
+})
 let bookmarkStore: BookmarkStore | null = null
 let historyStore: HistoryStore | null = null
 // The person's latest reversible action, until its Undo toast closes.
@@ -996,128 +1006,6 @@ async function configureCredentialStore(): Promise<void> {
     decrypt: (value) => safeStorage.decryptStringAsync(value)
   })
   await credentialStore.load()
-}
-
-async function configureCommercialLicenseStore(): Promise<void> {
-  commercialLicenseClient = new CommercialLicenseClient(COMMERCIAL_LICENSE_API_BASE)
-  commercialLicenseStore = new CommercialLicenseStore(join(app.getPath('userData'), 'commercial-license.json'), {
-    encrypt: (value) => safeStorage.encryptStringAsync(value),
-    decrypt: (value) => safeStorage.decryptStringAsync(value)
-  })
-  await commercialLicenseStore.load()
-}
-
-function currentCommercialLicenseState(): CommercialLicenseState {
-  if (!commercialLicenseStore) {
-    return {
-      status: 'not-activated',
-      active: false,
-      secureStorageAvailable: false,
-      message: credentialStorageStatus.reason || text('native.errors.secureStorage')
-    }
-  }
-  return commercialLicenseStore.summary(credentialStorageStatus.available, commercialLicenseMessage)
-}
-
-function publishCommercialLicenseState(): CommercialLicenseState {
-  const state = currentCommercialLicenseState()
-  sendToShellWindows('license:changed', state)
-  clearTimeout(commercialLicenseStateTimer)
-  if (!quitting) commercialLicenseStateTimer = setTimeout(publishCommercialLicenseState, commercialLicenseStateRefreshDelay(state)).unref()
-  return state
-}
-
-function commercialLicenseFriendlyMessage(reason: string): string {
-  const messages: Record<string, string> = {
-    activation_limit_reached: text('native.errors.activationLimit'),
-    commercial_inactive: text('native.errors.subscriptionInactive'),
-    entitlement_pending: text('native.errors.entitlementPending'),
-    instance_conflict: text('native.errors.instanceConflict'),
-    license_inactive: text('native.errors.licenseInactive'),
-    license_not_found: text('native.errors.licenseNotFound'),
-    invalid_license: text('native.errors.invalidLicense'),
-    invalid_license_key: text('native.errors.invalidLicenseKey'),
-    provider_unavailable: text('native.errors.providerUnavailable'),
-    provider_invalid_response: text('native.errors.providerInvalid'),
-    service_unavailable: text('native.errors.providerUnavailable'),
-    wrong_product: text('native.errors.wrongProduct')
-  }
-  return messages[reason] ?? text('native.errors.invalidLicense')
-}
-
-async function activateCommercialLicenseNow(value: unknown): Promise<CommercialLicenseState> {
-  if (typeof value !== 'string') throw new TypeError('Commercial license key must be a string')
-  const licenseKey = value.trim().toUpperCase()
-  if (!/^[A-Z0-9][A-Z0-9-]{15,127}$/.test(licenseKey)) throw new TypeError('Enter the complete commercial license key from your Creem receipt')
-  if (!credentialStorageStatus.available || !commercialLicenseStore || !commercialLicenseClient) throw new Error('Secure license storage is unavailable')
-  try {
-    const result = await commercialLicenseClient.activate(licenseKey, commercialLicenseStore.installationName())
-    if (!result.valid || result.status !== 'active') throw new CommercialLicenseError('license_inactive')
-    await commercialLicenseStore.saveActivation(licenseKey, result)
-    commercialLicenseMessage = 'Commercial license activated for this device.'
-    return publishCommercialLicenseState()
-  } catch (error) {
-    const reason = error instanceof CommercialLicenseError ? error.reason : 'service_unavailable'
-    commercialLicenseMessage = commercialLicenseFriendlyMessage(reason)
-    publishCommercialLicenseState()
-    throw new Error(commercialLicenseMessage)
-  }
-}
-
-function activateCommercialLicense(value: unknown): Promise<CommercialLicenseState> {
-  return commercialLicenseOperations.mutate(() => activateCommercialLicenseNow(value))
-}
-
-function refreshCommercialLicense(): Promise<CommercialLicenseState> {
-  return commercialLicenseOperations.refresh(async (isCurrent) => {
-    if (!commercialLicenseStore || !commercialLicenseClient) return currentCommercialLicenseState()
-    const credentials = await commercialLicenseStore.credentials()
-    if (!credentials || !isCurrent()) return currentCommercialLicenseState()
-    try {
-      const result = await commercialLicenseClient.validate(credentials.licenseKey, credentials.instanceId)
-      if (!isCurrent()) return currentCommercialLicenseState()
-      await commercialLicenseStore.saveValidation(result)
-      if (!isCurrent()) return currentCommercialLicenseState()
-      commercialLicenseMessage = result.valid && result.status === 'active'
-        ? 'Commercial license is active.'
-        : commercialLicenseFriendlyMessage('license_inactive')
-      return publishCommercialLicenseState()
-    } catch (error) {
-      if (!isCurrent()) return currentCommercialLicenseState()
-      const reason = error instanceof CommercialLicenseError ? error.reason : 'service_unavailable'
-      if (reason === 'commercial_inactive' || reason === 'license_inactive' || reason === 'license_not_found') {
-        await commercialLicenseStore.markInactive()
-        if (!isCurrent()) return currentCommercialLicenseState()
-      }
-      commercialLicenseMessage = reason === 'service_unavailable' || reason === 'provider_unavailable'
-        ? 'Could not reach the commercial license service. The last successful validation remains stored on this device.'
-        : commercialLicenseFriendlyMessage(reason)
-      return publishCommercialLicenseState()
-    }
-  }, () => currentCommercialLicenseState())
-}
-
-async function deactivateCommercialLicenseNow(): Promise<CommercialLicenseState> {
-  if (!commercialLicenseStore || !commercialLicenseClient) return currentCommercialLicenseState()
-  const credentials = await commercialLicenseStore.credentials()
-  if (!credentials) return currentCommercialLicenseState()
-  try {
-    await commercialLicenseClient.deactivate(credentials.licenseKey, credentials.instanceId)
-  } catch (error) {
-    const reason = error instanceof CommercialLicenseError ? error.reason : 'service_unavailable'
-    if (reason !== 'instance_conflict' && reason !== 'license_not_found') {
-      commercialLicenseMessage = commercialLicenseFriendlyMessage(reason)
-      publishCommercialLicenseState()
-      throw new Error(commercialLicenseMessage)
-    }
-  }
-  await commercialLicenseStore.clear()
-  commercialLicenseMessage = 'Commercial license removed from this device.'
-  return publishCommercialLicenseState()
-}
-
-function deactivateCommercialLicense(): Promise<CommercialLicenseState> {
-  return commercialLicenseOperations.mutate(() => deactivateCommercialLicenseNow())
 }
 
 function publishSitePermissions(): void {
