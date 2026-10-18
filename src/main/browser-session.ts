@@ -1,5 +1,6 @@
 import { app, session, type MessageBoxOptions, type MessageBoxReturnValue, type Session } from 'electron'
 import { join } from 'node:path'
+import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { normalizeSitePermissionOrigin, SitePermissionStore } from './site-permission-store.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
@@ -35,11 +36,13 @@ interface BrowserSessionHost {
  * The browser sessions pages run in: each gets the download folder, a permission check that admits only what the
  * person allowed for the site, and a permission prompt that asks one request at a time and refuses a request whose
  * frame navigated meanwhile. Camera, microphone and file system access always ask again. Home never gets a
- * permission. `configurePersistentSession` opens the remembered site permissions and the profile's own session.
+ * permission. `configurePersistentSession` opens the remembered site permissions and the profile's own session, and
+ * `flushBrowserProfile` writes that session's storage to disk at shutdown.
  */
 export function createBrowserSession(host: BrowserSessionHost): {
   configureBrowserSession(browserSession: Session): void
   configurePersistentSession(): Promise<void>
+  flushBrowserProfile(): Promise<void>
 } {
   const configuredBrowserSessions = new WeakSet<Session>()
   let permissionRequestQueue: Promise<void> = Promise.resolve()
@@ -165,5 +168,10 @@ export function createBrowserSession(host: BrowserSessionHost): {
     configureBrowserSession(host.state.persistentSession!)
   }
 
-  return { configureBrowserSession, configurePersistentSession }
+  async function flushBrowserProfile(): Promise<void> {
+    if (!host.state.persistentSession) return
+    await flushBrowserSessionStorage(host.state.persistentSession)
+  }
+
+  return { configureBrowserSession, configurePersistentSession, flushBrowserProfile }
 }

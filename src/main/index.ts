@@ -46,7 +46,7 @@ import { WorkspaceMetadataError } from './browser/tab-store.js'
 import { createWalletRuntime, type WalletRuntimeState } from './wallet/runtime.js'
 import { walletStartupFailureStatus } from './wallet/startup-status.js'
 import { createWalletLifecycleCallbacks } from './wallet/lifecycle-callbacks.js'
-import { flushBrowserSessionStorage, workspacePartition } from './browser/workspace-storage.js'
+import { workspacePartition } from './browser/workspace-storage.js'
 import { createBookmarksAndHistory, type BookmarksAndHistoryState } from './bookmarks-and-history.js'
 import { UndoOffers } from './undo-offers.js'
 import { registerUndoIpc } from './undo-ipc.js'
@@ -365,7 +365,7 @@ const {
   persistentSession: () => browserSessionState.persistentSession,
   tabs: () => tabsManager
 })
-const { configureBrowserSession, configurePersistentSession } = createBrowserSession({
+const { configureBrowserSession, configurePersistentSession, flushBrowserProfile } = createBrowserSession({
   text,
   effectiveDownloadDirectory,
   showMessageBox,
@@ -691,11 +691,6 @@ function registerHomeProtocol(): void {
         platform: process.platform
     })
   }))
-}
-
-async function flushBrowserProfile(): Promise<void> {
-  if (!browserSessionState.persistentSession) return
-  await flushBrowserSessionStorage(browserSessionState.persistentSession)
 }
 
 if (process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1') {
