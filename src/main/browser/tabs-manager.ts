@@ -380,6 +380,8 @@ import {
 } from './page-scripts.js'
 import { evaluate } from './page-evaluation/evaluate.js'
 import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './tab-store.js'
+import type { BrowserStateAccess } from './browser-state/browser-state-access.js'
+import { getState } from './browser-state/browser-state.js'
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
@@ -1326,22 +1328,46 @@ export class BrowserTabsManager {
     this.memorySaverTimer.unref()
   }
 
-  getState(): BrowserState {
-    const agentFollow = this.publishedAgentFollow()
+  /**
+   * The narrow view publishing the browser state gets of this manager's
+   * private tabs, recently closed tabs, active tab, split view, global mute,
+   * lock and pause, MCP address, options, workspaces, agent following,
+   * navigation history, human input lock, agent pauses, video recording,
+   * emulation, network conditions, PWA lifecycle recording and CSS state
+   * preview. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it.
+   * Each member reads the manager when called.
+   */
+  private browserStateAccess(): BrowserStateAccess<BrowserTab> {
     return {
-      tabs: this.orderedTabs().map((tab) => this.toState(tab)),
-      closedTabs: [...this.closedTabs].reverse().map((tab) => ({ ...tab })),
-      activeTabId: this.activeTabId,
-      ...(this.splitView ? { splitView: { ...this.splitView } } : {}),
-      allTabsMuted: this.allTabsMuted,
-      allHumanInteractionLocked: this.allHumanInteractionLocked,
-      agentControlLocked: this.allAgentsPaused && !this.agentPauseOverridesAllowed,
-      mcpUrl: this.mcpUrl,
-      profilePath: this.options.profilePath,
-      mcpTabGroups: this.listMcpTabGroups(),
-      savedTabGroups: this.listSavedTabGroups(),
-      ...(agentFollow ? { agentFollow } : {})
+      publishedAgentFollow: () => this.publishedAgentFollow(),
+      orderedTabs: () => this.orderedTabs(),
+      closedTabs: () => this.closedTabs,
+      activeTabId: () => this.activeTabId,
+      splitView: () => this.splitView,
+      allTabsMuted: () => this.allTabsMuted,
+      allHumanInteractionLocked: () => this.allHumanInteractionLocked,
+      allAgentsPaused: () => this.allAgentsPaused,
+      agentPauseOverridesAllowed: () => this.agentPauseOverridesAllowed,
+      mcpUrl: () => this.mcpUrl,
+      options: () => this.options,
+      listMcpTabGroups: () => this.listMcpTabGroups(),
+      listSavedTabGroups: () => this.listSavedTabGroups(),
+      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      isTabAgentPaused: (tabId) => this.isTabAgentPaused(tabId),
+      isTabTakenOver: (tabId) => this.isTabTakenOver(tabId),
+      videoRecorder: () => this.videoRecorder,
+      emulationProjection: (tab) => this.emulationProjection(tab),
+      networkConditionState: (tabId) => this.networkConditionState(tabId),
+      pwaLifecycleRecorder: () => this.pwaLifecycleRecorder,
+      cssStatePreview: () => this.cssStatePreview,
+      mcpTabGroups: () => this.mcpTabGroups
     }
+  }
+
+  getState(): BrowserState {
+    return getState(this.browserStateAccess())
   }
 
   /**
@@ -5678,87 +5704,6 @@ export class BrowserTabsManager {
 
   private sweepMemorySaver(force: boolean): Promise<void> {
     return sweepMemorySaver(this.memorySaverAccess(), force)
-  }
-
-  private toState(tab: BrowserTab): BrowserTabState {
-    const navigation = this.navigationHistorySnapshot(tab)
-    const webContentsDestroyed = tab.webContents.isDestroyed()
-    return {
-      id: tab.id,
-      title: tab.title,
-      ...(tab.labelDurabilityUnconfirmed ? { labelDurabilityUnconfirmed: true } : {}),
-      ...(tab.label ? { label: tab.label } : {}),
-      url: tab.url,
-      loading: tab.loading,
-      navigationGeneration: tab.navigationGeneration,
-      observationGeneration: tab.observationGeneration,
-      humanInteractionGeneration: tab.humanInteractionGeneration,
-      browserSessionGeneration: tab.browserSessionGeneration,
-      canGoBack: navigation.index > 0,
-      canGoForward: navigation.index >= 0 && navigation.index < navigation.entries.length - 1,
-      active: tab.id === this.activeTabId,
-      pinned: tab.pinned,
-      sleeping: tab.sleeping,
-      pageLifecycleState: tab.pageLifecycleState,
-      humanInteractionLocked: tab.humanInteractionLocked,
-      tabAgentPaused: tab.tabAgentPaused,
-      humanInteractionInputLocked: this.isHumanInteractionLocked(tab),
-      agentPaused: this.isTabAgentPaused(tab.id),
-      ...(this.isTabTakenOver(tab.id) ? { takenOverAt: tab.takeOver!.at } : {}),
-      ...(tab.handedBack ? { handedBack: { ...tab.handedBack } } : {}),
-      preserveDiagnosticLogs: tab.preserveDiagnosticLogs,
-      videoRecording: this.videoRecorder.state(tab.id).status,
-      zoomPercent: webContentsDestroyed ? 100 : Math.round(tab.webContents.getZoomFactor() * 100),
-      ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
-      ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
-      ...(tab.faviconDataUrl ? { faviconDataUrl: tab.faviconDataUrl } : {}),
-      audible: tab.audible,
-      tabMuted: tab.tabMuted,
-      muted: tab.muted,
-      devToolsOpen: !webContentsDestroyed && tab.webContents.isDevToolsOpened(),
-      ...this.emulationProjection(tab),
-      ...(tab.networkRoutes.length ? { networkRouteCount: tab.networkRoutes.length } : {}),
-      networkConditionState: this.networkConditionState(tab.id),
-      ...(tab.inspectorIssues.length ? { inspectorIssueCount: tab.inspectorIssues.length } : {}),
-      ...(tab.reproRecording ? {
-        reproRecording: {
-          active: tab.reproRecording.active,
-          stepCount: tab.reproRecording.steps.length,
-          startedAt: tab.reproRecording.startedAt
-        }
-      } : {}),
-      pwaLifecycleActive: this.pwaLifecycleRecorder.active(tab.id),
-      ...(this.cssStatePreview.summary(tab) ? { cssStatePreview: this.cssStatePreview.summary(tab) } : {}),
-      ...(tab.domChangesRecording?.observationGeneration === tab.observationGeneration ? {
-        domChangesRecording: {
-          active: tab.domChangesRecording.active,
-          changeCount: tab.domChangesRecording.changeCount,
-          startedAt: tab.domChangesRecording.startedAt
-        }
-      } : {}),
-      ...(tab.codeCoverage?.recording ? {
-        codeCoverageRecording: {
-          startedAt: tab.codeCoverage.recording.startedAt,
-          mode: tab.codeCoverage.recording.mode
-        }
-      } : {}),
-      ...(tab.cpuProfile?.recording ? {
-        cpuProfileRecording: {
-          startedAt: tab.cpuProfile.recording.startedAt
-        }
-      } : {}),
-      ...(tab.memoryAllocation?.recording ? {
-        memoryAllocationRecording: {
-          startedAt: tab.memoryAllocation.recording.startedAt
-        }
-      } : {}),
-      ...(tab.pageProblem ? { pageProblem: { ...tab.pageProblem } } : {}),
-      ...(tab.dialog ? { dialog: { ...tab.dialog } } : {}),
-      ...(tab.mcpGroupId ? {
-        mcpGroupId: tab.mcpGroupId,
-        mcpGroupName: this.mcpTabGroups.get(tab.mcpGroupId)?.name ?? 'Unknown group'
-      } : {})
-    }
   }
 
   private navigationHistorySnapshot(tab: BrowserTab): { entries: NavigationEntry[]; index: number } {
