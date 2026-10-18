@@ -209,8 +209,7 @@ import {
   normalizeBrowserGeneratedLocator,
   type BrowserGeneratedLocator
 } from '../../shared/playwright-locator.js'
-import { redactNetworkUrl } from '../../shared/network-details.js'
-import { deriveNetworkTiming } from '../../shared/network-timing.js'
+import { networkRequestSummary } from './network-inspection/network-request-summary.js'
 import { portableExportFilename } from '../../shared/portable-filename.js'
 import type { NetworkInspectionAccess } from './network-inspection/network-inspection-access.js'
 import {
@@ -6907,28 +6906,7 @@ export class BrowserTabsManager {
   }
 
   private networkRequestSummary(request: BrowserNetworkRequestRecord): BrowserNetworkRequest {
-    const timing = deriveNetworkTiming(request.resourceTiming, request.completedMonotonicSeconds)
-    return {
-      id: request.id,
-      observationGeneration: request.observationGeneration,
-      url: redactNetworkUrl(request.url),
-      method: request.method,
-      resourceType: request.resourceType,
-      startedAt: request.startedAt,
-      detailsAvailable: request.detailsAvailable,
-      ...(request.completedAt ? { completedAt: request.completedAt } : {}),
-      ...(request.status !== undefined ? { status: request.status } : {}),
-      ...(request.fromCache !== undefined ? { fromCache: request.fromCache } : {}),
-      ...(request.responseSource ? { responseSource: request.responseSource } : {}),
-      ...(request.serviceWorkerResponseSource
-        ? { serviceWorkerResponseSource: request.serviceWorkerResponseSource }
-        : {}),
-      ...(request.cacheStorageCacheName ? { cacheStorageCacheName: request.cacheStorageCacheName } : {}),
-      ...(request.error ? { error: request.error } : {}),
-      ...(request.responseSizeBytes !== undefined ? { responseSizeBytes: request.responseSizeBytes } : {}),
-      ...(timing?.totalMs !== undefined ? { durationMs: timing.totalMs } : {}),
-      ...(timing?.waitingForResponseMs !== undefined ? { waitingForResponseMs: timing.waitingForResponseMs } : {})
-    }
+    return networkRequestSummary(request)
   }
 
   private currentNetworkRequests(tab: BrowserTab): BrowserNetworkRequestRecord[] {
