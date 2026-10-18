@@ -42,6 +42,8 @@ import { fillForm, scroll, select, type } from './agent-page-actions/form-input-
 import type { NativeWheelInput } from './native-wheel.js'
 import type { AgentWheelAccess } from './agent-wheel/agent-wheel-access.js'
 import { agentWheelUnderWay, wheel } from './agent-wheel/agent-wheel.js'
+import type { AgentTouchAccess } from './agent-touch/agent-touch-access.js'
+import { touch, type NativeTouchInput, type NativeTouchProgress } from './agent-touch/agent-touch.js'
 import type { NativeKeyHoldInput, NativeKeyHoldProgress, NativeInputDispatchObserver } from './native-key-hold.js'
 import type { AgentKeysAccess } from './agent-keys/agent-keys-access.js'
 import { holdKey, press } from './agent-keys/agent-keys.js'
@@ -775,6 +777,8 @@ export class BrowserTabsManager {
   private nativeInputLockMutations = 0
   private readonly activeNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
   private readonly unconfirmedNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
+  /** Pages where an agent's touch contact may still be down: neither its end nor a cancel was acknowledged. */
+  private readonly unconfirmedTouchContacts = new WeakSet<BrowserTab['webContents']>()
   private readonly pageFind = new PageFindController()
   private readonly metadata = new PageMetadataController<BrowserTab>({
     getTab: (tabId) => this.getTab(tabId),
@@ -1400,6 +1404,34 @@ export class BrowserTabsManager {
       nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
       withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
       agentWheel: () => this.agentWheel
+    }
+  }
+
+  /**
+   * The narrow view an agent's touch gesture gets of this manager's private
+   * tabs, window, active tab, split view, generations, trusted chrome
+   * occlusion, human interaction lock, native selection sessions, DevTools
+   * opening, native input authority, agent input scopes, debugger queue and
+   * unconfirmed touch contacts. Like the wheel's, it is a prototype method.
+   */
+  private agentTouchAccess(): AgentTouchAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
+      splitViewGeneration: () => this.splitViewGeneration,
+      splitView: () => this.splitView,
+      window: () => this.window,
+      activeTabId: () => this.activeTabId,
+      browserContentOccluded: () => this.browserContentOccluded,
+      nativeInputLockMutations: () => this.nativeInputLockMutations,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      elementPickerSessions: () => this.elementPickerSessions,
+      devToolsOpening: () => this.devToolsOpening,
+      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
+      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      unconfirmedTouchContacts: () => this.unconfirmedTouchContacts
     }
   }
 
@@ -3599,6 +3631,10 @@ export class BrowserTabsManager {
 
   wheel(input: NativeWheelInput, validateInput: (validateContext: () => void) => void, markAttempted: () => void): Promise<unknown> {
     return wheel(this.agentWheelAccess(), input, validateInput, markAttempted)
+  }
+
+  touch(input: NativeTouchInput, validateInput: (validateContext: () => void) => void, recordProgress: (progress: NativeTouchProgress) => void, signal?: AbortSignal): Promise<unknown> {
+    return touch(this.agentTouchAccess(), input, validateInput, recordProgress, signal)
   }
 
   scroll(options: {
