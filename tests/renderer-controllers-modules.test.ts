@@ -22,6 +22,7 @@ const network = {
   modules: 'src/renderer/src/composables/network'
 }
 const networkModules = readdirSync(network.modules).filter(file => file.endsWith('.ts')).sort()
+const networkController = network.file.replace(/\.ts$/u, '')
 
 // Each diagnostics feature folder holds its panel, its composable and any
 // component only that panel uses. The controller and the panel host beside the
@@ -52,9 +53,10 @@ describe('renderer controller modules', () => {
     expect(oversized).toEqual([])
   })
 
-  it('keeps every network feature module independent of the others', () => {
+  it('keeps every network feature module independent of the others and of both controllers', () => {
     const siblingImports = networkModules.flatMap(name => relativeImports(`${network.modules}/${name}`)
-      .filter(({ path }) => path.startsWith('./') || path === '../useNetworkController.js')
+      .map(({ path }) => ({ path, target: importTarget(`${network.modules}/${name}`, path) }))
+      .filter(({ path, target }) => path.startsWith('./') || target === networkController || target.startsWith(`${diagnostics}/`))
       .map(({ path }) => `${name}: ${path}`))
     expect(siblingImports).toEqual([])
   })
@@ -69,11 +71,13 @@ describe('renderer controller modules', () => {
 
   it('keeps every diagnostics feature folder independent of the others', () => {
     // A feature may type its request ports with the shared request contract, and
-    // its panel may type the controller it receives; nothing else crosses folders.
+    // its panel may type the controller it receives; nothing else crosses folders,
+    // and no feature reaches into the network controller or its modules.
     const crossFolderImports = diagnosticsFeatures.flatMap(feature => sourceFiles(`${diagnostics}/${feature}`)
       .flatMap(file => relativeImports(file)
         .map(({ typeOnly, path }) => ({ typeOnly, path, target: importTarget(file, path) }))
-        .filter(({ target }) => target.startsWith(`${diagnostics}/`) && !target.startsWith(`${diagnostics}/${feature}/`))
+        .filter(({ target }) => (target.startsWith(`${diagnostics}/`) && !target.startsWith(`${diagnostics}/${feature}/`))
+          || target === networkController || target.startsWith(`${network.modules}/`))
         .filter(({ typeOnly, target }) => !(typeOnly && target === diagnosticsRequest))
         .filter(({ typeOnly, target }) => !(typeOnly && file.endsWith('.vue') && target === diagnosticsController))
         .map(({ path }) => `${file}: ${path}`)))
