@@ -418,6 +418,15 @@ import type { McpTabGroupsAccess } from './mcp-tab-groups/mcp-tab-groups-access.
 import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/close-mcp-tab-group.js'
 import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
 import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from './mcp-tab-groups/mcp-tab-groups.js'
+import type { BrowserWorkspaceOperation, WorkspaceOperationsAccess } from './workspace-operations/workspace-operations-access.js'
+import {
+  assertWorkspaceCanOpenTab,
+  assertWorkspaceIdle,
+  withGlobalWorkspaceStorageOperation,
+  withSavedWorkspaceOperation,
+  withWorkspaceOperation,
+  withWorkspaceStorageOperation
+} from './workspace-operations/workspace-operations.js'
 import { ISOLATED_WORLDS } from './isolated-worlds.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { pageShortcut, type TakeOverMark } from './take-over.js'
@@ -693,14 +702,6 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
 }
 
 import { WorkspaceRegistry, type ActiveWorkspace as BrowserTabGroup } from './workspace-registry.js'
-
-interface BrowserWorkspaceOperation {
-  action: string
-  blocksNewTabs: boolean
-  token: symbol
-  /** Settles when an archived workspace's operation ends. */
-  settled?: Promise<void>
-}
 
 interface BrowserElementPickerScriptResult {
   canceled: boolean
@@ -5656,98 +5657,65 @@ export class BrowserTabsManager {
     if (collision) throw new Error(`A workspace named "${name}" already exists. Workspace names must be unique.`)
   }
 
-  private assertWorkspaceIdle(workspaceId: string): void {
-    const operation = this.workspaceOperations.get(workspaceId)
-    if (!operation) return
-    const name = this.mcpTabGroups.get(workspaceId)?.name ?? workspaceId
-    throw new Error(`Workspace "${name}" is busy ${operation.action}. Try again after that operation finishes.`)
-  }
-
-  private assertWorkspaceCanOpenTab(workspaceId: string): void {
-    const operation = this.workspaceOperations.get(workspaceId)
-    if (!operation?.blocksNewTabs) return
-    const name = this.mcpTabGroups.get(workspaceId)?.name ?? workspaceId
-    throw new Error(`Workspace "${name}" is busy ${operation.action}. Try again after that operation finishes.`)
-  }
-
-  private async withWorkspaceOperation<T>(
-    workspaceId: string,
-    action: string,
-    operation: () => Promise<T>,
-    blocksNewTabs = true
-  ): Promise<T> {
-    if (!this.mcpTabGroups.has(workspaceId)) throw new Error(`Unknown workspace: ${workspaceId}.`)
-    this.assertWorkspaceIdle(workspaceId)
-    const current: BrowserWorkspaceOperation = { action, blocksNewTabs, token: Symbol(action) }
-    this.workspaceOperations.set(workspaceId, current)
-    try {
-      return await this.trackWorkspaceOperation(operation)
-    } finally {
-      if (this.workspaceOperations.get(workspaceId)?.token === current.token) {
-        this.workspaceOperations.delete(workspaceId)
-      }
+  /**
+   * The narrow view holding workspaces busy gets of this manager's private
+   * open and archived workspaces and the operations in flight. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's promise directly, so callers see the same ticks as
+   * before.
+   */
+  private workspaceOperationsAccess(): WorkspaceOperationsAccess {
+    return {
+      mcpTabGroups: () => this.mcpTabGroups,
+      savedTabGroups: () => this.savedTabGroups,
+      workspaceOperations: () => this.workspaceOperations,
+      savedWorkspaceOperations: () => this.savedWorkspaceOperations,
+      workspaceStorageOperation: () => this.workspaceStorageOperation,
+      setWorkspaceStorageOperation: (operation) => { this.workspaceStorageOperation = operation },
+      pendingWorkspaceOperationPromises: () => this.pendingWorkspaceOperationPromises
     }
   }
 
-  private async withSavedWorkspaceOperation<T>(
+  private assertWorkspaceIdle(workspaceId: string): void {
+    assertWorkspaceIdle(this.workspaceOperationsAccess(), workspaceId)
+  }
+
+  private assertWorkspaceCanOpenTab(workspaceId: string): void {
+    assertWorkspaceCanOpenTab(this.workspaceOperationsAccess(), workspaceId)
+  }
+
+  private withWorkspaceOperation<T>(
+    workspaceId: string,
+    action: string,
+    operation: () => Promise<T>,
+    blocksNewTabs?: boolean
+  ): Promise<T> {
+    return withWorkspaceOperation(this.workspaceOperationsAccess(), workspaceId, action, operation, blocksNewTabs)
+  }
+
+  private withSavedWorkspaceOperation<T>(
     savedWorkspaceId: string,
     action: string,
     operation: () => Promise<T>
   ): Promise<T> {
-    if (!this.savedTabGroups.has(savedWorkspaceId)) throw new Error(`Unknown archived workspace: ${savedWorkspaceId}.`)
-    const existing = this.savedWorkspaceOperations.get(savedWorkspaceId)
-    if (existing) {
-      const name = this.savedTabGroups.get(savedWorkspaceId)?.name ?? savedWorkspaceId
-      throw new Error(`Archived workspace "${name}" is busy ${existing.action}. Try again after that operation finishes.`)
-    }
-    const current: BrowserWorkspaceOperation = { action, blocksNewTabs: true, token: Symbol(action) }
-    this.savedWorkspaceOperations.set(savedWorkspaceId, current)
-    try {
-      const running = this.trackWorkspaceOperation(operation)
-      current.settled = running.then(() => undefined, () => undefined)
-      return await running
-    } finally {
-      if (this.savedWorkspaceOperations.get(savedWorkspaceId)?.token === current.token) {
-        this.savedWorkspaceOperations.delete(savedWorkspaceId)
-      }
-    }
+    return withSavedWorkspaceOperation(this.workspaceOperationsAccess(), savedWorkspaceId, action, operation)
   }
 
-  private async withWorkspaceStorageOperation<T>(
+  private withWorkspaceStorageOperation<T>(
     workspaceId: string,
     action: string,
     operation: () => Promise<T>,
-    blocksNewTabs = false
+    blocksNewTabs?: boolean
   ): Promise<T> {
-    return this.withGlobalWorkspaceStorageOperation(action, () => (
-      this.withWorkspaceOperation(workspaceId, action, operation, blocksNewTabs)
-    ))
+    return withWorkspaceStorageOperation(this.workspaceOperationsAccess(), workspaceId, action, operation, blocksNewTabs)
   }
 
-  private async withGlobalWorkspaceStorageOperation<T>(
+  private withGlobalWorkspaceStorageOperation<T>(
     action: string,
     operation: () => Promise<T>
   ): Promise<T> {
-    if (this.workspaceStorageOperation) {
-      throw new Error(`Workspace storage is busy ${this.workspaceStorageOperation.action}. Try again after that operation finishes.`)
-    }
-    const current: BrowserWorkspaceOperation = { action, blocksNewTabs: false, token: Symbol(action) }
-    this.workspaceStorageOperation = current
-    try {
-      return await this.trackWorkspaceOperation(operation)
-    } finally {
-      if (this.workspaceStorageOperation?.token === current.token) this.workspaceStorageOperation = null
-    }
-  }
-
-  private async trackWorkspaceOperation<T>(operation: () => Promise<T>): Promise<T> {
-    const pending = operation()
-    this.pendingWorkspaceOperationPromises.add(pending)
-    try {
-      return await pending
-    } finally {
-      this.pendingWorkspaceOperationPromises.delete(pending)
-    }
+    return withGlobalWorkspaceStorageOperation(this.workspaceOperationsAccess(), action, operation)
   }
 
   private attachTabEvents(tab: BrowserTab): void {
