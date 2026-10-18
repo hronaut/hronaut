@@ -4,7 +4,7 @@ import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
 import {
   useDiagnosticsController,
   type DiagnosticsControllerOptions
-} from './useDiagnosticsController.js'
+} from '../features/diagnostics/useDiagnosticsController.js'
 import {
   usePageCaptureController,
   type PageCaptureControllerOptions

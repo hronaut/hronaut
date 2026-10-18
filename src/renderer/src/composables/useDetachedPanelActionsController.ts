@@ -1,6 +1,6 @@
 import type { DetachablePanelId } from '../../../shared/types.js'
 import type { DeveloperPanelsShellController } from './useDeveloperPanelsShellController.js'
-import type { DiagnosticsController } from './useDiagnosticsController.js'
+import type { DiagnosticsController } from '../features/diagnostics/useDiagnosticsController.js'
 
 type DetachedDiagnostics = Pick<
   DiagnosticsController,

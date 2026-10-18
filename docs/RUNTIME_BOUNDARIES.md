@@ -30,6 +30,8 @@ than the entire browser runtime.
   request controller, and race tests. Docked and detached presentations use that
   contract. Unrelated state broadcasts keep results; close/tab/navigation/dispose
   invalidate pending requests. App and the diagnostics host compose the slice.
+  Each other diagnostics panel has its own `features/diagnostics/<panel>/` folder;
+  `useDiagnosticsController.ts` and `DiagnosticsPanels.vue` beside them compose all.
 - `renderer/src/home/` owns typed Home interactions and their disposal. The main
   process supplies escaped bootstrap data and the static document; the narrow
   `HronautHomeApi` authorizes native actions. Home imports shared semantic theme

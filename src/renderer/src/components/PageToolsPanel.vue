@@ -40,7 +40,7 @@ import type {
   PanelDock,
   SupportedLocale
 } from '../../../shared/types'
-import type { DiagnosticsController } from '../composables/useDiagnosticsController'
+import type { DiagnosticsController } from '../features/diagnostics/useDiagnosticsController'
 import type { PageToolsLabels } from '../composables/usePageToolsPresentationController'
 import VideoRecorder from './VideoRecorder.vue'
 import PanelDockPicker from './PanelDockPicker.vue'

@@ -1,7 +1,7 @@
 import { nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
-import { useDiagnosticsController } from '../../src/renderer/src/composables/useDiagnosticsController.js'
+import { useDiagnosticsController } from '../../src/renderer/src/features/diagnostics/useDiagnosticsController.js'
 import type {
   BrowserDebugReport,
   BrowserDomChangesReport,

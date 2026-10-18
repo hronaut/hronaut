@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { nextTick } from 'vue'
 import { describe, expect, it } from 'vitest'
-import ReproTimeline from '../../src/renderer/src/components/ReproTimeline.vue'
+import ReproTimeline from '../../src/renderer/src/features/diagnostics/repro-recorder/ReproTimeline.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserReproRecording, BrowserReproStep } from '../../src/shared/types.js'
 

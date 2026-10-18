@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import PageToolsPanel from '../../src/renderer/src/components/PageToolsPanel.vue'
-import { useDiagnosticsController } from '../../src/renderer/src/composables/useDiagnosticsController.js'
+import { useDiagnosticsController } from '../../src/renderer/src/features/diagnostics/useDiagnosticsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserTabState } from '../../src/shared/types.js'
 

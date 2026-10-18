@@ -17,6 +17,7 @@ const newBoundaryFiles = [
   'src/renderer/src/stores/**/*.ts',
   'src/renderer/src/composables/**/*.ts',
   'src/renderer/src/components/**/*.vue',
+  'src/renderer/src/features/**/*.{ts,vue}',
   'tests/renderer/**/*.ts'
 ]
 const exactTechnicalText = '^(?:\\s*|Hronaut|MCP|GitHub|PolyForm Noncommercial 1\\.0\\.0|IndexedDB|JS|CSS|GET|POST|PUT|PATCH|DELETE|OPTIONS|https://api\\.example\\.com/v1/\\*|\\{\"content-type\":\"application/json\"\\}|\\{\"ok\":false\\}|/ 255|0 / 0|· v|[.:+›↑↓←→·—↗%✦×]+|:\\d+)$'
@@ -72,7 +73,7 @@ export default defineConfig(
     settings: { 'vue-i18n': { messageSyntaxVersion: '^11.0.0' } }
   },
   {
-    files: ['src/renderer/src/components/**/*.vue'],
+    files: ['src/renderer/src/components/**/*.vue', 'src/renderer/src/features/**/*.vue'],
     rules: {
       '@intlify/vue-i18n/no-raw-text': ['error', {
         attributes: { '/.+/': ['title', 'aria-label', 'aria-description', 'placeholder'] },
