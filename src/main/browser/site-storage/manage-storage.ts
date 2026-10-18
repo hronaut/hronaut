@@ -71,30 +71,30 @@ export async function manageStorage<Tab extends SiteStorageTab>(access: SiteStor
   webStorageHooks?.retainPublication(assertCurrent)
   const storageName = options.kind === 'local-storage' ? 'localStorage' : 'sessionStorage'
   const raw = await executeWebStorage(['set', 'delete', 'clear'].includes(action), assertCurrent, () => contents.executeJavaScript(`(() => {
-    if (window.location.href !== ${JSON.stringify(pageUrl.href)}) {
-      return { pageChanged: true };
-    }
-    const storage = window[${JSON.stringify(storageName)}];
-    const action = ${JSON.stringify(action)};
-    const key = ${JSON.stringify(key)};
-    const value = ${JSON.stringify(options.value)};
-    let changed = false;
-    if (action === 'set') { storage.setItem(key, value); changed = true; }
-    else if (action === 'delete') { changed = storage.getItem(key) !== null; storage.removeItem(key); }
-    else if (action === 'clear') { changed = storage.length > 0; storage.clear(); }
-    const items = [];
-    if (action === 'get') {
-      const itemValue = storage.getItem(key);
-      if (itemValue !== null) items.push([key, itemValue]);
-    } else {
-      for (let index = 0; index < storage.length; index += 1) {
-        const itemKey = storage.key(index);
-        if (itemKey !== null) items.push([itemKey, storage.getItem(itemKey) ?? '']);
+      if (window.location.href !== ${JSON.stringify(pageUrl.href)}) {
+        return { pageChanged: true };
       }
-      items.sort((left, right) => left[0].localeCompare(right[0]));
-    }
-    return { changed, itemCount: storage.length, items };
-  })()`, true), webStorageHooks?.progress) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
+      const storage = window[${JSON.stringify(storageName)}];
+      const action = ${JSON.stringify(action)};
+      const key = ${JSON.stringify(key)};
+      const value = ${JSON.stringify(options.value)};
+      let changed = false;
+      if (action === 'set') { storage.setItem(key, value); changed = true; }
+      else if (action === 'delete') { changed = storage.getItem(key) !== null; storage.removeItem(key); }
+      else if (action === 'clear') { changed = storage.length > 0; storage.clear(); }
+      const items = [];
+      if (action === 'get') {
+        const itemValue = storage.getItem(key);
+        if (itemValue !== null) items.push([key, itemValue]);
+      } else {
+        for (let index = 0; index < storage.length; index += 1) {
+          const itemKey = storage.key(index);
+          if (itemKey !== null) items.push([itemKey, storage.getItem(itemKey) ?? '']);
+        }
+        items.sort((left, right) => left[0].localeCompare(right[0]));
+      }
+      return { changed, itemCount: storage.length, items };
+    })()`, true), webStorageHooks?.progress) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
   if ('pageChanged' in raw) throw new Error('The page changed before the storage operation. Run a fresh operation.')
   const bounded = boundStorageItems(raw.items, options.includeValues === true || action === 'get')
   return {

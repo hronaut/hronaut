@@ -101,10 +101,10 @@ export async function inspectStorageUsage<Tab extends SiteStorageTab>(access: Si
     const estimate = await tab.webContents.executeJavaScriptInIsolatedWorld(
       STORAGE_USAGE_WORLD_ID,
       [{ code: `(() => navigator.storage?.estimate?.().then((value) => ({
-        usage: value.usage,
-        quota: value.quota,
-        usageDetails: value.usageDetails
-      })).catch(() => null) ?? Promise.resolve(null))()` }],
+          usage: value.usage,
+          quota: value.quota,
+          usageDetails: value.usageDetails
+        })).catch(() => null) ?? Promise.resolve(null))()` }],
       false
     ).catch(() => null) as { usage?: number; quota?: number; usageDetails?: Record<string, number> } | null
     requireCurrentPage()
