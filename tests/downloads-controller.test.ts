@@ -119,7 +119,7 @@ it('records a completed download\'s file for copying, only for its own workspace
   transfer.complete()
   const file = await controller.completedWorkspaceDownloadFile('first', entry!.id)
   const info = await lstat(entry!.savePath!, { bigint: true })
-  expect(file).toEqual({ savePath: entry!.savePath, identity: { dev: String(info.dev), ino: String(info.ino), size: 16, mtimeNs: String(info.mtimeNs) } })
+  expect(file).toEqual({ savePath: entry!.savePath, identity: { dev: String(info.dev), ino: String(info.ino), size: 16, mtimeNs: String(info.mtimeNs), ctimeNs: String(info.ctimeNs) } })
   await expect(controller.completedWorkspaceDownloadFile('second', entry!.id)).rejects.toThrow('Download not found in this workspace')
   generations.set('first', 1)
   await expect(controller.completedWorkspaceDownloadFile('first', entry!.id)).rejects.toThrow('Download not found in this workspace')

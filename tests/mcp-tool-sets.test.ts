@@ -52,6 +52,18 @@ describe('MCP tool sets', () => {
     expect(mcpCapabilityProfileInputFromPreset({ name: 'Incomplete tuple', preset: 'complete', argumentConstraints: { 'browser_evaluate_file.source.path': [source.path] } }).allowedTools).not.toContain('browser_evaluate_file')
   })
 
+  it('reaches download copies only through a profile that names the destination folders', () => {
+    for (const preset of ['complete', 'qa', 'essentials', 'read-only'] as const) {
+      expect(mcpCapabilityProfileInputFromPreset({ name: 'Ordinary', preset }).allowedTools).not.toContain('browser_download_copy')
+    }
+    const folders = { 'browser_download_copy.directory': ['/home/person/reports'] }
+    for (const preset of ['complete', 'qa'] as const) {
+      expect(mcpCapabilityProfileInputFromPreset({ name: 'Report folder', preset, argumentConstraints: folders }).allowedTools).toContain('browser_download_copy')
+    }
+    expect(mcpCapabilityProfileInputFromPreset({ name: 'Read only', preset: 'read-only', argumentConstraints: folders }).allowedTools).not.toContain('browser_download_copy')
+    expect(mcpCapabilityProfileInputFromPreset({ name: 'Names only', preset: 'complete', argumentConstraints: { 'browser_download_copy.filename': ['copy.txt'] } }).allowedTools).not.toContain('browser_download_copy')
+  })
+
   let server: McpHttpServer | undefined
   const clients: Client[] = []
 

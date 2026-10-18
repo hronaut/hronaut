@@ -13,6 +13,16 @@ export const MCP_CAPABILITY_OPERATION_CLASSES = [
 
 export type McpCapabilityOperationClass = typeof MCP_CAPABILITY_OPERATION_CLASSES[number]
 
+/**
+ * Tools that reach local files the person named, so only a capability profile listing the exact allowed values of
+ * one argument may call them: no full-access credential, preset or profile without that constraint does. `message`
+ * explains a refused profile.
+ */
+export const MCP_REQUIRED_ARGUMENT_CONSTRAINTS: Readonly<Record<string, { path: string; message: string }>> = {
+  browser_evaluate_file: { path: 'browser_evaluate_file.source', message: 'File evaluation requires an exact source tuple constraint' },
+  browser_download_copy: { path: 'browser_download_copy.directory', message: 'Copying downloads requires exact destination folder constraints' }
+}
+
 export interface McpCapabilityProfileInput {
   name: string
   allowedTools: string[]

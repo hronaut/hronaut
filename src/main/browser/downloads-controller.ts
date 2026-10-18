@@ -13,8 +13,11 @@ const MAX_DOWNLOAD_HISTORY = 200
 /** A finished download's file, with its identity as Hronaut saw it when the download completed. */
 export interface CompletedDownloadFile {
   savePath: string
-  /** Device, inode and modification time in nanoseconds as decimal strings, so no precision is lost. */
-  identity: { dev: string; ino: string; size: number; mtimeNs: string }
+  /**
+   * Device, inode, and modification and change times in nanoseconds, as decimal strings so no precision is lost.
+   * Any write or metadata change moves the change time, which programs cannot set back.
+   */
+  identity: { dev: string; ino: string; size: number; mtimeNs: string; ctimeNs: string }
 }
 
 interface BrowserDownloadsHost {
@@ -324,7 +327,7 @@ export class BrowserDownloadsController {
   private recordCompletedFile(downloadId: string, savePath: string): void {
     this.completedFileIdentities.set(downloadId, lstat(savePath, { bigint: true }).then(
       info => info.isFile()
-        ? { dev: String(info.dev), ino: String(info.ino), size: Number(info.size), mtimeNs: String(info.mtimeNs) }
+        ? { dev: String(info.dev), ino: String(info.ino), size: Number(info.size), mtimeNs: String(info.mtimeNs), ctimeNs: String(info.ctimeNs) }
         : undefined,
       () => undefined
     ))

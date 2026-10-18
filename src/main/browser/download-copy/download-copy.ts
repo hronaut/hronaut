@@ -54,16 +54,18 @@ const CHANGED = 'The downloaded file was replaced or changed since it finished d
 
 /**
  * Copies the file of a download the workspace finished into an existing
- * folder under a new portable name, byte for byte, leaving the download and
- * its record as they were. The file must still be the one Hronaut recorded
- * when the download completed (same device, inode, size and modification
- * time), and the copy never replaces anything: a name that exists, including
- * a symbolic link, is refused. The copy is created readable only by its owner
- * where the platform supports that, flushed to disk, and checked to still be
- * the file under that name, in the same folder, before it is reported.
- * `validate` runs before the copy is created, after each chunk and before the
- * result; when it or anything else fails once the file exists, the copy
- * removes only its own file. Messages never name a path.
+ * folder under a new portable name, leaving the download and its record as
+ * they were. The file must still be the one Hronaut recorded when the
+ * download completed (same device, inode, size, and modification and change
+ * times) before and after it is read, and the copy never replaces anything:
+ * a name that exists, including a symbolic link, is refused. The copy is
+ * created readable only by its owner where the platform supports that,
+ * flushed to disk, and checked to still be the file under that name, in the
+ * same folder, before it is reported. `validate` runs before the copy is
+ * created, after each chunk and before the result; its errors pass through
+ * unchanged. Once the file exists, any failure removes it only while it is
+ * still this copy's file under that name, and `progress.removed` says
+ * whether it is gone. Other messages never name a path.
  */
 export async function copyDownload(
   access: DownloadCopyAccess,
@@ -89,7 +91,7 @@ export async function copyDownload(
       filename,
       path,
       bytes,
-      note: 'Copied byte for byte from the download as it finished; the download itself is unchanged. The copy is readable only by your account where the system supports that, and stays on this computer.'
+      note: 'Copied from the download\'s file, which still matched what Hronaut recorded when the download finished; the download itself is unchanged. The copy is readable only by your account where the system supports that, and stays on this computer.'
     }
   } finally {
     activeCopies -= 1
@@ -103,6 +105,16 @@ async function copyFile(
   validate: (() => void) | undefined,
   progress: DownloadCopyProgress
 ): Promise<{ path: string; bytes: number }> {
+  // Errors from the call's own checks pass through unchanged, so a lost lease or a cancellation keeps its meaning.
+  let checkFailure: unknown
+  const check = (): void => {
+    try {
+      validate?.()
+    } catch (error) {
+      checkFailure = error
+      throw error
+    }
+  }
   const directory = await realpath(requestedDirectory).catch(() => undefined)
   if (!directory) throw new DownloadCopyProblem('The destination folder does not exist or cannot be read.')
   const folder = await lstat(directory, { bigint: true }).catch(() => undefined)
@@ -115,7 +127,7 @@ async function copyFile(
   let created: BigIntStats | undefined
   try {
     if (!sameFile(await input.stat({ bigint: true }), source.identity)) throw new DownloadCopyProblem(CHANGED)
-    validate?.()
+    check()
     // O_EXCL refuses any existing name, a symbolic link included, so nothing is ever overwritten.
     output = await open(target, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0), COPY_FILE_MODE)
       .catch((error: NodeJS.ErrnoException) => {
@@ -123,8 +135,8 @@ async function copyFile(
           ? 'A file with that name already exists in the destination folder, so nothing was copied or replaced. Choose another name.'
           : 'The destination folder cannot be written to, so nothing was copied.')
       })
-    created = await output.stat({ bigint: true })
     progress.created = true
+    created = await output.stat({ bigint: true })
     const buffer = Buffer.allocUnsafe(COPY_CHUNK_BYTES)
     let bytes = 0
     for (;;) {
@@ -133,33 +145,36 @@ async function copyFile(
       if (bytes + bytesRead > source.identity.size) throw new DownloadCopyProblem(CHANGED)
       await writeAll(output, buffer, bytesRead, bytes)
       bytes += bytesRead
-      validate?.()
+      check()
     }
     if (bytes !== source.identity.size || !sameFile(await input.stat({ bigint: true }), source.identity)) throw new DownloadCopyProblem(CHANGED)
     await output.sync()
-    await output.close()
-    output = undefined
-    // The name must still be this copy's file, in the same folder, so the result never points at another file.
+    // Checked while the copy is still open, so its inode cannot be reused: the name must still be this copy's file,
+    // in the same folder, or the result would point at another file.
     const [named, current] = await Promise.all([
       lstat(target, { bigint: true }).catch(() => undefined),
       lstat(directory, { bigint: true }).catch(() => undefined)
     ])
     if (!named || named.dev !== created.dev || named.ino !== created.ino || !current || current.dev !== folder.dev || current.ino !== folder.ino) {
-      throw new DownloadCopyProblem('The destination folder or the copy was replaced while copying, so the copy was not kept.')
+      throw new DownloadCopyProblem('The destination folder or the copy was moved or replaced while copying, so the copy was not kept.')
     }
-    validate?.()
+    check()
+    await output.close()
+    output = undefined
     return { path: target, bytes }
   } catch (error) {
-    await output?.close().catch(() => undefined)
-    const pathFree = error instanceof DownloadCopyProblem || isPathFree(error)
-    if (!created) throw pathFree ? error : new DownloadCopyProblem('The download could not be copied.')
-    const message = pathFree ? (error as Error).message
-      : (error as NodeJS.ErrnoException).code === 'ENOSPC' ? 'The destination ran out of space, so the copy was not kept.'
+    if (output) {
+      progress.removed = created ? await removeOwnFile(output, target, created) : false
+      await output.close().catch(() => undefined)
+    }
+    if (error === checkFailure && (!progress.created || progress.removed)) throw error
+    const message = error === checkFailure || error instanceof DownloadCopyProblem ? (error as Error).message
+      : (error as NodeJS.ErrnoException).code === 'ENOSPC' ? 'The destination ran out of space, so nothing was copied.'
         : 'The download could not be copied.'
-    progress.removed = await removeOwnFile(target, created)
+    if (!progress.created) throw error instanceof DownloadCopyProblem ? error : new DownloadCopyProblem(message)
     throw new DownloadCopyProblem(progress.removed
       ? `${message} The copy it started was removed.`
-      : `${message} Hronaut could not remove the copy it started, so a file may remain under that name; check the folder before copying again.`)
+      : `${message} Hronaut could not confirm that the copy it started is gone, so a file may remain under that name or where it was moved; check the folder before copying again.`)
   } finally {
     await input.close().catch(() => undefined)
   }
@@ -174,12 +189,18 @@ async function writeAll(output: FileHandle, buffer: Buffer, length: number, posi
   }
 }
 
-/** Removes the file under the name only while it is still the one this copy created. */
-async function removeOwnFile(target: string, created: BigIntStats): Promise<boolean> {
+/**
+ * Removes the copy's name while it is still this copy's file, and says whether the copy is gone: the still-open
+ * file has no names left. A copy that was moved or given another name stays, and counts as remaining. Windows
+ * keeps a removed file's name until it is closed, so there the removal itself counts.
+ */
+async function removeOwnFile(output: FileHandle, target: string, created: BigIntStats): Promise<boolean> {
   const named = await lstat(target, { bigint: true }).catch(() => undefined)
-  if (!named) return true
-  if (named.dev !== created.dev || named.ino !== created.ino) return false
-  return unlink(target).then(() => true, () => false)
+  if (!named || named.dev !== created.dev || named.ino !== created.ino) return false
+  if (!await unlink(target).then(() => true, () => false)) return false
+  if (process.platform === 'win32') return true
+  const after = await output.stat({ bigint: true }).catch(() => undefined)
+  return after !== undefined && after.nlink === 0n
 }
 
 function sameFile(info: BigIntStats, identity: CompletedDownloadFile['identity']): boolean {
@@ -188,11 +209,7 @@ function sameFile(info: BigIntStats, identity: CompletedDownloadFile['identity']
     && String(info.ino) === identity.ino
     && Number(info.size) === identity.size
     && String(info.mtimeNs) === identity.mtimeNs
-}
-
-/** Errors from the call's own checks carry no path; errors from the filesystem may. */
-function isPathFree(error: unknown): boolean {
-  return error instanceof Error && !(error as NodeJS.ErrnoException).code && !('path' in error)
+    && String(info.ctimeNs) === identity.ctimeNs
 }
 
 /**

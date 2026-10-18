@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { renameSync, writeFileSync } from 'node:fs'
+import { linkSync, renameSync, writeFileSync } from 'node:fs'
 import { appendFile, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, stat, symlink, unlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { CompletedDownloadFile } from '../src/main/browser/downloads-controller.js'
 import { copyDownload, MAX_DOWNLOAD_COPY_BYTES, type DownloadCopyProgress } from '../src/main/browser/download-copy/download-copy.js'
 import type { DownloadCopyAccess } from '../src/main/browser/download-copy/download-copy-access.js'
+import { type DownloadCopySettlement, downloadCopySettlement } from '../src/main/mcp/tools/browser-download-copy/download-copy-settlement.js'
 import { registerBrowserDownloadCopy } from '../src/main/mcp/tools/browser-download-copy/index.js'
 
 // More than two copy chunks, with every byte value.
@@ -36,7 +37,7 @@ beforeEach(async () => {
 
 async function identityOf(path: string): Promise<CompletedDownloadFile['identity']> {
   const info = await lstat(path, { bigint: true })
-  return { dev: String(info.dev), ino: String(info.ino), size: Number(info.size), mtimeNs: String(info.mtimeNs) }
+  return { dev: String(info.dev), ino: String(info.ino), size: Number(info.size), mtimeNs: String(info.mtimeNs), ctimeNs: String(info.ctimeNs) }
 }
 
 /** A manager view whose one completed download is the file at `path`, recorded as it is now unless overridden. */
@@ -128,6 +129,14 @@ describe('copying a finished download', () => {
     expect(await problem(copyDownload(touched, 'workspace', request(), undefined, touchedProgress))).toMatch(/replaced or changed/u)
     expect(touchedProgress.created).toBe(false)
 
+    // Rewritten in place at the same size with its modification time set back: the change time still moves.
+    const rewritten = await accessFor(source)
+    const { atime, mtime } = await stat(source)
+    await writeFile(source, Buffer.alloc(CONTENT.length, 7))
+    await utimes(source, atime, mtime)
+    expect(await problem(copyDownload(rewritten, 'workspace', request()))).toMatch(/replaced or changed/u)
+
+    await writeFile(source, CONTENT)
     const replaced = await accessFor(source)
     await unlink(source)
     await writeFile(source, CONTENT)
@@ -157,9 +166,15 @@ describe('copying a finished download', () => {
     const progress: DownloadCopyProgress = { created: false, removed: false }
     // The first two checks precede the file; the third follows the first chunk.
     const validate = (): void => { checks += 1; if (checks === 3) throw new Error('Download copy cancelled') }
-    expect(await problem(copyDownload(await accessFor(source), 'workspace', request(), validate, progress))).toBe('Download copy cancelled The copy it started was removed.')
+    expect(await problem(copyDownload(await accessFor(source), 'workspace', request(), validate, progress))).toBe('Download copy cancelled')
     expect(await readdir(destination)).toEqual([])
     expect(progress).toEqual({ created: true, removed: true })
+
+    // The call's own errors pass through unchanged, such as a lost write lease.
+    const leaseLost = Object.assign(new Error('Workspace write lease lost'), { code: 'LEASE_LOST' })
+    checks = 0
+    const lost = await copyDownload(await accessFor(source), 'workspace', request(), () => { checks += 1; if (checks === 3) throw leaseLost }).catch((caught: unknown) => caught)
+    expect(lost).toBe(leaseLost)
 
     const early: DownloadCopyProgress = { created: false, removed: false }
     expect(await problem(copyDownload(await accessFor(source), 'workspace', request(), () => { throw new Error('Authority changed') }, early))).toBe('Authority changed')
@@ -177,37 +192,95 @@ describe('copying a finished download', () => {
       renameSync(target, join(destination, 'moved-away.bin'))
       writeFileSync(target, 'someone else')
     }
-    expect(await problem(copyDownload(await accessFor(source), 'workspace', request(), validate, progress))).toMatch(/replaced while copying.*could not remove the copy it started/u)
+    expect(await problem(copyDownload(await accessFor(source), 'workspace', request(), validate, progress))).toMatch(/moved or replaced while copying.*could not confirm that the copy it started is gone/u)
     expect(await readFile(target, 'utf8')).toBe('someone else')
     expect(progress).toEqual({ created: true, removed: false })
+  })
+
+  it('never reports a copy as removed when it was moved away or its folder was, so it may still exist', async () => {
+    const target = join(destination, 'renamed copy.bin')
+    let checks = 0
+    const renamed: DownloadCopyProgress = { created: false, removed: false }
+    const renameAway = (): void => { checks += 1; if (checks === 3) renameSync(target, join(destination, 'kept.bin')) }
+    expect(await problem(copyDownload(await accessFor(source), 'workspace', request(), renameAway, renamed))).toMatch(/moved or replaced.*could not confirm/u)
+    expect(renamed).toEqual({ created: true, removed: false })
+    expect(Buffer.compare(await readFile(join(destination, 'kept.bin')), CONTENT)).toBe(0)
+
+    checks = 0
+    const moved: DownloadCopyProgress = { created: false, removed: false }
+    const movedFolder = `${destination}-moved`
+    const moveFolder = (): void => { checks += 1; if (checks === 3) renameSync(destination, movedFolder) }
+    expect(await problem(copyDownload(await accessFor(source), 'workspace', request(), moveFolder, moved))).toMatch(/moved or replaced.*could not confirm/u)
+    expect(moved).toEqual({ created: true, removed: false })
+    expect(Buffer.compare(await readFile(join(movedFolder, 'renamed copy.bin')), CONTENT)).toBe(0)
+
+    // Another name for the same file keeps it after the copy's own name is removed.
+    checks = 0
+    const linked: DownloadCopyProgress = { created: false, removed: false }
+    const second = await mkdtemp(join(root, 'linked-destination-'))
+    const linkAndStop = (): void => {
+      checks += 1
+      if (checks !== 3) return
+      linkSync(join(second, 'renamed copy.bin'), join(second, 'other name.bin'))
+      throw new Error('Download copy cancelled')
+    }
+    expect(await problem(copyDownload(await accessFor(source), 'workspace', request({ directory: second }), linkAndStop, linked))).toMatch(/cancelled.*could not confirm/u)
+    expect(linked).toEqual({ created: true, removed: false })
+    expect(await readdir(second)).toEqual(['other name.bin'])
   })
 })
 
 describe('browser_download_copy tool', () => {
   function tool(copy: (validate: () => void, progress: DownloadCopyProgress) => Promise<unknown>) {
     let handler: ((input: Record<string, unknown>, call: unknown) => Promise<CallToolResult>) | undefined
+    let options: { settlement?: () => DownloadCopySettlement } | undefined
     registerBrowserDownloadCopy({
+      capability: {},
       manager: { copyWorkspaceDownload: (_workspaceId: string, _request: unknown, validate: () => void, progress: DownloadCopyProgress) => copy(validate, progress) },
       tool: (callback: unknown) => callback,
-      registerWorkspaceTool: (_name: string, _config: unknown, callback: typeof handler) => { handler = callback }
+      registerWorkspaceTool: (_name: string, _config: unknown, callback: typeof handler, toolOptions: typeof options) => { handler = callback; options = toolOptions }
     } as never)
+    const settlement = options!.settlement!()
     const outcomes: unknown[] = []
-    const call = { signal: undefined, requireCurrentTarget: () => undefined, setInvalidatedOutcome: (outcome: unknown) => { outcomes.push(outcome) } }
+    const call = { signal: undefined, requireCurrentTarget: () => undefined, setInvalidatedOutcome: (outcome: unknown) => { outcomes.push(outcome) }, settlement }
     const run = () => handler!({ workspaceId: 'workspace', downloadId: 'download', directory: destination, filename: 'copy.bin' }, call)
-    return { outcomes, run }
+    return { outcomes, run, settlement }
   }
+  const failed = { content: [{ type: 'text' as const, text: 'failed' }], isError: true }
+  const status = (result: CallToolResult | undefined) => result?.structuredContent?.status
 
-  it('returns the copy as structured content', async () => {
-    const copied = await tool(async () => ({ status: 'COPIED', filename: 'copy.bin', bytes: 3 })).run()
-    expect(copied.structuredContent).toMatchObject({ status: 'COPIED', bytes: 3 })
+  it('returns the copy as structured content, and keeps a copy the call could not confirm from looking like nothing happened', async () => {
+    const copied = tool(async () => ({ status: 'COPIED', filename: 'copy.bin', bytes: 3 }))
+    const result = await copied.run()
+    expect(result.structuredContent).toMatchObject({ status: 'COPIED', bytes: 3 })
+    expect(copied.settlement.publish(result)).toBeUndefined()
+    // The shared checks after the copy discarded its result: the copy exists, and the agent is told so.
+    expect(status(copied.settlement.publish(failed))).toBe('COPIED_UNCONFIRMED')
+    expect(copied.settlement.publish(failed)?.structuredContent).toMatchObject({ effects: 'file-written', retrySafe: false })
+    expect(status(copied.settlement.settleError())).toBe('COPIED_UNCONFIRMED')
+    expect(status(copied.settlement.publicationRevoked())).toBe('COPIED_UNCONFIRMED')
   })
 
-  it('marks the outcome unknown only when its own file may remain', async () => {
-    const remained = tool(async (_validate, progress) => { progress.created = true; throw new Error('could not remove') })
-    await expect(remained.run()).rejects.toThrow('could not remove')
+  it('reports a copy that may remain, and passes through failures that left nothing behind', async () => {
+    const remained = tool(async (_validate, progress) => { progress.created = true; throw new Error('could not confirm') })
+    await expect(remained.run()).rejects.toThrow('could not confirm')
     expect(remained.outcomes).toEqual(['outcome-unknown'])
+    expect(status(remained.settlement.publish(failed))).toBe('COPY_OUTCOME_UNKNOWN')
+    expect(remained.settlement.effectsPossible()).toBe(true)
+    const activity = { readOnly: false, dispatched: true, invalidatedOutcome: undefined }
+    expect(remained.settlement.classifyActivity(activity, true)).toEqual({ ...activity, invalidatedOutcome: 'outcome-unknown' })
+
     const removed = tool(async (_validate, progress) => { progress.created = true; progress.removed = true; throw new Error('removed') })
     await expect(removed.run()).rejects.toThrow('removed')
     expect(removed.outcomes).toEqual([])
+    expect(removed.settlement.publish(failed)).toBeUndefined()
+    expect(removed.settlement.settleError()).toBeUndefined()
+    expect(removed.settlement.classifyActivity(activity, true)).toEqual(activity)
+  })
+
+  it('refuses full-access credentials before anything else', () => {
+    const refused = downloadCopySettlement(false).admit()
+    expect(refused?.structuredContent).toMatchObject({ status: 'REFUSED', reason: 'SEPARATE_GRANT_REQUIRED', effects: 'none' })
+    expect(downloadCopySettlement(true).admit()).toBeUndefined()
   })
 })

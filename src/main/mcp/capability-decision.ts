@@ -1,6 +1,7 @@
 import {
   MCP_CAPABILITY_DECISION_PRECEDENCE,
   MCP_CAPABILITY_OPERATION_CLASSES,
+  MCP_REQUIRED_ARGUMENT_CONSTRAINTS,
   type McpCapabilityDecision,
   type McpCapabilityDecisionCheck,
   type McpCapabilityDecisionPhase,
@@ -132,9 +133,10 @@ export function evaluateMcpCapabilityDecision(input: McpCapabilityDecisionInput)
   }
   pass('origin', originApplicable ? 'passed' : 'not-applicable')
 
-  if (request.toolName === 'browser_evaluate_file') {
-    const missingTuple = lineage.findIndex(candidate => !candidate.argumentValueDigests?.['browser_evaluate_file.source']?.length)
-    if (missingTuple >= 0) return deny('argument', 'ARGUMENT_REQUIRED', missingTuple)
+  const requiredArgument = MCP_REQUIRED_ARGUMENT_CONSTRAINTS[request.toolName]
+  if (requiredArgument) {
+    const missingConstraint = lineage.findIndex(candidate => !candidate.argumentValueDigests?.[requiredArgument.path]?.length)
+    if (missingConstraint >= 0) return deny('argument', 'ARGUMENT_REQUIRED', missingConstraint)
   }
   let argumentApplicable = false
   for (const [index, candidate] of lineage.entries()) {
