@@ -70,7 +70,7 @@ import {
 import electronUpdater from 'electron-updater'
 import { updateErrorMessage, type UpdateOperation } from '../shared/update-errors.js'
 import { canStartUpdateOperation, replacedPackageVersion } from '../shared/update-runtime.js'
-import { sanitizeConsoleMessages } from '../shared/debug-report.js'
+import { registerPageInspectionIpc } from './page-inspection-ipc.js'
 import trayIconPath from '../../build/icons/24x24.png?asset'
 import trayAttentionIconPath from '../../build/icons/tray-attention.png?asset'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
@@ -150,11 +150,6 @@ import {
   type AppUpdateState,
   type BrowserState,
   type BrowserActionFailure,
-  type BrowserElementInspectionOptions,
-  type BrowserPageCaptureOptions,
-  type BrowserNetworkHarOptions,
-  type BrowserNetworkHarSaveOptions,
-  type BrowserNetworkSearchOptions,
   type BrowserBookmark,
   type BrowserHistoryEntry,
   type BrowsingDataSiteSummary,
@@ -2829,86 +2824,12 @@ function registerIpc(): void {
     handleBrowserIpc,
     tabs: () => tabsManager
   })
-  handleBrowserIpc('browser:manage-storage', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof value !== 'object' || value === null) throw new TypeError('Invalid site storage request')
-    const { tabId, kind, action, key, value: storageValue, includeValues } = value as Record<string, unknown>
-    if (
-      (tabId !== undefined && typeof tabId !== 'string')
-      || (kind !== 'local-storage' && kind !== 'session-storage' && kind !== 'cookies')
-      || (action !== undefined && action !== 'list' && action !== 'get' && action !== 'set' && action !== 'delete' && action !== 'clear')
-      || (key !== undefined && typeof key !== 'string')
-      || (storageValue !== undefined && typeof storageValue !== 'string')
-      || (includeValues !== undefined && typeof includeValues !== 'boolean')
-    ) throw new TypeError('Invalid site storage request')
-    return tabsManager!.manageStorage({ tabId, kind, action, key, value: storageValue, includeValues })
-  })
-  handleBrowserIpc('browser:storage-usage', (event, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid storage usage request')
-    return tabsManager!.inspectStorageUsage(tabId as string | undefined)
-  })
-  handleBrowserIpc('browser:storage-changes', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid storage changes request')
-    const { tabId, action, includeValues } = value as Record<string, unknown>
-    if (
-      (tabId !== undefined && typeof tabId !== 'string')
-      || (action !== undefined && action !== 'get' && action !== 'baseline' && action !== 'compare' && action !== 'clear')
-      || (includeValues !== undefined && typeof includeValues !== 'boolean')
-    ) throw new TypeError('Invalid storage changes request')
-    return tabsManager!.storageChanges(action, tabId as string | undefined, includeValues === true)
-  })
-  handleBrowserIpc('browser:indexeddb', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid IndexedDB request')
-    const { tabId, database, objectStore, offset, limit, includeValues } = value as Record<string, unknown>
-    if (
-      (tabId !== undefined && typeof tabId !== 'string')
-      || (database !== undefined && typeof database !== 'string')
-      || (objectStore !== undefined && typeof objectStore !== 'string')
-      || (offset !== undefined && (typeof offset !== 'number' || !Number.isFinite(offset)))
-      || (limit !== undefined && (typeof limit !== 'number' || !Number.isFinite(limit)))
-      || (includeValues !== undefined && typeof includeValues !== 'boolean')
-    ) throw new TypeError('Invalid IndexedDB request')
-    return tabsManager!.inspectIndexedDb({
-      tabId: tabId as string | undefined,
-      database: database as string | undefined,
-      objectStore: objectStore as string | undefined,
-      offset: offset as number | undefined,
-      limit: limit as number | undefined,
-      includeValues: includeValues === true
-    })
-  })
-  handleBrowserIpc('browser:pwa-lifecycle', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid lifecycle request')
-    const { tabId, captureId, action } = value as Record<string, unknown>
-    if ((tabId !== undefined && typeof tabId !== 'string') || (captureId !== undefined && typeof captureId !== 'string')
-      || !['start', 'get', 'stop', 'clear'].includes(String(action))) throw new TypeError('Invalid lifecycle request')
-    return tabsManager!.pwaLifecycle({ tabId: tabId as string | undefined, captureId: captureId as string | undefined,
-      action: action as 'start' | 'get' | 'stop' | 'clear' })
-  })
-  handleBrowserIpc('browser:pwa', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid offline app request')
-    const { tabId, cacheName, query, offset, limit, includeHeaders } = value as Record<string, unknown>
-    if (
-      (tabId !== undefined && typeof tabId !== 'string')
-      || (cacheName !== undefined && typeof cacheName !== 'string')
-      || (query !== undefined && typeof query !== 'string')
-      || (offset !== undefined && (typeof offset !== 'number' || !Number.isFinite(offset)))
-      || (limit !== undefined && (typeof limit !== 'number' || !Number.isFinite(limit)))
-      || (includeHeaders !== undefined && typeof includeHeaders !== 'boolean')
-    ) throw new TypeError('Invalid offline app request')
-    return tabsManager!.inspectPwa({
-      tabId: tabId as string | undefined,
-      cacheName: cacheName as string | undefined,
-      query: query as string | undefined,
-      offset: offset as number | undefined,
-      limit: limit as number | undefined,
-      includeHeaders: includeHeaders === true
-    })
+  registerPageInspectionIpc({
+    assertTrustedSender: assertTrustedShellSender,
+    handleBrowserIpc,
+    tabs: () => tabsManager,
+    copyTextToClipboard,
+    copyPngToClipboard
   })
   registerCollectionIpc(ipcMain, {
     runRead: (event, read) => runWorkspaceRead(event, assertTrustedShellSender, read),
@@ -2943,63 +2864,6 @@ function registerIpc(): void {
     publishVisitHistory,
     currentBrowsingDataSiteSummary
   })
-  handleBrowserIpc('browser:copy-snapshot', async (event, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid snapshot tab ID')
-    const maxChars = 30_000
-    const snapshot = await tabsManager!.snapshotDetails(tabId, maxChars)
-    await copyTextToClipboard(snapshot.text)
-    return { copied: true, characters: snapshot.returnedChars, truncated: snapshot.truncated }
-  })
-  handleBrowserIpc('browser:pick-element', async (event, tabId) => {
-    assertTrustedShellSender(event)
-    const result = await tabsManager!.pickElement(tabId)
-    if (result.canceled || !result.content) return { canceled: true, copied: false }
-    await copyTextToClipboard(result.content)
-    return { canceled: false, copied: true }
-  })
-  handleBrowserIpc('browser:capture-element', async (event, tabId) => {
-    assertTrustedShellSender(event)
-    const screenshot = await tabsManager!.captureElementScreenshot(tabId)
-    if (screenshot.canceled || !screenshot.data) return { canceled: true, copied: false }
-    const size = await copyPngToClipboard(screenshot.data)
-    return { canceled: false, copied: true, width: size.width, height: size.height }
-  })
-  handleBrowserIpc('browser:capture-page', async (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid page capture options')
-    const { tabId, fullPage } = value as Record<string, unknown>
-    if (
-      (tabId !== undefined && typeof tabId !== 'string')
-      || (fullPage !== undefined && typeof fullPage !== 'boolean')
-    ) {
-      throw new TypeError('Invalid page capture options')
-    }
-    const options: BrowserPageCaptureOptions = {
-      ...(tabId !== undefined ? { tabId } : {}),
-      ...(fullPage !== undefined ? { fullPage } : {})
-    }
-    const screenshot = await tabsManager!.screenshot(options)
-    const size = await copyPngToClipboard(screenshot.data)
-    return { copied: true, width: size.width, height: size.height }
-  })
-  handleBrowserIpc('browser:element-inspection', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid element inspection options')
-    const { tabId, ref, selector } = value as Record<string, unknown>
-    if (
-      (tabId !== undefined && typeof tabId !== 'string')
-      || (ref !== undefined && typeof ref !== 'string')
-      || (selector !== undefined && typeof selector !== 'string')
-    ) {
-      throw new TypeError('Invalid element inspection options')
-    }
-    return tabsManager!.elementInspection(value as BrowserElementInspectionOptions)
-  })
-  handleBrowserIpc('browser:cancel-element-picker', (event, tabId) => {
-    assertTrustedShellSender(event)
-    return tabsManager!.cancelElementPicker(tabId)
-  })
   registerIncidentPackageIpc(ipcMain, {
     assertTrustedSender: assertInitializedTrustedShellSender,
     tabs: () => tabsManager!,
@@ -3024,114 +2888,6 @@ function registerIpc(): void {
       const selection = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: [{ name: 'PCM WAV audio', extensions: ['wav'] }] })
       return selection.canceled ? undefined : selection.filePaths[0]
     }
-  })
-  handleBrowserIpc('browser:console', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid console options')
-    const { tabId, clear } = value as Record<string, unknown>
-    if ((tabId !== undefined && typeof tabId !== 'string') || (clear !== undefined && typeof clear !== 'boolean')) {
-      throw new TypeError('Invalid console options')
-    }
-    return sanitizeConsoleMessages(tabsManager!.consoleMessages(tabId as string | undefined, clear === true))
-  })
-  handleBrowserIpc('browser:network', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network options')
-    const { tabId, clear } = value as Record<string, unknown>
-    if ((tabId !== undefined && typeof tabId !== 'string') || (clear !== undefined && typeof clear !== 'boolean')) {
-      throw new TypeError('Invalid network options')
-    }
-    return tabsManager!.networkRequests(tabId as string | undefined, clear === true)
-  })
-  handleBrowserIpc('browser:network-request', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network request options')
-    const { tabId, requestId, maxChars } = value as Record<string, unknown>
-    if (
-      typeof tabId !== 'string'
-      || typeof requestId !== 'string'
-      || !requestId
-      || (maxChars !== undefined && typeof maxChars !== 'number')
-    ) {
-      throw new TypeError('Invalid network request options')
-    }
-    return tabsManager!.networkRequestDetails(tabId, requestId, maxChars as number | undefined)
-  })
-  handleBrowserIpc('browser:network-replay', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network replay options')
-    const { tabId, requestId, confirmSideEffects } = value as Record<string, unknown>
-    if (
-      typeof tabId !== 'string'
-      || typeof requestId !== 'string'
-      || !requestId
-      || (confirmSideEffects !== undefined && typeof confirmSideEffects !== 'boolean')
-    ) {
-      throw new TypeError('Invalid network replay options')
-    }
-    return tabsManager!.replayNetworkRequest(tabId, requestId, confirmSideEffects === true)
-  })
-  handleBrowserIpc('browser:network-search', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network search options')
-    const { tabId, query, caseSensitive, maxResults, maxRequests, maxBodyChars } = value as Record<string, unknown>
-    if (
-      (tabId !== undefined && typeof tabId !== 'string')
-      || typeof query !== 'string'
-      || (caseSensitive !== undefined && typeof caseSensitive !== 'boolean')
-      || (maxResults !== undefined && typeof maxResults !== 'number')
-      || (maxRequests !== undefined && typeof maxRequests !== 'number')
-      || (maxBodyChars !== undefined && typeof maxBodyChars !== 'number')
-    ) {
-      throw new TypeError('Invalid network search options')
-    }
-    return tabsManager!.networkSearch(value as BrowserNetworkSearchOptions)
-  })
-  handleBrowserIpc('browser:network-har', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network HAR options')
-    const { tabId, query, resourceType, errorsOnly, includeBodies, maxRequests, maxBodyChars } = value as Record<string, unknown>
-    if (
-      (tabId !== undefined && typeof tabId !== 'string')
-      || (query !== undefined && typeof query !== 'string')
-      || (resourceType !== undefined && typeof resourceType !== 'string')
-      || (errorsOnly !== undefined && typeof errorsOnly !== 'boolean')
-      || (includeBodies !== undefined && typeof includeBodies !== 'boolean')
-      || (maxRequests !== undefined && typeof maxRequests !== 'number')
-      || (maxBodyChars !== undefined && typeof maxBodyChars !== 'number')
-    ) {
-      throw new TypeError('Invalid network HAR options')
-    }
-    return tabsManager!.networkHar(value as BrowserNetworkHarOptions)
-  })
-  handleBrowserIpc('browser:save-network-har', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network HAR save options')
-    const { tabId, query, resourceType, errorsOnly, includeBodies, maxRequests, maxBodyChars, filename } = value as Record<string, unknown>
-    if (
-      (tabId !== undefined && typeof tabId !== 'string')
-      || (query !== undefined && typeof query !== 'string')
-      || (resourceType !== undefined && typeof resourceType !== 'string')
-      || (errorsOnly !== undefined && typeof errorsOnly !== 'boolean')
-      || (includeBodies !== undefined && typeof includeBodies !== 'boolean')
-      || (maxRequests !== undefined && typeof maxRequests !== 'number')
-      || (maxBodyChars !== undefined && typeof maxBodyChars !== 'number')
-      || (filename !== undefined && typeof filename !== 'string')
-    ) {
-      throw new TypeError('Invalid network HAR save options')
-    }
-    return tabsManager!.saveNetworkHar(value as BrowserNetworkHarSaveOptions)
-  })
-  handleBrowserIpc('browser:capture-area', async (event, tabId) => {
-    assertTrustedShellSender(event)
-    const screenshot = await tabsManager!.captureScreenshotArea(tabId)
-    if (screenshot.canceled || !screenshot.data) return { canceled: true, copied: false }
-    const size = await copyPngToClipboard(screenshot.data)
-    return { canceled: false, copied: true, width: size.width, height: size.height }
-  })
-  handleBrowserIpc('browser:cancel-area-capture', (event, tabId) => {
-    assertTrustedShellSender(event)
-    return tabsManager!.cancelScreenshotArea(tabId)
   })
   handleBrowserIpc('browser:show', (event) => { assertTrustedShellSender(event); showWindow() })
   handleBrowserIpc('browser:quit', (event) => {
