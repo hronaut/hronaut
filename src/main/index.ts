@@ -9,25 +9,11 @@ import { registerWalletIpc } from './wallet/ipc.js'
 import { ShellOverlayView } from './shell-overlay-view.js'
 import { AgentCardOverlay, type AgentCardSurface } from './agent-card-overlay.js'
 import { ToastOverlay, type ToastOverlaySurface } from './toast-overlay.js'
-import {
-  parseToastOverlayMeasurement,
-  parseToastOverlayMessage,
-  parseToastOverlayRequest,
-  toastOverlayRequestId,
-  type ToastOverlayEvent,
-  type ToastOverlayRequest
-} from '../shared/toast-overlay.js'
-import {
-  parseAgentCardMeasurement,
-  parseAgentCardShowRequest,
-  parseAgentCardViewMessage,
-  validAgentCardId,
-  type AgentCardEvent,
-  type AgentCardShowRequest
-} from '../shared/agent-card.js'
+import type { ToastOverlayEvent } from '../shared/toast-overlay.js'
+import type { AgentCardEvent } from '../shared/agent-card.js'
 import { humanWaitingDecisionOpen } from '../shared/human-waiting.js'
 import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-overlay.js'
-import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
+import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { parseAgentStepHistoryRequest, type AgentPresenceSnapshot, type AgentStepHistoryEntry } from '../shared/agent-presence.js'
@@ -1929,10 +1915,6 @@ function trustedAgentCardUrl(): string {
   return pathToFileURL(join(__dirname, '../renderer/agent-card.html')).href
 }
 
-function assertAgentCardSender(event: Electron.IpcMainEvent): void {
-  if (!agentCardView.isSender(event)) throw new Error('Rejected IPC from a non-agent-card renderer')
-}
-
 /** One transparent view, created on the first agent card, draws the card above the page views. */
 const agentCardBlurWatched = new WeakSet<Electron.WebContents>()
 
@@ -1961,10 +1943,6 @@ function trustedToastOverlayUrl(): string {
   return pathToFileURL(join(__dirname, '../renderer/toast-overlay.html')).href
 }
 
-function assertToastOverlaySender(event: Electron.IpcMainEvent): void {
-  if (!toastOverlayView.isSender(event)) throw new Error('Rejected IPC from a non-toast renderer')
-}
-
 /** One transparent view, created on the first toast, draws it at the bottom of the page area. */
 const toastOverlayWatched = new WeakSet<Electron.WebContents>()
 
@@ -1991,10 +1969,6 @@ function trustedTooltipOverlayUrl(): string {
     return new URL('tooltip-overlay.html', trustedShellUrl()).href
   }
   return pathToFileURL(join(__dirname, '../renderer/tooltip-overlay.html')).href
-}
-
-function assertTooltipOverlaySender(event: Electron.IpcMainEvent): void {
-  if (!tooltipView.isSender(event)) throw new Error('Rejected IPC from a non-tooltip renderer')
 }
 
 /**
@@ -2440,82 +2414,15 @@ function handleBrowserIpc(channel: string, listener: Parameters<typeof ipcMain.h
 }
 
 function registerIpc(): void {
-  ipcMain.on('shell-tooltip:show', (event, value: unknown) => {
-    if (workspaceStartupFailure) return
-    assertMainShellSender(event)
-    shellTooltips.show(parseShellTooltipRequest(value), event.sender.getZoomFactor())
-  })
-  ipcMain.on('shell-tooltip:hide', (event, id: unknown) => {
-    if (workspaceStartupFailure) return
-    assertMainShellSender(event)
-    if (id !== undefined && !(Number.isSafeInteger(id) && (id as number) > 0)) throw new TypeError('Invalid tooltip id')
-    shellTooltips.hide(id as number | undefined)
-  })
-  ipcMain.on('agent-card:show', (event, value: unknown) => {
-    if (workspaceStartupFailure) return
-    assertMainShellSender(event)
-    let request: AgentCardShowRequest
-    try {
-      request = parseAgentCardShowRequest(value)
-    } catch (error) {
-      // Nothing outside the contract is drawn; the shell hears the card closed and resets its avatar.
-      const cardId = value && typeof value === 'object' ? (value as { cardId?: unknown }).cardId : undefined
-      if (validAgentCardId(cardId)) agentCards.refused(cardId)
-      throw error
-    }
-    agentCards.show(request, event.sender.getZoomFactor())
-  })
-  ipcMain.on('agent-card:hide', (event, cardId: unknown) => {
-    if (workspaceStartupFailure) return
-    assertMainShellSender(event)
-    if (!validAgentCardId(cardId)) throw new TypeError('Invalid agent card id')
-    agentCards.hide(cardId)
-  })
-  ipcMain.on('agent-card-view:measured', (event, value: unknown) => {
-    assertAgentCardSender(event)
-    const measurement = parseAgentCardMeasurement(value)
-    if (measurement) agentCards.measured(measurement)
-  })
-  ipcMain.on('agent-card-view:message', (event, value: unknown) => {
-    assertAgentCardSender(event)
-    const message = parseAgentCardViewMessage(value)
-    if (message) agentCards.received(message)
-  })
-  ipcMain.on('toast-overlay:show', (event, value: unknown) => {
-    const refuse = (): void => {
-      const id = toastOverlayRequestId(value)
-      if (id !== undefined) toastOverlay.refused(id)
-    }
-    // As for the other shell overlays, nothing is drawn while startup has stopped; the shell keeps its own copy.
-    if (workspaceStartupFailure) {
-      refuse()
-      return
-    }
-    assertMainShellSender(event)
-    let request: ToastOverlayRequest
-    try {
-      request = parseToastOverlayRequest(value)
-    } catch (error) {
-      // Nothing outside the contract is drawn; the shell hears the toast is not shown and shows its own copy.
-      refuse()
-      throw error
-    }
-    toastOverlay.show(request)
-  })
-  ipcMain.on('toast-overlay-view:measured', (event, value: unknown) => {
-    assertToastOverlaySender(event)
-    const measurement = parseToastOverlayMeasurement(value)
-    if (measurement) toastOverlay.measured(measurement)
-  })
-  ipcMain.on('toast-overlay-view:message', (event, value: unknown) => {
-    assertToastOverlaySender(event)
-    const message = parseToastOverlayMessage(value)
-    if (message) toastOverlay.received(message)
-  })
-  ipcMain.on('tooltip-overlay:measured', (event, value: unknown) => {
-    assertTooltipOverlaySender(event)
-    const measurement = parseShellTooltipMeasurement(value)
-    if (measurement) shellTooltips.measured(measurement)
+  registerOverlayViewsIpc(ipcMain, {
+    assertMainShellSender,
+    workspaceStartupFailure: () => workspaceStartupFailure,
+    shellTooltips: () => shellTooltips,
+    agentCards: () => agentCards,
+    toastOverlay: () => toastOverlay,
+    agentCardView: () => agentCardView,
+    toastOverlayView: () => toastOverlayView,
+    tooltipView: () => tooltipView
   })
   ipcMain.on('address-overlay:show', (event, value: unknown) => {
     if (workspaceStartupFailure) return
