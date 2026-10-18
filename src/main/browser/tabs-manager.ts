@@ -23,6 +23,8 @@ import type { PwaInspectionAccess } from './pwa-inspection/pwa-inspection-access
 import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import type { ElementInspectionAccess } from './element-inspection/element-inspection-access.js'
 import { elementInspection, imageState, mediaState } from './element-inspection/element-inspection.js'
+import type { BrowserConsoleMessageRecord, ConsoleCapture, ConsoleMessagesAccess } from './console-messages/console-messages-access.js'
+import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage, withPendingRuntimeConsoleMessage } from './console-messages/console-messages.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
@@ -143,7 +145,7 @@ import { dispatchNativeDrag, type PointerDebugger } from './native-pointer.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import { accessibilityAuditPageScript, normalizeAccessibilityAuditOptions } from '../../shared/accessibility-audit.js'
 import { accessibilityBaselineSummary, buildAccessibilityComparison } from '../../shared/accessibility-comparison.js'
-import { buildBrowserDebugReport, sanitizeConsoleMessage } from '../../shared/debug-report.js'
+import { buildBrowserDebugReport } from '../../shared/debug-report.js'
 import { recordTrustedCredentialFill } from './trusted-credential-fill.js'
 import {
   normalizeConsoleLogEntry,
@@ -156,7 +158,7 @@ import {
   type CdpRuntimeConsoleCall,
   type CdpRuntimeExceptionDetails
 } from '../../shared/console-exceptions.js'
-import { browserConsoleLevel, countConsoleEvents, mergeRepeatedConsoleMessage } from '../../shared/console-messages.js'
+import { countConsoleEvents } from '../../shared/console-messages.js'
 import { buildBrowserSecurityReport } from '../../shared/security-report.js'
 import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
 import { WorkspaceTemplateImporter } from './workspace-template-import.js'
@@ -592,17 +594,6 @@ function headerValue(headers: Record<string, string | string[] | undefined> | un
 
 function pdfFilename(requested: string | undefined, title: string): string {
   return portableExportFilename(requested, title, 'pdf')
-}
-
-type BrowserConsoleCaptureSource = 'electron' | 'runtime-console' | 'runtime' | 'log' | 'preload' | 'lifecycle'
-
-interface ConsoleCapture extends BrowserConsoleMessage {
-  presentation?: string
-}
-
-interface BrowserConsoleMessageRecord extends ConsoleCapture {
-  captureSources: Set<BrowserConsoleCaptureSource>
-  observationGeneration: number
 }
 
 interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState {
@@ -6288,160 +6279,19 @@ export class BrowserTabsManager {
     })()`, true))
   }
 
-  consoleMessages(tabId?: string, clear = false): BrowserConsoleMessage[] {
-    const tab = this.getTab(tabId)
-    const messages = tab.consoleMessages
-      .filter(message => message.observationGeneration === tab.observationGeneration)
-      .map((message) => {
-        const { captureSources: _captureSources, presentation, ...publicMessage } = message
-        return {
-          ...sanitizeConsoleMessage({
-            ...publicMessage,
-            ...(presentation !== undefined ? { message: presentation } : {}),
-            ...(publicMessage.stack ? { stack: publicMessage.stack.map((frame) => ({ ...frame })) } : {})
-          }),
-          observationGeneration: message.observationGeneration
-        }
-      })
-    if (clear) {
-      tab.consoleMessages = []
-      tab.pendingRuntimeConsoleMessages = []
-    }
-    return messages
-  }
-
-  private consoleDedupeKey(message: string): string {
-    return message
-      .replace(/^uncaught(?:\s+\(in promise\))?\s*:?\s*/i, '')
-      .replace(/^assertion failed\s*:?\s*/i, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLocaleLowerCase()
-  }
-
-  private consoleCapturesMatch(left: BrowserConsoleMessage, right: BrowserConsoleMessage): boolean {
-    const leftTime = Date.parse(left.timestamp)
-    const rightTime = Date.parse(right.timestamp)
-    return Number.isFinite(leftTime)
-      && Number.isFinite(rightTime)
-      && Math.abs(leftTime - rightTime) <= 1_500
-      && browserConsoleLevel(left.level) === browserConsoleLevel(right.level)
-      && left.sourceId === right.sourceId
-      && Math.abs(left.lineNumber - right.lineNumber) <= 1
-      && this.consoleDedupeKey(left.message) === this.consoleDedupeKey(right.message)
-  }
-
-  private coalesceConsoleMessageWithPrevious(tab: BrowserTab, message: BrowserConsoleMessageRecord): void {
-    const index = tab.consoleMessages.indexOf(message)
-    if (index <= 0) return
-    const previous = tab.consoleMessages[index - 1]
-    if (previous?.observationGeneration !== message.observationGeneration) return
-    const grouped = mergeRepeatedConsoleMessage(previous, message)
-    if (!previous || !grouped) return
-    Object.assign(previous, grouped)
-    for (const source of message.captureSources) previous.captureSources.add(source)
-    tab.consoleMessages.splice(index, 1)
-  }
-
-  private retainRuntimeConsoleMessage(tab: BrowserTab, input: ConsoleCapture): void {
-    const message = sanitizeConsoleMessage(input)
-    const existing = [...tab.consoleMessages].reverse().slice(0, 8).find((candidate) => (
-      candidate.observationGeneration === tab.observationGeneration
-      && candidate.kind === 'console'
-      && !candidate.captureSources.has('runtime-console')
-      && this.consoleCapturesMatch(candidate, message)
-    ))
-    if (existing) {
-      Object.assign(existing, {
-        ...(input.presentation !== undefined ? { presentation: input.presentation } : {}),
-        ...(message.columnNumber !== undefined ? { columnNumber: message.columnNumber } : {}),
-        ...(message.stack ? { stack: message.stack.map((frame) => ({ ...frame })) } : {}),
-        ...(message.stackTruncated ? { stackTruncated: true } : {})
-      })
-      existing.captureSources.add('runtime-console')
-      this.coalesceConsoleMessageWithPrevious(tab, existing)
-      return
-    }
-
-    const cutoff = Date.now() - 2_000
-    tab.pendingRuntimeConsoleMessages = tab.pendingRuntimeConsoleMessages
-      .filter((candidate) => Date.parse(candidate.timestamp) >= cutoff)
-    tab.pendingRuntimeConsoleMessages.push(message)
-    if (tab.pendingRuntimeConsoleMessages.length > 24) {
-      tab.pendingRuntimeConsoleMessages.splice(0, tab.pendingRuntimeConsoleMessages.length - 24)
-    }
-  }
-
-  private withPendingRuntimeConsoleMessage(tab: BrowserTab, input: BrowserConsoleMessage): {
-    message: ConsoleCapture
-    runtimeMatched: boolean
-  } {
-    const message = sanitizeConsoleMessage(input)
-    const matchIndex = tab.pendingRuntimeConsoleMessages.findIndex((candidate) => (
-      this.consoleCapturesMatch(candidate, message)
-    ))
-    if (matchIndex < 0) return { message, runtimeMatched: false }
-    const runtimeMessage = tab.pendingRuntimeConsoleMessages.splice(matchIndex, 1)[0]
-    if (!runtimeMessage) return { message, runtimeMatched: false }
+  /**
+   * The narrow view reading console messages gets of this manager's private
+   * tabs. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it.
+   */
+  private consoleMessagesAccess(): ConsoleMessagesAccess {
     return {
-      runtimeMatched: true,
-      message: {
-        ...message,
-        ...(runtimeMessage.presentation !== undefined ? { presentation: runtimeMessage.presentation } : {}),
-        ...(runtimeMessage.columnNumber !== undefined ? { columnNumber: runtimeMessage.columnNumber } : {}),
-        ...(runtimeMessage.stack ? { stack: runtimeMessage.stack.map((frame) => ({ ...frame })) } : {}),
-        ...(runtimeMessage.stackTruncated ? { stackTruncated: true } : {})
-      }
+      getTab: (tabId) => this.getTab(tabId)
     }
   }
 
-  private appendConsoleMessage(
-    tab: BrowserTab,
-    input: ConsoleCapture,
-    source: BrowserConsoleCaptureSource
-  ): void {
-    const message = sanitizeConsoleMessage(input)
-    if (message.kind === 'exception' || tab.consoleMessages.some((candidate) => candidate.kind === 'exception')) {
-      const messageTime = Date.parse(message.timestamp)
-      const match = [...tab.consoleMessages].reverse().slice(0, 8).find((candidate) => {
-        if (candidate.observationGeneration !== tab.observationGeneration) return false
-        if (message.kind !== 'exception' && candidate.kind !== 'exception') return false
-        if (candidate.captureSources.has(source)) return false
-        const candidateTime = Date.parse(candidate.timestamp)
-        return Number.isFinite(messageTime)
-          && Number.isFinite(candidateTime)
-          && Math.abs(messageTime - candidateTime) <= 1_500
-          && candidate.sourceId === message.sourceId
-          && Math.abs(candidate.lineNumber - message.lineNumber) <= 1
-          && this.consoleDedupeKey(candidate.message) === this.consoleDedupeKey(message.message)
-      })
-      if (match) {
-        const exception = message.kind === 'exception' ? message : match
-        Object.assign(match, message, exception, {
-          timestamp: exception.timestamp,
-          kind: 'exception'
-        })
-        match.captureSources.add(source)
-        return
-      }
-    }
-
-    const previous = tab.consoleMessages.at(-1)
-    const grouped = source === 'electron' && previous?.observationGeneration === tab.observationGeneration
-      ? mergeRepeatedConsoleMessage(previous, message)
-      : undefined
-    if (grouped && previous) {
-      Object.assign(previous, grouped)
-      previous.captureSources.add(source)
-      return
-    }
-
-    tab.consoleMessages.push({
-      ...message,
-      observationGeneration: tab.observationGeneration,
-      captureSources: new Set([source])
-    })
-    if (tab.consoleMessages.length > 500) tab.consoleMessages.splice(0, tab.consoleMessages.length - 500)
+  consoleMessages(tabId?: string, clear = false): BrowserConsoleMessage[] {
+    return consoleMessages(this.consoleMessagesAccess(), tabId, clear)
   }
 
   async networkRequests(tabId?: string, clear = false): Promise<BrowserNetworkRequest[]> {
@@ -8868,18 +8718,18 @@ export class BrowserTabsManager {
         if (frame?.id && !frame.parentId) tab.mainFrameId = frame.id
       } else if (method === 'Log.entryAdded') {
         const message = normalizeConsoleLogEntry((params as { entry?: CdpLogEntry }).entry)
-        if (message) this.appendConsoleMessage(tab, message, 'log')
+        if (message) appendConsoleMessage(tab, message, 'log')
       } else if (method === 'Runtime.exceptionThrown') {
         const message = normalizeRuntimeException(params as {
           timestamp?: number
           exceptionDetails?: CdpRuntimeExceptionDetails
         })
-        if (message) this.appendConsoleMessage(tab, message, 'runtime')
+        if (message) appendConsoleMessage(tab, message, 'runtime')
       } else if (method === 'Runtime.consoleAPICalled') {
         const call = params as CdpRuntimeConsoleCall
         const formatted = normalizeRuntimeConsolePresentation(call)
         const message = formatted?.match ?? normalizeRuntimeConsoleCall(call)
-        if (message) this.retainRuntimeConsoleMessage(tab, { ...message,
+        if (message) retainRuntimeConsoleMessage(tab, { ...message,
           ...(formatted ? { presentation: formatted.presentation } : {})
         })
       } else if (method === 'Runtime.exceptionRevoked') {
@@ -9133,7 +8983,7 @@ export class BrowserTabsManager {
       tab.url = failedUrl
       tab.title = 'Site unavailable'
       tab.pageProblem = loadFailureProblem(this.options.getLocale(), failedUrl, errorCode, errorDescription)
-      this.appendConsoleMessage(tab, {
+      appendConsoleMessage(tab, {
         timestamp: new Date().toISOString(),
         level: 'error',
         message: `Page load failed: ${errorDescription} (${errorCode})`,
@@ -9163,7 +9013,7 @@ export class BrowserTabsManager {
       })
     })
     webContents.on('console-message', (details) => {
-      const { message, runtimeMatched } = this.withPendingRuntimeConsoleMessage(tab, {
+      const { message, runtimeMatched } = withPendingRuntimeConsoleMessage(tab, {
         timestamp: new Date().toISOString(),
         level: details.level,
         message: details.message,
@@ -9171,13 +9021,13 @@ export class BrowserTabsManager {
         sourceId: details.sourceId,
         kind: 'console'
       })
-      this.appendConsoleMessage(tab, message, 'electron')
+      appendConsoleMessage(tab, message, 'electron')
       if (runtimeMatched) tab.consoleMessages.at(-1)?.captureSources.add('runtime-console')
     })
     webContents.on('ipc-message', (_event, channel, payload: unknown) => {
       if (channel !== 'hronaut:page-exception') return
       const message = normalizePageException(payload as PageExceptionPayload)
-      if (message) this.appendConsoleMessage(tab, message, 'preload')
+      if (message) appendConsoleMessage(tab, message, 'preload')
     })
     webContents.on('render-process-gone', (_event, details) => {
       if (tab.networkConditionApplication === 'pending') this.markNetworkConditionsUnknown(tab)
@@ -9200,7 +9050,7 @@ export class BrowserTabsManager {
       tab.loading = false
       tab.title = this.text('native.dialog.pageUnavailable')
       tab.pageProblem = rendererFailureProblem(this.options.getLocale(), tab.url, details.reason, details.exitCode)
-      this.appendConsoleMessage(tab, {
+      appendConsoleMessage(tab, {
         timestamp: new Date().toISOString(),
         level: 'error',
         message: `Renderer process exited: ${details.reason} (exit code ${details.exitCode})`,
