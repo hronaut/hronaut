@@ -7,7 +7,7 @@ afterEach(() => { vi.useRealTimers() })
 type Tab = {
   id: string; url: string; tabAgentPaused: boolean; nativeInputEnvironmentGeneration: number
   navigationGeneration: number; humanInteractionGeneration: number
-  takeOver?: { at: number }; handedBack?: { at: number; note: string }
+  takeOver?: { at: number }; handedBack?: { at: number; note: string; noteWithoutUrlDetail?: string }
 }
 
 function fixture() {
@@ -42,11 +42,10 @@ it('marks a take over and hands the tab back with a note of what the person did'
   manager.setTabAgentPaused(tab.id, false)
   expect(manager.isTabTakenOver(tab.id)).toBe(false)
   expect(tab.takeOver).toBeUndefined()
-  expect(tab.handedBack).toEqual({
-    at: 1_030_000,
-    note: 'The person had this tab for 30 s and handed it back. The page moved from https://shop.example/cart to https://shop.example/checkout. '
-      + 'They clicked or typed in the page. Read the page again before you continue.'
-  })
+  const note = 'The person had this tab for 30 s and handed it back. The page moved from https://shop.example/cart to https://shop.example/checkout. '
+    + 'They clicked or typed in the page. Read the page again before you continue.'
+  // The page moved, so agents that are kept from URL detail get a note of their own, here with the same addresses.
+  expect(tab.handedBack).toEqual({ at: 1_030_000, note, noteWithoutUrlDetail: note })
   // The next take over starts afresh.
   manager.setTabAgentPaused(tab.id, true, { takeOver: true })
   expect(tab.handedBack).toBeUndefined()

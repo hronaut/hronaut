@@ -11,7 +11,8 @@ test('hides URL query and fragment from agents only while the person asks, witho
   const site = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
     // The untitled page gets Chromium's address title, which would repeat its query.
-    response.end(request.url?.startsWith('/untitled') ? '<!doctype html><p>No title here</p>' : '<!doctype html><title>Checkout</title><h1>Checkout</h1><button>Pay</button>')
+    response.end(request.url?.startsWith('/untitled') ? '<!doctype html><p>No title here</p>' : '<!doctype html><title>Checkout</title><h1>Checkout</h1><button>Pay</button>'
+      + '<x-card id="card"></x-card><script>customElements.define("x-card", class extends HTMLElement { constructor() { super(); this.attachShadow({ mode: "open" }).innerHTML = "<p>Card body</p>" } })</script>')
   })
   await new Promise<void>(resolve => site.listen(0, '127.0.0.1', resolve))
   const origin = `http://127.0.0.1:${(site.address() as AddressInfo).port}`
@@ -28,7 +29,7 @@ test('hides URL query and fragment from agents only while the person asks, witho
   try {
     await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
-    const workspace = JSON.parse(text(await call('browser_workspaces', { action: 'create', name: 'URL detail', storage: 'scratch' }))) as { id: string }
+    const workspace = JSON.parse(text(await call('browser_workspaces', { action: 'create', name: 'URL detail' }))) as { id: string }
     const opened = JSON.parse(text(await call('browser_new_tab', { workspaceId: workspace.id, url: checkout, active: true }))) as BrowserState
     const tabId = opened.activeTabId!
     const args = { workspaceId: workspace.id, tabId }
@@ -59,6 +60,16 @@ test('hides URL query and fragment from agents only while the person asks, witho
     expect(text(snapshot)).toContain(`URL: ${origin}/checkout (query and fragment omitted)`)
     const found = text(await call('browser_find', { ...args, query: 'URL' }))
     for (const canary of canaries) expect(text(snapshot) + found, canary).not.toContain(canary)
+    const shadow = text(await call('browser_snapshot', { ...args, shadowHostSelector: '#card' }))
+    expect(shadow).toContain('Card body')
+    expect(shadow).toContain(`${origin}/checkout (query and fragment omitted)`)
+    const quality = await call('browser_snapshot', { ...args, action: 'assess-quality' })
+    expect(JSON.parse(text(quality))).toMatchObject({ resolvedUrl: `${origin}/checkout`, urlDetail: 'omitted' })
+    const waited = text(await call('browser_wait', { ...args, urlPattern: `${origin}/checkout*` }))
+    expect(waited).toBe(`URL matched: ${origin}/checkout (query and fragment omitted)`)
+    const visual = text(await call('browser_visual_compare', { ...args, action: 'set-baseline' }))
+    expect(JSON.parse(visual)).toMatchObject({ url: `${origin}/checkout`, title: 'Checkout', baseline: { url: `${origin}/checkout` }, urlDetail: 'omitted' })
+    for (const canary of canaries) expect(shadow + text(quality) + waited + visual, canary).not.toContain(canary)
     // A baseline from before the change is not compared line by line, which would repeat the old address.
     const delta = await call('browser_snapshot', { ...args, action: 'delta', baselineId: fullBaseline.baselineId })
     expect(delta.structuredContent).toMatchObject({ status: 'invalidated', invalidationReason: 'snapshot-format', changes: [] })
@@ -76,6 +87,13 @@ test('hides URL query and fragment from agents only while the person asks, witho
     const restored = text(await call('browser_status', { workspaceId: workspace.id }))
     expect(restored).toContain('query-canary-2')
     expect(restored).not.toContain('"urlDetail"')
+
+    // A saved workspace keeps the full addresses for reopening, and agents still read them without detail.
+    await setOmit(true)
+    const saved = text(await call('browser_saved_workspaces', { action: 'save', workspaceId: workspace.id }))
+    const list = text(await call('browser_saved_workspaces', { action: 'list' }))
+    for (const canary of canaries) expect(saved + list, canary).not.toContain(canary)
+    expect(JSON.parse(saved)).toMatchObject({ urlDetail: 'omitted', tabs: expect.arrayContaining([expect.objectContaining({ url: `${origin}/checkout` })]) })
   } finally {
     await setOmit(false).catch(() => undefined)
     await client.close().catch(() => undefined)

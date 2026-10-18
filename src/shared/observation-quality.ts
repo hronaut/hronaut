@@ -69,6 +69,8 @@ export interface BrowserObservationQualityResult {
     headingCount: number
     interactiveCount: number
   }
+  /** Present when the person chose to keep URL query strings and fragments from agents: resolvedUrl is origin and path only. */
+  urlDetail?: 'omitted'
 }
 
 const boundedCount = (value: number): number => Number.isFinite(value)

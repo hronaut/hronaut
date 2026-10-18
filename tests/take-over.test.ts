@@ -40,6 +40,16 @@ describe('hand-back note privacy', () => {
     expect(note).toContain('from https://%5BREDACTED%5D:%5BREDACTED%5D@shop.example/login?step=2&token=%5BREDACTED%5D to https://shop.example/account?session=%5BREDACTED%5D.')
     expect(note).not.toMatch(/user:pass|abc123|xyz|#secret/)
   })
+
+  it('names addresses as origin and path only for agents kept from URL detail', () => {
+    const note = handBackNote(
+      { ...start, url: 'https://user:pass@shop.example/login?step=2&coupon=SPRING#secret' },
+      { ...start, at: start.at + 1_000, url: 'https://shop.example/confirm?order=98765&email=a%40b.test' },
+      true
+    )
+    expect(note).toContain('from https://shop.example/login to https://shop.example/confirm.')
+    expect(note).not.toMatch(/user|pass|step|SPRING|98765|email|secret|REDACTED/)
+  })
 })
 
 describe('keys pressed in a page', () => {

@@ -17,7 +17,7 @@ export interface AgentPauseTab extends BrowserNetworkRecordingState {
   nativeInputEnvironmentGeneration: number
   tabAgentPaused: boolean
   takeOver?: TakeOverMark
-  handedBack?: { at: number; note: string }
+  handedBack?: { at: number; note: string; noteWithoutUrlDetail?: string }
 }
 
 /**

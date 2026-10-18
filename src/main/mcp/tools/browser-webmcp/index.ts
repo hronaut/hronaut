@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { textResult, toolDescription } from '../../tool-results.js'
+import { urlWithoutDetail } from '../../../../shared/url-detail.js'
+import { textResult, toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
 
@@ -56,6 +57,16 @@ export function registerBrowserWebmcp(context: McpToolContext): void {
           toolName,
           arguments: toolArguments ?? {}
         })
+      }
+      // A call observes the page's address before and after it; keep their detail from agents when the person chose to.
+      const observation = result.observation as Record<string, unknown> | undefined
+      if (observation && urlDetailOmitted(manager)) {
+        result.observation = {
+          ...observation,
+          ...(typeof observation.urlBefore === 'string' ? { urlBefore: urlWithoutDetail(observation.urlBefore) } : {}),
+          ...(typeof observation.urlAfter === 'string' ? { urlAfter: urlWithoutDetail(observation.urlAfter) } : {}),
+          urlDetail: 'omitted'
+        }
       }
       const failed = result.status !== 'TOOL_RETURNED'
       return { ...textResult(result), structuredContent: result, ...(failed ? { isError: true } : {}) }

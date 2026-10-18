@@ -1,5 +1,6 @@
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import { redactNetworkUrl } from '../../shared/network-details.js'
+import { urlWithoutDetail } from '../../shared/url-detail.js'
 
 /** Keys that ask something of an agent's person; when an agent sends one itself, the page keeps it. */
 const PERSON_ONLY_SHORTCUTS: ReadonlySet<BrowserShortcutAction> = new Set([
@@ -31,9 +32,12 @@ export interface TakeOverMark {
 
 const URL_LIMIT = 200
 
-/** Without sign-in details, secret-looking query values or the fragment, and cut short. */
-function shownUrl(url: string): string {
-  const shown = redactNetworkUrl(url)
+/**
+ * Without sign-in details, secret-looking query values or the fragment, or with `omitUrlDetail`, the person's
+ * setting, as origin and path only; cut short either way.
+ */
+function shownUrl(url: string, omitUrlDetail: boolean): string {
+  const shown = omitUrlDetail ? urlWithoutDetail(url) : redactNetworkUrl(url)
   return shown.length > URL_LIMIT ? `${shown.slice(0, URL_LIMIT - 1)}…` : shown
 }
 
@@ -47,11 +51,12 @@ function shownDuration(milliseconds: number): string {
 
 /**
  * A plain note for the agent of what changed while the person had the tab. It names the tab's addresses, redacted
- * as in network details, and whether the person clicked or typed, never what they typed or read.
+ * as in network details or, with `omitUrlDetail`, as origin and path only, and whether the person clicked or typed,
+ * never what they typed or read.
  */
-export function handBackNote(start: TakeOverMark, end: TakeOverMark): string {
+export function handBackNote(start: TakeOverMark, end: TakeOverMark, omitUrlDetail = false): string {
   const parts = [`The person had this tab for ${shownDuration(end.at - start.at)} and handed it back.`]
-  if (end.url !== start.url) parts.push(`The page moved from ${shownUrl(start.url)} to ${shownUrl(end.url)}.`)
+  if (end.url !== start.url) parts.push(`The page moved from ${shownUrl(start.url, omitUrlDetail)} to ${shownUrl(end.url, omitUrlDetail)}.`)
   else if (end.navigationGeneration !== start.navigationGeneration) parts.push('The page reloaded or navigated and is at the same address again.')
   else parts.push('The page stayed at the same address.')
   parts.push(end.humanInteractionGeneration !== start.humanInteractionGeneration

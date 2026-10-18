@@ -10,6 +10,7 @@ import {
 } from '../../../shared/observation-quality.js'
 import { BROWSER_SNAPSHOT_FORMAT_VERSION, boundedSnapshotDelta, snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
+import { urlWithoutDetail } from '../../../shared/url-detail.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { snapshotScript } from '../page-scripts.js'
 import { isHronautHomeUrl } from '../url.js'
@@ -125,13 +126,17 @@ export async function observationQuality<Tab extends PageSnapshotsTab>(access: P
   const tab = access.getTab(options.tabId)
   if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before assessing observation quality')
   const challengeDetectionEnabled = access.options().getChallengeDetectionEnabled?.() === true
+  // Read once, so the address and its marker agree.
+  const omitUrlDetail = access.options().getOmitAgentUrlDetail?.() === true
+  const shownUrl = (url: string): string => omitUrlDetail ? urlWithoutDetail(url) : redactNetworkUrl(url)
+  const marked = (result: BrowserObservationQualityResult): BrowserObservationQualityResult => omitUrlDetail ? { ...result, urlDetail: 'omitted' } : result
   const expectedOrigin = normalizeObservationExpectedOrigin(options.expectedOrigin)
   const unavailableState = tab.pageProblem
     ? 'unavailable' as const
     : tab.webContents.isLoadingMainFrame() ? 'loading' as const : undefined
   if (unavailableState) {
-    return classifyBrowserObservationQuality({
-      resolvedUrl: redactNetworkUrl(tab.url),
+    return marked(classifyBrowserObservationQuality({
+      resolvedUrl: shownUrl(tab.url),
       contentType: '',
       pageState: unavailableState,
       visibleTextChars: 0,
@@ -148,7 +153,7 @@ export async function observationQuality<Tab extends PageSnapshotsTab>(access: P
       expectedOrigin,
       expectedTextProvided: options.expectedText !== undefined,
       expectedSelectorProvided: options.expectedSelector !== undefined
-    })
+    }))
   }
   const context = access.snapshotDeltaContext(tab)
   const signals = await tab.webContents.executeJavaScriptInIsolatedWorld(
@@ -164,15 +169,15 @@ export async function observationQuality<Tab extends PageSnapshotsTab>(access: P
   if (invalidation) {
     throw new Error(`The observation context changed during assessment (${invalidation}). Assess the page again.`)
   }
-  return classifyBrowserObservationQuality(
-    { ...signals, resolvedUrl: redactNetworkUrl(signals.resolvedUrl) },
+  return marked(classifyBrowserObservationQuality(
+    { ...signals, resolvedUrl: shownUrl(signals.resolvedUrl) },
     {
       challengeDetectionEnabled,
       expectedOrigin,
       expectedTextProvided: options.expectedText !== undefined,
       expectedSelectorProvided: options.expectedSelector !== undefined
     }
-  )
+  ))
 }
 
 /**

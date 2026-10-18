@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { PageSnapshotsAccess, PageSnapshotsTab } from '../src/main/browser/page-snapshots/page-snapshots-access.js'
 import { setSnapshotBaseline, snapshotDelta, snapshotDetails } from '../src/main/browser/page-snapshots/page-snapshots.js'
 import { compactTabDiscovery } from '../src/main/mcp/tab-discovery.js'
-import { mcpWorkspaceState, mcpWorkspaceTab } from '../src/main/mcp/tool-results.js'
+import { mcpWorkspaceState, mcpWorkspaceTab, savedWorkspaceWithoutUrlDetail } from '../src/main/mcp/tool-results.js'
 import { BROWSER_SNAPSHOT_FORMAT_VERSION, type BrowserSnapshotDeltaContext } from '../src/shared/snapshot-delta.js'
 import type { BrowserState } from '../src/shared/types.js'
 import { titleShowsUrlDetail, urlWithoutDetail } from '../src/shared/url-detail.js'
@@ -36,8 +36,15 @@ describe('URL detail omission', () => {
       expect(titleShowsUrlDetail(title, url), title).toBe(true)
     }
     for (const title of ['Checkout', 'shop', 'https://shop', '', '   ']) expect(titleShowsUrlDetail(title, url), title).toBe(false)
-    // A short fragment is too common in page text to count as an echo.
+    // A short fragment is too common in page text to count as an echo, and a word of a longer one counts only with its #.
     expect(titleShowsUrlDetail('Back to top', 'https://example.test/#top')).toBe(false)
+    expect(titleShowsUrlDetail('All about cats', 'https://cats.example.test/#about')).toBe(false)
+    expect(titleShowsUrlDetail('Table of contents', 'https://docs.example.test/guide#contents')).toBe(false)
+    expect(titleShowsUrlDetail('Guide #contents', 'https://docs.example.test/guide#contents')).toBe(true)
+    expect(titleShowsUrlDetail('Invite invite-code-canary-123', 'https://app.example.test/#invite-code-canary-123')).toBe(true)
+    // Chromium shows an untitled http page without its scheme, decoding some escapes and keeping others.
+    expect(titleShowsUrlDetail('shop.test/search?q=café&tok=ab%2Bc%3D%3D', 'http://shop.test/search?q=caf%C3%A9&tok=ab%2Bc%3D%3D')).toBe(true)
+    expect(titleShowsUrlDetail('shop.test/search?q=café', 'http://shop.test/search?q=caf%C3%A9&tok=ab%2Bc%3D%3D')).toBe(true)
     // A page that names a search keeps its title; one that repeats the raw query, encoded or not, does not.
     expect(titleShowsUrlDetail('Café results', 'https://example.test/?q=Caf%C3%A9%20results')).toBe(false)
     expect(titleShowsUrlDetail('q=Café results', 'https://example.test/?q=Caf%C3%A9%20results')).toBe(true)
@@ -83,6 +90,29 @@ describe('URL detail omission', () => {
     expect(tab('').title).toBe('')
   })
 
+  it('gives agents the hand-back note without detail, and never both notes', () => {
+    const note = 'The person had this tab for 5 s and handed it back. The page moved from https://shop.example.test/cart?coupon=query-canary to https://shop.example.test/confirm?order=fragment-canary. They clicked or typed in the page. Read the page again before you continue.'
+    const noteWithoutUrlDetail = 'The person had this tab for 5 s and handed it back. The page moved from https://shop.example.test/cart to https://shop.example.test/confirm. They clicked or typed in the page. Read the page again before you continue.'
+    const tab = { id: 't', title: 'Order confirmed', url: 'https://shop.example.test/confirm?order=fragment-canary', handedBack: { at: 5, note, noteWithoutUrlDetail } }
+    const omitted = mcpWorkspaceTab(tab, true)
+    expect(omitted.handedBack).toEqual({ at: 5, note: noteWithoutUrlDetail })
+    for (const canary of CANARIES) expect(JSON.stringify(omitted), canary).not.toContain(canary)
+    expect(mcpWorkspaceTab(tab).handedBack).toEqual({ at: 5, note })
+    // A note whose page stayed put names no address, so it serves both.
+    expect(mcpWorkspaceTab({ ...tab, handedBack: { at: 5, note: 'The page stayed at the same address.' } }, true).handedBack).toEqual({ at: 5, note: 'The page stayed at the same address.' })
+  })
+
+  it('shows saved workspaces and their tabs without detail, in workspace state too', () => {
+    const saved = { id: 's', name: 'Checkout', tabs: [{ title: SECRET_URL, url: SECRET_URL, pinned: false }, { title: 'Inbox', url: 'https://mail.example.test/?folder=query-canary', pinned: true }] }
+    expect(savedWorkspaceWithoutUrlDetail(saved)).toMatchObject({
+      urlDetail: 'omitted',
+      tabs: [{ title: 'https://shop.example.test:8443/checkout/step%202', url: 'https://shop.example.test:8443/checkout/step%202' }, { title: 'Inbox', url: 'https://mail.example.test/' }]
+    })
+    const state = { tabs: [], closedTabs: [], mcpTabGroups: [], savedTabGroups: [saved] } as unknown as BrowserState
+    for (const canary of CANARIES) expect(JSON.stringify(mcpWorkspaceState(state, true)), canary).not.toContain(canary)
+    expect(JSON.stringify(mcpWorkspaceState(state))).toContain('query-canary')
+  })
+
   it('searches tab addresses without their detail when it is omitted', () => {
     const tabs = [{ id: 'one', title: 'Billing', url: SECRET_URL }]
     const result = compactTabDiscovery(tabs, {}, true)
@@ -91,6 +121,10 @@ describe('URL detail omission', () => {
     expect(compactTabDiscovery(tabs, { query: 'view=cart' }, true).matching).toBe(0)
     expect(compactTabDiscovery(tabs, { query: 'view=cart' }).matching).toBe(1)
     expect(compactTabDiscovery(tabs, {})).not.toHaveProperty('urlDetail')
+    // A page that names itself by an address with detail is found by that address's origin and path only.
+    const named = [{ id: 'two', title: 'https://login.example.test/callback?code=query-canary', url: 'https://app.example.test/' }]
+    expect(compactTabDiscovery(named, { query: 'callback' }, true)).toMatchObject({ tabs: [{ title: 'https://login.example.test/callback' }] })
+    expect(compactTabDiscovery(named, { query: 'query-canary' }, true).matching).toBe(0)
   })
 })
 

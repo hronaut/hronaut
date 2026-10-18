@@ -1,6 +1,6 @@
 import { MAX_BROWSER_TABS, MAX_BROWSER_TAB_ID_CHARS, type BrowserTabState } from '../../shared/types.js'
 import { redactNetworkUrl } from '../../shared/network-details.js'
-import { urlWithoutDetail } from '../../shared/url-detail.js'
+import { titleWithoutUrlDetail, urlWithoutDetail } from '../../shared/url-detail.js'
 
 export const TAB_DISCOVERY_LIMITS = {
   queryChars: 256, titleChars: 160, urlChars: 512, sourceUrlChars: 8192,
@@ -12,7 +12,8 @@ type DiscoveryTab = Pick<BrowserTabState, 'id' | 'title' | 'url'>
 
 /**
  * Project before matching. The caller supplies only verified explicit document titles, never URL fallbacks. With
- * `omitUrlDetail`, the person's setting, addresses are origin and path only, so a query never matches their query.
+ * `omitUrlDetail`, the person's setting, addresses are origin and path only, so a query never matches their query,
+ * and a title that is itself an address with detail is shortened the same way.
  */
 export function compactTabDiscovery(tabs: readonly DiscoveryTab[], search: TabDiscoverySearch, omitUrlDetail = false) {
   const query = search.query ?? ''
@@ -34,10 +35,12 @@ export function compactTabDiscovery(tabs: readonly DiscoveryTab[], search: TabDi
     url.username = ''
     url.password = ''
     const address = omitUrlDetail ? urlWithoutDetail(url.href) : redactNetworkUrl(url.href)
-    projectionTruncated ||= tab.title.length > TAB_DISCOVERY_LIMITS.titleChars || address.length > TAB_DISCOVERY_LIMITS.urlChars
+    // A page may still name itself by an address with detail.
+    const title = omitUrlDetail ? titleWithoutUrlDetail(tab.title, tab.url) : tab.title
+    projectionTruncated ||= title.length > TAB_DISCOVERY_LIMITS.titleChars || address.length > TAB_DISCOVERY_LIMITS.urlChars
     projected.push({
       id: tab.id,
-      title: Array.from(tab.title.slice(0, TAB_DISCOVERY_LIMITS.titleChars), character => {
+      title: Array.from(title.slice(0, TAB_DISCOVERY_LIMITS.titleChars), character => {
         const code = character.charCodeAt(0)
         return code < 32 || code === 127 ? ' ' : character
       }).join(''),

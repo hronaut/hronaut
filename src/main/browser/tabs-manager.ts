@@ -637,7 +637,7 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   /** Runtime only: the tab as it was when the person took it over from its agent. */
   takeOver?: TakeOverMark
   /** Runtime only: the person's latest hand back, with its note for the agent. */
-  handedBack?: { at: number; note: string }
+  handedBack?: { at: number; note: string; noteWithoutUrlDetail?: string }
   zoomIsolated: boolean
   /** Construction-time WebPreferences value; undefined is the browser default of 16. */
   defaultFontSize?: number
