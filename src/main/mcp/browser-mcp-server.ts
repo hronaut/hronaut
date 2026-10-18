@@ -123,7 +123,6 @@ import type { McpToolContext, ResolvedTargetWakePolicy, ToolCallSettlement, Tool
 import type { BookmarkOperations, HistoryOperations, SiteDataOperations } from './browser-data-operations.js'
 import type { WalletAgentOperations, WalletAgentSessionRegistry, WalletAgentToolTarget } from './wallet-agent-sessions.js'
 import type { McpClientActivity } from './http-server.js'
-
 import { createWorkspaceToolRegistrar, requiresWorkspaceWriteLease } from './workspace-tool-call.js'
 
 function matchesWorkspaceResumeKey(expected: string, supplied: string): boolean {
@@ -156,7 +155,8 @@ export function assertMcpToolRegistrationContract(
  * One client session's MCP server: the call wrapper that admits, guards and settles every tool call the same way,
  * the workspace wrapper built in workspace-tool-call.ts, and the tool registrations in order. Each tool lives in
  * tools/<tool>/ and declares what differs about its calls in its registration options and settlement
- * (tools/tool-context.ts).
+ * (tools/tool-context.ts). Only McpHttpServer (http-server.ts) creates one, after its authentication, origin and
+ * rate-limit checks have admitted the session; nothing else should call it.
  */
 export function createBrowserMcpServer(
   manager: BrowserTabsManager,

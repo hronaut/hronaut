@@ -13,7 +13,10 @@ than the entire browser runtime.
   public archive projections, and restore rollback through narrow runtime ports.
   Its maps are shared only with the host during this staged extraction. Disposal
   occurs after draining operations and closing tabs, never during tab reordering.
-- `mcp/server.ts` remains the **AutomationGateway**. Existing transport metadata,
+- The MCP modules remain the **AutomationGateway**: `mcp/http-server.ts` owns
+  transport, authentication, origin checks and rate limits;
+  `mcp/browser-mcp-server.ts` and `mcp/workspace-tool-call.ts` own the call
+  wrappers; `mcp/server.ts` is their public entry. Existing transport metadata,
   workspace authorization, write leases, pause checks, origin/navigation fences,
   and dispatch receipts retain their central authority. Diagnostic services must
   not reproduce or weaken these checks.

@@ -2,7 +2,7 @@ import { NativeClickAdmissionError } from '../browser/native-click-admission.js'
 import { NativeWheelOutcomeUnknownError } from '../browser/native-wheel.js'
 import { NativeKeyHoldOutcomeUnknownError } from '../browser/native-key-hold.js'
 import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
-import { AsyncLocalStorage } from 'node:async_hooks'
+import type { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
@@ -126,7 +126,11 @@ export function requiresWorkspaceWriteLease(toolName: string, input: Record<stri
   return mcpCapabilityOperationClass(toolName, input) !== 'read' && !exempt
 }
 
-/** What the workspace wrapper uses from the session's MCP server: the tool context plus the server's own call state. */
+/**
+ * What the workspace wrapper uses from the session's MCP server: the tool context plus the server's own call state.
+ * Every member must be a stable binding (a const or a parameter that is never reassigned): the registrar keeps what
+ * it is given, so a reassigned `let` passed here would go stale.
+ */
 export type WorkspaceToolScope = Pick<McpToolContext, 'actionTracker' | 'auditAuthorization' | 'auditReceipts' | 'capabilityAuthorizationFingerprint' | 'client' | 'humanReviewSessionBinding' | 'humanWaiting' | 'manager' | 'onTabActivity' | 'requireActiveCapabilityDispatch' | 'requireAgentWorkspace' | 'reviewedActionArguments' | 'tool' | 'workspaceAuthorizationError' | 'workspaceLeases' | 'workspaceToolInputSchemas'> & {
   argumentNormalizers: Map<string, (args: Record<string, unknown>) => Record<string, unknown>>
   frameRequests: AsyncLocalStorage<{ settlement?: ToolCallSettlement }>

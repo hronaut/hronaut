@@ -1,3 +1,8 @@
+/**
+ * The local Streamable HTTP endpoint: authorization, client sessions and their activity, agent presence and the
+ * dashboard state the shell shows. Each client session gets its own browser MCP server (browser-mcp-server.ts).
+ */
+
 import type { UserAttentionLifecycle } from '../user-attention-lifecycle.js'
 import { mcpLocalHost } from '../../shared/mcp-network.js'
 import { mcpToolCatalogForSet, type BrowserToolDefinition } from './tool-catalog.js'
@@ -6,7 +11,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import express, { type Request, type Response } from 'express'
 import { rateLimit } from 'express-rate-limit'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { AuditReceiptService } from './audit-receipt-service.js'
 import type { HumanWaitingService } from './human-waiting-service.js'
@@ -32,10 +37,6 @@ import type { BookmarkOperations, HistoryOperations, SiteDataOperations } from '
 import { type WalletAgentOperations, WalletAgentSessionRegistry } from './wallet-agent-sessions.js'
 import { createBrowserMcpServer } from './browser-mcp-server.js'
 
-/**
- * The local Streamable HTTP endpoint: authorization, client sessions and their activity, agent presence and the
- * dashboard state the shell shows. Each client session gets its own browser MCP server (browser-mcp-server.ts).
- */
 export const MCP_FAILED_AUTH_LIMIT = 120
 const MCP_FAILED_AUTH_WINDOW_MS = 60_000
 
