@@ -496,7 +496,7 @@ const {
   publishSettings,
   updateSettings
 })
-const { openCapabilityProfiles, startAgentServices } = createAgentServices({
+const { openCapabilityProfiles, startAgentServices, recordSiteAccess, finalizeWorkspaceReceipts } = createAgentServices({
   state: agentServices,
   mcpActionTracker,
   userAttention: userAttentionState,
@@ -1070,16 +1070,10 @@ async function createWindow(startMinimized = false): Promise<void> {
       if (userAttentionState.request?.id === id) endUserAttention({ keepPending: true })
       takeOvers.resolvedOn(tabId)
     },
-    onWorkspaceNavigationDecision: (workspaceId, decision, source) => {
-      agentServices.auditReceipts?.recordSiteAccess(workspaceId, decision, source)
-    },
+    onWorkspaceNavigationDecision: recordSiteAccess,
     onWorkspaceClosed: (workspaceId) => {
       mcpRuntime.server?.forgetAgentWorkspaceSteps(workspaceId)
-      // Closing can itself be part of an active browser operation. Finalize
-      // asynchronously so that operation can write its reserved outcome first.
-      void Promise.resolve().then(() => agentServices.auditReceipts?.stop(workspaceId)).catch(() => {
-        console.error('[audit] Failed to finalize receipts for a closed workspace.')
-      })
+      finalizeWorkspaceReceipts(workspaceId)
     },
     shortcutAvailable: pageShortcutAvailable,
     onShortcutRequested: runPageShortcut,
