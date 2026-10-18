@@ -477,6 +477,8 @@ import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-poi
 import type { VisualCaptureAccess } from './visual-compare/visual-capture-access.js'
 import { captureVisual, visualCompareContext } from './visual-compare/visual-capture.js'
 import { currentNetworkRequests, matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
+import type { TabMutingAccess } from './tab-muting/tab-muting-access.js'
+import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -3699,25 +3701,29 @@ export class BrowserTabsManager {
     return hasAgentPauseExceptions(this.agentPauseAccess())
   }
 
+  /**
+   * The narrow view muting tabs gets of this manager's private tabs, global
+   * mute preference and state publication. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit tests
+   * do) still provide it.
+   */
+  private tabMutingAccess(): TabMutingAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      tabs: () => this.tabs.values(),
+      allTabsMuted: () => this.allTabsMuted,
+      setAllTabsMutedPreference: (muted) => { this.allTabsMuted = muted },
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
+    }
+  }
+
   setTabMuted(tabId: string, muted: boolean): BrowserState {
-    const tab = this.getTab(tabId)
-    tab.webContents.setAudioMuted(muted)
-    // A global-mute exception is transient; preserve the saved per-tab preference.
-    if (!this.allTabsMuted) tab.tabMuted = muted
-    tab.muted = muted
-    this.changed()
-    return this.getState()
+    return setTabMuted(this.tabMutingAccess(), tabId, muted)
   }
 
   setAllTabsMuted(muted: boolean): BrowserState {
-    this.allTabsMuted = muted
-    for (const tab of this.tabs.values()) {
-      if (isHronautHomeUrl(tab.url) || tab.webContents.isDestroyed()) continue
-      tab.muted = muted || tab.tabMuted
-      tab.webContents.setAudioMuted(tab.muted)
-    }
-    this.changed()
-    return this.getState()
+    return setAllTabsMuted(this.tabMutingAccess(), muted)
   }
 
   stop(tabId?: string): BrowserState {
