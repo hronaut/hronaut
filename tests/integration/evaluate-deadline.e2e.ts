@@ -32,6 +32,7 @@ test('a script that never finishes stops at its deadline and frees the workspace
   }
 
   // In the foreground the script runs directly in the page.
+  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.focus())
   await expect.poll(() => windowFocus(electronApp)).toEqual({ focusable: true, focused: true })
   await stopsAtDeadline({})
   expect(await inPage(electronApp, fixtureUrl, 'window.__evaluating')).toBe(1)
