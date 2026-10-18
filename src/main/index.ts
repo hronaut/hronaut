@@ -25,7 +25,6 @@ import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { createTrayAttention } from './tray-attention.js'
-import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
@@ -73,7 +72,6 @@ import { createSiteData } from './site-data.js'
 import { registerBrowsingDataIpc } from './browsing-data-ipc.js'
 import { createHomeProtocolHandler } from './platform/home-protocol.js'
 import { registerHomeIpc } from './home-ipc.js'
-import { commitRuntimeSetting } from './runtime-setting-commit.js'
 import { McpPortRecovery } from './mcp-port-suggestion.js'
 import { registerMcpControlIpc } from './mcp-control-ipc.js'
 import {
@@ -96,7 +94,8 @@ import { AuditReceiptService } from './mcp/audit-receipt-service.js'
 import { McpPauseState } from './mcp-pause-state.js'
 import { McpActionTracker } from './mcp/action-tracker.js'
 import { createMcpRuntime, type McpRuntimeState } from './mcp-runtime.js'
-import { DEFAULT_SETTINGS, SettingsStore } from './settings-store.js'
+import { DEFAULT_SETTINGS } from './settings-store.js'
+import { createSettingsRuntime, type SettingsState } from './settings-runtime.js'
 import { createAddressSuggestionOverlay } from './windows/address-suggestion-overlay.js'
 import { registerSettingsIpc } from './settings-ipc.js'
 import { createBrowserSession } from './browser-session.js'
@@ -112,9 +111,7 @@ import type {
   BrowserHistoryEntry,
   CredentialStorageStatus,
   LanguagePreference,
-  RendererSettingsState,
-  ThemeName,
-  SupportedLocale
+  ThemeName
 } from '../shared/types.js'
 import { registerTabsIpc } from './tabs-ipc.js'
 import { registerNavigationIpc } from './navigation-ipc.js'
@@ -125,11 +122,10 @@ import {
 } from '../shared/locale.js'
 import { registerEmulationIpc } from './emulation-ipc.js'
 import { registerPageGeometryIpc } from './page-geometry-ipc.js'
-import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
+import { DEFAULT_MCP_PORT } from '../shared/mcp-port.js'
 import { registerShellIpc } from './shell-ipc.js'
 import { createClipboardOperations } from './clipboard-operations.js'
 import { createPanelWindow, type PanelWindowRefs } from './windows/panel-window.js'
-import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
 import { createApplicationMenu } from './windows/application-menu.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
 import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
@@ -199,8 +195,8 @@ const addressSuggestionOverlay = createAddressSuggestionOverlay({
   trustedShellUrl,
   trustedUrlMatches,
   mainWindowRefs,
-  settings: () => settings,
-  resolvedLocale: () => resolvedLocale
+  settings: () => settingsState.current,
+  resolvedLocale: () => settingsState.resolvedLocale
 })
 const tooltipView = new ShellOverlayView({
   name: 'tooltip',
@@ -343,9 +339,36 @@ const {
   logPrefix: '[panel-window]'
 })
 let persistentSession: Session | null = null
-let settingsStore: SettingsStore | null = null
+const settingsState: SettingsState = {
+  store: null,
+  persisted: { ...DEFAULT_SETTINGS },
+  current: { ...DEFAULT_SETTINGS },
+  systemLocale: 'en-US',
+  resolvedLocale: 'en-US',
+  mutationQueue: Promise.resolve()
+}
 let startupLaunchManager: StartupLaunchManager | null = null
 let sitePermissionStore: SitePermissionStore | null = null
+const {
+  text,
+  defaultDownloadDirectory,
+  effectiveDownloadDirectory,
+  updateSettings,
+  currentRendererSettingsState,
+  applyDownloadSettings,
+  publishSettings,
+  loadAuthoritativeSettings,
+  reconcileStartupSetting
+} = createSettingsRuntime({
+  state: settingsState,
+  mainWindowRefs,
+  sendToShellWindows,
+  mcpRuntime,
+  mcpAuthDisabled: MCP_AUTH_DISABLED,
+  startupLaunchManager: () => startupLaunchManager,
+  persistentSession: () => persistentSession,
+  tabs: () => tabsManager
+})
 const { configureBrowserSession, configurePersistentSession } = createBrowserSession({
   text,
   effectiveDownloadDirectory,
@@ -389,11 +412,6 @@ const undoOffers = new UndoOffers((offer) => {
   reportBrowserActionFailure(action, error)
 })
 let credentialStorageStatus: CredentialStorageStatus = { available: false, reason: 'Secure storage is initializing.' }
-let persistedSettings: AppSettings = { ...DEFAULT_SETTINGS }
-let settings: AppSettings = { ...DEFAULT_SETTINGS }
-let systemLocale: SupportedLocale = 'en-US'
-let resolvedLocale: SupportedLocale = 'en-US'
-let settingsMutationQueue: Promise<void> = Promise.resolve()
 let updateState: AppUpdateState = { status: 'idle', currentVersion: app.getVersion() }
 const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloadedUpdate } = createAppUpdates({
   autoUpdater,
@@ -440,8 +458,8 @@ const {
   agentPresenceSnapshot,
   scheduleAgentPresencePublish,
   activeMcpActivities: () => activeMcpActivities,
-  settings: () => settings,
-  setSettings: (value) => { settings = value },
+  settings: () => settingsState.current,
+  setSettings: (value) => { settingsState.current = value },
   publishSettings,
   updateSettings
 })
@@ -454,10 +472,6 @@ const {
   text,
   mainWindow: () => mainWindowRefs.window
 })
-
-function text(key: MessageKey, parameters?: MessageParameters): string {
-  return translate(resolvedLocale, key, parameters)
-}
 
 function reportBrowserActionFailure(action: string, error: unknown): void {
   const rawMessage = error instanceof Error ? error.message : ''
@@ -481,61 +495,6 @@ function runNativeBrowserAction(action: string, callback: () => unknown): void {
   }
 }
 
-function defaultDownloadDirectory(): string {
-  return resolve(process.env.HRONAUT_DOWNLOAD_DIR || app.getPath('downloads'))
-}
-
-function effectiveDownloadDirectory(value: AppSettings = settings): string {
-  return resolve(value.downloadDirectory || defaultDownloadDirectory())
-}
-
-function updateSettings(
-  updates: Partial<AppSettings>,
-  applyRuntime?: (value: AppSettings) => void | Promise<void>
-): Promise<AppSettings> {
-  let committed: AppSettings | undefined
-  const operation = settingsMutationQueue.then(async () => {
-    const previous = settings
-    const next = { ...settings, ...updates }
-    const nextPersisted = { ...persistedSettings, ...updates }
-    if (applyRuntime) {
-      await commitRuntimeSetting({
-        previous,
-        next,
-        apply: applyRuntime,
-        persist: () => settingsStore!.save(nextPersisted)
-      })
-    } else {
-      await settingsStore!.save(nextPersisted)
-    }
-    persistedSettings = nextPersisted
-    settings = next
-    committed = { ...settings }
-  })
-  settingsMutationQueue = operation.catch(() => undefined)
-  return operation.then(() => committed!)
-}
-
-function currentRendererSettingsState(): RendererSettingsState {
-  return {
-    settings: { ...settings },
-    systemTheme: nativeTheme.shouldUseDarkColors ? 'dark' : 'light',
-    systemLocale,
-    resolvedLocale,
-    windowMaterial: mainWindowRefs.material
-  }
-}
-
-async function applyDownloadSettings(updates: Partial<AppSettings>): Promise<AppSettings> {
-  const directory = effectiveDownloadDirectory({ ...settings, ...updates })
-  await mkdir(directory, { recursive: true })
-  const next = await updateSettings(updates)
-  const committedDirectory = effectiveDownloadDirectory(next)
-  persistentSession?.setDownloadPath(committedDirectory)
-  tabsManager?.setDownloadPreferences(committedDirectory, next.askWhereToSaveDownloads)
-  publishSettings()
-  return { ...settings }
-}
 const activeMcpActivities = new Set<string>()
 
 if (!isLoopbackHost(mcpRuntime.host)) {
@@ -662,11 +621,6 @@ function sendToPanelWindow(channel: string, ...args: unknown[]): void {
   }
 }
 
-function publishSettings(): void {
-  sendToShellWindows('settings:changed', settings)
-  sendToShellWindows('settings:renderer-state-changed', currentRendererSettingsState())
-}
-
 function publishCredentials(): void {
   sendToShellWindows('credentials:changed', credentialStore?.list() ?? [])
 }
@@ -757,7 +711,7 @@ const {
   applyMainWindowBackground
 } = createMainWindow({
   refs: mainWindowRefs,
-  settings: () => settings,
+  settings: () => settingsState.current,
   resolvedTheme,
   themeBackground: THEME_BACKGROUND,
   acknowledgeUserAttention
@@ -782,8 +736,8 @@ function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
 }
 
 function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
-  if (preference === 'system') systemLocale = resolveSupportedLocale(app.getLocale())
-  resolvedLocale = resolveLocalePreference(preference, systemLocale)
+  if (preference === 'system') settingsState.systemLocale = resolveSupportedLocale(app.getLocale())
+  settingsState.resolvedLocale = resolveLocalePreference(preference, settingsState.systemLocale)
   publishSettings()
   installApplicationMenu()
   setTrayContextMenu()
@@ -812,7 +766,7 @@ function mcpPortFailureForHome(): Pick<HomeDashboard, 'errorCode' | 'failedPort'
 
 function homeDashboardState(): HomeDashboard {
   const serverState = mcpRuntime.server?.getDashboardState()
-  const tools = mcpToolCatalogForSet(settings.mcpToolSet)
+  const tools = mcpToolCatalogForSet(settingsState.current.mcpToolSet)
   const status = currentMcpControlState().status
   const state = {
     ...(serverState ?? {
@@ -842,7 +796,7 @@ function homeDashboardState(): HomeDashboard {
     endpoint: mcpRuntime.url,
     tools,
     presentationRevision: homePresentationRevision,
-    theme: resolvedTheme(settings.theme),
+    theme: resolvedTheme(settingsState.current.theme),
     status,
     ...homeAgentData(),
     ...(mcpRuntime.startupError ? { error: mcpRuntime.startupError } : {}),
@@ -881,10 +835,10 @@ function registerHomeProtocol(): void {
     state: () => ({
         endpoint: mcpRuntime.url,
         tokenPath: mcpRuntime.tokenConfiguration?.tokenPath,
-        authenticationDisabled: !settings.mcpAuthentication,
+        authenticationDisabled: !settingsState.current.mcpAuthentication,
         initialState: homeDashboardState(),
         workspaces: tabsManager ? homeWorkspaceState(tabsManager) : undefined,
-        locale: resolvedLocale,
+        locale: settingsState.resolvedLocale,
         platform: process.platform
     })
   }))
@@ -944,7 +898,7 @@ const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   mainWindow: () => mainWindowRefs.window,
   refs: panelWindowRefs,
   sendToPanelWindow,
-  settings: () => settings,
+  settings: () => settingsState.current,
   resolvedTheme,
   themeBackground: THEME_BACKGROUND,
   tabs: () => tabsManager,
@@ -1174,7 +1128,7 @@ function registerIpc(): void {
     copyTextToClipboard,
     reportClipboardFailure,
     mcpUrl: () => mcpRuntime.url,
-    settings: () => settings,
+    settings: () => settingsState.current,
     openExternal: (url) => shell.openExternal(url),
     mcpPortRecovery: () => mcpPortRecovery,
     showMessageBox,
@@ -1305,7 +1259,7 @@ function registerIpc(): void {
   registerSettingsIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
-    settings: () => settings,
+    settings: () => settingsState.current,
     currentRendererSettingsState,
     updateSettings,
     publishSettings,
@@ -1376,34 +1330,6 @@ function registerIpc(): void {
   })
 }
 
-async function loadAuthoritativeSettings(): Promise<void> {
-  settingsStore = new SettingsStore(join(app.getPath('userData'), 'settings.json'))
-  persistedSettings = await settingsStore.load()
-  await settingsStore.save(persistedSettings)
-  settings = { ...persistedSettings }
-  systemLocale = resolveSupportedLocale(app.getLocale())
-  resolvedLocale = resolveLocalePreference(settings.languagePreference, systemLocale)
-  if (process.env.HRONAUT_MCP_PORT !== undefined) {
-    const overriddenPort = Number(process.env.HRONAUT_MCP_PORT)
-    if (!isValidMcpPort(overriddenPort)) throw new Error('HRONAUT_MCP_PORT must be an integer from 1024 through 65535')
-    settings = { ...settings, mcpPort: overriddenPort }
-  }
-  if (MCP_AUTH_DISABLED) settings = { ...settings, mcpAuthentication: false }
-  if (settings.mcpRemoteAccess) mcpRuntime.host = '0.0.0.0'
-  mcpRuntime.port = settings.mcpPort
-  mcpRuntime.url = `http://${mcpLocalHost(mcpRuntime.host)}:${mcpRuntime.port}/mcp`
-}
-
-async function reconcileStartupSetting(): Promise<void> {
-  if (!startupLaunchManager) return
-  try {
-    const launchAtStartup = await startupLaunchManager.isEnabled()
-    if (launchAtStartup !== settings.launchAtStartup) await updateSettings({ launchAtStartup })
-  } catch (error) {
-    console.warn('[startup] Could not read the operating-system startup setting:', error)
-  }
-}
-
 async function createWindow(startMinimized = false): Promise<void> {
   bookmarkStore = new BookmarkStore(join(app.getPath('userData'), 'bookmarks.json'))
   await bookmarkStore.load()
@@ -1441,12 +1367,12 @@ async function createWindow(startMinimized = false): Promise<void> {
     walletUnavailableStatus = walletStartupFailureStatus(error)
     console.error(`[wallet] Wallet startup disabled (${walletUnavailableStatus.backend}).`)
   }
-  applyTheme(settings.theme)
+  applyTheme(settingsState.current.theme)
   mainWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'window-state.json'))
   panelWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))
   const savedWindowState = await mainWindowRefs.stateStore.load()
   mainWindowRefs.window = openMainWindow(savedWindowState)
-  mainWindowRefs.window.webContents.setZoomFactor(settings.interfaceScale)
+  mainWindowRefs.window.webContents.setZoomFactor(settingsState.current.interfaceScale)
 
   const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletBroker)
   if (!humanWaiting) {
@@ -1478,15 +1404,15 @@ async function createWindow(startMinimized = false): Promise<void> {
     mcpUrl: mcpRuntime.url,
     profilePath: app.getPath('userData'),
     downloadDirectory: effectiveDownloadDirectory(),
-    askWhereToSaveDownloads: settings.askWhereToSaveDownloads,
-    memorySaverEnabled: settings.memorySaverEnabled,
-    memorySaverTimeoutMinutes: settings.memorySaverTimeoutMinutes,
-    followAgentActivity: settings.followAgentActivity,
-    getShowAgentCursor: () => settings.showAgentCursor,
-    getChallengeDetectionEnabled: () => settings.challengeDetectionEnabled,
-    getSearchEngine: () => settings.searchEngine,
-    getLocale: () => resolvedLocale,
-    getTabPosition: () => settings.tabPosition,
+    askWhereToSaveDownloads: settingsState.current.askWhereToSaveDownloads,
+    memorySaverEnabled: settingsState.current.memorySaverEnabled,
+    memorySaverTimeoutMinutes: settingsState.current.memorySaverTimeoutMinutes,
+    followAgentActivity: settingsState.current.followAgentActivity,
+    getShowAgentCursor: () => settingsState.current.showAgentCursor,
+    getChallengeDetectionEnabled: () => settingsState.current.challengeDetectionEnabled,
+    getSearchEngine: () => settingsState.current.searchEngine,
+    getLocale: () => settingsState.resolvedLocale,
+    getTabPosition: () => settingsState.current.tabPosition,
     configureSession: configureBrowserSession,
     onUserInteraction: (touched) => {
       // A key press in a page hides a shell tooltip, as it hides a native one.
@@ -1628,7 +1554,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.window.on('enter-full-screen', scheduleWindowStateSave)
   mainWindowRefs.window.on('leave-full-screen', scheduleWindowStateSave)
   mainWindowRefs.window.on('close', (event) => {
-    if (!quitting && settings.hideInTray) {
+    if (!quitting && settingsState.current.hideInTray) {
       event.preventDefault()
       panelWindowRefs.window?.hide()
       mainWindowRefs.window?.hide()
@@ -1654,7 +1580,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   })
   attachMenuBarGesture()
   mainWindowRefs.window.webContents.on('did-finish-load', () => {
-    applyInterfaceScale(settings.interfaceScale)
+    applyInterfaceScale(settingsState.current.interfaceScale)
     if (tabsManager && mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
       if (!tabsInitializationPromise) mainWindowRefs.window.webContents.send('browser:state-changed', tabsManager.getState())
       mainWindowRefs.window.webContents.send('updates:changed', updateState)
@@ -1691,7 +1617,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   }
   if (!mainWindowRefs.window.webContents.isDestroyed()) {
     mainWindowRefs.window.webContents.send('browser:state-changed', tabsManager.getState())
-    mainWindowRefs.window.webContents.send('settings:changed', settings)
+    mainWindowRefs.window.webContents.send('settings:changed', settingsState.current)
     mainWindowRefs.window.webContents.send('settings:renderer-state-changed', currentRendererSettingsState())
     mainWindowRefs.window.webContents.send('updates:changed', updateState)
     mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
@@ -1729,7 +1655,7 @@ async function releaseRuntimeResources(): Promise<void> {
         historyStore?.flush(),
         sitePermissionStore?.flush(),
         commercialLicenseStore?.flush(),
-        settingsMutationQueue,
+        settingsState.mutationQueue,
         flushWindowState(),
         flushPanelWindowState(),
         flushBrowserProfile()
@@ -1749,7 +1675,7 @@ async function releaseRuntimeResources(): Promise<void> {
 
 function createRuntimeMcpServer(
   port: number,
-  authenticationEnabled = settings.mcpAuthentication
+  authenticationEnabled = settingsState.current.mcpAuthentication
 ): McpHttpServer {
   if (!tabsManager || !mcpRuntime.tokenConfiguration) throw new Error('MCP runtime is not initialized')
   return new McpHttpServer(tabsManager, {
@@ -1774,7 +1700,7 @@ function createRuntimeMcpServer(
     token: authenticationEnabled ? mcpRuntime.tokenConfiguration.token : undefined,
     capabilityProfiles: mcpCapabilityProfiles ?? undefined,
     version: app.getVersion(),
-    toolSet: settings.mcpToolSet,
+    toolSet: settingsState.current.mcpToolSet,
     showWindowInactive,
     userAttentionLifecycle,
     getUserAttention: () => (userAttention && !attentionQuiet ? { ...userAttention } : null),
@@ -1860,8 +1786,8 @@ const { startMcpServer, setMcpPort, resetMcpSettings } = createMcpRuntime({
   createServer: createRuntimeMcpServer,
   mcpPauseState,
   mcpPortRecovery,
-  settings: () => settings,
-  persistedSettings: () => persistedSettings,
+  settings: () => settingsState.current,
+  persistedSettings: () => settingsState.persisted,
   updateSettings,
   publishSettings,
   publishMcpControlState,
@@ -1879,7 +1805,7 @@ const { startMcpServer, setMcpPort, resetMcpSettings } = createMcpRuntime({
 async function startRuntime(): Promise<void> {
   nativeTheme.on('updated', () => {
     const systemTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-    if (settings.theme === 'system') {
+    if (settingsState.current.theme === 'system') {
       panelWindowRefs.window?.setBackgroundColor(THEME_BACKGROUND[systemTheme])
       applyMainWindowTitleBarOverlay()
     }
@@ -1912,7 +1838,7 @@ async function startRuntime(): Promise<void> {
   await loadAuthoritativeSettings()
   if (app.isPackaged) await reconcileStartupSetting()
   installApplicationMenu()
-  const startMinimized = shouldStartMinimized(settings, { platform: process.platform, argv: process.argv, wasOpenedAtLogin: startupLaunchManager.wasOpenedAtLogin() })
+  const startMinimized = shouldStartMinimized(settingsState.current, { platform: process.platform, argv: process.argv, wasOpenedAtLogin: startupLaunchManager.wasOpenedAtLogin() })
   try {
     requireExistingWorkspaceMetadata = await discardObsoleteBrowserData(app.getPath('userData'))
     await configurePersistentSession()
@@ -1932,12 +1858,12 @@ async function startRuntime(): Promise<void> {
     finally { app.quit() }
     return
   }
-  if (!settings.mcpAuthentication) {
+  if (!settingsState.current.mcpAuthentication) {
     console.warn('[mcp] Authentication is disabled. Anyone who can reach the listener can control this browser profile.')
   }
   if (!createTray() && startMinimized) showWindow()
   await startMcpServer()
-  if (settings.checkForUpdatesOnStartup) {
+  if (settingsState.current.checkForUpdatesOnStartup) {
     setTimeout(() => void checkForUpdates(), 5_000)
   }
   {
@@ -1958,7 +1884,7 @@ registerAppLifecycle(app, {
   gotLock,
   quitRequestedAtStartup,
   setQuitting: (value) => { quitting = value },
-  settings: () => settings,
+  settings: () => settingsState.current,
   showWindow,
   commercialLicenseStateTimer: () => commercialLicenseStateTimer,
   mainWindowRefs,
