@@ -74,7 +74,7 @@ test('fills plain fields with the exact text of local files, reports a page that
 
   // A long synthetic text of whole lines with quotes, backticks, non-Latin script, emoji and a terminal line break lands whole.
   const line = 'private-fixture-canary "quoted" \'single\' `tick` ${not} </script><b> \u2028 мир 世界 😀\ttab\n'
-  const long = line.repeat(Math.floor(20_000 / line.length))
+  const long = line.repeat(Math.ceil(20_000 / line.length))
   const longPath = await file('long.txt', long)
   await clearEvents()
   const filled = await fill({ selector: '#notes', path: longPath })
