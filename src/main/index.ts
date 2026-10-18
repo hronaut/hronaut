@@ -383,12 +383,17 @@ const {
   persistentSession: () => browserSessionState.persistentSession,
   tabs: () => tabRuntime.tabs
 })
-const { configureBrowserSession, configurePersistentSession, flushBrowserProfile } = createBrowserSession({
+const {
+  configureBrowserSession,
+  configurePersistentSession,
+  publishSitePermissions,
+  flushBrowserProfile
+} = createBrowserSession({
   text,
   effectiveDownloadDirectory,
   showMessageBox,
   state: browserSessionState,
-  publishSitePermissions,
+  sendToShellWindows,
   partition: PARTITION
 })
 const credentialRuntime: CredentialRuntimeState = {
@@ -584,10 +589,6 @@ const { publishCredentials, offerToSaveCredential, configureCredentialStore } = 
   sendToShellWindows,
   reportBrowserActionFailure
 })
-
-function publishSitePermissions(): void {
-  sendToShellWindows('permissions:changed', browserSessionState.sitePermissionStore?.list() ?? [])
-}
 
 const {
   openMainWindow,
