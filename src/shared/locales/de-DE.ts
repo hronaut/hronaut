@@ -3274,7 +3274,6 @@ export const deDE = {
       noTools: 'Keine passenden Tools. Versuche einen anderen Namen.',
     },
     "title": "Hronaut-Startseite",
-    "brand": "Hronaut-Startseite",
     "hero": "Ihr Browser ist bereit für Coding-Agenten.",
     "lead": "Lassen Sie eine sichtbare Browsersitzung geöffnet, teilen Sie Cookies und Speicher zwischen Tabs und lassen Sie jeden MCP-kompatiblen Coding-Agenten gemeinsam mit Ihnen navigieren.",
     "status": {

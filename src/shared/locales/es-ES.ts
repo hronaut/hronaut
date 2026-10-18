@@ -3274,7 +3274,6 @@ export const esES = {
       noTools: 'No hay herramientas coincidentes. Prueba otro nombre.',
     },
     "title": "Inicio de Hronaut",
-    "brand": "Inicio de Hronaut",
     "hero": "Tu navegador, listo para agentes de programación.",
     "lead": "Mantén abierta una sesión visible del navegador, comparte sus cookies y almacenamiento entre pestañas y permite que cualquier agente de programación compatible con MCP navegue contigo.",
     "status": {

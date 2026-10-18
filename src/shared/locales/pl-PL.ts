@@ -3274,7 +3274,6 @@ export const plPL = {
       noTools: 'Brak pasujących narzędzi. Spróbuj innej nazwy.',
     },
     "title": "Strona główna Hronaut",
-    "brand": "Strona główna Hronaut",
     "hero": "Twoja przeglądarka jest gotowa na agentów programistycznych.",
     "lead": "Pozostaw otwartą jedną widoczną sesję przeglądarki, udostępniaj jej pliki cookie i pamięć między kartami i pozwól dowolnemu agentowi programistycznemu zgodnemu z MCP nawigować razem z Tobą.",
     "status": {

@@ -30,8 +30,6 @@ h2 { font-size: var(--type-title-size); font-weight: 600; line-height: 1.4; lett
 .page { width: min(1240px, calc(100% - 64px)); margin: 0 auto; padding: 28px 0 20px; }
 .hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
 .hero-copy { min-width: 0; }
-.brand { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; color: var(--muted); font-size: var(--type-micro-size); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
-.mark { display: grid; width: 22px; height: 22px; place-items: center; border-radius: var(--corner-1); color: var(--panel); background: var(--accent); font-size: var(--type-body-size); letter-spacing: 0; }
 .hero-description { max-width: 720px; margin-top: 6px; color: var(--muted); font-size: var(--type-body-size); line-height: 1.6; }
 /* What agents add up to, in one pill; the server's own facts open in a popover under it. */
 .hero-status { position: relative; display: flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 0; min-height: 36px; padding: 3px 3px 3px 14px; border: 1px solid var(--border); border-radius: var(--corner-pill); background: var(--panel); box-shadow: var(--elevation-1); }
@@ -197,7 +195,6 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 @media (max-width: 640px) {
   .page { width: calc(100% - 28px); padding-top: 18px; }
   .hero { flex-direction: column; align-items: flex-start; gap: 14px; }
-  .brand { margin-bottom: 10px; }
   .hero-status { max-width: 100%; }
   .status-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .status-facts { right: auto; left: 0; }

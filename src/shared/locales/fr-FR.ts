@@ -3274,7 +3274,6 @@ export const frFR = {
       noTools: 'Aucun outil trouvé. Essayez un autre nom.',
     },
     "title": "Accueil Hronaut",
-    "brand": "Accueil Hronaut",
     "hero": "Votre navigateur est prêt pour les agents de programmation.",
     "lead": "Gardez une session de navigateur visible ouverte, partagez ses cookies et son stockage entre les onglets, et laissez tout agent de programmation compatible MCP naviguer avec vous.",
     "status": {

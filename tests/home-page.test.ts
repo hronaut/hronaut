@@ -75,7 +75,8 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('<title>Hronaut Home</title>')
     expect(html).toContain('Connect your coding agent')
     expect(html).toContain('<span class="count">20 clients</span>')
-    expect(html).toContain('<span class="mark">H</span> Hronaut')
+    // The Home tab's title carries the Hronaut mark, so the page does not repeat it.
+    expect(html).not.toContain('class="brand"')
     expect(html).toContain('Try Hronaut with one safe task')
     expect(html).toContain('data-copy-target="first-run-prompt"')
     expect(html).toContain('Use only this workspace.')

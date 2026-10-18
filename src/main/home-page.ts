@@ -22,7 +22,7 @@ export function renderHomePage(options: HomePageOptions, assets = { script: '/ho
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${h(home.title)}</title>${assets.styles.map(path => `<link rel="stylesheet" href="${h(path)}">`).join('')}</head>
 <body><main class="page">
-<header class="hero"><div class="hero-copy"><div class="brand"><span class="mark">H</span> ${h(home.brand)}</div><h1 id="home-view-title">${h(library.heading)}</h1><p id="home-view-description" class="hero-description">${h(library.description)}</p></div>
+<header class="hero"><div class="hero-copy"><h1 id="home-view-title">${h(library.heading)}</h1><p id="home-view-description" class="hero-description">${h(library.description)}</p></div>
 <div class="hero-status" aria-live="polite"><span id="server-state" class="status-label"></span><details class="status-details"><summary>${h(data.messages.agentStatus.details)}</summary><div class="status-facts"><span id="server-detail" class="status-detail"></span><strong id="active-count" class="status-value"></strong><span id="request-count" class="status-detail"></span><div class="endpoint"><span class="endpoint-label">${h(home.endpoint)}</span><code id="endpoint">${h(options.endpoint)}</code>${copy('endpoint', home.copyUrl)}</div></div></details></div></header>
 <section id="mcp-port-problem" class="panel port-problem" role="alert" hidden><p id="mcp-port-problem-text"></p><div class="port-problem-actions"><button type="button" id="mcp-port-use" hidden></button><span id="mcp-port-status" class="port-problem-status" aria-live="polite"></span></div></section>
 <section id="home-onboarding" class="panel onboarding" hidden aria-labelledby="onboarding-title">

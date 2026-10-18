@@ -881,7 +881,6 @@ export const enUS = {
       noTools: 'No matching tools. Try another name.',
     },
     title: 'Hronaut Home',
-    brand: 'Hronaut home',
     hero: 'Your browser, ready for coding agents.',
     lead: 'Keep one visible browser session open, share its cookies and storage across tabs, and let any MCP-compatible coding agent navigate it with you.',
     status: {
