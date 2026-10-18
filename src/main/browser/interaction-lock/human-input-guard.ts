@@ -1,4 +1,4 @@
-import type { HumanInputGuardAccess, HumanInputGuardTab } from './human-input-guard-access.js'
+import type { InteractionLockAccess, InteractionLockTab } from './interaction-lock-access.js'
 
 // A copy of the tab manager's own check, which its native selections keep using.
 function nativeSelectionContextUnavailable(error: unknown): boolean {
@@ -41,7 +41,7 @@ function cdpFrameIds(node: CdpFrameTreeNode): string[] {
  * wheel guard to every frame as a fallback; otherwise lifts both. A page or
  * manager that went away meanwhile is left alone.
  */
-export async function syncHumanInteractionInputGuard<Tab extends HumanInputGuardTab>(access: HumanInputGuardAccess<Tab>, tab: Tab): Promise<void> {
+export async function syncHumanInteractionInputGuard<Tab extends InteractionLockTab>(access: InteractionLockAccess<Tab>, tab: Tab): Promise<void> {
   if (access.isDestroyed() || tab.webContents.isDestroyed() || access.findTab(tab.id) !== tab) return
   try {
     await access.withDebugger(tab.webContents, async () => {

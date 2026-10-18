@@ -519,9 +519,7 @@ import type { TrustedChromeOcclusionAccess } from './trusted-chrome-occlusion/tr
 import { occlusionLayout, occlusionSnapshotPanes, setBrowserContentOccluded, setFollowAgentActivitySuspended } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 import type { AgentFollowAccess } from './agent-follow/agent-follow-access.js'
 import { handleMcpTabActivity, publishAgentFollowChange, publishedAgentFollow, retainAgentFollow, setFollowAgentActivity } from './agent-follow/agent-follow.js'
-import type { PassiveSelectionAccess } from './agent-follow/passive-selection-access.js'
 import { selectTabPassively } from './agent-follow/passive-selection.js'
-import type { HumanInputGuardAccess } from './interaction-lock/human-input-guard-access.js'
 import { syncHumanInteractionInputGuard } from './interaction-lock/human-input-guard.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
@@ -1340,9 +1338,10 @@ export class BrowserTabsManager {
   }
 
   /**
-   * The narrow view agent following gets of this manager's private followed
-   * agent, follow preference, tabs, active tab and selection generation, MCP
-   * activities, MCP activity follower and state publication. It is a
+   * The narrow view agent following and selecting a tab without moving
+   * keyboard focus get of this manager's private followed agent, follow
+   * preference, tabs, active tab and selection generation, MCP activities,
+   * MCP activity follower, state publication, window and selection. It is a
    * prototype method rather than a field, so managers created without the
    * constructor (as unit tests do) still provide it.
    */
@@ -1358,7 +1357,10 @@ export class BrowserTabsManager {
       findTab: (tabId) => this.tabs.get(tabId),
       mcpActivitiesByTab: () => this.mcpActivitiesByTab,
       mcpActivityFollower: () => this.mcpActivityFollower,
-      changed: (persist) => this.changed(persist)
+      changed: (persist) => this.changed(persist),
+      window: () => this.window,
+      getTab: (tabId) => this.getTab(tabId),
+      selectTab: (tabId, options) => this.selectTab(tabId, options)
     }
   }
 
@@ -2508,22 +2510,8 @@ export class BrowserTabsManager {
     return selectTab(this.tabSelectionAccess(), tabId, options)
   }
 
-  /**
-   * The narrow view selecting a tab without moving keyboard focus gets of
-   * this manager's private window, tabs and selection. It is a prototype
-   * method rather than a field, so managers created without the constructor
-   * (as unit tests do) still provide it.
-   */
-  private passiveSelectionAccess(): PassiveSelectionAccess {
-    return {
-      window: () => this.window,
-      getTab: (tabId) => this.getTab(tabId),
-      selectTab: (tabId, options) => this.selectTab(tabId, options)
-    }
-  }
-
   private selectTabPassively(tabId: string): void {
-    selectTabPassively(this.passiveSelectionAccess(), tabId)
+    selectTabPassively(this.agentFollowAccess(), tabId)
   }
 
   /**
@@ -3080,13 +3068,15 @@ export class BrowserTabsManager {
   }
 
   /**
-   * The narrow view the person's input lock gets of this manager's private
-   * tabs, workspaces, debugger queue, dialog monitoring, lock queue and
-   * counter, global lock, native input guard, layout and state publication. It
-   * is a prototype method rather than a field, so managers created without the
+   * The narrow view the person's input lock and its native input guard get
+   * of this manager's private tabs, workspaces, debugger queue and lease,
+   * dialog monitoring, lock queue and counter, global lock, native input
+   * guard, native selection sessions, layout and state publication. It is a
+   * prototype method rather than a field, so managers created without the
    * constructor (as unit tests do) still provide it. The delegates below
    * return the feature's promise directly, so the generation and counter
-   * changes still happen before they return.
+   * changes still happen before they return, and callers see the same ticks
+   * as before.
    */
   private interactionLockAccess(): InteractionLockAccess<BrowserTab> {
     return {
@@ -3108,7 +3098,10 @@ export class BrowserTabsManager {
       syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
       layout: () => this.layout(),
       changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
+      getState: () => this.getState(),
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      elementPickerSessions: () => this.elementPickerSessions
     }
   }
 
@@ -5319,27 +5312,8 @@ export class BrowserTabsManager {
     return consumeExpectedAgentKeyboardInput(this.agentInputAuthorizationAccess(), webContentsId, input)
   }
 
-  /**
-   * The narrow view the human input guard gets of this manager's private
-   * tabs, debugger queue, native selection sessions and human interaction
-   * lock. It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it. The delegate
-   * below returns the feature's promise directly, so callers see the same
-   * ticks as before.
-   */
-  private humanInputGuardAccess(): HumanInputGuardAccess<BrowserTab> {
-    return {
-      isDestroyed: () => this.destroyed,
-      findTab: (tabId) => this.tabs.get(tabId),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      screenshotAreaSessions: () => this.screenshotAreaSessions,
-      elementPickerSessions: () => this.elementPickerSessions,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab)
-    }
-  }
-
   private syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
-    return syncHumanInteractionInputGuard(this.humanInputGuardAccess(), tab)
+    return syncHumanInteractionInputGuard(this.interactionLockAccess(), tab)
   }
 
   private queueScreenshotAreaMouseInput(

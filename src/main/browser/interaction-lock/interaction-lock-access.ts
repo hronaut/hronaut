@@ -15,10 +15,11 @@ export interface InteractionLockTab {
 }
 
 /**
- * What locking the person's page input needs from the tab manager, which
- * keeps the tabs, workspaces, debugger queue, dialog monitoring, the lock
- * mutation queue and counter, the global lock and its unlocked tabs, the
- * native input guard, layout and state publication private. The queue tail,
+ * What locking the person's page input and applying its native input guard
+ * need from the tab manager, which keeps the tabs, workspaces, debugger queue
+ * and lease, dialog monitoring, the lock mutation queue and counter, the
+ * global lock and its unlocked tabs, the native input guard, the native
+ * selection sessions, layout and state publication private. The queue tail,
  * the counter and the global lock stay manager fields because native input,
  * layout and the published browser state read them; they are written back
  * through the write members. Whether a tab is locked and the native input
@@ -45,4 +46,7 @@ export interface InteractionLockAccess<Tab extends InteractionLockTab> {
   layout(): void
   changed(persist?: boolean): void
   getState(): BrowserState
+  withDebugger<T>(webContents: WebContents, operation: () => Promise<T>): Promise<T>
+  screenshotAreaSessions(): ReadonlyMap<number, unknown>
+  elementPickerSessions(): ReadonlyMap<number, unknown>
 }
