@@ -100,7 +100,8 @@ import { registerLicenseIpc } from './license-ipc.js'
 import { CommercialLicenseOperationCoordinator } from './commercial-license-operations.js'
 import { CommercialLicenseStore, commercialLicenseStateRefreshDelay } from './commercial-license-store.js'
 import { registerUpdatesIpc } from './updates-ipc.js'
-import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './browsing-data-websites.js'
+import { cookieAvailableToOrigin } from './browsing-data-websites.js'
+import { registerBrowsingDataIpc } from './browsing-data-ipc.js'
 import { createHomeProtocolHandler } from './platform/home-protocol.js'
 import { registerHomeIpc } from './home-ipc.js'
 import { commitRuntimeSetting } from './runtime-setting-commit.js'
@@ -165,10 +166,7 @@ import {
   type BrowserWorkspaceStorageTransferOptions,
   type BrowserEnvironmentSettings,
   type BrowserViewportEmulation,
-  type BrowsingDataClearOptions,
   type BrowsingDataSiteSummary,
-  type BrowsingDataSummary,
-  type BrowsingDataWebsiteSummary,
   type CredentialStorageStatus,
   type CommercialLicenseState,
   type DetachablePanelId,
@@ -881,17 +879,6 @@ function acquireTemporaryMcpPause(): () => void {
   }
 }
 
-async function currentBrowsingDataSummary(): Promise<BrowsingDataSummary> {
-  const history = historyStore?.list() ?? []
-  return {
-    historyEntries: history.length,
-    historyVisits: history.reduce((total, entry) => total + entry.visitCount, 0),
-    bookmarkCount: bookmarkStore?.list().length ?? 0,
-    savedPasswordCount: credentialStore?.list().length ?? 0,
-    permissionDecisionCount: sitePermissionStore?.list().length ?? 0
-  }
-}
-
 async function currentBrowsingDataSiteSummary(
   value: string,
   browserSession: Session | undefined
@@ -950,41 +937,6 @@ async function clearWorkspaceSiteData(
       remaining: await currentBrowsingDataSiteSummary(site.origin, browserSession)
     }
   })
-}
-
-async function currentBrowsingDataWebsites(): Promise<BrowsingDataWebsiteSummary[]> {
-  const browserState = tabsManager?.getState()
-  return buildBrowsingDataWebsiteInventory({
-    history: historyStore?.list() ?? [],
-    cookies: [],
-    bookmarks: bookmarkStore?.list() ?? [],
-    credentials: credentialStore?.list() ?? [],
-    permissions: sitePermissionStore?.list() ?? [],
-    tabs: browserState?.tabs ?? []
-  })
-}
-
-function normalizeBrowsingDataOrigin(value: string | undefined): string | undefined {
-  if (value === undefined) return undefined
-  try {
-    const url = new URL(value)
-    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname) throw new Error()
-    return url.origin
-  } catch {
-    throw new TypeError('Browsing data website must be a valid HTTP or HTTPS origin')
-  }
-}
-
-async function clearBrowsingData(options: BrowsingDataClearOptions): Promise<BrowsingDataSummary> {
-  if (!historyStore) throw new Error('Browser history is unavailable')
-  if (!options.history) throw new Error('Select history to clear')
-  const origin = normalizeBrowsingDataOrigin(options.origin)
-  if (origin) await historyStore.clearOrigin(origin)
-  else await historyStore.clear()
-  // Home's feed names pages agents acted on, so it goes with any history clearing.
-  mcpServer?.forgetHomeFeed()
-  publishVisitHistory()
-  return currentBrowsingDataSummary()
 }
 
 async function handleCredentialCandidate(candidate: BrowserCredentialCandidate): Promise<void> {
@@ -3413,31 +3365,17 @@ function registerIpc(): void {
       }
     })
   })
-  handleBrowserIpc('browsing-data:summary', (event) => {
-    assertTrustedShellSender(event)
-    return currentBrowsingDataSummary()
-  })
-  handleBrowserIpc('browsing-data:site-summary', (event, url: unknown, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof url !== 'string') throw new TypeError('Invalid website')
-    if (typeof tabId !== 'string') throw new TypeError('Tab ID is required')
-    const tab = tabsManager?.getState().tabs.find((candidate) => candidate.id === tabId)
-    if (!tab) throw new Error(`Tab not found: ${tabId}`)
-    if (!tab.mcpGroupId) throw new Error('Website workspace is required')
-    const browserSession = tabsManager?.workspaceSession(tab.mcpGroupId)
-    return currentBrowsingDataSiteSummary(url, browserSession)
-  })
-  handleBrowserIpc('browsing-data:websites', (event) => {
-    assertTrustedShellSender(event)
-    return currentBrowsingDataWebsites()
-  })
-  handleBrowserIpc('browsing-data:clear', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object') throw new TypeError('Invalid browsing-data options')
-    const { history, origin } = value as Record<string, unknown>
-    if (typeof history !== 'boolean' || (origin !== undefined && typeof origin !== 'string')
-      || Object.keys(value).some(key => key !== 'history' && key !== 'origin')) throw new TypeError('Invalid history clearing options')
-    return clearBrowsingData({ history, ...(origin ? { origin } : {}) })
+  registerBrowsingDataIpc({
+    assertTrustedSender: assertTrustedShellSender,
+    handleBrowserIpc,
+    tabs: () => tabsManager,
+    historyStore: () => historyStore,
+    bookmarkStore: () => bookmarkStore,
+    credentialStore: () => credentialStore,
+    sitePermissionStore: () => sitePermissionStore,
+    mcpServer: () => mcpServer,
+    publishVisitHistory,
+    currentBrowsingDataSiteSummary
   })
   handleBrowserIpc('browser:set-tab-human-interaction-locked', (event, tabId: unknown, locked: unknown) => {
     assertTrustedShellSender(event)
