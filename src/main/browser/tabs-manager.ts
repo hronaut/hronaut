@@ -144,7 +144,6 @@ import {
   powerMonitor,
   screen,
   session,
-  webContents as electronWebContents,
   WebContentsView,
   type LoadURLOptions,
   type MenuItemConstructorOptions,
@@ -485,6 +484,8 @@ import type { TrustedChromeFocusAccess } from './trusted-chrome-focus/trusted-ch
 import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome } from './trusted-chrome-focus/trusted-chrome-focus.js'
 import type { AgentFollowAccess } from './agent-follow/agent-follow-access.js'
 import { publishAgentFollowChange, publishedAgentFollow, retainAgentFollow, setFollowAgentActivity } from './agent-follow/agent-follow.js'
+import type { PassiveSelectionAccess } from './agent-follow/passive-selection-access.js'
+import { selectTabPassively } from './agent-follow/passive-selection.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -3017,60 +3018,22 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
+  /**
+   * The narrow view selecting a tab without moving keyboard focus gets of
+   * this manager's private window, tabs and selection. It is a prototype
+   * method rather than a field, so managers created without the constructor
+   * (as unit tests do) still provide it.
+   */
+  private passiveSelectionAccess(): PassiveSelectionAccess {
+    return {
+      window: () => this.window,
+      getTab: (tabId) => this.getTab(tabId),
+      selectTab: (tabId, options) => this.selectTab(tabId, options)
+    }
+  }
+
   private selectTabPassively(tabId: string): void {
-    const windowWasFocused = this.window.isFocused()
-    const target = this.getTab(tabId)
-    let focusGuardActive = windowWasFocused
-    let focusGuardTimer: NodeJS.Timeout | undefined
-    const releaseFocusGuard = (): void => {
-      if (!focusGuardActive) return
-      focusGuardActive = false
-      if (focusGuardTimer) clearTimeout(focusGuardTimer)
-      target.webContents.removeListener('focus', redirectWebsiteFocus)
-    }
-    const redirectWebsiteFocus = (): void => {
-      releaseFocusGuard()
-      // Chromium ignores a re-entrant focus transfer from the WebContents
-      // focus callback on some Linux compositors. Restore trusted chrome on
-      // the next main-process turn, after the native attachment settles.
-      setImmediate(() => {
-        if (
-          this.window.isDestroyed()
-          || !this.window.isFocused()
-          || target.webContents.isDestroyed()
-          || electronWebContents.getFocusedWebContents()?.id !== target.webContents.id
-        ) return
-        this.window.webContents.focus()
-      })
-    }
-    if (focusGuardActive) {
-      target.webContents.on('focus', redirectWebsiteFocus)
-      focusGuardTimer = setTimeout(releaseFocusGuard, 1_000)
-      focusGuardTimer.unref()
-    }
-
-    // A focused page cannot retain keyboard focus once its view is detached.
-    // Move focus into trusted chrome before attaching the agent's page so
-    // Electron cannot implicitly hand the page keyboard input during the swap.
-    if (windowWasFocused) this.window.webContents.focus()
-    try {
-      this.selectTab(tabId, { focus: false })
-    } catch (error) {
-      releaseFocusGuard()
-      throw error
-    }
-    if (this.window.isDestroyed()) return
-
-    // Attaching a WebContentsView can focus it even when selectTab deliberately
-    // omits an explicit focus call. Following agent activity is visual-only: it
-    // must not activate Hronaut or redirect keyboard input into the agent's page.
-    if (!windowWasFocused) {
-      if (this.window.isFocused()) this.window.blur()
-      return
-    }
-    if (!this.window.isFocused()) return
-
-    if (electronWebContents.getFocusedWebContents()?.id === target.webContents.id) redirectWebsiteFocus()
+    selectTabPassively(this.passiveSelectionAccess(), tabId)
   }
 
   /**
