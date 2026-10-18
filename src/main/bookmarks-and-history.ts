@@ -1,8 +1,9 @@
 import { app } from 'electron'
 import { join } from 'node:path'
-import { BookmarkStore } from './bookmark-store.js'
+import { BookmarkStore, type RemovedBookmark } from './bookmark-store.js'
 import { HistoryStore } from './history-store.js'
 import type { BookmarkOperations, HistoryOperations, McpHttpServer } from './mcp/server.js'
+import type { UndoableAction } from './undo-offers.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
 
 /**
@@ -23,12 +24,14 @@ interface BookmarksAndHistoryHost {
   sendToShellWindows(channel: string, ...args: unknown[]): void
   /** The MCP listener while it runs, whose Home feed goes when an agent clears the history. */
   mcpServer(): Pick<McpHttpServer, 'forgetHomeFeed'> | null
+  /** Offers the person's latest reversible action for Undo, replacing the previous offer. */
+  offerUndo(action: UndoableAction): void
 }
 
 /**
  * Bookmarks and visit history at runtime: opening both stores, recording the pages tabs visit, telling both shell
- * windows what they hold after each change, and the operations the MCP server offers agents on them, `agentBookmarks`
- * and `agentHistory`.
+ * windows what they hold after each change, offering to undo a bookmark the person removed, and the operations the MCP
+ * server offers agents on them, `agentBookmarks` and `agentHistory`.
  */
 export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   publishBookmarks(): BrowserBookmark[]
@@ -37,6 +40,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   openVisitHistory(): Promise<BrowserHistoryEntry[]>
   recordPageVisit(visit: { url: string; title: string }): void
   updatePageTitle(page: { url: string; title: string }): void
+  offerBookmarkRestore(removed: RemovedBookmark): void
   agentBookmarks: BookmarkOperations
   agentHistory: HistoryOperations
 } {
@@ -77,6 +81,21 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     void host.state.history?.updateTitle({ url, title })
       .then((updated) => { if (updated) publishVisitHistory() })
       .catch((error) => console.error('[history] Failed to update page title:', error))
+  }
+
+  /** Offers to undo a bookmark the person removed, which restores it and publishes the bookmarks. */
+  function offerBookmarkRestore(removed: RemovedBookmark): void {
+    host.offerUndo({
+      kind: 'bookmark-removed',
+      name: removed.bookmark.title,
+      undo: async () => {
+        if (!host.state.bookmarks) throw new Error('Bookmark storage is unavailable')
+        // A bookmark saved again meanwhile stays as it is.
+        if (!await host.state.bookmarks.restore(removed)) return false
+        publishBookmarks()
+        return true
+      }
+    })
   }
 
   /** Agents' bookmark operations; each change is published to both shell windows. */
@@ -123,6 +142,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     openVisitHistory,
     recordPageVisit,
     updatePageTitle,
+    offerBookmarkRestore,
     agentBookmarks,
     agentHistory
   }

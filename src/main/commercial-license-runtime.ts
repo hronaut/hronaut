@@ -11,8 +11,8 @@ const COMMERCIAL_LICENSE_API_BASE = process.env.HRONAUT_LICENSE_API_BASE || COMM
 
 /**
  * The license store and the timer that publishes its state again, created once by index.ts and opened by startup. The
- * wallet broker, the MCP server, the background refresh, before-quit and shutdown read the fields when they run, so
- * they always see the open store and the pending timer.
+ * wallet broker, the MCP server, before-quit and shutdown read the fields when they run, so they always see the open
+ * store and the pending timer.
  */
 export interface CommercialLicenseRuntimeState {
   /** The encrypted license store, once open. */
@@ -41,12 +41,12 @@ interface CommercialLicenseRuntimeHost {
 export function createCommercialLicenseRuntime(host: CommercialLicenseRuntimeHost): {
   configureCommercialLicenseStore(): Promise<void>
   currentCommercialLicenseState(): CommercialLicenseState
-  publishCommercialLicenseState(): CommercialLicenseState
   activateCommercialLicense(value: unknown): Promise<CommercialLicenseState>
   refreshCommercialLicense(): Promise<CommercialLicenseState>
   deactivateCommercialLicense(): Promise<CommercialLicenseState>
   authorizeAutomation(): Promise<void>
   assertAutomationAccess(): void
+  startBackgroundLicenseRefresh(): void
 } {
   let commercialLicenseClient: CommercialLicenseClient | null = null
   let commercialLicenseMessage: string | undefined
@@ -190,14 +190,31 @@ export function createCommercialLicenseRuntime(host: CommercialLicenseRuntimeHos
     host.state.store.assertAutomationAccess()
   }
 
+  /**
+   * Publishes the state once startup is done and refreshes an activated license in the background, first after 7.5
+   * seconds and then every hour, while secure storage is available; neither timer keeps the app alive.
+   */
+  function startBackgroundLicenseRefresh(): void {
+    const refreshLicense = (): void => {
+      publishCommercialLicenseState()
+      if (!host.state.store?.hasActivation() || !host.credentialStorageStatus().available) return
+      void refreshCommercialLicense().catch((error: unknown) => {
+        console.error('[license] Background refresh failed:', error)
+      })
+    }
+    publishCommercialLicenseState()
+    setTimeout(refreshLicense, 7_500).unref()
+    setInterval(refreshLicense, 60 * 60 * 1000).unref()
+  }
+
   return {
     configureCommercialLicenseStore,
     currentCommercialLicenseState,
-    publishCommercialLicenseState,
     activateCommercialLicense,
     refreshCommercialLicense,
     deactivateCommercialLicense,
     authorizeAutomation,
-    assertAutomationAccess
+    assertAutomationAccess,
+    startBackgroundLicenseRefresh
   }
 }

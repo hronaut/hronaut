@@ -26,18 +26,26 @@ interface CredentialRuntimeHost {
   mainWindow(): Pick<BrowserWindow, 'isDestroyed'> | null
   /** Secure storage's status and the password store; index.ts creates the record, and other features read it too. */
   state: CredentialRuntimeState
-  publishCredentials(): void
+  sendToShellWindows(channel: string, ...args: unknown[]): void
+  /** Tells the shell that a browser action failed, such as saving a password a page submitted. */
+  reportBrowserActionFailure(action: string, error: unknown): void
 }
 
 /**
  * Saved passwords on this device: opening the store encrypted with the operating system's secure storage, which
- * stays closed when only Linux's plain-text backend is available, and offering to save or update a password a page
- * submitted.
+ * stays closed when only Linux's plain-text backend is available, offering to save or update a password a page
+ * submitted, and telling both shell windows which passwords are saved.
  */
 export function createCredentialRuntime(host: CredentialRuntimeHost): {
-  handleCredentialCandidate(candidate: BrowserCredentialCandidate): Promise<void>
+  publishCredentials(): void
+  offerToSaveCredential(candidate: BrowserCredentialCandidate): void
   configureCredentialStore(): Promise<void>
 } {
+  /** Tells both shell windows which passwords are saved. */
+  function publishCredentials(): void {
+    host.sendToShellWindows('credentials:changed', host.state.store?.list() ?? [])
+  }
+
   async function handleCredentialCandidate(candidate: BrowserCredentialCandidate): Promise<void> {
     if (!host.state.storageStatus.available || !host.state.store || !host.mainWindow() || host.mainWindow()!.isDestroyed()) return
     if (candidate.username.length > 512 || !candidate.password || candidate.password.length > 16_384) return
@@ -60,7 +68,15 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
     })
     if (response !== 1) return
     await host.state.store!.save(candidate.origin, candidate.username, candidate.password)
-    host.publishCredentials()
+    publishCredentials()
+  }
+
+  /** Offers to save a password a page submitted; a failure is logged and reported to the shell. */
+  function offerToSaveCredential(candidate: BrowserCredentialCandidate): void {
+    void handleCredentialCandidate(candidate).catch((error) => {
+      console.error('[credentials] Failed to save password:', error)
+      host.reportBrowserActionFailure('save password', error)
+    })
   }
 
   async function configureCredentialStore(): Promise<void> {
@@ -84,5 +100,5 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
     await host.state.store!.load()
   }
 
-  return { handleCredentialCandidate, configureCredentialStore }
+  return { publishCredentials, offerToSaveCredential, configureCredentialStore }
 }

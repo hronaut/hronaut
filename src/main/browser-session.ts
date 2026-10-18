@@ -27,7 +27,7 @@ interface BrowserSessionHost {
   showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>
   /** The persistent session and the site permissions; index.ts creates the record, and other features read it too. */
   state: BrowserSessionState
-  publishSitePermissions(): void
+  sendToShellWindows(channel: string, ...args: unknown[]): void
   /** The partition of the profile's persistent browser session. */
   partition: string
 }
@@ -36,12 +36,14 @@ interface BrowserSessionHost {
  * The browser sessions pages run in: each gets the download folder, a permission check that admits only what the
  * person allowed for the site, and a permission prompt that asks one request at a time and refuses a request whose
  * frame navigated meanwhile. Camera, microphone and file system access always ask again. Home never gets a
- * permission. `configurePersistentSession` opens the remembered site permissions and the profile's own session, and
- * `flushBrowserProfile` writes that session's storage to disk at shutdown.
+ * permission. `configurePersistentSession` opens the remembered site permissions and the profile's own session,
+ * `publishSitePermissions` tells both shell windows the remembered permissions, and `flushBrowserProfile` writes that
+ * session's storage to disk at shutdown.
  */
 export function createBrowserSession(host: BrowserSessionHost): {
   configureBrowserSession(browserSession: Session): void
   configurePersistentSession(): Promise<void>
+  publishSitePermissions(): void
   flushBrowserProfile(): Promise<void>
 } {
   const configuredBrowserSessions = new WeakSet<Session>()
@@ -148,7 +150,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
           try {
             if (!requiresFreshConsent) {
               await host.state.sitePermissionStore?.set(origin, permission, decision)
-              host.publishSitePermissions()
+              publishSitePermissions()
             }
           } catch (error) {
             console.error('[permissions] Failed to persist site permission:', error)
@@ -168,10 +170,15 @@ export function createBrowserSession(host: BrowserSessionHost): {
     configureBrowserSession(host.state.persistentSession!)
   }
 
+  /** Tells both shell windows the site permissions the person chose. */
+  function publishSitePermissions(): void {
+    host.sendToShellWindows('permissions:changed', host.state.sitePermissionStore?.list() ?? [])
+  }
+
   async function flushBrowserProfile(): Promise<void> {
     if (!host.state.persistentSession) return
     await flushBrowserSessionStorage(host.state.persistentSession)
   }
 
-  return { configureBrowserSession, configurePersistentSession, flushBrowserProfile }
+  return { configureBrowserSession, configurePersistentSession, publishSitePermissions, flushBrowserProfile }
 }
