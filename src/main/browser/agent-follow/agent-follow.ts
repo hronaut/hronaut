@@ -1,3 +1,5 @@
+import type { McpTabActivity } from '../../../shared/types.js'
+import type { FollowAgent } from '../mcp-activity-follow-controller.js'
 import type { AgentFollowAccess } from './agent-follow-access.js'
 
 /** What the shell shows of following: only while the tab it showed is still the one in view. */
@@ -35,4 +37,21 @@ export function setFollowAgentActivity(access: AgentFollowAccess, enabled: boole
   if (!enabled) access.setAgentFollow(undefined)
   publishAgentFollowChange(access, before)
   access.mcpActivityFollower().refresh()
+}
+
+/** The agent is its session's opaque presence key and cleaned name; following holds on it and names it in the rail. */
+export function handleMcpTabActivity(access: AgentFollowAccess, activity: McpTabActivity, agent?: FollowAgent): void {
+  const tab = access.findTab(activity.tabId)
+  if (!tab) return
+  const activities = access.mcpActivitiesByTab().get(tab.id) ?? new Set<string>()
+  if (activity.phase === 'started') {
+    activities.add(activity.activityId)
+    access.mcpActivitiesByTab().set(tab.id, activities)
+  } else {
+    activities.delete(activity.activityId)
+    if (activities.size) access.mcpActivitiesByTab().set(tab.id, activities)
+    else access.mcpActivitiesByTab().delete(tab.id)
+    tab.lastActiveAt = activity.occurredAt
+  }
+  access.mcpActivityFollower().accept(activity, agent)
 }

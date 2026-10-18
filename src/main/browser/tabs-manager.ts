@@ -531,7 +531,7 @@ import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome } from './truste
 import type { TrustedChromeOcclusionAccess } from './trusted-chrome-occlusion/trusted-chrome-occlusion-access.js'
 import { occlusionLayout, occlusionSnapshotPanes, setBrowserContentOccluded, setFollowAgentActivitySuspended } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 import type { AgentFollowAccess } from './agent-follow/agent-follow-access.js'
-import { publishAgentFollowChange, publishedAgentFollow, retainAgentFollow, setFollowAgentActivity } from './agent-follow/agent-follow.js'
+import { handleMcpTabActivity, publishAgentFollowChange, publishedAgentFollow, retainAgentFollow, setFollowAgentActivity } from './agent-follow/agent-follow.js'
 import type { PassiveSelectionAccess } from './agent-follow/passive-selection-access.js'
 import { selectTabPassively } from './agent-follow/passive-selection.js'
 import type { HumanInputGuardAccess } from './interaction-lock/human-input-guard-access.js'
@@ -1358,9 +1358,9 @@ export class BrowserTabsManager {
   /**
    * The narrow view agent following gets of this manager's private followed
    * agent, follow preference, tabs, active tab and selection generation, MCP
-   * activity follower and state publication. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit tests
-   * do) still provide it.
+   * activities, MCP activity follower and state publication. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it.
    */
   private agentFollowAccess(): AgentFollowAccess {
     return {
@@ -1371,6 +1371,8 @@ export class BrowserTabsManager {
       activeTabId: () => this.activeTabId,
       tabSelectionGeneration: () => this.tabSelectionGeneration,
       hasTab: (tabId) => this.tabs.has(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      mcpActivitiesByTab: () => this.mcpActivitiesByTab,
       mcpActivityFollower: () => this.mcpActivityFollower,
       changed: (persist) => this.changed(persist)
     }
@@ -2248,19 +2250,7 @@ export class BrowserTabsManager {
 
   /** The agent is its session's opaque presence key and cleaned name; following holds on it and names it in the rail. */
   handleMcpTabActivity(activity: McpTabActivity, agent?: FollowAgent): void {
-    const tab = this.tabs.get(activity.tabId)
-    if (!tab) return
-    const activities = this.mcpActivitiesByTab.get(tab.id) ?? new Set<string>()
-    if (activity.phase === 'started') {
-      activities.add(activity.activityId)
-      this.mcpActivitiesByTab.set(tab.id, activities)
-    } else {
-      activities.delete(activity.activityId)
-      if (activities.size) this.mcpActivitiesByTab.set(tab.id, activities)
-      else this.mcpActivitiesByTab.delete(tab.id)
-      tab.lastActiveAt = activity.occurredAt
-    }
-    this.mcpActivityFollower.accept(activity, agent)
+    handleMcpTabActivity(this.agentFollowAccess(), activity, agent)
   }
 
   /**
