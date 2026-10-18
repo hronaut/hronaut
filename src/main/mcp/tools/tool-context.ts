@@ -126,7 +126,6 @@ export interface ToolCallSettlement {
   dispose?(): void
 }
 
-/** What a workspace tool adds to the shared call handling in server.ts. */
 /** What any tool may declare about its calls, for the shared wrapper in server.ts that admits and settles them. */
 export interface ToolOptions<S extends ToolCallSettlement | undefined> {
   /** Creates the tool's bookkeeping for one call, or undefined when this call needs none. */
@@ -158,7 +157,10 @@ export interface ToolOptions<S extends ToolCallSettlement | undefined> {
 export interface WorkspaceToolOptions<S extends ToolCallSettlement | undefined> extends ToolOptions<S> {
   /** Whether a call with this input only reads, for a tool not annotated read-only. */
   readOnly?: (input: Record<string, unknown>) => boolean
-  /** A read-only public observer workspace still allows this tool, although it is not annotated read-only. */
+  /**
+   * A read-only public observer workspace still allows this tool, although it is not annotated read-only.
+   * Only browser_* tools can use this; wallet tools stay denied to public observers whatever they declare.
+   */
   publicObserverAllowed?: boolean
   /**
    * Whether this call must leave the page as the person sees it: it does not select or wake its tab, and its
