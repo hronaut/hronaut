@@ -69,7 +69,9 @@ import { writeUniqueDownloadFile } from './unique-download-file.js'
 import type { BrowserVideoOptions, BrowserVideoState } from '../../shared/video.js'
 import type { BrowserCredentialCandidate, CredentialCaptureAccess } from './credential-capture/credential-capture-access.js'
 import { watchCredentialSubmission } from './credential-capture/credential-capture.js'
-import { trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
+import type { BrowserNetworkRecordingState, BrowserNetworkRequestRecord } from './network-recording.js'
+import type { SessionHooksAccess } from './session-hooks/session-hooks-access.js'
+import { installSessionHooks } from './session-hooks/session-hooks.js'
 import type { PerformanceEnvironmentAccess } from './emulation/performance-environment-access.js'
 import { performanceEnvironment, tabPerformanceEnvironmentFingerprint } from './emulation/performance-environment.js'
 import type { EmulationAccess } from './emulation/emulation-access.js'
@@ -6970,69 +6972,30 @@ export class BrowserTabsManager {
     tab.networkRequests = []
   }
 
-  private installSessionHooks(browserSession: Session): void {
-    if (!this.browserSessionAuthorityHooks.has(browserSession)) {
-      const onCookieChanged = (): void => {
-        if (this.destroyed) return
-        let changed = false
-        for (const tab of this.tabs.values()) {
-          if (tab.webContents.isDestroyed() || tab.webContents.session !== browserSession) continue
-          tab.browserSessionGeneration = tab.browserSessionGeneration === Number.MAX_SAFE_INTEGER
-            ? 0
-            : tab.browserSessionGeneration + 1
-          changed = true
-        }
-        // Authority generations still advance immediately, but a bulk import
-        // publishes its final state once instead of rerendering per cookie.
-        if (changed && !this.browserCookieImportSessions.has(browserSession)) this.changed(false)
-      }
-      browserSession.cookies.on('changed', onCookieChanged)
-      this.browserSessionAuthorityHooks.set(browserSession, onCookieChanged)
+  /**
+   * The narrow view a browser session's hooks get of this manager's private
+   * tabs, page tab ids, hooked sessions, cookie imports, network wait
+   * controller and downloads controller. It is a prototype method rather than
+   * a field, so managers created without the constructor (as unit tests do)
+   * still provide it.
+   */
+  private sessionHooksAccess(): SessionHooksAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      tabs: () => this.tabs.values(),
+      findTab: (tabId) => this.tabs.get(tabId),
+      tabIdForWebContents: (webContentsId) => this.webContentsToTab.get(webContentsId),
+      browserSessionAuthorityHooks: () => this.browserSessionAuthorityHooks,
+      browserCookieImportSessions: () => this.browserCookieImportSessions,
+      networkHookSessions: () => this.networkHookSessions,
+      changed: (persist) => this.changed(persist),
+      networkWaitController: () => this.networkWaitController,
+      downloadController: () => this.downloadController
     }
-    if (!this.networkHookSessions.has(browserSession)) {
-      this.networkHookSessions.add(browserSession)
-      browserSession.webRequest.onBeforeRequest((details, callback) => {
-        const tabId = details.webContentsId ? this.webContentsToTab.get(details.webContentsId) : undefined
-        const tab = tabId ? this.tabs.get(tabId) : undefined
-        if (tab && !tab.networkDebuggerEnabled) {
-          tab.networkRequests.push({
-            id: `web:${details.id}`,
-            captureSequence: ++tab.networkCaptureSequence,
-            observationGeneration: tab.observationGeneration,
-            url: details.url,
-            method: details.method,
-            resourceType: details.resourceType,
-            startedAt: new Date(details.timestamp).toISOString(),
-            detailsAvailable: false
-          })
-          trimNetworkRequests(tab)
-          this.networkWaitController.notify(tab)
-        }
-        callback({})
-      })
-      browserSession.webRequest.onCompleted((details) => {
-        const tabId = details.webContentsId ? this.webContentsToTab.get(details.webContentsId) : undefined
-        const request = tabId ? this.tabs.get(tabId)?.networkRequests.find((candidate) => candidate.id === `web:${details.id}`) : undefined
-        if (!request) return
-        request.completedAt = new Date().toISOString()
-        request.status = details.statusCode
-        request.fromCache = details.fromCache
-        request.responseSource = details.fromCache ? 'other-cache' : 'network'
-        const tab = tabId ? this.tabs.get(tabId) : undefined
-        if (tab) this.networkWaitController.notify(tab)
-      })
-      browserSession.webRequest.onErrorOccurred((details) => {
-        const tabId = details.webContentsId ? this.webContentsToTab.get(details.webContentsId) : undefined
-        const request = tabId ? this.tabs.get(tabId)?.networkRequests.find((candidate) => candidate.id === `web:${details.id}`) : undefined
-        if (!request) return
-        request.completedAt = new Date().toISOString()
-        request.error = details.error
-        const tab = tabId ? this.tabs.get(tabId) : undefined
-        if (tab) this.networkWaitController.notify(tab)
-      })
-    }
+  }
 
-    this.downloadController.attachSession(browserSession)
+  private installSessionHooks(browserSession: Session): void {
+    installSessionHooks(this.sessionHooksAccess(), browserSession)
   }
 
   private writeUniqueDownload(filename: string, data: Buffer, validate: () => void = () => undefined): Promise<string> {
