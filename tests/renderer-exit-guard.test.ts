@@ -126,6 +126,9 @@ describe('page calls across a renderer exit', () => {
       ['capture', { x: 1, y: 2, width: 3, height: 4 }, { stayHidden: true, stayAwake: false }],
       ['print', { landscape: true }]
     ])
+    // Hidden captures pass an explicit undefined rect, which must reach Electron as given.
+    void page.capturePage(undefined, { stayHidden: true, stayAwake: false })
+    expect(calls.at(-1)!.args).toStrictEqual([undefined, { stayHidden: true, stayAwake: false }])
     calls[0]!.reply.resolve({})
     calls[1]!.reply.resolve({ result: 1 })
     calls[2]!.reply.reject(new Error('Script failed'))

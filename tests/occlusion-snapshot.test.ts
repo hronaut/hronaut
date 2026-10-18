@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OCCLUSION_SNAPSHOT_TIMEOUT_MS, OcclusionSnapshot, type OcclusionSnapshotImage, type OcclusionSnapshotPorts } from '../src/main/browser/occlusion-snapshot.js'
+import { RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 import type { BrowserOcclusionSnapshot } from '../src/shared/types.js'
 
 function deferred<T>() {
@@ -153,6 +154,22 @@ describe('occlusion snapshot', () => {
     await vi.waitFor(() => expect(empty.ports.relayout).toHaveBeenCalledOnce())
     expect(empty.sent).toEqual([])
     expect(empty.ports.pagesHidden).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the healthy pane of a split view when the other pane has crashed', async () => {
+    const crashed = { capturePage: vi.fn(() => Promise.reject(new RendererExitedError(false))) }
+    const healthy = deferred<OcclusionSnapshotImage>()
+    const { snapshot, sent, ports } = setup({
+      panes: () => [
+        { contents: crashed, bounds: { x: 0, y: 100, width: 400, height: 450 } },
+        { contents: { capturePage: vi.fn(() => healthy.promise) }, bounds: { x: 400, y: 100, width: 400, height: 450 } }
+      ]
+    })
+    snapshot.begin()
+    healthy.resolve(image(800))
+    await vi.waitFor(() => expect(sent).toHaveLength(1))
+    expect(sent[0]?.panes.map(pane => pane.bounds.x)).toEqual([400])
+    expect(ports.relayout).not.toHaveBeenCalled()
   })
 
   it('captures a page right after its tab preview capture settles, not instead of it', async () => {

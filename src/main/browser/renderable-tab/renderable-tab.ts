@@ -1,4 +1,5 @@
 import { BrowserWindow, type WebContents } from 'electron'
+import { RendererExitedError } from '../renderer-exit-guard.js'
 import type { RenderableTab, RenderableTabAccess } from './renderable-tab-access.js'
 
 /** How long a hidden page's frame subscription waits before capture probes take over. */
@@ -12,7 +13,8 @@ const OFFSCREEN_PRESENTATION_TIMEOUT_MS = 15_000
  * offscreen, outside the visible window's viewport or in a hidden window,
  * waiting for a presented frame unless the mode needs only a surface or
  * prints, and is then restored to the current layout. It fails when the tab
- * closes meanwhile.
+ * closes meanwhile, and at once, without moving the view, when the page's
+ * renderer has exited: a crashed page never presents a frame.
  */
 export async function withRenderableTab<Tab extends RenderableTab, T>(
   access: RenderableTabAccess<Tab>,
@@ -37,6 +39,7 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
 
   try {
     if (!tabIsLive()) throw new Error('The tab closed while rendering its page.')
+    if (webContents.isCrashed()) throw new RendererExitedError(false)
     try {
       if (
         access.window().isVisible()
@@ -116,6 +119,7 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
       }
     } catch (error) {
       if (!tabIsLive()) throw new Error('The tab closed while rendering its page.')
+    if (webContents.isCrashed()) throw new RendererExitedError(false)
       throw error
     }
   } finally {
@@ -198,9 +202,11 @@ async function waitForPresentation(webContents: WebContents): Promise<void> {
           // can leave the direct capture pending under renderer pressure.
           const image = await webContents.capturePage()
           if (!image.isEmpty()) finish()
-        } catch {
-          // The compositor may still be attaching. Retry within the same
-          // bounded wait; invalidate() continues to request fresh frames.
+        } catch (error) {
+          // A renderer that exited presents no frame, so waiting is pointless.
+          if (error instanceof RendererExitedError) finish(error)
+          // Otherwise the compositor may still be attaching. Retry within the
+          // same bounded wait; invalidate() continues to request fresh frames.
         } finally {
           captureProbeInFlight = false
           if (!finished) {
