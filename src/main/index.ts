@@ -21,13 +21,11 @@ import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
 import { registerAgentPresenceIpc } from './agent-presence-ipc.js'
 import type { ConnectedAgent } from '../shared/agent-status.js'
 import type { HomeDashboard } from '../shared/home.js'
-import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '../shared/window-material.js'
 import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { createTrayAttention } from './tray-attention.js'
 import { mkdir } from 'node:fs/promises'
-import { release as osRelease } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
@@ -35,12 +33,10 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
-  Menu,
   nativeImage,
   nativeTheme,
   protocol,
   safeStorage,
-  screen,
   session,
   shell,
   WebContentsView,
@@ -106,8 +102,8 @@ import { registerSettingsIpc } from './settings-ipc.js'
 import { createBrowserSession } from './browser-session.js'
 import type { SitePermissionStore } from './site-permission-store.js'
 import { registerPermissionsIpc } from './permissions-ipc.js'
-import { restoreWindowBounds, WindowStateStore } from './window-state.js'
-import { applyWindowMaterial } from './window-material.js'
+import { WindowStateStore } from './window-state.js'
+import { createMainWindow, type MainWindowRefs } from './windows/main-window.js'
 import type {
   AppSettings,
   AppUpdateState,
@@ -131,13 +127,6 @@ import {
 import { registerEmulationIpc } from './emulation-ipc.js'
 import { registerPageGeometryIpc } from './page-geometry-ipc.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
-import {
-  dimTitleBarOverlay,
-  createAutoHideMenuGesture,
-  mainWindowChromeOptions,
-  titleBarOverlayStyle,
-  type DesktopWindowPlatform
-} from '../shared/title-bar.js'
 import { registerShellIpc } from './shell-ipc.js'
 import { createClipboardOperations } from './clipboard-operations.js'
 import { createPanelWindow } from './windows/panel-window.js'
@@ -146,7 +135,6 @@ import { createApplicationMenu } from './windows/application-menu.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
 import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 import { createMcpControlState } from './mcp-control-state.js'
-import type { MainWindowRefs } from './windows/main-window.js'
 import { registerAddressOverlayIpc } from './address-overlay-ipc.js'
 
 const mcpRuntime: McpRuntimeState = {
@@ -760,48 +748,19 @@ function resolvedTheme(theme: ThemeName): Exclude<ThemeName, 'system'> {
   return theme === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : theme
 }
 
-function desktopWindowPlatform(): DesktopWindowPlatform {
-  if (process.platform === 'darwin' || process.platform === 'win32') return process.platform
-  return 'linux'
-}
-
-function clearWindowControlsScrim(): void {
-  if (!mainWindowRefs.controlsScrim) return
-  mainWindowRefs.controlsScrim = null
-  applyMainWindowTitleBarOverlay()
-}
-
-function applyMainWindowTitleBarOverlay(): void {
-  if (
-    mainWindowRefs.chromeMode !== 'overlay'
-    || process.platform === 'darwin'
-    || !mainWindowRefs.window
-    || mainWindowRefs.window.isDestroyed()
-  ) return
-  mainWindowRefs.window.setTitleBarOverlay(dimTitleBarOverlay(titleBarOverlayStyle(
-    resolvedTheme(settings.theme),
-    settings.tabPosition,
-    settings.interfaceScale
-  ), mainWindowRefs.controlsScrim))
-}
-
-/** The material behind the main window's tab rail for the current settings and system, if any. */
-function currentWindowMaterial(): WindowMaterial | null {
-  return windowMaterialFor({
-    platform: desktopWindowPlatform(),
-    osRelease: osRelease(),
-    theme: resolvedTheme(settings.theme),
-    tabPosition: settings.tabPosition,
-    chrome: mainWindowRefs.chromeMode,
-    reducedTransparency: nativeTheme.prefersReducedTransparency,
-    forcedColors: nativeTheme.inForcedColorsMode || nativeTheme.shouldUseHighContrastColors
-  })
-}
-
-/** Shows or removes the material behind the main window's rail; the shell learns the result from its renderer state. */
-function applyMainWindowBackground(): void {
-  mainWindowRefs.material = applyWindowMaterial(mainWindowRefs.window, process.platform, mainWindowRefs.material, currentWindowMaterial(), THEME_BACKGROUND[resolvedTheme(settings.theme)])
-}
+const {
+  openMainWindow,
+  attachMenuBarGesture,
+  clearWindowControlsScrim,
+  applyMainWindowTitleBarOverlay,
+  applyMainWindowBackground
+} = createMainWindow({
+  refs: mainWindowRefs,
+  settings: () => settings,
+  resolvedTheme,
+  themeBackground: THEME_BACKGROUND,
+  acknowledgeUserAttention
+})
 
 function applyTheme(theme: ThemeName): void {
   nativeTheme.themeSource = theme === 'system' ? 'system' : themeColorScheme(theme)
@@ -1496,39 +1455,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'window-state.json'))
   panelWindowStateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))
   const savedWindowState = await mainWindowRefs.stateStore.load()
-  const displays = screen.getAllDisplays()
-  const primaryDisplay = screen.getPrimaryDisplay()
-  const orderedDisplays = [primaryDisplay, ...displays.filter((display) => display.id !== primaryDisplay.id)]
-  const bounds = restoreWindowBounds(savedWindowState, orderedDisplays, { width: 1320, height: 860 })
-  mainWindowRefs.chromeMode = settings.useSystemTitleBar ? 'system' : 'overlay'
-  const windowChromeOptions = mainWindowChromeOptions({
-    platform: desktopWindowPlatform(),
-    useSystemTitleBar: settings.useSystemTitleBar,
-    theme: resolvedTheme(settings.theme),
-    tabPosition: settings.tabPosition,
-    interfaceScale: settings.interfaceScale
-  })
-  mainWindowRefs.material = currentWindowMaterial()
-  mainWindowRefs.window = new BrowserWindow({
-    ...bounds,
-    ...windowChromeOptions,
-    minWidth: 760,
-    minHeight: 520,
-    show: false,
-    title: 'Hronaut',
-    backgroundColor: THEME_BACKGROUND[resolvedTheme(settings.theme)],
-    ...windowMaterialOptions(mainWindowRefs.material),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.cjs'),
-      additionalArguments: [
-        '--hronaut-window-kind=main',
-        `--hronaut-window-chrome=${mainWindowRefs.chromeMode}`
-      ],
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
-  })
+  mainWindowRefs.window = openMainWindow(savedWindowState)
   mainWindowRefs.window.webContents.setZoomFactor(settings.interfaceScale)
 
   const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletBroker)
@@ -1735,37 +1662,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     mainWindowRefs.controlsScrim = null
     mainWindowRefs.window = null
   })
-  const autoHideMenuGesture = createAutoHideMenuGesture(desktopWindowPlatform())
-  // Alt with a click, an Alt-drag of the window or a switch away from it is not Alt alone.
-  mainWindowRefs.window.on('blur', autoHideMenuGesture.reset)
-  mainWindowRefs.window.on('move', autoHideMenuGesture.reset)
-  mainWindowRefs.window.webContents.on('blur', autoHideMenuGesture.reset)
-  mainWindowRefs.window.webContents.on('before-input-event', (event, input) => {
-    if (input.type === 'keyDown' || input.type === 'rawKeyDown') acknowledgeUserAttention()
-    const menuGesture = autoHideMenuGesture(input)
-    if (menuGesture) event.preventDefault()
-    if (mainWindowRefs.window && menuGesture === 'toggle') {
-      if (mainWindowRefs.chromeMode === 'overlay') {
-        Menu.getApplicationMenu()?.popup({
-          window: mainWindowRefs.window,
-          x: 8,
-          y: titleBarOverlayStyle(
-            resolvedTheme(settings.theme),
-            settings.tabPosition,
-            settings.interfaceScale
-          ).height
-        })
-      } else {
-        mainWindowRefs.window.setMenuBarVisibility(!mainWindowRefs.window.isMenuBarVisible())
-      }
-    }
-  })
-  mainWindowRefs.window.webContents.on('before-mouse-event', (_event, mouse) => {
-    if (mouse.type === 'mouseDown' || mouse.type === 'contextMenu') {
-      acknowledgeUserAttention()
-      autoHideMenuGesture.reset()
-    }
-  })
+  attachMenuBarGesture()
   mainWindowRefs.window.webContents.on('did-finish-load', () => {
     applyInterfaceScale(settings.interfaceScale)
     if (tabsManager && mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
