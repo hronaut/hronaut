@@ -52,7 +52,8 @@ import type { PendingPdfExport } from './pdf-export-publication.js'
 import type { PdfExportAccess } from './pdf-export/pdf-export-access.js'
 import { savePdf } from './pdf-export/pdf-export.js'
 import { FrameObservationController } from './frame-observation.js'
-import { reactInspectionMenu } from './react-inspection-menu.js'
+import type { TabContextMenuAccess } from './context-menus/tab-context-menu-access.js'
+import { showTabContextMenu } from './context-menus/tab-context-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
 import type { ReactInspectionCommand } from '../../shared/react-inspection.js'
 import { BrowserPwaLifecycle } from './pwa-lifecycle.js'
@@ -2451,227 +2452,52 @@ export class BrowserTabsManager {
     Menu.buildFromTemplate(this.workspaceContextMenuItems(group)).popup({ window: this.window })
   }
 
+  /**
+   * The narrow view the tab context menu gets of this manager's private tabs,
+   * active tab, open workspaces, split view, recently closed tabs, window,
+   * options, localized text, React inspection and the tab commands the menu
+   * offers. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. Each action
+   * calls through it when it runs, so it reaches the manager as it is then.
+   */
+  private tabContextMenuAccess(): TabContextMenuAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      orderedTabs: () => this.orderedTabs(),
+      activeTabId: () => this.activeTabId,
+      findTab: (tabId) => this.tabs.get(tabId),
+      options: () => this.options,
+      mcpTabGroups: () => this.mcpTabGroups,
+      text: (key, parameters) => this.text(key, parameters),
+      workspaceContextMenuItems: (group) => this.workspaceContextMenuItems(group),
+      selectTabAndWait: (tabId) => this.selectTabAndWait(tabId),
+      openSplitViewAndWait: (tabId) => this.openSplitViewAndWait(tabId),
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      splitView: () => this.splitView,
+      updateSplitView: (updates) => this.updateSplitView(updates),
+      closeSplitView: () => this.closeSplitView(),
+      newTab: () => this.newTab(),
+      reload: (tabId) => this.reload(tabId),
+      reloadIgnoringCache: (tabId) => this.reloadIgnoringCache(tabId),
+      duplicateTab: (tabId) => this.duplicateTab(tabId),
+      reactInspectionController: () => this.reactInspectionController,
+      reactInspection: (tabId, command, authority) => this.reactInspection(tabId, command, authority),
+      setTabMuted: (tabId, muted) => this.setTabMuted(tabId, muted),
+      setTabPinned: (tabId, pinned) => this.setTabPinned(tabId, pinned),
+      setTabPageLifecycle: (tabId, state) => this.setTabPageLifecycle(tabId, state),
+      sleepBlockReason: (tab, allowActiveTab) => this.sleepBlockReason(tab, allowActiveTab),
+      sleepFallbackTab: (tab) => this.sleepFallbackTab(tab),
+      setTabSleepingFromContextMenu: (tabId, sleeping) => this.setTabSleepingFromContextMenu(tabId, sleeping),
+      reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
+      closeTabsForPerson: (tabIds) => this.closeTabsForPerson(tabIds),
+      closedTabs: () => this.closedTabs,
+      reopenClosedTab: () => this.reopenClosedTab(),
+      window: () => this.window
+    }
+  }
+
   showTabContextMenu(tabId: string): void {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) return
-    const websiteTabs = this.orderedTabs().filter((candidate) => !isHronautHomeUrl(candidate.url))
-    const workspaceTabs = websiteTabs.filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId)
-    const workspaceIndex = workspaceTabs.indexOf(tab)
-    const peers = workspaceTabs.filter((candidate) => candidate.pinned === tab.pinned)
-    const peerIndex = peers.indexOf(tab)
-    const otherTabs = workspaceTabs.filter((candidate) => !candidate.pinned && candidate.id !== tab.id)
-    const tabsToRight = tab.pinned
-      ? []
-      : workspaceTabs.slice(workspaceIndex + 1).filter((candidate) => !candidate.pinned)
-    const duplicateTabs = workspaceTabs.filter((candidate) => (
-      !candidate.pinned && candidate.id !== tab.id && candidate.url === tab.url
-    ))
-    const activeWebsiteTab = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
-    const reportError = (action: string) => (error: unknown): void => {
-      console.error(`[browser] Could not ${action} from tab context menu:`, error)
-      this.options.onActionFailed?.(action, error)
-    }
-    const runAction = (action: string, callback: () => unknown): void => {
-      try {
-        void Promise.resolve(callback()).catch(reportError(action))
-      } catch (error) {
-        reportError(action)(error)
-      }
-    }
-    const currentGroup = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const groupMenu: MenuItemConstructorOptions = currentGroup
-      ? {
-          id: 'workspace',
-          label: this.text('native.context.workspace', { name: currentGroup.name }),
-          submenu: this.workspaceContextMenuItems(currentGroup)
-        }
-      : {
-          id: 'workspace',
-          label: this.text('native.context.workspaceUnavailable'),
-          enabled: false
-        }
-    const openSplitWith = async (firstTabId: string, secondTabId: string): Promise<BrowserState> => {
-      const selected = await this.selectTabAndWait(firstTabId)
-      if (selected.activeTabId !== firstTabId) return selected
-      return this.openSplitViewAndWait(secondTabId)
-    }
-    const splitCandidates = websiteTabs.filter((candidate) => candidate.id !== tab.id)
-    const splitMenu: MenuItemConstructorOptions = this.splitViewContains(tab.id)
-      ? {
-          id: 'split-view',
-          label: this.text('native.context.splitView'),
-          submenu: [
-            {
-              id: 'split-side-by-side',
-              label: this.text('native.context.sideBySide'),
-              type: 'radio',
-              checked: this.splitView?.orientation === 'vertical',
-              click: () => runAction('change the split view layout', () => this.updateSplitView({ orientation: 'vertical' }))
-            },
-            {
-              id: 'split-stacked',
-              label: this.text('native.context.stacked'),
-              type: 'radio',
-              checked: this.splitView?.orientation === 'horizontal',
-              click: () => runAction('change the split view layout', () => this.updateSplitView({ orientation: 'horizontal' }))
-            },
-            { type: 'separator' },
-            {
-              id: 'swap-split-tabs',
-              label: this.text('native.context.swapTabs'),
-              click: () => runAction('swap the split view tabs', () => this.updateSplitView({ swap: true }))
-            },
-            {
-              id: 'close-split-view',
-              label: this.text('native.context.exitSplit'),
-              click: () => runAction('close the split view', () => this.closeSplitView())
-            }
-          ]
-        }
-      : activeWebsiteTab && !isHronautHomeUrl(activeWebsiteTab.url) && activeWebsiteTab.id !== tab.id
-        ? {
-            id: 'open-in-split-view',
-            label: this.text('native.context.openSplit'),
-            click: () => runAction('open the tab in split view', () => openSplitWith(activeWebsiteTab.id, tab.id))
-          }
-        : {
-            id: 'open-in-split-view',
-            label: this.text('native.context.openBeside'),
-            enabled: splitCandidates.length > 0,
-            submenu: splitCandidates.map((candidate) => ({
-              id: `split-with-${candidate.id}`,
-              label: (candidate.title || candidate.url).slice(0, 72),
-              click: () => runAction('open the tab in split view', () => openSplitWith(tab.id, candidate.id))
-            }))
-          }
-    const shouldSleepTab = !tab.sleeping
-    const verticalTabs = this.options.getTabPosition() === 'left'
-    const attentionWorkspaceId = tab.mcpGroupId
-    const attention = this.options.getTabAttention?.(tab.id, attentionWorkspaceId)
-    const menu = Menu.buildFromTemplate([
-      ...(attention ? [{
-        id: 'resolve-attention',
-        label: this.text('native.context.resolveAttention'),
-        click: () => runAction('resolve the attention request', () => {
-          if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
-            || tab.mcpGroupId !== attentionWorkspaceId) return
-          this.options.resolveTabAttention?.(attention.id, tab.id, attentionWorkspaceId)
-        })
-      }, { type: 'separator' as const }] : []),
-      {
-        id: 'new-tab',
-        label: this.text('native.context.newTab'),
-        click: () => runAction('open a new tab', () => this.newTab())
-      },
-      {
-        id: 'reload-tab',
-        label: this.text('native.context.reloadTab'),
-        click: () => runAction('reload the tab', () => this.reload(tab.id))
-      },
-      {
-        id: 'reload-tab-ignoring-cache',
-        label: this.text('native.context.reloadNoCache'),
-        click: () => runAction('reload the tab without cache', () => this.reloadIgnoringCache(tab.id))
-      },
-      {
-        id: 'duplicate-tab',
-        label: this.text('native.context.duplicateTab'),
-        click: () => runAction('duplicate the tab', () => this.duplicateTab(tab.id))
-      },
-      splitMenu,
-      reactInspectionMenu(this.reactInspectionController.status(tab.id), {
-        title: this.text('reactInspection.title'), enable: this.text('reactInspection.enable'),
-        disabled: this.text('reactInspection.disabled'), reloadRequired: this.text('reactInspection.reloadRequired'),
-        installed: this.text('reactInspection.installed'), residue: this.text('reactInspection.residue')
-      }, enabled => runAction('change React inspection', () => this.reactInspection(tab.id, { action: enabled ? 'enable' : 'disable' }, {
-        epoch: 'human-tab-control',
-        assertCurrent: () => { if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()) throw new Error('The tab changed') }
-      })), /^https?:/.test(tab.url) && !tab.sleeping),
-      {
-        id: tab.muted ? 'unmute-tab' : 'mute-tab',
-        label: this.text(tab.muted ? 'native.context.unmuteTab' : 'native.context.muteTab'),
-        click: () => runAction(tab.muted ? 'unmute the tab' : 'mute the tab', () => this.setTabMuted(tab.id, !tab.muted))
-      },
-      { type: 'separator' },
-      {
-        id: tab.pinned ? 'unpin-tab' : 'pin-tab',
-        label: this.text(tab.pinned ? 'native.context.unpinTab' : 'native.context.pinTab'),
-        click: () => runAction(tab.pinned ? 'unpin the tab' : 'pin the tab', () => this.setTabPinned(tab.id, !tab.pinned))
-      },
-      {
-        id: tab.pageLifecycleState === 'frozen' ? 'resume-page' : 'freeze-page',
-        label: this.text(tab.pageLifecycleState === 'frozen'
-          ? 'native.context.resumePage'
-          : tab.pageLifecycleState === 'unknown'
-            ? 'native.context.pageLifecycleUnknown'
-            : 'native.context.freezePage'),
-        enabled: tab.pageLifecycleState !== 'unknown' && !tab.sleeping && !tab.loading,
-        click: () => runAction(
-          tab.pageLifecycleState === 'frozen' ? 'resume the page' : 'freeze the page',
-          () => this.setTabPageLifecycle(tab.id, tab.pageLifecycleState === 'frozen' ? 'active' : 'frozen')
-        )
-      },
-      {
-        id: shouldSleepTab ? 'sleep-tab' : 'wake-tab',
-        label: this.text(shouldSleepTab ? 'native.context.sleepTab' : 'native.context.wakeTab'),
-        enabled: !shouldSleepTab || this.sleepBlockReason(
-          tab,
-          tab.id === this.activeTabId
-            && !this.splitViewContains(tab.id)
-            && this.sleepFallbackTab(tab) !== undefined
-        ) === undefined,
-        click: () => runAction(
-          shouldSleepTab ? 'put the tab to sleep' : 'wake the tab',
-          () => this.setTabSleepingFromContextMenu(tab.id, shouldSleepTab)
-        )
-      },
-      groupMenu,
-      { type: 'separator' },
-      {
-        id: 'move-tab-left',
-        label: this.text(verticalTabs ? 'native.context.moveUp' : 'native.context.moveLeft'),
-        enabled: peerIndex > 0,
-        click: () => runAction('move the tab left', () => this.reorderTab(tab.id, peers[peerIndex - 1]!.id, 'before'))
-      },
-      {
-        id: 'move-tab-right',
-        label: this.text(verticalTabs ? 'native.context.moveDown' : 'native.context.moveRight'),
-        enabled: peerIndex >= 0 && peerIndex < peers.length - 1,
-        click: () => runAction('move the tab right', () => this.reorderTab(tab.id, peers[peerIndex + 1]!.id, 'after'))
-      },
-      { type: 'separator' },
-      {
-        id: 'close-tab',
-        label: this.text('native.context.closeTab'),
-        click: () => runAction('close the tab', () => this.closeTabsForPerson([tab.id]))
-      },
-      {
-        id: 'close-other-tabs',
-        label: this.text('native.context.closeOthers'),
-        enabled: otherTabs.length > 0,
-        click: () => runAction('close other tabs', () => this.closeTabsForPerson(otherTabs.map((candidate) => candidate.id)))
-      },
-      {
-        id: 'close-tabs-to-right',
-        label: this.text(verticalTabs ? 'native.context.closeBelow' : 'native.context.closeRight'),
-        enabled: tabsToRight.length > 0,
-        click: () => runAction('close tabs to the right', () => this.closeTabsForPerson(tabsToRight.map((candidate) => candidate.id)))
-      },
-      {
-        id: 'close-duplicate-tabs',
-        label: this.text('native.context.closeDuplicates'),
-        enabled: duplicateTabs.length > 0,
-        click: () => runAction('close duplicate tabs', () => this.closeTabsForPerson(duplicateTabs.map((candidate) => candidate.id)))
-      },
-      { type: 'separator' },
-      {
-        id: 'reopen-closed-tab',
-        label: this.text('native.context.reopenClosed'),
-        enabled: this.closedTabs.length > 0,
-        click: () => runAction('reopen a closed tab', () => this.reopenClosedTab())
-      }
-    ])
-    menu.popup({ window: this.window })
+    showTabContextMenu(this.tabContextMenuAccess(), tabId)
   }
 
   /**
