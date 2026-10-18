@@ -16,7 +16,7 @@ import type {
   WalletServiceStatus,
   WalletUpdateInput
 } from '../../shared/wallet.js'
-import { WalletUpdateInputSchema, walletAllowsWorkspace } from '../../shared/wallet.js'
+import { walletAllowsWorkspace } from '../../shared/wallet.js'
 import type { WalletMessageSigningInput } from './accounts.js'
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
@@ -94,6 +94,7 @@ import {
 } from './broker/account-connections.js'
 import { transactionRequest, type TransactionRequestsAccess } from './broker/transaction-requests.js'
 import { messageRequest, type MessageRequestsAccess } from './broker/message-requests.js'
+import { removePolicy, removeWallet, revokePermission, setPolicy, updateWallet, type WalletManagementAccess } from './broker/wallet-management.js'
 import { sanitizedError } from './broker/sanitized-error.js'
 
 export interface WalletBrokerContext {
@@ -338,59 +339,35 @@ export class WalletBroker {
     return cancelAgentRequest(this.agentWalletAccess(), context, requestId)
   }
 
+  /** The narrow view wallet management gets of this broker's lifecycle queue and page connections. */
+  private walletManagementAccess(): WalletManagementAccess {
+    return {
+      service: this.service,
+      queueLifecycle: (operation) => this.queueLifecycle(operation),
+      reconcileProviderSessions: () => this.reconcileProviderSessions(),
+      rejectCancelled: () => this.rejectCancelled(),
+      now: () => this.now()
+    }
+  }
+
   updateWallet(walletId: string, changes: WalletUpdateInput): Promise<WalletDescriptor> {
-    return this.queueLifecycle(async () => {
-      const validated = WalletUpdateInputSchema.parse(changes)
-      try {
-        return await this.service.update(walletId, validated)
-      } finally {
-        this.reconcileProviderSessions()
-        this.rejectCancelled()
-      }
-    })
+    return updateWallet(this.walletManagementAccess(), walletId, changes)
   }
 
   setPolicy(input: WalletPolicy): Promise<WalletPolicy> {
-    return this.queueLifecycle(() => this.service.setPolicy(input))
+    return setPolicy(this.walletManagementAccess(), input)
   }
 
   removePolicy(policyId: string): Promise<boolean> {
-    return this.queueLifecycle(() => this.service.removePolicy(policyId))
+    return removePolicy(this.walletManagementAccess(), policyId)
   }
 
   removeWallet(walletId: string): Promise<boolean> {
-    return this.queueLifecycle(async () => {
-      try {
-        return await this.service.remove(walletId)
-      } finally {
-        this.reconcileProviderSessions()
-        this.rejectCancelled()
-      }
-    })
+    return removeWallet(this.walletManagementAccess(), walletId)
   }
 
   revokePermission(permissionId: string): Promise<boolean> {
-    return this.queueLifecycle(async () => {
-      const permission = this.service.permissions.get(permissionId)
-      if (!permission) return false
-      try {
-        await this.service.approvals.cancelForPermission(permission)
-        const revoked = await this.service.permissions.revoke(permissionId)
-        if (revoked) {
-          await this.service.audit.append('permission-revoked', {
-            permissionId,
-            walletId: permission.walletId,
-            workspaceId: permission.workspaceId,
-            origin: permission.origin,
-            requester: permission.requester
-          }, this.now().toISOString())
-        }
-        return revoked
-      } finally {
-        if (!this.service.permissions.get(permissionId)) this.reconcileProviderSessions()
-        this.rejectCancelled()
-      }
-    })
+    return revokePermission(this.walletManagementAccess(), permissionId)
   }
 
   refreshProviderSessions(): void {
