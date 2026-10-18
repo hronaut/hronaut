@@ -164,6 +164,7 @@ import { dropFiles, type FileDropResult } from './file-drop/file-drop.js'
 import type { FileDropAccess } from './file-drop/file-drop-access.js'
 import { shadowSnapshot, type BrowserShadowSnapshot } from './shadow-snapshot/shadow-snapshot.js'
 import type { ShadowSnapshotAccess } from './shadow-snapshot/shadow-snapshot-access.js'
+import { trackedViewportScreenshot, type TrackedScreenshot, type TrackedScreenshotAccess, type TrackedScreenshotOptions } from './screenshot-observations/tracked-screenshot.js'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import axe from 'axe-core'
 import {
@@ -4255,6 +4256,29 @@ export class BrowserTabsManager {
 
   screenshot(options: BrowserScreenshotOptions = {}): Promise<{ annotations?: ScreenshotAnnotationReport; data: Buffer; mimeType: 'image/png' | 'image/jpeg' }> {
     return screenshot(this.screenshotsAccess(), options)
+  }
+
+  /**
+   * The narrow view a tracked screenshot gets of this manager's private tabs,
+   * observation context and CSS state preview, and its ordinary viewport
+   * capture. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it.
+   */
+  private trackedScreenshotAccess(): TrackedScreenshotAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
+      cssStatePreview: (tab) => {
+        const summary = this.cssStatePreview.summary(tab)
+        return summary ? { states: [...summary.states], selector: summary.selector, startedAt: summary.startedAt, ...(summary.resetUncertain ? { resetUncertain: true } : {}) } : undefined
+      },
+      captureViewport: (options) => screenshot(this.screenshotsAccess(), options)
+    }
+  }
+
+  trackedScreenshot(options: TrackedScreenshotOptions): Promise<TrackedScreenshot> {
+    return trackedViewportScreenshot(this.trackedScreenshotAccess(), options)
   }
 
   /**
