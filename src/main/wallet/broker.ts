@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto'
-import { isDeepStrictEqual } from 'node:util'
 import {
   reconcileAccountProviderSessions,
   type AccountProviderSession,
@@ -41,7 +40,6 @@ import type {
 } from './adapters/types.js'
 import { walletJsonSafe } from './json-safe.js'
 import {
-  isMainnetAgentAutomationPolicy,
   WalletPolicyEngine,
   type WalletPolicyDecision,
   type WalletWebsiteSignInEvaluation
@@ -49,7 +47,6 @@ import {
 import type { WalletService } from './service.js'
 import {
   agentSummary,
-  sanitizedSimulation,
   summary,
   trustedMessageDisplay,
   trustedMessageRaw
@@ -98,6 +95,7 @@ import {
   disconnectWallet,
   type AccountConnectionsAccess
 } from './broker/account-connections.js'
+import { transactionRequest, type TransactionRequestsAccess } from './broker/transaction-requests.js'
 import { sanitizedError } from './broker/sanitized-error.js'
 
 export interface WalletBrokerContext {
@@ -623,125 +621,29 @@ export class WalletBroker {
     return connect(this.accountConnectionsAccess(), context, wallet)
   }
 
-  private async transactionRequest(
-    context: WalletBrokerContext,
-    wallet: WalletDescriptor,
-    payload: unknown,
-    broadcast: boolean,
-    returnSummary = false,
-    prepared?: WalletNormalizedTransaction
-  ): Promise<unknown> {
-    const adapter = this.adapters[wallet.chainFamily]
-    const normalized = prepared ?? await adapter.normalizeTransaction(wallet, payload)
-    this.assertRequestContextActive(context)
-    const operation: WalletOperation = broadcast ? 'sign-and-send-transaction' : 'sign-transaction'
-    const currentWallet = this.requireAccessibleWallet(context, wallet.id)
-    this.assertAddressPermission(context, currentWallet, broadcast ? 'send' : 'sign')
-    const record = await this.createRequest(context, currentWallet, operation, broadcast ? 'send' : 'sign', {
-      normalized: walletJsonSafe(normalized)
-    })
-    try {
-      await this.service.approvals.transition(record.id, 'validated', this.now())
-      const simulation = sanitizedSimulation(await adapter.simulate(wallet, normalized))
-      this.assertRequestContextActive(context)
-      await this.service.approvals.recordSimulation(record.id, simulation, this.now())
-      await this.service.approvals.transition(record.id, 'simulated', this.now())
-      await this.service.approvals.transition(record.id, 'policy-decision', this.now())
-      const policies = this.service.policies.list(wallet.id)
-        .filter((policy) => wallet.policyIds.includes(policy.id))
-      const policyUsage = new Map(policies.map((policy) => [
-        policy.id,
-        this.service.policyUsage.snapshot(policy.id, this.now())
-      ]))
-      const usageByPolicy = Object.fromEntries([...policyUsage].map(([policyId, usage]) => [policyId, {
-        sessionSpend: usage.sessionSpend,
-        dailySpend: usage.dailySpend,
-        operationCount: usage.operationCount
-      }]))
-      const decision = this.policy.evaluate({
-        request: this.service.approvals.get(record.id)!.request,
-        wallet,
-        policies,
-        decoded: normalized.decoded,
-        simulation,
-        now: this.now(),
-        sessionSpend: '0', dailySpend: '0', operationCount: 0, usageByPolicy
-      })
-      await this.service.audit.append('request-simulated', {
-        requestId: record.id, walletId: wallet.id, success: simulation.success, attempted: simulation.attempted,
-        policyDecision: decision.outcome, reason: decision.reason
-      }, this.now().toISOString())
-      if (decision.outcome === 'rejected') {
-        await this.service.approvals.transition(record.id, 'rejected', this.now())
-        this.clearRequestExpiry(record.id)
-        throw new Error(`Wallet policy rejected the request: ${decision.reason}`)
-      }
-      if (decision.outcome === 'approved') {
-        this.assertRequestContextActive(context)
-        const policy = policies.find((entry) => entry.id === decision.policyId)
-        if (!policy) throw new Error('Wallet automatic policy is unavailable')
-        const reservation = await this.service.policyUsage.reserve(policy, normalized.decoded.nativeAmount, this.now())
-        if (!reservation.reserved) {
-          await this.service.audit.append('policy-reservation-denied', {
-            requestId: record.id, walletId: wallet.id, policyId: policy.id, reason: reservation.reason
-          }, this.now().toISOString())
-          await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
-          if (returnSummary) this.publish()
-          return returnSummary
-            ? agentSummary(this.service.approvals.get(record.id)!, wallet)
-            : this.wait(record.id)
-        }
-        await this.service.audit.append('policy-reservation-created', {
-          requestId: record.id, walletId: wallet.id, policyId: policy.id,
-          operationCount: reservation.snapshot.operationCount,
-          sessionSpend: reservation.snapshot.sessionSpend,
-          dailySpend: reservation.snapshot.dailySpend
-        }, this.now().toISOString())
-        let policyInvalidated = false
-        const result = await this.queueLifecycle(async () => {
-          this.assertRequestContextActive(context)
-          const currentWallet = this.requireAccessibleWallet(context, wallet.id)
-          const currentPolicy = this.service.policies.list(wallet.id)
-            .find((entry) => entry.id === policy.id)
-          const authorizationNow = this.now()
-          if (
-            !currentPolicy
-            || !currentWallet.policyIds.includes(policy.id)
-            || !isDeepStrictEqual(currentPolicy, policy)
-            || Date.parse(currentPolicy.expiresAt) <= authorizationNow.getTime()
-            || (
-              currentWallet.network.environment === 'mainnet'
-              && !isMainnetAgentAutomationPolicy(currentPolicy, authorizationNow)
-            )
-          ) {
-            policyInvalidated = true
-            await this.service.audit.append('policy-authorization-invalidated', {
-              requestId: record.id, walletId: wallet.id, policyId: policy.id
-            }, this.now().toISOString())
-            await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
-            return undefined
-          }
-          const current = this.service.approvals.get(record.id)!
-          await this.service.approvals.approve(record.id, current.request, this.now())
-          this.assertRequestContextActive(context)
-          return this.execute(this.service.approvals.get(record.id)!, context)
-        })
-        if (policyInvalidated) {
-          const current = this.service.approvals.get(record.id)!
-          if (returnSummary) this.publish()
-          return returnSummary ? agentSummary(current, this.requireWallet(wallet.id)) : this.wait(record.id)
-        }
-        this.clearRequestExpiry(record.id)
-        return returnSummary ? agentSummary(this.service.approvals.get(record.id)!, wallet) : result
-      }
-      await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
-      if (returnSummary) this.publish()
-      return returnSummary
-        ? agentSummary(this.service.approvals.get(record.id)!, wallet)
-        : this.wait(record.id)
-    } catch (error) {
-      throw await this.fail(record.id, error)
+  /** The narrow view transaction requests get of this broker's policy engine and request path. */
+  private transactionRequestsAccess(): TransactionRequestsAccess {
+    return {
+      service: this.service,
+      adapters: this.adapters,
+      policy: this.policy,
+      assertRequestContextActive: (context) => this.assertRequestContextActive(context),
+      requireAccessibleWallet: (context, walletId) => this.requireAccessibleWallet(context, walletId),
+      requireWallet: (walletId) => this.requireWallet(walletId),
+      assertAddressPermission: (context, wallet, capability) => this.assertAddressPermission(context, wallet, capability),
+      createRequest: (context, wallet, operation, capability, payload) => this.createRequest(context, wallet, operation, capability, payload),
+      execute: (record, activeAgentContext) => this.execute(record, activeAgentContext),
+      wait: (requestId) => this.wait(requestId),
+      fail: (requestId, error) => this.fail(requestId, error),
+      clearRequestExpiry: (requestId) => this.clearRequestExpiry(requestId),
+      queueLifecycle: (operation) => this.queueLifecycle(operation),
+      publish: () => this.publish(),
+      now: () => this.now()
     }
+  }
+
+  private transactionRequest(context: WalletBrokerContext, wallet: WalletDescriptor, payload: unknown, broadcast: boolean, returnSummary = false, prepared?: WalletNormalizedTransaction): Promise<unknown> {
+    return transactionRequest(this.transactionRequestsAccess(), context, wallet, payload, broadcast, returnSummary, prepared)
   }
 
   private async messageRequest(
