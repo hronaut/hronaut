@@ -144,7 +144,6 @@ import type {
   CredentialStorageStatus,
   CommercialLicenseState,
   DetachablePanelId,
-  HelpMenuAction,
   LanguagePreference,
   McpControlState,
   McpServerStatus,
@@ -182,6 +181,7 @@ import type {
   AddressSuggestionSelection
 } from '../shared/address-suggestions.js'
 import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
+import { createApplicationMenu } from './windows/application-menu.js'
 
 let MCP_HOST = process.env.HRONAUT_MCP_HOST || '127.0.0.1'
 const MCP_AUTH_DISABLED = process.env.HRONAUT_DISABLE_MCP_AUTH === '1'
@@ -1741,143 +1741,15 @@ function createTray(): boolean {
   }
 }
 
-function requestHelp(action: HelpMenuAction): void {
-  showWindow()
-  if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('help:open', action)
-}
-
-function openRepository(): void {
-  showWindow()
-  runNativeBrowserAction(
-    'open GitHub repository',
-    () => tabsManager?.newTab({ url: 'https://github.com/hronaut/hronaut', active: true })
-  )
-}
-
-function installApplicationMenu(): void {
-  Menu.setApplicationMenu(
-    Menu.buildFromTemplate([
-      {
-        label: 'Hronaut',
-        submenu: [
-          { label: text('native.menu.show'), accelerator: 'CmdOrCtrl+Shift+H', click: showWindow },
-          {
-            label: text('native.menu.checkUpdates'),
-            click: () => {
-              showWindow()
-              mainWindow?.webContents.send('updates:open')
-              void checkForUpdates()
-            }
-          },
-          { type: 'separator' },
-          {
-            label: text('native.menu.quit'),
-            accelerator: 'CmdOrCtrl+Q',
-            click: () => {
-              quitting = true
-              app.quit()
-            }
-          }
-        ]
-      },
-      {
-        label: text('native.menu.edit'),
-        submenu: [
-          { role: 'undo' },
-          { role: 'redo' },
-          { type: 'separator' },
-          { role: 'cut' },
-          { role: 'copy' },
-          { role: 'paste' },
-          { role: 'selectAll' }
-        ]
-      },
-      {
-        label: text('native.menu.view'),
-        submenu: [
-          {
-            label: text('native.menu.commandPalette'),
-            accelerator: 'CmdOrCtrl+Shift+P',
-            click: () => {
-              showWindow()
-              mainWindow?.webContents.send('browser:shortcut-requested', 'command-palette')
-            }
-          },
-          {
-            label: text('native.menu.pickElement'),
-            accelerator: process.platform === 'darwin' ? 'Cmd+Alt+C' : 'Ctrl+Shift+C',
-            click: () => {
-              showWindow()
-              mainWindow?.webContents.send('browser:shortcut-requested', 'pick-element')
-            }
-          },
-          { type: 'separator' },
-          {
-            label: text('native.menu.reload'),
-            accelerator: 'CmdOrCtrl+R',
-            click: () => runNativeBrowserAction('reload', () => tabsManager?.reload())
-          },
-          {
-            label: text('native.menu.reloadWithoutCache'),
-            accelerator: 'CmdOrCtrl+Shift+R',
-            click: () => runNativeBrowserAction('reload without cache', () => tabsManager?.reloadIgnoringCache())
-          },
-          {
-            label: text('native.menu.developerTools'),
-            click: () => runNativeBrowserAction('toggle Developer Tools', () => tabsManager?.toggleDevTools())
-          },
-          {
-            label: text('native.menu.fullPageView'),
-            accelerator: 'CmdOrCtrl+Shift+F',
-            click: () => {
-              showWindow()
-              mainWindow?.webContents.send('browser:shortcut-requested', 'toggle-full-page')
-            }
-          },
-          { type: 'separator' },
-          {
-            label: text('native.menu.actualSize'),
-            accelerator: 'CmdOrCtrl+0',
-            click: () => runNativeBrowserAction('reset page zoom', () => tabsManager?.setZoom({ action: 'reset' }))
-          },
-          {
-            label: text('native.menu.zoomIn'),
-            accelerator: 'CmdOrCtrl+Plus',
-            click: () => runNativeBrowserAction('zoom in', () => tabsManager?.setZoom({ action: 'in' }))
-          },
-          {
-            label: text('native.menu.zoomOut'),
-            accelerator: 'CmdOrCtrl+-',
-            click: () => runNativeBrowserAction('zoom out', () => tabsManager?.setZoom({ action: 'out' }))
-          },
-          { role: 'togglefullscreen' }
-        ]
-      },
-      {
-        label: text('native.menu.help'),
-        submenu: [
-          {
-            label: text('native.menu.shortcuts'),
-            accelerator: 'CmdOrCtrl+Shift+/',
-            click: () => requestHelp('shortcuts')
-          },
-          { label: text('native.menu.about'), click: () => requestHelp('about') },
-          { label: text('native.menu.support'), click: () => requestHelp('support') },
-          { type: 'separator' },
-          { label: text('native.menu.repository'), click: openRepository },
-          {
-            label: text('native.menu.checkUpdatesPlain'),
-            click: () => {
-              showWindow()
-              mainWindow?.webContents.send('updates:open')
-              void checkForUpdates()
-            }
-          }
-        ]
-      }
-    ])
-  )
-}
+const { installApplicationMenu } = createApplicationMenu({
+  text,
+  showWindow,
+  mainWindow: () => mainWindow,
+  checkForUpdates,
+  setQuitting: (value) => { quitting = value },
+  runNativeBrowserAction,
+  tabs: () => tabsManager
+})
 
 function trustedShellUrl(): string {
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
