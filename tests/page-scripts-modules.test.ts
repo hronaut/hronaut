@@ -9,7 +9,7 @@ const lineCount = (text: string): number => text.split('\n').length - (text.ends
 describe('page script modules', () => {
   it('keeps src/main/browser/page-scripts.ts a barrel of re-export statements only', () => {
     const lines = readFileSync(barrelFile, 'utf8').split('\n').filter(line => line.trim() !== '')
-    expect(lines.filter(line => !/^export (?:\*|(?:type )?\{[^}]*\}) from '\.\/page-scripts\/[\w-]+\.js'$/u.test(line))).toEqual([])
+    expect(lines.filter(line => !/^export \* from '\.\/page-scripts\/[\w-]+\.js'$/u.test(line))).toEqual([])
   })
 
   it('re-exports every feature module in src/main/browser/page-scripts/', () => {
@@ -19,12 +19,11 @@ describe('page script modules', () => {
     expect(reexported.sort()).toEqual(moduleFiles)
   })
 
-  it('keeps each feature module self-contained, importing no other page script module', () => {
-    const siblingImports = moduleFiles.flatMap(file => readFileSync(`${modulesDirectory}/${file}`, 'utf8')
-      .split('\n')
-      .filter(line => /^(?:import|export)\s.*\sfrom '\.\//u.test(line))
-      .map(line => `${file}: ${line}`))
-    expect(siblingImports).toEqual([])
+  it('keeps each feature module self-contained, importing no other page script module or the barrel', () => {
+    const pageScriptImports = moduleFiles.flatMap(file => [...readFileSync(`${modulesDirectory}/${file}`, 'utf8')
+      .matchAll(/(?:\bfrom|\bimport\s*\(?)\s*['"]((?:\.\/|\.\.\/page-scripts)[^'"]*)['"]/gu)]
+      .map(match => `${file}: ${match[1]}`))
+    expect(pageScriptImports).toEqual([])
   })
 
   it('keeps every feature module under 800 lines', () => {
