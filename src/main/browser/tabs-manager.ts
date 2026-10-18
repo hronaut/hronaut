@@ -393,6 +393,8 @@ import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
 import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
+import type { PageNavigationAccess } from './page-navigation/page-navigation-access.js'
+import { back, forward, navigate, reload, reloadIgnoringCache, stop } from './page-navigation/page-navigation.js'
 import {
   evaluateWorkspaceNavigation,
   normalizeWorkspaceNavigationPolicy,
@@ -3965,136 +3967,50 @@ export class BrowserTabsManager {
     group.lastUsedAt = new Date().toISOString()
   }
 
-  async navigate(url: string, tabId?: string): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    const normalized = normalizeAddress(url, this.options.getSearchEngine?.())
-    if (tab.mcpGroupId && isHronautHomeUrl(normalized)) {
-      throw new Error('Hronaut Home is a human application page and cannot be opened inside an agent workspace.')
+  /**
+   * The narrow view navigation gets of this manager's private tabs, search
+   * engine setting, workspace navigation policy, diagnostic log reset,
+   * renderer recovery, waking, page waits and state publication. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's results directly, so callers see the same ticks as
+   * before.
+   */
+  private pageNavigationAccess(): PageNavigationAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      searchEngine: () => this.options.getSearchEngine?.(),
+      assertWorkspaceNavigationAllowed: (groupId, url, source) => this.assertWorkspaceNavigationAllowed(groupId, url, source),
+      workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
+      prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
+      isRendererRecovering: (webContents) => this.rendererRecovery.isRecovering(webContents),
+      recoverRenderer: (webContents, loadReplacement) => this.rendererRecovery.recover(webContents, loadReplacement),
+      wakeTab: (tabId) => this.wakeTab(tabId),
+      waitForPage: (tabId, timeoutMs) => this.waitForPage(tabId, timeoutMs),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
-    if (tab.mcpGroupId) {
-      this.assertWorkspaceNavigationAllowed(tab.mcpGroupId, normalized, 'direct')
-    }
-    const navigationPolicyDenialSequence = tab.navigationPolicyDenialSequence
-    this.prepareDiagnosticNavigation(tab)
-    type NavigationOutcome =
-      | { kind: 'loaded' }
-      | { kind: 'failed'; error: unknown }
-      | { kind: 'policy-denied' }
-    let resolvePolicyDenial!: (outcome: NavigationOutcome) => void
-    const policyDenial = new Promise<NavigationOutcome>((resolve) => {
-      resolvePolicyDenial = resolve
-    })
-    const detectPolicyDenial = (): void => {
-      if (tab.navigationPolicyDenialSequence !== navigationPolicyDenialSequence) {
-        resolvePolicyDenial({ kind: 'policy-denied' })
-      }
-    }
-    tab.webContents.on('will-frame-navigate', detectPolicyDenial)
-    tab.webContents.on('will-redirect', detectPolicyDenial)
-    const load = tab.webContents.loadURL(normalized).then<NavigationOutcome, NavigationOutcome>(
-      () => ({ kind: 'loaded' }),
-      (error: unknown) => ({ kind: 'failed', error })
-    )
-    let outcome: NavigationOutcome
-    try {
-      // Electron can leave loadURL pending after preventDefault() rejects a
-      // redirect. A policy decision is already terminal for this navigation,
-      // so do not strand renderer IPC waiting for a load event that may never
-      // arrive under compositor pressure.
-      outcome = await Promise.race([load, policyDenial])
-    } finally {
-      tab.webContents.removeListener('will-frame-navigate', detectPolicyDenial)
-      tab.webContents.removeListener('will-redirect', detectPolicyDenial)
-    }
-    if (outcome.kind === 'failed') {
-      if (
-        this.tabs.get(tab.id) === tab
-        && !isAbortedLoad(outcome.error)
-        && tab.navigationPolicyDenialSequence === navigationPolicyDenialSequence
-      ) throw outcome.error
-    }
-    return this.getState()
   }
 
-  async back(tabId?: string): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    if (tab.webContents.navigationHistory.canGoBack()) {
-      const history = tab.webContents.navigationHistory
-      const target = history.getAllEntries()[history.getActiveIndex() - 1]
-      if (tab.mcpGroupId
-        && target
-        && !this.workspaceNavigationAllowed(tab.mcpGroupId, target.url, 'history')) return this.getState()
-      this.prepareDiagnosticNavigation(tab)
-      await history.goBack()
-    }
-    return this.getState()
+  navigate(url: string, tabId?: string): Promise<BrowserState> {
+    return navigate(this.pageNavigationAccess(), url, tabId)
   }
 
-  async forward(tabId?: string): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    if (tab.webContents.navigationHistory.canGoForward()) {
-      const history = tab.webContents.navigationHistory
-      const target = history.getAllEntries()[history.getActiveIndex() + 1]
-      if (tab.mcpGroupId
-        && target
-        && !this.workspaceNavigationAllowed(tab.mcpGroupId, target.url, 'history')) return this.getState()
-      this.prepareDiagnosticNavigation(tab)
-      await history.goForward()
-    }
-    return this.getState()
+  back(tabId?: string): Promise<BrowserState> {
+    return back(this.pageNavigationAccess(), tabId)
   }
 
-  async reload(tabId?: string): Promise<BrowserState> {
-    return this.reloadPage(tabId, false)
+  forward(tabId?: string): Promise<BrowserState> {
+    return forward(this.pageNavigationAccess(), tabId)
   }
 
-  async reloadIgnoringCache(tabId?: string): Promise<BrowserState> {
-    return this.reloadPage(tabId, true)
+  reload(tabId?: string): Promise<BrowserState> {
+    return reload(this.pageNavigationAccess(), tabId)
   }
 
-  private async reloadPage(tabId: string | undefined, ignoreCache: boolean): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    if (this.rendererRecovery.isRecovering(tab.webContents)) throw new Error('The tab renderer is already being recovered.')
-    this.prepareDiagnosticNavigation(tab)
-    if (tab.sleeping || tab.wakePromise) {
-      await this.wakeTab(tab.id)
-      if (!ignoreCache) return this.getState()
-    }
-    const pageProblem = tab.pageProblem
-    tab.pageProblem = undefined
-    this.changed(false)
-    if (pageProblem?.kind === 'load-error' || pageProblem?.kind === 'renderer-gone') {
-      await tab.webContents.loadURL(pageProblem.url, ignoreCache
-        ? { extraHeaders: 'Cache-Control: no-cache\r\nPragma: no-cache\r\n' }
-        : undefined).catch(() => undefined)
-    } else if (pageProblem?.kind === 'unresponsive') {
-      const contents = tab.webContents
-      const navigationGeneration = tab.navigationGeneration
-      const isCurrent = (): boolean => this.tabs.get(tab.id) === tab
-        && tab.webContents === contents && !contents.isDestroyed()
-        && tab.navigationGeneration === navigationGeneration
-      try {
-        await this.rendererRecovery.recover(contents, async () => {
-          if (!isCurrent()) throw new Error('The page changed while recovering its renderer.')
-          // Reloading before the old process exits can stop at its crash rather
-          // than load a replacement. Await that one intentional exit first.
-          if (ignoreCache) contents.reloadIgnoringCache()
-          else contents.reload()
-          await this.waitForPage(tab.id, 30_000)
-        })
-      } catch (error) {
-        if (isCurrent() && !tab.pageProblem) {
-          tab.pageProblem = pageProblem
-          this.changed(false)
-        }
-        throw error
-      }
-    } else {
-      if (ignoreCache) tab.webContents.reloadIgnoringCache()
-      else tab.webContents.reload()
-    }
-    await this.waitForPage(tab.id, 30_000)
-    return this.getState()
+  reloadIgnoringCache(tabId?: string): Promise<BrowserState> {
+    return reloadIgnoringCache(this.pageNavigationAccess(), tabId)
   }
 
   async findInPage(
@@ -4201,8 +4117,7 @@ export class BrowserTabsManager {
   }
 
   stop(tabId?: string): BrowserState {
-    this.getTab(tabId).webContents.stop()
-    return this.getState()
+    return stop(this.pageNavigationAccess(), tabId)
   }
 
   /**
