@@ -184,7 +184,8 @@ import { dispatchNativeDrag, type PointerDebugger } from './native-pointer.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import type { PageAuditsAccess } from './page-audits/page-audits-access.js'
 import { accessibilityAudit } from './page-audits/accessibility-audit.js'
-import { buildBrowserDebugReport } from '../../shared/debug-report.js'
+import type { DebugReportAccess } from './debug-report/debug-report-access.js'
+import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnosticLogState, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
 import { recordTrustedCredentialFill } from './trusted-credential-fill.js'
 import {
   normalizeConsoleLogEntry,
@@ -197,7 +198,6 @@ import {
   type CdpRuntimeConsoleCall,
   type CdpRuntimeExceptionDetails
 } from '../../shared/console-exceptions.js'
-import { countConsoleEvents } from '../../shared/console-messages.js'
 import { securityReport } from './page-audits/security-report.js'
 import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
 import { WorkspaceTemplateImporter } from './workspace-template-import.js'
@@ -5195,19 +5195,27 @@ export class BrowserTabsManager {
     return saveNetworkHar(this.networkInspectionAccess(), options)
   }
 
+  /**
+   * The narrow view the debug report and the diagnostic logs get of this
+   * manager's private tabs, emulation projection, console message reading,
+   * current request list, request summaries and state publication. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's value directly, and stay synchronous.
+   */
+  private debugReportAccess(): DebugReportAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      emulationProjection: (tab) => this.emulationProjection(tab),
+      consoleMessages: (tabId) => this.consoleMessages(tabId),
+      currentNetworkRequests: (tab) => this.currentNetworkRequests(tab),
+      networkRequestSummary: (request) => this.networkRequestSummary(request),
+      changed: (persist) => this.changed(persist)
+    }
+  }
+
   debugReport(options: BrowserDebugReportOptions = {}): BrowserDebugReport {
-    const tab = this.getTab(options.tabId)
-    return buildBrowserDebugReport({
-      tabId: tab.id,
-      title: tab.title,
-      url: tab.url,
-      ...(tab.pageProblem ? { pageProblem: { ...tab.pageProblem } } : {}),
-      ...this.emulationProjection(tab),
-      networkRouteCount: tab.networkRoutes.length,
-      consoleMessages: this.consoleMessages(tab.id),
-      networkRequests: this.currentNetworkRequests(tab).map((request) => this.networkRequestSummary(request)),
-      options
-    })
+    return debugReport(this.debugReportAccess(), options)
   }
 
   auditEvidenceAvailability(tabId: string): {
@@ -5218,49 +5226,19 @@ export class BrowserTabsManager {
     storageSupported: boolean
     reproduction: boolean
   } {
-    const tab = this.getTab(tabId)
-    let origin: string | undefined
-    try {
-      const url = new URL(tab.url)
-      if (url.protocol === 'http:' || url.protocol === 'https:') origin = url.origin
-    } catch {
-      // Invalid or internal URLs do not support storage-change snapshots.
-    }
-    return {
-      diagnostic: true,
-      network: true,
-      domChanges: tab.domChangesRecording?.observationGeneration === tab.observationGeneration,
-      storageChanges: !!origin && tab.storageComparison?.baseline.origin === origin,
-      storageSupported: origin !== undefined,
-      reproduction: tab.reproRecording !== undefined
-    }
+    return auditEvidenceAvailability(this.debugReportAccess(), tabId)
   }
 
   diagnosticLogState(tabId?: string): BrowserDiagnosticLogState {
-    const tab = this.getTab(tabId)
-    return {
-      tabId: tab.id,
-      url: redactNetworkUrl(tab.url),
-      preserveAcrossNavigation: tab.preserveDiagnosticLogs,
-      consoleMessageCount: countConsoleEvents(tab.consoleMessages.filter(message => message.observationGeneration === tab.observationGeneration)),
-      networkRequestCount: this.currentNetworkRequests(tab).length
-    }
+    return diagnosticLogState(this.debugReportAccess(), tabId)
   }
 
   setDiagnosticLogPreservation(tabId: string, preserve: boolean): BrowserDiagnosticLogState {
-    const tab = this.getTab(tabId)
-    tab.preserveDiagnosticLogs = preserve
-    this.changed(false)
-    return this.diagnosticLogState(tab.id)
+    return setDiagnosticLogPreservation(this.debugReportAccess(), tabId, preserve)
   }
 
   clearDiagnosticLogs(tabId?: string): BrowserDiagnosticLogState {
-    const tab = this.getTab(tabId)
-    tab.consoleMessages = []
-    tab.pendingRuntimeConsoleMessages = []
-    tab.networkRequests = []
-    this.changed(false)
-    return this.diagnosticLogState(tab.id)
+    return clearDiagnosticLogs(this.debugReportAccess(), tabId)
   }
 
   async videoRecording(options: BrowserVideoOptions, validateAuthority: () => void = () => undefined, signal?: AbortSignal): Promise<BrowserVideoState> {
