@@ -208,14 +208,16 @@ test('Home keeps client setup accessible in a compact layout across themes and l
       for (const width of [1200, 760]) {
         await resizeHome(electronApp, width)
         await home('scrollTo(0, 0); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
-        const layout = await home<{ setupTop: number; copyTop: number; guideBottom: number; titleSize: number; background: string; overflow: number; listHeight: number }>(`(() => ({
+        const layout = await home<{ setupTop: number; copyTop: number; guideBottom: number; titleSize: number; background: string; overflow: number; listHeight: number; statusOverflow: number; statusGap: number }>(`(() => ({
           setupTop: document.getElementById('setup').getBoundingClientRect().top,
           copyTop: document.querySelector('[data-copy-target="guide-code"]').getBoundingClientRect().top,
           guideBottom: document.querySelector('[data-agent-guide]').getBoundingClientRect().bottom,
           titleSize: parseFloat(getComputedStyle(document.querySelector('h1')).fontSize),
           background: getComputedStyle(document.body).backgroundImage,
           overflow: document.documentElement.scrollWidth - innerWidth,
-          listHeight: document.getElementById('agent-list').getBoundingClientRect().height
+          listHeight: document.getElementById('agent-list').getBoundingClientRect().height,
+          statusOverflow: document.getElementById('server-state').scrollWidth - document.getElementById('server-state').clientWidth,
+          statusGap: document.querySelector('.status-details > summary').getBoundingClientRect().left - document.getElementById('server-state').getBoundingClientRect().right
         }))()`)
         expect.soft(layout.setupTop, `${locale}/${theme}/${width}: setup starts near the navigation`).toBeLessThan(300)
         expect.soft(layout.copyTop, `${locale}/${theme}/${width}: primary setup action is immediately reachable`).toBeLessThan(600)
@@ -224,6 +226,9 @@ test('Home keeps client setup accessible in a compact layout across themes and l
         expect.soft(layout.background).toBe('none')
         expect.soft(layout.overflow).toBeLessThanOrEqual(1)
         expect.soft(layout.listHeight).toBeLessThanOrEqual(290)
+        // The status pill keeps its width beside the description, so its words never run under Details.
+        expect.soft(layout.statusOverflow, `${locale}/${theme}/${width}: status words fit their pill`).toBeLessThanOrEqual(0)
+        expect.soft(layout.statusGap, `${locale}/${theme}/${width}: status words end before Details`).toBeGreaterThanOrEqual(0)
         const png = await electronApp.evaluate(async ({ webContents }) => {
           const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!
           return (await page.capturePage()).toPNG().toString('base64')

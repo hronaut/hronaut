@@ -40,9 +40,9 @@ export interface ConnectedAgent extends AgentStatusAgent {
   initial: string
   /** Index into AGENT_AVATAR_COLORS, stable for a client name. */
   colorIndex: number
-  /** Open workspaces it was seen in recently, needs you first. */
+  /** Open workspaces where it was seen recently with that state. */
   workspaceIds: string[]
-  /** The version its client reports, as sent; bounded in main. Render as text only. */
+  /** The version its client reports, cleaned and bounded in main. Render as text only. */
   version?: string
   /** When its session started, as an ISO time; absent for an agent listed only because it still waits for you. */
   connectedAt?: string

@@ -1,5 +1,5 @@
 import { agentAvatarColorHex, type AgentPresenceState } from '../../../shared/agent-presence.js'
-import type { ConnectedAgent } from '../../../shared/agent-status.js'
+import { agentDisplayName, type ConnectedAgent } from '../../../shared/agent-status.js'
 import type { HomeBootstrap } from '../../../shared/home.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, type BrowserTabGroupColor } from '../../../shared/tab-groups.js'
 import { element, interpolate, pluralText, timeAgo } from './dom.js'
@@ -8,7 +8,7 @@ import { element, interpolate, pluralText, timeAgo } from './dom.js'
 export interface AgentGroup {
   /** The name as the client sent it, trimmed; sessions are grouped by it. */
   key: string
-  /** That name without the bridge it came through, which `via` names. */
+  /** That name without the bridge it came through, which `via` names, as people know the product. */
   name: string
   /** A bridge such as `mcp-remote 0.1.37`, which appends "(via …)" to the client's own name. */
   via?: string
@@ -50,7 +50,8 @@ export function groupAgents(agents: readonly ConnectedAgent[], locale: string): 
     let group = groups.get(key)
     if (!group) {
       const bridged = VIA.exec(key)
-      group = { key, name: bridged?.[1] ?? key, ...(bridged ? { via: bridged[2]!.trim() } : {}), state: session.state, initial: session.initial, colorIndex: session.colorIndex, sessions: [] }
+      // Main names known clients by their whole reported name, so a bridged `claude-ai` is named here, once unwrapped.
+      group = { key, name: bridged ? agentDisplayName(bridged[1]!) : key, ...(bridged ? { via: bridged[2]!.trim() } : {}), state: session.state, initial: session.initial, colorIndex: session.colorIndex, sessions: [] }
       groups.set(key, group)
     }
     if (STATE_RANK[session.state] < STATE_RANK[group.state]) group.state = session.state
@@ -78,7 +79,10 @@ export function mountAgentList(data: HomeBootstrap, signal: AbortSignal) {
   const list = element<HTMLUListElement>('home-agent-list')
   const empty = element('home-agents-empty')
   const count = element('home-agents-count')
-  /** Groups the person opened or closed; the others open while more than one of their sessions is busy. */
+  /**
+   * Groups the person opened or closed, and groups that opened by themselves once more than one of their sessions was
+   * busy. Those stay open until the person closes them, so the column does not jump as working sessions settle.
+   */
   const toggled = new Map<string, boolean>()
   let latest: { agents: readonly ConnectedAgent[]; context: AgentListContext } = { agents: [], context: { workspace: () => undefined, ready: false, status: '' } }
   let rendered = ''
@@ -90,8 +94,7 @@ export function mountAgentList(data: HomeBootstrap, signal: AbortSignal) {
     return created
   }
   const stateWord = (state: AgentPresenceState): string => states[state === 'needs-you' ? 'needsYou' : state]
-  const expanded = (group: AgentGroup): boolean =>
-    group.sessions.length > 1 && (toggled.get(group.key) ?? group.sessions.filter(session => session.state !== 'idle').length > 1)
+  const expanded = (group: AgentGroup): boolean => group.sessions.length > 1 && toggled.get(group.key) === true
   const connected = (session: ConnectedAgent, now: number): string | undefined =>
     session.connectedAt ? interpolate(words.connected, { time: timeAgo(data.locale, session.connectedAt, now) }) : undefined
 
@@ -118,8 +121,12 @@ export function mountAgentList(data: HomeBootstrap, signal: AbortSignal) {
     }
     const hidden = known.slice(WORKSPACES_SHOWN)
     if (hidden.length) {
-      const more = node('span', 'home-agent-more', `+${hidden.length}`)
-      more.title = hidden.map(workspace => workspace.name).join(', ')
+      const names = hidden.map(workspace => workspace.name).join(', ')
+      const more = node('span', 'home-agent-more')
+      more.title = names
+      const counted = node('span', '', `+${hidden.length}`)
+      counted.setAttribute('aria-hidden', 'true')
+      more.append(counted, node('span', 'visually-hidden', names))
       line.append(more)
     }
     return line
@@ -153,9 +160,12 @@ export function mountAgentList(data: HomeBootstrap, signal: AbortSignal) {
     // Collapsed, a group says what matters most: its strongest state and where those sessions are.
     const leading = group.sessions.filter(session => session.state === group.state)
     text.append(title, stateLine('home-agent-state', group.state, leading.flatMap(session => session.workspaceIds), context, `${group.key}\nstate`))
-    // One session needs no time to tell it apart; it is there on hover.
+    // One session needs no time to tell it apart; it is there on hover, and read out after its state.
     const since = single && connected(single, now)
-    if (since) row.title = since
+    if (since) {
+      row.title = since
+      text.append(node('span', 'visually-hidden', since))
+    }
     row.append(avatar, text)
     item.append(row)
     if (!single) {
@@ -181,6 +191,9 @@ export function mountAgentList(data: HomeBootstrap, signal: AbortSignal) {
   function render(now = Date.now()): void {
     const { agents, context } = latest
     const groups = context.ready ? groupAgents(agents, data.locale) : []
+    for (const group of groups) {
+      if (!toggled.has(group.key) && group.sessions.filter(session => session.state !== 'idle').length > 1) toggled.set(group.key, true)
+    }
     const sessionCount = groups.reduce((total, group) => total + group.sessions.length, 0)
     if (count.textContent !== String(sessionCount)) count.textContent = String(sessionCount)
     count.hidden = !sessionCount
@@ -198,7 +211,15 @@ export function mountAgentList(data: HomeBootstrap, signal: AbortSignal) {
     rendered = signature
     const focused = list.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.focusKey : undefined
     list.replaceChildren(...groups.map(group => groupRow(group, context, now)))
-    if (focused) [...list.querySelectorAll<HTMLElement>('[data-focus-key]')].find(control => control.dataset.focusKey === focused)?.focus({ preventScroll: true })
+    if (focused) {
+      // The same control if it is still shown; otherwise its group's toggle or first control, so focus stays in the list.
+      const group = focused.slice(0, focused.indexOf('\n'))
+      const shown = [...list.querySelectorAll<HTMLElement>('[data-focus-key]')].filter(control => !control.closest('[hidden]'))
+      const target = shown.find(control => control.dataset.focusKey === focused)
+        ?? shown.find(control => control.dataset.focusKey === `${group}\ntoggle`)
+        ?? shown.find(control => control.dataset.focusKey!.startsWith(`${group}\n`))
+      target?.focus({ preventScroll: true })
+    }
   }
 
   list.addEventListener('click', event => {

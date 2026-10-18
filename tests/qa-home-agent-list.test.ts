@@ -39,9 +39,15 @@ describe('Grouping connected agents', () => {
     ])
   })
 
-  it('names the bridge a client came through apart from the client', () => {
-    const [bridged, plain] = groupAgents([agent('a', 'claude-ai (via mcp-remote 0.1.37)', 'idle'), agent('b', 'notes (draft)', 'idle')], 'en-US')
-    expect(bridged).toMatchObject({ key: 'claude-ai (via mcp-remote 0.1.37)', name: 'claude-ai', via: 'mcp-remote 0.1.37' })
+  it('names the bridge a client came through apart from the client, which reads as the product', () => {
+    const [bridged, local, plain] = groupAgents([
+      agent('a', 'claude-ai (via mcp-remote 0.1.37)', 'idle'),
+      agent('b', 'notes (draft)', 'idle'),
+      agent('c', 'local-agent (via mcp-remote 0.1.37)', 'idle')
+    ], 'en-US')
+    // Main names `claude-ai` "Claude" only when it is the whole name, so the list does once the bridge is taken off.
+    expect(bridged).toMatchObject({ key: 'claude-ai (via mcp-remote 0.1.37)', name: 'Claude', via: 'mcp-remote 0.1.37' })
+    expect(local).toMatchObject({ name: 'local-agent', via: 'mcp-remote 0.1.37' })
     expect(plain).toMatchObject({ key: 'notes (draft)', name: 'notes (draft)' })
     expect(plain!.via).toBeUndefined()
   })
@@ -93,7 +99,8 @@ describe('Home connected agents list', () => {
     expect(chips.map(chip => [words(chip), chip.title])).toEqual([['Acme Store', 'Open Acme Store'], ['Docs', 'Open Docs']])
     expect(query('.home-agent-workspace-dot', chips[0]).style.getPropertyValue('--workspace-color')).toMatch(/^#[0-9a-f]{6}$/iu)
     const more = query('.home-agent-more', line)
-    expect([words(more), more.title]).toEqual(['+1', 'Blog'])
+    // The count is drawn; the names it stands for are on hover and read out.
+    expect([words(query('[aria-hidden="true"]', more)), more.title, words(query('.visually-hidden', more))]).toEqual(['+1', 'Blog', 'Blog'])
     chips[1]!.click()
     await flush()
     expect(workspaceAction).toHaveBeenCalledWith({ view: 'open', workspaceId: 'docs' })
@@ -140,8 +147,8 @@ describe('Home connected agents list', () => {
     expect(toggle('claude-code').getAttribute('aria-expanded')).toBe('false')
   })
 
-  it('opens a client’s sessions by itself while more than one of them is busy', async () => {
-    mountTestHome({
+  it('opens a client’s sessions by itself once more than one of them is busy, and keeps them open until closed', async () => {
+    const home = mountTestHome({
       workspaces: inventory(),
       dashboard: {
         ...baseDashboard,
@@ -156,15 +163,38 @@ describe('Home connected agents list', () => {
     expect(parts(query('.home-agent-state', row('Claude Code')))).toEqual(['Needs you', 'Acme Store'])
     // The same version on every session tells them apart from nothing, so it is left out.
     expect(sessions('Claude Code').map(session => words(session.querySelector('.home-agent-meta')))).toEqual(['', ''])
+    // Settling sessions leave it open, so the column does not jump under the pointer; closing it is the person's call.
+    home.show({ ...baseDashboard, agents: [agent('c1', 'Claude Code', 'idle', { version: '2.0.31' }), agent('c2', 'Claude Code', 'idle', { version: '2.0.31' })] })
+    expect(toggle('Claude Code').getAttribute('aria-expanded')).toBe('true')
+    toggle('Claude Code').click()
+    expect(toggle('Claude Code').getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('keeps focus in the list when the control it was on goes away', async () => {
+    const live = {
+      ...baseDashboard,
+      agents: [
+        agent('c1', 'Claude Code', 'working', { workspaceIds: ['shop'] }),
+        agent('c2', 'Claude Code', 'working', { workspaceIds: ['docs'] })
+      ]
+    }
+    const home = mountTestHome({ workspaces: inventory(), dashboard: live })
+    await flush()
+    query<HTMLButtonElement>('.home-agent-session-state .home-agent-workspace', sessions('Claude Code')[1]).focus()
+    // One session leaves, so the group is one row with no sessions list; focus moves to the row's own workspace.
+    home.show({ ...live, agents: [live.agents[0]!] })
+    expect(row('Claude Code').querySelector('.home-agent-sessions')).toBeNull()
+    expect(document.activeElement).toBe(query('.home-agent-state .home-agent-workspace', row('Claude Code')))
   })
 
   it('says which bridge a client came through, and when a single session connected on hover', async () => {
     mountTestHome({ dashboard: { ...baseDashboard, agents: [agent('a', 'claude-ai (via mcp-remote 0.1.37)', 'idle', { version: '0.1.0', connectedAt: isoMinutesAgo(3) })] } })
     await flush()
     const item = row('claude-ai (via mcp-remote 0.1.37)')
-    expect(words(item.querySelector('strong'))).toBe('claude-ai')
+    expect(words(item.querySelector('strong'))).toBe('Claude')
     expect(words(item.querySelector('.home-agent-via'))).toBe('via mcp-remote 0.1.37')
     expect(query('.home-agent-row', item).title).toBe('connected 3 minutes ago')
+    expect(words(query('.home-agent-words > .visually-hidden', item))).toBe('connected 3 minutes ago')
     expect(item.querySelector('.home-agent-meta')).toBeNull()
   })
 

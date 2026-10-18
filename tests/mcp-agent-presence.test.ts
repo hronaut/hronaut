@@ -17,6 +17,8 @@ import {
   agentCursorIdentity,
   sanitizeAgentName,
   sanitizeAgentStepTarget,
+  sanitizeAgentVersion,
+  AGENT_VERSION_MAX_GRAPHEMES,
   type AgentPresenceContext
 } from '../src/main/mcp/agent-presence.js'
 import { McpHttpServer, type McpHttpServerOptions, type UserAttentionInput, type UserAttentionRequest } from '../src/main/mcp/server.js'
@@ -413,6 +415,17 @@ describe('agent cursor identity', () => {
 })
 
 describe('agent names', () => {
+  it('keeps a client-supplied version as plain, bounded text that cannot reorder the text beside it', () => {
+    expect(sanitizeAgentVersion(' 2.0.31 ')).toBe('2.0.31')
+    // A right-to-left override would flip "· connected 5 minutes ago" after it on Home and in the wallet dialog.
+    expect(sanitizeAgentVersion('1.0\u202E.3\u0000')).toBe('1.0 .3')
+    expect(sanitizeAgentVersion('\u200B\u2066')).toBeUndefined()
+    const long = sanitizeAgentVersion('👩‍💻'.repeat(100))!
+    expect([...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(long)]).toHaveLength(AGENT_VERSION_MAX_GRAPHEMES)
+    // Cut between graphemes, never inside a surrogate pair, which would throw here.
+    expect(() => encodeURIComponent(long)).not.toThrow()
+  })
+
   it('keeps a client-supplied name as plain, bounded text', () => {
     expect(sanitizeAgentName('  Claude\u0000 Code\n‮evil  ')).toBe('Claude Code evil')
     expect(sanitizeAgentName('<img src=x onerror=alert(1)>')).toBe('<img src=x onerror=alert(1)>')
@@ -614,6 +627,21 @@ describe('agent presence over MCP', () => {
     // Closing the workspace forgets its feed entries with its steps.
     server.forgetAgentWorkspaceSteps(workspaceId)
     expect(server.getHomeFeed()).toEqual([])
+  })
+
+  it('names only the open workspaces where a connected agent has its strongest state', async () => {
+    const { server, connect } = await startServer()
+    const claudeClient = await connect('claude-code')
+    expect((await claudeClient.client.callTool({ name: 'browser_tabs', arguments: { workspaceId } }) as CallToolResult).isError).not.toBe(true)
+    const seen = server.getAgentPresence()[workspaceId]![0]!
+    expect(seen.state).toBe('working')
+    const blog = '01912345-6789-7abc-8def-0123456789ad'
+    const notes = '01912345-6789-7abc-8def-0123456789ae'
+    // Idle in Blog, which comes first, working here and idle in Notes: Home says "Working" with this workspace only.
+    const mixed = { [blog]: [{ ...seen, state: 'idle' as const }], [workspaceId]: [seen], [notes]: [{ ...seen, state: 'idle' as const }] }
+    expect(server.getConnectedAgents(mixed)[0]).toEqual(expect.objectContaining({ state: 'working', workspaceIds: [workspaceId] }))
+    const idle = { [blog]: [{ ...seen, state: 'idle' as const }], [notes]: [{ ...seen, state: 'idle' as const }] }
+    expect(server.getConnectedAgents(idle)[0]).toEqual(expect.objectContaining({ state: 'idle', workspaceIds: [blog, notes] }))
   })
 
   it('shows a client for any call in a workspace it may use, and for none it may not', async () => {

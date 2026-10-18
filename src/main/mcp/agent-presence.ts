@@ -27,6 +27,7 @@ export const AGENT_WORKING_GRACE_MS = 10_000
  * time its workspace write lease lasts. */
 export const AGENT_PRESENCE_WINDOW_MS = WorkspaceWriteLeaseRegistry.LIFETIME_MS
 export const AGENT_NAME_MAX_GRAPHEMES = 64
+export const AGENT_VERSION_MAX_GRAPHEMES = 64
 /** A step's target shows at most this many graphemes and UTF-16 units, then an ellipsis. */
 export const AGENT_STEP_TARGET_MAX_GRAPHEMES = 60
 export const AGENT_STEP_TARGET_MAX_UNITS = 120
@@ -68,6 +69,19 @@ export function sanitizeAgentName(value: string): string {
     count += 1
   }
   return agentDisplayName(result.trimEnd())
+}
+
+/** A client-supplied version cleaned the same way, at most 64 graphemes, so it can sit beside other text on Home and
+ * in the wallet dialog; undefined when nothing visible is left. */
+export function sanitizeAgentVersion(value: string): string | undefined {
+  let result = ''
+  let count = 0
+  for (const { segment } of graphemes.segment(visibleText(value))) {
+    if (count === AGENT_VERSION_MAX_GRAPHEMES) break
+    result += segment
+    count += 1
+  }
+  return result.trimEnd() || undefined
 }
 
 /** A step's target cleaned the same way, at most 60 graphemes and 120 UTF-16 units, cut with an

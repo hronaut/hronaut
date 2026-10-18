@@ -416,16 +416,21 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     if (button.dataset.openDetails !== undefined) document.querySelector<HTMLDetailsElement>('.overview-details')!.open = true
     selectView(button.dataset.openView, true)
   }, { signal }))
-  // Details opens over the page, so it closes on Escape or a click elsewhere, as a menu does.
+  // Details opens over the page, so it closes on Escape, a click elsewhere or focus moving past it, as a menu does.
   const statusDetails = document.querySelector<HTMLDetailsElement>('.status-details')!
   document.addEventListener('click', event => {
     if (statusDetails.open && !statusDetails.contains(event.target as Node)) statusDetails.open = false
   }, { signal })
-  statusDetails.addEventListener('keydown', event => {
+  document.addEventListener('focusin', event => {
+    if (statusDetails.open && !statusDetails.contains(event.target as Node)) statusDetails.open = false
+  }, { signal })
+  // Escape works while focus is on the page too, as after clicking its text; focus returns to Details from inside it.
+  document.addEventListener('keydown', event => {
     if (event.key !== 'Escape' || event.isComposing || !statusDetails.open) return
     event.preventDefault()
+    const inside = statusDetails.contains(event.target as Node)
     statusDetails.open = false
-    statusDetails.querySelector('summary')?.focus()
+    if (inside) statusDetails.querySelector('summary')?.focus()
   }, { signal })
   const unsubscribe = api?.onShowWorkspaces?.(() => selectView('workspaces'))
   element<HTMLInputElement>('agent-search').addEventListener('input', event => {

@@ -32,7 +32,8 @@ h2 { font-size: var(--type-title-size); font-weight: 600; line-height: 1.4; lett
 .hero-copy { min-width: 0; }
 .hero-description { max-width: 720px; margin-top: 6px; color: var(--muted); font-size: var(--type-body-size); line-height: 1.6; }
 /* What agents add up to, in one pill; the server's own facts open in a popover under it. */
-.hero-status { position: relative; display: flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 0; min-height: 36px; padding: 3px 3px 3px 14px; border: 1px solid var(--border); border-radius: var(--corner-pill); background: var(--panel); box-shadow: var(--elevation-1); }
+/* The pill keeps its width beside a long description (which wraps instead), so its words never run under Details. */
+.hero-status { position: relative; display: flex; flex: 0 0 auto; align-items: center; gap: 4px; min-width: 0; min-height: 36px; padding: 3px 3px 3px 14px; border: 1px solid var(--border); border-radius: var(--corner-pill); background: var(--panel); box-shadow: var(--elevation-1); }
 .status-label { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--text); font-size: var(--type-small-size); font-weight: 600; white-space: nowrap; }
 .status-details { color: var(--muted); font-size: var(--type-micro-size); }
 .status-details > summary { display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 10px; border-radius: var(--corner-pill); cursor: pointer; font-weight: 500; list-style: none; }
@@ -196,7 +197,9 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
   .page { width: calc(100% - 28px); padding-top: 18px; }
   .hero { flex-direction: column; align-items: flex-start; gap: 14px; }
   .hero-status { max-width: 100%; }
-  .status-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* A block, not a flex row, so a status too long for a phone-width window ends in an ellipsis. */
+  .status-label { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .status-label .dot { display: inline-block; margin-right: 4px; vertical-align: middle; }
   .status-facts { right: auto; left: 0; }
   .status-detail { max-width: none; }
   .home-navigation { gap: 18px; margin-top: 12px; }

@@ -42,10 +42,10 @@ test('Home lists connected agents by client, with their sessions, and opens the 
     const clientRows = list.locator(':scope > li')
     await expect(clientRows).toHaveCount(2)
     await expect(panel.locator('#home-agents-count')).toHaveText('3')
-    // One row per client: Claude Code with its two sessions, and claude-ai named apart from its bridge.
+    // One row per client: Claude Code with its two sessions, and claude-ai, read as "Claude", named apart from its bridge.
     const claude = clientRows.filter({ hasText: 'Claude Code' })
-    const bridged = clientRows.filter({ hasText: 'claude-ai' })
-    await expect(bridged.locator('strong')).toHaveText('claude-ai')
+    const bridged = clientRows.filter({ hasText: 'via mcp-remote' })
+    await expect(bridged.locator('strong')).toHaveText('Claude')
     await expect(bridged.locator('.home-agent-via')).toHaveText('via mcp-remote 0.1.37')
     const sessions = claude.getByRole('button', { name: 'Claude Code: 2 sessions', exact: true })
     await expect(sessions).toHaveAttribute('aria-expanded', 'false')

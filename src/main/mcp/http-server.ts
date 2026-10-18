@@ -24,7 +24,7 @@ import type { McpCapabilityGrant, McpCapabilityProfileStore } from './capability
 import { McpActionTracker } from './action-tracker.js'
 import type { McpToolActivity, McpToolMetric } from './activity-history.js'
 import { WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
-import { AGENT_PRESENCE_WINDOW_MS, AgentPresenceRegistry, agentColorIndex, agentInitial, sanitizeAgentName, type AgentCall } from './agent-presence.js'
+import { AGENT_PRESENCE_WINDOW_MS, AgentPresenceRegistry, agentColorIndex, agentInitial, sanitizeAgentName, sanitizeAgentVersion, type AgentCall } from './agent-presence.js'
 import { HomeActivityFeed } from './home-activity-feed.js'
 import { AgentStepThumbnailScheduler, type AgentStepThumbnailCapture } from './agent-step-thumbnails.js'
 import type { AgentAnswerKind, AgentPresence, AgentStepHistoryEntry } from '../../shared/agent-presence.js'
@@ -487,7 +487,8 @@ export class McpHttpServer {
 
   /**
    * Each connected agent once, by its opaque presence key (never the session id) and display name, with its strongest
-   * state in any open workspace, its client's version and when its session started. Neither of those changes while it
+   * state in any open workspace and the workspaces where it has that state, its client's version and when its session
+   * started. Neither of those changes while it
    * stays connected, so they never make the toolbar publish again. Home and the toolbar status say the same thing from
    * this. A session counts while it holds a request open (such as its event stream) or for the presence window after
    * its last one, so a client that quit without closing its session leaves as its avatar does; an agent still waiting
@@ -498,12 +499,9 @@ export class McpHttpServer {
     for (const [workspaceId, agents] of Object.entries(presence)) {
       for (const agent of agents) {
         const known = seen.get(agent.clientKey)
-        if (known) {
-          known.state = strongerAgentState(known.state, agent.state)
-          known.workspaceIds[agent.state === 'needs-you' ? 'unshift' : 'push'](workspaceId)
-        } else {
-          seen.set(agent.clientKey, { state: agent.state, avatar: agent, workspaceIds: [workspaceId] })
-        }
+        // Only the workspaces where it has its strongest state, which Home names under that state.
+        if (known && agent.state === known.state) known.workspaceIds.push(workspaceId)
+        else if (!known || strongerAgentState(known.state, agent.state) !== known.state) seen.set(agent.clientKey, { state: agent.state, avatar: known?.avatar ?? agent, workspaceIds: [workspaceId] })
       }
     }
     const agents: ConnectedAgent[] = []
@@ -661,7 +659,7 @@ export class McpHttpServer {
     const name = (typeof suppliedInfo?.name === 'string'
       ? suppliedInfo.name
       : existing?.name ?? userAgent).slice(0, 128)
-    const version = typeof suppliedInfo?.version === 'string' ? suppliedInfo.version.slice(0, 64) : undefined
+    const version = typeof suppliedInfo?.version === 'string' ? sanitizeAgentVersion(suppliedInfo.version) : undefined
     // A session past its window counts as connected again from this request on.
     const lapsed = existing?.initializedAt !== undefined && !McpHttpServer.sessionLive(existing, Date.now())
     const now = new Date().toISOString()
