@@ -109,7 +109,6 @@ import { validateHeaderValue } from 'node:http'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import axe from 'axe-core'
 import {
-  app,
   BrowserWindow,
   Menu,
   nativeImage,
@@ -191,24 +190,23 @@ import {
   normalizeBrowserGeneratedLocator,
   type BrowserGeneratedLocator
 } from '../../shared/playwright-locator.js'
-import { redactNetworkHeaders, redactNetworkUrl, sanitizeNetworkBody } from '../../shared/network-details.js'
+import { redactNetworkUrl } from '../../shared/network-details.js'
 import { deriveNetworkTiming } from '../../shared/network-timing.js'
-import { parseServerTimingHeaders, serializeServerTimingMetrics } from '../../shared/server-timing.js'
 import { portableExportFilename } from '../../shared/portable-filename.js'
+import type { NetworkInspectionAccess } from './network-inspection/network-inspection-access.js'
 import {
-  buildSanitizedNetworkHar,
-  filterNetworkRequests,
-  networkHarFilename,
-  normalizeNetworkHarOptions
-} from '../../shared/network-har.js'
-import { normalizeNetworkSearchOptions, searchNetworkDetails } from '../../shared/network-search.js'
-import { deriveNetworkRequestRelationships } from '../../shared/network-request-relationships.js'
+  networkHar,
+  networkRequestDetails,
+  networkRequests,
+  networkSearch,
+  replayNetworkRequest,
+  saveNetworkHar,
+  waitForNetworkRequest
+} from './network-inspection/network-inspection.js'
 import {
   networkRequestMatchesWait,
-  normalizeNetworkWaitOptions,
   type NormalizedBrowserNetworkWaitOptions
 } from '../../shared/network-wait.js'
-import { networkReplayRequiresConfirmation, networkReplayUrlPattern } from '../../shared/network-replay.js'
 import type { BrowserStorageSnapshot } from '../../shared/storage-changes.js'
 import { networkRoutePatternMatches } from '../../shared/network-routes.js'
 import { annotateScreenshotBitmap, normalizeScreenshotRefs, screenshotAnnotationScript, type ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
@@ -300,8 +298,6 @@ import type {
   BrowserNetworkWaitOptions,
   BrowserNetworkWaitResult,
   BrowserNetworkReplayResult,
-  BrowserNetworkBody,
-  BrowserNetworkRequestRelationships,
   BrowserNetworkRequestDetails,
   BrowserNetworkSearchOptions,
   BrowserNetworkSearchResult,
@@ -582,11 +578,6 @@ function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: 
     options.extraHeaders = `Content-Type: ${contentType}`
   }
   return Object.keys(options).length ? options : undefined
-}
-
-function headerValue(headers: Record<string, string | string[] | undefined> | undefined, name: string): string | undefined {
-  const match = Object.entries(headers ?? {}).find(([candidate]) => candidate.toLowerCase() === name.toLowerCase())?.[1]
-  return Array.isArray(match) ? match.join(', ') : match
 }
 
 function pdfFilename(requested: string | undefined, title: string): string {
@@ -6153,90 +6144,49 @@ export class BrowserTabsManager {
     return consoleMessages(this.consoleMessagesAccess(), tabId, clear)
   }
 
-  async networkRequests(tabId?: string, clear = false): Promise<BrowserNetworkRequest[]> {
-    const tab = this.getTab(tabId)
-    if (!tab.webContents.isDevToolsOpened()) await this.ensureDialogMonitoring(tab)
-    const requests = this.currentNetworkRequests(tab).map((request) => this.networkRequestSummary(request))
-    if (clear) tab.networkRequests = []
-    return requests
-  }
-
-  async waitForNetworkRequest(options: BrowserNetworkWaitOptions): Promise<BrowserNetworkWaitResult> {
-    const tab = this.getTab(options.tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before waiting for network activity')
-    const normalized = normalizeNetworkWaitOptions(options)
-    let minCaptureSequence = normalized.from === 'future' ? tab.networkCaptureSequence : 0
-    if (normalized.afterRequestId) {
-      const cursor = this.currentNetworkRequests(tab).find((request) => request.id === normalized.afterRequestId)
-      if (!cursor) {
-        throw new Error('The afterRequestId cursor is no longer retained. Call browser_network again for a current request ID.')
-      }
-      minCaptureSequence = cursor.captureSequence
-    }
-    return this.networkWaitController.wait(tab, normalized, minCaptureSequence)
-  }
-
-  async networkSearch(options: BrowserNetworkSearchOptions): Promise<BrowserNetworkSearchResult> {
-    const tab = this.getTab(options.tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before searching network content')
-    const normalized = normalizeNetworkSearchOptions(options)
-    const currentRequests = this.currentNetworkRequests(tab)
-    const selected = currentRequests.slice(-normalized.maxRequests).reverse()
-    const details: BrowserNetworkRequestDetails[] = []
-    for (const request of selected) {
-      details.push(await this.networkRequestDetails(tab.id, request.id, normalized.maxBodyChars, true))
-    }
-    return searchNetworkDetails({
-      tabId: tab.id,
-      availableRequestCount: currentRequests.length,
-      details,
-      options: normalized
-    })
-  }
-
-  async networkHar(options: BrowserNetworkHarOptions = {}): Promise<BrowserNetworkHar> {
-    const tab = this.getTab(options.tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before exporting a network log')
-    const normalized = normalizeNetworkHarOptions(options)
-    const filtered = filterNetworkRequests(
-      this.currentNetworkRequests(tab).map((request) => this.networkRequestSummary(request)),
-      normalized
-    )
-    const selected = filtered.slice(-normalized.maxRequests)
-    const details: BrowserNetworkRequestDetails[] = []
-    for (const request of selected) {
-      details.push(await this.networkRequestDetails(
-        tab.id,
-        request.id,
-        normalized.maxBodyChars,
-        normalized.includeBodies
-      ))
-    }
-    return buildSanitizedNetworkHar({
-      appVersion: app.getVersion(),
-      tabId: tab.id,
-      title: tab.title,
-      url: redactNetworkUrl(tab.url),
-      availableRequestCount: filtered.length,
-      details,
-      includeBodies: normalized.includeBodies,
-      truncated: filtered.length > selected.length
-    })
-  }
-
-  async saveNetworkHar(options: BrowserNetworkHarSaveOptions = {}): Promise<BrowserNetworkHarExport> {
-    const tab = this.getTab(options.tabId)
-    const har = await this.networkHar(options)
-    const data = Buffer.from(`${JSON.stringify(har, null, 2)}\n`, 'utf8')
-    const path = await this.writeUniqueDownload(networkHarFilename(options.filename, tab.title), data)
+  /**
+   * The narrow view network inspection gets of this manager's private tabs,
+   * workspaces, inspection permissions, request summaries, network wait
+   * controller, downloads folder and debugger lease. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it. The delegates below return the feature's
+   * promise directly, so no extra ticks separate its final checks from the
+   * caller.
+   */
+  private networkInspectionAccess(): NetworkInspectionAccess<BrowserTab> {
     return {
-      filename: basename(path),
-      path,
-      bytes: data.length,
-      requestCount: har._hronaut.requestCount,
-      sanitized: true,
-      includesBodies: har._hronaut.includesBodies
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
+      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
+      ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab),
+      currentNetworkRequests: (tab) => this.currentNetworkRequests(tab),
+      networkRequestSummary: (request) => this.networkRequestSummary(request),
+      waitForNetworkActivity: (tab, options, minCaptureSequence) => this.networkWaitController.wait(tab, options, minCaptureSequence),
+      writeUniqueDownload: (filename, data) => this.writeUniqueDownload(filename, data),
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      isUnavailableCdpMethod: (error) => this.isUnavailableCdpMethod(error)
     }
+  }
+
+  networkRequests(tabId?: string, clear = false): Promise<BrowserNetworkRequest[]> {
+    return networkRequests(this.networkInspectionAccess(), tabId, clear)
+  }
+
+  waitForNetworkRequest(options: BrowserNetworkWaitOptions): Promise<BrowserNetworkWaitResult> {
+    return waitForNetworkRequest(this.networkInspectionAccess(), options)
+  }
+
+  networkSearch(options: BrowserNetworkSearchOptions): Promise<BrowserNetworkSearchResult> {
+    return networkSearch(this.networkInspectionAccess(), options)
+  }
+
+  networkHar(options: BrowserNetworkHarOptions = {}): Promise<BrowserNetworkHar> {
+    return networkHar(this.networkInspectionAccess(), options)
+  }
+
+  saveNetworkHar(options: BrowserNetworkHarSaveOptions = {}): Promise<BrowserNetworkHarExport> {
+    return saveNetworkHar(this.networkInspectionAccess(), options)
   }
 
   debugReport(options: BrowserDebugReportOptions = {}): BrowserDebugReport {
@@ -6474,184 +6424,22 @@ export class BrowserTabsManager {
     }
   }
 
-  async networkRequestDetails(
+  networkRequestDetails(
     tabId: string | undefined,
     requestId: string,
     maxChars = 20_000,
     includeBody = true,
     deferPublication?: (assertCurrent: () => void) => void
   ): Promise<BrowserNetworkRequestDetails> {
-    const tab = this.getTab(tabId)
-    const request = this.currentNetworkRequests(tab).find((candidate) => candidate.id === requestId)
-    if (!request) throw new Error(`Network request not found: ${requestId}. Call browser_network again for current request IDs.`)
-    const navigationGeneration = tab.navigationGeneration
-    const priorityGeneration = tab.networkPriorityGeneration ?? 0
-    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
-    const boundedMaxChars = Math.min(Math.max(Math.round(maxChars), 1_000), 100_000)
-    const requestContentType = headerValue(request.requestHeaders, 'content-type')
-    const responseContentType = request.mimeType || headerValue(request.responseHeaders, 'content-type')
-    let responseBody: BrowserNetworkBody = {
-      available: false,
-      reason: request.eventSourceMessages
-        ? 'Server-sent events are available in the bounded Event stream section.'
-        : request.webSocketMessages
-        ? 'WebSocket messages are available in the bounded messages section.'
-        : request.detailsAvailable
-          ? request.bodyAvailable ? 'Response body is no longer available from Chromium.' : 'The response body has not completed.'
-          : 'Detailed capture was unavailable while Developer Tools owned this tab.'
-    }
-
-    if (!includeBody) {
-      responseBody = { available: false, reason: 'Response body was omitted from this sanitized export.' }
-    } else if (request.cdpRequestId && request.bodyAvailable && !request.eventSourceMessages) {
-      try {
-        const captured = await this.withDebugger(tab.webContents, () =>
-          tab.webContents.debugger.sendCommand('Network.getResponseBody', { requestId: request.cdpRequestId })
-        ) as { body?: string; base64Encoded?: boolean }
-        responseBody = {
-          available: true,
-          ...sanitizeNetworkBody(captured.body ?? '', responseContentType, boundedMaxChars, {
-            base64Encoded: captured.base64Encoded === true
-          })
-        }
-      } catch (error) {
-        responseBody = {
-          available: false,
-          reason: /Close Developer Tools/.test(String(error))
-            ? 'Close Developer Tools for this tab, then request these details again.'
-            : 'Chromium no longer has this response body in its bounded diagnostic buffer.'
-        }
-      }
-    }
-    const assertCurrent = (): void => {
-      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-      if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
-        || currentWorkspace !== workspace
-        || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-        || tab.navigationGeneration !== navigationGeneration
-        || (tab.networkPriorityGeneration ?? 0) !== priorityGeneration
-        || !this.currentNetworkRequests(tab).includes(request)) {
-        throw new Error('Network request observation changed while reading details. Call browser_network for current request IDs.')
-      }
-    }
-    assertCurrent()
-    deferPublication?.(assertCurrent)
-    const timing = deriveNetworkTiming(request.resourceTiming, request.completedMonotonicSeconds)
-    const serverTiming = parseServerTimingHeaders(request.responseHeaders)
-    const responseHeaders = redactNetworkHeaders(request.responseHeaders)
-    for (const name of Object.keys(request.responseHeaders ?? {})) {
-      if (name.toLowerCase() !== 'server-timing') continue
-      responseHeaders[name] = serverTiming.length
-        ? serializeServerTimingMetrics(serverTiming)
-        : '[invalid Server-Timing omitted]'
-    }
-    const relationships = this.networkRequestRelationships(tab, request)
-
-    return {
-      ...this.networkRequestSummary(request),
-      priority: {
-        initial: request.initialPriority ?? null,
-        latestObserved: request.latestPriority ?? null
-      },
-      request: {
-        headers: redactNetworkHeaders(request.requestHeaders),
-        ...(request.requestBody !== undefined
-          ? { body: sanitizeNetworkBody(request.requestBody, requestContentType, boundedMaxChars) }
-          : {})
-      },
-      response: {
-        headers: responseHeaders,
-        ...(request.bodyAvailable && request.responseBodySizeBytes !== undefined
-          ? { bodySizeBytes: request.responseBodySizeBytes } : {}),
-        ...(request.bodyAvailable && request.responseContentSizeBytes !== undefined
-          ? { contentSizeBytes: request.responseContentSizeBytes } : {}),
-        ...(request.mimeType ? { mimeType: request.mimeType } : {}),
-        ...(request.protocol ? { protocol: request.protocol } : {}),
-        ...(serverTiming.length ? { serverTiming } : {}),
-        body: responseBody
-      },
-      ...(timing ? { timing } : {}),
-      ...(request.initiator ? { initiator: request.initiator } : {}),
-      ...(relationships ? { relationships } : {}),
-      ...(request.webSocketMessages ? {
-        webSocket: {
-          open: request.webSocketOpen === true,
-          messages: request.webSocketMessages.map((message) => ({ ...message })),
-          droppedMessages: request.webSocketDroppedMessages ?? 0
-        }
-      } : {}),
-      ...(request.eventSourceMessages ? {
-        eventSource: {
-          open: request.completedAt === undefined,
-          messages: request.eventSourceMessages.map((message) => ({ ...message })),
-          droppedMessages: request.eventSourceDroppedMessages ?? 0
-        }
-      } : {})
-    }
+    return networkRequestDetails(this.networkInspectionAccess(), tabId, requestId, maxChars, includeBody, deferPublication)
   }
 
-  async replayNetworkRequest(
+  replayNetworkRequest(
     tabId: string | undefined,
     requestId: string,
     confirmSideEffects = false
   ): Promise<BrowserNetworkReplayResult> {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before replaying a network request')
-    const request = this.currentNetworkRequests(tab).find((candidate) => candidate.id === requestId)
-    if (!request) {
-      throw new Error(`Network request not found: ${requestId}. Call browser_network again for current request IDs.`)
-    }
-    if (request.resourceType.toLowerCase() !== 'xhr') {
-      throw new Error('Only captured XMLHttpRequest (XHR) requests can be replayed by Chromium. Fetch, document, and other request types are not supported.')
-    }
-    if (!request.detailsAvailable || !request.cdpRequestId) {
-      throw new Error('This XHR cannot be replayed because Chromium did not retain its diagnostic request ID. Close Developer Tools, reload, and capture it again.')
-    }
-
-    const method = request.method.trim().toUpperCase()
-    const confirmationRequired = networkReplayRequiresConfirmation(method)
-    if (confirmationRequired && !confirmSideEffects) {
-      throw new Error(`Replaying ${method} can repeat writes or other side effects. Pass confirmSideEffects: true only after reviewing the request.`)
-    }
-
-    const cursor = this.currentNetworkRequests(tab).at(-1)
-    if (!cursor) throw new Error('The captured request is no longer retained. Call browser_network again for a current request ID.')
-    try {
-      await this.withDebugger(tab.webContents, () =>
-        tab.webContents.debugger.sendCommand('Network.replayXHR', { requestId: request.cdpRequestId })
-      )
-    } catch (error) {
-      if (this.isUnavailableCdpMethod(error)) {
-        throw new Error('XHR replay is unavailable in this Chromium build')
-      }
-      throw error
-    }
-
-    const replayed = await this.waitForNetworkRequest({
-      tabId: tab.id,
-      urlPattern: networkReplayUrlPattern(request.url),
-      method,
-      resourceType: 'xhr',
-      phase: 'complete',
-      afterRequestId: cursor.id,
-      timeoutMs: 10_000
-    })
-    return {
-      tabId: tab.id,
-      originalRequestId: request.id,
-      method,
-      url: redactNetworkUrl(request.url),
-      replayedAt: new Date().toISOString(),
-      confirmationRequired,
-      confirmationAccepted: confirmationRequired && confirmSideEffects,
-      replayedRequest: replayed.request,
-      caveats: [
-        'Chromium replayed the original XHR inside the same tab and browser session.',
-        'The original body, headers, credentials, username, and password stayed inside Chromium and are not returned by this result.',
-        'Inspect the new replayedRequest ID for its response, timing, or failure evidence.'
-      ]
-    }
+    return replayNetworkRequest(this.networkInspectionAccess(), tabId, requestId, confirmSideEffects)
   }
 
   networkConditionState(tabId?: string): import('../../shared/types.js').BrowserNetworkConditionState {
@@ -9477,22 +9265,6 @@ export class BrowserTabsManager {
       request.observationGeneration === tab.observationGeneration
       && request.captureSequence > minCaptureSequence && networkRequestMatchesWait(request, options)
     ))
-  }
-
-  private networkRequestRelationships(
-    tab: BrowserTab,
-    request: BrowserNetworkRequestRecord
-  ): BrowserNetworkRequestRelationships | undefined {
-    const relationships = deriveNetworkRequestRelationships(this.currentNetworkRequests(tab), request)
-    if (!relationships) return undefined
-    return {
-      ...(relationships.triggeredBy
-        ? { triggeredBy: this.networkRequestSummary(relationships.triggeredBy) }
-        : {}),
-      redirectChain: relationships.redirectChain.map((candidate) => this.networkRequestSummary(candidate)),
-      dependents: relationships.dependents.map((candidate) => this.networkRequestSummary(candidate)),
-      truncated: relationships.truncated
-    }
   }
 
   private networkRouteSummary(route: BrowserNetworkRouteRecord): BrowserNetworkRouteSummary {
