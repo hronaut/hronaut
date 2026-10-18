@@ -540,10 +540,6 @@ const takeOvers = new TakeOverOffers({
   onError: () => console.error('[take-over] Failed to change agent control for a tab.')
 })
 
-function publishCredentials(): void {
-  sendToShellWindows('credentials:changed', credentialRuntime.store?.list() ?? [])
-}
-
 const { refreshHomeAfterCommittedChange, homeDashboardState } = createHomeDashboard({
   mcpRuntime,
   workspaceStartupFailure: () => tabRuntime.startupFailure,
@@ -580,12 +576,12 @@ const { currentBrowsingDataSiteSummary, agentSiteData } = createSiteData({
   publishVisitHistory
 })
 
-const { offerToSaveCredential, configureCredentialStore } = createCredentialRuntime({
+const { publishCredentials, offerToSaveCredential, configureCredentialStore } = createCredentialRuntime({
   text,
   showMessageBox,
   mainWindow: () => mainWindowRefs.window,
   state: credentialRuntime,
-  publishCredentials,
+  sendToShellWindows,
   reportBrowserActionFailure
 })
 
