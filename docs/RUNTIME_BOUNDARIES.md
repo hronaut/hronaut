@@ -29,6 +29,14 @@ than the entire browser runtime.
   workspace authorization, write leases, pause checks, origin/navigation fences,
   and dispatch receipts retain their central authority. Diagnostic services must
   not reproduce or weaken these checks.
+- `wallet/broker.ts` remains the **WalletBroker** host: request, permission,
+  connection and timer state, the lifecycle queue, shutdown, lock, provider
+  sessions and small shared checks. Each feature is a module of plain functions
+  in `wallet/broker/` over an access object the broker builds per call, with
+  delegates under the original method names: page calls, page lifecycle, agent
+  operations, request records, transaction and message requests, website
+  sign-in, account connections, execution, prompt approvals and request list,
+  and wallet management. Approvals and policy re-checks stay in its queue.
 - `browser/diagnostics/page-metadata-controller.ts` owns one read-only diagnostic
   domain through tab lookup and isolated-world evaluation ports. It retains no
   listeners or debugger session. Closed, replaced, or navigated tabs invalidate
