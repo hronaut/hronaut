@@ -122,7 +122,6 @@ import type {
   CredentialStorageStatus,
   DetachablePanelId,
   LanguagePreference,
-  McpControlState,
   McpServerStatus,
   RendererSettingsState,
   ThemeName,
@@ -160,6 +159,7 @@ import { translate, type MessageKey, type MessageParameters } from '../shared/i1
 import { createApplicationMenu } from './windows/application-menu.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
 import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
+import { createMcpControlState } from './mcp-control-state.js'
 
 let MCP_HOST = process.env.HRONAUT_MCP_HOST || '127.0.0.1'
 const MCP_AUTH_DISABLED = process.env.HRONAUT_DISABLE_MCP_AUTH === '1'
@@ -714,30 +714,23 @@ function connectedAgents(presence?: AgentPresenceSnapshot['workspaces']): Connec
   }
 }
 
-function currentMcpControlState(): McpControlState {
-  const paused = mcpPauseState.paused
-  const dashboard = mcpServer?.getDashboardState()
-  const initialized = dashboard?.clients.filter(client => client.initializedAt)
-    .sort((a, b) => (b.initializedAt ?? '').localeCompare(a.initializedAt ?? '')) ?? []
-  const probe = initialized[0]?.readinessProbe
-  return {
-    status: mcpRuntimeStatus === 'ready' && paused ? 'paused' : mcpRuntimeStatus,
-    paused,
-    activeCommands: mcpActionTracker.activeCount,
-    agents: connectedAgents(),
-    readiness: {
-      initializedClientCount: initialized.length,
-      probe: probe ? (probe.outcome === 'verified' ? 'probe_verified' : 'probe_failed')
-        : initialized.length ? 'unknown' : 'blocked'
-    },
-    ...(mcpStartupError ? { error: mcpStartupError } : {}),
-    ...(mcpRuntimeStatus === 'error' && mcpPortRecovery.failure ? {
-      errorCode: mcpPortRecovery.failure.code,
-      failedPort: mcpPortRecovery.failure.port,
-      ...(mcpPortRecovery.failure.suggestedPort ? { suggestedPort: mcpPortRecovery.failure.suggestedPort } : {})
-    } : {})
-  }
-}
+const {
+  currentMcpControlState,
+  publishMcpControlState,
+  setMcpPaused,
+  acquireTemporaryMcpPause
+} = createMcpControlState({
+  mcpPauseState,
+  mcpActionTracker,
+  mcpPortRecovery,
+  mcpServer: () => mcpServer,
+  mcpRuntimeStatus: () => mcpRuntimeStatus,
+  mcpStartupError: () => mcpStartupError,
+  connectedAgents,
+  tabs: () => tabsManager,
+  sendToShellWindows,
+  refreshHomeAfterCommittedChange
+})
 
 /**
  * The startup dialog for a listener that could not start. A busy or refused port offers the free one; if that was taken
@@ -781,36 +774,6 @@ function refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void {
   void tabsManager?.reloadHome().catch((error) => {
     console.error(`[${scope}] Could not refresh Hronaut Home after a committed state change:`, error)
   })
-}
-
-function publishMcpControlState({ refreshHome = true }: { refreshHome?: boolean } = {}): McpControlState {
-  const state = currentMcpControlState()
-  sendToShellWindows('mcp:changed', state)
-  if (refreshHome) refreshHomeAfterCommittedChange('mcp')
-  else tabsManager?.notifyHomeChanged()
-  return state
-}
-
-function synchronizeAgentPauseControls(): void {
-  tabsManager?.setAllAgentsPaused(mcpPauseState.paused, !mcpPauseState.temporarilyPaused)
-  mcpServer?.setPaused(mcpPauseState.paused, !mcpPauseState.temporarilyPaused)
-}
-
-function setMcpPaused(paused: boolean): McpControlState {
-  mcpPauseState.setPersistent(paused)
-  synchronizeAgentPauseControls()
-  return publishMcpControlState()
-}
-
-function acquireTemporaryMcpPause(): () => void {
-  const release = mcpPauseState.acquireTemporary()
-  synchronizeAgentPauseControls()
-  publishMcpControlState()
-  return () => {
-    release()
-    synchronizeAgentPauseControls()
-    publishMcpControlState()
-  }
 }
 
 const { currentBrowsingDataSiteSummary, clearWorkspaceSiteData } = createSiteData({
