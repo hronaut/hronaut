@@ -17,7 +17,7 @@ import type {
 } from '../composables/useDeveloperPanelsShellController.js'
 import type { SiteStorageShellPanel } from '../composables/useSiteStorageShellController.js'
 import ConsolePanelContainer from './ConsolePanelContainer.vue'
-import DiagnosticsPanels from './DiagnosticsPanels.vue'
+import DiagnosticsPanels from '../features/diagnostics/DiagnosticsPanels.vue'
 import EnvironmentPanel from './EnvironmentPanel.vue'
 import NetworkPanel from './NetworkPanel.vue'
 import PageToolsPanel from './PageToolsPanel.vue'

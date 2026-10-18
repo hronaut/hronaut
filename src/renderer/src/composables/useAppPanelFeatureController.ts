@@ -15,7 +15,7 @@ import {
   type ConsolePanelShellHandle,
   type NetworkPanelShellHandle
 } from './useDeveloperPanelsShellController.js'
-import type { DiagnosticsController } from './useDiagnosticsController.js'
+import type { DiagnosticsController } from '../features/diagnostics/useDiagnosticsController.js'
 import { usePanelRegistryController } from './usePanelRegistryController.js'
 import { usePanelWindowEventsController } from './usePanelWindowEventsController.js'
 import { usePanelWindowSyncController } from './usePanelWindowSyncController.js'

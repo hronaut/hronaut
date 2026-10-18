@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
-import IncidentPackageReview from '../../src/renderer/src/components/IncidentPackageReview.vue'
+import IncidentPackageReview from '../../src/renderer/src/features/diagnostics/debug-report/IncidentPackageReview.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 const draft = { draftId: 'draft', expiresAt: 'later', artifacts: [{ kind: 'repro', status: 'available', truncated: false }] }
 function setup() {

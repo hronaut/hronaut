@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useDiagnosticsController } from '../../src/renderer/src/composables/useDiagnosticsController.js'
+import { useDiagnosticsController } from '../../src/renderer/src/features/diagnostics/useDiagnosticsController.js'
 import type {
   BrowserDomChangesReport,
   BrowserReproRecording,
