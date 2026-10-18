@@ -1,5 +1,6 @@
 import { WorkspaceStartupReads } from './workspace-startup-reads.js'
 import { UserAttentionLifecycle } from './user-attention-lifecycle.js'
+import { registerAttentionIpc } from './attention-ipc.js'
 import { registerIncidentPackageIpc } from './incident-package-ipc.js'
 import { registerBrowserImportIpc } from './browser-import/ipc.js'
 import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
@@ -2559,24 +2560,15 @@ function registerIpc(): void {
     mcpServer: () => mcpServer,
     takeOvers: () => takeOvers
   })
-  ipcMain.handle('attention:get', (event) => {
-    assertMainShellSender(event)
-    return shellUserAttention()
-  })
-  ipcMain.handle('attention:answer', (event, id: unknown, answer: unknown) => {
-    assertMainShellSender(event)
-    if (typeof id !== 'string' || id.length > 128 || (answer !== 'resolved' && answer !== 'dismissed')) {
-      throw new TypeError('Invalid attention answer')
-    }
-    // A card that was open for an earlier request answers nothing. A decision is answered as a decision.
-    if (userAttention?.id !== id || attentionDecisionId) return false
-    const tabId = userAttention.tabId
-    userAttentionLifecycle.answer(id, answer)
-    mcpServer?.recordAgentAnswer(id, answer === 'dismissed' ? 'dismissed' : 'handedBack')
-    endUserAttention({ disposition: answer === 'dismissed' ? 'dismissed' : 'acknowledged', keepPending: true })
-    // Done, hand back on a tab the person took over also hands the tab back to its agents.
-    if (answer === 'resolved') takeOvers.resolvedOn(tabId)
-    return true
+  registerAttentionIpc(ipcMain, {
+    assertMainShellSender,
+    shellUserAttention,
+    userAttention: () => userAttention,
+    attentionDecisionId: () => attentionDecisionId,
+    userAttentionLifecycle: () => userAttentionLifecycle,
+    mcpServer: () => mcpServer,
+    endUserAttention,
+    takeOvers: () => takeOvers
   })
   ipcMain.handle('undo:run', (event, token: unknown) => {
     assertMainShellSender(event)
