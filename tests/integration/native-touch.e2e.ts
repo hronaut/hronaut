@@ -199,7 +199,7 @@ test('taps and swipes with trusted single-finger touch input at a non-default pi
   })
 })
 
-test('an interrupted swipe cancels its contact in the same page, and a fresh gesture works', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
+test('an interrupted swipe cancels its contact, and a fresh gesture works', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
   test.skip(process.platform !== 'linux', 'Touch gestures are verified on Linux only')
   await withTouchFixture(appWindow, mcpPort, mcpToken, async ({ client, workspaceId, tabId, origin, textOf, call, emulateTouch, touchState, resetState }) => {
     const touch = (args: Record<string, unknown>) => client.callTool({ name: 'browser_touch', arguments: { workspaceId, tabId, ...args } }) as Promise<CallToolResult>
@@ -231,8 +231,25 @@ test('an interrupted swipe cancels its contact in the same page, and a fresh ges
     expect(afterFresh.events.filter(event => event.type === 'touchend')).toHaveLength(1)
     await resetState()
 
-    // A navigation during a swipe replaces the page: the new document gets no end or cancel,
-    // and the tab refuses further gestures because the contact was never confirmed lifted.
+    // Locking the page mid-swipe stops it. The agent's own contact is still cancelled,
+    // since the lock's input barrier waits for the gesture, and the lock then applies.
+    const lockedState = () => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.humanInteractionLocked)`)
+    const lockedSwipe = touch({ gesture: 'swipe', x: 40, y: 40, endX: 240, endY: 160, durationMs: 2000 })
+    await expect.poll(started).toBe(true)
+    await appWindow.evaluate(`window.hronaut.setTabHumanInteractionLocked(${JSON.stringify(tabId)}, true)`)
+    const lockStopped = await lockedSwipe
+    expect(lockStopped.isError).toBe(true)
+    expect(JSON.parse(textOf(lockStopped))).toMatchObject({ status: 'OUTCOME_UNKNOWN', contact: 'CANCELLED' })
+    await expect.poll(lockedState).toBe(true)
+    const lockInterrupted = await pageTouchState(electronApp, origin)
+    expect(lockInterrupted!.events.filter(event => event.type === 'touchcancel')).toHaveLength(1)
+    expect(lockInterrupted!.events.filter(event => event.type === 'touchend')).toEqual([])
+    await appWindow.evaluate(`window.hronaut.setTabHumanInteractionLocked(${JSON.stringify(tabId)}, false)`)
+    await expect.poll(lockedState).toBe(false)
+    await resetState()
+
+    // A navigation during a swipe stops it and the contact is still lifted, so the
+    // replacement page takes a fresh gesture with one finger, not two.
     const navigated = touch({ gesture: 'swipe', x: 40, y: 40, endX: 240, endY: 160, durationMs: 2000 })
     await expect.poll(started).toBe(true)
     await electronApp.evaluate(async ({ webContents }, prefix) => {
@@ -241,13 +258,15 @@ test('an interrupted swipe cancels its contact in the same page, and a fresh ges
     }, origin)
     const replaced = await navigated
     expect(replaced.isError).toBe(true)
-    expect(JSON.parse(textOf(replaced))).toMatchObject({ status: 'OUTCOME_UNKNOWN', contact: 'UNCONFIRMED' })
+    expect(JSON.parse(textOf(replaced))).toMatchObject({ status: 'OUTCOME_UNKNOWN', contact: expect.stringMatching(/^(CANCELLED|CLEARED)$/) })
+    await expect.poll(() => call<string>('browser_evaluate', { workspaceId, tabId, script: 'JSON.stringify(location.href)' })).toBe(`${origin}/replacement`)
     const wait = await client.callTool({ name: 'browser_wait', arguments: { workspaceId, tabId, selector: '#carousel', state: 'visible' } }) as CallToolResult
     expect(wait.isError, textOf(wait)).not.toBe(true)
-    await expect.poll(() => call<string>('browser_evaluate', { workspaceId, tabId, script: 'JSON.stringify(location.href)' })).toBe(`${origin}/replacement`)
-    const refused = await touch({ gesture: 'tap', x: 100, y: 100 })
-    expect(refused.isError).toBe(true)
-    expect(textOf(refused)).toContain('close this tab')
-    expect((await touchState()).events).toEqual([])
+    const afterNavigation = JSON.parse(textOf(await touch({ gesture: 'tap', x: 100, y: 100 })))
+    expect(afterNavigation).toMatchObject({ status: 'DISPATCH_ACKNOWLEDGED', contact: 'ENDED' })
+    const replacement = await touchState()
+    expect(replacement.events.filter(event => event.type === 'touchstart')).toEqual([expect.objectContaining({ touches: 1, x: 100, y: 100 })])
+    expect(replacement.events.filter(event => event.type === 'touchend')).toEqual([expect.objectContaining({ touches: 0 })])
+    expect(replacement.clicks).toBe(1)
   })
 })

@@ -2,9 +2,13 @@ import { z } from 'zod'
 import type { AgentTouchAccess, AgentTouchTab } from './agent-touch-access.js'
 
 /** How many moves a swipe sends on its way from the start point to the end point. */
-export const SWIPE_MOVES = 10
+const SWIPE_MOVES = 10
 
-/** How long one touch event waits for Chromium's acknowledgement, which never comes for an event the page's input barrier drops. */
+/**
+ * How long one touch event waits for Chromium's acknowledgement. Chromium
+ * acknowledges an event once the page's renderer handled it, which a busy or
+ * hung renderer can delay indefinitely.
+ */
 const TOUCH_ACK_TIMEOUT_MS = 5_000
 
 const coordinate = z.number().finite().min(0).max(16384)
@@ -45,7 +49,18 @@ export interface NativeTouchProgress {
   endAcknowledged: boolean
   cancelAttempted: boolean
   cancelAcknowledged: boolean
+  /**
+   * Chromium no longer holds the contact although the page did not acknowledge
+   * its end or cancel: Chromium took the cancel and is still waiting for the
+   * page, held no contact any more, or its debugger session ended.
+   */
+  contactCleared: boolean
 }
+
+/** A gesture before its first touch event. */
+export const notStartedTouchProgress = (): NativeTouchProgress => ({
+  startAttempted: false, movesAcknowledged: 0, endAcknowledged: false, cancelAttempted: false, cancelAcknowledged: false, contactCleared: false
+})
 
 /** The gesture's first touch event was attempted; a failure from then on does not prove the page saw nothing. */
 export class NativeTouchOutcomeUnknownError extends Error {
@@ -55,15 +70,25 @@ export class NativeTouchOutcomeUnknownError extends Error {
   }
 }
 
+/** Chromium did not acknowledge a touch event in time; it took the event and the page has not handled it yet. */
+class TouchAcknowledgementTimeoutError extends Error {
+  constructor() {
+    super('Touch event was not acknowledged in time')
+    this.name = 'TouchAcknowledgementTimeoutError'
+  }
+}
+
+/** Chromium's answer to a touch cancel when it holds no contact to cancel. */
+const holdsNoContact = (error: unknown): boolean => error instanceof Error && error.message.includes('Must send a TouchStart first')
+
 /**
  * Sends one single-finger tap or straight swipe to the active, visible, awake
  * and unlocked page with touch emulation on, default zoom and no child
  * frames. A swipe moves in even steps over its duration. Every event is
  * checked first: any change to that environment, the call's authority or its
  * cancellation stops the gesture, and a contact that went down is then
- * cancelled in the same page when it is still in place and unlocked. A
- * contact left unconfirmed blocks further gestures on the page until it
- * closes, since Chromium would otherwise carry it into the next gesture.
+ * cancelled. A contact Chromium may still hold blocks further gestures on the
+ * page until it closes, since Chromium would carry it into the next gesture.
  */
 export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<Tab>, input: NativeTouchInput, validateInput: (validateContext: () => void) => void,
   recordProgress: (progress: NativeTouchProgress) => void, signal?: AbortSignal): Promise<unknown> {
@@ -78,18 +103,16 @@ export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<
   const splitGeneration = access.splitViewGeneration()
   const bounds = tab.view.getBounds()
   const authority = access.nativeInputAuthority(tab, validateInput)
-  const progress: NativeTouchProgress = { startAttempted: false, movesAcknowledged: 0, endAcknowledged: false, cancelAttempted: false, cancelAcknowledged: false }
+  const progress = notStartedTouchProgress()
   const publish = (): void => { recordProgress({ ...progress }) }
   let environmentChanged = false
-  let documentReplaced = false
   let debuggerDetached = false
   const changed = (): void => { environmentChanged = true }
-  const replaced = (): void => { environmentChanged = true; documentReplaced = true }
   const navigationStarted = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>): void => {
-    // A navigation of the page itself can replace the document before an end or a cancel would arrive.
-    if (details.isMainFrame && !details.isSameDocument) replaced()
+    // Any navigation of the page stops the gesture, within the document too, as the call's authority does.
+    if (details.isMainFrame) changed()
   }
-  const detached = (): void => { debuggerDetached = true; replaced() }
+  const detached = (): void => { debuggerDetached = true; changed() }
   const debuggerChanged = (_event: Electron.Event, method: string): void => {
     if (['Page.frameAttached', 'Page.frameDetached', 'Page.frameResized'].includes(method)) changed()
   }
@@ -100,8 +123,8 @@ export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<
   webContents.on('frame-created', changed)
   webContents.on('devtools-opened', changed)
   webContents.on('did-start-navigation', navigationStarted)
-  webContents.on('render-process-gone', replaced)
-  webContents.on('destroyed', replaced)
+  webContents.on('render-process-gone', changed)
+  webContents.on('destroyed', changed)
   webContents.debugger.on('message', debuggerChanged)
   webContents.debugger.on('detach', detached)
   access.window().on('move', changed)
@@ -121,7 +144,9 @@ export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<
       throw new Error('Touch requires the active visible page outside split view; select it first')
     }
     if (tab.sleeping || tab.pageLifecycleState !== 'active') throw new Error('Touch requires an already awake, active page')
-    if (access.nativeInputLockMutations() > 0 || access.isHumanInteractionLocked(tab)) throw new Error('Touch requires an unlocked page; the person locked its input')
+    // Like the other native input paths, any pending lock change, on any tab, holds the gesture back.
+    if (access.nativeInputLockMutations() > 0) throw new Error('Touch waits while a page input lock is changing; try again once it settles')
+    if (access.isHumanInteractionLocked(tab)) throw new Error('Touch requires an unlocked page; the person locked its input')
     if (access.screenshotAreaSessions().has(webContents.id) || access.elementPickerSessions().has(webContents.id)
       || access.devToolsOpening().has(webContents.id) || webContents.isDevToolsOpened()) {
       throw new Error('Touch is unavailable during native selection or Developer Tools')
@@ -178,24 +203,31 @@ export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<
         progress.endAcknowledged = true
         publish()
       } finally {
-        // Lift a contact that went down in the page it went down in. A
-        // replaced document never receives it, and a locked page's input
-        // barrier would drop it unacknowledged.
-        if (progress.startAttempted && !progress.endAcknowledged && !documentReplaced && !webContents.isDestroyed()
-          && access.nativeInputLockMutations() === 0 && !access.isHumanInteractionLocked(tab)) {
+        // Lift a contact that went down, whatever stopped the gesture, so
+        // Chromium does not carry it into the next one. This is cleanup of the
+        // agent's own contact, like a held key's release: it is sent after a
+        // lock, a navigation or a move to another workspace too. A lock's
+        // input barrier is applied through this same debugger queue, so it
+        // cannot drop the cancel, and a document that never saw the contact
+        // ignores its cancel. A detached debugger already cleared the contact.
+        if (progress.startAttempted && !progress.endAcknowledged && !debuggerDetached && !webContents.isDestroyed()) {
           progress.cancelAttempted = true
           publish()
           try {
             await send('touchCancel')
             progress.cancelAcknowledged = true
-            publish()
-          } catch {
-            // The contact stays unconfirmed; the gesture's own error is reported.
+          } catch (error) {
+            // Chromium drops its record of the contact as soon as it takes the
+            // cancel, before the page acknowledges it. Any other failure leaves
+            // the contact unconfirmed; the gesture's own error is reported.
+            if (error instanceof TouchAcknowledgementTimeoutError || holdsNoContact(error)) progress.contactCleared = true
           }
+          publish()
         }
       }
     }))
-    // The page may already be navigating in answer to the gesture, so only the call's authority is checked again.
+    // The page may already be navigating in answer to the gesture, as after a
+    // click, so only the call's authority is checked again.
     authority.validate()
     return {
       status: 'DISPATCH_ACKNOWLEDGED',
@@ -210,12 +242,14 @@ export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<
     if (progress.startAttempted) throw new NativeTouchOutcomeUnknownError(error)
     throw error
   } finally {
-    // Detaching the debugger clears Chromium's record of the contact.
-    if (progress.startAttempted && !progress.endAcknowledged && !progress.cancelAcknowledged && !debuggerDetached && !webContents.isDestroyed()) {
-      access.unconfirmedTouchContacts().add(webContents)
-      const forget = (): void => { access.unconfirmedTouchContacts().delete(webContents) }
-      webContents.once('destroyed', forget)
-      webContents.debugger.once('detach', forget)
+    if (progress.startAttempted && !progress.endAcknowledged && !progress.cancelAcknowledged && !progress.contactCleared) {
+      // Detaching the debugger clears Chromium's record of the contact, and a closed page takes no more gestures.
+      if (debuggerDetached || webContents.isDestroyed()) progress.contactCleared = true
+      else {
+        access.unconfirmedTouchContacts().add(webContents)
+        webContents.debugger.once('detach', () => { access.unconfirmedTouchContacts().delete(webContents) })
+      }
+      publish()
     }
     authority.dispose()
     tab.view.removeListener('bounds-changed', changed)
@@ -223,8 +257,8 @@ export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<
     webContents.removeListener('frame-created', changed)
     webContents.removeListener('devtools-opened', changed)
     webContents.removeListener('did-start-navigation', navigationStarted)
-    webContents.removeListener('render-process-gone', replaced)
-    webContents.removeListener('destroyed', replaced)
+    webContents.removeListener('render-process-gone', changed)
+    webContents.removeListener('destroyed', changed)
     webContents.debugger.removeListener('message', debuggerChanged)
     webContents.debugger.removeListener('detach', detached)
     access.window().removeListener('move', changed)
@@ -240,7 +274,7 @@ async function withAcknowledgementTimeout(command: Promise<unknown>): Promise<vo
     await Promise.race([
       command,
       new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new Error('Touch event was not acknowledged in time')), TOUCH_ACK_TIMEOUT_MS)
+        timer = setTimeout(() => reject(new TouchAcknowledgementTimeoutError()), TOUCH_ACK_TIMEOUT_MS)
       })
     ])
   } finally {
@@ -253,22 +287,22 @@ function waitUntil(deadline: number, validate: () => void, signal?: AbortSignal)
   return new Promise((resolve, reject) => {
     let timer: ReturnType<typeof setTimeout> | undefined
     let settled = false
-    const finish = (error?: unknown): void => {
+    const finish = (failed: boolean, error?: unknown): void => {
       if (settled) return
       settled = true
       if (timer !== undefined) clearTimeout(timer)
       signal?.removeEventListener('abort', aborted)
-      if (error === undefined) resolve()
-      else reject(error)
+      if (failed) reject(error)
+      else resolve()
     }
-    const aborted = (): void => { finish(new Error('Touch gesture cancelled; earlier touch effects are not rolled back')) }
+    const aborted = (): void => { finish(true, new Error('Touch gesture cancelled; earlier touch effects are not rolled back')) }
     const tick = (): void => {
       try {
         validate()
         const remaining = deadline - performance.now()
-        if (remaining <= 0) return finish()
+        if (remaining <= 0) return finish(false)
         timer = setTimeout(tick, Math.min(20, remaining))
-      } catch (error) { finish(error) }
+      } catch (error) { finish(true, error) }
     }
     signal?.addEventListener('abort', aborted, { once: true })
     tick()
