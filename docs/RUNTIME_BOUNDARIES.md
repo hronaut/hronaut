@@ -26,18 +26,26 @@ than the entire browser runtime.
   `main/address-overlay-ipc.ts` checks. Both windows' theme and interface scale,
   bookmarks and visit history, and the services agents use beside the browser come
   from `main/windows/appearance.ts`, `main/bookmarks-and-history.ts` and
-  `main/agent-services.ts`. State that several features change is one
-  record that index.ts creates once, typed beside its owner: `McpRuntimeState` in
+  `main/agent-services.ts`. Showing the shell windows, sending them messages and
+  asking on the main window, changing the interface language, routing browser
+  shortcuts pressed in pages and enabling Chromium's native WebMCP come from
+  `main/windows/shell-windows.ts`, `main/interface-language.ts`,
+  `main/browser-shortcut-routing.ts` and `main/native-webmcp-switch.ts`. State that
+  several features read or change is one record that index.ts creates once, typed
+  beside its owner: `McpRuntimeState` in
   `main/mcp-runtime.ts`, which starts, moves and resets the listener, `SettingsState`
   in `main/settings-runtime.ts`, which loads, commits and publishes settings and
   translates into the interface language, `WalletRuntimeState` in
   `main/wallet/runtime.ts`, which starts wallets and admits page and agent requests,
   `UserAttentionState` in `main/tray-attention.ts`, which shows and ends the request
-  for the person's attention, `CredentialRuntimeState`, `BrowserSessionState` and
+  for the person's attention, `TabRuntimeState` in `main/tab-runtime-startup.ts`, the
+  tab runtime and how far its saved workspaces got in starting, whose module skips
+  native browser actions until they are up and shows the recovery notice when their
+  metadata is rejected, `CredentialRuntimeState`, `BrowserSessionState` and
   `CommercialLicenseRuntimeState` in the modules that open the password store, the
   profile's session and site permissions, and the license store,
-  `BookmarksAndHistoryState` and `AgentServicesState` in their modules,
-  `MainWindowRefs` in `main/windows/main-window.ts` and `PanelWindowRefs` in
+  `BookmarksAndHistoryState`, `AgentServicesState` and `AppUpdatesState` in their
+  modules, `MainWindowRefs` in `main/windows/main-window.ts` and `PanelWindowRefs` in
   `main/windows/panel-window.ts`, whose module and IPC take the record itself.
   What the MCP server offers agents is built by the feature that owns it: agents'
   wallets in `main/wallet/runtime.ts`, site data in `main/site-data.ts`, bookmarks
