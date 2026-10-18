@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { lstat } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import { shell, type DownloadItem, type Event, type Session, type WebContents } from 'electron'
 import { isActiveDownload } from '../../shared/download-state.js'
@@ -8,6 +9,13 @@ import { isWindowsReservedFilename } from '../../shared/portable-filename.js'
 import type { BrowserDownloadAction, BrowserDownloadState } from '../../shared/types.js'
 
 const MAX_DOWNLOAD_HISTORY = 200
+
+/** A finished download's file, with its identity as Hronaut saw it when the download completed. */
+export interface CompletedDownloadFile {
+  savePath: string
+  /** Device, inode and modification time in nanoseconds as decimal strings, so no precision is lost. */
+  identity: { dev: string; ino: string; size: number; mtimeNs: string }
+}
 
 interface BrowserDownloadsHost {
   getSettings(): { downloadDirectory: string; askWhereToSaveDownloads?: boolean; saveDialogTitle: string }
@@ -30,6 +38,8 @@ export class BrowserDownloadsController {
   private readonly downloadItems = new Map<string, DownloadItem>()
   private readonly downloadWorkspaceIds = new Map<string, string | undefined>()
   private readonly reservedDownloadPaths = new Set<string>()
+  /** Read once when each download completes, so a later copy can refuse a file that was replaced or changed. */
+  private readonly completedFileIdentities = new Map<string, Promise<CompletedDownloadFile['identity'] | undefined>>()
   private downloadNotifyTimer: NodeJS.Timeout | null = null
 
   constructor(private readonly host: BrowserDownloadsHost) {}
@@ -61,6 +71,7 @@ export class BrowserDownloadsController {
     this.downloadItems.clear()
     this.downloadWorkspaceIds.clear()
     this.reservedDownloadPaths.clear()
+    this.completedFileIdentities.clear()
   }
 
   listDownloads(): BrowserDownloadState[] {
@@ -94,6 +105,7 @@ export class BrowserDownloadsController {
     if (isActiveDownload(download)) throw new Error('Only finished download records can be removed')
     this.downloads.delete(downloadId)
     this.downloadWorkspaceIds.delete(downloadId)
+    this.completedFileIdentities.delete(downloadId)
     const downloads = this.listDownloads()
     this.sendDownloadsChanged(downloads)
     return downloads
@@ -142,6 +154,7 @@ export class BrowserDownloadsController {
         if (!inScope(download) || isActiveDownload(download)) continue
         this.downloads.delete(id)
         this.downloadWorkspaceIds.delete(id)
+        this.completedFileIdentities.delete(id)
       }
     }
     const downloads = this.listDownloads()
@@ -156,6 +169,30 @@ export class BrowserDownloadsController {
       const download = this.downloads.get(downloadId)
       if (download) download.observationGeneration = this.host.workspaceObservationGeneration(targetWorkspaceId)
     }
+  }
+
+  /**
+   * The file of a download this workspace finished, as recorded when it
+   * completed. Throws for a record outside the workspace's current
+   * observation, one that did not complete, and one whose file Hronaut did
+   * not record; messages never name the path.
+   */
+  async completedWorkspaceDownloadFile(workspaceId: string, downloadId: string): Promise<CompletedDownloadFile> {
+    this.listDownloads()
+    const download = this.downloads.get(downloadId)
+    const notFound = `Download not found in this workspace: ${downloadId}`
+    const inScope = (): boolean => this.downloads.get(downloadId) === download
+      && this.downloadWorkspaceIds.get(downloadId) === workspaceId
+      && download?.observationGeneration === this.host.workspaceObservationGeneration(workspaceId)
+    if (!download || !inScope()) throw new Error(notFound)
+    if (download.state !== 'completed' || !download.savePath) throw new Error('Only a completed download can be copied.')
+    const identity = await this.completedFileIdentities.get(downloadId)
+    // The record may have been cleared or handed to another workspace while its identity was read.
+    if (!inScope()) throw new Error(notFound)
+    if (!identity) {
+      throw new Error('Hronaut has no record of this download\'s file as it finished (it may still be finishing, or the file was already gone), so it cannot be copied. List downloads and try again.')
+    }
+    return { savePath: download.savePath, identity }
   }
 
   showDownloadInFolder(downloadId: string): void {
@@ -236,6 +273,7 @@ export class BrowserDownloadsController {
           download.paused = false
           download.canResume = false
           download.completedAt = new Date().toISOString()
+          if (state === 'completed' && download.savePath) this.recordCompletedFile(id, download.savePath)
           this.downloadItems.delete(id)
           this.trimDownloadHistory()
           this.notifyDownloadsChanged(true)
@@ -282,6 +320,16 @@ export class BrowserDownloadsController {
     throw new Error(`Could not allocate a unique download path for ${safeFilename}`)
   }
 
+  /** Records the completed file's identity, without following a symbolic link; anything but a regular file records none. */
+  private recordCompletedFile(downloadId: string, savePath: string): void {
+    this.completedFileIdentities.set(downloadId, lstat(savePath, { bigint: true }).then(
+      info => info.isFile()
+        ? { dev: String(info.dev), ino: String(info.ino), size: Number(info.size), mtimeNs: String(info.mtimeNs) }
+        : undefined,
+      () => undefined
+    ))
+  }
+
   private syncDownloadPath(download: BrowserDownloadState, item: DownloadItem): void {
     const savePath = item.getSavePath()
     if (!savePath) return
@@ -298,6 +346,7 @@ export class BrowserDownloadsController {
       const id = removable.shift()!.id
       this.downloads.delete(id)
       this.downloadWorkspaceIds.delete(id)
+      this.completedFileIdentities.delete(id)
     }
   }
 

@@ -114,6 +114,7 @@ import { registerBrowserNetworkReplay } from './tools/browser-network-replay/ind
 import { registerBrowserNetworkHar } from './tools/browser-network-har/index.js'
 import { registerBrowserNetworkRoutes } from './tools/browser-network-routes/index.js'
 import { registerBrowserDownloads } from './tools/browser-downloads/index.js'
+import { registerBrowserDownloadCopy } from './tools/browser-download-copy/index.js'
 import { registerBrowserWebmcp } from './tools/browser-webmcp/index.js'
 import { registerBrowserEvaluateFile } from './tools/browser-evaluate-file/index.js'
 import { registerBrowserEvaluate } from './tools/browser-evaluate/index.js'
@@ -750,6 +751,7 @@ export function createBrowserMcpServer(
   registerBrowserNetworkHar(toolContext)
   registerBrowserNetworkRoutes(toolContext)
   registerBrowserDownloads(toolContext)
+  registerBrowserDownloadCopy(toolContext)
   registerBrowserWebmcp(toolContext)
   registerBrowserEvaluateFile(toolContext)
   registerBrowserEvaluate(toolContext)

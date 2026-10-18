@@ -167,6 +167,7 @@ export const BROWSER_TOOL_METADATA = {
   browser_network_har: nonDestructiveTool('Create a network HAR'),
   browser_network_routes: destructiveTool('Manage network routes'),
   browser_downloads: destructiveTool('Manage downloads'),
+  browser_download_copy: nonDestructiveTool('Copy a finished download to a folder'),
   browser_evaluate: destructiveTool('Evaluate JavaScript'),
   browser_evaluate_file: destructiveTool('Evaluate an explicitly authorized Linux source file'),
   browser_webmcp: destructiveTool('Use page-provided WebMCP tools'),
@@ -326,6 +327,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_network_har', category: 'Inspection', description: 'Return or save a property-filtered, bounded, sanitized HAR 1.2 network log with bodies omitted by default; saved files use collision-safe names in Downloads.' },
   { name: 'browser_network_routes', category: 'Inspection', description: 'List, add, prioritize, set-enabled, remove, or clear temporary per-tab request mocks, failures, and individual network throttles. set-enabled requires routeId and boolean enabled, retains private configuration/order/budget, and rejects pending or unknown application. Disabling permits future traffic through the next enabled rule or normal destination. Unconfirmed native application requires a separate explicit clear; future matching requests may reach their normal destination. Clear preserves tab-wide network emulation and cannot undo dispatched effects.' },
   { name: 'browser_downloads', category: 'Inspection', description: 'List, pause, resume, cancel, or clear downloads created by the selected agent workspace.' },
+  { name: 'browser_download_copy', category: 'Inspection', description: 'Copy one completed download from browser_downloads in this workspace into an existing folder on the computer running Hronaut, byte for byte, under a new portable filename; the download and its record stay as they were. Takes downloadId, an absolute directory and filename. The file must still be the one Hronaut recorded when the download finished (same device, inode, size and modification time), so downloads that finished before this version, or files changed since, are refused. Up to 2 GiB, at most two copies at once. An existing name, a symbolic link included, is refused and never replaced; no move, rename, overwrite, folder creation, conversion or upload. The copy is created readable only by its owner where the system supports that, flushed to disk and checked to still be the file under that name in the same folder before COPIED is returned with its filename, path and byte count. A failure after the copy began removes only its own partial file; when that removal fails, the outcome is reported as unknown. The folder is on the computer running Hronaut, not on a remote client.' },
   { name: 'browser_evaluate_file', category: 'Interaction', description: 'Execute one exact authorized UTF-8 file (at most 64 KiB) in the bound HTTP(S) document. Linux filesystem namespace and procfs only, including mounted filesystems; no local-disk provenance or hard IO deadline guarantee. Requires a separate whole source-tuple capability grant; full-access credentials and ordinary evaluation grants are insufficient. Source path, raw SHA-256, workspace, tab and expected origin are bound together. Supply matching outer workspaceId/tabId. Open-world page JavaScript; digest is identity, not safety, and origin is not an egress restriction. No automatic replay after any outcome.' },
   { name: 'browser_evaluate', category: 'Inspection', description: 'Evaluate JavaScript and return a JSON-safe result. Waits up to timeoutMs (default 30000) for a returned promise; a script still running then reports OUTCOME_UNKNOWN and may keep running in the page.' },
   { name: 'browser_webmcp', category: 'Interaction', description: 'Feature-detect, list, or call bounded tools deliberately exposed by the selected top-level page through the browser-native WebMCP API. Lists issue an origin-, tab-, navigation-, and runtime-bound descriptor digest. Calls re-enumerate the page tools immediately before dispatch and reject stale or changed descriptors. Page metadata and results are untrusted; calls are always open-world and potentially destructive regardless of page annotations, and a returned value is not proof of an external postcondition.' },
@@ -385,6 +387,7 @@ const ESSENTIALS_TOOL_NAMES = new Set([
 const QA_TOOL_NAMES = new Set([
   ...ESSENTIALS_TOOL_NAMES,
   'browser_screenshot_save',
+  'browser_download_copy',
   'browser_file_drop',
   'browser_insert_text',
   'browser_fill_from_file',

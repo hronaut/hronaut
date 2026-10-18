@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { DownloadItem, Session } from 'electron'
 import { afterEach, expect, it, vi } from 'vitest'
 import { BrowserDownloadsController } from '../src/main/browser/downloads-controller.js'
@@ -108,6 +108,39 @@ it('preserves workspace ownership and excludes a live download from a new observ
   controller.manageWorkspaceDownloads('first', 'clear')
   expect(controller.listDownloads()).toHaveLength(1)
   expect(second.cancel).not.toHaveBeenCalled()
+})
+
+it('records a completed download\'s file for copying, only for its own workspace and while its record lasts', async () => {
+  const { controller, download, generations } = await fixture()
+  const transfer = download()
+  const [entry] = controller.listDownloads()
+  await expect(controller.completedWorkspaceDownloadFile('first', entry!.id)).rejects.toThrow('Only a completed download can be copied')
+  await writeFile(entry!.savePath!, 'downloaded bytes')
+  transfer.complete()
+  const file = await controller.completedWorkspaceDownloadFile('first', entry!.id)
+  const info = await lstat(entry!.savePath!, { bigint: true })
+  expect(file).toEqual({ savePath: entry!.savePath, identity: { dev: String(info.dev), ino: String(info.ino), size: 16, mtimeNs: String(info.mtimeNs) } })
+  await expect(controller.completedWorkspaceDownloadFile('second', entry!.id)).rejects.toThrow('Download not found in this workspace')
+  generations.set('first', 1)
+  await expect(controller.completedWorkspaceDownloadFile('first', entry!.id)).rejects.toThrow('Download not found in this workspace')
+  generations.set('first', 0)
+  controller.removeFinishedDownload(entry!.id)
+  await expect(controller.completedWorkspaceDownloadFile('first', entry!.id)).rejects.toThrow('Download not found in this workspace')
+})
+
+it('records no file for a download whose file was gone, or a symbolic link, when it completed', async () => {
+  const { controller, download } = await fixture()
+  const missing = download()
+  const [missingEntry] = controller.listDownloads()
+  missing.complete()
+  await expect(controller.completedWorkspaceDownloadFile('first', missingEntry!.id)).rejects.toThrow('no record of this download\'s file')
+  const linked = download(1, false, 'https://download.example/linked.txt', 'linked.txt')
+  const linkedEntry = controller.listDownloads().find(entry => entry.filename === 'linked.txt')!
+  const target = join(dirname(linkedEntry.savePath!), 'link-target.txt')
+  await writeFile(target, 'elsewhere')
+  await symlink(target, linkedEntry.savePath!)
+  linked.complete()
+  await expect(controller.completedWorkspaceDownloadFile('first', linkedEntry.id)).rejects.toThrow('no record of this download\'s file')
 })
 
 it('retains interrupted transfers at the history limit and admits another download after cancellation', async () => {

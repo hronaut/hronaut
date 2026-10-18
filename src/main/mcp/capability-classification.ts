@@ -93,6 +93,7 @@ export const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabili
   browser_network_har: 'network',
   browser_network_routes: 'network',
   browser_downloads: 'external-request',
+  browser_download_copy: 'external-request',
   browser_evaluate: 'interact',
   browser_evaluate_file: 'interact',
   browser_webmcp: 'interact',
