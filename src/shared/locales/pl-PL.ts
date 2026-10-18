@@ -379,7 +379,7 @@ export const plPL = {
       "description": "Kontroluj, które lokalne aplikacje mogą łączyć się z tym profilem.",
       "require": "Wymagaj uwierzytelniania MCP",
       "requireDescription": "Wymagaj prywatnego tokenu bearer profilu dla MCP i zapytań o stan.",
-      challengeDetection: "Wykrywaj widoczne wyzwania", challengeDetectionDescription: "Domyślnie wyłączone. Ocena jakości obserwacji może wykrywać widoczne CAPTCHA i weryfikację człowieka. Pozostałe kontrole jakości i uprawnień pozostają aktywne. Nie rozwiązuje ani nie omija wyzwań.", "toolSet": "Zestaw narzędzi MCP",
+      challengeDetection: "Wykrywaj widoczne wyzwania", challengeDetectionDescription: "Domyślnie wyłączone. Ocena jakości obserwacji może wykrywać widoczne CAPTCHA i weryfikację człowieka. Pozostałe kontrole jakości i uprawnień pozostają aktywne. Nie rozwiązuje ani nie omija wyzwań.", omitUrlDetail: "Ukrywaj szczegóły adresów URL przed agentami", omitUrlDetailDescription: "Domyślnie wyłączone. Agenci widzą adresy kart i migawek tylko jako witrynę i ścieżkę, bez danych logowania i części po ? lub #. Ścieżki, tekst strony, zrzuty ekranu i inne narzędzia nadal mogą pokazywać prywatne dane.", "toolSet": "Zestaw narzędzi MCP",
       "toolSetDescription": "Wybierz katalog dopasowany do zadania dla nowych połączeń MCP.",
       "toolSetEssentials": "Podstawy przeglądarki",
       "toolSetQa": "QA stron",

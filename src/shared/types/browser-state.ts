@@ -82,8 +82,12 @@ export interface BrowserTabState {
   agentPaused?: boolean
   /** Runtime only: when the person took this paused tab over from its agent, in epoch milliseconds. */
   takenOverAt?: number
-  /** Runtime only: the person's latest hand back of this tab, with a plain note for the agent of what changed. */
-  handedBack?: { at: number; note: string }
+  /**
+   * Runtime only: the person's latest hand back of this tab, with a plain note for the agent of what changed, and,
+   * when the page moved, the same note with addresses as origin and path only, which agents read instead while the
+   * person keeps URL query strings and fragments from them.
+   */
+  handedBack?: { at: number; note: string; noteWithoutUrlDetail?: string }
 }
 
 export type BrowserPageLifecycleState = 'active' | 'frozen' | 'unknown'

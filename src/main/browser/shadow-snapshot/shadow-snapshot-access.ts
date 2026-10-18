@@ -16,4 +16,6 @@ export interface ShadowSnapshotAccess<Tab extends ShadowSnapshotTab> {
   getTab(tabId?: string): Tab
   findTab(tabId: string): Tab | undefined
   snapshotDeltaContext(tab: Tab): BrowserSnapshotDeltaContext
+  /** The person chose to keep URL query strings and fragments out of what agents read. */
+  omitUrlDetail?(): boolean
 }

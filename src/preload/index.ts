@@ -422,6 +422,7 @@ const settingsApi: HronautSettingsApi = {
   setShowAgentCursor: (enabled: boolean) => ipcRenderer.invoke('settings:set-show-agent-cursor', enabled),
   setPinAgentLiveStatus: (enabled: boolean) => ipcRenderer.invoke('settings:set-pin-agent-live-status', enabled),
   setChallengeDetectionEnabled: (enabled) => ipcRenderer.invoke('settings:set-challenge-detection', enabled),
+  setOmitAgentUrlDetail: (enabled: boolean) => ipcRenderer.invoke('settings:set-omit-agent-url-detail', enabled),
   setMcpRemoteAccess: (enabled: boolean) => ipcRenderer.invoke('settings:set-mcp-remote-access', enabled),
   setMcpAuthentication: (enabled: boolean) => ipcRenderer.invoke('settings:set-mcp-authentication', enabled),
   setMcpPort: (port: number) => ipcRenderer.invoke('settings:set-mcp-port', port),

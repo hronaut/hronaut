@@ -10,4 +10,6 @@ export interface BrowserSnapshot {
   returnedChars: number
   truncated: boolean
   omitted: { headings: boolean; controls: boolean; bodyText: boolean; characters: boolean }
+  /** The URL line shows only the page's origin and path, as the person chose. */
+  urlDetail?: 'omitted'
 }

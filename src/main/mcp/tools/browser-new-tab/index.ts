@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { DEFAULT_FONT_SIZE_LIMITS } from '../../../../shared/default-font-size.js'
 import { MAX_TAB_LABEL_INPUT_LENGTH, normalizeTabLabel } from '../../../../shared/tab-label.js'
-import { classifyMcpActivityResult, mcpWorkspaceState, textResult, toolDescription } from '../../tool-results.js'
+import { classifyMcpActivityResult, mcpWorkspaceState, textResult, toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type LabeledCreationSettlement, labeledCreationSettlement } from './labeled-creation-settlement.js'
 
@@ -38,7 +38,7 @@ export function registerBrowserNewTab(context: McpToolContext): void {
         }, creation.markAttempted)
         const knownNotSaved = saved.labelPersistence === 'not-saved'
         creation.recordLabelNotSaved(knownNotSaved)
-        const outcome = { ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)), ...saved,
+        const outcome = { ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!), urlDetailOmitted(manager)), ...saved,
           status: knownNotSaved ? 'LABEL_NOT_SAVED' : 'CREATED', retrySafe: false,
           ...(knownNotSaved ? { nextAction: 'The tab was created but its label was not saved. Inspect current state; do not repeat creation to retry the label.' } : {}) }
         return { ...textResult(outcome), structuredContent: { status: outcome.status }, ...(knownNotSaved ? { isError: true } : {}) }
@@ -51,7 +51,7 @@ export function registerBrowserNewTab(context: McpToolContext): void {
         onTabActivity?.({ activityId, tabId: createdTab.id, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, workspaceId!)
         onTabActivity?.({ activityId, tabId: createdTab.id, toolName: 'browser_new_tab', phase: 'finished', occurredAt: Date.now() }, workspaceId!)
       }
-      return textResult(mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)))
+      return textResult(mcpWorkspaceState(manager.getMcpGroupState(workspaceId!), urlDetailOmitted(manager)))
     }),
     {
       settlement: input => input.label !== undefined ? labeledCreationSettlement(manager, input) : undefined,

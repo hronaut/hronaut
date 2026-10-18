@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { createHash } from 'node:crypto'
 import { type BrowserReconciliationCondition, type BrowserReconciliationResult, classifyBrowserReconciliation } from '../../shared/browser-reconciliation.js'
 import type { BrowserState, McpActivityResult } from '../../shared/types.js'
+import { titleWithoutUrlDetail, urlWithoutDetail } from '../../shared/url-detail.js'
 import { NativeClickAdmissionError, type NativeClickProgress, nativeClickEffectsPossible, nativeClickReason } from '../browser/native-click-admission.js'
 import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
 import { NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldProgress } from '../browser/native-key-hold.js'
@@ -162,28 +163,77 @@ export function safeValue(value: unknown): unknown {
   }
 }
 
-export function mcpWorkspaceTab<T extends { mcpGroupId?: string; mcpGroupName?: string; networkConditionState?: import('../../shared/types.js').BrowserNetworkConditionState }>(tab: T): Omit<T, 'mcpGroupId' | 'mcpGroupName' | 'networkConditionState'> & {
+interface AddressedTab {
+  url?: string
+  title?: string
+  pageProblem?: { url: string }
+  dialog?: { url: string }
+  handedBack?: { at: number; note: string; noteWithoutUrlDetail?: string }
+}
+
+/** A tab without the hand-back note agents read only when the person chose to omit URL detail. */
+function withoutOmittedNote<T extends AddressedTab>(tab: T): T {
+  if (!tab.handedBack) return tab
+  const { noteWithoutUrlDetail: _omitted, ...handedBack } = tab.handedBack
+  return { ...tab, handedBack }
+}
+
+/**
+ * A tab or closed tab as agents read it when the person chose to omit URL detail: its address, a title that shows an
+ * address, the addresses of its page problem and dialog, and its hand-back note, each with addresses as origin and
+ * path, marked as omitted.
+ */
+function tabWithoutUrlDetail<T extends AddressedTab>(tab: T): T & { urlDetail: 'omitted' } {
+  const handedBack = tab.handedBack
+    ? (({ noteWithoutUrlDetail, ...rest }) => ({ ...rest, note: noteWithoutUrlDetail ?? rest.note }))(tab.handedBack)
+    : undefined
+  return {
+    ...tab,
+    ...(tab.url === undefined ? {} : { url: urlWithoutDetail(tab.url) }),
+    ...(tab.title === undefined ? {} : { title: titleWithoutUrlDetail(tab.title, tab.url ?? '') }),
+    ...(tab.pageProblem ? { pageProblem: { ...tab.pageProblem, url: urlWithoutDetail(tab.pageProblem.url) } } : {}),
+    ...(tab.dialog ? { dialog: { ...tab.dialog, url: urlWithoutDetail(tab.dialog.url) } } : {}),
+    ...(handedBack ? { handedBack } : {}),
+    urlDetail: 'omitted'
+  }
+}
+
+/** A saved workspace as agents read it when the person chose to omit URL detail: each saved tab shortened as a live tab is. */
+export function savedWorkspaceWithoutUrlDetail<T extends { tabs: AddressedTab[] }>(workspace: T): T & { urlDetail: 'omitted' } {
+  return { ...workspace, tabs: workspace.tabs.map(tab => tabWithoutUrlDetail(tab)), urlDetail: 'omitted' }
+}
+
+/** Whether the person chose to keep URL detail out of what agents read. A manager without the setting shows it. */
+export function urlDetailOmitted(manager: { omitAgentUrlDetail?: () => boolean }): boolean {
+  return manager.omitAgentUrlDetail?.() === true
+}
+
+/** A tab as agents read it. With `omitUrlDetail`, the person's setting, its addresses carry no query or fragment. */
+export function mcpWorkspaceTab<T extends AddressedTab & { mcpGroupId?: string; mcpGroupName?: string; networkConditionState?: import('../../shared/types.js').BrowserNetworkConditionState }>(tab: T, omitUrlDetail = false): Omit<T, 'mcpGroupId' | 'mcpGroupName' | 'networkConditionState'> & {
   networkConditionState?: { application: import('../../shared/types.js').BrowserNetworkConditionState['application']; retainedRuleCount: number }
   workspaceId?: string
   workspaceName?: string
+  urlDetail?: 'omitted'
 } {
   const { mcpGroupId, mcpGroupName, networkConditionState, ...rest } = tab
   return {
-    ...rest,
+    ...(omitUrlDetail ? tabWithoutUrlDetail(rest) : withoutOmittedNote(rest)),
     ...(networkConditionState ? { networkConditionState: { application: networkConditionState.application, retainedRuleCount: networkConditionState.retainedRules.length } } : {}),
     ...(mcpGroupId ? { workspaceId: mcpGroupId } : {}),
     ...(mcpGroupName ? { workspaceName: mcpGroupName } : {})
   }
 }
 
-export function mcpWorkspaceState(state: BrowserState): Record<string, unknown> {
+/** The workspace's state as agents read it. With `omitUrlDetail`, the person's setting, it says detail was omitted. */
+export function mcpWorkspaceState(state: BrowserState, omitUrlDetail = false): Record<string, unknown> {
   const { tabs, closedTabs, mcpTabGroups, savedTabGroups, ...rest } = state
   return {
     ...rest,
-    tabs: tabs.map(mcpWorkspaceTab),
-    closedTabs: closedTabs.map(mcpWorkspaceTab),
+    tabs: tabs.map(tab => mcpWorkspaceTab(tab, omitUrlDetail)),
+    closedTabs: closedTabs.map(tab => mcpWorkspaceTab(tab, omitUrlDetail)),
     workspaces: mcpTabGroups,
-    savedWorkspaces: savedTabGroups
+    savedWorkspaces: omitUrlDetail ? savedTabGroups.map(savedWorkspaceWithoutUrlDetail) : savedTabGroups,
+    ...(omitUrlDetail ? { urlDetail: 'omitted' } : {})
   }
 }
 

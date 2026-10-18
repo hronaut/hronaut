@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { closedTabWaitResult, errorResult, textResult, toolDescription } from '../../tool-results.js'
+import { URL_DETAIL_OMITTED_NOTE, urlWithoutDetail } from '../../../../shared/url-detail.js'
+import { closedTabWaitResult, errorResult, textResult, toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
 
@@ -50,7 +51,7 @@ export function registerBrowserWait(context: McpToolContext): void {
         if (urlPattern) {
           const matchedUrl = await manager.waitForUrlPattern(urlPattern, tabId, timeoutMs)
           return matchedUrl
-            ? textResult(`URL matched: ${matchedUrl}`)
+            ? textResult(`URL matched: ${urlDetailOmitted(manager) ? `${urlWithoutDetail(matchedUrl)} ${URL_DETAIL_OMITTED_NOTE}` : matchedUrl}`)
             : errorResult(new Error('Timed out waiting for the page URL pattern.'))
         }
         if (hasTarget) {

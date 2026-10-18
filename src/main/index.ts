@@ -949,6 +949,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     followAgentActivity: settingsState.current.followAgentActivity,
     getShowAgentCursor: () => settingsState.current.showAgentCursor,
     getChallengeDetectionEnabled: () => settingsState.current.challengeDetectionEnabled,
+    getOmitAgentUrlDetail: () => settingsState.current.omitAgentUrlDetail,
     getSearchEngine: () => settingsState.current.searchEngine,
     getLocale: () => settingsState.resolvedLocale,
     getTabPosition: () => settingsState.current.tabPosition,

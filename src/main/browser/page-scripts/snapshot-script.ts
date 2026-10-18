@@ -2,14 +2,17 @@ import { renderedVisibilityHelpersSource } from '../rendered-visibility.js'
 import { snapshotTextHelpersSource } from '../snapshot-text.js'
 import { javascriptLiteral } from '../../../shared/javascript-literal.js'
 import { BROWSER_SNAPSHOT_FORMAT_VERSION } from '../../../shared/snapshot.js'
+import { URL_DETAIL_OMITTED_NOTE, urlWithoutDetail } from '../../../shared/url-detail.js'
 
 // Bounds numbering for one long-lived document. Exhaustion restarts numbering
 // with fresh identities; the next delta then reports renumbered controls.
 export const SNAPSHOT_REF_LIMIT = 1_000_000
 
-export function snapshotScript(maxChars: number, includeMetadata = false, rootSelector?: string): string {
+/** With `omitUrlDetail`, the person's setting, the URL line shows the page's origin and path only. */
+export function snapshotScript(maxChars: number, includeMetadata = false, rootSelector?: string, omitUrlDetail = false): string {
   return `(() => {
     const MAX_CHARS = ${maxChars};
+    const urlWithoutDetail = (${urlWithoutDetail.toString()});
     ${snapshotTextHelpersSource()}
     const rootSelector = ${javascriptLiteral(rootSelector ?? null)};
     let root = document;
@@ -99,7 +102,7 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
       if (lines.join('\\n').length < MAX_CHARS) lines.push(line);
     };
     if (rootSelector !== null) add('SCOPE: component; content outside the root is omitted, including global dialogs and navigation controls');
-    add('URL: ' + safeUrl(location.href));
+    add(${omitUrlDetail} ? 'URL: ' + urlWithoutDetail(location.href) + ' ' + ${javascriptLiteral(URL_DETAIL_OMITTED_NOTE)} : 'URL: ' + safeUrl(location.href));
     add('TITLE: ' + document.title);
     const visibleHeadings = select('h1,h2,h3').filter(element => visible(element) && !snapshotEditingContext(element));
     omitted.headings = visibleHeadings.length > 80;

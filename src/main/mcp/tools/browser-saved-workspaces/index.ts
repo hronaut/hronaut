@@ -1,6 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
-import { textResult, toolDescription } from '../../tool-results.js'
+import { savedWorkspaceWithoutUrlDetail, textResult, toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import { workspaceIdSchema, workspaceResumeKeySchema } from '../../tool-schemas.js'
 import { WorkspaceWriteLeaseError } from '../../workspace-write-leases.js'
 import type { McpToolContext } from '../tool-context.js'
@@ -39,8 +39,11 @@ export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
       savedWorkspaceId?: string
       resumeKey?: string
     }) => {
+      // Saved tabs keep their full addresses; agents read them without detail when the person chose so.
+      const omitUrlDetail = urlDetailOmitted(manager)
+      const shown = <T extends { tabs: Array<{ url: string; title: string }> }>(workspace: T): T => omitUrlDetail ? savedWorkspaceWithoutUrlDetail(workspace) : workspace
       if (action === 'list') {
-        const authorized = authorizedSavedWorkspaces()
+        const authorized = authorizedSavedWorkspaces().map(shown)
         const authorizedIds = new Set(authorized.map(workspace => workspace.id))
         return textResult([
           ...authorized,
@@ -63,7 +66,7 @@ export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
         workspaceLeases.releaseAfterMutation(workspaceId, client.id)
         activeWorkspaceIds.delete(workspaceId)
         savedWorkspaceIds.add(saved.id)
-        return leaseOutcome ?? textResult(withResumeKey(saved))
+        return leaseOutcome ?? textResult(withResumeKey(shown(saved)))
       }
       if (!savedWorkspaceId) throw new TypeError(`savedWorkspaceId is required to ${action} a saved workspace`)
       if (action === 'resume') {
@@ -77,7 +80,7 @@ export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
         const continuity = guarded ? await manager.inspectWorkspaceContinuity(savedWorkspaceId) : undefined
         requireSavedWorkspace(savedWorkspaceId)
         if (writeLease.generation) workspaceLeases.require(savedWorkspaceId, client.id, writeLease.generation)
-        return textResult({ ...withResumeKey(manager.listSavedTabGroups().find((workspace) => workspace.id === savedWorkspaceId)!), writeLease, ...(continuity ? { continuity } : {}) })
+        return textResult({ ...withResumeKey(shown(manager.listSavedTabGroups().find((workspace) => workspace.id === savedWorkspaceId)!)), writeLease, ...(continuity ? { continuity } : {}) })
       }
       requireSavedWorkspace(savedWorkspaceId)
       if (action === 'open') {
@@ -110,7 +113,7 @@ export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
       }
       workspaceLeases.releaseAfterMutation(savedWorkspaceId, client.id)
       savedWorkspaceIds.delete(savedWorkspaceId)
-      return leaseOutcome ?? textResult(authorizedSavedWorkspaces())
+      return leaseOutcome ?? textResult(authorizedSavedWorkspaces().map(shown))
     }),
     {
       leaseTarget: input => ({ workspaceId: input.savedWorkspaceId, saved: input.action === 'open' || input.action === 'delete' }),

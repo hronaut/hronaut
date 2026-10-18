@@ -1,5 +1,7 @@
 import { z } from 'zod'
-import { toolDescription } from '../../tool-results.js'
+import type { BrowserVisualCompareReport, BrowserVisualSnapshot } from '../../../../shared/types.js'
+import { titleWithoutUrlDetail, urlWithoutDetail } from '../../../../shared/url-detail.js'
+import { toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
 
@@ -45,12 +47,29 @@ export function registerBrowserVisualCompare(context: McpToolContext): void {
       const previewBefore = action === 'get' || action === 'clear' ? undefined : manager.cssStatePreviewMarker(tabId)
       const result = await manager.visualCompare({ tabId, action, threshold, settleMs, clip }, validateCapture)
       const cssStatePreview = action === 'get' || action === 'clear' ? undefined : previewBefore ?? manager.cssStatePreviewMarker(tabId)
+      const report = urlDetailOmitted(manager) ? reportWithoutUrlDetail(result.report) : result.report
       return {
         content: [
-          { type: 'text', text: JSON.stringify(cssStatePreview ? { ...result.report, cssStatePreview } : result.report, null, 2) },
+          { type: 'text', text: JSON.stringify(cssStatePreview ? { ...report, cssStatePreview } : report, null, 2) },
           ...(result.diffPng ? [{ type: 'image' as const, data: result.diffPng.toString('base64'), mimeType: 'image/png' as const }] : [])
         ]
       }
     })
   )
+}
+
+/**
+ * The report as agents read it when the person chose to keep URL query strings and fragments from them: the page's
+ * address and those of both captures as origin and path, and a title that shows the address shortened the same way.
+ */
+function reportWithoutUrlDetail(report: BrowserVisualCompareReport): BrowserVisualCompareReport & { urlDetail: 'omitted' } {
+  const capture = (snapshot?: BrowserVisualSnapshot) => snapshot && { ...snapshot, url: urlWithoutDetail(snapshot.url) }
+  return {
+    ...report,
+    title: titleWithoutUrlDetail(report.title, report.url),
+    url: urlWithoutDetail(report.url),
+    ...(report.baseline ? { baseline: capture(report.baseline) } : {}),
+    ...(report.current ? { current: capture(report.current) } : {}),
+    urlDetail: 'omitted'
+  }
 }

@@ -38,7 +38,7 @@ export interface BrowserStateTab {
   humanInteractionLocked: boolean
   tabAgentPaused: boolean
   takeOver?: { at: number }
-  handedBack?: { at: number; note: string }
+  handedBack?: { at: number; note: string; noteWithoutUrlDetail?: string }
   preserveDiagnosticLogs: boolean
   webContents: WebContents
   zoomIsolated: boolean

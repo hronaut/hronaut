@@ -39,6 +39,10 @@ function createController() {
     settings.value = { ...settings.value, challengeDetectionEnabled }
     return settings.value
   })
+  const setOmitAgentUrlDetail = vi.fn(async (omitAgentUrlDetail: boolean) => {
+    settings.value = { ...settings.value, omitAgentUrlDetail }
+    return settings.value
+  })
   const setToolSet = vi.fn(async (mcpToolSet: AppSettings['mcpToolSet']) => {
     settings.value = { ...settings.value, mcpToolSet }
     return settings.value
@@ -69,6 +73,7 @@ function createController() {
     setAuthentication,
     setPort,
     setChallengeDetectionEnabled,
+    setOmitAgentUrlDetail,
     setToolSet,
     resetSettings,
     listCapabilityProfiles,

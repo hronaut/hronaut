@@ -38,6 +38,8 @@ export interface BrowserShadowSnapshot {
   completeness: { complete: boolean; omissions: ShadowSnapshotOmission[]; absenceNotEstablished: boolean }
   coverage: { shadowRoots: number; assignedSlots: number }
   limits: typeof SHADOW_SNAPSHOT_LIMITS & { maxChars: number }
+  /** The URL line shows only the page's origin and path, as the person chose. */
+  urlDetail?: 'omitted'
 }
 
 /**
@@ -58,9 +60,10 @@ export async function shadowSnapshot<Tab extends ShadowSnapshotTab>(
   const boundedChars = Math.min(Math.max(maxChars, 1_000), 100_000)
   const tab = access.getTab(tabId)
   const context = access.snapshotDeltaContext(tab)
+  const omitUrlDetail = access.omitUrlDetail?.() === true
   const page = await tab.webContents.executeJavaScriptInIsolatedWorld(
     SHADOW_SNAPSHOT_WORLD_ID,
-    [{ code: shadowSnapshotScript(hostSelector, boundedChars) }],
+    [{ code: shadowSnapshotScript(hostSelector, boundedChars, omitUrlDetail) }],
     false
   ) as ShadowSnapshotPage
   if ('problem' in page) throw new Error(PROBLEMS[page.problem] ?? 'Shadow host could not be captured')
@@ -82,6 +85,7 @@ export async function shadowSnapshot<Tab extends ShadowSnapshotTab>(
     // Frames and editors can hold headings and controls too, so absence holds only when nothing was left out.
     completeness: { complete, omissions, absenceNotEstablished: omissions.length > 0 },
     coverage: { shadowRoots: page.shadowRoots, assignedSlots: page.assignedSlots },
-    limits: { ...SHADOW_SNAPSHOT_LIMITS, maxChars: boundedChars }
+    limits: { ...SHADOW_SNAPSHOT_LIMITS, maxChars: boundedChars },
+    ...(omitUrlDetail ? { urlDetail: 'omitted' as const } : {})
   }
 }

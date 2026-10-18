@@ -180,7 +180,8 @@ export function createMcpRuntime(host: McpRuntimeHost): {
         mcpAuthentication: false,
         mcpPort: DEFAULT_MCP_PORT,
         mcpToolSet: DEFAULT_MCP_TOOL_SET,
-        challengeDetectionEnabled: false
+        challengeDetectionEnabled: false,
+        omitAgentUrlDetail: false
       })
       host.state.server?.setAuthenticationToken(host.settings().mcpAuthentication ? host.state.tokenConfiguration?.token : undefined)
       host.state.server?.setToolSet(DEFAULT_MCP_TOOL_SET)
@@ -210,7 +211,8 @@ export function createMcpRuntime(host: McpRuntimeHost): {
         mcpAuthentication: false,
         mcpPort: DEFAULT_MCP_PORT,
         mcpToolSet: DEFAULT_MCP_TOOL_SET,
-        challengeDetectionEnabled: false
+        challengeDetectionEnabled: false,
+        omitAgentUrlDetail: false
       })
     } catch (error) {
       await candidate.stop().catch(() => undefined)

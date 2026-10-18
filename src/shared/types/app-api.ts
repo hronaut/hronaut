@@ -124,6 +124,7 @@ export interface HronautSettingsApi {
   setShowAgentCursor(enabled: boolean): Promise<AppSettings>
   setPinAgentLiveStatus(enabled: boolean): Promise<AppSettings>
   setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
+  setOmitAgentUrlDetail(enabled: boolean): Promise<AppSettings>
   setMcpRemoteAccess(enabled: boolean): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>

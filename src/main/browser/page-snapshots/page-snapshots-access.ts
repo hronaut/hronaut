@@ -28,9 +28,11 @@ export interface PageSnapshotsTab {
   snapshotBaselineGeneration: number
 }
 
-/** The tab manager option that turns challenge detection on in an observation assessment. */
+/** The tab manager options snapshots read: challenge detection in an observation assessment, and URL detail. */
 export interface PageSnapshotsOptions {
   getChallengeDetectionEnabled?: () => boolean
+  /** The person chose to keep URL query strings and fragments out of snapshots' URL lines. */
+  getOmitAgentUrlDetail?: () => boolean
 }
 
 /**

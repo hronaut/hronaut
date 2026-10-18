@@ -28,6 +28,7 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   attentionSound: true,
   attentionSoundCue: 'warning',
   challengeDetectionEnabled: false,
+  omitAgentUrlDetail: false,
   followAgentActivity: false,
   showAgentCursor: true,
   pinAgentLiveStatus: false,
@@ -179,6 +180,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const setShowAgentCursor = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setShowAgentCursor(enabled))
   const setPinAgentLiveStatus = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setPinAgentLiveStatus(enabled))
   const setChallengeDetectionEnabled = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setChallengeDetectionEnabled(enabled))
+  const setOmitAgentUrlDetail = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setOmitAgentUrlDetail(enabled))
   const setMcpRemoteAccess = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpRemoteAccess(enabled))
   const setMcpAuthentication = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpAuthentication(enabled))
   const setMcpPort = (port: number): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpPort(port))
@@ -241,6 +243,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setShowAgentCursor,
     setPinAgentLiveStatus,
     setChallengeDetectionEnabled,
+    setOmitAgentUrlDetail,
     setMcpRemoteAccess,
     setMcpAuthentication,
     setMcpPort,

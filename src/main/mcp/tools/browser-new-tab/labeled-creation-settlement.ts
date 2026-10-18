@@ -1,7 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserTabsManager } from '../../../browser/tabs-manager.js'
 import { McpCapabilityAuthorizationError } from '../../capability-profile-store.js'
-import { errorResult, mcpWorkspaceState, textResult } from '../../tool-results.js'
+import { errorResult, mcpWorkspaceState, textResult, urlDetailOmitted } from '../../tool-results.js'
 import type { WorkspaceToolCall } from '../tool-context.js'
 
 /**
@@ -33,7 +33,7 @@ export function labeledCreationSettlement(manager: BrowserTabsManager, input: Re
       publication()
       if (reviewFinalizationFailed) throw new Error('Review finalization failed')
       if (result.isError && !(knownNotSaved && result.structuredContent?.status === 'LABEL_NOT_SAVED')) throw new Error('Creation settlement failed')
-      const state = mcpWorkspaceState(manager.getMcpGroupState(String(input.workspaceId)))
+      const state = mcpWorkspaceState(manager.getMcpGroupState(String(input.workspaceId)), urlDetailOmitted(manager))
       settled = { ...result, content: result.content.map(item => item.type === 'text' ? { ...item, text: JSON.stringify({ ...JSON.parse(item.text), ...state }, null, 2) } : item) }
     } catch (error) {
       rememberInputPolicy(error)

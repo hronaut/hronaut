@@ -15,7 +15,7 @@ import {
 } from '../../../shared/mcp-port.js'
 
 type McpPortState = 'idle' | 'saving' | 'saved' | 'error'
-type McpOperation = 'idle' | 'remote-access' | 'authentication' | 'tool-set' | 'challenge-detection' | 'port' | 'reset'
+type McpOperation = 'idle' | 'remote-access' | 'authentication' | 'tool-set' | 'challenge-detection' | 'url-detail' | 'port' | 'reset'
 
 export interface McpSettingsControllerOptions {
   settings: Readonly<Ref<AppSettings>>
@@ -30,6 +30,7 @@ export interface McpSettingsControllerOptions {
   setRemoteAccess: (enabled: boolean) => Promise<AppSettings>
   setAuthentication: (enabled: boolean) => Promise<AppSettings>
   setChallengeDetectionEnabled: (enabled: boolean) => Promise<AppSettings>
+  setOmitAgentUrlDetail: (enabled: boolean) => Promise<AppSettings>
   setToolSet: (toolSet: McpToolSet) => Promise<AppSettings>
   setPort: (port: number) => Promise<AppSettings>
   resetSettings: () => Promise<AppSettings>
@@ -164,6 +165,21 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     operation.value = 'challenge-detection'
     try {
       await options.setChallengeDetectionEnabled(enabled)
+      return operationGeneration === generation
+    } catch (error) {
+      if (operationGeneration === generation) options.onAuthenticationError(error)
+      return false
+    } finally {
+      if (operationGeneration === generation) operation.value = 'idle'
+    }
+  }
+
+  async function setOmitAgentUrlDetail(enabled: boolean): Promise<boolean> {
+    if (busy.value) return false
+    const operationGeneration = generation
+    operation.value = 'url-detail'
+    try {
+      await options.setOmitAgentUrlDetail(enabled)
       return operationGeneration === generation
     } catch (error) {
       if (operationGeneration === generation) options.onAuthenticationError(error)
@@ -410,6 +426,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     setRemoteAccess,
     setAuthentication,
     setChallengeDetectionEnabled,
+    setOmitAgentUrlDetail,
     setToolSet,
     applyPort,
     applySuggestedPort,

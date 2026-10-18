@@ -64,7 +64,13 @@ export function setTabAgentPaused<Tab extends AgentPauseTab>(access: AgentPauseA
 /** Any resume of a tab the person took over hands it back, and tells its agent what changed. */
 function settleTakeOver<Tab extends AgentPauseTab>(access: AgentPauseAccess<Tab>, tab: Tab): void {
   if (!tab.takeOver || isTabAgentPaused(access, tab.id)) return
-  tab.handedBack = { at: Date.now(), note: handBackNote(tab.takeOver, takeOverMark(tab)) }
+  const end = takeOverMark(tab)
+  tab.handedBack = {
+    at: Date.now(),
+    note: handBackNote(tab.takeOver, end),
+    // Agents read this one instead while the person keeps URL query strings and fragments from them.
+    ...(end.url === tab.takeOver.url ? {} : { noteWithoutUrlDetail: handBackNote(tab.takeOver, end, true) })
+  }
   tab.takeOver = undefined
 }
 

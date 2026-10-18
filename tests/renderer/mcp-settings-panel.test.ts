@@ -29,6 +29,10 @@ function renderPanel(initialCapabilityProfiles: McpCapabilityProfileSummary[] = 
     settings.value = { ...settings.value, challengeDetectionEnabled }
     return settings.value
   })
+  const setOmitAgentUrlDetail = vi.fn(async (omitAgentUrlDetail: boolean) => {
+    settings.value = { ...settings.value, omitAgentUrlDetail }
+    return settings.value
+  })
   const setToolSet = vi.fn(async (mcpToolSet: AppSettings['mcpToolSet']) => {
     settings.value = { ...settings.value, mcpToolSet }
     return settings.value
@@ -62,6 +66,7 @@ function renderPanel(initialCapabilityProfiles: McpCapabilityProfileSummary[] = 
     setRemoteAccess: async (enabled: boolean) => (settings.value = { ...settings.value, mcpRemoteAccess: enabled }),
     setAuthentication,
     setChallengeDetectionEnabled,
+    setOmitAgentUrlDetail,
     setToolSet,
     setPort,
     resetSettings,
@@ -78,7 +83,7 @@ function renderPanel(initialCapabilityProfiles: McpCapabilityProfileSummary[] = 
     global: { plugins: [createHronautI18n('en-US')] },
     props: { controller }
   })
-  return { controller, confirmDisableAuthentication, createCapabilityProfile, setAuthentication, setPort, setToolSet, setChallengeDetectionEnabled, settings }
+  return { controller, confirmDisableAuthentication, createCapabilityProfile, setAuthentication, setPort, setToolSet, setChallengeDetectionEnabled, setOmitAgentUrlDetail, settings }
 }
 
 describe('McpSettingsPanel', () => {
@@ -92,6 +97,21 @@ describe('McpSettingsPanel', () => {
     expect(toggle).toBeChecked()
     await user.click(toggle)
     expect(setChallengeDetectionEnabled).toHaveBeenLastCalledWith(false)
+    expect(toggle).not.toBeChecked()
+    controller.dispose()
+  })
+
+  it('keeps URL detail visible to agents until the human hides it, and shows it again when turned off', async () => {
+    const { controller, setOmitAgentUrlDetail } = renderPanel()
+    const user = userEvent.setup()
+    const toggle = screen.getByRole('checkbox', { name: /Hide URL details from agents/ })
+    expect(toggle).not.toBeChecked()
+    expect(toggle).toHaveAccessibleName(expect.stringContaining('without credentials or the part after ? or #'))
+    await user.click(toggle)
+    expect(setOmitAgentUrlDetail).toHaveBeenLastCalledWith(true)
+    expect(toggle).toBeChecked()
+    await user.click(toggle)
+    expect(setOmitAgentUrlDetail).toHaveBeenLastCalledWith(false)
     expect(toggle).not.toBeChecked()
     controller.dispose()
   })

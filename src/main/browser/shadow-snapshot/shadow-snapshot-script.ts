@@ -1,3 +1,5 @@
+import { URL_DETAIL_OMITTED_NOTE, urlWithoutDetail } from '../../../shared/url-detail.js'
+
 /**
  * The page script of a shadow snapshot. It runs in the shadow snapshot's own
  * isolated world, which shares the page's DOM but not its scripts, so the page
@@ -37,11 +39,13 @@ export type ShadowSnapshotPage =
  * and built-in ones such as a video's controls are not entered. Content that
  * is not rendered is left out: a light child no slot takes, hidden elements, a
  * closed details' content past its summary, content-visibility: hidden content
- * and SVG definitions.
+ * and SVG definitions. With `omitUrlDetail`, the person's setting, the URL line
+ * shows the page's origin and path only.
  */
-export function shadowSnapshotScript(hostSelector: string, maxChars: number): string {
+export function shadowSnapshotScript(hostSelector: string, maxChars: number, omitUrlDetail = false): string {
   return `(() => {
     const LIMITS = ${JSON.stringify(SHADOW_SNAPSHOT_LIMITS)};
+    const urlWithoutDetail = (${urlWithoutDetail.toString()});
     const MAX_CHARS = ${JSON.stringify(maxChars)};
     let matches;
     try { matches = document.querySelectorAll(${JSON.stringify(hostSelector)}); }
@@ -278,7 +282,7 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
     if (walkLimits.length) add('INCOMPLETE: stopped at ' + walkLimits.join(', ') + '; a heading, control or text missing here may still exist');
     const left = [omissions.has('frames') ? 'frames' : '', omissions.has('private-editors') ? 'editor content' : ''].filter(Boolean);
     if (left.length) add('NOT READ: ' + left.join(', '));
-    add('URL: ' + safeUrl(location.href));
+    add(${omitUrlDetail} ? 'URL: ' + urlWithoutDetail(location.href) + ' ' + ${JSON.stringify(URL_DETAIL_OMITTED_NOTE)} : 'URL: ' + safeUrl(location.href));
     add('TITLE: ' + document.title);
     for (const heading of headings) add(heading);
     for (const control of controls) add(control);
