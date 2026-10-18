@@ -2,8 +2,6 @@ import { createHash, randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import {
   reconcileAccountProviderSessions,
-  solanaRequest,
-  tronRequest,
   type AccountProviderSession,
   type SolanaTronProviderAccess
 } from './solana-tron-provider.js'
@@ -21,14 +19,7 @@ import type {
   WalletServiceStatus,
   WalletUpdateInput
 } from '../../shared/wallet.js'
-import {
-  EVM_FILTER_RPC_METHODS,
-  EVM_READ_RPC_METHODS,
-  WALLET_PROVIDER_METHODS,
-  WalletProviderRequestSchema,
-  WalletUpdateInputSchema,
-  walletAllowsWorkspace
-} from '../../shared/wallet.js'
+import { WalletUpdateInputSchema, walletAllowsWorkspace } from '../../shared/wallet.js'
 import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js'
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
@@ -38,7 +29,6 @@ import { EvmAssetSuggestionLog } from './evm-watch-asset.js'
 import { WalletPageLog } from './page-log.js'
 import { typedDataDisplay } from './typed-data-display.js'
 import {
-  evmRequest,
   reconcileEvmProviderSessions,
   uninstallEvmFilters,
   type EvmProviderAccess,
@@ -85,6 +75,8 @@ import {
   requestAgentTransaction,
   type AgentWalletAccess
 } from './agent-wallet-requests.js'
+import { providerRequest, type ProviderRequestsAccess } from './broker/provider-requests.js'
+import { sanitizedError } from './broker/sanitized-error.js'
 
 export interface WalletBrokerContext {
   workspaceId: string
@@ -143,23 +135,6 @@ const EXPIRABLE_REQUEST_STATUSES = new Set([
 const TERMINAL_REQUEST_STATUSES = new Set([
   'confirmed', 'rejected', 'expired', 'cancelled', 'failed'
 ])
-
-/** A read or filter call Hronaut forwards to the EVM node; it never prompts, signs or sends. */
-function isEvmNodeRead(input: unknown): boolean {
-  const { family, method } = (input ?? {}) as { family?: unknown; method?: unknown }
-  return family === 'evm' && typeof method === 'string'
-    && ([...EVM_READ_RPC_METHODS, ...EVM_FILTER_RPC_METHODS] as readonly string[]).includes(method)
-}
-
-function sanitizedError(error: unknown): Error {
-  const message = error instanceof Error ? error.message : 'Wallet request failed'
-  const containsEndpoint = /(?:https?|wss?):\/\//i.test(message)
-  const safe = !containsEndpoint
-    && /^(?:Wallet|EVM|Solana|Tron|Requested|Unsupported|No wallet|Managed wallet|Watch-only|Invalid wallet|Cross-origin|Mainnet|Automatic wallet|Signed (?:EVM|Solana|Tron)|Transaction|Insufficient)[A-Za-z0-9_ .,:'"()/-]{0,480}$/.test(message)
-    ? message
-    : 'Wallet request failed validation or processing'
-  return new Error(safe.slice(0, 512))
-}
 
 // Size in UTF-8 JSON bytes, as a page sends it; anything unserializable is unbounded.
 function jsonBytes(value: unknown): number {
@@ -420,57 +395,27 @@ export class WalletBroker {
     this.reconcileProviderSessions()
   }
 
-  async providerRequest(context: WalletBrokerContext, input: WalletProviderRequest): Promise<unknown> {
-    // Counted before any await, so the tab stays awake while the request is still being prepared.
-    const holdsTab = context.requester.type === 'website' && !isEvmNodeRead(input)
-    if (holdsTab) this.pageCallsInProgress.set(context.tabId, (this.pageCallsInProgress.get(context.tabId) ?? 0) + 1)
-    try {
-      if (this.shuttingDown) throw new Error('Wallet broker is shutting down')
-      this.assertRequestContextActive(context)
-      this.assertSupportedProviderMethod(input)
-      const request = WalletProviderRequestSchema.parse(input)
-      const wallets = this.accessibleWallets(context, request.family)
-      if (request.family === 'evm') return await evmRequest(this.evmProviderAccess(), context, wallets, request.method, request.params)
-      if (request.family === 'solana') return await solanaRequest(this.solanaTronProviderAccess(), context, wallets, request.method, request.params)
-      return await tronRequest(this.solanaTronProviderAccess(), context, wallets, request.method, request.params)
-    } catch (error) {
-      const sanitized = sanitizedError(error)
-      this.recordPageCallFailure(context, input, sanitized)
-      throw sanitized
-    } finally {
-      if (holdsTab) {
-        const inProgress = (this.pageCallsInProgress.get(context.tabId) ?? 1) - 1
-        if (inProgress > 0) this.pageCallsInProgress.set(context.tabId, inProgress)
-        else this.pageCallsInProgress.delete(context.tabId)
-      }
-    }
-  }
-
   /**
-   * Remembers a website's failed wallet call, such as an unsupported method or
-   * a network it cannot switch to, so an agent testing the page can see why a
-   * button did nothing. Reads forwarded to the node are left out: contracts
-   * revert them routinely and the page gets the node's answer.
+   * The narrow view website and agent page calls get of this broker's
+   * private state and request path. It is built on each call, so it reads
+   * whether the broker is shutting down at the moment a call arrives.
    */
-  private recordPageCallFailure(context: WalletBrokerContext, input: WalletProviderRequest, error: Error): void {
-    if (context.requester.type !== 'website' || !this.isRequestContextActive(context)) return
-    const { family, method } = (input ?? {}) as { family?: unknown; method?: unknown }
-    if (family !== 'evm' && family !== 'solana' && family !== 'tron') return
-    const name = typeof method === 'string' && /^[A-Za-z0-9_]{1,128}$/.test(method) ? method : 'invalid'
-    if (isEvmNodeRead(input)) return
-    this.pageCallFailures.add(context, { family, method: name, error: error.message, failedAt: this.now().toISOString() })
+  private providerRequestsAccess(): ProviderRequestsAccess {
+    return {
+      pageCallsInProgress: this.pageCallsInProgress,
+      pageCallFailures: this.pageCallFailures,
+      isShuttingDown: () => this.shuttingDown,
+      isRequestContextActive: (context) => this.isRequestContextActive(context),
+      assertRequestContextActive: (context) => this.assertRequestContextActive(context),
+      accessibleWallets: (context, family) => this.accessibleWallets(context, family),
+      evmProviderAccess: () => this.evmProviderAccess(),
+      solanaTronProviderAccess: () => this.solanaTronProviderAccess(),
+      now: () => this.now()
+    }
   }
 
-  private assertSupportedProviderMethod(input: unknown): void {
-    if (!input || typeof input !== 'object' || Array.isArray(input)) return
-    const { family, method } = input as { family?: unknown; method?: unknown }
-    if (typeof method !== 'string' || !/^[A-Za-z0-9_]{1,128}$/.test(method)) return
-    if (family !== 'evm' && family !== 'solana' && family !== 'tron') return
-    const supported: readonly string[] = WALLET_PROVIDER_METHODS[family]
-    if (!supported.includes(method)) {
-      const familyName = family === 'evm' ? 'EVM' : family === 'solana' ? 'Solana' : 'Tron'
-      throw new Error(`Unsupported ${familyName} wallet method: ${method}`)
-    }
+  providerRequest(context: WalletBrokerContext, input: WalletProviderRequest): Promise<unknown> {
+    return providerRequest(this.providerRequestsAccess(), context, input)
   }
 
   approve(requestId: string): Promise<WalletRequestSummary> {
