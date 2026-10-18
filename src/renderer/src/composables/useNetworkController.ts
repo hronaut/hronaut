@@ -1,22 +1,16 @@
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { computed, nextTick, ref, watch, type Ref } from 'vue'
 import type {
-  BrowserNetworkAbortReason,
   BrowserNetworkHar,
   BrowserNetworkHarExport,
   BrowserNetworkRequest,
   BrowserNetworkRequestDetails,
   BrowserNetworkRequestSortBy,
   BrowserNetworkRequestSortDirection,
-  BrowserNetworkRouteInput,
-  BrowserNetworkRouteSummary,
-  BrowserNetworkSearchMatch,
-  BrowserNetworkSearchResult,
   BrowserState,
   BrowserTabState,
   HronautApi
 } from '../../../shared/types.js'
-import { DEFAULT_BROWSER_NETWORK_ABORT_REASON } from '../../../shared/types.js'
 import {
   canFormatNetworkRequestCopy,
   formatNetworkRequestCopy,
@@ -40,6 +34,8 @@ import {
 } from '../../../shared/network-har.js'
 import { createFeedbackTimerRegistry } from './feedback-timer-registry.js'
 import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
+import { useNetworkContentSearch } from './network/useNetworkContentSearch.js'
+import { useNetworkRequestConditions } from './network/useNetworkRequestConditions.js'
 
 type NetworkBrowserApi = Pick<
   HronautApi,
@@ -85,12 +81,6 @@ export function useNetworkController(options: NetworkControllerOptions) {
   const replayState = ref<'idle' | 'confirming' | 'replaying' | 'replayed' | 'error'>('idle')
   const replayMessage = ref('')
   const search = ref('')
-  const contentSearchOpen = ref(false)
-  const contentSearchQuery = ref('')
-  const contentSearchCaseSensitive = ref(false)
-  const contentSearchState = ref<'idle' | 'searching' | 'complete' | 'error'>('idle')
-  const contentSearchResult = ref<BrowserNetworkSearchResult | null>(null)
-  const contentSearchError = ref('')
   const resourceFilter = ref('')
   const failuresOnly = ref(false)
   const sortBy = ref<BrowserNetworkRequestSortBy>('start-time')
@@ -98,27 +88,9 @@ export function useNetworkController(options: NetworkControllerOptions) {
   const harCopied = ref(false)
   const harSaveState = ref<'idle' | 'saving' | 'saved'>('idle')
   const harExport = ref<BrowserNetworkHarExport | null>(null)
-  const requestConditionsExpanded = ref(false)
-  const routes = ref<BrowserNetworkRouteSummary[]>([])
-  const routeState = ref<'idle' | 'loading' | 'ready' | 'saving' | 'error'>('idle')
-  const routeError = ref('')
-  const routeMode = ref<'abort' | 'fulfill' | 'throttle'>('abort')
-  const routePattern = ref('')
-  const routeMethod = ref('')
-  const routeTimes = ref(1)
-  const routeAbort = ref<BrowserNetworkAbortReason>(DEFAULT_BROWSER_NETWORK_ABORT_REASON)
-  const routeThrottle = ref<'fast-4g' | 'slow-4g' | 'slow-3g'>('slow-4g')
-  const routeStatus = ref(200)
-  const routeHeaders = ref('')
-  const routeBody = ref('')
 
   let generation = 0
-  let contentSearchSequence = 0
   let monitorRequestSequence = 0
-  let routeRequestSequence = 0
-  let routeMutationSequence = 0
-  let routeRefreshPending = false
-  let routeDraftGeneration = 0
   let requestDetailsSequence = 0
   let detailsCopySequence = 0
   let harCopySequence = 0
@@ -135,16 +107,17 @@ export function useNetworkController(options: NetworkControllerOptions) {
     feedbackTimers.clear('details')
     feedbackTimers.clear('har')
   }, { flush: 'sync' })
-  const stopContentSearchInputTracking = watch([contentSearchQuery, contentSearchCaseSensitive], () => {
-    contentSearchSequence += 1
-    contentSearchState.value = 'idle'
-    contentSearchResult.value = null
-    contentSearchError.value = ''
-  }, { flush: 'sync' })
-  const stopRouteDraftTracking = watch([
-    routeMode, routePattern, routeMethod, routeTimes, routeAbort,
-    routeThrottle, routeStatus, routeHeaders, routeBody
-  ], () => { routeDraftGeneration += 1 }, { flush: 'sync' })
+  // Content search and request conditions own their state, request sequences
+  // and input watchers; the page generation stays here.
+  const { contentSearchOpen, contentSearchQuery, contentSearchCaseSensitive, contentSearchState,
+    contentSearchResult, contentSearchError, stopContentSearchInputTracking, invalidateContentSearch,
+    closeContentSearch, toggleContentSearch, runContentSearch, selectSearchMatch } = useNetworkContentSearch(
+    options, { requests, selectRequest, currentGeneration: () => generation, isCurrent })
+  const { requestConditionsExpanded, routes, routeState, routeError, routeMode, routePattern, routeMethod,
+    routeTimes, routeAbort, routeThrottle, routeStatus, routeHeaders, routeBody, stopRouteDraftTracking,
+    invalidateRouteRequests, resetRouteDraft, refreshRoutes, openRequestConditions, addRouteFromDraft,
+    setRouteEnabled, removeRoute, moveRoute, clearRoutes } = useNetworkRequestConditions(
+    options, { currentGeneration: () => generation, isCurrent })
   const stopHarFilterTracking = watch([search, resourceFilter, failuresOnly], () => {
     harCopySequence += 1
     harCopied.value = false
@@ -195,22 +168,12 @@ export function useNetworkController(options: NetworkControllerOptions) {
 
   function invalidateRequests(): void {
     generation += 1
-    contentSearchSequence += 1
+    invalidateContentSearch()
     monitorRequestSequence += 1
-    routeRequestSequence += 1
-    routeMutationSequence += 1
-    routeRefreshPending = false
+    invalidateRouteRequests()
     requestDetailsSequence += 1
     detailsCopySequence += 1
     harCopySequence += 1
-  }
-
-  function beginRouteMutation(): number {
-    // A route list read can capture the pre-mutation snapshot and still resolve
-    // after the mutation. Invalidate it so it cannot replace authoritative
-    // mutation results with stale routes.
-    routeRequestSequence += 1
-    return ++routeMutationSequence
   }
 
   function resetReplayFeedback(): void {
@@ -221,17 +184,6 @@ export function useNetworkController(options: NetworkControllerOptions) {
     }
     replayState.value = 'idle'
     replayMessage.value = ''
-  }
-
-  function resetRouteDraft(): void {
-    routePattern.value = ''
-    routeMethod.value = ''
-    routeTimes.value = 1
-    routeAbort.value = DEFAULT_BROWSER_NETWORK_ABORT_REASON
-    routeThrottle.value = 'slow-4g'
-    routeStatus.value = 200
-    routeHeaders.value = ''
-    routeBody.value = ''
   }
 
   function reset(closePanel = false): void {
@@ -284,7 +236,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
       // This cannot undo a clipboard write that has already been dispatched.
       harCopySequence += 1
       feedbackTimers.clear('har')
-      contentSearchSequence += 1
+      invalidateContentSearch()
       clearRequestSelection()
       resetReplayFeedback()
       contentSearchResult.value = null
@@ -307,204 +259,8 @@ export function useNetworkController(options: NetworkControllerOptions) {
     }
   }
 
-  async function readRoutes(tabId: string, expectedGeneration: number, preserveMutationError = false): Promise<void> {
-    const sequence = ++routeRequestSequence
-    try {
-      const nextRoutes = await options.browser.listNetworkRoutes(tabId)
-      if (sequence !== routeRequestSequence || !isCurrent(tabId, expectedGeneration)) return
-      routes.value = nextRoutes
-      if (!preserveMutationError) routeState.value = 'ready'
-    } catch (cause) {
-      if (sequence !== routeRequestSequence || !isCurrent(tabId, expectedGeneration) || preserveMutationError) return
-      routeState.value = 'error'
-      routeError.value = cause instanceof Error ? cause.message : String(cause)
-    }
-  }
-
-  async function refreshRoutes(silent = false): Promise<void> {
-    const tab = options.activeTab.value
-    if (!tab || isHronautHomeUrl(tab.url)) return
-    // Main can expose a proposed list while Chromium is still applying it.
-    // Coalesce refreshes until settlement; a rule may change meanwhile.
-    if (routeState.value === 'saving') {
-      routeRefreshPending = true
-      return
-    }
-    if (!silent) routeState.value = 'loading'
-    routeError.value = ''
-    await readRoutes(tab.id, generation)
-  }
-
-  async function reconcilePendingRoutes(tabId: string, expectedGeneration: number, mutationSequence: number): Promise<void> {
-    if (!routeRefreshPending || mutationSequence !== routeMutationSequence || !isCurrent(tabId, expectedGeneration)) return
-    routeRefreshPending = false
-    // Reconcile the list even after failure, without hiding the mutation error.
-    await readRoutes(tabId, expectedGeneration, routeState.value === 'error')
-  }
-
   async function refreshAll(): Promise<void> {
     await Promise.all([refresh(), refreshRoutes()])
-  }
-
-  async function openRequestConditions(): Promise<void> {
-    requestConditionsExpanded.value = true
-    await refreshRoutes()
-  }
-
-  function parsedRouteHeaders(): Record<string, string> {
-    const source = routeHeaders.value.trim()
-    if (!source) return {}
-    const parsed: unknown = JSON.parse(source)
-    if (
-      typeof parsed !== 'object'
-      || parsed === null
-      || Array.isArray(parsed)
-      || Object.values(parsed as Record<string, unknown>).some((value) => typeof value !== 'string')
-    ) throw new Error(options.translate('runtimeDetails.networkHeadersError'))
-    return parsed as Record<string, string>
-  }
-
-  async function addRouteFromDraft(): Promise<void> {
-    const tab = options.activeTab.value
-    if (!tab) return
-    const expectedGeneration = generation
-    const sequence = beginRouteMutation()
-    const submittedDraftGeneration = routeDraftGeneration
-    let committed = false
-    routeState.value = 'saving'
-    routeError.value = ''
-    try {
-      const input: BrowserNetworkRouteInput = {
-        urlPattern: routePattern.value.trim(),
-        ...(routeMode.value === 'throttle'
-          ? { throttle: routeThrottle.value }
-          : {
-              times: routeTimes.value,
-              ...(routeMethod.value.trim() ? { method: routeMethod.value.trim().toUpperCase() } : {})
-            }),
-        ...(routeMode.value === 'abort'
-          ? { abort: routeAbort.value }
-          : routeMode.value === 'fulfill' ? {
-              response: {
-                status: routeStatus.value,
-                headers: parsedRouteHeaders(),
-                body: routeBody.value
-              }
-            } : {})
-      }
-      const nextRoutes = await options.browser.addNetworkRoute(tab.id, input)
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      committed = true
-      routes.value = nextRoutes
-      if (routeDraftGeneration === submittedDraftGeneration) resetRouteDraft()
-      await options.syncState(options.browser.getState())
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      routeState.value = 'ready'
-    } catch (cause) {
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      routeState.value = 'error'
-      routeError.value = committed
-        ? options.translate('network.conditions.refreshAfterChangeFailed')
-        : cause instanceof Error ? cause.message : String(cause)
-    } finally {
-      await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
-    }
-  }
-
-  async function setRouteEnabled(routeId: string, enabled: boolean): Promise<void> {
-    const tab = options.activeTab.value
-    if (!tab) return
-    const expectedGeneration = generation
-    const sequence = beginRouteMutation()
-    let committed = false
-    routeState.value = 'saving'
-    routeError.value = ''
-    try {
-      const nextRoutes = await options.browser.setNetworkRouteEnabled(tab.id, routeId, enabled)
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      committed = true
-      routes.value = nextRoutes
-      await options.syncState(options.browser.getState())
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      routeState.value = 'ready'
-    } catch (cause) {
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      routeState.value = 'error'
-      routeError.value = committed
-        ? options.translate('network.conditions.refreshAfterChangeFailed')
-        : cause instanceof Error ? cause.message : String(cause)
-    } finally {
-      await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
-    }
-  }
-
-  async function removeRoute(routeId: string): Promise<void> {
-    const tab = options.activeTab.value
-    if (!tab) return
-    const expectedGeneration = generation
-    const sequence = beginRouteMutation()
-    let committed = false
-    routeState.value = 'saving'
-    routeError.value = ''
-    try {
-      const nextRoutes = await options.browser.removeNetworkRoute(tab.id, routeId)
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      committed = true
-      routes.value = nextRoutes
-      await options.syncState(options.browser.getState())
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      routeState.value = 'ready'
-    } catch (cause) {
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      routeState.value = 'error'
-      routeError.value = committed
-        ? options.translate('network.conditions.refreshAfterChangeFailed')
-        : cause instanceof Error ? cause.message : String(cause)
-    } finally {
-      await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
-    }
-  }
-
-  async function moveRoute(routeId: string, direction: 'up' | 'down'): Promise<void> {
-    const tab = options.activeTab.value
-    if (!tab) return
-    const expectedGeneration = generation
-    const sequence = beginRouteMutation()
-    routeState.value = 'saving'
-    routeError.value = ''
-    try {
-      const nextRoutes = await options.browser.moveNetworkRoute(tab.id, routeId, direction)
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      routes.value = nextRoutes
-      routeState.value = 'ready'
-    } catch (cause) {
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      routeState.value = 'error'
-      routeError.value = cause instanceof Error ? cause.message : String(cause)
-    } finally {
-      await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
-    }
-  }
-
-  async function clearRoutes(): Promise<void> {
-    const tab = options.activeTab.value
-    if (!tab || (!tab.networkRouteCount && (!tab.networkConditionState || tab.networkConditionState.application === 'confirmed'))) return
-    const expectedGeneration = generation
-    const sequence = beginRouteMutation()
-    routeState.value = 'saving'
-    routeError.value = ''
-    try {
-      await options.syncState(options.browser.clearNetworkRoutes(tab.id))
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      routes.value = []
-      routeState.value = 'ready'
-    } catch (cause) {
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      routeState.value = 'error'
-      routeError.value = cause instanceof Error ? cause.message : String(cause)
-    } finally {
-      await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
-    }
   }
 
   async function loadRequestDetails(request: Pick<BrowserNetworkRequest, 'id'>): Promise<void> {
@@ -597,53 +353,6 @@ export function useNetworkController(options: NetworkControllerOptions) {
     failuresOnly.value = false
     await nextTick()
     if (sequence !== requestDetailsSequence || !isCurrent(tab.id, expectedGeneration)) return
-    await selectRequest(request)
-  }
-
-  function closeContentSearch(): void {
-    contentSearchSequence += 1
-    contentSearchOpen.value = false
-    contentSearchState.value = 'idle'
-    contentSearchResult.value = null
-    contentSearchError.value = ''
-  }
-
-  function toggleContentSearch(): void {
-    if (contentSearchOpen.value) closeContentSearch()
-    else contentSearchOpen.value = true
-  }
-
-  async function runContentSearch(): Promise<void> {
-    const tab = options.activeTab.value
-    const query = contentSearchQuery.value.trim()
-    if (!tab || !query) return
-    const expectedGeneration = generation
-    const sequence = ++contentSearchSequence
-    contentSearchState.value = 'searching'
-    contentSearchResult.value = null
-    contentSearchError.value = ''
-    try {
-      const result = await options.browser.searchNetwork({
-        tabId: tab.id,
-        query,
-        caseSensitive: contentSearchCaseSensitive.value
-      })
-      if (sequence !== contentSearchSequence || !isCurrent(tab.id, expectedGeneration)) return
-      contentSearchResult.value = result
-      contentSearchState.value = 'complete'
-    } catch (cause) {
-      if (sequence !== contentSearchSequence || !isCurrent(tab.id, expectedGeneration)) return
-      contentSearchState.value = 'error'
-      contentSearchError.value = cause instanceof Error ? cause.message : String(cause)
-    }
-  }
-
-  async function selectSearchMatch(match: BrowserNetworkSearchMatch): Promise<void> {
-    const request = requests.value.find((candidate) => candidate.id === match.requestId)
-    if (!request) {
-      contentSearchError.value = options.translate('runtime.network.removed')
-      return
-    }
     await selectRequest(request)
   }
 
