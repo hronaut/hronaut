@@ -35,7 +35,7 @@ import type { ConnectedAgent } from '../shared/agent-status.js'
 import type { HomeDashboard } from '../shared/home.js'
 import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '../shared/window-material.js'
 import { TakeOverOffers, tabAgentPauseOptions } from './take-over-offers.js'
-import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
+import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { readWorkspaceTemplateFile, writeWorkspaceTemplateFile } from './workspace-template-file.js'
 import { parseWorkspaceTemplate } from '../shared/workspace-template.js'
@@ -92,30 +92,24 @@ import { UndoOffers } from './undo-offers.js'
 import { isUndoToken } from '../shared/undo.js'
 import { HistoryStore } from './history-store.js'
 import { CredentialStore } from './credential-store.js'
-import { CredentialImportError, parseCredentialImportCsv } from './credential-import.js'
-import { readCredentialImportFile } from './credential-import-file.js'
+import { registerCredentialsIpc } from './credentials-ipc.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
 import { CommercialLicenseClient, CommercialLicenseError } from './commercial-license-client.js'
-import {
-  COMMERCIAL_LICENSE_API_BASE_URL,
-  commercialLicensePurchaseHandler
-} from './commercial-license-links.js'
+import { COMMERCIAL_LICENSE_API_BASE_URL } from './commercial-license-links.js'
+import { registerLicenseIpc } from './license-ipc.js'
 import { CommercialLicenseOperationCoordinator } from './commercial-license-operations.js'
 import { CommercialLicenseStore, commercialLicenseStateRefreshDelay } from './commercial-license-store.js'
-import { ReleaseHistoryService } from './release-history.js'
-import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './browsing-data-websites.js'
+import { registerUpdatesIpc } from './updates-ipc.js'
+import { cookieAvailableToOrigin } from './browsing-data-websites.js'
+import { registerBrowsingDataIpc } from './browsing-data-ipc.js'
 import { createHomeProtocolHandler } from './platform/home-protocol.js'
-import { openVsCodeMcpInstall } from './vscode-mcp-install.js'
-import { ClaudeCodeSetup, claudeCodeConfigPath } from './claude-code-setup.js'
-import { detectAgentClients } from './agent-client-detection.js'
-import type { HomeSetupState } from '../shared/claude-code-setup.js'
+import { registerHomeIpc } from './home-ipc.js'
 import { commitRuntimeSetting } from './runtime-setting-commit.js'
 import { McpPortRecovery } from './mcp-port-suggestion.js'
 import {
   shouldStartMinimized,
   StartupLaunchManager
 } from './startup-launch.js'
-import { agentGuideHandler, setupFeedbackHandler, setupHelpHandler } from './setup-feedback-links.js'
 import {
   McpHttpServer,
   mcpToolCatalogForSet,
@@ -141,10 +135,10 @@ import { scaleShellMetric } from '../shared/interface-scale.js'
 import { DEFAULT_MCP_TOOL_SET } from '../shared/mcp-tool-sets.js'
 import { registerSettingsIpc } from './settings-ipc.js'
 import {
-  isSitePermissionDecision,
   normalizeSitePermissionOrigin,
   SitePermissionStore
 } from './site-permission-store.js'
+import { registerPermissionsIpc } from './permissions-ipc.js'
 import { restoreWindowBounds, WindowStateStore } from './window-state.js'
 import { applyWindowMaterial } from './window-material.js'
 import {
@@ -172,19 +166,14 @@ import {
   type BrowserWorkspaceStorageTransferOptions,
   type BrowserEnvironmentSettings,
   type BrowserViewportEmulation,
-  type BrowsingDataClearOptions,
   type BrowsingDataSiteSummary,
-  type BrowsingDataSummary,
-  type BrowsingDataWebsiteSummary,
   type CredentialStorageStatus,
-  type CredentialImportResult,
   type CommercialLicenseState,
   type DetachablePanelId,
   type HelpMenuAction,
   type LanguagePreference,
   type McpControlState,
   type McpPortMoveResponse,
-  type McpPortMoveResult,
   type McpServerStatus,
   type PanelDock,
   type RendererSettingsState,
@@ -433,7 +422,6 @@ let resolvedLocale: SupportedLocale = 'en-US'
 let settingsMutationQueue: Promise<void> = Promise.resolve()
 let permissionRequestQueue: Promise<void> = Promise.resolve()
 let updateState: AppUpdateState = { status: 'idle', currentVersion: app.getVersion() }
-const releaseHistoryService = new ReleaseHistoryService()
 let updaterConfigured = false
 let updateInstallationInProgress = false
 let updateOperation: UpdateOperation | null = null
@@ -891,17 +879,6 @@ function acquireTemporaryMcpPause(): () => void {
   }
 }
 
-async function currentBrowsingDataSummary(): Promise<BrowsingDataSummary> {
-  const history = historyStore?.list() ?? []
-  return {
-    historyEntries: history.length,
-    historyVisits: history.reduce((total, entry) => total + entry.visitCount, 0),
-    bookmarkCount: bookmarkStore?.list().length ?? 0,
-    savedPasswordCount: credentialStore?.list().length ?? 0,
-    permissionDecisionCount: sitePermissionStore?.list().length ?? 0
-  }
-}
-
 async function currentBrowsingDataSiteSummary(
   value: string,
   browserSession: Session | undefined
@@ -962,41 +939,6 @@ async function clearWorkspaceSiteData(
   })
 }
 
-async function currentBrowsingDataWebsites(): Promise<BrowsingDataWebsiteSummary[]> {
-  const browserState = tabsManager?.getState()
-  return buildBrowsingDataWebsiteInventory({
-    history: historyStore?.list() ?? [],
-    cookies: [],
-    bookmarks: bookmarkStore?.list() ?? [],
-    credentials: credentialStore?.list() ?? [],
-    permissions: sitePermissionStore?.list() ?? [],
-    tabs: browserState?.tabs ?? []
-  })
-}
-
-function normalizeBrowsingDataOrigin(value: string | undefined): string | undefined {
-  if (value === undefined) return undefined
-  try {
-    const url = new URL(value)
-    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname) throw new Error()
-    return url.origin
-  } catch {
-    throw new TypeError('Browsing data website must be a valid HTTP or HTTPS origin')
-  }
-}
-
-async function clearBrowsingData(options: BrowsingDataClearOptions): Promise<BrowsingDataSummary> {
-  if (!historyStore) throw new Error('Browser history is unavailable')
-  if (!options.history) throw new Error('Select history to clear')
-  const origin = normalizeBrowsingDataOrigin(options.origin)
-  if (origin) await historyStore.clearOrigin(origin)
-  else await historyStore.clear()
-  // Home's feed names pages agents acted on, so it goes with any history clearing.
-  mcpServer?.forgetHomeFeed()
-  publishVisitHistory()
-  return currentBrowsingDataSummary()
-}
-
 async function handleCredentialCandidate(candidate: BrowserCredentialCandidate): Promise<void> {
   if (!credentialStorageStatus.available || !credentialStore || !mainWindow || mainWindow.isDestroyed()) return
   if (candidate.username.length > 512 || !candidate.password || candidate.password.length > 16_384) return
@@ -1020,80 +962,6 @@ async function handleCredentialCandidate(candidate: BrowserCredentialCandidate):
   if (response !== 1) return
   await credentialStore.save(candidate.origin, candidate.username, candidate.password)
   publishCredentials()
-}
-
-function credentialImportErrorMessage(error: unknown): string {
-  if (!(error instanceof CredentialImportError)) return text('native.errors.passwordImportInvalid')
-  const keys = {
-    invalid_csv: 'native.errors.passwordImportInvalid',
-    missing_columns: 'native.errors.passwordImportColumns',
-    too_many_rows: 'native.errors.passwordImportRows',
-    no_credentials: 'native.errors.passwordImportEmpty'
-  } as const
-  return text(keys[error.code])
-}
-
-async function importCredentialsFromCsv(): Promise<CredentialImportResult> {
-  const canceled: CredentialImportResult = { canceled: true, added: 0, updated: 0, skipped: 0 }
-  if (!credentialStorageStatus.available || !credentialStore) {
-    throw new Error(credentialStorageStatus.reason || text('native.errors.secureStorage'))
-  }
-  if (!mainWindow || mainWindow.isDestroyed()) throw new Error(text('native.errors.actionFailed'))
-  const selection = await dialog.showOpenDialog(mainWindow, {
-    title: text('native.dialog.importPasswordsFile'),
-    buttonLabel: text('native.dialog.choosePasswordFile'),
-    filters: [{ name: 'CSV', extensions: ['csv'] }],
-    properties: ['openFile', 'dontAddToRecent']
-  })
-  const path = selection.filePaths[0]
-  if (selection.canceled || !path) return canceled
-
-  let source: string
-  try {
-    source = await readCredentialImportFile(path)
-  } catch (error) {
-    if (error instanceof Error && error.message === 'too-large') {
-      throw new Error(text('native.errors.passwordImportTooLarge'))
-    }
-    throw new Error(text('native.errors.passwordImportRead'))
-  }
-
-  let parsed
-  try {
-    parsed = parseCredentialImportCsv(source)
-  } catch (error) {
-    throw new Error(credentialImportErrorMessage(error))
-  }
-  const current = new Set(credentialStore.list().map((entry) => `${entry.origin}\u0000${entry.username}`))
-  const unique = new Set(parsed.credentials.map((entry) => `${entry.origin}\u0000${entry.username}`))
-  const updated = [...unique].filter((identity) => current.has(identity)).length
-  const added = unique.size - updated
-  const skipped = parsed.skippedRows + parsed.credentials.length - unique.size
-  const confirmation = await dialog.showMessageBox(mainWindow, {
-    type: 'warning',
-    title: text('native.dialog.importPasswordsTitle'),
-    message: text('native.dialog.importPasswordsMessage', { count: unique.size }),
-    detail: text('native.dialog.importPasswordsDetail', {
-      added,
-      updated,
-      skipped,
-      backend: credentialStorageStatus.backend || text('common.system')
-    }),
-    buttons: [text('native.dialog.cancel'), text('native.dialog.importPasswords')],
-    defaultId: 1,
-    cancelId: 0,
-    noLink: true
-  })
-  if (confirmation.response !== 1) return canceled
-
-  const result = await credentialStore.importMany(parsed.credentials)
-  publishCredentials()
-  return {
-    canceled: false,
-    added: result.added,
-    updated: result.updated,
-    skipped: parsed.skippedRows + result.duplicateRows
-  }
 }
 
 async function configureCredentialStore(): Promise<void> {
@@ -2383,58 +2251,6 @@ function assertPanelShellSender(event: Electron.IpcMainInvokeEvent | Electron.Ip
   }
 }
 
-function assertHomePageSender(event: Electron.IpcMainInvokeEvent): void {
-  if (workspaceStartupFailure) throw workspaceStartupFailure
-  const actual = event.senderFrame?.url
-  try {
-    const url = new URL(actual ?? '')
-    if (url.protocol === 'hronaut:' && url.hostname === 'home' && (url.pathname === '/' || url.pathname === '')) return
-  } catch {
-    // Fall through to the trusted-origin error below.
-  }
-  throw new Error('Rejected IPC from a non-Home page')
-}
-
-/** Home's own document, not a frame inside it: for actions that change files outside Hronaut. */
-function assertHomeMainFrame(event: Electron.IpcMainInvokeEvent): void {
-  assertHomePageSender(event)
-  if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) throw new Error('Rejected IPC from a Home subframe')
-}
-
-let claudeCodeSetup: ClaudeCodeSetup | null = null
-/** Adds Hronaut to Claude Code's settings after the person confirms the exact change in a native dialog. */
-function claudeCodeSetupService(): ClaudeCodeSetup {
-  claudeCodeSetup ??= new ClaudeCodeSetup({
-    path: claudeCodeConfigPath(),
-    endpoint: () => mcpUrl,
-    allowed: () => !settings.mcpAuthentication,
-    confirm: async (preview) => {
-      const { response } = await showMessageBox({
-        type: 'question',
-        title: text('native.dialog.claudeSetupTitle'),
-        message: text('native.dialog.claudeSetupMessage'),
-        detail: text('native.dialog.claudeSetupDetail', {
-          path: preview.path,
-          after: preview.after,
-          replaces: preview.before === null ? '' : text('native.dialog.claudeSetupReplaces', { before: preview.before }),
-          backup: preview.backupName
-        }),
-        buttons: [text('native.dialog.cancel'), text('native.dialog.claudeSetupConfirm')],
-        defaultId: 1,
-        cancelId: 0,
-        noLink: true
-      })
-      return response === 1
-    }
-  })
-  return claudeCodeSetup
-}
-
-function assertClaudeCodeSetupAllowed(): void {
-  // Hronaut never writes a token into another app's settings; with authentication on, the copied command is the way.
-  if (settings.mcpAuthentication) throw new Error('Claude Code setup is unavailable while MCP authentication is enabled. Use the command instead.')
-}
-
 function assertWalletPageSender(event: Electron.IpcMainInvokeEvent) {
   if (workspaceStartupFailure) throw workspaceStartupFailure
   if (!tabsManager) throw new Error('Wallet requests are unavailable before browser initialization')
@@ -2936,68 +2752,19 @@ function registerIpc(): void {
     if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
     await copyTextToClipboard(value)
   })
-  handleBrowserIpc('hronaut-home:workspaces', (event) => {
-    assertHomePageSender(event)
-    return homeWorkspaceState(tabsManager!)
-  })
-  handleBrowserIpc('hronaut-home:workspace-action', async (event, input: unknown) => {
-    assertHomePageSender(event)
-    return runHomeWorkspaceAction(tabsManager!, input, (request) => {
-      mainWindow?.webContents.send('browser:home-workspace-editor', request)
-    })
-  })
-  handleBrowserIpc('hronaut-home:copy-text', async (event, value: unknown) => {
-    assertHomePageSender(event)
-    if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
-    try {
-      await copyTextToClipboard(value)
-    } catch (error) {
-      reportClipboardFailure(error)
-      throw error
-    }
-  })
-  handleBrowserIpc('hronaut-home:open-vscode-install', async (event) => {
-    assertHomePageSender(event)
-    await openVsCodeMcpInstall({
-      endpoint: mcpUrl,
-      authenticationEnabled: settings.mcpAuthentication,
-      openExternal: (url) => shell.openExternal(url)
-    })
-  })
-  handleBrowserIpc(
-    'hronaut-home:open-setup-help',
-    setupHelpHandler(assertHomePageSender, (url) => shell.openExternal(url))
-  )
-  handleBrowserIpc(
-    'hronaut-home:open-setup-feedback',
-    setupFeedbackHandler(assertHomePageSender, (url) => shell.openExternal(url))
-  )
-  handleBrowserIpc(
-    'hronaut-home:open-agent-guide',
-    agentGuideHandler(assertHomePageSender, (url) => shell.openExternal(url))
-  )
-  handleBrowserIpc('hronaut-home:use-mcp-port', async (event, port: unknown): Promise<McpPortMoveResult> => {
-    assertHomeMainFrame(event)
-    return mcpPortRecovery.move(port)
-  })
-  handleBrowserIpc('hronaut-home:setup-state', async (event): Promise<HomeSetupState> => {
-    assertHomeMainFrame(event)
-    const setup = claudeCodeSetupService()
-    const [detected, claudeCode] = await Promise.all([
-      detectAgentClients(undefined, { 'claude-code': [setup.path] }),
-      settings.mcpAuthentication ? undefined : setup.status()
-    ])
-    return { detected, ...(claudeCode ? { claudeCode } : {}) }
-  })
-  handleBrowserIpc('hronaut-home:claude-code-prepare', (event) => {
-    assertHomeMainFrame(event)
-    assertClaudeCodeSetupAllowed()
-    return claudeCodeSetupService().prepare(event.sender.id)
-  })
-  handleBrowserIpc('hronaut-home:claude-code-apply', async (event, planId: unknown) => {
-    assertHomeMainFrame(event)
-    assertClaudeCodeSetupAllowed()
-    return claudeCodeSetupService().apply(planId, event.sender.id)
+  registerHomeIpc({
+    handleBrowserIpc,
+    workspaceStartupFailure: () => workspaceStartupFailure,
+    tabs: () => tabsManager,
+    mainWindow: () => mainWindow,
+    copyTextToClipboard,
+    reportClipboardFailure,
+    mcpUrl: () => mcpUrl,
+    settings: () => settings,
+    openExternal: (url) => shell.openExternal(url),
+    mcpPortRecovery: () => mcpPortRecovery,
+    showMessageBox,
+    text
   })
   handleBrowserIpc('browser:open-home', (event) => { assertTrustedShellSender(event); return tabsManager!.openHome() })
   handleBrowserIpc('browser:new-tab', (event, options) => { assertTrustedShellSender(event); return tabsManager!.newTab(options) })
@@ -3598,31 +3365,17 @@ function registerIpc(): void {
       }
     })
   })
-  handleBrowserIpc('browsing-data:summary', (event) => {
-    assertTrustedShellSender(event)
-    return currentBrowsingDataSummary()
-  })
-  handleBrowserIpc('browsing-data:site-summary', (event, url: unknown, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof url !== 'string') throw new TypeError('Invalid website')
-    if (typeof tabId !== 'string') throw new TypeError('Tab ID is required')
-    const tab = tabsManager?.getState().tabs.find((candidate) => candidate.id === tabId)
-    if (!tab) throw new Error(`Tab not found: ${tabId}`)
-    if (!tab.mcpGroupId) throw new Error('Website workspace is required')
-    const browserSession = tabsManager?.workspaceSession(tab.mcpGroupId)
-    return currentBrowsingDataSiteSummary(url, browserSession)
-  })
-  handleBrowserIpc('browsing-data:websites', (event) => {
-    assertTrustedShellSender(event)
-    return currentBrowsingDataWebsites()
-  })
-  handleBrowserIpc('browsing-data:clear', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object') throw new TypeError('Invalid browsing-data options')
-    const { history, origin } = value as Record<string, unknown>
-    if (typeof history !== 'boolean' || (origin !== undefined && typeof origin !== 'string')
-      || Object.keys(value).some(key => key !== 'history' && key !== 'origin')) throw new TypeError('Invalid history clearing options')
-    return clearBrowsingData({ history, ...(origin ? { origin } : {}) })
+  registerBrowsingDataIpc({
+    assertTrustedSender: assertTrustedShellSender,
+    handleBrowserIpc,
+    tabs: () => tabsManager,
+    historyStore: () => historyStore,
+    bookmarkStore: () => bookmarkStore,
+    credentialStore: () => credentialStore,
+    sitePermissionStore: () => sitePermissionStore,
+    mcpServer: () => mcpServer,
+    publishVisitHistory,
+    currentBrowsingDataSiteSummary
   })
   handleBrowserIpc('browser:set-tab-human-interaction-locked', (event, tabId: unknown, locked: unknown) => {
     assertTrustedShellSender(event)
@@ -3866,107 +3619,42 @@ function registerIpc(): void {
     resetMcpSettings,
     mcpCapabilityProfiles: () => mcpCapabilityProfiles
   })
-  ipcMain.handle('permissions:list', (event) => { assertTrustedShellSender(event); return sitePermissionStore!.list() })
-  ipcMain.handle(
-    'permissions:set',
-    async (event, origin: unknown, permission: unknown, decision: unknown) => {
-      assertTrustedShellSender(event)
-      if (typeof origin !== 'string' || typeof permission !== 'string' || !isSitePermissionDecision(decision)) {
-        throw new TypeError('Invalid site permission')
-      }
-      const entry = await sitePermissionStore!.set(origin, permission, decision)
-      publishSitePermissions()
-      return entry
-    }
-  )
-  ipcMain.handle('permissions:remove', async (event, origin: unknown, permission: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof origin !== 'string' || typeof permission !== 'string') throw new TypeError('Invalid site permission')
-    const removed = await sitePermissionStore!.remove(origin, permission)
-    publishSitePermissions()
-    return removed
+  registerPermissionsIpc(ipcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    sitePermissionStore: () => sitePermissionStore,
+    publishSitePermissions
   })
-  ipcMain.handle('permissions:clear', async (event) => {
-    assertTrustedShellSender(event)
-    await sitePermissionStore!.clear()
-    publishSitePermissions()
+  registerCredentialsIpc(ipcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    handleBrowserIpc,
+    credentialStorageStatus: () => credentialStorageStatus,
+    credentialStore: () => credentialStore,
+    publishCredentials,
+    tabs: () => tabsManager,
+    mainWindow: () => mainWindow,
+    showOpenDialog: (window, options) => dialog.showOpenDialog(window, options),
+    showWindowMessageBox: (window, options) => dialog.showMessageBox(window, options),
+    text,
+    setMcpPaused,
+    acquireTemporaryMcpPause,
+    mcpServer: () => mcpServer,
+    mcpActionTracker: () => mcpActionTracker
   })
-  ipcMain.handle('credentials:status', (event) => {
-    assertTrustedShellSender(event)
-    return { ...credentialStorageStatus }
+  registerLicenseIpc(ipcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    currentCommercialLicenseState,
+    activateCommercialLicense,
+    refreshCommercialLicense,
+    deactivateCommercialLicense,
+    openExternal: (url) => shell.openExternal(url)
   })
-  ipcMain.handle('credentials:list', (event) => {
-    assertTrustedShellSender(event)
-    return credentialStore?.list() ?? []
+  registerUpdatesIpc(ipcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    updateState: () => updateState,
+    checkForUpdates,
+    downloadUpdate,
+    installDownloadedUpdate
   })
-  ipcMain.handle('credentials:import-csv', async (event) => {
-    assertTrustedShellSender(event)
-    return importCredentialsFromCsv()
-  })
-  handleBrowserIpc('credentials:fill', async (event, tabId: unknown, credentialId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    if (typeof credentialId !== 'string') throw new TypeError('Invalid credential ID')
-    const activeCredentialStore = credentialStore
-    const activeTabsManager = tabsManager
-    if (!credentialStorageStatus.available || !activeCredentialStore || !activeTabsManager) return false
-    const context = activeTabsManager.credentialContext(tabId)
-    if (!context) return false
-    const selected = activeCredentialStore.list().find((credential) => credential.id === credentialId && credential.origin === context.origin)
-    if (!selected) return false
-    return fillCredentialWhileMcpPaused({
-      pausePersistently: () => { setMcpPaused(true) },
-      acquireTemporaryPause: acquireTemporaryMcpPause,
-      getActiveRequestCount: () => mcpServer?.getActiveRequestCount() ?? mcpActionTracker.activeCount,
-      fill: async () => {
-        const password = await activeCredentialStore.password(selected.id)
-        return activeTabsManager.fillCredential(tabId, context, selected.username, password)
-      }
-    })
-  })
-  ipcMain.handle('credentials:remove', async (event, id: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof id !== 'string') throw new TypeError('Invalid credential ID')
-    const removed = await credentialStore?.remove(id) ?? false
-    if (removed) publishCredentials()
-    return removed
-  })
-  ipcMain.handle('credentials:clear', async (event) => {
-    assertTrustedShellSender(event)
-    await credentialStore?.clear()
-    publishCredentials()
-  })
-  ipcMain.handle('license:get-state', (event) => {
-    assertTrustedShellSender(event)
-    return currentCommercialLicenseState()
-  })
-  ipcMain.handle('license:activate', (event, licenseKey: unknown) => {
-    assertTrustedShellSender(event)
-    return activateCommercialLicense(licenseKey)
-  })
-  ipcMain.handle('license:refresh', (event) => {
-    assertTrustedShellSender(event)
-    return refreshCommercialLicense()
-  })
-  ipcMain.handle('license:deactivate', (event) => {
-    assertTrustedShellSender(event)
-    return deactivateCommercialLicense()
-  })
-  ipcMain.handle(
-    'license:open-purchase',
-    commercialLicensePurchaseHandler(assertTrustedShellSender, (url) => shell.openExternal(url))
-  )
-  ipcMain.handle('updates:get-state', (event) => { assertTrustedShellSender(event); return { ...updateState } })
-  ipcMain.handle('updates:get-release-history', (event, page: unknown, bypassCache: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof page !== 'number' || typeof bypassCache !== 'boolean') {
-      throw new TypeError('Invalid release history request.')
-    }
-    return releaseHistoryService.getPage(page, bypassCache)
-  })
-  ipcMain.handle('updates:check', (event) => { assertTrustedShellSender(event); return checkForUpdates() })
-  ipcMain.handle('updates:download', (event) => { assertTrustedShellSender(event); return downloadUpdate() })
-  ipcMain.handle('updates:install', (event) => { assertTrustedShellSender(event); return installDownloadedUpdate() })
   ipcMain.handle('shell:is-window-focused', (event) => {
     assertTrustedShellSender(event)
     return BrowserWindow.fromWebContents(event.sender)?.isFocused() ?? false
