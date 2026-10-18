@@ -14,6 +14,7 @@ import type { AgentCardEvent } from '../shared/agent-card.js'
 import { humanWaitingDecisionOpen } from '../shared/human-waiting.js'
 import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-overlay.js'
 import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
+import { registerPanelWindowIpc } from './panel-window-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { parseAgentStepHistoryRequest, type AgentPresenceSnapshot, type AgentStepHistoryEntry } from '../shared/agent-presence.js'
@@ -129,29 +130,26 @@ import {
   scheduleLinuxUpdateRelaunch,
   updaterShouldAutoRunAfterInstall
 } from './linux-update-relaunch.js'
-import {
-  DETACHABLE_PANEL_IDS,
-  PANEL_DOCKS,
-  type AppSettings,
-  type AppUpdateState,
-  type BrowserState,
-  type BrowserActionFailure,
-  type BrowserBookmark,
-  type BrowserHistoryEntry,
-  type BrowsingDataSiteSummary,
-  type CredentialStorageStatus,
-  type CommercialLicenseState,
-  type DetachablePanelId,
-  type HelpMenuAction,
-  type LanguagePreference,
-  type McpControlState,
-  type McpPortMoveResponse,
-  type McpServerStatus,
-  type PanelDock,
-  type RendererSettingsState,
-  type SitePermissionDecision,
-  type ThemeName,
-  type SupportedLocale
+import type {
+  AppSettings,
+  AppUpdateState,
+  BrowserState,
+  BrowserActionFailure,
+  BrowserBookmark,
+  BrowserHistoryEntry,
+  BrowsingDataSiteSummary,
+  CredentialStorageStatus,
+  CommercialLicenseState,
+  DetachablePanelId,
+  HelpMenuAction,
+  LanguagePreference,
+  McpControlState,
+  McpPortMoveResponse,
+  McpServerStatus,
+  RendererSettingsState,
+  SitePermissionDecision,
+  ThemeName,
+  SupportedLocale
 } from '../shared/types.js'
 import { registerTabsIpc } from './tabs-ipc.js'
 import { registerNavigationIpc } from './navigation-ipc.js'
@@ -2139,14 +2137,6 @@ async function ensureAddressSuggestionView(sessionId: number): Promise<AddressSu
   }
 }
 
-function isDetachablePanelId(value: unknown): value is DetachablePanelId {
-  return typeof value === 'string' && (DETACHABLE_PANEL_IDS as readonly string[]).includes(value)
-}
-
-function isPanelDock(value: unknown): value is PanelDock {
-  return typeof value === 'string' && (PANEL_DOCKS as readonly string[]).includes(value)
-}
-
 function detachedPanelTitle(panel: DetachablePanelId): string {
   const keys: Record<DetachablePanelId, MessageKey> = {
     'site-controls': 'panels.siteControls',
@@ -2516,32 +2506,16 @@ function registerIpc(): void {
     addressSuggestionOverlayGeneration += 1
     hideAddressSuggestionOverlay()
   })
-  ipcMain.handle('panel-window:open', async (event, panel: unknown) => {
-    assertMainShellSender(event)
-    if (!isDetachablePanelId(panel)) throw new TypeError('Invalid detachable panel')
-    await openPanelWindow(panel)
-  })
-  ipcMain.handle('panel-window:close', (event) => {
-    assertTrustedShellSender(event)
-    panelWindow?.close()
-  })
-  ipcMain.handle('panel-window:set-active', (event, panel: unknown) => {
-    assertPanelShellSender(event)
-    if (!isDetachablePanelId(panel)) throw new TypeError('Invalid detachable panel')
-    panelWindowPanel = panel
-    panelWindow?.setTitle(detachedPanelTitle(panel))
-    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-      mainWindow.webContents.send('panel-window:active-panel', panel)
-    }
-  })
-  ipcMain.handle('panel-window:redock', (event, panel: unknown, dock: unknown) => {
-    assertPanelShellSender(event)
-    if (!isDetachablePanelId(panel) || !isPanelDock(dock) || dock === 'window') throw new TypeError('Invalid panel redock request')
-    panelWindowRedocking = true
-    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-      mainWindow.webContents.send('panel-window:redock-requested', { panel, dock })
-    }
-    panelWindow?.close()
+  registerPanelWindowIpc(ipcMain, {
+    assertMainShellSender,
+    assertTrustedSender: assertTrustedShellSender,
+    assertPanelShellSender,
+    openPanelWindow,
+    panelWindow: () => panelWindow,
+    setPanelWindowPanel: (panel) => { panelWindowPanel = panel },
+    setPanelWindowRedocking: (value) => { panelWindowRedocking = value },
+    detachedPanelTitle,
+    mainWindow: () => mainWindow
   })
   ipcMain.handle('mcp:get-state', (event) => {
     assertTrustedShellSender(event)
