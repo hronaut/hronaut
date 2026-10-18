@@ -47,10 +47,9 @@ import { createWalletRuntime, type WalletRuntimeState } from './wallet/runtime.j
 import { walletStartupFailureStatus } from './wallet/startup-status.js'
 import { createWalletLifecycleCallbacks } from './wallet/lifecycle-callbacks.js'
 import { flushBrowserSessionStorage, workspacePartition } from './browser/workspace-storage.js'
-import { BookmarkStore } from './bookmark-store.js'
+import { createBookmarksAndHistory, type BookmarksAndHistoryState } from './bookmarks-and-history.js'
 import { UndoOffers } from './undo-offers.js'
 import { registerUndoIpc } from './undo-ipc.js'
-import { HistoryStore } from './history-store.js'
 import { createCredentialRuntime, type CredentialRuntimeState } from './credential-runtime.js'
 import { registerCredentialsIpc } from './credentials-ipc.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
@@ -89,8 +88,6 @@ import { createMainWindow, type MainWindowRefs } from './windows/main-window.js'
 import type {
   AppUpdateState,
   BrowserActionFailure,
-  BrowserBookmark,
-  BrowserHistoryEntry,
   LanguagePreference
 } from '../shared/types.js'
 import { registerTabsIpc } from './tabs-ipc.js'
@@ -398,8 +395,22 @@ const {
   sendToShellWindows,
   state: commercialLicenseRuntime
 })
-let bookmarkStore: BookmarkStore | null = null
-let historyStore: HistoryStore | null = null
+const bookmarksAndHistory: BookmarksAndHistoryState = {
+  bookmarks: null,
+  history: null
+}
+const {
+  publishBookmarks,
+  publishVisitHistory,
+  openBookmarks,
+  openVisitHistory,
+  agentBookmarks,
+  agentHistory
+} = createBookmarksAndHistory({
+  state: bookmarksAndHistory,
+  sendToShellWindows,
+  mcpServer: () => mcpRuntime.server
+})
 // The person's latest reversible action, until its Undo toast closes.
 const undoOffers = new UndoOffers((offer) => {
   if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('undo:offered', offer)
@@ -567,19 +578,6 @@ function publishCredentials(): void {
   sendToShellWindows('credentials:changed', credentialRuntime.store?.list() ?? [])
 }
 
-function publishBookmarks(): BrowserBookmark[] {
-  const bookmarks = bookmarkStore?.list() ?? []
-  sendToShellWindows('bookmarks:changed', bookmarks)
-  sendToShellWindows('bookmark-collections:changed', bookmarkStore?.collectionSnapshot() ?? { revision: 0, collections: [] })
-  return bookmarks
-}
-
-function publishVisitHistory(): BrowserHistoryEntry[] {
-  const entries = historyStore?.list() ?? []
-  sendToShellWindows('visit-history:changed', entries)
-  return entries
-}
-
 const { refreshHomeAfterCommittedChange, homeDashboardState } = createHomeDashboard({
   mcpRuntime,
   workspaceStartupFailure: () => workspaceStartupFailure,
@@ -612,7 +610,7 @@ const {
 
 const { currentBrowsingDataSiteSummary, agentSiteData } = createSiteData({
   tabs: () => tabsManager,
-  historyStore: () => historyStore,
+  historyStore: () => bookmarksAndHistory.history,
   publishVisitHistory
 })
 
@@ -742,8 +740,8 @@ const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   currentMcpControlState,
   credentialStore: () => credentialRuntime.store,
   sitePermissionStore: () => browserSessionState.sitePermissionStore,
-  bookmarkStore: () => bookmarkStore,
-  historyStore: () => historyStore,
+  bookmarkStore: () => bookmarksAndHistory.bookmarks,
+  historyStore: () => bookmarksAndHistory.history,
   currentPanelWindowState,
   schedulePanelWindowStateSave,
   flushPanelWindowState
@@ -936,8 +934,8 @@ function registerIpc(): void {
   registerCollectionIpc(ipcMain, {
     runRead: (event, read) => runWorkspaceRead(event, assertTrustedShellSender, read),
     assertTrustedSender: assertInitializedTrustedShellSender,
-    bookmarks: () => bookmarkStore!,
-    history: () => historyStore!,
+    bookmarks: () => bookmarksAndHistory.bookmarks!,
+    history: () => bookmarksAndHistory.history!,
     downloads: () => tabsManager!,
     publishBookmarks,
     publishVisitHistory,
@@ -946,9 +944,9 @@ function registerIpc(): void {
       kind: 'bookmark-removed',
       name: removed.bookmark.title,
       undo: async () => {
-        if (!bookmarkStore) throw new Error('Bookmark storage is unavailable')
+        if (!bookmarksAndHistory.bookmarks) throw new Error('Bookmark storage is unavailable')
         // A bookmark saved again meanwhile stays as it is.
-        if (!await bookmarkStore.restore(removed)) return false
+        if (!await bookmarksAndHistory.bookmarks.restore(removed)) return false
         publishBookmarks()
         return true
       }
@@ -958,8 +956,8 @@ function registerIpc(): void {
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
     tabs: () => tabsManager,
-    historyStore: () => historyStore,
-    bookmarkStore: () => bookmarkStore,
+    historyStore: () => bookmarksAndHistory.history,
+    bookmarkStore: () => bookmarksAndHistory.bookmarks,
     credentialStore: () => credentialRuntime.store,
     sitePermissionStore: () => browserSessionState.sitePermissionStore,
     mcpServer: () => mcpRuntime.server,
@@ -1066,10 +1064,8 @@ function registerIpc(): void {
 }
 
 async function createWindow(startMinimized = false): Promise<void> {
-  bookmarkStore = new BookmarkStore(join(app.getPath('userData'), 'bookmarks.json'))
-  await bookmarkStore.load()
-  historyStore = new HistoryStore(join(app.getPath('userData'), 'history.json'), Date.now, publishVisitHistory)
-  await historyStore.load()
+  await openBookmarks()
+  await openVisitHistory()
   browserSessionState.persistentSession?.setDownloadPath(effectiveDownloadDirectory())
   await configureCredentialStore()
   await configureCommercialLicenseStore()
@@ -1179,12 +1175,12 @@ async function createWindow(startMinimized = false): Promise<void> {
     },
     ...walletLifecycleCallbacks,
     onPageVisited: ({ url, title }) => {
-      void historyStore?.record({ url, title })
+      void bookmarksAndHistory.history?.record({ url, title })
         .then(() => publishVisitHistory())
         .catch((error) => console.error('[history] Failed to record visit:', error))
     },
     onPageTitleUpdated: ({ url, title }) => {
-      void historyStore?.updateTitle({ url, title })
+      void bookmarksAndHistory.history?.updateTitle({ url, title })
         .then((updated) => { if (updated) publishVisitHistory() })
         .catch((error) => console.error('[history] Failed to update page title:', error))
     },
@@ -1272,8 +1268,8 @@ async function createWindow(startMinimized = false): Promise<void> {
       if (!tabsInitializationPromise) mainWindowRefs.window.webContents.send('browser:state-changed', tabsManager.getState())
       mainWindowRefs.window.webContents.send('updates:changed', updateState)
       mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
-      mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarkStore?.list() ?? [])
-      mainWindowRefs.window.webContents.send('visit-history:changed', historyStore?.list() ?? [])
+      mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarksAndHistory.bookmarks?.list() ?? [])
+      mainWindowRefs.window.webContents.send('visit-history:changed', bookmarksAndHistory.history?.list() ?? [])
     }
   })
   mainWindowRefs.window.webContents.on('will-navigate', (event, url) => {
@@ -1309,8 +1305,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     mainWindowRefs.window.webContents.send('updates:changed', updateState)
     mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
     mainWindowRefs.window.webContents.send('credentials:changed', credentialRuntime.store?.list() ?? [])
-    mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarkStore?.list() ?? [])
-    mainWindowRefs.window.webContents.send('visit-history:changed', historyStore?.list() ?? [])
+    mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarksAndHistory.bookmarks?.list() ?? [])
+    mainWindowRefs.window.webContents.send('visit-history:changed', bookmarksAndHistory.history?.list() ?? [])
   }
   if (savedWindowState?.maximized) mainWindowRefs.window.maximize()
   if (savedWindowState?.fullScreen) mainWindowRefs.window.setFullScreen(true)
@@ -1326,7 +1322,7 @@ async function releaseRuntimeResources(): Promise<void> {
   const broker = walletRuntime.broker
   mcpRuntime.server = null
   runtimeShutdown = (async () => {
-    historyStore?.dispose()
+    bookmarksAndHistory.history?.dispose()
     const results = [
       ...await Promise.allSettled([server?.stop()]),
       ...await Promise.allSettled([agentServices.auditReceipts?.stopAll()]),
@@ -1337,9 +1333,9 @@ async function releaseRuntimeResources(): Promise<void> {
       ...await Promise.allSettled([
         manager?.flushPersist(),
         manager?.flushWorkspaceProfiles(),
-        bookmarkStore?.flush(),
+        bookmarksAndHistory.bookmarks?.flush(),
         credentialRuntime.store?.flush(),
-        historyStore?.flush(),
+        bookmarksAndHistory.history?.flush(),
         browserSessionState.sitePermissionStore?.flush(),
         commercialLicenseRuntime.store?.flush(),
         settingsState.mutationQueue,
@@ -1397,39 +1393,8 @@ function createRuntimeMcpServer(
       if (userAttentionState.request?.id === attentionId && userAttentionState.quiet && !userAttentionState.decisionId) endUserAttention({ keepPending: true })
     },
     requestUserAttention,
-    bookmarks: {
-      list: () => bookmarkStore?.list() ?? [],
-      add: async (url, title) => {
-        if (!bookmarkStore) throw new Error('Bookmark storage is unavailable')
-        await bookmarkStore.add({ url, title })
-        return publishBookmarks()
-      },
-      rename: async (id, title) => {
-        if (!bookmarkStore) throw new Error('Bookmark storage is unavailable')
-        await bookmarkStore.rename(id, title)
-        return publishBookmarks()
-      },
-      remove: async (id) => {
-        if (!bookmarkStore) throw new Error('Bookmark storage is unavailable')
-        await bookmarkStore.remove(id)
-        return publishBookmarks()
-      }
-    },
-    history: {
-      list: () => historyStore?.list() ?? [],
-      remove: async (id) => {
-        if (!historyStore) throw new Error('Visit history is unavailable')
-        await historyStore.remove(id)
-        return publishVisitHistory()
-      },
-      clear: async () => {
-        if (!historyStore) throw new Error('Visit history is unavailable')
-        await historyStore.clear()
-        // Home's feed names pages agents acted on, so it goes with the history.
-        mcpRuntime.server?.forgetHomeFeed()
-        return publishVisitHistory()
-      }
-    },
+    bookmarks: agentBookmarks,
+    history: agentHistory,
     siteData: agentSiteData,
     wallets: agentWallets,
     onTabActivity: (activity, agent) => {
