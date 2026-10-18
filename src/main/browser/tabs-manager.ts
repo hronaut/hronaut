@@ -2,8 +2,9 @@ import { assertExclusiveWorkspaceStorage, canonicalStorageId, cleanExplicitlyDel
 import { ImageInspectionSlots } from './image-state.js'
 import type { BrowserEmulationResult, BrowserUnconfirmedEmulation } from '../../shared/types.js'
 import { assertRightClickPlatform, ownedRightClickPress } from './owned-right-click.js'
-import { fileSourceAcquisitionPool, AcquisitionFailure } from '../file-source-acquisition.js'
-import { fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationHooks, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
+import type { PageEvaluationAccess } from './page-evaluation/page-evaluation-access.js'
+import { evaluateFile } from './page-evaluation/evaluate-file.js'
+import type { FileEvaluationSource, FileEvaluationHooks } from '../../shared/file-evaluation.js'
 import { normalizeTabLabel } from '../../shared/tab-label.js'
 import type { StorageComparisonHooks } from './storage-comparison-operation.js'
 import { acquireNativeClickAdmission, nativeClickProgress, nativeClickObserver, NativeClickAdmissionError, type NativeClickProgress } from './native-click-admission.js'
@@ -373,7 +374,6 @@ import {
   cancelScreenshotAreaScript,
   dialogAwareClickScript,
   dialogAwareCoordinateClickScript,
-  dialogAwareEvaluateScript,
   dragPointsScript,
   elementPickerInspectionAtPointScript,
   elementPickerNativeInputScript,
@@ -387,6 +387,7 @@ import {
   targetPointScript,
   type BrowserFormField
 } from './page-scripts.js'
+import { evaluate } from './page-evaluation/evaluate.js'
 import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './tab-store.js'
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
@@ -900,9 +901,6 @@ export interface TabsManagerOptions {
   confirmBeforeUnloadClose?: () => Promise<boolean>
   configureSession?: (browserSession: Session) => void
 }
-
-// Process-wide admission survives client and manager reconnects.
-let activeFileEvaluations = 0
 
 export class BrowserTabsManager {
   private nativeInputLockMutations = 0
@@ -5607,104 +5605,38 @@ export class BrowserTabsManager {
     } finally { authority.dispose() }
   }
 
-  async evaluateFile(source: FileEvaluationSource, hooks: FileEvaluationHooks): Promise<Record<string, unknown>> {
-    const progress: FileEvaluationProgress = { submitted: false, acknowledged: false }
-    if (activeFileEvaluations >= 2) return fileEvaluationFailure(progress, 'BUSY')
-    activeFileEvaluations++
-    const controller = new AbortController()
-    const signal = hooks.signal ? AbortSignal.any([hooks.signal, controller.signal]) : controller.signal
-    const timer = setTimeout(() => controller.abort(), 30_000)
-    let dispose = (): void => undefined
-    let retained = false
-    const work = async (): Promise<Record<string, unknown>> => {
-      const tab = this.getTab(source.tabId)
-      const contents = tab.webContents
-      const generation = tab.navigationGeneration
-      const mainFrame = contents.mainFrame
-      const frameId = tab.mainFrameId
-      let documentCommitted = false
-      const onCommitted = (): void => { documentCommitted = true }
-      dispose = () => { contents.removeListener('did-navigate', onCommitted) }
-      const validate = (): void => {
-        hooks.validate()
-        if (documentCommitted || signal.aborted || this.destroyed || contents.isDestroyed()
-          || this.tabs.get(source.tabId) !== tab || tab.navigationGeneration !== generation
-          || contents.mainFrame !== mainFrame || tab.mainFrameId !== frameId
-          || !this.tabBelongsToMcpGroup(source.workspaceId, source.tabId)
-          || new URL(contents.getURL()).origin !== source.expectedOrigin) throw new Error('File evaluation target unavailable')
-      }
-      // A WebFrameMain object and navigation-start generation can both survive
-      // a navigation which started before admission and commits during acquisition.
-      contents.on('did-navigate', onCommitted)
-      hooks.retainPublication({ validate, dispose })
-      retained = true
-      validate()
-      const script = await fileSourceAcquisitionPool.acquire(source.path, source.sha256, signal, 1000, validate)
-      validate()
-      return this.withBackgroundAgentFocusGuard(() => this.withDebugger(contents, async () => {
-        validate()
-        const tree = await contents.debugger.sendCommand('Page.getFrameTree') as { frameTree?: { frame?: { id?: string } } }
-        validate()
-        const currentFrame = tree.frameTree?.frame?.id
-        const context = currentFrame ? this.defaultExecutionContexts.get(contents.id)?.get(currentFrame) : undefined
-        if (!frameId || currentFrame !== frameId || !context?.uniqueId) throw new Error('Unique context unavailable')
-        validate()
-        // No await between the complete main-owned authority check and submission.
-        progress.submitted = true
-        hooks.submitted()
-        const response = await contents.debugger.sendCommand('Runtime.evaluate', {
-          expression: script, uniqueContextId: context.uniqueId, awaitPromise: true,
-          returnByValue: true, userGesture: true, silent: true, timeout: 10_000
-        }) as { result?: { value?: unknown; unserializableValue?: string; objectId?: string }; exceptionDetails?: { exception?: { objectId?: string } } }
-        progress.acknowledged = true
-        try {
-          validate()
-          if (response.exceptionDetails) return fileEvaluationFailure(progress, 'SCRIPT_FAILED')
-          return { status: 'RETURNED', submitted: true, acknowledged: true, retrySafe: false,
-            value: response.result && Object.hasOwn(response.result, 'value') ? response.result.value : response.result?.unserializableValue }
-        } finally { await this.releaseDebuggerEvaluationObjects(contents, response) }
-      }, validate))
-    }
-    let abort!: () => void
-    const cancelled = new Promise<Record<string, unknown>>(resolve => {
-      abort = () => resolve(fileEvaluationFailure(progress, 'CANCELLED_OR_DEADLINE'))
-      signal.addEventListener('abort', abort, { once: true })
-      if (signal.aborted) abort()
-    })
-    const running = work().catch(error => fileEvaluationFailure(progress,
-      error instanceof AcquisitionFailure ? error.code : 'UNAVAILABLE')).finally(() => { activeFileEvaluations--; if (!retained) dispose() })
-    hooks.retainCompletion(running.then(() => undefined))
-    // The debugger queue retains running native work after caller cancellation.
-    try { return await Promise.race([running, cancelled]) } finally {
-      clearTimeout(timer)
-      signal.removeEventListener('abort', abort)
+  /**
+   * The narrow view page script evaluation gets of this manager's private
+   * tabs, window, DevTools opening, workspaces, default execution contexts,
+   * background focus isolation, debugger lease and evaluation helpers. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's promise directly, so no extra ticks separate its
+   * final checks from the caller.
+   */
+  private pageEvaluationAccess(): PageEvaluationAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      isDestroyed: () => this.destroyed,
+      isWindowFocused: () => this.window.isFocused(),
+      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
+      tabBelongsToMcpGroup: (groupId, tabId) => this.tabBelongsToMcpGroup(groupId, tabId),
+      defaultExecutionContexts: (webContentsId) => this.defaultExecutionContexts.get(webContentsId),
+      withBackgroundAgentFocusGuard: (operation) => this.withBackgroundAgentFocusGuard(operation),
+      withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
+      evaluateWithAttachedDebugger: (webContents, expression, contextId) => this.evaluateWithAttachedDebugger(webContents, expression, contextId),
+      mainWorldContextId: (webContents) => this.mainWorldContextId(webContents),
+      releaseDebuggerEvaluationObjects: (webContents, response) => this.releaseDebuggerEvaluationObjects(webContents, response)
     }
   }
 
-  async evaluate(script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}): Promise<unknown> {
-    const webContents = this.getTab(tabId).webContents
-    if (dialog.promptText !== undefined) throw new Error('Text prompts are supported by browser_click; Electron does not implement prompt() evaluation')
-    // Preserve foreground native-dialog behavior, but never let a background
-    // evaluation activate Hronaut. Unexpected background dialogs are dismissed
-    // inside the page wrapper; explicit dialogAction still wins.
-    if (dialog.dialogAction === undefined && this.window.isFocused()) {
-      return this.withBackgroundAgentFocusGuard(() => webContents.executeJavaScript(script, true))
-    }
-    // DevTools owns Chromium's debugger session. Keep direct evaluation
-    // available there while the native non-focusable guard blocks activation.
-    if (dialog.dialogAction === undefined && (
-      this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()
-    )) {
-      return this.withBackgroundAgentFocusGuard(() => webContents.executeJavaScript(script, true))
-    }
-    const dialogAction = dialog.dialogAction ?? 'dismiss'
-    return this.withBackgroundAgentFocusGuard(() => this.withDebugger(webContents, async () => (
-      this.evaluateWithAttachedDebugger(
-        webContents,
-        dialogAwareEvaluateScript(script, dialogAction),
-        await this.mainWorldContextId(webContents)
-      )
-    )))
+  evaluateFile(source: FileEvaluationSource, hooks: FileEvaluationHooks): Promise<Record<string, unknown>> {
+    return evaluateFile(this.pageEvaluationAccess(), source, hooks)
+  }
+
+  evaluate(script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}): Promise<unknown> {
+    return evaluate(this.pageEvaluationAccess(), script, tabId, dialog)
   }
 
   /**
