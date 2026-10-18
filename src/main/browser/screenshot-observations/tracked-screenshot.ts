@@ -7,7 +7,7 @@ import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 const SCREENSHOT_OBSERVATION_WORLD_ID = ISOLATED_WORLDS.screenshotObservation
 
 /** How long one geometry read may take. A page held by a dialog, a debugger pause or a busy script never answers. */
-export const TRACKED_SCREENSHOT_GEOMETRY_TIMEOUT_MS = 500
+export const TRACKED_SCREENSHOT_GEOMETRY_TIMEOUT_MS = 1_000
 
 /** The tab fields a tracked screenshot reads. */
 export interface TrackedScreenshotTab {
