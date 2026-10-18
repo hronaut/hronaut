@@ -24,7 +24,6 @@ import { EvmCallBundleStore } from './evm-call-bundles.js'
 import { EvmFilterRegistry } from './evm-filters.js'
 import { EvmAssetSuggestionLog } from './evm-watch-asset.js'
 import { WalletPageLog } from './page-log.js'
-import { typedDataDisplay } from './typed-data-display.js'
 import {
   reconcileEvmProviderSessions,
   uninstallEvmFilters,
@@ -44,11 +43,6 @@ import {
 } from './policy.js'
 import type { WalletService } from './service.js'
 import {
-  summary,
-  trustedMessageDisplay,
-  trustedMessageRaw
-} from './request-summary.js'
-import {
   drainConfirmationTasks,
   resumeSubmittedConfirmations,
   type TransactionConfirmationAccess
@@ -64,6 +58,7 @@ import {
   requestAgentTransaction,
   type AgentWalletAccess
 } from './agent-wallet-requests.js'
+import { listPending, type PendingRequestsAccess } from './broker/pending-requests.js'
 import { keepsTabAwake, providerRequest, type ProviderRequestsAccess } from './broker/provider-requests.js'
 import { approve, reject, type HumanApprovalsAccess } from './broker/human-approvals.js'
 import {
@@ -225,26 +220,16 @@ export class WalletBroker {
     return this.shutdownPromise
   }
 
+  /** The narrow view the wallet prompt's request list gets of this broker's retained messages. */
+  private pendingRequestsAccess(): PendingRequestsAccess {
+    return {
+      service: this.service,
+      pendingMessages: this.pendingMessages
+    }
+  }
+
   listPending(): WalletRequestSummary[] {
-    const wallets = new Map(this.service.list().map((wallet) => [wallet.id, wallet]))
-    return this.service.approvals.list().map((record) => {
-      const wallet = wallets.get(record.request.walletId)
-      const result = summary(record, wallet)
-      const pendingMessage = this.pendingMessages.get(record.id)
-      if (result.details && pendingMessage && wallet) {
-        result.details.raw = { ...result.details.raw, ...trustedMessageRaw(pendingMessage) }
-        result.details.method = pendingMessage.kind === 'typed-data' ? 'typed-data-signing' : 'message-signing'
-        const message = trustedMessageDisplay(pendingMessage, wallet, record.request.topLevelOrigin)
-        if (message) {
-          result.details.message = message
-          // The whole text is on screen, so it is not an undecodable request.
-          result.details.understood = !message.truncated && !message.warnings.includes('hidden-characters')
-        }
-        const typedData = pendingMessage.kind === 'typed-data' ? typedDataDisplay(pendingMessage.typedData, wallet) : undefined
-        if (typedData) result.details.typedData = typedData
-      }
-      return result
-    })
+    return listPending(this.pendingRequestsAccess())
   }
 
   lock(): Promise<WalletServiceStatus> {
