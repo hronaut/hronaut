@@ -407,7 +407,6 @@ import {
   workspaceNavigationAllowed
 } from './workspace-navigation/workspace-navigation.js'
 import {
-  destroyWorkspaceStorage,
   normalizeWorkspaceStorageOrigins,
   transferWorkspaceStorage,
   workspacePartition
@@ -523,6 +522,16 @@ import type { HumanInputGuardAccess } from './interaction-lock/human-input-guard
 import { syncHumanInteractionInputGuard } from './interaction-lock/human-input-guard.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
+import type { WorkspaceArchiveAccess } from './workspace-archive/workspace-archive-access.js'
+import {
+  archiveWorkspaceForPerson,
+  closeWorkspaceForPerson,
+  deleteSavedTabGroup,
+  isClosingWorkspace,
+  restoreSavedTabGroup,
+  saveAndCloseTabGroup,
+  updateArchivedWorkspacePreferences
+} from './workspace-archive/workspace-archive.js'
 
 export const HRONAUT_HOME_URL = 'hronaut://home/'
 type BrowserClickTarget = {
@@ -537,8 +546,6 @@ type BrowserClickTarget = {
 } & BrowserDialogHandlingOptions
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
-/** How long deleting a closed workspace waits for an operation on its archive before leaving it archived. */
-const CLOSING_WORKSPACE_BUSY_WAIT_MS = 3_000
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_CLOSED_TABS = MAX_TABS
 /** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
@@ -1942,119 +1949,64 @@ export class BrowserTabsManager {
     return closeMcpTabGroupInternal(this.mcpTabGroupsAccess(), groupId, preserveStorage)
   }
 
-  async saveAndCloseTabGroup(groupId: string): Promise<BrowserSavedTabGroupState> {
-    return this.withTabLabelLifecycle(() => this.workspaceRegistry.archive(groupId))
-  }
-
-  /** Archives a workspace for the person, with Undo to bring it back. */
-  async archiveWorkspaceForPerson(groupId: string): Promise<BrowserSavedTabGroupState> {
-    const archived = await this.saveAndCloseTabGroup(groupId)
-    this.options.offerUndo?.({
-      kind: 'workspace-archived',
-      name: archived.name,
-      undo: () => this.restoreArchiveForUndo(archived.id)
-    })
-    return archived
-  }
-
-  /** Restores an archive for Undo; false when it was already restored or deleted. */
-  private async restoreArchiveForUndo(savedGroupId: string): Promise<boolean> {
-    if (!this.savedTabGroups.has(savedGroupId)) {
-      if (this.closingWorkspace?.id === savedGroupId) this.closingWorkspace = undefined
-      return false
-    }
-    await this.restoreSavedTabGroup(savedGroupId)
-    return true
-  }
-
-  /** Whether the person just closed this workspace and it waits to be deleted. */
-  isClosingWorkspace(workspaceId: string): boolean {
-    return this.closingWorkspace?.id === workspaceId
-  }
-
   /**
-   * Closes a workspace for the person with Undo: it is archived first, and its tabs, sign-ins and site data are deleted
-   * only once Undo is no longer offered or Hronaut quits. Restored meanwhile, from Undo or elsewhere, it is kept.
+   * The narrow view archiving and closing workspaces for the person get of
+   * this manager's private open and archived workspaces, workspace registry,
+   * workspace operations, workspace closing with Undo, options, tab label
+   * edits, storage deletion check, workspace continuity, session store and
+   * state publication. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it. The delegates below return the feature's value or promise directly,
+   * so callers see the same ticks as before.
    */
-  async closeWorkspaceForPerson(groupId: string): Promise<BrowserState> {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
-    if (group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
-    // A workspace closed just before is deleted first, so it does not take the archive place this one needs.
-    await this.options.endUndo?.()
-    // Undo needs an archive place; the editor asks first and closes without Undo when the archive is full.
-    if (this.savedTabGroups.size >= MAX_SAVED_TAB_GROUPS) {
-      throw new Error(`Hronaut keeps at most ${MAX_SAVED_TAB_GROUPS} archived workspaces, so "${group.name}" cannot be closed with Undo. Delete an archived workspace in Home, then try again.`)
+  private workspaceArchiveAccess(): WorkspaceArchiveAccess {
+    return {
+      mcpTabGroups: () => this.mcpTabGroups,
+      savedTabGroups: () => this.savedTabGroups,
+      savedWorkspaceOperations: () => this.savedWorkspaceOperations,
+      closingWorkspace: () => this.closingWorkspace,
+      setClosingWorkspace: (closing) => { this.closingWorkspace = closing },
+      options: () => this.options,
+      workspaceRegistry: () => this.workspaceRegistry,
+      withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
+      withSavedWorkspaceOperation: (savedWorkspaceId, action, operation) => this.withSavedWorkspaceOperation(savedWorkspaceId, action, operation),
+      assertStorageDeletionOwnership: (workspaceId, storageId) => this.assertStorageDeletionOwnership(workspaceId, storageId),
+      deletedWorkspaceStorageIds: () => this.deletedWorkspaceStorageIds,
+      retireWorkspaceContinuity: (workspaceId) => this.retireWorkspaceContinuity(workspaceId),
+      store: () => this.store,
+      persistedState: () => this.persistedState(),
+      listSavedTabGroups: () => this.listSavedTabGroups(),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
-    const archived = await this.saveAndCloseTabGroup(groupId)
-    // Only this archive is deleted: not one made after the workspace was restored and archived again.
-    const saved = this.savedTabGroups.get(archived.id)
-    const closing = { id: archived.id, kept: false }
-    this.closingWorkspace = closing
-    this.options.offerUndo?.({
-      kind: 'workspace-closed',
-      name: archived.name,
-      undo: () => this.restoreArchiveForUndo(archived.id),
-      finalize: async () => {
-        // It stays marked as closing until deleted, so a restore tried meanwhile still keeps it.
-        try {
-          if (closing.kept || !saved || this.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
-          // An operation already running on the archive finishes first; one that runs on keeps it archived.
-          const deadline = Date.now() + CLOSING_WORKSPACE_BUSY_WAIT_MS
-          for (let operation = this.savedWorkspaceOperations.get(archived.id); operation; operation = this.savedWorkspaceOperations.get(archived.id)) {
-            const remaining = deadline - Date.now()
-            if (!operation.settled || remaining <= 0) return
-            await Promise.race([operation.settled, new Promise<void>((resolve) => setTimeout(resolve, remaining).unref())])
-            await new Promise<void>((resolve) => setImmediate(resolve))
-          }
-          if (closing.kept || this.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
-          await this.deleteSavedTabGroup(archived.id)
-        } finally {
-          if (this.closingWorkspace === closing) this.closingWorkspace = undefined
-        }
-      }
-    })
-    return this.getState()
   }
 
-  async restoreSavedTabGroup(savedGroupId: string): Promise<BrowserTabGroupState> {
-    // Any attempt to bring back a workspace the person just closed keeps it, even one that fails.
-    if (this.closingWorkspace?.id === savedGroupId) {
-      this.closingWorkspace.kept = true
-      this.closingWorkspace = undefined
-    }
-    return this.withTabLabelLifecycle(() => this.workspaceRegistry.restore(savedGroupId))
+  saveAndCloseTabGroup(groupId: string): Promise<BrowserSavedTabGroupState> {
+    return saveAndCloseTabGroup(this.workspaceArchiveAccess(), groupId)
+  }
+
+  archiveWorkspaceForPerson(groupId: string): Promise<BrowserSavedTabGroupState> {
+    return archiveWorkspaceForPerson(this.workspaceArchiveAccess(), groupId)
+  }
+
+  isClosingWorkspace(workspaceId: string): boolean {
+    return isClosingWorkspace(this.workspaceArchiveAccess(), workspaceId)
+  }
+
+  closeWorkspaceForPerson(groupId: string): Promise<BrowserState> {
+    return closeWorkspaceForPerson(this.workspaceArchiveAccess(), groupId)
+  }
+
+  restoreSavedTabGroup(savedGroupId: string): Promise<BrowserTabGroupState> {
+    return restoreSavedTabGroup(this.workspaceArchiveAccess(), savedGroupId)
   }
 
   updateArchivedWorkspacePreferences(workspaceId: string, updates: { hiddenFromSidebar?: boolean; deletionProtected?: boolean }): void {
-    const group = this.savedTabGroups.get(workspaceId)
-    if (!group) throw new Error('Archived workspace is unavailable.')
-    const operation = this.savedWorkspaceOperations.get(workspaceId)
-    if (operation) throw new Error(`Archived workspace "${group.name}" is busy ${operation.action}. Try again after that operation finishes.`)
-    if (updates.hiddenFromSidebar !== undefined) group.hiddenFromSidebar = updates.hiddenFromSidebar
-    if (updates.deletionProtected !== undefined) group.deletionProtected = updates.deletionProtected
-    this.changed()
+    updateArchivedWorkspacePreferences(this.workspaceArchiveAccess(), workspaceId, updates)
   }
 
-  async deleteSavedTabGroup(savedGroupId: string): Promise<BrowserSavedTabGroupState[]> {
-    return this.withSavedWorkspaceOperation(savedGroupId, 'deleting the archived workspace', async () => {
-      const saved = this.savedTabGroups.get(savedGroupId)
-      if (!saved) throw new Error(`Unknown saved workspace: ${savedGroupId}.`)
-      if (saved.deletionProtected) throw new Error(`Workspace "${saved.name}" is protected from deletion. Turn off deletion protection in Home first.`)
-      {
-        await this.assertStorageDeletionOwnership(savedGroupId, saved.storageId)
-        await destroyWorkspaceStorage(
-          workspacePartition(this.options.partition, saved.storageId),
-          this.options.configureSession
-        )
-      }
-      this.savedTabGroups.delete(savedGroupId)
-      this.deletedWorkspaceStorageIds.add(canonicalStorageId(saved.storageId)!)
-      this.retireWorkspaceContinuity(savedGroupId)
-      this.changed()
-      await this.store.save(() => this.persistedState())
-      return this.listSavedTabGroups()
-    })
+  deleteSavedTabGroup(savedGroupId: string): Promise<BrowserSavedTabGroupState[]> {
+    return deleteSavedTabGroup(this.workspaceArchiveAccess(), savedGroupId)
   }
 
   private async assertStorageDeletionOwnership(workspaceId: string, storageId: string): Promise<void> {
