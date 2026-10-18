@@ -16,7 +16,7 @@ function touchPage(options: {
   onTouch?: (command: Command, page: ReturnType<typeof touchPage>) => void
   /** Events Chromium takes but the page never acknowledges. */
   unacknowledged?: (type: TouchType) => boolean
-  /** A rejection of the cancel before Chromium takes it. */
+  /** A rejection Chromium reports for the cancel after taking it, as its input handler does. */
   cancelRejection?: Error
 } = {}) {
   const commands: Command[] = []
@@ -33,9 +33,9 @@ function touchPage(options: {
         if (method === 'Page.getLayoutMetrics') return { cssVisualViewport: { clientWidth: 390, clientHeight: 600, scale: 1, offsetX: 0, offsetY: 0 } }
         commands.push({ method, params })
         const type = params?.type as TouchType
-        if (type === 'touchCancel' && options.cancelRejection) throw options.cancelRejection
         if (type !== 'touchStart' && !held) throw new Error('Must send a TouchStart first to start a new touch.')
         held = type === 'touchStart' || type === 'touchMove'
+        if (type === 'touchCancel' && options.cancelRejection) throw options.cancelRejection
         options.onTouch?.({ method, params }, page)
         if (options.unacknowledged?.(type)) return new Promise(() => undefined)
         return {}
@@ -57,7 +57,6 @@ function touchPage(options: {
   let locked = false
   let lockChanges = 0
   let authorityCurrent = true
-  const unconfirmed = new WeakSet<object>()
   const access: AgentTouchAccess<AgentTouchTab> = {
     getTab: () => tab,
     tabSelectionGeneration: () => 0,
@@ -80,8 +79,7 @@ function touchPage(options: {
       dispose: () => undefined
     }),
     withAgentInput: (_webContents, operation) => operation(),
-    withDebugger: (_webContents, operation) => operation(),
-    unconfirmedTouchContacts: () => unconfirmed as never
+    withDebugger: (_webContents, operation) => operation()
   }
   const page = {
     access, tab, view, window, webContents, debuggerEvents, commands,
@@ -89,7 +87,8 @@ function touchPage(options: {
     beginLockChange: () => { lockChanges += 1 },
     revokeAuthority: () => { authorityCurrent = false },
     restoreAuthority: () => { authorityCurrent = true },
-    blocked: () => unconfirmed.has(webContents)
+    /** Whether Chromium still holds the finger down. */
+    held: () => held
   }
   return page
 }
@@ -217,7 +216,7 @@ describe('touch gestures', () => {
     }) })
     await expect(touch(page.access, swipe(200), check => check(), () => undefined)).rejects.toThrow(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchMove', 'touchCancel'])
-    expect(page.blocked()).toBe(false)
+    expect(page.held()).toBe(false)
     await expect(touch(page.access, tap, check => check(), () => undefined)).resolves.toMatchObject({ contact: 'ENDED' })
   })
 
@@ -227,14 +226,14 @@ describe('touch gestures', () => {
     await expect(touch(page.access, swipe(50), check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchCancel'])
     expect(progress.at(-1)).toMatchObject({ cancelAcknowledged: true })
-    expect(page.blocked()).toBe(false)
+    expect(page.held()).toBe(false)
   })
 
   it('cancels the contact when a lock changes on any tab mid-swipe', async () => {
     const page = touchPage({ onTouch: onMove(1, current => { current.beginLockChange() }) })
     await expect(touch(page.access, swipe(50), check => check(), () => undefined)).rejects.toThrow(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchCancel'])
-    expect(page.blocked()).toBe(false)
+    expect(page.held()).toBe(false)
   })
 
   it('treats an end the page never acknowledges as cleared once Chromium reports no contact', async () => {
@@ -249,7 +248,7 @@ describe('touch gestures', () => {
     expect(types(page.commands)).toEqual(['touchStart', 'touchEnd', 'touchCancel'])
     expect(progress.at(-1)).toMatchObject({ endAcknowledged: false, cancelAttempted: true, cancelAcknowledged: false, contactCleared: true })
     expect(nativeTouchUnknownResult(progress.at(-1)!).structuredContent).toMatchObject({ contact: 'CLEARED' })
-    expect(page.blocked()).toBe(false)
+    expect(page.held()).toBe(false)
   })
 
   it('treats a cancel Chromium took but the page never acknowledged as cleared', async () => {
@@ -264,23 +263,21 @@ describe('touch gestures', () => {
     expect(await stopped).toBeInstanceOf(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchCancel'])
     expect(progress.at(-1)).toMatchObject({ cancelAcknowledged: false, contactCleared: true })
-    expect(page.blocked()).toBe(false)
+    expect(page.held()).toBe(false)
   })
 
-  it('refuses later gestures until the debugger resets when the cancel is rejected', async () => {
+  it('treats a cancel Chromium took but then rejected, as after a renderer crash, as cleared', async () => {
     const page = touchPage({
       onTouch: onMove(1, current => { current.tab.nativeInputEnvironmentGeneration += 1 }),
       cancelRejection: new Error('Internal error')
     })
     const progress: NativeTouchProgress[] = []
     await expect(touch(page.access, swipe(50), check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
-    expect(nativeTouchUnknownResult(progress.at(-1)!).structuredContent).toMatchObject({ contact: 'UNCONFIRMED', nextAction: expect.stringContaining('Close this tab') })
-    page.tab.nativeInputEnvironmentGeneration = 0
-    await expect(touch(page.access, tap, check => check(), () => undefined)).rejects.toThrow('close this tab')
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchCancel'])
-    // Detaching the debugger clears Chromium's record of the contact.
-    page.debuggerEvents.emit('detach')
-    expect(page.debuggerEvents.listenerCount('detach')).toBe(0)
+    expect(progress.at(-1)).toMatchObject({ cancelAcknowledged: false, contactCleared: true })
+    expect(nativeTouchUnknownResult(progress.at(-1)!).structuredContent).toMatchObject({ contact: 'CLEARED' })
+    expect(page.held()).toBe(false)
+    page.tab.nativeInputEnvironmentGeneration = 0
     await expect(touch(page.access, tap, check => check(), () => undefined)).resolves.toMatchObject({ contact: 'ENDED' })
   })
 
@@ -290,8 +287,9 @@ describe('touch gestures', () => {
     await expect(touch(page.access, swipe(200), check => check(), next => progress.push(next))).rejects.toBeInstanceOf(NativeTouchOutcomeUnknownError)
     expect(types(page.commands)).toEqual(['touchStart', 'touchMove', 'touchMove'])
     expect(progress.at(-1)).toMatchObject({ cancelAttempted: false, contactCleared: true })
-    expect(nativeTouchUnknownResult(progress.at(-1)!).structuredContent).toMatchObject({ contact: 'CLEARED', nextAction: expect.not.stringContaining('Close this tab') })
-    expect(page.blocked()).toBe(false)
+    expect(nativeTouchUnknownResult(progress.at(-1)!).structuredContent).toMatchObject({ contact: 'CLEARED' })
+    // The fake debugger keeps its record; a real detach drops it.
+    await expect(touch(page.access, tap, check => check(), () => undefined)).resolves.toMatchObject({ contact: 'ENDED' })
   })
 
   it('reports an unknown outcome when the call loses its authority after the end', async () => {

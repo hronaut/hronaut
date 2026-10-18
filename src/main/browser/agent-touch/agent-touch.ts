@@ -51,8 +51,9 @@ export interface NativeTouchProgress {
   cancelAcknowledged: boolean
   /**
    * Chromium no longer holds the contact although the page did not acknowledge
-   * its end or cancel: Chromium took the cancel and is still waiting for the
-   * page, held no contact any more, or its debugger session ended.
+   * its end or cancel: Chromium took the cancel and then failed or is still
+   * waiting for the page, held no contact any more, or its debugger session
+   * ended or the page closed before a cancel could be sent.
    */
   contactCleared: boolean
 }
@@ -70,34 +71,19 @@ export class NativeTouchOutcomeUnknownError extends Error {
   }
 }
 
-/** Chromium did not acknowledge a touch event in time; it took the event and the page has not handled it yet. */
-class TouchAcknowledgementTimeoutError extends Error {
-  constructor() {
-    super('Touch event was not acknowledged in time')
-    this.name = 'TouchAcknowledgementTimeoutError'
-  }
-}
-
-/** Chromium's answer to a touch cancel when it holds no contact to cancel. */
-const holdsNoContact = (error: unknown): boolean => error instanceof Error && error.message.includes('Must send a TouchStart first')
-
 /**
  * Sends one single-finger tap or straight swipe to the active, visible, awake
  * and unlocked page with touch emulation on, default zoom and no child
  * frames. A swipe moves in even steps over its duration. Every event is
  * checked first: any change to that environment, the call's authority or its
  * cancellation stops the gesture, and a contact that went down is then
- * cancelled. A contact Chromium may still hold blocks further gestures on the
- * page until it closes, since Chromium would carry it into the next gesture.
+ * cancelled, so Chromium never carries it into the next gesture.
  */
 export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<Tab>, input: NativeTouchInput, validateInput: (validateContext: () => void) => void,
   recordProgress: (progress: NativeTouchProgress) => void, signal?: AbortSignal): Promise<unknown> {
   const options = nativeTouchInput.parse(input)
   const tab = access.getTab(options.tabId)
   const webContents = tab.webContents
-  if (access.unconfirmedTouchContacts().has(webContents)) {
-    throw new Error('An earlier touch contact on this page was never confirmed lifted; close this tab before another touch gesture. Navigation does not lift it.')
-  }
   const generation = tab.nativeInputEnvironmentGeneration
   const selectionGeneration = access.tabSelectionGeneration()
   const splitGeneration = access.splitViewGeneration()
@@ -145,7 +131,7 @@ export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<
     }
     if (tab.sleeping || tab.pageLifecycleState !== 'active') throw new Error('Touch requires an already awake, active page')
     // Like the other native input paths, any pending lock change, on any tab, holds the gesture back.
-    if (access.nativeInputLockMutations() > 0) throw new Error('Touch waits while a page input lock is changing; try again once it settles')
+    if (access.nativeInputLockMutations() > 0) throw new Error('Touch is unavailable while a page input lock is changing; try again once it settles')
     if (access.isHumanInteractionLocked(tab)) throw new Error('Touch requires an unlocked page; the person locked its input')
     if (access.screenshotAreaSessions().has(webContents.id) || access.elementPickerSessions().has(webContents.id)
       || access.devToolsOpening().has(webContents.id) || webContents.isDevToolsOpened()) {
@@ -209,25 +195,33 @@ export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<
         // lock, a navigation or a move to another workspace too. A lock's
         // input barrier is applied through this same debugger queue, so it
         // cannot drop the cancel, and a document that never saw the contact
-        // ignores its cancel. A detached debugger already cleared the contact.
-        if (progress.startAttempted && !progress.endAcknowledged && !debuggerDetached && !webContents.isDestroyed()) {
-          progress.cancelAttempted = true
-          publish()
-          try {
-            await send('touchCancel')
-            progress.cancelAcknowledged = true
-          } catch (error) {
-            // Chromium drops its record of the contact as soon as it takes the
-            // cancel, before the page acknowledges it. Any other failure leaves
-            // the contact unconfirmed; the gesture's own error is reported.
-            if (error instanceof TouchAcknowledgementTimeoutError || holdsNoContact(error)) progress.contactCleared = true
+        // ignores its cancel.
+        if (progress.startAttempted && !progress.endAcknowledged) {
+          if (debuggerDetached || webContents.isDestroyed()) {
+            // A detached debugger already dropped Chromium's record of the
+            // contact, and a closed page takes no more gestures.
+            progress.contactCleared = true
+          } else {
+            progress.cancelAttempted = true
+            publish()
+            try {
+              await send('touchCancel')
+              progress.cancelAcknowledged = true
+            } catch {
+              // Chromium drops its record of the contact as soon as it takes
+              // the cancel, before it reports any error or the page answers; it
+              // reports no contact when it holds none, and a session that can
+              // no longer take the cancel has detached, which drops the record
+              // too. The gesture's own error is reported.
+              progress.contactCleared = true
+            }
           }
           publish()
         }
       }
     }))
     // The page may already be navigating in answer to the gesture, as after a
-    // click, so only the call's authority is checked again.
+    // click, so the environment is not checked again; the call's authority is.
     authority.validate()
     return {
       status: 'DISPATCH_ACKNOWLEDGED',
@@ -242,15 +236,6 @@ export async function touch<Tab extends AgentTouchTab>(access: AgentTouchAccess<
     if (progress.startAttempted) throw new NativeTouchOutcomeUnknownError(error)
     throw error
   } finally {
-    if (progress.startAttempted && !progress.endAcknowledged && !progress.cancelAcknowledged && !progress.contactCleared) {
-      // Detaching the debugger clears Chromium's record of the contact, and a closed page takes no more gestures.
-      if (debuggerDetached || webContents.isDestroyed()) progress.contactCleared = true
-      else {
-        access.unconfirmedTouchContacts().add(webContents)
-        webContents.debugger.once('detach', () => { access.unconfirmedTouchContacts().delete(webContents) })
-      }
-      publish()
-    }
     authority.dispose()
     tab.view.removeListener('bounds-changed', changed)
     webContents.removeListener('zoom-changed', changed)
@@ -274,7 +259,7 @@ async function withAcknowledgementTimeout(command: Promise<unknown>): Promise<vo
     await Promise.race([
       command,
       new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new TouchAcknowledgementTimeoutError()), TOUCH_ACK_TIMEOUT_MS)
+        timer = setTimeout(() => reject(new Error('Touch event was not acknowledged in time')), TOUCH_ACK_TIMEOUT_MS)
       })
     ])
   } finally {

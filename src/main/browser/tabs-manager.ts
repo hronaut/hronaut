@@ -778,7 +778,6 @@ export class BrowserTabsManager {
   private readonly activeNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
   private readonly unconfirmedNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
   /** Pages where an agent's touch contact may still be down: neither its end nor a cancel was acknowledged. */
-  private readonly unconfirmedTouchContacts = new WeakSet<BrowserTab['webContents']>()
   private readonly pageFind = new PageFindController()
   private readonly metadata = new PageMetadataController<BrowserTab>({
     getTab: (tabId) => this.getTab(tabId),
@@ -1430,8 +1429,7 @@ export class BrowserTabsManager {
       devToolsOpening: () => this.devToolsOpening,
       nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
       withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      unconfirmedTouchContacts: () => this.unconfirmedTouchContacts
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation)
     }
   }
 

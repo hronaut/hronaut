@@ -4,22 +4,22 @@ import { McpCapabilityAuthorizationError } from '../../capability-profile-store.
 import { errorResult, textResult } from '../../tool-results.js'
 import type { ToolActivityClassification, WorkspaceToolCall } from '../tool-context.js'
 
-/** Where the gesture's finger was left: lifted by its end, cancelled, dropped by Chromium without the page confirming it, or possibly still down. */
-const contactOf = (progress: NativeTouchProgress): 'ENDED' | 'CANCELLED' | 'CLEARED' | 'UNCONFIRMED' =>
-  progress.endAcknowledged ? 'ENDED' : progress.cancelAcknowledged ? 'CANCELLED' : progress.contactCleared ? 'CLEARED' : 'UNCONFIRMED'
+/**
+ * Where the gesture's finger was left: lifted by its end or a cancel the page acknowledged, or dropped by Chromium
+ * without the page confirming it. A gesture that was attempted always ends in one of these.
+ */
+const contactOf = (progress: NativeTouchProgress): 'ENDED' | 'CANCELLED' | 'CLEARED' =>
+  progress.endAcknowledged ? 'ENDED' : progress.cancelAcknowledged ? 'CANCELLED' : 'CLEARED'
 
 /** A gesture whose first touch event was attempted but whose outcome could not be confirmed, with how far it got. */
 export function nativeTouchUnknownResult(progress: NativeTouchProgress, reviewFinalizationFailed = false, policy?: Record<string, unknown>): CallToolResult {
-  const contact = contactOf(progress)
   const outcome = {
     status: 'OUTCOME_UNKNOWN', reason: 'TOUCH_GESTURE_UNCERTAIN', retrySafe: false, effects: 'possible',
     moves: progress.movesAcknowledged,
-    contact,
+    contact: contactOf(progress),
     ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
     ...(policy?.permission === 'denied' || policy?.policyDecision !== undefined ? { permission: 'denied', policyDecision: policy.policyDecision } : {}),
-    nextAction: contact === 'UNCONFIRMED'
-      ? 'A touch gesture was attempted and its contact was not confirmed lifted. Inspect fresh page state; never automatically replay. Close this tab before another touch gesture on it.'
-      : 'A touch gesture was attempted and may have reached the page. Inspect fresh page state before continuing; do not automatically replay.'
+    nextAction: 'A touch gesture was attempted and may have reached the page. Inspect fresh page state before continuing; do not automatically replay.'
   }
   return { ...textResult(outcome), structuredContent: outcome, isError: true }
 }

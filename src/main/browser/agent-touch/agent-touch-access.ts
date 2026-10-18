@@ -23,9 +23,8 @@ export interface AgentTouchTab {
  * tabs, the window, the active tab, the split view and the generations of
  * both, trusted chrome occlusion, the human interaction lock and its pending
  * changes, native selection sessions, DevTools opening, the debugger queue,
- * agent input scopes, native input authority and the pages whose last touch
- * contact was never confirmed lifted private. Each is read again at every
- * admission check.
+ * agent input scopes and native input authority private. Each is read again at
+ * every admission check.
  */
 export interface AgentTouchAccess<Tab extends AgentTouchTab> {
   /** The tab with this id, or the active tab; it throws when there is none. */
@@ -58,6 +57,4 @@ export interface AgentTouchAccess<Tab extends AgentTouchTab> {
   withAgentInput<T>(webContents: WebContents, operation: () => Promise<T>): Promise<T>
   /** Runs a debugger operation on the page in its turn. */
   withDebugger<T>(webContents: WebContents, operation: () => Promise<T>): Promise<T>
-  /** The pages where a gesture's contact may still be down because neither its end nor a cancel was acknowledged. */
-  unconfirmedTouchContacts(): WeakSet<WebContents>
 }
