@@ -4,7 +4,7 @@ import { registerIncidentPackageIpc } from './incident-package-ipc.js'
 import { registerBrowserImportIpc } from './browser-import/ipc.js'
 import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
 import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
-import { parseNetworkRouteInput } from './browser/network-route-input.js'
+import { registerNetworkRoutesIpc } from './network-routes-ipc.js'
 import { registerWalletIpc } from './wallet/ipc.js'
 import { ShellOverlayView } from './shell-overlay-view.js'
 import { AgentCardOverlay, type AgentCardSurface } from './agent-card-overlay.js'
@@ -2824,40 +2824,10 @@ function registerIpc(): void {
     handleBrowserIpc,
     tabs: () => tabsManager
   })
-  handleBrowserIpc('browser:list-network-routes', (event, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    return tabsManager!.networkRoutes(tabId)
-  })
-  handleBrowserIpc('browser:add-network-route', async (event, tabId: unknown, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    return tabsManager!.addNetworkRoute(tabId, parseNetworkRouteInput(value))
-  })
-  handleBrowserIpc('browser:remove-network-route', async (event, tabId: unknown, routeId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string' || typeof routeId !== 'string') throw new TypeError('Invalid network route')
-    return tabsManager!.removeNetworkRoute(tabId, routeId)
-  })
-  handleBrowserIpc('browser:set-network-route-enabled', (event, tabId: unknown, routeId: unknown, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string' || typeof routeId !== 'string' || typeof enabled !== 'boolean') throw new TypeError('Invalid network route enabled state')
-    return tabsManager!.setNetworkRouteEnabled(tabId, routeId, enabled)
-  })
-  handleBrowserIpc('browser:move-network-route', (event, tabId: unknown, routeId: unknown, direction: unknown) => {
-    assertTrustedShellSender(event)
-    if (
-      typeof tabId !== 'string'
-      || typeof routeId !== 'string'
-      || (direction !== 'up' && direction !== 'down')
-    ) throw new TypeError('Invalid network route move')
-    return tabsManager!.moveNetworkRoute(tabId, routeId, direction)
-  })
-  handleBrowserIpc('browser:clear-network-routes', async (event, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    await tabsManager!.clearNetworkRoutes(tabId)
-    return tabsManager!.getState()
+  registerNetworkRoutesIpc({
+    assertTrustedSender: assertTrustedShellSender,
+    handleBrowserIpc,
+    tabs: () => tabsManager
   })
   handleBrowserIpc('browser:manage-storage', (event, value: unknown) => {
     assertTrustedShellSender(event)
