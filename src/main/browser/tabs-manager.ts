@@ -57,11 +57,12 @@ import type { CookieWriteHooks } from './cookie-write-operation.js'
 import type { BrowserVideoInspectionOptions } from '../../shared/video-inspection.js'
 import { inspectVideoFrames } from './video-inspection.js'
 import { BrowserVideoRecorder, type PendingVideoInspection, type VideoSourceBinding } from './video-recorder.js'
-import { captureStableVideoImage } from './video-capture.js'
+import type { VideoRecordingAccess } from './video-recording/video-recording-access.js'
+import { inspectVideo, videoPreview, videoRecording } from './video-recording/video-recording.js'
 import { renderBrowserVideo } from './video-export.js'
 import { readVideoAudioFile } from './video-audio-file.js'
 import { writeUniqueDownloadFile } from './unique-download-file.js'
-import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
+import type { BrowserVideoOptions, BrowserVideoState } from '../../shared/video.js'
 import type { BrowserCredentialCandidate, CredentialCaptureAccess } from './credential-capture/credential-capture-access.js'
 import { watchCredentialSubmission } from './credential-capture/credential-capture.js'
 import { trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
@@ -4723,51 +4724,36 @@ export class BrowserTabsManager {
     return clearDiagnosticLogs(this.debugReportAccess(), tabId)
   }
 
-  async videoRecording(options: BrowserVideoOptions, validateAuthority: () => void = () => undefined, signal?: AbortSignal): Promise<BrowserVideoState> {
-    const tab = this.getTab(options.tabId)
-    const origin = new URL(tab.url).origin
-    const workspaceId = tab.mcpGroupId
-    const valid = (): void => {
-      validateAuthority()
-      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new Error('Recording tab is unavailable')
+  /**
+   * The narrow view recording, inspecting and previewing a tab's video gets of
+   * this manager's private tabs, window, trusted chrome occlusion, page
+   * presentation and video recorder. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's promise
+   * directly, so callers see the same ticks as before.
+   */
+  private videoRecordingAccess(): VideoRecordingAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      isDestroyed: () => this.destroyed,
+      window: () => this.window,
+      browserContentOccluded: () => this.browserContentOccluded,
+      withRenderableTab: (tab, operation) => this.withRenderableTab(tab, operation),
+      videoRecorder: () => this.videoRecorder
     }
-    let initialSize: { width: number; height: number } | undefined
-    const capture = async () => {
-      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new Error('Recording tab is unavailable')
-      if (!/^https?:/.test(tab.url) || new URL(tab.url).origin !== origin || tab.sleeping || tab.pageLifecycleState !== 'active' || !this.window.isVisible() || this.window.isMinimized() || this.browserContentOccluded) throw new Error('Keep Hronaut visible and the recording tab awake at its original origin')
-      const image = await captureStableVideoImage(
-        () => this.withRenderableTab(tab, () => tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true })),
-        () => tab.navigationGeneration,
-        () => tab.webContents.isLoadingMainFrame()
-      )
-      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new Error('Recording tab is unavailable')
-      if (new URL(tab.url).origin !== origin || tab.sleeping || tab.pageLifecycleState !== 'active' || !this.window.isVisible() || this.window.isMinimized() || this.browserContentOccluded) throw new Error('The tab changed during capture')
-      if (!image) return null
-      const size = image.getSize()
-      if (initialSize && (size.width !== initialSize.width || size.height !== initialSize.height)) throw new Error('Restore the original viewport size before resuming')
-      initialSize = size
-      const scale = Math.min(1, VIDEO_LIMITS.width / size.width, VIDEO_LIMITS.height / size.height)
-      const width = Math.max(2, Math.floor(size.width * scale / 2) * 2)
-      const height = Math.max(2, Math.floor(size.height * scale / 2) * 2)
-      return { data: image.resize({ width, height }).toJPEG(85), width, height }
-    }
-    const validateSource = (): void => {
-      if (this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || new URL(tab.url).origin !== origin) throw new Error('Return to the recording origin to access this video, or discard it')
-    }
-    return this.videoRecorder.manage(tab.id, options, capture, valid, validateSource, signal, { tabId: tab.id, workspaceId, origin })
   }
 
-  async inspectVideo(options: BrowserVideoInspectionOptions, authorize: (source: VideoSourceBinding) => void, signal?: AbortSignal): Promise<PendingVideoInspection> {
-    const tab = this.getTab(options.tabId)
-    return this.videoRecorder.inspect(tab.id, options, source => {
-      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
-        || tab.id !== source.tabId || tab.mcpGroupId !== source.workspaceId) throw new Error('Recording tab or workspace is unavailable')
-      authorize(source)
-    }, signal)
+  videoRecording(options: BrowserVideoOptions, validateAuthority?: () => void, signal?: AbortSignal): Promise<BrowserVideoState> {
+    return videoRecording(this.videoRecordingAccess(), options, validateAuthority, signal)
+  }
+
+  inspectVideo(options: BrowserVideoInspectionOptions, authorize: (source: VideoSourceBinding) => void, signal?: AbortSignal): Promise<PendingVideoInspection> {
+    return inspectVideo(this.videoRecordingAccess(), options, authorize, signal)
   }
 
   videoPreview(tabId: string): Uint8Array {
-    return this.videoRecorder.preview(this.getTab(tabId).id)
+    return videoPreview(this.videoRecordingAccess(), tabId)
   }
 
   async reproRecording(action: BrowserReproAction, tabId?: string, checkpoint?: unknown): Promise<BrowserReproRecording> {
