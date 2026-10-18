@@ -19,7 +19,6 @@ import { registerPanelWindowIpc } from './panel-window-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
 import { createAgentPresence } from './agent-presence.js'
 import { registerAgentPresenceIpc } from './agent-presence-ipc.js'
-import type { HomeDashboard } from '../shared/home.js'
 import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
@@ -78,7 +77,7 @@ import {
   type SiteDataType,
   type UserAttentionRequest
 } from './mcp/server.js'
-import { buildMcpReadinessDiagnostic } from './mcp/readiness.js'
+import { createHomeDashboard } from './home-dashboard.js'
 import { registerWorkspacesIpc } from './workspaces-ipc.js'
 import { pinnedWorkspaceAt } from '../shared/workspace-shortcuts.js'
 import { loadMcpToken } from './mcp-token-store.js'
@@ -312,7 +311,6 @@ const {
   workspaceStartupFailure: () => workspaceStartupFailure,
   mainWindowRefs
 })
-let homePresentationRevision = 0
 const mcpPauseState = new McpPauseState()
 const mcpActionTracker = new McpActionTracker(() => {
   // Command progress updates the shell without reloading a visible Home tab.
@@ -604,6 +602,18 @@ function publishVisitHistory(): BrowserHistoryEntry[] {
   return entries
 }
 
+const { refreshHomeAfterCommittedChange, homeDashboardState } = createHomeDashboard({
+  mcpRuntime,
+  workspaceStartupFailure: () => workspaceStartupFailure,
+  tabsInitializationPromise: () => tabsInitializationPromise,
+  tabs: () => tabsManager,
+  connectedAgents,
+  currentMcpControlState: () => currentMcpControlState(),
+  settings: () => settingsState.current,
+  mcpPauseState,
+  resolvedTheme
+})
+
 const {
   currentMcpControlState,
   publishMcpControlState,
@@ -621,14 +631,6 @@ const {
   sendToShellWindows,
   refreshHomeAfterCommittedChange
 })
-
-function refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void {
-  homePresentationRevision += 1
-  if (workspaceStartupFailure || tabsInitializationPromise) return
-  void tabsManager?.reloadHome().catch((error) => {
-    console.error(`[${scope}] Could not refresh Hronaut Home after a committed state change:`, error)
-  })
-}
 
 const { currentBrowsingDataSiteSummary, clearWorkspaceSiteData } = createSiteData({
   tabs: () => tabsManager,
@@ -702,83 +704,6 @@ function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
     panelWindowRefs.window.setTitle(detachedPanelTitle(panelWindowRefs.panel))
   }
   refreshHomeAfterCommittedChange('settings')
-}
-
-/** Live agent data for Home, from one presence read: who is connected, what each workspace is doing, and the feed. */
-function homeAgentData(): Required<Pick<HomeDashboard, 'agents' | 'workspaceActivity' | 'feed'>> {
-  try {
-    const presence = mcpRuntime.server?.getAgentPresence() ?? {}
-    return { agents: connectedAgents(presence), workspaceActivity: mcpRuntime.server?.getWorkspaceActivity(presence) ?? {}, feed: mcpRuntime.server?.getHomeFeed() ?? [] }
-  } catch (error) {
-    console.error('[mcp] Failed to read agent activity for Home:', error)
-    return { agents: [], workspaceActivity: {}, feed: [] }
-  }
-}
-
-function mcpPortFailureForHome(): Pick<HomeDashboard, 'errorCode' | 'failedPort' | 'suggestedPort'> {
-  const { errorCode, failedPort, suggestedPort } = currentMcpControlState()
-  return { ...(errorCode ? { errorCode } : {}), ...(failedPort ? { failedPort } : {}), ...(suggestedPort ? { suggestedPort } : {}) }
-}
-
-function homeDashboardState(): HomeDashboard {
-  const serverState = mcpRuntime.server?.getDashboardState()
-  const tools = mcpToolCatalogForSet(settingsState.current.mcpToolSet)
-  const status = currentMcpControlState().status
-  const state = {
-    ...(serverState ?? {
-      name: 'hronaut',
-      version: app.getVersion(),
-      endpoint: mcpRuntime.url,
-      startedAt: null,
-      activeRequests: 0,
-      totalRequests: 0,
-      paused: mcpPauseState.paused,
-      status: 'starting',
-      completedToolCalls: 0,
-      clients: [],
-      recentActivity: [],
-      toolMetrics: [],
-      outcomeTotals: {},
-      tools,
-      readiness: buildMcpReadinessDiagnostic({
-        checkedAt: new Date().toISOString(),
-        serverStatus: status,
-        serverError: mcpRuntime.startupError,
-        startedAt: null,
-        advertisedToolNames: tools.map((tool) => tool.name),
-        clients: []
-      })
-    }),
-    endpoint: mcpRuntime.url,
-    tools,
-    presentationRevision: homePresentationRevision,
-    theme: resolvedTheme(settingsState.current.theme),
-    status,
-    ...homeAgentData(),
-    ...(mcpRuntime.startupError ? { error: mcpRuntime.startupError } : {}),
-    ...mcpPortFailureForHome()
-  }
-  return {
-    ...state,
-    // Home never sees a session id or a credential id; it knows agents by their presence key.
-    clients: state.clients.map(({ name, version, lastSeenAt, requestCount, activeRequests, initializedAt, readinessProbe }) => ({
-      name,
-      ...(version ? { version } : {}),
-      lastSeenAt,
-      requestCount,
-      activeRequests,
-      ...(initializedAt ? { initializedAt } : {}),
-      ...(readinessProbe ? { readinessProbe: { outcome: readinessProbe.outcome } } : {})
-    })),
-    readiness: buildMcpReadinessDiagnostic({
-      checkedAt: new Date().toISOString(),
-      serverStatus: status,
-      serverError: mcpRuntime.startupError,
-      startedAt: state.startedAt,
-      advertisedToolNames: tools.map((tool) => tool.name),
-      clients: state.clients
-    })
-  }
 }
 
 function registerHomeProtocol(): void {
