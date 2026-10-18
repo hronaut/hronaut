@@ -291,9 +291,8 @@ const {
   startWallets,
   assertWalletPageSender,
   currentWalletServiceStatus,
-  requireWalletBroker,
-  walletAgentContext,
-  generateWallet
+  generateWallet,
+  agentWallets
 } = createWalletRuntime({
   state: walletRuntime,
   sendToMainWindow,
@@ -1436,27 +1435,7 @@ function createRuntimeMcpServer(
       inspect: (workspaceId, origin) => currentBrowsingDataSiteSummary(origin, tabsManager?.workspaceSession(workspaceId)),
       clear: (workspaceId, origin, dataTypes: SiteDataType[]) => clearWorkspaceSiteData(workspaceId, origin, dataTypes)
     },
-    wallets: {
-      list: async (target) => requireWalletBroker().listAgentWallets(walletAgentContext(target)),
-      balance: async (target, walletId, token, spender) => requireWalletBroker().agentBalance(walletAgentContext(target), walletId, token, spender),
-      prepareTransaction: async (target, walletId, transaction) => (
-        requireWalletBroker().prepareAgentTransaction(walletAgentContext(target), walletId, transaction)
-      ),
-      requestTransaction: async (target, walletId, transaction, broadcast) => (
-        requireWalletBroker().requestAgentTransaction(walletAgentContext(target), walletId, transaction, broadcast)
-      ),
-      requestMessage: async (target, walletId, message) => (
-        requireWalletBroker().requestAgentMessage(walletAgentContext(target), walletId, message)
-      ),
-      requestStatus: async (target, requestId) => (
-        requireWalletBroker().agentRequestStatus(walletAgentContext(target), requestId)
-      ),
-      pageRequests: async (target) => requireWalletBroker().agentPageRequests(walletAgentContext(target)),
-      cancelRequest: async (target, requestId) => (
-        requireWalletBroker().cancelAgentRequest(walletAgentContext(target), requestId)
-      ),
-      cancelRequester: async (requesterId) => requireWalletBroker().cancelForRequester(requesterId)
-    },
+    wallets: agentWallets,
     onTabActivity: (activity, agent) => {
       if (activity.phase === 'started') activeMcpActivities.add(activity.activityId)
       else activeMcpActivities.delete(activity.activityId)

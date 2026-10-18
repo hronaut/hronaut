@@ -8,7 +8,7 @@ import { WalletService } from './service.js'
 import { walletStartupFailureStatus } from './startup-status.js'
 import type { BrowserTabsManager } from '../browser/tabs-manager.js'
 import type { CommercialLicenseStore } from '../commercial-license-store.js'
-import type { WalletAgentToolTarget } from '../mcp/server.js'
+import type { WalletAgentOperations, WalletAgentToolTarget } from '../mcp/server.js'
 import type { MainWindowRefs } from '../windows/main-window.js'
 import type { WalletCreateInput, WalletDescriptor, WalletServiceStatus } from '../../shared/wallet.js'
 
@@ -44,15 +44,14 @@ interface WalletRuntimeHost {
  * Wallets at runtime: starting the wallet service and its broker, which stay off with a reported reason when the
  * wallet data cannot be opened, admitting wallet requests from pages and agents for the page they came from, and
  * generating a wallet only after the person confirms in a native dialog that they saved its recovery phrase. The
- * phrase is shown only in that dialog, never sent to a renderer.
+ * phrase is shown only in that dialog, never sent to a renderer. `agentWallets` is what the MCP server offers agents.
  */
 export function createWalletRuntime(host: WalletRuntimeHost): {
   startWallets(): Promise<void>
   assertWalletPageSender(event: IpcMainInvokeEvent): WalletBrokerContext
   currentWalletServiceStatus(): WalletServiceStatus
-  requireWalletBroker(): WalletBroker
-  walletAgentContext(target: WalletAgentToolTarget): WalletBrokerContext
   generateWallet(input: WalletCreateInput): Promise<WalletDescriptor>
+  agentWallets: WalletAgentOperations
 } {
   async function startWallets(): Promise<void> {
     const candidateWalletService = new WalletService({
@@ -143,12 +142,34 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
     })
   }
 
+  /** Agents' wallet operations, each admitted through the broker for the agent's page. */
+  const agentWallets: WalletAgentOperations = {
+    list: async (target) => requireWalletBroker().listAgentWallets(walletAgentContext(target)),
+    balance: async (target, walletId, token, spender) => requireWalletBroker().agentBalance(walletAgentContext(target), walletId, token, spender),
+    prepareTransaction: async (target, walletId, transaction) => (
+      requireWalletBroker().prepareAgentTransaction(walletAgentContext(target), walletId, transaction)
+    ),
+    requestTransaction: async (target, walletId, transaction, broadcast) => (
+      requireWalletBroker().requestAgentTransaction(walletAgentContext(target), walletId, transaction, broadcast)
+    ),
+    requestMessage: async (target, walletId, message) => (
+      requireWalletBroker().requestAgentMessage(walletAgentContext(target), walletId, message)
+    ),
+    requestStatus: async (target, requestId) => (
+      requireWalletBroker().agentRequestStatus(walletAgentContext(target), requestId)
+    ),
+    pageRequests: async (target) => requireWalletBroker().agentPageRequests(walletAgentContext(target)),
+    cancelRequest: async (target, requestId) => (
+      requireWalletBroker().cancelAgentRequest(walletAgentContext(target), requestId)
+    ),
+    cancelRequester: async (requesterId) => requireWalletBroker().cancelForRequester(requesterId)
+  }
+
   return {
     startWallets,
     assertWalletPageSender,
     currentWalletServiceStatus,
-    requireWalletBroker,
-    walletAgentContext,
-    generateWallet
+    generateWallet,
+    agentWallets
   }
 }
