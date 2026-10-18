@@ -224,10 +224,8 @@ import { performanceReport } from './page-audits/performance-report.js'
 import { designOverview } from './page-audits/design-overview.js'
 import { PageMetadataController } from './diagnostics/page-metadata-controller.js'
 import { qualityAudit } from './page-audits/quality-audit.js'
-import {
-  normalizeBrowserGeneratedLocator,
-  type BrowserGeneratedLocator
-} from '../../shared/playwright-locator.js'
+import type { BrowserGeneratedLocator } from '../../shared/playwright-locator.js'
+import { generatePlaywrightLocator } from './element-inspection/playwright-locator.js'
 import { networkRequestSummary } from './network-inspection/network-request-summary.js'
 import { portableExportFilename } from '../../shared/portable-filename.js'
 import type { NetworkInspectionAccess } from './network-inspection/network-inspection-access.js'
@@ -375,11 +373,7 @@ import { browserImportDestination, importBrowserCookies } from './workspace-data
 import type { Cookie } from 'electron'
 import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
-import {
-  type AgentPointerIdentity,
-  playwrightLocatorScript,
-  type BrowserFormField
-} from './page-scripts.js'
+import type { AgentPointerIdentity, BrowserFormField } from './page-scripts.js'
 import { evaluate } from './page-evaluation/evaluate.js'
 import { TabStateStore, type PersistedBrowserState } from './tab-store.js'
 import type { PersistedStateAccess } from './browser-state/persisted-state-access.js'
@@ -432,7 +426,6 @@ import {
   withWorkspaceOperation,
   withWorkspaceStorageOperation
 } from './workspace-operations/workspace-operations.js'
-import { ISOLATED_WORLDS } from './isolated-worlds.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { pageShortcut, type TakeOverMark } from './take-over.js'
 import type { AgentPauseAccess } from './agent-pause/agent-pause-access.js'
@@ -569,7 +562,6 @@ function workspaceNameKey(name: string): string {
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
 const ABORTED_LOAD_ERROR = -3
-const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const require = createRequire(import.meta.url)
 const webVitalsPath = require.resolve('web-vitals/attribution')
@@ -3360,16 +3352,8 @@ export class BrowserTabsManager {
     return imageState(this.elementInspectionAccess(), options, validateInspection, deferInspection)
   }
 
-  async generatePlaywrightLocator(options: BrowserElementInspectionOptions): Promise<BrowserGeneratedLocator> {
-    const tab = this.getTab(options.tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before generating a locator')
-    this.validateTarget(options)
-    const raw = await tab.webContents.executeJavaScriptInIsolatedWorld(
-      ELEMENT_INSPECTION_WORLD_ID,
-      [{ code: playwrightLocatorScript(options) }],
-      false
-    )
-    return normalizeBrowserGeneratedLocator(tab.id, raw as Record<string, unknown>)
+  generatePlaywrightLocator(options: BrowserElementInspectionOptions): Promise<BrowserGeneratedLocator> {
+    return generatePlaywrightLocator(this.elementInspectionAccess(), options)
   }
 
   cancelElementPicker(tabId?: string): Promise<boolean> {
