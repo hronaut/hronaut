@@ -175,6 +175,7 @@ import {
   resolveSupportedLocale
 } from '../shared/locale.js'
 import { registerEmulationIpc } from './emulation-ipc.js'
+import { registerPageGeometryIpc } from './page-geometry-ipc.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
 import {
   dimTitleBarOverlay,
@@ -2748,30 +2749,11 @@ function registerIpc(): void {
     showMessageBox,
     text
   })
-  handleBrowserIpc('split-divider:get', (event) => runWorkspaceRead(event, assertMainShellSender, () => tabsManager!.getSplitDivider()))
-  handleBrowserIpc('emulation-frame:get', (event) => runWorkspaceRead(event, assertMainShellSender, () => tabsManager!.getEmulationFrames()))
-  handleBrowserIpc('page-card:get', (event) => runWorkspaceRead(event, assertMainShellSender, () => tabsManager!.getPageCards()))
-  handleBrowserIpc('split-divider:begin', (event, revision: unknown) => {
-    assertMainShellSender(event)
-    if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0) throw new TypeError('Invalid split revision')
-    return tabsManager!.beginSplitDivider(revision)
-  })
-  handleBrowserIpc('split-divider:update', (event, token: unknown, ratio: unknown) => {
-    assertMainShellSender(event)
-    if (typeof token !== 'string' || token.length > 64 || typeof ratio !== 'number' || !Number.isFinite(ratio)) throw new TypeError('Invalid split gesture update')
-    return tabsManager!.updateSplitDivider(token, ratio)
-  })
-  handleBrowserIpc('split-divider:finish', (event, token: unknown, commit: unknown, ratio: unknown) => {
-    assertMainShellSender(event)
-    if (typeof token !== 'string' || token.length > 64 || typeof commit !== 'boolean'
-      || (ratio !== undefined && (typeof ratio !== 'number' || !Number.isFinite(ratio)))) throw new TypeError('Invalid split gesture completion')
-    return tabsManager!.finishSplitDivider(token, commit, ratio as number | undefined)
-  })
-  handleBrowserIpc('split-divider:set-ratio', (event, revision: unknown, ratio: unknown) => {
-    assertMainShellSender(event)
-    if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0
-      || typeof ratio !== 'number' || !Number.isFinite(ratio)) throw new TypeError('Invalid split divider ratio')
-    return tabsManager!.setSplitDividerRatio(revision, ratio)
+  registerPageGeometryIpc({
+    assertMainShellSender,
+    handleBrowserIpc,
+    runWorkspaceRead,
+    tabs: () => tabsManager
   })
   registerEmulationIpc({
     assertTrustedSender: assertTrustedShellSender,
