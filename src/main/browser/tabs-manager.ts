@@ -483,6 +483,8 @@ import { assertClickTargetEnabled, assertNativeEditability, assertPointInsideVis
 import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
 import type { BeforeUnloadStagingAccess } from './tab-close/before-unload-staging-access.js'
 import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
+import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
+import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import type { AgentPointerAccess } from './agent-pointer/agent-pointer-access.js'
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
 import type { VisualCaptureAccess } from './visual-compare/visual-capture-access.js'
@@ -2368,68 +2370,46 @@ export class BrowserTabsManager {
 
   stopTabLabelEdits(): void { this.tabLabelAdmissionClosed = true }
 
-  private async withTabLabelLifecycle<T>(run: () => Promise<T>): Promise<T> {
-    // Acquire before yielding, so no new edit can race a label-bearing copy.
-    this.tabLabelLifecycleHolds += 1
-    try {
-      if (this.pendingTabLabels.size) await Promise.allSettled([...this.pendingTabLabels])
-      return await run()
-    } finally {
-      this.tabLabelLifecycleHolds -= 1
+  /**
+   * The narrow view saving tab labels gets of this manager's private tabs,
+   * store, persisted state, pending label saves, lifecycle holds and
+   * admission fence. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it. The delegates below return the feature's promise directly, so label
+   * saves are admitted and holds taken before the caller's next tick, as
+   * before.
+   */
+  private tabLabelsAccess(): TabLabelsAccess<BrowserTab> {
+    return {
+      initialized: () => this.initialized,
+      isDestroyed: () => this.destroyed,
+      tabLabelAdmissionClosed: () => this.tabLabelAdmissionClosed,
+      tabLabelLifecycleHolds: () => this.tabLabelLifecycleHolds,
+      setTabLabelLifecycleHolds: (holds) => { this.tabLabelLifecycleHolds = holds },
+      pendingTabLabels: () => this.pendingTabLabels,
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      store: () => this.store,
+      persistedState: () => this.persistedState(),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
   }
 
+  private withTabLabelLifecycle<T>(run: () => Promise<T>): Promise<T> {
+    return withTabLabelLifecycle(this.tabLabelsAccess(), run)
+  }
+
   private assertTabLabelAdmission(): void {
-    if (!this.initialized || this.destroyed || this.tabLabelAdmissionClosed || this.tabLabelLifecycleHolds) throw new Error('Wait for the tab operation to finish before editing its label.')
-    if (this.pendingTabLabels.size >= 8) throw new Error('Wait for pending label edits to finish.')
+    assertTabLabelAdmission(this.tabLabelsAccess())
   }
 
   async setTabLabel(tabId: string, value: string): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }> {
     return this.saveTabLabel(tabId, value)
   }
 
-  private async saveTabLabel(tabId: string, value: string, validateAuthority?: () => void, onCommitted?: () => void): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }> {
-    const label = normalizeTabLabel(value)
-    this.assertTabLabelAdmission()
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Hronaut Home cannot be labeled.')
-    const validate = (): void => {
-      if (this.destroyed || this.tabs.get(tabId) !== tab) throw new Error('The tab is no longer available.')
-      validateAuthority?.()
-    }
-    let committed = false
-    const commit = Symbol()
-    const operation = this.store.save(() => {
-      validate()
-      const state = this.persistedState()
-      const target = state.tabs.find(candidate => candidate.id === tabId)!
-      if (label) target.label = label
-      else delete target.label
-      return state
-    }, {
-      beforeCommit: validate,
-      onCommitted: () => {
-        committed = true
-        onCommitted?.()
-        tab.label = label
-        tab.labelCommit = commit
-        this.changed(false)
-      }
-    })
-    this.pendingTabLabels.add(operation)
-    try {
-      await operation
-      if (tab.labelCommit === commit) { tab.labelDurabilityUnconfirmed = false; this.changed(false) }
-      return { state: this.getState(), status: 'saved' }
-    } catch (error) {
-      if (!committed) throw error
-      // Rename committed; a failed directory flush cannot truthfully roll back
-      // the visible file. Keep that label, but never acknowledge durability.
-      if (tab.labelCommit === commit) { tab.labelDurabilityUnconfirmed = true; this.changed(false) }
-      return { state: this.getState(), status: 'durability-unconfirmed' }
-    } finally {
-      this.pendingTabLabels.delete(operation)
-    }
+  private saveTabLabel(tabId: string, value: string, validateAuthority?: () => void, onCommitted?: () => void): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }> {
+    return saveTabLabel(this.tabLabelsAccess(), tabId, value, validateAuthority, onCommitted)
   }
 
   async setTabPinned(tabId: string, pinned: boolean): Promise<BrowserState> {
