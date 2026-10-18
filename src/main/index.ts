@@ -17,9 +17,8 @@ import { ShellTooltipOverlay } from './shell-tooltip-overlay.js'
 import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
 import { registerPanelWindowIpc } from './panel-window-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
-import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
+import { createAgentPresence } from './agent-presence.js'
 import { registerAgentPresenceIpc } from './agent-presence-ipc.js'
-import type { ConnectedAgent } from '../shared/agent-status.js'
 import type { HomeDashboard } from '../shared/home.js'
 import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
@@ -466,8 +465,8 @@ const {
   setAttentionQuiet: (value) => { attentionQuiet = value },
   attentionDecisionId: () => attentionDecisionId,
   setAttentionDecisionId: (value) => { attentionDecisionId = value },
-  agentPresenceSnapshot,
-  scheduleAgentPresencePublish,
+  agentPresenceSnapshot: () => agentPresenceSnapshot(),
+  scheduleAgentPresencePublish: () => scheduleAgentPresencePublish(),
   activeMcpActivities: () => activeMcpActivities,
   settings: () => settingsState.current,
   setSettings: (value) => { settingsState.current = value },
@@ -559,13 +558,15 @@ function sendToMainWindow(channel: string, ...args: unknown[]): void {
   }
 }
 
-let agentPresenceRevision = 0
-let agentPresenceSerialized = '{}'
-let agentPresenceSentRevision = 0
-let connectedAgentsSent = '[]'
-let agentPresencePublishScheduled = false
-/** The Home feed revision Home was last told about. */
-let homeFeedSentRevision = 0
+const { agentPresenceSnapshot, scheduleAgentPresencePublish, connectedAgents } = createAgentPresence({
+  mcpRuntime,
+  tabs: () => tabsManager,
+  publishMcpControlState: (options) => publishMcpControlState(options),
+  attentionQuiet: () => attentionQuiet,
+  userAttentionShown,
+  endUserAttention,
+  sendToMainWindow
+})
 
 /** Offers a take over when the person touches a page an agent is working on, and takes it from the page's key. */
 const takeOvers = new TakeOverOffers({
@@ -579,52 +580,6 @@ const takeOvers = new TakeOverOffers({
   sendOffer: (offer) => sendToMainWindow('agent-presence:take-over-offer', offer),
   onError: () => console.error('[take-over] Failed to change agent control for a tab.')
 })
-
-/** The agents in each open workspace; the revision increases only when the list changes. */
-function agentPresenceSnapshot(): AgentPresenceSnapshot {
-  let workspaces: AgentPresenceSnapshot['workspaces'] = {}
-  try {
-    workspaces = mcpRuntime.server?.getAgentPresence() ?? {}
-  } catch (error) {
-    console.error('[mcp] Failed to read agent presence:', error)
-  }
-  // A step getting its picture changes only the history "All steps" reads, so it counts as a change too.
-  const serialized = JSON.stringify([workspaces, mcpRuntime.server?.agentStepHistoryRevision ?? 0])
-  if (serialized !== agentPresenceSerialized) {
-    agentPresenceSerialized = serialized
-    agentPresenceRevision += 1
-  }
-  return { revision: agentPresenceRevision, workspaces }
-}
-
-/** Sends at most one presence update per event-loop turn, and only a changed one. */
-function scheduleAgentPresencePublish(): void {
-  if (agentPresencePublishScheduled) return
-  agentPresencePublishScheduled = true
-  setImmediate(() => {
-    agentPresencePublishScheduled = false
-    const snapshot = agentPresenceSnapshot()
-    tabsManager?.retainAgentFollow(new Set(Object.values(snapshot.workspaces).flat().map((agent) => agent.clientKey)))
-    // The toolbar status names connected agents from the MCP state, so it follows them too.
-    const agents = JSON.stringify(connectedAgents(snapshot.workspaces))
-    const feedRevision = mcpRuntime.server?.homeFeedRevision ?? 0
-    if (agents !== connectedAgentsSent) {
-      connectedAgentsSent = agents
-      publishMcpControlState({ refreshHome: false })
-    } else if (snapshot.revision !== agentPresenceSentRevision || feedRevision !== homeFeedSentRevision) {
-      // Home shows presence and the steps agents finish, so it reads them again too, including when only its feed
-      // changed, such as when history was cleared.
-      tabsManager?.notifyHomeChanged()
-    }
-    homeFeedSentRevision = feedRevision
-    // A seen request whose avatar went away, such as when the MCP server stopped or agent access was
-    // turned off, has no card left to answer it, so it ends.
-    if (attentionQuiet && !userAttentionShown(snapshot.workspaces)) endUserAttention({ keepPending: true })
-    if (snapshot.revision === agentPresenceSentRevision) return
-    agentPresenceSentRevision = snapshot.revision
-    sendToMainWindow('agent-presence:changed', snapshot)
-  })
-}
 
 function sendToPanelWindow(channel: string, ...args: unknown[]): void {
   if (panelWindowRefs.window && !panelWindowRefs.window.isDestroyed() && !panelWindowRefs.window.webContents.isDestroyed()) {
@@ -647,16 +602,6 @@ function publishVisitHistory(): BrowserHistoryEntry[] {
   const entries = historyStore?.list() ?? []
   sendToShellWindows('visit-history:changed', entries)
   return entries
-}
-
-/** Each connected agent once, with its strongest state; nothing when the server is not running. */
-function connectedAgents(presence?: AgentPresenceSnapshot['workspaces']): ConnectedAgent[] {
-  try {
-    return mcpRuntime.server?.getConnectedAgents(presence) ?? []
-  } catch (error) {
-    console.error('[mcp] Failed to read connected agents:', error)
-    return []
-  }
 }
 
 const {
