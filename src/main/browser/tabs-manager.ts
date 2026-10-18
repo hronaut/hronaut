@@ -421,6 +421,8 @@ import type { McpTabGroupsAccess } from './mcp-tab-groups/mcp-tab-groups-access.
 import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/close-mcp-tab-group.js'
 import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
 import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from './mcp-tab-groups/mcp-tab-groups.js'
+import type { WorkspacePinningAccess } from './mcp-tab-groups/workspace-pinning-access.js'
+import { setWorkspacePinned } from './mcp-tab-groups/workspace-pinning.js'
 import type { BrowserWorkspaceOperation, WorkspaceOperationsAccess } from './workspace-operations/workspace-operations-access.js'
 import {
   assertWorkspaceCanOpenTab,
@@ -1611,22 +1613,22 @@ export class BrowserTabsManager {
   }
 
   /**
-   * Pins a workspace to the top of the tab rail, after those pinned before it, or unpins it. Only the person does this,
-   * from the workspace's menu; it changes neither when the workspace was last used nor what agents may do in it.
+   * The narrow view pinning a workspace gets of this manager's private active
+   * workspaces and state publication. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it, and the changed and getState they stub are reached
+   * through it.
    */
-  setWorkspacePinned(groupId: string, pinned: boolean): BrowserState {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}`)
-    if (pinned === (group.pinnedAt !== undefined)) return this.getState()
-    if (pinned) {
-      // After every earlier pin even if the clock went back since, so a new pin always goes last.
-      const latest = Math.max(0, ...[...this.mcpTabGroups.values()].map((candidate) => candidate.pinnedAt ? Date.parse(candidate.pinnedAt) || 0 : 0))
-      group.pinnedAt = new Date(Math.max(Date.now(), latest + 1)).toISOString()
-    } else {
-      delete group.pinnedAt
+  private workspacePinningAccess(): WorkspacePinningAccess {
+    return {
+      mcpTabGroups: () => this.mcpTabGroups,
+      changed: () => this.changed(),
+      getState: () => this.getState()
     }
-    this.changed()
-    return this.getState()
+  }
+
+  setWorkspacePinned(groupId: string, pinned: boolean): BrowserState {
+    return setWorkspacePinned(this.workspacePinningAccess(), groupId, pinned)
   }
 
   requireMcpTabGroup(groupId: string): BrowserTabGroupState {
