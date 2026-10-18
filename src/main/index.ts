@@ -39,7 +39,7 @@ import {
 } from 'electron'
 import electronUpdater from 'electron-updater'
 import { enableNativeWebMcp } from './native-webmcp-switch.js'
-import { createAppUpdates } from './app-updates.js'
+import { createAppUpdates, type AppUpdatesState } from './app-updates.js'
 import { registerPageInspectionIpc } from './page-inspection-ipc.js'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
 import { WorkspaceMetadataError } from './browser/tab-store.js'
@@ -87,9 +87,6 @@ import { registerPermissionsIpc } from './permissions-ipc.js'
 import { WindowStateStore } from './window-state.js'
 import { createMainWindow, type MainWindowRefs } from './windows/main-window.js'
 import { createShellWindows } from './windows/shell-windows.js'
-import type {
-  AppUpdateState
-} from '../shared/types.js'
 import { registerTabsIpc } from './tabs-ipc.js'
 import { registerNavigationIpc } from './navigation-ipc.js'
 import { createWindowAppearance, resolvedTheme, THEME_BACKGROUND } from './windows/appearance.js'
@@ -437,12 +434,11 @@ const undoOffers = new UndoOffers((offer) => {
   console.error(`[undo] Could not ${action}:`, error)
   reportBrowserActionFailure(action, error)
 })
-let updateState: AppUpdateState = { status: 'idle', currentVersion: app.getVersion() }
+const appUpdates: AppUpdatesState = { current: { status: 'idle', currentVersion: app.getVersion() } }
 const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloadedUpdate } = createAppUpdates({
   autoUpdater,
   text,
-  updateState: () => updateState,
-  setUpdateState: (state) => { updateState = state },
+  state: appUpdates,
   sendToShellWindows,
   mainWindow: () => mainWindowRefs.window,
   panelWindow: () => panelWindowRefs.window
@@ -675,7 +671,7 @@ const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   themeBackground: THEME_BACKGROUND,
   tabs: () => tabRuntime.tabs,
   currentRendererSettingsState,
-  updateState: () => updateState,
+  updateState: () => appUpdates.current,
   currentMcpControlState,
   credentialStore: () => credentialRuntime.store,
   sitePermissionStore: () => browserSessionState.sitePermissionStore,
@@ -996,7 +992,7 @@ function registerIpc(): void {
   })
   registerUpdatesIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
-    updateState: () => updateState,
+    updateState: () => appUpdates.current,
     checkForUpdates,
     downloadUpdate,
     installDownloadedUpdate
@@ -1166,7 +1162,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     applyInterfaceScale(settingsState.current.interfaceScale)
     if (tabRuntime.tabs && mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
       if (!tabRuntime.initialization) mainWindowRefs.window.webContents.send('browser:state-changed', tabRuntime.tabs.getState())
-      mainWindowRefs.window.webContents.send('updates:changed', updateState)
+      mainWindowRefs.window.webContents.send('updates:changed', appUpdates.current)
       mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
       mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarksAndHistory.bookmarks?.list() ?? [])
       mainWindowRefs.window.webContents.send('visit-history:changed', bookmarksAndHistory.history?.list() ?? [])
@@ -1202,7 +1198,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     mainWindowRefs.window.webContents.send('browser:state-changed', tabRuntime.tabs.getState())
     mainWindowRefs.window.webContents.send('settings:changed', settingsState.current)
     mainWindowRefs.window.webContents.send('settings:renderer-state-changed', currentRendererSettingsState())
-    mainWindowRefs.window.webContents.send('updates:changed', updateState)
+    mainWindowRefs.window.webContents.send('updates:changed', appUpdates.current)
     mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
     mainWindowRefs.window.webContents.send('credentials:changed', credentialRuntime.store?.list() ?? [])
     mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarksAndHistory.bookmarks?.list() ?? [])

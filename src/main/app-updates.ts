@@ -12,6 +12,16 @@ import {
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import type { AppUpdateState } from '../shared/types.js'
 
+/**
+ * The update state the shell shows, created once by index.ts and changed only by this module. Each change replaces the
+ * object; the panel snapshot, the updates IPC and the main window's startup read the field when they run, so they
+ * always see the latest state.
+ */
+export interface AppUpdatesState {
+  /** The latest update state; idle when the app starts. */
+  current: AppUpdateState
+}
+
 interface AppUpdatesHost {
   /** electron-updater's updater for this platform, created when the main entry loads. */
   autoUpdater: Pick<AppUpdater,
@@ -19,9 +29,8 @@ interface AppUpdatesHost {
     | 'checkForUpdates' | 'downloadUpdate' | 'quitAndInstall'>
   /** Translates into the current interface language; read on every use because the language can change. */
   text(key: MessageKey, parameters?: MessageParameters): string
-  /** The update state the shell shows; read on every use because each update replaces the object. */
-  updateState(): AppUpdateState
-  setUpdateState(state: AppUpdateState): void
+  /** The update state the shell shows; index.ts creates the record, and the shell's IPC and snapshots read it too. */
+  state: AppUpdatesState
   sendToShellWindows(channel: string, ...args: unknown[]): void
   /** The main window, hidden while the app restarts into an update; read on every use because it can close. */
   mainWindow(): Pick<BrowserWindow, 'hide'> | null
@@ -58,9 +67,9 @@ export function createAppUpdates(host: AppUpdatesHost): {
   let updateOperation: UpdateOperation | null = null
 
   function publishUpdateState(next: Partial<AppUpdateState>): AppUpdateState {
-    host.setUpdateState({ ...host.updateState(), ...next, currentVersion: app.getVersion() })
-    host.sendToShellWindows('updates:changed', host.updateState())
-    return { ...host.updateState() }
+    host.state.current = { ...host.state.current, ...next, currentVersion: app.getVersion() }
+    host.sendToShellWindows('updates:changed', host.state.current)
+    return { ...host.state.current }
   }
 
   function configureAutoUpdater(): void {
@@ -135,13 +144,13 @@ export function createAppUpdates(host: AppUpdatesHost): {
   async function checkForUpdates(): Promise<AppUpdateState> {
     const unavailable = updatesUnavailableInThisBuild()
     if (unavailable) return unavailable
-    if (updateInstallationInProgress) return { ...host.updateState() }
-    if (!canStartUpdateOperation(host.updateState().status, updateOperation, 'check')) return { ...host.updateState() }
+    if (updateInstallationInProgress) return { ...host.state.current }
+    if (!canStartUpdateOperation(host.state.current.status, updateOperation, 'check')) return { ...host.state.current }
     updateOperation = 'check'
     try {
       // Reserve ownership before the package read yields: concurrent checks must
       // not independently schedule a restart for the same replaced installation.
-      if (await restartAfterPackageReplacement()) return { ...host.updateState() }
+      if (await restartAfterPackageReplacement()) return { ...host.state.current }
       publishUpdateState({ status: 'checking', percent: undefined, message: undefined })
       await host.autoUpdater.checkForUpdates()
     } catch (error) {
@@ -150,14 +159,14 @@ export function createAppUpdates(host: AppUpdatesHost): {
     } finally {
       updateOperation = null
     }
-    return { ...host.updateState() }
+    return { ...host.state.current }
   }
 
   async function downloadUpdate(): Promise<AppUpdateState> {
     const unavailable = updatesUnavailableInThisBuild()
     if (unavailable) return unavailable
-    if (updateInstallationInProgress) return { ...host.updateState() }
-    if (!canStartUpdateOperation(host.updateState().status, updateOperation, 'download')) return { ...host.updateState() }
+    if (updateInstallationInProgress) return { ...host.state.current }
+    if (!canStartUpdateOperation(host.state.current.status, updateOperation, 'download')) return { ...host.state.current }
     updateOperation = 'download'
     publishUpdateState({ status: 'downloading', percent: 0, message: undefined })
     try {
@@ -168,7 +177,7 @@ export function createAppUpdates(host: AppUpdatesHost): {
     } finally {
       updateOperation = null
     }
-    return { ...host.updateState() }
+    return { ...host.state.current }
   }
 
   async function restartAfterPackageReplacement(): Promise<boolean> {
@@ -201,7 +210,7 @@ export function createAppUpdates(host: AppUpdatesHost): {
   async function installDownloadedUpdate(): Promise<boolean> {
     if (updateInstallationInProgress) return false
     if (updatesUnavailableInThisBuild()) return false
-    if (!canStartUpdateOperation(host.updateState().status, updateOperation, 'install')) return false
+    if (!canStartUpdateOperation(host.state.current.status, updateOperation, 'install')) return false
     updateInstallationInProgress = true
     updateOperation = 'install'
     publishUpdateState({
@@ -217,7 +226,7 @@ export function createAppUpdates(host: AppUpdatesHost): {
       // released Hronaut's single-instance lock. Relaunch only after this PID has
       // exited so the newly installed binary becomes the lock owner.
       host.autoUpdater.quitAndInstall(false, false)
-      const installed = host.updateState().status !== 'install-error'
+      const installed = host.state.current.status !== 'install-error'
       if (installed && process.platform === 'linux') {
         scheduleLinuxUpdateRelaunch(process.pid, linuxUpdateExecutable(process.env, process.execPath))
         host.mainWindow()?.hide()
