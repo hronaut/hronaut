@@ -379,7 +379,9 @@ import {
   type BrowserFormField
 } from './page-scripts.js'
 import { evaluate } from './page-evaluation/evaluate.js'
-import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './tab-store.js'
+import { TabStateStore, type PersistedBrowserState } from './tab-store.js'
+import type { PersistedStateAccess } from './browser-state/persisted-state-access.js'
+import { persistedState } from './browser-state/persisted-state.js'
 import type { BrowserStateAccess } from './browser-state/browser-state-access.js'
 import { getState } from './browser-state/browser-state.js'
 import { normalizeTabTitle } from './tab-metadata.js'
@@ -6253,51 +6255,32 @@ export class BrowserTabsManager {
     })
   }
 
-  private persistedState(): PersistedBrowserState {
-    if (this.destroyed) throw new Error('Browser is closing; session save canceled.')
+  /**
+   * The narrow view saving the browser state gets of this manager's private
+   * destroyed flag, workspace storage records, workspace continuity, active
+   * tab, split view and divider, global mute and lock, workspaces and tabs.
+   * It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. Each member
+   * reads the manager when called.
+   */
+  private persistedStateAccess(): PersistedStateAccess<BrowserTab> {
     return {
-      version: TAB_STATE_VERSION,
-      ...(this.deletedWorkspaceStorageIds.size ? { deletedWorkspaceStorageIds: [...this.deletedWorkspaceStorageIds] } : {}),
-      ...(this.workspaceStorageCleanupBlocked ? { workspaceStorageCleanupBlocked: true } : {}),
-      continuityWorkspaceIds: this.workspaceContinuity.guardedWorkspaceIds(),
-      activeTabId: this.activeTabId,
-      ...(this.splitView ? { splitView: { ...this.splitView, ratio: this.splitDivider.persistedRatio(this.splitView.ratio) } } : {}),
-      allTabsMuted: this.allTabsMuted,
-      allHumanInteractionLocked: this.allHumanInteractionLocked,
-      mcpTabGroups: [...this.mcpTabGroups.values()].map((group) => ({ ...group })),
-      savedTabGroups: [...this.savedTabGroups.values()].map((group) => ({
-        id: group.id,
-        name: group.name,
-        description: group.description,
-        color: group.color,
-        savedAt: group.savedAt,
-        hiddenFromSidebar: group.hiddenFromSidebar === true,
-        deletionProtected: group.deletionProtected === true,
-        agentAccess: group.agentAccess !== false,
-        contextClass: group.contextClass,
-        storageId: group.storageId,
-        origins: [...group.origins],
-        navigationPolicy: {
-          mode: group.navigationPolicy.mode,
-          rules: [...group.navigationPolicy.rules]
-        },
-        navigationAudit: group.navigationAudit.map((entry) => ({ ...entry })),
-        tabs: group.tabs.map((tab) => ({ ...tab }))
-      })),
-      tabs: this.orderedTabs().map((tab) => ({
-        id: tab.id,
-        title: tab.title,
-        ...(tab.label ? { label: tab.label } : {}),
-        url: tab.url,
-        pinned: tab.pinned,
-        muted: tab.tabMuted,
-        humanInteractionLocked: tab.humanInteractionLocked,
-        tabAgentPaused: tab.tabAgentPaused,
-        ...(tab.zoomIsolated ? { zoomIsolated: true as const } : {}),
-        ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
-        ...(tab.faviconDataUrl ? { faviconDataUrl: tab.faviconDataUrl } : {}),
-        ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {})
-      }))
+      isDestroyed: () => this.destroyed,
+      deletedWorkspaceStorageIds: () => this.deletedWorkspaceStorageIds,
+      workspaceStorageCleanupBlocked: () => this.workspaceStorageCleanupBlocked,
+      workspaceContinuity: () => this.workspaceContinuity,
+      activeTabId: () => this.activeTabId,
+      splitView: () => this.splitView,
+      splitDivider: () => this.splitDivider,
+      allTabsMuted: () => this.allTabsMuted,
+      allHumanInteractionLocked: () => this.allHumanInteractionLocked,
+      mcpTabGroups: () => this.mcpTabGroups,
+      savedTabGroups: () => this.savedTabGroups,
+      orderedTabs: () => this.orderedTabs()
     }
+  }
+
+  private persistedState(): PersistedBrowserState {
+    return persistedState(this.persistedStateAccess())
   }
 }
