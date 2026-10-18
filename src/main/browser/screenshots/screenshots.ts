@@ -38,28 +38,28 @@ export async function screenshot<Tab extends ScreenshotsTab>(access: Screenshots
     if (hasTarget || options.clip) {
       const requestedClip = hasTarget
         ? await webContents.executeJavaScript(`(async () => {
-            const element = ${targetExpression(options)};
-            if (!element) throw new Error('Screenshot target not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
-            element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
-            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-            const rect = element.getBoundingClientRect();
-            if (rect.width <= 0 || rect.height <= 0) throw new Error('Screenshot target has no visible area.');
-            const x = Math.max(0, rect.left + scrollX);
-            const y = Math.max(0, rect.top + scrollY);
-            return {
-              x,
-              y,
-              width: Math.min(rect.width - Math.max(0, -(rect.left + scrollX)), document.documentElement.scrollWidth - x),
-              height: Math.min(rect.height - Math.max(0, -(rect.top + scrollY)), document.documentElement.scrollHeight - y)
-            };
-          })()`, true) as { x: number; y: number; width: number; height: number }
+              const element = ${targetExpression(options)};
+              if (!element) throw new Error('Screenshot target not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
+              element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              const rect = element.getBoundingClientRect();
+              if (rect.width <= 0 || rect.height <= 0) throw new Error('Screenshot target has no visible area.');
+              const x = Math.max(0, rect.left + scrollX);
+              const y = Math.max(0, rect.top + scrollY);
+              return {
+                x,
+                y,
+                width: Math.min(rect.width - Math.max(0, -(rect.left + scrollX)), document.documentElement.scrollWidth - x),
+                height: Math.min(rect.height - Math.max(0, -(rect.top + scrollY)), document.documentElement.scrollHeight - y)
+              };
+            })()`, true) as { x: number; y: number; width: number; height: number }
         : await webContents.executeJavaScript(`(() => {
-            const clip = ${JSON.stringify(options.clip)};
-            if (clip.x + clip.width > innerWidth || clip.y + clip.height > innerHeight) {
-              throw new Error('Screenshot clip must fit inside the visible viewport.');
-            }
-            return { x: scrollX + clip.x, y: scrollY + clip.y, width: clip.width, height: clip.height };
-          })()`, true) as { x: number; y: number; width: number; height: number }
+              const clip = ${JSON.stringify(options.clip)};
+              if (clip.x + clip.width > innerWidth || clip.y + clip.height > innerHeight) {
+                throw new Error('Screenshot clip must fit inside the visible viewport.');
+              }
+              return { x: scrollX + clip.x, y: scrollY + clip.y, width: clip.width, height: clip.height };
+            })()`, true) as { x: number; y: number; width: number; height: number }
       if (![requestedClip.x, requestedClip.y, requestedClip.width, requestedClip.height].every(Number.isFinite)) {
         throw new Error('Could not determine a finite screenshot area')
       }
