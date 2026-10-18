@@ -93,6 +93,38 @@ describe('Home status Details facts (#870)', () => {
     expect(words(query('[data-copy-target="endpoint"]', details))).toBe('Copy URL')
   })
 
+  it('closes Details on Escape, a click elsewhere or focus moving past it, as a menu does, but not on a click inside it', async () => {
+    mountTestHome({ api: { copyText: async () => {} } })
+    await flush()
+    const details = query<HTMLDetailsElement>('.status-details')
+    const summary = query<HTMLElement>('summary', details)
+    details.open = true
+    query<HTMLButtonElement>('[data-copy-target="endpoint"]', details).click()
+    expect(details.open).toBe(true)
+    byId('home-view-title').click()
+    expect(details.open).toBe(false)
+    details.open = true
+    byId('endpoint').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    expect(details.open).toBe(false)
+    expect(document.activeElement).toBe(summary)
+    // Escape elsewhere, with Details closed, is left alone.
+    const other = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    summary.dispatchEvent(other)
+    expect(other.defaultPrevented).toBe(false)
+    // Opened with the mouse and its text clicked, focus is on the page, and Escape still closes it there.
+    details.open = true
+    summary.blur()
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    expect(details.open).toBe(false)
+    expect(document.activeElement).toBe(document.body)
+    // Tabbing past it closes it, so it never covers the control that takes focus.
+    details.open = true
+    summary.focus()
+    expect(details.open).toBe(true)
+    query<HTMLButtonElement>('#home-tab-connect').focus()
+    expect(details.open).toBe(false)
+  })
+
   it('says the local status is unavailable, under Details too, when Home cannot read it', async () => {
     const home = mountTestHome({ dashboard: { ...baseDashboard, totalRequests: 4 } })
     await flush()

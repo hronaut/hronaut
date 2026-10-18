@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Redesign QA for #872: Home as mission control. Each workspace card's live status and its in-place update, the card
-// menu, the tab tiles, the agent chips and greeting, and Undo after archive and clear.
+// menu, the tab tiles, the greeting, and Undo after archive and clear. The connected agents list has its own file.
 import { describe, expect, it, vi } from 'vitest'
 import type { HomeDashboard, HomeWorkspaceActivity } from '../src/shared/home.js'
 import type { HomeWorkspaceState } from '../src/shared/home-workspaces.js'
@@ -324,60 +324,6 @@ describe('Home greeting and agent chips (#872)', () => {
     mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, ...live } })
     await flush()
     expect(words(byId('home-view-description'))).toBe(summary)
-  })
-
-  it('shows one chip per connected agent with its initial, color, name and state', async () => {
-    // Main trims client names, so a nameless agent arrives with an empty name and reads "Agent".
-    mountTestHome({
-      dashboard: {
-        ...baseDashboard,
-        agents: [agent('a', 'Claude Code', 'needs-you', { colorIndex: 2 }), agent('b', 'Codex', 'working', { colorIndex: 3 }), agent('c', '', 'idle', { initial: '' })]
-      }
-    })
-    await flush()
-    const list = byId<HTMLUListElement>('agent-chips')
-    expect(list.hidden).toBe(false)
-    expect(list.getAttribute('aria-label')).toBe('Connected agents')
-    const chips = [...list.querySelectorAll<HTMLLIElement>('li')]
-    expect(chips.map(chip => chip.className)).toEqual(['agent-chip needs-you', 'agent-chip working', 'agent-chip idle'])
-    expect(chips.map(chip => words(chip.querySelector('strong')))).toEqual(['Claude Code', 'Codex', 'Agent'])
-    expect(chips.map(chip => words(chip.querySelector('.agent-chip-state')))).toEqual(['needs you', 'working', 'idle'])
-    const avatars = chips.map(chip => query('.agent-chip-avatar', chip))
-    expect(avatars.map(avatar => avatar.textContent)).toEqual(['C', 'C', ''])
-    for (const avatar of avatars) {
-      expect(avatar.getAttribute('aria-hidden')).toBe('true')
-      expect(avatar.style.getPropertyValue('--agent-color')).toMatch(/^#[0-9a-f]{6}$/iu)
-    }
-    expect(avatars[0]!.style.getPropertyValue('--agent-color')).not.toBe(avatars[1]!.style.getPropertyValue('--agent-color'))
-    // "Connect an agent" stays beside the chips and opens the guides.
-    const connect = query<HTMLButtonElement>('.agent-chips [data-open-view="connect"]')
-    connect.click()
-    expect(byId('home-connect').hidden).toBe(false)
-  })
-
-  it('hides the chips while no agent is connected or the server is not ready', async () => {
-    const home = mountTestHome()
-    await flush()
-    expect(byId('agent-chips').hidden).toBe(true)
-    home.show({ ...baseDashboard, agents: [agent('a', 'Codex', 'idle')] })
-    expect(byId('agent-chips').hidden).toBe(false)
-    for (const status of ['paused', 'starting', 'error'] as const) {
-      home.show({ ...baseDashboard, status, agents: [agent('a', 'Codex', 'idle')] })
-      expect(byId('agent-chips').hidden).toBe(true)
-    }
-  })
-
-  it('keeps chips in place across reads until an agent changes', async () => {
-    const live = { ...baseDashboard, agents: [agent('a', 'Codex', 'idle'), agent('b', 'Cursor', 'idle')] }
-    const home = mountTestHome({ dashboard: live })
-    await flush()
-    const first = query('#agent-chips li')
-    home.show({ ...live, totalRequests: 3 })
-    await vi.advanceTimersByTimeAsync(2000)
-    expect(query('#agent-chips li')).toBe(first)
-    home.show({ ...live, agents: [agent('a', 'Codex', 'working'), agent('b', 'Cursor', 'idle')] })
-    expect(query('#agent-chips li')).not.toBe(first)
-    expect(words(query('#agent-chips li .agent-chip-state'))).toBe('working')
   })
 })
 

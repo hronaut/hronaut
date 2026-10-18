@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Home lists connected agents in a **Connected agents** panel beside the workspace cards instead of a cloud of chips over the greeting. Each client gets one row, the agents that need you first: its avatar with its state as a dot, its name with any bridge it came through shown apart ("Claude", "via mcp-remote 0.1.37"), what it is doing and the workspaces it is doing it in, each one a click away. Several sessions of one client, such as three Claude Code windows, share a row with a **3 sessions** toggle that tells them apart by state, workspace, when each connected and, when they differ, client version; it opens by itself once more than one of them is busy and stays open until you close it. The greeting now stays on one line, the agent status beside it is a single pill with the server's details in a popover that closes on Escape, a click elsewhere or moving focus past it, the workspace search shows its label as a placeholder, and the "Hronaut Home" label above the greeting is gone: Home's title in the window's top bar now carries the Hronaut icon instead.
+
 ## [3.1.0] - 2026-10-18
 
 ### Added

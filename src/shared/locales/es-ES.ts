@@ -3254,6 +3254,7 @@ export const esES = {
   "home": {
     readiness: enUS.home.readiness,
     "navigation": {"label": "Secciones de inicio", "overview": "Resumen", "connect": "Conectar un agente", "tools": "Biblioteca de herramientas"},
+    "agentList": {"connect": "Conectar", "empty": "Aún no hay ningún agente conectado", "emptyHelp": "Conecta Claude Code, Codex u otro cliente MCP y aparecerá aquí.", "sessions": "{count} sesión | {count} sesiones", "via": "a través de {client}", "connected": "conexión {time}"},
     "mission": {"greeting": {"morning": "Buenos días", "afternoon": "Buenas tardes", "evening": "Buenas noches"}, "agentsConnected": "{count} agente conectado. | {count} agentes conectados.", "workspacesNeedYou": "{count} espacio te necesita. | {count} espacios te necesitan.", "agents": "Agentes conectados", "needsYou": "{name} te necesita", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Usado por última vez {time}", "open": "Abrir {name}", "moreActions": "Más acciones para {name}", "newWorkspaceHelp": "Con sus propias pestañas y sesiones", "checks": {"ok": "Listo", "failed": "Requiere atención", "pending": "Todavía no", "details": "Comprobaciones y conexiones"}, "feed": {"heading": "Actividad en directo", "local": "Solo local", "empty": "Cuando un agente trabaje en un espacio, sus pasos aparecerán aquí.", "meta": "{name} · {workspace} · {time}", "times": "{count} vez | {count} veces", "privacy": "Se guarda en la memoria de este equipo y se olvida al cerrar Hronaut o al borrar el historial. Muestra nombres de controles y direcciones de páginas, nunca lo que se escribió."}},
     journey: {
       heading: 'Empieza con tu agente de código',
@@ -3273,7 +3274,6 @@ export const esES = {
       noTools: 'No hay herramientas coincidentes. Prueba otro nombre.',
     },
     "title": "Inicio de Hronaut",
-    "brand": "Inicio de Hronaut",
     "hero": "Tu navegador, listo para agentes de programación.",
     "lead": "Mantén abierta una sesión visible del navegador, comparte sus cookies y almacenamiento entre pestañas y permite que cualquier agente de programación compatible con MCP navegue contigo.",
     "status": {

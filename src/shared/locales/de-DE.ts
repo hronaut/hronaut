@@ -3254,6 +3254,7 @@ export const deDE = {
   "home": {
     readiness: enUS.home.readiness,
     "navigation": {"label": "Startbereiche", "overview": "Übersicht", "connect": "Agent verbinden", "tools": "Werkzeugbibliothek"},
+    "agentList": {"connect": "Verbinden", "empty": "Noch kein Agent verbunden", "emptyHelp": "Verbinden Sie Claude Code, Codex oder einen anderen MCP-Client, dann erscheint er hier.", "sessions": "{count} Sitzung | {count} Sitzungen", "via": "über {client}", "connected": "{time} verbunden"},
     "mission": {"greeting": {"morning": "Guten Morgen", "afternoon": "Guten Tag", "evening": "Guten Abend"}, "agentsConnected": "{count} Agent verbunden. | {count} Agenten verbunden.", "workspacesNeedYou": "{count} Arbeitsbereich wartet auf Sie. | {count} Arbeitsbereiche warten auf Sie.", "agents": "Verbundene Agenten", "needsYou": "{name} wartet auf Sie", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Zuletzt verwendet {time}", "open": "{name} öffnen", "moreActions": "Weitere Aktionen für {name}", "newWorkspaceHelp": "Eigene Tabs und Anmeldungen", "checks": {"ok": "Bereit", "failed": "Braucht Aufmerksamkeit", "pending": "Noch nicht", "details": "Einrichtungsprüfungen und Verbindungen"}, "feed": {"heading": "Live-Aktivität", "local": "Nur lokal", "empty": "Sobald ein Agent in einem Arbeitsbereich arbeitet, erscheinen seine Schritte hier.", "meta": "{name} · {workspace} · {time}", "times": "{count}-mal | {count}-mal", "privacy": "Bleibt im Arbeitsspeicher dieses Computers und wird vergessen, wenn Hronaut beendet wird oder Sie den Verlauf löschen. Zeigt Namen von Bedienelementen und Seitenadressen, nie Eingaben."}},
     journey: {
       heading: 'Mit deinem Coding-Agent starten',
@@ -3273,7 +3274,6 @@ export const deDE = {
       noTools: 'Keine passenden Tools. Versuche einen anderen Namen.',
     },
     "title": "Hronaut-Startseite",
-    "brand": "Hronaut-Startseite",
     "hero": "Ihr Browser ist bereit für Coding-Agenten.",
     "lead": "Lassen Sie eine sichtbare Browsersitzung geöffnet, teilen Sie Cookies und Speicher zwischen Tabs und lassen Sie jeden MCP-kompatiblen Coding-Agenten gemeinsam mit Ihnen navigieren.",
     "status": {

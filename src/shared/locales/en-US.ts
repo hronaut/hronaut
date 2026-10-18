@@ -861,6 +861,7 @@ export const enUS = {
   accessibility: { recentlyClosedTabs: 'Recently closed tabs' },
   home: {
     "navigation": {"label": "Home sections", "overview": "Overview", "connect": "Connect an agent", "tools": "Tool library"},
+    "agentList": {"connect": "Connect", "empty": "No agent connected yet", "emptyHelp": "Connect Claude Code, Codex or another MCP client and it shows up here.", "sessions": "{count} session | {count} sessions", "via": "via {client}", "connected": "connected {time}"},
     "mission": {"greeting": {"morning": "Good morning", "afternoon": "Good afternoon", "evening": "Good evening"}, "agentsConnected": "{count} agent connected. | {count} agents connected.", "workspacesNeedYou": "{count} workspace needs you. | {count} workspaces need you.", "agents": "Connected agents", "needsYou": "{name} needs you", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Last used {time}", "open": "Open {name}", "moreActions": "More actions for {name}", "newWorkspaceHelp": "Its own tabs and sign-ins", "checks": {"ok": "Ready", "failed": "Needs attention", "pending": "Not yet", "details": "Setup checks and connections"}, "feed": {"heading": "Live activity", "local": "Local only", "empty": "When an agent works in a workspace, its steps appear here.", "meta": "{name} · {workspace} · {time}", "times": "{count} time | {count} times", "privacy": "Kept in memory on this computer and forgotten when Hronaut quits or you clear history. Shows control names and page addresses, never what was typed."}},
     journey: {
       heading: 'Start with your coding agent',
@@ -880,7 +881,6 @@ export const enUS = {
       noTools: 'No matching tools. Try another name.',
     },
     title: 'Hronaut Home',
-    brand: 'Hronaut home',
     hero: 'Your browser, ready for coding agents.',
     lead: 'Keep one visible browser session open, share its cookies and storage across tabs, and let any MCP-compatible coding agent navigate it with you.',
     status: {

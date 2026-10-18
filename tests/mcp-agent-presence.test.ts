@@ -17,10 +17,13 @@ import {
   agentCursorIdentity,
   sanitizeAgentName,
   sanitizeAgentStepTarget,
+  sanitizeAgentVersion,
+  AGENT_VERSION_MAX_UNITS,
   type AgentPresenceContext
 } from '../src/main/mcp/agent-presence.js'
 import { McpHttpServer, type McpHttpServerOptions, type UserAttentionInput, type UserAttentionRequest } from '../src/main/mcp/server.js'
 import { AGENT_AVATAR_COLORS, AGENT_AVATAR_INK, agentAvatarColorHex } from '../src/shared/agent-presence.js'
+import { WalletRequesterSchema } from '../src/shared/wallet.js'
 import type { McpTabActivity } from '../src/shared/types.js'
 
 const workspace = 'workspace-a'
@@ -413,6 +416,24 @@ describe('agent cursor identity', () => {
 })
 
 describe('agent names', () => {
+  it('keeps a client-supplied version as plain, bounded text that cannot reorder the text beside it', () => {
+    expect(sanitizeAgentVersion(' 2.0.31 ')).toBe('2.0.31')
+    // A right-to-left override would flip "· connected 5 minutes ago" after it on Home and in the wallet dialog.
+    expect(sanitizeAgentVersion('1.0\u202E.3\u0000')).toBe('1.0 .3')
+    expect(sanitizeAgentVersion('\u200B\u2066')).toBeUndefined()
+    // Bounded in UTF-16 units, not only graphemes: skin-tone emoji take four units each, and a grapheme of combining
+    // marks can be any length. A version of either used to make the wallet's requester name too long to ask with.
+    expect(sanitizeAgentVersion('👍🏽'.repeat(100))).toBe('👍🏽'.repeat(AGENT_VERSION_MAX_UNITS / '👍🏽'.length))
+    // The longest name intake keeps (128 units) with such a version still names a wallet request's requester.
+    const requester = { type: 'agent', id: 'client', name: `${'n'.repeat(128)} ${sanitizeAgentVersion('👍🏽'.repeat(100))}` }
+    expect(WalletRequesterSchema.safeParse(requester).success).toBe(true)
+    expect(sanitizeAgentVersion(`2.0.${'é'.repeat(1_000)}`)!.length).toBe(AGENT_VERSION_MAX_UNITS)
+    expect(sanitizeAgentVersion(`1${'\u0301'.repeat(1_900_000)}`)).toBeUndefined()
+    expect(sanitizeAgentVersion(`1.2 ${'\u0301'.repeat(1_900_000)}`)).toBe('1.2')
+    // Cut between graphemes, never inside a surrogate pair, which would throw here.
+    expect(() => encodeURIComponent(sanitizeAgentVersion('x😀'.repeat(200))!)).not.toThrow()
+  })
+
   it('keeps a client-supplied name as plain, bounded text', () => {
     expect(sanitizeAgentName('  Claude\u0000 Code\n‮evil  ')).toBe('Claude Code evil')
     expect(sanitizeAgentName('<img src=x onerror=alert(1)>')).toBe('<img src=x onerror=alert(1)>')
@@ -571,6 +592,8 @@ describe('agent presence over MCP', () => {
     clients.push(quiet)
     expect(onAgentPresenceChanged).toHaveBeenCalled()
     expect(server.getConnectedAgents().map((agent) => [agent.name, agent.state])).toEqual([['Codex', 'idle']])
+    // Its client's version and when its session started, which tell Home's list one client's sessions apart.
+    expect(server.getConnectedAgents()[0]).toEqual(expect.objectContaining({ version: '1.0.0', connectedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u) }))
     await quietTransport.terminateSession()
     await vi.waitFor(() => expect(server.getConnectedAgents()).toEqual([]))
 
@@ -593,6 +616,8 @@ describe('agent presence over MCP', () => {
     // An agent that asked for you stays until you answer, even after its session closes.
     await claudeClient.transport.terminateSession()
     await vi.waitFor(() => expect(server.getConnectedAgents().map((agent) => [agent.name, agent.state])).toEqual([['Cursor', 'idle'], ['Claude Code', 'needs-you']]))
+    // Without a session it has no session start to show.
+    expect(server.getConnectedAgents()[1]).not.toHaveProperty('connectedAt')
   })
 
   it('gives Home each finished step, what each workspace is doing and where each agent is, never a session id', async () => {
@@ -610,6 +635,21 @@ describe('agent presence over MCP', () => {
     // Closing the workspace forgets its feed entries with its steps.
     server.forgetAgentWorkspaceSteps(workspaceId)
     expect(server.getHomeFeed()).toEqual([])
+  })
+
+  it('names only the open workspaces where a connected agent has its strongest state', async () => {
+    const { server, connect } = await startServer()
+    const claudeClient = await connect('claude-code')
+    expect((await claudeClient.client.callTool({ name: 'browser_tabs', arguments: { workspaceId } }) as CallToolResult).isError).not.toBe(true)
+    const seen = server.getAgentPresence()[workspaceId]![0]!
+    expect(seen.state).toBe('working')
+    const blog = '01912345-6789-7abc-8def-0123456789ad'
+    const notes = '01912345-6789-7abc-8def-0123456789ae'
+    // Idle in Blog, which comes first, working here and idle in Notes: Home says "Working" with this workspace only.
+    const mixed = { [blog]: [{ ...seen, state: 'idle' as const }], [workspaceId]: [seen], [notes]: [{ ...seen, state: 'idle' as const }] }
+    expect(server.getConnectedAgents(mixed)[0]).toEqual(expect.objectContaining({ state: 'working', workspaceIds: [workspaceId] }))
+    const idle = { [blog]: [{ ...seen, state: 'idle' as const }], [notes]: [{ ...seen, state: 'idle' as const }] }
+    expect(server.getConnectedAgents(idle)[0]).toEqual(expect.objectContaining({ state: 'idle', workspaceIds: [blog, notes] }))
   })
 
   it('shows a client for any call in a workspace it may use, and for none it may not', async () => {

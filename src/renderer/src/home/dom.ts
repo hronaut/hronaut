@@ -16,6 +16,8 @@ export function renderStatus(target: HTMLElement, status: string, label: string)
   const dot = document.createElement('span')
   dot.className = `dot ${status}`
   target.replaceChildren(dot, document.createTextNode(` ${label}`))
+  // The status can be cut to fit; the whole of it is there on hover.
+  target.title = label
 }
 /** Fills `{name}` placeholders in one pass, so a value is shown as written: `$&` or another placeholder in a page's
  * text is never read as a pattern. */

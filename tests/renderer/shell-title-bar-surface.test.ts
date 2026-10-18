@@ -18,13 +18,25 @@ describe('title-bar identity', () => {
     wrapper.unmount()
   })
 
-  it.each([['home', 'Home'], ['settings', 'Settings']] as const)('identifies the %s page in the title bar', (kind, label) => {
+  it('marks Home with the app icon, since the page itself no longer names Hronaut', () => {
     const wrapper = mount(ShellTitleBarSurface, {
-      props: { kind, draggable: true },
+      props: { kind: 'home', draggable: true },
       global: { plugins: [createHronautI18n('en-US')] }
     })
-    expect(wrapper.text()).toBe(label)
+    expect(wrapper.text()).toBe('Home')
+    expect(wrapper.get('img').attributes()).toMatchObject({ src: appIcon, alt: '', draggable: 'false' })
+    expect(wrapper.find('svg').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('identifies Settings in the title bar with its own icon', () => {
+    const wrapper = mount(ShellTitleBarSurface, {
+      props: { kind: 'settings', draggable: true },
+      global: { plugins: [createHronautI18n('en-US')] }
+    })
+    expect(wrapper.text()).toBe('Settings')
     expect(wrapper.find('svg').exists()).toBe(true)
+    expect(wrapper.find('img').exists()).toBe(false)
     wrapper.unmount()
   })
 })

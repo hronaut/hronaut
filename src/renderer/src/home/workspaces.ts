@@ -198,12 +198,12 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     menu.open = false
     menu.querySelector('summary')?.focus()
   }, { signal })
-  // A click outside an open menu only closes it, so it does not open a card or feed step under it as well.
+  // A click outside an open menu only closes it, so it does not open a card, feed step or agent's workspace under it as well.
   document.addEventListener('click', event => {
     const open = [...root.querySelectorAll<HTMLDetailsElement>('.card-menu[open]')].filter(menu => !menu.contains(event.target as Node))
     if (!open.length) return
     open.forEach(menu => { menu.open = false })
-    if ((event.target as Element).closest?.('.card-open, .feed-open')) { event.preventDefault(); event.stopPropagation() }
+    if ((event.target as Element).closest?.('.card-open, .feed-open, .home-agent-workspace')) { event.preventDefault(); event.stopPropagation() }
   }, { capture: true, signal })
   // Tabbing out of a menu closes it; a click is left to the listener above.
   let pointing = false
