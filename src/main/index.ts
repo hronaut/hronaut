@@ -90,6 +90,7 @@ import { createHomeProtocolHandler } from './platform/home-protocol.js'
 import { registerHomeIpc } from './home-ipc.js'
 import { commitRuntimeSetting } from './runtime-setting-commit.js'
 import { McpPortRecovery } from './mcp-port-suggestion.js'
+import { registerMcpControlIpc } from './mcp-control-ipc.js'
 import {
   shouldStartMinimized,
   StartupLaunchManager
@@ -144,7 +145,6 @@ import type {
   HelpMenuAction,
   LanguagePreference,
   McpControlState,
-  McpPortMoveResponse,
   McpServerStatus,
   RendererSettingsState,
   SitePermissionDecision,
@@ -2517,21 +2517,12 @@ function registerIpc(): void {
     detachedPanelTitle,
     mainWindow: () => mainWindow
   })
-  ipcMain.handle('mcp:get-state', (event) => {
-    assertTrustedShellSender(event)
-    return currentMcpControlState()
-  })
-  handleBrowserIpc('mcp:move-to-suggested-port', async (event, port: unknown): Promise<McpPortMoveResponse> => {
-    assertTrustedShellSender(event)
-    const result = await mcpPortRecovery.move(port)
-    return { result, state: currentMcpControlState() }
-  })
-  handleBrowserIpc('mcp:set-paused', (event, paused: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof paused !== 'boolean') throw new TypeError('MCP paused state must be a boolean')
-    const state = setMcpPaused(paused)
-    console.info(paused ? '[mcp] Paused by the user.' : '[mcp] Resumed by the user.')
-    return state
+  registerMcpControlIpc(ipcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    handleBrowserIpc,
+    currentMcpControlState,
+    mcpPortRecovery: () => mcpPortRecovery,
+    setMcpPaused
   })
   registerWalletIpc(ipcMain, {
     assertMainShellSender,
