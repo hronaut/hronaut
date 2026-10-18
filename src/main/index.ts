@@ -55,9 +55,8 @@ import { HistoryStore } from './history-store.js'
 import { createCredentialRuntime, type CredentialRuntimeState } from './credential-runtime.js'
 import { registerCredentialsIpc } from './credentials-ipc.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
-import { createCommercialLicenseRuntime } from './commercial-license-runtime.js'
+import { createCommercialLicenseRuntime, type CommercialLicenseRuntimeState } from './commercial-license-runtime.js'
 import { registerLicenseIpc } from './license-ipc.js'
-import type { CommercialLicenseStore } from './commercial-license-store.js'
 import { registerUpdatesIpc } from './updates-ipc.js'
 import { createSiteData } from './site-data.js'
 import { registerBrowsingDataIpc } from './browsing-data-ipc.js'
@@ -301,7 +300,7 @@ const {
 } = createWalletRuntime({
   state: walletRuntime,
   sendToMainWindow,
-  commercialLicenseStore: () => commercialLicenseStore,
+  commercialLicenseStore: () => commercialLicenseRuntime.store,
   tabs: () => tabsManager,
   workspaceStartupFailure: () => workspaceStartupFailure,
   mainWindowRefs
@@ -386,8 +385,10 @@ const credentialRuntime: CredentialRuntimeState = {
   storageStatus: { available: false, reason: 'Secure storage is initializing.' },
   store: null
 }
-let commercialLicenseStore: CommercialLicenseStore | null = null
-let commercialLicenseStateTimer: ReturnType<typeof setTimeout> | undefined
+const commercialLicenseRuntime: CommercialLicenseRuntimeState = {
+  store: null,
+  stateTimer: undefined
+}
 const {
   configureCommercialLicenseStore,
   currentCommercialLicenseState,
@@ -400,10 +401,7 @@ const {
   credentialStorageStatus: () => credentialRuntime.storageStatus,
   quitting: () => quitting,
   sendToShellWindows,
-  commercialLicenseStore: () => commercialLicenseStore,
-  setCommercialLicenseStore: (store) => { commercialLicenseStore = store },
-  commercialLicenseStateTimer: () => commercialLicenseStateTimer,
-  setCommercialLicenseStateTimer: (timer) => { commercialLicenseStateTimer = timer }
+  state: commercialLicenseRuntime
 })
 let bookmarkStore: BookmarkStore | null = null
 let historyStore: HistoryStore | null = null
@@ -1384,7 +1382,7 @@ async function releaseRuntimeResources(): Promise<void> {
         credentialRuntime.store?.flush(),
         historyStore?.flush(),
         browserSessionState.sitePermissionStore?.flush(),
-        commercialLicenseStore?.flush(),
+        commercialLicenseRuntime.store?.flush(),
         settingsState.mutationQueue,
         flushWindowState(),
         flushPanelWindowState(),
@@ -1411,16 +1409,16 @@ function createRuntimeMcpServer(
   return new McpHttpServer(tabsManager, {
     actionTracker: mcpActionTracker,
     authorizeAutomation: async () => {
-      if (!commercialLicenseStore) throw new Error('License storage is unavailable')
+      if (!commercialLicenseRuntime.store) throw new Error('License storage is unavailable')
       try {
-        await commercialLicenseStore.authorizeAutomation()
+        await commercialLicenseRuntime.store.authorizeAutomation()
       } finally {
         publishCommercialLicenseState()
       }
     },
     assertAutomationAccess: () => {
-      if (!commercialLicenseStore) throw new Error('License storage is unavailable')
-      commercialLicenseStore.assertAutomationAccess()
+      if (!commercialLicenseRuntime.store) throw new Error('License storage is unavailable')
+      commercialLicenseRuntime.store.assertAutomationAccess()
     },
     auditReceipts: auditReceipts ?? undefined,
     humanWaiting: humanWaiting ?? undefined,
@@ -1599,7 +1597,7 @@ async function startRuntime(): Promise<void> {
   {
     const refreshLicense = (): void => {
       publishCommercialLicenseState()
-      if (!commercialLicenseStore?.hasActivation() || !credentialRuntime.storageStatus.available) return
+      if (!commercialLicenseRuntime.store?.hasActivation() || !credentialRuntime.storageStatus.available) return
       void refreshCommercialLicense().catch((error: unknown) => {
         console.error('[license] Background refresh failed:', error)
       })
@@ -1616,7 +1614,7 @@ registerAppLifecycle(app, {
   setQuitting: (value) => { quitting = value },
   settings: () => settingsState.current,
   showWindow,
-  commercialLicenseStateTimer: () => commercialLicenseStateTimer,
+  commercialLicenseStateTimer: () => commercialLicenseRuntime.stateTimer,
   mainWindowRefs,
   currentWindowState,
   panelWindowRefs,
