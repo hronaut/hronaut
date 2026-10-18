@@ -35,8 +35,8 @@ it does **not** bound expression execution, emitted events, or page overhead.
   stopping/clearing coverage. A second owner cannot assume its probes survive.
 - `debugger-lease/debugger-lease.ts` serializes debugger commands with
   `withDebugger` and refuses competing MCP debugger actions while DevTools is
-  open. A standalone CDP
-  client does not prove safe coexistence with those application rules.
+  open or opening. A standalone CDP client does not prove safe coexistence
+  with those application rules.
 - URL-based probes may apply again after navigation. Navigation or ownership
   changes must revoke old authority explicitly; matching a URL is not consent.
 - A logpoint condition is executable code. The synthetic expression deliberately
