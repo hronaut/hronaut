@@ -389,6 +389,8 @@ import { getState } from './browser-state/browser-state.js'
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
+import type { PersonTabCloseAccess } from './tab-close/close-tabs-for-person-access.js'
+import { closeTabsForPerson } from './tab-close/close-tabs-for-person.js'
 import type { DevToolsAccess } from './devtools/devtools-access.js'
 import { openDevTools, toggleDevTools } from './devtools/devtools.js'
 import { attachDevToolsEvents } from './devtools/devtools-events.js'
@@ -2648,57 +2650,30 @@ export class BrowserTabsManager {
   }
 
   /**
-   * Closes tabs for the person, in order, stopping at one whose page asks to stay. Undo reopens those that closed, each
-   * in its place among its workspace's tabs.
+   * The narrow view closing tabs for the person gets of this manager's
+   * private tabs, recently closed tabs, tab closing and reopening, tab label
+   * saves, tab order, state publication and options. It is a prototype
+   * method rather than a field, so managers created without the constructor
+   * (as unit tests do) still provide it. The delegate below returns the
+   * feature's promise directly, so callers see the same ticks as before.
    */
-  async closeTabsForPerson(tabIds: readonly string[]): Promise<BrowserState> {
-    const closed: { closedTabId: string; index: number; title: string }[] = []
-    try {
-      for (const tabId of tabIds) {
-        const tab = tabIds.length === 1 ? this.getTab(tabId) : this.tabs.get(tabId)
-        if (!tab) continue
-        const index = this.tabPeers(tab).indexOf(tab)
-        const remembered = new Set(this.closedTabs.map((entry) => entry.id))
-        await this.closeTabInternal(tabId, true, true)
-        if (this.tabs.get(tabId) === tab) break
-        const entry = this.closedTabs.findLast((candidate) => !remembered.has(candidate.id) && candidate.url === tab.url && candidate.mcpGroupId === tab.mcpGroupId)
-        if (entry) closed.push({ closedTabId: entry.id, index, title: entry.label || entry.title })
-      }
-    } finally {
-      if (closed.length) {
-        this.options.offerUndo?.({
-          kind: 'tabs-closed',
-          name: closed.at(-1)!.title,
-          count: closed.length,
-          undo: () => this.reopenClosedTabsInPlace(closed)
-        })
-      }
+  private personTabCloseAccess(): PersonTabCloseAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      orderedTabs: () => this.orderedTabs(),
+      closedTabs: () => this.closedTabs,
+      closeTabInternal: (tabId, ensureReplacement, respectBeforeUnload) => this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload),
+      reopenClosedTabEntry: (closedTabId, active) => this.reopenClosedTabEntry(closedTabId, active),
+      withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
+      reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
+      getState: () => this.getState(),
+      options: () => this.options
     }
-    return this.getState()
   }
 
-  /** The website tabs a tab moves among: its workspace's, pinned or not as it is. */
-  private tabPeers(tab: BrowserTab): BrowserTab[] {
-    return this.orderedTabs().filter((candidate) => (
-      candidate.mcpGroupId === tab.mcpGroupId && candidate.pinned === tab.pinned && !isHronautHomeUrl(candidate.url)
-    ))
-  }
-
-  /** Reopens tabs closed together, the last closed first, so each goes back where it was; one tab is shown again. */
-  /** False when none of them could be reopened, such as after Reopen closed tab took them. */
-  private reopenClosedTabsInPlace(closed: readonly { closedTabId: string; index: number }[]): Promise<boolean> {
-    return this.withTabLabelLifecycle(async () => {
-      let reopened = 0
-      for (const { closedTabId, index } of [...closed].reverse()) {
-        const tab = await this.reopenClosedTabEntry(closedTabId, closed.length === 1)
-        if (!tab) continue
-        reopened += 1
-        const peers = this.tabPeers(tab).filter((candidate) => candidate !== tab)
-        const target = peers[Math.min(index, peers.length - 1)]
-        if (target) this.reorderTab(tab.id, target.id, index < peers.length ? 'before' : 'after')
-      }
-      return reopened > 0
-    })
+  closeTabsForPerson(tabIds: readonly string[]): Promise<BrowserState> {
+    return closeTabsForPerson(this.personTabCloseAccess(), tabIds)
   }
 
   /**
