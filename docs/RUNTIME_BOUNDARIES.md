@@ -9,6 +9,9 @@ than the entire browser runtime.
   with the handler and read index state through a small host object. It supplies
   Home data through `platform/home-protocol.ts`; that protocol owns its assets,
   MIME types, CSP, and status response in Home's separate application session.
+  Startup features are controllers built from the same kind of host:
+  `main/windows/application-menu.ts`, `main/windows/window-state-persistence.ts`,
+  `main/tray-attention.ts`, `main/commercial-license-runtime.ts` and `main/app-updates.ts`.
 - `browser/tabs-manager.ts` remains the **TabRuntime** host: Electron contents,
   navigation generations, input, storage operations, native presentation, and
   persistence. `workspace-registry.ts` owns active/archive identity transitions,

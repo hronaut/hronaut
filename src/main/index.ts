@@ -26,11 +26,10 @@ import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '.
 import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
-import { bindTrayActivation } from './tray-activation.js'
-import { mkdir, readFile } from 'node:fs/promises'
+import { createTrayAttention } from './tray-attention.js'
+import { mkdir } from 'node:fs/promises'
 import { release as osRelease } from 'node:os'
 import { join, resolve } from 'node:path'
-import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import {
   app,
@@ -42,13 +41,11 @@ import {
   Menu,
   nativeImage,
   nativeTheme,
-  Notification,
   protocol,
   safeStorage,
   screen,
   session,
   shell,
-  Tray,
   WebContentsView,
   webContents as allWebContents,
   type MessageBoxOptions,
@@ -57,11 +54,8 @@ import {
   type WebContents
 } from 'electron'
 import electronUpdater from 'electron-updater'
-import { updateErrorMessage, type UpdateOperation } from '../shared/update-errors.js'
-import { canStartUpdateOperation, replacedPackageVersion } from '../shared/update-runtime.js'
+import { createAppUpdates } from './app-updates.js'
 import { registerPageInspectionIpc } from './page-inspection-ipc.js'
-import trayIconPath from '../../build/icons/24x24.png?asset'
-import trayAttentionIconPath from '../../build/icons/tray-attention.png?asset'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
 import { WorkspaceMetadataError } from './browser/tab-store.js'
 import type { BrowserCredentialCandidate } from './browser/tabs-manager.js'
@@ -80,11 +74,9 @@ import { HistoryStore } from './history-store.js'
 import { CredentialStore } from './credential-store.js'
 import { registerCredentialsIpc } from './credentials-ipc.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
-import { CommercialLicenseClient, CommercialLicenseError } from './commercial-license-client.js'
-import { COMMERCIAL_LICENSE_API_BASE_URL } from './commercial-license-links.js'
+import { createCommercialLicenseRuntime } from './commercial-license-runtime.js'
 import { registerLicenseIpc } from './license-ipc.js'
-import { CommercialLicenseOperationCoordinator } from './commercial-license-operations.js'
-import { CommercialLicenseStore, commercialLicenseStateRefreshDelay } from './commercial-license-store.js'
+import type { CommercialLicenseStore } from './commercial-license-store.js'
 import { registerUpdatesIpc } from './updates-ipc.js'
 import { cookieAvailableToOrigin } from './browsing-data-websites.js'
 import { registerBrowsingDataIpc } from './browsing-data-ipc.js'
@@ -102,7 +94,6 @@ import {
   mcpToolCatalogForSet,
   type SiteDataType,
   type WalletAgentToolTarget,
-  type UserAttentionInput,
   type UserAttentionRequest
 } from './mcp/server.js'
 import { buildMcpReadinessDiagnostic } from './mcp/readiness.js'
@@ -128,23 +119,15 @@ import {
 import { registerPermissionsIpc } from './permissions-ipc.js'
 import { restoreWindowBounds, WindowStateStore } from './window-state.js'
 import { applyWindowMaterial } from './window-material.js'
-import {
-  linuxUpdateExecutable,
-  scheduleLinuxUpdateRelaunch,
-  updaterShouldAutoRunAfterInstall
-} from './linux-update-relaunch.js'
 import type {
   AppSettings,
   AppUpdateState,
-  BrowserState,
   BrowserActionFailure,
   BrowserBookmark,
   BrowserHistoryEntry,
   BrowsingDataSiteSummary,
   CredentialStorageStatus,
-  CommercialLicenseState,
   DetachablePanelId,
-  HelpMenuAction,
   LanguagePreference,
   McpControlState,
   McpServerStatus,
@@ -182,10 +165,11 @@ import type {
   AddressSuggestionSelection
 } from '../shared/address-suggestions.js'
 import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
+import { createApplicationMenu } from './windows/application-menu.js'
+import { createWindowStatePersistence } from './windows/window-state-persistence.js'
 
 let MCP_HOST = process.env.HRONAUT_MCP_HOST || '127.0.0.1'
 const MCP_AUTH_DISABLED = process.env.HRONAUT_DISABLE_MCP_AUTH === '1'
-const COMMERCIAL_LICENSE_API_BASE = process.env.HRONAUT_LICENSE_API_BASE || COMMERCIAL_LICENSE_API_BASE_URL
 const PARTITION = 'persist:hronaut'
 const { autoUpdater } = electronUpdater
 
@@ -357,14 +341,33 @@ const mcpPortRecovery = new McpPortRecovery({
   listen: (port) => setMcpPort(port),
   changed: () => publishMcpControlState({ refreshHome: false })
 })
-let tray: Tray | null = null
 let quitting = false
 let windowStateStore: WindowStateStore | null = null
-let windowStateTimer: NodeJS.Timeout | null = null
 let lastWindowState: import('./window-state.js').SavedWindowState | null = null
+const {
+  currentState: currentWindowState,
+  scheduleSave: scheduleWindowStateSave,
+  flush: flushWindowState
+} = createWindowStatePersistence({
+  window: () => mainWindow,
+  store: () => windowStateStore,
+  lastState: () => lastWindowState,
+  setLastState: (state) => { lastWindowState = state },
+  logPrefix: '[window]'
+})
 let panelWindowStateStore: WindowStateStore | null = null
-let panelWindowStateTimer: NodeJS.Timeout | null = null
 let lastPanelWindowState: import('./window-state.js').SavedWindowState | null = null
+const {
+  currentState: currentPanelWindowState,
+  scheduleSave: schedulePanelWindowStateSave,
+  flush: flushPanelWindowState
+} = createWindowStatePersistence({
+  window: () => panelWindow,
+  store: () => panelWindowStateStore,
+  lastState: () => lastPanelWindowState,
+  setLastState: (state) => { lastPanelWindowState = state },
+  logPrefix: '[panel-window]'
+})
 let persistentSession: Session | null = null
 const configuredBrowserSessions = new WeakSet<Session>()
 let settingsStore: SettingsStore | null = null
@@ -372,10 +375,24 @@ let startupLaunchManager: StartupLaunchManager | null = null
 let sitePermissionStore: SitePermissionStore | null = null
 let credentialStore: CredentialStore | null = null
 let commercialLicenseStore: CommercialLicenseStore | null = null
-let commercialLicenseClient: CommercialLicenseClient | null = null
-let commercialLicenseMessage: string | undefined
 let commercialLicenseStateTimer: ReturnType<typeof setTimeout> | undefined
-const commercialLicenseOperations = new CommercialLicenseOperationCoordinator()
+const {
+  configureCommercialLicenseStore,
+  currentCommercialLicenseState,
+  publishCommercialLicenseState,
+  activateCommercialLicense,
+  refreshCommercialLicense,
+  deactivateCommercialLicense
+} = createCommercialLicenseRuntime({
+  text,
+  credentialStorageStatus: () => credentialStorageStatus,
+  quitting: () => quitting,
+  sendToShellWindows,
+  commercialLicenseStore: () => commercialLicenseStore,
+  setCommercialLicenseStore: (store) => { commercialLicenseStore = store },
+  commercialLicenseStateTimer: () => commercialLicenseStateTimer,
+  setCommercialLicenseStateTimer: (timer) => { commercialLicenseStateTimer = timer }
+})
 let bookmarkStore: BookmarkStore | null = null
 let historyStore: HistoryStore | null = null
 // The person's latest reversible action, until its Undo toast closes.
@@ -395,9 +412,15 @@ let resolvedLocale: SupportedLocale = 'en-US'
 let settingsMutationQueue: Promise<void> = Promise.resolve()
 let permissionRequestQueue: Promise<void> = Promise.resolve()
 let updateState: AppUpdateState = { status: 'idle', currentVersion: app.getVersion() }
-let updaterConfigured = false
-let updateInstallationInProgress = false
-let updateOperation: UpdateOperation | null = null
+const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloadedUpdate } = createAppUpdates({
+  autoUpdater,
+  text,
+  updateState: () => updateState,
+  setUpdateState: (state) => { updateState = state },
+  sendToShellWindows,
+  mainWindow: () => mainWindow,
+  panelWindow: () => panelWindow
+})
 let runtimeShutdown: Promise<void> | null = null
 let shutdownExitScheduled = false
 let mcpTokenConfiguration: McpTokenConfiguration | null = null
@@ -407,13 +430,40 @@ const userAttentionLifecycle = new UserAttentionLifecycle()
 let userAttention: UserAttentionRequest | null = null
 let attentionQuiet = false
 let attentionDecisionId: string | undefined
-let attentionRequestGeneration = 0
-let attentionPulseTimer: NodeJS.Timeout | null = null
-let attentionExpiryTimer: NodeJS.Timeout | null = null
-let attentionPulseOn = false
-let attentionNotification: Notification | null = null
-let trayIcon: NativeImage | null = null
-let trayAttentionIcon: NativeImage | null = null
+const {
+  setTrayContextMenu,
+  shellUserAttention,
+  userAttentionShown,
+  quietUserAttention,
+  endUserAttention,
+  reconcileUserAttention,
+  acknowledgeUserAttention,
+  requestUserAttention,
+  createTray
+} = createTrayAttention({
+  text,
+  showWindow,
+  mainWindow: () => mainWindow,
+  tabs: () => tabsManager,
+  mcpServer: () => mcpServer,
+  runNativeBrowserAction,
+  checkForUpdates,
+  setQuitting: (value) => { quitting = value },
+  userAttentionLifecycle,
+  userAttention: () => userAttention,
+  setUserAttention: (value) => { userAttention = value },
+  attentionQuiet: () => attentionQuiet,
+  setAttentionQuiet: (value) => { attentionQuiet = value },
+  attentionDecisionId: () => attentionDecisionId,
+  setAttentionDecisionId: (value) => { attentionDecisionId = value },
+  agentPresenceSnapshot,
+  scheduleAgentPresencePublish,
+  activeMcpActivities: () => activeMcpActivities,
+  settings: () => settings,
+  setSettings: (value) => { settings = value },
+  publishSettings,
+  updateSettings
+})
 // Keep the current clipboard image alive while Hronaut owns the X11 clipboard.
 // This is harmless on Windows/macOS and avoids relying on a temporary NativeImage
 // wrapper being retained by the Linux clipboard backend.
@@ -720,12 +770,6 @@ function publishSettings(): void {
   sendToShellWindows('settings:renderer-state-changed', currentRendererSettingsState())
 }
 
-function publishUpdateState(next: Partial<AppUpdateState>): AppUpdateState {
-  updateState = { ...updateState, ...next, currentVersion: app.getVersion() }
-  sendToShellWindows('updates:changed', updateState)
-  return { ...updateState }
-}
-
 function publishCredentials(): void {
   sendToShellWindows('credentials:changed', credentialStore?.list() ?? [])
 }
@@ -958,279 +1002,8 @@ async function configureCredentialStore(): Promise<void> {
   await credentialStore.load()
 }
 
-async function configureCommercialLicenseStore(): Promise<void> {
-  commercialLicenseClient = new CommercialLicenseClient(COMMERCIAL_LICENSE_API_BASE)
-  commercialLicenseStore = new CommercialLicenseStore(join(app.getPath('userData'), 'commercial-license.json'), {
-    encrypt: (value) => safeStorage.encryptStringAsync(value),
-    decrypt: (value) => safeStorage.decryptStringAsync(value)
-  })
-  await commercialLicenseStore.load()
-}
-
-function currentCommercialLicenseState(): CommercialLicenseState {
-  if (!commercialLicenseStore) {
-    return {
-      status: 'not-activated',
-      active: false,
-      secureStorageAvailable: false,
-      message: credentialStorageStatus.reason || text('native.errors.secureStorage')
-    }
-  }
-  return commercialLicenseStore.summary(credentialStorageStatus.available, commercialLicenseMessage)
-}
-
-function publishCommercialLicenseState(): CommercialLicenseState {
-  const state = currentCommercialLicenseState()
-  sendToShellWindows('license:changed', state)
-  clearTimeout(commercialLicenseStateTimer)
-  if (!quitting) commercialLicenseStateTimer = setTimeout(publishCommercialLicenseState, commercialLicenseStateRefreshDelay(state)).unref()
-  return state
-}
-
-function commercialLicenseFriendlyMessage(reason: string): string {
-  const messages: Record<string, string> = {
-    activation_limit_reached: text('native.errors.activationLimit'),
-    commercial_inactive: text('native.errors.subscriptionInactive'),
-    entitlement_pending: text('native.errors.entitlementPending'),
-    instance_conflict: text('native.errors.instanceConflict'),
-    license_inactive: text('native.errors.licenseInactive'),
-    license_not_found: text('native.errors.licenseNotFound'),
-    invalid_license: text('native.errors.invalidLicense'),
-    invalid_license_key: text('native.errors.invalidLicenseKey'),
-    provider_unavailable: text('native.errors.providerUnavailable'),
-    provider_invalid_response: text('native.errors.providerInvalid'),
-    service_unavailable: text('native.errors.providerUnavailable'),
-    wrong_product: text('native.errors.wrongProduct')
-  }
-  return messages[reason] ?? text('native.errors.invalidLicense')
-}
-
-async function activateCommercialLicenseNow(value: unknown): Promise<CommercialLicenseState> {
-  if (typeof value !== 'string') throw new TypeError('Commercial license key must be a string')
-  const licenseKey = value.trim().toUpperCase()
-  if (!/^[A-Z0-9][A-Z0-9-]{15,127}$/.test(licenseKey)) throw new TypeError('Enter the complete commercial license key from your Creem receipt')
-  if (!credentialStorageStatus.available || !commercialLicenseStore || !commercialLicenseClient) throw new Error('Secure license storage is unavailable')
-  try {
-    const result = await commercialLicenseClient.activate(licenseKey, commercialLicenseStore.installationName())
-    if (!result.valid || result.status !== 'active') throw new CommercialLicenseError('license_inactive')
-    await commercialLicenseStore.saveActivation(licenseKey, result)
-    commercialLicenseMessage = 'Commercial license activated for this device.'
-    return publishCommercialLicenseState()
-  } catch (error) {
-    const reason = error instanceof CommercialLicenseError ? error.reason : 'service_unavailable'
-    commercialLicenseMessage = commercialLicenseFriendlyMessage(reason)
-    publishCommercialLicenseState()
-    throw new Error(commercialLicenseMessage)
-  }
-}
-
-function activateCommercialLicense(value: unknown): Promise<CommercialLicenseState> {
-  return commercialLicenseOperations.mutate(() => activateCommercialLicenseNow(value))
-}
-
-function refreshCommercialLicense(): Promise<CommercialLicenseState> {
-  return commercialLicenseOperations.refresh(async (isCurrent) => {
-    if (!commercialLicenseStore || !commercialLicenseClient) return currentCommercialLicenseState()
-    const credentials = await commercialLicenseStore.credentials()
-    if (!credentials || !isCurrent()) return currentCommercialLicenseState()
-    try {
-      const result = await commercialLicenseClient.validate(credentials.licenseKey, credentials.instanceId)
-      if (!isCurrent()) return currentCommercialLicenseState()
-      await commercialLicenseStore.saveValidation(result)
-      if (!isCurrent()) return currentCommercialLicenseState()
-      commercialLicenseMessage = result.valid && result.status === 'active'
-        ? 'Commercial license is active.'
-        : commercialLicenseFriendlyMessage('license_inactive')
-      return publishCommercialLicenseState()
-    } catch (error) {
-      if (!isCurrent()) return currentCommercialLicenseState()
-      const reason = error instanceof CommercialLicenseError ? error.reason : 'service_unavailable'
-      if (reason === 'commercial_inactive' || reason === 'license_inactive' || reason === 'license_not_found') {
-        await commercialLicenseStore.markInactive()
-        if (!isCurrent()) return currentCommercialLicenseState()
-      }
-      commercialLicenseMessage = reason === 'service_unavailable' || reason === 'provider_unavailable'
-        ? 'Could not reach the commercial license service. The last successful validation remains stored on this device.'
-        : commercialLicenseFriendlyMessage(reason)
-      return publishCommercialLicenseState()
-    }
-  }, () => currentCommercialLicenseState())
-}
-
-async function deactivateCommercialLicenseNow(): Promise<CommercialLicenseState> {
-  if (!commercialLicenseStore || !commercialLicenseClient) return currentCommercialLicenseState()
-  const credentials = await commercialLicenseStore.credentials()
-  if (!credentials) return currentCommercialLicenseState()
-  try {
-    await commercialLicenseClient.deactivate(credentials.licenseKey, credentials.instanceId)
-  } catch (error) {
-    const reason = error instanceof CommercialLicenseError ? error.reason : 'service_unavailable'
-    if (reason !== 'instance_conflict' && reason !== 'license_not_found') {
-      commercialLicenseMessage = commercialLicenseFriendlyMessage(reason)
-      publishCommercialLicenseState()
-      throw new Error(commercialLicenseMessage)
-    }
-  }
-  await commercialLicenseStore.clear()
-  commercialLicenseMessage = 'Commercial license removed from this device.'
-  return publishCommercialLicenseState()
-}
-
-function deactivateCommercialLicense(): Promise<CommercialLicenseState> {
-  return commercialLicenseOperations.mutate(() => deactivateCommercialLicenseNow())
-}
-
 function publishSitePermissions(): void {
   sendToShellWindows('permissions:changed', sitePermissionStore?.list() ?? [])
-}
-
-function releaseNotesText(value: unknown): string | undefined {
-  if (typeof value === 'string') return value
-  if (!Array.isArray(value)) return undefined
-  const notes = value
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') return ''
-      const version = 'version' in entry && typeof entry.version === 'string' ? entry.version : ''
-      const note = 'note' in entry && typeof entry.note === 'string' ? entry.note : ''
-      return [version && `Version ${version}`, note].filter(Boolean).join('\n')
-    })
-    .filter(Boolean)
-  return notes.length ? notes.join('\n\n') : undefined
-}
-
-function configureAutoUpdater(): void {
-  if (updaterConfigured) return
-  updaterConfigured = true
-  autoUpdater.autoDownload = false
-  // BaseUpdater ignores quitAndInstall's force-run argument for an interactive
-  // install and reads this property instead. A direct Linux relaunch races the
-  // old single-instance owner and loses the graphical login-session context
-  // needed by PolicyKit on the next .deb update. Our post-exit helper reopens
-  // the installed desktop application after the lock is released.
-  autoUpdater.autoRunAppAfterInstall = updaterShouldAutoRunAfterInstall(process.platform)
-  // Installation is always an explicit user action. In particular, a failed
-  // privilege prompt must not be retried unexpectedly on the next normal quit.
-  autoUpdater.autoInstallOnAppQuit = false
-
-  autoUpdater.on('checking-for-update', () => {
-    publishUpdateState({ status: 'checking', percent: undefined, message: undefined })
-  })
-  autoUpdater.on('update-available', (info) => {
-    publishUpdateState({
-      status: 'available',
-      availableVersion: info.version,
-      releaseNotes: releaseNotesText(info.releaseNotes),
-      percent: undefined,
-      message: undefined
-    })
-  })
-  autoUpdater.on('update-not-available', () => {
-    publishUpdateState({
-      status: 'up-to-date',
-      availableVersion: undefined,
-      releaseNotes: undefined,
-      percent: undefined,
-      message: undefined
-    })
-  })
-  autoUpdater.on('download-progress', (progress) => {
-    publishUpdateState({ status: 'downloading', percent: progress.percent, message: undefined })
-  })
-  autoUpdater.on('update-downloaded', (info) => {
-    publishUpdateState({
-      status: 'downloaded',
-      availableVersion: info.version,
-      releaseNotes: releaseNotesText(info.releaseNotes),
-      percent: 100,
-      message: undefined
-    })
-  })
-  autoUpdater.on('error', (error) => {
-    console.error('[updates] Auto-updater error:', error)
-    publishUpdateState({
-      status: updateOperation === 'install' ? 'install-error' : 'error',
-      percent: undefined,
-      message: updateErrorMessage(error, updateOperation, process.platform)
-    })
-  })
-}
-
-function updatesUnavailableInThisBuild(): AppUpdateState | null {
-  if (app.isPackaged && process.env.HRONAUT_DISABLE_AUTO_UPDATE !== '1') return null
-  return publishUpdateState({
-    status: 'disabled',
-    percent: undefined,
-    message:
-      process.env.HRONAUT_DISABLE_AUTO_UPDATE === '1'
-        ? 'Update checks are disabled for this launch.'
-        : 'Update checks are available in packaged builds.'
-  })
-}
-
-async function checkForUpdates(): Promise<AppUpdateState> {
-  const unavailable = updatesUnavailableInThisBuild()
-  if (unavailable) return unavailable
-  if (updateInstallationInProgress) return { ...updateState }
-  if (!canStartUpdateOperation(updateState.status, updateOperation, 'check')) return { ...updateState }
-  updateOperation = 'check'
-  try {
-    // Reserve ownership before the package read yields: concurrent checks must
-    // not independently schedule a restart for the same replaced installation.
-    if (await restartAfterPackageReplacement()) return { ...updateState }
-    publishUpdateState({ status: 'checking', percent: undefined, message: undefined })
-    await autoUpdater.checkForUpdates()
-  } catch (error) {
-    console.error('[updates] Check failed:', error)
-    publishUpdateState({ status: 'error', percent: undefined, message: updateErrorMessage(error, updateOperation, process.platform) })
-  } finally {
-    updateOperation = null
-  }
-  return { ...updateState }
-}
-
-async function downloadUpdate(): Promise<AppUpdateState> {
-  const unavailable = updatesUnavailableInThisBuild()
-  if (unavailable) return unavailable
-  if (updateInstallationInProgress) return { ...updateState }
-  if (!canStartUpdateOperation(updateState.status, updateOperation, 'download')) return { ...updateState }
-  updateOperation = 'download'
-  publishUpdateState({ status: 'downloading', percent: 0, message: undefined })
-  try {
-    await autoUpdater.downloadUpdate()
-  } catch (error) {
-    console.error('[updates] Download failed:', error)
-    publishUpdateState({ status: 'error', percent: undefined, message: updateErrorMessage(error, updateOperation, process.platform) })
-  } finally {
-    updateOperation = null
-  }
-  return { ...updateState }
-}
-
-async function restartAfterPackageReplacement(): Promise<boolean> {
-  if (!app.isPackaged || process.platform !== 'linux' || updateInstallationInProgress) return false
-  try {
-    const manifest = await readFile(join(app.getAppPath(), 'package.json'), 'utf8')
-    const replacementVersion = replacedPackageVersion(app.getVersion(), manifest)
-    if (!replacementVersion) return false
-    updateInstallationInProgress = true
-    console.warn(
-      `[updates] Package ${replacementVersion} replaced the running ${app.getVersion()} process; restarting before another updater operation.`
-    )
-    publishUpdateState({
-      status: 'installing',
-      availableVersion: replacementVersion,
-      percent: undefined,
-      message: text('native.dialog.restartingUpdate')
-    })
-    scheduleLinuxUpdateRelaunch(process.pid, linuxUpdateExecutable(process.env, process.execPath))
-    mainWindow?.hide()
-    panelWindow?.hide()
-    app.quit()
-    return true
-  } catch (error) {
-    console.warn('[updates] Could not compare the running and installed package versions:', error)
-    return false
-  }
 }
 
 function showMessageBox(options: MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
@@ -1418,292 +1191,9 @@ function registerHomeProtocol(): void {
   }))
 }
 
-function currentWindowState(): import('./window-state.js').SavedWindowState | null {
-  if (!mainWindow || mainWindow.isDestroyed()) return null
-  const bounds = mainWindow.getNormalBounds()
-  return {
-    bounds,
-    displayId: screen.getDisplayMatching(bounds).id,
-    maximized: mainWindow.isMaximized(),
-    fullScreen: mainWindow.isFullScreen()
-  }
-}
-
-function scheduleWindowStateSave(): void {
-  if (!windowStateStore) return
-  lastWindowState = currentWindowState() ?? lastWindowState
-  if (windowStateTimer) clearTimeout(windowStateTimer)
-  windowStateTimer = setTimeout(() => {
-    windowStateTimer = null
-    const state = currentWindowState() ?? lastWindowState
-    if (state) void windowStateStore?.save(state).catch((error) => console.error('[window] Failed to persist state:', error))
-  }, 300)
-}
-
-async function flushWindowState(): Promise<void> {
-  if (windowStateTimer) {
-    clearTimeout(windowStateTimer)
-    windowStateTimer = null
-  }
-  const state = currentWindowState() ?? lastWindowState
-  if (state) await windowStateStore?.save(state)
-}
-
-function currentPanelWindowState(): import('./window-state.js').SavedWindowState | null {
-  if (!panelWindow || panelWindow.isDestroyed()) return null
-  const bounds = panelWindow.getNormalBounds()
-  return {
-    bounds,
-    displayId: screen.getDisplayMatching(bounds).id,
-    maximized: panelWindow.isMaximized(),
-    fullScreen: panelWindow.isFullScreen()
-  }
-}
-
-function schedulePanelWindowStateSave(): void {
-  if (!panelWindowStateStore) return
-  lastPanelWindowState = currentPanelWindowState() ?? lastPanelWindowState
-  if (panelWindowStateTimer) clearTimeout(panelWindowStateTimer)
-  panelWindowStateTimer = setTimeout(() => {
-    panelWindowStateTimer = null
-    const state = currentPanelWindowState() ?? lastPanelWindowState
-    if (state) void panelWindowStateStore?.save(state).catch((error) => console.error('[panel-window] Failed to persist state:', error))
-  }, 300)
-}
-
-async function flushPanelWindowState(): Promise<void> {
-  if (panelWindowStateTimer) {
-    clearTimeout(panelWindowStateTimer)
-    panelWindowStateTimer = null
-  }
-  const state = currentPanelWindowState() ?? lastPanelWindowState
-  if (state) await panelWindowStateStore?.save(state)
-}
-
 async function flushBrowserProfile(): Promise<void> {
   if (!persistentSession) return
   await flushBrowserSessionStorage(persistentSession)
-}
-
-function loadTrayIcon(path: string): NativeImage {
-  const icon = nativeImage.createFromPath(path)
-  if (icon.isEmpty()) throw new Error(`Tray icon could not be loaded: ${path}`)
-  return icon
-}
-
-function compactAttentionReason(reason: string): string {
-  const compact = reason.replace(/\s+/g, ' ').trim()
-  return compact.length > 72 ? `${compact.slice(0, 69)}…` : compact
-}
-
-function setTrayContextMenu(): void {
-  if (!tray || tray.isDestroyed()) return
-  const contextMenu = Menu.buildFromTemplate([
-    ...(userAttention
-      ? [
-          { label: text('native.tray.attention', { reason: compactAttentionReason(userAttention.reason) }), enabled: false },
-          {
-            label: text('native.tray.showRequested'),
-            click: () => {
-              const requestedAttention = userAttention
-              const requestedTabId = requestedAttention?.tabId
-              if (requestedAttention && requestedTabId) {
-                runNativeBrowserAction('show the requested tab', async () => {
-                  await tabsManager?.selectTabAndWait(requestedTabId)
-                  if (userAttention?.id !== requestedAttention.id) return
-                  showWindow()
-                  quietUserAttention()
-                })
-                return
-              }
-              showWindow()
-              quietUserAttention()
-            }
-          },
-          {
-            label: text('native.tray.dismissAttention'),
-            click: () => {
-              // Dismissing leaves a decision open, so it is not an answer to one.
-              if (userAttention && !attentionDecisionId) mcpServer?.recordAgentAnswer(userAttention.id, 'dismissed')
-              endUserAttention({ disposition: 'dismissed' })
-            }
-          },
-          { type: 'separator' as const }
-        ]
-      : []),
-    { label: text('native.tray.show'), click: showWindow },
-    {
-      label: text('native.menu.checkUpdates'),
-      click: () => {
-        showWindow()
-        mainWindow?.webContents.send('updates:open')
-        void checkForUpdates()
-      }
-    },
-    { type: 'separator' },
-    {
-      label: text('native.tray.quit'),
-      click: () => {
-        quitting = true
-        app.quit()
-      }
-    }
-  ])
-  tray.setContextMenu(contextMenu)
-}
-
-function renderAttentionPulse(): void {
-  if (!tray || tray.isDestroyed() || !trayIcon || !trayAttentionIcon) return
-  attentionPulseOn = !attentionPulseOn
-  tray.setImage(attentionPulseOn ? trayAttentionIcon : trayIcon)
-}
-
-/** The open request as the shell shows it, marked when it belongs to a human-waiting decision. */
-function shellUserAttention(): UserAttentionRequest | null {
-  if (!userAttention) return null
-  return { ...userAttention, ...(attentionDecisionId ? { humanWaitingDecisionId: attentionDecisionId } : {}) }
-}
-
-function stopAttentionSignals(): void {
-  attentionNotification?.close()
-  attentionNotification = null
-  if (attentionPulseTimer) clearInterval(attentionPulseTimer)
-  attentionPulseTimer = null
-  attentionPulseOn = false
-  mainWindow?.flashFrame(false)
-  if (tray && !tray.isDestroyed() && trayIcon) tray.setImage(trayIcon)
-}
-
-/** Whether an agent's avatar shows the open request, so that its card can answer it. */
-function userAttentionShown(workspaces: AgentPresenceSnapshot['workspaces']): boolean {
-  const workspaceId = userAttention?.workspaceId
-  return Boolean(workspaceId && workspaces[workspaceId]?.some((agent) => agent.state === 'needs-you'))
-}
-
-/**
- * The user responded with a click or key: stop the pulse, flash and notification, and let agents
- * see the request as answered. It still shows as needs you until it is answered or ends; without an
- * avatar whose card can answer it, the response ends it, as it always did.
- */
-function quietUserAttention(): void {
-  if (!userAttention || attentionQuiet) return
-  if (!userAttentionShown(agentPresenceSnapshot().workspaces)) {
-    endUserAttention()
-    return
-  }
-  attentionQuiet = true
-  userAttentionLifecycle.acknowledge(userAttention.id, 'acknowledged')
-  stopAttentionSignals()
-}
-
-/**
- * The request ended: answered, dismissed, expired, replaced, or its tab, workspace or decision is gone.
- * keepPending leaves another agent's request that is still waiting for its tab to wake to arrive,
- * for an end that is about this request alone.
- */
-function endUserAttention(options: { disposition?: 'acknowledged' | 'dismissed'; keepPending?: boolean } = {}): void {
-  if (userAttention) userAttentionLifecycle.acknowledge(userAttention.id, options.disposition ?? 'acknowledged')
-  if (!options.keepPending) attentionRequestGeneration += 1
-  attentionDecisionId = undefined
-  attentionQuiet = false
-  if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
-  attentionExpiryTimer = null
-  attentionNotification?.close()
-  attentionNotification = null
-  if (!userAttention && !attentionPulseTimer) return
-  userAttention = null
-  if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('attention:changed', null)
-  scheduleAgentPresencePublish()
-  stopAttentionSignals()
-  if (tray && !tray.isDestroyed()) {
-    tray.setToolTip('Hronaut')
-    setTrayContextMenu()
-  }
-}
-
-function reconcileUserAttention(state: BrowserState): void {
-  userAttentionLifecycle.reconcile(state.tabs, state.mcpTabGroups.map(workspace => workspace.id))
-  const request = userAttention
-  if (!request) return
-  const workspaceExists = !request.workspaceId
-    || state.mcpTabGroups.some((workspace) => workspace.id === request.workspaceId)
-  const requestedTab = request.tabId
-    ? state.tabs.find((tab) => tab.id === request.tabId)
-    : undefined
-  const tabExistsInTargetWorkspace = !request.tabId
-    || Boolean(requestedTab && (!request.workspaceId || requestedTab.mcpGroupId === request.workspaceId))
-  if (!workspaceExists || !tabExistsInTargetWorkspace) endUserAttention()
-}
-
-function acknowledgeUserAttention(): void {
-  if (activeMcpActivities.size === 0) quietUserAttention()
-}
-
-async function requestUserAttention(input: UserAttentionInput): Promise<UserAttentionRequest> {
-  const requestGeneration = ++attentionRequestGeneration
-  const request: UserAttentionRequest = {
-    id: randomUUID(),
-    reason: input.reason.replace(/\s+/g, ' ').trim(),
-    ...(input.notificationMessage && { notificationMessage: input.notificationMessage.replace(/\s+/g, ' ').trim() }),
-    requestedAt: new Date().toISOString(),
-    ...(input.workspaceId && { workspaceId: input.workspaceId }),
-    ...(input.tabId && { tabId: input.tabId })
-  }
-  if (input.tabId) await tabsManager?.selectTabAndWait(input.tabId, { focus: false })
-  if (requestGeneration !== attentionRequestGeneration) {
-    throw new Error('User attention request was superseded by a newer request.')
-  }
-  if (input.expiresAt !== undefined && (!Number.isSafeInteger(input.expiresAt) || input.expiresAt <= Date.now())) throw new Error('User attention request expired')
-  if (input.workspaceId && !input.humanWaitingDecisionId) userAttentionLifecycle.request(request)
-  else userAttentionLifecycle.supersede()
-  userAttention = request
-  attentionQuiet = false
-  attentionDecisionId = input.humanWaitingDecisionId
-  attentionNotification?.close()
-  attentionNotification = null
-  if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('attention:changed', shellUserAttention())
-  scheduleAgentPresencePublish()
-  if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
-  attentionExpiryTimer = null
-  const attentionExpiresAt = input.expiresAt ?? (input.workspaceId && !input.humanWaitingDecisionId ? Date.now() + 86_400_000 : undefined)
-  if (attentionExpiresAt !== undefined) {
-    attentionExpiryTimer = setTimeout(() => {
-      if (userAttention?.id === request.id) endUserAttention({ keepPending: true })
-    }, Math.min(86_400_000, Math.max(1, attentionExpiresAt - Date.now())))
-    attentionExpiryTimer.unref()
-  }
-  if (attentionPulseTimer) clearInterval(attentionPulseTimer)
-  attentionPulseTimer = setInterval(renderAttentionPulse, 650)
-  attentionPulseTimer.unref()
-  attentionPulseOn = false
-  renderAttentionPulse()
-  mainWindow?.flashFrame(true)
-  if (tray && !tray.isDestroyed()) {
-    tray.setToolTip(text('native.tray.tooltipAttention', { reason: compactAttentionReason(request.reason) }))
-    setTrayContextMenu()
-  }
-  if (mainWindow && !mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.send('attention:requested')
-  }
-  if (Notification.isSupported()) {
-    try {
-      const notification = new Notification({ title: 'Hronaut', body: request.notificationMessage || request.reason })
-      attentionNotification = notification
-      notification.on('click', () => {
-        if (userAttention?.id !== request.id) return
-        runNativeBrowserAction('show the requested tab', async () => {
-          if (request.tabId) await tabsManager?.selectTabAndWait(request.tabId)
-          if (userAttention?.id !== request.id) return
-          showWindow()
-          quietUserAttention()
-        })
-      })
-      notification.show()
-    } catch (error) {
-      console.error('[attention] Failed to show system notification:', error)
-    }
-  }
-  return { ...request }
 }
 
 if (process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1') {
@@ -1712,172 +1202,15 @@ if (process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1') {
   }).__hronautRequestUserAttentionForTest = requestUserAttention
 }
 
-function createTray(): boolean {
-  if (tray && !tray.isDestroyed()) return true
-  try {
-    if (
-      process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1'
-      && process.env.HRONAUT_TEST_TRAY_CREATION_FAILURE === '1'
-    ) throw new Error('Simulated tray creation failure')
-    trayIcon = loadTrayIcon(trayIconPath)
-    trayAttentionIcon = loadTrayIcon(trayAttentionIconPath)
-    tray = new Tray(trayIcon)
-    tray.setToolTip('Hronaut')
-    setTrayContextMenu()
-    bindTrayActivation(tray, showWindow, process.platform)
-    return true
-  } catch (error) {
-    if (tray && !tray.isDestroyed()) tray.destroy()
-    tray = null
-    console.error('[tray] Failed to create tray:', error)
-    if (settings.hideInTray) {
-      settings = { ...settings, hideInTray: false }
-      publishSettings()
-      void updateSettings({ hideInTray: false }).catch((saveError) =>
-        console.error('[tray] Failed to disable hide-in-tray after tray creation failed:', saveError)
-      )
-    }
-    return false
-  }
-}
-
-function requestHelp(action: HelpMenuAction): void {
-  showWindow()
-  if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('help:open', action)
-}
-
-function openRepository(): void {
-  showWindow()
-  runNativeBrowserAction(
-    'open GitHub repository',
-    () => tabsManager?.newTab({ url: 'https://github.com/hronaut/hronaut', active: true })
-  )
-}
-
-function installApplicationMenu(): void {
-  Menu.setApplicationMenu(
-    Menu.buildFromTemplate([
-      {
-        label: 'Hronaut',
-        submenu: [
-          { label: text('native.menu.show'), accelerator: 'CmdOrCtrl+Shift+H', click: showWindow },
-          {
-            label: text('native.menu.checkUpdates'),
-            click: () => {
-              showWindow()
-              mainWindow?.webContents.send('updates:open')
-              void checkForUpdates()
-            }
-          },
-          { type: 'separator' },
-          {
-            label: text('native.menu.quit'),
-            accelerator: 'CmdOrCtrl+Q',
-            click: () => {
-              quitting = true
-              app.quit()
-            }
-          }
-        ]
-      },
-      {
-        label: text('native.menu.edit'),
-        submenu: [
-          { role: 'undo' },
-          { role: 'redo' },
-          { type: 'separator' },
-          { role: 'cut' },
-          { role: 'copy' },
-          { role: 'paste' },
-          { role: 'selectAll' }
-        ]
-      },
-      {
-        label: text('native.menu.view'),
-        submenu: [
-          {
-            label: text('native.menu.commandPalette'),
-            accelerator: 'CmdOrCtrl+Shift+P',
-            click: () => {
-              showWindow()
-              mainWindow?.webContents.send('browser:shortcut-requested', 'command-palette')
-            }
-          },
-          {
-            label: text('native.menu.pickElement'),
-            accelerator: process.platform === 'darwin' ? 'Cmd+Alt+C' : 'Ctrl+Shift+C',
-            click: () => {
-              showWindow()
-              mainWindow?.webContents.send('browser:shortcut-requested', 'pick-element')
-            }
-          },
-          { type: 'separator' },
-          {
-            label: text('native.menu.reload'),
-            accelerator: 'CmdOrCtrl+R',
-            click: () => runNativeBrowserAction('reload', () => tabsManager?.reload())
-          },
-          {
-            label: text('native.menu.reloadWithoutCache'),
-            accelerator: 'CmdOrCtrl+Shift+R',
-            click: () => runNativeBrowserAction('reload without cache', () => tabsManager?.reloadIgnoringCache())
-          },
-          {
-            label: text('native.menu.developerTools'),
-            click: () => runNativeBrowserAction('toggle Developer Tools', () => tabsManager?.toggleDevTools())
-          },
-          {
-            label: text('native.menu.fullPageView'),
-            accelerator: 'CmdOrCtrl+Shift+F',
-            click: () => {
-              showWindow()
-              mainWindow?.webContents.send('browser:shortcut-requested', 'toggle-full-page')
-            }
-          },
-          { type: 'separator' },
-          {
-            label: text('native.menu.actualSize'),
-            accelerator: 'CmdOrCtrl+0',
-            click: () => runNativeBrowserAction('reset page zoom', () => tabsManager?.setZoom({ action: 'reset' }))
-          },
-          {
-            label: text('native.menu.zoomIn'),
-            accelerator: 'CmdOrCtrl+Plus',
-            click: () => runNativeBrowserAction('zoom in', () => tabsManager?.setZoom({ action: 'in' }))
-          },
-          {
-            label: text('native.menu.zoomOut'),
-            accelerator: 'CmdOrCtrl+-',
-            click: () => runNativeBrowserAction('zoom out', () => tabsManager?.setZoom({ action: 'out' }))
-          },
-          { role: 'togglefullscreen' }
-        ]
-      },
-      {
-        label: text('native.menu.help'),
-        submenu: [
-          {
-            label: text('native.menu.shortcuts'),
-            accelerator: 'CmdOrCtrl+Shift+/',
-            click: () => requestHelp('shortcuts')
-          },
-          { label: text('native.menu.about'), click: () => requestHelp('about') },
-          { label: text('native.menu.support'), click: () => requestHelp('support') },
-          { type: 'separator' },
-          { label: text('native.menu.repository'), click: openRepository },
-          {
-            label: text('native.menu.checkUpdatesPlain'),
-            click: () => {
-              showWindow()
-              mainWindow?.webContents.send('updates:open')
-              void checkForUpdates()
-            }
-          }
-        ]
-      }
-    ])
-  )
-}
+const { installApplicationMenu } = createApplicationMenu({
+  text,
+  showWindow,
+  mainWindow: () => mainWindow,
+  checkForUpdates,
+  setQuitting: (value) => { quitting = value },
+  runNativeBrowserAction,
+  tabs: () => tabsManager
+})
 
 function trustedShellUrl(): string {
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
@@ -3362,51 +2695,6 @@ async function releaseRuntimeResources(): Promise<void> {
     if (walletBroker === broker) walletBroker = null
   })()
   return runtimeShutdown
-}
-
-async function installDownloadedUpdate(): Promise<boolean> {
-  if (updateInstallationInProgress) return false
-  if (updatesUnavailableInThisBuild()) return false
-  if (!canStartUpdateOperation(updateState.status, updateOperation, 'install')) return false
-  updateInstallationInProgress = true
-  updateOperation = 'install'
-  publishUpdateState({
-    status: 'installing',
-    percent: undefined,
-    message: text('native.dialog.installingUpdate')
-  })
-  try {
-    // electron-updater only asks Electron to quit after the installer has
-    // started successfully. Keep tabs and MCP alive when authorization fails;
-    // the normal before-quit/will-quit handlers perform the eventual shutdown.
-    // Linux package updaters call app.relaunch() before the current process has
-    // released Hronaut's single-instance lock. Relaunch only after this PID has
-    // exited so the newly installed binary becomes the lock owner.
-    autoUpdater.quitAndInstall(false, false)
-    const installed = updateState.status !== 'install-error'
-    if (installed && process.platform === 'linux') {
-      scheduleLinuxUpdateRelaunch(process.pid, linuxUpdateExecutable(process.env, process.execPath))
-      mainWindow?.hide()
-      panelWindow?.hide()
-      // BaseUpdater defers this with setImmediate after the synchronous Linux
-      // package installer returns. Quit now so no timer or human action can
-      // ask the old process to load files from the newly replaced app.asar.
-      app.quit()
-    }
-    if (!installed) updateInstallationInProgress = false
-    return installed
-  } catch (error) {
-    updateInstallationInProgress = false
-    console.error('[updates] Install failed:', error)
-    publishUpdateState({
-      status: 'install-error',
-      percent: undefined,
-      message: updateErrorMessage(error, updateOperation, process.platform)
-    })
-    return false
-  } finally {
-    updateOperation = null
-  }
 }
 
 function createRuntimeMcpServer(

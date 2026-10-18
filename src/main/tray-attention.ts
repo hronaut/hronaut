@@ -1,0 +1,342 @@
+import { randomUUID } from 'node:crypto'
+import { app, Menu, nativeImage, Notification, Tray, type BrowserWindow, type NativeImage } from 'electron'
+import { bindTrayActivation } from './tray-activation.js'
+import trayIconPath from '../../build/icons/24x24.png?asset'
+import trayAttentionIconPath from '../../build/icons/tray-attention.png?asset'
+import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { McpHttpServer } from './mcp/server.js'
+import type { UserAttentionLifecycle } from './user-attention-lifecycle.js'
+import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
+import type { MessageKey, MessageParameters } from '../shared/i18n.js'
+import type {
+  AppSettings,
+  AppUpdateState,
+  BrowserState,
+  UserAttentionInput,
+  UserAttentionRequest
+} from '../shared/types.js'
+
+interface TrayAttentionHost {
+  /** Translates into the current interface language; read on every use because the language can change. */
+  text(key: MessageKey, parameters?: MessageParameters): string
+  showWindow(): void
+  /** The main window; read on every use because it opens after startup and goes when it closes. */
+  mainWindow(): Pick<BrowserWindow, 'flashFrame' | 'webContents'> | null
+  tabs(): Pick<BrowserTabsManager, 'selectTabAndWait'> | null
+  mcpServer(): Pick<McpHttpServer, 'recordAgentAnswer'> | null
+  /** Runs a browser action from native UI and reports its failure to the shell; skipped until saved workspaces are up. */
+  runNativeBrowserAction(action: string, callback: () => unknown): void
+  checkForUpdates(): Promise<AppUpdateState>
+  /** Marks the app as quitting, so closing the window quits instead of hiding it in the tray. */
+  setQuitting(value: boolean): void
+  /** The record of attention requests agents read; it lives as long as the app. */
+  userAttentionLifecycle: Pick<UserAttentionLifecycle, 'acknowledge' | 'reconcile' | 'request' | 'supersede'>
+  /** The request still open for the user; the shell, Home, the IPC handlers and agents read it too. */
+  userAttention(): UserAttentionRequest | null
+  setUserAttention(value: UserAttentionRequest | null): void
+  /** Whether the user already responded to the open request with a click or key. */
+  attentionQuiet(): boolean
+  setAttentionQuiet(value: boolean): void
+  /** The human-waiting decision the open request stands for, if any. */
+  attentionDecisionId(): string | undefined
+  setAttentionDecisionId(value: string | undefined): void
+  agentPresenceSnapshot(): AgentPresenceSnapshot
+  scheduleAgentPresencePublish(): void
+  /** Agent commands still running on a page; a key or click during one is not a response. */
+  activeMcpActivities(): ReadonlySet<string>
+  /** The current settings; read on every use because each committed update replaces the object. */
+  settings(): AppSettings
+  /** Replaces the runtime settings without saving them. */
+  setSettings(value: AppSettings): void
+  publishSettings(): void
+  updateSettings(updates: Partial<AppSettings>): Promise<AppSettings>
+}
+
+function loadTrayIcon(path: string): NativeImage {
+  const icon = nativeImage.createFromPath(path)
+  if (icon.isEmpty()) throw new Error(`Tray icon could not be loaded: ${path}`)
+  return icon
+}
+
+function compactAttentionReason(reason: string): string {
+  const compact = reason.replace(/\s+/g, ' ').trim()
+  return compact.length > 72 ? `${compact.slice(0, 69)}…` : compact
+}
+
+/**
+ * The tray icon and its menu, and how an agent's request for the user's attention shows: a pulsing tray icon, a
+ * flashing window frame, a system notification and the shell's needs-you state, until the user responds or the
+ * request ends. The tray, its icons and the signal timers live here; the open request stays with the host because
+ * other features read it.
+ */
+export function createTrayAttention(host: TrayAttentionHost): {
+  setTrayContextMenu(): void
+  shellUserAttention(): UserAttentionRequest | null
+  userAttentionShown(workspaces: AgentPresenceSnapshot['workspaces']): boolean
+  quietUserAttention(): void
+  endUserAttention(options?: { disposition?: 'acknowledged' | 'dismissed'; keepPending?: boolean }): void
+  reconcileUserAttention(state: BrowserState): void
+  acknowledgeUserAttention(): void
+  requestUserAttention(input: UserAttentionInput): Promise<UserAttentionRequest>
+  createTray(): boolean
+} {
+  let tray: Tray | null = null
+  let attentionRequestGeneration = 0
+  let attentionPulseTimer: NodeJS.Timeout | null = null
+  let attentionExpiryTimer: NodeJS.Timeout | null = null
+  let attentionPulseOn = false
+  let attentionNotification: Notification | null = null
+  let trayIcon: NativeImage | null = null
+  let trayAttentionIcon: NativeImage | null = null
+
+  function setTrayContextMenu(): void {
+    if (!tray || tray.isDestroyed()) return
+    const contextMenu = Menu.buildFromTemplate([
+      ...(host.userAttention()
+        ? [
+            { label: host.text('native.tray.attention', { reason: compactAttentionReason(host.userAttention()!.reason) }), enabled: false },
+            {
+              label: host.text('native.tray.showRequested'),
+              click: () => {
+                const requestedAttention = host.userAttention()
+                const requestedTabId = requestedAttention?.tabId
+                if (requestedAttention && requestedTabId) {
+                  host.runNativeBrowserAction('show the requested tab', async () => {
+                    await host.tabs()?.selectTabAndWait(requestedTabId)
+                    if (host.userAttention()?.id !== requestedAttention.id) return
+                    host.showWindow()
+                    quietUserAttention()
+                  })
+                  return
+                }
+                host.showWindow()
+                quietUserAttention()
+              }
+            },
+            {
+              label: host.text('native.tray.dismissAttention'),
+              click: () => {
+                // Dismissing leaves a decision open, so it is not an answer to one.
+                if (host.userAttention() && !host.attentionDecisionId()) host.mcpServer()?.recordAgentAnswer(host.userAttention()!.id, 'dismissed')
+                endUserAttention({ disposition: 'dismissed' })
+              }
+            },
+            { type: 'separator' as const }
+          ]
+        : []),
+      { label: host.text('native.tray.show'), click: host.showWindow },
+      {
+        label: host.text('native.menu.checkUpdates'),
+        click: () => {
+          host.showWindow()
+          host.mainWindow()?.webContents.send('updates:open')
+          void host.checkForUpdates()
+        }
+      },
+      { type: 'separator' },
+      {
+        label: host.text('native.tray.quit'),
+        click: () => {
+          host.setQuitting(true)
+          app.quit()
+        }
+      }
+    ])
+    tray.setContextMenu(contextMenu)
+  }
+
+  function renderAttentionPulse(): void {
+    if (!tray || tray.isDestroyed() || !trayIcon || !trayAttentionIcon) return
+    attentionPulseOn = !attentionPulseOn
+    tray.setImage(attentionPulseOn ? trayAttentionIcon : trayIcon)
+  }
+
+  /** The open request as the shell shows it, marked when it belongs to a human-waiting decision. */
+  function shellUserAttention(): UserAttentionRequest | null {
+    if (!host.userAttention()) return null
+    return { ...host.userAttention()!, ...(host.attentionDecisionId() ? { humanWaitingDecisionId: host.attentionDecisionId() } : {}) }
+  }
+
+  function stopAttentionSignals(): void {
+    attentionNotification?.close()
+    attentionNotification = null
+    if (attentionPulseTimer) clearInterval(attentionPulseTimer)
+    attentionPulseTimer = null
+    attentionPulseOn = false
+    host.mainWindow()?.flashFrame(false)
+    if (tray && !tray.isDestroyed() && trayIcon) tray.setImage(trayIcon)
+  }
+
+  /** Whether an agent's avatar shows the open request, so that its card can answer it. */
+  function userAttentionShown(workspaces: AgentPresenceSnapshot['workspaces']): boolean {
+    const workspaceId = host.userAttention()?.workspaceId
+    return Boolean(workspaceId && workspaces[workspaceId]?.some((agent) => agent.state === 'needs-you'))
+  }
+
+  /**
+   * The user responded with a click or key: stop the pulse, flash and notification, and let agents
+   * see the request as answered. It still shows as needs you until it is answered or ends; without an
+   * avatar whose card can answer it, the response ends it, as it always did.
+   */
+  function quietUserAttention(): void {
+    if (!host.userAttention() || host.attentionQuiet()) return
+    if (!userAttentionShown(host.agentPresenceSnapshot().workspaces)) {
+      endUserAttention()
+      return
+    }
+    host.setAttentionQuiet(true)
+    host.userAttentionLifecycle.acknowledge(host.userAttention()!.id, 'acknowledged')
+    stopAttentionSignals()
+  }
+
+  /**
+   * The request ended: answered, dismissed, expired, replaced, or its tab, workspace or decision is gone.
+   * keepPending leaves another agent's request that is still waiting for its tab to wake to arrive,
+   * for an end that is about this request alone.
+   */
+  function endUserAttention(options: { disposition?: 'acknowledged' | 'dismissed'; keepPending?: boolean } = {}): void {
+    if (host.userAttention()) host.userAttentionLifecycle.acknowledge(host.userAttention()!.id, options.disposition ?? 'acknowledged')
+    if (!options.keepPending) attentionRequestGeneration += 1
+    host.setAttentionDecisionId(undefined)
+    host.setAttentionQuiet(false)
+    if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
+    attentionExpiryTimer = null
+    attentionNotification?.close()
+    attentionNotification = null
+    if (!host.userAttention() && !attentionPulseTimer) return
+    host.setUserAttention(null)
+    if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) host.mainWindow()!.webContents.send('attention:changed', null)
+    host.scheduleAgentPresencePublish()
+    stopAttentionSignals()
+    if (tray && !tray.isDestroyed()) {
+      tray.setToolTip('Hronaut')
+      setTrayContextMenu()
+    }
+  }
+
+  function reconcileUserAttention(state: BrowserState): void {
+    host.userAttentionLifecycle.reconcile(state.tabs, state.mcpTabGroups.map(workspace => workspace.id))
+    const request = host.userAttention()
+    if (!request) return
+    const workspaceExists = !request.workspaceId
+      || state.mcpTabGroups.some((workspace) => workspace.id === request.workspaceId)
+    const requestedTab = request.tabId
+      ? state.tabs.find((tab) => tab.id === request.tabId)
+      : undefined
+    const tabExistsInTargetWorkspace = !request.tabId
+      || Boolean(requestedTab && (!request.workspaceId || requestedTab.mcpGroupId === request.workspaceId))
+    if (!workspaceExists || !tabExistsInTargetWorkspace) endUserAttention()
+  }
+
+  function acknowledgeUserAttention(): void {
+    if (host.activeMcpActivities().size === 0) quietUserAttention()
+  }
+
+  async function requestUserAttention(input: UserAttentionInput): Promise<UserAttentionRequest> {
+    const requestGeneration = ++attentionRequestGeneration
+    const request: UserAttentionRequest = {
+      id: randomUUID(),
+      reason: input.reason.replace(/\s+/g, ' ').trim(),
+      ...(input.notificationMessage && { notificationMessage: input.notificationMessage.replace(/\s+/g, ' ').trim() }),
+      requestedAt: new Date().toISOString(),
+      ...(input.workspaceId && { workspaceId: input.workspaceId }),
+      ...(input.tabId && { tabId: input.tabId })
+    }
+    if (input.tabId) await host.tabs()?.selectTabAndWait(input.tabId, { focus: false })
+    if (requestGeneration !== attentionRequestGeneration) {
+      throw new Error('User attention request was superseded by a newer request.')
+    }
+    if (input.expiresAt !== undefined && (!Number.isSafeInteger(input.expiresAt) || input.expiresAt <= Date.now())) throw new Error('User attention request expired')
+    if (input.workspaceId && !input.humanWaitingDecisionId) host.userAttentionLifecycle.request(request)
+    else host.userAttentionLifecycle.supersede()
+    host.setUserAttention(request)
+    host.setAttentionQuiet(false)
+    host.setAttentionDecisionId(input.humanWaitingDecisionId)
+    attentionNotification?.close()
+    attentionNotification = null
+    if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) host.mainWindow()!.webContents.send('attention:changed', shellUserAttention())
+    host.scheduleAgentPresencePublish()
+    if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
+    attentionExpiryTimer = null
+    const attentionExpiresAt = input.expiresAt ?? (input.workspaceId && !input.humanWaitingDecisionId ? Date.now() + 86_400_000 : undefined)
+    if (attentionExpiresAt !== undefined) {
+      attentionExpiryTimer = setTimeout(() => {
+        if (host.userAttention()?.id === request.id) endUserAttention({ keepPending: true })
+      }, Math.min(86_400_000, Math.max(1, attentionExpiresAt - Date.now())))
+      attentionExpiryTimer.unref()
+    }
+    if (attentionPulseTimer) clearInterval(attentionPulseTimer)
+    attentionPulseTimer = setInterval(renderAttentionPulse, 650)
+    attentionPulseTimer.unref()
+    attentionPulseOn = false
+    renderAttentionPulse()
+    host.mainWindow()?.flashFrame(true)
+    if (tray && !tray.isDestroyed()) {
+      tray.setToolTip(host.text('native.tray.tooltipAttention', { reason: compactAttentionReason(request.reason) }))
+      setTrayContextMenu()
+    }
+    if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) {
+      host.mainWindow()!.webContents.send('attention:requested')
+    }
+    if (Notification.isSupported()) {
+      try {
+        const notification = new Notification({ title: 'Hronaut', body: request.notificationMessage || request.reason })
+        attentionNotification = notification
+        notification.on('click', () => {
+          if (host.userAttention()?.id !== request.id) return
+          host.runNativeBrowserAction('show the requested tab', async () => {
+            if (request.tabId) await host.tabs()?.selectTabAndWait(request.tabId)
+            if (host.userAttention()?.id !== request.id) return
+            host.showWindow()
+            quietUserAttention()
+          })
+        })
+        notification.show()
+      } catch (error) {
+        console.error('[attention] Failed to show system notification:', error)
+      }
+    }
+    return { ...request }
+  }
+
+  function createTray(): boolean {
+    if (tray && !tray.isDestroyed()) return true
+    try {
+      if (
+        process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1'
+        && process.env.HRONAUT_TEST_TRAY_CREATION_FAILURE === '1'
+      ) throw new Error('Simulated tray creation failure')
+      trayIcon = loadTrayIcon(trayIconPath)
+      trayAttentionIcon = loadTrayIcon(trayAttentionIconPath)
+      tray = new Tray(trayIcon)
+      tray.setToolTip('Hronaut')
+      setTrayContextMenu()
+      bindTrayActivation(tray, host.showWindow, process.platform)
+      return true
+    } catch (error) {
+      if (tray && !tray.isDestroyed()) tray.destroy()
+      tray = null
+      console.error('[tray] Failed to create tray:', error)
+      if (host.settings().hideInTray) {
+        host.setSettings({ ...host.settings(), hideInTray: false })
+        host.publishSettings()
+        void host.updateSettings({ hideInTray: false }).catch((saveError) =>
+          console.error('[tray] Failed to disable hide-in-tray after tray creation failed:', saveError)
+        )
+      }
+      return false
+    }
+  }
+
+  return {
+    setTrayContextMenu,
+    shellUserAttention,
+    userAttentionShown,
+    quietUserAttention,
+    endUserAttention,
+    reconcileUserAttention,
+    acknowledgeUserAttention,
+    requestUserAttention,
+    createTray
+  }
+}
