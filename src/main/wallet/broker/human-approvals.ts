@@ -1,8 +1,8 @@
 import type { WalletDescriptor, WalletRequestSummary } from '../../../shared/wallet.js'
 import type { WalletApprovalRecord } from '../approvals.js'
-import type { PendingResult } from '../broker.js'
 import { summary } from '../request-summary.js'
 import type { WalletService } from '../service.js'
+import type { PendingResult } from './request-records.js'
 import { sanitizedError } from './sanitized-error.js'
 
 /**

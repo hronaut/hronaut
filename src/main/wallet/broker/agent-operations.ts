@@ -1,8 +1,15 @@
-import type { AgentOperationLifecycle, WalletBrokerContext, WalletBrokerOptions } from '../broker.js'
+import type { WalletBrokerContext, WalletBrokerOptions } from '../broker.js'
 import type { EvmProviderSession } from '../evm-provider.js'
 import type { WalletService } from '../service.js'
 import type { AccountProviderSession } from '../solana-tron-provider.js'
 import { sanitizedError } from './sanitized-error.js'
+
+/** An agent requester's wallet calls still running, whether its session was cancelled, and who waits for the calls to finish. */
+export interface AgentOperationLifecycle {
+  activeOperations: number
+  cancelled: boolean
+  drainWaiters: Array<() => void>
+}
 
 /**
  * What agent operation tracking needs from the broker, which keeps each

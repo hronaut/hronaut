@@ -1,9 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import type { WalletDescriptor, WalletOperation, WalletOperationRequest } from '../../../shared/wallet.js'
 import type { WalletApprovalRecord } from '../approvals.js'
-import type { PendingResult, WalletBrokerContext, WalletBrokerOptions } from '../broker.js'
+import type { WalletBrokerContext, WalletBrokerOptions } from '../broker.js'
 import type { WalletService } from '../service.js'
 import { sanitizedError } from './sanitized-error.js'
+
+/** How to settle the promise a page or agent waits on while a person decides a request. */
+export interface PendingResult {
+  resolve(value: unknown): void
+  reject(error: Error): void
+}
 
 /**
  * What wallet request records need from the broker, which keeps the page

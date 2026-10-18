@@ -42,8 +42,8 @@ import { listPending, type PendingRequestsAccess } from './broker/pending-reques
 import { keepsTabAwake, providerRequest, type ProviderRequestsAccess } from './broker/provider-requests.js'
 import { approve, reject, type HumanApprovalsAccess } from './broker/human-approvals.js'
 import { assertRecordPageActive, assertRequestContextActive, cancelForNavigation, cancelForTab, cancelForWorkspace, isRequestContextActive, resumeTab, type PageLifecycleAccess } from './broker/page-lifecycle.js'
-import { assertAgentOperationActive, cancelForRequester, isAgentOperationActive, withAgentOperation, type AgentOperationsAccess } from './broker/agent-operations.js'
-import { clearRequestExpiry, createRequest, fail, wait, type RequestRecordsAccess } from './broker/request-records.js'
+import { assertAgentOperationActive, cancelForRequester, isAgentOperationActive, withAgentOperation, type AgentOperationLifecycle, type AgentOperationsAccess } from './broker/agent-operations.js'
+import { clearRequestExpiry, createRequest, fail, wait, type PendingResult, type RequestRecordsAccess } from './broker/request-records.js'
 import { execute, type RequestExecutionAccess } from './broker/request-execution.js'
 import { approveWebsiteSignIn, websiteSignInDecision, type WebsiteSignInAccess } from './broker/website-sign-in.js'
 import { connect, createAddressPermissionRequest, disconnectWallet, type AccountConnectionsAccess } from './broker/account-connections.js'
@@ -59,17 +59,6 @@ export interface WalletBrokerContext {
   topLevelOrigin: string
   requester: WalletRequester
   signal?: AbortSignal
-}
-
-export interface PendingResult {
-  resolve(value: unknown): void
-  reject(error: Error): void
-}
-
-export interface AgentOperationLifecycle {
-  activeOperations: number
-  cancelled: boolean
-  drainWaiters: Array<() => void>
 }
 
 export interface WalletBrokerOptions {
@@ -562,11 +551,7 @@ export class WalletBroker {
     return connect(this.accountConnectionsAccess(), context, wallet)
   }
 
-  private createAddressPermissionRequest(
-    context: WalletBrokerContext,
-    wallet: WalletDescriptor,
-    allowWebsiteSignIn = false
-  ): Promise<{ record: WalletApprovalRecord; approved: false } | { record: WalletApprovalRecord; approved: true; result: unknown }> {
+  private createAddressPermissionRequest(context: WalletBrokerContext, wallet: WalletDescriptor, allowWebsiteSignIn = false): Promise<{ record: WalletApprovalRecord; approved: false } | { record: WalletApprovalRecord; approved: true; result: unknown }> {
     return createAddressPermissionRequest(this.accountConnectionsAccess(), context, wallet, allowWebsiteSignIn)
   }
 
