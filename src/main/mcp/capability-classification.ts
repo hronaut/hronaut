@@ -62,6 +62,7 @@ export const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabili
   browser_press: 'interact',
   browser_hold_key: 'interact',
   browser_file_upload: 'external-request',
+  browser_file_drop: 'external-request',
   browser_emulate: 'browser-state',
   browser_page_lifecycle: 'browser-state',
   browser_resize: 'browser-state',

@@ -160,6 +160,8 @@ import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
 import type { FileUploadAccess } from './file-upload/file-upload-access.js'
 import { uploadFiles } from './file-upload/file-upload.js'
+import { dropFiles, type FileDropResult } from './file-drop/file-drop.js'
+import type { FileDropAccess } from './file-drop/file-drop-access.js'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import axe from 'axe-core'
 import {
@@ -3985,6 +3987,34 @@ export class BrowserTabsManager {
     validateUpload?: (validateContext: () => void) => void
   ): Promise<{ files: string[] }> {
     return uploadFiles(this.fileUploadAccess(), target, paths, validateUpload)
+  }
+
+  /**
+   * The narrow view a file drop gets of this manager's private tabs, target
+   * validation, native input authority, agent cursor, agent input scope,
+   * debugger lease and authorized agent input. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it.
+   */
+  private fileDropAccess(): FileDropAccess<BrowserTab> {
+    return {
+      validateTarget: (target) => this.validateTarget(target),
+      getTab: (tabId) => this.getTab(tabId),
+      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
+      showAgentPointer: (webContents, point, effect, options) => this.showAgentPointer(webContents, point, effect, options),
+      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      agentInputDebugger: (webContents, validateInput) => this.agentInputDebugger(webContents, validateInput)
+    }
+  }
+
+  dropFiles(
+    target: { tabId?: string; ref?: string; selector?: string },
+    paths: string[],
+    validateDrop?: (validateContext: () => void) => void,
+    agent?: AgentPointerIdentity
+  ): Promise<FileDropResult> {
+    return dropFiles(this.fileDropAccess(), target, paths, validateDrop, agent)
   }
 
   /**
