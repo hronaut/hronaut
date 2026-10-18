@@ -1,5 +1,6 @@
 import { javascriptLiteral } from '../../shared/javascript-literal.js'
 import { SIZING_INPUT_PROPERTIES, sizingInputValue } from '../../shared/element-sizing-inputs.js'
+import { flexContainerContext } from '../../shared/element-flex-container.js'
 
 // Count only; do not collect other nodes' attributes, text or styles.
 export function sizingLookupSource(): string {
@@ -14,19 +15,26 @@ export function sizingLookupSource(): string {
   };`
 }
 
-export function sizingInputsSource(token: string): string {
+/**
+ * Returns `{ sizingInputs }`, and `flexContainer` for the immediate parent when
+ * requested. Settlement then also requires the same parent, so a reparented
+ * element is not published with another container's context.
+ */
+export function sizingInputsSource(token: string, includeFlexContainer = false): string {
   return `(() => {
     const token=${javascriptLiteral(token)}, handles=globalThis.__hronautSizingInputs??=new Map();
     if(handles.size>=8)throw Error('Sizing inputs inspection is busy');
-    const unique=()=>{const matches=sizingLookup();return matches.length===1&&matches[0]===element&&element.isConnected&&element.getRootNode()===document};
+    const parent=element.parentElement;
+    const unique=()=>{const matches=sizingLookup();return matches.length===1&&matches[0]===element&&element.isConnected&&element.getRootNode()===document${includeFlexContainer ? '&&element.parentElement===parent' : ''}};
     if(!unique())throw Error('Sizing inputs require one unique light-DOM target');
     const parse=${sizingInputValue.toString()};
     const style=getComputedStyle(element),result={};
     for(const property of ${JSON.stringify(SIZING_INPUT_PROPERTIES)})result[property]=parse(property,style.getPropertyValue(property));
+    ${includeFlexContainer ? `const flexContainer=(${flexContainerContext.toString()})(element);` : ''}
     let timer;
     const cleanup=()=>{clearTimeout(timer);handles.delete(token)};
     const settle=()=>{try{return unique()}catch{return false}finally{cleanup()}};
-    timer=setTimeout(cleanup,5000);handles.set(token,{settle,cleanup});return result;
+    timer=setTimeout(cleanup,5000);handles.set(token,{settle,cleanup});return {sizingInputs:result${includeFlexContainer ? ',flexContainer' : ''}};
   })()`
 }
 
