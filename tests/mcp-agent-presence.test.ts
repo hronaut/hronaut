@@ -440,6 +440,16 @@ describe('agent names', () => {
     const long = sanitizeAgentName('👩‍💻'.repeat(100))
     expect([...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(long)]).toHaveLength(AGENT_NAME_MAX_GRAPHEMES)
     expect(sanitizeAgentName('éclair')).toBe('éclair')
+    // A known client that came through mcp-remote reads as the product on every surface, the bridge kept.
+    expect(sanitizeAgentName('claude-ai (via mcp-remote 0.1.37)')).toBe('Claude (via mcp-remote 0.1.37)')
+    expect(agentCursorIdentity('claude-ai (via mcp-remote 0.1.37)').name).toBe('Claude (via mcp-remote 0.1.37)')
+    // Naming comes before the 64-grapheme cut, which then keeps the whole bridge; a name never grows past it.
+    const bridge = ' (via mcp-remote-for-the-hronaut-staging-site 1.2.3)'
+    expect(sanitizeAgentName(`codex-mcp-client${bridge}`)).toBe(`Codex${bridge}`)
+    expect(`codex-mcp-client${bridge}`.length).toBeGreaterThan(AGENT_NAME_MAX_GRAPHEMES)
+    const tight = `claude-code(via ${'b'.repeat(47)})`
+    expect(tight).toHaveLength(AGENT_NAME_MAX_GRAPHEMES)
+    expect(sanitizeAgentName(tight)).toBe(`Claude Code(via ${'b'.repeat(47)})`)
     // Private-use, unassigned and blank filler characters do not count as a name.
     expect(sanitizeAgentName('Agent\uE000 One\u{10FFFD}')).toBe('Agent One')
     expect(sanitizeAgentName('\u115F\u1160Claude\u3164\uFFA0')).toBe('Claude')

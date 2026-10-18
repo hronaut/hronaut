@@ -17,10 +17,29 @@ const KNOWN_CLIENT_NAMES: ReadonlyMap<string, string> = new Map([
   ['windsurf-client', 'Windsurf']
 ])
 
-/** An MCP client's name as people know the product: `claude-code` is "Claude Code". Other names stay as sent. */
+const BRIDGED = /^(.*\S)\s*\(via ([^()]+)\)$/u
+
+/**
+ * A name a bridge such as mcp-remote reported for a client: `claude-ai (via mcp-remote 0.1.37)` is the client
+ * `claude-ai` that came through `mcp-remote 0.1.37`. Other names are the client's own, trimmed, with no bridge.
+ */
+export function bridgedAgentName(name: string): { client: string; via?: string } {
+  const trimmed = name.trim()
+  const bridged = BRIDGED.exec(trimmed)
+  const via = bridged?.[2]!.trim()
+  return bridged && via ? { client: bridged[1]!, via } : { client: trimmed }
+}
+
+/**
+ * An MCP client's name as people know the product: `claude-code` is "Claude Code", and a known client that came
+ * through a bridge keeps it, so `claude-ai (via mcp-remote 0.1.37)` is "Claude (via mcp-remote 0.1.37)". Other names
+ * stay as sent, trimmed. Only the client's part changes, so the result is never longer than the name.
+ */
 export function agentDisplayName(name: string): string {
   const trimmed = name.trim()
-  return KNOWN_CLIENT_NAMES.get(trimmed.toLocaleLowerCase()) ?? trimmed
+  const { client } = bridgedAgentName(trimmed)
+  const known = KNOWN_CLIENT_NAMES.get(client.toLocaleLowerCase())
+  return known ? known + trimmed.slice(client.length) : trimmed
 }
 
 /** Every Hronaut surface says the same thing about agents, in this order of importance. */
@@ -52,7 +71,7 @@ export interface AgentStatus {
   kind: AgentStatusKind
   /** The message under `agentStatus` that says it. */
   message: 'error' | 'starting' | 'paused' | 'needsYou' | 'working' | 'workingMany' | 'connected' | 'connectedMany' | 'ready'
-  /** The agent it names, when one agent is working or connected. */
+  /** The agent it names, when one agent is working or connected, without the bridge it came through. */
   name?: string
   /** How many agents it counts. */
   count: number
@@ -79,11 +98,14 @@ export function agentStatus(server: McpServerStatus, agents: readonly AgentStatu
   const all = [...strongest.values()]
   const needing = all.filter((agent) => agent.state === 'needs-you')
   if (needing.length) return { kind: 'needs-you', message: 'needsYou', count: needing.length }
-  // A name with nothing visible reads as "1 agent working" rather than " is working".
+  // A name with nothing visible reads as "1 agent working" rather than " is working". One line has no room for a
+  // bridge, so "Claude (via mcp-remote 0.1.37)" is "Claude is working"; its avatar and card still name the bridge.
   const working = all.filter((agent) => agent.state === 'working')
-  if (working.length === 1 && working[0]!.name.trim()) return { kind: 'working', message: 'working', name: working[0]!.name, count: 1 }
+  const workingName = working.length === 1 ? bridgedAgentName(working[0]!.name).client : ''
+  if (workingName) return { kind: 'working', message: 'working', name: workingName, count: 1 }
   if (working.length) return { kind: 'working', message: 'workingMany', count: working.length }
-  if (all.length === 1 && all[0]!.name.trim()) return { kind: 'connected', message: 'connected', name: all[0]!.name, count: 1 }
+  const connectedName = all.length === 1 ? bridgedAgentName(all[0]!.name).client : ''
+  if (connectedName) return { kind: 'connected', message: 'connected', name: connectedName, count: 1 }
   if (all.length) return { kind: 'connected', message: 'connectedMany', count: all.length }
   return { kind: 'ready', message: 'ready', count: 0 }
 }
