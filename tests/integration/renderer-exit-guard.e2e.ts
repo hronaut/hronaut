@@ -65,9 +65,11 @@ test('page tools fail at once on a crashed page and work again after it loads', 
   try {
     await crashPage(electronApp, fixtureUrl)
 
-    // Without the guard each of these waits on the crashed renderer until the client times out.
+    // Without the guard the first three wait on the crashed renderer until the client times out, a screenshot
+    // returns an image that is not the page, and printing to PDF ends the whole application.
     for (const [name, args] of [
-      ['browser_snapshot', {}], ['browser_click', { x: 10, y: 10 }], ['browser_type', { selector: 'input', text: 'x' }]
+      ['browser_snapshot', {}], ['browser_click', { x: 10, y: 10 }], ['browser_type', { selector: 'input', text: 'x' }],
+      ['browser_screenshot', {}], ['browser_pdf_save', { filename: 'crashed page' }]
     ] as const) {
       const failed = await call(name, args)
       expect(failed.isError, `${name}: ${text(failed)}`).toBe(true)
@@ -93,6 +95,8 @@ test('page tools fail at once on a crashed page and work again after it loads', 
     const snapshot = await call('browser_snapshot', {})
     expect(snapshot.isError, text(snapshot)).not.toBe(true)
     expect(text(snapshot)).toContain('Routed after crash')
+    const screenshot = await call('browser_screenshot', {})
+    expect(screenshot.isError, text(screenshot)).not.toBe(true)
     // The refused native click left nothing unconfirmed on the tab.
     const clicked = await call('browser_click', { selector: '#routed', native: true })
     expect(clicked.isError, text(clicked)).not.toBe(true)

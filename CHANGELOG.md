@@ -21,6 +21,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Saving a PDF of a tab whose page had crashed closed all of Hronaut. A PDF export or screenshot of a crashed page now fails at once with a message to reload or close the tab, and a screenshot no longer returns an image that is not the page. Both work again once the page loads.
 - An agent that connects through a bridge such as mcp-remote is named as the product everywhere Hronaut names agents, as Home's list of connected agents already did: its avatar, card and cursor, the live status strip, the take-over prompt, the Following label, its steps, and Home's live activity and workspace cards now say "Claude (via mcp-remote 0.1.37)" instead of "claude-ai (via mcp-remote 0.1.37)". The one-line agent status in the toolbar and on Home leaves the bridge out, so it reads "Claude is working".
 
 ## [3.1.0] - 2026-10-18
