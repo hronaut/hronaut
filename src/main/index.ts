@@ -8,16 +8,15 @@ import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
 import { registerNetworkRoutesIpc } from './network-routes-ipc.js'
 import { registerWalletIpc } from './wallet/ipc.js'
 import { ShellOverlayView } from './shell-overlay-view.js'
-import { AgentCardOverlay, type AgentCardSurface } from './agent-card-overlay.js'
-import { ToastOverlay, type ToastOverlaySurface } from './toast-overlay.js'
+import { AgentCardOverlay } from './agent-card-overlay.js'
+import { ToastOverlay } from './toast-overlay.js'
 import type { ToastOverlayEvent } from '../shared/toast-overlay.js'
 import type { AgentCardEvent } from '../shared/agent-card.js'
 import { humanWaitingDecisionOpen } from '../shared/human-waiting.js'
-import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-overlay.js'
+import { ShellTooltipOverlay } from './shell-tooltip-overlay.js'
 import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
 import { registerPanelWindowIpc } from './panel-window-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
-import { isHronautHomeUrl } from '../shared/home-url.js'
 import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
 import { registerAgentPresenceIpc } from './agent-presence-ipc.js'
 import type { ConnectedAgent } from '../shared/agent-status.js'
@@ -34,8 +33,6 @@ import { pathToFileURL } from 'node:url'
 import {
   app,
   BrowserWindow,
-  clipboard,
-  ClipboardItem,
   dialog,
   ipcMain,
   Menu,
@@ -49,7 +46,6 @@ import {
   WebContentsView,
   webContents as allWebContents,
   type MessageBoxOptions,
-  type NativeImage,
   type Session,
   type WebContents
 } from 'electron'
@@ -58,7 +54,6 @@ import { createAppUpdates } from './app-updates.js'
 import { registerPageInspectionIpc } from './page-inspection-ipc.js'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
 import { WorkspaceMetadataError } from './browser/tab-store.js'
-import type { BrowserCredentialCandidate } from './browser/tabs-manager.js'
 import { WalletBroker, type WalletBrokerContext } from './wallet/broker.js'
 import { walletBrokerContextFromIpc } from './wallet/ipc-context.js'
 import type { WalletSafeStorage } from './wallet/key-provider.js'
@@ -71,7 +66,8 @@ import { BookmarkStore } from './bookmark-store.js'
 import { UndoOffers } from './undo-offers.js'
 import { registerUndoIpc } from './undo-ipc.js'
 import { HistoryStore } from './history-store.js'
-import { CredentialStore } from './credential-store.js'
+import { createCredentialRuntime } from './credential-runtime.js'
+import type { CredentialStore } from './credential-store.js'
 import { registerCredentialsIpc } from './credentials-ipc.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
 import { createCommercialLicenseRuntime } from './commercial-license-runtime.js'
@@ -112,10 +108,8 @@ import { DEFAULT_SETTINGS, SettingsStore } from './settings-store.js'
 import { scaleShellMetric } from '../shared/interface-scale.js'
 import { DEFAULT_MCP_TOOL_SET } from '../shared/mcp-tool-sets.js'
 import { registerSettingsIpc } from './settings-ipc.js'
-import {
-  normalizeSitePermissionOrigin,
-  SitePermissionStore
-} from './site-permission-store.js'
+import { createBrowserSession } from './browser-session.js'
+import type { SitePermissionStore } from './site-permission-store.js'
 import { registerPermissionsIpc } from './permissions-ipc.js'
 import { restoreWindowBounds, WindowStateStore } from './window-state.js'
 import { applyWindowMaterial } from './window-material.js'
@@ -132,7 +126,6 @@ import type {
   McpControlState,
   McpServerStatus,
   RendererSettingsState,
-  SitePermissionDecision,
   ThemeName,
   SupportedLocale
 } from '../shared/types.js'
@@ -156,8 +149,8 @@ import {
   type WindowChromeMode
 } from '../shared/title-bar.js'
 import { registerShellIpc } from './shell-ipc.js'
-import { writeVerifiedClipboardText } from './verified-clipboard.js'
-import { loadNativeWindowWithRollback } from './native-window-load.js'
+import { createClipboardOperations } from './clipboard-operations.js'
+import { createPanelWindow } from './windows/panel-window.js'
 import type {
   AddressSuggestion,
   AddressSuggestionOverlayRequest,
@@ -167,6 +160,7 @@ import type {
 import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
 import { createApplicationMenu } from './windows/application-menu.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
+import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 
 let MCP_HOST = process.env.HRONAUT_MCP_HOST || '127.0.0.1'
 const MCP_AUTH_DISABLED = process.env.HRONAUT_DISABLE_MCP_AUTH === '1'
@@ -309,7 +303,6 @@ const shellTooltips = new ShellTooltipOverlay({
 let panelWindowUrl: string | null = null
 let panelWindowPanel: DetachablePanelId | null = null
 let panelWindowRedocking = false
-let panelWindowOpening: Promise<void> | null = null
 let tabsManager: BrowserTabsManager | null = null
 let tabsInitializationPromise: Promise<void> | null = null
 let initializedTabsManager: BrowserTabsManager | null = null
@@ -369,10 +362,20 @@ const {
   logPrefix: '[panel-window]'
 })
 let persistentSession: Session | null = null
-const configuredBrowserSessions = new WeakSet<Session>()
 let settingsStore: SettingsStore | null = null
 let startupLaunchManager: StartupLaunchManager | null = null
 let sitePermissionStore: SitePermissionStore | null = null
+const { configureBrowserSession, configurePersistentSession } = createBrowserSession({
+  text,
+  effectiveDownloadDirectory,
+  showMessageBox,
+  sitePermissionStore: () => sitePermissionStore,
+  setSitePermissionStore: (store) => { sitePermissionStore = store },
+  persistentSession: () => persistentSession,
+  setPersistentSession: (value) => { persistentSession = value },
+  publishSitePermissions,
+  partition: PARTITION
+})
 let credentialStore: CredentialStore | null = null
 let commercialLicenseStore: CommercialLicenseStore | null = null
 let commercialLicenseStateTimer: ReturnType<typeof setTimeout> | undefined
@@ -410,7 +413,6 @@ let settings: AppSettings = { ...DEFAULT_SETTINGS }
 let systemLocale: SupportedLocale = 'en-US'
 let resolvedLocale: SupportedLocale = 'en-US'
 let settingsMutationQueue: Promise<void> = Promise.resolve()
-let permissionRequestQueue: Promise<void> = Promise.resolve()
 let updateState: AppUpdateState = { status: 'idle', currentVersion: app.getVersion() }
 const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloadedUpdate } = createAppUpdates({
   autoUpdater,
@@ -464,40 +466,18 @@ const {
   publishSettings,
   updateSettings
 })
-// Keep the current clipboard image alive while Hronaut owns the X11 clipboard.
-// This is harmless on Windows/macOS and avoids relying on a temporary NativeImage
-// wrapper being retained by the Linux clipboard backend.
-let _lastScreenshotClipboardImage: NativeImage | null = null
-let _lastCopiedText = ''
-let clipboardOperationQueue: Promise<void> = Promise.resolve()
+const {
+  copyTextToClipboard,
+  reportClipboardFailure,
+  copyPngToClipboard,
+  copyPageImageToClipboard
+} = createClipboardOperations({
+  text,
+  mainWindow: () => mainWindow
+})
 
 function text(key: MessageKey, parameters?: MessageParameters): string {
   return translate(resolvedLocale, key, parameters)
-}
-
-function queueClipboardOperation<T>(operation: () => Promise<T>): Promise<T> {
-  const result = clipboardOperationQueue.then(operation)
-  clipboardOperationQueue = result.then(() => undefined, () => undefined)
-  return result
-}
-
-function queuePermissionRequest(operation: () => Promise<void>): void {
-  const pending = permissionRequestQueue.then(operation)
-  permissionRequestQueue = pending.catch(() => undefined)
-}
-
-async function copyTextToClipboard(text: string): Promise<void> {
-  await queueClipboardOperation(async () => {
-    await writeVerifiedClipboardText(text, clipboard)
-    _lastCopiedText = text
-  })
-}
-
-function reportClipboardFailure(error: unknown): void {
-  const message = error instanceof Error ? error.message : text('native.errors.clipboard')
-  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.send('clipboard:failed', message)
-  }
 }
 
 function reportBrowserActionFailure(action: string, error: unknown): void {
@@ -520,68 +500,6 @@ function runNativeBrowserAction(action: string, callback: () => unknown): void {
   } catch (error) {
     reportBrowserActionFailure(action, error)
   }
-}
-
-async function readClipboardImage(): Promise<NativeImage> {
-  const items = await clipboard.read()
-  const item = items.find((entry) => entry.types.includes('image/png'))
-  if (!item) return nativeImage.createEmpty()
-  const blob = await item.getType('image/png')
-  if (!(blob instanceof Blob)) throw new Error('The clipboard PNG payload was not an image')
-  return nativeImage.createFromBuffer(Buffer.from(await blob.arrayBuffer()))
-}
-
-async function writePngToClipboard(data: Buffer): Promise<{ width: number; height: number }> {
-  const image = nativeImage.createFromBuffer(data)
-  if (image.isEmpty()) throw new Error(text('native.errors.screenshotCreate'))
-  const expectedSize = image.getSize()
-  _lastScreenshotClipboardImage = image
-
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    // Do not let a previous image with the same dimensions masquerade as a
-    // successful write when the platform clipboard silently rejects this one.
-    clipboard.clear()
-    await clipboard.write([new ClipboardItem({
-      'image/png': new Blob([new Uint8Array(data)], { type: 'image/png' })
-    })])
-    await new Promise<void>((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
-    const copied = await readClipboardImage()
-    const copiedSize = copied.getSize()
-    if (
-      !copied.isEmpty()
-      && copied.toPNG().byteLength > 0
-      && copiedSize.width === expectedSize.width
-      && copiedSize.height === expectedSize.height
-    ) {
-      return copiedSize
-    }
-  }
-
-  throw new Error('The screenshot was captured, but the system clipboard did not accept the image')
-}
-
-async function copyPngToClipboard(data: Buffer): Promise<{ width: number; height: number }> {
-  return queueClipboardOperation(() => writePngToClipboard(data))
-}
-
-async function copyPageImageToClipboard(webContents: WebContents, x: number, y: number): Promise<void> {
-  await queueClipboardOperation(async () => {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      if (webContents.isDestroyed()) throw new Error('The page closed before its image could be copied')
-      clipboard.clear()
-      webContents.copyImageAt(x, y)
-      await new Promise<void>((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
-      const image = await readClipboardImage()
-      if (!image.isEmpty()) {
-        const png = image.toPNG()
-        if (png.byteLength > 0) {
-          await writePngToClipboard(png)
-          return
-        }
-      }
-    }
-    throw new Error('The page image was selected, but the system clipboard did not accept it')
-  })
 }
 
 function defaultDownloadDirectory(): string {
@@ -956,51 +874,16 @@ async function clearWorkspaceSiteData(
   })
 }
 
-async function handleCredentialCandidate(candidate: BrowserCredentialCandidate): Promise<void> {
-  if (!credentialStorageStatus.available || !credentialStore || !mainWindow || mainWindow.isDestroyed()) return
-  if (candidate.username.length > 512 || !candidate.password || candidate.password.length > 16_384) return
-  try {
-    if (new URL(candidate.origin).origin !== candidate.origin) return
-  } catch {
-    return
-  }
-  const updating = credentialStore.has(candidate.origin, candidate.username)
-  const account = candidate.username || text('native.dialog.unnamedAccount')
-  const { response } = await showMessageBox({
-    type: 'question',
-    title: text(updating ? 'native.dialog.updatePasswordTitle' : 'native.dialog.savePasswordTitle'),
-    message: text(updating ? 'native.dialog.updatePasswordMessage' : 'native.dialog.savePasswordMessage', { account }),
-    detail: text('native.dialog.passwordDetail', { origin: candidate.origin }),
-    buttons: [text('native.dialog.notNow'), text(updating ? 'native.dialog.updatePassword' : 'native.dialog.savePassword')],
-    defaultId: 1,
-    cancelId: 0,
-    noLink: true
-  })
-  if (response !== 1) return
-  await credentialStore.save(candidate.origin, candidate.username, candidate.password)
-  publishCredentials()
-}
-
-async function configureCredentialStore(): Promise<void> {
-  const available = await safeStorage.isAsyncEncryptionAvailable()
-  const backend = process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : process.platform === 'darwin' ? 'macOS Keychain' : 'Windows DPAPI'
-  if (!available || backend === 'basic_text') {
-    credentialStorageStatus = {
-      available: false,
-      backend,
-      reason: backend === 'basic_text'
-        ? text('native.errors.linuxSecrets')
-        : text('native.errors.secureStorage')
-    }
-    return
-  }
-  credentialStorageStatus = { available: true, backend }
-  credentialStore = new CredentialStore(join(app.getPath('userData'), 'credentials.json'), {
-    encrypt: (value) => safeStorage.encryptStringAsync(value),
-    decrypt: (value) => safeStorage.decryptStringAsync(value)
-  })
-  await credentialStore.load()
-}
+const { handleCredentialCandidate, configureCredentialStore } = createCredentialRuntime({
+  text,
+  showMessageBox,
+  mainWindow: () => mainWindow,
+  credentialStorageStatus: () => credentialStorageStatus,
+  setCredentialStorageStatus: (status) => { credentialStorageStatus = status },
+  credentialStore: () => credentialStore,
+  setCredentialStore: (store) => { credentialStore = store },
+  publishCredentials
+})
 
 function publishSitePermissions(): void {
   sendToShellWindows('permissions:changed', sitePermissionStore?.list() ?? [])
@@ -1241,84 +1124,21 @@ function assertAddressOverlaySender(event: Electron.IpcMainEvent): void {
   }
 }
 
-function trustedAgentCardUrl(): string {
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-    return new URL('agent-card.html', trustedShellUrl()).href
-  }
-  return pathToFileURL(join(__dirname, '../renderer/agent-card.html')).href
-}
-
-/** One transparent view, created on the first agent card, draws the card above the page views. */
-const agentCardBlurWatched = new WeakSet<Electron.WebContents>()
-
-async function ensureAgentCardSurface(): Promise<AgentCardSurface> {
-  const { view, webContents } = await agentCardView.ensure()
-  if (!agentCardBlurWatched.has(webContents)) {
-    agentCardBlurWatched.add(webContents)
-    webContents.on('blur', () => agentCards.blurred())
-  }
-  return {
-    send: (state) => { if (!webContents.isDestroyed()) webContents.send('agent-card-view:state', state) },
-    setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
-    setBounds: (bounds) => view.setBounds(bounds),
-    present: () => agentCardView.present(),
-    withdraw: () => agentCardView.withdraw(),
-    focus: () => { if (!webContents.isDestroyed()) webContents.focus() },
-    isFocused: () => !webContents.isDestroyed() && webContents.isFocused(),
-    isDestroyed: () => webContents.isDestroyed()
-  }
-}
-
-function trustedToastOverlayUrl(): string {
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-    return new URL('toast-overlay.html', trustedShellUrl()).href
-  }
-  return pathToFileURL(join(__dirname, '../renderer/toast-overlay.html')).href
-}
-
-/** One transparent view, created on the first toast, draws it at the bottom of the page area. */
-const toastOverlayWatched = new WeakSet<Electron.WebContents>()
-
-async function ensureToastOverlaySurface(): Promise<ToastOverlaySurface> {
-  const { view, webContents } = await toastOverlayView.ensure()
-  if (!toastOverlayWatched.has(webContents)) {
-    toastOverlayWatched.add(webContents)
-    // A click in the toast leaves keyboard focus where it was, in the page or the shell.
-    webContents.on('before-mouse-event', () => toastOverlay.pointerActivity())
-    webContents.on('focus', () => toastOverlay.viewFocused())
-  }
-  return {
-    send: (state) => { if (!webContents.isDestroyed()) webContents.send('toast-overlay-view:state', state) },
-    setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
-    setBounds: (bounds) => view.setBounds(bounds),
-    present: () => toastOverlayView.present(),
-    withdraw: () => toastOverlayView.withdraw(),
-    isDestroyed: () => webContents.isDestroyed()
-  }
-}
-
-function trustedTooltipOverlayUrl(): string {
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-    return new URL('tooltip-overlay.html', trustedShellUrl()).href
-  }
-  return pathToFileURL(join(__dirname, '../renderer/tooltip-overlay.html')).href
-}
-
-/**
- * One transparent view, created on the first tooltip, draws the shell's tooltips above the page
- * views. It is in the window only while a tooltip shows.
- */
-async function ensureTooltipSurface(): Promise<ShellTooltipSurface> {
-  const { view, webContents } = await tooltipView.ensure()
-  return {
-    send: (state) => { if (!webContents.isDestroyed()) webContents.send('tooltip-overlay:state', state) },
-    setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
-    setBounds: (bounds) => view.setBounds(bounds),
-    present: () => tooltipView.present(),
-    withdraw: () => tooltipView.withdraw(),
-    isDestroyed: () => webContents.isDestroyed()
-  }
-}
+const {
+  trustedAgentCardUrl,
+  ensureAgentCardSurface,
+  trustedToastOverlayUrl,
+  ensureToastOverlaySurface,
+  trustedTooltipOverlayUrl,
+  ensureTooltipSurface
+} = createOverlaySurfaces({
+  trustedShellUrl,
+  agentCardView,
+  agentCards,
+  toastOverlayView,
+  toastOverlay,
+  tooltipView
+})
 
 function validAddressSuggestion(value: unknown): value is AddressSuggestion {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
@@ -1472,39 +1292,36 @@ async function ensureAddressSuggestionView(sessionId: number): Promise<AddressSu
   }
 }
 
-function detachedPanelTitle(panel: DetachablePanelId): string {
-  const keys: Record<DetachablePanelId, MessageKey> = {
-    'site-controls': 'panels.siteControls',
-    'site-storage': 'panels.siteStorage',
-    'page-tools': 'panels.pageTools',
-    'responsive-preview': 'panels.responsivePreview',
-    environment: 'panels.environment',
-    accessibility: 'panels.accessibility',
-    'quality-audit': 'panels.qualityAudit',
-    performance: 'panels.performance',
-    'design-overview': 'panels.designOverview',
-    'page-metadata': 'panels.pageMetadata',
-    security: 'panels.security',
-    coverage: 'panels.coverage',
-    'cpu-profile': 'panels.cpuProfile',
-    memory: 'panels.memory',
-    console: 'panels.console',
-    network: 'panels.network',
-    'debug-report': 'panels.debugReport',
-    'repro-recorder': 'panels.reproRecorder',
-    'dom-changes': 'panels.domChanges',
-    'visual-compare': 'panels.visualCompare',
-    issues: 'panels.issues',
-    bookmarks: 'panels.bookmarks'
-  }
-  return text('panels.title', { panel: text(keys[panel]) })
-}
-
-function trustedPanelShellUrl(panel: DetachablePanelId): string {
-  const url = new URL(trustedShellUrl())
-  url.searchParams.set('hronautPanel', panel)
-  return url.href
-}
+const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
+  text,
+  trustedShellUrl,
+  mainWindow: () => mainWindow,
+  panelWindow: () => panelWindow,
+  setPanelWindow: (window) => { panelWindow = window },
+  setPanelWindowUrl: (url) => { panelWindowUrl = url },
+  panelWindowPanel: () => panelWindowPanel,
+  setPanelWindowPanel: (panel) => { panelWindowPanel = panel },
+  panelWindowRedocking: () => panelWindowRedocking,
+  setPanelWindowRedocking: (value) => { panelWindowRedocking = value },
+  sendToPanelWindow,
+  settings: () => settings,
+  resolvedTheme,
+  themeBackground: THEME_BACKGROUND,
+  tabs: () => tabsManager,
+  currentRendererSettingsState,
+  updateState: () => updateState,
+  currentMcpControlState,
+  credentialStore: () => credentialStore,
+  sitePermissionStore: () => sitePermissionStore,
+  bookmarkStore: () => bookmarkStore,
+  historyStore: () => historyStore,
+  panelWindowStateStore: () => panelWindowStateStore,
+  lastPanelWindowState: () => lastPanelWindowState,
+  setLastPanelWindowState: (state) => { lastPanelWindowState = state },
+  currentPanelWindowState,
+  schedulePanelWindowStateSave,
+  flushPanelWindowState
+})
 
 function trustedUrlMatches(actual: string | undefined, expected: string): boolean {
   return Boolean(actual && (actual === expected || actual.startsWith(`${expected}#`)))
@@ -1571,136 +1388,6 @@ function walletAgentContext(target: WalletAgentToolTarget): WalletBrokerContext 
       name: target.client.version ? `${target.client.name} ${target.client.version}` : target.client.name
     },
     ...(target.signal ? { signal: target.signal } : {})
-  }
-}
-
-function sendPanelWindowSnapshot(target: BrowserWindow): void {
-  if (target.isDestroyed() || target.webContents.isDestroyed()) return
-  target.webContents.send('browser:state-changed', tabsManager?.getState())
-  target.webContents.send('browser:downloads-changed', tabsManager?.listDownloads() ?? [])
-  target.webContents.send('settings:changed', settings)
-  target.webContents.send('settings:renderer-state-changed', currentRendererSettingsState())
-  target.webContents.send('updates:changed', updateState)
-  target.webContents.send('mcp:changed', currentMcpControlState())
-  target.webContents.send('credentials:changed', credentialStore?.list() ?? [])
-  target.webContents.send('permissions:changed', sitePermissionStore?.list() ?? [])
-  target.webContents.send('bookmarks:changed', bookmarkStore?.list() ?? [])
-  target.webContents.send('visit-history:changed', historyStore?.list() ?? [])
-}
-
-async function openPanelWindow(panel: DetachablePanelId): Promise<void> {
-  if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The Hronaut window is not available')
-  const ownerWindow = mainWindow
-  panelWindowPanel = panel
-  if (panelWindowOpening) {
-    await panelWindowOpening
-    const requestedPanel = panelWindowPanel
-    if (requestedPanel && panelWindow && !panelWindow.isDestroyed()) {
-      panelWindow.setTitle(detachedPanelTitle(requestedPanel))
-      sendToPanelWindow('panel-window:show-panel', requestedPanel)
-      if (panelWindow.isMinimized()) panelWindow.restore()
-      panelWindow.show()
-      panelWindow.focus()
-    }
-    return
-  }
-  if (panelWindow && !panelWindow.isDestroyed()) {
-    panelWindow.setTitle(detachedPanelTitle(panel))
-    sendToPanelWindow('panel-window:show-panel', panel)
-    if (panelWindow.isMinimized()) panelWindow.restore()
-    panelWindow.show()
-    panelWindow.focus()
-    return
-  }
-
-  const opening = (async () => {
-    const mainBounds = ownerWindow.getBounds()
-    const width = Math.min(720, Math.max(480, Math.round(mainBounds.width * 0.42)))
-    const height = Math.min(900, Math.max(560, mainBounds.height))
-    const displays = screen.getAllDisplays()
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const orderedDisplays = [primaryDisplay, ...displays.filter((display) => display.id !== primaryDisplay.id)]
-    const savedPanelState = lastPanelWindowState ?? await panelWindowStateStore?.load() ?? null
-    if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The Hronaut window is not available')
-    const panelBounds = savedPanelState
-      ? restoreWindowBounds(savedPanelState, orderedDisplays, { width, height })
-      : {
-          width,
-          height,
-          x: mainBounds.x + Math.max(0, mainBounds.width - width),
-          y: mainBounds.y
-        }
-    const initialPanel = panelWindowPanel ?? panel
-    const expectedUrl = trustedPanelShellUrl(initialPanel)
-    const created = new BrowserWindow({
-      ...panelBounds,
-      minWidth: 420,
-      minHeight: 440,
-      show: false,
-      title: detachedPanelTitle(initialPanel),
-      autoHideMenuBar: true,
-      backgroundColor: THEME_BACKGROUND[resolvedTheme(settings.theme)],
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.cjs'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true
-      }
-    })
-    created.webContents.setZoomFactor(settings.interfaceScale)
-    panelWindow = created
-    panelWindowUrl = expectedUrl
-    panelWindowRedocking = false
-    created.setMenuBarVisibility(false)
-    created.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-    created.webContents.on('will-navigate', (event, url) => {
-      if (url !== expectedUrl) event.preventDefault()
-    })
-    created.webContents.once('did-finish-load', () => {
-      const requestedPanel = panelWindowPanel ?? initialPanel
-      created.webContents.setZoomFactor(settings.interfaceScale)
-      created.setTitle(detachedPanelTitle(requestedPanel))
-      sendPanelWindowSnapshot(created)
-      created.webContents.send('panel-window:show-panel', requestedPanel)
-    })
-    created.once('ready-to-show', () => {
-      if (!created.isDestroyed()) created.show()
-    })
-    created.on('resize', schedulePanelWindowStateSave)
-    created.on('move', schedulePanelWindowStateSave)
-    created.on('maximize', schedulePanelWindowStateSave)
-    created.on('unmaximize', schedulePanelWindowStateSave)
-    created.on('enter-full-screen', schedulePanelWindowStateSave)
-    created.on('leave-full-screen', schedulePanelWindowStateSave)
-    created.on('close', () => {
-      lastPanelWindowState = currentPanelWindowState() ?? lastPanelWindowState
-    })
-    created.on('closed', () => {
-      if (panelWindow !== created) return
-      const redocking = panelWindowRedocking
-      panelWindow = null
-      panelWindowUrl = null
-      panelWindowPanel = null
-      panelWindowRedocking = false
-      void flushPanelWindowState().catch((error) => console.error('[panel-window] Failed to flush state:', error))
-      if (!redocking && mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-        mainWindow.webContents.send('panel-window:closed')
-      }
-    })
-
-    await loadNativeWindowWithRollback(created, expectedUrl, () => {
-      if (panelWindow !== created) return
-      panelWindow = null
-      panelWindowUrl = null
-      panelWindowPanel = null
-      panelWindowRedocking = false
-    })
-  })()
-  panelWindowOpening = opening
-  try {
-    await opening
-  } finally {
-    if (panelWindowOpening === opening) panelWindowOpening = null
   }
 }
 
@@ -2536,122 +2223,6 @@ async function createWindow(startMinimized = false): Promise<void> {
   if (savedWindowState?.maximized) mainWindow.maximize()
   if (savedWindowState?.fullScreen) mainWindow.setFullScreen(true)
   if (!startMinimized) mainWindow.show()
-}
-
-function configureBrowserSession(browserSession: Session): void {
-  if (configuredBrowserSessions.has(browserSession)) return
-  configuredBrowserSessions.add(browserSession)
-  browserSession.setDownloadPath(effectiveDownloadDirectory())
-  browserSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details) => {
-    const requestingUrl = details.requestingUrl || details.securityOrigin || requestingOrigin
-    const origin =
-      normalizeSitePermissionOrigin(requestingOrigin) ??
-      normalizeSitePermissionOrigin(details.securityOrigin || '') ??
-      normalizeSitePermissionOrigin(requestingUrl)
-    if (permission === 'media' || permission === 'fileSystem') return false
-    return Boolean(origin && sitePermissionStore?.get(origin, permission) === 'allow')
-  })
-  browserSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    let responded = false
-    const respond = (allowed: boolean): void => {
-      if (responded) return
-      responded = true
-      callback(allowed)
-    }
-    const requestingUrl = details.requestingUrl || webContents.getURL()
-    if (isHronautHomeUrl(requestingUrl)) {
-      respond(false)
-      return
-    }
-    const origin = normalizeSitePermissionOrigin(requestingUrl)
-    if (!origin) {
-      respond(false)
-      return
-    }
-    const requiresFreshConsent = permission === 'media' || permission === 'fileSystem'
-    const remembered = requiresFreshConsent ? undefined : sitePermissionStore?.get(origin, permission)
-    if (remembered) {
-      respond(remembered === 'allow')
-      return
-    }
-    const requestingFrameTreeNodeId = (() => {
-      if (webContents.isDestroyed()) return null
-      if (details.isMainFrame) return webContents.mainFrame.frameTreeNodeId
-      const matchingFrames = webContents.mainFrame.framesInSubtree.filter(
-        (frame) => !frame.detached && frame.url === requestingUrl
-      )
-      return matchingFrames.length === 1 ? matchingFrames[0]?.frameTreeNodeId ?? null : null
-    })()
-    if (requestingFrameTreeNodeId === null) {
-      respond(false)
-      return
-    }
-    const currentRequestOrigin = (): string | null => webContents.isDestroyed()
-      ? null
-      : normalizeSitePermissionOrigin(webContents.mainFrame.framesInSubtree.find(
-        (frame) => frame.frameTreeNodeId === requestingFrameTreeNodeId && !frame.detached
-      )?.url ?? '')
-    const permissionDetail = (() => {
-      if (permission === 'media' && 'mediaTypes' in details) {
-        const types = details.mediaTypes?.map((type) => text(type === 'video' ? 'native.dialog.camera' : 'native.dialog.microphone')) ?? []
-        return types.length
-          ? text('native.dialog.requestedDevices', { devices: types.join(text('native.dialog.and')) })
-          : text('native.dialog.devicesUnknown')
-      }
-      if (permission === 'fileSystem' && 'filePath' in details) {
-        const access = details.fileAccessType ?? text('native.dialog.unspecifiedAccess')
-        return text('native.dialog.requestedFile', { access, path: details.filePath || text('native.dialog.unspecifiedPath') })
-      }
-      return text('native.dialog.permissionRemember')
-    })()
-    queuePermissionRequest(async () => {
-      try {
-        if (currentRequestOrigin() !== origin) {
-          respond(false)
-          return
-        }
-        const currentRemembered = requiresFreshConsent ? undefined : sitePermissionStore?.get(origin, permission)
-        if (currentRemembered) {
-          respond(currentRemembered === 'allow')
-          return
-        }
-        const { response } = await showMessageBox({
-          type: 'question',
-          title: text('native.dialog.sitePermission'),
-          message: text('native.dialog.permissionRequest', { origin, permission }),
-          detail: requiresFreshConsent
-            ? text('native.dialog.permissionAskAgain', { detail: permissionDetail })
-            : text('native.dialog.permissionSettings', { detail: permissionDetail }),
-          buttons: [text('native.dialog.deny'), text('native.dialog.allow')],
-          defaultId: 0,
-          cancelId: 0
-        })
-        if (currentRequestOrigin() !== origin) {
-          respond(false)
-          return
-        }
-        const decision: SitePermissionDecision = response === 1 ? 'allow' : 'deny'
-        try {
-          if (!requiresFreshConsent) {
-            await sitePermissionStore?.set(origin, permission, decision)
-            publishSitePermissions()
-          }
-        } catch (error) {
-          console.error('[permissions] Failed to persist site permission:', error)
-        }
-        respond(decision === 'allow')
-      } catch {
-        respond(false)
-      }
-    })
-  })
-}
-
-async function configurePersistentSession(): Promise<void> {
-  sitePermissionStore = new SitePermissionStore(join(app.getPath('userData'), 'site-permissions.json'))
-  await sitePermissionStore.load()
-  persistentSession = session.fromPartition(PARTITION, { cache: true })
-  configureBrowserSession(persistentSession)
 }
 
 async function releaseRuntimeResources(): Promise<void> {

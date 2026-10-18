@@ -12,6 +12,10 @@ than the entire browser runtime.
   Startup features are controllers built from the same kind of host:
   `main/windows/application-menu.ts`, `main/windows/window-state-persistence.ts`,
   `main/tray-attention.ts`, `main/commercial-license-runtime.ts` and `main/app-updates.ts`.
+  Browser sessions, clipboard copies, saved passwords, overlay view surfaces and the
+  detached panel window are built the same way: `main/browser-session.ts`,
+  `main/clipboard-operations.ts`, `main/credential-runtime.ts`,
+  `main/windows/overlay-surfaces.ts` and `main/windows/panel-window.ts`.
 - `browser/tabs-manager.ts` remains the **TabRuntime** host: Electron contents,
   navigation generations, input, storage operations, native presentation, and
   persistence. `workspace-registry.ts` owns active/archive identity transitions,
