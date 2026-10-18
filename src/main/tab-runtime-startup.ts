@@ -32,8 +32,8 @@ interface TabRuntimeStartupHost {
 }
 
 /**
- * What the app does while saved workspaces are not up: browser actions from the tray and the application menu wait
- * until they are, and rejected workspace metadata ends startup with a recovery notice instead of a browser.
+ * What the app does while saved workspaces are not up: browser actions from the tray and the application menu are
+ * ignored until they are, and rejected workspace metadata ends startup with a recovery notice instead of a browser.
  */
 export function createTabRuntimeStartup(host: TabRuntimeStartupHost): {
   runNativeBrowserAction(action: string, callback: () => unknown): void

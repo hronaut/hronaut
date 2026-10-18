@@ -30,8 +30,8 @@ than the entire browser runtime.
   asking on the main window, changing the interface language, routing browser
   shortcuts pressed in pages and enabling Chromium's native WebMCP come from
   `main/windows/shell-windows.ts`, `main/interface-language.ts`,
-  `main/browser-shortcut-routing.ts` and `main/native-webmcp-switch.ts`. State that
-  several features read or change is one record that index.ts creates once, typed
+  `main/browser-shortcut-routing.ts` and `main/native-webmcp-switch.ts`. Most state
+  that several features read or change is one record that index.ts creates once, typed
   beside its owner: `McpRuntimeState` in
   `main/mcp-runtime.ts`, which starts, moves and resets the listener, `SettingsState`
   in `main/settings-runtime.ts`, which loads, commits and publishes settings and
