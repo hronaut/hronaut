@@ -1,5 +1,5 @@
 import type { WebContents } from 'electron'
-import type { BrowserNetworkRouteSummary } from '../../../shared/types.js'
+import type { BrowserEmulationState, BrowserNetworkRouteSummary } from '../../../shared/types.js'
 
 /** A retained request-condition rule, with the response it fulfills requests with. */
 export interface BrowserNetworkRouteRecord extends BrowserNetworkRouteSummary {
@@ -8,10 +8,10 @@ export interface BrowserNetworkRouteRecord extends BrowserNetworkRouteSummary {
 }
 
 /**
- * The tab fields request conditions read and write. The rules, their native
- * application state and the epochs belong to the tab, so the tab manager's
- * native application, paused-request handling, emulation and renderer
- * handling stay authoritative for them.
+ * The tab fields request conditions read and write, and the emulated network
+ * conditions their throttling joins. The rules, their native application
+ * state and the epochs belong to the tab, so the tab manager's emulation,
+ * DevTools and renderer handling can read and reset them too.
  */
 export interface NetworkConditionsTab {
   id: string
@@ -21,16 +21,37 @@ export interface NetworkConditionsTab {
   networkConditionApplication: 'confirmed' | 'pending' | 'unknown'
   networkConditionEpoch: number
   networkDebuggerEpoch: number
+  emulation: Pick<BrowserEmulationState, 'network'>
 }
 
 /**
- * What request conditions need from the tab manager, which keeps the tabs
- * and the native application of rules to a page private. Applying rules stays
- * in the manager because paused-request handling also refreshes them.
+ * What request conditions need from the tab manager, which keeps the tabs,
+ * its destroyed flag, the debugger queue, native network emulation, the
+ * paused request queues, the rule refresh timers and state publication
+ * private. The queues and timers stay manager fields because closing the
+ * browser clears them; native network emulation stays a manager method
+ * because emulation applies it too.
  */
 export interface NetworkConditionsAccess<Tab extends NetworkConditionsTab> {
+  /** The tab with this id, or the active tab; throws when there is none. */
   getTab(tabId?: string): Tab
+  /** The open tab with this id. */
   findTab(tabId: string): Tab | undefined
+  /** Whether the browser is closing. */
   isDestroyed(): boolean
-  applyNetworkRoutes(tab: Tab, validate?: () => void, recovery?: boolean, mutate?: () => void, markSubmitted?: () => void, admission?: () => void): Promise<void>
+  /** Runs a debugger operation in the page's queue, checking admission before each step when given. */
+  withDebugger<T>(webContents: WebContents, operation: () => Promise<T>, validateAdmission?: () => void): Promise<T>
+  /** Applies the emulated network conditions natively, together with the rules' throttling. */
+  applyNetworkEmulation(
+    webContents: WebContents,
+    preset: BrowserEmulationState['network'],
+    routes: BrowserNetworkRouteRecord[],
+    send: (method: string, params?: Record<string, unknown>) => Promise<unknown>
+  ): Promise<void>
+  /** The queue of paused requests of each page, by WebContents id. */
+  networkRouteQueues(): Map<number, Promise<void>>
+  /** The scheduled rule refresh of each page, by WebContents id. */
+  networkRouteRefreshTimers(): Map<number, NodeJS.Timeout>
+  /** Publishes the browser state, and saves it unless persist is false. */
+  changed(persist?: boolean): void
 }

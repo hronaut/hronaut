@@ -83,12 +83,14 @@ import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repr
 import type { BrowserNetworkRouteRecord, NetworkConditionsAccess } from './network-conditions/network-conditions-access.js'
 import {
   addNetworkRoute,
+  applyNetworkRoutes,
   clearNetworkRoutes,
   markNetworkConditionsUnknown,
   moveNetworkRoute,
   networkConditionPublication,
   networkConditionState,
   networkRoutes,
+  queueNetworkRouteRequest,
   removeNetworkRoute,
   requireNetworkConditionsKnown,
   setNetworkRouteEnabled
@@ -235,7 +237,6 @@ import {
   type NormalizedBrowserNetworkWaitOptions
 } from '../../shared/network-wait.js'
 import type { BrowserStorageSnapshot } from '../../shared/storage-changes.js'
-import { networkRoutePatternMatches } from '../../shared/network-routes.js'
 import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import type { ScreenshotsAccess } from './screenshots/screenshots-access.js'
 import { screenshot } from './screenshots/screenshots.js'
@@ -5109,18 +5110,24 @@ export class BrowserTabsManager {
   }
 
   /**
-   * The narrow view request conditions get of this manager's private tabs and
-   * native rule application. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still provide
-   * it. The delegates below return the feature's value or promise directly, so
-   * no extra ticks separate its final checks from the caller.
+   * The narrow view request conditions get of this manager's private tabs,
+   * destroyed flag, debugger queue, native network emulation, paused request
+   * queues, rule refresh timers and state publication. It is a prototype
+   * method rather than a field, so managers created without the constructor
+   * (as unit tests do) still provide it. The delegates below return the
+   * feature's value or promise directly, so no extra ticks separate its final
+   * checks from the caller.
    */
   private networkConditionsAccess(): NetworkConditionsAccess<BrowserTab> {
     return {
       getTab: (tabId) => this.getTab(tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       isDestroyed: () => this.destroyed,
-      applyNetworkRoutes: (tab, validate, recovery, mutate, markSubmitted, admission) => this.applyNetworkRoutes(tab, validate, recovery, mutate, markSubmitted, admission)
+      withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
+      applyNetworkEmulation: (webContents, preset, routes, send) => this.applyNetworkEmulation(webContents, preset, routes, send),
+      networkRouteQueues: () => this.networkRouteQueues,
+      networkRouteRefreshTimers: () => this.networkRouteRefreshTimers,
+      changed: (persist) => this.changed(persist)
     }
   }
 
@@ -7611,60 +7618,8 @@ export class BrowserTabsManager {
     ))
   }
 
-  private async applyNetworkRoutes(tab: BrowserTab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
-    const contents = tab.webContents
-    const scheduled = this.networkRouteRefreshTimers.get(contents.id)
-    if (scheduled) clearTimeout(scheduled)
-    this.networkRouteRefreshTimers.delete(contents.id)
-    const debuggerEpoch = tab.networkDebuggerEpoch
-    await this.withDebugger(contents, async () => {
-      validate()
-      if (!recovery) this.requireNetworkConditionsKnown(tab)
-      if (this.destroyed || contents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before application')
-      const previousRoutes = tab.networkRoutes
-      mutate?.()
-      let epoch = tab.networkConditionEpoch
-      const routes = tab.networkRoutes
-      // One immutable projection for Fetch and throttling, never reread between phases.
-      const projection = routes.map(route => ({ ...route }))
-      const network = tab.emulation.network
-      let submitted = false
-      const previous = tab.networkConditionApplication
-      const current = (): void => {
-        validate()
-        if (this.destroyed || contents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Request-condition application was superseded')
-      }
-      const send = async (method: string, params?: Record<string, unknown>): Promise<unknown> => {
-        current()
-        if (!submitted && recovery) { tab.networkConditionEpoch++; epoch = tab.networkConditionEpoch }
-        submitted = true
-        markSubmitted()
-        return contents.debugger.sendCommand(method, params)
-      }
-      tab.networkConditionApplication = 'pending'
-      try {
-        this.changed(false)
-        const interception = projection.filter(route => route.enabled && route.behavior !== 'throttle')
-        if (interception.length) await send('Fetch.enable', { patterns: [...new Set(interception.map(route => route.urlPattern))].map(urlPattern => ({ urlPattern })) })
-        else await send('Fetch.disable')
-        await this.applyNetworkEmulation(contents, network, projection, send)
-        // Native acknowledgement is independent of subsequent UI/MCP publication.
-        if (contents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Request-condition acknowledgement belongs to a retired configuration')
-        tab.networkConditionApplication = 'confirmed'
-      } catch (error) {
-        if (this.tabs.get(tab.id) === tab && tab.webContents === contents && tab.networkConditionEpoch === epoch) {
-          if (submitted || tab.networkRoutes !== routes) this.markNetworkConditionsUnknown(tab)
-          else {
-            tab.networkRoutes = previousRoutes
-            tab.networkConditionApplication = previous
-          }
-          this.changed(false)
-        }
-        throw error
-      }
-      this.changed(false)
-      validate()
-    }, admission)
+  private applyNetworkRoutes(tab: BrowserTab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
+    return applyNetworkRoutes(this.networkConditionsAccess(), tab, validate, recovery, mutate, markSubmitted, admission)
   }
 
   private isHumanInteractionLocked(tab: BrowserTab): boolean {
@@ -8656,101 +8611,8 @@ export class BrowserTabsManager {
     addInspectorIssue(this.inspectorIssuesAccess(), tab, value, notify)
   }
 
-  private async handleNetworkRouteRequest(tab: BrowserTab, params: unknown, requestEpoch: number): Promise<void> {
-    if (tab.networkConditionEpoch !== requestEpoch) return
-    const details = params as {
-      requestId?: string
-      request?: { url?: string; method?: string }
-    }
-    const requestId = details.requestId
-    const url = details.request?.url
-    const method = details.request?.method?.toUpperCase()
-    if (!requestId || !url || !method || tab.webContents.isDestroyed()) return
-
-    const ownedRoutes = tab.networkRoutes
-    const route = ownedRoutes.find((candidate) => (
-      candidate.enabled && (!candidate.method || candidate.method === method)
-      && networkRoutePatternMatches(candidate.urlPattern, url)
-    ))
-
-    try {
-      if (!route) {
-        await tab.webContents.debugger.sendCommand('Fetch.continueRequest', { requestId })
-        return
-      }
-      if (route.behavior === 'throttle') {
-        await tab.webContents.debugger.sendCommand('Fetch.continueRequest', { requestId })
-        return
-      }
-      // Reserve the match once before disposition. Lost acknowledgements never
-      // restore a consumed budget or cause a second disposition for this request.
-      route.remainingMatches = (route.remainingMatches ?? 1) - 1
-      if (route.remainingMatches <= 0) {
-        tab.networkRoutes = tab.networkRoutes.filter(candidate => candidate !== route)
-        if (tab.networkConditionApplication === 'confirmed') tab.networkConditionApplication = 'pending'
-      }
-      if (route.behavior === 'abort') {
-        await tab.webContents.debugger.sendCommand('Fetch.failRequest', {
-          requestId,
-          errorReason: route.abort
-        })
-      } else {
-        const responseHeaders = Object.entries(route.responseHeaders ?? {}).map(([name, value]) => ({ name, value }))
-        await tab.webContents.debugger.sendCommand('Fetch.fulfillRequest', {
-          requestId,
-          responseCode: route.response?.status ?? 200,
-          responseHeaders,
-          body: Buffer.from(route.responseBody ?? '').toString('base64')
-        })
-      }
-      this.changed(false)
-    } catch (error) {
-      console.error('[browser] Could not apply network route:', error)
-      // A submitted disposition may already have taken effect. Never replay it
-      // as continue after losing its acknowledgement.
-      if (this.tabs.get(tab.id) === tab && tab.networkConditionEpoch === requestEpoch) {
-        this.markNetworkConditionsUnknown(tab)
-        this.changed(false)
-      }
-    }
-  }
-
   private queueNetworkRouteRequest(tab: BrowserTab, params: unknown): void {
-    const webContentsId = tab.webContents.id
-    const requestEpoch = tab.networkConditionEpoch
-    const previous = this.networkRouteQueues.get(webContentsId) ?? Promise.resolve()
-    const queued = previous
-      .catch(() => undefined)
-      .then(() => this.handleNetworkRouteRequest(tab, params, requestEpoch))
-      .catch((error: unknown) => console.error('[browser] Network route queue failed:', error))
-    this.networkRouteQueues.set(webContentsId, queued)
-    void queued.finally(() => {
-      if (this.networkRouteQueues.get(webContentsId) !== queued) return
-      this.networkRouteQueues.delete(webContentsId)
-      this.scheduleNetworkRouteRefresh(tab)
-    })
-  }
-
-  private scheduleNetworkRouteRefresh(tab: BrowserTab): void {
-    const webContentsId = tab.webContents.id
-    const previous = this.networkRouteRefreshTimers.get(webContentsId)
-    if (previous) clearTimeout(previous)
-    const timer = setTimeout(() => {
-      this.networkRouteRefreshTimers.delete(webContentsId)
-      if (this.destroyed || tab.webContents.isDestroyed() || tab.networkConditionApplication === 'unknown') return
-      if (this.networkRouteQueues.has(webContentsId)) {
-        this.scheduleNetworkRouteRefresh(tab)
-        return
-      }
-      // Let fulfilled response bodies reach the page before changing Fetch patterns.
-      void this.applyNetworkRoutes(tab).catch((error: unknown) => {
-        if (!this.destroyed && !tab.webContents.isDestroyed()) {
-          console.error('[browser] Could not refresh network route patterns:', error)
-        }
-      })
-    }, 250)
-    timer.unref()
-    this.networkRouteRefreshTimers.set(webContentsId, timer)
+    queueNetworkRouteRequest(this.networkConditionsAccess(), tab, params)
   }
 
   private prepareDiagnosticNavigation(tab: BrowserTab): void {
