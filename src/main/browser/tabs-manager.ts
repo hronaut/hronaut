@@ -481,6 +481,8 @@ import type { TabMutingAccess } from './tab-muting/tab-muting-access.js'
 import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
 import type { AgentStepThumbnailAccess } from './agent-step-thumbnail/agent-step-thumbnail-access.js'
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
+import type { TrustedChromeFocusAccess } from './trusted-chrome-focus/trusted-chrome-focus-access.js'
+import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome } from './trusted-chrome-focus/trusted-chrome-focus.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -5470,31 +5472,25 @@ export class BrowserTabsManager {
   }
 
   /**
-   * Trusted chrome keeps the page under it while its exit plays, so a page
-   * focused then would take keys typed into the shell. The page takes focus
-   * when trusted chrome closes instead, unless the human clicks or presses a
-   * key in the shell first.
+   * The narrow view focusing a page around trusted chrome gets of this
+   * manager's private window, human interaction lock, agent input, trusted
+   * chrome occlusion and pending focus. It is a prototype method rather than
+   * a field, so managers created without the constructor (as unit tests do)
+   * still provide it.
    */
-  private focusTabAfterTrustedChrome(tab: BrowserTab): void {
-    this.cancelFocusAfterTrustedChrome()
-    const shell = this.window.webContents
-    const onInput = (_event: Electron.Event, input: Electron.InputEvent): void => {
-      if (input.type === 'mouseDown' || input.type === 'rawKeyDown' || input.type === 'keyDown') this.cancelFocusAfterTrustedChrome()
-    }
-    shell.on('input-event', onInput)
-    this.focusAfterTrustedChrome = {
-      tab,
-      cancel: () => {
-        if (!shell.isDestroyed()) shell.removeListener('input-event', onInput)
-      }
+  private trustedChromeFocusAccess(): TrustedChromeFocusAccess<BrowserTab> {
+    return {
+      window: () => this.window,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      agentInputWebContents: () => this.agentInputWebContents,
+      browserContentOccluded: () => this.browserContentOccluded,
+      focusAfterTrustedChrome: () => this.focusAfterTrustedChrome,
+      setFocusAfterTrustedChrome: (pending) => { this.focusAfterTrustedChrome = pending }
     }
   }
 
   private cancelFocusAfterTrustedChrome(): BrowserTab | undefined {
-    const pending = this.focusAfterTrustedChrome
-    this.focusAfterTrustedChrome = undefined
-    pending?.cancel()
-    return pending?.tab
+    return cancelFocusAfterTrustedChrome(this.trustedChromeFocusAccess())
   }
 
   /** The shell shows the snapshot with this ID under trusted chrome, so the pages can leave the screen. */
@@ -6810,18 +6806,7 @@ export class BrowserTabsManager {
   }
 
   private focusTabOrTrustedChrome(tab: BrowserTab): void {
-    // Tab creation, replacement and renderer recovery also run in the
-    // background. Only transfer keyboard focus inside an already active shell.
-    if (this.window.isDestroyed() || !this.window.isFocused()) return
-    if (this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(tab.webContents.id)) {
-      this.window.webContents.focus()
-      return
-    }
-    if (this.browserContentOccluded && !this.agentInputWebContents.has(tab.webContents.id)) {
-      this.focusTabAfterTrustedChrome(tab)
-      return
-    }
-    tab.webContents.focus()
+    focusTabOrTrustedChrome(this.trustedChromeFocusAccess(), tab)
   }
 
   /**
