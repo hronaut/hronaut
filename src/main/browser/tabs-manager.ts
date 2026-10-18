@@ -178,8 +178,8 @@ import { McpActivityFollowController, type FollowAgent } from './mcp-activity-fo
 import { dispatchNativeKeyPress, type KeyboardDebugger } from './native-keyboard.js'
 import { dispatchNativeDrag, type PointerDebugger } from './native-pointer.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
-import { accessibilityAuditPageScript, normalizeAccessibilityAuditOptions } from '../../shared/accessibility-audit.js'
-import { accessibilityBaselineSummary, buildAccessibilityComparison } from '../../shared/accessibility-comparison.js'
+import type { PageAuditsAccess } from './page-audits/page-audits-access.js'
+import { accessibilityAudit } from './page-audits/accessibility-audit.js'
 import { buildBrowserDebugReport } from '../../shared/debug-report.js'
 import { recordTrustedCredentialFill } from './trusted-credential-fill.js'
 import {
@@ -194,19 +194,14 @@ import {
   type CdpRuntimeExceptionDetails
 } from '../../shared/console-exceptions.js'
 import { countConsoleEvents } from '../../shared/console-messages.js'
-import { buildBrowserSecurityReport } from '../../shared/security-report.js'
+import { securityReport } from './page-audits/security-report.js'
 import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
 import { WorkspaceTemplateImporter } from './workspace-template-import.js'
 import type { WorkspaceTemplateImportResult } from '../../shared/workspace-template.js'
-import {
-  buildPerformanceComparison,
-  normalizePerformanceOptions,
-  performanceAuditPageScript,
-  sanitizePerformanceReport
-} from '../../shared/performance-audit.js'
-import { designOverviewPageScript } from '../../shared/design-overview.js'
+import { performanceReport } from './page-audits/performance-report.js'
+import { designOverview } from './page-audits/design-overview.js'
 import { PageMetadataController } from './diagnostics/page-metadata-controller.js'
-import { buildBrowserQualityAudit } from '../../shared/quality-audit.js'
+import { qualityAudit } from './page-audits/quality-audit.js'
 import type { WebMcpToolDescriptor } from './webmcp-bridge.js'
 import {
   formatElementInspectionForAgent,
@@ -495,9 +490,6 @@ const MAX_AGENT_STEP_THUMBNAIL_BYTES = 48 * 1024
 const MIN_SHELL_HEIGHT = 44
 const PAGE_ZOOM_STEPS = [50, 60, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300, 400] as const
 const ABORTED_LOAD_ERROR = -3
-const ACCESSIBILITY_AUDIT_WORLD_ID = ISOLATED_WORLDS.accessibilityAudit
-const PERFORMANCE_AUDIT_WORLD_ID = ISOLATED_WORLDS.performanceAudit
-const DESIGN_OVERVIEW_WORLD_ID = ISOLATED_WORLDS.designOverview
 const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
 const AGENT_POINTER_WORLD_ID = ISOLATED_WORLDS.agentPointer
 const CREDENTIAL_CAPTURE_WORLD_ID = ISOLATED_WORLDS.credentialCapture
@@ -4507,142 +4499,40 @@ export class BrowserTabsManager {
     return findSnapshot(this.pageSnapshotsAccess(), options)
   }
 
-  async accessibilityAudit(options: BrowserAccessibilityAuditOptions = {}): Promise<BrowserAccessibilityAudit> {
-    const tab = this.getTab(options.tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before running an accessibility audit')
-    const navigationGeneration = tab.navigationGeneration
-    const normalized = normalizeAccessibilityAuditOptions(options)
-    const baselineGeneration = normalized.action === 'measure'
-      ? undefined
-      : ++tab.accessibilityBaselineGeneration
-    const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
-      ACCESSIBILITY_AUDIT_WORLD_ID,
-      [{ code: accessibilityAuditPageScript(axe.source, normalized) }],
-      false
-    ) as Omit<
-      BrowserAccessibilityAudit,
-      'tabId' | 'action' | 'standard' | 'scope' | 'baseline' | 'comparison' | 'baselineCleared'
-    >
-    const current = this.tabs.get(tab.id)
-    if (
-      !current
-      || current !== tab
-      || current.webContents.isDestroyed()
-      || current.navigationGeneration !== navigationGeneration
-    ) {
-      throw new Error('The page changed during the accessibility audit. Run a fresh audit.')
+  /**
+   * The narrow view page audits get of this manager's private tabs, the tab's
+   * emulated environment, the audit page script sources this module loads,
+   * page metadata, PWA inspection and browser issues. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it. The delegates below return the feature's value
+   * or promise directly, so no extra ticks separate its final checks from the
+   * caller.
+   */
+  private pageAuditsAccess(): PageAuditsAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      axeSource: () => axe.source,
+      webVitalsSource: () => webVitalsSource,
+      webVitalsVersion: () => webVitalsVersion,
+      performanceEnvironment: (tab) => this.performanceEnvironment(tab),
+      performanceEnvironmentFingerprint: (tab) => this.performanceEnvironmentFingerprint(tab),
+      pageMetadata: (tabId) => this.pageMetadata(tabId),
+      inspectPwa: (options) => this.inspectPwa(options),
+      inspectorIssues: (tabId) => this.inspectorIssues(tabId)
     }
-    if (
-      baselineGeneration !== undefined
-      && tab.accessibilityBaselineGeneration !== baselineGeneration
-    ) {
-      throw new Error('Accessibility baseline changed while the audit was pending. Run the requested action again.')
-    }
-    const audit: BrowserAccessibilityAudit = {
-      ...result,
-      tabId: tab.id,
-      action: normalized.action,
-      standard: normalized.standard,
-      scope: {
-        selector: normalized.selector ?? null,
-        maxViolations: normalized.maxViolations,
-        maxNodesPerViolation: normalized.maxNodesPerViolation
-      }
-    }
-    if (normalized.action === 'clear-baseline') {
-      const baselineCleared = Boolean(tab.accessibilityBaseline)
-      tab.accessibilityBaseline = undefined
-      return { ...audit, baselineCleared }
-    }
-    if (normalized.action === 'set-baseline') {
-      tab.accessibilityBaseline = { ...audit, action: 'measure' }
-      return { ...audit, baseline: accessibilityBaselineSummary(audit) }
-    }
-    const baseline = tab.accessibilityBaseline
-    return baseline
-      ? {
-          ...audit,
-          baseline: accessibilityBaselineSummary(baseline),
-          comparison: buildAccessibilityComparison(baseline, audit)
-        }
-      : audit
   }
 
-  async performanceReport(options: BrowserPerformanceOptions = {}): Promise<BrowserPerformanceReport> {
-    const tab = this.getTab(options.tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before measuring performance')
-    const navigationGeneration = tab.navigationGeneration
-    const normalized = normalizePerformanceOptions(options)
-    const environment = this.performanceEnvironment(tab)
-    const environmentFingerprint = this.performanceEnvironmentFingerprint(tab)
-    const baselineGeneration = normalized.action === 'measure'
-      ? undefined
-      : ++tab.performanceBaselineGeneration
-    const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
-      PERFORMANCE_AUDIT_WORLD_ID,
-      [{ code: performanceAuditPageScript(webVitalsSource, normalized, webVitalsVersion, tab.performanceDocumentRouted === true) }],
-      false
-    ) as Omit<BrowserPerformanceReport, 'tabId'>
-    const current = this.tabs.get(tab.id)
-    if (
-      !current
-      || current !== tab
-      || current.webContents.isDestroyed()
-      || current.navigationGeneration !== navigationGeneration
-    ) {
-      throw new Error('The page changed during the performance measurement. Run a fresh measurement.')
-    }
-    if (
-      baselineGeneration !== undefined
-      && tab.performanceBaselineGeneration !== baselineGeneration
-    ) {
-      throw new Error('Performance baseline changed while the measurement was pending. Run the requested action again.')
-    }
-    const report = sanitizePerformanceReport({ tabId: tab.id, ...result })
-    if (this.performanceEnvironmentFingerprint(tab) !== environmentFingerprint) {
-      throw new Error('The browser environment changed during the performance measurement. Run a fresh measurement.')
-    }
-    if (normalized.action === 'clear-baseline') {
-      const baselineCleared = Boolean(tab.performanceBaseline)
-      tab.performanceBaseline = undefined
-      return { ...report, action: normalized.action, baselineCleared }
-    }
-    if (normalized.action === 'set-baseline') {
-      tab.performanceBaseline = { report, environment, environmentFingerprint }
-      return {
-        ...report,
-        action: normalized.action,
-        baseline: { measuredAt: report.measuredAt, url: report.url, environment }
-      }
-    }
-    if (!tab.performanceBaseline) return { ...report, action: normalized.action }
-    const comparison = buildPerformanceComparison(
-      tab.performanceBaseline.report,
-      report,
-      tab.performanceBaseline.environment,
-      environment,
-      tab.performanceBaseline.environmentFingerprint === environmentFingerprint
-    )
-    const caveats = [...report.caveats]
-    if (!comparison.comparison.sameUrl) {
-      caveats.push('The baseline URL differs from this measurement; compare only if the navigation change was intentional.')
-    }
-    if (!comparison.comparison.sameEnvironment) {
-      caveats.push('The browser environment differs from the baseline; viewport, throttling, cache, headers, or locale changes can affect the delta.')
-    }
-    caveats.push('Before-and-after deltas compare two local samples and may include normal run-to-run variation; repeat important measurements under matching conditions.')
-    return { ...report, action: normalized.action, ...comparison, caveats }
+  accessibilityAudit(options: BrowserAccessibilityAuditOptions = {}): Promise<BrowserAccessibilityAudit> {
+    return accessibilityAudit(this.pageAuditsAccess(), options)
   }
 
-  async designOverview(tabId?: string): Promise<BrowserDesignOverviewReport> {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before capturing a design overview')
-    const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
-      DESIGN_OVERVIEW_WORLD_ID,
-      [{ code: designOverviewPageScript() }],
-      false
-    ) as Omit<BrowserDesignOverviewReport, 'tabId'>
-    return { ...result, tabId: tab.id, url: redactNetworkUrl(result.url) }
+  performanceReport(options: BrowserPerformanceOptions = {}): Promise<BrowserPerformanceReport> {
+    return performanceReport(this.pageAuditsAccess(), options)
+  }
+
+  designOverview(tabId?: string): Promise<BrowserDesignOverviewReport> {
+    return designOverview(this.pageAuditsAccess(), tabId)
   }
 
   pageMetadata(tabId?: string): Promise<BrowserPageMetadataReport> {
@@ -4650,36 +4540,11 @@ export class BrowserTabsManager {
   }
 
   securityReport(tabId?: string): BrowserSecurityReport {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting connection security')
-    const snapshot = tab.securitySnapshot
-    return buildBrowserSecurityReport({
-      tabId: tab.id,
-      url: redactNetworkUrl(tab.url),
-      title: tab.title,
-      checkedAt: snapshot?.checkedAt,
-      securityState: snapshot?.state,
-      protocol: snapshot?.protocol,
-      details: snapshot?.details
-    })
+    return securityReport(this.pageAuditsAccess(), tabId)
   }
 
-  async qualityAudit(tabId?: string): Promise<BrowserQualityAudit> {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before running a quality audit')
-    const auditedUrl = tab.url
-    const [accessibility, performance, metadata] = await Promise.all([
-      this.accessibilityAudit({ tabId: tab.id, standard: 'wcag-aa', maxViolations: 50, maxNodesPerViolation: 1 }),
-      this.performanceReport({ tabId: tab.id, settleMs: 800, action: 'measure' }),
-      this.pageMetadata(tab.id)
-    ])
-    const security = this.securityReport(tab.id)
-    const pwa = await this.inspectPwa({ tabId: tab.id, limit: 1 })
-    const browserIssues = await this.inspectorIssues(tab.id)
-    if (tab.url !== auditedUrl) {
-      throw new Error('The page navigated before the quality audit finished; run it again on the current document.')
-    }
-    return buildBrowserQualityAudit({ accessibility, performance, metadata, security, pwa, browserIssues })
+  qualityAudit(tabId?: string): Promise<BrowserQualityAudit> {
+    return qualityAudit(this.pageAuditsAccess(), tabId)
   }
 
   codeCoverage(options: BrowserCodeCoverageOptions = {}): Promise<BrowserCodeCoverageResult> {
