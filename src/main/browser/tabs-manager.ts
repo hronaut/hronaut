@@ -249,7 +249,6 @@ import { defaultTabGroupColor, type BrowserTabGroupColor } from '../../shared/ta
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
   isMemorySaverTimeoutMinutes,
-  memorySaverCutoff,
   type MemorySaverTimeoutMinutes
 } from '../../shared/memory-saver.js'
 import { uuidV7 } from '../uuid-v7.js'
@@ -470,6 +469,8 @@ import {
   wakeTab,
   watchUnsavedFormEdits
 } from './tab-sleep/tab-sleep.js'
+import type { MemorySaverAccess } from './tab-sleep/memory-saver-access.js'
+import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -2477,18 +2478,34 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
+  /**
+   * The narrow view Memory Saver's settings and sleep sweep get of this
+   * manager's private tabs, Memory Saver settings, settings generation and
+   * sweep queue, and of putting tabs to sleep and waking them. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's promise directly, so callers see the same ticks as
+   * before.
+   */
+  private memorySaverAccess(): MemorySaverAccess<BrowserTab> {
+    return {
+      tabs: () => this.tabs.values(),
+      isDestroyed: () => this.destroyed,
+      memorySaverEnabled: () => this.memorySaverEnabled,
+      setMemorySaverEnabled: (enabled) => { this.memorySaverEnabled = enabled },
+      memorySaverTimeoutMinutes: () => this.memorySaverTimeoutMinutes,
+      setMemorySaverTimeoutMinutes: (timeoutMinutes) => { this.memorySaverTimeoutMinutes = timeoutMinutes },
+      memorySaverSettingsGeneration: () => this.memorySaverSettingsGeneration,
+      setMemorySaverSettingsGeneration: (generation) => { this.memorySaverSettingsGeneration = generation },
+      memorySaverSweeps: () => this.memorySaverSweeps,
+      wakeTab: (tabId) => this.wakeTab(tabId),
+      putTabToSleep: (tab, reportBlocked, isCurrent) => this.putTabToSleep(tab, reportBlocked, isCurrent),
+      getState: () => this.getState()
+    }
+  }
+
   setMemorySaverSettings(enabled: boolean, timeoutMinutes: MemorySaverTimeoutMinutes): void {
-    if (!isMemorySaverTimeoutMinutes(timeoutMinutes)) throw new TypeError('Unsupported Memory Saver timeout')
-    if (this.memorySaverEnabled !== enabled || this.memorySaverTimeoutMinutes !== timeoutMinutes) {
-      this.memorySaverSettingsGeneration += 1
-    }
-    this.memorySaverEnabled = enabled
-    this.memorySaverTimeoutMinutes = timeoutMinutes
-    if (!enabled) {
-      for (const tab of this.tabs.values()) {
-        if (tab.sleeping) void this.wakeTab(tab.id).catch((error) => console.error('[browser] Could not wake tab after disabling Memory Saver:', error))
-      }
-    }
+    setMemorySaverSettings(this.memorySaverAccess(), enabled, timeoutMinutes)
   }
 
   setFollowAgentActivity(enabled: boolean): void {
@@ -2613,9 +2630,8 @@ export class BrowserTabsManager {
     return setTabSleepingFromContextMenu(this.tabSleepAccess(), tabId, sleeping)
   }
 
-  async sleepInactiveTabs(): Promise<BrowserState> {
-    await this.sweepMemorySaver(true)
-    return this.getState()
+  sleepInactiveTabs(): Promise<BrowserState> {
+    return sleepInactiveTabs(this.memorySaverAccess())
   }
 
   private sleepWorkspaceTabs(groupId: string): Promise<void> {
@@ -6796,20 +6812,8 @@ export class BrowserTabsManager {
     return putTabToSleep(this.tabSleepAccess(), tab, reportBlocked, isCurrent)
   }
 
-  private async sweepMemorySaver(force: boolean): Promise<void> {
-    return this.memorySaverSweeps.run(() => this.runMemorySaverSweep(force))
-  }
-
-  private async runMemorySaverSweep(force: boolean): Promise<void> {
-    if (!this.memorySaverEnabled) return
-    const generation = this.memorySaverSettingsGeneration
-    const isCurrent = () => !this.destroyed && this.memorySaverEnabled && generation === this.memorySaverSettingsGeneration
-    const cutoff = memorySaverCutoff(Date.now(), this.memorySaverTimeoutMinutes)
-    for (const tab of this.tabs.values()) {
-      if (!isCurrent()) return
-      if (tab.sleeping || (!force && tab.lastActiveAt > cutoff)) continue
-      await this.putTabToSleep(tab, false, isCurrent)
-    }
+  private sweepMemorySaver(force: boolean): Promise<void> {
+    return sweepMemorySaver(this.memorySaverAccess(), force)
   }
 
   private toState(tab: BrowserTab): BrowserTabState {
