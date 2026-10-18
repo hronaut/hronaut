@@ -37,8 +37,7 @@ import {
   shell,
   WebContentsView,
   webContents as allWebContents,
-  type MessageBoxOptions,
-  type Session
+  type MessageBoxOptions
 } from 'electron'
 import electronUpdater from 'electron-updater'
 import { createAppUpdates } from './app-updates.js'
@@ -88,8 +87,7 @@ import { DEFAULT_SETTINGS } from './settings-store.js'
 import { createSettingsRuntime, type SettingsState } from './settings-runtime.js'
 import { createAddressSuggestionOverlay } from './windows/address-suggestion-overlay.js'
 import { registerSettingsIpc } from './settings-ipc.js'
-import { createBrowserSession } from './browser-session.js'
-import type { SitePermissionStore } from './site-permission-store.js'
+import { createBrowserSession, type BrowserSessionState } from './browser-session.js'
 import { registerPermissionsIpc } from './permissions-ipc.js'
 import { WindowStateStore } from './window-state.js'
 import { createMainWindow, type MainWindowRefs } from './windows/main-window.js'
@@ -343,7 +341,10 @@ const {
   setLastState: (state) => { panelWindowRefs.lastState = state },
   logPrefix: '[panel-window]'
 })
-let persistentSession: Session | null = null
+const browserSessionState: BrowserSessionState = {
+  persistentSession: null,
+  sitePermissionStore: null
+}
 const settingsState: SettingsState = {
   store: null,
   persisted: { ...DEFAULT_SETTINGS },
@@ -353,7 +354,6 @@ const settingsState: SettingsState = {
   mutationQueue: Promise.resolve()
 }
 let startupLaunchManager: StartupLaunchManager | null = null
-let sitePermissionStore: SitePermissionStore | null = null
 const {
   text,
   defaultDownloadDirectory,
@@ -371,17 +371,14 @@ const {
   mcpRuntime,
   mcpAuthDisabled: MCP_AUTH_DISABLED,
   startupLaunchManager: () => startupLaunchManager,
-  persistentSession: () => persistentSession,
+  persistentSession: () => browserSessionState.persistentSession,
   tabs: () => tabsManager
 })
 const { configureBrowserSession, configurePersistentSession } = createBrowserSession({
   text,
   effectiveDownloadDirectory,
   showMessageBox,
-  sitePermissionStore: () => sitePermissionStore,
-  setSitePermissionStore: (store) => { sitePermissionStore = store },
-  persistentSession: () => persistentSession,
-  setPersistentSession: (value) => { persistentSession = value },
+  state: browserSessionState,
   publishSitePermissions,
   partition: PARTITION
 })
@@ -641,7 +638,7 @@ const { handleCredentialCandidate, configureCredentialStore } = createCredential
 })
 
 function publishSitePermissions(): void {
-  sendToShellWindows('permissions:changed', sitePermissionStore?.list() ?? [])
+  sendToShellWindows('permissions:changed', browserSessionState.sitePermissionStore?.list() ?? [])
 }
 
 function showMessageBox(options: MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
@@ -698,7 +695,7 @@ function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
 }
 
 function registerHomeProtocol(): void {
-  if (!persistentSession) throw new Error('Persistent session must be configured before registering Hronaut Home')
+  if (!browserSessionState.persistentSession) throw new Error('Persistent session must be configured before registering Hronaut Home')
   const homeSession = session.fromPartition(workspacePartition(PARTITION, 'home'), { cache: true })
   configureBrowserSession(homeSession)
   homeSession.protocol.handle('hronaut', createHomeProtocolHandler({
@@ -717,8 +714,8 @@ function registerHomeProtocol(): void {
 }
 
 async function flushBrowserProfile(): Promise<void> {
-  if (!persistentSession) return
-  await flushBrowserSessionStorage(persistentSession)
+  if (!browserSessionState.persistentSession) return
+  await flushBrowserSessionStorage(browserSessionState.persistentSession)
 }
 
 if (process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1') {
@@ -767,7 +764,7 @@ const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   updateState: () => updateState,
   currentMcpControlState,
   credentialStore: () => credentialRuntime.store,
-  sitePermissionStore: () => sitePermissionStore,
+  sitePermissionStore: () => browserSessionState.sitePermissionStore,
   bookmarkStore: () => bookmarkStore,
   historyStore: () => historyStore,
   currentPanelWindowState,
@@ -987,7 +984,7 @@ function registerIpc(): void {
     historyStore: () => historyStore,
     bookmarkStore: () => bookmarkStore,
     credentialStore: () => credentialRuntime.store,
-    sitePermissionStore: () => sitePermissionStore,
+    sitePermissionStore: () => browserSessionState.sitePermissionStore,
     mcpServer: () => mcpRuntime.server,
     publishVisitHistory,
     currentBrowsingDataSiteSummary
@@ -1055,7 +1052,7 @@ function registerIpc(): void {
   })
   registerPermissionsIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
-    sitePermissionStore: () => sitePermissionStore,
+    sitePermissionStore: () => browserSessionState.sitePermissionStore,
     publishSitePermissions
   })
   registerCredentialsIpc(ipcMain, {
@@ -1096,7 +1093,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   await bookmarkStore.load()
   historyStore = new HistoryStore(join(app.getPath('userData'), 'history.json'), Date.now, publishVisitHistory)
   await historyStore.load()
-  persistentSession?.setDownloadPath(effectiveDownloadDirectory())
+  browserSessionState.persistentSession?.setDownloadPath(effectiveDownloadDirectory())
   await configureCredentialStore()
   await configureCommercialLicenseStore()
   await startWallets()
@@ -1386,7 +1383,7 @@ async function releaseRuntimeResources(): Promise<void> {
         bookmarkStore?.flush(),
         credentialRuntime.store?.flush(),
         historyStore?.flush(),
-        sitePermissionStore?.flush(),
+        browserSessionState.sitePermissionStore?.flush(),
         commercialLicenseStore?.flush(),
         settingsState.mutationQueue,
         flushWindowState(),
