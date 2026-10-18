@@ -1,3 +1,5 @@
+import { RendererExitedError } from './renderer-exit-guard.js'
+
 interface RendererInputCleanupTarget {
   isDestroyed(): boolean
   once(event: 'destroyed', listener: () => void): unknown
@@ -5,8 +7,9 @@ interface RendererInputCleanupTarget {
   executeJavaScript(script: string, userGesture: boolean): Promise<unknown>
 }
 
-/** A destroyed document no longer owns a renderer input flag. Electron may
- * leave its executeJavaScript promise pending when destruction races delivery.
+/** A destroyed document, or one whose renderer exited, no longer owns a
+ * renderer input flag. Electron may leave its executeJavaScript promise
+ * pending when destruction races delivery.
  * This applies only to best-effort flag removal, never native input commands. */
 export async function clearRendererAgentInputFlag(
   page: RendererInputCleanupTarget,
@@ -19,7 +22,10 @@ export async function clearRendererAgentInputFlag(
   try {
     if (page.isDestroyed()) return
     await Promise.race([
-      page.executeJavaScript('delete window.__hronautAgentInputActive', true).then(value => { if (value === false) onFailure?.() }, () => { onFailure?.() }),
+      page.executeJavaScript('delete window.__hronautAgentInputActive', true).then(value => { if (value === false) onFailure?.() }, error => {
+        // The flag lived in the document of a renderer that exited.
+        if (!(error instanceof RendererExitedError)) onFailure?.()
+      }),
       destroyed
     ])
   } catch {

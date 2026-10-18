@@ -36,36 +36,47 @@ describe('page calls across a renderer exit', () => {
   it('rejects scripts, isolated-world scripts and commands in flight when the renderer exits', async () => {
     const { page, calls, exit } = fakePage()
     const script = page.executeJavaScript('1', true)
-    const isolated = page.executeJavaScriptInIsolatedWorld(7, [{ code: '2' }])
+    const isolated = page.executeJavaScriptInIsolatedWorld(7, [{ code: '2' }], true)
     const command = page.debugger.sendCommand('Runtime.evaluate', { expression: '3' })
     exit()
-    await expect(script).rejects.toBeInstanceOf(RendererExitedError)
-    await expect(isolated).rejects.toBeInstanceOf(RendererExitedError)
-    await expect(command).rejects.toThrow('renderer exited')
+    await expect(script).rejects.toMatchObject({ name: 'RendererExitedError', sent: true })
+    await expect(isolated).rejects.toMatchObject({ name: 'RendererExitedError', sent: true })
+    await expect(command).rejects.toThrow('effects are unknown')
     // Electron settles nothing late; if it did, the outcome is already reported.
     for (const call of calls) call.reply.reject(new Error('Target crashed'))
     await Promise.resolve()
   })
 
-  it('fails at once while the renderer stays gone, without reaching the page', async () => {
+  it('fails at once and unsent while the renderer stays gone, without reaching the page', async () => {
     const { page, calls, exit } = fakePage()
     exit()
-    await expect(page.executeJavaScript('1')).rejects.toBeInstanceOf(RendererExitedError)
+    await expect(page.executeJavaScript('1')).rejects.toMatchObject({ name: 'RendererExitedError', sent: false })
     await expect(page.executeJavaScriptInIsolatedWorld(7, [{ code: '2' }])).rejects.toBeInstanceOf(RendererExitedError)
-    await expect(page.debugger.sendCommand('Page.getFrameTree')).rejects.toBeInstanceOf(RendererExitedError)
+    await expect(page.debugger.sendCommand('Page.getFrameTree')).rejects.toThrow('nothing was sent')
+    await expect(page.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a' })).rejects.toBeInstanceOf(RendererExitedError)
     expect(calls).toEqual([])
   })
 
-  it('keeps the browser-process input barrier working while the page is gone', async () => {
+  it('keeps commands the browser process answers working while the page is gone', async () => {
     const { page, calls, exit } = fakePage()
     const before = page.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true })
     exit()
-    const during = page.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: false })
-    expect(calls.map(call => call.args)).toEqual([['Input.setIgnoreInputEvents', { ignore: true }], ['Input.setIgnoreInputEvents', { ignore: false }]])
-    calls[0]!.reply.resolve({})
-    calls[1]!.reply.resolve({})
+    const during = [
+      page.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: false }),
+      page.debugger.sendCommand('Fetch.continueRequest', { requestId: 'r1' }),
+      page.debugger.sendCommand('Network.deleteCookies', { name: 'n', domain: 'example.test' }),
+      page.debugger.sendCommand('Network.getAllCookies')
+    ]
+    expect(calls.map(call => call.args)).toEqual([
+      ['Input.setIgnoreInputEvents', { ignore: true }],
+      ['Input.setIgnoreInputEvents', { ignore: false }],
+      ['Fetch.continueRequest', { requestId: 'r1' }],
+      ['Network.deleteCookies', { name: 'n', domain: 'example.test' }],
+      ['Network.getAllCookies']
+    ])
+    for (const call of calls) call.reply.resolve({})
     await expect(before).resolves.toEqual({})
-    await expect(during).resolves.toEqual({})
+    await expect(Promise.all(during)).resolves.toEqual([{}, {}, {}, {}])
   })
 
   it('lets calls through again for the next renderer, and guards them against its exit', async () => {
@@ -82,13 +93,33 @@ describe('page calls across a renderer exit', () => {
 
   it('passes arguments through unchanged and leaves results and failures alone', async () => {
     const { page, calls } = fakePage()
-    const command = page.debugger.sendCommand('Page.enable')
-    const script = page.executeJavaScript('document.title')
-    expect(calls.map(call => call.args)).toEqual([['Page.enable'], ['document.title']])
+    const enabled = page.debugger.sendCommand('Page.enable')
+    const evaluated = page.debugger.sendCommand('Runtime.evaluate', { expression: '1' }, 'session-1')
+    const script = page.executeJavaScript('document.title', true)
+    const isolated = page.executeJavaScriptInIsolatedWorld(7, [{ code: '2' }], true)
+    expect(calls.map(call => [call.kind, ...call.args])).toEqual([
+      ['command', 'Page.enable'],
+      ['command', 'Runtime.evaluate', { expression: '1' }, 'session-1'],
+      ['script', 'document.title', true],
+      ['isolated', 7, [{ code: '2' }], true]
+    ])
     calls[0]!.reply.resolve({})
-    calls[1]!.reply.reject(new Error('Script failed'))
-    await expect(command).resolves.toEqual({})
+    calls[1]!.reply.resolve({ result: 1 })
+    calls[2]!.reply.reject(new Error('Script failed'))
+    calls[3]!.reply.resolve(2)
+    await expect(enabled).resolves.toEqual({})
+    await expect(evaluated).resolves.toEqual({ result: 1 })
     await expect(script).rejects.toThrow('Script failed')
+    await expect(isolated).resolves.toBe(2)
+  })
+
+  it('leaves calls that settled before an exit alone', async () => {
+    const { page, calls, exit } = fakePage()
+    const settled = page.executeJavaScript('1')
+    calls[0]!.reply.resolve(1)
+    await expect(settled).resolves.toBe(1)
+    exit()
+    await expect(settled).resolves.toBe(1)
   })
 
   it('leaves a destroyed page to fail as Electron fails it', () => {

@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { clearRendererAgentInputFlag } from '../src/main/browser/native-input-cleanup.js'
+import { RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 
 function fixture() {
   const events = new EventEmitter()
@@ -25,6 +26,14 @@ describe('renderer agent-input flag cleanup', () => {
     if (mode === 'reject') f.reject(new Error('Unavailable'))
     await pending
     expect(onFailure).toHaveBeenCalledTimes(1)
+    expect(f.page.listenerCount('destroyed')).toBe(0)
+  })
+  it.each([true, false])('treats a renderer that exited as cleaned up (sent: %s)', async sent => {
+    const f = fixture(), onFailure = vi.fn()
+    const pending = clearRendererAgentInputFlag(f.page, onFailure)
+    f.reject(new RendererExitedError(sent))
+    await pending
+    expect(onFailure).not.toHaveBeenCalled()
     expect(f.page.listenerCount('destroyed')).toBe(0)
   })
   it('waits for live-document cleanup and removes the destruction listener', async () => {

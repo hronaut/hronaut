@@ -8,6 +8,7 @@ import {
   elementPickerNativeInputScript,
   elementPickerScript
 } from '../page-scripts.js'
+import { RendererExitedError } from '../renderer-exit-guard.js'
 import { isHronautHomeUrl } from '../url.js'
 import type {
   BrowserElementPickerResult,
@@ -22,7 +23,7 @@ const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
 
 // The same check the screenshot area and the human input guard make.
 function nativeSelectionContextUnavailable(error: unknown): boolean {
-  return /context.*destroyed|frame.*removed|navigat/i.test(String(error))
+  return error instanceof RendererExitedError || /context.*destroyed|frame.*removed|navigat/i.test(String(error))
 }
 
 /** Lets the person pick an element on a website tab's page and returns its inspection formatted for an agent. */
