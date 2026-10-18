@@ -69,6 +69,7 @@ export const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabili
   browser_audio: 'browser-state',
   browser_screenshot: 'browser-state',
   browser_pdf_save: 'external-request',
+  browser_screenshot_save: 'external-request',
   browser_performance: 'browser-state',
   browser_code_coverage: 'browser-state',
   browser_react: 'browser-state',

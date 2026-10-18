@@ -134,6 +134,7 @@ export const BROWSER_TOOL_METADATA = {
   browser_audio: nonDestructiveTool('Control tab audio', true),
   browser_screenshot: nonDestructiveTool('Capture a screenshot', true),
   browser_pdf_save: nonDestructiveTool('Save the page as PDF'),
+  browser_screenshot_save: nonDestructiveTool('Save a screenshot to downloads'),
   browser_accessibility_audit: readOnlyTool('Run an accessibility audit'),
   browser_quality_audit: readOnlyTool('Run a page quality audit'),
   browser_performance: nonDestructiveTool('Measure page performance'),
@@ -289,6 +290,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_audio', category: 'Interaction', description: 'Mute or unmute one browser tab without changing site-wide sound permissions.' },
   { name: 'browser_screenshot', category: 'Inspection', description: 'Return a viewport, full page, element, or selected rectangle as a chat-ready PNG or compact JPEG. Optionally label up to 50 selected current snapshot refs in a viewport image with a bounded geometry legend.' },
   { name: 'browser_pdf_save', category: 'Inspection', description: 'Save the rendered page as a collision-safe PDF in the download directory, optionally with heading bookmarks or the paper size from the page\'s CSS.' },
+  { name: 'browser_screenshot_save', category: 'Inspection', description: 'Save the viewport as a collision-safe PNG in the download directory and return only its filename, path, MIME type, size in pixels, byte count and capture time (plus any forced CSS state note), never the image. Takes an optional portable filename and maxWidth/maxHeight 64..7680. Captures with more pixels than an 8K frame and PNGs over 64 MiB are refused, with at most two saves at once across workspaces. Rejects full-page, element, clip, annotation and JPEG options. The file can hold anything the page shows and stays on disk; omitting the image is not redaction.' },
   { name: 'browser_accessibility_audit', category: 'Inspection', description: 'Audit a page or element with local axe-core rules, save a volatile tab baseline, and compare stable rule-and-target fingerprints after a fix.' },
   { name: 'browser_quality_audit', category: 'Inspection', description: 'Run one bounded local audit across accessibility, observed Web Vitals, metadata and SEO, transport security, PWA readiness, and retained Chromium issues without inventing a synthetic score.' },
   { name: 'browser_performance', category: 'Inspection', description: 'Measure local Core Web Vitals plus navigation, resources, long tasks, and bounded Long Animation Frame script attribution. Save a per-tab baseline and compare later measurements with explicit URL and environment compatibility checks.' },
@@ -375,6 +377,7 @@ const ESSENTIALS_TOOL_NAMES = new Set([
 
 const QA_TOOL_NAMES = new Set([
   ...ESSENTIALS_TOOL_NAMES,
+  'browser_screenshot_save',
   'browser_hold_key',
   'browser_wheel',
   'browser_touch',

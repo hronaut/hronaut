@@ -52,6 +52,8 @@ import type { PendingElementInspection } from './element-inspection-publication.
 import type { PendingPdfExport } from './pdf-export-publication.js'
 import type { PdfExportAccess } from './pdf-export/pdf-export-access.js'
 import { savePdf } from './pdf-export/pdf-export.js'
+import type { ScreenshotExportAccess } from './screenshot-export/screenshot-export-access.js'
+import { saveScreenshot, type PendingScreenshotExport, type ScreenshotExport, type ScreenshotExportOptions } from './screenshot-export/screenshot-export.js'
 import { FrameObservationController } from './frame-observation.js'
 import type { TabContextMenuAccess } from './context-menus/tab-context-menu-access.js'
 import { showTabContextMenu } from './context-menus/tab-context-menu.js'
@@ -573,6 +575,10 @@ function isAbortedLoad(error: unknown): boolean {
 
 function pdfFilename(requested: string | undefined, title: string): string {
   return portableExportFilename(requested, title, 'pdf')
+}
+
+function screenshotFilename(requested: string | undefined, title: string): string {
+  return portableExportFilename(requested, title, 'png')
 }
 
 interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState {
@@ -4224,6 +4230,36 @@ export class BrowserTabsManager {
 
   savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingPdfExport) => void): Promise<BrowserPdfExport> {
     return savePdf(this.pdfExportAccess(), options, validateExport, deferExport)
+  }
+
+  /**
+   * The narrow view a screenshot export gets of this manager's private tabs,
+   * workspaces, inspection permissions, page presentation, agent pointer,
+   * display scaling, download writing and export file name. Like the PDF
+   * export's, it is a prototype method.
+   */
+  private screenshotExportAccess(): ScreenshotExportAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
+      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
+      isDestroyed: () => this.destroyed,
+      withRenderableTab: (tab, operation, mode) => this.withRenderableTab(tab, operation, mode),
+      dismissAgentPointer: (webContents) => this.dismissAgentPointer(webContents),
+      captureScale: (tab) => {
+        this.requireEmulationConfirmed(tab)
+        const scale = Math.max(1, ...screen.getAllDisplays().map((display) => display.scaleFactor))
+        if (!Number.isFinite(scale) || scale > 32) throw new Error('This display uses an unsupported screenshot scale.')
+        return scale
+      },
+      writeUniqueDownload: (filename, data, validate) => this.writeUniqueDownload(filename, data, validate),
+      screenshotFilename: (requested, title) => screenshotFilename(requested, title)
+    }
+  }
+
+  saveScreenshot(options: ScreenshotExportOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingScreenshotExport) => void): Promise<ScreenshotExport> {
+    return saveScreenshot(this.screenshotExportAccess(), options, validateExport, deferExport)
   }
 
   /**

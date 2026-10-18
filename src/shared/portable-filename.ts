@@ -10,7 +10,7 @@ export function isWindowsReservedFilename(value: string): boolean {
 const MAX_EXPORT_FILENAME_BYTES = 255 - 7
 const encoder = new TextEncoder()
 
-export function portableExportFilename(requested: string | undefined, title: string, format: 'pdf' | 'har'): string {
+export function portableExportFilename(requested: string | undefined, title: string, format: 'pdf' | 'har' | 'png'): string {
   const extension = `.${format}`
   if (requested !== undefined) {
     const filename = requested.trim()
