@@ -1,4 +1,5 @@
 import type { WebContents } from 'electron'
+import type { CssStatePreviewEndReason } from '../../../shared/css-state-preview.js'
 import type { BrowserState } from '../../../shared/types.js'
 
 /**
@@ -19,11 +20,13 @@ export interface DevToolsTab {
 }
 
 /**
- * What opening and closing Developer Tools needs from the tab manager, which
- * keeps the tabs, waking tabs, the person's input lock, request conditions
- * and routes, the set of pages opening Developer Tools, dialog monitoring and
- * the debugger queue private. The opening set stays a manager field because
- * debugger users, sleeping, frame observation and page input read it too.
+ * What opening and closing Developer Tools, and following the page's
+ * Developer Tools events, need from the tab manager, which keeps the tabs,
+ * waking tabs, the person's input lock, request conditions and routes, the
+ * set of pages opening Developer Tools, dialog monitoring, the debugger
+ * queue, the CSS state preview and state publication private. The opening set
+ * stays a manager field because debugger users, sleeping, frame observation
+ * and page input read it too.
  */
 export interface DevToolsAccess<Tab extends DevToolsTab> {
   getTab(tabId?: string): Tab
@@ -36,4 +39,10 @@ export interface DevToolsAccess<Tab extends DevToolsTab> {
   devToolsOpening(): Set<number>
   dialogMonitorAttach(webContentsId: number): Promise<void> | undefined
   pendingDebuggerCommand(webContentsId: number): Promise<void> | undefined
+  /** The CSS state preview, which opening Developer Tools ends. */
+  cssStatePreview(): { clear(tab: Tab, reason: CssStatePreviewEndReason): Promise<void> }
+  /** Starts monitoring the page's website dialogs, unless that is already under way. */
+  ensureDialogMonitoring(tab: Tab): Promise<void>
+  /** Publishes the browser state, and saves it unless persist is false. */
+  changed(persist?: boolean): void
 }

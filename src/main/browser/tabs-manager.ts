@@ -36,7 +36,7 @@ import {
   storeTabOverviewPreview
 } from './tab-overview-previews/tab-overview-previews.js'
 import type { PageContextMenuAccess } from './context-menus/page-context-menu-access.js'
-import { showContextMenu } from './context-menus/page-context-menu.js'
+import { attachPageContextMenuEvents } from './context-menus/page-context-menu-events.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
@@ -397,6 +397,7 @@ import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
 import type { DevToolsAccess } from './devtools/devtools-access.js'
 import { openDevTools, toggleDevTools } from './devtools/devtools.js'
+import { attachDevToolsEvents } from './devtools/devtools-events.js'
 import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
 import type { PageNavigationAccess } from './page-navigation/page-navigation-access.js'
@@ -3040,10 +3041,11 @@ export class BrowserTabsManager {
   /**
    * The narrow view Developer Tools get of this manager's private tabs, tab
    * waking, input lock, request conditions and routes, opening set, dialog
-   * monitoring and debugger queue. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it. The delegates below return the feature's promise
-   * directly, so callers see the same ticks as before.
+   * monitoring, debugger queue, CSS state preview and state publication. It
+   * is a prototype method rather than a field, so managers created without
+   * the constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's promise directly, so callers see the same ticks as
+   * before.
    */
   private devToolsAccess(): DevToolsAccess<BrowserTab> {
     return {
@@ -3056,7 +3058,10 @@ export class BrowserTabsManager {
       applyNetworkRoutes: (tab, validate, recovery, mutate) => this.applyNetworkRoutes(tab, validate, recovery, mutate),
       devToolsOpening: () => this.devToolsOpening,
       dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
-      pendingDebuggerCommand: (webContentsId) => this.debuggerQueue.pending(webContentsId)
+      pendingDebuggerCommand: (webContentsId) => this.debuggerQueue.pending(webContentsId),
+      cssStatePreview: () => this.cssStatePreview,
+      ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab),
+      changed: (persist) => this.changed(persist)
     }
   }
 
@@ -6733,19 +6738,8 @@ export class BrowserTabsManager {
         this.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
       }
     })
-    webContents.on('context-menu', (event, params) => {
-      event.preventDefault()
-      if (this.isHumanInteractionLocked(tab)) return
-      showContextMenu(this.pageContextMenuAccess(), tab, params)
-    })
-    webContents.on('devtools-opened', () => {
-      void this.cssStatePreview.clear(tab, 'devtools-opened').catch(() => undefined)
-      this.changed(false)
-    })
-    webContents.on('devtools-closed', () => {
-      this.changed(false)
-      void this.ensureDialogMonitoring(tab)
-    })
+    attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
+    attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
     this.frameObservation.track(webContents)
     webContents.debugger.on('message', (_event, method, params) => {
       if (method === 'Fetch.requestPaused') {
