@@ -182,6 +182,7 @@ import type {
 } from '../shared/address-suggestions.js'
 import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
 import { createApplicationMenu } from './windows/application-menu.js'
+import { createWindowStatePersistence } from './windows/window-state-persistence.js'
 
 let MCP_HOST = process.env.HRONAUT_MCP_HOST || '127.0.0.1'
 const MCP_AUTH_DISABLED = process.env.HRONAUT_DISABLE_MCP_AUTH === '1'
@@ -360,11 +361,31 @@ const mcpPortRecovery = new McpPortRecovery({
 let tray: Tray | null = null
 let quitting = false
 let windowStateStore: WindowStateStore | null = null
-let windowStateTimer: NodeJS.Timeout | null = null
 let lastWindowState: import('./window-state.js').SavedWindowState | null = null
+const {
+  currentState: currentWindowState,
+  scheduleSave: scheduleWindowStateSave,
+  flush: flushWindowState
+} = createWindowStatePersistence({
+  window: () => mainWindow,
+  store: () => windowStateStore,
+  lastState: () => lastWindowState,
+  setLastState: (state) => { lastWindowState = state },
+  logPrefix: '[window]'
+})
 let panelWindowStateStore: WindowStateStore | null = null
-let panelWindowStateTimer: NodeJS.Timeout | null = null
 let lastPanelWindowState: import('./window-state.js').SavedWindowState | null = null
+const {
+  currentState: currentPanelWindowState,
+  scheduleSave: schedulePanelWindowStateSave,
+  flush: flushPanelWindowState
+} = createWindowStatePersistence({
+  window: () => panelWindow,
+  store: () => panelWindowStateStore,
+  lastState: () => lastPanelWindowState,
+  setLastState: (state) => { lastPanelWindowState = state },
+  logPrefix: '[panel-window]'
+})
 let persistentSession: Session | null = null
 const configuredBrowserSessions = new WeakSet<Session>()
 let settingsStore: SettingsStore | null = null
@@ -1416,68 +1437,6 @@ function registerHomeProtocol(): void {
         platform: process.platform
     })
   }))
-}
-
-function currentWindowState(): import('./window-state.js').SavedWindowState | null {
-  if (!mainWindow || mainWindow.isDestroyed()) return null
-  const bounds = mainWindow.getNormalBounds()
-  return {
-    bounds,
-    displayId: screen.getDisplayMatching(bounds).id,
-    maximized: mainWindow.isMaximized(),
-    fullScreen: mainWindow.isFullScreen()
-  }
-}
-
-function scheduleWindowStateSave(): void {
-  if (!windowStateStore) return
-  lastWindowState = currentWindowState() ?? lastWindowState
-  if (windowStateTimer) clearTimeout(windowStateTimer)
-  windowStateTimer = setTimeout(() => {
-    windowStateTimer = null
-    const state = currentWindowState() ?? lastWindowState
-    if (state) void windowStateStore?.save(state).catch((error) => console.error('[window] Failed to persist state:', error))
-  }, 300)
-}
-
-async function flushWindowState(): Promise<void> {
-  if (windowStateTimer) {
-    clearTimeout(windowStateTimer)
-    windowStateTimer = null
-  }
-  const state = currentWindowState() ?? lastWindowState
-  if (state) await windowStateStore?.save(state)
-}
-
-function currentPanelWindowState(): import('./window-state.js').SavedWindowState | null {
-  if (!panelWindow || panelWindow.isDestroyed()) return null
-  const bounds = panelWindow.getNormalBounds()
-  return {
-    bounds,
-    displayId: screen.getDisplayMatching(bounds).id,
-    maximized: panelWindow.isMaximized(),
-    fullScreen: panelWindow.isFullScreen()
-  }
-}
-
-function schedulePanelWindowStateSave(): void {
-  if (!panelWindowStateStore) return
-  lastPanelWindowState = currentPanelWindowState() ?? lastPanelWindowState
-  if (panelWindowStateTimer) clearTimeout(panelWindowStateTimer)
-  panelWindowStateTimer = setTimeout(() => {
-    panelWindowStateTimer = null
-    const state = currentPanelWindowState() ?? lastPanelWindowState
-    if (state) void panelWindowStateStore?.save(state).catch((error) => console.error('[panel-window] Failed to persist state:', error))
-  }, 300)
-}
-
-async function flushPanelWindowState(): Promise<void> {
-  if (panelWindowStateTimer) {
-    clearTimeout(panelWindowStateTimer)
-    panelWindowStateTimer = null
-  }
-  const state = currentPanelWindowState() ?? lastPanelWindowState
-  if (state) await panelWindowStateStore?.save(state)
 }
 
 async function flushBrowserProfile(): Promise<void> {
