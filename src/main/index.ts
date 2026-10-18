@@ -8,12 +8,12 @@ import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
 import { registerNetworkRoutesIpc } from './network-routes-ipc.js'
 import { registerWalletIpc } from './wallet/ipc.js'
 import { ShellOverlayView } from './shell-overlay-view.js'
-import { AgentCardOverlay, type AgentCardSurface } from './agent-card-overlay.js'
-import { ToastOverlay, type ToastOverlaySurface } from './toast-overlay.js'
+import { AgentCardOverlay } from './agent-card-overlay.js'
+import { ToastOverlay } from './toast-overlay.js'
 import type { ToastOverlayEvent } from '../shared/toast-overlay.js'
 import type { AgentCardEvent } from '../shared/agent-card.js'
 import { humanWaitingDecisionOpen } from '../shared/human-waiting.js'
-import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-overlay.js'
+import { ShellTooltipOverlay } from './shell-tooltip-overlay.js'
 import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
 import { registerPanelWindowIpc } from './panel-window-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
@@ -163,6 +163,7 @@ import type {
 import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
 import { createApplicationMenu } from './windows/application-menu.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
+import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 
 let MCP_HOST = process.env.HRONAUT_MCP_HOST || '127.0.0.1'
 const MCP_AUTH_DISABLED = process.env.HRONAUT_DISABLE_MCP_AUTH === '1'
@@ -1241,84 +1242,21 @@ function assertAddressOverlaySender(event: Electron.IpcMainEvent): void {
   }
 }
 
-function trustedAgentCardUrl(): string {
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-    return new URL('agent-card.html', trustedShellUrl()).href
-  }
-  return pathToFileURL(join(__dirname, '../renderer/agent-card.html')).href
-}
-
-/** One transparent view, created on the first agent card, draws the card above the page views. */
-const agentCardBlurWatched = new WeakSet<Electron.WebContents>()
-
-async function ensureAgentCardSurface(): Promise<AgentCardSurface> {
-  const { view, webContents } = await agentCardView.ensure()
-  if (!agentCardBlurWatched.has(webContents)) {
-    agentCardBlurWatched.add(webContents)
-    webContents.on('blur', () => agentCards.blurred())
-  }
-  return {
-    send: (state) => { if (!webContents.isDestroyed()) webContents.send('agent-card-view:state', state) },
-    setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
-    setBounds: (bounds) => view.setBounds(bounds),
-    present: () => agentCardView.present(),
-    withdraw: () => agentCardView.withdraw(),
-    focus: () => { if (!webContents.isDestroyed()) webContents.focus() },
-    isFocused: () => !webContents.isDestroyed() && webContents.isFocused(),
-    isDestroyed: () => webContents.isDestroyed()
-  }
-}
-
-function trustedToastOverlayUrl(): string {
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-    return new URL('toast-overlay.html', trustedShellUrl()).href
-  }
-  return pathToFileURL(join(__dirname, '../renderer/toast-overlay.html')).href
-}
-
-/** One transparent view, created on the first toast, draws it at the bottom of the page area. */
-const toastOverlayWatched = new WeakSet<Electron.WebContents>()
-
-async function ensureToastOverlaySurface(): Promise<ToastOverlaySurface> {
-  const { view, webContents } = await toastOverlayView.ensure()
-  if (!toastOverlayWatched.has(webContents)) {
-    toastOverlayWatched.add(webContents)
-    // A click in the toast leaves keyboard focus where it was, in the page or the shell.
-    webContents.on('before-mouse-event', () => toastOverlay.pointerActivity())
-    webContents.on('focus', () => toastOverlay.viewFocused())
-  }
-  return {
-    send: (state) => { if (!webContents.isDestroyed()) webContents.send('toast-overlay-view:state', state) },
-    setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
-    setBounds: (bounds) => view.setBounds(bounds),
-    present: () => toastOverlayView.present(),
-    withdraw: () => toastOverlayView.withdraw(),
-    isDestroyed: () => webContents.isDestroyed()
-  }
-}
-
-function trustedTooltipOverlayUrl(): string {
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-    return new URL('tooltip-overlay.html', trustedShellUrl()).href
-  }
-  return pathToFileURL(join(__dirname, '../renderer/tooltip-overlay.html')).href
-}
-
-/**
- * One transparent view, created on the first tooltip, draws the shell's tooltips above the page
- * views. It is in the window only while a tooltip shows.
- */
-async function ensureTooltipSurface(): Promise<ShellTooltipSurface> {
-  const { view, webContents } = await tooltipView.ensure()
-  return {
-    send: (state) => { if (!webContents.isDestroyed()) webContents.send('tooltip-overlay:state', state) },
-    setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
-    setBounds: (bounds) => view.setBounds(bounds),
-    present: () => tooltipView.present(),
-    withdraw: () => tooltipView.withdraw(),
-    isDestroyed: () => webContents.isDestroyed()
-  }
-}
+const {
+  trustedAgentCardUrl,
+  ensureAgentCardSurface,
+  trustedToastOverlayUrl,
+  ensureToastOverlaySurface,
+  trustedTooltipOverlayUrl,
+  ensureTooltipSurface
+} = createOverlaySurfaces({
+  trustedShellUrl,
+  agentCardView,
+  agentCards,
+  toastOverlayView,
+  toastOverlay,
+  tooltipView
+})
 
 function validAddressSuggestion(value: unknown): value is AddressSuggestion {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
