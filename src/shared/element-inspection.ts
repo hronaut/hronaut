@@ -221,7 +221,7 @@ export function formatElementInspectionForAgent(report: BrowserElementInspection
     `Selector: ${report.selector}`,
     `Element: ${element}`,
     report.passwordOccupancy ? `Password occupancy: ${report.passwordOccupancy} (not authentication evidence)` : '',
-    report.sizingInputs ? `Computed sizing inputs: ${JSON.stringify(report.sizingInputs)} (selected element only; not flex participation, applicability, parent context, cause, resolved base size or cascade winner)` : '',
+    report.sizingInputs ? `Computed sizing inputs: ${JSON.stringify(report.sizingInputs)} (selected element only; not flex participation, applicability, ${report.flexContainer ? '' : 'parent context, '}cause, resolved base size or cascade winner)` : '',
     report.flexContainer ? `Parent flex container: ${JSON.stringify(report.flexContainer)} (immediate parent only; observed inputs, not which constraint decided the size)` : '',
     report.formValidity ? `Native form validity: ${JSON.stringify(report.formValidity)} (not submission acceptance)` : '',
     report.valueComparison ? `Expected value comparison: ${JSON.stringify(report.valueComparison)} (point-in-time; not saved or accepted)` : '',

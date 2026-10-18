@@ -39,6 +39,7 @@ export async function elementInspection<Tab extends ElementInspectionTab>(access
   if (validity && (occupancy || options.cssProperties !== undefined || options.includeFonts === true)) throw new Error('Form validity cannot be combined with password occupancy, CSS provenance or rendered fonts')
   if (options.includeSizingInputs !== undefined && typeof options.includeSizingInputs !== 'boolean') throw new TypeError('includeSizingInputs must be a boolean')
   if (options.includeFlexContainer !== undefined && typeof options.includeFlexContainer !== 'boolean') throw new TypeError('includeFlexContainer must be a boolean')
+  if (options.includeFlexContainer === true && options.includeSizingInputs === false) throw new Error('includeFlexContainer returns the sizing inputs too; omit includeSizingInputs or set it to true')
   // The parent's flex context is read with the item's sizing inputs, under the same guard.
   const sizing = options.includeSizingInputs === true || options.includeFlexContainer === true
   if (sizing && (options.ref !== undefined || typeof options.selector !== 'string' || !options.selector.trim() || options.selector.length > 1000)) throw new Error('Sizing inputs require a unique selector; snapshot refs are unsupported')

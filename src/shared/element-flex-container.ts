@@ -2,6 +2,7 @@
 export const FLEX_CONTAINER_UNAVAILABLE_REASONS = [
   'no-parent',
   'shadow-host-or-custom-element',
+  'native-or-anonymous-container',
   'item-not-rendered',
   'item-display-contents',
   'item-out-of-flow',
@@ -23,7 +24,11 @@ export type BrowserFlexContainerContext = {
   columnGap: string | null
   direction: 'ltr' | 'rtl' | null
   writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr' | 'sideways-rl' | 'sideways-lr' | null
-  /** The parent's client size minus its padding, in CSS pixels: scrollbars and borders excluded, rounded by the browser. */
+  /**
+   * The parent's client size minus its padding, in physical CSS pixels (width is horizontal whatever the flex
+   * direction or writing mode): scrollbars and borders excluded, rounded by the browser. Null for the root element
+   * and a quirks-mode body, whose client size is the viewport's.
+   */
   contentWidth: number | null
   contentHeight: number | null
 } | { status: 'unavailable'; reason: FlexContainerUnavailableReason }
@@ -38,24 +43,34 @@ export function flexContainerContext(element: Element): unknown {
   // A shadow root lays light-DOM children out in its own tree, so the parent's box may not hold them.
   // A closed root cannot be seen from a page script; custom elements are where such roots usually live.
   if (parent.shadowRoot || parent.localName.includes('-')) return { status: 'unavailable', reason: 'shadow-host-or-custom-element' }
+  // These lay their children out in an anonymous inner box or a user-agent shadow tree, and SVG has no flex layout.
+  if (parent.namespaceURI !== 'http://www.w3.org/1999/xhtml' || ['button', 'details', 'fieldset', 'select'].includes(parent.localName)) {
+    return { status: 'unavailable', reason: 'native-or-anonymous-container' }
+  }
   const item = getComputedStyle(element)
   if (item.display === 'none') return { status: 'unavailable', reason: 'item-not-rendered' }
   if (item.display === 'contents') return { status: 'unavailable', reason: 'item-display-contents' }
+  // Under a hidden ancestor, unslotted, or fallback content of a replaced element: no box to lay out.
+  if (!element.checkVisibility()) return { status: 'unavailable', reason: 'item-not-rendered' }
   if (item.position === 'absolute' || item.position === 'fixed') return { status: 'unavailable', reason: 'item-out-of-flow' }
   const style = getComputedStyle(parent)
   if (style.display !== 'flex' && style.display !== 'inline-flex') return { status: 'unavailable', reason: 'not-flex-container' }
   const pixels = (value: string): number => /^-?[0-9]+(?:\.[0-9]+)?px$/.test(value) ? Number(value.slice(0, -2)) : Number.NaN
+  // Only CSS keywords and lengths cross to the main process, as the sizing inputs do.
+  const token = (value: string): string | null => /^(?:[a-z-]{1,32}|[0-9.]{1,24}(?:px|%))$/.test(value) ? value : null
+  // CSSOM gives the root element, and the body in quirks mode, the viewport's client size.
+  const viewportSized = parent === document.documentElement || (document.compatMode === 'BackCompat' && parent === document.body)
   return {
     status: 'observed',
     display: style.display,
-    flexDirection: style.flexDirection,
-    flexWrap: style.flexWrap,
-    rowGap: style.rowGap,
-    columnGap: style.columnGap,
-    direction: style.direction,
-    writingMode: style.writingMode,
-    contentWidth: parent.clientWidth - pixels(style.paddingLeft) - pixels(style.paddingRight),
-    contentHeight: parent.clientHeight - pixels(style.paddingTop) - pixels(style.paddingBottom)
+    flexDirection: token(style.flexDirection),
+    flexWrap: token(style.flexWrap),
+    rowGap: token(style.rowGap),
+    columnGap: token(style.columnGap),
+    direction: token(style.direction),
+    writingMode: token(style.writingMode),
+    contentWidth: viewportSized ? null : parent.clientWidth - pixels(style.paddingLeft) - pixels(style.paddingRight),
+    contentHeight: viewportSized ? null : parent.clientHeight - pixels(style.paddingTop) - pixels(style.paddingBottom)
   }
 }
 

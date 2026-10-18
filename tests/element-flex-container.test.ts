@@ -2,6 +2,7 @@ import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import { sizingInputsSettlementScript, sizingInputsSource } from '../src/main/browser/element-sizing-inputs.js'
 import { BROWSER_TOOL_CATALOG } from '../src/main/mcp/tool-catalog.js'
+import { registerBrowserElementInspect } from '../src/main/mcp/tools/browser-element-inspect/index.js'
 import { flexContainerContext, normalizeFlexContainer } from '../src/shared/element-flex-container.js'
 import { formatElementInspectionForAgent, normalizeElementInspection } from '../src/shared/element-inspection.js'
 
@@ -14,10 +15,10 @@ const FLEX_PARENT: Style = {
 const ITEM: Style = { display: 'block', position: 'static' }
 
 /** A parent and child whose computed styles are the given records; only these two nodes exist. */
-function fakeTree(parentStyle: Style = FLEX_PARENT, itemStyle: Style = ITEM, parentFields: Record<string, unknown> = {}) {
-  const parent = { localName: 'div', shadowRoot: null, clientWidth: 300, clientHeight: 120, ...parentFields }
-  const element = { parentElement: parent as unknown, isConnected: true, getRootNode: () => document }
-  const document = {}
+function fakeTree(parentStyle: Style = FLEX_PARENT, itemStyle: Style = ITEM, parentFields: Record<string, unknown> = {}, itemFields: Record<string, unknown> = {}) {
+  const parent = { localName: 'div', namespaceURI: 'http://www.w3.org/1999/xhtml', shadowRoot: null, clientWidth: 300, clientHeight: 120, ...parentFields }
+  const element = { parentElement: parent as unknown, isConnected: true, getRootNode: () => document, checkVisibility: () => true, ...itemFields }
+  const document: Record<string, unknown> = { documentElement: {}, body: {}, compatMode: 'CSS1Compat' }
   const styles = new Map<unknown, Style>([[parent, parentStyle], [element, itemStyle]])
   const getComputedStyle = (node: unknown) => {
     const style = styles.get(node)
@@ -29,7 +30,7 @@ function fakeTree(parentStyle: Style = FLEX_PARENT, itemStyle: Style = ITEM, par
 
 /** Runs the serialized reader the way the isolated world does: from its source text, with no imports. */
 function readInPage(tree: ReturnType<typeof fakeTree>): unknown {
-  return runInNewContext(`(${flexContainerContext.toString()})(element)`, { element: tree.element, getComputedStyle: tree.getComputedStyle })
+  return runInNewContext(`(${flexContainerContext.toString()})(element)`, { element: tree.element, document: tree.document, getComputedStyle: tree.getComputedStyle })
 }
 
 describe('flex container context', () => {
@@ -48,6 +49,12 @@ describe('flex container context', () => {
     ['no-parent', () => { const tree = fakeTree(); tree.element.parentElement = null; return tree }],
     ['shadow-host-or-custom-element', () => fakeTree(FLEX_PARENT, ITEM, { shadowRoot: {} })],
     ['shadow-host-or-custom-element', () => fakeTree(FLEX_PARENT, ITEM, { localName: 'my-toolbar' })],
+    ['native-or-anonymous-container', () => fakeTree(FLEX_PARENT, ITEM, { localName: 'button' })],
+    ['native-or-anonymous-container', () => fakeTree(FLEX_PARENT, ITEM, { localName: 'details' })],
+    ['native-or-anonymous-container', () => fakeTree(FLEX_PARENT, ITEM, { localName: 'fieldset' })],
+    ['native-or-anonymous-container', () => fakeTree(FLEX_PARENT, ITEM, { localName: 'select' })],
+    ['native-or-anonymous-container', () => fakeTree(FLEX_PARENT, ITEM, { localName: 'g', namespaceURI: 'http://www.w3.org/2000/svg' })],
+    ['item-not-rendered', () => fakeTree(FLEX_PARENT, ITEM, {}, { checkVisibility: () => false })],
     ['item-not-rendered', () => fakeTree(FLEX_PARENT, { display: 'none', position: 'static' })],
     ['item-display-contents', () => fakeTree(FLEX_PARENT, { display: 'contents', position: 'static' })],
     ['item-out-of-flow', () => fakeTree(FLEX_PARENT, { display: 'block', position: 'absolute' })],
@@ -57,6 +64,23 @@ describe('flex container context', () => {
     ['not-flex-container', () => fakeTree({ ...FLEX_PARENT, display: 'grid' })]
   ] as const)('reports %s instead of another box', (reason, tree) => {
     expect(normalizeFlexContainer(readInPage(tree()))).toEqual({ status: 'unavailable', reason })
+  })
+
+  it('leaves the size unknown where the browser reports the viewport size instead of the parent box', () => {
+    const root = fakeTree()
+    root.document.documentElement = root.parent
+    expect(readInPage(root)).toMatchObject({ status: 'observed', contentWidth: null, contentHeight: null })
+    const quirks = fakeTree()
+    Object.assign(quirks.document, { body: quirks.parent, compatMode: 'BackCompat' })
+    expect(readInPage(quirks)).toMatchObject({ status: 'observed', contentWidth: null, contentHeight: null })
+    const standards = fakeTree()
+    standards.document.body = standards.parent
+    expect(readInPage(standards)).toMatchObject({ contentWidth: 284, contentHeight: 116 })
+  })
+
+  it('sends only CSS keywords and lengths out of the page', () => {
+    expect(readInPage(fakeTree({ ...FLEX_PARENT, rowGap: 'calc(1px + 2%)', writingMode: 'PRIVATE MODE', columnGap: 'normal' })))
+      .toMatchObject({ rowGap: null, writingMode: null, columnGap: 'normal' })
   })
 
   it('keeps unsupported computed values null and never passes page strings through', () => {
@@ -82,6 +106,8 @@ describe('flex container context', () => {
     const report = normalizeElementInspection({ ...input, raw: { ...input.raw, flexContainer: { status: 'unavailable', reason: 'item-out-of-flow' } } })
     expect(report.flexContainer).toEqual({ status: 'unavailable', reason: 'item-out-of-flow' })
     expect(formatElementInspectionForAgent(report)).toContain('Parent flex container: {"status":"unavailable","reason":"item-out-of-flow"} (immediate parent only')
+    expect(formatElementInspectionForAgent(report)).not.toContain('parent context')
+    expect(formatElementInspectionForAgent(normalizeElementInspection(input))).toContain('parent context')
   })
 
   it('refuses publication when the element moved to another parent after it was read', () => {
@@ -107,4 +133,19 @@ it('describes the parent context and its limits in the tool catalog', () => {
   const description = BROWSER_TOOL_CATALOG.find(tool => tool.name === 'browser_element_inspect')!.description
   expect(description).toContain('Optional includeFlexContainer adds those inputs plus the immediate parent flex container')
   expect(description).toContain('No siblings, ancestors beyond the parent or causal claim.')
+})
+
+it('settles a flex container inspection like sizing inputs: activity waits for the result and the view is not moved', () => {
+  let options: { settlement: (input: Record<string, unknown>) => { deferActivity: (finish: () => void) => boolean }; preservesPresentation: (input: Record<string, unknown>) => boolean } | undefined
+  registerBrowserElementInspect({
+    manager: {},
+    tabTool: (_name: string, callback: unknown) => callback,
+    registerWorkspaceTool: (_name: string, _config: unknown, _callback: unknown, registered: typeof options) => { options = registered }
+  } as never)
+  for (const input of [{ includeFlexContainer: true }, { includeSizingInputs: true }]) {
+    expect(options!.settlement(input).deferActivity(() => undefined), JSON.stringify(input)).toBe(true)
+    expect(options!.preservesPresentation(input), JSON.stringify(input)).toBe(true)
+  }
+  expect(options!.settlement({}).deferActivity(() => undefined)).toBe(false)
+  expect(options!.preservesPresentation({})).toBe(false)
 })

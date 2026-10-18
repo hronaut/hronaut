@@ -38,9 +38,8 @@ test('reports the immediate flex container of an element, or why there is none, 
   await page(`container.style.cssText='display:inline-flex;flex-flow:column-reverse wrap;gap:4px 12.5%;direction:rtl;writing-mode:vertical-rl;width:200px;height:80px;overflow:scroll';void 0`)
   const column = await report()
   expect(column.flexContainer).toMatchObject({ status: 'observed', display: 'inline-flex', flexDirection: 'column-reverse', flexWrap: 'wrap', rowGap: '4px', columnGap: '12.5%', direction: 'rtl', writingMode: 'vertical-rl' })
-  // Scrollbars are outside the content size.
-  expect(column.flexContainer.contentWidth).toBeLessThan(200)
-  expect(column.flexContainer.contentHeight).toBeLessThan(80)
+  // The client size, which leaves scrollbars out, minus no padding.
+  expect([column.flexContainer.contentWidth, column.flexContainer.contentHeight]).toEqual(await page('[container.clientWidth, container.clientHeight]'))
 
   await page(`container.style.cssText='display:flex';target.style.cssText='position:absolute';void 0`)
   expect((await report()).flexContainer).toEqual({ status: 'unavailable', reason: 'item-out-of-flow' })
@@ -50,6 +49,10 @@ test('reports the immediate flex container of an element, or why there is none, 
   expect((await report()).flexContainer).toEqual({ status: 'unavailable', reason: 'not-flex-container' })
   expect((await report('#customtarget')).flexContainer).toEqual({ status: 'unavailable', reason: 'shadow-host-or-custom-element' })
   expect((await report('#slotted')).flexContainer).toEqual({ status: 'unavailable', reason: 'shadow-host-or-custom-element' })
+  // A flex button lays its children out in an anonymous inner box, and a hidden grandparent leaves no box at all.
+  await page(`container.style.cssText='display:flex';container.insertAdjacentHTML('beforeend','<button id="button" style="display:flex;height:60px"><span id="icon">i</span></button><div id="hidden" style="display:none"><div style="display:flex"><div id="hiddentarget"></div></div></div>');void 0`)
+  expect((await report('#icon')).flexContainer).toEqual({ status: 'unavailable', reason: 'native-or-anonymous-container' })
+  expect((await report('#hiddentarget')).flexContainer).toEqual({ status: 'unavailable', reason: 'item-not-rendered' })
 
   for (const extra of [{ ref: 'anything' }, { includeFlexContainer: 'true' }, { includeValidity: true }, { includeFonts: true }]) {
     expect((await inspect('#target', extra)).isError, JSON.stringify(extra)).toBe(true)
