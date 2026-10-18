@@ -13,6 +13,14 @@ import type { SiteStorageAccess } from './site-storage/site-storage-access.js'
 import { manageStorage } from './site-storage/manage-storage.js'
 import { inspectIndexedDb, inspectStorageUsage } from './site-storage/storage-inspection.js'
 import { storageChanges } from './site-storage/storage-changes.js'
+import type { PageWaitsAccess } from './page-waits/page-waits-access.js'
+import { waitForElement, waitForPage, waitForText, waitForUrlPattern } from './page-waits/page-waits.js'
+import type { VisualCompareAccess } from './visual-compare/visual-compare-access.js'
+import { visualCompare, visualDiff, type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
+import type { WebMcpAccess } from './webmcp/webmcp-access.js'
+import { callWebMcpTool, listWebMcpTools, webMcpStatus } from './webmcp/webmcp.js'
+import type { PwaInspectionAccess } from './pwa-inspection/pwa-inspection-access.js'
+import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
@@ -142,7 +150,7 @@ import { dispatchNativeDrag, type PointerDebugger } from './native-pointer.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import { accessibilityAuditPageScript, normalizeAccessibilityAuditOptions } from '../../shared/accessibility-audit.js'
 import { accessibilityBaselineSummary, buildAccessibilityComparison } from '../../shared/accessibility-comparison.js'
-import { buildBrowserDebugReport, redactDiagnosticText, sanitizeConsoleMessage } from '../../shared/debug-report.js'
+import { buildBrowserDebugReport, sanitizeConsoleMessage } from '../../shared/debug-report.js'
 import { recordTrustedCredentialFill } from './trusted-credential-fill.js'
 import {
   normalizeConsoleLogEntry,
@@ -169,24 +177,7 @@ import {
 import { designOverviewPageScript } from '../../shared/design-overview.js'
 import { PageMetadataController } from './diagnostics/page-metadata-controller.js'
 import { buildBrowserQualityAudit } from '../../shared/quality-audit.js'
-import {
-  WEBMCP_LIMITS,
-  webMcpCallScript,
-  webMcpDescriptorDigest,
-  webMcpListScript,
-  webMcpStatusScript,
-  type WebMcpPageListing,
-  type WebMcpToolDescriptor
-} from './webmcp-bridge.js'
-import {
-  normalizeBrowserPwaOptions,
-  PWA_INSPECTION_LIMITS,
-  pwaRegistrationsPageScript,
-  sanitizePwaManifest,
-  sanitizePwaHeaders,
-  type CdpAppManifestResult,
-  type CdpInstallabilityError
-} from '../../shared/pwa.js'
+import type { WebMcpToolDescriptor } from './webmcp-bridge.js'
 import {
   formatElementInspectionForAgent,
   normalizeElementInspection
@@ -196,7 +187,6 @@ import {
   type BrowserGeneratedLocator
 } from '../../shared/playwright-locator.js'
 import { redactNetworkHeaders, redactNetworkUrl, sanitizeNetworkBody } from '../../shared/network-details.js'
-import { normalizePageUrlWaitPattern, pageUrlMatchesWait } from '../../shared/page-url-wait.js'
 import { deriveNetworkTiming } from '../../shared/network-timing.js'
 import { parseServerTimingHeaders, serializeServerTimingMetrics } from '../../shared/server-timing.js'
 import { portableExportFilename } from '../../shared/portable-filename.js'
@@ -214,12 +204,11 @@ import {
   type NormalizedBrowserNetworkWaitOptions
 } from '../../shared/network-wait.js'
 import { networkReplayRequiresConfirmation, networkReplayUrlPattern } from '../../shared/network-replay.js'
-import { sanitizeCacheStorageCacheName } from '../../shared/network-response-source.js'
 import type { BrowserStorageSnapshot } from '../../shared/storage-changes.js'
 import { networkRoutePatternMatches } from '../../shared/network-routes.js'
 import { annotateScreenshotBitmap, normalizeScreenshotRefs, screenshotAnnotationScript, type ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import { boundedScreenshotSize, cssScreenshotBounds, fullPageScreenshotBounds, type ScreenshotLayoutMetrics } from '../../shared/screenshot.js'
-import { compareBgraBitmaps, normalizeVisualCompareThreshold, normalizeVisualCompareClip, visualCompareBitmapClip } from '../../shared/visual-compare.js'
+import { visualCompareBitmapClip } from '../../shared/visual-compare.js'
 import { normalizeInspectorIssue } from '../../shared/browser-issues.js'
 import {
   SPLIT_VIEW_GAP,
@@ -249,7 +238,6 @@ import {
   type CredentialFillContext
 } from './credential-fill-context.js'
 import { credentialFillPageScript, isCredentialFillPageResult } from './credential-fill-page.js'
-import { javascriptLiteral } from '../../shared/javascript-literal.js'
 import type {
   BrowserEmulationOptions,
   BrowserEmulationState,
@@ -274,7 +262,6 @@ import type {
   BrowserPdfOptions,
   BrowserScreenshotOptions,
   BrowserScreenshotClip,
-  BrowserVisualCompareAction,
   BrowserVisualCompareOptions,
   BrowserVisualCompareReport,
   BrowserVisualSnapshot,
@@ -373,7 +360,6 @@ import {
   targetActionScript,
   targetExpression,
   targetPointScript,
-  targetStateScript,
   type BrowserFormField
 } from './page-scripts.js'
 import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './tab-store.js'
@@ -466,7 +452,6 @@ const MAX_NETWORK_ROUTES = 50
 const MAX_INSPECTOR_ISSUES = 200
 const MAX_VISUAL_COMPARE_WIDTH = 1_920
 const MAX_VISUAL_COMPARE_HEIGHT = 1_080
-const MAX_VISUAL_COMPARE_SETTLE_MS = 2_000
 const MAX_TAB_OVERVIEW_PREVIEW_WIDTH = 480
 const MAX_TAB_OVERVIEW_PREVIEW_HEIGHT = 300
 const MAX_TAB_OVERVIEW_ENLARGED_PREVIEW_WIDTH = 960
@@ -494,7 +479,6 @@ const ACCESSIBILITY_AUDIT_WORLD_ID = ISOLATED_WORLDS.accessibilityAudit
 const PERFORMANCE_AUDIT_WORLD_ID = ISOLATED_WORLDS.performanceAudit
 const DESIGN_OVERVIEW_WORLD_ID = ISOLATED_WORLDS.designOverview
 const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
-const PWA_INSPECTOR_WORLD_ID = ISOLATED_WORLDS.pwaInspector
 const CONTINUITY_MARKER_WORLD_ID = ISOLATED_WORLDS.continuityMarker
 const POSTCONDITION_WORLD_ID = ISOLATED_WORLDS.postcondition
 const AGENT_POINTER_WORLD_ID = ISOLATED_WORLDS.agentPointer
@@ -865,10 +849,7 @@ interface BrowserVisualComparisonInternal {
   diffPng?: Buffer
 }
 
-export interface BrowserVisualCompareResult {
-  report: BrowserVisualCompareReport
-  diffPng?: Buffer
-}
+export type { BrowserVisualCompareResult }
 
 export interface BrowserCredentialCandidate {
   origin: string
@@ -2846,172 +2827,24 @@ export class BrowserTabsManager {
     this.pwaLifecycleRecorder.interruptWorkspace(workspaceId, reason)
   }
 
-  async inspectPwa(options: BrowserPwaOptions = {}): Promise<BrowserPwaReport> {
-    const tab = this.getTab(options.tabId)
-    const pageUrl = new URL(tab.url)
-    if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
-      throw new Error('Offline app inspection is available only for HTTP and HTTPS tabs.')
+  /**
+   * The narrow view PWA inspection gets of this manager's private tabs,
+   * inspection page guard and debugger lease. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit tests
+   * do) still provide it. The delegate below returns the feature's promise
+   * directly, so no extra ticks separate its final checks from the caller.
+   */
+  private pwaInspectionAccess(): PwaInspectionAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      inspectionPageGuard: (tab, inspection) => this.inspectionPageGuard(tab, inspection),
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      isUnavailableCdpMethod: (error) => this.isUnavailableCdpMethod(error)
     }
-    const requireCurrentPage = this.inspectionPageGuard(tab, 'offline app inspection')
-    const normalized = normalizeBrowserPwaOptions(options)
-    const rawRegistrations = await tab.webContents.executeJavaScriptInIsolatedWorld(
-      PWA_INSPECTOR_WORLD_ID,
-      [{ code: pwaRegistrationsPageScript() }],
-      false
-    ) as {
-      supported: boolean
-      controlled: boolean
-      controller?: { scriptUrl: string; state: string }
-      registrations: Array<{
-        scope: string
-        updateViaCache: string
-        installing?: { scriptUrl: string; state: string }
-        waiting?: { scriptUrl: string; state: string }
-        active?: { scriptUrl: string; state: string }
-        navigationPreload?: { supported: boolean }
-      }>
-      truncated?: boolean
-    }
-    requireCurrentPage()
-    const worker = (value: { scriptUrl: string; state: string } | undefined) => value ? {
-      scriptUrl: redactNetworkUrl(value.scriptUrl).slice(0, 4_096),
-      state: redactDiagnosticText(value.state).slice(0, 64)
-    } : undefined
-    const registrations = rawRegistrations.registrations.map((registration) => ({
-      scope: redactNetworkUrl(registration.scope).slice(0, 4_096),
-      updateViaCache: redactDiagnosticText(registration.updateViaCache).slice(0, 32),
-      installing: worker(registration.installing),
-      waiting: worker(registration.waiting),
-      active: worker(registration.active),
-      navigationPreload: registration.navigationPreload
-    }))
+  }
 
-    const report: BrowserPwaReport = {
-      tabId: tab.id,
-      url: redactNetworkUrl(tab.url),
-      origin: pageUrl.origin,
-      capturedAt: new Date().toISOString(),
-      supported: rawRegistrations.supported,
-      controlled: rawRegistrations.controlled,
-      controller: worker(rawRegistrations.controller),
-      registrations,
-      registrationsTruncated: rawRegistrations.truncated || undefined,
-      manifestInspectionAvailable: true,
-      installabilityInspectionAvailable: true,
-      caches: [],
-      cacheInspectionAvailable: true,
-      caveats: [
-        'The report covers this top-level origin only; third-party frame workers and caches are not included.',
-        'Registrations and cached entries are point-in-time snapshots. Refresh after the website changes its offline state.',
-        'Manifest source is parsed into bounded diagnostic fields; the raw manifest source is never returned.',
-        'Installability error identifiers come from Chromium and may change between Chromium versions.',
-        'The inspector is read-only and never returns cached response bodies.',
-        normalized.includeHeaders
-          ? 'Bounded request and response headers are included; recognized secret-bearing headers are redacted.'
-          : 'Header values are omitted. Request includeHeaders only when they are necessary and safe to return.',
-        'Opaque response sizes may include browser quota padding and are not measured by this report.',
-        'Use browser_site_data only when the task explicitly requires unregistering workers or clearing origin caches.'
-      ]
-    }
-
-    try {
-      await this.withDebugger(tab.webContents, async () => {
-        requireCurrentPage()
-        try {
-          const manifestResult = await tab.webContents.debugger.sendCommand('Page.getAppManifest') as CdpAppManifestResult
-          requireCurrentPage()
-          let installabilityErrors: CdpInstallabilityError[] = []
-          try {
-            const installabilityResult = await tab.webContents.debugger.sendCommand('Page.getInstallabilityErrors') as {
-              installabilityErrors?: CdpInstallabilityError[]
-            }
-            installabilityErrors = installabilityResult.installabilityErrors ?? []
-          } catch (error) {
-            report.installabilityInspectionAvailable = false
-            if (!this.isUnavailableCdpMethod(error)) {
-              report.caveats.push(`Installability diagnostics were unavailable: ${redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 500)}`)
-            }
-          }
-          requireCurrentPage()
-          report.manifest = sanitizePwaManifest(manifestResult, installabilityErrors)
-        } catch (error) {
-          report.manifestInspectionAvailable = false
-          report.installabilityInspectionAvailable = false
-          report.manifestInspectionError = redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 1_000)
-        }
-        requireCurrentPage()
-        const cacheNames = await tab.webContents.debugger.sendCommand('CacheStorage.requestCacheNames', {
-          securityOrigin: pageUrl.origin
-        }) as {
-          caches?: Array<{ cacheId: string; cacheName: string }>
-        }
-        requireCurrentPage()
-        const usableCaches = (cacheNames.caches ?? [])
-          .filter((cache) => cache.cacheName.length <= PWA_INSPECTION_LIMITS.maxNameChars)
-          .sort((left, right) => left.cacheName.localeCompare(right.cacheName))
-        report.caches = usableCaches.slice(0, PWA_INSPECTION_LIMITS.maxCaches).map((cache) => ({
-          name: sanitizeCacheStorageCacheName(cache.cacheName) ?? '(unnamed cache)'
-        }))
-        report.cachesTruncated = (cacheNames.caches?.length ?? 0) > report.caches.length || undefined
-        if (!normalized.cacheName) return
-        const selected = usableCaches.find((cache) => cache.cacheName === normalized.cacheName)
-          ?? usableCaches.find((cache) => sanitizeCacheStorageCacheName(cache.cacheName) === normalized.cacheName)
-        if (!selected) {
-          report.cacheInspectionError = `Cache Storage cache not found: ${redactDiagnosticText(normalized.cacheName)}`
-          return
-        }
-        const entriesResult = await tab.webContents.debugger.sendCommand('CacheStorage.requestEntries', {
-          cacheId: selected.cacheId,
-          skipCount: normalized.offset,
-          pageSize: normalized.limit,
-          pathFilter: normalized.query
-        }) as {
-          cacheDataEntries?: Array<{
-            requestURL: string
-            requestMethod: string
-            requestHeaders?: Array<{ name: string; value: string }>
-            responseStatus: number
-            responseStatusText: string
-            responseType: string
-            responseTime?: number
-            responseHeaders?: Array<{ name: string; value: string }>
-          }>
-          returnCount?: number
-        }
-        requireCurrentPage()
-        const entries = (entriesResult.cacheDataEntries ?? []).map((entry) => ({
-          requestUrl: redactNetworkUrl(entry.requestURL).slice(0, PWA_INSPECTION_LIMITS.maxUrlChars),
-          requestMethod: redactDiagnosticText(entry.requestMethod).slice(0, 32),
-          ...(normalized.includeHeaders ? { requestHeaders: sanitizePwaHeaders(entry.requestHeaders) } : {}),
-          responseStatus: entry.responseStatus,
-          responseStatusText: redactDiagnosticText(entry.responseStatusText).slice(0, 256),
-          responseType: redactDiagnosticText(entry.responseType).slice(0, 64),
-          ...(entry.responseTime !== undefined && Number.isFinite(entry.responseTime)
-            ? { responseTime: new Date(entry.responseTime * 1_000).toISOString() }
-            : {}),
-          ...(normalized.includeHeaders ? { responseHeaders: sanitizePwaHeaders(entry.responseHeaders) } : {})
-        }))
-        const totalEntries = Math.max(0, Math.floor(entriesResult.returnCount ?? entries.length))
-        report.selectedCache = {
-          name: sanitizeCacheStorageCacheName(selected.cacheName) ?? '(unnamed cache)',
-          entries,
-          offset: normalized.offset,
-          limit: normalized.limit,
-          totalEntries,
-          hasMore: normalized.offset + entries.length < totalEntries,
-          query: normalized.query,
-          headersIncluded: normalized.includeHeaders
-        }
-      })
-    } catch (error) {
-      report.manifestInspectionAvailable = false
-      report.installabilityInspectionAvailable = false
-      report.manifestInspectionError ??= redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 1_000)
-      report.cacheInspectionAvailable = false
-      report.cacheInspectionError = redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 1_000)
-    }
-    requireCurrentPage()
-    return report
+  inspectPwa(options: BrowserPwaOptions = {}): Promise<BrowserPwaReport> {
+    return inspectPwa(this.pwaInspectionAccess(), options)
   }
 
   storageChanges(
@@ -7745,37 +7578,33 @@ export class BrowserTabsManager {
     )))
   }
 
-  async webMcpStatus(tabId?: string): Promise<{
+  /**
+   * The narrow view WebMCP gets of this manager's private tabs, snapshots and
+   * descriptor cache. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still
+   * provide it. The delegates below return the feature's promise directly,
+   * so no extra ticks separate its final checks from the caller.
+   */
+  private webMcpAccess(): WebMcpAccess {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      descriptorCache: () => this.webMcpDescriptorCache,
+      snapshotDetails: (tabId, maxChars) => this.snapshotDetails(tabId, maxChars)
+    }
+  }
+
+  webMcpStatus(tabId?: string): Promise<{
     supported: boolean
     reason?: string
     tabId: string
     origin: string
     navigationGeneration: number
   }> {
-    const tab = this.getTab(tabId)
-    const origin = this.webMcpHttpOrigin(tab.url)
-    const generation = tab.navigationGeneration
-    if (!origin) {
-      return {
-        supported: false,
-        reason: 'WebMCP is limited to top-level HTTP(S) documents',
-        tabId: tab.id,
-        origin: new URL(tab.url).protocol,
-        navigationGeneration: generation
-      }
-    }
-    const result = await tab.webContents.executeJavaScript(webMcpStatusScript(), false) as WebMcpPageListing
-    this.requireUnchangedWebMcpTarget(tab.id, tab, origin, generation)
-    return {
-      supported: result.supported === true,
-      ...(result.reason ? { reason: result.reason } : {}),
-      tabId: tab.id,
-      origin,
-      navigationGeneration: generation
-    }
+    return webMcpStatus(this.webMcpAccess(), tabId)
   }
 
-  async listWebMcpTools(tabId?: string): Promise<{
+  listWebMcpTools(tabId?: string): Promise<{
     supported: boolean
     reason?: string
     status?: string
@@ -7785,44 +7614,10 @@ export class BrowserTabsManager {
     descriptorDigest?: string
     tools?: WebMcpToolDescriptor[]
   }> {
-    const tab = this.getTab(tabId)
-    const origin = this.webMcpHttpOrigin(tab.url)
-    const generation = tab.navigationGeneration
-    if (!origin) return this.webMcpStatus(tab.id)
-    const result = await tab.webContents.executeJavaScript(webMcpListScript(), false) as WebMcpPageListing & {
-      status?: string
-      error?: string
-    }
-    this.requireUnchangedWebMcpTarget(tab.id, tab, origin, generation)
-    if (!result.supported || !result.descriptors || !result.descriptorJson) {
-      return {
-        supported: result.supported === true,
-        reason: result.error ?? result.reason ?? result.status ?? 'The page did not return a valid WebMCP descriptor',
-        ...(result.status ? { status: result.status } : {}),
-        tabId: tab.id,
-        origin,
-        navigationGeneration: generation
-      }
-    }
-    const descriptorDigest = webMcpDescriptorDigest(result.descriptorJson)
-    const key = this.webMcpDescriptorKey(tab.id, origin, generation, descriptorDigest)
-    this.webMcpDescriptorCache.set(key, result.descriptorJson)
-    while (this.webMcpDescriptorCache.size > 128) {
-      const oldest = this.webMcpDescriptorCache.keys().next().value as string | undefined
-      if (!oldest) break
-      this.webMcpDescriptorCache.delete(oldest)
-    }
-    return {
-      supported: true,
-      tabId: tab.id,
-      origin,
-      navigationGeneration: generation,
-      descriptorDigest,
-      tools: result.descriptors
-    }
+    return listWebMcpTools(this.webMcpAccess(), tabId)
   }
 
-  async callWebMcpTool(input: {
+  callWebMcpTool(input: {
     tabId?: string
     expectedOrigin: string
     navigationGeneration: number
@@ -7830,92 +7625,7 @@ export class BrowserTabsManager {
     toolName: string
     arguments: Record<string, unknown>
   }): Promise<Record<string, unknown>> {
-    const tab = this.getTab(input.tabId)
-    const urlBefore = tab.url
-    const origin = this.webMcpHttpOrigin(tab.url)
-    if (!origin || origin !== input.expectedOrigin || tab.navigationGeneration !== input.navigationGeneration) {
-      return {
-        status: 'STALE_PRECONDITION', dispatch: 'not-dispatched', effects: 'none', retrySafe: true,
-        reason: !origin || origin !== input.expectedOrigin ? 'ORIGIN_CHANGED' : 'NAVIGATION_CHANGED'
-      }
-    }
-    const argumentsJson = JSON.stringify(input.arguments)
-    if (argumentsJson.length > WEBMCP_LIMITS.maxArgumentsChars) throw new TypeError('WebMCP arguments exceed the 64,000 character limit')
-    const descriptorJson = this.webMcpDescriptorCache.get(this.webMcpDescriptorKey(
-      tab.id, origin, input.navigationGeneration, input.descriptorDigest
-    ))
-    if (!descriptorJson) {
-      return {
-        status: 'STALE_DESCRIPTOR', dispatch: 'not-dispatched', effects: 'none', retrySafe: true,
-        reason: 'The descriptor was not issued by this Hronaut runtime for the current page'
-      }
-    }
-    let result: Record<string, unknown>
-    try {
-      result = await tab.webContents.executeJavaScript(webMcpCallScript({
-        descriptorJson,
-        toolName: input.toolName,
-        arguments: input.arguments
-      }), false) as Record<string, unknown>
-    } catch (error) {
-      const current = this.tabs.get(tab.id)
-      const navigationChanged = !current || current !== tab || current.navigationGeneration !== input.navigationGeneration
-        || this.webMcpHttpOrigin(current.url) !== origin
-      return {
-        status: navigationChanged ? 'OUTCOME_UNKNOWN' : 'WEBMCP_ERROR',
-        dispatch: 'possibly-dispatched',
-        effects: 'possible',
-        retrySafe: false,
-        reason: navigationChanged ? 'NAVIGATION_DURING_EXECUTION' : String(error).slice(0, 500)
-      }
-    }
-    const current = this.tabs.get(tab.id)
-    const currentOrigin = current ? this.webMcpHttpOrigin(current.url) : undefined
-    const navigationChanged = !current || current !== tab || current.navigationGeneration !== input.navigationGeneration || currentOrigin !== origin
-    const observation: Record<string, unknown> = {
-      urlBefore,
-      originBefore: origin,
-      urlAfter: current?.url ?? null,
-      originAfter: currentOrigin ?? null,
-      navigationChanged,
-      navigationGeneration: current?.navigationGeneration ?? null
-    }
-    if (!navigationChanged && current) {
-      try {
-        const snapshot = await this.snapshotDetails(current.id, 8_000)
-        observation.snapshot = { formatVersion: snapshot.formatVersion, text: snapshot.text }
-      } catch (error) {
-        observation.snapshot = { unavailable: true, reason: String(error).slice(0, 300) }
-      }
-    } else {
-      observation.snapshot = { unavailable: true, reason: 'The top-level document changed during execution' }
-    }
-    return {
-      ...result,
-      ...(navigationChanged && result.status === 'TOOL_RETURNED'
-        ? { status: 'OUTCOME_UNKNOWN', retrySafe: false } : {}),
-      observation
-    }
-  }
-
-  private webMcpHttpOrigin(url: string): string | undefined {
-    try {
-      const parsed = new URL(url)
-      return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.origin : undefined
-    } catch {
-      return undefined
-    }
-  }
-
-  private webMcpDescriptorKey(tabId: string, origin: string, navigationGeneration: number, digest: string): string {
-    return `${tabId}\0${origin}\0${navigationGeneration}\0${digest}`
-  }
-
-  private requireUnchangedWebMcpTarget(tabId: string, expected: BrowserTab, origin: string, generation: number): void {
-    const current = this.tabs.get(tabId)
-    if (!current || current !== expected || current.navigationGeneration !== generation || this.webMcpHttpOrigin(current.url) !== origin) {
-      throw new Error('The top-level page changed while WebMCP tools were being inspected. List them again on the current page.')
-    }
+    return callWebMcpTool(this.webMcpAccess(), input)
   }
 
   async handleDialog(action: BrowserDialogAction, tabId?: string): Promise<{
@@ -7928,19 +7638,6 @@ export class BrowserTabsManager {
       accept: action === 'accept'
     }))
     return { handled: true, action }
-  }
-
-  private visualCompareCaveats(threshold: number, urlsDiffer = false, scope?: BrowserVisualCompareScope): string[] {
-    return [
-      scope?.kind === 'region'
-        ? 'Only the selected viewport CSS rectangle is compared. Complete native pixels inside it are cropped before normalization to at most 1920 x 1080 pixels. The denominator and diff bounds refer to the cropped normalized bitmap; unchanged does not describe the rest of the page.'
-        : 'The baseline, current capture, and diff cover the visible viewport only and are normalized to at most 1920 x 1080 pixels.',
-      ...(scope?.kind === 'region' ? ['Region comparisons require unchanged viewport, zoom, device pixel ratio, scroll position and document. Cropping is not anonymization; review image contents before sharing.'] : []),
-      `A pixel is marked changed when any native bitmap channel differs by more than ${threshold}; animations, caret blinking, video, and delayed content can create noise.`,
-      'Generate the baseline and comparison in the same Hronaut environment; browser, operating-system, font, and GPU differences can change rendering.',
-      'Baseline and diff images stay only in memory and are discarded when cleared, when the tab closes, or when Hronaut exits.',
-      ...(urlsDiffer ? ['The page URL changed after the baseline; this is a cross-navigation comparison.'] : [])
-    ]
   }
 
   private async visualCompareContext(tab: BrowserTab): Promise<BrowserVisualCompareContext> {
@@ -8012,141 +7709,28 @@ export class BrowserTabsManager {
     })
   }
 
-  async visualCompare(options: BrowserVisualCompareOptions, validateCapture?: () => void): Promise<BrowserVisualCompareResult> {
-    const tab = this.getTab(options.tabId)
-    const action: BrowserVisualCompareAction = options.action
-    const requestedClip = normalizeVisualCompareClip(options.clip)
-    if (requestedClip && action !== 'set-baseline') throw new Error('Provide clip only when setting a new visual baseline')
-    const threshold = normalizeVisualCompareThreshold(options.threshold)
-    const rawSettleMs = options.settleMs ?? 200
-    if (!Number.isFinite(rawSettleMs)) throw new TypeError('Visual comparison settleMs must be finite')
-    const settleMs = Math.min(MAX_VISUAL_COMPARE_SETTLE_MS, Math.max(0, Math.round(rawSettleMs)))
-    const baseReport = {
-      action,
-      tabId: tab.id,
-      title: tab.title,
-      url: tab.webContents.getURL() || tab.url,
-      threshold
+  /**
+   * The narrow view visual comparison gets of this manager's private tabs,
+   * observation context and page capture. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit tests
+   * do) still provide it. The delegate below returns the feature's promise
+   * directly, so no extra ticks separate its final checks from the caller.
+   */
+  private visualCompareAccess(): VisualCompareAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
+      captureVisual: (tab, settleMs, clip) => this.captureVisual(tab, settleMs, clip)
     }
+  }
 
-    if (action === 'clear') {
-      tab.visualComparisonGeneration += 1
-      tab.visualComparison = undefined
-      return {
-        report: {
-          ...baseReport,
-          status: 'empty',
-          cleared: true,
-          caveats: this.visualCompareCaveats(threshold)
-        }
-      }
-    }
-
-    if (action === 'get') {
-      const comparison = tab.visualComparison
-      if (!comparison) {
-        return {
-          report: {
-            ...baseReport,
-            status: 'empty',
-            caveats: this.visualCompareCaveats(threshold)
-          }
-        }
-      }
-      if (comparison.lastReport) {
-        return {
-          report: { ...comparison.lastReport, action: 'get' },
-          ...(comparison.diffPng ? { diffPng: comparison.diffPng } : {})
-        }
-      }
-      return {
-        report: {
-          ...baseReport,
-          status: 'baseline',
-          baseline: comparison.baseline.snapshot,
-          scope: comparison.baseline.snapshot.scope,
-          caveats: this.visualCompareCaveats(threshold, false, comparison.baseline.snapshot.scope)
-        }
-      }
-    }
-
-    const operationGeneration = ++tab.visualComparisonGeneration
-    const retained = tab.visualComparison?.baseline
-    if (action === 'compare' && !retained) throw new Error('Set a visual baseline before comparing the page')
-    const clip = action === 'set-baseline' ? requestedClip : retained?.snapshot.scope?.kind === 'region' ? retained.snapshot.scope.clip : undefined
-    const current = await this.captureVisual(tab, settleMs, clip)
-    if (this.tabs.get(tab.id) !== tab || tab.visualComparisonGeneration !== operationGeneration) {
-      throw new Error('Visual comparison changed while the page capture was pending. Run the requested action again.')
-    }
-    if (snapshotDeltaInvalidationReason(current.observationContext, this.snapshotDeltaContext(tab))) throw new Error('The page changed while the visual capture was pending. Capture it again.')
-    // MCP supplies its existing live authority checks before retaining image state.
-    validateCapture?.()
-    if (action === 'set-baseline') {
-      tab.visualComparison = { baseline: { snapshot: current.snapshot, png: current.png, navigationGeneration: current.navigationGeneration } }
-      return {
-        report: {
-          ...baseReport,
-          url: current.snapshot.url,
-          status: 'baseline',
-          baseline: current.snapshot,
-          scope: current.snapshot.scope,
-          caveats: this.visualCompareCaveats(threshold, false, current.snapshot.scope)
-        }
-      }
-    }
-
-    const comparison = tab.visualComparison
-    if (!comparison) throw new Error('Set a visual baseline before comparing the page')
-    if (comparison.baseline.snapshot.scope?.kind === 'region'
-      && (comparison.baseline.navigationGeneration !== current.navigationGeneration
-        || JSON.stringify(comparison.baseline.snapshot.context) !== JSON.stringify(current.snapshot.context)
-        || JSON.stringify(comparison.baseline.snapshot.scope) !== JSON.stringify(current.snapshot.scope))) {
-      throw new Error('The region capture context changed (viewport, zoom, pixel ratio, scroll or document); set a new visual baseline')
-    }
-    const baselineImage = nativeImage.createFromBuffer(comparison.baseline.png)
-    if (baselineImage.isEmpty()) throw new Error('The visual baseline could not be decoded; set it again')
-    const baselineSize = baselineImage.getSize()
-    if (baselineSize.width !== current.snapshot.width || baselineSize.height !== current.snapshot.height) {
-      throw new Error(
-        `The viewport changed from ${baselineSize.width} x ${baselineSize.height} to ${current.snapshot.width} x ${current.snapshot.height}; set a new baseline at this size`
-      )
-    }
-    const baselineBitmap = Buffer.from(baselineImage.toBitmap({ scaleFactor: 1 }))
-    const diff = compareBgraBitmaps(
-      baselineBitmap,
-      current.bitmap,
-      current.snapshot.width,
-      current.snapshot.height,
-      threshold
-    )
-    const diffPng = nativeImage.createFromBitmap(diff.bitmap, {
-      width: current.snapshot.width,
-      height: current.snapshot.height,
-      scaleFactor: 1
-    }).toPNG()
-    const report: BrowserVisualCompareReport = {
-      ...baseReport,
-      url: current.snapshot.url,
-      status: 'compared',
-      baseline: comparison.baseline.snapshot,
-      current: current.snapshot,
-      scope: current.snapshot.scope,
-      identical: diff.changedPixels === 0,
-      changedPixels: diff.changedPixels,
-      totalPixels: diff.totalPixels,
-      changedPercent: diff.changedPercent,
-      ...(diff.bounds ? { diffBounds: diff.bounds } : {}),
-      caveats: this.visualCompareCaveats(threshold, comparison.baseline.snapshot.url !== current.snapshot.url, current.snapshot.scope)
-    }
-    comparison.lastReport = report
-    comparison.diffPng = diffPng
-    return { report, diffPng }
+  visualCompare(options: BrowserVisualCompareOptions, validateCapture?: () => void): Promise<BrowserVisualCompareResult> {
+    return visualCompare(this.visualCompareAccess(), options, validateCapture)
   }
 
   visualDiff(tabId?: string): Buffer {
-    const diff = this.getTab(tabId).visualComparison?.diffPng
-    if (!diff) throw new Error('Compare the current page with a visual baseline first')
-    return diff
+    return visualDiff(this.visualCompareAccess(), tabId)
   }
 
   async screenshot(options: BrowserScreenshotOptions = {}): Promise<{ annotations?: ScreenshotAnnotationReport; data: Buffer; mimeType: 'image/png' | 'image/jpeg' }> {
@@ -8369,277 +7953,49 @@ export class BrowserTabsManager {
     }
   }
 
-  async waitForPage(tabId?: string, timeoutMs = 30_000): Promise<void> {
-    const tab = this.getTab(tabId)
-    const webContents = tab.webContents
-    const rendererUnavailable = (): boolean => tab.pageProblem?.kind === 'renderer-gone'
-    const rendererUnavailableError = (): Error => new Error(
-      'The tab renderer became unavailable while waiting for the page.'
-    )
-    if (webContents.isDestroyed()) throw new Error('The tab closed while waiting for the page.')
-    if (rendererUnavailable()) throw rendererUnavailableError()
-    try {
-      if (!webContents.isLoading()) return
-    } catch {
-      throw new Error('The tab closed while waiting for the page.')
+  /**
+   * The narrow view page waits get of this manager's private tabs, target
+   * validation and renderer recovery. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it.
+   */
+  private pageWaitsAccess(): PageWaitsAccess {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      hasTab: (tabId) => this.tabs.has(tabId),
+      validateTarget: (target) => this.validateTarget(target),
+      rendererExpectsExit: (webContents) => this.rendererRecovery.expectsExit(webContents)
     }
-    await new Promise<void>((resolve, reject) => {
-      let stopSettlement: NodeJS.Immediate | undefined
-      const cleanup = (): void => {
-        if (timer) clearTimeout(timer)
-        if (stopSettlement) clearImmediate(stopSettlement)
-        webContents.removeListener('did-stop-loading', onDidStopLoading)
-        webContents.removeListener('did-fail-load', onDidFailLoad)
-        webContents.removeListener('render-process-gone', onRenderProcessGone)
-        webContents.removeListener('destroyed', onDestroyed)
-      }
-      const done = (): void => {
-        cleanup()
-        resolve()
-      }
-      const onDidStopLoading = (): void => {
-        if (stopSettlement) return
-        // Chromium reports loading stopped before Electron reports a crashed
-        // renderer. Defer success for one turn so renderer loss wins. During
-        // intentional renderer recovery, the replacement load may already be
-        // underway; keep waiting for that load's terminal event.
-        stopSettlement = setImmediate(() => {
-          stopSettlement = undefined
-          if (rendererUnavailable() || (
-            webContents.isCrashed() && !this.rendererRecovery.expectsExit(webContents)
-          )) {
-            rejectForRendererUnavailable()
-            return
-          }
-          if (webContents.isDestroyed()) {
-            onDestroyed()
-            return
-          }
-          try {
-            if (!webContents.isLoading()) done()
-          } catch {
-            onDestroyed()
-          }
-        })
-      }
-      const onDidFailLoad = (
-        _event: Electron.Event,
-        _errorCode: number,
-        _errorDescription: string,
-        _validatedURL: string,
-        isMainFrame: boolean
-      ): void => {
-        if (isMainFrame) done()
-      }
-      const onDestroyed = (): void => {
-        cleanup()
-        reject(new Error('The tab closed while waiting for the page.'))
-      }
-      const rejectForRendererUnavailable = (): void => {
-        cleanup()
-        reject(rendererUnavailableError())
-      }
-      const onRenderProcessGone = (): void => {
-        // The permanent lifecycle listener runs first and records a
-        // renderer-gone problem for an unexpected exit. Intentional renderer
-        // replacement during unresponsive-page recovery leaves it clear, so
-        // that reload can continue to the next did-stop-loading event.
-        if (!rendererUnavailable()) return
-        rejectForRendererUnavailable()
-      }
-      const onTimeout = (): void => {
-        cleanup()
-        reject(new Error('Timed out waiting for the page to finish loading.'))
-      }
-      const timer = setTimeout(onTimeout, Math.min(Math.max(timeoutMs, 1), 60_000))
-      webContents.on('did-stop-loading', onDidStopLoading)
-      webContents.on('did-fail-load', onDidFailLoad)
-      webContents.on('render-process-gone', onRenderProcessGone)
-      webContents.once('destroyed', onDestroyed)
-      // Loading can finish, or the tab can close, between the initial state
-      // check and listener registration. Recheck both after every listener is
-      // installed so neither terminal state can leave this wait stranded.
-      if (webContents.isDestroyed()) {
-        onDestroyed()
-      } else if (rendererUnavailable()) {
-        onRenderProcessGone()
-      } else {
-        try {
-          if (!webContents.isLoading()) onDidStopLoading()
-        } catch {
-          onDestroyed()
-        }
-      }
-    })
   }
 
-  async waitForText(
+  waitForPage(tabId?: string, timeoutMs = 30_000): Promise<void> {
+    return waitForPage(this.pageWaitsAccess(), tabId, timeoutMs)
+  }
+
+  waitForText(
     text: string | readonly string[],
     tabId?: string,
     timeoutMs = 30_000,
     state: 'visible' | 'hidden' = 'visible'
   ): Promise<string | null> {
-    const tab = this.getTab(tabId)
-    const webContents = tab.webContents
-    const candidates = typeof text === 'string' ? [text] : [...text]
-    if (!candidates.length) throw new TypeError('At least one text candidate is required.')
-    const deadline = Date.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
-    const evaluationDeadline = Symbol('text-wait-deadline')
-    while (Date.now() < deadline) {
-      if (!this.tabs.has(tab.id) || webContents.isDestroyed()) {
-        throw new Error('The tab closed while waiting for page text.')
-      }
-      let match: string | null
-      let onDestroyed: () => void = () => undefined
-      let evaluationTimer: NodeJS.Timeout | undefined
-      try {
-        const evaluation = webContents.executeJavaScript(
-          `(() => { const pageText = document.body?.innerText ?? ''; return ${javascriptLiteral(candidates)}.find((candidate) => pageText.includes(candidate)) ?? null })()`,
-          true
-        )
-        const closed = new Promise<never>((_resolve, reject) => {
-          onDestroyed = () => reject(new Error('The tab closed while waiting for page text.'))
-          webContents.once('destroyed', onDestroyed)
-        })
-        const timedOut = new Promise<typeof evaluationDeadline>((resolve) => {
-          evaluationTimer = setTimeout(() => resolve(evaluationDeadline), Math.max(1, deadline - Date.now()))
-        })
-        // Register the close race before checking state again so no teardown
-        // gap can strand executeJavaScript while an unfinished page is loading.
-        const pending = Promise.race([evaluation, closed, timedOut])
-        if (!this.tabs.has(tab.id) || webContents.isDestroyed()) {
-          throw new Error('The tab closed while waiting for page text.')
-        }
-        const result = await pending
-        if (result === evaluationDeadline) return null
-        match = typeof result === 'string' ? result : null
-      } catch (error) {
-        if (!this.tabs.has(tab.id) || webContents.isDestroyed()) {
-          throw new Error('The tab closed while waiting for page text.')
-        }
-        throw error
-      } finally {
-        if (evaluationTimer) clearTimeout(evaluationTimer)
-        webContents.removeListener('destroyed', onDestroyed)
-      }
-      if (state === 'visible' ? match !== null : match === null) {
-        return state === 'visible' ? match : (candidates[0] ?? null)
-      }
-      if (Date.now() >= deadline) return null
-      await new Promise((resolve) => setTimeout(resolve, 200))
-    }
-    return null
+    return waitForText(this.pageWaitsAccess(), text, tabId, timeoutMs, state)
   }
 
-  async waitForElement(
+  waitForElement(
     target: { ref?: string; selector?: string },
     tabId?: string,
     timeoutMs = 30_000,
     state: 'attached' | 'detached' | 'visible' | 'hidden' = 'visible'
   ): Promise<boolean> {
-    this.validateTarget(target)
-    const tab = this.getTab(tabId)
-    const webContents = tab.webContents
-    const deadline = Date.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
-    const evaluationDeadline = Symbol('element-wait-deadline')
-    const expression = targetStateScript(target, state)
-    while (Date.now() < deadline) {
-      if (!this.tabs.has(tab.id) || webContents.isDestroyed()) {
-        throw new Error('The tab closed while waiting for the page element.')
-      }
-      let onDestroyed: () => void = () => undefined
-      let evaluationTimer: NodeJS.Timeout | undefined
-      try {
-        const evaluation = webContents.executeJavaScript(expression, true) as Promise<{ matches?: boolean }>
-        const closed = new Promise<never>((_resolve, reject) => {
-          onDestroyed = () => reject(new Error('The tab closed while waiting for the page element.'))
-          webContents.once('destroyed', onDestroyed)
-        })
-        const timedOut = new Promise<typeof evaluationDeadline>((resolve) => {
-          evaluationTimer = setTimeout(() => resolve(evaluationDeadline), Math.max(1, deadline - Date.now()))
-        })
-        const pending = Promise.race([evaluation, closed, timedOut])
-        if (!this.tabs.has(tab.id) || webContents.isDestroyed()) {
-          throw new Error('The tab closed while waiting for the page element.')
-        }
-        const result = await pending
-        if (result === evaluationDeadline) return false
-        if (result?.matches === true) return true
-      } catch (error) {
-        if (!this.tabs.has(tab.id) || webContents.isDestroyed()) {
-          throw new Error('The tab closed while waiting for the page element.')
-        }
-        throw error
-      } finally {
-        if (evaluationTimer) clearTimeout(evaluationTimer)
-        webContents.removeListener('destroyed', onDestroyed)
-      }
-      if (Date.now() >= deadline) return false
-      await new Promise((resolve) => setTimeout(resolve, 200))
-    }
-    return false
+    return waitForElement(this.pageWaitsAccess(), target, tabId, timeoutMs, state)
   }
 
-  async waitForUrlPattern(
+  waitForUrlPattern(
     urlPattern: string,
     tabId?: string,
     timeoutMs = 30_000
   ): Promise<string | null> {
-    const pattern = normalizePageUrlWaitPattern(urlPattern)
-    const tab = this.getTab(tabId)
-    const webContents = tab.webContents
-    const timeout = Math.min(Math.max(timeoutMs, 1), 60_000)
-    const rendererUnavailable = (): boolean => tab.pageProblem?.kind === 'renderer-gone'
-    if (webContents.isDestroyed()) throw new Error('The tab closed while waiting for the page URL.')
-    if (rendererUnavailable()) throw new Error('The tab renderer became unavailable while waiting for the page URL.')
-
-    return new Promise<string | null>((resolve, reject) => {
-      let settled = false
-      const cleanup = (): void => {
-        clearTimeout(timer)
-        webContents.removeListener('did-navigate', onNavigate)
-        webContents.removeListener('did-navigate-in-page', onNavigateInPage)
-        webContents.removeListener('render-process-gone', onRenderProcessGone)
-        webContents.removeListener('destroyed', onDestroyed)
-      }
-      const finish = (url: string | null): void => {
-        if (settled) return
-        settled = true
-        cleanup()
-        resolve(url ? redactNetworkUrl(url) : null)
-      }
-      const fail = (error: Error): void => {
-        if (settled) return
-        settled = true
-        cleanup()
-        reject(error)
-      }
-      const match = (url: string): void => {
-        if (pageUrlMatchesWait(pattern, url)) finish(url)
-      }
-      const onNavigate = (_event: Electron.Event, url: string): void => match(url)
-      const onNavigateInPage = (_event: Electron.Event, url: string, isMainFrame: boolean): void => {
-        if (isMainFrame) match(url)
-      }
-      const onRenderProcessGone = (): void => {
-        // Intentional renderer replacement during unresponsive-page recovery
-        // leaves the renderer-gone problem clear and the URL wait active.
-        if (rendererUnavailable()) {
-          fail(new Error('The tab renderer became unavailable while waiting for the page URL.'))
-        }
-      }
-      const onDestroyed = (): void => fail(new Error('The tab closed while waiting for the page URL.'))
-      const timer = setTimeout(() => finish(null), timeout)
-      webContents.on('did-navigate', onNavigate)
-      webContents.on('did-navigate-in-page', onNavigateInPage)
-      webContents.on('render-process-gone', onRenderProcessGone)
-      webContents.once('destroyed', onDestroyed)
-      // Register every listener before checking the current URL so a route
-      // change or teardown cannot land in the setup gap.
-      if (!this.tabs.has(tab.id) || webContents.isDestroyed()) onDestroyed()
-      else if (rendererUnavailable()) onRenderProcessGone()
-      else match(webContents.getURL() || tab.url)
-    })
+    return waitForUrlPattern(this.pageWaitsAccess(), urlPattern, tabId, timeoutMs)
   }
 
   setToolbarHeight(height: number): void {
