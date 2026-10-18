@@ -125,7 +125,8 @@ import { decodeWebsiteFavicon } from './favicon.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
-import { stat } from 'node:fs/promises'
+import type { FileUploadAccess } from './file-upload/file-upload-access.js'
+import { uploadFiles } from './file-upload/file-upload.js'
 import { validateHeaderValue } from 'node:http'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import axe from 'axe-core'
@@ -5816,64 +5817,36 @@ export class BrowserTabsManager {
     this.downloadController.showDownloadInFolder(downloadId)
   }
 
-  async uploadFiles(
+  /**
+   * The narrow view a file upload gets of this manager's private tabs,
+   * workspaces, inspection permissions, observation context, target
+   * validation, agent input admission and debugger lease. It is a prototype
+   * method rather than a field, so managers created without the constructor
+   * (as unit tests do) still provide it. The delegate below returns the
+   * feature's promise directly, so no extra ticks separate its final checks
+   * from the caller.
+   */
+  private fileUploadAccess(): FileUploadAccess<BrowserTab> {
+    return {
+      validateTarget: (target) => this.validateTarget(target),
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
+      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
+      isDestroyed: () => this.destroyed,
+      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
+      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      releaseDebuggerEvaluationObjects: (webContents, response) => this.releaseDebuggerEvaluationObjects(webContents, response)
+    }
+  }
+
+  uploadFiles(
     target: { tabId?: string; ref?: string; selector?: string },
     paths: string[],
     validateUpload?: (validateContext: () => void) => void
   ): Promise<{ files: string[] }> {
-    this.validateTarget(target)
-    if (!paths.length || paths.length > 20) throw new Error('Provide between 1 and 20 file paths')
-    const tab = this.getTab(target.tabId)
-    const webContents = tab.webContents
-    const context = this.snapshotDeltaContext(tab)
-    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
-    let documentCommitted = false
-    const onCommitted = (): void => { documentCommitted = true }
-    const assertContext = (): void => {
-      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-      if (documentCommitted || this.destroyed || currentWorkspace !== workspace
-        || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-        || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()
-        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) {
-        throw new Error('File upload context changed; earlier effects are not rolled back')
-      }
-    }
-    const assertCurrent = (): void => { if (validateUpload) validateUpload(assertContext); else assertContext() }
-    webContents.on('did-navigate', onCommitted)
-    try {
-      for (const path of paths) {
-        if (!isAbsolute(path)) throw new Error(`File path must be absolute: ${path}`)
-        const file = await stat(path)
-        if (!file.isFile()) throw new Error(`Path is not a file: ${path}`)
-      }
-      assertCurrent()
-      await this.withAgentInput(webContents, () => this.withDebugger(webContents, async () => {
-        assertCurrent()
-        const evaluated = await webContents.debugger.sendCommand('Runtime.evaluate', {
-          expression: targetExpression(target),
-          returnByValue: false
-        }) as {
-          result?: { objectId?: string; subtype?: string }
-          exceptionDetails?: { text?: string; exception?: { description?: string; objectId?: string } }
-        }
-        try {
-          if (evaluated.exceptionDetails) {
-            throw new Error(evaluated.exceptionDetails.exception?.description ?? evaluated.exceptionDetails.text ?? 'File input lookup failed')
-          }
-          const objectId = evaluated.result?.objectId
-          if (!objectId || evaluated.result?.subtype === 'null') throw new Error('File input not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.')
-          // No await between final authority/context validation and the file-input commit.
-          assertCurrent()
-          await webContents.debugger.sendCommand('DOM.setFileInputFiles', { files: paths, objectId })
-        } finally {
-          await this.releaseDebuggerEvaluationObjects(webContents, evaluated)
-        }
-      }))
-      return { files: [...paths] }
-    } finally {
-      webContents.removeListener('did-navigate', onCommitted)
-    }
+    return uploadFiles(this.fileUploadAccess(), target, paths, validateUpload)
   }
 
   async holdKey(input: NativeKeyHoldInput, validateInput: (validateContext: () => void) => void,
