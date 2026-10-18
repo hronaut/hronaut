@@ -25,6 +25,15 @@ import type { ElementInspectionAccess } from './element-inspection/element-inspe
 import { elementInspection, imageState, mediaState } from './element-inspection/element-inspection.js'
 import type { BrowserConsoleMessageRecord, ConsoleCapture, ConsoleMessagesAccess } from './console-messages/console-messages-access.js'
 import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage, withPendingRuntimeConsoleMessage } from './console-messages/console-messages.js'
+import type { TabOverviewPreviewCaptureRequest, TabOverviewPreviewsAccess } from './tab-overview-previews/tab-overview-previews-access.js'
+import {
+  captureTabOverviewPreview,
+  getTabOverviewPagePreview,
+  getTabOverviewPreviews,
+  invalidateTabOverviewPreview,
+  performTabOverviewPreviewCapture,
+  storeTabOverviewPreview
+} from './tab-overview-previews/tab-overview-previews.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
@@ -446,23 +455,10 @@ const MAX_NETWORK_ROUTES = 50
 const MAX_INSPECTOR_ISSUES = 200
 const MAX_VISUAL_COMPARE_WIDTH = 1_920
 const MAX_VISUAL_COMPARE_HEIGHT = 1_080
-const MAX_TAB_OVERVIEW_PREVIEW_WIDTH = 480
-const MAX_TAB_OVERVIEW_PREVIEW_HEIGHT = 300
-const MAX_TAB_OVERVIEW_ENLARGED_PREVIEW_WIDTH = 960
-const MAX_TAB_OVERVIEW_ENLARGED_PREVIEW_HEIGHT = 600
-const MAX_TAB_OVERVIEW_PREVIEW_BYTES = 256 * 1024
-const TAB_OVERVIEW_PREVIEW_JPEG_QUALITY = 65
 const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
-const TAB_OVERVIEW_LIVE_CAPTURE_BATCH = 4
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
-const MAX_TAB_OVERVIEW_PAGE_WIDTH = 1_440
-const MAX_TAB_OVERVIEW_PAGE_HEIGHT = 12_000
-const MAX_TAB_OVERVIEW_PAGE_PIXELS = 12_000_000
-const MAX_TAB_OVERVIEW_PAGE_BYTES = 4 * 1024 * 1024
-const TAB_OVERVIEW_PAGE_TIMEOUT_MS = 5_000
-const MAX_TAB_OVERVIEW_PAGE_CAPTURES = 2
 const MAX_AGENT_STEP_THUMBNAIL_WIDTH = 320
 const MAX_AGENT_STEP_THUMBNAIL_HEIGHT = 200
 const MAX_AGENT_STEP_THUMBNAIL_BYTES = 48 * 1024
@@ -720,14 +716,6 @@ interface BrowserSnapshotBaselineRecord {
   context: BrowserSnapshotDeltaContext
   snapshot: BrowserSnapshot
   rootSelector?: string
-}
-
-type TabOverviewPreviewCaptureMode = 'visible' | 'overview'
-
-interface TabOverviewPreviewCaptureRequest {
-  tab: BrowserTab
-  sequence: number
-  mode: TabOverviewPreviewCaptureMode
 }
 
 import { WorkspaceRegistry, type ActiveWorkspace as BrowserTabGroup } from './workspace-registry.js'
@@ -1407,8 +1395,8 @@ export class BrowserTabsManager {
   private readonly tabOverviewSleepPreviews = new Map<string, BrowserTabOverviewPreview>()
   private readonly tabOverviewPageCaptures = new Map<string, Promise<BrowserTabOverviewPreview>>()
   private readonly tabOverviewPreviewTimers = new Map<string, NodeJS.Timeout>()
-  private readonly tabOverviewPreviewCaptures = new PreviewCaptureQueue<TabOverviewPreviewCaptureRequest>(
-    request => this.performTabOverviewPreviewCapture(request.tab, request.sequence, request.mode)
+  private readonly tabOverviewPreviewCaptures = new PreviewCaptureQueue<TabOverviewPreviewCaptureRequest<BrowserTab>>(
+    request => performTabOverviewPreviewCapture(this.tabOverviewPreviewsAccess(), request.tab, request.sequence, request.mode)
   )
   private readonly nativePreviewCapture = new NativePreviewCapture(TAB_OVERVIEW_CAPTURE_TIMEOUT_MS)
   private readonly occlusionSnapshot = new OcclusionSnapshot({
@@ -1640,64 +1628,43 @@ export class BrowserTabsManager {
     this.publishAgentFollowChange(before)
   }
 
+  /**
+   * The narrow view overview previews get of this manager's private tabs,
+   * window, split view, debugger lease and preview caches, timers and queues.
+   * It is a prototype method rather than a field, so managers created without
+   * the constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's promise or value directly, so no extra ticks separate
+   * its final checks from the caller.
+   */
+  private tabOverviewPreviewsAccess(): TabOverviewPreviewsAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      tabs: () => this.tabs.values(),
+      isDestroyed: () => this.destroyed,
+      window: () => this.window,
+      browserContentOccluded: () => this.browserContentOccluded,
+      activeTabId: () => this.activeTabId,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
+      screenshotPixelRatio: (tab) => this.screenshotPixelRatio(tab),
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      withRenderableTab: (tab, operation, mode) => this.withRenderableTab(tab, operation, mode),
+      scheduleTabOverviewPreview: (tab) => this.scheduleTabOverviewPreview(tab),
+      tabOverviewPreviews: () => this.tabOverviewPreviews,
+      tabOverviewSleepPreviews: () => this.tabOverviewSleepPreviews,
+      tabOverviewPageCaptures: () => this.tabOverviewPageCaptures,
+      tabOverviewPreviewTimers: () => this.tabOverviewPreviewTimers,
+      tabOverviewPreviewCaptures: () => this.tabOverviewPreviewCaptures,
+      tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
+      tabOverviewLiveCaptureCursor: () => this.tabOverviewLiveCaptureCursor,
+      setTabOverviewLiveCaptureCursor: (cursor) => { this.tabOverviewLiveCaptureCursor = cursor },
+      nativePreviewCapture: () => this.nativePreviewCapture
+    }
+  }
+
   getTabOverviewPreviews(tabIds: readonly string[]): BrowserTabOverviewPreview[] {
-    if (
-      !this.destroyed
-      && !this.window.isDestroyed()
-      && this.window.isVisible()
-      && this.window.isFocused()
-      && this.browserContentOccluded
-    ) {
-      const candidates = tabIds.flatMap((tabId) => {
-        const tab = this.tabs.get(tabId)
-        return tab
-          && this.tabOverviewPreviewableTabs.has(tabId)
-          && !tab.sleeping
-          && !tab.webContents.isDestroyed()
-          && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
-          ? [tab]
-          : []
-      })
-      if (candidates.length) {
-        const start = this.tabOverviewLiveCaptureCursor % candidates.length
-        const batchSize = Math.min(TAB_OVERVIEW_LIVE_CAPTURE_BATCH, candidates.length)
-        const batch: BrowserTab[] = []
-        for (let index = 0; index < batchSize; index += 1) {
-          const tab = candidates[(start + index) % candidates.length]
-          if (tab) batch.push(tab)
-        }
-        this.tabOverviewLiveCaptureCursor = (start + batchSize) % candidates.length
-        for (const tab of batch) {
-          // A periodic refresh must not invalidate a capture that is already
-          // painting. Lifecycle events advance this sequence independently,
-          // so navigation can still supersede the old frame and queue a new one.
-          const sequence = this.tabOverviewPreviewCaptures.has(tab.id)
-            ? tab.overviewPreviewSequence
-            : ++tab.overviewPreviewSequence
-          void this.captureTabOverviewPreview(tab, sequence, 'overview').catch(() => {
-            // Live previews are best-effort. One page renderer refusing capture
-            // must not suppress the last-good frames for every other tab.
-          })
-        }
-      }
-    }
-    const previews: BrowserTabOverviewPreview[] = []
-    for (const tabId of tabIds) {
-      const tab = this.tabs.get(tabId)
-      const lastFrame = this.tabOverviewSleepPreviews.get(tabId)
-      if (lastFrame && tab?.sleeping) {
-        previews.push({ ...lastFrame, navigationGeneration: tab.navigationGeneration, sleeping: true })
-        continue
-      }
-      if (lastFrame) this.tabOverviewSleepPreviews.delete(tabId)
-      const preview = this.tabOverviewPreviews.get(tabId)
-      if (!tab || tab.sleeping || !preview || preview.navigationGeneration !== tab.navigationGeneration) {
-        if (preview) this.tabOverviewPreviews.delete(tabId)
-        continue
-      }
-      previews.push({ ...preview })
-    }
-    return previews
+    return getTabOverviewPreviews(this.tabOverviewPreviewsAccess(), tabIds)
   }
 
   /**
@@ -1750,117 +1717,8 @@ export class BrowserTabsManager {
     return ratio
   }
 
-  async getTabOverviewPagePreview(tabId: string): Promise<BrowserTabOverviewPreview> {
-    const tab = this.getTab(tabId)
-    const webContents = tab.webContents
-    const navigationGeneration = tab.navigationGeneration
-    let expired = false
-    let viewportIdentity: string | undefined = undefined
-    const currentViewportIdentity = (): string => {
-      const { width, height } = tab.view.getBounds()
-      return JSON.stringify([width, height, webContents.getZoomFactor(), this.screenshotPixelRatio(tab), tab.emulation.viewport])
-    }
-    const assertCurrent = (): void => {
-      if (expired) throw new Error('Full-page preview timed out. Try again when the page is ready.')
-      if (this.destroyed || this.window.isDestroyed() || this.tabs.get(tabId) !== tab || webContents.isDestroyed()) {
-        throw new Error('The tab closed before its full-page preview was ready.')
-      }
-      if (tab.sleeping || tab.wakePromise) throw new Error('Wake this tab before requesting a full-page preview.')
-      if (tab.navigationGeneration !== navigationGeneration) throw new Error('The page changed while preparing its preview. Try again.')
-      if (tab.loading || webContents.isLoadingMainFrame()) throw new Error('Wait for the page to finish loading, then try its preview again.')
-      if (viewportIdentity !== undefined && currentViewportIdentity() !== viewportIdentity) {
-        throw new Error('The page viewport changed while preparing its preview. Try again.')
-      }
-      if (this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
-        throw new Error('Close Developer Tools for this tab before requesting a full-page preview.')
-      }
-    }
-    assertCurrent()
-    const existing = this.tabOverviewPageCaptures.get(tabId)
-    if (existing) return existing
-    if (this.tabOverviewPageCaptures.size >= MAX_TAB_OVERVIEW_PAGE_CAPTURES) {
-      throw new Error('Other full-page previews are still finishing. Try again shortly.')
-    }
-
-    viewportIdentity = currentViewportIdentity()
-
-    // Visible tabs capture directly; detached tabs need the existing offscreen
-    // host even if previously viewed. Neither path selects, scrolls, or wakes a tab.
-    const runCapture = () => this.withDebugger(webContents, async () => {
-      assertCurrent()
-      const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
-        cssContentSize?: { x: number; y: number; width: number; height: number }
-        cssVisualViewport?: { zoom?: number }
-      }
-      assertCurrent()
-      const size = metrics.cssContentSize
-      if (!size || ![size.x, size.y, size.width, size.height].every(Number.isFinite)
-        || size.width <= 0 || size.height <= 0 || size.width > 1_000_000 || size.height > 1_000_000) {
-        throw new Error('This page does not provide a supported full-page preview size.')
-      }
-      // Page JavaScript can replace devicePixelRatio. Only trusted native and
-      // Hronaut emulation values may influence capture allocation limits.
-      const pixelRatio = this.screenshotPixelRatio(tab)
-      // Page.Viewport takes DIP, while cssContentSize is CSS pixels. Native
-      // page zoom changes that ratio; scaling only the output crops the page.
-      const clip = fullPageScreenshotBounds(metrics, webContents.getZoomFactor())
-      const pixelWidth = clip.width * pixelRatio
-      const pixelHeight = clip.height * pixelRatio
-      const bounded = boundedScreenshotSize(pixelWidth, pixelHeight, MAX_TAB_OVERVIEW_PAGE_WIDTH, MAX_TAB_OVERVIEW_PAGE_HEIGHT)
-      let scale = Math.min(bounded.scale, Math.sqrt(MAX_TAB_OVERVIEW_PAGE_PIXELS / (pixelWidth * pixelHeight)))
-      if (scale < 1) {
-        // Chromium can round fractional raster dimensions up. Leave one pixel
-        // of headroom per axis before allocating a capture near the limit.
-        scale = Math.min(scale, Math.max(1, Math.floor(pixelWidth * scale) - 1) / pixelWidth, Math.max(1, Math.floor(pixelHeight * scale) - 1) / pixelHeight)
-      }
-      const result = await webContents.debugger.sendCommand('Page.captureScreenshot', {
-        format: 'jpeg', quality: 80,
-        clip: { ...clip, scale },
-        captureBeyondViewport: true,
-        fromSurface: true
-      }) as { data?: unknown }
-      assertCurrent()
-      if (typeof result.data !== 'string' || result.data.length > Math.ceil(MAX_TAB_OVERVIEW_PAGE_BYTES / 3) * 4) {
-        throw new Error('This full-page preview exceeds the image size limit.')
-      }
-      const jpeg = Buffer.from(result.data, 'base64')
-      if (!jpeg.length || jpeg.length > MAX_TAB_OVERVIEW_PAGE_BYTES) throw new Error('The full-page preview could not be captured within the image size limit.')
-      const image = nativeImage.createFromBuffer(jpeg)
-      const actual = image.getSize()
-      if (image.isEmpty() || actual.width <= 0 || actual.height <= 0
-        || actual.width > MAX_TAB_OVERVIEW_PAGE_WIDTH || actual.height > MAX_TAB_OVERVIEW_PAGE_HEIGHT
-        || actual.width * actual.height > MAX_TAB_OVERVIEW_PAGE_PIXELS) {
-        throw new Error('The full-page preview could not be captured within the image dimensions limit.')
-      }
-      assertCurrent()
-      return { tabId, navigationGeneration, dataUrl: `data:image/jpeg;base64,${jpeg.toString('base64')}`, ...actual }
-    })
-    let timer: NodeJS.Timeout | undefined
-    const deadline = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => {
-        expired = true
-        reject(new Error('Full-page preview timed out. Try again when the page is ready.'))
-      }, TAB_OVERVIEW_PAGE_TIMEOUT_MS)
-      timer.unref()
-    })
-    let nativeCapture: Promise<BrowserTabOverviewPreview> | undefined
-    const captureOperation = (): Promise<BrowserTabOverviewPreview> => {
-      assertCurrent()
-      nativeCapture = runCapture()
-      return Promise.race([nativeCapture, deadline])
-    }
-    const capture = this.withRenderableTab(tab, captureOperation, 'surface')
-    const request = Promise.race([capture, deadline])
-    this.tabOverviewPageCaptures.set(tabId, request)
-    // The deadline releases an offscreen host promptly, but cannot cancel CDP.
-    // Keep the slot until native work settles so retries do not accumulate or
-    // detach a debugger owned by another operation.
-    void capture.finally(async () => {
-      if (timer) clearTimeout(timer)
-      await nativeCapture?.catch(() => undefined)
-      if (this.tabOverviewPageCaptures.get(tabId) === request) this.tabOverviewPageCaptures.delete(tabId)
-    }).catch(() => undefined)
-    return request
+  getTabOverviewPagePreview(tabId: string): Promise<BrowserTabOverviewPreview> {
+    return getTabOverviewPagePreview(this.tabOverviewPreviewsAccess(), tabId)
   }
 
   listMcpTabGroups(): BrowserTabGroupState[] {
@@ -11363,7 +11221,7 @@ export class BrowserTabsManager {
       if (this.tabOverviewPreviewTimers.get(tab.id) === timer) {
         this.tabOverviewPreviewTimers.delete(tab.id)
       }
-      void this.captureTabOverviewPreview(tab, sequence).catch((error) => {
+      void captureTabOverviewPreview(this.tabOverviewPreviewsAccess(), tab, sequence).catch((error) => {
         if (!this.destroyed && this.tabs.get(tab.id) === tab && !tab.webContents.isDestroyed()) {
           console.warn(`[browser] Could not capture tab overview preview for ${tab.id}:`, error)
         }
@@ -11373,132 +11231,18 @@ export class BrowserTabsManager {
     this.tabOverviewPreviewTimers.set(tab.id, timer)
   }
 
-  private async captureTabOverviewPreview(
-    tab: BrowserTab,
-    sequence: number,
-    mode: TabOverviewPreviewCaptureMode = 'visible'
-  ): Promise<void> {
-    return this.tabOverviewPreviewCaptures.run(tab.id, { tab, sequence, mode })
-  }
-
-  private async performTabOverviewPreviewCapture(
-    tab: BrowserTab,
-    sequence: number,
-    mode: TabOverviewPreviewCaptureMode
-  ): Promise<void> {
-    const isEligible = (): boolean => (
-      !this.destroyed
-      && !this.window.isDestroyed()
-      && this.tabs.get(tab.id) === tab
-      && !tab.webContents.isDestroyed()
-      && this.window.isVisible()
-      && this.window.isFocused()
-      && !tab.sleeping
-      && (mode === 'overview'
-        ? this.browserContentOccluded
-          && this.tabOverviewPreviewableTabs.has(tab.id)
-        : !this.browserContentOccluded
-          && tab.view.getVisible()
-          && !tab.loading
-          && (tab.id === this.activeTabId || this.splitViewContains(tab.id)))
-      && tab.overviewPreviewSequence === sequence
-    )
-    if (!isEligible()) return
-    const navigationGeneration = tab.navigationGeneration
-    const captured = await this.nativePreviewCapture.run(
-      tab.webContents,
-      () => mode === 'overview'
-        ? tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: false })
-        : tab.webContents.capturePage(),
-      () => { this.tabOverviewPreviewableTabs.delete(tab.id) },
-      () => this.resumeTabOverviewPreviewAfterLateCapture(tab)
-    )
-    if (!captured || !isEligible() || tab.navigationGeneration !== navigationGeneration || captured.isEmpty()) return
-    // Only the single website card is enlarged. Keep normal cached captures
-    // compact and promote the active frame during its existing overview refresh.
-    const enlarged = mode === 'overview'
-      && !isHronautHomeUrl(tab.url)
-      && [...this.tabs.values()].filter(candidate => !isHronautHomeUrl(candidate.url)).length === 1
-    if (this.storeTabOverviewPreview(tab, captured, navigationGeneration, enlarged, isEligible)) this.tabOverviewPreviewableTabs.add(tab.id)
-  }
-
-  /**
-   * Keeps a captured frame as the tab's overview preview, compact unless enlarged; false when it no longer applies
-   * or exceeds the size limit. Memory only: never saved, sent to agents or reported.
-   */
   private storeTabOverviewPreview(
     tab: BrowserTab,
     captured: Electron.NativeImage,
     navigationGeneration: number,
     enlarged: boolean,
-    stillCurrent: () => boolean = () => true
+    stillCurrent?: () => boolean
   ): boolean {
-    if (captured.isEmpty()) return false
-    const original = captured.getSize()
-    const encodePreview = (maxWidth: number, maxHeight: number, quality: number) => {
-      const bounded = boundedScreenshotSize(original.width, original.height, maxWidth, maxHeight)
-      const image = bounded.width === original.width && bounded.height === original.height
-        ? captured
-        : captured.resize({ width: bounded.width, height: bounded.height, quality: enlarged ? 'best' : 'good' })
-      return { image, jpeg: image.toJPEG(quality) }
-    }
-    let preview = enlarged
-      ? encodePreview(MAX_TAB_OVERVIEW_ENLARGED_PREVIEW_WIDTH, MAX_TAB_OVERVIEW_ENLARGED_PREVIEW_HEIGHT, 75)
-      : encodePreview(MAX_TAB_OVERVIEW_PREVIEW_WIDTH, MAX_TAB_OVERVIEW_PREVIEW_HEIGHT, TAB_OVERVIEW_PREVIEW_JPEG_QUALITY)
-    if (enlarged && preview.jpeg.length > MAX_TAB_OVERVIEW_PREVIEW_BYTES) {
-      // Noisy pages still get a fresh frame without raising the cache byte cap.
-      preview = encodePreview(MAX_TAB_OVERVIEW_PREVIEW_WIDTH, MAX_TAB_OVERVIEW_PREVIEW_HEIGHT, TAB_OVERVIEW_PREVIEW_JPEG_QUALITY)
-    }
-    const { image, jpeg } = preview
-    const size = image.getSize()
-    if (
-      !stillCurrent()
-      || this.destroyed
-      || this.tabs.get(tab.id) !== tab
-      || tab.sleeping
-      || tab.navigationGeneration !== navigationGeneration
-      || jpeg.length > MAX_TAB_OVERVIEW_PREVIEW_BYTES
-    ) return false
-    this.tabOverviewPreviews.set(tab.id, {
-      tabId: tab.id,
-      navigationGeneration,
-      dataUrl: `data:image/jpeg;base64,${jpeg.toString('base64')}`,
-      width: size.width,
-      height: size.height
-    })
-    return true
-  }
-
-  private resumeTabOverviewPreviewAfterLateCapture(tab: BrowserTab): void {
-    setImmediate(() => {
-      if (
-        this.destroyed
-        || this.window.isDestroyed()
-        || this.tabs.get(tab.id) !== tab
-        || tab.webContents.isDestroyed()
-        || tab.sleeping
-      ) return
-      this.tabOverviewPreviewableTabs.add(tab.id)
-      if (
-        this.window.isVisible()
-        && this.window.isFocused()
-        && this.browserContentOccluded
-        && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
-      ) {
-        const sequence = ++tab.overviewPreviewSequence
-        void this.captureTabOverviewPreview(tab, sequence, 'overview').catch(() => undefined)
-        return
-      }
-      this.scheduleTabOverviewPreview(tab)
-    })
+    return storeTabOverviewPreview(this.tabOverviewPreviewsAccess(), tab, captured, navigationGeneration, enlarged, stillCurrent)
   }
 
   private invalidateTabOverviewPreview(tab: BrowserTab): void {
-    const timer = this.tabOverviewPreviewTimers.get(tab.id)
-    if (timer) clearTimeout(timer)
-    this.tabOverviewPreviewTimers.delete(tab.id)
-    this.tabOverviewPreviews.delete(tab.id)
-    tab.overviewPreviewSequence += 1
+    invalidateTabOverviewPreview(this.tabOverviewPreviewsAccess(), tab)
   }
 
   private markTabActiveInGroup(tab: BrowserTab): void {
