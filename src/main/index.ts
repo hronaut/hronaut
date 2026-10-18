@@ -181,12 +181,12 @@ import {
   dimTitleBarOverlay,
   createAutoHideMenuGesture,
   mainWindowChromeOptions,
-  parseScrimColor,
   titleBarOverlayStyle,
   type DesktopWindowPlatform,
   type ScrimColor,
   type WindowChromeMode
 } from '../shared/title-bar.js'
+import { registerShellIpc } from './shell-ipc.js'
 import { writeVerifiedClipboardText } from './verified-clipboard.js'
 import { loadNativeWindowWithRollback } from './native-window-load.js'
 import type {
@@ -2730,10 +2730,23 @@ function registerIpc(): void {
     const request = parseAgentStepHistoryRequest(value)
     return mcpServer?.getAgentStepHistory(request.clientKey, request.workspaceId, request.known) ?? null
   })
-  handleBrowserIpc('browser:copy-text', async (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
-    await copyTextToClipboard(value)
+  registerShellIpc(ipcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    assertMainShellSender,
+    handleBrowserIpc,
+    workspaceStartupFailure: () => workspaceStartupFailure,
+    copyTextToClipboard,
+    showWindow,
+    setQuitting: (value) => { quitting = value },
+    quitApp: () => app.quit(),
+    windowFromWebContents: (webContents) => BrowserWindow.fromWebContents(webContents),
+    tabs: () => tabsManager,
+    toastOverlay: () => toastOverlay,
+    setWindowControlsScrim: (scrim) => { windowControlsScrim = scrim },
+    applyMainWindowTitleBarOverlay,
+    shellFollowAgentActivitySuspended: () => shellFollowAgentActivitySuspended,
+    setShellFollowAgentActivitySuspended: (value) => { shellFollowAgentActivitySuspended = value },
+    agentCardOpen: () => agentCardOpen
   })
   registerHomeIpc({
     handleBrowserIpc,
@@ -2871,12 +2884,6 @@ function registerIpc(): void {
       return selection.canceled ? undefined : selection.filePaths[0]
     }
   })
-  handleBrowserIpc('browser:show', (event) => { assertTrustedShellSender(event); showWindow() })
-  handleBrowserIpc('browser:quit', (event) => {
-    assertTrustedShellSender(event)
-    quitting = true
-    app.quit()
-  })
   registerSettingsIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
@@ -2948,59 +2955,6 @@ function registerIpc(): void {
     checkForUpdates,
     downloadUpdate,
     installDownloadedUpdate
-  })
-  ipcMain.handle('shell:is-window-focused', (event) => {
-    assertTrustedShellSender(event)
-    return BrowserWindow.fromWebContents(event.sender)?.isFocused() ?? false
-  })
-  ipcMain.on('browser:toolbar-height', (event, height: number) => {
-    if (workspaceStartupFailure) return
-    assertMainShellSender(event)
-    tabsManager?.setToolbarHeight(scaleShellMetric(height, event.sender.getZoomFactor()))
-    toastOverlay.relayout()
-  })
-  ipcMain.on('browser:content-insets', (event, value: unknown) => {
-    if (workspaceStartupFailure) return
-    assertMainShellSender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid browser content insets')
-    const { top, right, bottom, left } = value as Record<string, unknown>
-    if (![top, right, bottom, left].every((inset) => typeof inset === 'number' && Number.isFinite(inset))) {
-      throw new TypeError('Invalid browser content insets')
-    }
-    tabsManager?.setContentInsets({
-      top: scaleShellMetric(top as number, event.sender.getZoomFactor()),
-      right: scaleShellMetric(right as number, event.sender.getZoomFactor()),
-      bottom: scaleShellMetric(bottom as number, event.sender.getZoomFactor()),
-      left: scaleShellMetric(left as number, event.sender.getZoomFactor())
-    })
-    toastOverlay.relayout()
-  })
-  ipcMain.on('browser:content-occluded', (event, occluded: unknown) => {
-    if (workspaceStartupFailure) return
-    assertMainShellSender(event)
-    if (typeof occluded !== 'boolean') throw new TypeError('Invalid browser content occlusion state')
-    tabsManager?.setBrowserContentOccluded(occluded)
-  })
-  ipcMain.on('browser:occlusion-snapshot-presented', (event, id: unknown) => {
-    if (workspaceStartupFailure) return
-    assertMainShellSender(event)
-    if (!Number.isSafeInteger(id) || (id as number) < 1) throw new TypeError('Invalid occlusion snapshot')
-    tabsManager?.presentOcclusionSnapshot(id as number)
-  })
-  ipcMain.on('shell:window-controls-scrim', (event, color: unknown) => {
-    if (workspaceStartupFailure) return
-    assertMainShellSender(event)
-    const scrim = color === null ? null : parseScrimColor(color)
-    if (color !== null && !scrim) throw new TypeError('Invalid window controls scrim')
-    windowControlsScrim = scrim
-    applyMainWindowTitleBarOverlay()
-  })
-  ipcMain.on('browser:follow-agent-activity-suspended', (event, suspended: unknown) => {
-    if (workspaceStartupFailure) return
-    assertMainShellSender(event)
-    if (typeof suspended !== 'boolean') throw new TypeError('Invalid follow-agent activity suspension state')
-    shellFollowAgentActivitySuspended = suspended
-    tabsManager?.setFollowAgentActivitySuspended(shellFollowAgentActivitySuspended || agentCardOpen)
   })
 }
 
