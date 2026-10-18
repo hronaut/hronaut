@@ -230,7 +230,6 @@ import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotat
 import type { ScreenshotsAccess } from './screenshots/screenshots-access.js'
 import { screenshot } from './screenshots/screenshots.js'
 import { boundedScreenshotSize } from '../../shared/screenshot.js'
-import { visualCompareBitmapClip } from '../../shared/visual-compare.js'
 import type { InspectorIssuesAccess } from './inspector-issues/inspector-issues-access.js'
 import { addInspectorIssue, inspectorIssues, recordAuthChallenge } from './inspector-issues/inspector-issues.js'
 import {
@@ -288,7 +287,6 @@ import type {
   BrowserVisualCompareReport,
   BrowserVisualSnapshot,
   BrowserVisualCompareContext,
-  BrowserVisualCompareScope,
   BrowserStorageOptions,
   BrowserStorageResult,
   BrowserStorageUsageReport,
@@ -479,6 +477,8 @@ import { assertClickTargetEnabled, assertNativeEditability, assertPointInsideVis
 import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
 import type { AgentPointerAccess } from './agent-pointer/agent-pointer-access.js'
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
+import type { VisualCaptureAccess } from './visual-compare/visual-capture-access.js'
+import { captureVisual, visualCompareContext } from './visual-compare/visual-capture.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -515,8 +515,6 @@ function workspaceNameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
 }
 
-const MAX_VISUAL_COMPARE_WIDTH = 1_920
-const MAX_VISUAL_COMPARE_HEIGHT = 1_080
 const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
@@ -528,7 +526,6 @@ const MIN_SHELL_HEIGHT = 44
 const ABORTED_LOAD_ERROR = -3
 const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
 const CREDENTIAL_CAPTURE_WORLD_ID = ISOLATED_WORLDS.credentialCapture
-const VISUAL_COMPARE_WORLD_ID = ISOLATED_WORLDS.visualCompare
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const require = createRequire(import.meta.url)
 const webVitalsPath = require.resolve('web-vitals/attribution')
@@ -5266,73 +5263,30 @@ export class BrowserTabsManager {
     return handleDialog(this.websiteDialogsAccess(), action, tabId)
   }
 
-  private async visualCompareContext(tab: BrowserTab): Promise<BrowserVisualCompareContext> {
-    const raw = await tab.webContents.executeJavaScriptInIsolatedWorld(VISUAL_COMPARE_WORLD_ID, [{
-      code: '({ viewportWidth: innerWidth, viewportHeight: innerHeight, devicePixelRatio, scrollX, scrollY, pageScale: visualViewport?.scale ?? 1, offsetX: visualViewport?.offsetLeft ?? 0, offsetY: visualViewport?.offsetTop ?? 0 })'
-    }], false) as Omit<BrowserVisualCompareContext, 'zoomFactor'> & { pageScale: number; offsetX: number; offsetY: number }
-    if (!raw || ![raw.viewportWidth, raw.viewportHeight, raw.devicePixelRatio, raw.scrollX, raw.scrollY, raw.pageScale, raw.offsetX, raw.offsetY].every(Number.isFinite) || raw.viewportWidth <= 0 || raw.viewportHeight <= 0 || raw.devicePixelRatio <= 0) {
-      throw new Error('Could not determine the visual comparison viewport')
+  /**
+   * The narrow view a visual capture gets of this manager's private tabs,
+   * observation context, page presentation, agent pointer and emulation
+   * confirmation check. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still
+   * provide it. The delegates below return the feature's promise directly,
+   * so callers see the same ticks as before.
+   */
+  private visualCaptureAccess(): VisualCaptureAccess<BrowserTab> {
+    return {
+      findTab: (tabId) => this.tabs.get(tabId),
+      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
+      withRenderableTab: (tab, operation) => this.withRenderableTab(tab, operation),
+      dismissAgentPointer: (webContents) => this.dismissAgentPointer(webContents),
+      requireEmulationConfirmed: (tab) => this.requireEmulationConfirmed(tab)
     }
-    if (raw.pageScale !== 1 || raw.offsetX !== 0 || raw.offsetY !== 0) throw new Error('Region visual comparison does not support pinch zoom or an offset visual viewport; reset the page scale first')
-    const bounds = tab.view.getBounds()
-    this.requireEmulationConfirmed(tab)
-    const viewport = tab.emulation.viewport ?? bounds
-    const zoomFactor = tab.webContents.getZoomFactor()
-    return { viewportWidth: viewport.width / zoomFactor, viewportHeight: viewport.height / zoomFactor, devicePixelRatio: raw.devicePixelRatio,
-      scrollX: raw.scrollX, scrollY: raw.scrollY, zoomFactor }
   }
 
-  private async captureVisual(tab: BrowserTab, settleMs: number, clip?: BrowserScreenshotClip): Promise<BrowserVisualCapture> {
-    const context = this.snapshotDeltaContext(tab)
-    const assertCurrent = (): void => {
-      if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
-        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) {
-        throw new Error('The page changed while the visual capture was pending. Capture it again.')
-      }
-    }
-    return this.withRenderableTab(tab, async () => {
-      await this.dismissAgentPointer(tab.webContents)
-      if (settleMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, settleMs))
-      assertCurrent()
-      const environment = clip ? await this.visualCompareContext(tab) : undefined
-      assertCurrent()
-      const captured = await tab.webContents.capturePage()
-      assertCurrent()
-      if (captured.isEmpty()) throw new Error('Could not capture the visible page for comparison')
-      const source = captured.getSize()
-      let scope: BrowserVisualCompareScope = { kind: 'viewport' }
-      let selected = captured
-      if (clip && environment) {
-        const after = await this.visualCompareContext(tab)
-        assertCurrent()
-        if (JSON.stringify(after) !== JSON.stringify(environment)) throw new Error('The viewport or scroll position changed while the visual capture was pending. Capture it again.')
-        // Native capture dimensions include display scaling. Derive exact CSS
-        // extents from trusted DIP viewport bounds and zoom, not rounded innerWidth.
-        const viewport = { width: environment.viewportWidth, height: environment.viewportHeight }
-        const bitmapClip = visualCompareBitmapClip(clip, viewport, source)
-        // Crop before filtering so neighboring pixels cannot enter a downscaled region.
-        selected = captured.crop(bitmapClip)
-        scope = { kind: 'region', clip, bitmapClip, viewport, source }
-      }
-      const original = selected.getSize()
-      const bounded = boundedScreenshotSize(original.width, original.height, MAX_VISUAL_COMPARE_WIDTH, MAX_VISUAL_COMPARE_HEIGHT)
-      const image = bounded.width === original.width && bounded.height === original.height
-        ? selected
-        : selected.resize({ width: bounded.width, height: bounded.height, quality: 'best' })
-      const size = image.getSize()
-      const bitmap = Buffer.from(image.toBitmap({ scaleFactor: 1 }))
-      if (bitmap.length !== size.width * size.height * 4) throw new Error('Could not normalize the page bitmap for visual comparison')
-      return {
-        observationContext: context,
-        navigationGeneration: context.navigationGeneration,
-        snapshot: {
-          capturedAt: new Date().toISOString(), url: tab.webContents.getURL() || tab.url,
-          width: size.width, height: size.height, scope,
-          ...(environment ? { context: environment } : {})
-        },
-        png: image.toPNG(), bitmap
-      }
-    })
+  private visualCompareContext(tab: BrowserTab): Promise<BrowserVisualCompareContext> {
+    return visualCompareContext(this.visualCaptureAccess(), tab)
+  }
+
+  private captureVisual(tab: BrowserTab, settleMs: number, clip?: BrowserScreenshotClip): Promise<BrowserVisualCapture> {
+    return captureVisual(this.visualCaptureAccess(), tab, settleMs, clip)
   }
 
   /**
