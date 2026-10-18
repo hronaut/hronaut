@@ -64,7 +64,7 @@ import {
   requestAgentTransaction,
   type AgentWalletAccess
 } from './agent-wallet-requests.js'
-import { providerRequest, type ProviderRequestsAccess } from './broker/provider-requests.js'
+import { keepsTabAwake, providerRequest, type ProviderRequestsAccess } from './broker/provider-requests.js'
 import { approve, reject, type HumanApprovalsAccess } from './broker/human-approvals.js'
 import {
   assertRecordPageActive,
@@ -128,6 +128,7 @@ export interface WalletBrokerOptions {
   onPendingChanged?: (requests: WalletRequestSummary[]) => void
   onProviderEvent?: (tabId: string, event: WalletProviderEvent) => void
 }
+
 /** Failed wallet calls remembered per tab for `wallet_page_requests`; the oldest is dropped first. */
 const MAX_PAGE_CALL_FAILURES_PER_TAB = 20
 /** Tabs whose failed wallet calls are remembered at once; closing a tab forgets them sooner. */
@@ -145,6 +146,7 @@ export interface WalletPageCallFailure {
 
 const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
 const MAX_TIMEOUT_MS = 2_147_483_647
+
 export class WalletBroker {
   private readonly adapters: Record<WalletChainFamily, WalletChainAdapter>
   private readonly policy = new WalletPolicyEngine()
@@ -402,6 +404,7 @@ export class WalletBroker {
    */
   private providerRequestsAccess(): ProviderRequestsAccess {
     return {
+      service: this.service,
       pageCallsInProgress: this.pageCallsInProgress,
       pageCallFailures: this.pageCallFailures,
       isShuttingDown: () => this.shuttingDown,
@@ -476,16 +479,8 @@ export class WalletBroker {
     return cancelForNavigation(this.pageLifecycleAccess(), tabId, generation)
   }
 
-  /**
-   * Whether a page in this tab still waits on the wallet: a wallet call it
-   * made that has not returned yet, from the moment it reaches the broker and
-   * including a wallet_sendCalls batch still sending calls, or a request not
-   * yet signed or sent, such as one an agent made for the tab. Putting the tab
-   * to sleep would discard the page that gets the answer, while the request
-   * could still be approved and sent.
-   */
   keepsTabAwake(tabId: string): boolean {
-    return (this.pageCallsInProgress.get(tabId) ?? 0) > 0 || this.service.approvals.hasUnsentForTab(tabId, this.now())
+    return keepsTabAwake(this.providerRequestsAccess(), tabId)
   }
 
   cancelForTab(tabId: string): Promise<void> {

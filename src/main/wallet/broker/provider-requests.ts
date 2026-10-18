@@ -8,6 +8,7 @@ import {
 import { evmRequest, type EvmProviderAccess } from '../evm-provider.js'
 import { solanaRequest, tronRequest, type SolanaTronProviderAccess } from '../solana-tron-provider.js'
 import type { WalletPageLog } from '../page-log.js'
+import type { WalletService } from '../service.js'
 import type { WalletBrokerContext, WalletPageCallFailure } from '../broker.js'
 import { sanitizedError } from './sanitized-error.js'
 
@@ -15,9 +16,10 @@ import { sanitizedError } from './sanitized-error.js'
  * What website and agent page calls need from the broker, which keeps the
  * calls in progress per tab, the failed-call log and the page providers'
  * state, so every call still passes the broker's shutdown and page checks
- * before a provider answers it.
+ * before a provider answers it, and a tab stays awake while a page waits.
  */
 export interface ProviderRequestsAccess {
+  service: Pick<WalletService, 'approvals'>
   /** Website wallet calls still in progress, other than node reads, counted per tab. */
   pageCallsInProgress: Map<string, number>
   pageCallFailures: WalletPageLog<WalletPageCallFailure>
@@ -66,6 +68,18 @@ export async function providerRequest(access: ProviderRequestsAccess, context: W
       else access.pageCallsInProgress.delete(context.tabId)
     }
   }
+}
+
+/**
+ * Whether a page in this tab still waits on the wallet: a wallet call it
+ * made that has not returned yet, from the moment it reaches the broker and
+ * including a wallet_sendCalls batch still sending calls, or a request not
+ * yet signed or sent, such as one an agent made for the tab. Putting the tab
+ * to sleep would discard the page that gets the answer, while the request
+ * could still be approved and sent.
+ */
+export function keepsTabAwake(access: ProviderRequestsAccess, tabId: string): boolean {
+  return (access.pageCallsInProgress.get(tabId) ?? 0) > 0 || access.service.approvals.hasUnsentForTab(tabId, access.now())
 }
 
 /**
