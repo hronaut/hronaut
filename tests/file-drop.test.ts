@@ -22,6 +22,8 @@ function dropPage(options: {
   observations?: Partial<Record<'enter' | 'over' | 'drop', Array<Partial<FileDropObservation> | Error>>>
   /** Runs after a command passed its checks and was recorded; what it returns or throws is Chromium's answer. */
   onCommand?: (command: Command) => unknown
+  /** Runs between the two checks the authorized input path makes before each command. */
+  betweenChecks?: (params: Record<string, unknown>) => void
 } = {}) {
   const commands: Command[] = []
   const scripts: Array<{ world: number; kind: string }> = []
@@ -68,6 +70,8 @@ function dropPage(options: {
     agentInputDebugger: (_webContents, validateInput) => ({
       sendCommand: async (method, params = {}) => {
         expect(method).toBe('Input.dispatchDragEvent')
+        validateInput?.()
+        options.betweenChecks?.(params)
         validateInput?.()
         const data = params.data as { files?: string[] }
         const command = { type: String(params.type), x: Number(params.x), y: Number(params.y), files: data.files, validated: Boolean(validateInput) }
@@ -213,6 +217,22 @@ describe('file drop', () => {
     await dropReached
     await vi.advanceTimersByTimeAsync(5_000)
     expect(await unconfirmed).toMatchObject({ status: 'DROP_UNCONFIRMED', files: 1 })
+    // Chromium handles the late drop first, so the leave that follows changes nothing.
+    expect(stalledDrop.commands.slice(-2)).toMatchObject([{ type: 'dragOver', x: -100, y: -100, files: undefined }, { type: 'drop', x: -100, y: -100, files: undefined }])
+  })
+
+  it('rethrows a drop whose second check fails, since it never reached the page, and leaves without the files', async () => {
+    const pageRef: { current?: ReturnType<typeof dropPage> } = {}
+    const page = dropPage({
+      betweenChecks: (params) => {
+        if (params.type === 'drop' && (params.data as { files?: string[] }).files) pageRef.current?.loseAuthority()
+      }
+    })
+    pageRef.current = page
+    await expect(dropFiles(page.access, { selector: '#zone' }, [notes])).rejects.toThrow('Native input context changed')
+    expect(page.commands.map(command => [command.type, command.files ? 'files' : 'none'])).toEqual([
+      ['dragEnter', 'files'], ['dragOver', 'files'], ['dragOver', 'none'], ['drop', 'none']
+    ])
   })
 
   it('stops when the page stops answering during the drag', async () => {
@@ -228,7 +248,7 @@ describe('file drop', () => {
       [{ problem: 'not-found' }, /not found/],
       [{ problem: 'ambiguous', count: 2 }, /more than one element/],
       [{ problem: 'frame' }, /frame is not supported/],
-      [{ problem: 'pinch-zoom' }, /pinch-zoomed/],
+      [{ problem: 'scaled-viewport' }, /scale other than 1/],
       [{ problem: 'hidden' }, /hidden or has no size/],
       [{ problem: 'outside' }, /viewport/],
       [{ problem: 'covered' }, /covers the center/]

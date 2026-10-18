@@ -43,7 +43,7 @@ const TARGET_PROBLEMS: Record<FileDropTargetProblem, string> = {
   'not-found': 'Drop target not found. Drop zones rarely get a snapshot ref, so provide a CSS selector that matches the drop zone, or a ref from a fresh browser_snapshot.',
   ambiguous: 'The selector matches more than one element; use a ref or a selector that matches only the drop target.',
   frame: 'Dropping files into a frame is not supported; target an element of the top-level page.',
-  'pinch-zoom': 'The page is pinch-zoomed, so the drag cannot be placed reliably; reset its zoom first.',
+  'scaled-viewport': 'The page is shown at a scale other than 1 (pinch zoom, or an emulated mobile viewport the page does not fit at scale 1), so the drag cannot be placed reliably.',
   hidden: 'The drop target is hidden or has no size.',
   outside: 'The center of the drop target cannot be scrolled into the viewport.',
   covered: 'Another element covers the center of the drop target, so a drop there would reach that element instead.',
@@ -175,7 +175,7 @@ async function leavePage(debuggerApi: PointerDebugger): Promise<void> {
 
 /** Sends one drag event, giving up when Chromium does not answer in time, as for a page that blocks in its drag handler. */
 function sendDragEvent(debuggerApi: PointerDebugger, params: Record<string, unknown>): Promise<unknown> {
-  return withTimeout(debuggerApi.sendCommand('Input.dispatchDragEvent', params), 'Chromium did not take the drag event in time; nothing more was sent to the page')
+  return withTimeout(debuggerApi.sendCommand('Input.dispatchDragEvent', params), 'Chromium did not take the drag event in time, so nothing was dropped')
 }
 
 /** Throws before anything reaches the page unless there are 1 to 20 distinct absolute paths to readable files; messages name a path by its position only. */
@@ -205,8 +205,8 @@ async function observe(webContents: WebContents, token: string, phase: 'enter' |
   }
 }
 
-function runPageScript<T>(webContents: WebContents, code: string): Promise<T> {
-  return withTimeout(
+async function runPageScript<T>(webContents: WebContents, code: string): Promise<T> {
+  return await withTimeout(
     webContents.executeJavaScriptInIsolatedWorld(FILE_DROP_WORLD_ID, [{ code }], false) as Promise<T>,
     'The page did not respond in time; nothing more was sent to it'
   )

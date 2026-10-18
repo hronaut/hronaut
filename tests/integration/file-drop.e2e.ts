@@ -14,10 +14,14 @@ const DROP_PAGE = `(() => {
   document.body.innerHTML = '<div id="zone" style="position:absolute;left:40px;top:40px;width:320px;height:200px;background:#eef">Drop files here</div>';
   window.dropState = { events: [], received: [] };
   const zone = document.querySelector('#zone');
-  for (const type of ['dragenter', 'dragover', 'dragleave', 'drop']) {
-    document.addEventListener(type, (event) => {
-      window.dropState.events.push({ type, trusted: event.isTrusted, target: event.target.id || event.target.tagName, files: event.dataTransfer ? event.dataTransfer.files.length : -1 });
-    });
+  // The document outlives each new zone, so its recorders are added once.
+  if (!window.dropRecorders) {
+    window.dropRecorders = true;
+    for (const type of ['dragenter', 'dragover', 'dragleave', 'drop']) {
+      document.addEventListener(type, (event) => {
+        window.dropState.events.push({ type, trusted: event.isTrusted, target: event.target.id || event.target.tagName, files: event.dataTransfer ? event.dataTransfer.files.length : -1 });
+      });
+    }
   }
   window.acceptDrops = true;
   zone.addEventListener('dragover', (event) => { if (window.acceptDrops) event.preventDefault(); });
@@ -239,23 +243,40 @@ test('reports only what trusted drag events showed: synthetic events, a drop the
   await writeFile(file, 'drop fixture', 'utf8')
   const drop = (args: Record<string, unknown>) => client.callTool({ name: 'browser_file_drop', arguments: { tabId, ...args } }) as Promise<CallToolResult>
 
-  // The page answers each real dragenter with a synthetic, cancelled dragover and a synthetic drop, but never accepts a real dragover.
+  // The page never accepts a real dragover, but answers each one with a synthetic, cancelled dragover, which
+  // would be the last dragover Hronaut sees if it counted synthetic events; it would then send the drop.
   await onPage(electronApp, fixtureUrl, DROP_PAGE)
   await onPage(electronApp, fixtureUrl, `(() => {
     window.acceptDrops = false;
     const zone = document.querySelector('#zone');
-    zone.addEventListener('dragenter', (event) => {
+    zone.addEventListener('dragover', (event) => {
       if (!event.isTrusted) return;
       const fake = new DragEvent('dragover', { bubbles: true, cancelable: true });
       fake.preventDefault();
       zone.dispatchEvent(fake);
-      zone.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true }));
     });
     return true;
   })()`)
-  const synthetic = await drop({ selector: '#zone', paths: [file] })
-  expect(JSON.parse(text(synthetic)), text(synthetic)).toMatchObject({ status: 'NOT_ACCEPTED', files: 1 })
-  expect((await pageState(electronApp, fixtureUrl)).events.filter(event => event.type === 'drop').every(event => !event.trusted)).toBe(true)
+  const syntheticOver = await drop({ selector: '#zone', paths: [file] })
+  expect(JSON.parse(text(syntheticOver)), text(syntheticOver)).toMatchObject({ status: 'NOT_ACCEPTED', files: 1 })
+  expect(JSON.parse(text(syntheticOver)).note).toContain('no dragover handler')
+  expect((await pageState(electronApp, fixtureUrl)).events.some(event => event.type === 'drop')).toBe(false)
+
+  // The page accepts the dragover but refuses the drop effect, and answers Chromium's dragleave with a
+  // synthetic drop, which would read as DROPPED if Hronaut counted synthetic events.
+  await onPage(electronApp, fixtureUrl, DROP_PAGE)
+  await onPage(electronApp, fixtureUrl, `(() => {
+    const zone = document.querySelector('#zone');
+    zone.addEventListener('dragover', (event) => { event.dataTransfer.dropEffect = 'none'; });
+    zone.addEventListener('dragleave', (event) => {
+      if (event.isTrusted) zone.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true }));
+    });
+    return true;
+  })()`)
+  const syntheticDrop = await drop({ selector: '#zone', paths: [file] })
+  expect(JSON.parse(text(syntheticDrop)), text(syntheticDrop)).toMatchObject({ status: 'NOT_ACCEPTED', files: 1 })
+  expect(JSON.parse(text(syntheticDrop)).note).toContain('refused the drop')
+  expect((await pageState(electronApp, fixtureUrl)).events.filter(event => event.type === 'drop').map(event => event.trusted)).toEqual([false])
 
   // A capture listener the page added first stops the drop before Hronaut sees it: the files arrive, the drop is unconfirmed.
   await onPage(electronApp, fixtureUrl, DROP_PAGE)
