@@ -1,0 +1,27 @@
+/* Last, so they win over the panels above: narrow-window layouts, and the bars beside the rail. */
+@media (max-width: 720px) {
+  .memory-summary { @apply [grid-template-columns:repeat(2,_minmax(0,_1fr))]; }
+  .memory-details dl { @apply [grid-template-columns:repeat(2,_minmax(0,_1fr))]; }
+  .memory-allocation-heading { @apply items-stretch flex-col; }
+  .memory-allocation-empty { @apply [grid-template-columns:auto_minmax(0,_1fr)]; }
+  .memory-allocation-empty button { @apply [grid-column:1_/_-1]; }
+  .debug-report-summary { @apply [grid-template-columns:repeat(2,_minmax(0,_1fr))]; }
+  .inspector-issues-summary { @apply [grid-template-columns:repeat(3,_minmax(0,_1fr))]; }
+  .network-monitor-tools { @apply items-stretch flex-col; }
+  .network-sort-controls label { @apply [flex:1] justify-between; }
+  .network-sort-controls select { @apply [max-width:none] [flex:1]; }
+  .network-content-search > form { @apply items-stretch flex-wrap; }
+  .network-content-search > form > label:first-child { @apply [flex-basis:100%]; }
+  .request-condition-form-row { @apply [grid-template-columns:1fr]; }
+  .request-condition-form-actions,
+  .request-conditions-actions { @apply items-stretch flex-col; }
+  .network-failures-toggle { @apply justify-center; }
+  .network-monitor-workspace { @apply [grid-template-columns:1fr] overflow-y-auto; }
+  .network-request-list { @apply [max-height:270px] [border-right:0] [border-bottom:1px_solid_var(--border-soft)] overflow-y-auto; }
+  .network-request-details { @apply [min-height:220px] overflow-visible; }
+}
+/* Beside the tab rail, like the toolbar, never under it: the rail can be translucent, and the problem's text starts at
+   the bar's left edge. */
+.vertical-tabs-shell :is(.page-problem-bar, .find-bar, .zoom-bar) {
+  @apply [width:calc(100%_-_var(--tab-rail-width))] [margin-left:var(--tab-rail-width)];
+}

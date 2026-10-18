@@ -1,0 +1,27 @@
+/* The page toggles' capsule and the state spinners of the lock, audio and pause buttons. */
+/* The four page toggles share one capsule: icon buttons at every width so the
+   address keeps its room, each with its own pressed state inside it. Names
+   and current state come from aria-label, the tooltip and aria-pressed. */
+.tab-controls > .interaction-lock-button { @apply flex-none [width:32px] [min-width:32px] [height:32px] justify-center [padding:0] [border:0] [border-radius:var(--corner-1)] bg-transparent; }
+.interaction-lock-button.tab-mute-button.muted,
+.interaction-lock-button.page-lifecycle-button.frozen { @apply text-accent-copy bg-accent-soft; }
+/* A pressed toggle keeps its fill under the pointer and carries a ring in its
+   own color, so pressed never reads as hovered; the ring thickens on hover. */
+.tab-controls > .interaction-lock-button[aria-pressed="true"] { @apply [box-shadow:inset_0_0_0_1px_currentColor]; }
+.tab-controls > .interaction-lock-button[aria-pressed="true"]:hover:not(:disabled) { @apply [box-shadow:inset_0_0_0_2px_currentColor]; }
+@media (forced-colors: active) {
+  /* Shadows and fills vanish in high-contrast modes; a system-colored border marks a pressed toggle. */
+  .tab-controls > .interaction-lock-button[aria-pressed="true"] { @apply [border:2px_solid_Highlight]; }
+}
+
+.interaction-lock-button .state-spinner,
+.all-lock-button .state-spinner,
+.all-tabs-audio-button .state-spinner,
+.mcp-pause-button .state-spinner { @apply [animation:spin_.9s_linear_infinite]; }
+
+@media (prefers-reduced-motion: reduce) {
+  .interaction-lock-button .state-spinner,
+  .all-lock-button .state-spinner,
+  .all-tabs-audio-button .state-spinner,
+.mcp-pause-button .state-spinner { animation: none; }
+}

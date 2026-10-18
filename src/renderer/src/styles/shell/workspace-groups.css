@@ -1,0 +1,123 @@
+/* A workspace group's header: its label, agents, Needs you, Following, and the All workspaces row. */
+.tab-group-label {
+  @apply flex items-center [gap:4px] overflow-hidden [max-width:150px] flex-none [height:29px] m-0 [padding:0_6px] [border:1px_solid_transparent] [border-radius:5px] [background:var(--group-surface,_transparent)] text-copy [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [line-height:1.2] text-ellipsis whitespace-nowrap cursor-pointer;
+}
+.tab-group-label > svg {
+  @apply [width:14px] [height:14px] flex-none;
+}
+/* The chevron leads, before the color dot drawn as ::before. */
+.tab-group-label > svg:first-child { @apply [order:-1]; }
+/* The workspace's color dot, after the chevron. */
+.tab-group-label::before {
+  @apply [width:8px] [height:8px] flex-none [margin:0_2px] [border-radius:var(--corner-pill)] [background:var(--tab-group-color)] [box-shadow:0_0_0_2px_color-mix(in_srgb,_var(--tab-group-color)_26%,_transparent)];
+  content: "";
+}
+.tab-group-label > .tab-group-default-badge { @apply [width:13px] [height:13px] [opacity:.84]; }
+/* A pinned workspace, which stays on top of the rail, says so with a small pin after its name. */
+.tab-group-label > .tab-group-pinned { @apply [width:13px] [height:13px] flex-none text-muted; }
+.tab-group-label > span:not(.tab-group-count, .tab-group-needs-you, .tab-group-agents) {
+  @apply overflow-hidden text-ellipsis;
+}
+.tab-group-label:hover,
+.tab-group-label:focus-visible {
+  @apply [border-color:var(--tab-group-color)] [background:color-mix(in_srgb,_var(--tab-group-color)_var(--group-tint-hover),_var(--shell-bottom))];
+}
+.tab-group-label:focus-visible {
+  @apply [outline:2px_solid_color-mix(in_srgb,_var(--tab-group-color)_72%,_white)] [outline-offset:1px];
+}
+.tab-group-label.active {
+  @apply [color:var(--text)];
+}
+.tab-group-count {
+  @apply [min-width:14px] [padding:0_2px] text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-medium)] text-center;
+}
+/* The agents in a workspace, as small overlapping avatars in its rail header after the name, like the toolbar's: a ring
+   while working (still, since the rail lists many), amber when it needs you, dimmed when idle. */
+.tab-group-agents { @apply hidden; }
+/* In a narrow header the avatars give way before the name: those that no longer fit wrap onto a hidden second line, so
+   none is cut in half, and the first stays. In a rail narrower than the default, a group that needs you shows its Needs
+   you label without them: its agents are on the toolbar and in the header's tooltip. The padding keeps the avatars'
+   rings in view. */
+.browser-tabs-bar.vertical .tab-group-agents {
+  @apply flex [flex:0_100_auto] [min-width:20px] [height:22px] flex-wrap content-start items-center overflow-hidden [padding:2px_1px];
+}
+@container workspace-rail (max-width: 279px) {
+  .browser-tabs-bar.vertical .tab-group-needs-you ~ .tab-group-agents { @apply hidden; }
+}
+.tab-group-agent {
+  @apply grid [width:18px] [height:18px] flex-none place-items-center rounded-full [border:1.5px_solid_var(--group-surface,_var(--shell-bottom))] text-copy [background:color-mix(in_srgb,_var(--agent-color)_30%,_var(--surface))] [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] [line-height:1];
+}
+.tab-group-agent::before { content: attr(data-initial); }
+.tab-group-agent + .tab-group-agent { @apply [margin-left:-5px]; }
+.tab-group-agent[data-state="idle"] { @apply text-muted [background:color-mix(in_srgb,_var(--agent-color)_10%,_var(--surface))]; }
+.tab-group-agent[data-state="working"] { @apply [box-shadow:0_0_0_1.5px_var(--accent)]; }
+.tab-group-agent[data-state="needs-you"] { @apply [box-shadow:0_0_0_1.5px_var(--needs-you)]; }
+.tab-group-agent.more { @apply [width:auto] [min-width:18px] [padding:0_3px] text-muted [background:var(--surface)]; }
+@media (forced-colors: active) {
+  .tab-group-agent:is([data-state], .more) { @apply [border-color:Canvas] [background:Canvas] [color:CanvasText] [forced-color-adjust:none] [box-shadow:0_0_0_1px_CanvasText]; }
+  /* Shape, not color, tells working (dashed) from needs you (thick and solid), as on the toolbar's avatars. */
+  .tab-group-agent[data-state="working"] { @apply [box-shadow:none] [outline:2px_dashed_Highlight] [outline-offset:0]; }
+  .tab-group-agent[data-state="needs-you"] { @apply [box-shadow:none] [outline:3px_solid_Highlight] [outline-offset:-1px]; }
+}
+/* A workspace an agent is waiting in stays amber while it is folded or the person works elsewhere. */
+.workspace-tab-section {
+  transition: border-color var(--motion-base) var(--motion-ease-out), box-shadow var(--motion-base) var(--motion-ease-out);
+}
+/* The glow is inset: the tab strip and rail clip anything drawn outside a group. */
+:root .workspace-tab-section.needs-you {
+  @apply [border-color:var(--needs-you)] [box-shadow:inset_0_0_0_1px_var(--needs-you),_inset_0_0_14px_color-mix(in_srgb,_var(--needs-you)_30%,_transparent)];
+}
+/* An opaque fill keeps the amber text readable over any workspace tint, including an active dark header. */
+.tab-group-needs-you {
+  @apply flex-none [padding:1px_6px] [border-radius:var(--corner-pill)] [color:var(--needs-you)] [background:color-mix(in_srgb,_var(--needs-you)_14%,_var(--toolbar))] [box-shadow:inset_0_0_0_1px_color-mix(in_srgb,_var(--needs-you)_45%,_transparent)] [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] [line-height:1.4] whitespace-nowrap;
+}
+/* A horizontal header is at most 150 px wide, so the label becomes a dot there and the workspace name keeps the room. */
+.browser-tabs-bar.horizontal .tab-group-needs-you {
+  @apply [width:8px] [height:8px] p-0 overflow-hidden [color:transparent] [background:var(--needs-you)] [box-shadow:0_0_0_2px_color-mix(in_srgb,_var(--needs-you)_30%,_transparent)] [font-size:0];
+}
+/* "Following <agent>" under the header of the group following brought into view, with Stay here on a 32 px target. */
+.tab-group-following {
+  @apply flex items-center [gap:6px] [min-height:32px] [padding:0_4px_0_10px] text-muted [font-size:var(--type-small-size)] [grid-column:1_/_-1];
+}
+.tab-group-following-icon {
+  @apply [width:14px] [height:14px] flex-none [color:var(--tab-group-color)];
+}
+.tab-group-following-name {
+  @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap;
+}
+/* A quiet text action in the workspace's color: the 32 px target fills the row, so a drawn pill would touch its edges. */
+.tab-group-stay {
+  @apply flex-none [min-height:32px] [padding:0_8px] [border:0] [border-radius:var(--corner-2)] [color:color-mix(in_srgb,_var(--tab-group-color)_45%,_var(--text))] [background:transparent] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] whitespace-nowrap;
+}
+.tab-group-stay:hover,
+.tab-group-stay:focus-visible {
+  @apply [background:color-mix(in_srgb,_var(--tab-group-color)_var(--group-tint-hover),_var(--shell-bottom))];
+}
+.tab-group-stay:focus-visible {
+  @apply [outline:2px_solid_color-mix(in_srgb,_var(--tab-group-color)_72%,_white)] [outline-offset:1px];
+}
+.browser-tabs-bar.vertical.rail-collapsed .tab-group-following { @apply hidden; }
+.browser-tabs-bar.vertical.rail-collapsed .workspace-tab-section.needs-you .tab-group-label::after {
+  @apply absolute [top:2px] [right:2px] [width:8px] [height:8px] [border-radius:var(--corner-pill)] [background:var(--needs-you)] [box-shadow:0_0_0_2px_var(--toolbar)] pointer-events-none;
+  content: "";
+}
+/* The "All N workspaces" row ends a long rail and opens the workspace switcher; an amber dot marks a workspace that
+   needs you while the rail does not list it. Folded, the rail keeps its icon and the dot moves to the corner. */
+.browser-tabs-bar.vertical .all-workspaces {
+  @apply relative flex w-full [height:32px] flex-none items-center [gap:8px] m-0 [padding:0_10px] [border:1px_solid_transparent] [border-radius:var(--corner-2)] text-muted bg-transparent [font-family:inherit] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [line-height:1.2] cursor-pointer;
+}
+.browser-tabs-bar.vertical .all-workspaces:hover { @apply text-copy bg-hover; }
+/* The strip clips sideways, so the ring sits inside the row. */
+.browser-tabs-bar.vertical .all-workspaces:focus-visible { @apply [outline:2px_solid_var(--accent)] [outline-offset:-2px]; }
+.browser-tabs-bar.vertical .all-workspaces[aria-expanded="true"] { @apply text-accent-copy bg-accent-soft; }
+.browser-tabs-bar.vertical .all-workspaces > svg { @apply [width:18px] [height:18px] flex-none; }
+.all-workspaces-label { @apply min-w-0 flex-1 truncate text-left; }
+.all-workspaces-needs-you {
+  @apply [width:8px] [height:8px] flex-none [border-radius:var(--corner-pill)] [background:var(--needs-you)] pointer-events-none;
+}
+.browser-tabs-bar.vertical.rail-collapsed .all-workspaces { @apply [width:40px] [min-width:40px] [align-self:center] justify-center p-0; }
+.browser-tabs-bar.vertical.rail-collapsed .all-workspaces-label { @apply hidden; }
+.browser-tabs-bar.vertical.rail-collapsed .all-workspaces-needs-you { @apply absolute [top:2px] [right:2px] [box-shadow:0_0_0_2px_var(--toolbar)]; }
+@media (forced-colors: active) {
+  .all-workspaces-needs-you { @apply [background:Highlight] [forced-color-adjust:none]; }
+}

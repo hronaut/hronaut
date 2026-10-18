@@ -1,0 +1,29 @@
+/* The toolbar row under the tabs. */
+.toolbar {
+  @apply relative [z-index:1] flex flex-wrap items-center justify-end [gap:4px_5px] [height:auto] [min-height:60px] [padding:8px_12px_11px] [background:var(--shell-bar)];
+}
+/* The address field fills the space between the navigation buttons and the
+   commands. The commands wrap as one group, so a toolbar too narrow for both
+   gives the address its own row and puts every command in a second band; the
+   address then fills its row, so both rows end at the same edge. */
+.toolbar .address-form { @apply [margin-inline:0]; }
+.toolbar .reload-button { @apply [margin-right:6px]; }
+.toolbar-commands { @apply flex [flex:0_1_auto] min-w-0 flex-wrap items-center justify-end [gap:inherit] [margin-left:6px]; }
+@media (max-width: 720px) {
+  .toolbar .address-form { @apply [margin-inline:2px]; }
+  .toolbar .reload-button { @apply [margin-right:0]; }
+  .toolbar-commands { @apply [margin-left:0]; }
+}
+.vertical-tabs-shell .toolbar {
+  @apply [width:calc(100%_-_var(--tab-rail-width))] [margin-left:var(--tab-rail-width)];
+  padding-left: max(
+    12px,
+    calc(var(--titlebar-controls-left-safe) - var(--tab-rail-width) + 12px)
+  );
+  /* Keep a clear 20 px before window controls on the right. */
+  padding-right: max(
+    12px,
+    calc(var(--titlebar-controls-right-safe) + 20px),
+    calc(var(--titlebar-controls-fallback-width) + 12px)
+  );
+}

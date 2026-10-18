@@ -1,0 +1,86 @@
+/* The shell's surface, the system material behind the rail, and each theme's touches on it. */
+.shell {
+  @apply fixed [inset:0_0_auto_0] [min-height:104px] [z-index:10] [background:var(--shell-top)] [border-bottom:1px_solid_var(--border-soft)] [box-shadow:none] select-none [transition:background_180ms_ease,_border-color_180ms_ease];
+}
+.shell.home-shell { @apply [min-height:44px]; }
+/* The page is a card on the shell's surface, so no line runs where the shell meets it. */
+.shell:not(.detached-panel-window) { @apply [border-bottom:0]; }
+/* The toolbar and the bars under it. With the rail, they and the space around the page share the rail's surface. */
+.shell { --shell-bar: var(--toolbar); }
+.shell.vertical-tabs-shell:not(.detached-panel-window) {
+  --shell-bar: var(--shell-bottom);
+  @apply [background:var(--shell-bottom)];
+}
+/* With the rail, the workspace in view washes that one surface with its color. The gradient is fixed to the window,
+   so it runs on unbroken under the rail, the toolbar, the bars under it and the space around the page. */
+.shell.vertical-tabs-shell:not(.detached-panel-window),
+.shell.vertical-tabs-shell:not(.detached-panel-window) :is(.topbar, .toolbar, .agent-live-strip, .find-bar, .zoom-bar, .license-expiry-notice, .shell-title-bar-surface) {
+  background-image: var(--shell-wash);
+  background-attachment: fixed;
+}
+.shell.vertical-tabs-shell { @apply [min-height:60px]; }
+
+/* Behind the rail, the system's material shows through: macOS vibrancy or Windows 11 Mica. Main sets
+   data-window-material only for the main window with the rail and the plain light or dark theme, when the system allows
+   transparency. The window is then clear, so the page's surface right of the rail comes from .window-material-surface,
+   and the rail lays one veil of its own surface over the material. Group cards stay opaque: a group's sticky header
+   hides the tabs scrolling under it. A rail opened over the page in a narrow window keeps its solid surface. */
+.window-material-surface { @apply hidden; }
+:root[data-window-material]:has(.shell.vertical-tabs-shell:not(.detached-panel-window)),
+:root[data-window-material] body:has(.shell.vertical-tabs-shell:not(.detached-panel-window)) { background: transparent; }
+:root[data-window-material] body:has(.shell.vertical-tabs-shell:not(.detached-panel-window)) .window-material-surface {
+  @apply fixed block [top:0] [right:0] [bottom:0] [z-index:-1] pointer-events-none;
+  background: var(--shell-wash) fixed, var(--shell-bottom);
+}
+/* The veil keeps muted rail text at 4.5:1 over a light material as dark as #a0a0a0 and a dark one as light as #707070. */
+:root[data-window-material] { --window-material-veil: 78%; }
+:root[data-window-material][data-theme="dark"] { --window-material-veil: 58%; }
+:root[data-window-material] .shell.vertical-tabs-shell:not(.detached-panel-window) { background: none; }
+:root[data-window-material] .shell.vertical-tabs-shell:not(.detached-panel-window) .topbar:not(.compact-vertical-tab-rail:not(.rail-collapsed)) {
+  background-color: color-mix(in srgb, var(--shell-bottom) var(--window-material-veil), transparent);
+}
+/* The rail runs under the title strip, so the strip adds no veil of its own. */
+:root[data-window-material] .shell.vertical-tabs-shell:not(.detached-panel-window, .compact-vertical-tab-rail-revealed) .shell-title-bar-surface.surface-rail {
+  background: none;
+}
+:root[data-window-material] .shell.vertical-tabs-shell:not(.detached-panel-window, .compact-vertical-tab-rail-revealed) .topbar-actions {
+  background: color-mix(in srgb, var(--toolbar) 36%, transparent);
+}
+.shell.vertical-tabs-shell.home-shell {
+  @apply min-h-0 [border-bottom:0] [box-shadow:none];
+}
+
+:root[data-theme="cyberpunk"] .shell::after {
+  @apply absolute inset-0 pointer-events-none;
+  content: "";
+  @apply [opacity:0.12] [background-image:linear-gradient(rgba(0,_245,_255,_0.22)_1px,_transparent_1px),_linear-gradient(90deg,_rgba(255,_46,_224,_0.2)_1px,_transparent_1px)] [background-size:24px_24px];
+}
+
+:root[data-theme="cyberpunk-turbo"] .tab.active .tab-active-indicator {
+  @apply [background:var(--turbo-highlight)];
+}
+:root[data-theme="cyberpunk-turbo"] .settings-header h2 {
+  @apply [color:var(--accent-text)];
+}
+:root[data-theme="cyberpunk-turbo"] :is(.zoom-button, .settings-header .eyebrow) {
+  @apply [font-family:var(--font-mono)] [letter-spacing:.04em];
+}
+:root[data-theme="cyberpunk-turbo"] :is(.downloads-badge, .area-capture-button.active, .element-picker-button.active, .split-view-button.active, .update-status-icon, .update-status-card-icon, .site-storage-editor button, .storage-changes-footer button.primary, .workspace-transfer-button, .tab-group-editor > footer button.primary) {
+  @apply [color:var(--button-text)];
+}
+
+:root[data-theme="matrix"] .shell::after,
+:root[data-theme="machine"] .shell::after,
+:root[data-theme="galactic"] .shell::after {
+  @apply absolute inset-0 pointer-events-none;
+  content: "";
+}
+:root[data-theme="matrix"] .shell::after {
+  @apply [opacity:0.16] [background-image:repeating-linear-gradient(90deg,_transparent_0_17px,_rgba(57,_255,_114,_0.28)_18px,_transparent_19px_31px)] [background-size:160px_100%];
+}
+:root[data-theme="machine"] .shell::after {
+  @apply [opacity:0.18] [background-image:linear-gradient(115deg,_transparent_0_42%,_rgba(255,_73,_63,_0.38)_43%,_transparent_44%_70%,_rgba(255,_73,_63,_0.18)_71%,_transparent_72%)] [background-size:260px_100%];
+}
+:root[data-theme="galactic"] .shell::after {
+  @apply [opacity:0.52] [background-image:radial-gradient(circle_at_7%_28%,_#fff_0_1px,_transparent_1.5px),_radial-gradient(circle_at_38%_72%,_#ffd27b_0_1px,_transparent_1.5px),_radial-gradient(circle_at_72%_22%,_#9fc7ff_0_1px,_transparent_1.5px),_radial-gradient(circle_at_91%_64%,_#fff_0_1px,_transparent_1.5px)] [background-size:190px_90px,_260px_120px,_310px_105px,_230px_130px];
+}

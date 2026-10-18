@@ -40,7 +40,7 @@ function refreshOrStop(): void {
 
 const commands = ref<HTMLElement>()
 // True while the commands sit in their own band below the address. The address field then
-// fills its row (shell.css), so both rows end at the same edge.
+// fills its row (styles/shell/toolbar.css), so both rows end at the same edge.
 const commandsWrapped = ref(false)
 
 function syncCommandsWrapped(): void {

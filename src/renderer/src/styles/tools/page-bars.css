@@ -1,0 +1,57 @@
+/* The bars under the toolbar: the page problem bar, Find and Zoom. */
+.page-problem-bar {
+  @apply relative [z-index:2] grid [min-height:58px] items-center [gap:11px] [padding:8px_13px] [border-top:1px_solid_color-mix(in_srgb,_#d9534f_34%,_var(--border-soft))] text-copy [background:color-mix(in_srgb,_#d9534f_8%,_var(--shell-bar,_var(--toolbar)))] [grid-template-columns:34px_minmax(0,_1fr)_auto];
+}
+.page-problem-mark {
+  @apply grid [width:34px] [height:34px] place-items-center [border-radius:var(--corner-2)] [color:#c83f4d] [background:color-mix(in_srgb,_#d9534f_13%,_var(--surface))];
+}
+:root:not([data-theme="light"], [data-theme="sepia"]) .page-problem-mark { @apply [color:#ff8797]; }
+.page-problem-mark svg { @apply [width:20px] [height:20px]; }
+.page-problem-copy { @apply flex min-w-0 [align-items:baseline] [gap:8px]; }
+.page-problem-copy strong { @apply flex-none [font-size:var(--type-body-size)]; }
+.page-problem-copy > span { @apply overflow-hidden text-muted [font-size:var(--type-body-size)] text-ellipsis whitespace-nowrap; }
+.page-problem-copy code { @apply flex-none text-subtle [font:var(--weight-strong)_var(--type-small-size)/1.2_var(--font-code)]; }
+.page-problem-bar > button {
+  @apply flex [min-height:34px] items-center [gap:6px] [padding:7px_11px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] text-copy bg-surface [font-size:var(--type-body-size)] [font-weight:var(--weight-strong)] cursor-pointer;
+}
+.page-problem-bar > button:hover { @apply bg-hover; }
+.page-problem-bar > button:focus-visible { @apply [outline:2px_solid_var(--accent)] [outline-offset:2px]; }
+.page-problem-bar > button svg { @apply [width:17px] [height:17px]; }
+
+.find-bar {
+  @apply relative [z-index:2] flex [height:50px] items-center justify-end [gap:6px] [padding:6px_13px_9px] [border-top:1px_solid_var(--border-soft)] [background:var(--shell-bar,_var(--toolbar))];
+}
+.find-field {
+  @apply flex [width:min(360px,_48vw)] [height:34px] items-center [gap:8px] [padding:0_11px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] text-muted bg-surface-muted;
+}
+.find-field:focus-within { @apply border-accent [box-shadow:0_0_0_3px_var(--accent-soft)]; }
+.find-field > svg { @apply [width:17px] [height:17px] flex-none; }
+.find-field input {
+  @apply w-full border-0 [outline:0] text-copy bg-transparent [font-size:var(--type-body-size)];
+}
+.find-field input::-webkit-search-cancel-button { @apply hidden; }
+.find-count { @apply [min-width:58px] text-muted text-center [font-size:var(--type-small-size)] [font-variant-numeric:tabular-nums]; }
+.find-action {
+  @apply grid [width:32px] [height:32px] place-items-center border-0 [border-radius:var(--corner-2)] text-copy bg-transparent cursor-pointer [font-size:var(--type-title-size)];
+}
+.find-action:hover:not(:disabled):not([aria-disabled="true"]) { @apply bg-hover; }
+.find-action:disabled, .find-action[aria-disabled="true"] { @apply cursor-default [opacity:.35]; }
+.find-action svg { @apply [width:20px] [height:20px]; }
+.find-option { @apply [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)]; }
+.find-option[aria-pressed=true] { @apply text-accent-copy bg-accent-soft; }
+
+.zoom-bar {
+  @apply relative [z-index:2] flex [height:50px] items-center justify-end [gap:7px] [padding:6px_13px_9px] [border-top:1px_solid_var(--border-soft)] [background:var(--shell-bar,_var(--toolbar))];
+}
+/* With the rail, Find and Zoom continue the toolbar's surface, so no line divides them from it. */
+.shell.vertical-tabs-shell:not(.detached-panel-window) :is(.find-bar, .zoom-bar) { @apply [border-top-color:transparent]; }
+.zoom-bar > span { @apply [margin-right:5px] text-muted [font-size:var(--type-body-size)] [font-weight:var(--weight-strong)]; }
+.zoom-bar > .zoom-isolated { @apply [font-weight:var(--weight-regular)]; }
+.zoom-bar button {
+  @apply grid [min-width:32px] [height:32px] [padding:0_7px] place-items-center border-0 [border-radius:var(--corner-2)] text-copy bg-transparent cursor-pointer [font-size:var(--type-body-size)];
+}
+.zoom-bar button:hover:not(:disabled) { @apply bg-hover; }
+.zoom-bar button:disabled { @apply cursor-default [opacity:.35]; }
+.zoom-bar button svg { @apply [width:20px] [height:20px]; }
+.zoom-bar output { @apply [min-width:54px] text-copy text-center [font-size:var(--type-body-size)] [font-weight:var(--weight-strong)] [font-variant-numeric:tabular-nums]; }
+.zoom-bar .zoom-reset { @apply [min-width:54px] text-accent-copy [font-weight:var(--weight-strong)]; }
