@@ -91,17 +91,15 @@ import { registerPermissionsIpc } from './permissions-ipc.js'
 import { WindowStateStore } from './window-state.js'
 import { createMainWindow, type MainWindowRefs } from './windows/main-window.js'
 import type {
-  AppSettings,
   AppUpdateState,
   BrowserActionFailure,
   BrowserBookmark,
   BrowserHistoryEntry,
-  LanguagePreference,
-  ThemeName
+  LanguagePreference
 } from '../shared/types.js'
 import { registerTabsIpc } from './tabs-ipc.js'
 import { registerNavigationIpc } from './navigation-ipc.js'
-import { CYBERPUNK_TURBO_COLORS, themeColorScheme, type ResolvedThemeName } from '../shared/theme.js'
+import { createWindowAppearance, resolvedTheme, THEME_BACKGROUND } from './windows/appearance.js'
 import {
   resolveLocalePreference,
   resolveSupportedLocale
@@ -498,18 +496,6 @@ if (!isLoopbackHost(mcpRuntime.host)) {
   throw new Error('HRONAUT_MCP_HOST must be a loopback host. Use an authenticated TLS proxy for remote access.')
 }
 
-const THEME_BACKGROUND: Record<ResolvedThemeName, string> = {
-  light: '#f7f7fb',
-  dark: '#171821',
-  midnight: '#0b1422',
-  sepia: '#f2eadc',
-  cyberpunk: '#10071c',
-  'cyberpunk-turbo': CYBERPUNK_TURBO_COLORS.background,
-  matrix: '#020b05',
-  machine: '#13080a',
-  galactic: '#070d20'
-}
-
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) app.quit()
 const quitRequestedAtStartup = process.argv.includes('--quit')
@@ -643,10 +629,6 @@ function showMessageBox(options: MessageBoxOptions): Promise<Electron.MessageBox
   return mainWindowRefs.window ? dialog.showMessageBox(mainWindowRefs.window, options) : dialog.showMessageBox(options)
 }
 
-function resolvedTheme(theme: ThemeName): Exclude<ThemeName, 'system'> {
-  return theme === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : theme
-}
-
 const {
   openMainWindow,
   attachMenuBarGesture,
@@ -661,23 +643,17 @@ const {
   acknowledgeUserAttention
 })
 
-function applyTheme(theme: ThemeName): void {
-  nativeTheme.themeSource = theme === 'system' ? 'system' : themeColorScheme(theme)
-  applyMainWindowBackground()
-  panelWindowRefs.window?.setBackgroundColor(THEME_BACKGROUND[resolvedTheme(theme)])
-  applyMainWindowTitleBarOverlay()
-}
-
-function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
-  for (const window of [mainWindowRefs.window, panelWindowRefs.window]) {
-    if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
-      window.webContents.setZoomFactor(scale)
-    }
-  }
-  addressSuggestionOverlay.setZoomFactor(scale)
-  applyMainWindowTitleBarOverlay()
-  toastOverlay.relayout()
-}
+const { applyTheme, applyInterfaceScale, followSystemTheme } = createWindowAppearance({
+  mainWindowRefs,
+  panelWindowRefs,
+  settings: () => settingsState.current,
+  applyMainWindowBackground,
+  applyMainWindowTitleBarOverlay,
+  addressSuggestionOverlay,
+  toastOverlay,
+  sendToShellWindows,
+  currentRendererSettingsState
+})
 
 function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
   if (preference === 'system') settingsState.systemLocale = resolveSupportedLocale(app.getLocale())
@@ -1531,17 +1507,7 @@ const { startMcpServer, setMcpPort, resetMcpSettings } = createMcpRuntime({
  * the main window and saved workspaces, the tray, the MCP listener, the update check and license refreshes.
  */
 async function startRuntime(): Promise<void> {
-  nativeTheme.on('updated', () => {
-    const systemTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-    if (settingsState.current.theme === 'system') {
-      panelWindowRefs.window?.setBackgroundColor(THEME_BACKGROUND[systemTheme])
-      applyMainWindowTitleBarOverlay()
-    }
-    // The system theme, reduced transparency or a high-contrast mode can each bring the material or take it away.
-    applyMainWindowBackground()
-    sendToShellWindows('settings:system-theme-changed', systemTheme)
-    sendToShellWindows('settings:renderer-state-changed', currentRendererSettingsState())
-  })
+  followSystemTheme()
   mcpRuntime.tokenConfiguration = await loadMcpToken(
     join(app.getPath('userData'), 'mcp-token'),
     process.env.HRONAUT_MCP_TOKEN
