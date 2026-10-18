@@ -440,6 +440,9 @@ describe('agent names', () => {
     const long = sanitizeAgentName('👩‍💻'.repeat(100))
     expect([...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(long)]).toHaveLength(AGENT_NAME_MAX_GRAPHEMES)
     expect(sanitizeAgentName('éclair')).toBe('éclair')
+    // A known client that came through mcp-remote reads as the product on every surface, the bridge kept.
+    expect(sanitizeAgentName('claude-ai (via mcp-remote 0.1.37)')).toBe('Claude (via mcp-remote 0.1.37)')
+    expect(agentCursorIdentity('claude-ai (via mcp-remote 0.1.37)').name).toBe('Claude (via mcp-remote 0.1.37)')
     // Private-use, unassigned and blank filler characters do not count as a name.
     expect(sanitizeAgentName('Agent\uE000 One\u{10FFFD}')).toBe('Agent One')
     expect(sanitizeAgentName('\u115F\u1160Claude\u3164\uFFA0')).toBe('Claude')

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentDisplayName, agentStatus, agentStatusText, agentStatusTone, strongerAgentState } from '../src/shared/agent-status.js'
+import { agentDisplayName, agentStatus, bridgedAgentName, agentStatusText, agentStatusTone, strongerAgentState } from '../src/shared/agent-status.js'
 import { localeMessages } from '../src/shared/i18n.js'
 
 describe('agent status', () => {
@@ -12,6 +12,28 @@ describe('agent status', () => {
     expect(agentDisplayName('kiro-cli')).toBe('kiro-cli')
     expect(agentDisplayName('Visual Studio Code')).toBe('Visual Studio Code')
     expect(agentDisplayName('  Zed ')).toBe('Zed')
+  })
+
+  it('names a known client that came through a bridge as the product and keeps the bridge', () => {
+    // mcp-remote reports the client's own name with "(via mcp-remote <version>)" appended.
+    expect(agentDisplayName('claude-ai (via mcp-remote 0.1.37)')).toBe('Claude (via mcp-remote 0.1.37)')
+    expect(agentDisplayName('codex-mcp-client(via  mcp-remote 0.1.37 )')).toBe('Codex (via mcp-remote 0.1.37)')
+    expect(agentDisplayName('local-agent (via mcp-remote 0.1.37)')).toBe('local-agent (via mcp-remote 0.1.37)')
+    // Naming it again changes nothing, and a name that only looks bridged stays as sent.
+    expect(agentDisplayName('Claude (via mcp-remote 0.1.37)')).toBe('Claude (via mcp-remote 0.1.37)')
+    for (const name of ['claude-ai (via  )', '(via mcp-remote)', 'claude-ai (via (mcp-remote))', 'claude-ai (Via mcp-remote)', 'claude-ai (via mcp-remote']) {
+      expect(agentDisplayName(name), name).toBe(name)
+    }
+    expect(bridgedAgentName(' claude-ai (via mcp-remote 0.1.37) ')).toEqual({ client: 'claude-ai', via: 'mcp-remote 0.1.37' })
+    expect(bridgedAgentName(' Claude Code ')).toEqual({ client: 'Claude Code' })
+  })
+
+  it('names a bridged agent in the status line without its bridge', () => {
+    const en = localeMessages['en-US'].agentStatus
+    const bridged = { key: 'a', name: 'Claude (via mcp-remote 0.1.37)', state: 'working' as const }
+    expect(agentStatus('ready', [bridged])).toEqual({ kind: 'working', message: 'working', name: 'Claude', count: 1 })
+    expect(agentStatusText(agentStatus('ready', [{ ...bridged, state: 'idle' }]), en, 'en-US')).toBe('Claude connected')
+    expect(agentStatus('ready', [bridged, { key: 'b', name: 'Codex', state: 'idle' }]).name).toBe('Claude')
   })
 
   it('never reads a client name as a pattern or a placeholder, and counts a blank name instead of showing it', () => {

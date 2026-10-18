@@ -1,5 +1,5 @@
 import { agentAvatarColorHex, type AgentPresenceState } from '../../../shared/agent-presence.js'
-import { agentDisplayName, type ConnectedAgent } from '../../../shared/agent-status.js'
+import { agentDisplayName, bridgedAgentName, type ConnectedAgent } from '../../../shared/agent-status.js'
 import type { HomeBootstrap } from '../../../shared/home.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, type BrowserTabGroupColor } from '../../../shared/tab-groups.js'
 import { element, interpolate, pluralText, timeAgo } from './dom.js'
@@ -29,7 +29,6 @@ export interface AgentListContext {
 }
 
 const STATE_RANK: Record<AgentPresenceState, number> = { 'needs-you': 0, working: 1, idle: 2 }
-const VIA = /^(.*\S)\s*\(via ([^()]+)\)$/u
 /** Workspaces named on one line; the rest are counted. */
 const WORKSPACES_SHOWN = 2
 
@@ -49,9 +48,9 @@ export function groupAgents(agents: readonly ConnectedAgent[], locale: string): 
     const key = session.name.trim()
     let group = groups.get(key)
     if (!group) {
-      const bridged = VIA.exec(key)
-      // Main names known clients by their whole reported name, so a bridged `claude-ai` is named here, once unwrapped.
-      group = { key, name: bridged ? agentDisplayName(bridged[1]!) : key, ...(bridged ? { via: bridged[2]!.trim() } : {}), state: session.state, initial: session.initial, colorIndex: session.colorIndex, sessions: [] }
+      const { client, via } = bridgedAgentName(key)
+      // Main names a known client inside the bridge already ("Claude"); a raw bridged `claude-ai` is named here too.
+      group = { key, name: via ? agentDisplayName(client) : key, ...(via ? { via } : {}), state: session.state, initial: session.initial, colorIndex: session.colorIndex, sessions: [] }
       groups.set(key, group)
     }
     if (STATE_RANK[session.state] < STATE_RANK[group.state]) group.state = session.state

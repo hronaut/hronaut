@@ -41,12 +41,13 @@ describe('Grouping connected agents', () => {
 
   it('names the bridge a client came through apart from the client, which reads as the product', () => {
     const [bridged, local, plain] = groupAgents([
-      agent('a', 'claude-ai (via mcp-remote 0.1.37)', 'idle'),
+      agent('a', 'Claude (via mcp-remote 0.1.37)', 'idle'),
       agent('b', 'notes (draft)', 'idle'),
       agent('c', 'local-agent (via mcp-remote 0.1.37)', 'idle')
     ], 'en-US')
-    // Main names `claude-ai` "Claude" only when it is the whole name, so the list does once the bridge is taken off.
-    expect(bridged).toMatchObject({ key: 'claude-ai (via mcp-remote 0.1.37)', name: 'Claude', via: 'mcp-remote 0.1.37' })
+    // Main names a known client inside the bridge, as it sends `claude-ai (via mcp-remote 0.1.37)`.
+    expect(bridged).toMatchObject({ key: 'Claude (via mcp-remote 0.1.37)', name: 'Claude', via: 'mcp-remote 0.1.37' })
+    expect(groupAgents([agent('a', 'claude-ai (via mcp-remote 0.1.37)', 'idle')], 'en-US')[0]).toMatchObject({ name: 'Claude', via: 'mcp-remote 0.1.37' })
     expect(local).toMatchObject({ name: 'local-agent', via: 'mcp-remote 0.1.37' })
     expect(plain).toMatchObject({ key: 'notes (draft)', name: 'notes (draft)' })
     expect(plain!.via).toBeUndefined()
