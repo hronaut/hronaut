@@ -25,7 +25,7 @@ import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import type { ElementInspectionAccess } from './element-inspection/element-inspection-access.js'
 import { elementInspection, imageState, mediaState } from './element-inspection/element-inspection.js'
 import type { BrowserConsoleMessageRecord, ConsoleCapture, ConsoleMessagesAccess } from './console-messages/console-messages-access.js'
-import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage, withPendingRuntimeConsoleMessage } from './console-messages/console-messages.js'
+import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage } from './console-messages/console-messages.js'
 import type { TabOverviewPreviewCaptureRequest, TabOverviewPreviewsAccess } from './tab-overview-previews/tab-overview-previews-access.js'
 import {
   captureTabOverviewPreview,
@@ -36,11 +36,11 @@ import {
   storeTabOverviewPreview
 } from './tab-overview-previews/tab-overview-previews.js'
 import type { PageContextMenuAccess } from './context-menus/page-context-menu-access.js'
-import { showContextMenu } from './context-menus/page-context-menu.js'
+import { attachPageContextMenuEvents } from './context-menus/page-context-menu-events.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
-import { clearRendererAgentInputFlag, matchingNativeInputRelease, NativeInputCleanupError } from './native-input-cleanup.js'
+import { NativeInputCleanupError } from './native-input-cleanup.js'
 import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import type { PendingPdfExport } from './pdf-export-publication.js'
@@ -63,7 +63,7 @@ import { readVideoAudioFile } from './video-audio-file.js'
 import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import { credentialCapturePageScript } from './credential-capture-page.js'
-import { recordNetworkDebuggerMessage, retireNetworkPriorityObservations, trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
+import { trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
 import { performanceEnvironmentFingerprint } from './performance-environment.js'
 import type { EmulationAccess } from './emulation/emulation-access.js'
 import { emulate } from './emulation/emulation.js'
@@ -78,7 +78,7 @@ import { BrowserDebuggerQueue } from './debugger-queue.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
 import { BrowserCssStatePreview } from './css-state-preview.js'
 import { DEFAULT_FONT_SIZE_LIMITS, isDefaultFontSize, normalizeDefaultFontSize } from '../../shared/default-font-size.js'
-import { BrowserLiveRegionRecorder, liveRegionRecordingKeepsTabAwake, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
+import { BrowserLiveRegionRecorder, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
 import type { BrowserNetworkRouteRecord, NetworkConditionsAccess } from './network-conditions/network-conditions-access.js'
 import {
@@ -133,7 +133,6 @@ import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
 import type { FileUploadAccess } from './file-upload/file-upload-access.js'
 import { uploadFiles } from './file-upload/file-upload.js'
-import { validateHeaderValue } from 'node:http'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import axe from 'axe-core'
 import {
@@ -147,9 +146,7 @@ import {
   type LoadURLOptions,
   type MenuItemConstructorOptions,
   type NavigationEntry,
-  type PostBody,
   type Rectangle,
-  type Referrer,
   type Session,
   type WebContents
 } from 'electron'
@@ -159,6 +156,7 @@ import { MAX_BROWSER_TABS } from '../../shared/types.js'
 import type { PageFindAccess } from './page-find/page-find-access.js'
 import { findInPage, stopFindInPage } from './page-find/page-find.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
+import { loadFailureProblem } from './page-load-problem.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
 import type { SnapshotSearchOptions, SnapshotSearchResult } from '../../shared/snapshot-search.js'
@@ -191,17 +189,7 @@ import { accessibilityAudit } from './page-audits/accessibility-audit.js'
 import type { DebugReportAccess } from './debug-report/debug-report-access.js'
 import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnosticLogState, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
 import { recordTrustedCredentialFill } from './trusted-credential-fill.js'
-import {
-  normalizeConsoleLogEntry,
-  normalizePageException,
-  normalizeRuntimeConsoleCall,
-  normalizeRuntimeConsolePresentation,
-  normalizeRuntimeException,
-  type CdpLogEntry,
-  type PageExceptionPayload,
-  type CdpRuntimeConsoleCall,
-  type CdpRuntimeExceptionDetails
-} from '../../shared/console-exceptions.js'
+import { attachConsoleMessageEvents } from './console-messages/console-message-events.js'
 import { securityReport } from './page-audits/security-report.js'
 import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
 import { WorkspaceTemplateImporter } from './workspace-template-import.js'
@@ -398,6 +386,7 @@ import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
 import type { DevToolsAccess } from './devtools/devtools-access.js'
 import { openDevTools, toggleDevTools } from './devtools/devtools.js'
+import { attachDevToolsEvents } from './devtools/devtools-events.js'
 import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
 import type { PageNavigationAccess } from './page-navigation/page-navigation-access.js'
@@ -442,6 +431,45 @@ import {
   handleDialog,
   withOptionalDialogHandling
 } from './website-dialogs/website-dialogs.js'
+import type {
+  AgentInputAuthorizationAccess,
+  AuthorizedAgentKeyboardInput,
+  AuthorizedAgentMouseInput
+} from './agent-input-authorization/agent-input-authorization-access.js'
+import {
+  agentInputDebugger,
+  consumeExpectedAgentKeyboardInput,
+  sendAuthorizedAgentInputCommand,
+  shouldBlockHumanMouseInput
+} from './agent-input-authorization/agent-input-authorization.js'
+import type { AgentInputScopeAccess } from './agent-input-scope/agent-input-scope-access.js'
+import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
+import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
+import type { PageDestroyedEventsAccess } from './tab-events/page-destroyed-events-access.js'
+import { attachPageDestroyedEvents } from './tab-events/page-destroyed-events.js'
+import type { DebuggerEventsAccess } from './tab-events/debugger-events-access.js'
+import { attachDebuggerEvents } from './tab-events/debugger-events.js'
+import type { NavigationEventsAccess } from './tab-events/navigation-events-access.js'
+import { attachNavigationEvents } from './tab-events/navigation-events.js'
+import type { PageFocusEventsAccess } from './tab-events/page-focus-events-access.js'
+import { attachPageFocusEvents } from './tab-events/page-focus-events.js'
+import type { RendererHealthEventsAccess } from './tab-events/renderer-health-events-access.js'
+import { attachRendererHealthEvents } from './tab-events/renderer-health-events.js'
+import type { WindowOpenHandlerAccess } from './tab-events/window-open-handler-access.js'
+import { attachWindowOpenHandler } from './tab-events/window-open-handler.js'
+import type { RenderableTabAccess } from './renderable-tab/renderable-tab-access.js'
+import { withRenderableTab } from './renderable-tab/renderable-tab.js'
+import type { TabSleepAccess } from './tab-sleep/tab-sleep-access.js'
+import {
+  putTabToSleep,
+  setTabSleeping,
+  setTabSleepingFromContextMenu,
+  sleepBlockReason,
+  sleepFallbackTab,
+  sleepWorkspaceTabs,
+  wakeTab,
+  watchUnsavedFormEdits
+} from './tab-sleep/tab-sleep.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -465,7 +493,6 @@ const MAX_CLOSED_TABS = MAX_TABS
 const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
 /** How long wheel events after an agent's wheel call still count as the agent's. */
 const AGENT_WHEEL_SETTLE_MS = 250
-const OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS = 1_000
 
 /** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
 function occlusionSnapshotTimeoutMs(): number {
@@ -474,7 +501,6 @@ function occlusionSnapshotTimeoutMs(): number {
     ? override
     : OCCLUSION_SNAPSHOT_TIMEOUT_MS
 }
-const OFFSCREEN_PRESENTATION_TIMEOUT_MS = 15_000
 
 function workspaceNameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
@@ -496,7 +522,6 @@ const AGENT_POINTER_WORLD_ID = ISOLATED_WORLDS.agentPointer
 const CREDENTIAL_CAPTURE_WORLD_ID = ISOLATED_WORLDS.credentialCapture
 const VISUAL_COMPARE_WORLD_ID = ISOLATED_WORLDS.visualCompare
 const MEMORY_SAVER_SWEEP_MS = 30_000
-const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
 const webVitalsPath = require.resolve('web-vitals/attribution')
 const webVitalsSource = readFileSync(webVitalsPath, 'utf8')
@@ -530,48 +555,6 @@ const NETWORK_EMULATION = {
   }
 } as const
 
-const LOAD_FAILURE_MESSAGES: Record<string, MessageKey> = {
-  ERR_ADDRESS_UNREACHABLE: 'native.pageProblem.addressUnreachable',
-  ERR_CONNECTION_CLOSED: 'native.pageProblem.connectionClosed',
-  ERR_CONNECTION_REFUSED: 'native.pageProblem.connectionRefused',
-  ERR_CONNECTION_RESET: 'native.pageProblem.connectionReset',
-  ERR_INTERNET_DISCONNECTED: 'native.pageProblem.offline',
-  ERR_NAME_NOT_RESOLVED: 'native.pageProblem.nameNotResolved',
-  ERR_NETWORK_CHANGED: 'native.pageProblem.networkChanged',
-  ERR_TIMED_OUT: 'native.pageProblem.timedOut'
-}
-
-const RENDERER_FAILURE_MESSAGES: Record<string, MessageKey> = {
-  'abnormal-exit': 'native.pageProblem.abnormalExit',
-  crashed: 'native.pageProblem.crashed',
-  'integrity-failure': 'native.pageProblem.integrityFailure',
-  killed: 'native.pageProblem.killed',
-  'launch-failed': 'native.pageProblem.launchFailed',
-  oom: 'native.pageProblem.outOfMemory'
-}
-
-function loadFailureProblem(locale: SupportedLocale, url: string, errorCode: number, errorDescription: string): BrowserPageProblem {
-  return {
-    kind: 'load-error',
-    title: translate(locale, 'native.pageProblem.loadTitle'),
-    message: translate(locale, LOAD_FAILURE_MESSAGES[errorDescription] ?? 'native.pageProblem.loadDefault'),
-    url,
-    errorCode,
-    errorDescription
-  }
-}
-
-function rendererFailureProblem(locale: SupportedLocale, url: string, reason: string, exitCode: number): BrowserPageProblem {
-  return {
-    kind: 'renderer-gone',
-    title: translate(locale, 'native.pageProblem.rendererTitle'),
-    message: translate(locale, RENDERER_FAILURE_MESSAGES[reason] ?? 'native.pageProblem.rendererDefault'),
-    url,
-    reason,
-    exitCode
-  }
-}
-
 function isAbortedLoad(error: unknown): boolean {
   if (!(error instanceof Error)) return false
   const details = error as Error & { code?: unknown; errno?: unknown }
@@ -579,20 +562,6 @@ function isAbortedLoad(error: unknown): boolean {
     || details.errno === ABORTED_LOAD_ERROR
     || details.code === 'ERR_ABORTED'
     || /\bERR_ABORTED\b|\(-3\)\s+loading\b/.test(error.message)
-}
-
-function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: Referrer): LoadURLOptions | undefined {
-  const options: LoadURLOptions = {}
-  if (referrer.url) options.httpReferrer = referrer
-  if (postBody) {
-    const contentType = postBody.boundary
-      ? `${postBody.contentType}; boundary=${postBody.boundary}`
-      : postBody.contentType
-    validateHeaderValue('Content-Type', contentType)
-    options.postData = postBody.data
-    options.extraHeaders = `Content-Type: ${contentType}`
-  }
-  return Object.keys(options).length ? options : undefined
 }
 
 function pdfFilename(requested: string | undefined, title: string): string {
@@ -820,24 +789,6 @@ export interface BrowserWalletPageContext {
 interface BrowserTabSelectionOptions {
   /** Keep an already-visible split pane from claiming keyboard focus. */
   focus?: boolean
-}
-
-interface AuthorizedAgentMouseInput {
-  type: Electron.MouseInputEvent['type']
-  x: number
-  y: number
-  button: Electron.MouseInputEvent['button'] | undefined
-  buttons: number
-  clickCount: number
-  modifiers: number
-}
-
-interface AuthorizedAgentKeyboardInput {
-  type: Electron.Input['type']
-  key: string
-  code: string
-  modifiers: number
-  autoRepeat: boolean
 }
 
 export interface TabsManagerOptions {
@@ -2565,74 +2516,53 @@ export class BrowserTabsManager {
     this.mcpActivityFollower.accept(activity, agent)
   }
 
-  async wakeTab(tabId: string): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    tab.lastActiveAt = Date.now()
-    if (tab.wakePromise) {
-      await tab.wakePromise
-      return this.getState()
+  /**
+   * The narrow view putting a tab to sleep and waking it gets of this
+   * manager's private tabs, active tab, split view, options, DevTools opening,
+   * native selection sessions, agent input, video recorder, CSS state
+   * previews, MCP activity, downloads, render queues, navigation history, tab
+   * overview previews, workspaces, debugger queue, selection and state
+   * publication. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. The
+   * delegates below return the feature's promise directly, so callers see the
+   * same ticks as before.
+   */
+  private tabSleepAccess(): TabSleepAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      hasTab: (tabId) => this.tabs.has(tabId),
+      tabs: () => this.tabs.values(),
+      orderedTabs: () => this.orderedTabs(),
+      activeTabId: () => this.activeTabId,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      selectTab: (tabId) => this.selectTab(tabId),
+      options: () => this.options,
+      devToolsOpening: () => this.devToolsOpening,
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      elementPickerSessions: () => this.elementPickerSessions,
+      agentInputWebContents: () => this.agentInputWebContents,
+      videoRecorder: () => this.videoRecorder,
+      cssStatePreview: () => this.cssStatePreview,
+      mcpActivitiesByTab: () => this.mcpActivitiesByTab,
+      downloadController: () => this.downloadController,
+      renderQueues: () => this.renderQueues,
+      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
+      tabOverviewPreviews: () => this.tabOverviewPreviews,
+      tabOverviewSleepPreviews: () => this.tabOverviewSleepPreviews,
+      mcpTabGroups: () => this.mcpTabGroups,
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
-    if (!tab.sleeping) return this.getState()
-    const restoreUrl = tab.url
-    const navigationHistory = tab.sleepNavigationHistory
-    const previousLoading = tab.loading
-    const previousSuppressInitialHistory = tab.suppressInitialHistory
-    const navigationGeneration = tab.navigationGeneration
-    const wake = (async () => {
-      tab.sleeping = false
-      this.tabOverviewSleepPreviews.delete(tab.id)
-      tab.sleepNavigationHistory = undefined
-      tab.loading = true
-      tab.suppressInitialHistory = true
-      this.changed(false)
-      try {
-        if (navigationHistory?.entries.length) {
-          tab.discoveryTitle.restoring(navigationHistory.entries)
-          await tab.webContents.navigationHistory.restore(navigationHistory)
-        } else {
-          await tab.webContents.loadURL(restoreUrl)
-        }
-      } catch (error) {
-        const wakeWasSuperseded = () => this.tabs.get(tab.id) !== tab
-          || tab.webContents.isDestroyed()
-          || (tab.navigationGeneration !== navigationGeneration
-            && (tab.webContents.isLoading() || tab.webContents.getURL() !== SLEEPING_PAGE_URL))
-        // Electron also uses ERR_ABORTED when history restoration fails before
-        // starting any replacement navigation. Retry the durable URL in that
-        // case; otherwise the tab is marked awake while still showing the
-        // internal sleeping page. A real newer navigation remains authoritative.
-        if (isAbortedLoad(error) && wakeWasSuperseded()) return
-        try {
-          await tab.webContents.loadURL(restoreUrl)
-        } catch (fallbackError) {
-          // A newer navigation can also interrupt the fallback. Preserve its
-          // live document instead of restoring the obsolete sleeping state.
-          if (isAbortedLoad(fallbackError) && wakeWasSuperseded()) return
-          if (this.tabs.get(tab.id) === tab) {
-            tab.sleeping = true
-            tab.sleepNavigationHistory = navigationHistory
-            tab.loading = previousLoading
-            tab.suppressInitialHistory = previousSuppressInitialHistory
-            this.changed(false)
-          }
-          throw fallbackError
-        }
-      }
-    })()
-    tab.wakePromise = wake
-    try {
-      await wake
-    } finally {
-      tab.wakePromise = undefined
-    }
-    return this.getState()
   }
 
-  async setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    if (sleeping) await this.putTabToSleep(tab, true)
-    else await this.wakeTab(tabId)
-    return this.getState()
+  wakeTab(tabId: string): Promise<BrowserState> {
+    return wakeTab(this.tabSleepAccess(), tabId)
+  }
+
+  setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState> {
+    return setTabSleeping(this.tabSleepAccess(), tabId, sleeping)
   }
 
   /**
@@ -2676,52 +2606,11 @@ export class BrowserTabsManager {
   }
 
   private sleepFallbackTab(tab: BrowserTab): BrowserTab | undefined {
-    const ordered = this.orderedTabs()
-    const index = ordered.indexOf(tab)
-    const candidates = [
-      ...ordered.slice(index + 1),
-      ...ordered.slice(0, index).reverse()
-    ].filter((candidate) => candidate.id !== tab.id && !candidate.webContents.isDestroyed())
-    return candidates.find((candidate) => !candidate.sleeping) ?? candidates[0]
+    return sleepFallbackTab(this.tabSleepAccess(), tab)
   }
 
-  private async setTabSleepingFromContextMenu(tabId: string, sleeping: boolean): Promise<void> {
-    const tab = this.getTab(tabId)
-    if (!sleeping) {
-      await this.wakeTab(tab.id)
-      return
-    }
-    if (tab.sleeping) return
-
-    const active = tab.id === this.activeTabId && !this.splitViewContains(tab.id)
-    const fallback = active ? this.sleepFallbackTab(tab) : undefined
-    const blockReason = this.sleepBlockReason(tab, active && fallback !== undefined)
-    if (blockReason) throw new Error(blockReason)
-    if (!active || !fallback) {
-      await this.putTabToSleep(tab, true)
-      return
-    }
-
-    if (await this.hasChangedFormState(tab)) {
-      throw new Error('This tab has a partially filled form and stays active to protect unsaved input.')
-    }
-    if (this.activeTabId !== tab.id || this.splitViewContains(tab.id)) {
-      await this.putTabToSleep(tab, true)
-      return
-    }
-    const latestFallback = this.sleepFallbackTab(tab)
-    const latestBlockReason = this.sleepBlockReason(tab, latestFallback !== undefined)
-    if (latestBlockReason) throw new Error(latestBlockReason)
-    if (!latestFallback) throw new Error('A visible tab cannot sleep.')
-    this.selectTab(latestFallback.id)
-    try {
-      await this.putTabToSleep(tab, true)
-    } catch (error) {
-      if (this.tabs.has(tab.id) && !tab.webContents.isDestroyed() && this.activeTabId === latestFallback.id) {
-        this.selectTab(tab.id)
-      }
-      throw error
-    }
+  private setTabSleepingFromContextMenu(tabId: string, sleeping: boolean): Promise<void> {
+    return setTabSleepingFromContextMenu(this.tabSleepAccess(), tabId, sleeping)
   }
 
   async sleepInactiveTabs(): Promise<BrowserState> {
@@ -2729,10 +2618,8 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  private async sleepWorkspaceTabs(groupId: string): Promise<void> {
-    if (!this.mcpTabGroups.has(groupId)) throw new Error(`Unknown workspace: ${groupId}`)
-    const workspaceTabs = [...this.tabs.values()].filter((tab) => tab.mcpGroupId === groupId)
-    for (const tab of workspaceTabs) await this.putTabToSleep(tab, false)
+  private sleepWorkspaceTabs(groupId: string): Promise<void> {
+    return sleepWorkspaceTabs(this.tabSleepAccess(), groupId)
   }
 
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): BrowserState {
@@ -3045,10 +2932,11 @@ export class BrowserTabsManager {
   /**
    * The narrow view Developer Tools get of this manager's private tabs, tab
    * waking, input lock, request conditions and routes, opening set, dialog
-   * monitoring and debugger queue. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it. The delegates below return the feature's promise
-   * directly, so callers see the same ticks as before.
+   * monitoring, debugger queue, CSS state preview and state publication. It
+   * is a prototype method rather than a field, so managers created without
+   * the constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's promise directly, so callers see the same ticks as
+   * before.
    */
   private devToolsAccess(): DevToolsAccess<BrowserTab> {
     return {
@@ -3061,7 +2949,10 @@ export class BrowserTabsManager {
       applyNetworkRoutes: (tab, validate, recovery, mutate) => this.applyNetworkRoutes(tab, validate, recovery, mutate),
       devToolsOpening: () => this.devToolsOpening,
       dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
-      pendingDebuggerCommand: (webContentsId) => this.debuggerQueue.pending(webContentsId)
+      pendingDebuggerCommand: (webContentsId) => this.debuggerQueue.pending(webContentsId),
+      cssStatePreview: () => this.cssStatePreview,
+      ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab),
+      changed: (persist) => this.changed(persist)
     }
   }
 
@@ -6469,112 +6360,8 @@ export class BrowserTabsManager {
 
   private attachTabEvents(tab: BrowserTab): void {
     const webContents = tab.webContents
-    webContents.once('destroyed', () => {
-      tab.faviconAbortController?.abort()
-      tab.faviconAbortController = undefined
-      this.invalidateTabOverviewPreview(tab)
-      this.tabOverviewPreviewCaptures.cancelPending(tab.id)
-      this.tabOverviewPreviewableTabs.delete(tab.id)
-      this.networkWaitController.reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
-      this.cancelNativeSelectionSessions(tab)
-      if (this.expectedTabClosures.has(webContents)) {
-        this.dialogMonitorAttachPromises.delete(webContents.id)
-        this.defaultExecutionContexts.delete(webContents.id)
-        return
-      }
-      if (this.destroyed || this.tabs.get(tab.id) !== tab) return
-      this.runWalletLifecycleAction('cancel wallet requests after a tab renderer closes', () => (
-        this.options.onWalletTabClosed?.(tab.id)
-      ))
-      tab.loading = false
-      tab.pageProblem = {
-        kind: 'renderer-gone',
-        title: this.text('native.dialog.pageDestroyedTitle'),
-        message: this.text('native.dialog.pageDestroyedMessage'),
-        url: tab.url,
-        reason: 'renderer-destroyed'
-      }
-      if (this.splitViewContains(tab.id)) {
-        const split = this.splitView!
-        const partnerId = split.firstTabId === tab.id ? split.secondTabId : split.firstTabId
-        const partner = this.tabs.get(partnerId)
-        this.splitView = null
-        try {
-          this.window.contentView.removeChildView(tab.view)
-        } catch (error) {
-          console.warn(`[browser] Could not detach destroyed split pane ${tab.id}:`, error)
-        }
-        if (partner && !partner.webContents.isDestroyed()) {
-          if (this.activeTabId === tab.id) {
-            this.activeTabId = partner.id
-            partner.lastActiveAt = Date.now()
-            this.markTabActiveInGroup(partner)
-          }
-          this.layout()
-          if (this.activeTabId === partner.id) this.focusTabOrTrustedChrome(partner)
-          this.changed()
-          return
-        }
-      }
-
-      const active = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
-      if (active && !active.webContents.isDestroyed()) {
-        this.changed()
-        return
-      }
-      const replacement = this.orderedTabs().find((candidate) => (
-        candidate.id !== tab.id && !candidate.webContents.isDestroyed()
-      ))
-      if (replacement) {
-        try {
-          this.selectTab(replacement.id)
-          return
-        } catch (error) {
-          console.error('[browser] Could not activate a live tab after renderer teardown:', error)
-        }
-      }
-      if (active) {
-        try {
-          this.window.contentView.removeChildView(active.view)
-        } catch (error) {
-          console.warn(`[browser] Could not detach destroyed active pane ${active.id}:`, error)
-        }
-      }
-      this.activeTabId = null
-      this.changed(false)
-      this.publishPageGeometry()
-      void this.createTab({ url: HRONAUT_HOME_URL, active: true })
-        .catch((error) => {
-          console.error('[browser] Could not create a replacement tab after renderer teardown:', error)
-          this.options.onActionFailed?.('recover from a closed page renderer', error)
-        })
-    })
-    webContents.on('focus', () => {
-      if (this.restoringLayout) return
-      if (this.browserContentOccluded && !this.agentInputWebContents.has(webContents.id)) {
-        // A page kept on screen for its snapshot must not take keyboard focus from trusted chrome.
-        // Chromium can ignore a re-entrant transfer from this callback, so restore on the next turn.
-        setImmediate(() => {
-          if (
-            this.browserContentOccluded
-            && !this.window.isDestroyed()
-            && this.window.isFocused()
-            && !webContents.isDestroyed()
-            && electronWebContents.getFocusedWebContents()?.id === webContents.id
-          ) this.window.webContents.focus()
-        })
-        return
-      }
-      tab.lastActiveAt = Date.now()
-      if (tab.sleeping) void this.wakeTab(tab.id).catch((error) => console.error('[browser] Could not wake focused tab:', error))
-      // A WebContentsView can receive a delayed programmatic focus while its
-      // sibling is being restored. Human split-pane activation is handled by
-      // the native mouse event below; explicit agent focus remains intentional.
-      if (!this.agentInputWebContents.has(webContents.id) || !this.splitViewContains(tab.id) || this.activeTabId === tab.id) return
-      this.activeTabId = tab.id
-      this.markTabActiveInGroup(tab)
-      this.changed()
-    })
+    attachPageDestroyedEvents(this.pageDestroyedEventsAccess(), tab, webContents)
+    attachPageFocusEvents(this.pageFocusEventsAccess(), tab, webContents)
     webContents.on('before-input-event', (event, input) => {
       if (this.browserContentOccluded && !this.agentInputWebContents.has(webContents.id)) {
         // Trusted chrome is open; the page is only on screen until its snapshot is shown.
@@ -6738,421 +6525,193 @@ export class BrowserTabsManager {
         this.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
       }
     })
-    webContents.on('context-menu', (event, params) => {
-      event.preventDefault()
-      if (this.isHumanInteractionLocked(tab)) return
-      showContextMenu(this.pageContextMenuAccess(), tab, params)
-    })
-    webContents.on('devtools-opened', () => {
-      void this.cssStatePreview.clear(tab, 'devtools-opened').catch(() => undefined)
-      this.changed(false)
-    })
-    webContents.on('devtools-closed', () => {
-      this.changed(false)
-      void this.ensureDialogMonitoring(tab)
-    })
+    attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
+    attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
     this.frameObservation.track(webContents)
-    webContents.debugger.on('message', (_event, method, params) => {
-      if (method === 'Fetch.requestPaused') {
-        this.queueNetworkRouteRequest(tab, params)
-      } else if (method.startsWith('Network.')) {
-        recordNetworkDebuggerMessage(tab, method, params)
-        this.networkWaitController.notify(tab)
-      } else if (method === 'Page.frameNavigated') {
-        const frame = (params as { frame?: { id?: string; parentId?: string } }).frame
-        if (frame?.id && !frame.parentId) tab.mainFrameId = frame.id
-      } else if (method === 'Log.entryAdded') {
-        const message = normalizeConsoleLogEntry((params as { entry?: CdpLogEntry }).entry)
-        if (message) appendConsoleMessage(tab, message, 'log')
-      } else if (method === 'Runtime.exceptionThrown') {
-        const message = normalizeRuntimeException(params as {
-          timestamp?: number
-          exceptionDetails?: CdpRuntimeExceptionDetails
-        })
-        if (message) appendConsoleMessage(tab, message, 'runtime')
-      } else if (method === 'Runtime.consoleAPICalled') {
-        const call = params as CdpRuntimeConsoleCall
-        const formatted = normalizeRuntimeConsolePresentation(call)
-        const message = formatted?.match ?? normalizeRuntimeConsoleCall(call)
-        if (message) retainRuntimeConsoleMessage(tab, { ...message,
-          ...(formatted ? { presentation: formatted.presentation } : {})
-        })
-      } else if (method === 'Runtime.exceptionRevoked') {
-        const exceptionId = (params as { exceptionId?: number }).exceptionId
-        if (Number.isFinite(exceptionId)) {
-          const message = [...tab.consoleMessages].reverse().find((candidate) => candidate.exceptionId === exceptionId)
-          if (message) message.handled = true
-        }
-      } else if (method === 'Runtime.executionContextCreated') {
-        const details = params as {
-          context?: { id?: number; uniqueId?: string; auxData?: { frameId?: string; isDefault?: boolean } }
-        }
-        const context = details.context
-        const frameId = context?.auxData?.frameId
-        if (context?.auxData?.isDefault && frameId && context.id !== undefined) {
-          const contexts = this.defaultExecutionContexts.get(webContents.id) ?? new Map<string, { id: number; uniqueId?: string }>()
-          contexts.set(frameId, { id: context.id, uniqueId: context.uniqueId })
-          this.defaultExecutionContexts.set(webContents.id, contexts)
-        }
-      } else if (method === 'Runtime.executionContextDestroyed') {
-        const contextId = (params as { executionContextId?: number }).executionContextId
-        if (contextId !== undefined) {
-          const contexts = this.defaultExecutionContexts.get(webContents.id)
-          for (const [frameId, id] of contexts ?? []) {
-            if (id.id === contextId) contexts?.delete(frameId)
-          }
-        }
-      } else if (method === 'Runtime.executionContextsCleared') {
-        this.defaultExecutionContexts.delete(webContents.id)
-      } else if (method === 'Page.javascriptDialogOpening') {
-        const details = params as {
-          type?: string
-          message?: string
-          url?: string
-          defaultPrompt?: string
-        }
-        if (!['alert', 'confirm', 'prompt'].includes(details.type ?? '')) return
-        if (this.browserContentOccluded) {
-          void this.dismissWebsiteDialogForTrustedChrome(tab)
-          return
-        }
-        tab.dialog = {
-          type: details.type as BrowserJavaScriptDialog['type'],
-          message: String(details.message ?? '').slice(0, 4096),
-          url: String(details.url ?? tab.url).slice(0, 8192),
-          ...(details.defaultPrompt !== undefined ? { defaultPrompt: String(details.defaultPrompt).slice(0, 4096) } : {})
-        }
-        this.changed(false)
-      } else if (method === 'Page.javascriptDialogClosed') {
-        tab.dialog = undefined
-        this.changed(false)
-      } else if (method === 'Audits.issueAdded') {
-        this.addInspectorIssue(tab, (params as { issue?: unknown }).issue)
-      } else if (method === 'CSS.styleSheetAdded' || method === 'CSS.styleSheetRemoved') {
-        this.profiling.handleDebuggerMessage(tab, method, params)
-      }
-    })
-    webContents.debugger.on('detach', () => {
-      tab.networkConditionEpoch++
-      tab.networkDebuggerEpoch++
-      tab.emulationRevision++
-      tab.emulationContextGeneration++
-      tab.emulationApplication = 'unknown'
-      tab.nativeInputEnvironmentGeneration++
-      tab.networkConditionApplication = 'unknown'
-      retireNetworkPriorityObservations(tab)
-      tab.dialog = undefined
-      tab.mainFrameId = undefined
-      tab.networkDebuggerEnabled = false
-      if (tab.pageLifecycleState === 'frozen') {
-        tab.pageLifecycleState = 'unknown'
-        tab.pageLifecycleUnknownRequest = 'frozen'
-      }
-      this.profiling.handleDebuggerDetached(tab)
-      this.cssStatePreview.debuggerDetached(tab)
-      this.defaultExecutionContexts.delete(webContents.id)
-      this.changed(false)
-      this.setEmulationViewSize(tab, undefined)
-      if (
-        !this.destroyed
-        && this.tabs.has(tab.id)
-        && !this.devToolsOpening.has(webContents.id)
-        && !webContents.isDevToolsOpened()
-      ) {
-        setImmediate(() => { void this.ensureDialogMonitoring(tab) })
-      }
-    })
+    attachDebuggerEvents(this.debuggerEventsAccess(), tab, webContents)
     void this.ensureDialogMonitoring(tab)
-    const syncNavigation = (): void => {
-      if (this.destroyed || webContents.isDestroyed()) return
-      tab.url = webContents.getURL() || tab.url
-      tab.loading = webContents.isLoading()
-      this.changed()
+    attachNavigationEvents(this.navigationEventsAccess(), tab, webContents)
+    attachConsoleMessageEvents(tab, webContents)
+    attachRendererHealthEvents(this.rendererHealthEventsAccess(), tab, webContents)
+    attachWindowOpenHandler(this.windowOpenHandlerAccess(), tab, webContents)
+  }
+
+  /**
+   * The narrow view a page's debugger listeners get of this manager's private
+   * request rules, network waits, console messages, execution contexts,
+   * trusted chrome occlusion, website dialogs, inspector issues, profiling,
+   * CSS state preview, emulation sizing, tabs, DevTools opening set, dialog
+   * monitoring and state publication. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. Each member reads the manager when called.
+   */
+  private debuggerEventsAccess(): DebuggerEventsAccess<BrowserTab> {
+    return {
+      queueNetworkRouteRequest: (tab, params) => this.queueNetworkRouteRequest(tab, params),
+      networkWaitController: () => this.networkWaitController,
+      appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source),
+      retainRuntimeConsoleMessage: (tab, message) => retainRuntimeConsoleMessage(tab, message),
+      defaultExecutionContexts: () => this.defaultExecutionContexts,
+      browserContentOccluded: () => this.browserContentOccluded,
+      dismissWebsiteDialogForTrustedChrome: (tab) => this.dismissWebsiteDialogForTrustedChrome(tab),
+      changed: (persist) => this.changed(persist),
+      addInspectorIssue: (tab, value) => this.addInspectorIssue(tab, value),
+      profiling: () => this.profiling,
+      cssStatePreview: () => this.cssStatePreview,
+      setEmulationViewSize: (tab, viewport) => this.setEmulationViewSize(tab, viewport),
+      isDestroyed: () => this.destroyed,
+      hasTab: (tabId) => this.tabs.has(tabId),
+      devToolsOpening: () => this.devToolsOpening,
+      ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab)
     }
-    const recordPendingHistory = (): void => {
-      if (tab.suppressInitialHistory || tab.pendingHistoryUrl !== tab.url) return
-      tab.title = normalizeTabTitle(webContents.getTitle(), tab.title)
-      this.recordVisit(tab)
-      tab.pendingHistoryUrl = null
+  }
+
+  /**
+   * The narrow view a page's destroyed listener gets of this manager's
+   * private tab overview previews, network waits, native selection sessions,
+   * expected closures, dialog monitoring, execution contexts, destroyed flag,
+   * tabs, wallet requests, options, localized text, split view, window, active
+   * tab, workspace activation, layout, focus, tab order, selection, page
+   * geometry, tab creation and state publication. It is a prototype method
+   * rather than a field, so managers created without the constructor (as
+   * unit tests do) still provide it. Each member reads the manager when
+   * called.
+   */
+  private pageDestroyedEventsAccess(): PageDestroyedEventsAccess<BrowserTab> {
+    return {
+      invalidateTabOverviewPreview: (tab) => this.invalidateTabOverviewPreview(tab),
+      tabOverviewPreviewCaptures: () => this.tabOverviewPreviewCaptures,
+      tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
+      networkWaitController: () => this.networkWaitController,
+      cancelNativeSelectionSessions: (tab) => this.cancelNativeSelectionSessions(tab),
+      expectedTabClosures: () => this.expectedTabClosures,
+      dialogMonitorAttachPromises: () => this.dialogMonitorAttachPromises,
+      defaultExecutionContexts: () => this.defaultExecutionContexts,
+      isDestroyed: () => this.destroyed,
+      findTab: (tabId) => this.tabs.get(tabId),
+      runWalletLifecycleAction: (action, callback) => this.runWalletLifecycleAction(action, callback),
+      options: () => this.options,
+      text: (key, parameters) => this.text(key, parameters),
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      splitView: () => this.splitView,
+      writeSplitView: (splitView) => { this.splitView = splitView },
+      window: () => this.window,
+      activeTabId: () => this.activeTabId,
+      writeActiveTabId: (tabId) => { this.activeTabId = tabId },
+      markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
+      layout: () => this.layout(),
+      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
+      changed: (persist) => this.changed(persist),
+      orderedTabs: () => this.orderedTabs(),
+      selectTab: (tabId) => this.selectTab(tabId),
+      publishPageGeometry: () => this.publishPageGeometry(),
+      createTab: (options) => this.createTab(options)
     }
-    webContents.on('page-title-updated', (_event, title, explicitSet) => {
-      if (tab.sleeping) return
-      tab.discoveryTitle.observe(title, explicitSet === true)
-      const nextTitle = normalizeTabTitle(title, tab.title)
-      const titleChanged = nextTitle !== tab.title
-      tab.title = nextTitle
-      if (titleChanged) {
-        this.options.onPageTitleUpdated?.({
-          url: webContents.getURL() || tab.url,
-          title: nextTitle
-        })
-      }
-      this.changed()
-    })
-    webContents.on('did-start-loading', () => {
-      if (tab.sleeping) return
-      tab.loading = true
-      tab.sleeping = false
-      tab.lastActiveAt = Date.now()
-      tab.pageProblem = undefined
-      this.changed(false)
-    })
-    webContents.on('will-frame-navigate', (details) => {
-      if (tab.sleeping || !details.isMainFrame) return
-      if (tab.mcpGroupId
-        && !this.workspaceNavigationAllowed(tab.mcpGroupId, details.url, 'page')) {
-        tab.navigationPolicyDenialSequence += 1
-        details.preventDefault()
-        return
-      }
-      this.prepareDiagnosticNavigation(tab)
-    })
-    webContents.on('will-redirect', (details) => {
-      if (!tab.mcpGroupId || !details.isMainFrame) return
-      if (!this.workspaceNavigationAllowed(tab.mcpGroupId, details.url, 'redirect')) {
-        tab.navigationPolicyDenialSequence += 1
-        details.preventDefault()
-      }
-    })
-    webContents.on('did-start-navigation', (_event, _navigationUrl, isSameDocument, isMainFrame) => {
-      if (tab.sleeping || !isMainFrame) return
-      // Chromium applies lifecycle state to a document, not to the durable tab.
-      // Any main-frame navigation establishes a fresh active document. The
-      // explicit hold is never persisted or silently replayed across it.
-      tab.pageLifecycleState = 'active'
-      tab.pageLifecycleUnknownRequest = undefined
-      tab.pageLifecycleAnimations = undefined
-      tab.navigationGeneration += 1
-      retireNetworkPriorityObservations(tab)
-      this.invalidateTabOverviewPreview(tab)
-      if (!isSameDocument) {
-        tab.walletNavigationGeneration = tab.navigationGeneration
-        this.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
-          this.options.onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
-        ))
-      }
-      if (isSameDocument) {
-        tab.performanceDocumentRouted = true
-        return
-      }
-      // Remove it now, not at commit: a navigation that never commits (a download or a 204) keeps the old document.
-      void this.cssStatePreview.clear(tab, 'navigation').catch(() => undefined)
-      tab.discoveryTitle.clear()
-      tab.faviconAbortController?.abort()
-      tab.faviconAbortController = undefined
-      tab.faviconRequestId += 1
-      this.cancelNativeSelectionSessions(tab)
-      tab.inspectorIssues = []
-      tab.inspectorIssuesTruncated = false
-      tab.authChallenges = []
-      tab.authChallengesTruncated = false
-      tab.authNavigationPending = true
-      tab.securitySnapshot = undefined
-      tab.domChangesRecording = undefined
-      tab.liveRegionRecording = undefined
-      this.changed(false)
-    })
-    webContents.on('page-favicon-updated', (_event, favicons) => {
-      if (tab.sleeping) return
-      void this.loadFavicon(tab, favicons)
-    })
-    // Observe only. Without preventDefault Electron cancels the challenge, so
-    // no credentials are requested, supplied or retried.
-    webContents.on('login', (_event, details, authInfo) => this.recordAuthChallenge(tab, details, authInfo))
-    webContents.on('audio-state-changed', (event) => {
-      tab.audible = event.audible
-      tab.muted = webContents.isAudioMuted()
-      this.changed(false)
-    })
-    webContents.on('did-stop-loading', () => {
-      // An aborted provisional load still stops loading without a commit.
-      if (!webContents.isLoadingMainFrame()) tab.authNavigationPending = false
-      if (tab.sleeping) return
-      this.reconcileTabPresentation(tab)
-      syncNavigation()
-      this.reproRecorder.refreshReproScrollPosition(tab)
-      this.scheduleTabOverviewPreview(tab)
-      if (tab.suppressInitialHistory) {
-        tab.suppressInitialHistory = false
-        tab.pendingHistoryUrl = null
-        return
-      }
-      recordPendingHistory()
-      tab.pendingHistoryUrl = null
-    })
-    webContents.on('did-navigate', (_event, url) => {
-      tab.authNavigationPending = false
-      // A navigation may already have started before emulation admission.
-      tab.emulationContextGeneration++
-      if (tab.sleeping) return
-      // Reset only when a new main-frame document commits, never on a failed load.
-      tab.performanceDocumentRouted = false
-      this.trackWorkspaceOrigin(tab, url)
-      tab.memoryBaseline = undefined
-      const previousUrl = tab.url
-      try {
-        if (new URL(previousUrl).origin !== new URL(url).origin) {
-          tab.storageComparison = undefined
-        }
-      } catch {
-        tab.storageComparison = undefined
-        tab.faviconDataUrl = undefined
-      }
-      if (previousUrl !== url) tab.faviconDataUrl = undefined
-      tab.pendingHistoryUrl = isWebUrl(url) ? url : null
-      syncNavigation()
-      this.reproRecorder.navigated(tab, url, false)
-    })
-    webContents.on('did-navigate-in-page', (_event, url, isMainFrame) => {
-      if (tab.sleeping) return
-      this.trackWorkspaceOrigin(tab, url)
-      // A frame's hash or history change does not represent another visit to
-      // the tab's top-level page.
-      if (!isMainFrame) return
-      tab.performanceDocumentRouted = true
-      syncNavigation()
-      this.reproRecorder.navigated(tab, url, true)
-      if (!tab.suppressInitialHistory) this.recordVisit(tab)
-      tab.pendingHistoryUrl = null
-      this.scheduleTabOverviewPreview(tab)
-    })
-    webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-      if (tab.sleeping) return
-      const previousUrl = tab.url
-      syncNavigation()
-      if (!isMainFrame || errorCode === ABORTED_LOAD_ERROR) return
-      tab.authNavigationPending = false
-      const failedUrl = validatedURL || tab.url
-      tab.loading = false
-      if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined
-      tab.url = failedUrl
-      tab.title = 'Site unavailable'
-      tab.pageProblem = loadFailureProblem(this.options.getLocale(), failedUrl, errorCode, errorDescription)
-      appendConsoleMessage(tab, {
-        timestamp: new Date().toISOString(),
-        level: 'error',
-        message: `Page load failed: ${errorDescription} (${errorCode})`,
-        lineNumber: 0,
-        sourceId: failedUrl,
-        kind: 'lifecycle'
-      }, 'lifecycle')
-      this.changed()
-      this.scheduleTabOverviewPreview(tab)
-    })
-    webContents.on('dom-ready', () => {
-      // A page can remain loading indefinitely because of a slow image,
-      // analytics request, or other subresource. Once its main document is
-      // committed and usable, make it available to address suggestions rather
-      // than waiting for did-stop-loading.
-      recordPendingHistory()
-      this.watchCredentialSubmission(tab)
-      this.watchUnsavedFormEdits(tab)
-      void this.syncHumanInteractionInputGuard(tab).catch((error) => {
-        console.error('[browser] Could not synchronize the page interaction lock:', error)
-      })
-    })
-    webContents.on('did-frame-finish-load', () => {
-      if (!this.isHumanInteractionLocked(tab)) return
-      void this.syncHumanInteractionInputGuard(tab).catch((error) => {
-        console.error('[browser] Could not synchronize a frame interaction lock:', error)
-      })
-    })
-    webContents.on('console-message', (details) => {
-      const { message, runtimeMatched } = withPendingRuntimeConsoleMessage(tab, {
-        timestamp: new Date().toISOString(),
-        level: details.level,
-        message: details.message,
-        lineNumber: details.lineNumber,
-        sourceId: details.sourceId,
-        kind: 'console'
-      })
-      appendConsoleMessage(tab, message, 'electron')
-      if (runtimeMatched) tab.consoleMessages.at(-1)?.captureSources.add('runtime-console')
-    })
-    webContents.on('ipc-message', (_event, channel, payload: unknown) => {
-      if (channel !== 'hronaut:page-exception') return
-      const message = normalizePageException(payload as PageExceptionPayload)
-      if (message) appendConsoleMessage(tab, message, 'preload')
-    })
-    webContents.on('render-process-gone', (_event, details) => {
-      if (tab.networkConditionApplication === 'pending') this.markNetworkConditionsUnknown(tab)
-      tab.emulationContextGeneration++
-      tab.emulationRevision++
-      tab.emulationApplication = 'unknown'
-      tab.nativeInputEnvironmentGeneration++
-      this.changed(false)
-      this.setEmulationViewSize(tab, undefined)
-      this.invalidateTabOverviewPreview(tab)
-      this.tabOverviewPreviewCaptures.cancelPending(tab.id)
-      this.tabOverviewPreviewableTabs.delete(tab.id)
-      if (this.rendererRecovery.expectsExit(webContents)) return
-      this.networkWaitController.reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
-      this.cancelNativeSelectionSessions(tab)
-      if (tab.pageLifecycleState !== 'active') {
-        tab.pageLifecycleState = 'unknown'
-        tab.pageLifecycleUnknownRequest ??= 'frozen'
-      }
-      tab.loading = false
-      tab.title = this.text('native.dialog.pageUnavailable')
-      tab.pageProblem = rendererFailureProblem(this.options.getLocale(), tab.url, details.reason, details.exitCode)
-      appendConsoleMessage(tab, {
-        timestamp: new Date().toISOString(),
-        level: 'error',
-        message: `Renderer process exited: ${details.reason} (exit code ${details.exitCode})`,
-        lineNumber: 0,
-        sourceId: tab.url,
-        kind: 'lifecycle'
-      }, 'lifecycle')
-      this.changed()
-    })
-    webContents.on('unresponsive', () => {
-      tab.pageProblem = {
-        kind: 'unresponsive',
-        title: this.text('native.dialog.unresponsiveTitle'),
-        message: this.text('native.dialog.unresponsiveMessage'),
-        url: tab.url
-      }
-      this.changed(false)
-    })
-    webContents.on('responsive', () => {
-      if (tab.pageProblem?.kind !== 'unresponsive') return
-      tab.pageProblem = undefined
-      this.changed(false)
-    })
-    webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
-      const observations = [...(this.openedTabObservations.get(tab) ?? [])]
-      const blocked = (): { action: 'deny' } => {
-        for (const observation of observations) observation.blockedRequest()
-        return { action: 'deny' }
-      }
-      if (tab.mcpGroupId && isHronautHomeUrl(url)) return blocked()
-      if (tab.mcpGroupId
-        && !this.workspaceNavigationAllowed(tab.mcpGroupId, url, 'popup')) return blocked()
-      let loadOptions: LoadURLOptions | undefined
-      try {
-        loadOptions = interceptedWindowLoadOptions(postBody, referrer)
-      } catch (error) {
-        console.error(`[browser] Could not preserve the requested page navigation to ${url}:`, error)
-        this.options.onActionFailed?.('open page in new tab', error)
-        for (const observation of observations) observation.failedRequest()
-        return { action: 'deny' }
-      }
-      const creations = observations.map(observation => observation.creationStarted())
-      void this.createTab({
-        url,
-        active: disposition !== 'background-tab',
-        selectVisible: !this.agentInputWebContents.has(webContents.id) || this.followAgentActivity,
-        mcpGroupId: tab.mcpGroupId,
-        loadOptions,
-        onCreated: (created) => { for (const creation of creations) creation.created(created.id) }
-      })
-        .catch((error) => {
-          for (const creation of creations) creation.failed()
-          console.error(`[browser] Could not open requested page ${url}:`, error)
-          this.options.onActionFailed?.('open page in new tab', error)
-        })
-      return { action: 'deny' }
-    })
+  }
+
+  /**
+   * The narrow view a page's focus listener gets of this manager's private
+   * layout restoration, trusted chrome occlusion, in-flight agent input,
+   * window, tab waking, split view, active tab, workspace activation and state
+   * publication. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. Each
+   * member reads the manager when called.
+   */
+  private pageFocusEventsAccess(): PageFocusEventsAccess<BrowserTab> {
+    return {
+      restoringLayout: () => this.restoringLayout,
+      browserContentOccluded: () => this.browserContentOccluded,
+      agentInputWebContents: () => this.agentInputWebContents,
+      window: () => this.window,
+      wakeTab: (tabId) => this.wakeTab(tabId),
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      activeTabId: () => this.activeTabId,
+      writeActiveTabId: (tabId) => { this.activeTabId = tabId },
+      markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
+      changed: (persist) => this.changed(persist)
+    }
+  }
+
+  /**
+   * The narrow view a page's title, loading and navigation listeners get of
+   * this manager's private destroyed flag, history, options, workspace
+   * navigation policy, diagnostic logs, tab overview previews, wallet
+   * requests, CSS state preview, native selection sessions, favicons, sign-in
+   * challenges, presentation repair, repro recording, workspace origins,
+   * console messages, credential and form watching, interaction lock and
+   * state publication. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still
+   * provide it. Each member reads the manager when called.
+   */
+  private navigationEventsAccess(): NavigationEventsAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      changed: (persist) => this.changed(persist),
+      recordVisit: (tab) => this.recordVisit(tab),
+      options: () => this.options,
+      workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
+      prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
+      invalidateTabOverviewPreview: (tab) => this.invalidateTabOverviewPreview(tab),
+      runWalletLifecycleAction: (action, callback) => this.runWalletLifecycleAction(action, callback),
+      cssStatePreview: () => this.cssStatePreview,
+      cancelNativeSelectionSessions: (tab) => this.cancelNativeSelectionSessions(tab),
+      loadFavicon: (tab, favicons) => this.loadFavicon(tab, favicons),
+      recordAuthChallenge: (tab, details, authInfo) => this.recordAuthChallenge(tab, details, authInfo),
+      reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
+      reproRecorder: () => this.reproRecorder,
+      scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
+      trackWorkspaceOrigin: (tab, url) => this.trackWorkspaceOrigin(tab, url),
+      appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source),
+      watchCredentialSubmission: (tab) => this.watchCredentialSubmission(tab),
+      watchUnsavedFormEdits: (tab) => watchUnsavedFormEdits(tab),
+      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab)
+    }
+  }
+
+  /**
+   * The narrow view a page's renderer exit and hang listeners get of this
+   * manager's private request conditions, emulation sizing, tab overview
+   * previews, renderer recovery, network waits, native selection sessions,
+   * localized text, options, console messages and state publication. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. Each member reads the
+   * manager when called.
+   */
+  private rendererHealthEventsAccess(): RendererHealthEventsAccess<BrowserTab> {
+    return {
+      markNetworkConditionsUnknown: (tab) => this.markNetworkConditionsUnknown(tab),
+      changed: (persist) => this.changed(persist),
+      setEmulationViewSize: (tab, viewport) => this.setEmulationViewSize(tab, viewport),
+      invalidateTabOverviewPreview: (tab) => this.invalidateTabOverviewPreview(tab),
+      tabOverviewPreviewCaptures: () => this.tabOverviewPreviewCaptures,
+      tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
+      rendererRecovery: () => this.rendererRecovery,
+      networkWaitController: () => this.networkWaitController,
+      cancelNativeSelectionSessions: (tab) => this.cancelNativeSelectionSessions(tab),
+      text: (key, parameters) => this.text(key, parameters),
+      options: () => this.options,
+      appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source)
+    }
+  }
+
+  /**
+   * The narrow view a page's window open handler gets of this manager's
+   * private opened tab observations, workspace navigation policy, options,
+   * tab creation, in-flight agent input and activity following. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. Each member reads the
+   * manager when called.
+   */
+  private windowOpenHandlerAccess(): WindowOpenHandlerAccess<BrowserTab> {
+    return {
+      openedTabObservations: () => this.openedTabObservations,
+      workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
+      options: () => this.options,
+      createTab: (options) => this.createTab(options),
+      agentInputWebContents: () => this.agentInputWebContents,
+      followAgentActivity: () => this.followAgentActivity
+    }
   }
 
   private recordVisit(tab: BrowserTab): void {
@@ -7229,169 +6788,12 @@ export class BrowserTabsManager {
       .catch(() => undefined)
   }
 
-  private sleepBlockReason(tab: BrowserTab, allowActiveTab = false): string | undefined {
-    if (!this.tabs.has(tab.id) || tab.webContents.isDestroyed()) return 'The tab is no longer available.'
-    if (isHronautHomeUrl(tab.url) || !isWebUrl(tab.url)) return 'Only inactive website tabs can sleep.'
-    if ((!allowActiveTab && tab.id === this.activeTabId) || this.splitViewContains(tab.id)) return 'A visible tab cannot sleep.'
-    if (tab.pinned) return 'Pinned tabs stay active.'
-    if (tab.pageLifecycleState !== 'active' || tab.pageLifecycleOperation) return 'A tab with an explicit page hold stays active.'
-    if (tab.loading) return 'A loading tab cannot sleep.'
-    if (tab.audible) return 'A tab playing audio stays active.'
-    if (tab.dialog) return 'A tab with an open dialog stays active.'
-    if (this.options.walletKeepsTabAwake?.(tab.id)) return 'A tab waiting on a wallet request stays active.'
-    if (tab.webContents.isDevToolsOpened() || this.devToolsOpening.has(tab.webContents.id)) {
-      return 'A tab with Developer Tools open stays active.'
-    }
-    if (
-      this.screenshotAreaSessions.has(tab.webContents.id)
-      || this.elementPickerSessions.has(tab.webContents.id)
-      || this.agentInputWebContents.has(tab.webContents.id)
-    ) {
-      return 'A tab with an active interaction stays active.'
-    }
-    if (this.videoRecorder.state(tab.id).status === 'recording') return 'A tab recording video stays active.'
-    if (tab.reproRecording?.active) return 'A tab recording reproduction steps stays active.'
-    if (tab.domChangesRecording?.active) return 'A tab recording DOM changes stays active.'
-    if (liveRegionRecordingKeepsTabAwake(tab)) return 'A tab recording a live region stays active.'
-    if (this.cssStatePreview.active(tab)) return 'A tab previewing a forced CSS state stays active.'
-    if (tab.codeCoverage?.recording) return 'A tab recording code coverage stays active.'
-    if (tab.cpuProfile?.recording) return 'A tab recording a JavaScript CPU profile stays active.'
-    if (tab.memoryAllocation?.recording) return 'A tab recording memory allocations stays active.'
-    if ((this.mcpActivitiesByTab.get(tab.id)?.size ?? 0) > 0) return 'A tab with an active MCP command stays active.'
-    if (this.downloadController.hasActiveDownload(tab.id)) {
-      return 'A tab with an active download stays active.'
-    }
-    if (this.renderQueues.has(tab.webContents.id)) return 'A tab rendering a page capture or PDF stays active.'
-    return undefined
+  private sleepBlockReason(tab: BrowserTab, allowActiveTab?: boolean): string | undefined {
+    return sleepBlockReason(this.tabSleepAccess(), tab, allowActiveTab)
   }
 
-  private async hasChangedFormState(tab: BrowserTab): Promise<boolean> {
-    try {
-      return await tab.webContents.executeJavaScript(`(() => {
-        const inputs = [...document.querySelectorAll('input')];
-        if (inputs.some((input) => {
-          const type = (input.getAttribute('type') || 'text').toLowerCase();
-          if (['button', 'submit', 'reset', 'image', 'hidden'].includes(type)) return false;
-          if (type === 'checkbox' || type === 'radio') return input.checked !== input.defaultChecked;
-          if (type === 'file') return (input.files?.length || 0) > 0;
-          return input.value !== input.defaultValue;
-        })) return true;
-        if ([...document.querySelectorAll('textarea')].some((field) => field.value !== field.defaultValue)) return true;
-        if ([...document.querySelectorAll('select')].some((field) => {
-          if (field.multiple) return [...field.options].some((option) => option.selected !== option.defaultSelected);
-          const explicitDefault = [...field.options].findIndex((option) => option.defaultSelected);
-          const defaultIndex = explicitDefault >= 0 ? explicitDefault : field.options.length > 0 ? 0 : -1;
-          return field.selectedIndex !== defaultIndex;
-        })) return true;
-        return window.__hronautContentEditableDirty === true;
-      })()`) === true
-    } catch {
-      return true
-    }
-  }
-
-  private watchUnsavedFormEdits(tab: BrowserTab): void {
-    void tab.webContents.executeJavaScript(`(() => {
-      if (window.__hronautFormEditTrackingInstalled) return;
-      window.__hronautFormEditTrackingInstalled = true;
-      window.__hronautContentEditableDirty = false;
-      document.addEventListener('input', (event) => {
-        const target = event.target;
-        if (target instanceof HTMLElement && target.isContentEditable) {
-          window.__hronautContentEditableDirty = true;
-        }
-      }, true);
-    })()`, true).catch(() => undefined)
-  }
-
-  private async putTabToSleep(tab: BrowserTab, reportBlocked: boolean, isCurrent: () => boolean = () => true): Promise<boolean> {
-    if (tab.wakePromise) await tab.wakePromise
-    if (!isCurrent() || tab.sleeping) return false
-    const blockReason = this.sleepBlockReason(tab)
-    if (blockReason) {
-      if (reportBlocked) throw new Error(blockReason)
-      return false
-    }
-    if (await this.hasChangedFormState(tab)) {
-      if (reportBlocked) throw new Error('This tab has a partially filled form and stays active to protect unsaved input.')
-      return false
-    }
-    if (!isCurrent()) return false
-    const latestBlockReason = this.sleepBlockReason(tab)
-    if (latestBlockReason) {
-      if (reportBlocked) throw new Error(latestBlockReason)
-      return false
-    }
-    tab.sleepNavigationHistory = this.navigationHistorySnapshot(tab)
-    // The overview keeps showing the page as it was; the frame is dropped when the tab wakes or closes.
-    const lastFrame = this.tabOverviewPreviews.get(tab.id)
-    if (lastFrame?.navigationGeneration === tab.navigationGeneration) this.tabOverviewSleepPreviews.set(tab.id, lastFrame)
-    else this.tabOverviewSleepPreviews.delete(tab.id)
-    tab.sleeping = true
-    tab.walletPageUnloading = true
-    tab.loading = false
-    tab.pendingHistoryUrl = null
-    this.changed(false)
-    let sleepingPageLoaded = false
-    try {
-      try {
-        await tab.webContents.loadURL(SLEEPING_PAGE_URL)
-      } finally {
-        // The page is gone now, or the navigation failed and it stays in use.
-        tab.walletPageUnloading = false
-      }
-      sleepingPageLoaded = true
-      await this.withDebugger(tab.webContents, () =>
-        tab.webContents.debugger.sendCommand('HeapProfiler.collectGarbage')
-      )
-    } catch (error) {
-      const navigationHistory = tab.sleepNavigationHistory
-      if (!sleepingPageLoaded) {
-        tab.sleeping = false
-        tab.sleepNavigationHistory = undefined
-        this.changed(false)
-        if (reportBlocked) throw error
-        console.warn(`[browser] Could not put tab ${tab.id} to sleep:`, error)
-        return false
-      }
-      let restoreError: unknown
-      try {
-        if (navigationHistory?.entries.length) {
-          try {
-            tab.discoveryTitle.restoring(navigationHistory.entries)
-            await tab.webContents.navigationHistory.restore(navigationHistory)
-          } catch {
-            await tab.webContents.loadURL(tab.url)
-          }
-        } else {
-          await tab.webContents.loadURL(tab.url)
-        }
-      } catch (rollbackError) {
-        restoreError = rollbackError
-      }
-      if (restoreError) {
-        tab.sleeping = true
-        tab.sleepNavigationHistory = navigationHistory
-        tab.loading = false
-        this.changed(false)
-        const recoveryError = new AggregateError(
-          [error, restoreError],
-          'The tab could not finish sleeping and its previous page could not be restored.'
-        )
-        if (reportBlocked) throw recoveryError
-        console.warn(`[browser] Could not put tab ${tab.id} to sleep or restore it:`, recoveryError)
-        return false
-      }
-      tab.sleeping = false
-      tab.sleepNavigationHistory = undefined
-      tab.loading = false
-      this.changed(false)
-      if (reportBlocked) throw error
-      console.warn(`[browser] Could not put tab ${tab.id} to sleep:`, error)
-      return false
-    }
-    this.changed(false)
-    return true
+  private putTabToSleep(tab: BrowserTab, reportBlocked: boolean, isCurrent?: () => boolean): Promise<boolean> {
+    return putTabToSleep(this.tabSleepAccess(), tab, reportBlocked, isCurrent)
   }
 
   private async sweepMemorySaver(force: boolean): Promise<void> {
@@ -7645,9 +7047,26 @@ export class BrowserTabsManager {
     tab.webContents.focus()
   }
 
+  /**
+   * The narrow view agent input authorization gets of this manager's private
+   * tabs, page-to-tab index, human interaction lock and authorized agent input
+   * records. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. The delegates
+   * below return the feature's value or promise directly, so callers see the
+   * same ticks as before.
+   */
+  private agentInputAuthorizationAccess(): AgentInputAuthorizationAccess<BrowserTab> {
+    return {
+      findTab: (tabId) => this.tabs.get(tabId),
+      tabIdForWebContents: (webContentsId) => this.webContentsToTab.get(webContentsId),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      authorizedAgentMouseInput: () => this.authorizedAgentMouseInput,
+      authorizedAgentKeyboardInput: () => this.authorizedAgentKeyboardInput
+    }
+  }
+
   private shouldBlockHumanMouseInput(tab: BrowserTab, mouse: Electron.MouseInputEvent): boolean {
-    return this.isHumanInteractionLocked(tab)
-      && !this.isAuthorizedAgentMouseInput(tab.webContents.id, mouse)
+    return shouldBlockHumanMouseInput(this.agentInputAuthorizationAccess(), tab, mouse)
   }
 
   private nativeInputAuthority(
@@ -7680,17 +7099,10 @@ export class BrowserTabsManager {
     webContents: BrowserTab['view']['webContents'],
     validateInput?: () => void
   ): PointerDebugger & KeyboardDebugger {
-    return {
-      sendCommand: (method, commandParams) => this.sendAuthorizedAgentInputCommand(
-        webContents,
-        method,
-        commandParams,
-        validateInput
-      )
-    }
+    return agentInputDebugger(this.agentInputAuthorizationAccess(), webContents, validateInput)
   }
 
-  private async sendAuthorizedAgentInputCommand(
+  private sendAuthorizedAgentInputCommand(
     webContents: BrowserTab['view']['webContents'],
     method: string,
     commandParams: Record<string, unknown> = {},
@@ -7698,176 +7110,14 @@ export class BrowserTabsManager {
     observer?: NativeInputDispatchObserver,
     beforeRawDispatch?: () => Promise<void>
   ): Promise<unknown> {
-    validateInput?.()
-    const mouse = method === 'Input.dispatchMouseEvent'
-      ? this.authorizedMouseInputFromCommand(commandParams)
-      : null
-    const keyboard = method === 'Input.dispatchKeyEvent'
-      ? this.authorizedKeyboardInputFromCommand(commandParams)
-      : null
-    const tabId = this.webContentsToTab.get(webContents.id)
-    const tab = tabId ? this.tabs.get(tabId) : undefined
-    const temporarilyPermitNativeInput = Boolean((mouse || keyboard) && tab && this.isHumanInteractionLocked(tab))
-    if (temporarilyPermitNativeInput) {
-      await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: false })
-    }
-    let rawDispatched = false
-    try {
-      // Semantic-click sampling uses this already-acquired debugger after the
-      // barrier lift. Matching releases never receive an admission hook.
-      if (beforeRawDispatch) await beforeRawDispatch()
-      // Recheck after lifting the compositor barrier, immediately before input.
-      validateInput?.()
-      if (mouse) this.authorizedAgentMouseInput.set(webContents.id, mouse)
-      if (keyboard) this.authorizedAgentKeyboardInput.set(webContents.id, keyboard)
-      observer?.rawAttempted(commandParams)
-      const result = await webContents.debugger.sendCommand(method, commandParams)
-      rawDispatched = true
-      observer?.rawAcknowledged(commandParams)
-      return result
-    } finally {
-      if (mouse && this.authorizedAgentMouseInput.get(webContents.id) === mouse) {
-        this.authorizedAgentMouseInput.delete(webContents.id)
-      }
-      if (keyboard && this.authorizedAgentKeyboardInput.get(webContents.id) === keyboard) {
-        this.authorizedAgentKeyboardInput.delete(webContents.id)
-      }
-      if (temporarilyPermitNativeInput && !webContents.isDestroyed()) {
-        // Lift the compositor barrier for this single CDP event only. The
-        // before-input guards remain active and admit only the matching event;
-        // physical wheel/gesture input and mismatched event shapes stay blocked.
-        try {
-          await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true })
-        } catch (error) {
-          observer?.cleanupFailed?.()
-          if (!rawDispatched) throw error
-          const release = matchingNativeInputRelease(method, commandParams)
-          if (release) {
-            // The caller will see a rejection and cannot know that down succeeded.
-            // Send one matching release through the same native input guard. Up
-            // events cannot recurse into another release, even if re-lock fails.
-            observer?.emergencyReleaseStarted()
-            await this.sendAuthorizedAgentInputCommand(webContents, method, release, undefined, observer).catch(() => undefined)
-          }
-          throw new NativeInputCleanupError(error)
-        }
-      }
-    }
-  }
-
-  private authorizedMouseInputFromCommand(
-    commandParams: Record<string, unknown>
-  ): AuthorizedAgentMouseInput | null {
-    const type = {
-      mouseMoved: 'mouseMove',
-      mousePressed: 'mouseDown',
-      mouseReleased: 'mouseUp',
-      mouseWheel: 'mouseWheel'
-    }[String(commandParams.type)] as Electron.MouseInputEvent['type'] | undefined
-    const x = Number(commandParams.x)
-    const y = Number(commandParams.y)
-    if (!type || !Number.isFinite(x) || !Number.isFinite(y)) return null
-    const buttonValue = typeof commandParams.button === 'string' ? commandParams.button : undefined
-    const button = buttonValue === 'left' || buttonValue === 'middle' || buttonValue === 'right'
-      ? buttonValue
-      : undefined
-    const postEventButtons = Number(commandParams.buttons ?? 0)
-    const clickCount = Number(commandParams.clickCount ?? 0)
-    const modifiers = Number(commandParams.modifiers ?? 0)
-    if (
-      !Number.isInteger(postEventButtons)
-      || postEventButtons < 0
-      || postEventButtons > 7
-      || !Number.isInteger(clickCount)
-      || clickCount < 0
-      || !Number.isInteger(modifiers)
-    ) return null
-    const changedButton = button === 'left' ? 1 : button === 'right' ? 2 : button === 'middle' ? 4 : 0
-    // CDP reports the complete button mask. Electron reports independently
-    // held buttons in modifiers while exposing the button changed by down/up
-    // separately, so remove that changed button before comparing the masks.
-    const buttons = type === 'mouseDown' || type === 'mouseUp'
-      ? postEventButtons & ~changedButton
-      : postEventButtons
-    return {
-      type,
-      x,
-      y,
-      button,
-      buttons,
-      clickCount,
-      modifiers
-    }
-  }
-
-  private authorizedKeyboardInputFromCommand(
-    commandParams: Record<string, unknown>
-  ): AuthorizedAgentKeyboardInput | null {
-    const commandType = String(commandParams.type)
-    const type = commandType === 'keyUp'
-      ? 'keyUp'
-      : commandType === 'rawKeyDown'
-        ? 'rawKeyDown'
-        : commandType === 'keyDown'
-          ? 'keyDown'
-          : null
-    const key = typeof commandParams.key === 'string' ? commandParams.key : null
-    const code = typeof commandParams.code === 'string' ? commandParams.code : null
-    const modifiers = Number(commandParams.modifiers ?? 0)
-    if (!type || !key || !code || !Number.isInteger(modifiers)) return null
-    return { type, key, code, modifiers, autoRepeat: commandParams.autoRepeat === true }
-  }
-
-  private isAuthorizedAgentMouseInput(
-    webContentsId: number,
-    mouse: Electron.MouseInputEvent
-  ): boolean {
-    const expected = this.authorizedAgentMouseInput.get(webContentsId)
-    const modifierBits = this.electronModifierBits(mouse.modifiers)
-    const buttonBits = this.electronButtonBits(mouse.modifiers)
-    const matches = expected !== undefined
-      && mouse.type === expected.type
-      && Math.abs(mouse.x - expected.x) < 1
-      && Math.abs(mouse.y - expected.y) < 1
-      && mouse.button === expected.button
-      && buttonBits === expected.buttons
-      && (mouse.clickCount ?? 0) === expected.clickCount
-      && modifierBits === expected.modifiers
-    if (matches) this.authorizedAgentMouseInput.delete(webContentsId)
-    return matches
+    return sendAuthorizedAgentInputCommand(this.agentInputAuthorizationAccess(), webContents, method, commandParams, validateInput, observer, beforeRawDispatch)
   }
 
   private consumeExpectedAgentKeyboardInput(
     webContentsId: number,
     input: Electron.Input
   ): boolean {
-    const expected = this.authorizedAgentKeyboardInput.get(webContentsId)
-    if (!expected) return false
-    const inputModifierBits = this.electronModifierBits(input.modifiers)
-    const compatibleType = input.type === expected.type
-      || (expected.type === 'rawKeyDown' && input.type === 'keyDown')
-    const matches = compatibleType
-      && input.key === expected.key
-      && input.code === expected.code
-      && inputModifierBits === expected.modifiers
-      && input.isAutoRepeat === expected.autoRepeat
-    if (matches) this.authorizedAgentKeyboardInput.delete(webContentsId)
-    return matches
-  }
-
-  private electronModifierBits(modifiers: readonly string[] | undefined): number {
-    const values = new Set(modifiers ?? [])
-    return (values.has('alt') ? 1 : 0)
-      | (values.has('control') || values.has('ctrl') ? 2 : 0)
-      | (values.has('meta') || values.has('command') || values.has('cmd') ? 4 : 0)
-      | (values.has('shift') ? 8 : 0)
-  }
-
-  private electronButtonBits(modifiers: readonly string[] | undefined): number {
-    const values = new Set(modifiers ?? [])
-    return (values.has('leftbuttondown') ? 1 : 0)
-      | (values.has('rightbuttondown') ? 2 : 0)
-      | (values.has('middlebuttondown') ? 4 : 0)
+    return consumeExpectedAgentKeyboardInput(this.agentInputAuthorizationAccess(), webContentsId, input)
   }
 
   private async syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
@@ -8039,357 +7289,77 @@ export class BrowserTabsManager {
     return sourceCurrent ? report : undefined
   }
 
-  private async withAgentInput<T>(
+  /**
+   * The narrow view agent input and focus isolation get of this manager's
+   * private window, destroyed flag, background focus guard depth, the window's
+   * focusability before the guard, in-flight agent input, focus snapshots and
+   * releases, tabs, page-to-tab index, human interaction lock and its native
+   * input guard. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. The
+   * delegates below return the feature's promise directly, so callers see the
+   * same ticks as before.
+   */
+  private agentInputScopeAccess(): AgentInputScopeAccess<BrowserTab> {
+    return {
+      window: () => this.window,
+      isDestroyed: () => this.destroyed,
+      backgroundAgentInputFocusGuardDepth: () => this.backgroundAgentInputFocusGuardDepth,
+      writeBackgroundAgentInputFocusGuardDepth: (depth) => { this.backgroundAgentInputFocusGuardDepth = depth },
+      mainWindowFocusableBeforeAgentInput: () => this.mainWindowFocusableBeforeAgentInput,
+      writeMainWindowFocusableBeforeAgentInput: (focusable) => { this.mainWindowFocusableBeforeAgentInput = focusable },
+      agentInputWebContents: () => this.agentInputWebContents,
+      agentInputFocusSnapshots: () => this.agentInputFocusSnapshots,
+      agentInputFocusGuardReleases: () => this.agentInputFocusGuardReleases,
+      findTab: (tabId) => this.tabs.get(tabId),
+      tabIdForWebContents: (webContentsId) => this.webContentsToTab.get(webContentsId),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab)
+    }
+  }
+
+  private withAgentInput<T>(
     webContents: BrowserTab['view']['webContents'],
     operation: () => Promise<T>,
     options: { deferRendererFlag?: boolean; onCleanupFailure?: () => void } = {}
   ): Promise<T> {
-    const depth = (this.agentInputWebContents.get(webContents.id) ?? 0) + 1
-    if (depth === 1) {
-      const mainWindowFocused = this.window.isFocused()
-      this.agentInputFocusGuardReleases.set(webContents.id, this.beginAgentFocusIsolation())
-      this.agentInputFocusSnapshots.set(webContents.id, {
-        mainWindowFocused,
-        focusedWebContentsId: electronWebContents.getFocusedWebContents()?.id ?? null
-      })
-    }
-    this.agentInputWebContents.set(webContents.id, depth)
-    let nativeCleanupFailure: NativeInputCleanupError | undefined
-    try {
-      if (depth === 1 && !options.deferRendererFlag && !webContents.isDestroyed()) {
-        await webContents.executeJavaScript('window.__hronautAgentInputActive = true', true).catch(() => undefined)
-      }
-      return await operation()
-    } catch (error) {
-      if (error instanceof NativeInputCleanupError) nativeCleanupFailure = error
-      throw error
-    } finally {
-      try {
-        const remaining = Math.max(0, (this.agentInputWebContents.get(webContents.id) ?? 1) - 1)
-        if (remaining > 0) {
-          this.agentInputWebContents.set(webContents.id, remaining)
-        } else {
-          this.agentInputWebContents.delete(webContents.id)
-          const focusSnapshot = this.agentInputFocusSnapshots.get(webContents.id)
-          this.agentInputFocusSnapshots.delete(webContents.id)
-          try {
-            if (!webContents.isDestroyed()) {
-              await clearRendererAgentInputFlag(webContents, options.onCleanupFailure)
-              const tabId = this.webContentsToTab.get(webContents.id)
-              const tab = tabId ? this.tabs.get(tabId) : undefined
-              if (!webContents.isDestroyed() && tab && this.isHumanInteractionLocked(tab)) {
-                try {
-                  await this.syncHumanInteractionInputGuard(tab)
-                } catch (error) {
-                  options.onCleanupFailure?.()
-                  // Preserve acknowledged input uncertainty, but otherwise keep
-                  // restoration failures visible after focus cleanup runs.
-                  if (!nativeCleanupFailure) throw error
-                }
-              }
-            }
-          } finally {
-            try {
-              this.restoreHumanFocusAfterAgentInput(webContents, focusSnapshot)
-            } finally {
-              const releaseFocusGuard = this.agentInputFocusGuardReleases.get(webContents.id)
-              this.agentInputFocusGuardReleases.delete(webContents.id)
-              releaseFocusGuard?.()
-            }
-          }
-        }
-      } catch (error) {
-        options.onCleanupFailure?.()
-        throw error
-      }
+    return withAgentInput(this.agentInputScopeAccess(), webContents, operation, options)
+  }
+
+  private withBackgroundAgentFocusGuard<T>(operation: () => Promise<T>): Promise<T> {
+    return withBackgroundAgentFocusGuard(this.agentInputScopeAccess(), operation)
+  }
+
+  /**
+   * The narrow view rendering a hidden tab gets of this manager's private
+   * destroyed flag, window, tabs, render queues, offscreen capture set, active
+   * tab, split view, layout, view bounds and presentation repair. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegate below
+   * returns the feature's promise directly, so callers see the same ticks as
+   * before.
+   */
+  private renderableTabAccess(): RenderableTabAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      window: () => this.window,
+      findTab: (tabId) => this.tabs.get(tabId),
+      renderQueues: () => this.renderQueues,
+      offscreenCaptureTabIds: () => this.offscreenCaptureTabIds,
+      activeTabId: () => this.activeTabId,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      layout: () => this.layout(),
+      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
+      browserViewBounds: () => this.browserViewBounds(),
+      reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab)
     }
   }
 
-  private beginAgentFocusIsolation(): () => void {
-    let guardingBackgroundFocus = false
-    let released = false
-    const guardWhenBackgrounded = (): void => {
-      if (
-        released
-        || guardingBackgroundFocus
-        || this.destroyed
-        || this.window.isDestroyed()
-        || this.window.isFocused()
-      ) return
-      guardingBackgroundFocus = true
-      this.beginBackgroundAgentInputFocusGuard()
-    }
-    this.window.on('blur', guardWhenBackgrounded)
-    guardWhenBackgrounded()
-    return () => {
-      if (released) return
-      released = true
-      if (!this.window.isDestroyed()) this.window.removeListener('blur', guardWhenBackgrounded)
-      if (!guardingBackgroundFocus) return
-      if (!this.window.isDestroyed() && this.window.isFocused()) this.window.blur()
-      this.endBackgroundAgentInputFocusGuard()
-    }
-  }
-
-  private beginBackgroundAgentInputFocusGuard(): void {
-    this.backgroundAgentInputFocusGuardDepth += 1
-    if (this.backgroundAgentInputFocusGuardDepth !== 1 || this.window.isDestroyed()) return
-    this.mainWindowFocusableBeforeAgentInput = this.window.isFocusable()
-    if (this.mainWindowFocusableBeforeAgentInput) this.window.setFocusable(false)
-  }
-
-  private async withBackgroundAgentFocusGuard<T>(operation: () => Promise<T>): Promise<T> {
-    const releaseFocusGuard = this.beginAgentFocusIsolation()
-    try {
-      return await operation()
-    } finally {
-      releaseFocusGuard()
-    }
-  }
-
-  private endBackgroundAgentInputFocusGuard(): void {
-    this.backgroundAgentInputFocusGuardDepth = Math.max(0, this.backgroundAgentInputFocusGuardDepth - 1)
-    if (this.backgroundAgentInputFocusGuardDepth !== 0) return
-    const restoreFocusable = this.mainWindowFocusableBeforeAgentInput
-    this.mainWindowFocusableBeforeAgentInput = true
-    const currentFocusOwner = BrowserWindow.getFocusedWindow()
-    if (restoreFocusable && !this.window.isDestroyed() && !this.window.isFocusable()) {
-      this.window.setFocusable(true)
-    }
-    // No focused Electron window means the human may have switched to another
-    // application. Never revive an owner captured before the operation.
-    const focusOwner = currentFocusOwner
-    if (focusOwner && focusOwner !== this.window && !focusOwner.isDestroyed()) {
-      focusOwner.focus()
-    } else if (!this.window.isDestroyed() && this.window.isFocused()) {
-      // Re-enabling focusability can activate the window on some Linux window
-      // managers. An external application's window is not addressable through
-      // Electron, so blur Hronaut and let the desktop restore its prior owner.
-      this.window.blur()
-    }
-  }
-
-  private restoreHumanFocusAfterAgentInput(
-    targetWebContents: BrowserTab['webContents'],
-    snapshot: {
-      mainWindowFocused: boolean
-      focusedWebContentsId: number | null
-    } | undefined
-  ): void {
-    // Agent input must not activate Hronaut when the human is working in
-    // another window, or overwrite a newer focus change made while the tool
-    // was running.
-    if (!snapshot) return
-    if (!snapshot.mainWindowFocused) {
-      if (this.window.isFocused()) this.window.blur()
-      return
-    }
-    if (!this.window.isFocused()) return
-    const current = electronWebContents.getFocusedWebContents()
-    if (current && current.id !== targetWebContents.id && current.id !== snapshot.focusedWebContentsId) return
-    if (snapshot.focusedWebContentsId === null || current?.id === snapshot.focusedWebContentsId) return
-    const previous = electronWebContents.fromId(snapshot.focusedWebContentsId)
-    if (previous && !previous.isDestroyed()) previous.focus()
-  }
-
-  private async withRenderableTab<T>(
+  private withRenderableTab<T>(
     tab: BrowserTab,
     operation: () => Promise<T>,
     mode: 'presented-frame' | 'surface' | 'print' = 'presented-frame'
   ): Promise<T> {
-    const webContents = tab.webContents
-    const webContentsId = webContents.id
-    const tabIsLive = (): boolean => (
-      !this.destroyed
-      && !this.window.isDestroyed()
-      && this.tabs.get(tab.id) === tab
-      && !webContents.isDestroyed()
-    )
-    const previous = this.renderQueues.get(webContentsId) ?? Promise.resolve()
-    let releaseQueue!: () => void
-    const gate = new Promise<void>((resolve) => { releaseQueue = resolve })
-    const tail = previous.then(() => gate)
-    this.renderQueues.set(webContentsId, tail)
-    await previous
-
-    try {
-      if (!tabIsLive()) throw new Error('The tab closed while rendering its page.')
-      try {
-        if (
-          this.window.isVisible()
-          && !this.window.isMinimized()
-          && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
-        ) return await operation()
-
-        const originalBounds = tab.view.getBounds()
-        const viewSizeAtStart = tab.emulationViewSize
-        // A visible host already has a compositor surface. Position the capture
-        // view outside its viewport so it cannot cover the UI or activate another
-        // native window. Wayland can activate even a non-focusable showInactive
-        // window. Hidden screenshots still need a separate presented surface;
-        // PDF printing can use an attached host without mapping its window.
-        const reuseHost = this.window.isVisible() && !this.window.isMinimized()
-        const captureWindow = reuseHost ? this.window : new BrowserWindow({
-          x: -32_000,
-          y: -32_000,
-          width: Math.max(1, originalBounds.width),
-          height: Math.max(1, originalBounds.height),
-          show: false,
-          frame: false,
-          focusable: false,
-          skipTaskbar: true
-        })
-
-        try {
-          const width = Math.max(1, originalBounds.width)
-          const height = Math.max(1, originalBounds.height)
-          this.offscreenCaptureTabIds.add(tab.id)
-          tab.view.setBounds({ x: reuseHost ? -width : 0, y: 0, width, height })
-          captureWindow.contentView.addChildView(tab.view, reuseHost ? 0 : undefined)
-          // Printing works with an attached hidden host. Mapping it on Wayland
-          // can interrupt another application's focus even with showInactive.
-          if (!reuseHost && mode !== 'print') captureWindow.showInactive()
-          // Electron's print pipeline does not consume a compositor screenshot.
-          // Waiting for a subscribed frame before printToPDF can stall forever
-          // under renderer pressure even though PDF generation is ready.
-          if (mode === 'presented-frame') await this.waitForPresentation(webContents)
-          return await operation()
-        } finally {
-          this.offscreenCaptureTabIds.delete(tab.id)
-          let cleanupError: unknown
-          // Human selection can make this the presented view while capture is
-          // pending. Detaching it from the shared host would discard that focus.
-          const keepPresented = reuseHost && tabIsLive()
-            && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
-          try {
-            if (!keepPresented && !captureWindow.isDestroyed()) captureWindow.contentView.removeChildView(tab.view)
-          } catch (error) {
-            cleanupError = error
-          }
-          try {
-            if (!reuseHost && !captureWindow.isDestroyed()) captureWindow.destroy()
-          } catch (error) {
-            cleanupError ??= error
-          }
-          // Closing a tab destroys its WebContentsView. Never restore or add
-          // that stale child to the shell after the offscreen operation ends.
-          if (tabIsLive()) {
-            try {
-              // Selection may change while an offscreen capture is pending.
-              // Restore the current visible layout rather than stale ownership
-              // or bounds from when the capture began.
-              if (tab.id === this.activeTabId || this.splitViewContains(tab.id)) {
-                if (!this.window.contentView.children.includes(tab.view)) this.window.contentView.addChildView(tab.view)
-                this.layout()
-              } else {
-                // A viewport change during the capture left the view's size to this restore.
-                tab.view.setBounds(tab.emulationViewSize === viewSizeAtStart ? originalBounds : this.tabViewBounds(tab, this.browserViewBounds()))
-              }
-            } catch (error) {
-              cleanupError ??= error
-            }
-          }
-          if (cleanupError) throw cleanupError
-        }
-      } catch (error) {
-        if (!tabIsLive()) throw new Error('The tab closed while rendering its page.')
-        throw error
-      }
-    } finally {
-      releaseQueue()
-      if (this.renderQueues.get(webContentsId) === tail) this.renderQueues.delete(webContentsId)
-      if (tabIsLive()) this.reconcileTabPresentation(tab)
-    }
-  }
-
-  private async waitForPresentation(webContents: BrowserTab['view']['webContents']): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
-      let finished = false
-      let invalidateTimer: NodeJS.Timeout | undefined
-      let captureProbeTimer: NodeJS.Timeout | undefined
-      let captureProbeInFlight = false
-      let frameSubscriptionActive = false
-      const endFrameSubscription = (): void => {
-        if (!frameSubscriptionActive) return
-        frameSubscriptionActive = false
-        try {
-          webContents.endFrameSubscription()
-        } catch {
-          // The tab may have been destroyed while waiting for its compositor frame.
-        }
-      }
-      const finish = (error?: Error): void => {
-        if (finished) return
-        finished = true
-        clearTimeout(timer)
-        if (invalidateTimer) clearInterval(invalidateTimer)
-        if (captureProbeTimer) clearTimeout(captureProbeTimer)
-        endFrameSubscription()
-        if (error) reject(error)
-        else resolve()
-      }
-      // A hidden Chromium compositor can take longer to produce its first frame
-      // when several renderer processes have recently been active. Keep this
-      // bounded, but allow enough time for tray captures and visual comparisons on
-      // slower or heavily loaded machines.
-      const timer = setTimeout(
-        () => finish(new Error('Timed out waiting for the tab to become renderable')),
-        OFFSCREEN_PRESENTATION_TIMEOUT_MS
-      )
-      try {
-        frameSubscriptionActive = true
-        webContents.beginFrameSubscription(false, () => finish())
-        const invalidate = (): void => {
-          if (webContents.isDestroyed()) {
-            finish(new Error('The tab closed while waiting for a renderable frame'))
-            return
-          }
-          try {
-            webContents.invalidate()
-          } catch (error) {
-            finish(error instanceof Error ? error : new Error(String(error)))
-          }
-        }
-        // A newly shown offscreen host can occasionally miss Chromium's first
-        // invalidation while the compositor is busy. Retry within the existing
-        // bounded wait instead of turning transient suite load into a false timeout.
-        invalidateTimer = setInterval(invalidate, 250)
-        invalidateTimer.unref()
-        invalidate()
-
-        const probeCapture = async (): Promise<void> => {
-          if (finished || captureProbeInFlight) return
-          if (webContents.isDestroyed()) {
-            finish(new Error('The tab closed while waiting for a renderable frame'))
-            return
-          }
-          captureProbeInFlight = true
-          try {
-            // capturePage manages its own capturer count. Probe only after ending
-            // the missed frame subscription: overlapping both capture mechanisms
-            // can leave the direct capture pending under renderer pressure.
-            const image = await webContents.capturePage()
-            if (!image.isEmpty()) finish()
-          } catch {
-            // The compositor may still be attaching. Retry within the same
-            // bounded wait; invalidate() continues to request fresh frames.
-          } finally {
-            captureProbeInFlight = false
-            if (!finished) {
-              captureProbeTimer = setTimeout(() => { void probeCapture() }, 250)
-              captureProbeTimer.unref()
-            }
-          }
-        }
-        captureProbeTimer = setTimeout(() => {
-          endFrameSubscription()
-          void probeCapture()
-        }, OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS)
-        captureProbeTimer.unref()
-      } catch (error) {
-        finish(error instanceof Error ? error : new Error(String(error)))
-      }
-    })
+    return withRenderableTab(this.renderableTabAccess(), tab, operation, mode)
   }
 
   private performanceEnvironment(tab: BrowserTab): BrowserPerformanceEnvironment {

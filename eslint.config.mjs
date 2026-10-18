@@ -118,6 +118,16 @@ export default defineConfig(
     }
   },
   {
+    // Moved out of tabs-manager.ts with that file's exemption: their cleanup
+    // deliberately reports a failed restoration from inside finally.
+    files: [
+      'src/main/browser/agent-input-authorization/agent-input-authorization.ts',
+      'src/main/browser/agent-input-scope/agent-input-scope.ts',
+      'src/main/browser/renderable-tab/renderable-tab.ts'
+    ],
+    rules: { 'no-unsafe-finally': 'off' }
+  },
+  {
     files: ['src/shared/**/*.ts'],
     rules: { 'no-control-regex': 'off', 'no-useless-escape': 'off' }
   },
