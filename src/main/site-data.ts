@@ -2,12 +2,12 @@ import type { Session } from 'electron'
 import { cookieAvailableToOrigin } from './browsing-data-websites.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { HistoryStore } from './history-store.js'
-import type { SiteDataType } from './mcp/server.js'
+import type { SiteDataOperations, SiteDataType } from './mcp/server.js'
 import type { BrowsingDataSiteSummary } from '../shared/types.js'
 
 interface SiteDataHost {
   /** The tab runtime, which clears a workspace's site data between its storage operations; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'withWorkspaceSiteDataCleanup'> | null
+  tabs(): Pick<BrowserTabsManager, 'withWorkspaceSiteDataCleanup' | 'workspaceSession'> | null
   /** The visit history, once loaded; the collection and browsing data IPC, the MCP server and shutdown read it too. */
   historyStore(): Pick<HistoryStore, 'list' | 'clearOrigin'> | null
   publishVisitHistory(): void
@@ -15,15 +15,11 @@ interface SiteDataHost {
 
 /**
  * One website's stored data in a browser session: what it holds, as the shell's site summary and agents read it, and
- * clearing chosen kinds of it from one workspace for an agent.
+ * clearing chosen kinds of it from one workspace for an agent. `agentSiteData` is what the MCP server offers agents.
  */
 export function createSiteData(host: SiteDataHost): {
   currentBrowsingDataSiteSummary(value: string, browserSession: Session | undefined): Promise<BrowsingDataSiteSummary>
-  clearWorkspaceSiteData(
-    workspaceId: string,
-    value: string,
-    dataTypes: SiteDataType[]
-  ): Promise<{ origin: string; cleared: SiteDataType[]; remaining: BrowsingDataSiteSummary }>
+  agentSiteData: SiteDataOperations
 } {
   async function currentBrowsingDataSiteSummary(
     value: string,
@@ -85,5 +81,11 @@ export function createSiteData(host: SiteDataHost): {
     })
   }
 
-  return { currentBrowsingDataSiteSummary, clearWorkspaceSiteData }
+  /** Agents' site data operations, each in the session of the workspace they name. */
+  const agentSiteData: SiteDataOperations = {
+    inspect: (workspaceId, origin) => currentBrowsingDataSiteSummary(origin, host.tabs()?.workspaceSession(workspaceId)),
+    clear: (workspaceId, origin, dataTypes: SiteDataType[]) => clearWorkspaceSiteData(workspaceId, origin, dataTypes)
+  }
+
+  return { currentBrowsingDataSiteSummary, agentSiteData }
 }

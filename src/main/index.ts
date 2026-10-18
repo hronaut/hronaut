@@ -68,8 +68,7 @@ import {
   StartupLaunchManager
 } from './startup-launch.js'
 import {
-  McpHttpServer,
-  type SiteDataType
+  McpHttpServer
 } from './mcp/server.js'
 import { createHomeDashboard } from './home-dashboard.js'
 import { registerWorkspacesIpc } from './workspaces-ipc.js'
@@ -611,7 +610,7 @@ const {
   refreshHomeAfterCommittedChange
 })
 
-const { currentBrowsingDataSiteSummary, clearWorkspaceSiteData } = createSiteData({
+const { currentBrowsingDataSiteSummary, agentSiteData } = createSiteData({
   tabs: () => tabsManager,
   historyStore: () => historyStore,
   publishVisitHistory
@@ -1431,10 +1430,7 @@ function createRuntimeMcpServer(
         return publishVisitHistory()
       }
     },
-    siteData: {
-      inspect: (workspaceId, origin) => currentBrowsingDataSiteSummary(origin, tabsManager?.workspaceSession(workspaceId)),
-      clear: (workspaceId, origin, dataTypes: SiteDataType[]) => clearWorkspaceSiteData(workspaceId, origin, dataTypes)
-    },
+    siteData: agentSiteData,
     wallets: agentWallets,
     onTabActivity: (activity, agent) => {
       if (activity.phase === 'started') activeMcpActivities.add(activity.activityId)
