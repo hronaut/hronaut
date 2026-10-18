@@ -78,7 +78,7 @@ import { BrowserDebuggerQueue } from './debugger-queue.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
 import { BrowserCssStatePreview } from './css-state-preview.js'
 import { DEFAULT_FONT_SIZE_LIMITS, isDefaultFontSize, normalizeDefaultFontSize } from '../../shared/default-font-size.js'
-import { BrowserLiveRegionRecorder, liveRegionRecordingKeepsTabAwake, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
+import { BrowserLiveRegionRecorder, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
 import type { BrowserNetworkRouteRecord, NetworkConditionsAccess } from './network-conditions/network-conditions-access.js'
 import {
@@ -459,6 +459,17 @@ import type { WindowOpenHandlerAccess } from './tab-events/window-open-handler-a
 import { attachWindowOpenHandler } from './tab-events/window-open-handler.js'
 import type { RenderableTabAccess } from './renderable-tab/renderable-tab-access.js'
 import { withRenderableTab } from './renderable-tab/renderable-tab.js'
+import type { TabSleepAccess } from './tab-sleep/tab-sleep-access.js'
+import {
+  putTabToSleep,
+  setTabSleeping,
+  setTabSleepingFromContextMenu,
+  sleepBlockReason,
+  sleepFallbackTab,
+  sleepWorkspaceTabs,
+  wakeTab,
+  watchUnsavedFormEdits
+} from './tab-sleep/tab-sleep.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -511,7 +522,6 @@ const AGENT_POINTER_WORLD_ID = ISOLATED_WORLDS.agentPointer
 const CREDENTIAL_CAPTURE_WORLD_ID = ISOLATED_WORLDS.credentialCapture
 const VISUAL_COMPARE_WORLD_ID = ISOLATED_WORLDS.visualCompare
 const MEMORY_SAVER_SWEEP_MS = 30_000
-const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
 const webVitalsPath = require.resolve('web-vitals/attribution')
 const webVitalsSource = readFileSync(webVitalsPath, 'utf8')
@@ -2506,74 +2516,53 @@ export class BrowserTabsManager {
     this.mcpActivityFollower.accept(activity, agent)
   }
 
-  async wakeTab(tabId: string): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    tab.lastActiveAt = Date.now()
-    if (tab.wakePromise) {
-      await tab.wakePromise
-      return this.getState()
+  /**
+   * The narrow view putting a tab to sleep and waking it gets of this
+   * manager's private tabs, active tab, split view, options, DevTools opening,
+   * native selection sessions, agent input, video recorder, CSS state
+   * previews, MCP activity, downloads, render queues, navigation history, tab
+   * overview previews, workspaces, debugger queue, selection and state
+   * publication. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. The
+   * delegates below return the feature's promise directly, so callers see the
+   * same ticks as before.
+   */
+  private tabSleepAccess(): TabSleepAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      hasTab: (tabId) => this.tabs.has(tabId),
+      tabs: () => this.tabs.values(),
+      orderedTabs: () => this.orderedTabs(),
+      activeTabId: () => this.activeTabId,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      selectTab: (tabId) => this.selectTab(tabId),
+      options: () => this.options,
+      devToolsOpening: () => this.devToolsOpening,
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      elementPickerSessions: () => this.elementPickerSessions,
+      agentInputWebContents: () => this.agentInputWebContents,
+      videoRecorder: () => this.videoRecorder,
+      cssStatePreview: () => this.cssStatePreview,
+      mcpActivitiesByTab: () => this.mcpActivitiesByTab,
+      downloadController: () => this.downloadController,
+      renderQueues: () => this.renderQueues,
+      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
+      tabOverviewPreviews: () => this.tabOverviewPreviews,
+      tabOverviewSleepPreviews: () => this.tabOverviewSleepPreviews,
+      mcpTabGroups: () => this.mcpTabGroups,
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
-    if (!tab.sleeping) return this.getState()
-    const restoreUrl = tab.url
-    const navigationHistory = tab.sleepNavigationHistory
-    const previousLoading = tab.loading
-    const previousSuppressInitialHistory = tab.suppressInitialHistory
-    const navigationGeneration = tab.navigationGeneration
-    const wake = (async () => {
-      tab.sleeping = false
-      this.tabOverviewSleepPreviews.delete(tab.id)
-      tab.sleepNavigationHistory = undefined
-      tab.loading = true
-      tab.suppressInitialHistory = true
-      this.changed(false)
-      try {
-        if (navigationHistory?.entries.length) {
-          tab.discoveryTitle.restoring(navigationHistory.entries)
-          await tab.webContents.navigationHistory.restore(navigationHistory)
-        } else {
-          await tab.webContents.loadURL(restoreUrl)
-        }
-      } catch (error) {
-        const wakeWasSuperseded = () => this.tabs.get(tab.id) !== tab
-          || tab.webContents.isDestroyed()
-          || (tab.navigationGeneration !== navigationGeneration
-            && (tab.webContents.isLoading() || tab.webContents.getURL() !== SLEEPING_PAGE_URL))
-        // Electron also uses ERR_ABORTED when history restoration fails before
-        // starting any replacement navigation. Retry the durable URL in that
-        // case; otherwise the tab is marked awake while still showing the
-        // internal sleeping page. A real newer navigation remains authoritative.
-        if (isAbortedLoad(error) && wakeWasSuperseded()) return
-        try {
-          await tab.webContents.loadURL(restoreUrl)
-        } catch (fallbackError) {
-          // A newer navigation can also interrupt the fallback. Preserve its
-          // live document instead of restoring the obsolete sleeping state.
-          if (isAbortedLoad(fallbackError) && wakeWasSuperseded()) return
-          if (this.tabs.get(tab.id) === tab) {
-            tab.sleeping = true
-            tab.sleepNavigationHistory = navigationHistory
-            tab.loading = previousLoading
-            tab.suppressInitialHistory = previousSuppressInitialHistory
-            this.changed(false)
-          }
-          throw fallbackError
-        }
-      }
-    })()
-    tab.wakePromise = wake
-    try {
-      await wake
-    } finally {
-      tab.wakePromise = undefined
-    }
-    return this.getState()
   }
 
-  async setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    if (sleeping) await this.putTabToSleep(tab, true)
-    else await this.wakeTab(tabId)
-    return this.getState()
+  wakeTab(tabId: string): Promise<BrowserState> {
+    return wakeTab(this.tabSleepAccess(), tabId)
+  }
+
+  setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState> {
+    return setTabSleeping(this.tabSleepAccess(), tabId, sleeping)
   }
 
   /**
@@ -2617,52 +2606,11 @@ export class BrowserTabsManager {
   }
 
   private sleepFallbackTab(tab: BrowserTab): BrowserTab | undefined {
-    const ordered = this.orderedTabs()
-    const index = ordered.indexOf(tab)
-    const candidates = [
-      ...ordered.slice(index + 1),
-      ...ordered.slice(0, index).reverse()
-    ].filter((candidate) => candidate.id !== tab.id && !candidate.webContents.isDestroyed())
-    return candidates.find((candidate) => !candidate.sleeping) ?? candidates[0]
+    return sleepFallbackTab(this.tabSleepAccess(), tab)
   }
 
-  private async setTabSleepingFromContextMenu(tabId: string, sleeping: boolean): Promise<void> {
-    const tab = this.getTab(tabId)
-    if (!sleeping) {
-      await this.wakeTab(tab.id)
-      return
-    }
-    if (tab.sleeping) return
-
-    const active = tab.id === this.activeTabId && !this.splitViewContains(tab.id)
-    const fallback = active ? this.sleepFallbackTab(tab) : undefined
-    const blockReason = this.sleepBlockReason(tab, active && fallback !== undefined)
-    if (blockReason) throw new Error(blockReason)
-    if (!active || !fallback) {
-      await this.putTabToSleep(tab, true)
-      return
-    }
-
-    if (await this.hasChangedFormState(tab)) {
-      throw new Error('This tab has a partially filled form and stays active to protect unsaved input.')
-    }
-    if (this.activeTabId !== tab.id || this.splitViewContains(tab.id)) {
-      await this.putTabToSleep(tab, true)
-      return
-    }
-    const latestFallback = this.sleepFallbackTab(tab)
-    const latestBlockReason = this.sleepBlockReason(tab, latestFallback !== undefined)
-    if (latestBlockReason) throw new Error(latestBlockReason)
-    if (!latestFallback) throw new Error('A visible tab cannot sleep.')
-    this.selectTab(latestFallback.id)
-    try {
-      await this.putTabToSleep(tab, true)
-    } catch (error) {
-      if (this.tabs.has(tab.id) && !tab.webContents.isDestroyed() && this.activeTabId === latestFallback.id) {
-        this.selectTab(tab.id)
-      }
-      throw error
-    }
+  private setTabSleepingFromContextMenu(tabId: string, sleeping: boolean): Promise<void> {
+    return setTabSleepingFromContextMenu(this.tabSleepAccess(), tabId, sleeping)
   }
 
   async sleepInactiveTabs(): Promise<BrowserState> {
@@ -2670,10 +2618,8 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  private async sleepWorkspaceTabs(groupId: string): Promise<void> {
-    if (!this.mcpTabGroups.has(groupId)) throw new Error(`Unknown workspace: ${groupId}`)
-    const workspaceTabs = [...this.tabs.values()].filter((tab) => tab.mcpGroupId === groupId)
-    for (const tab of workspaceTabs) await this.putTabToSleep(tab, false)
+  private sleepWorkspaceTabs(groupId: string): Promise<void> {
+    return sleepWorkspaceTabs(this.tabSleepAccess(), groupId)
   }
 
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): BrowserState {
@@ -6717,7 +6663,7 @@ export class BrowserTabsManager {
       trackWorkspaceOrigin: (tab, url) => this.trackWorkspaceOrigin(tab, url),
       appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source),
       watchCredentialSubmission: (tab) => this.watchCredentialSubmission(tab),
-      watchUnsavedFormEdits: (tab) => this.watchUnsavedFormEdits(tab),
+      watchUnsavedFormEdits: (tab) => watchUnsavedFormEdits(tab),
       syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab)
     }
@@ -6842,169 +6788,12 @@ export class BrowserTabsManager {
       .catch(() => undefined)
   }
 
-  private sleepBlockReason(tab: BrowserTab, allowActiveTab = false): string | undefined {
-    if (!this.tabs.has(tab.id) || tab.webContents.isDestroyed()) return 'The tab is no longer available.'
-    if (isHronautHomeUrl(tab.url) || !isWebUrl(tab.url)) return 'Only inactive website tabs can sleep.'
-    if ((!allowActiveTab && tab.id === this.activeTabId) || this.splitViewContains(tab.id)) return 'A visible tab cannot sleep.'
-    if (tab.pinned) return 'Pinned tabs stay active.'
-    if (tab.pageLifecycleState !== 'active' || tab.pageLifecycleOperation) return 'A tab with an explicit page hold stays active.'
-    if (tab.loading) return 'A loading tab cannot sleep.'
-    if (tab.audible) return 'A tab playing audio stays active.'
-    if (tab.dialog) return 'A tab with an open dialog stays active.'
-    if (this.options.walletKeepsTabAwake?.(tab.id)) return 'A tab waiting on a wallet request stays active.'
-    if (tab.webContents.isDevToolsOpened() || this.devToolsOpening.has(tab.webContents.id)) {
-      return 'A tab with Developer Tools open stays active.'
-    }
-    if (
-      this.screenshotAreaSessions.has(tab.webContents.id)
-      || this.elementPickerSessions.has(tab.webContents.id)
-      || this.agentInputWebContents.has(tab.webContents.id)
-    ) {
-      return 'A tab with an active interaction stays active.'
-    }
-    if (this.videoRecorder.state(tab.id).status === 'recording') return 'A tab recording video stays active.'
-    if (tab.reproRecording?.active) return 'A tab recording reproduction steps stays active.'
-    if (tab.domChangesRecording?.active) return 'A tab recording DOM changes stays active.'
-    if (liveRegionRecordingKeepsTabAwake(tab)) return 'A tab recording a live region stays active.'
-    if (this.cssStatePreview.active(tab)) return 'A tab previewing a forced CSS state stays active.'
-    if (tab.codeCoverage?.recording) return 'A tab recording code coverage stays active.'
-    if (tab.cpuProfile?.recording) return 'A tab recording a JavaScript CPU profile stays active.'
-    if (tab.memoryAllocation?.recording) return 'A tab recording memory allocations stays active.'
-    if ((this.mcpActivitiesByTab.get(tab.id)?.size ?? 0) > 0) return 'A tab with an active MCP command stays active.'
-    if (this.downloadController.hasActiveDownload(tab.id)) {
-      return 'A tab with an active download stays active.'
-    }
-    if (this.renderQueues.has(tab.webContents.id)) return 'A tab rendering a page capture or PDF stays active.'
-    return undefined
+  private sleepBlockReason(tab: BrowserTab, allowActiveTab?: boolean): string | undefined {
+    return sleepBlockReason(this.tabSleepAccess(), tab, allowActiveTab)
   }
 
-  private async hasChangedFormState(tab: BrowserTab): Promise<boolean> {
-    try {
-      return await tab.webContents.executeJavaScript(`(() => {
-        const inputs = [...document.querySelectorAll('input')];
-        if (inputs.some((input) => {
-          const type = (input.getAttribute('type') || 'text').toLowerCase();
-          if (['button', 'submit', 'reset', 'image', 'hidden'].includes(type)) return false;
-          if (type === 'checkbox' || type === 'radio') return input.checked !== input.defaultChecked;
-          if (type === 'file') return (input.files?.length || 0) > 0;
-          return input.value !== input.defaultValue;
-        })) return true;
-        if ([...document.querySelectorAll('textarea')].some((field) => field.value !== field.defaultValue)) return true;
-        if ([...document.querySelectorAll('select')].some((field) => {
-          if (field.multiple) return [...field.options].some((option) => option.selected !== option.defaultSelected);
-          const explicitDefault = [...field.options].findIndex((option) => option.defaultSelected);
-          const defaultIndex = explicitDefault >= 0 ? explicitDefault : field.options.length > 0 ? 0 : -1;
-          return field.selectedIndex !== defaultIndex;
-        })) return true;
-        return window.__hronautContentEditableDirty === true;
-      })()`) === true
-    } catch {
-      return true
-    }
-  }
-
-  private watchUnsavedFormEdits(tab: BrowserTab): void {
-    void tab.webContents.executeJavaScript(`(() => {
-      if (window.__hronautFormEditTrackingInstalled) return;
-      window.__hronautFormEditTrackingInstalled = true;
-      window.__hronautContentEditableDirty = false;
-      document.addEventListener('input', (event) => {
-        const target = event.target;
-        if (target instanceof HTMLElement && target.isContentEditable) {
-          window.__hronautContentEditableDirty = true;
-        }
-      }, true);
-    })()`, true).catch(() => undefined)
-  }
-
-  private async putTabToSleep(tab: BrowserTab, reportBlocked: boolean, isCurrent: () => boolean = () => true): Promise<boolean> {
-    if (tab.wakePromise) await tab.wakePromise
-    if (!isCurrent() || tab.sleeping) return false
-    const blockReason = this.sleepBlockReason(tab)
-    if (blockReason) {
-      if (reportBlocked) throw new Error(blockReason)
-      return false
-    }
-    if (await this.hasChangedFormState(tab)) {
-      if (reportBlocked) throw new Error('This tab has a partially filled form and stays active to protect unsaved input.')
-      return false
-    }
-    if (!isCurrent()) return false
-    const latestBlockReason = this.sleepBlockReason(tab)
-    if (latestBlockReason) {
-      if (reportBlocked) throw new Error(latestBlockReason)
-      return false
-    }
-    tab.sleepNavigationHistory = this.navigationHistorySnapshot(tab)
-    // The overview keeps showing the page as it was; the frame is dropped when the tab wakes or closes.
-    const lastFrame = this.tabOverviewPreviews.get(tab.id)
-    if (lastFrame?.navigationGeneration === tab.navigationGeneration) this.tabOverviewSleepPreviews.set(tab.id, lastFrame)
-    else this.tabOverviewSleepPreviews.delete(tab.id)
-    tab.sleeping = true
-    tab.walletPageUnloading = true
-    tab.loading = false
-    tab.pendingHistoryUrl = null
-    this.changed(false)
-    let sleepingPageLoaded = false
-    try {
-      try {
-        await tab.webContents.loadURL(SLEEPING_PAGE_URL)
-      } finally {
-        // The page is gone now, or the navigation failed and it stays in use.
-        tab.walletPageUnloading = false
-      }
-      sleepingPageLoaded = true
-      await this.withDebugger(tab.webContents, () =>
-        tab.webContents.debugger.sendCommand('HeapProfiler.collectGarbage')
-      )
-    } catch (error) {
-      const navigationHistory = tab.sleepNavigationHistory
-      if (!sleepingPageLoaded) {
-        tab.sleeping = false
-        tab.sleepNavigationHistory = undefined
-        this.changed(false)
-        if (reportBlocked) throw error
-        console.warn(`[browser] Could not put tab ${tab.id} to sleep:`, error)
-        return false
-      }
-      let restoreError: unknown
-      try {
-        if (navigationHistory?.entries.length) {
-          try {
-            tab.discoveryTitle.restoring(navigationHistory.entries)
-            await tab.webContents.navigationHistory.restore(navigationHistory)
-          } catch {
-            await tab.webContents.loadURL(tab.url)
-          }
-        } else {
-          await tab.webContents.loadURL(tab.url)
-        }
-      } catch (rollbackError) {
-        restoreError = rollbackError
-      }
-      if (restoreError) {
-        tab.sleeping = true
-        tab.sleepNavigationHistory = navigationHistory
-        tab.loading = false
-        this.changed(false)
-        const recoveryError = new AggregateError(
-          [error, restoreError],
-          'The tab could not finish sleeping and its previous page could not be restored.'
-        )
-        if (reportBlocked) throw recoveryError
-        console.warn(`[browser] Could not put tab ${tab.id} to sleep or restore it:`, recoveryError)
-        return false
-      }
-      tab.sleeping = false
-      tab.sleepNavigationHistory = undefined
-      tab.loading = false
-      this.changed(false)
-      if (reportBlocked) throw error
-      console.warn(`[browser] Could not put tab ${tab.id} to sleep:`, error)
-      return false
-    }
-    this.changed(false)
-    return true
+  private putTabToSleep(tab: BrowserTab, reportBlocked: boolean, isCurrent?: () => boolean): Promise<boolean> {
+    return putTabToSleep(this.tabSleepAccess(), tab, reportBlocked, isCurrent)
   }
 
   private async sweepMemorySaver(force: boolean): Promise<void> {
