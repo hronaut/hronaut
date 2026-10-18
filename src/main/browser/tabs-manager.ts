@@ -243,8 +243,6 @@ import type { InspectorIssuesAccess } from './inspector-issues/inspector-issues-
 import { addInspectorIssue, inspectorIssues, recordAuthChallenge } from './inspector-issues/inspector-issues.js'
 import {
   SPLIT_VIEW_GAP,
-  isBrowserSplitOrientation,
-  normalizeSplitViewRatio,
   splitViewBounds,
   splitViewGeometry,
   type SplitDividerGeometry,
@@ -252,6 +250,8 @@ import {
   type BrowserSplitOrientation,
   type BrowserSplitViewState
 } from '../../shared/split-view.js'
+import type { SplitViewAccess } from './split-view/split-view-access.js'
+import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import { PAGE_CARD_RADIUS, type PageCardGeometry } from '../../shared/page-card.js'
 import { defaultTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
@@ -3412,107 +3412,51 @@ export class BrowserTabsManager {
     if (electronWebContents.getFocusedWebContents()?.id === target.webContents.id) redirectWebsiteFocus()
   }
 
-  async openSplitViewAndWait(tabId: string): Promise<BrowserState> {
-    const current = this.getActiveTab()
-    const target = this.getTab(tabId)
-    if (current.id === target.id) throw new Error('Choose a different tab for split view.')
-    if (isHronautHomeUrl(current.url) || isHronautHomeUrl(target.url)) throw new Error('Hronaut Home cannot be opened in split view.')
-    if (current.webContents.isDestroyed()) {
-      throw new Error('The current tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
+  /**
+   * The narrow view a split view gets of this manager's private tabs, split
+   * view and its generation, tab selection generation, tab waking, window
+   * content view, divider drag, layout, focus and state publication. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's value or promise directly, so callers see the same
+   * ticks as before.
+   */
+  private splitViewAccess(): SplitViewAccess<BrowserTab> {
+    return {
+      getActiveTab: () => this.getActiveTab(),
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      splitView: () => this.splitView,
+      writeSplitView: (splitView) => { this.splitView = splitView },
+      splitViewGeneration: () => this.splitViewGeneration,
+      writeSplitViewGeneration: (generation) => { this.splitViewGeneration = generation },
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
+      activeTabId: () => this.activeTabId,
+      wakeTab: (tabId) => this.wakeTab(tabId),
+      addChildView: (view) => this.window.contentView.addChildView(view),
+      removeChildView: (view) => this.window.contentView.removeChildView(view),
+      cancelSplitDivider: () => this.splitDivider.cancel(),
+      layout: () => this.layout(),
+      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
-    if (target.webContents.isDestroyed()) {
-      throw new Error('The selected tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
-    }
-    const splitGeneration = ++this.splitViewGeneration
-    const selectionGeneration = this.tabSelectionGeneration
-    await Promise.all([
-      this.wakeTab(current.id),
-      this.wakeTab(target.id)
-    ])
-    if (
-      splitGeneration !== this.splitViewGeneration
-      || selectionGeneration !== this.tabSelectionGeneration
-      || this.activeTabId !== current.id
-    ) return this.getState()
-    return this.openSplitView(target.id)
+  }
+
+  openSplitViewAndWait(tabId: string): Promise<BrowserState> {
+    return openSplitViewAndWait(this.splitViewAccess(), tabId)
   }
 
   openSplitView(tabId: string): BrowserState {
-    const current = this.getActiveTab()
-    const target = this.getTab(tabId)
-    if (current.id === target.id) throw new Error('Choose a different tab for split view.')
-    if (isHronautHomeUrl(current.url) || isHronautHomeUrl(target.url)) throw new Error('Hronaut Home cannot be opened in split view.')
-    // A WebContentsView can outlive its WebContents when Electron or DevTools
-    // tears the renderer down independently. Validate both panes before
-    // mutating split state; addChildView/setBounds throw native exceptions for
-    // a destroyed child and would otherwise leave splitView half-applied.
-    if (current.webContents.isDestroyed()) {
-      throw new Error('The current tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
-    }
-    if (target.webContents.isDestroyed()) {
-      throw new Error('The selected tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
-    }
-    this.splitViewGeneration += 1
-    current.lastActiveAt = Date.now()
-    target.lastActiveAt = Date.now()
-    if (current.sleeping) void this.wakeTab(current.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
-    if (target.sleeping) void this.wakeTab(target.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
-
-    if (this.splitView) {
-      for (const visibleTabId of [this.splitView.firstTabId, this.splitView.secondTabId]) {
-        const visibleTab = this.tabs.get(visibleTabId)
-        if (visibleTab && visibleTab.id !== current.id && visibleTab.id !== target.id) {
-          this.window.contentView.removeChildView(visibleTab.view)
-        }
-      }
-    }
-    this.splitView = {
-      firstTabId: current.id,
-      secondTabId: target.id,
-      orientation: 'vertical',
-      ratio: 0.5
-    }
-    this.window.contentView.addChildView(target.view)
-    this.layout()
-    this.focusTabOrTrustedChrome(current)
-    this.changed()
-    return this.getState()
+    return openSplitView(this.splitViewAccess(), tabId)
   }
 
   updateSplitView(updates: { orientation?: BrowserSplitOrientation; ratio?: number; swap?: boolean }): BrowserState {
-    if (!this.splitView) throw new Error('Split view is not open.')
-    if (updates.orientation !== undefined && !isBrowserSplitOrientation(updates.orientation)) {
-      throw new TypeError('Split orientation must be vertical or horizontal.')
-    }
-    if (updates.ratio !== undefined && !Number.isFinite(updates.ratio)) throw new TypeError('Split ratio must be a finite number.')
-    this.splitDivider.cancel()
-    this.splitViewGeneration += 1
-    if (updates.orientation !== undefined) this.splitView.orientation = updates.orientation
-    if (updates.ratio !== undefined) this.splitView.ratio = normalizeSplitViewRatio(updates.ratio)
-    if (updates.swap) {
-      const firstTabId = this.splitView.firstTabId
-      this.splitView.firstTabId = this.splitView.secondTabId
-      this.splitView.secondTabId = firstTabId
-    }
-    this.layout()
-    this.changed()
-    return this.getState()
+    return updateSplitView(this.splitViewAccess(), updates)
   }
 
   closeSplitView(): BrowserState {
-    this.splitViewGeneration += 1
-    if (!this.splitView) return this.getState()
-    const activeTab = this.getActiveTab()
-    const otherTabId = this.splitView.firstTabId === activeTab.id
-      ? this.splitView.secondTabId
-      : this.splitView.firstTabId
-    const otherTab = this.tabs.get(otherTabId)
-    if (otherTab) this.window.contentView.removeChildView(otherTab.view)
-    this.splitView = null
-    this.layout()
-    this.focusTabOrTrustedChrome(activeTab)
-    this.changed()
-    return this.getState()
+    return closeSplitView(this.splitViewAccess())
   }
 
   async closeTab(tabId: string, respectBeforeUnload = false): Promise<BrowserState> {
