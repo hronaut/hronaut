@@ -168,17 +168,23 @@ async function dispatchClick<Tab extends AgentPageActionsTab>(access: AgentPageA
 const CLICK_MODIFIER_BITS: Readonly<Record<Exclude<BrowserClickModifier, 'ControlOrMeta'>, number>> = { Control: 2, Meta: 4, Shift: 8 }
 
 /**
- * The CDP mouse event modifier bits for a click's held keys. Keys are held
- * only for one native left click on a ref or selector, each named once;
- * ControlOrMeta is Meta on macOS and Control elsewhere.
+ * The CDP mouse event modifier bits for a click's keys. Keys apply only to
+ * one native left click on a ref or selector, each named once;
+ * ControlOrMeta is Meta on macOS and Control elsewhere, and is not combined
+ * with either. Control alone on macOS turns a left click into a context-menu
+ * gesture, so it is rejected there.
  */
 function clickModifierBits(target: BrowserClickTarget, platform: NodeJS.Platform): number {
   const modifiers = target.modifiers ?? []
   if (!modifiers.length || new Set(modifiers).size !== modifiers.length
     || modifiers.some(modifier => modifier !== 'ControlOrMeta' && !Object.hasOwn(CLICK_MODIFIER_BITS, modifier))
+    || (modifiers.includes('ControlOrMeta') && (modifiers.includes('Control') || modifiers.includes('Meta')))
     || !target.native || target.doubleClick || target.button === 'right' || target.x !== undefined || target.y !== undefined
     || Boolean(target.ref) === Boolean(target.selector) || target.dialogAction !== undefined || target.promptText !== undefined) {
-    throw new Error('Modifier clicks require one native left click on a ref or selector, with each of Shift, Control, Meta or ControlOrMeta named once.')
+    throw new Error('Modifier clicks require one native left click on a ref or selector, with each of Shift, Control, Meta or ControlOrMeta named once and ControlOrMeta not combined with Control or Meta.')
+  }
+  if (platform === 'darwin' && modifiers.includes('Control')) {
+    throw new Error('On macOS a Control click opens a context menu instead of clicking; use Meta or ControlOrMeta.')
   }
   return modifiers.reduce((bits, modifier) => bits
     | (modifier === 'ControlOrMeta' ? CLICK_MODIFIER_BITS[platform === 'darwin' ? 'Meta' : 'Control'] : CLICK_MODIFIER_BITS[modifier]), 0)
