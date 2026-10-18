@@ -6,6 +6,7 @@ import type { HronautSettingsApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 import { closeFixtureServer } from './fixtures.js'
 type Gate={entered:boolean;releases:number;release():void;restore():void}
+type DiagnosticsWatch={networkReady:Set<number>;stop():void}
 
 for(const variant of ['timeout','contention'])test(`frame observation preserves ownership and isolation for ${variant}`,async({capabilities,electronApp,appWindow})=>{
   const server=createServer((q,r)=>{r.setHeader('Content-Type','text/html');r.end(q.url?.startsWith('/parent')?'<h1>Parent sentinel</h1><iframe id="chosen" src="/child"></iframe>':'<h1>Isolated child sentinel</h1>')})
@@ -56,10 +57,29 @@ test('read-only scoped grants can observe frames and revocation discards an in-f
     const workspace=JSON.parse(text(created)) as {id:string;resumeKey:string}
     await appWindow.evaluate('window.hronautSettings.setMcpAuthentication(true)')
     const profile=await appWindow.evaluate(({id,origin})=>(window as unknown as {hronautSettings:HronautSettingsApi}).hronautSettings.createMcpCapabilityProfile({name:'Frame read-only',preset:'read-only',workspaceIds:[id],origins:[origin],expiresInMinutes:60}),{id:workspace.id,origin})
+    // The debugger reports attached before page diagnostics finish enabling
+    // Network. Record when the app's own Network.enable settles for each new
+    // page, so the native reload below is observed from its first request.
+    await electronApp.evaluate(({app})=>{
+      const networkReady=new Set<number>()
+      const created=(_event:Electron.Event,contents:Electron.WebContents)=>{
+        const original=contents.debugger.sendCommand.bind(contents.debugger)
+        contents.debugger.sendCommand=async(method,params,session)=>{
+          const result=await original(method,params,session)
+          if(method==='Network.enable')networkReady.add(contents.id)
+          return result
+        }
+      }
+      app.on('web-contents-created',created)
+      ;(globalThis as typeof globalThis&{__frameDiagnostics?:DiagnosticsWatch}).__frameDiagnostics={networkReady,stop:()=>{app.removeListener('web-contents-created',created)}}
+    })
     // The human creates the page; this credential gets no navigation/write grant.
     const state=await appWindow.evaluate(({workspaceId,url})=>(window as unknown as {hronaut:{newTab(options:{url:string;mcpGroupId:string;active:boolean}):Promise<{activeTabId:string}>}}).hronaut.newTab({url,mcpGroupId:workspaceId,active:true}),{workspaceId:workspace.id,url:origin+'/parent'})
     const tabId=state.activeTabId
-    await expect.poll(()=>electronApp.evaluate(({webContents},origin)=>webContents.getAllWebContents().some(p=>p.getURL()===origin+'/parent'&&!p.isLoading()&&p.debugger.isAttached()),origin)).toBe(true)
+    await expect.poll(()=>electronApp.evaluate(({webContents},origin)=>{
+      const {networkReady}=(globalThis as typeof globalThis&{__frameDiagnostics:DiagnosticsWatch}).__frameDiagnostics
+      return webContents.getAllWebContents().some(p=>p.getURL()===origin+'/parent'&&!p.isLoading()&&networkReady.has(p.id))
+    },origin)).toBe(true)
     // Fixture waits for ordinary diagnostics to be enabled, then a native reload
     // supplies fresh history. Neither operation belongs to the read-only tool.
     await electronApp.evaluate(async({webContents},origin)=>{const p=webContents.getAllWebContents().find(p=>p.getURL()===origin+'/parent')!;await p.loadURL(origin+'/parent?observed')},origin)
@@ -87,6 +107,7 @@ test('read-only scoped grants can observe frames and revocation discards an in-f
     const result=await pending;expect(result.rejected).toBe(true);expect(result.output).not.toContain('Read grant child')
   }finally{
     await electronApp.evaluate(()=>{const m=globalThis as typeof globalThis&{__frameNativeGate?:Gate};m.__frameNativeGate?.release();m.__frameNativeGate?.restore();delete m.__frameNativeGate}).catch(()=>undefined)
+    await electronApp.evaluate(()=>{const m=globalThis as typeof globalThis&{__frameDiagnostics?:DiagnosticsWatch};m.__frameDiagnostics?.stop();delete m.__frameDiagnostics}).catch(()=>undefined)
     await client.close().catch(()=>undefined);await closeFixtureServer(server)
   }
 })
