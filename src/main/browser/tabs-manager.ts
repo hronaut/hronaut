@@ -486,6 +486,8 @@ import type { AgentFollowAccess } from './agent-follow/agent-follow-access.js'
 import { publishAgentFollowChange, publishedAgentFollow, retainAgentFollow, setFollowAgentActivity } from './agent-follow/agent-follow.js'
 import type { PassiveSelectionAccess } from './agent-follow/passive-selection-access.js'
 import { selectTabPassively } from './agent-follow/passive-selection.js'
+import type { HumanInputGuardAccess } from './interaction-lock/human-input-guard-access.js'
+import { syncHumanInteractionInputGuard } from './interaction-lock/human-input-guard.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -709,33 +711,6 @@ interface BrowserScreenshotAreaSession extends BrowserNativeSelectionSession<Bro
 
 function nativeSelectionContextUnavailable(error: unknown): boolean {
   return /context.*destroyed|frame.*removed|navigat/i.test(String(error))
-}
-
-function humanInteractionWheelGuardScript(locked: boolean): string {
-  return `(() => {
-    const key = '__hronautHumanInteractionWheelGuard';
-    const current = globalThis[key];
-    if (typeof current === 'function') {
-      globalThis.removeEventListener('wheel', current, true);
-      delete globalThis[key];
-    }
-    if (!${JSON.stringify(locked)}) return;
-    const guard = (event) => {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    };
-    globalThis.addEventListener('wheel', guard, { capture: true, passive: false });
-    globalThis[key] = guard;
-  })()`
-}
-
-interface CdpFrameTreeNode {
-  frame: { id: string }
-  childFrames?: CdpFrameTreeNode[]
-}
-
-function cdpFrameIds(node: CdpFrameTreeNode): string[] {
-  return [node.frame.id, ...(node.childFrames ?? []).flatMap(cdpFrameIds)]
 }
 
 interface BrowserVisualCapture {
@@ -6849,45 +6824,27 @@ export class BrowserTabsManager {
     return consumeExpectedAgentKeyboardInput(this.agentInputAuthorizationAccess(), webContentsId, input)
   }
 
-  private async syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
-    if (this.destroyed || tab.webContents.isDestroyed() || this.tabs.get(tab.id) !== tab) return
-    try {
-      await this.withDebugger(tab.webContents, async () => {
-        const trustedSelectionActive = this.screenshotAreaSessions.has(tab.webContents.id)
-          || this.elementPickerSessions.has(tab.webContents.id)
-        const locked = this.isHumanInteractionLocked(tab)
-          && !trustedSelectionActive
-        // Chromium's compositor can apply physical wheel/trackpad scrolling
-        // before DOM or Electron cancellation runs. This is the authoritative
-        // native-input barrier; the isolated-world wheel listener below remains
-        // a fallback for programmatic paths that bypass compositor input.
-        await tab.webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: locked })
-        const result = await tab.webContents.debugger.sendCommand('Page.getFrameTree') as {
-          frameTree: CdpFrameTreeNode
-        }
-        const expression = humanInteractionWheelGuardScript(locked)
-        await Promise.all(cdpFrameIds(result.frameTree).map(async (frameId) => {
-          const isolatedWorld = await tab.webContents.debugger.sendCommand('Page.createIsolatedWorld', {
-            frameId,
-            worldName: 'hronaut-human-interaction-guard',
-            grantUniveralAccess: false
-          }) as { executionContextId: number }
-          await tab.webContents.debugger.sendCommand('Runtime.evaluate', {
-            expression,
-            contextId: isolatedWorld.executionContextId,
-            returnByValue: true
-          })
-        }))
-      })
-    } catch (error) {
-      if (
-        this.destroyed
-        || tab.webContents.isDestroyed()
-        || this.tabs.get(tab.id) !== tab
-        || nativeSelectionContextUnavailable(error)
-      ) return
-      throw error
+  /**
+   * The narrow view the human input guard gets of this manager's private
+   * tabs, debugger queue, native selection sessions and human interaction
+   * lock. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. The delegate
+   * below returns the feature's promise directly, so callers see the same
+   * ticks as before.
+   */
+  private humanInputGuardAccess(): HumanInputGuardAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      findTab: (tabId) => this.tabs.get(tabId),
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      elementPickerSessions: () => this.elementPickerSessions,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab)
     }
+  }
+
+  private syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
+    return syncHumanInteractionInputGuard(this.humanInputGuardAccess(), tab)
   }
 
   private queueScreenshotAreaMouseInput(
