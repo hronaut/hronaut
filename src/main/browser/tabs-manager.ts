@@ -252,6 +252,8 @@ import {
 } from '../../shared/split-view.js'
 import type { SplitViewAccess } from './split-view/split-view-access.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
+import type { BrowserTabSelectionOptions, TabSelectionAccess } from './tab-selection/tab-selection-access.js'
+import { selectAgentTabAndWait, selectTab, selectTabAndWait } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import { PAGE_CARD_RADIUS, type PageCardGeometry } from '../../shared/page-card.js'
 import type { PageGeometryAccess } from './page-geometry/page-geometry-access.js'
@@ -735,11 +737,6 @@ export type { BrowserVisualCompareResult }
 export type { BrowserCredentialCandidate }
 
 export type { BrowserWalletPageContext }
-
-interface BrowserTabSelectionOptions {
-  /** Keep an already-visible split pane from claiming keyboard focus. */
-  focus?: boolean
-}
 
 export interface TabsManagerOptions {
   partition: string
@@ -2538,73 +2535,47 @@ export class BrowserTabsManager {
     this.options.askWhereToSaveDownloads = askWhereToSaveDownloads
   }
 
-  async selectTabAndWait(tabId: string, options: BrowserTabSelectionOptions = {}): Promise<BrowserState> {
-    const next = this.getTab(tabId)
-    if (next.webContents.isDestroyed()) {
-      throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
+  /**
+   * The narrow view selecting a tab gets of this manager's private tabs,
+   * selection generation, active tab, split view, window, agent following,
+   * tab waking, workspace activation, layout, focus and state publication.
+   * It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. The
+   * delegates below return the feature's value or promise directly, so
+   * callers see the same ticks as before.
+   */
+  private tabSelectionAccess(): TabSelectionAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
+      writeTabSelectionGeneration: (generation) => { this.tabSelectionGeneration = generation },
+      activeTabId: () => this.activeTabId,
+      writeActiveTabId: (tabId) => { this.activeTabId = tabId },
+      splitView: () => this.splitView,
+      writeSplitView: (splitView) => { this.splitView = splitView },
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      window: () => this.window,
+      followAgentActivity: () => this.followAgentActivity,
+      wakeTab: (tabId) => this.wakeTab(tabId),
+      markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
+      layout: () => this.layout(),
+      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
-    const selectionGeneration = ++this.tabSelectionGeneration
-    if (next.sleeping || next.wakePromise) {
-      try {
-        await this.wakeTab(next.id)
-      } catch (error) {
-        if (
-          selectionGeneration !== this.tabSelectionGeneration
-          || this.tabs.get(next.id) !== next
-        ) return this.getState()
-        throw error
-      }
-    }
-    if (
-      selectionGeneration !== this.tabSelectionGeneration
-      || this.tabs.get(next.id) !== next
-    ) return this.getState()
-    return this.selectTab(next.id, options)
   }
 
-  async selectAgentTabAndWait(tabId: string): Promise<BrowserState> {
-    if (this.followAgentActivity) return this.selectTabAndWait(tabId, { focus: false })
-    const tab = this.getTab(tabId)
-    await this.wakeTab(tabId)
-    if (this.tabs.get(tabId) !== tab) return this.getState()
-    this.markTabActiveInGroup(tab)
-    this.changed()
-    return this.getState()
+  selectTabAndWait(tabId: string, options: BrowserTabSelectionOptions = {}): Promise<BrowserState> {
+    return selectTabAndWait(this.tabSelectionAccess(), tabId, options)
+  }
+
+  selectAgentTabAndWait(tabId: string): Promise<BrowserState> {
+    return selectAgentTabAndWait(this.tabSelectionAccess(), tabId)
   }
 
   selectTab(tabId: string, options: BrowserTabSelectionOptions = {}): BrowserState {
-    const next = this.getTab(tabId)
-    if (next.webContents.isDestroyed()) {
-      throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
-    }
-    this.tabSelectionGeneration += 1
-    next.lastActiveAt = Date.now()
-    if (next.sleeping) void this.wakeTab(next.id).catch((error) => console.error('[browser] Could not wake selected tab:', error))
-    if (this.splitView && this.splitViewContains(tabId)) {
-      this.activeTabId = next.id
-      this.markTabActiveInGroup(next)
-      this.layout()
-      if (options.focus !== false) this.focusTabOrTrustedChrome(next)
-      this.changed()
-      return this.getState()
-    }
-    const current = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
-    if (this.splitView) {
-      for (const visibleTabId of [this.splitView.firstTabId, this.splitView.secondTabId]) {
-        const visibleTab = this.tabs.get(visibleTabId)
-        if (visibleTab && visibleTab.id !== next.id) this.window.contentView.removeChildView(visibleTab.view)
-      }
-      this.splitView = null
-    } else if (current && current.id !== next.id) {
-      this.window.contentView.removeChildView(current.view)
-    }
-    if (current?.id !== next.id) this.window.contentView.addChildView(next.view)
-    this.activeTabId = next.id
-    this.markTabActiveInGroup(next)
-    this.layout()
-    if (options.focus !== false) this.focusTabOrTrustedChrome(next)
-    this.changed()
-    return this.getState()
+    return selectTab(this.tabSelectionAccess(), tabId, options)
   }
 
   /**
