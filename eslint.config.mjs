@@ -128,6 +128,12 @@ export default defineConfig(
     rules: { 'no-unsafe-finally': 'off' }
   },
   {
+    // Moved out of tabs-manager.ts with that file's exemption: the submitted
+    // origin starts out null before it is parsed.
+    files: ['src/main/browser/credential-capture/credential-capture.ts'],
+    rules: { 'no-useless-assignment': 'off' }
+  },
+  {
     files: ['src/shared/**/*.ts'],
     rules: { 'no-control-regex': 'off', 'no-useless-escape': 'off' }
   },
