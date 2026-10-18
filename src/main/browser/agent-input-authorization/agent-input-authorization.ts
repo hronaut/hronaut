@@ -196,7 +196,9 @@ function isAuthorizedAgentMouseInput<Tab extends AgentInputAuthorizationTab>(
     && mouse.button === expected.button
     && buttonBits === expected.buttons
     && (mouse.clickCount ?? 0) === expected.clickCount
-    && modifierBits === expected.modifiers
+    // Electron's before-mouse-event omits modifiers, so a modifier click is
+    // compared on the fields it does report.
+    && (mouse.modifiers === undefined || modifierBits === expected.modifiers)
   if (matches) access.authorizedAgentMouseInput().delete(webContentsId)
   return matches
 }

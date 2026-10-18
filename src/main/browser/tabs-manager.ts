@@ -3393,8 +3393,8 @@ export class BrowserTabsManager {
       mainWorldContextId: (webContents) => this.mainWorldContextId(webContents),
       evaluateWithAttachedDebugger: (webContents, expression, contextId) => this.evaluateWithAttachedDebugger(webContents, expression, contextId),
       withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
-      dispatchNativeClick: (webContents, point, doubleClick, validateClick, sample, observer, rightClick) =>
-        this.dispatchNativeClick(webContents, point, doubleClick, validateClick, sample, observer, rightClick),
+      dispatchNativeClick: (webContents, point, doubleClick, validateClick, sample, observer, rightClick, modifiers) =>
+        this.dispatchNativeClick(webContents, point, doubleClick, validateClick, sample, observer, rightClick, modifiers),
       agentInputDebugger: (webContents, validateInput) => this.agentInputDebugger(webContents, validateInput)
     }
   }
@@ -3459,9 +3459,10 @@ export class BrowserTabsManager {
     validateClick: () => void,
     sample?: (x: number, y: number) => Promise<void>,
     observer?: NativeInputDispatchObserver,
-    rightClick?: boolean
+    rightClick?: boolean,
+    modifiers?: number
   ): Promise<void> {
-    return dispatchNativeClick(this.nativeClickAccess(), webContents, point, doubleClick, validateClick, sample, observer, rightClick)
+    return dispatchNativeClick(this.nativeClickAccess(), webContents, point, doubleClick, validateClick, sample, observer, rightClick, modifiers)
   }
 
   /**
