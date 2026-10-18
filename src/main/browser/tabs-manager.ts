@@ -77,20 +77,41 @@ import { BrowserCssStatePreview } from './css-state-preview.js'
 import { DEFAULT_FONT_SIZE_LIMITS, isDefaultFontSize, normalizeDefaultFontSize } from '../../shared/default-font-size.js'
 import { BrowserLiveRegionRecorder, liveRegionRecordingKeepsTabAwake, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
-import { normalizeNetworkRouteInput } from './network-route-input.js'
+import type { BrowserNetworkRouteRecord, NetworkConditionsAccess } from './network-conditions/network-conditions-access.js'
+import {
+  addNetworkRoute,
+  clearNetworkRoutes,
+  markNetworkConditionsUnknown,
+  moveNetworkRoute,
+  networkConditionPublication,
+  networkConditionState,
+  networkRoutes,
+  removeNetworkRoute,
+  requireNetworkConditionsKnown,
+  setNetworkRouteEnabled
+} from './network-conditions/network-conditions.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
 import { BrowserProfilingController, type BrowserProfilingState } from './profiling-controller.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
-import { continuityMarkerScript, readContinuityMarker } from '../../shared/workspace-continuity-marker.js'
-import { browserPostconditionScript, type BrowserPostcondition } from '../../shared/post-write-postcondition.js'
+import type { BrowserPostcondition } from '../../shared/post-write-postcondition.js'
+import type { BrowserReconciliationCondition, BrowserReconciliationEvidence } from '../../shared/browser-reconciliation.js'
+import type { PostconditionReadResult } from '../mcp/post-write-browser-read.js'
+import type { WorkspaceContinuityAccess } from './workspace-continuity/workspace-continuity-access.js'
 import {
-  browserReconciliationScript,
-  type BrowserReconciliationCondition,
-  type BrowserReconciliationEvidence
-} from '../../shared/browser-reconciliation.js'
-import { readBrowserPostcondition, type PostconditionReadResult } from '../mcp/post-write-browser-read.js'
-import { compareWorkspaceContinuity } from '../mcp/workspace-continuity.js'
+  armWorkspaceContinuity,
+  beginWorkspaceContinuityAction,
+  inspectWorkspaceContinuity,
+  postWriteContextFingerprint,
+  readBrowserReconciliation,
+  readPostWritePostcondition,
+  reconcileWorkspaceContinuity,
+  requireWorkspaceContinuityDispatch,
+  requireWorkspaceContinuityReview,
+  retireWorkspaceContinuity,
+  suspendWorkspaceContinuity,
+  workspaceObservationGeneration
+} from './workspace-continuity/workspace-continuity.js'
 import type { AgentStepThumbnailImage } from '../mcp/agent-presence.js'
 import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
 import { withWorkspaceMoveGuard } from './workspace-move-guard.js'
@@ -109,7 +130,6 @@ import { validateHeaderValue } from 'node:http'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import axe from 'axe-core'
 import {
-  app,
   BrowserWindow,
   Menu,
   nativeImage,
@@ -191,30 +211,30 @@ import {
   normalizeBrowserGeneratedLocator,
   type BrowserGeneratedLocator
 } from '../../shared/playwright-locator.js'
-import { redactNetworkHeaders, redactNetworkUrl, sanitizeNetworkBody } from '../../shared/network-details.js'
+import { redactNetworkUrl } from '../../shared/network-details.js'
 import { deriveNetworkTiming } from '../../shared/network-timing.js'
-import { parseServerTimingHeaders, serializeServerTimingMetrics } from '../../shared/server-timing.js'
 import { portableExportFilename } from '../../shared/portable-filename.js'
+import type { NetworkInspectionAccess } from './network-inspection/network-inspection-access.js'
 import {
-  buildSanitizedNetworkHar,
-  filterNetworkRequests,
-  networkHarFilename,
-  normalizeNetworkHarOptions
-} from '../../shared/network-har.js'
-import { normalizeNetworkSearchOptions, searchNetworkDetails } from '../../shared/network-search.js'
-import { deriveNetworkRequestRelationships } from '../../shared/network-request-relationships.js'
+  networkHar,
+  networkRequestDetails,
+  networkRequests,
+  networkSearch,
+  replayNetworkRequest,
+  saveNetworkHar,
+  waitForNetworkRequest
+} from './network-inspection/network-inspection.js'
 import {
   networkRequestMatchesWait,
-  normalizeNetworkWaitOptions,
   type NormalizedBrowserNetworkWaitOptions
 } from '../../shared/network-wait.js'
-import { networkReplayRequiresConfirmation, networkReplayUrlPattern } from '../../shared/network-replay.js'
 import type { BrowserStorageSnapshot } from '../../shared/storage-changes.js'
 import { networkRoutePatternMatches } from '../../shared/network-routes.js'
 import { annotateScreenshotBitmap, normalizeScreenshotRefs, screenshotAnnotationScript, type ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import { boundedScreenshotSize, cssScreenshotBounds, fullPageScreenshotBounds, type ScreenshotLayoutMetrics } from '../../shared/screenshot.js'
 import { visualCompareBitmapClip } from '../../shared/visual-compare.js'
-import { normalizeInspectorIssue } from '../../shared/browser-issues.js'
+import type { InspectorIssuesAccess } from './inspector-issues/inspector-issues-access.js'
+import { addInspectorIssue, inspectorIssues, recordAuthChallenge } from './inspector-issues/inspector-issues.js'
 import {
   SPLIT_VIEW_GAP,
   isBrowserSplitOrientation,
@@ -300,8 +320,6 @@ import type {
   BrowserNetworkWaitOptions,
   BrowserNetworkWaitResult,
   BrowserNetworkReplayResult,
-  BrowserNetworkBody,
-  BrowserNetworkRequestRelationships,
   BrowserNetworkRequestDetails,
   BrowserNetworkSearchOptions,
   BrowserNetworkSearchResult,
@@ -369,12 +387,19 @@ import {
 import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './tab-store.js'
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
-import { isAgentWorkspaceNavigationUrl, isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
+import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
 import {
   evaluateWorkspaceNavigation,
   normalizeWorkspaceNavigationPolicy,
   type WorkspaceNavigationDecision
 } from './workspace-navigation-policy.js'
+import type { WorkspaceNavigationAccess } from './workspace-navigation/workspace-navigation-access.js'
+import {
+  assertWorkspaceNavigationAllowed,
+  listWorkspaceNavigationAudit,
+  updateWorkspaceNavigationPolicy,
+  workspaceNavigationAllowed
+} from './workspace-navigation/workspace-navigation.js'
 import {
   destroyWorkspaceStorage,
   flushBrowserSessionStorage,
@@ -403,7 +428,6 @@ const MAX_TABS = MAX_BROWSER_TABS
 const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
 /** How long deleting a closed workspace waits for an operation on its archive before leaving it archived. */
 const CLOSING_WORKSPACE_BUSY_WAIT_MS = 3_000
-const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_SNAPSHOT_BASELINES = 64
 const MAX_CLOSED_TABS = MAX_TABS
@@ -452,8 +476,6 @@ const MAX_FAVICON_BYTES = 512 * 1024
 const MAX_NETWORK_TOTAL_BUFFER_BYTES = 8 * 1024 * 1024
 const MAX_NETWORK_RESOURCE_BUFFER_BYTES = 2 * 1024 * 1024
 const MAX_NETWORK_POST_DATA_BYTES = 64 * 1024
-const MAX_NETWORK_ROUTES = 50
-const MAX_INSPECTOR_ISSUES = 200
 const MAX_VISUAL_COMPARE_WIDTH = 1_920
 const MAX_VISUAL_COMPARE_HEIGHT = 1_080
 const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
@@ -470,10 +492,7 @@ const ACCESSIBILITY_AUDIT_WORLD_ID = ISOLATED_WORLDS.accessibilityAudit
 const PERFORMANCE_AUDIT_WORLD_ID = ISOLATED_WORLDS.performanceAudit
 const DESIGN_OVERVIEW_WORLD_ID = ISOLATED_WORLDS.designOverview
 const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
-const CONTINUITY_MARKER_WORLD_ID = ISOLATED_WORLDS.continuityMarker
-const POSTCONDITION_WORLD_ID = ISOLATED_WORLDS.postcondition
 const AGENT_POINTER_WORLD_ID = ISOLATED_WORLDS.agentPointer
-const RECONCILIATION_WORLD_ID = ISOLATED_WORLDS.reconciliation
 const OBSERVATION_QUALITY_WORLD_ID = ISOLATED_WORLDS.observationQuality
 const CREDENTIAL_CAPTURE_WORLD_ID = ISOLATED_WORLDS.credentialCapture
 const VISUAL_COMPARE_WORLD_ID = ISOLATED_WORLDS.visualCompare
@@ -481,7 +500,6 @@ const SCREENSHOT_ANNOTATION_WORLD_ID = ISOLATED_WORLDS.screenshotAnnotation
 const SNAPSHOT_WORLD_ID = ISOLATED_WORLDS.snapshot
 /** Control names kept per page for the shell's plain-words agent steps. */
 const AGENT_STEP_NAMES_LIMIT = 1_000
-const MAX_AUTH_CHALLENGES = 8
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
@@ -568,8 +586,6 @@ function isAbortedLoad(error: unknown): boolean {
     || /\bERR_ABORTED\b|\(-3\)\s+loading\b/.test(error.message)
 }
 
-const AGENT_NAVIGATION_SCHEME_ERROR = 'Agent workspaces cannot open local, privileged, or credential-bearing browser URLs.'
-
 function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: Referrer): LoadURLOptions | undefined {
   const options: LoadURLOptions = {}
   if (referrer.url) options.httpReferrer = referrer
@@ -582,11 +598,6 @@ function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: 
     options.extraHeaders = `Content-Type: ${contentType}`
   }
   return Object.keys(options).length ? options : undefined
-}
-
-function headerValue(headers: Record<string, string | string[] | undefined> | undefined, name: string): string | undefined {
-  const match = Object.entries(headers ?? {}).find(([candidate]) => candidate.toLowerCase() === name.toLowerCase())?.[1]
-  return Array.isArray(match) ? match.join(', ') : match
 }
 
 function pdfFilename(requested: string | undefined, title: string): string {
@@ -742,11 +753,6 @@ function publicObserverOrigin(policy: BrowserWorkspaceNavigationPolicy): string 
   } catch {
     return undefined
   }
-}
-
-interface BrowserNetworkRouteRecord extends BrowserNetworkRouteSummary {
-  responseHeaders?: Record<string, string>
-  responseBody?: string
 }
 
 interface BrowserElementPickerScriptResult {
@@ -938,212 +944,88 @@ export class BrowserTabsManager {
   private readonly continuityEvidence = new WorkspaceContinuityEvidenceFactory()
   private readonly continuityActions = new Map<string, { reads: number; writes: number }>()
 
+  /**
+   * The narrow view workspace continuity gets of this manager's private tabs,
+   * workspaces, persisted state and continuity fields, and of the recorders,
+   * previews, network waits and downloads a new observation generation ends.
+   * It is a prototype method rather than a field, so managers created without
+   * the constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's value or promise directly, so no extra ticks separate
+   * its final checks from the caller.
+   */
+  private workspaceContinuityAccess(): WorkspaceContinuityAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      tabs: () => this.tabs.values(),
+      getMcpGroupState: (workspaceId) => this.getMcpGroupState(workspaceId),
+      requireMcpTabGroup: (workspaceId) => this.requireMcpTabGroup(workspaceId),
+      tabBelongsToMcpGroup: (workspaceId, tabId) => this.tabBelongsToMcpGroup(workspaceId, tabId),
+      updateMcpTabGroup: (workspaceId, updates) => this.updateMcpTabGroup(workspaceId, updates),
+      hasArchivedWorkspace: (workspaceId) => this.savedTabGroups.has(workspaceId),
+      store: () => this.store,
+      persistedState: () => this.persistedState(),
+      workspaceContinuity: () => this.workspaceContinuity,
+      continuityEvidence: () => this.continuityEvidence,
+      continuityMarkers: () => this.continuityMarkers,
+      workspaceObservationGenerations: () => this.workspaceObservationGenerations,
+      continuityActions: () => this.continuityActions,
+      continuityRevision: () => this.continuityRevision,
+      setContinuityRevision: (revision) => { this.continuityRevision = revision },
+      interruptPwaLifecycle: (workspaceId, reason) => this.pwaLifecycleRecorder.interruptWorkspace(workspaceId, reason),
+      releaseLiveRegion: (tab) => this.liveRegionRecorder.release(tab),
+      clearCssStatePreview: (tab, reason) => this.cssStatePreview.clear(tab, reason),
+      rejectNetworkWait: (tabId, message) => this.networkWaitController.reject(tabId, message),
+      advanceDownloadObservationGeneration: (workspaceId, observationGeneration) => this.downloadController.advanceWorkspaceObservationGeneration(workspaceId, observationGeneration)
+    }
+  }
+
   beginWorkspaceContinuityAction(workspaceId: string, readOnly: boolean): () => void {
-    // A completed write can disappear from the pending map before an older
-    // marker read returns. Retain its invalidation across that async interval.
-    if (!readOnly) this.continuityRevision += 1
-    const pending = this.continuityActions.get(workspaceId) ?? { reads: 0, writes: 0 }
-    this.continuityActions.set(workspaceId, pending)
-    const field = readOnly ? 'reads' : 'writes'
-    pending[field] += 1
-    let finished = false
-    return () => {
-      if (finished) return
-      finished = true
-      pending[field] -= 1
-      if (!pending.reads && !pending.writes && this.continuityActions.get(workspaceId) === pending) this.continuityActions.delete(workspaceId)
-    }
-  }
-
-
-  private workspaceContinuitySnapshot(workspaceId: string) {
-    const state = this.getMcpGroupState(workspaceId)
-    const tab = state.tabs.find(candidate => candidate.id === state.activeTabId) ?? null
-    return {
-      evidence: this.continuityEvidence.capture({ workspaceId, tab, policy: this.requireMcpTabGroup(workspaceId).navigationPolicy }),
-      pageSettled: !!tab && !tab.loading && !tab.sleeping
-    }
-  }
-
-  private async currentWorkspaceContinuity(workspaceId: string, selector: string | undefined) {
-    const revision = this.continuityRevision
-    const before = this.workspaceContinuitySnapshot(workspaceId)
-    if (selector === undefined || !before.evidence || !before.pageSettled) return before
-    const tab = this.getTab(before.evidence.tabId)
-    const marker = await readContinuityMarker(() => tab.webContents.executeJavaScriptInIsolatedWorld(
-      CONTINUITY_MARKER_WORLD_ID, [{ code: continuityMarkerScript(selector) }], false
-    ))
-    const after = this.workspaceContinuitySnapshot(workspaceId)
-    if (revision !== this.continuityRevision || compareWorkspaceContinuity({ checkpoint: before.evidence, current: after.evidence, pageSettled: after.pageSettled, priorOutcome: 'NONE' }).status !== 'PASS') {
-      return { evidence: null, pageSettled: after.pageSettled }
-    }
-    const state = this.getMcpGroupState(workspaceId)
-    return {
-      evidence: this.continuityEvidence.capture({
-        workspaceId, tab: state.tabs.find(candidate => candidate.id === state.activeTabId) ?? null,
-        policy: this.requireMcpTabGroup(workspaceId).navigationPolicy, marker: { requested: true, value: marker }
-      }),
-      pageSettled: after.pageSettled
-    }
+    return beginWorkspaceContinuityAction(this.workspaceContinuityAccess(), workspaceId, readOnly)
   }
 
   private retireWorkspaceContinuity(workspaceId: string): void {
-    this.workspaceContinuity.retire(workspaceId)
-    this.continuityMarkers.delete(workspaceId)
-    this.workspaceObservationGenerations.delete(workspaceId)
+    retireWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId)
   }
 
   postWriteContextFingerprint(workspaceId: string, tabId: string, condition: BrowserPostcondition): string {
-    browserPostconditionScript(condition)
-    const snapshot = this.workspaceContinuitySnapshot(workspaceId)
-    if (!snapshot.evidence || snapshot.evidence.tabId !== tabId || !snapshot.pageSettled
-      || !this.tabBelongsToMcpGroup(workspaceId, tabId)) throw new Error('Post-write verification target is unavailable')
-    const tab = this.getTab(tabId)
-    let origin: string
-    try { origin = new URL(tab.url).origin } catch { throw new Error('Post-write verification target is unavailable') }
-    if (origin !== condition.expectedOrigin) throw new Error('Post-write verification origin does not match the target tab')
-    return this.continuityEvidence.postWriteFingerprint(snapshot.evidence, condition)
+    return postWriteContextFingerprint(this.workspaceContinuityAccess(), workspaceId, tabId, condition)
   }
 
-  async readPostWritePostcondition(workspaceId: string, tabId: string, condition: BrowserPostcondition, validateCurrent: () => void, signal?: AbortSignal): Promise<PostconditionReadResult> {
-    validateCurrent()
-    const before = this.workspaceContinuitySnapshot(workspaceId)
-    if (!before.evidence || !before.pageSettled) return 'unavailable'
-    if (before.evidence.tabId !== tabId || !this.tabBelongsToMcpGroup(workspaceId, tabId)) return 'context-changed'
-    if (this.continuityActions.get(workspaceId)?.writes) return 'unavailable'
-    const revision = this.continuityRevision
-    const tab = this.getTab(tabId)
-    const validate = (): void => {
-      validateCurrent()
-      const after = this.workspaceContinuitySnapshot(workspaceId)
-      if (revision !== this.continuityRevision || this.continuityActions.get(workspaceId)?.writes
-        || compareWorkspaceContinuity({ checkpoint: before.evidence, current: after.evidence, pageSettled: after.pageSettled, priorOutcome: 'NONE' }).status !== 'PASS') {
-        throw new Error('Browser verification context changed')
-      }
-    }
-    return readBrowserPostcondition({ condition, validateCurrent: validate, signal,
-      evaluate: script => tab.webContents.executeJavaScriptInIsolatedWorld(POSTCONDITION_WORLD_ID, [{ code: script }], false)
-    })
+  readPostWritePostcondition(workspaceId: string, tabId: string, condition: BrowserPostcondition, validateCurrent: () => void, signal?: AbortSignal): Promise<PostconditionReadResult> {
+    return readPostWritePostcondition(this.workspaceContinuityAccess(), workspaceId, tabId, condition, validateCurrent, signal)
   }
 
-  async readBrowserReconciliation(workspaceId: string, tabId: string, condition: BrowserReconciliationCondition,
+  readBrowserReconciliation(workspaceId: string, tabId: string, condition: BrowserReconciliationCondition,
     validateCurrent: () => void, signal?: AbortSignal): Promise<BrowserReconciliationEvidence> {
-    validateCurrent()
-    const before = this.workspaceContinuitySnapshot(workspaceId)
-    if (!before.evidence || !before.pageSettled) return 'unavailable'
-    if (before.evidence.tabId !== tabId || !this.tabBelongsToMcpGroup(workspaceId, tabId)) return 'context-changed'
-    if (this.continuityActions.get(workspaceId)?.writes) return 'unavailable'
-    const revision = this.continuityRevision
-    const tab = this.getTab(tabId)
-    const validate = (): void => {
-      validateCurrent()
-      const after = this.workspaceContinuitySnapshot(workspaceId)
-      if (revision !== this.continuityRevision || this.continuityActions.get(workspaceId)?.writes
-        || compareWorkspaceContinuity({ checkpoint: before.evidence, current: after.evidence, pageSettled: after.pageSettled, priorOutcome: 'NONE' }).status !== 'PASS') {
-        throw new Error('Browser reconciliation context changed')
-      }
-    }
-    validate()
-    const result = await readContinuityMarker(() => {
-      validate()
-      return tab.webContents.executeJavaScriptInIsolatedWorld(
-        RECONCILIATION_WORLD_ID, [{ code: browserReconciliationScript(condition) }], false
-      )
-    }, signal)
-    validate()
-    return result === 'matches' || result === 'missing' || result === 'differs'
-      || result === 'precondition-changed' || result === 'context-changed'
-      || result === 'ambiguous' ? result : 'unavailable'
+    return readBrowserReconciliation(this.workspaceContinuityAccess(), workspaceId, tabId, condition, validateCurrent, signal)
   }
 
-  async armWorkspaceContinuity(workspaceId: string, markerSelector?: string, validateCurrent: () => void = () => undefined): Promise<string> {
-    if (this.continuityActions.has(workspaceId)) throw new Error('Wait for pending workspace actions before creating a checkpoint')
-    if (markerSelector !== undefined) continuityMarkerScript(markerSelector)
-    const revision = this.continuityRevision
-    const { evidence, pageSettled } = await this.currentWorkspaceContinuity(workspaceId, markerSelector)
-    if (this.continuityActions.has(workspaceId) || revision !== this.continuityRevision) throw new Error('Workspace control changed while capturing continuity')
-    if (!evidence || !pageSettled) throw new Error('Inspect a settled web page before creating a continuity checkpoint')
-    validateCurrent()
-    const checkpointId = this.workspaceContinuity.arm(evidence)
-    this.continuityRevision += 1
-    if (markerSelector === undefined) this.continuityMarkers.delete(workspaceId)
-    else this.continuityMarkers.set(workspaceId, markerSelector)
-    try {
-      await this.store.save(() => this.persistedState())
-    } catch {
-      this.workspaceContinuity.suspend(workspaceId, 'OUTCOME_UNKNOWN')
-      throw new Error('Could not save the continuity checkpoint; inspect before retrying')
-    }
-    return checkpointId
+  armWorkspaceContinuity(workspaceId: string, markerSelector?: string, validateCurrent: () => void = () => undefined): Promise<string> {
+    return armWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId, markerSelector, validateCurrent)
   }
 
-  async requireWorkspaceContinuityReview(workspaceId: string): Promise<boolean> {
-    this.continuityRevision += 1
-    this.requireMcpTabGroup(workspaceId)
-    this.advanceWorkspaceObservationGeneration(workspaceId)
-    if (this.workspaceContinuity.guardedWorkspaceIds().includes(workspaceId)) this.workspaceContinuity.suspend(workspaceId, 'OUTCOME_UNKNOWN')
-    else this.workspaceContinuity.restoreStale(workspaceId)
-    try {
-      await this.store.save(() => this.persistedState())
-      return true
-    } catch {
-      // Keep the in-memory guard and revoke direct agent access when its durable
-      // marker cannot be acknowledged. Recovery remains available to the operator.
-      this.updateMcpTabGroup(workspaceId, { agentAccess: false })
-      return false
-    }
+  requireWorkspaceContinuityReview(workspaceId: string): Promise<boolean> {
+    return requireWorkspaceContinuityReview(this.workspaceContinuityAccess(), workspaceId)
   }
 
   suspendWorkspaceContinuity(workspaceId: string, outcome: WorkspaceContinuityResult['priorOutcome'] = 'NONE'): boolean {
-    this.continuityRevision += 1
-    this.advanceWorkspaceObservationGeneration(workspaceId)
-    const pending = this.continuityActions.get(workspaceId)
-    this.workspaceContinuity.suspend(workspaceId, pending?.writes ? 'OUTCOME_UNKNOWN' : outcome !== 'NONE' ? outcome : pending?.reads ? 'STALE_OBSERVATION' : 'NONE')
-    return this.workspaceContinuity.guardedWorkspaceIds().includes(workspaceId)
-  }
-
-  private advanceWorkspaceObservationGeneration(workspaceId: string): void {
-    this.pwaLifecycleRecorder.interruptWorkspace(workspaceId, 'workspace-control-changed')
-    const observationGeneration = this.workspaceObservationGeneration(workspaceId) + 1
-    this.workspaceObservationGenerations.set(workspaceId, observationGeneration)
-    for (const tab of this.tabs.values()) {
-      if (tab.mcpGroupId !== workspaceId) continue
-      tab.observationGeneration = observationGeneration
-      tab.pendingRuntimeConsoleMessages = []
-      tab.inspectorIssues = []
-      tab.inspectorIssuesTruncated = false
-      tab.authChallenges = []
-      tab.authChallengesTruncated = false
-      tab.securitySnapshot = undefined
-      this.liveRegionRecorder.release(tab)
-      void this.cssStatePreview.clear(tab, 'workspace-control-changed').catch(() => undefined)
-      this.networkWaitController.reject(tab.id, 'Workspace control changed while waiting for network activity.')
-    }
-    this.downloadController.advanceWorkspaceObservationGeneration(workspaceId, observationGeneration)
+    return suspendWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId, outcome)
   }
 
   private workspaceObservationGeneration(workspaceId: string): number {
-    return this.workspaceObservationGenerations.get(workspaceId) ?? 0
+    return workspaceObservationGeneration(this.workspaceContinuityAccess(), workspaceId)
   }
 
-  async inspectWorkspaceContinuity(workspaceId: string) {
-    // An archive has no live page to review. Preserve its guard and report
-    // unavailable evidence until it is opened and inspected afresh.
-    if (this.savedTabGroups.has(workspaceId)) return this.workspaceContinuity.inspect(workspaceId, null, false)
-    const { evidence, pageSettled } = await this.currentWorkspaceContinuity(workspaceId, this.continuityMarkers.get(workspaceId))
-    return this.workspaceContinuity.inspect(workspaceId, evidence, pageSettled)
+  inspectWorkspaceContinuity(workspaceId: string) {
+    return inspectWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId)
   }
 
-  async reconcileWorkspaceContinuity(workspaceId: string, reviewId: string, acknowledgeUnknownOutcome: boolean, validateCurrent: () => void = () => undefined): Promise<void> {
-    if (this.continuityActions.has(workspaceId)) throw new Error('Wait for pending workspace actions before reconciling continuity')
-    const { evidence, pageSettled } = await this.currentWorkspaceContinuity(workspaceId, this.continuityMarkers.get(workspaceId))
-    if (this.continuityActions.has(workspaceId)) throw new Error('Wait for pending workspace actions before reconciling continuity')
-    validateCurrent()
-    this.workspaceContinuity.reconcile(workspaceId, reviewId, evidence, pageSettled, acknowledgeUnknownOutcome)
+  reconcileWorkspaceContinuity(workspaceId: string, reviewId: string, acknowledgeUnknownOutcome: boolean, validateCurrent: () => void = () => undefined): Promise<void> {
+    return reconcileWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId, reviewId, acknowledgeUnknownOutcome, validateCurrent)
   }
 
   requireWorkspaceContinuityDispatch(workspaceId: string): void {
-    this.workspaceContinuity.requireDispatch(workspaceId)
+    requireWorkspaceContinuityDispatch(this.workspaceContinuityAccess(), workspaceId)
   }
 
   private readonly tabs = new Map<string, BrowserTab>()
@@ -1962,83 +1844,39 @@ export class BrowserTabsManager {
     }
   }
 
-  listWorkspaceNavigationAudit(groupId: string): BrowserWorkspaceNavigationAuditEntry[] {
-    const audit = this.mcpTabGroups.get(groupId)?.navigationAudit
-      ?? this.savedTabGroups.get(groupId)?.navigationAudit
-    if (!audit) throw new Error(`Unknown workspace: ${groupId}.`)
-    return [...audit].reverse().map((entry) => ({ ...entry }))
+  /**
+   * The narrow view the workspace navigation policy gets of this manager's
+   * private tabs, active and archived workspaces, busy workspaces, inspection
+   * permissions, options and state publication. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it. The delegates below return the feature's
+   * value or promise directly, so no extra ticks separate its final checks
+   * from the caller.
+   */
+  private workspaceNavigationAccess(): WorkspaceNavigationAccess<BrowserTab> {
+    return {
+      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
+      findArchivedWorkspace: (workspaceId) => this.savedTabGroups.get(workspaceId),
+      assertWorkspaceIdle: (workspaceId) => this.assertWorkspaceIdle(workspaceId),
+      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
+      setInspectionPermission: (workspace, generation) => { this.inspectionPermissions.set(workspace, generation) },
+      tabs: () => this.tabs.values(),
+      options: () => this.options,
+      prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
+    }
   }
 
-  async updateWorkspaceNavigationPolicy(
+  listWorkspaceNavigationAudit(groupId: string): BrowserWorkspaceNavigationAuditEntry[] {
+    return listWorkspaceNavigationAudit(this.workspaceNavigationAccess(), groupId)
+  }
+
+  updateWorkspaceNavigationPolicy(
     groupId: string,
     value: BrowserWorkspaceNavigationPolicy
   ): Promise<BrowserState> {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
-    this.assertWorkspaceIdle(groupId)
-    const policy = normalizeWorkspaceNavigationPolicy(value)
-    if (group.contextClass === 'public-observer'
-      && JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)) {
-      throw new Error('A public observer origin cannot be changed or widened.')
-    }
-    if (JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)) this.inspectionPermissions.set(group, (this.inspectionPermissions.get(group) ?? 0) + 1)
-    group.navigationPolicy = policy
-    group.lastUsedAt = new Date().toISOString()
-    for (const tab of this.tabs.values()) {
-      if (tab.mcpGroupId !== groupId) continue
-      const decision = this.workspaceNavigationDecision(groupId, tab.url)
-      this.options.onWorkspaceNavigationDecision?.(groupId, decision, 'policy-change')
-      if (decision.allowed) continue
-      this.recordWorkspaceNavigationDenied(groupId, decision, 'policy-change')
-      this.prepareDiagnosticNavigation(tab)
-      try {
-        await tab.webContents.loadURL('about:blank')
-      } catch (error) {
-        if (!isAbortedLoad(error)) throw error
-      }
-    }
-    this.changed()
-    return this.getState()
-  }
-
-  private workspaceNavigationDecision(groupId: string, url: string): WorkspaceNavigationDecision {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
-    const decision = evaluateWorkspaceNavigation(group.navigationPolicy, url)
-    if (isAgentWorkspaceNavigationUrl(url) || !decision.allowed) return decision
-    return { allowed: false, targetOrigin: decision.targetOrigin, reason: 'unsupported-scheme' }
-  }
-
-  private recordWorkspaceNavigationDenied(
-    groupId: string,
-    decision: WorkspaceNavigationDecision,
-    source: BrowserWorkspaceNavigationAuditSource
-  ): void {
-    if (decision.allowed || (
-      decision.reason !== 'credentials'
-      && decision.reason !== 'malformed'
-      && decision.reason !== 'unsupported-scheme'
-      && decision.reason !== 'no-match'
-    )) return
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) return
-    const previous = group.navigationAudit.at(-1)
-    if (
-      previous
-      && previous.targetOrigin === decision.targetOrigin
-      && previous.reason === decision.reason
-      && previous.source === source
-      && Date.now() - Date.parse(previous.timestamp) < 1_000
-    ) return
-    group.navigationAudit.push({
-      id: uuidV7(),
-      timestamp: new Date().toISOString(),
-      targetOrigin: decision.targetOrigin,
-      reason: decision.reason,
-      source
-    })
-    if (group.navigationAudit.length > MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES) group.navigationAudit.shift()
-    this.changed()
+    return updateWorkspaceNavigationPolicy(this.workspaceNavigationAccess(), groupId, value)
   }
 
   private workspaceNavigationAllowed(
@@ -2046,11 +1884,7 @@ export class BrowserTabsManager {
     url: string,
     source: BrowserWorkspaceNavigationAuditSource
   ): boolean {
-    const decision = this.workspaceNavigationDecision(groupId, url)
-    this.options.onWorkspaceNavigationDecision?.(groupId, decision, source)
-    if (decision.allowed) return true
-    this.recordWorkspaceNavigationDenied(groupId, decision, source)
-    return false
+    return workspaceNavigationAllowed(this.workspaceNavigationAccess(), groupId, url, source)
   }
 
   private assertWorkspaceNavigationAllowed(
@@ -2058,14 +1892,7 @@ export class BrowserTabsManager {
     url: string,
     source: BrowserWorkspaceNavigationAuditSource
   ): void {
-    const decision = this.workspaceNavigationDecision(groupId, url)
-    this.options.onWorkspaceNavigationDecision?.(groupId, decision, source)
-    if (decision.allowed) return
-    this.recordWorkspaceNavigationDenied(groupId, decision, source)
-    if (decision.reason !== 'no-match') throw new Error(AGENT_NAVIGATION_SCHEME_ERROR)
-    throw new Error(
-      `Workspace navigation to ${decision.targetOrigin} is blocked. Allow this origin in the trusted workspace Site access settings.`
-    )
+    assertWorkspaceNavigationAllowed(this.workspaceNavigationAccess(), groupId, url, source)
   }
 
   mcpWorkspaceResumeKey(workspaceId: string): string {
@@ -6153,90 +5980,49 @@ export class BrowserTabsManager {
     return consoleMessages(this.consoleMessagesAccess(), tabId, clear)
   }
 
-  async networkRequests(tabId?: string, clear = false): Promise<BrowserNetworkRequest[]> {
-    const tab = this.getTab(tabId)
-    if (!tab.webContents.isDevToolsOpened()) await this.ensureDialogMonitoring(tab)
-    const requests = this.currentNetworkRequests(tab).map((request) => this.networkRequestSummary(request))
-    if (clear) tab.networkRequests = []
-    return requests
-  }
-
-  async waitForNetworkRequest(options: BrowserNetworkWaitOptions): Promise<BrowserNetworkWaitResult> {
-    const tab = this.getTab(options.tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before waiting for network activity')
-    const normalized = normalizeNetworkWaitOptions(options)
-    let minCaptureSequence = normalized.from === 'future' ? tab.networkCaptureSequence : 0
-    if (normalized.afterRequestId) {
-      const cursor = this.currentNetworkRequests(tab).find((request) => request.id === normalized.afterRequestId)
-      if (!cursor) {
-        throw new Error('The afterRequestId cursor is no longer retained. Call browser_network again for a current request ID.')
-      }
-      minCaptureSequence = cursor.captureSequence
-    }
-    return this.networkWaitController.wait(tab, normalized, minCaptureSequence)
-  }
-
-  async networkSearch(options: BrowserNetworkSearchOptions): Promise<BrowserNetworkSearchResult> {
-    const tab = this.getTab(options.tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before searching network content')
-    const normalized = normalizeNetworkSearchOptions(options)
-    const currentRequests = this.currentNetworkRequests(tab)
-    const selected = currentRequests.slice(-normalized.maxRequests).reverse()
-    const details: BrowserNetworkRequestDetails[] = []
-    for (const request of selected) {
-      details.push(await this.networkRequestDetails(tab.id, request.id, normalized.maxBodyChars, true))
-    }
-    return searchNetworkDetails({
-      tabId: tab.id,
-      availableRequestCount: currentRequests.length,
-      details,
-      options: normalized
-    })
-  }
-
-  async networkHar(options: BrowserNetworkHarOptions = {}): Promise<BrowserNetworkHar> {
-    const tab = this.getTab(options.tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before exporting a network log')
-    const normalized = normalizeNetworkHarOptions(options)
-    const filtered = filterNetworkRequests(
-      this.currentNetworkRequests(tab).map((request) => this.networkRequestSummary(request)),
-      normalized
-    )
-    const selected = filtered.slice(-normalized.maxRequests)
-    const details: BrowserNetworkRequestDetails[] = []
-    for (const request of selected) {
-      details.push(await this.networkRequestDetails(
-        tab.id,
-        request.id,
-        normalized.maxBodyChars,
-        normalized.includeBodies
-      ))
-    }
-    return buildSanitizedNetworkHar({
-      appVersion: app.getVersion(),
-      tabId: tab.id,
-      title: tab.title,
-      url: redactNetworkUrl(tab.url),
-      availableRequestCount: filtered.length,
-      details,
-      includeBodies: normalized.includeBodies,
-      truncated: filtered.length > selected.length
-    })
-  }
-
-  async saveNetworkHar(options: BrowserNetworkHarSaveOptions = {}): Promise<BrowserNetworkHarExport> {
-    const tab = this.getTab(options.tabId)
-    const har = await this.networkHar(options)
-    const data = Buffer.from(`${JSON.stringify(har, null, 2)}\n`, 'utf8')
-    const path = await this.writeUniqueDownload(networkHarFilename(options.filename, tab.title), data)
+  /**
+   * The narrow view network inspection gets of this manager's private tabs,
+   * workspaces, inspection permissions, request summaries, network wait
+   * controller, downloads folder and debugger lease. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it. The delegates below return the feature's
+   * promise directly, so no extra ticks separate its final checks from the
+   * caller.
+   */
+  private networkInspectionAccess(): NetworkInspectionAccess<BrowserTab> {
     return {
-      filename: basename(path),
-      path,
-      bytes: data.length,
-      requestCount: har._hronaut.requestCount,
-      sanitized: true,
-      includesBodies: har._hronaut.includesBodies
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
+      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
+      ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab),
+      currentNetworkRequests: (tab) => this.currentNetworkRequests(tab),
+      networkRequestSummary: (request) => this.networkRequestSummary(request),
+      waitForNetworkActivity: (tab, options, minCaptureSequence) => this.networkWaitController.wait(tab, options, minCaptureSequence),
+      writeUniqueDownload: (filename, data) => this.writeUniqueDownload(filename, data),
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      isUnavailableCdpMethod: (error) => this.isUnavailableCdpMethod(error)
     }
+  }
+
+  networkRequests(tabId?: string, clear = false): Promise<BrowserNetworkRequest[]> {
+    return networkRequests(this.networkInspectionAccess(), tabId, clear)
+  }
+
+  waitForNetworkRequest(options: BrowserNetworkWaitOptions): Promise<BrowserNetworkWaitResult> {
+    return waitForNetworkRequest(this.networkInspectionAccess(), options)
+  }
+
+  networkSearch(options: BrowserNetworkSearchOptions): Promise<BrowserNetworkSearchResult> {
+    return networkSearch(this.networkInspectionAccess(), options)
+  }
+
+  networkHar(options: BrowserNetworkHarOptions = {}): Promise<BrowserNetworkHar> {
+    return networkHar(this.networkInspectionAccess(), options)
+  }
+
+  saveNetworkHar(options: BrowserNetworkHarSaveOptions = {}): Promise<BrowserNetworkHarExport> {
+    return saveNetworkHar(this.networkInspectionAccess(), options)
   }
 
   debugReport(options: BrowserDebugReportOptions = {}): BrowserDebugReport {
@@ -6388,364 +6174,101 @@ export class BrowserTabsManager {
   }
 
   private recordAuthChallenge(tab: BrowserTab, details: Electron.AuthenticationResponseDetails, authInfo: Electron.AuthInfo): void {
-    if (tab.sleeping || authInfo.isProxy || authInfo.scheme.toLowerCase() !== 'basic') return
-    let origin: string
-    try {
-      const url = new URL(details.url)
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') return
-      origin = url.origin
-    } catch { return }
-    // Electron reports isMainFrame at runtime without typing it. Only a main-frame
-    // navigation challenge can belong to a pending document; anything else in
-    // that window may come from the outgoing document and is not attributed.
-    const isMainFrame = (details as Electron.AuthenticationResponseDetails & { isMainFrame?: unknown }).isMainFrame
-    let request: BrowserAuthChallengeObservation['request']
-    if (details.isRequestForNavigation && isMainFrame === true) {
-      if (!tab.authNavigationPending) return
-      request = 'main-frame-navigation'
-    } else {
-      if (tab.authNavigationPending || isMainFrame !== false) return
-      request = details.isRequestForNavigation ? 'subframe-navigation' : 'subresource'
-    }
-    if (tab.authChallenges.length >= MAX_AUTH_CHALLENGES) {
-      tab.authChallengesTruncated = true
-      return
-    }
-    tab.authChallenges.push({ observedAt: new Date().toISOString(), scheme: 'basic', origin, request })
+    recordAuthChallenge(tab, details, authInfo)
   }
 
-  async inspectorIssues(tabId?: string, clear = false): Promise<BrowserInspectorIssuesReport> {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting browser issues')
-    if (!clear && !tab.webContents.isDevToolsOpened()) {
-      await this.ensureDialogMonitoring(tab)
-      if (tab.webContents.debugger.isAttached()) {
-        try {
-          const checked = await tab.webContents.debugger.sendCommand('Audits.checkFormsIssues') as {
-            formIssues?: unknown[]
-          }
-          for (const details of checked.formIssues ?? []) {
-            this.addInspectorIssue(tab, { code: 'GenericIssue', details: { genericIssueDetails: details } }, false)
-          }
-          await new Promise<void>((resolve) => setImmediate(resolve))
-        } catch {
-          // Older Chromium builds still provide passive Audits.issueAdded events.
-        }
-      }
-    }
-
-    const clearedCount = clear ? tab.inspectorIssues.length : undefined
-    if (clear) {
-      tab.inspectorIssues = []
-      tab.inspectorIssuesTruncated = false
-      tab.authChallenges = []
-      tab.authChallengesTruncated = false
-      this.changed(false)
-    }
-    const issues = tab.inspectorIssues.map((issue) => ({
-      ...issue,
-      reasons: [...issue.reasons],
-      affectedUrls: [...issue.affectedUrls],
-      ...(issue.source ? { source: { ...issue.source } } : {})
-    }))
+  /**
+   * The narrow view inspector issues get of this manager's private tabs, the
+   * debugger that reports issues and state publication. It is a prototype
+   * method rather than a field, so managers created without the constructor
+   * (as unit tests do) still provide it. The delegates below return the
+   * feature's promise directly, so no extra ticks separate its final checks
+   * from the caller.
+   */
+  private inspectorIssuesAccess(): InspectorIssuesAccess<BrowserTab> {
     return {
-      tabId: tab.id,
-      url: redactNetworkUrl(tab.url),
-      title: tab.title,
-      capturedAt: new Date().toISOString(),
-      issueCount: issues.length,
-      errorCount: issues.filter((issue) => issue.severity === 'error').length,
-      warningCount: issues.filter((issue) => issue.severity === 'warning').length,
-      infoCount: issues.filter((issue) => issue.severity === 'info').length,
-      issues,
-      truncated: tab.inspectorIssuesTruncated,
-      authChallenges: tab.authChallenges.map((challenge) => ({ ...challenge })),
-      authChallengesTruncated: tab.authChallengesTruncated,
-      devToolsOpen: tab.webContents.isDevToolsOpened(),
-      ...(clearedCount !== undefined ? { clearedCount } : {}),
-      caveats: [
-        'Issues are browser-generated diagnostics for the current document, not a complete quality audit.',
-        'URLs are bounded and redact credentials, fragments, and security-related query values; cookie values and raw issue payloads are never returned.',
-        'authChallenges lists HTTP Basic challenges that Hronaut observed and cancelled without supplying credentials. It reports origin and request kind only, not realm, path or login success; subresource challenges are not recorded while a top-level navigation is pending.',
-        tab.webContents.isDevToolsOpened()
-          ? 'Developer Tools currently owns diagnostics for this tab; close it and reload to collect new issues in Hronaut.'
-          : 'Reload the page before reproducing a problem when you need issues emitted during startup.'
-      ]
+      getTab: (tabId) => this.getTab(tabId),
+      ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab),
+      changed: (persist) => this.changed(persist)
     }
   }
 
-  async networkRequestDetails(
+  inspectorIssues(tabId?: string, clear = false): Promise<BrowserInspectorIssuesReport> {
+    return inspectorIssues(this.inspectorIssuesAccess(), tabId, clear)
+  }
+
+  networkRequestDetails(
     tabId: string | undefined,
     requestId: string,
     maxChars = 20_000,
     includeBody = true,
     deferPublication?: (assertCurrent: () => void) => void
   ): Promise<BrowserNetworkRequestDetails> {
-    const tab = this.getTab(tabId)
-    const request = this.currentNetworkRequests(tab).find((candidate) => candidate.id === requestId)
-    if (!request) throw new Error(`Network request not found: ${requestId}. Call browser_network again for current request IDs.`)
-    const navigationGeneration = tab.navigationGeneration
-    const priorityGeneration = tab.networkPriorityGeneration ?? 0
-    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
-    const boundedMaxChars = Math.min(Math.max(Math.round(maxChars), 1_000), 100_000)
-    const requestContentType = headerValue(request.requestHeaders, 'content-type')
-    const responseContentType = request.mimeType || headerValue(request.responseHeaders, 'content-type')
-    let responseBody: BrowserNetworkBody = {
-      available: false,
-      reason: request.eventSourceMessages
-        ? 'Server-sent events are available in the bounded Event stream section.'
-        : request.webSocketMessages
-        ? 'WebSocket messages are available in the bounded messages section.'
-        : request.detailsAvailable
-          ? request.bodyAvailable ? 'Response body is no longer available from Chromium.' : 'The response body has not completed.'
-          : 'Detailed capture was unavailable while Developer Tools owned this tab.'
-    }
-
-    if (!includeBody) {
-      responseBody = { available: false, reason: 'Response body was omitted from this sanitized export.' }
-    } else if (request.cdpRequestId && request.bodyAvailable && !request.eventSourceMessages) {
-      try {
-        const captured = await this.withDebugger(tab.webContents, () =>
-          tab.webContents.debugger.sendCommand('Network.getResponseBody', { requestId: request.cdpRequestId })
-        ) as { body?: string; base64Encoded?: boolean }
-        responseBody = {
-          available: true,
-          ...sanitizeNetworkBody(captured.body ?? '', responseContentType, boundedMaxChars, {
-            base64Encoded: captured.base64Encoded === true
-          })
-        }
-      } catch (error) {
-        responseBody = {
-          available: false,
-          reason: /Close Developer Tools/.test(String(error))
-            ? 'Close Developer Tools for this tab, then request these details again.'
-            : 'Chromium no longer has this response body in its bounded diagnostic buffer.'
-        }
-      }
-    }
-    const assertCurrent = (): void => {
-      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-      if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
-        || currentWorkspace !== workspace
-        || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-        || tab.navigationGeneration !== navigationGeneration
-        || (tab.networkPriorityGeneration ?? 0) !== priorityGeneration
-        || !this.currentNetworkRequests(tab).includes(request)) {
-        throw new Error('Network request observation changed while reading details. Call browser_network for current request IDs.')
-      }
-    }
-    assertCurrent()
-    deferPublication?.(assertCurrent)
-    const timing = deriveNetworkTiming(request.resourceTiming, request.completedMonotonicSeconds)
-    const serverTiming = parseServerTimingHeaders(request.responseHeaders)
-    const responseHeaders = redactNetworkHeaders(request.responseHeaders)
-    for (const name of Object.keys(request.responseHeaders ?? {})) {
-      if (name.toLowerCase() !== 'server-timing') continue
-      responseHeaders[name] = serverTiming.length
-        ? serializeServerTimingMetrics(serverTiming)
-        : '[invalid Server-Timing omitted]'
-    }
-    const relationships = this.networkRequestRelationships(tab, request)
-
-    return {
-      ...this.networkRequestSummary(request),
-      priority: {
-        initial: request.initialPriority ?? null,
-        latestObserved: request.latestPriority ?? null
-      },
-      request: {
-        headers: redactNetworkHeaders(request.requestHeaders),
-        ...(request.requestBody !== undefined
-          ? { body: sanitizeNetworkBody(request.requestBody, requestContentType, boundedMaxChars) }
-          : {})
-      },
-      response: {
-        headers: responseHeaders,
-        ...(request.bodyAvailable && request.responseBodySizeBytes !== undefined
-          ? { bodySizeBytes: request.responseBodySizeBytes } : {}),
-        ...(request.bodyAvailable && request.responseContentSizeBytes !== undefined
-          ? { contentSizeBytes: request.responseContentSizeBytes } : {}),
-        ...(request.mimeType ? { mimeType: request.mimeType } : {}),
-        ...(request.protocol ? { protocol: request.protocol } : {}),
-        ...(serverTiming.length ? { serverTiming } : {}),
-        body: responseBody
-      },
-      ...(timing ? { timing } : {}),
-      ...(request.initiator ? { initiator: request.initiator } : {}),
-      ...(relationships ? { relationships } : {}),
-      ...(request.webSocketMessages ? {
-        webSocket: {
-          open: request.webSocketOpen === true,
-          messages: request.webSocketMessages.map((message) => ({ ...message })),
-          droppedMessages: request.webSocketDroppedMessages ?? 0
-        }
-      } : {}),
-      ...(request.eventSourceMessages ? {
-        eventSource: {
-          open: request.completedAt === undefined,
-          messages: request.eventSourceMessages.map((message) => ({ ...message })),
-          droppedMessages: request.eventSourceDroppedMessages ?? 0
-        }
-      } : {})
-    }
+    return networkRequestDetails(this.networkInspectionAccess(), tabId, requestId, maxChars, includeBody, deferPublication)
   }
 
-  async replayNetworkRequest(
+  replayNetworkRequest(
     tabId: string | undefined,
     requestId: string,
     confirmSideEffects = false
   ): Promise<BrowserNetworkReplayResult> {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before replaying a network request')
-    const request = this.currentNetworkRequests(tab).find((candidate) => candidate.id === requestId)
-    if (!request) {
-      throw new Error(`Network request not found: ${requestId}. Call browser_network again for current request IDs.`)
-    }
-    if (request.resourceType.toLowerCase() !== 'xhr') {
-      throw new Error('Only captured XMLHttpRequest (XHR) requests can be replayed by Chromium. Fetch, document, and other request types are not supported.')
-    }
-    if (!request.detailsAvailable || !request.cdpRequestId) {
-      throw new Error('This XHR cannot be replayed because Chromium did not retain its diagnostic request ID. Close Developer Tools, reload, and capture it again.')
-    }
+    return replayNetworkRequest(this.networkInspectionAccess(), tabId, requestId, confirmSideEffects)
+  }
 
-    const method = request.method.trim().toUpperCase()
-    const confirmationRequired = networkReplayRequiresConfirmation(method)
-    if (confirmationRequired && !confirmSideEffects) {
-      throw new Error(`Replaying ${method} can repeat writes or other side effects. Pass confirmSideEffects: true only after reviewing the request.`)
-    }
-
-    const cursor = this.currentNetworkRequests(tab).at(-1)
-    if (!cursor) throw new Error('The captured request is no longer retained. Call browser_network again for a current request ID.')
-    try {
-      await this.withDebugger(tab.webContents, () =>
-        tab.webContents.debugger.sendCommand('Network.replayXHR', { requestId: request.cdpRequestId })
-      )
-    } catch (error) {
-      if (this.isUnavailableCdpMethod(error)) {
-        throw new Error('XHR replay is unavailable in this Chromium build')
-      }
-      throw error
-    }
-
-    const replayed = await this.waitForNetworkRequest({
-      tabId: tab.id,
-      urlPattern: networkReplayUrlPattern(request.url),
-      method,
-      resourceType: 'xhr',
-      phase: 'complete',
-      afterRequestId: cursor.id,
-      timeoutMs: 10_000
-    })
+  /**
+   * The narrow view request conditions get of this manager's private tabs and
+   * native rule application. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it. The delegates below return the feature's value or promise directly, so
+   * no extra ticks separate its final checks from the caller.
+   */
+  private networkConditionsAccess(): NetworkConditionsAccess<BrowserTab> {
     return {
-      tabId: tab.id,
-      originalRequestId: request.id,
-      method,
-      url: redactNetworkUrl(request.url),
-      replayedAt: new Date().toISOString(),
-      confirmationRequired,
-      confirmationAccepted: confirmationRequired && confirmSideEffects,
-      replayedRequest: replayed.request,
-      caveats: [
-        'Chromium replayed the original XHR inside the same tab and browser session.',
-        'The original body, headers, credentials, username, and password stayed inside Chromium and are not returned by this result.',
-        'Inspect the new replayedRequest ID for its response, timing, or failure evidence.'
-      ]
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      isDestroyed: () => this.destroyed,
+      applyNetworkRoutes: (tab, validate, recovery, mutate, markSubmitted, admission) => this.applyNetworkRoutes(tab, validate, recovery, mutate, markSubmitted, admission)
     }
   }
 
   networkConditionState(tabId?: string): import('../../shared/types.js').BrowserNetworkConditionState {
-    const tab = this.getTab(tabId)
-    return { application: tab.networkConditionApplication, retainedRules: tab.networkRoutes.map(route => this.networkRouteSummary(route)) }
+    return networkConditionState(this.networkConditionsAccess(), tabId)
   }
 
   networkRoutes(tabId?: string): BrowserNetworkRouteSummary[] {
-    const state = this.networkConditionState(tabId)
-    if (state.application !== 'confirmed') throw new Error('Native request-condition application is not confirmed. Explicitly clear conditions to recover; do not replay the failed operation.')
-    return state.retainedRules
+    return networkRoutes(this.networkConditionsAccess(), tabId)
   }
 
   networkConditionPublication(tabId: string | undefined, expected: BrowserNetworkRouteSummary[]): () => void {
-    const tab = this.getTab(tabId)
-    const routes = tab.networkRoutes
-    const epoch = tab.networkConditionEpoch
-    const serialized = JSON.stringify(expected)
-    const assert = (): void => {
-      if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed() || tab.networkRoutes !== routes || tab.networkConditionEpoch !== epoch || tab.networkConditionApplication !== 'confirmed' || JSON.stringify(this.networkConditionState(tab.id).retainedRules) !== serialized) throw new Error('Request-condition observation changed before publication')
-    }
-    assert()
-    return assert
+    return networkConditionPublication(this.networkConditionsAccess(), tabId, expected)
   }
 
   private markNetworkConditionsUnknown(tab: BrowserTab): void {
-    tab.networkConditionEpoch++
-    tab.networkConditionApplication = 'unknown'
+    markNetworkConditionsUnknown(tab)
   }
 
   private requireNetworkConditionsKnown(tab: BrowserTab): void {
-    if (tab.networkConditionApplication === 'unknown') throw new Error('Native request-condition application is unknown. Explicitly clear conditions to recover.')
+    requireNetworkConditionsKnown(tab)
   }
 
-  async addNetworkRoute(tabId: string | undefined, input: BrowserNetworkRouteInput, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    const tab = this.getTab(tabId)
-    const normalized = normalizeNetworkRouteInput(input)
-    await this.applyNetworkRoutes(tab, validate, false, () => {
-      if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before adding a network route')
-      if (tab.networkRoutes.length >= MAX_NETWORK_ROUTES) throw new Error(`Network route limit reached (${MAX_NETWORK_ROUTES})`)
-      tab.networkRoutes = [...tab.networkRoutes, { ...normalized, id: randomUUID(), createdAt: new Date().toISOString() }]
-    }, markSubmitted)
-    return this.networkRoutes(tab.id)
+  addNetworkRoute(tabId: string | undefined, input: BrowserNetworkRouteInput, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+    return addNetworkRoute(this.networkConditionsAccess(), tabId, input, validate, markSubmitted)
   }
 
-  async setNetworkRouteEnabled(tabId: string | undefined, routeId: string, enabled: boolean, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    if (typeof enabled !== 'boolean' || !routeId) throw new TypeError('routeId and boolean enabled are required')
-    const tab = this.getTab(tabId)
-    const contents = tab.webContents
-    const debuggerEpoch = tab.networkDebuggerEpoch
-    const admission = (): void => {
-      validate()
-      if (this.destroyed || contents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before toggle')
-      if (tab.networkConditionApplication !== 'confirmed') throw new Error('Request-condition application must be confirmed before enabling or disabling a rule. Explicitly clear unknown conditions to recover.')
-      if (!tab.networkRoutes.some(route => route.id === routeId)) throw new Error(`Network route not found: ${routeId}`)
-    }
-    admission()
-    await this.applyNetworkRoutes(tab, validate, false, () => {
-      // Read the current record only at admission: a paused request may already
-      // have reserved its budget. Never restore a caller's earlier snapshot.
-      tab.networkRoutes = tab.networkRoutes.map(route => route.id === routeId ? { ...route, enabled } : route)
-    }, markSubmitted, admission)
-    return this.networkRoutes(tab.id)
+  setNetworkRouteEnabled(tabId: string | undefined, routeId: string, enabled: boolean, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+    return setNetworkRouteEnabled(this.networkConditionsAccess(), tabId, routeId, enabled, validate, markSubmitted)
   }
 
-  async removeNetworkRoute(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    const tab = this.getTab(tabId)
-    await this.applyNetworkRoutes(tab, validate, false, () => {
-      const remaining = tab.networkRoutes.filter(route => route.id !== routeId)
-      if (remaining.length === tab.networkRoutes.length) throw new Error(`Network route not found: ${routeId}`)
-      tab.networkRoutes = remaining
-    }, markSubmitted)
-    return this.networkRoutes(tab.id)
+  removeNetworkRoute(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+    return removeNetworkRoute(this.networkConditionsAccess(), tabId, routeId, validate, markSubmitted)
   }
 
-  async moveNetworkRoute(tabId: string | undefined, routeId: string, direction: BrowserNetworkRouteMoveDirection, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    const tab = this.getTab(tabId)
-    await this.applyNetworkRoutes(tab, validate, false, () => {
-      const index = tab.networkRoutes.findIndex(route => route.id === routeId)
-      if (index < 0) throw new Error(`Network route not found: ${routeId}`)
-      const target = direction === 'up' ? index - 1 : index + 1
-      if (target < 0 || target >= tab.networkRoutes.length) return
-      const reordered = [...tab.networkRoutes]
-      const [route] = reordered.splice(index, 1)
-      reordered.splice(target, 0, route!)
-      tab.networkRoutes = reordered
-    }, markSubmitted)
-    return this.networkRoutes(tab.id)
+  moveNetworkRoute(tabId: string | undefined, routeId: string, direction: BrowserNetworkRouteMoveDirection, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+    return moveNetworkRoute(this.networkConditionsAccess(), tabId, routeId, direction, validate, markSubmitted)
   }
 
-  async clearNetworkRoutes(tabId?: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    const tab = this.getTab(tabId)
-    await this.applyNetworkRoutes(tab, validate, true, () => { tab.networkRoutes = [] }, markSubmitted)
-    return this.networkRoutes(tab.id)
+  clearNetworkRoutes(tabId?: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+    return clearNetworkRoutes(this.networkConditionsAccess(), tabId, validate, markSubmitted)
   }
 
   listDownloads(): BrowserDownloadState[] {
@@ -9479,37 +9002,6 @@ export class BrowserTabsManager {
     ))
   }
 
-  private networkRequestRelationships(
-    tab: BrowserTab,
-    request: BrowserNetworkRequestRecord
-  ): BrowserNetworkRequestRelationships | undefined {
-    const relationships = deriveNetworkRequestRelationships(this.currentNetworkRequests(tab), request)
-    if (!relationships) return undefined
-    return {
-      ...(relationships.triggeredBy
-        ? { triggeredBy: this.networkRequestSummary(relationships.triggeredBy) }
-        : {}),
-      redirectChain: relationships.redirectChain.map((candidate) => this.networkRequestSummary(candidate)),
-      dependents: relationships.dependents.map((candidate) => this.networkRequestSummary(candidate)),
-      truncated: relationships.truncated
-    }
-  }
-
-  private networkRouteSummary(route: BrowserNetworkRouteRecord): BrowserNetworkRouteSummary {
-    return {
-      id: route.id,
-      enabled: route.enabled,
-      urlPattern: route.urlPattern,
-      ...(route.method ? { method: route.method } : {}),
-      behavior: route.behavior,
-      ...(route.remainingMatches !== undefined ? { remainingMatches: route.remainingMatches } : {}),
-      createdAt: route.createdAt,
-      ...(route.response ? { response: { ...route.response, headerNames: [...route.response.headerNames] } } : {}),
-      ...(route.abort ? { abort: route.abort } : {}),
-      ...(route.throttle ? { throttle: route.throttle } : {})
-    }
-  }
-
   private async applyNetworkRoutes(tab: BrowserTab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
     const contents = tab.webContents
     const scheduled = this.networkRouteRefreshTimers.get(contents.id)
@@ -10826,14 +10318,7 @@ export class BrowserTabsManager {
   }
 
   private addInspectorIssue(tab: BrowserTab, value: unknown, notify = true): void {
-    const issue = normalizeInspectorIssue(value)
-    if (!issue || tab.inspectorIssues.some((candidate) => candidate.id === issue.id)) return
-    tab.inspectorIssues.push(issue)
-    if (tab.inspectorIssues.length > MAX_INSPECTOR_ISSUES) {
-      tab.inspectorIssues.splice(0, tab.inspectorIssues.length - MAX_INSPECTOR_ISSUES)
-      tab.inspectorIssuesTruncated = true
-    }
-    if (notify) this.changed(false)
+    addInspectorIssue(this.inspectorIssuesAccess(), tab, value, notify)
   }
 
   private async handleNetworkRouteRequest(tab: BrowserTab, params: unknown, requestEpoch: number): Promise<void> {
