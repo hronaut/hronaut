@@ -41,7 +41,9 @@ import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from 
 import type { NativeWheelInput } from './native-wheel.js'
 import type { AgentWheelAccess } from './agent-wheel/agent-wheel-access.js'
 import { agentWheelUnderWay, wheel } from './agent-wheel/agent-wheel.js'
-import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
+import type { NativeKeyHoldInput, NativeKeyHoldProgress, NativeInputDispatchObserver } from './native-key-hold.js'
+import type { AgentKeysAccess } from './agent-keys/agent-keys-access.js'
+import { holdKey, press } from './agent-keys/agent-keys.js'
 import { NativeInputCleanupError } from './native-input-cleanup.js'
 import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
@@ -156,7 +158,6 @@ import {
   type WebContents
 } from 'electron'
 import { browserShortcutAction, type BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
-import { parseBrowserKeyPress } from '../../shared/keyboard-input.js'
 import { MAX_BROWSER_TABS } from '../../shared/types.js'
 import type { PageFindAccess } from './page-find/page-find-access.js'
 import { findInPage, stopFindInPage } from './page-find/page-find.js'
@@ -186,7 +187,7 @@ import {
 } from '../../shared/snapshot-delta.js'
 import { safeNavigationHistorySnapshot } from './navigation-history.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
-import { dispatchNativeKeyPress, type KeyboardDebugger } from './native-keyboard.js'
+import type { KeyboardDebugger } from './native-keyboard.js'
 import { dispatchNativeDrag, type PointerDebugger } from './native-pointer.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import type { PageAuditsAccess } from './page-audits/page-audits-access.js'
@@ -4876,109 +4877,49 @@ export class BrowserTabsManager {
     return uploadFiles(this.fileUploadAccess(), target, paths, validateUpload)
   }
 
-  async holdKey(input: NativeKeyHoldInput, validateInput: (validateContext: () => void) => void,
-    recordProgress: (progress: NativeKeyHoldProgress) => void, signal?: AbortSignal): Promise<unknown> {
-    const options = nativeKeyHoldInput.parse(input)
-    const tab = this.getTab(options.tabId)
-    const webContents = tab.webContents
-    if (this.activeNativeKeyHolds.has(webContents)) throw new Error('A key hold is already active for this page')
-    if (this.unconfirmedNativeKeyHolds.has(webContents)) throw new Error('Earlier key release is unconfirmed; close this tab before another hold. Navigation does not establish release.')
-    const generation = tab.nativeInputEnvironmentGeneration
-    const selectionGeneration = this.tabSelectionGeneration
-    const splitGeneration = this.splitViewGeneration
-    const authority = this.nativeInputAuthority(tab, validateInput)
-    const progress: NativeKeyHoldProgress = { downAttempted: false, downAcknowledged: false, releaseStarted: false, releaseAttempted: false, releaseAcknowledged: false }
-    const publish = (): void => { recordProgress({ ...progress }) }
-    const commands = nativeHeldKeyCommands(options.key)
-    let started = 0
-    let environmentChanged = false
-    const changed = (): void => { environmentChanged = true }
-    const validate = (): void => {
-      authority.validate()
-      this.requireEmulationConfirmed(tab)
-      if (signal?.aborted) throw new Error('Key hold cancelled')
-      if (environmentChanged || generation !== tab.nativeInputEnvironmentGeneration
-        || selectionGeneration !== this.tabSelectionGeneration || splitGeneration !== this.splitViewGeneration
-        || this.nativeInputLockMutations > 0) throw new Error('Key hold environment changed; inspect fresh state')
-      if (this.activeTabId !== tab.id || this.splitView || this.browserContentOccluded
-        || !this.window.isVisible() || this.window.isMinimized() || !tab.view.getVisible()
-        || !this.window.contentView.children.includes(tab.view) || tab.sleeping || tab.pageLifecycleState !== 'active') {
-        throw new Error('Key hold requires the active visible, already awake page outside split view')
-      }
-      if (this.screenshotAreaSessions.has(webContents.id) || this.elementPickerSessions.has(webContents.id)
-        || this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()
-        || webContents.mainFrame.framesInSubtree.length !== 1) throw new Error('Key hold does not support selections, Developer Tools or child frames')
-    }
-    const observer: NativeInputDispatchObserver = {
-      rawAttempted: params => {
-        if (params.type === 'keyUp') progress.releaseAttempted = true
-        else progress.downAttempted = true
-        publish()
-      },
-      rawAcknowledged: params => {
-        if (params.type === 'keyUp') progress.releaseAcknowledged = true
-        else { progress.downAcknowledged = true; started = performance.now() }
-        publish()
-      },
-      emergencyReleaseStarted: () => { progress.releaseStarted = true; publish() }
-    }
-    this.activeNativeKeyHolds.add(webContents)
-    tab.view.on('bounds-changed', changed)
-    webContents.on('frame-created', changed)
-    webContents.on('devtools-opened', changed)
-    webContents.debugger.on('detach', changed)
-    this.window.on('hide', changed)
-    this.window.on('minimize', changed)
-    try {
-      validate()
-      await this.withAgentInput(webContents, () => this.withDebugger(webContents, async () => {
-        try {
-          validate()
-          await this.sendAuthorizedAgentInputCommand(webContents, 'Input.dispatchKeyEvent', commands.down, validate, observer)
-          await waitForNativeKeyHold(started + options.durationMs, validate, signal)
-        } finally {
-          if (progress.downAttempted && !progress.releaseStarted) {
-            // Reserve the cleanup path before preparation, including failures
-            // before a raw up command. Never retry an emergency release path.
-            progress.releaseStarted = true
-            publish()
-            await this.sendAuthorizedAgentInputCommand(webContents, 'Input.dispatchKeyEvent', commands.up, undefined, observer)
-          }
-        }
-      }))
-      validate()
-      return { status: 'DISPATCH_ACKNOWLEDGED', key: options.key, durationMs: options.durationMs, release: 'ACKNOWLEDGED' }
-    } catch (error) {
-      if (progress.downAttempted) throw new NativeKeyHoldOutcomeUnknownError(error, { ...progress })
-      throw error
-    } finally {
-      if (progress.downAttempted && !progress.releaseAcknowledged && !webContents.isDestroyed()) {
-        this.unconfirmedNativeKeyHolds.add(webContents)
-        webContents.once('destroyed', () => { this.unconfirmedNativeKeyHolds.delete(webContents) })
-      }
-      this.activeNativeKeyHolds.delete(webContents)
-      authority.dispose()
-      tab.view.removeListener('bounds-changed', changed)
-      webContents.removeListener('frame-created', changed)
-      webContents.removeListener('devtools-opened', changed)
-      webContents.debugger.removeListener('detach', changed)
-      this.window.removeListener('hide', changed)
-      this.window.removeListener('minimize', changed)
+  /**
+   * The narrow view an agent's native key press and key hold get of this
+   * manager's private tabs, key holds, window, active tab, split view,
+   * generations, trusted chrome occlusion, pending lock changes, native
+   * selection sessions, DevTools opening, emulation check, native input
+   * authority, agent input scope, debugger queue and authorized input
+   * commands. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. The
+   * delegates below return the feature's promise directly, so callers see the
+   * same ticks as before.
+   */
+  private agentKeysAccess(): AgentKeysAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      activeNativeKeyHolds: () => this.activeNativeKeyHolds,
+      unconfirmedNativeKeyHolds: () => this.unconfirmedNativeKeyHolds,
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
+      splitViewGeneration: () => this.splitViewGeneration,
+      splitView: () => this.splitView,
+      nativeInputLockMutations: () => this.nativeInputLockMutations,
+      activeTabId: () => this.activeTabId,
+      browserContentOccluded: () => this.browserContentOccluded,
+      window: () => this.window,
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      elementPickerSessions: () => this.elementPickerSessions,
+      devToolsOpening: () => this.devToolsOpening,
+      requireEmulationConfirmed: (tab) => this.requireEmulationConfirmed(tab),
+      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
+      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      sendAuthorizedAgentInputCommand: (webContents, method, commandParams, validateInput, observer) =>
+        this.sendAuthorizedAgentInputCommand(webContents, method, commandParams, validateInput, observer),
+      agentInputDebugger: (webContents, validateInput) => this.agentInputDebugger(webContents, validateInput)
     }
   }
 
-  async press(key: string, tabId?: string, validateInput?: (validateContext: () => void) => void): Promise<void> {
-    const tab = this.getTab(tabId)
-    const webContents = tab.webContents
-    const input = parseBrowserKeyPress(key)
-    const authority = this.nativeInputAuthority(tab, validateInput)
-    try {
-      await this.withAgentInput(webContents, () => this.withDebugger(
-        webContents,
-        () => dispatchNativeKeyPress(this.agentInputDebugger(webContents, authority.validate), input, this.agentInputDebugger(webContents))
-      ))
-      authority.validate()
-    } finally { authority.dispose() }
+  holdKey(input: NativeKeyHoldInput, validateInput: (validateContext: () => void) => void,
+    recordProgress: (progress: NativeKeyHoldProgress) => void, signal?: AbortSignal): Promise<unknown> {
+    return holdKey(this.agentKeysAccess(), input, validateInput, recordProgress, signal)
+  }
+
+  press(key: string, tabId?: string, validateInput?: (validateContext: () => void) => void): Promise<void> {
+    return press(this.agentKeysAccess(), key, tabId, validateInput)
   }
 
   /**
