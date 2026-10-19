@@ -1,5 +1,6 @@
 import type { WebContents } from 'electron'
 import type { CssStatePreviewEndReason } from '../../../shared/css-state-preview.js'
+import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
 import type { BrowserState } from '../../../shared/types.js'
 
 /**
@@ -45,4 +46,6 @@ export interface DevToolsAccess<Tab extends DevToolsTab> {
   ensureDialogMonitoring(tab: Tab): Promise<void>
   /** Publishes the browser state, and saves it unless persist is false. */
   changed(persist?: boolean): void
+  /** A message in the interface language, for the Developer Tools window's title. */
+  text(key: MessageKey, parameters?: MessageParameters): string
 }

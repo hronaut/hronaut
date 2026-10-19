@@ -225,7 +225,8 @@ const {
   commercialLicenseStore: () => commercialLicenseRuntime.store,
   tabs: () => tabRuntime.tabs,
   workspaceStartupFailure: () => tabRuntime.startupFailure,
-  mainWindowRefs
+  mainWindowRefs,
+  text: (key, parameters) => text(key, parameters)
 })
 const mcpPauseState = new McpPauseState()
 const mcpActionTracker = new McpActionTracker(() => {
@@ -854,7 +855,12 @@ function registerIpc(): void {
     copyPng: copyPngToClipboard,
     pickVideoAudio: async () => {
       if (!mainWindowRefs.window || mainWindowRefs.window.isDestroyed()) throw new Error('Browser window is unavailable')
-      const selection = await dialog.showOpenDialog(mainWindowRefs.window, { properties: ['openFile'], filters: [{ name: 'PCM WAV audio', extensions: ['wav'] }] })
+      const selection = await dialog.showOpenDialog(mainWindowRefs.window, {
+        title: text('native.dialog.chooseVideoAudio'),
+        buttonLabel: text('native.dialog.chooseAudio'),
+        properties: ['openFile'],
+        filters: [{ name: text('native.dialog.wavAudioFilter'), extensions: ['wav'] }]
+      })
       return selection.canceled ? undefined : selection.filePaths[0]
     }
   })

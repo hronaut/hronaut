@@ -755,7 +755,16 @@ export const enUS = {
       importPasswordsFile: 'Choose browser password CSV', choosePasswordFile: 'Choose CSV', importPasswordsTitle: 'Import saved passwords?', importPasswordsMessage: 'Import {count} saved accounts into Hronaut?', importPasswordsDetail: 'New: {added} · updates: {updated} · skipped: {skipped}\n\nAccepted passwords will be re-encrypted with {backend}. The selected CSV remains readable on disk; delete it after import.', cancel: 'Cancel', importPasswords: 'Import passwords',
       savePasswordTitle: 'Save password?', updatePasswordTitle: 'Update saved password?', savePasswordMessage: 'Save the password for {account}?', updatePasswordMessage: 'Update the password for {account}?', unnamedAccount: 'an unnamed account',
       passwordDetail: "{origin}\n\nPasswords are encrypted with the operating system's secure storage. The vault itself is never exposed through MCP.", notNow: 'Not now', "mcpPortInUseMessage": "Another app is using port {port}", "mcpPortDeniedMessage": "Your system doesn't let Hronaut use port {port}", "mcpPortSuggestion": "Agents can't connect until Hronaut listens on a free port. Port {port} is free. After the move, give your coding agent the new address shown on Home.", "mcpPortNoneFree": "Agents can't connect until Hronaut listens on a free port. Choose another port in Settings → MCP security.", "mcpUsePort": "Use port {port}", savePassword: 'Save password', updatePassword: 'Update password',
-      installingUpdate: 'Installing the update. Hronaut will restart automatically.', restartingUpdate: 'The new package is installed. Restarting Hronaut to finish the update.'
+      installingUpdate: 'Installing the update. Hronaut will restart automatically.', restartingUpdate: 'The new package is installed. Restarting Hronaut to finish the update.',
+      walletRecoveryTitle: "Save wallet recovery material",
+      walletRecoveryMessage: "Write down this recovery phrase and store it offline.",
+      walletRecoveryWarning: "Hronaut cannot recover this phrase. Never share it with a website or coding agent.",
+      walletRecoverySaved: "I saved it",
+      walletRecoveryNotYet: "Not yet",
+      wavAudioFilter: "PCM WAV audio",
+      chooseVideoAudio: "Choose audio for the video",
+      chooseAudio: "Choose audio",
+      devToolsWindowTitle: "Hronaut Developer Tools — {title}"
     }
   }
 }

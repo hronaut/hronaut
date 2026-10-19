@@ -2596,7 +2596,8 @@ export class BrowserTabsManager {
       pendingDebuggerCommand: (webContentsId) => this.debuggerQueue.pending(webContentsId),
       cssStatePreview: () => this.cssStatePreview,
       ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab),
-      changed: (persist) => this.changed(persist)
+      changed: (persist) => this.changed(persist),
+      text: (key, parameters) => this.text(key, parameters)
     }
   }
 
