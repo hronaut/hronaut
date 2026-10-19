@@ -1654,6 +1654,7 @@ export class BrowserTabsManager {
       orderedTabs: () => this.orderedTabs(),
       closedTabs: () => this.closedTabs,
       activeTabId: () => this.activeTabId,
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
       options: () => this.options,
       inspectionPermissions: () => this.inspectionPermissions,
       deletedWorkspaceStorageIds: () => this.deletedWorkspaceStorageIds,
@@ -2741,10 +2742,12 @@ export class BrowserTabsManager {
       findTab: (tabId) => this.tabs.get(tabId),
       orderedTabs: () => this.orderedTabs(),
       closedTabs: () => this.closedTabs,
-      closeTabInternal: (tabId, ensureReplacement, respectBeforeUnload) => this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload),
+      closeTabInternal: (tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection) => (
+        this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection)
+      ),
       pendingHumanTabCloses: () => this.pendingHumanTabCloses,
-      performCloseTab: (tabId, ensureReplacement, respectBeforeUnload, forceClose) =>
-        this.performCloseTab(tabId, ensureReplacement, respectBeforeUnload, forceClose),
+      performCloseTab: (tabId, ensureReplacement, respectBeforeUnload, forceClose, yieldsToNewerSelection) =>
+        this.performCloseTab(tabId, ensureReplacement, respectBeforeUnload, forceClose, yieldsToNewerSelection),
       reopenClosedTabEntry: (closedTabId, active) => this.reopenClosedTabEntry(closedTabId, active),
       withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
       reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
@@ -2812,15 +2815,26 @@ export class BrowserTabsManager {
     return { splitPartnerId, nextId }
   }
 
-  private async prepareActiveCloseReplacement(tab: BrowserTab): Promise<boolean> {
+  /**
+   * Wakes the sleeping tab that replaces the shown tab before it closes. False
+   * when the close stops: the tab closed meanwhile, or the close yields to a
+   * tab selected while the replacement wakes, as the person's own close does.
+   * A close that does not yield, such as an agent's or a whole workspace's,
+   * still closes the tab, which needs no replacement once another tab shows.
+   */
+  private async prepareActiveCloseReplacement(tab: BrowserTab, yieldsToNewerSelection: boolean): Promise<boolean> {
     if (tab.id !== this.activeTabId) return true
     const selectionGeneration = this.tabSelectionGeneration
+    /** Whether the close stops, goes on with no replacement to wake, or still waits for the tab's replacement. */
+    const nextStep = (): 'stop' | 'close' | 'wake' => {
+      if (this.tabs.get(tab.id) !== tab) return 'stop'
+      if (this.activeTabId === tab.id && this.tabSelectionGeneration === selectionGeneration) return 'wake'
+      if (yieldsToNewerSelection) return 'stop'
+      return this.activeTabId === tab.id ? 'wake' : 'close'
+    }
     while (true) {
-      if (
-        this.tabs.get(tab.id) !== tab
-        || this.activeTabId !== tab.id
-        || this.tabSelectionGeneration !== selectionGeneration
-      ) return false
+      const step = nextStep()
+      if (step !== 'wake') return step === 'close'
       const transition = this.closeTabTransition(tab)
       if (!transition.nextId) return true
       const replacement = this.tabs.get(transition.nextId)
@@ -2828,11 +2842,8 @@ export class BrowserTabsManager {
       try {
         await this.wakeTab(replacement.id)
       } catch (error) {
-        if (
-          this.tabs.get(tab.id) !== tab
-          || this.activeTabId !== tab.id
-          || this.tabSelectionGeneration !== selectionGeneration
-        ) return false
+        const stepAfterFailure = nextStep()
+        if (stepAfterFailure !== 'wake') return stepAfterFailure === 'close'
         const currentReplacementId = this.closeTabTransition(tab).nextId
         if (this.tabs.get(replacement.id) !== replacement || currentReplacementId !== replacement.id) {
           continue
@@ -2848,16 +2859,18 @@ export class BrowserTabsManager {
   private closeTabInternal(
     tabId: string,
     ensureReplacement: boolean,
-    respectBeforeUnload = false
+    respectBeforeUnload = false,
+    yieldsToNewerSelection = false
   ): Promise<BrowserState> {
-    return this.withTabLabelLifecycle(() => closeTabAfterLabelSave(this.personTabCloseAccess(), tabId, ensureReplacement, respectBeforeUnload))
+    return this.withTabLabelLifecycle(() => closeTabAfterLabelSave(this.personTabCloseAccess(), tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection))
   }
 
   private async performCloseTab(
     tabId: string,
     ensureReplacement: boolean,
     respectBeforeUnload: boolean,
-    forceClose: boolean
+    forceClose: boolean,
+    yieldsToNewerSelection: boolean
   ): Promise<BrowserState> {
     const tab = this.getTab(tabId)
     const webContents = tab.webContents
@@ -2878,7 +2891,7 @@ export class BrowserTabsManager {
       if (replacement) this.selectTab(replacement.id)
       else if (!webContents.isDestroyed()) this.selectTab(tab.id)
     }
-    if (!(await this.prepareActiveCloseReplacement(tab))) return this.getState()
+    if (!(await this.prepareActiveCloseReplacement(tab, yieldsToNewerSelection))) return this.getState()
     if (this.tabs.get(tab.id) !== tab) return this.getState()
     let stagedClose: ReturnType<BrowserTabsManager['stageBeforeUnloadClose']> | undefined
     if (respectBeforeUnload && !forceClose && !webContents.isDestroyed()) {
@@ -2921,7 +2934,7 @@ export class BrowserTabsManager {
           || webContents.isDestroyed()
           || tab.navigationGeneration !== navigationGeneration
         ) return this.getState()
-        return this.performCloseTab(tabId, ensureReplacement, true, true)
+        return this.performCloseTab(tabId, ensureReplacement, true, true, yieldsToNewerSelection)
       }
       if (this.tabs.get(tab.id) !== tab) {
         stagedClose.cleanup()
@@ -3012,17 +3025,17 @@ export class BrowserTabsManager {
     cancelNativeSelectionSessions(this.nativeSelectionsAccess(), tab)
   }
 
-  private async closeTabs(
-    tabIds: string[],
-    ensureReplacement = true,
-    respectBeforeUnload = false
-  ): Promise<BrowserState> {
-    for (const tabId of tabIds) {
-      if (this.tabs.has(tabId)) {
-        const requestedTab = this.tabs.get(tabId)
-        await this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload)
-        if (respectBeforeUnload && this.tabs.get(tabId) === requestedTab) break
-      }
+  /**
+   * Closes tabs together, such as a workspace's. The active one closes last,
+   * so it hands over to a tab that stays open rather than waking a sleeping
+   * one only to close it next.
+   */
+  private async closeTabs(tabIds: string[], ensureReplacement = true): Promise<BrowserState> {
+    const pending = [...tabIds]
+    while (pending.length) {
+      const inactiveIndex = pending.findIndex((tabId) => tabId !== this.activeTabId)
+      const tabId = pending.splice(inactiveIndex === -1 ? 0 : inactiveIndex, 1)[0]!
+      if (this.tabs.has(tabId)) await this.closeTabInternal(tabId, ensureReplacement)
     }
     return this.getState()
   }
