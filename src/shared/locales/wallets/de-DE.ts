@@ -292,6 +292,7 @@ export const deDEWallets = {
     "hash": "Genehmigungs-Hash",
     "hashPending": "wird bei Genehmigung berechnet",
     "reject": "Ablehnen",
-    "approve": "Exakte Anfrage genehmigen"
+    "approve": "Exakte Anfrage genehmigen",
+    "requestFailed": "Wallet-Anfrage fehlgeschlagen"
   }
 }

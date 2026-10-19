@@ -292,6 +292,7 @@ export const plPLWallets = {
     "hash": "Skrót zatwierdzenia",
     "hashPending": "obliczany przy zatwierdzeniu",
     "reject": "Odrzuć",
-    "approve": "Zatwierdź dokładne żądanie"
+    "approve": "Zatwierdź dokładne żądanie",
+    "requestFailed": "Żądanie portfela nie powiodło się"
   }
 }
