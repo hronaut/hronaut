@@ -34,6 +34,7 @@ export const ISOLATED_WORLDS = {
   screenshotObservation: 1027,
   textInsertion: 1028,
   textFileFill: 1029,
+  animationState: 1030,
   faviconDecoder: 1100
 } as const satisfies Record<string, number>
 

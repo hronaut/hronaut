@@ -59,6 +59,7 @@ import { registerBrowserFind } from './tools/browser-find/index.js'
 import { registerBrowserElementInspect } from './tools/browser-element-inspect/index.js'
 import { registerBrowserMediaState } from './tools/browser-media-state/index.js'
 import { registerBrowserImageState } from './tools/browser-image-state/index.js'
+import { registerBrowserAnimationState } from './tools/browser-animation-state/index.js'
 import { registerBrowserGenerateLocator } from './tools/browser-generate-locator/index.js'
 import { registerBrowserReconciliation } from './tools/browser-reconciliation/index.js'
 import { registerBrowserClick } from './tools/browser-click/index.js'
@@ -697,6 +698,7 @@ export function createBrowserMcpServer(
   registerBrowserElementInspect(toolContext)
   registerBrowserMediaState(toolContext)
   registerBrowserImageState(toolContext)
+  registerBrowserAnimationState(toolContext)
   registerBrowserGenerateLocator(toolContext)
   registerBrowserReconciliation(toolContext)
   registerBrowserClick(toolContext)

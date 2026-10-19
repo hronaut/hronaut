@@ -22,6 +22,7 @@ import { callWebMcpTool, listWebMcpTools, webMcpStatus, type WebMcpStatus, type 
 import type { PwaInspectionAccess } from './pwa-inspection/pwa-inspection-access.js'
 import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import type { ElementInspectionAccess } from './element-inspection/element-inspection-access.js'
+import { animationState } from './animation-state/animation-state.js'
 import { elementInspection, imageState, mediaState } from './element-inspection/element-inspection.js'
 import type { BrowserConsoleMessageRecord, ConsoleCapture, ConsoleMessagesAccess } from './console-messages/console-messages-access.js'
 import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage } from './console-messages/console-messages.js'
@@ -48,6 +49,7 @@ import type { NativeKeyHoldInput, NativeKeyHoldProgress, NativeInputDispatchObse
 import type { AgentKeysAccess } from './agent-keys/agent-keys-access.js'
 import { holdKey, press } from './agent-keys/agent-keys.js'
 import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
+import type { BrowserAnimationState } from '../../shared/animation-state.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import type { PendingPdfExport } from './pdf-export-publication.js'
 import type { PdfExportAccess } from './pdf-export/pdf-export-access.js'
@@ -3418,6 +3420,10 @@ export class BrowserTabsManager {
 
   mediaState(options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserMediaState> {
     return mediaState(this.elementInspectionAccess(), options, validateInspection, deferInspection)
+  }
+
+  animationState(options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserAnimationState> {
+    return animationState(this.elementInspectionAccess(), options, validateInspection, deferInspection)
   }
 
   imageState(options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserImageState> {
