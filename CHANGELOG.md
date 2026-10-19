@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-10-19
+
 ### Added
 
 - Agents can check what Chromium itself computes for one element's accessibility, where page heuristics guess wrong: a number input is a spinbutton and a multiple select a listbox. `browser_computed_accessibility` returns the element's computed role, whether and why it is hidden from assistive technology (such as `aria-hidden`, `inert` or not rendered), and states such as expanded, selected, pressed, checked, required and readonly, with states Chromium did not report listed apart from false. The element's name, description and value never leave Hronaut, and elements with too much text to check first are refused.
@@ -24,6 +26,19 @@ All notable changes to Hronaut are documented in this file.
 - Hronaut in Ukrainian, Russian, German, French, Spanish or Polish no longer shows the Wallets settings, the video recorder, capability profiles, the remote connections setting and Home's MCP readiness checks in English. About 400 strings in each language had never been translated; they now are, and a test fails when a language shows English labels or sentences again. In those languages, **Settings → MCP security** also no longer says that only processes on this computer can connect while authentication is off: like the English text, it now warns that other computers can too when remote access is on.
 - An agent's call on a tab no longer stays shown as running after Hronaut withholds its result because the agent's access changed while it ran, such as a capability profile expiring during a `browser_pwa_lifecycle` read. The activity now ends as failed.
 - Recording code coverage no longer freezes a page that contains a `debugger` statement. The page used to stop at the statement until coverage was stopped, so the report missed everything after it; it now keeps running. Opening Developer Tools still ends the recording, and they pause on the statement as usual.
+
+### Known issues
+
+- A panel opened in its own window keeps the operating system's tooltips instead of the themed ones.
+- While a notification such as **Tab closed** shows at the bottom of the page, the page does not get clicks or wheel scrolling in the area just around the notification, about 10 px on each side.
+- `wallet_sendCalls` batches are not atomic: when a later call is rejected, fails or reverts, the earlier calls stay on chain, as separate transactions would. A dApp that requires an atomic batch gets error code 5760. A batch whose transaction the network dropped while its nonce is still unused stays pending, and `wallet_showCallsStatus` is not supported.
+- An EVM node that lags behind for more than a minute, or has pruned old transactions, can make a mined transaction look replaced, so Hronaut reports it as failed.
+- A link or form on a dApp that starts a download, or that the server answers with no content, counts as leaving the page for wallet requests: Hronaut cancels the page's open wallet requests and returns it to its default network without a `chainChanged` event, although the page stays.
+- `wallet_balance` marks an allowance `unlimited` only at 2^160 − 1 or more, so a token that stores allowances in 96 bits, such as UNI, shows its maximum approval as a large amount.
+- Typed-data meta-transactions are recognized by type name, by a `bytes` call-data field named `data`, `callData`, `calldata` or `functionSignature`, or as a MetaMask delegation. One that uses another name and another field name is still signed on mainnet when **Also sign typed data on mainnet** is on, so that switch is not a general spending limit.
+- Wallet policies saved by 2.45.0 or earlier that list a token method (`erc20.`, `trc20.` or `nft.`) do not sign token calls without a click. Remove such a policy and add it again with its token contract, or with **Allow any token contract**.
+- Websites' raw `eth_sign`, Solana and TRON requests still need a person to approve, even under a website sign-in policy, and typed data is signed without a click only by a dedicated agent wallet with the typed-data switch on.
+- Hronaut does not inject `window.tronLink` or `window.tronWeb` as a full TronWeb instance; Tron dApps that require TronLink specifically will not detect it.
 
 ## [3.2.0] - 2026-10-19
 
