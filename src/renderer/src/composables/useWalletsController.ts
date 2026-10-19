@@ -21,6 +21,8 @@ import type {
 export interface WalletsControllerOptions {
   api: HronautWalletsApi
   formatError: (error: unknown) => string
+  /** Reports the failure of an approval or rejection whose request has already left the queue, so no dialog shows it. */
+  reportRequestError: (message: string) => void
 }
 
 export function useWalletsController(options: WalletsControllerOptions) {
@@ -171,7 +173,12 @@ export function useWalletsController(options: WalletsControllerOptions) {
     } catch (error) {
       if (!disposed) {
         if (requestId === undefined) setError(error)
-        else requestError.value = { requestId, message: options.formatError(error) }
+        // Main publishes the queue before it answers, so a request the failure ended has already left it here.
+        else if (requests.value.some((request) => request.id === requestId && request.status === 'awaiting-human')) {
+          requestError.value = { requestId, message: options.formatError(error) }
+        } else {
+          options.reportRequestError(options.formatError(error))
+        }
       }
       // A failed follow-up read must not turn a committed mutation into a
       // retryable failure (import confirmation tokens are already consumed).

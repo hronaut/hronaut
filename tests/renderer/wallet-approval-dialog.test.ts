@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -56,8 +56,11 @@ function liveController() {
       return () => undefined
     })
   } as unknown as HronautWalletsApi
-  const wallets = useWalletsController({ api, formatError: (error) => error instanceof Error ? error.message : String(error) })
-  return { wallets, publish: (requests: WalletRequestSummary[]) => publish(requests) }
+  const reportRequestError = vi.fn()
+  const wallets = useWalletsController({
+    api, formatError: (error) => error instanceof Error ? error.message : String(error), reportRequestError
+  })
+  return { wallets, reportRequestError, publish: (requests: WalletRequestSummary[]) => publish(requests) }
 }
 
 describe('WalletApprovalDialog', () => {
@@ -73,10 +76,11 @@ describe('WalletApprovalDialog', () => {
     expect(await screen.findByRole('alertdialog', { name: /sign message/i })).toHaveTextContent('Main wallet')
     expect(screen.queryByText('Wrong passphrase')).toBeNull()
     expect(wallets.errorMessage.value).toBe('Wrong passphrase')
+    wallets.dispose()
   })
 
   it('shows a failed decision on its own request, never on the next one in the queue', async () => {
-    const { wallets, publish } = liveController()
+    const { wallets, reportRequestError, publish } = liveController()
     await wallets.initialize()
     render(WalletApprovalDialog, { props: { controller: wallets, workspaces: [] }, global: { plugins: [createHronautI18n('en-US')] } })
     publish([request(), request('request-2', 'Second wallet')])
@@ -86,11 +90,16 @@ describe('WalletApprovalDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Approve exact request' }))
     await screen.findByText('Second wallet')
     await vi.waitFor(() => expect(wallets.busy.value).toBe(false))
+    await nextTick()
     expect(screen.queryByText('Request request-1 expired')).toBeNull()
+    // The request the failure ended has no dialog left, so the failure is reported apart from the queue.
+    expect(reportRequestError).toHaveBeenCalledExactlyOnceWith('Request request-1 expired')
 
     await user.click(screen.getByRole('button', { name: 'Reject' }))
     expect(await screen.findByText('The wallet service stopped')).toHaveAttribute('role', 'alert')
+    expect(reportRequestError).toHaveBeenCalledOnce()
     expect(wallets.errorMessage.value).toBe('')
+    wallets.dispose()
   })
 
   it('shows exact trusted message content and only acts from explicit chrome buttons', async () => {

@@ -22,7 +22,7 @@ const request = computed(() => props.controller.awaitingApproval.value[0])
 const open = computed(() => Boolean(request.value))
 const requestId = computed(() => request.value?.id)
 // Only this request's own failure: a Settings error or one from a request the queue has moved past belongs elsewhere.
-const errorMessage = computed(() => {
+const requestErrorMessage = computed(() => {
   const failure = props.controller.requestError.value
   return failure && failure.requestId === requestId.value ? failure.message : ''
 })
@@ -225,7 +225,7 @@ function rawDetails(): string {
           <pre>{{ rawDetails() }}</pre>
         </details>
         <p class="wallet-approval-hash">{{ t('wallets.approval.hash') }} <code data-testid="wallet-approval-hash">{{ request.approvalHash ?? t('wallets.approval.hashPending') }}</code></p>
-        <output v-if="errorMessage" class="site-controls-error" role="alert">{{ errorMessage }}</output>
+        <output v-if="requestErrorMessage" class="site-controls-error" role="alert">{{ requestErrorMessage }}</output>
         <footer>
           <UiButton type="button" :disabled="controller.busy.value" @click="controller.reject(request.id)">{{ t('wallets.approval.reject') }}</UiButton>
           <UiButton variant="primary" type="button" :disabled="controller.busy.value" @click="controller.approve(request.id)">{{ t('wallets.approval.approve') }}</UiButton>
