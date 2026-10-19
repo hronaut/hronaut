@@ -206,6 +206,19 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
     expect(internals.activeTabId).toBe('agent-other')
   })
 
+  it('still makes the agent\'s tab active in its workspace when the person picks a tab in another workspace meanwhile', async () => {
+    const { manager, internals } = fixture()
+    internals.mcpTabGroups.get('Agent')!.activeTabId = null
+    const wake = deferred()
+    internals.wakeTab = vi.fn(() => wake.promise)
+    const selecting = manager.selectAgentTabAndWait('agent-tab')
+    manager.selectTab('video')
+    wake.resolve()
+    await selecting
+    expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe('agent-tab')
+    expect(internals.activeTabId).toBe('video')
+  })
+
   it('reports a tab whose renderer ended while it woke', async () => {
     const { manager, internals, agentTab } = fixture()
     internals.mcpTabGroups.get('Agent')!.activeTabId = null

@@ -33,24 +33,19 @@ export async function selectTabAndWait<Tab extends TabSelectionTab>(access: TabS
 /**
  * Wakes an agent's tab and makes it its workspace's active tab without
  * showing it. Follow agents shows it through the agent's call on it, so it
- * waits as for any call, such as while a page fills the window. A tab
- * selection or another active tab in its workspace while it wakes, such as
- * the person's pick, or the tab closing, wins: this one then returns the
- * state without marking it.
+ * waits as for any call, such as while a page fills the window. Another
+ * active tab in its workspace while it wakes, such as the person's pick, or
+ * the tab closing, wins: this one then returns the state without marking it.
+ * A selection in another workspace does not stop it.
  */
 export async function selectAgentTabAndWait<Tab extends TabSelectionTab>(access: TabSelectionAccess<Tab>, tabId: string): Promise<BrowserState> {
   const tab = access.getTab(tabId)
   if (tab.webContents.isDestroyed()) {
     throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
   }
-  const selectionGeneration = access.tabSelectionGeneration()
   const workspaceActiveTabId = access.workspaceActiveTabId(tab)
   await access.wakeTab(tabId)
-  if (
-    access.findTab(tabId) !== tab
-    || selectionGeneration !== access.tabSelectionGeneration()
-    || workspaceActiveTabId !== access.workspaceActiveTabId(tab)
-  ) return access.getState()
+  if (access.findTab(tabId) !== tab || workspaceActiveTabId !== access.workspaceActiveTabId(tab)) return access.getState()
   if (tab.webContents.isDestroyed()) {
     throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
   }
