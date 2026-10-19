@@ -292,6 +292,7 @@ export const enUSWallets = {
     "hash": "Approval hash",
     "hashPending": "calculated on approval",
     "reject": "Reject",
-    "approve": "Approve exact request"
+    "approve": "Approve exact request",
+    "requestFailed": "Wallet request failed"
   }
 }
