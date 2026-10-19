@@ -16,7 +16,7 @@ it('reads an ISO 8601 instant with Z or a UTC offset, or epoch milliseconds', ()
 it('refuses dates and times that do not exist instead of rolling them over', () => {
   for (const at of [
     '2026-02-29T09:00Z', '2026-04-31T00:00Z', '2026-13-01T00:00Z', '2026-12-31T24:00:00Z',
-    '2026-12-31T23:60Z', '2026-12-31T23:59:60Z', '2026-12-31T23:59Z+24:00', '2026-12-31T23:59+05:60',
+    '2026-12-31T23:60Z', '2026-12-31T23:59:60Z', '2026-12-31T23:59:30+24:00', '2026-12-31T23:59+05:60',
     '2026-12-31', '2026-12-31T23:59:30', '31/12/2026 23:59', '+275760-09-13T00:00:00Z'
   ]) expect(() => stagedEpochMs(at, undefined), at).toThrow('at must be an existing date and time')
   expect(() => stagedEpochMs('2026-12-31T23:59:30Z', 0)).toThrow('exactly one')

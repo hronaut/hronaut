@@ -12,7 +12,11 @@ export const FIXED_DATE_MAX_EPOCH_MS = 8_640_000_000_000_000
  */
 export type FixedDateDisarmReason = 'origin-changed' | 'authority-changed' | 'workspace-changed'
 
-/** What the tab's current top-level document has: the fixed Date, the native one, or unknown after a navigation that may not have committed. */
+/**
+ * What the tab's current top-level document has: the fixed Date, the native
+ * one, or unknown after a navigation that may not have committed, a page
+ * restored from the back-forward cache, an error page or a renderer exit.
+ */
 export type FixedDateDocumentState = 'fixed' | 'native' | 'unknown'
 
 export type FixedDateStatus = 'off' | 'staged' | 'active' | 'reset-reload-required' | 'disarmed'
