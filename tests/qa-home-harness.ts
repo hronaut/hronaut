@@ -9,6 +9,7 @@ import type { ConnectedAgent } from '../src/shared/agent-status.js'
 import type { AgentPresenceState } from '../src/shared/agent-presence.js'
 import type { HomeBootstrap, HomeDashboard, HomeFeedEntry, HronautHomeApi } from '../src/shared/home.js'
 import type { HomeWorkspaceState } from '../src/shared/home-workspaces.js'
+import type { SupportedLocale } from '../src/shared/locale.js'
 import type { BrowserSavedTabGroupState, BrowserTabGroupState } from '../src/shared/types.js'
 
 /** Home's clock in every QA test: 10:00 local time, so the greeting is "Good morning" in any time zone. */
@@ -57,6 +58,7 @@ export interface MountOptions {
   workspaces?: HomeWorkspaceState
   api?: Partial<HronautHomeApi>
   authenticationDisabled?: boolean
+  locale?: SupportedLocale
 }
 
 export interface HomeHarness {
@@ -78,7 +80,7 @@ export function mountTestHome(options: MountOptions = {}): HomeHarness {
   let current = options.dashboard ?? baseDashboard
   let workspaces = options.workspaces ?? emptyWorkspaces
   const html = renderHomePage({
-    endpoint: current.endpoint, initialState: current, locale: 'en-US', platform: 'linux',
+    endpoint: current.endpoint, initialState: current, locale: options.locale ?? 'en-US', platform: 'linux',
     authenticationDisabled: options.authenticationDisabled, workspaces
   })
   document.documentElement.innerHTML = html

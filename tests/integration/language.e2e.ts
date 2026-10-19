@@ -197,3 +197,16 @@ test('keeps late Settings sections reachable by mouse wheel at large interface s
   await expect(appWindow.getByRole('heading', { name: 'Activate Hronaut' })).toBeVisible()
   await appWindow.screenshot({ path: testInfo.outputPath('settings-large-scale-wheel.png') })
 })
+
+test('names a new tab in the interface language while agents keep its English title', async ({ appWindow }) => {
+  // Hronaut gave every blank tab the English title "New tab", and the tab strip showed it in every language.
+  await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.locator('#setting-language').selectOption('uk-UA')
+  await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
+  await appWindow.keyboard.press('Control+t')
+  const strip = appWindow.getByRole('group', { name: 'Вкладки й робочі простори браузера' })
+  await expect(strip.locator('.tab-title').last()).toHaveText('Нова вкладка')
+  await expect(strip).not.toContainText('New tab')
+  await expect.poll(async () => (await appWindow.evaluate('window.hronaut.getState()') as { tabs: Array<{ title: string; url: string }> })
+    .tabs.filter((tab) => tab.url === 'about:blank').map((tab) => tab.title)).toEqual(['New tab'])
+})

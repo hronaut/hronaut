@@ -3,6 +3,7 @@ import type { HomeBootstrap, HomeDashboard, HomeFeedEntry, HronautHomeApi } from
 import type { HomeWorkspaceAction, HomeWorkspaceState } from '../../../shared/home-workspaces.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../../shared/undo.js'
 import { agentStepText } from '../../../shared/agent-step-text.js'
+import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { mountActivityFeed } from './activity-feed.js'
 import { element, interpolate, messageAt, pluralText, timeAgo } from './dom.js'
 import { renderNewWorkspaceTile, renderWorkspaceCard, renderWorkspaceEmpty, updateCardStatus, type CardStatus } from './workspace-card.js'
@@ -66,7 +67,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       ...state.savedTabGroups.map(group => ({ ...group, archived: true, timestamp: group.savedAt }))
     ].sort((a, b) => b.timestamp.localeCompare(a.timestamp) || a.name.localeCompare(b.name))
     const query = search.value.trim().toLocaleLowerCase(data.locale)
-    const visible = groups.filter(group => group.archived === (view === 'archived') && `${group.name} ${group.description ?? ''} ${group.tabs.map(tab => `${tab.title} ${tab.url}`).join(' ')}`.toLocaleLowerCase(data.locale).includes(query))
+    const visible = groups.filter(group => group.archived === (view === 'archived') && `${group.name} ${group.description ?? ''} ${group.tabs.map(tab => `${tabTitleForDisplay(tab, data.messages.tabSearch.newTabTitle)} ${tab.url}`).join(' ')}`.toLocaleLowerCase(data.locale).includes(query))
     for (const collection of ['open', 'archived'] as const) {
       const tab = element<HTMLButtonElement>(`workspaces-${collection}`)
       tab.textContent = `${messages[collection]} (${groups.filter(group => group.archived === (collection === 'archived')).length})`
@@ -88,7 +89,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       const focusKey = focused?.dataset.workspaceAction ?? focused?.dataset.workspacePreference
       let focusTarget = focused
       if (card.signature !== signature) {
-        renderWorkspaceCard(card.node, group, { messages, labels, mission, count, allHumanInteractionLocked: state.allHumanInteractionLocked, status })
+        renderWorkspaceCard(card.node, group, { messages, labels, mission, untitledTab: data.messages.tabSearch.newTabTitle, count, allHumanInteractionLocked: state.allHumanInteractionLocked, status })
         card.signature = signature
         focusTarget = focusKey
           ? card.node.querySelector<HTMLElement>(`[data-workspace-action="${focusKey}"],[data-workspace-preference="${focusKey}"]`)

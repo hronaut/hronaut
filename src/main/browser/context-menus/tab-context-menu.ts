@@ -1,5 +1,6 @@
 import { Menu, type MenuItemConstructorOptions } from 'electron'
 import type { BrowserState } from '../../../shared/types.js'
+import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { reactInspectionMenu } from '../react-inspection-menu.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { TabContextMenuAccess, TabContextMenuTab } from './tab-context-menu-access.js'
@@ -99,7 +100,7 @@ export function showTabContextMenu<Tab extends TabContextMenuTab>(access: TabCon
           enabled: splitCandidates.length > 0,
           submenu: splitCandidates.map((candidate) => ({
             id: `split-with-${candidate.id}`,
-            label: (candidate.title || candidate.url).slice(0, 72),
+            label: tabTitleForDisplay(candidate, access.text('tabSearch.newTabTitle')).slice(0, 72),
             click: () => runAction('open the tab in split view', () => openSplitWith(tab.id, candidate.id))
           }))
         }

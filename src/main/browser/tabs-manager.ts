@@ -60,6 +60,7 @@ import { showTabContextMenu } from './context-menus/tab-context-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
 import { FixedDateController, type FixedDateAuthority } from './fixed-date/fixed-date.js'
 import type { ReactInspectionCommand } from '../../shared/react-inspection.js'
+import { UNTITLED_TAB_TITLE } from '../../shared/tab-title.js'
 import type { FixedDateAction, FixedDateBootstrap, FixedDateResult } from '../../shared/fixed-date.js'
 import type { DomMutationSourceAction, DomMutationSourceKind, DomMutationSourceReport } from '../../shared/dom-mutation-source.js'
 import { BrowserPwaLifecycle } from './pwa-lifecycle.js'
@@ -5002,7 +5003,7 @@ export class BrowserTabsManager {
       id,
       discoveryTitle: new TabDiscoveryTitle(),
       title: normalizeTabTitle(
-        options.title || (url === HRONAUT_HOME_URL ? 'Hronaut Home' : url === 'about:blank' ? 'New tab' : url)
+        options.title || (url === HRONAUT_HOME_URL ? 'Hronaut Home' : url === 'about:blank' ? UNTITLED_TAB_TITLE : url)
       ),
       url,
       loading: true,

@@ -2,6 +2,7 @@ import type { HomeBootstrap } from '../../../shared/home.js'
 import { HOME_CARD_TAB_LIMIT } from '../../../shared/home-workspaces.js'
 import type { BrowserTabGroupState } from '../../../shared/types.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX } from '../../../shared/tab-groups.js'
+import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { interpolate } from './dom.js'
 
 type WorkspaceCard = Pick<BrowserTabGroupState,
@@ -21,6 +22,8 @@ interface CardContext {
   messages: HomeBootstrap['messages']['workspaceLibrary']
   labels: HomeBootstrap['messages']['settings']['privacy']
   mission: HomeBootstrap['messages']['home']['mission']
+  /** What a blank tab without a title of its own is called. */
+  untitledTab: string
   count: (message: string, value: number) => string
   allHumanInteractionLocked: boolean
   status: CardStatus
@@ -52,6 +55,7 @@ function renderTabs(group: WorkspaceCard, context: CardContext): HTMLElement {
     const tile = document.createElement('li')
     tile.className = 'card-tab'
     const site = siteName(tab.url)
+    const title = tabTitleForDisplay(tab, tab.url === 'about:blank' ? context.untitledTab : '')
     if (tab.faviconDataUrl) {
       const icon = document.createElement('img')
       icon.className = 'card-tab-icon'
@@ -61,11 +65,11 @@ function renderTabs(group: WorkspaceCard, context: CardContext): HTMLElement {
       icon.height = 16
       tile.append(icon)
     } else {
-      const initial = text('span', (site || tab.title || '·').charAt(0).toLocaleUpperCase(), 'card-tab-icon card-tab-initial')
+      const initial = text('span', (site || title || '·').charAt(0).toLocaleUpperCase(), 'card-tab-icon card-tab-initial')
       initial.setAttribute('aria-hidden', 'true')
       tile.append(initial)
     }
-    tile.append(text('span', tab.title || site || tab.url, 'card-tab-title'))
+    tile.append(text('span', title || site || tab.url, 'card-tab-title'))
     tiles.append(tile)
   }
   if (hidden) tiles.append(text('li', `+${hidden}`, 'card-tab card-tab-more'))

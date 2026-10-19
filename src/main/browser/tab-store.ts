@@ -12,6 +12,7 @@ import { writeTextFileAtomically } from '../atomic-file.js'
 import { MAX_TAB_TITLE_CHARS, normalizeTabTitle } from './tab-metadata.js'
 import { isAgentWorkspaceNavigationUrl } from './url.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
+import { UNTITLED_TAB_TITLE } from '../../shared/tab-title.js'
 import {
   evaluateWorkspaceNavigation,
   normalizeWorkspaceNavigationPolicy
@@ -275,7 +276,7 @@ function sanitizePersistedStateUrls(state: PersistedBrowserState): PersistedBrow
     const url = allowed ? normalized : 'about:blank'
     return {
       ...tab,
-      title: url !== normalized ? 'New tab' : sanitizedUrlFallbackTitle(tab.title, originalUrl, normalized),
+      title: url !== normalized ? UNTITLED_TAB_TITLE : sanitizedUrlFallbackTitle(tab.title, originalUrl, normalized),
       url
     }
   }
@@ -511,7 +512,7 @@ export class TabStateStore {
               : 'about:blank'
             const title = (tab as Record<string, unknown>).title as string
             const normalizedTitle = url !== normalizedUrl
-              ? 'New tab'
+              ? UNTITLED_TAB_TITLE
               : normalizeTabTitle(sanitizedUrlFallbackTitle(title, originalUrl, url), url)
             if (url !== originalUrl) repairedPersistedState = true
             if (normalizedTitle !== title) repairedPersistedState = true
@@ -562,7 +563,7 @@ export class TabStateStore {
         const defaultFontSize = normalizeDefaultFontSize(candidate.defaultFontSize)
         if (candidate.defaultFontSize !== undefined && defaultFontSize === undefined) repairedPersistedState = true
         const normalizedTitle = normalizedUrl !== url
-          ? 'New tab'
+          ? UNTITLED_TAB_TITLE
           : normalizeTabTitle(sanitizedUrlFallbackTitle(candidate.title, candidate.url as string, normalizedUrl), normalizedUrl)
         if (normalizedTitle !== candidate.title) repairedPersistedState = true
         usedTabIds.add(candidate.id)

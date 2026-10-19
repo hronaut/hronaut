@@ -9,6 +9,7 @@ import IconPerson from '~icons/material-symbols/person-outline-rounded'
 import IconSmartToy from '~icons/material-symbols/smart-toy-outline-rounded'
 import { AGENT_STEP_HISTORY_LIMIT, agentAvatarColorHex, type AgentPresence, type HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
 import type { BrowserState } from '../../../shared/types.js'
+import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { agentFinishedStepText } from '../../../shared/agent-step-text.js'
 import { useAgentPresence } from '../composables/useAgentPresence.js'
 import { useAgentStepHistory, type AgentStepHistoryTarget, type ShownAgentStep } from '../composables/useAgentStepHistory.js'
@@ -76,8 +77,9 @@ const groups = computed<StepGroup[]>(() => {
 function tabTitle(tabId: string): string {
   const tab = props.state.tabs.find((candidate) => candidate.id === tabId)
   if (!tab) return t('agentSteps.closedTab')
-  const title = tab.label || tab.title
+  const title = tab.label || tabTitleForDisplay(tab, '')
   if (title.trim()) return title
+  if (tab.url === 'about:blank') return t('tabSearch.newTabTitle')
   try {
     return new URL(tab.url).host || tab.url
   } catch {

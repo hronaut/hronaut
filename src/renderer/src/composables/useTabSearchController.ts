@@ -1,4 +1,5 @@
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
+import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { computed, nextTick, ref, watch, type Ref } from 'vue'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import type {
@@ -97,20 +98,20 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     if (resultKind.value !== 'all' && resultKind.value !== 'open') return []
     if (!searchTerms.value.length) return regularTabs.value
     return regularTabs.value.filter(tab => matchesQuery(
-      tab.label ?? '', tab.title || options.translate('tabSearch.newTabTitle'), tab.url, tab.mcpGroupName ?? ''
+      tab.label ?? '', tabTitleForDisplay(tab, options.translate('tabSearch.newTabTitle')), tab.url, tab.mcpGroupName ?? ''
     ))
   })
   const filteredClosedTabs = computed(() => {
     if (resultKind.value !== 'all' && resultKind.value !== 'closed') return []
     if (!searchTerms.value.length) return options.state.value.closedTabs
-    return options.state.value.closedTabs.filter(tab => matchesQuery(tab.label ?? '', tab.title, tab.url))
+    return options.state.value.closedTabs.filter(tab => matchesQuery(tab.label ?? '', tabTitleForDisplay(tab, options.translate('tabSearch.newTabTitle')), tab.url))
   })
   const filteredSavedTabGroups = computed(() => {
     if (resultKind.value !== 'all' && resultKind.value !== 'saved') return []
     if (!searchTerms.value.length) return options.state.value.savedTabGroups
     return options.state.value.savedTabGroups.filter(group => (
       matchesQuery(group.name)
-      || group.tabs.some(tab => matchesQuery(group.name, tab.label ?? '', tab.title, tab.url))
+      || group.tabs.some(tab => matchesQuery(group.name, tab.label ?? '', tabTitleForDisplay(tab, options.translate('tabSearch.newTabTitle')), tab.url))
     ))
   })
   const filteredWorkspaceGroups = computed<TabSearchWorkspaceGroup[]>(() => {
@@ -150,7 +151,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   function resultLabel(result: TabSearchResult): string {
     return result.kind === 'saved'
       ? result.tab.name
-      : result.tab.label || result.tab.title || options.translate('tabSearch.newTabTitle')
+      : result.tab.label || tabTitleForDisplay(result.tab, options.translate('tabSearch.newTabTitle'))
   }
 
   function resultIndex(kind: TabSearchResult['kind'], id: string): number {

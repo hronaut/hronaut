@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import BrowserTabsBar from '../../src/renderer/src/components/BrowserTabsBar.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AgentPresence, AgentPresenceSnapshot, HronautAgentPresenceApi } from '../../src/shared/agent-presence.js'
+import type { SupportedLocale } from '../../src/shared/locale.js'
 import type { BrowserState, BrowserTabGroupState, BrowserTabState } from '../../src/shared/types.js'
 
 const localStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
@@ -96,10 +97,11 @@ function renderTabs(
   state = browserState(),
   hydrated = true,
   orientation: 'horizontal' | 'vertical' = 'horizontal',
-  railPinned = true
+  railPinned = true,
+  locale: SupportedLocale = 'en-US'
 ) {
   return render(BrowserTabsBar, {
-    global: { plugins: [createHronautI18n('en-US')] },
+    global: { plugins: [createHronautI18n(locale)] },
     props: {
       state,
       hydrated,
@@ -152,6 +154,19 @@ describe('BrowserTabsBar', () => {
     expect(screen.getByRole('tab', { name: 'Page first' })).toHaveAttribute('aria-selected', 'false')
     await view.rerender({ settingsActive: false })
     expect(screen.getByRole('tab', { name: 'Page first' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it.each(['horizontal', 'vertical'] as const)('names a blank tab in the interface language in the %s strip', orientation => {
+    // Hronaut calls a blank tab "New tab" until a page names it; the strip showed that English title in every language.
+    const view = renderTabs(browserState({ tabs: [
+      tab('blank', { title: 'New tab', url: 'about:blank' }),
+      tab('site', { title: 'New tab', url: 'https://example.test/new' })
+    ] }), true, orientation, true, 'uk-UA')
+    const row = (id: string) => view.container.querySelector<HTMLElement>(`[data-tab-id="${id}"]`)!
+    expect(row('blank').querySelector('.tab-title')?.textContent).toBe('Нова вкладка')
+    expect(row('blank').textContent).not.toContain('New tab')
+    // A website that calls itself "New tab" keeps its own title.
+    expect(row('site').querySelector('.tab-title')?.textContent).toBe('New tab')
   })
 
   it('draws a tab\'s own lock and mute, not the browser-wide ones on every row', async () => {

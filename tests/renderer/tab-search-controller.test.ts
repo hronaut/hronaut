@@ -65,7 +65,7 @@ function browserState(tabs: BrowserTabState[] = [tab('alpha'), tab('beta', true)
   }
 }
 
-function createController(initialState = browserState(), initiallyOpen = false) {
+function createController(initialState = browserState(), initiallyOpen = false, translate = (key: string): string => key) {
   const state: Ref<BrowserState> = ref(initialState)
   const open = ref(initiallyOpen)
   const selectTab = vi.fn(async () => undefined)
@@ -90,7 +90,7 @@ function createController(initialState = browserState(), initiallyOpen = false) 
     syncState,
     selectTab,
     expandTabGroup,
-    translate: (key) => key,
+    translate,
     formatNumber: String,
     formatTime: String,
     describeEmulation: () => '',
@@ -113,6 +113,21 @@ describe('tab search controller', () => {
     controller.query.value = 'Tab alpha'
     expect(controller.results.value.map(result => result.tab.id)).toEqual(['alpha'])
     controller.dispose()
+  })
+
+  it('finds a blank tab by the name the interface gives it rather than the English title Hronaut keeps', () => {
+    const initial = browserState([{ ...tab('blank'), title: 'New tab', url: 'about:blank' }, tab('beta', true)])
+    initial.closedTabs = [{ id: 'closed', title: 'New tab', url: 'about:blank', pinned: false, closedAt: '2026-10-09T12:00:00Z' }]
+    initial.savedTabGroups = [{ ...savedGroup('archive'), tabs: [{ title: 'New tab', url: 'about:blank', pinned: false }] }]
+    const { controller } = createController(initial, false, key => key === 'tabSearch.newTabTitle' ? 'Нова вкладка' : key)
+    try {
+      controller.query.value = 'нова вкладка'
+      expect(controller.results.value.map(result => `${result.kind}:${result.tab.id}`)).toEqual(['open:blank', 'saved:archive', 'closed:closed'])
+      controller.query.value = 'New tab'
+      expect(controller.results.value).toEqual([])
+    } finally {
+      controller.dispose()
+    }
   })
 
   it.each([

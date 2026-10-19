@@ -24,6 +24,7 @@ import type {
   McpTabActivity
 } from '../../../shared/types.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX } from '../../../shared/tab-groups.js'
+import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { useTabSearchController } from '../composables/useTabSearchController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 import { vTooltip } from '../ui/tooltip.js'
@@ -248,7 +249,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
           <div class="tab-page-preview-toolbar">
             <UiButton ref="previewBack" @click="backToTabs">{{ t('tabSearch.backToTabs') }}</UiButton>
             <div class="tab-page-preview-heading">
-              <strong>{{ previewTab?.title || t('tabSearch.newTabTitle') }}</strong>
+              <strong>{{ previewTab ? tabTitleForDisplay(previewTab, t('tabSearch.newTabTitle')) : t('tabSearch.newTabTitle') }}</strong>
               <span>{{ previewTab ? tabDisplayUrl(previewTab) : t('tabSearch.previewClosed') }}</span>
             </div>
             <UiButton variant="primary" :disabled="!previewTab || actionPending" @click="previewTab && selectOpenTab(previewTab)">{{ t('tabSearch.openTab') }}</UiButton>
@@ -259,7 +260,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
             <UiButton :disabled="pagePreviewStatus === 'loading' || !previewTab || previewTab.loading || previewTab.sleeping" @click="pagePreview.refresh">{{ t('tabSearch.refreshPreview') }}</UiButton>
           </div>
           <div v-if="fullPreview" class="tab-page-preview-canvas" :class="`fit-${previewFit}`" tabindex="0" :aria-label="t('tabSearch.pagePreview')">
-            <img :src="fullPreview.dataUrl" :width="fullPreview.width" :height="fullPreview.height" :alt="t('tabSearch.fullPreviewAlt', { title: previewTab?.title || t('tabSearch.newTabTitle') })" draggable="false" />
+            <img :src="fullPreview.dataUrl" :width="fullPreview.width" :height="fullPreview.height" :alt="t('tabSearch.fullPreviewAlt', { title: previewTab ? tabTitleForDisplay(previewTab, t('tabSearch.newTabTitle')) : t('tabSearch.newTabTitle') })" draggable="false" />
           </div>
           <div v-else class="tab-page-preview-state" :role="pagePreviewStatus === 'loading' ? 'status' : 'alert'" :aria-busy="pagePreviewStatus === 'loading'">
             <span v-if="pagePreviewStatus === 'loading'" class="spinner" aria-hidden="true" />
@@ -361,9 +362,9 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                           <span v-else-if="tab.url === 'about:blank'">✦</span>
                           <IconLanguage v-else />
                         </span>
-                        <strong>{{ tab.label || tab.title || t('tabSearch.newTabTitle') }}</strong>
+                        <strong>{{ tab.label || tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) }}</strong>
                       </span>
-                      <small v-if="tab.label">{{ tab.title }}</small>
+                      <small v-if="tab.label">{{ tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) }}</small>
                       <span>{{ tabDisplayUrl(tab) }}</span>
                       <small v-if="tabMeta(tab)">{{ tabMeta(tab) }}</small>
                     </span>
@@ -373,14 +374,14 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                       class="tab-overview-more"
                       align="end"
                       :trigger-id="`tab-card-menu-${tab.id}`"
-                      :label="t('tabSearch.moreActionsAria', { title: tab.title || t('tabSearch.newTabTitle') })"
+                      :label="t('tabSearch.moreActionsAria', { title: tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) })"
                       :tooltip="t('tabSearch.moreActions')"
                       :items="cardMenuItems(tab)"
                       :open="cardMenuTabId === tab.id"
                       @update:open="cardMenuTabId = $event ? tab.id : (cardMenuTabId === tab.id ? null : cardMenuTabId)"
                       @select="runCardMenuItem(tab, $event)"
                     ><template #trigger><IconMore aria-hidden="true" /></template></UiMenu>
-                    <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.closeTabAria', { title: tab.title || t('tabSearch.newTabTitle') })" v-tooltip="t('tabSearch.closeTab')" :disabled="actionPending" @click="closeOpenTab($event, tab.id)"><IconClose aria-hidden="true" /></UiButton>
+                    <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.closeTabAria', { title: tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) })" v-tooltip="t('tabSearch.closeTab')" :disabled="actionPending" @click="closeOpenTab($event, tab.id)"><IconClose aria-hidden="true" /></UiButton>
                   </span>
                   <TabLabelEditor :tab="tab" />
                 </article>
@@ -404,7 +405,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                   <span class="tab-search-copy">
                     <strong>{{ group.name }}</strong>
                     <span>{{ t('tabSearch.savedTabs', { count: formatNumber(group.tabs.length) }, group.tabs.length) }}</span>
-                    <small>{{ group.tabs.slice(0, 3).map((tab) => tab.label || tab.title || tab.url).join(' · ') }}</small>
+                    <small>{{ group.tabs.slice(0, 3).map((tab) => tab.label || tabTitleForDisplay(tab, t('tabSearch.newTabTitle'))).join(' · ') }}</small>
                   </span>
                 </UiButton>
                 <UiButton appearance="application" class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreWorkspaceAria', { name: group.name })" v-tooltip="t('tabSearch.restoreWorkspace')" :disabled="actionPending" @click="restoreSavedGroup(group)"><IconRestore aria-hidden="true" /></UiButton>
@@ -426,13 +427,13 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                 <UiButton appearance="application" :id="resultId({ kind: 'closed', tab })" class="tab-search-open" type="button" v-tooltip="tab.url" :disabled="actionPending" @click="restoreClosedTab(tab)">
                   <span class="tab-search-site-icon closed" aria-hidden="true"><IconHistory /></span>
                   <span class="tab-search-copy">
-                    <strong>{{ tab.label || tab.title || t('tabSearch.newTabTitle') }}</strong>
-                        <small v-if="tab.label">{{ tab.title }}</small>
+                    <strong>{{ tab.label || tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) }}</strong>
+                        <small v-if="tab.label">{{ tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) }}</small>
                     <span>{{ tab.url === 'about:blank' ? t('tabSearch.blankPage') : tab.url }}</span>
                     <small>{{ closedTabMeta(tab) }}</small>
                   </span>
                 </UiButton>
-                <UiButton appearance="application" class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreAria', { title: tab.title || t('tabSearch.newTabTitle') })" v-tooltip="t('tabSearch.restore')" :disabled="actionPending" @click="restoreClosedTab(tab)"><IconRestore aria-hidden="true" /></UiButton>
+                <UiButton appearance="application" class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreAria', { title: tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) })" v-tooltip="t('tabSearch.restore')" :disabled="actionPending" @click="restoreClosedTab(tab)"><IconRestore aria-hidden="true" /></UiButton>
               </article>
             </div>
           </section>

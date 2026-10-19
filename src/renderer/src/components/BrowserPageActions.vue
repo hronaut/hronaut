@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
+import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import UiButton from "../ui/UiButton.vue"
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -63,7 +64,7 @@ const splitMenuOpen = defineModel<boolean>('splitMenuOpen', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 const activeTabIsInternal = computed(() => !props.activeTab || isHronautHomeUrl(props.activeTab.url))
 const audioLabel = computed(() => t(props.activeTab?.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', {
-  title: props.activeTab?.title || t('runtime.tabs.unnamed')
+  title: props.activeTab ? tabTitleForDisplay(props.activeTab, t('runtime.tabs.unnamed')) : t('runtime.tabs.unnamed')
 }))
 
 function reportSplitError(cause: unknown, fallback: string): void {
