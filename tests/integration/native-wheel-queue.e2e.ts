@@ -1,9 +1,16 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { test, expect, text } from './capability-fixtures.js'
+import { waitForSettledPageBounds } from './settled-page-bounds.js'
 
 type QueueGate = { held: boolean; commands: string[]; baseline: number; release: () => void; restore: () => void }
 type QueueScope = typeof globalThis & { wheelQueue?: QueueGate }
+
+// A wheel refuses when main moves its page while the call waits; let the
+// toolbar settle after the fixture selects its tab.
+test.beforeEach(async ({ capabilities, electronApp }) => {
+  await waitForSettledPageBounds(electronApp, capabilities.fixtureUrl)
+})
 
 test('wheel captures geometry before waiting behind another debugger operation', async ({ capabilities, electronApp, appWindow }, testInfo) => {
   const { client, tabId, fixtureUrl } = capabilities
