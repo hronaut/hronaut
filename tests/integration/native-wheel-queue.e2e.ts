@@ -6,8 +6,8 @@ import { waitForSettledPageBounds } from './settled-page-bounds.js'
 type QueueGate = { held: boolean; commands: string[]; baseline: number; release: () => void; restore: () => void }
 type QueueScope = typeof globalThis & { wheelQueue?: QueueGate }
 
-// A wheel refuses to start when main moves its page; let the toolbar settle
-// after the fixture selects its tab.
+// A wheel refuses when main moves its page while the call waits; let the
+// toolbar settle after the fixture selects its tab.
 test.beforeEach(async ({ capabilities, electronApp }) => {
   await waitForSettledPageBounds(electronApp, capabilities.fixtureUrl)
 })

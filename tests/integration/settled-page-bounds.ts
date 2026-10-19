@@ -1,10 +1,10 @@
 import { expect, type ElectronApplication } from '@playwright/test'
 
 /**
- * Native input refuses to start when main moves its page, and the toolbar can
- * still be settling just after a tab is created and selected. Wait until the
- * page's bounds stop changing so native input sees only the movement a test
- * causes.
+ * Native input refuses when main moves its page while the call waits, and the
+ * toolbar can still be settling just after a tab is created and selected. Wait
+ * until the page's bounds stop changing so native input sees only the movement
+ * a test causes.
  */
 export async function waitForSettledPageBounds(app: ElectronApplication, url: string): Promise<void> {
   let last: string | undefined
