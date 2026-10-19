@@ -15,13 +15,20 @@ const PAGE = `<!doctype html><title>Animations</title>
 #trans { transition: opacity 30s linear; opacity: 1 }
 #scroll { animation: private-keyframes-name linear; animation-timeline: scroll() }
 #finite { animation: private-keyframes-name 200ms linear 1 forwards }
+#clobbered { animation: private-keyframes-name 1s linear infinite }
 body { height: 3000px }
 </style>
 <div id="css">a</div><div id="delayed">b</div><div id="paused">c</div><div id="trans">d</div><div id="waapi">e</div>
-<div id="scroll">f</div><div id="many">g</div><div id="none">h</div><div id="finite">i</div><input id="field">
+<div id="scroll">f</div><div id="many">g</div><div id="none">h</div><div id="finite">i</div><div id="forever">j</div><input id="field">
+<!-- Named elements that shadow the registry, the document's querySelectorAll and the form's own node fields. -->
+<div id="__hronautAnimationState"></div><img name="querySelectorAll" alt="">
+<form id="clobbered"><input name="isConnected"><input name="getRootNode"></form><span id="ticker">0</span>
 <script>
 const transition = document.getElementById('trans'); transition.getBoundingClientRect(); setTimeout(() => { transition.style.opacity = '0' }, 30)
 document.getElementById('waapi').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 3000, iterations: Infinity, id: 'private-anim-id' })
+document.getElementById('forever').animate([{ opacity: 0 }, { opacity: 1 }], { duration: Infinity })
+// A counter beside the animations changes the page every frame.
+const ticker = document.getElementById('ticker'); const tick = () => { ticker.textContent = String(Number(ticker.textContent) + 1); requestAnimationFrame(tick) }; requestAnimationFrame(tick)
 window.makeMany = (n) => { const el = document.getElementById('many'); for (let i = 0; i < n; i++) el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 100000 + i }); return n }
 // After this, any call into a page-defined replacement counts a hit.
 window.hostile = () => {
@@ -82,7 +89,8 @@ test('reads CSS animations, transitions and Web Animations from native state wit
     await run(electronApp, pageUrl, 'scrollTo(0, 120); document.getElementById("field").focus(); 1')
     const activeTab = await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')
     expect(await run(electronApp, pageUrl, 'hostile()')).toBe('armed')
-    const markup = await run(electronApp, pageUrl, 'document.documentElement.outerHTML')
+    const markupScript = `document.documentElement.outerHTML.replace(/<span id="ticker">\\d+<\\/span>/, '')`
+    const markup = await run(electronApp, pageUrl, markupScript)
 
     const css = await state(client, tabId, '#css')
     expect(css).toMatchObject({ count: 1, omitted: { unsupportedTimeline: 0, unsupportedEffect: 0, beyondLimit: 0, notExamined: 0 } })
@@ -100,6 +108,9 @@ test('reads CSS animations, transitions and Web Animations from native state wit
     // A scroll-driven animation is counted but none of its fields are read.
     expect(await state(client, tabId, '#scroll')).toMatchObject({ count: 1, animations: [], omitted: { unsupportedTimeline: 1 } })
     expect(await state(client, tabId, '#none')).toMatchObject({ count: 0, animations: [] })
+    // An infinite duration is reported, and named elements cannot shadow what the reading uses.
+    expect((await state(client, tabId, '#forever')).animations[0]).toMatchObject({ durationMs: 'infinite', activeDurationMs: 'infinite', phase: 'active' })
+    expect((await state(client, tabId, '#clobbered')).animations[0]).toMatchObject({ kind: 'css-animation', playState: 'running' })
 
     // Repeated readings: the running animation advances and the paused one holds still.
     const later = await state(client, tabId, '#css')
@@ -107,7 +118,7 @@ test('reads CSS animations, transitions and Web Animations from native state wit
     expect((await state(client, tabId, '#paused')).animations[0]!.currentTimeMs).toBe(paused.animations[0]!.currentTimeMs)
 
     expect(await run(electronApp, pageUrl, 'window.hits')).toBe(0)
-    expect(await run(electronApp, pageUrl, 'document.documentElement.outerHTML')).toBe(markup)
+    expect(await run(electronApp, pageUrl, markupScript)).toBe(markup)
     expect(JSON.stringify([css, later, paused])).not.toMatch(/private-(keyframes-name|anim-id)|hostile/)
     expect(await run(electronApp, pageUrl, '[document.activeElement && document.activeElement.id, Math.round(scrollY)]')).toEqual(['field', 120])
     expect(await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(activeTab)

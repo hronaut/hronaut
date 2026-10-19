@@ -33,7 +33,7 @@ export interface BrowserAnimationRecord {
   startTimeMs: number | null
   delayMs: number
   endDelayMs: number
-  durationMs: number
+  durationMs: AnimationUnbounded
   iterations: AnimationUnbounded
   iterationStart: number
   direction: AnimationDirection
@@ -54,7 +54,7 @@ export interface BrowserAnimationState {
   count: number
   animations: BrowserAnimationRecord[]
   omitted: {
-    /** Scroll- or view-driven animations, or ones without a timeline: their fields are never read. */
+    /** Animations not on the document's default timeline (scroll- or view-driven, another document timeline, or none): their fields are never read. */
     unsupportedTimeline: number
     /** Animations whose effect is not a keyframe effect on the element itself. */
     unsupportedEffect: number
@@ -68,7 +68,7 @@ export interface BrowserAnimationState {
 
 export const ANIMATION_STATE_CAVEATS = [
   'Only CSS animations, CSS transitions and Web Animations running directly on this element on the document timeline are read. An empty list does not mean the page is still: requestAnimationFrame loops, canvas, video, scroll-driven animations, descendants and pseudo-elements are not included.',
-  'This is one sampled reading. Times are in milliseconds on the document timeline; repeat the reading to see progress. A finished animation the browser no longer keeps is not reported.',
+  'This is one sampled reading. Times are in milliseconds on the document timeline; repeat the reading to see progress. The browser lists only animations that are running, pending, paused before their end or filling, so a finished animation without a forwards fill, or a cancelled one, is neither listed nor counted.',
   'Timing state does not prove that the motion is visible, smooth or composited, or that reduced-motion preferences are honored.',
   'Animation names, IDs, keyframes, easing and CSS values are never returned.'
 ]

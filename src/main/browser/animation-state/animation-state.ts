@@ -26,9 +26,10 @@ const OMITTED_KEYS = ['unsupportedTimeline', 'unsupportedEffect', 'beyondLimit',
 
 /**
  * Reads the animations on one element in an isolated world, where the page's own prototypes, getters and
- * overrides do not exist: every value comes from the browser's native accessors. One getAnimations() call
- * lists only the element's own animations; at most 200 are checked for kind, timeline and effect before any
- * field is read, and at most 20 are read. Names, IDs, keyframes, easing and CSS values are never touched.
+ * overrides do not exist: every value comes from the browser's native accessors, including the element's
+ * and document's, which named elements could otherwise shadow. One getAnimations() call lists the
+ * element's own animations; at most 200 are checked for kind, timeline and effect before any field is
+ * read, and at most 20 timings are read. Names, IDs, keyframes, easing and CSS values are never returned.
  */
 export function animationStateScript(selector: string, token: string): string {
   const limits = {
@@ -40,21 +41,32 @@ export function animationStateScript(selector: string, token: string): string {
   }
   return `(() => {
     const selector = ${JSON.stringify(selector)}, token = ${JSON.stringify(token)}, limits = ${JSON.stringify(limits)};
-    const handles = globalThis.__hronautAnimationState ??= new Map();
+    // A symbol key and an own property: an element with a matching id cannot stand in for the registry.
+    const key = Symbol.for('hronaut.animationState');
+    if (!Object.getOwnPropertyDescriptor(globalThis, key)) Object.defineProperty(globalThis, key, { value: new Map() });
+    const handles = Object.getOwnPropertyDescriptor(globalThis, key).value;
     if (handles.size >= limits.maxUnsettled) return { failure: 'busy' };
-    let matches;
-    try { matches = document.querySelectorAll(selector) } catch { return { failure: 'invalid-selector' } }
-    if (matches.length !== 1) return { failure: 'non-unique-target' };
-    const element = matches[0];
-    if (!element.isConnected || element.getRootNode() !== document) return { failure: 'unsupported-target' };
     const native = (proto, name) => {
       const descriptor = Object.getOwnPropertyDescriptor(proto, name);
       const fn = descriptor && (descriptor.get || descriptor.value);
       if (typeof fn !== 'function') throw Error('native accessor');
       return fn;
     };
-    const read = (proto, name, target) => Reflect.apply(native(proto, name), target, []);
-    const finite = value => { if (typeof value !== 'number' || !Number.isFinite(value)) throw Error('scalar'); return Math.round(value * 1000) / 1000 };
+    const read = (proto, name, target, ...args) => Reflect.apply(native(proto, name), target, args);
+    const resolve = () => read(Document.prototype, 'querySelectorAll', document, selector);
+    const inDocument = node => read(Node.prototype, 'isConnected', node) && read(Node.prototype, 'getRootNode', node) === document;
+    let matches, element;
+    try {
+      try { matches = resolve() } catch { return { failure: 'invalid-selector' } }
+      if (matches.length !== 1) return { failure: 'non-unique-target' };
+      element = matches[0];
+      if (!inDocument(element)) return { failure: 'unsupported-target' };
+    } catch { return { failure: 'native-unavailable' } }
+    // Rounded to microseconds where that cannot overflow; larger values are already coarser than that.
+    const finite = value => {
+      if (typeof value !== 'number' || !Number.isFinite(value)) throw Error('scalar');
+      return Math.abs(value) < 1e12 ? Math.round(value * 1000) / 1000 : value;
+    };
     const unbounded = value => value === Infinity ? 'infinite' : finite(value);
     const nullable = (value, convert) => value === null ? null : convert(value);
     const oneOf = (value, allowed) => { if (!allowed.includes(value)) throw Error('scalar'); return value };
@@ -69,8 +81,17 @@ export function animationStateScript(selector: string, token: string): string {
       return 'active';
     };
     let dirty = false;
-    const observer = new MutationObserver(() => { dirty = true; observer.disconnect() });
-    // A removed, moved or replaced target fails publication; attribute changes do not change its identity.
+    // Removing or moving the target or an ancestor fails publication. Other changes in the page, such as a
+    // ticking counter beside a spinner, do not; a replacement is caught when the selector is resolved again.
+    const removesTarget = records => {
+      for (const record of records) {
+        for (const node of read(MutationRecord.prototype, 'removedNodes', record)) {
+          if (read(Node.prototype, 'contains', node, element)) return true;
+        }
+      }
+      return false;
+    };
+    const observer = new MutationObserver(records => { if (removesTarget(records)) { dirty = true; observer.disconnect() } });
     observer.observe(document, { subtree: true, childList: true });
     let timer;
     const cleanup = () => { observer.disconnect(); clearTimeout(timer); handles.delete(token) };
@@ -101,7 +122,7 @@ export function animationStateScript(selector: string, token: string): string {
           startTimeMs: nullable(read(Animation.prototype, 'startTime', animation), finite),
           delayMs: finite(delay),
           endDelayMs: finite(timing.endDelay),
-          durationMs: finite(timing.duration),
+          durationMs: unbounded(timing.duration),
           iterations: unbounded(timing.iterations),
           iterationStart: finite(timing.iterationStart),
           direction: oneOf(timing.direction, ${JSON.stringify(DIRECTIONS)}),
@@ -119,10 +140,10 @@ export function animationStateScript(selector: string, token: string): string {
       if (JSON.stringify(result).length > limits.maxReportChars) throw Error('output limit');
       const settle = () => {
         try {
-          const changed = dirty || observer.takeRecords().length > 0;
-          const current = document.querySelectorAll(selector);
-          return !changed && element.isConnected && element.getRootNode() === document && current.length === 1 && current[0] === element;
-        } finally { cleanup() }
+          if (dirty || removesTarget(observer.takeRecords()) || !inDocument(element)) return false;
+          const current = resolve();
+          return current.length === 1 && current[0] === element;
+        } catch { return false } finally { cleanup() }
       };
       timer = setTimeout(cleanup, limits.deadlineMs);
       handles.set(token, { settle, cleanup });
@@ -132,7 +153,7 @@ export function animationStateScript(selector: string, token: string): string {
 }
 
 export function animationStateSettlementScript(token: string, cancel = false): string {
-  return `(() => {const handle=globalThis.__hronautAnimationState?.get(${JSON.stringify(token)});${cancel ? 'handle?.cleanup();return false' : 'return handle?handle.settle():false'}})()`
+  return `(() => {const handle=Object.getOwnPropertyDescriptor(globalThis,Symbol.for('hronaut.animationState'))?.value?.get(${JSON.stringify(token)});${cancel ? 'handle?.cleanup();return false' : 'return handle?handle.settle():false'}})()`
 }
 
 const FAILURES: Record<string, string> = {
@@ -163,7 +184,7 @@ function validRecord(value: unknown, index: number): value is BrowserAnimationRe
     && (PHASES as readonly unknown[]).includes(value.phase)
     && (value.currentTimeMs === null || finite(value.currentTimeMs))
     && (value.startTimeMs === null || finite(value.startTimeMs))
-    && finite(value.delayMs) && finite(value.endDelayMs) && finite(value.durationMs) && (value.durationMs as number) >= 0
+    && finite(value.delayMs) && finite(value.endDelayMs) && (value.durationMs === 'infinite' || (finite(value.durationMs) && (value.durationMs as number) >= 0))
     && unbounded(value.iterations) && finite(value.iterationStart)
     && (DIRECTIONS as readonly unknown[]).includes(value.direction)
     && (FILLS as readonly unknown[]).includes(value.fill)

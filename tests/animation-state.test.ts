@@ -25,42 +25,57 @@ function page(selectorMatches: number, animations: (realm: ReturnType<typeof rea
   const element = new realm.Element()
   const list = animations(realm, element)
   realm.Element.prototype.getAnimations = function () { return list }
-  const observers: Array<{ dirty: () => void; records: unknown[] }> = []
+  realm.setMatches(Array.from({ length: selectorMatches }, () => element))
+  const observers: Array<{ notify: (records: object[]) => void; pending: object[] }> = []
   const context = {
     ...realm,
     globalThis: undefined as unknown,
-    document: Object.assign(new realm.Document(), {
-      querySelectorAll: (selector: string) => {
-        if (selector === '!!') throw new SyntaxError('bad')
-        return Array.from({ length: selectorMatches }, () => element)
-      }
-    }),
+    document: new realm.Document(),
     MutationObserver: class {
-      records: unknown[] = []
-      constructor(private readonly callback: () => void) { observers.push({ dirty: () => this.callback(), records: this.records }) }
+      readonly pending: object[] = []
+      constructor(callback: (records: object[]) => void) { observers.push({ notify: records => callback(records), pending: this.pending }) }
       observe() {}
       disconnect() {}
-      takeRecords() { return this.records }
+      takeRecords() { return this.pending.splice(0) }
     },
     setTimeout: () => 1,
     clearTimeout: () => undefined
   }
   context.globalThis = context
+  realm.setDocument(context.document)
   const run = (code: string) => runInNewContext(code, context) as unknown
   return { run, element, realm, observers, context }
 }
 
 function realmClasses() {
   const timeline = {}
-  class Element {
-    isConnected = true
-    getRootNode() { return context.document }
+  const state = { document: undefined as unknown, matches: [] as unknown[] }
+  /** Animations whose effect, and effects whose timing, the script read. */
+  const reads = { effect: [] as object[], timing: [] as object[] }
+  class Node {
+    connected = true
+    readonly children: Node[] = []
+    get isConnected() { return this.connected }
+    getRootNode() { return state.document }
+    contains(other: unknown): boolean { return other === this || this.children.some(child => child.contains(other)) }
+  }
+  class Element extends Node {
     getAnimations(): object[] { return [] }
   }
-  class Document { get timeline() { return timeline } }
+  class Document extends Node {
+    get timeline() { return timeline }
+    querySelectorAll(selector: string) {
+      if (selector === '!!') throw new SyntaxError('bad')
+      return state.matches
+    }
+  }
+  class MutationRecord {
+    constructor(private readonly removed: object[]) {}
+    get removedNodes() { return this.removed }
+  }
   class AnimationEffect {
     constructor(private readonly computed: Timing) {}
-    getComputedTiming() { return this.computed }
+    getComputedTiming() { reads.timing.push(this); return this.computed }
   }
   class KeyframeEffect extends AnimationEffect {
     constructor(computed: Timing, private readonly targetElement: object, private readonly pseudo: string | null = null) { super(computed) }
@@ -70,7 +85,7 @@ function realmClasses() {
   class Animation {
     constructor(private readonly options: { effect: object; timeline?: object | null; playState?: string; pending?: boolean; playbackRate?: number; currentTime?: number | null; startTime?: number | null }) {}
     get timeline() { return this.options.timeline === undefined ? timeline : this.options.timeline }
-    get effect() { return this.options.effect }
+    get effect() { reads.effect.push(this); return this.options.effect }
     get playState() { return this.options.playState ?? 'running' }
     get pending() { return this.options.pending ?? false }
     get playbackRate() { return this.options.playbackRate ?? 1 }
@@ -79,13 +94,15 @@ function realmClasses() {
   }
   class CSSAnimation extends Animation {}
   class CSSTransition extends Animation {}
-  const context = { document: undefined as unknown }
-  return { Element, Document, AnimationEffect, KeyframeEffect, Animation, CSSAnimation, CSSTransition, timeline, setDocument: (document: unknown) => { context.document = document } }
+  return {
+    Node, Element, Document, MutationRecord, AnimationEffect, KeyframeEffect, Animation, CSSAnimation, CSSTransition, timeline, reads,
+    setDocument: (document: unknown) => { state.document = document },
+    setMatches: (matches: unknown[]) => { state.matches = matches }
+  }
 }
 
 function read(selectorMatches: number, animations: Parameters<typeof page>[1], selector = '#target') {
   const fixture = page(selectorMatches, animations)
-  fixture.realm.setDocument(fixture.context.document)
   return { ...fixture, result: fixture.run(animationStateScript(selector, 'token-1')) as Record<string, unknown> }
 }
 
@@ -98,10 +115,15 @@ it('reads kind, state, timing and phase from native accessors, and normalizes th
     new Animation({ effect: new KeyframeEffect(timing(), element), playState: 'paused', startTime: null, playbackRate: -0.5 }),
     // On a boundary, the playback direction settles the phase.
     new Animation({ effect: new KeyframeEffect(timing({ localTime: 1000, progress: 1 }), element), playbackRate: -1 }),
-    new Animation({ effect: new KeyframeEffect(timing({ localTime: 0, progress: null, currentIteration: null }), element), playbackRate: -1 })
+    new Animation({ effect: new KeyframeEffect(timing({ localTime: 0, progress: null, currentIteration: null }), element), playbackRate: -1 }),
+    // A stopped animation on its end boundary is after it; a negative delay starts it part-way through.
+    new Animation({ effect: new KeyframeEffect(timing({ localTime: 1000, progress: 1 }), element), playbackRate: 0 }),
+    new Animation({ effect: new KeyframeEffect(timing({ delay: -500, localTime: 0, endTime: 500 }), element) }),
+    // An infinite duration is valid, and a huge rate is reported as it is.
+    new Animation({ effect: new KeyframeEffect(timing({ duration: Infinity, activeDuration: Infinity, endTime: Infinity, progress: 0 }), element), playbackRate: 1e306 })
   ])
   const report = normalizeAnimationState(result, 'tab-1')
-  expect(report).toMatchObject({ tabId: 'tab-1', count: 7, omitted: { unsupportedTimeline: 0, unsupportedEffect: 0, beyondLimit: 0, notExamined: 0 }, caveats: ANIMATION_STATE_CAVEATS })
+  expect(report).toMatchObject({ tabId: 'tab-1', count: 10, omitted: { unsupportedTimeline: 0, unsupportedEffect: 0, beyondLimit: 0, notExamined: 0 }, caveats: ANIMATION_STATE_CAVEATS })
   expect(report.animations.map(({ index, kind, playState, phase }) => [index, kind, playState, phase])).toEqual([
     [1, 'css-animation', 'running', 'active'],
     [2, 'css-transition', 'running', 'before'],
@@ -109,8 +131,12 @@ it('reads kind, state, timing and phase from native accessors, and normalizes th
     [4, 'web-animation', 'idle', 'idle'],
     [5, 'web-animation', 'paused', 'active'],
     [6, 'web-animation', 'running', 'active'],
-    [7, 'web-animation', 'running', 'before']
+    [7, 'web-animation', 'running', 'before'],
+    [8, 'web-animation', 'running', 'after'],
+    [9, 'web-animation', 'running', 'active'],
+    [10, 'web-animation', 'running', 'active']
   ])
+  expect(report.animations[9]).toMatchObject({ durationMs: 'infinite', activeDurationMs: 'infinite', endTimeMs: 'infinite', playbackRate: 1e306 })
   expect(report.animations[0]).toMatchObject({ iterations: 'infinite', activeDurationMs: 'infinite', endTimeMs: 'infinite', currentTimeMs: 250, startTimeMs: 10, progress: 0.25 })
   expect(report.animations[1]).toMatchObject({ delayMs: 500, progress: null, currentIteration: null })
   expect(report.animations[3]).toMatchObject({ currentTimeMs: null, startTimeMs: null, localTimeMs: null })
@@ -118,16 +144,16 @@ it('reads kind, state, timing and phase from native accessors, and normalizes th
 })
 
 it('omits other timelines and effects before reading their fields, and bounds what it examines and returns', () => {
-  const effectRead = vi.fn()
-  const { result } = read(1, ({ Animation, KeyframeEffect, AnimationEffect }, element) => {
+  const unsupported: object[] = []
+  const { result, realm } = read(1, ({ Animation, KeyframeEffect, AnimationEffect }, element) => {
     const scroll = new Animation({ effect: new KeyframeEffect(timing(), element), timeline: {} })
-    Object.defineProperty(scroll, 'effect', { get: effectRead })
+    const detached = new Animation({ effect: new KeyframeEffect(timing(), element), timeline: null })
+    const effects = [new KeyframeEffect(timing(), element, '::before'), new KeyframeEffect(timing(), {}), new AnimationEffect(timing())]
+    unsupported.push(scroll, detached, ...effects)
     return [
       scroll,
-      new Animation({ effect: new KeyframeEffect(timing(), element), timeline: null }),
-      new Animation({ effect: new KeyframeEffect(timing(), element, '::before') }),
-      new Animation({ effect: new KeyframeEffect(timing(), {}) }),
-      new Animation({ effect: new AnimationEffect(timing()) }),
+      detached,
+      ...effects.map(effect => new Animation({ effect })),
       ...Array.from({ length: 300 }, () => new Animation({ effect: new KeyframeEffect(timing(), element) }))
     ]
   })
@@ -136,8 +162,23 @@ it('omits other timelines and effects before reading their fields, and bounds wh
   expect(report.animations).toHaveLength(20)
   expect(report.animations.at(-1)!.index).toBe(20)
   expect(report.omitted).toEqual({ unsupportedTimeline: 2, unsupportedEffect: 3, beyondLimit: 175, notExamined: 105 })
-  // The instance's own property is not the native accessor and is never consulted.
-  expect(effectRead).not.toHaveBeenCalled()
+  // Another timeline's effect is never read, and another effect's timing is never read.
+  expect(realm.reads.effect).not.toContain(unsupported[0])
+  expect(realm.reads.effect).not.toContain(unsupported[1])
+  for (const effect of unsupported.slice(2)) expect(realm.reads.timing).not.toContain(effect)
+  // Timings are read for the 20 reported animations only.
+  expect(realm.reads.timing).toHaveLength(20)
+})
+
+it('reads the element and document through native accessors, so named elements cannot shadow them', () => {
+  const clobbered = page(1, () => [])
+  const poison = () => { throw new Error('page value') }
+  Object.defineProperty(clobbered.context.document, 'querySelectorAll', { get: poison })
+  Object.defineProperty(clobbered.element, 'isConnected', { get: poison })
+  Object.defineProperty(clobbered.element, 'getRootNode', { get: poison })
+  Object.defineProperty(clobbered.context, '__hronautAnimationState', { get: poison })
+  expect(clobbered.run(animationStateScript('#target', 'token-1'))).toMatchObject({ count: 0 })
+  expect(clobbered.run(animationStateSettlementScript('token-1'))).toBe(true)
 })
 
 it('reports a missing, ambiguous or invalid target and a value the browser should never produce as distinct failures', () => {
@@ -153,15 +194,35 @@ it('reports a missing, ambiguous or invalid target and a value the browser shoul
   expect(() => normalizeAnimationState(state.result, 'tab-1')).toThrow('did not report')
 })
 
-it('settles only while the same element is the unique match and nothing was added or removed, and limits waiting readings', () => {
+it('settles while the same element is the unique match and still in place, ignoring unrelated changes, and limits waiting readings', () => {
   const fixture = read(1, () => [])
   expect(fixture.run(animationStateSettlementScript('token-1'))).toBe(true)
   expect(fixture.run(animationStateSettlementScript('token-1'))).toBe(false)
-  const changed = read(1, () => [])
-  changed.observers[0]!.dirty()
-  expect(changed.run(animationStateSettlementScript('token-1'))).toBe(false)
+
+  // A ticking counter elsewhere in the page does not fail publication.
+  const unrelated = read(1, () => [])
+  unrelated.observers[0]!.notify([new unrelated.realm.MutationRecord([new unrelated.realm.Element()])])
+  expect(unrelated.run(animationStateSettlementScript('token-1'))).toBe(true)
+
+  // Removing an ancestor of the target does, whether delivered or still pending.
+  for (const delivered of [true, false]) {
+    const moved = read(1, () => [])
+    const ancestor = new moved.realm.Element()
+    ancestor.children.push(moved.element as InstanceType<typeof moved.realm.Element>)
+    const record = new moved.realm.MutationRecord([ancestor])
+    if (delivered) moved.observers[0]!.notify([record])
+    else moved.observers[0]!.pending.push(record)
+    expect(moved.run(animationStateSettlementScript('token-1'))).toBe(false)
+  }
+
+  const replaced = read(1, () => [])
+  replaced.realm.setMatches([new replaced.realm.Element()])
+  expect(replaced.run(animationStateSettlementScript('token-1'))).toBe(false)
+  const disconnected = read(1, () => [])
+  ;(disconnected.element as InstanceType<typeof disconnected.realm.Element>).connected = false
+  expect(disconnected.run(animationStateSettlementScript('token-1'))).toBe(false)
+
   const busy = page(1, () => [])
-  busy.realm.setDocument(busy.context.document)
   for (let index = 0; index < 8; index++) busy.run(animationStateScript('#target', `token-${index}`))
   expect(busy.run(animationStateScript('#target', 'token-9'))).toEqual({ failure: 'busy' })
   busy.run(animationStateSettlementScript('token-0', true))
