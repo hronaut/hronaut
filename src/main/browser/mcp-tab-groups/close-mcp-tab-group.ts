@@ -84,6 +84,10 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
   }
   try {
     await access.closeTabs(tabSnapshots.map((tab) => tab.id), false)
+    // A tab left open would name a workspace the saved session no longer has, which the next start refuses to load.
+    if ([...access.tabs().values()].some((tab) => tab.mcpGroupId === groupId)) {
+      throw new Error(`Workspace "${group.name}" still has an open tab, so it was not closed. Try again.`)
+    }
     if (!preserveStorage) {
       await access.assertStorageDeletionOwnership(groupId, group.storageId)
       await destroyWorkspaceStorage(

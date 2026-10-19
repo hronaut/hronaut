@@ -2812,15 +2812,26 @@ export class BrowserTabsManager {
     return { splitPartnerId, nextId }
   }
 
-  private async prepareActiveCloseReplacement(tab: BrowserTab): Promise<boolean> {
+  /**
+   * Wakes the sleeping tab that replaces the shown tab before it closes. False
+   * when the close stops: the tab closed meanwhile, or the close gives way to
+   * a tab selected while the replacement wakes. Only the person's own close
+   * gives way; any other close, such as an agent's or a whole workspace's,
+   * still closes the tab, which needs no replacement once another tab shows.
+   */
+  private async prepareActiveCloseReplacement(tab: BrowserTab, yieldsToNewerSelection: boolean): Promise<boolean> {
     if (tab.id !== this.activeTabId) return true
     const selectionGeneration = this.tabSelectionGeneration
+    /** True when the close goes on with no replacement to wake, false when it stops, undefined while the tab still needs one. */
+    const settledWithoutReplacement = (): boolean | undefined => {
+      if (this.tabs.get(tab.id) !== tab) return false
+      if (this.activeTabId === tab.id && this.tabSelectionGeneration === selectionGeneration) return undefined
+      if (yieldsToNewerSelection) return false
+      return this.activeTabId === tab.id ? undefined : true
+    }
     while (true) {
-      if (
-        this.tabs.get(tab.id) !== tab
-        || this.activeTabId !== tab.id
-        || this.tabSelectionGeneration !== selectionGeneration
-      ) return false
+      const settled = settledWithoutReplacement()
+      if (settled !== undefined) return settled
       const transition = this.closeTabTransition(tab)
       if (!transition.nextId) return true
       const replacement = this.tabs.get(transition.nextId)
@@ -2828,11 +2839,8 @@ export class BrowserTabsManager {
       try {
         await this.wakeTab(replacement.id)
       } catch (error) {
-        if (
-          this.tabs.get(tab.id) !== tab
-          || this.activeTabId !== tab.id
-          || this.tabSelectionGeneration !== selectionGeneration
-        ) return false
+        const settledAfterFailure = settledWithoutReplacement()
+        if (settledAfterFailure !== undefined) return settledAfterFailure
         const currentReplacementId = this.closeTabTransition(tab).nextId
         if (this.tabs.get(replacement.id) !== replacement || currentReplacementId !== replacement.id) {
           continue
@@ -2878,7 +2886,8 @@ export class BrowserTabsManager {
       if (replacement) this.selectTab(replacement.id)
       else if (!webContents.isDestroyed()) this.selectTab(tab.id)
     }
-    if (!(await this.prepareActiveCloseReplacement(tab))) return this.getState()
+    // Only a close that lets the page ask to stay, the person's own (see closeTabsForPerson), gives way to a newer selection.
+    if (!(await this.prepareActiveCloseReplacement(tab, respectBeforeUnload))) return this.getState()
     if (this.tabs.get(tab.id) !== tab) return this.getState()
     let stagedClose: ReturnType<BrowserTabsManager['stageBeforeUnloadClose']> | undefined
     if (respectBeforeUnload && !forceClose && !webContents.isDestroyed()) {
@@ -3012,17 +3021,17 @@ export class BrowserTabsManager {
     cancelNativeSelectionSessions(this.nativeSelectionsAccess(), tab)
   }
 
-  private async closeTabs(
-    tabIds: string[],
-    ensureReplacement = true,
-    respectBeforeUnload = false
-  ): Promise<BrowserState> {
-    for (const tabId of tabIds) {
-      if (this.tabs.has(tabId)) {
-        const requestedTab = this.tabs.get(tabId)
-        await this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload)
-        if (respectBeforeUnload && this.tabs.get(tabId) === requestedTab) break
-      }
+  /**
+   * Closes tabs together, such as a workspace's. The active one closes last,
+   * so it hands over to a tab that stays open rather than waking a sleeping
+   * one only to close it next.
+   */
+  private async closeTabs(tabIds: string[], ensureReplacement = true): Promise<BrowserState> {
+    const pending = [...tabIds]
+    while (pending.length) {
+      const inactiveIndex = pending.findIndex((tabId) => tabId !== this.activeTabId)
+      const tabId = pending.splice(inactiveIndex === -1 ? 0 : inactiveIndex, 1)[0]!
+      if (this.tabs.has(tabId)) await this.closeTabInternal(tabId, ensureReplacement)
     }
     return this.getState()
   }

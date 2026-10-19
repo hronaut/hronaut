@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - A website's own full screen, such as a video player's, now fills the whole window. Once you allowed **Fullscreen** for the site, the window went into full screen, but the page stayed in its card beside the tabs and under the toolbar. Showing another tab, or a browser shortcut such as **Ctrl/Cmd+L** that opens one of Hronaut's controls, now takes the page out of full screen, and closing a page in full screen takes the window out of it; the window used to stay in full screen showing Home or the other tab, and the next start opened it in full screen.
+- Archiving, closing or clearing a workspace now closes every one of its tabs, even when you show another tab while it does. When the tab you were looking at handed over to a sleeping tab and you, or **Follow agents**, showed another tab meanwhile, that tab stayed open without its workspace, its site data could be deleted under it, and the next start showed the recovery notice and quit. The workspace's sleeping tabs no longer load their sites just before they close, and an agent's `browser_close_tab` no longer leaves the tab open when you select another tab at the same time.
 
 ## [3.3.1] - 2026-10-19
 
