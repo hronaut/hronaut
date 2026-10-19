@@ -8,7 +8,7 @@ import type { DomMutationSourceReport } from '../../src/shared/dom-mutation-sour
 
 const call = (client: Client, name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
 
-const PAGE = `<!doctype html><title>Orders</title>
+const PAGE = `<!doctype html><title>Orders</title><style>#save:hover { outline: 2px solid red }</style>
 <button id="save">Save</button><div id="panel"><p>a</p></div><div id="dialog">Dialog</div><div id="other">Other</div>
 <script src="/app.js?token=private-script-token"></script>`
 
@@ -40,14 +40,23 @@ async function source(client: Client, tabId: string, args: Record<string, unknow
   return JSON.parse(text(result)) as DomMutationSourceReport
 }
 
-/** Runs page code from the main process, outside Hronaut's debugger session. */
+/** Runs page code from the main process, outside Hronaut's debugger session; a page that does not answer fails the test. */
 async function run(electronApp: ElectronApplication, pageUrl: string, script: string): Promise<unknown> {
   return electronApp.evaluate(async ({ webContents }, { pageUrl, script }) => {
     const page = webContents.getAllWebContents().find(contents => contents.getURL() === pageUrl)
     if (!page) throw new Error(`No page at ${pageUrl}`)
-    const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), 3_000))
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('The page did not answer within 3 seconds')), 3_000))
     return Promise.race([page.mainFrame.executeJavaScript(script), timeout])
   }, { pageUrl, script })
+}
+
+function page(electronApp: ElectronApplication, pageUrl: string, action: 'crash' | 'reload'): Promise<void> {
+  return electronApp.evaluate(({ webContents }, { pageUrl, action }) => {
+    const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === pageUrl)
+    if (!contents) throw new Error(`No page at ${pageUrl}`)
+    if (action === 'crash') contents.forcefullyCrashRenderer()
+    else contents.reload()
+  }, { pageUrl, action })
 }
 
 /** The page keeps running: its 20 ms heartbeat advances. */
@@ -85,12 +94,13 @@ test('captures the function behind an attribute change, a subtree change and a r
       expect(await source(client, tabId, { action: 'get' })).toMatchObject({ status: 'armed' })
       await run(electronApp, pageUrl, `later(${JSON.stringify(trigger)})`)
       const report = await ended(client, tabId)
-      expect(report).toMatchObject({ status: 'captured', ended: { reason: 'captured', selector, kind }, capture: { kind, change } })
+      expect(report).toMatchObject({ status: 'captured', ended: { reason: 'captured', selector, kind, url: expect.stringContaining(`${origin}/orders`) }, capture: { kind, change } })
       const frames = report.capture!.frames
-      expect(frames[0]).toEqual({ functionName: trigger, url: `${origin}/app.js?token=%5BREDACTED%5D`, lineNumber: line, columnNumber: expect.any(Number) })
+      expect(frames[0]).toEqual({ functionName: trigger, url: `${origin}/app.js`, lineNumber: line, columnNumber: expect.any(Number) })
       expect(frames[1]).toMatchObject({ functionName: 'scheduled', lineNumber: 8 })
       expect(frames).toContainEqual(expect.objectContaining({ functionName: 'later', asyncBoundary: 'setTimeout' }))
       expect(JSON.stringify(report)).not.toMatch(/private-(script-token|page-token|attribute-value|markup)/)
+      expect(JSON.stringify(report.capture)).not.toContain('token')
       await expectRunning(electronApp, pageUrl)
     }
     // Only the first change is kept: after a capture, a later change of the same element is not attributed.
@@ -99,6 +109,31 @@ test('captures the function behind an attribute change, a subtree change and a r
     const first = await ended(client, tabId)
     expect(first.capture!.frames[0]).toMatchObject({ functionName: 'disableSave', lineNumber: 2 })
     expect(first.capture!.frames[1]).not.toMatchObject({ functionName: 'scheduled' })
+  } finally {
+    await source(client, tabId, { action: 'cancel' }).catch(() => undefined)
+    await closeFixtureServer(server)
+  }
+})
+
+test('Hronaut\'s own snapshots, hovering and finding elements do not use up the capture', async ({ capabilities, electronApp }) => {
+  const { client, tabId } = capabilities
+  const { server, pageUrl } = await open(client, tabId)
+  try {
+    expect(await source(client, tabId, { action: 'arm', selector: '#save', kind: 'attribute-modified' })).toMatchObject({ status: 'armed' })
+    // Snapshots and element lookups mark interactive elements from an isolated world; the hover only changes CSS state.
+    for (const [name, args] of [
+      ['browser_snapshot', {}],
+      ['browser_find', { query: 'Save' }],
+      ['browser_hover', { selector: '#save' }]
+    ] as const) {
+      const result = await call(client, name, { tabId, ...args })
+      expect(result.isError, `${name}: ${text(result)}`).not.toBe(true)
+      expect(await source(client, tabId, { action: 'get' }), name).toMatchObject({ status: 'armed' })
+    }
+    await run(electronApp, pageUrl, 'later("disableSave")')
+    const report = await ended(client, tabId)
+    expect(report).toMatchObject({ status: 'captured' })
+    expect(report.capture!.frames[0]).toMatchObject({ functionName: 'disableSave', lineNumber: 2 })
   } finally {
     await source(client, tabId, { action: 'cancel' }).catch(() => undefined)
     await closeFixtureServer(server)
@@ -115,12 +150,11 @@ test('a debugger statement does not freeze the page while armed, and cancel and 
     await expectRunning(electronApp, pageUrl)
     expect(await source(client, tabId, { action: 'get' })).toMatchObject({ status: 'armed' })
     expect(await source(client, tabId, { action: 'cancel' })).toMatchObject({ status: 'cancelled', ended: { reason: 'cancelled' } })
-    await run(electronApp, pageUrl, 'disableSave()')
+    expect(await run(electronApp, pageUrl, 'disableSave(); "changed"')).toBe('changed')
     expect(await source(client, tabId, { action: 'get' })).toMatchObject({ status: 'cancelled' })
     await source(client, tabId, { action: 'arm', selector: '#panel', kind: 'subtree-modified', durationMs: 1_000 })
     expect(await ended(client, tabId)).toMatchObject({ status: 'expired', ended: { reason: 'expired' } })
-    await run(electronApp, pageUrl, 'replacePanel(); hitDebugger()')
-    expect(await run(electronApp, pageUrl, 'window.afterDebugger')).toBe(2)
+    expect(await run(electronApp, pageUrl, 'replacePanel(); hitDebugger(); window.afterDebugger')).toBe(2)
     expect(await source(client, tabId, { action: 'get' })).toMatchObject({ status: 'expired' })
     await expectRunning(electronApp, pageUrl)
   } finally {
@@ -134,11 +168,21 @@ test('a replaced element, a navigation and a person clicking the page invalidate
   const { server, pageUrl } = await open(client, tabId)
   try {
     await source(client, tabId, { action: 'arm', selector: '#save', kind: 'attribute-modified' })
-    await run(electronApp, pageUrl, 'replaceSave()')
+    expect(await run(electronApp, pageUrl, 'replaceSave(); "replaced"')).toBe('replaced')
     expect(await ended(client, tabId)).toMatchObject({ status: 'invalidated', ended: { reason: 'target-removed' } })
     // The replacement matches the same selector but is never captured.
-    await run(electronApp, pageUrl, 'disableSave()')
+    expect(await run(electronApp, pageUrl, 'disableSave(); "changed"')).toBe('changed')
     expect(await source(client, tabId, { action: 'get' })).not.toHaveProperty('capture')
+
+    // A renderer crash ends it, and the reloaded page is not left with a breakpoint or a paused debugger.
+    await source(client, tabId, { action: 'arm', selector: '#save', kind: 'attribute-modified' })
+    await page(electronApp, pageUrl, 'crash')
+    expect(await ended(client, tabId)).toMatchObject({ status: 'invalidated', ended: { reason: 'renderer-gone' } })
+    await page(electronApp, pageUrl, 'reload')
+    await expect.poll(() => run(electronApp, pageUrl, 'typeof hitDebugger').catch(() => 'loading'), { timeout: 10_000 }).toBe('function')
+    expect(await run(electronApp, pageUrl, 'disableSave(); hitDebugger(); window.afterDebugger')).toBe(1)
+    await expectRunning(electronApp, pageUrl)
+    expect(await source(client, tabId, { action: 'get' })).toMatchObject({ status: 'invalidated', ended: { reason: 'renderer-gone' } })
 
     await source(client, tabId, { action: 'arm', selector: '#panel', kind: 'subtree-modified' })
     await call(client, 'browser_navigate', { tabId, url: pageUrl.replace('/orders', '/other') })
@@ -176,6 +220,28 @@ test('refuses to share the debugger with code coverage, a CSS state preview or D
     const previewRefused = await call(client, 'browser_css_state_preview', { tabId, action: 'set', selector: '#other', states: ['hover'] })
     expect(previewRefused.isError).toBe(true)
     expect(text(previewRefused)).toContain('Cancel the DOM mutation source capture')
+    const inspected = await call(client, 'browser_element_inspect', { tabId, selector: '#other', cssProperties: ['display'] })
+    expect(inspected.isError, text(inspected)).not.toBe(true)
+    expect(JSON.parse(text(inspected))).toMatchObject({ cssProvenance: { status: 'unavailable', reason: 'debugger-in-use' } })
+
+    // An armed capture keeps its tab awake, even when another tab is in front.
+    const otherTab = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(pageUrl.replace('/orders', '/front'))}, active: true }).then((state) => state.activeTabId)`) as string
+    try {
+      await expect(appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(tabId)}, true)`)).rejects.toThrow('A tab capturing a DOM mutation source stays active.')
+      expect(await source(client, tabId, { action: 'get' })).toMatchObject({ status: 'armed' })
+    } finally {
+      await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(otherTab)})`)
+    }
+    await source(client, tabId, { action: 'cancel' })
+
+    const preview = await call(client, 'browser_css_state_preview', { tabId, action: 'set', selector: '#other', states: ['hover'] })
+    expect(preview.isError, text(preview)).not.toBe(true)
+    const armRefused = await call(client, 'browser_dom_mutation_source', { tabId, action: 'arm', selector: '#save', kind: 'attribute-modified' })
+    expect(armRefused.isError).toBe(true)
+    expect(text(armRefused)).toMatch(/CSS state preview/i)
+    await call(client, 'browser_css_state_preview', { tabId, action: 'clear' })
+
+    await source(client, tabId, { action: 'arm', selector: '#save', kind: 'attribute-modified' })
 
     await toggleDevTools(appWindow, tabId, true)
     expect(await ended(client, tabId)).toMatchObject({ status: 'invalidated', ended: { reason: 'devtools-opened' } })
@@ -186,6 +252,7 @@ test('refuses to share the debugger with code coverage, a CSS state preview or D
     await expectRunning(electronApp, pageUrl)
   } finally {
     await source(client, tabId, { action: 'cancel' }).catch(() => undefined)
+    await call(client, 'browser_css_state_preview', { tabId, action: 'clear' }).catch(() => undefined)
     await call(client, 'browser_code_coverage', { tabId, action: 'clear' }).catch(() => undefined)
     await closeFixtureServer(server)
   }

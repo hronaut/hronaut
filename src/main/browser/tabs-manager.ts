@@ -2359,6 +2359,7 @@ export class BrowserTabsManager {
       agentInputWebContents: () => this.agentInputWebContents,
       videoRecorder: () => this.videoRecorder,
       cssStatePreview: () => this.cssStatePreview,
+      domMutationSource: () => this.domMutationSource,
       mcpActivitiesByTab: () => this.mcpActivitiesByTab,
       downloadController: () => this.downloadController,
       renderQueues: () => this.renderQueues,

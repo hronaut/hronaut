@@ -45,12 +45,20 @@ interface ArmedRecord {
   nodeId: number
   webContents: WebContents
   origin: string
+  /** The page's address when armed, as reported. */
+  url: string
   authority: DomMutationSourceAuthority
   observationGeneration: number
   /** Script URLs by script ID, already sanitized; undefined for scripts without an HTTP(S) URL. */
   scripts: Map<string, string | undefined>
+  /** Scripts of isolated worlds, such as Hronaut's own page scripts: their changes are not the page's. */
+  isolatedScripts: Set<string>
   /** Set once the capture ended; later pauses are only resumed. */
   ending: boolean
+  /** The renderer exited: the instrumentation is removed once the page loads again. */
+  rendererGone: boolean
+  /** The instrumentation removal under way once the capture ended, so a cancel or read waits for it. */
+  settled?: Promise<void>
   verifying: boolean
   timers: Array<ReturnType<typeof setTimeout>>
   detach: () => void
@@ -61,7 +69,16 @@ interface EndedRecord {
   kind: DomMutationSourceKind
   reason: DomMutationSourceEndReason
   endedAt: string
+  url: string
+  origin: string
+  observationGeneration: number
   capture?: DomMutationSourceCapture
+}
+
+interface ScriptParsedEvent {
+  scriptId?: unknown
+  url?: unknown
+  executionContextAuxData?: { isDefault?: unknown }
 }
 
 interface PausedEvent {
@@ -96,6 +113,7 @@ const STATUS_BY_REASON: Record<DomMutationSourceEndReason, DomMutationSourceStat
   'authority-changed': 'invalidated',
   'devtools-opened': 'invalidated',
   'debugger-detached': 'invalidated',
+  'renderer-gone': 'invalidated',
   'tab-closed': 'invalidated'
 }
 
@@ -113,16 +131,17 @@ function bounded(text: string, maxChars: number): string {
   return clean.length > maxChars ? `${clean.slice(0, maxChars - 1)}…` : clean
 }
 
-/** An HTTP(S) script URL without credentials, fragment or sensitive query values, or undefined for any other script. */
+/** An HTTP(S) script's origin and path, without credentials, query or fragment, or undefined for any other script. */
 function scriptUrl(raw: unknown): string | undefined {
   if (typeof raw !== 'string' || !raw) return undefined
+  let parsed: URL
   try {
-    const { protocol } = new URL(raw)
-    if (protocol !== 'http:' && protocol !== 'https:') return undefined
+    parsed = new URL(raw)
   } catch {
     return undefined
   }
-  const url = redactNetworkUrl(raw)
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined
+  const url = `${parsed.origin}${parsed.pathname}`
   return url.length > DOM_MUTATION_SOURCE_LIMITS.maxUrlChars ? undefined : url
 }
 
@@ -194,8 +213,10 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
 
   constructor(private readonly host: DomMutationSourceHost<T>) {}
 
+  /** Whether a capture holds this tab's debugger session. One whose renderer exited no longer does: nothing can run until the page loads again, which removes it first. */
   active(tab: T): boolean {
-    return this.records.has(tab)
+    const record = this.records.get(tab)
+    return record !== undefined && !record.rendererGone
   }
 
   async manage(
@@ -210,7 +231,7 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
     return this.report(tab)
   }
 
-  /** Ends the capture and any arm still in flight. Safe from lifecycle hooks; never throws for a missing capture. */
+  /** Ends the capture and any arm still in flight, and waits until its instrumentation is removed. Never throws for a missing capture. */
   async end(tab: T, reason: DomMutationSourceEndReason): Promise<void> {
     this.cancellations.set(tab, (this.cancellations.get(tab) ?? 0) + 1)
     const record = this.records.get(tab)
@@ -236,6 +257,7 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
     const durationMs = domMutationSourceDuration(options.durationMs)
     const conflict = this.host.conflict(tab)
     if (conflict) throw new Error(conflict)
+    if (tab.webContents.isCrashed()) throw new Error('The page stopped because its renderer exited. Reload the tab before capturing a DOM mutation source')
     const origin = httpOrigin(tab.webContents.getURL())
     if (!origin) throw new Error('Open an HTTP(S) page in this tab before capturing a DOM mutation source')
     const navigationGeneration = tab.navigationGeneration
@@ -267,8 +289,8 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
         return result
       }
       const record: ArmedRecord = {
-        selector, kind, armedAt: 0, expiresAt: 0, nodeId: 0, webContents, origin, authority, observationGeneration,
-        scripts: new Map(), ending: true, verifying: false, timers: [], detach: () => undefined
+        selector, kind, armedAt: 0, expiresAt: 0, nodeId: 0, webContents, origin, url: redactNetworkUrl(tab.url), authority, observationGeneration,
+        scripts: new Map(), isolatedScripts: new Set(), ending: true, rendererGone: false, verifying: false, timers: [], detach: () => undefined
       }
       // Listen before enabling the Debugger domain: it reports every existing script as it enables.
       this.listen(tab, record)
@@ -340,8 +362,11 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
     const contents = record.webContents
     const onMessage = (_event: Electron.Event, method: string, params: unknown): void => {
       if (method === 'Debugger.scriptParsed') {
-        const script = params as { scriptId?: unknown; url?: unknown }
-        if (typeof script.scriptId === 'string' && (record.scripts.has(script.scriptId) || record.scripts.size < DOM_MUTATION_SOURCE_LIMITS.maxScripts)) {
+        const script = params as ScriptParsedEvent
+        if (typeof script.scriptId !== 'string') return
+        if (script.executionContextAuxData?.isDefault === false) {
+          if (record.isolatedScripts.size < DOM_MUTATION_SOURCE_LIMITS.maxScripts) record.isolatedScripts.add(script.scriptId)
+        } else if (record.scripts.has(script.scriptId) || record.scripts.size < DOM_MUTATION_SOURCE_LIMITS.maxScripts) {
           record.scripts.set(script.scriptId, scriptUrl(script.url))
         }
       } else if (method === 'Debugger.paused') {
@@ -351,37 +376,50 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
       }
     }
     const onNavigation = (_event: Electron.Event, _url: string, isSameDocument: boolean, isMainFrame: boolean): void => {
-      if (isMainFrame && !isSameDocument) void this.finish(tab, record, 'navigation').catch(() => undefined)
+      if (!isMainFrame || isSameDocument) return
+      if (record.rendererGone) this.removeAfterRendererExit(tab, record)
+      else void this.finish(tab, record, 'navigation').catch(() => undefined)
     }
     const onDevTools = (): void => { void this.finish(tab, record, 'devtools-opened').catch(() => undefined) }
     // Opening Developer Tools detaches Hronaut's debugger before they open.
     const onDetach = (): void => { this.release(tab, record, this.host.isDevToolsOpening(tab) ? 'devtools-opened' : 'debugger-detached') }
+    const onRendererGone = (): void => { this.rendererExited(tab, record) }
     const onDestroyed = (): void => { this.forget(tab) }
     contents.debugger.on('message', onMessage)
     contents.debugger.on('detach', onDetach)
     contents.on('did-start-navigation', onNavigation)
     contents.on('devtools-opened', onDevTools)
+    contents.on('render-process-gone', onRendererGone)
     contents.once('destroyed', onDestroyed)
     record.detach = () => {
       contents.debugger.removeListener('message', onMessage)
       contents.debugger.removeListener('detach', onDetach)
       contents.removeListener('did-start-navigation', onNavigation)
       contents.removeListener('devtools-opened', onDevTools)
+      contents.removeListener('render-process-gone', onRendererGone)
       contents.removeListener('destroyed', onDestroyed)
     }
   }
 
   private paused(tab: T, record: ArmedRecord, paused: PausedEvent): void {
     const contents = record.webContents
-    if (this.host.isDevToolsOpening(tab) || contents.isDevToolsOpened()) {
+    if (contents.isDevToolsOpened()) {
       // A pause Developer Tools may own is theirs to resume; ending the capture disables this session's debugger.
       void this.finish(tab, record, 'devtools-opened').catch(() => undefined)
       return
     }
-    // Resume before anything else, so no path leaves the page paused. Sent directly rather than queued:
-    // a queued command may be waiting on this very page.
+    // Resume before anything else, so no path leaves the page paused, including while Developer Tools are
+    // still opening and this session is the only one. Sent directly rather than queued: a queued command
+    // may be waiting on this very page.
     void contents.debugger.sendCommand('Debugger.resume').catch(() => undefined)
+    if (this.host.isDevToolsOpening(tab)) {
+      void this.finish(tab, record, 'devtools-opened').catch(() => undefined)
+      return
+    }
     if (record.ending || paused?.reason !== 'DOM') return
+    // Hronaut's own page scripts run in isolated worlds, such as a snapshot marking elements; the breakpoint stays for the page's change.
+    const top = paused.callFrames?.[0]?.location?.scriptId
+    if (typeof top === 'string' && record.isolatedScripts.has(top)) return
     if (!this.recordCurrent(tab, record)) {
       void this.finish(tab, record, 'authority-changed').catch(() => undefined)
       return
@@ -393,6 +431,29 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
       ...mutationSourceFrames(paused, record.scripts)
     }
     void this.finish(tab, record, 'captured', capture).catch(() => undefined)
+  }
+
+  /**
+   * Ends the capture when the page's renderer exits. Commands now fail unsent, and Chromium restores this
+   * session's Debugger domain in the next renderer, where a debugger statement would pause the page. So the
+   * record keeps its listeners, which resume any pause, until the page loads again and the removal runs.
+   */
+  private rendererExited(tab: T, record: ArmedRecord): void {
+    if (this.records.get(tab) !== record) return
+    record.rendererGone = true
+    if (!record.ending) {
+      record.ending = true
+      this.recordEnd(tab, record, 'renderer-gone')
+    }
+    for (const timer of record.timers) clearTimeout(timer)
+    record.timers = []
+  }
+
+  /** Runs when the page starts loading in a new renderer, ahead of anything queued after it. */
+  private removeAfterRendererExit(tab: T, record: ArmedRecord): void {
+    if (this.records.get(tab) !== record) return
+    const removal = this.host.inDebuggerQueue(tab, () => this.teardown(tab, record, 'renderer-gone')).catch(() => undefined)
+    record.settled = removal
   }
 
   private scheduleVerify(tab: T, record: ArmedRecord): void {
@@ -407,6 +468,10 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
   private async check(tab: T): Promise<void> {
     const record = this.records.get(tab)
     if (!record) return
+    if (record.ending) {
+      await record.settled
+      return
+    }
     if (!this.recordCurrent(tab, record)) {
       await this.finish(tab, record, 'authority-changed')
       return
@@ -429,9 +494,16 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
     }
   }
 
-  /** Ends the record now and removes its instrumentation in the debugger queue. */
+  /**
+   * Ends the record now and removes its instrumentation in the debugger queue. A record that already ended
+   * waits for that removal instead. Never called from inside the debugger queue, which would wait on itself.
+   */
   private async finish(tab: T, record: ArmedRecord, reason: DomMutationSourceEndReason, capture?: DomMutationSourceCapture): Promise<void> {
-    if (this.records.get(tab) !== record || record.ending) return
+    if (this.records.get(tab) !== record) return
+    if (record.ending) {
+      await record.settled
+      return
+    }
     record.ending = true
     this.recordEnd(tab, record, reason, capture)
     const contents = record.webContents
@@ -439,17 +511,22 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
       this.release(tab, record, reason)
       return
     }
-    await this.host.inDebuggerQueue(tab, () => this.teardown(tab, record, reason))
+    record.settled = this.host.inDebuggerQueue(tab, () => this.teardown(tab, record, reason)).catch(() => undefined)
+    await record.settled
   }
 
-  private async teardown(tab: T, record: ArmedRecord, reason: DomMutationSourceEndReason): Promise<void> {
-    if (this.records.get(tab) !== record) return
+  /** Removes the record's instrumentation now; runs inside the debugger queue. */
+  private teardown(tab: T, record: ArmedRecord, reason: DomMutationSourceEndReason): Promise<void> {
+    if (this.records.get(tab) !== record) return Promise.resolve()
     if (!record.ending) {
       record.ending = true
       this.recordEnd(tab, record, reason)
     }
-    await this.removeInstrumentation(tab, record, true)
-    this.release(tab, record, reason)
+    // Commands to an exited renderer fail unsent; the record waits for the page to load again.
+    if (record.webContents.isCrashed()) return Promise.resolve()
+    const removal = this.removeInstrumentation(tab, record, true).then(() => this.release(tab, record, reason))
+    record.settled ??= removal
+    return removal
   }
 
   private async removeInstrumentation(tab: T, record: ArmedRecord, breakpointSet: boolean): Promise<void> {
@@ -466,7 +543,16 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
   }
 
   private recordEnd(tab: T, record: ArmedRecord, reason: DomMutationSourceEndReason, capture?: DomMutationSourceCapture): void {
-    this.ended.set(tab, { selector: record.selector, kind: record.kind, reason, endedAt: new Date().toISOString(), ...(capture ? { capture } : {}) })
+    this.ended.set(tab, {
+      selector: record.selector,
+      kind: record.kind,
+      reason,
+      endedAt: new Date().toISOString(),
+      url: record.url,
+      origin: record.origin,
+      observationGeneration: record.observationGeneration,
+      ...(capture ? { capture } : {})
+    })
   }
 
   /** Forgets the record without commands: its session ended, or the commands already ran. */
@@ -483,7 +569,12 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
 
   private report(tab: T): DomMutationSourceReport {
     const record = this.records.get(tab)
-    const ended = this.ended.get(tab)
+    let ended = this.ended.get(tab)
+    // Page-derived results stay with their origin and the workspace control they were captured under.
+    if (ended && (ended.observationGeneration !== tab.observationGeneration || httpOrigin(tab.url) !== ended.origin)) {
+      this.ended.delete(tab)
+      ended = undefined
+    }
     const status: DomMutationSourceStatus = record && !record.ending ? 'armed' : ended ? STATUS_BY_REASON[ended.reason] : 'idle'
     return {
       tabId: tab.id,
@@ -499,7 +590,7 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
         }
       } : {}),
       ...(status !== 'armed' && ended?.capture ? { capture: ended.capture } : {}),
-      ...(status !== 'armed' && ended ? { ended: { selector: ended.selector, kind: ended.kind, reason: ended.reason, endedAt: ended.endedAt } } : {}),
+      ...(status !== 'armed' && ended ? { ended: { selector: ended.selector, kind: ended.kind, reason: ended.reason, endedAt: ended.endedAt, url: ended.url } } : {}),
       limits: DOM_MUTATION_SOURCE_LIMITS,
       caveats: [...DOM_MUTATION_SOURCE_CAVEATS]
     }

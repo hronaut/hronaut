@@ -5,14 +5,20 @@ import { DomMutationSourceCaptures, mutationSourceFrames } from '../src/main/bro
 
 const ORIGIN = 'https://app.test'
 
-function fixture(options: { nodeIds?: readonly number[]; localName?: string; url?: string; keepDomEnabled?: boolean } = {}) {
+function fixture(options: { nodeIds?: readonly number[]; localName?: string; url?: string; keepDomEnabled?: boolean; heldQuery?: Promise<void> } = {}) {
   const debuggerEvents = new EventEmitter()
   let devToolsOpened = false
   let devToolsOpening = false
   let removed = false
+  let crashed = false
+  // Operations queued behind the debugger queue while it is held, run in order on release.
+  let held: Array<() => void> | undefined
   const sendCommand = vi.fn(async (method: string, params?: Record<string, unknown>) => {
     if (method === 'DOM.getDocument') return { root: { nodeId: 1 } }
-    if (method === 'DOM.querySelectorAll') return { nodeIds: options.nodeIds ?? [7] }
+    if (method === 'DOM.querySelectorAll') {
+      await options.heldQuery
+      return { nodeIds: options.nodeIds ?? [7] }
+    }
     if (method === 'DOM.describeNode') {
       if (removed) throw new Error('Could not find node with given id')
       return { node: { nodeType: 1, localName: options.localName ?? 'button' } }
@@ -23,6 +29,7 @@ function fixture(options: { nodeIds?: readonly number[]; localName?: string; url
     id: 3,
     debugger: Object.assign(debuggerEvents, { sendCommand, isAttached: () => true }),
     isDestroyed: () => false,
+    isCrashed: () => crashed,
     isDevToolsOpened: () => devToolsOpened,
     getURL: () => options.url ?? `${ORIGIN}/orders?token=private-token`
   }) as unknown as WebContents & EventEmitter
@@ -31,7 +38,9 @@ function fixture(options: { nodeIds?: readonly number[]; localName?: string; url
   const captures = new DomMutationSourceCaptures<typeof tab>({
     isCurrent: () => true,
     withDebugger: (_tab, operation) => operation(),
-    inDebuggerQueue: (_tab, operation) => operation(),
+    inDebuggerQueue: (_tab, operation) => held
+      ? new Promise((resolve, reject) => { held!.push(() => { operation().then(resolve, reject) }) })
+      : operation(),
     conflict,
     keepDomEnabled: () => options.keepDomEnabled ?? false,
     isDevToolsOpening: () => devToolsOpening
@@ -50,9 +59,13 @@ function fixture(options: { nodeIds?: readonly number[]; localName?: string; url
     openDevTools: () => { devToolsOpened = true },
     startOpeningDevTools: () => { devToolsOpening = true },
     removeTarget: () => { removed = true },
+    setCrashed: (value: boolean) => { crashed = value },
+    holdQueue: () => { held = [] },
+    releaseQueue: () => { const pending = held ?? []; held = undefined; for (const run of pending) run() },
     arm: (kind: 'attribute-modified' | 'subtree-modified' | 'node-removed' = 'attribute-modified', selector = '#save', durationMs?: number) =>
       captures.manage(tab, 'arm', { selector, kind, durationMs, authority }),
-    listeners: () => (page.debugger as unknown as EventEmitter).listenerCount('message') + page.listenerCount('did-start-navigation')
+    listeners: () => ['message', 'detach'].reduce((count, event) => count + (page.debugger as unknown as EventEmitter).listenerCount(event), 0)
+      + ['did-start-navigation', 'devtools-opened', 'render-process-gone', 'destroyed'].reduce((count, event) => count + page.listenerCount(event), 0)
   }
 }
 
@@ -69,6 +82,9 @@ it('arms a DOM breakpoint on exactly one element, checking the arming authority 
   expect(f.sendCommand).toHaveBeenCalledWith('DOMDebugger.setDOMBreakpoint', { nodeId: 7, type: 'subtree-modified' })
   expect(f.authority.assertCurrent).toHaveBeenCalledWith(ORIGIN)
   expect(f.captures.active(f.tab)).toBe(true)
+  expect(f.listeners()).toBe(6)
+  await f.captures.manage(f.tab, 'cancel')
+  expect(f.listeners()).toBe(0)
 })
 
 it('refuses an ambiguous, missing or root element, a page that is not HTTP(S) and a conflicting debugger use, leaving nothing behind', async () => {
@@ -128,18 +144,19 @@ it('resumes the page before anything else, keeps the first matching change and r
   const report = await f.captures.manage(f.tab, 'get')
   expect(report).toMatchObject({
     status: 'captured',
-    ended: { reason: 'captured', selector: '#save', kind: 'attribute-modified' },
+    ended: { reason: 'captured', selector: '#save', kind: 'attribute-modified', url: `${ORIGIN}/orders?token=%5BREDACTED%5D` },
     capture: {
       kind: 'attribute-modified', change: 'attribute', framesTruncated: false,
       frames: [
-        { functionName: 'disableSave', url: `${ORIGIN}/app.js?token=%5BREDACTED%5D`, lineNumber: 5, columnNumber: 3 },
+        { functionName: 'disableSave', url: `${ORIGIN}/app.js`, lineNumber: 5, columnNumber: 3 },
         { functionName: '(anonymous)', lineNumber: 1, columnNumber: 1 },
-        { functionName: 'later', url: `${ORIGIN}/app.js?token=%5BREDACTED%5D`, lineNumber: 10, columnNumber: 2, asyncBoundary: 'setTimeout' }
+        { functionName: 'later', url: `${ORIGIN}/app.js`, lineNumber: 10, columnNumber: 2, asyncBoundary: 'setTimeout' }
       ]
     }
   })
   expect(report.capture!.frames[1]).not.toHaveProperty('url')
   expect(JSON.stringify(report)).not.toMatch(/private-token|private-inline|frag/)
+  expect(JSON.stringify(report.capture)).not.toContain('token')
   expect(f.methods()).toEqual(['Debugger.resume', 'DOMDebugger.removeDOMBreakpoint', 'Debugger.disable', 'Runtime.setAsyncCallStackDepth', 'DOM.disable'])
   expect(f.sendCommand).toHaveBeenCalledWith('Runtime.setAsyncCallStackDepth', { maxDepth: 8 })
   expect(f.listeners()).toBe(0)
@@ -184,7 +201,12 @@ it('notices a lost authority while armed, and on get', async () => {
   const g = fixture()
   await g.arm()
   g.tab.observationGeneration += 1
-  expect(await g.captures.manage(g.tab, 'get')).toMatchObject({ status: 'invalidated', ended: { reason: 'authority-changed' } })
+  // The new controller of the workspace reads nothing of the earlier capture.
+  const report = await g.captures.manage(g.tab, 'get')
+  expect(report).toMatchObject({ status: 'idle' })
+  expect(report).not.toHaveProperty('ended')
+  expect(g.captures.active(g.tab)).toBe(false)
+  expect(g.methods()).toContain('Debugger.disable')
 })
 
 it('ends on a cross-document navigation, Developer Tools, a detached debugger, expiry and cancel', async () => {
@@ -228,6 +250,132 @@ it('ends on a cross-document navigation, Developer Tools, a detached debugger, e
   await vi.advanceTimersByTimeAsync(1_000)
   expect(await expiring.captures.manage(expiring.tab, 'get')).toMatchObject({ status: 'expired', ended: { reason: 'expired', kind: 'node-removed' } })
   expect(expiring.listeners()).toBe(0)
+})
+
+it('ignores changes made from an isolated world, such as Hronaut\'s snapshot references, and stays armed', async () => {
+  const f = fixture()
+  await f.arm()
+  f.emit('Debugger.scriptParsed', { scriptId: '30', url: '', executionContextAuxData: { isDefault: false, type: 'isolated', frameId: 'main' } })
+  f.emit('Debugger.scriptParsed', { scriptId: '11', url: `${ORIGIN}/app.js`, executionContextAuxData: { isDefault: true, type: 'default', frameId: 'main' } })
+  f.sendCommand.mockClear()
+  f.pause('DOM', { data: { type: 'attribute-modified' }, callFrames: [{ functionName: 'markRefs', location: { scriptId: '30', lineNumber: 190, columnNumber: 14 } }] })
+  await f.settle()
+  expect(f.methods()).toEqual(['Debugger.resume'])
+  expect(await f.captures.manage(f.tab, 'get')).toMatchObject({ status: 'armed' })
+  // The page's own change after it is still captured.
+  f.pause('DOM', { data: { type: 'attribute-modified' } })
+  await f.settle()
+  const report = await f.captures.manage(f.tab, 'get')
+  expect(report).toMatchObject({ status: 'captured', capture: { frames: [{ functionName: 'disableSave', url: `${ORIGIN}/app.js` }] } })
+})
+
+it('resumes a pause first while Developer Tools are opening, then ends', async () => {
+  const f = fixture()
+  await f.arm()
+  f.startOpeningDevTools()
+  f.sendCommand.mockClear()
+  f.pause('DOM', { data: { type: 'attribute-modified' } })
+  expect(f.methods()[0]).toBe('Debugger.resume')
+  await f.settle()
+  const report = await f.captures.manage(f.tab, 'get')
+  expect(report).toMatchObject({ status: 'invalidated', ended: { reason: 'devtools-opened' } })
+  expect(report).not.toHaveProperty('capture')
+})
+
+it('ends when the renderer exits, resumes pauses and removes the instrumentation once the page loads again', async () => {
+  const f = fixture()
+  await f.arm()
+  f.sendCommand.mockClear()
+  f.setCrashed(true)
+  f.page.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
+  expect(await f.captures.manage(f.tab, 'cancel')).toMatchObject({ status: 'invalidated', ended: { reason: 'renderer-gone' } })
+  expect(f.captures.active(f.tab)).toBe(false)
+  await expect(f.arm()).rejects.toThrow('renderer exited')
+  // Chromium restores the Debugger domain in the next renderer, so the listeners stay until the removal ran there.
+  expect(f.methods()).toEqual([])
+  expect(f.listeners()).toBe(6)
+  f.setCrashed(false)
+  f.pause('other')
+  f.page.emit('did-start-navigation', {}, `${ORIGIN}/orders`, false, true)
+  await f.settle()
+  expect(f.methods()).toEqual(['Debugger.resume', 'DOMDebugger.removeDOMBreakpoint', 'Debugger.disable', 'Runtime.setAsyncCallStackDepth', 'DOM.disable'])
+  expect(f.listeners()).toBe(0)
+  expect(await f.captures.manage(f.tab, 'get')).toMatchObject({ status: 'invalidated', ended: { reason: 'renderer-gone' } })
+})
+
+it('keeps a finished capture only on the arming origin and under the same workspace control', async () => {
+  const navigated = fixture()
+  await navigated.arm()
+  navigated.pause('DOM', { data: { type: 'attribute-modified' } })
+  await navigated.settle()
+  navigated.tab.url = `${ORIGIN}/other`
+  expect(await navigated.captures.manage(navigated.tab, 'get')).toMatchObject({ status: 'captured', url: `${ORIGIN}/other`, ended: { url: `${ORIGIN}/orders?token=%5BREDACTED%5D` } })
+  navigated.tab.url = 'https://elsewhere.test/'
+  const elsewhere = await navigated.captures.manage(navigated.tab, 'get')
+  expect(elsewhere).toMatchObject({ status: 'idle' })
+  expect(elsewhere).not.toHaveProperty('capture')
+  expect(elsewhere).not.toHaveProperty('ended')
+
+  const controlled = fixture()
+  await controlled.arm()
+  controlled.pause('DOM', { data: { type: 'attribute-modified' } })
+  await controlled.settle()
+  controlled.tab.observationGeneration += 1
+  const report = await controlled.captures.manage(controlled.tab, 'get')
+  expect(report).toMatchObject({ status: 'idle' })
+  expect(report).not.toHaveProperty('capture')
+})
+
+it('a cancel or navigation while arming wins: nothing stays armed and nothing is left behind', async () => {
+  let release!: () => void
+  const f = fixture({ heldQuery: new Promise<void>(resolve => { release = resolve }) })
+  const arming = f.arm()
+  await f.settle()
+  expect(await f.captures.manage(f.tab, 'cancel')).toMatchObject({ status: 'idle' })
+  release()
+  await expect(arming).rejects.toThrow('cancelled while it was arming')
+  expect(f.methods()).not.toContain('DOMDebugger.setDOMBreakpoint')
+  expect(f.methods()).toContain('Debugger.disable')
+  expect(f.listeners()).toBe(0)
+  expect(f.captures.active(f.tab)).toBe(false)
+
+  let continueQuery!: () => void
+  const g = fixture({ heldQuery: new Promise<void>(resolve => { continueQuery = resolve }) })
+  const navigating = g.arm()
+  await g.settle()
+  g.tab.navigationGeneration += 1
+  continueQuery()
+  await expect(navigating).rejects.toThrow('The page changed while arming')
+  expect(g.listeners()).toBe(0)
+})
+
+it('arming again replaces the armed capture and moves the breakpoint', async () => {
+  const f = fixture()
+  await f.arm('attribute-modified', '#save')
+  f.sendCommand.mockClear()
+  const report = await f.arm('subtree-modified', '#panel')
+  expect(report).toMatchObject({ status: 'armed', armed: { selector: '#panel', kind: 'subtree-modified' } })
+  expect(f.methods().slice(0, 3)).toEqual(['DOMDebugger.removeDOMBreakpoint', 'Debugger.disable', 'Runtime.setAsyncCallStackDepth'])
+  expect(f.sendCommand).toHaveBeenCalledWith('DOMDebugger.removeDOMBreakpoint', { nodeId: 7, type: 'attribute-modified' })
+  expect(f.sendCommand).toHaveBeenLastCalledWith('DOMDebugger.setDOMBreakpoint', { nodeId: 7, type: 'subtree-modified' })
+  expect(f.listeners()).toBe(6)
+  await f.captures.manage(f.tab, 'cancel')
+})
+
+it('a cancel after a capture waits until the instrumentation is removed', async () => {
+  const f = fixture()
+  await f.arm()
+  f.holdQueue()
+  f.pause('DOM', { data: { type: 'attribute-modified' } })
+  let cancelled = false
+  const cancel = f.captures.manage(f.tab, 'cancel').then(report => { cancelled = true; return report })
+  await f.settle()
+  expect(cancelled).toBe(false)
+  expect(f.captures.active(f.tab)).toBe(true)
+  f.releaseQueue()
+  expect(await cancel).toMatchObject({ status: 'captured' })
+  expect(f.captures.active(f.tab)).toBe(false)
+  expect(f.methods()).toContain('DOMDebugger.removeDOMBreakpoint')
 })
 
 it('does not resume a pause while Developer Tools are open, and ends instead', async () => {

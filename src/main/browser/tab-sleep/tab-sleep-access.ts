@@ -58,9 +58,9 @@ export interface TabSleepOptions {
  * What putting a tab to sleep and waking it needs from the tab manager, which
  * keeps the tabs, the active tab, the split view, its options, DevTools
  * opening, native selection sessions, agent input, video recording, CSS state
- * previews, MCP activity, downloads, render queues, navigation history, tab
- * overview previews, the debugger queue, workspaces, selection and state
- * publication private. The active tab stays a manager field because
+ * previews, DOM mutation source captures, MCP activity, downloads, render
+ * queues, navigation history, tab overview previews, the debugger queue,
+ * workspaces, selection and state publication private. The active tab stays a manager field because
  * selection and layout read and write it too; it is read again at every use.
  */
 export interface TabSleepAccess<Tab extends TabSleepTab> {
@@ -94,6 +94,8 @@ export interface TabSleepAccess<Tab extends TabSleepTab> {
   videoRecorder(): { state(tabId: string): BrowserVideoState }
   /** The forced CSS state previews. */
   cssStatePreview(): { active(tab: Tab): boolean }
+  /** The armed DOM mutation source captures. */
+  domMutationSource(): { active(tab: Tab): boolean }
   /** The MCP commands running on each tab, by tab id. */
   mcpActivitiesByTab(): ReadonlyMap<string, ReadonlySet<string>>
   /** The downloads. */
