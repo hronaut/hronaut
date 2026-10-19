@@ -113,7 +113,7 @@ function createController(onSubscribe: SubscriptionHooks = {}) {
       return requestUnsubscribe
     })
   } as unknown as HronautWalletsApi
-  const controller = useWalletsController({ api, formatError: String })
+  const controller = useWalletsController({ api, formatError: String, reportRequestError: vi.fn() })
   return {
     api,
     auditHistory,

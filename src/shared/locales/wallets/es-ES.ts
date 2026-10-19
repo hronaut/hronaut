@@ -292,6 +292,7 @@ export const esESWallets = {
     "hash": "Hash de aprobación",
     "hashPending": "se calcula al aprobar",
     "reject": "Rechazar",
-    "approve": "Aprobar solicitud exacta"
+    "approve": "Aprobar solicitud exacta",
+    "requestFailed": "La solicitud de la cartera ha fallado"
   }
 }

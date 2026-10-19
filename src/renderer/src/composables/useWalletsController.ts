@@ -21,6 +21,8 @@ import type {
 export interface WalletsControllerOptions {
   api: HronautWalletsApi
   formatError: (error: unknown) => string
+  /** Reports the failure of an approval or rejection whose request has already left the queue, so no dialog shows it. */
+  reportRequestError: (message: string) => void
 }
 
 export function useWalletsController(options: WalletsControllerOptions) {
@@ -33,7 +35,10 @@ export function useWalletsController(options: WalletsControllerOptions) {
   const requests = ref<WalletRequestSummary[]>([])
   const audit = ref<WalletAuditSummary[]>([])
   const busy = ref(false)
+  /** The failure of the last Settings action. */
   const errorMessage = ref('')
+  /** The failure of the last approval or rejection, kept with its request so another request's dialog never shows it. */
+  const requestError = ref<{ requestId: string; message: string }>()
   let disposed = false
   let initialized = false
   let initializePromise: Promise<void> | null = null
@@ -145,10 +150,11 @@ export function useWalletsController(options: WalletsControllerOptions) {
     return trackedOperation
   }
 
-  async function run<T>(operation: () => Promise<T>, refresh = true): Promise<T | undefined> {
+  async function run<T>(operation: () => Promise<T>, refresh = true, requestId?: string): Promise<T | undefined> {
     if (busy.value) return undefined
     busy.value = true
-    errorMessage.value = ''
+    if (requestId === undefined) errorMessage.value = ''
+    else requestError.value = undefined
     let result: T | undefined
     try {
       result = await operation()
@@ -165,7 +171,15 @@ export function useWalletsController(options: WalletsControllerOptions) {
       }
       return result
     } catch (error) {
-      if (!disposed) setError(error)
+      if (!disposed) {
+        if (requestId === undefined) setError(error)
+        // Main publishes the queue before it answers, so a request the failure ended has already left it here.
+        else if (requests.value.some((request) => request.id === requestId && request.status === 'awaiting-human')) {
+          requestError.value = { requestId, message: options.formatError(error) }
+        } else {
+          options.reportRequestError(options.formatError(error))
+        }
+      }
       // A failed follow-up read must not turn a committed mutation into a
       // retryable failure (import confirmation tokens are already consumed).
       return result
@@ -201,8 +215,8 @@ export function useWalletsController(options: WalletsControllerOptions) {
   const setPolicy = (policy: WalletPolicy) => run(() => options.api.setPolicy(policy))
   const removePolicy = (policyId: string) => run(() => options.api.removePolicy(policyId))
   const revokePermission = (permissionId: string) => run(() => options.api.revokePermission(permissionId))
-  const approve = (requestId: string) => run(() => options.api.approveRequest(requestId))
-  const reject = (requestId: string) => run(() => options.api.rejectRequest(requestId))
+  const approve = (requestId: string) => run(() => options.api.approveRequest(requestId), true, requestId)
+  const reject = (requestId: string) => run(() => options.api.rejectRequest(requestId), true, requestId)
 
   function dispose(): void {
     disposed = true
@@ -221,6 +235,7 @@ export function useWalletsController(options: WalletsControllerOptions) {
     awaitingApproval,
     busy,
     errorMessage,
+    requestError,
     initialize,
     refreshDetails,
     setupPassphrase,
