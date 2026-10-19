@@ -1,9 +1,16 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { test, expect, text } from './capability-fixtures.js'
+import { waitForSettledPageBounds } from './settled-page-bounds.js'
 
 type WheelGate = { held: boolean; commands: string[]; release: () => void; restore: () => void }
 type WheelScope = typeof globalThis & { wheelGate?: WheelGate }
+
+// A wheel refuses to start when main moves its page; let the toolbar settle
+// after the fixture selects its tab.
+test.beforeEach(async ({ capabilities, electronApp }) => {
+  await waitForSettledPageBounds(electronApp, capabilities.fixtureUrl)
+})
 
 for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'pause-aba', 'global-pause-aba', 'access-aba', 'route', 'close', 'cancel', 'frame', 'lock-request', 'global-lock-requests'] as const) {
   test(`wheel revalidates after viewport await: ${change}`, async ({ capabilities, electronApp, appWindow }, testInfo) => {
