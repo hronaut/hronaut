@@ -109,6 +109,7 @@ export const plPLAppErrors: AppErrorMessages = {
     "busyCopyingData": "Trwa kopiowanie danych obszaru roboczego „{name}”. Spróbuj ponownie po zakończeniu tej operacji.",
     "busyImportingCookies": "Trwa importowanie plików cookie przeglądarki do obszaru roboczego „{name}”. Spróbuj ponownie po zakończeniu tej operacji.",
     "busyDeleting": "Zarchiwizowany obszar roboczy „{name}” jest właśnie usuwany. Spróbuj ponownie po zakończeniu tej operacji.",
+    "busyUnnamed": "Ten obszar roboczy jest zajęty inną operacją. Spróbuj ponownie po zakończeniu tej operacji.",
     "nameEmpty": "Nazwa obszaru roboczego nie może być pusta.",
     "nameTooLong": "Nazwa obszaru roboczego nie może przekraczać {max} znaków.",
     "nameTaken": "Obszar roboczy o nazwie „{name}” już istnieje. Nazwy obszarów roboczych muszą być unikalne.",
@@ -190,7 +191,18 @@ export const plPLAppErrors: AppErrorMessages = {
     "decisionUnavailable": "Oczekująca decyzja jest niedostępna.",
     "confirmationUnavailable": "Potwierdzenie oczekującej decyzji jest niedostępne.",
     "noteUnavailable": "Notatka do oczekującej decyzji jest niedostępna.",
-    "reviewBeforeResolving": "Sprawdź bieżącą ciągłość obszaru roboczego, zanim zakończysz decyzję."
+    "reviewBeforeResolving": "Sprawdź bieżącą ciągłość obszaru roboczego, zanim zakończysz decyzję.",
+    "decisionStale": "Oczekująca decyzja jest niedostępna lub nieaktualna.",
+    "accountAndTargetUnconfirmed": "Potwierdź, że sprawdzono zalogowane konto i widoczny cel w powiązanej karcie przeglądarki.",
+    "reviewChangedWhileSaving": "Sprawdzony stan przeglądarki zmienił się podczas zapisywania; sprawdź ponownie bieżący stan.",
+    "historyUnavailable": "Historia decyzji człowieka jest niedostępna.",
+    "changeNotSaved": "Nie udało się zapisać zmiany decyzji; sprawdź odzyskiwanie przed ponowną próbą.",
+    "replaceSuspended": "Potwierdź sprawdzony stan, zanim utworzysz nowy punkt kontrolny.",
+    "checkpointCapacity": "Osiągnięto limit punktów kontrolnych.",
+    "reviewStale": "Sprawdzenie ciągłości jest niedostępne lub nieaktualne.",
+    "reviewExpired": "Sprawdzenie ciągłości wygasło; sprawdź ponownie bieżący stan.",
+    "changedAfterReview": "Stan przeglądarki zmienił się po sprawdzeniu ciągłości.",
+    "unknownOutcomeUnacknowledged": "Potwierdź, że strona została sprawdzona i że poprzednia czynność mogła już odnieść skutek."
   },
   "lifecycle": {
     "homeTab": "Zamrażać i wznawiać można tylko karty z działającymi stronami.",

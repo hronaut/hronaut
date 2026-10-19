@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import UiButton from "../ui/UiButton.vue"
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconHorizontalSplit from '~icons/material-symbols/horizontal-split-rounded'
@@ -30,6 +30,7 @@ const emit = defineEmits<{
 const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 const busy = ref(false)
+const menu = ref<HTMLElement | null>(null)
 const regularTabs = computed(() => props.state.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
 const available = computed(() => regularTabs.value.length > 1 || props.state.splitView !== undefined)
 const splitViewTabs = computed(() => props.state.splitView
@@ -60,6 +61,9 @@ async function runMutation(
   closeMenu = false
 ): Promise<void> {
   if (busy.value) return
+  const panel = menu.value
+  const focused = document.activeElement
+  const ownedFocus = !closeMenu && panel !== null && focused instanceof HTMLElement && panel.contains(focused)
   if (closeMenu) close()
   busy.value = true
   try {
@@ -69,6 +73,19 @@ async function runMutation(
   } finally {
     busy.value = false
   }
+  if (ownedFocus) await restoreMenuFocus(panel, focused)
+}
+
+// The menu's controls are disabled while a change is saved, and Chromium then drops the focus of the one you used.
+// Once the change is saved or fails, that control gets it back, or the menu's Close button when the control is gone,
+// unless you have moved the focus, gone to the website or another app, or closed the menu meanwhile.
+async function restoreMenuFocus(panel: HTMLElement, focused: HTMLElement): Promise<void> {
+  await nextTick()
+  if (!open.value || menu.value !== panel || !panel.isConnected) return
+  if (!document.hasFocus() || (document.activeElement !== document.body && document.activeElement !== focused)) return
+  const target = [focused, panel.querySelector<HTMLElement>('.panel-close')]
+    .find((element) => element?.isConnected && panel.contains(element) && !element.matches(':disabled'))
+  target?.focus()
 }
 
 async function openTabInSplitView(tabId: string): Promise<void> {
@@ -135,6 +152,7 @@ defineExpose({ close, toggleMenu })
     </UiButton>
     <section
       v-if="open"
+      ref="menu"
       class="split-view-menu"
       data-shell-side-panel
       role="dialog"

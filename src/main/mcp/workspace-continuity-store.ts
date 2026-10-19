@@ -1,6 +1,7 @@
 import type { WorkspaceContinuityReport } from '../../shared/workspace-continuity.js'
 import { randomUUID } from 'node:crypto'
 import { compareWorkspaceContinuity, type WorkspaceContinuityEvidence, type WorkspaceContinuityResult } from './workspace-continuity.js'
+import { LocalizedError } from '../localized-error.js'
 
 type PriorOutcome = WorkspaceContinuityResult['priorOutcome']
 interface Review {
@@ -42,9 +43,12 @@ export class WorkspaceContinuityStore {
       throw new Error('Continuity evidence is unavailable')
     }
     const prior = this.records.get(evidence.workspaceId)
-    if (prior?.suspended) throw new Error('Reconcile the suspended checkpoint before replacing it')
+    // Agents reconcile the checkpoint; a person confirms the reviewed state in the workspace's continuity panel.
+    if (prior?.suspended) {
+      throw new LocalizedError('appErrors.continuity.replaceSuspended', undefined, { message: 'Reconcile the suspended checkpoint before replacing it' })
+    }
     // Never evict another workspace's guard when this bounded store fills up.
-    if (!prior && this.records.size >= this.capacity) throw new Error('Continuity checkpoint capacity reached')
+    if (!prior && this.records.size >= this.capacity) throw new LocalizedError('appErrors.continuity.checkpointCapacity')
     const id = randomUUID()
     this.records.set(evidence.workspaceId, { id, evidence: structuredClone(evidence), suspended: false, priorOutcome: 'NONE' })
     return id
@@ -89,17 +93,20 @@ export class WorkspaceContinuityStore {
   reconcile(workspaceId: string, reviewId: string, current: WorkspaceContinuityEvidence | null, pageSettled: boolean, acknowledgeUnknownOutcome: boolean): void {
     const record = this.records.get(workspaceId)
     const review = record?.review
-    if (!record || !review || review.id !== reviewId || current?.workspaceId !== workspaceId) throw new Error('Continuity review is unavailable or stale')
+    if (!record || !review || review.id !== reviewId || current?.workspaceId !== workspaceId) throw new LocalizedError('appErrors.continuity.reviewStale')
     const age = this.now() - review.capturedAt
     if (!Number.isFinite(age) || age < 0 || age >= 30_000) {
       record.review = undefined
-      throw new Error('Continuity review expired; inspect current state again')
+      throw new LocalizedError('appErrors.continuity.reviewExpired')
     }
     if (compareWorkspaceContinuity({ checkpoint: review.evidence, current, pageSettled, priorOutcome: 'NONE' }).status !== 'PASS') {
       record.review = undefined
-      throw new Error('Browser state changed after continuity review')
+      throw new LocalizedError('appErrors.continuity.changedAfterReview')
     }
-    if (review.priorOutcome === 'OUTCOME_UNKNOWN' && !acknowledgeUnknownOutcome) throw new Error('Explicitly acknowledge the unresolved prior outcome')
+    if (review.priorOutcome === 'OUTCOME_UNKNOWN' && !acknowledgeUnknownOutcome) {
+      // Agents pass acknowledgeUnknownOutcome; a person ticks the box that says the earlier action may have taken effect.
+      throw new LocalizedError('appErrors.continuity.unknownOutcomeUnacknowledged', undefined, { message: 'Explicitly acknowledge the unresolved prior outcome' })
+    }
     record.evidence = structuredClone(current)
     // A fresh reviewed observation replaces a stale read. Unknown write effects
     // cannot be resolved by observing the current page and remain recorded.

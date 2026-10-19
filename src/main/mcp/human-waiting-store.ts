@@ -8,6 +8,7 @@ import type {
   HumanWaitingReviewStatus as ReviewStatus,
   HumanWaitingState as WaitingState
 } from '../../shared/human-waiting.js'
+import { LocalizedError } from '../localized-error.js'
 
 export function currentHumanWaitingReviewStep(review: HumanWaitingReviewArtifact): HumanWaitingReviewStep {
   return review.steps?.[review.currentStep ?? 0] ?? review
@@ -268,7 +269,7 @@ export class HumanWaitingStore {
   private current(id: string, revision?: string): WaitingRecord {
     this.expire()
     const record = this.records.get(id)?.record
-    if (!record || terminal(record.state) || (revision !== undefined && record.revision !== revision)) throw new Error('Waiting decision unavailable or stale')
+    if (!record || terminal(record.state) || (revision !== undefined && record.revision !== revision)) throw new LocalizedError('appErrors.continuity.decisionStale')
     return record
   }
 

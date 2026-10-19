@@ -1,7 +1,8 @@
 /**
  * Errors from the main process that a person sees, the shell's own startup failures and the startup failure page, in
- * English. MCP results and logs keep this text, except for an error that keeps its own message: a raw load or secure
- * storage failure, one naming a tab, workspace or bookmark by its internal ID, or one whose wording agents act on.
+ * English. MCP results and logs keep this text, except for an error that keeps its own message for them: a raw load,
+ * system or secure storage failure, one that names a tab, workspace or bookmark by its internal ID, or one whose wording
+ * names the agent's own tools and inputs or that agents act on.
  */
 export const enUSAppErrors = {
   "startup": {
@@ -112,6 +113,7 @@ export const enUSAppErrors = {
     "busyCopyingData": "Workspace \"{name}\" is busy copying workspace data. Try again after that operation finishes.",
     "busyImportingCookies": "Workspace \"{name}\" is busy importing browser cookies. Try again after that operation finishes.",
     "busyDeleting": "Workspace \"{name}\" is busy deleting the archived workspace. Try again after that operation finishes.",
+    "busyUnnamed": "This workspace is busy with another operation. Try again after that operation finishes.",
     "nameEmpty": "Workspace name cannot be empty.",
     "nameTooLong": "Workspace name cannot exceed {max} characters.",
     "nameTaken": "A workspace named \"{name}\" already exists. Workspace names must be unique.",
@@ -193,7 +195,18 @@ export const enUSAppErrors = {
     "decisionUnavailable": "Waiting decision unavailable",
     "confirmationUnavailable": "Waiting decision confirmation unavailable",
     "noteUnavailable": "Waiting decision note unavailable",
-    "reviewBeforeResolving": "Review current workspace continuity before resolving the human decision"
+    "reviewBeforeResolving": "Review current workspace continuity before resolving the human decision",
+    "decisionStale": "Waiting decision unavailable or stale",
+    "accountAndTargetUnconfirmed": "Confirm that you verified the signed-in account and visible target in the bound browser tab.",
+    "reviewChangedWhileSaving": "Browser review changed while saving; inspect current state again",
+    "historyUnavailable": "Human waiting history is unavailable",
+    "changeNotSaved": "Human waiting change could not be saved; inspect recovery before retrying",
+    "replaceSuspended": "Confirm the reviewed state before creating a new checkpoint.",
+    "checkpointCapacity": "Continuity checkpoint capacity reached",
+    "reviewStale": "Continuity review is unavailable or stale",
+    "reviewExpired": "Continuity review expired; inspect current state again",
+    "changedAfterReview": "Browser state changed after continuity review",
+    "unknownOutcomeUnacknowledged": "Confirm that you reviewed the page and understand that the earlier action may already have taken effect."
   },
   "lifecycle": {
     "homeTab": "Only live page tabs can be frozen or resumed.",
