@@ -243,3 +243,28 @@ test('clearing a composition cancels its live audio renderer before an export fi
   expect((await readdir(profileDirectory)).filter(name => name.endsWith('.webm'))).toEqual(before)
   expect(await appWindow.evaluate(id => (window as unknown as VideoTestWindow).hronaut.manageVideo({ tabId: id, action: 'get' }), tabId)).toMatchObject({ status: 'idle', previewReady: false })
 })
+
+test('shows the audio picker in the interface language', async ({ capabilities, appWindow, electronApp }) => {
+  const { client, tabId } = capabilities
+  const call = (action: string) => client.callTool({ name: 'browser_video', arguments: { tabId, action } }) as Promise<CallToolResult>
+  expect((await call('start')).isError).not.toBe(true)
+  // Choosing audio needs only a stopped recording, and a static page may paint a single frame.
+  await expect.poll(async () => (JSON.parse(text(await call('get'))) as BrowserVideoState).frameCount).toBeGreaterThan(0)
+  expect((await call('stop')).isError).not.toBe(true)
+  await appWindow.evaluate("window.hronautSettings.setLanguagePreference('uk-UA')")
+  await electronApp.evaluate(({ dialog }) => {
+    const opened = globalThis as typeof globalThis & { __audioPicker?: unknown }
+    dialog.showOpenDialog = (async (...args: unknown[]) => {
+      const options = args.at(-1) as Electron.OpenDialogOptions
+      opened.__audioPicker = { title: options.title, buttonLabel: options.buttonLabel, filters: options.filters }
+      return { canceled: true, filePaths: [] }
+    }) as typeof dialog.showOpenDialog
+  })
+  const state = await appWindow.evaluate(id => (window as unknown as VideoTestWindow).hronaut.importVideoAudio(id, 'Original test fixture.'), tabId)
+  expect(state.audioAssets?.filter(asset => !asset.builtin) ?? []).toEqual([])
+  expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __audioPicker?: unknown }).__audioPicker)).toEqual({
+    title: 'Виберіть аудіо для відео',
+    buttonLabel: 'Вибрати аудіо',
+    filters: [{ name: 'Аудіо PCM WAV', extensions: ['wav'] }]
+  })
+})

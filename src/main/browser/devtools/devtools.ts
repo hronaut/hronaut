@@ -1,3 +1,4 @@
+import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { DevToolsAccess, DevToolsTab } from './devtools-access.js'
 
@@ -71,7 +72,7 @@ export async function openDevTools<Tab extends DevToolsTab>(access: DevToolsAcce
       try {
         webContents.openDevTools({
           mode: 'detach',
-          title: `Hronaut Developer Tools — ${tab.title || 'Website'}`
+          title: access.text('native.dialog.devToolsWindowTitle', { title: tabTitleForDisplay(tab, access.text('tabSearch.newTabTitle')) })
         })
         if (webContents.isDevToolsOpened()) finish()
       } catch (error) {
