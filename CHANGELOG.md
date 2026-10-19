@@ -11,6 +11,8 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - A website's own full screen, such as a video player's, now fills the whole window. Once you allowed **Fullscreen** for the site, the window went into full screen, but the page stayed in its card beside the tabs and under the toolbar. Showing another tab, or a browser shortcut such as **Ctrl/Cmd+L** that opens one of Hronaut's controls, now takes the page out of full screen, and closing a page in full screen takes the window out of it; the window used to stay in full screen showing Home or the other tab, and the next start opened it in full screen.
+- The wallet approval dialog now shows only an error about the request in front of you. It used to show the last wallet error from anywhere, so a request could open with the error of an earlier failed unlock in **Settings → Wallets**, or with the failure of the request you had just approved once the next request took its place. When a request fails after it has left the queue, such as a send that fails after you approved it, Hronaut now tells you in a notification.
+- On macOS and Windows, two downloads that start at the same time with names that differ only in letter case, such as `Report.pdf` and `report.pdf`, now both keep their file: the second is saved as `report (1).pdf`. Those systems treat the two names as one file, so the download that finished last used to replace the other.
 
 ## [3.3.1] - 2026-10-19
 
