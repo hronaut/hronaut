@@ -23,7 +23,7 @@ export function requestConditionsSettlement(emulation: boolean, input: Record<st
   }
   const settle = (result: CallToolResult): CallToolResult => {
     let settled = result
-    if (result.isError && (emulation || (input.action !== 'list' && input.action !== undefined))) {
+    if (result.isError && (emulation || (input.action !== 'list' && input.action !== 'held' && input.action !== undefined))) {
       const outcome = { ...result.structuredContent, ...policy,
         ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
         ...(emulation && !attempted && !policy && !reviewFinalizationFailed && result.structuredContent?.permission !== 'denied' && emulationInputError

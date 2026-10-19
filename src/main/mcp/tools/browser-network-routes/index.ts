@@ -1,6 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import type { BrowserNetworkAbortReason } from '../../../../shared/types.js'
+import { HoldUnavailableError } from '../../../browser/network-conditions/held-responses.js'
 import { networkRouteInputSchema } from '../../../browser/network-route-input.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
@@ -14,7 +15,8 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
     {
       description: toolDescription('browser_network_routes'),
       inputSchema: {
-        action: z.enum(['list', 'add', 'move', 'remove', 'clear', 'set-enabled']).optional(),
+        action: z.enum(['list', 'add', 'move', 'remove', 'clear', 'set-enabled', 'held', 'release', 'cancel']).optional()
+          .describe('held lists requests that hold rules captured; release answers one with its mock response, cancel fails it. Both take the routeId of the hold rule.'),
         tabId: tabIdSchema.optional(),
         routeId: z.string().optional(),
         enabled: z.boolean().optional().describe('Explicit enabled state; required with routeId for set-enabled. Only confirmed conditions can be toggled.'),
@@ -26,7 +28,11 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
         response: networkRouteInputSchema.shape.response,
         abort: networkRouteInputSchema.shape.abort,
         throttle: networkRouteInputSchema.shape.throttle
-          .describe('Throttle only matching URLs until the condition is removed. Cannot be combined with method or times.')
+          .describe('Throttle only matching URLs until the condition is removed. Cannot be combined with method or times.'),
+        holdUntilReleased: networkRouteInputSchema.shape.holdUntilReleased
+          .describe('With response: capture one same-origin GET fetch or XMLHttpRequest from the top frame and keep it pending, so the page stays in its loading state, until action release answers it with the mock response or action cancel fails it.'),
+        holdSeconds: networkRouteInputSchema.shape.holdSeconds
+          .describe('Seconds a captured request waits for release before it fails (default 30, at most 120).')
       }
     },
     tabTool('browser_network_routes', async ({
@@ -40,9 +46,11 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
       times,
       response,
       abort,
-      throttle
+      throttle,
+      holdUntilReleased,
+      holdSeconds
     }: {
-      action?: 'list' | 'add' | 'move' | 'remove' | 'clear' | 'set-enabled'
+      action?: 'list' | 'add' | 'move' | 'remove' | 'clear' | 'set-enabled' | 'held' | 'release' | 'cancel'
       tabId?: string
       routeId?: string
       enabled?: boolean
@@ -53,6 +61,8 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
       response?: { status?: number; headers?: Record<string, string>; body?: string }
       abort?: BrowserNetworkAbortReason
       throttle?: 'fast-4g' | 'slow-4g' | 'slow-3g'
+      holdUntilReleased?: boolean
+      holdSeconds?: number
     }, call: WorkspaceToolCall<RequestConditionsSettlement>) => {
       // Checks the call before each configuration step, and keeps the check for publication.
       const validateConditions = (): void => {
@@ -72,6 +82,21 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
         call.settlement.retainPublication(() => { validateConditions(); assert() })
         return textResult(routes)
       }
+      // Holds answer one captured request; their failures are not rule application failures.
+      if (action === 'held') return textResult(manager.heldNetworkResponses(tabId))
+      if (action === 'release' || action === 'cancel') {
+        if (!routeId) throw new Error(`routeId is required to ${action} a held request`)
+        try {
+          if (action === 'release') await manager.releaseHeldNetworkResponse(tabId, routeId, validateConditions, markConditionsSubmitted)
+          else await manager.cancelHeldNetworkResponse(tabId, routeId, validateConditions, markConditionsSubmitted)
+        } catch (error) {
+          if (!(error instanceof HoldUnavailableError)) throw error
+          const refused = { reason: error.reason, message: error.message, routeId, nextAction: error.nextAction }
+          return { ...textResult(refused), structuredContent: refused, isError: true }
+        }
+        validateConditions()
+        return textResult({ status: action === 'release' ? 'RELEASED' : 'CANCELLED', routeId })
+      }
       try {
         if (action === 'list') return publish(manager.networkRoutes(tabId))
         if (action === 'clear') return publish(await manager.clearNetworkRoutes(tabId, validateConditions, markConditionsSubmitted))
@@ -88,7 +113,7 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
           return publish(await manager.removeNetworkRoute(tabId, routeId, validateConditions, markConditionsSubmitted))
         }
         if (!urlPattern) throw new Error('urlPattern is required when adding a network route')
-        return publish(await manager.addNetworkRoute(tabId, { urlPattern, method, times, response, abort, throttle }, validateConditions, markConditionsSubmitted))
+        return publish(await manager.addNetworkRoute(tabId, { urlPattern, method, times, response, abort, throttle, holdUntilReleased, holdSeconds }, validateConditions, markConditionsSubmitted))
       } catch (error) {
         validateConditions()
         const state = manager.networkConditionState(tabId)

@@ -4,6 +4,9 @@ import { validateNetworkRoutePattern } from '../../shared/network-routes.js'
 import { BROWSER_NETWORK_ABORT_REASONS, type BrowserNetworkRouteInput, type BrowserNetworkRouteSummary } from '../../shared/types.js'
 
 const MAX_BODY_BYTES = 512 * 1024
+/** How long a held request waits for release by default, and at most. */
+export const DEFAULT_HOLD_SECONDS = 30
+export const MAX_HOLD_SECONDS = 120
 const MAX_HEADERS = 50
 const MAX_HEADER_BYTES = 32 * 1024
 
@@ -29,7 +32,9 @@ export const networkRouteInputSchema = z.object({
     body: z.string().max(MAX_BODY_BYTES).optional()
   }).optional(),
   abort: z.enum(BROWSER_NETWORK_ABORT_REASONS).optional(),
-  throttle: z.enum(['fast-4g', 'slow-4g', 'slow-3g']).optional()
+  throttle: z.enum(['fast-4g', 'slow-4g', 'slow-3g']).optional(),
+  holdUntilReleased: z.boolean().optional(),
+  holdSeconds: z.number().int().min(1).max(MAX_HOLD_SECONDS).optional()
 })
 
 export function parseNetworkRouteInput(value: unknown): BrowserNetworkRouteInput {
@@ -47,8 +52,14 @@ export function normalizeNetworkRouteInput(value: unknown): NormalizedNetworkRou
   if ([input.response, input.abort, input.throttle].filter(behavior => behavior !== undefined).length !== 1) {
     throw new Error('Provide exactly one network route behavior: response, abort, or throttle')
   }
+  if (input.holdSeconds !== undefined && !input.holdUntilReleased) throw new Error('holdSeconds requires holdUntilReleased')
+  if (input.holdUntilReleased) {
+    if (input.response === undefined) throw new Error('holdUntilReleased requires a mock response')
+    if (input.times !== undefined && input.times !== 1) throw new Error('A held mock response captures exactly one request; omit times or use 1')
+    if (input.method !== undefined && input.method.trim().toUpperCase() !== 'GET') throw new Error('A held mock response matches only GET requests')
+  }
   const urlPattern = validateNetworkRoutePattern(input.urlPattern)
-  const method = input.method?.trim().toUpperCase()
+  const method = input.holdUntilReleased ? 'GET' : input.method?.trim().toUpperCase()
   if (method && !/^[A-Z][A-Z0-9!#$%&'*+.^_`|~-]{0,31}$/.test(method)) {
     throw new Error('Network route method must be a valid HTTP method with at most 32 characters')
   }
@@ -75,6 +86,7 @@ export function normalizeNetworkRouteInput(value: unknown): NormalizedNetworkRou
   return {
     ...base,
     behavior: 'fulfill',
+    ...(input.holdUntilReleased ? { hold: { seconds: input.holdSeconds ?? DEFAULT_HOLD_SECONDS } } : {}),
     response: { status: response.status ?? 200, headerNames: entries.map(([name]) => name), bodyBytes },
     responseHeaders: Object.fromEntries(entries),
     responseBody: body

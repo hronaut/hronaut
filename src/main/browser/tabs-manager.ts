@@ -115,6 +115,7 @@ import {
   requireNetworkConditionsKnown,
   setNetworkRouteEnabled
 } from './network-conditions/network-conditions.js'
+import { cancelHeldResponse, disposeHeldResponses, heldResponseSummaries, releaseHeldResponse, type HeldResponses } from './network-conditions/held-responses.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
 import type { DownloadCopyAccess } from './download-copy/download-copy-access.js'
 import { copyDownload, type DownloadCopyProgress, type DownloadCopyRequest, type DownloadCopyResult } from './download-copy/download-copy.js'
@@ -355,6 +356,7 @@ import type {
   BrowserNetworkRouteInput,
   BrowserNetworkRouteMoveDirection,
   BrowserNetworkRouteSummary,
+  BrowserHeldNetworkResponse,
   BrowserElementInspection,
   BrowserElementInspectionOptions,
   BrowserInspectorIssue,
@@ -1125,6 +1127,7 @@ export class BrowserTabsManager {
     }
   })
   private readonly networkRouteRefreshTimers = new Map<number, NodeJS.Timeout>()
+  private readonly heldNetworkResponseStates = new Map<number, HeldResponses>()
   private readonly dialogMonitorAttachPromises = new Map<number, Promise<void>>()
   private readonly defaultExecutionContexts = new Map<number, Map<string, { id: number; uniqueId?: string }>>()
   private readonly devToolsOpening = new Set<number>()
@@ -3920,6 +3923,7 @@ export class BrowserTabsManager {
       applyNetworkEmulation: (webContents, preset, routes, send) => this.applyNetworkEmulation(webContents, preset, routes, send),
       networkRouteQueues: () => this.networkRouteQueues,
       networkRouteRefreshTimers: () => this.networkRouteRefreshTimers,
+      heldNetworkResponses: () => this.heldNetworkResponseStates,
       changed: (persist) => this.changed(persist)
     }
   }
@@ -3962,6 +3966,18 @@ export class BrowserTabsManager {
 
   clearNetworkRoutes(tabId?: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
     return clearNetworkRoutes(this.networkConditionsAccess(), tabId, validate, markSubmitted)
+  }
+
+  heldNetworkResponses(tabId?: string): BrowserHeldNetworkResponse[] {
+    return heldResponseSummaries(this.networkConditionsAccess(), tabId)
+  }
+
+  releaseHeldNetworkResponse(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<void> {
+    return releaseHeldResponse(this.networkConditionsAccess(), tabId, routeId, validate, markSubmitted)
+  }
+
+  cancelHeldNetworkResponse(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<void> {
+    return cancelHeldResponse(this.networkConditionsAccess(), tabId, routeId, validate, markSubmitted)
   }
 
   listDownloads(): BrowserDownloadState[] {
@@ -4764,6 +4780,7 @@ export class BrowserTabsManager {
     this.networkRouteQueues.clear()
     for (const timer of this.networkRouteRefreshTimers.values()) clearTimeout(timer)
     this.networkRouteRefreshTimers.clear()
+    disposeHeldResponses(this.heldNetworkResponseStates)
     this.defaultExecutionContexts.clear()
     this.renderQueues.clear()
     this.occlusionSnapshot.dispose()

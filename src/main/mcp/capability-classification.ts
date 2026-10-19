@@ -25,7 +25,7 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   browser_console: new Set(['list']),
   browser_diagnostic_logs: new Set(['get']),
   browser_network: new Set(['list']),
-  browser_network_routes: new Set(['list']),
+  browser_network_routes: new Set(['list', 'held']),
   browser_downloads: new Set(['list']),
   browser_webmcp: new Set(['status', 'list'])
 }

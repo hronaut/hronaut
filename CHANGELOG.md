@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Agents can keep a page in its loading state for as long as they need to check it, then finish it with a known response. `browser_network_routes` with `holdUntilReleased: true` on a mock captures the page's next matching GET `fetch` or XMLHttpRequest to its own origin and holds it, so spinners, skeletons and disabled buttons stay on screen while the agent takes snapshots and screenshots; `action: "release"` then answers it with the mock response exactly once, and `action: "cancel"` fails it. A hold lasts at most `holdSeconds` (default 30, up to 120), a tab holds at most four requests, and `action: "held"` lists them without their URLs, headers or bodies. A hold that ends any other way (timeout, clearing request conditions, navigation, closing the tab or Hronaut, opening Developer Tools) fails the request instead of sending it to the real server.
+
 ## [3.2.0] - 2026-10-19
 
 ### Added
