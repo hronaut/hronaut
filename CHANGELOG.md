@@ -13,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- An agent's call on a tab no longer stays shown as running after Hronaut withholds its result because the agent's access changed while it ran, such as a capability profile expiring during a `browser_pwa_lifecycle` read. The activity now ends as failed.
 - Recording code coverage no longer freezes a page that contains a `debugger` statement. The page used to stop at the statement until coverage was stopped, so the report missed everything after it; it now keeps running. Opening Developer Tools still ends the recording, and they pause on the statement as usual.
 
 ## [3.2.0] - 2026-10-19

@@ -726,7 +726,13 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           }
         }
         else if (verificationResult?.status === 'unknown' || finalResult.isError) await finishReviewedAttempt('unknown')
-        validateLifecycleResult()
+        try {
+          validateLifecycleResult()
+        } catch (error) {
+          // The result is withheld, but its activity still ends rather than staying shown as running.
+          finishActivity(undefined, true, error)
+          throw error
+        }
         finalResult = settlement?.finalize?.(finalResult) ?? finalResult
         finishActivity(finalResult, false)
         return finalResult
