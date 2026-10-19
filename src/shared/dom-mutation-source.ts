@@ -65,7 +65,7 @@ export interface DomMutationSourceReport {
   status: DomMutationSourceStatus
   armed?: { selector: string; kind: DomMutationSourceKind; armedAt: string; expiresAt: string; remainingMs: number }
   capture?: DomMutationSourceCapture
-  /** The last capture that ended, kept until the next arm while the tab stays on the arming origin and its workspace's control is unchanged. */
+  /** The last capture that ended, kept until the next arm while its workspace's control is unchanged, also on another origin. */
   ended?: { selector: string; kind: DomMutationSourceKind; reason: DomMutationSourceEndReason; endedAt: string; url: string }
   limits: typeof DOM_MUTATION_SOURCE_LIMITS
   caveats: string[]

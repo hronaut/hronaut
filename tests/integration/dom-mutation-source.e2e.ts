@@ -59,6 +59,15 @@ function page(electronApp: ElectronApplication, pageUrl: string, action: 'crash'
   }, { pageUrl, action })
 }
 
+/** Listeners on the page's debugger session and renderer exits: a capture that removed itself leaves none behind. */
+function listeners(electronApp: ElectronApplication, pageUrl: string): Promise<number[]> {
+  return electronApp.evaluate(({ webContents }, pageUrl) => {
+    const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === pageUrl)
+    if (!contents) throw new Error(`No page at ${pageUrl}`)
+    return [contents.debugger.listenerCount('message'), contents.listenerCount('render-process-gone')]
+  }, pageUrl)
+}
+
 /** The page keeps running: its 20 ms heartbeat advances. */
 async function expectRunning(electronApp: ElectronApplication, pageUrl: string): Promise<void> {
   const before = await run(electronApp, pageUrl, 'window.beats') as number
@@ -175,6 +184,7 @@ test('a replaced element, a navigation and a person clicking the page invalidate
     expect(await source(client, tabId, { action: 'get' })).not.toHaveProperty('capture')
 
     // A renderer crash ends it, and the reloaded page is not left with a breakpoint or a paused debugger.
+    const idleListeners = await listeners(electronApp, pageUrl)
     await source(client, tabId, { action: 'arm', selector: '#save', kind: 'attribute-modified' })
     await page(electronApp, pageUrl, 'crash')
     expect(await ended(client, tabId)).toMatchObject({ status: 'invalidated', ended: { reason: 'renderer-gone' } })
@@ -182,6 +192,8 @@ test('a replaced element, a navigation and a person clicking the page invalidate
     await expect.poll(() => run(electronApp, pageUrl, 'typeof hitDebugger').catch(() => 'loading'), { timeout: 10_000 }).toBe('function')
     expect(await run(electronApp, pageUrl, 'disableSave(); hitDebugger(); window.afterDebugger')).toBe(1)
     await expectRunning(electronApp, pageUrl)
+    // Once the page has loaded again, the capture removed its instrumentation and its listeners.
+    await expect.poll(() => listeners(electronApp, pageUrl), { timeout: 5_000 }).toEqual(idleListeners)
     expect(await source(client, tabId, { action: 'get' })).toMatchObject({ status: 'invalidated', ended: { reason: 'renderer-gone' } })
 
     await source(client, tabId, { action: 'arm', selector: '#panel', kind: 'subtree-modified' })

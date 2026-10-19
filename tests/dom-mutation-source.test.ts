@@ -5,7 +5,11 @@ import { DomMutationSourceCaptures, mutationSourceFrames } from '../src/main/bro
 
 const ORIGIN = 'https://app.test'
 
-function fixture(options: { nodeIds?: readonly number[]; localName?: string; url?: string; keepDomEnabled?: boolean; heldQuery?: Promise<void> } = {}) {
+function fixture(options: {
+  nodeIds?: readonly number[]; localName?: string; url?: string; keepDomEnabled?: boolean; heldQuery?: Promise<void>
+  /** Holds one command until the promise settles. */
+  heldCommand?: { method: string; until: Promise<void> }
+} = {}) {
   const debuggerEvents = new EventEmitter()
   let devToolsOpened = false
   let devToolsOpening = false
@@ -13,7 +17,13 @@ function fixture(options: { nodeIds?: readonly number[]; localName?: string; url
   let crashed = false
   // Operations queued behind the debugger queue while it is held, run in order on release.
   let held: Array<() => void> | undefined
+  // Like Hronaut's renderer exit guard, commands to an exited renderer fail unsent.
   const sendCommand = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+    if (crashed) throw new Error('The renderer exited; the command was not sent')
+    if (options.heldCommand?.method === method) {
+      await options.heldCommand.until
+      if (crashed) throw new Error('The renderer exited; the command was not sent')
+    }
     if (method === 'DOM.getDocument') return { root: { nodeId: 1 } }
     if (method === 'DOM.querySelectorAll') {
       await options.heldQuery
@@ -65,7 +75,7 @@ function fixture(options: { nodeIds?: readonly number[]; localName?: string; url
     arm: (kind: 'attribute-modified' | 'subtree-modified' | 'node-removed' = 'attribute-modified', selector = '#save', durationMs?: number) =>
       captures.manage(tab, 'arm', { selector, kind, durationMs, authority }),
     listeners: () => ['message', 'detach'].reduce((count, event) => count + (page.debugger as unknown as EventEmitter).listenerCount(event), 0)
-      + ['did-start-navigation', 'devtools-opened', 'render-process-gone', 'destroyed'].reduce((count, event) => count + page.listenerCount(event), 0)
+      + ['did-start-navigation', 'dom-ready', 'devtools-opened', 'render-process-gone', 'destroyed'].reduce((count, event) => count + page.listenerCount(event), 0)
   }
 }
 
@@ -82,7 +92,7 @@ it('arms a DOM breakpoint on exactly one element, checking the arming authority 
   expect(f.sendCommand).toHaveBeenCalledWith('DOMDebugger.setDOMBreakpoint', { nodeId: 7, type: 'subtree-modified' })
   expect(f.authority.assertCurrent).toHaveBeenCalledWith(ORIGIN)
   expect(f.captures.active(f.tab)).toBe(true)
-  expect(f.listeners()).toBe(6)
+  expect(f.listeners()).toBe(7)
   await f.captures.manage(f.tab, 'cancel')
   expect(f.listeners()).toBe(0)
 })
@@ -293,7 +303,7 @@ it('ends when the renderer exits, resumes pauses and removes the instrumentation
   await expect(f.arm()).rejects.toThrow('renderer exited')
   // Chromium restores the Debugger domain in the next renderer, so the listeners stay until the removal ran there.
   expect(f.methods()).toEqual([])
-  expect(f.listeners()).toBe(6)
+  expect(f.listeners()).toBe(7)
   f.setCrashed(false)
   f.pause('other')
   f.page.emit('did-start-navigation', {}, `${ORIGIN}/orders`, false, true)
@@ -303,18 +313,95 @@ it('ends when the renderer exits, resumes pauses and removes the instrumentation
   expect(await f.captures.manage(f.tab, 'get')).toMatchObject({ status: 'invalidated', ended: { reason: 'renderer-gone' } })
 })
 
-it('keeps a finished capture only on the arming origin and under the same workspace control', async () => {
+it('removes the instrumentation only once the page runs in a new renderer, retrying until it does', async () => {
+  const f = fixture()
+  await f.arm()
+  f.sendCommand.mockClear()
+  f.setCrashed(true)
+  f.page.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
+  // The reload starts before its new renderer is ready: nothing can be removed yet, so the record stays.
+  f.page.emit('did-start-navigation', {}, `${ORIGIN}/orders`, false, true)
+  await f.settle()
+  expect(f.methods()).toEqual([])
+  expect(f.listeners()).toBe(7)
+  expect(f.captures.active(f.tab)).toBe(false)
+  f.setCrashed(false)
+  // Until the removal ran in the new renderer, the capture still holds the debugger session.
+  expect(f.captures.active(f.tab)).toBe(true)
+  f.emit('Debugger.scriptParsed', { scriptId: '40', url: `${ORIGIN}/app.js`, executionContextAuxData: { isDefault: true } })
+  await f.settle()
+  expect(f.methods()).toEqual(['DOMDebugger.removeDOMBreakpoint', 'Debugger.disable', 'Runtime.setAsyncCallStackDepth', 'DOM.disable'])
+  expect(f.listeners()).toBe(0)
+  expect(f.captures.active(f.tab)).toBe(false)
+
+  // A ready document, a read or a cancel also run it.
+  const ready = fixture()
+  await ready.arm()
+  ready.setCrashed(true)
+  ready.page.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
+  ready.setCrashed(false)
+  ready.page.emit('dom-ready')
+  await ready.settle()
+  expect(ready.listeners()).toBe(0)
+  for (const action of ['get', 'cancel'] as const) {
+    const read = fixture()
+    await read.arm()
+    read.setCrashed(true)
+    read.page.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
+    read.setCrashed(false)
+    expect(await read.captures.manage(read.tab, action)).toMatchObject({ status: 'invalidated', ended: { reason: 'renderer-gone' } })
+    expect(read.listeners()).toBe(0)
+    expect(read.methods()).toContain('Debugger.disable')
+  }
+})
+
+it('keeps the listeners for the next renderer when the renderer exits during the removal or while arming', async () => {
+  let crashDuringDisable!: () => void
+  const f = fixture({ heldCommand: { method: 'Debugger.disable', until: new Promise<void>(resolve => { crashDuringDisable = resolve }) } })
+  await f.arm()
+  const cancel = f.captures.manage(f.tab, 'cancel')
+  await f.settle()
+  f.setCrashed(true)
+  f.page.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
+  crashDuringDisable()
+  expect(await cancel).toMatchObject({ status: 'cancelled', ended: { reason: 'cancelled' } })
+  // Debugger.disable never reached the renderer, so the next one restores the domain: the listeners resume its pauses.
+  expect(f.listeners()).toBe(7)
+  f.setCrashed(false)
+  f.page.emit('dom-ready')
+  await f.settle()
+  expect(f.listeners()).toBe(0)
+  expect(f.methods().filter(method => method === 'Debugger.disable')).toHaveLength(2)
+
+  let crashAfterEnable!: () => void
+  const g = fixture({ heldCommand: { method: 'Runtime.setAsyncCallStackDepth', until: new Promise<void>(resolve => { crashAfterEnable = resolve }) } })
+  const arming = g.arm()
+  await g.settle()
+  expect(g.methods()).toContain('Debugger.enable')
+  g.setCrashed(true)
+  g.page.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
+  crashAfterEnable()
+  await expect(arming).rejects.toThrow('renderer exited')
+  expect(g.listeners()).toBe(7)
+  expect(g.captures.active(g.tab)).toBe(false)
+  g.setCrashed(false)
+  expect(await g.captures.manage(g.tab, 'get')).toMatchObject({ status: 'idle' })
+  expect(g.listeners()).toBe(0)
+  expect(g.methods().filter(method => method === 'Debugger.disable')).toHaveLength(2)
+})
+
+it('keeps a finished capture under the same workspace control, also after the page moved to another origin', async () => {
   const navigated = fixture()
   await navigated.arm()
   navigated.pause('DOM', { data: { type: 'attribute-modified' } })
   await navigated.settle()
   navigated.tab.url = `${ORIGIN}/other`
   expect(await navigated.captures.manage(navigated.tab, 'get')).toMatchObject({ status: 'captured', url: `${ORIGIN}/other`, ended: { url: `${ORIGIN}/orders?token=%5BREDACTED%5D` } })
+  // A change followed by a redirect elsewhere, such as a payment step, still reports the change that started it.
   navigated.tab.url = 'https://elsewhere.test/'
-  const elsewhere = await navigated.captures.manage(navigated.tab, 'get')
-  expect(elsewhere).toMatchObject({ status: 'idle' })
-  expect(elsewhere).not.toHaveProperty('capture')
-  expect(elsewhere).not.toHaveProperty('ended')
+  expect(await navigated.captures.manage(navigated.tab, 'get')).toMatchObject({
+    status: 'captured', url: 'https://elsewhere.test/', capture: { change: 'attribute' }, ended: { reason: 'captured', url: `${ORIGIN}/orders?token=%5BREDACTED%5D` }
+  })
 
   const controlled = fixture()
   await controlled.arm()
@@ -358,7 +445,7 @@ it('arming again replaces the armed capture and moves the breakpoint', async () 
   expect(f.methods().slice(0, 3)).toEqual(['DOMDebugger.removeDOMBreakpoint', 'Debugger.disable', 'Runtime.setAsyncCallStackDepth'])
   expect(f.sendCommand).toHaveBeenCalledWith('DOMDebugger.removeDOMBreakpoint', { nodeId: 7, type: 'attribute-modified' })
   expect(f.sendCommand).toHaveBeenLastCalledWith('DOMDebugger.setDOMBreakpoint', { nodeId: 7, type: 'subtree-modified' })
-  expect(f.listeners()).toBe(6)
+  expect(f.listeners()).toBe(7)
   await f.captures.manage(f.tab, 'cancel')
 })
 

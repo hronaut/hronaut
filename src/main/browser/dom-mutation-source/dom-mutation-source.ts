@@ -55,8 +55,10 @@ interface ArmedRecord {
   isolatedScripts: Set<string>
   /** Set once the capture ended; later pauses are only resumed. */
   ending: boolean
-  /** The renderer exited: the instrumentation is removed once the page loads again. */
+  /** The renderer exited: the instrumentation is removed once the page runs in a new renderer. */
   rendererGone: boolean
+  /** A removal after a renderer exit is queued or running; cleared when it could not run yet. */
+  removing: boolean
   /** The instrumentation removal under way once the capture ended, so a cancel or read waits for it. */
   settled?: Promise<void>
   verifying: boolean
@@ -70,7 +72,6 @@ interface EndedRecord {
   reason: DomMutationSourceEndReason
   endedAt: string
   url: string
-  origin: string
   observationGeneration: number
   capture?: DomMutationSourceCapture
 }
@@ -213,10 +214,13 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
 
   constructor(private readonly host: DomMutationSourceHost<T>) {}
 
-  /** Whether a capture holds this tab's debugger session. One whose renderer exited no longer does: nothing can run until the page loads again, which removes it first. */
+  /**
+   * Whether a capture holds this tab's debugger session, including one whose renderer exited and whose
+   * removal has not run yet in the new renderer. Nothing runs while the renderer is gone.
+   */
   active(tab: T): boolean {
     const record = this.records.get(tab)
-    return record !== undefined && !record.rendererGone
+    return record !== undefined && !(record.rendererGone && record.webContents.isCrashed())
   }
 
   async manage(
@@ -231,8 +235,12 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
     return this.report(tab)
   }
 
-  /** Ends the capture and any arm still in flight, and waits until its instrumentation is removed. Never throws for a missing capture. */
-  async end(tab: T, reason: DomMutationSourceEndReason): Promise<void> {
+  /**
+   * Ends the capture and any arm still in flight, and waits until its instrumentation is removed, or until
+   * the page runs again after a renderer exit. Never throws for a missing capture. Never called from inside
+   * the debugger queue, which would wait on itself.
+   */
+  private async end(tab: T, reason: DomMutationSourceEndReason): Promise<void> {
     this.cancellations.set(tab, (this.cancellations.get(tab) ?? 0) + 1)
     const record = this.records.get(tab)
     if (record) await this.finish(tab, record, reason)
@@ -290,7 +298,7 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
       }
       const record: ArmedRecord = {
         selector, kind, armedAt: 0, expiresAt: 0, nodeId: 0, webContents, origin, url: redactNetworkUrl(tab.url), authority, observationGeneration,
-        scripts: new Map(), isolatedScripts: new Set(), ending: true, rendererGone: false, verifying: false, timers: [], detach: () => undefined
+        scripts: new Map(), isolatedScripts: new Set(), ending: true, rendererGone: false, removing: false, verifying: false, timers: [], detach: () => undefined
       }
       // Listen before enabling the Debugger domain: it reports every existing script as it enables.
       this.listen(tab, record)
@@ -339,8 +347,15 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
       } finally {
         if (!armed) {
           // A rejected arm must not leave the breakpoint, the Debugger domain or the listeners behind.
-          await this.removeInstrumentation(tab, record, breakpointSet)
-          record.detach()
+          const removed = await this.removeInstrumentation(tab, record, breakpointSet)
+          if (!removed && webContents.isCrashed() && !this.records.has(tab)) {
+            // The renderer exited while arming: Chromium restores the Debugger domain in the next renderer,
+            // so the record keeps its listeners, which resume any pause, until the removal can run there.
+            record.rendererGone = true
+            this.records.set(tab, record)
+          } else {
+            record.detach()
+          }
         }
       }
     })
@@ -374,12 +389,15 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
       } else if (method === 'DOM.childNodeRemoved' || method === 'DOM.documentUpdated') {
         this.scheduleVerify(tab, record)
       }
+      // The restored Debugger domain reports the new renderer's scripts.
+      if (record.rendererGone) this.removeAfterRendererExit(tab, record)
     }
     const onNavigation = (_event: Electron.Event, _url: string, isSameDocument: boolean, isMainFrame: boolean): void => {
       if (!isMainFrame || isSameDocument) return
       if (record.rendererGone) this.removeAfterRendererExit(tab, record)
       else void this.finish(tab, record, 'navigation').catch(() => undefined)
     }
+    const onDomReady = (): void => { if (record.rendererGone) this.removeAfterRendererExit(tab, record) }
     const onDevTools = (): void => { void this.finish(tab, record, 'devtools-opened').catch(() => undefined) }
     // Opening Developer Tools detaches Hronaut's debugger before they open.
     const onDetach = (): void => { this.release(tab, record, this.host.isDevToolsOpening(tab) ? 'devtools-opened' : 'debugger-detached') }
@@ -388,6 +406,7 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
     contents.debugger.on('message', onMessage)
     contents.debugger.on('detach', onDetach)
     contents.on('did-start-navigation', onNavigation)
+    contents.on('dom-ready', onDomReady)
     contents.on('devtools-opened', onDevTools)
     contents.on('render-process-gone', onRendererGone)
     contents.once('destroyed', onDestroyed)
@@ -395,6 +414,7 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
       contents.debugger.removeListener('message', onMessage)
       contents.debugger.removeListener('detach', onDetach)
       contents.removeListener('did-start-navigation', onNavigation)
+      contents.removeListener('dom-ready', onDomReady)
       contents.removeListener('devtools-opened', onDevTools)
       contents.removeListener('render-process-gone', onRendererGone)
       contents.removeListener('destroyed', onDestroyed)
@@ -436,7 +456,7 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
   /**
    * Ends the capture when the page's renderer exits. Commands now fail unsent, and Chromium restores this
    * session's Debugger domain in the next renderer, where a debugger statement would pause the page. So the
-   * record keeps its listeners, which resume any pause, until the page loads again and the removal runs.
+   * record keeps its listeners, which resume any pause, until the removal runs in the new renderer.
    */
   private rendererExited(tab: T, record: ArmedRecord): void {
     if (this.records.get(tab) !== record) return
@@ -449,11 +469,17 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
     record.timers = []
   }
 
-  /** Runs when the page starts loading in a new renderer, ahead of anything queued after it. */
+  /**
+   * Removes the instrumentation once the page runs in a new renderer: tried when it starts loading, when
+   * the restored Debugger domain reports, when the document is ready and when the capture is read or
+   * cancelled. A try that finds the renderer still gone leaves the record for the next one.
+   */
   private removeAfterRendererExit(tab: T, record: ArmedRecord): void {
-    if (this.records.get(tab) !== record) return
-    const removal = this.host.inDebuggerQueue(tab, () => this.teardown(tab, record, 'renderer-gone')).catch(() => undefined)
-    record.settled = removal
+    if (this.records.get(tab) !== record || record.removing || record.webContents.isCrashed()) return
+    record.removing = true
+    record.settled = this.host.inDebuggerQueue(tab, () => this.teardown(tab, record, 'renderer-gone'))
+      .catch(() => undefined)
+      .finally(() => { record.removing = false })
   }
 
   private scheduleVerify(tab: T, record: ArmedRecord): void {
@@ -469,6 +495,7 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
     const record = this.records.get(tab)
     if (!record) return
     if (record.ending) {
+      if (record.rendererGone) this.removeAfterRendererExit(tab, record)
       await record.settled
       return
     }
@@ -501,6 +528,7 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
   private async finish(tab: T, record: ArmedRecord, reason: DomMutationSourceEndReason, capture?: DomMutationSourceCapture): Promise<void> {
     if (this.records.get(tab) !== record) return
     if (record.ending) {
+      if (record.rendererGone) this.removeAfterRendererExit(tab, record)
       await record.settled
       return
     }
@@ -522,24 +550,34 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
       record.ending = true
       this.recordEnd(tab, record, reason)
     }
-    // Commands to an exited renderer fail unsent; the record waits for the page to load again.
-    if (record.webContents.isCrashed()) return Promise.resolve()
-    const removal = this.removeInstrumentation(tab, record, true).then(() => this.release(tab, record, reason))
+    // Commands to an exited renderer fail unsent; the record waits for the page to run in a new renderer.
+    if (record.webContents.isCrashed()) {
+      record.rendererGone = true
+      return Promise.resolve()
+    }
+    const removal = this.removeInstrumentation(tab, record, true).then(removed => {
+      // A renderer exit during the removal leaves the Debugger domain for the next renderer to restore.
+      if (!removed && record.webContents.isCrashed()) record.rendererGone = true
+      else this.release(tab, record, reason)
+    })
     record.settled ??= removal
     return removal
   }
 
-  private async removeInstrumentation(tab: T, record: ArmedRecord, breakpointSet: boolean): Promise<void> {
+  /** Whether the Debugger domain is off afterwards: disabled, or the session is gone. Other failures are ignored. */
+  private async removeInstrumentation(tab: T, record: ArmedRecord, breakpointSet: boolean): Promise<boolean> {
     const contents = record.webContents
-    if (contents.isDestroyed() || !contents.debugger.isAttached()) return
-    const send = (method: string, params?: Record<string, unknown>) => contents.debugger.sendCommand(method, params).then(() => undefined, () => undefined)
+    const sessionGone = (): boolean => contents.isDestroyed() || !contents.debugger.isAttached()
+    if (sessionGone()) return true
+    const send = (method: string, params?: Record<string, unknown>) => contents.debugger.sendCommand(method, params).then(() => true, () => false)
     if (breakpointSet && record.nodeId) await send('DOMDebugger.removeDOMBreakpoint', { nodeId: record.nodeId, type: record.kind })
     // Disabling the Debugger domain resumes a paused page and stops every DOM breakpoint from pausing;
     // disabling the DOM domain also clears the breakpoints themselves.
-    await send('Debugger.disable')
+    const disabled = await send('Debugger.disable') || sessionGone()
     // Disabling the Debugger domain drops async stacks for the whole session; restore the depth the debugger lease sets on attach.
     await send('Runtime.setAsyncCallStackDepth', { maxDepth: ASYNC_STACK_DEPTH })
     if (!this.host.keepDomEnabled(tab)) await send('DOM.disable')
+    return disabled
   }
 
   private recordEnd(tab: T, record: ArmedRecord, reason: DomMutationSourceEndReason, capture?: DomMutationSourceCapture): void {
@@ -549,7 +587,6 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
       reason,
       endedAt: new Date().toISOString(),
       url: record.url,
-      origin: record.origin,
       observationGeneration: record.observationGeneration,
       ...(capture ? { capture } : {})
     })
@@ -570,8 +607,8 @@ export class DomMutationSourceCaptures<T extends MutationSourceTab> {
   private report(tab: T): DomMutationSourceReport {
     const record = this.records.get(tab)
     let ended = this.ended.get(tab)
-    // Page-derived results stay with their origin and the workspace control they were captured under.
-    if (ended && (ended.observationGeneration !== tab.observationGeneration || httpOrigin(tab.url) !== ended.origin)) {
+    // Like console and network results, a finished capture stays with the workspace control it was captured under.
+    if (ended && ended.observationGeneration !== tab.observationGeneration) {
       this.ended.delete(tab)
       ended = undefined
     }
