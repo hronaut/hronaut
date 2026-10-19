@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
@@ -76,6 +76,22 @@ export interface HronautFixtures {
   mcpToken: string
   mcpPort: number
   profileDirectory: string
+  /**
+   * Starts the `electronApp` fixture's Hronaut with an empty stand-in home folder, so agents installed on this
+   * computer, such as Claude Code, do not change what Home lists. Off by default: the home folder also holds display
+   * and font settings. A case that launches Hronaut again passes `standInHomeEnvironment` to `launchHronaut` itself.
+   */
+  standInHome: boolean
+}
+
+/** An empty home folder inside the test profile, with no agent's settings in it, as `launchHronaut` overrides. */
+export async function standInHomeEnvironment(profileDirectory: string): Promise<Record<string, string | undefined>> {
+  const home = join(profileDirectory, 'stand-in-home')
+  await mkdir(home, { recursive: true })
+  // An X11 desktop that does not export XAUTHORITY keeps the display's key in the real home folder.
+  const authority = process.env.XAUTHORITY ?? (process.env.HOME ? join(process.env.HOME, '.Xauthority') : undefined)
+  const keepAuthority = authority !== undefined && await access(authority).then(() => true, () => false)
+  return { HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: undefined, ...(keepAuthority ? { XAUTHORITY: authority } : {}) }
 }
 
 export async function launchHronaut(
@@ -83,7 +99,12 @@ export async function launchHronaut(
   mcpPort?: number,
   interfaceScale = 1,
   appArguments: string[] = [],
-  electronArguments: string[] = []
+  electronArguments: string[] = [],
+  /**
+   * Variables to change for this launch only; undefined removes one. The MCP port and host, the profile and the
+   * download folder always come from the arguments above.
+   */
+  environmentOverrides: Record<string, string | undefined> = {}
 ): Promise<HronautInstance> {
   const settingsPath = join(profileDirectory, 'settings.json')
   try {
@@ -95,6 +116,10 @@ export async function launchHronaut(
     await writeFile(settingsPath, `${JSON.stringify({ interfaceScale, tabPosition: 'top', mcpToolSet: 'complete' }, null, 2)}\n`, 'utf8')
   }
   const environment = { ...process.env }
+  for (const [name, value] of Object.entries(environmentOverrides)) {
+    if (value === undefined) delete environment[name]
+    else environment[name] = value
+  }
   if (mcpPort === undefined) delete environment.HRONAUT_MCP_PORT
   else environment.HRONAUT_MCP_PORT = String(mcpPort)
   const app = await electron.launch({
@@ -332,8 +357,11 @@ export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
     await use(integrationMcpPort(process.env.HRONAUT_TEST_SHARD_INDEX, testInfo.workerIndex, process.env.HRONAUT_TEST_MCP_PORT_NAMESPACE))
   },
 
-  electronApp: async ({ profileDirectory, mcpPort }, use, testInfo) => {
-    const instance = await launchHronaut(profileDirectory, mcpPort)
+  standInHome: [false, { option: true }],
+
+  electronApp: async ({ profileDirectory, mcpPort, standInHome }, use, testInfo) => {
+    const environment = standInHome ? await standInHomeEnvironment(profileDirectory) : {}
+    const instance = await launchHronaut(profileDirectory, mcpPort, undefined, undefined, undefined, environment)
     await useHronautFixture(instance.app, use, testInfo)
   },
 
