@@ -1094,6 +1094,8 @@ export const esES = {
       "location": "Ubicación",
       "activity": "Detección de actividad",
       "media": "Cámara y micrófono",
+      "camera": "Cámara",
+      "microphone": "Micrófono",
       "notifications": "Notificaciones",
       "storage": "Almacenamiento de terceros",
       "relatedStorage": "Almacenamiento de sitios relacionados",

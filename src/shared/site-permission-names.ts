@@ -24,7 +24,7 @@ const SITE_PERMISSION_NAMES: Readonly<Record<string, MessageKey>> = {
 /**
  * The name people see for a permission a website asks for, such as "Location" for "geolocation", in both the
  * permission prompt and Settings → Site permissions. A permission without a name shows its identifier with hyphens
- * as spaces.
+ * as spaces. The prompt names a camera-only or microphone-only request by its one device instead.
  */
 export function sitePermissionName(permission: string, text: (key: MessageKey) => string): string {
   return Object.hasOwn(SITE_PERMISSION_NAMES, permission)

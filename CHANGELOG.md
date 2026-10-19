@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- When a website asks for only your microphone or only your camera, Hronaut's prompt now names just that device, such as "Microphone", in Hronaut's language. It used to say "Camera and microphone" for every such request; the line below it already listed the requested devices.
+
 ## [3.3.0] - 2026-10-19
 
 ### Added

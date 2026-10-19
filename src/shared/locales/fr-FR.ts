@@ -1094,6 +1094,8 @@ export const frFR = {
       "location": "Position",
       "activity": "Détection d’activité",
       "media": "Caméra et microphone",
+      "camera": "Caméra",
+      "microphone": "Microphone",
       "notifications": "Notifications",
       "storage": "Stockage tiers",
       "relatedStorage": "Stockage des sites associés",

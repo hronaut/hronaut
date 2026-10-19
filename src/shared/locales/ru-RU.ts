@@ -1094,6 +1094,8 @@ export const ruRU = {
       "location": "Местоположение",
       "activity": "Определение активности",
       "media": "Камера и микрофон",
+      "camera": "Камера",
+      "microphone": "Микрофон",
       "notifications": "Уведомления",
       "storage": "Стороннее хранилище",
       "relatedStorage": "Хранилище связанных сайтов",
