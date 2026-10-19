@@ -87,6 +87,7 @@ import { registerBrowserPdfSave } from './tools/browser-pdf-save/index.js'
 import { registerBrowserScreenshotSave } from './tools/browser-screenshot-save/index.js'
 import { registerBrowserResize } from './tools/browser-resize/index.js'
 import { registerBrowserAccessibilityAudit } from './tools/browser-accessibility-audit/index.js'
+import { registerBrowserComputedAccessibility } from './tools/browser-computed-accessibility/index.js'
 import { registerBrowserQualityAudit } from './tools/browser-quality-audit/index.js'
 import { registerBrowserPerformance } from './tools/browser-performance/index.js'
 import { registerBrowserDesignOverview } from './tools/browser-design-overview/index.js'
@@ -729,6 +730,7 @@ export function createBrowserMcpServer(
   registerBrowserScreenshotSave(toolContext)
   registerBrowserResize(toolContext)
   registerBrowserAccessibilityAudit(toolContext)
+  registerBrowserComputedAccessibility(toolContext)
   registerBrowserQualityAudit(toolContext)
   registerBrowserPerformance(toolContext)
   registerBrowserDesignOverview(toolContext)
