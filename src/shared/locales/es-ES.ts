@@ -412,7 +412,9 @@ export const esES = {
       "forget": "Olvidar decisión",
       "help": "Al eliminar una decisión, Hronaut volverá a preguntar la próxima vez que el sitio necesite el permiso.",
       "allWorkspaces": "Todos los espacios de trabajo",
-      "removedWorkspace": "Espacio de trabajo eliminado",
+      "archivedWorkspace": "{name} (archivado)",
+      "removedWorkspace": "Espacio de trabajo eliminado {id}",
+      "loadingWorkspace": "Cargando espacio de trabajo…",
       "embeddedIn": "en {site}"
     },
     "passwords": {
@@ -1216,7 +1218,8 @@ export const esES = {
       "forgetAria": "Olvidar el permiso {permission} para {origin}",
       "resetAria": "Restablecer el permiso {permission} para {origin}",
       "scopedAria": "Permiso {permission} para {origin} ({scope})",
-      "scopedForgetAria": "Olvidar el permiso {permission} para {origin} ({scope})"
+      "scopedForgetAria": "Olvidar el permiso {permission} para {origin} ({scope})",
+      "scopedResetAria": "Restablecer el permiso {permission} para {origin} ({scope})"
     }
   },
   "privacyActions": {
@@ -1566,6 +1569,7 @@ export const esES = {
       "visits": "visitas",
       "permissions": "Permisos",
       "defaults": "Usando valores predeterminados",
+      "customized": "{count} personalizado | {count} personalizados",
       "allow": "Permitir",
       "block": "Bloquear",
       "reset": "Restablecer valor predeterminado",

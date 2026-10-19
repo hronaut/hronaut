@@ -412,7 +412,9 @@ export const frFR = {
       "forget": "Oublier la décision",
       "help": "Après suppression, Hronaut reposera la question lors de la prochaine demande du site.",
       "allWorkspaces": "Tous les espaces de travail",
-      "removedWorkspace": "Espace de travail supprimé",
+      "archivedWorkspace": "{name} (archivé)",
+      "removedWorkspace": "Espace de travail supprimé {id}",
+      "loadingWorkspace": "Chargement de l’espace de travail…",
       "embeddedIn": "sur {site}"
     },
     "passwords": {
@@ -1216,7 +1218,8 @@ export const frFR = {
       "forgetAria": "Oublier l’autorisation {permission} pour {origin}",
       "resetAria": "Réinitialiser l’autorisation {permission} pour {origin}",
       "scopedAria": "Autorisation {permission} pour {origin} ({scope})",
-      "scopedForgetAria": "Oublier l’autorisation {permission} pour {origin} ({scope})"
+      "scopedForgetAria": "Oublier l’autorisation {permission} pour {origin} ({scope})",
+      "scopedResetAria": "Réinitialiser l’autorisation {permission} pour {origin} ({scope})"
     }
   },
   "privacyActions": {
@@ -1566,6 +1569,7 @@ export const frFR = {
       "visits": "visites",
       "permissions": "Autorisations",
       "defaults": "Valeurs par défaut utilisées",
+      "customized": "{count} personnalisé | {count} personnalisés",
       "allow": "Autoriser",
       "block": "Bloquer",
       "reset": "Rétablir la valeur par défaut",

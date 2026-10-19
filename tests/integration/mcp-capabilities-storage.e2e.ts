@@ -31,7 +31,8 @@ test('scrubs oversized credential URL titles when agents add and rename bookmark
 
 test('isolates storage and manages site data, history and bookmarks', async ({ capabilities, electronApp, appWindow }) => {
   const { client, tabId, address, fixtureUrl, fixtureOrigin, openPageTool } = capabilities
-  await appWindow.evaluate(`window.hronautPermissions.set(${JSON.stringify(fixtureOrigin)}, 'geolocation', 'allow')`)
+  // The decision belongs to the workspace of the agent's tab.
+  await appWindow.evaluate(`window.hronaut.getState().then((state) => window.hronautPermissions.set(${JSON.stringify(fixtureOrigin)}, 'geolocation', 'allow', { workspaceId: state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)}).mcpGroupId }))`)
   const protectedCookieSetup = await client.callTool({
     name: 'browser_evaluate',
     arguments: { tabId, script: "fetch('/http-only-cookie').then(() => true)" }

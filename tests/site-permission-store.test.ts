@@ -237,4 +237,46 @@ describe('SitePermissionStore', () => {
     expect(await store.removeWorkspace(CLIENT)).toBe(0)
     expect(await store.removeWorkspace('not-a-workspace')).toBe(0)
   })
+
+  it('changes a decision for all workspaces only while it is saved, when asked to change one', async () => {
+    // A change that named no workspace saved a new decision for every workspace.
+    const { path, store } = await createStore()
+    await expect(store.set(widget, 'geolocation', 'allow', {}, { onlyIfSaved: true })).rejects.toThrow('no longer saved')
+    expect(store.list()).toEqual([])
+    await expect(readFile(path, 'utf8')).rejects.toThrow()
+    await store.set(widget, 'geolocation', 'allow')
+    await expect(store.set(widget, 'geolocation', 'deny', {}, { onlyIfSaved: true }))
+      .resolves.toEqual({ origin: widget, permission: 'geolocation', decision: 'deny' })
+    // The workspace's decision is another one.
+    await expect(store.set(widget, 'geolocation', 'deny', { workspaceId: WORK }, { onlyIfSaved: true })).rejects.toThrow('no longer saved')
+    expect(store.list()).toEqual([{ origin: widget, permission: 'geolocation', decision: 'deny' }])
+  })
+
+  it('forgets the decisions of workspaces that no longer exist, as they are when it runs', async () => {
+    // A workspace deleted while its forget failed, or while Hronaut stopped, kept its decisions for good.
+    const { path, store } = await createStore()
+    const added = '01912345-678b-7abc-8def-0123456789ab'
+    await store.set(widget, 'geolocation', 'allow')
+    await store.set(widget, 'geolocation', 'allow', { workspaceId: WORK })
+    await store.set(widget, 'geolocation', 'deny', { workspaceId: CLIENT })
+    await store.set(widget, 'notifications', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite })
+    expect(await store.retainWorkspaces(() => null)).toBe(0)
+    expect(store.list()).toHaveLength(4)
+
+    const current = [WORK]
+    const saving = store.set(widget, 'camera', 'allow', { workspaceId: added })
+    const pruning = store.retainWorkspaces(() => current)
+    // A workspace made before the forget runs is one of them.
+    current.push(added)
+    await saving
+    expect(await pruning).toBe(2)
+    const kept = [
+      { origin: widget, permission: 'camera', decision: 'allow', workspaceId: added },
+      { origin: widget, permission: 'geolocation', decision: 'allow' },
+      { origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: WORK }
+    ]
+    expect(store.list()).toEqual(kept)
+    expect(await new SitePermissionStore(path).load()).toEqual(kept)
+    expect(await store.retainWorkspaces(() => current)).toBe(0)
+  })
 })

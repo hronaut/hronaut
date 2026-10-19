@@ -28,7 +28,8 @@ function createController() {
   const controller = useSitePermissionsController({
     api,
     onError,
-    translate: (key) => key
+    translate: (key) => key,
+    workspaces: () => []
   })
   controller.replace([permission('allow')])
   return { api, controller, onError }

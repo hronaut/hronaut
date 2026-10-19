@@ -1,14 +1,19 @@
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { ref } from 'vue'
 import SitePermissionsSettingsPanel from '../../src/renderer/src/components/SitePermissionsSettingsPanel.vue'
-import { useSitePermissionsController } from '../../src/renderer/src/composables/useSitePermissionsController.js'
+import {
+  useSitePermissionsController,
+  type SitePermissionWorkspace
+} from '../../src/renderer/src/composables/useSitePermissionsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { SitePermissionEntry, SitePermissionScope, SupportedLocale } from '../../src/shared/types.js'
 
 const CLIENT = '01912345-6789-7abc-8def-0123456789ab'
 const REMOVED = '01912345-678a-7abc-8def-0123456789ab'
-const workspaceNames: Record<string, string> = { [CLIENT]: 'Client A' }
+const ARCHIVED = '01912345-678c-7abc-8def-0123456789ab'
+const workspaces: SitePermissionWorkspace[] = [{ id: CLIENT, name: 'Client A', archived: false }]
 
 const locationPermission: SitePermissionEntry = {
   origin: 'https://example.test',
@@ -23,7 +28,11 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function renderPanel(entries = [locationPermission], locale: SupportedLocale = 'en-US') {
+function renderPanel(
+  entries = [locationPermission],
+  locale: SupportedLocale = 'en-US',
+  knownWorkspaces: () => readonly SitePermissionWorkspace[] | null = () => workspaces
+) {
   const i18n = createHronautI18n(locale)
   const api = {
     set: vi.fn(async (origin: string, permission: string, decision: 'allow' | 'deny', scope?: SitePermissionScope) => ({
@@ -39,7 +48,7 @@ function renderPanel(entries = [locationPermission], locale: SupportedLocale = '
     api,
     onError: vi.fn(),
     translate: (key, parameters) => i18n.global.t(key, parameters ?? {}),
-    workspaceName: (workspaceId) => workspaceNames[workspaceId]
+    workspaces: knownWorkspaces
   })
   controller.replace(entries)
   const view = render(SitePermissionsSettingsPanel, {
@@ -334,12 +343,12 @@ describe('decisions that belong to a workspace and a page', () => {
     expect(screen.getByText('geolocation · All workspaces')).toBeVisible()
     expect(screen.getByText('geolocation · Client A')).toBeVisible()
     expect(screen.getByText('geolocation · Client A · on https://page.example')).toBeVisible()
-    expect(screen.getByText('notifications · Removed workspace')).toBeVisible()
+    expect(screen.getByText('notifications · Removed workspace 6789ab')).toBeVisible()
     expect(screen.getByRole('combobox', { name: 'Location permission for https://widget.example' })).toHaveValue('allow')
     expect(screen.getByRole('combobox', { name: 'Location permission for https://widget.example (Client A)' })).toHaveValue('deny')
     expect(screen.getByRole('combobox', { name: 'Location permission for https://widget.example (Client A · on https://page.example)' }))
       .toHaveValue('allow')
-    expect(screen.getByRole('button', { name: 'Forget Notifications permission for https://widget.example (Removed workspace)' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Forget Notifications permission for https://widget.example (Removed workspace 6789ab)' })).toBeVisible()
     controller.dispose()
   })
 
@@ -385,6 +394,45 @@ describe('decisions that belong to a workspace and a page', () => {
     // A decision saved before decisions had a scope is named as it always was.
     await user.click(screen.getByRole('button', { name: 'Forget Location permission for https://widget.example' }))
     expect(api.remove).toHaveBeenLastCalledWith(widget, 'geolocation')
+    controller.dispose()
+  })
+
+  it('gives each row’s controls a name of its own when workspaces read alike or are gone', () => {
+    // Two workspaces of one name, or two removed ones, gave several rows the same accessible name.
+    const twin = '01912345-678d-7abc-8def-0123456789cd'
+    const goneA = '01912345-678e-7abc-8def-0123456789ef'
+    const goneB = '01912345-678f-7abc-8def-012345678901'
+    const { controller } = renderPanel([
+      { origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: CLIENT },
+      { origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: twin },
+      { origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: ARCHIVED },
+      { origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: goneA },
+      { origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: goneB }
+    ], 'en-US', () => [
+      { id: CLIENT, name: 'Client A', archived: false },
+      { id: twin, name: 'Client A', archived: false },
+      { id: ARCHIVED, name: 'Client A', archived: true }
+    ])
+    const names = screen.getAllByRole('combobox').map((control) => control.getAttribute('aria-label'))
+    expect(names.sort()).toEqual([
+      'Location permission for https://widget.example (Client A (archived))',
+      'Location permission for https://widget.example (Client A · 6789ab)',
+      'Location permission for https://widget.example (Client A · 6789cd)',
+      'Location permission for https://widget.example (Removed workspace 678901)',
+      'Location permission for https://widget.example (Removed workspace 6789ef)'
+    ])
+    expect(new Set(screen.getAllByRole('button', { name: /^Forget / }).map((button) => button.getAttribute('aria-label'))).size).toBe(5)
+    controller.dispose()
+  })
+
+  it('does not call a workspace removed before the workspaces have loaded', async () => {
+    // Until the browser state arrived, no workspace was listed, so every row said its workspace was removed.
+    const known = ref<SitePermissionWorkspace[] | null>(null)
+    const { controller } = renderPanel([scoped[1]], 'en-US', () => known.value)
+    expect(screen.getByText('geolocation · Loading workspace…')).toBeVisible()
+    expect(screen.queryByText(/Removed workspace/)).not.toBeInTheDocument()
+    known.value = workspaces
+    expect(await screen.findByText('geolocation · Client A')).toBeVisible()
     controller.dispose()
   })
 })

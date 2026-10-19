@@ -44,7 +44,11 @@ export function registerPermissionsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: P
       host.assertTrustedSender(event)
       if (!isSitePermissionDecision(decision)) throw new TypeError('Invalid site permission')
       const requested = requestedDecision(origin, permission, scope)
-      const entry = await host.sitePermissionStore()!.set(requested.origin, requested.permission, decision, requested.scope)
+      // A new decision always belongs to a workspace. One for all workspaces, which only an earlier version made, can be
+      // changed in Settings but never created, so no request makes a website's decision apply in every workspace.
+      const entry = await host.sitePermissionStore()!.set(requested.origin, requested.permission, decision, requested.scope, {
+        onlyIfSaved: requested.scope.workspaceId === undefined
+      })
       host.publishSitePermissions()
       return entry
     }

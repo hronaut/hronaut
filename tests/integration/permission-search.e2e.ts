@@ -11,8 +11,13 @@ test('finds saved permissions by site and permission name without modifying hidd
     { origin: 'https://production.example.test', permission: 'clipboard-read', decision: 'deny' },
     { origin: 'https://production.example.test', permission: 'notifications', decision: 'allow' }
   ]
+  // A new decision belongs to a workspace, which search also finds by name.
+  const created = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Search decisions', storage: 'scratch' })`) as {
+    mcpTabGroups: Array<{ id: string, name: string }>
+  }
+  const workspaceId = created.mcpTabGroups.find(group => group.name === 'Search decisions')!.id
   for (const entry of entries) {
-    await appWindow.evaluate(`window.hronautPermissions.set(${JSON.stringify(entry.origin)}, ${JSON.stringify(entry.permission)}, ${JSON.stringify(entry.decision)})`)
+    await appWindow.evaluate(`window.hronautPermissions.set(${JSON.stringify(entry.origin)}, ${JSON.stringify(entry.permission)}, ${JSON.stringify(entry.decision)}, { workspaceId: ${JSON.stringify(workspaceId)} })`)
   }
   const saved = async (): Promise<SitePermissionEntry[]> => JSON.parse(await readFile(join(profileDirectory, 'site-permissions.json'), 'utf8')).permissions
   const before = await saved()
@@ -27,7 +32,7 @@ test('finds saved permissions by site and permission name without modifying hidd
   expect(await saved()).toEqual(before)
   await search.fill(' CLIPBOARD   STAGING.EXAMPLE.TEST ')
   await expect(panel.getByRole('combobox')).toHaveCount(1)
-  await expect(panel.getByRole('combobox')).toHaveAccessibleName('Clipboard read permission for https://staging.example.test')
+  await expect(panel.getByRole('combobox')).toHaveAccessibleName('Clipboard read permission for https://staging.example.test (Search decisions)')
   await expect(panel.getByRole('status')).toHaveText('1 of 4 saved decisions')
   await expect(search).toBeFocused()
   expect(await saved()).toEqual(before)
@@ -38,15 +43,17 @@ test('finds saved permissions by site and permission name without modifying hidd
   await expect(panel.getByRole('combobox')).toHaveCount(2)
   await search.fill('staging.example.test location')
   await expect(panel.getByRole('combobox')).toHaveCount(1)
-  await panel.getByRole('combobox', { name: 'Location permission for https://staging.example.test' }).selectOption('deny')
+  await panel.getByRole('combobox', { name: 'Location permission for https://staging.example.test (Search decisions)' }).selectOption('deny')
   const updated = before.map(entry => entry.permission === 'geolocation' ? { ...entry, decision: 'deny' } : entry)
   await expect.poll(saved).toEqual(updated)
   await search.fill('staging.example.test geolocation')
   await expect(panel.getByRole('combobox')).toHaveCount(1)
-  await panel.getByRole('button', { name: 'Forget Location permission for https://staging.example.test' }).click()
+  await panel.getByRole('button', { name: 'Forget Location permission for https://staging.example.test (Search decisions)' }).click()
   await expect(panel.getByText('No saved decisions match this search.', { exact: true })).toBeVisible()
   await expect(panel.getByRole('status')).toHaveText('0 of 3 saved decisions')
   await expect.poll(saved).toEqual(before.filter(entry => entry.permission !== 'geolocation'))
+  await search.fill('search DECISIONS production.example.test')
+  await expect(panel.getByRole('combobox')).toHaveCount(2)
   await search.fill('[a-z]')
   await expect(panel.getByRole('combobox')).toHaveCount(0)
   await appWindow.getByRole('button', { name: 'Close settings', exact: true }).click()

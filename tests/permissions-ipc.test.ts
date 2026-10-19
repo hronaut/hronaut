@@ -86,4 +86,19 @@ describe('permissions bridge', () => {
     await expect(invoke('permissions:remove', 'javascript:alert(1)', 'geolocation')).rejects.toThrow('HTTP or HTTPS origin')
     expect(store.list()).toEqual(before)
   })
+
+  it('changes a decision for all workspaces but never creates one', async () => {
+    // A change that named no workspace saved a decision that applied in every workspace, even when none was saved.
+    const { store, invoke, publishSitePermissions } = await createBridge()
+    await expect(invoke('permissions:set', origin, 'geolocation', 'deny')).resolves.toEqual({ origin, permission: 'geolocation', decision: 'deny' })
+    expect(publishSitePermissions).toHaveBeenCalledOnce()
+    const before = store.list()
+    await expect(invoke('permissions:set', origin, 'notifications', 'allow')).rejects.toThrow('no longer saved')
+    await expect(invoke('permissions:set', page, 'geolocation', 'allow', undefined)).rejects.toThrow('no longer saved')
+    expect(store.list()).toEqual(before)
+    expect(publishSitePermissions).toHaveBeenCalledOnce()
+    // A decision for a workspace is created as before, as Site controls does for the tab's workspace.
+    await expect(invoke('permissions:set', origin, 'notifications', 'allow', { workspaceId: WORK }))
+      .resolves.toEqual({ origin, permission: 'notifications', decision: 'allow', workspaceId: WORK })
+  })
 })

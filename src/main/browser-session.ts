@@ -85,6 +85,18 @@ function embeddingSiteOf(webContents: WebContents, origin: string, isMainFrame: 
 }
 
 /**
+ * The website a check without a page names as the page around its requester, such as a storage-access check Chromium
+ * makes for an embedded website: none when it names none or the requester's own website, and null when it names
+ * something that is not an HTTP or HTTPS website, which gets no permission.
+ */
+function namedEmbeddingSite(embeddingOrigin: string | undefined, origin: string): string | undefined | null {
+  if (embeddingOrigin === undefined) return undefined
+  const site = normalizeSitePermissionOrigin(embeddingOrigin)
+  if (!site) return null
+  return site === origin ? undefined : site
+}
+
+/**
  * What one page asked for. The page's document and each frame's have a number: the page's is renewed when the main
  * frame loads another document, and a frame's when that frame does, so a request belongs to the document that made it.
  * A prompt waiting or showing gives its answer to every identical request from the same frame's document. A Deny for a
@@ -113,14 +125,15 @@ interface PagePermissionRequests {
  * same page document, and screen sharing is refused without asking. Home never gets a permission.
  * `configurePersistentSession` opens the remembered site permissions and the profile's own session,
  * `publishSitePermissions` tells both shell windows the remembered permissions, `forgetWorkspaceSitePermissions` forgets
- * the decisions of a workspace that is gone for good, and `flushBrowserProfile` writes that session's storage to disk at
- * shutdown.
+ * the decisions of a workspace that is gone for good, `forgetRemovedWorkspacesSitePermissions` those of every workspace
+ * that no longer exists, and `flushBrowserProfile` writes that session's storage to disk at shutdown.
  */
 export function createBrowserSession(host: BrowserSessionHost): {
   configureBrowserSession(browserSession: Session, workspaceId?: string): void
   configurePersistentSession(): Promise<void>
   publishSitePermissions(): void
   forgetWorkspaceSitePermissions(workspaceId: string): Promise<void>
+  forgetRemovedWorkspacesSitePermissions(currentWorkspaces: () => Iterable<string> | null): Promise<void>
   flushBrowserProfile(): Promise<void>
 } {
   const configuredBrowserSessions = new WeakSet<Session>()
@@ -189,8 +202,12 @@ export function createBrowserSession(host: BrowserSessionHost): {
       const documentOrigin = requestingOrigin || details.securityOrigin || ''
       const origin = documentPermissionOrigin(details.requestingUrl || documentOrigin, documentOrigin)
       if (!origin) return false
-      // A check without a page, such as a service worker's, is the website's own.
-      const embeddedIn = webContents ? embeddingSiteOf(webContents, origin, details.isMainFrame) : undefined
+      // A check without a page, such as a service worker's, is the website's own, unless it names the website it is
+      // embedded in. A worker an embedded website starts is checked as that website's own, since Chromium gives only
+      // the worker's origin, as in Chrome.
+      const embeddedIn = webContents
+        ? embeddingSiteOf(webContents, origin, details.isMainFrame)
+        : namedEmbeddingSite(details.embeddingOrigin, origin)
       if (embeddedIn === null) return false
       return host.state.sitePermissionStore?.decisionFor(origin, permission, workspaceId, embeddedIn) === 'allow'
     })
@@ -404,6 +421,21 @@ export function createBrowserSession(host: BrowserSessionHost): {
     }
   }
 
+  /**
+   * Forgets the decisions of every workspace that is neither open nor archived, which a failed forget or a crash can
+   * leave behind, and tells the shell windows. Startup calls it only once the workspaces loaded; `currentWorkspaces`
+   * gives null once they are gone, such as at shutdown, which forgets nothing.
+   */
+  async function forgetRemovedWorkspacesSitePermissions(currentWorkspaces: () => Iterable<string> | null): Promise<void> {
+    const store = host.state.sitePermissionStore
+    if (!store) return
+    try {
+      if (await store.retainWorkspaces(currentWorkspaces)) publishSitePermissions()
+    } catch (error) {
+      console.error('[permissions] Failed to forget the site permissions of removed workspaces:', error)
+    }
+  }
+
   async function flushBrowserProfile(): Promise<void> {
     if (!host.state.persistentSession) return
     await flushBrowserSessionStorage(host.state.persistentSession)
@@ -414,6 +446,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
     configurePersistentSession,
     publishSitePermissions,
     forgetWorkspaceSitePermissions,
+    forgetRemovedWorkspacesSitePermissions,
     flushBrowserProfile
   }
 }

@@ -148,11 +148,16 @@ export class SitePermissionStore {
       ?? this.get(origin, permission)
   }
 
+  /**
+   * Saves a decision. `onlyIfSaved` changes one that is already saved and creates none, so a request that names a
+   * decision for all workspaces, which only an earlier version of Hronaut made, can only change it.
+   */
   async set(
     origin: string,
     permission: string,
     decision: SitePermissionDecision,
-    scope: SitePermissionScope = {}
+    scope: SitePermissionScope = {},
+    { onlyIfSaved = false }: { onlyIfSaved?: boolean } = {}
   ): Promise<SitePermissionEntry> {
     const normalizedOrigin = normalizeSitePermissionOrigin(origin)
     if (!normalizedOrigin) throw new TypeError('Site permission origin must be an HTTP or HTTPS origin')
@@ -165,8 +170,10 @@ export class SitePermissionStore {
         throw new Error('The workspace of this site permission was removed')
       }
       const entry: SitePermissionEntry = { origin: normalizedOrigin, permission, decision, ...normalizedScope }
+      const key = sitePermissionKey(entry)
+      if (onlyIfSaved && !this.entries.has(key)) throw new Error('This site permission decision is no longer saved')
       const nextEntries = new Map(this.entries)
-      nextEntries.set(sitePermissionKey(entry), entry)
+      nextEntries.set(key, entry)
       await this.persist(nextEntries.values())
       this.replaceEntries(nextEntries)
       return { ...entry }
@@ -195,6 +202,28 @@ export class SitePermissionStore {
     this.forgottenWorkspaces.add(workspaceId)
     return this.queueMutation(async () => {
       const nextEntries = new Map([...this.entries].filter(([, entry]) => entry.workspaceId !== workspaceId))
+      const removed = this.entries.size - nextEntries.size
+      if (!removed) return 0
+      await this.persist(nextEntries.values())
+      this.replaceEntries(nextEntries)
+      return removed
+    })
+  }
+
+  /**
+   * Forgets the decisions of every workspace that no longer exists, such as one deleted while a forget failed or Hronaut
+   * stopped, once the workspaces have loaded. `currentWorkspaces` gives the open and archived workspaces when this runs,
+   * so a workspace made meanwhile keeps its decisions, or null when they are no longer known, which forgets nothing.
+   * Decisions saved before decisions belonged to a workspace stay. Returns how many it forgot.
+   */
+  async retainWorkspaces(currentWorkspaces: () => Iterable<string> | null): Promise<number> {
+    return this.queueMutation(async () => {
+      const workspaces = currentWorkspaces()
+      if (!workspaces) return 0
+      const current = new Set(workspaces)
+      const nextEntries = new Map([...this.entries].filter(([, entry]) => (
+        entry.workspaceId === undefined || current.has(entry.workspaceId)
+      )))
       const removed = this.entries.size - nextEntries.size
       if (!removed) return 0
       await this.persist(nextEntries.values())

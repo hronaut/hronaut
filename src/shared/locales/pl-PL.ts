@@ -412,7 +412,9 @@ export const plPL = {
       "forget": "Zapomnij decyzję",
       "help": "Po usunięciu decyzji Hronaut zapyta ponownie przy następnej prośbie witryny.",
       "allWorkspaces": "Wszystkie obszary robocze",
-      "removedWorkspace": "Usunięty obszar roboczy",
+      "archivedWorkspace": "{name} (zarchiwizowany)",
+      "removedWorkspace": "Usunięty obszar roboczy {id}",
+      "loadingWorkspace": "Wczytywanie obszaru roboczego…",
       "embeddedIn": "na {site}"
     },
     "passwords": {
@@ -1216,7 +1218,8 @@ export const plPL = {
       "forgetAria": "Zapomnij uprawnienie {permission} dla {origin}",
       "resetAria": "Zresetuj uprawnienie {permission} dla {origin}",
       "scopedAria": "Uprawnienie {permission} dla {origin} ({scope})",
-      "scopedForgetAria": "Zapomnij uprawnienie {permission} dla {origin} ({scope})"
+      "scopedForgetAria": "Zapomnij uprawnienie {permission} dla {origin} ({scope})",
+      "scopedResetAria": "Zresetuj uprawnienie {permission} dla {origin} ({scope})"
     }
   },
   "privacyActions": {
@@ -1566,6 +1569,7 @@ export const plPL = {
       "visits": "wizyty",
       "permissions": "Uprawnienia",
       "defaults": "Używane są wartości domyślne",
+      "customized": "Dostosowane: {count}",
       "allow": "Zezwól",
       "block": "Zablokuj",
       "reset": "Przywróć domyślne",

@@ -20,14 +20,18 @@ test('clears global history while preserving workspace storage and retained reco
   if (!otherAddress || typeof otherAddress === 'string') throw new Error('Missing second fixture address')
   const otherUrl = `http://127.0.0.1:${otherAddress.port}/other`
   try {
-    const state = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`) as { activeTabId: string }
+    const state = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`) as {
+      activeTabId: string
+      tabs: Array<{ id: string, mcpGroupId?: string }>
+    }
+    const workspaceId = state.tabs.find(tab => tab.id === state.activeTabId)!.mcpGroupId!
     await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toMatchObject([{ url }])
     await electronApp.evaluate(async ({ webContents }, url) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
       await page.session.cookies.set({ url, name: 'proof', value: 'retained' })
     }, url)
     await appWindow.evaluate(`window.hronautBookmarks.add(${JSON.stringify(url)}, 'Retained bookmark')`)
-    await appWindow.evaluate(`window.hronautPermissions.set(${JSON.stringify(origin)}, 'notifications', 'deny')`)
+    await appWindow.evaluate(`window.hronautPermissions.set(${JSON.stringify(origin)}, 'notifications', 'deny', { workspaceId: ${JSON.stringify(workspaceId)} })`)
     await expect.poll(() => appWindow.evaluate(`window.hronautBrowsingData.siteSummary(${JSON.stringify(url)}, ${JSON.stringify(state.activeTabId)})`)).toMatchObject({ cookieCount: 1, historyEntries: 1 })
     expect(await appWindow.evaluate(`window.hronautBrowsingData.siteSummary(${JSON.stringify(url)}).catch(error => error.message)`)).toContain('Tab ID is required')
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(otherUrl)}, active: false })`)

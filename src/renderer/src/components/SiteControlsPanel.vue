@@ -13,7 +13,6 @@ import type {
   SitePermissionEntry,
   SupportedLocale
 } from '../../../shared/types'
-import { sitePermissionKey } from '../../../shared/site-permission-scope'
 import PanelDockPicker from './PanelDockPicker.vue'
 import { vTooltip } from '../ui/tooltip.js'
 
@@ -46,6 +45,33 @@ const localNumber = (value: number): string => formatNumber(props.locale, value)
 function permissionDetail(entry: SitePermissionEntry): string {
   if (entry.embeddedIn) return entry.origin
   return entry.workspaceId === undefined ? t('settings.permissions.allWorkspaces') : ''
+}
+
+/**
+ * A row's place in the list: its website, permission and embedding site. A row for all workspaces keeps its place, and
+ * its control its focus, when a change replaces it with the workspace's own decision.
+ */
+function rowKey(entry: SitePermissionEntry): string {
+  return [entry.origin, entry.permission, entry.embeddedIn ?? ''].join('\u0000')
+}
+
+/**
+ * The accessible name of a row's control, which also says where the decision applies when the row says so: for all
+ * workspaces, or for a website embedded in this page.
+ */
+function controlLabel(entry: SitePermissionEntry, kind: 'select' | 'reset'): string {
+  const permission = props.permissionLabel(entry.permission)
+  const scope = entry.embeddedIn
+    ? t('settings.permissions.embeddedIn', { site: entry.embeddedIn })
+    : entry.workspaceId === undefined ? t('settings.permissions.allWorkspaces') : ''
+  if (!scope) {
+    return t(kind === 'select' ? 'runtimeActions.permission.aria' : 'runtimeActions.permission.resetAria', { permission, origin: entry.origin })
+  }
+  return t(kind === 'select' ? 'runtimeActions.permission.scopedAria' : 'runtimeActions.permission.scopedResetAria', {
+    permission,
+    origin: entry.origin,
+    scope
+  })
 }
 
 async function changePermission(entry: SitePermissionEntry, event: Event): Promise<void> {
@@ -90,10 +116,10 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
     <section class="site-permission-controls" aria-labelledby="site-permission-controls-title">
       <div class="site-controls-section-heading">
         <strong id="site-permission-controls-title">{{ t('shell.siteControls.permissions') }}</strong>
-        <span>{{ permissions.length ? `${permissions.length} customized` : t('shell.siteControls.defaults') }}</span>
+        <span>{{ permissions.length ? t('shell.siteControls.customized', { count: localNumber(permissions.length) }, permissions.length) : t('shell.siteControls.defaults') }}</span>
       </div>
       <div v-if="permissions.length" class="site-permission-list">
-        <div v-for="(permission, index) in permissions" :key="sitePermissionKey(permission)" class="site-permission-control">
+        <div v-for="(permission, index) in permissions" :key="rowKey(permission)" class="site-permission-control">
           <label :for="`site-control-${index}`">
             {{ permissionLabel(permission.permission) }}
             <small v-if="permissionDetail(permission)">{{ permissionDetail(permission) }}</small>
@@ -102,13 +128,14 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             :id="`site-control-${index}`"
             :value="permission.decision"
             :disabled="permissionPending(permission)"
-            :aria-label="t('runtimeActions.permission.aria', { permission: permissionLabel(permission.permission), origin: permission.origin })"
+            :aria-label="controlLabel(permission, 'select')"
             @change="changePermission(permission, $event)"
           >
             <option value="allow">{{ t('shell.siteControls.allow') }}</option>
             <option value="deny">{{ t('shell.siteControls.block') }}</option>
           </select>
-          <UiButton appearance="application" type="button" :aria-label="t('runtimeActions.permission.resetAria', { permission: permissionLabel(permission.permission), origin: permission.origin })" v-tooltip="t('shell.siteControls.reset')" :disabled="permissionPending(permission)" @click="resetPermission(permission)"><IconClose aria-hidden="true" /></UiButton>
+          <!-- Forgetting a decision for all workspaces would forget it in every one, so only Settings offers that. -->
+          <UiButton v-if="permission.workspaceId !== undefined" appearance="application" type="button" :aria-label="controlLabel(permission, 'reset')" v-tooltip="t('shell.siteControls.reset')" :disabled="permissionPending(permission)" @click="resetPermission(permission)"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </div>
       <p v-else>{{ t('shell.siteControls.empty') }}</p>

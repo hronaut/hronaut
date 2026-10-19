@@ -34,8 +34,8 @@ const filteredGroups = computed(() => {
   if (!terms.length) return groups.value
   return groups.value.flatMap(group => {
     const permissions = group.permissions.filter(entry => {
-      // Where the decision applies is searchable too: its workspace's name and the website it was embedded in.
-      const text = [group.origin, entry.permission, permissionLabel(entry.permission), scopeLabel(entry), entry.embeddedIn ?? '']
+      // Where the decision applies is searchable too: its row names its workspace and the website it was embedded in.
+      const text = [group.origin, entry.permission, permissionLabel(entry.permission), scopeLabel(entry)]
         .join('\n').toLocaleLowerCase(locale.value)
       return terms.every(term => text.includes(term))
     })

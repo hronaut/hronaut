@@ -139,6 +139,23 @@ describe('active tab presentation controller', () => {
     ])
   })
 
+  it('changes a decision for all workspaces from Site controls as the tab’s workspace’s own', () => {
+    // Site controls changed such a decision itself, so a change made for one tab reached every workspace.
+    const { controller, sitePermissions, activeTab } = create(tab({ mcpGroupId: 'isolated' }))
+    const legacy: SitePermissionEntry = { origin: 'https://example.test', permission: 'geolocation', decision: 'allow' }
+    const own: SitePermissionEntry = { ...legacy, decision: 'deny', workspaceId: 'isolated' }
+    sitePermissions.value = [legacy]
+    expect(controller.sitePermissionTarget(legacy)).toEqual({ ...legacy, workspaceId: 'isolated' })
+    expect(controller.sitePermissionTarget(own)).toBe(own)
+    // The workspace's own decision then replaces the row.
+    sitePermissions.value = [legacy, own]
+    expect(controller.activeSitePermissions.value).toEqual([own])
+
+    // A tab outside a workspace gets no permission, so Site controls shows it no decision to change.
+    activeTab.value = tab()
+    expect(controller.activeSitePermissions.value).toEqual([])
+  })
+
   it('does not treat a lookalike internal host as Hronaut Home', () => {
     const active = tab({ url: 'hronaut://home.example/' })
     const { controller } = create(active)

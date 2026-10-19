@@ -86,7 +86,8 @@ async function createHarness(locale: SupportedLocale = 'en-US') {
   return Object.assign(harness, {
     workspaceSession,
     configureBrowserSession: browserSession.configureBrowserSession,
-    forgetWorkspaceSitePermissions: browserSession.forgetWorkspaceSitePermissions
+    forgetWorkspaceSitePermissions: browserSession.forgetWorkspaceSitePermissions,
+    forgetRemovedWorkspacesSitePermissions: browserSession.forgetRemovedWorkspacesSitePermissions
   })
 }
 
@@ -632,6 +633,45 @@ describe('decisions that belong to a workspace and a page', () => {
     answers[0]!('allow')
     expect(await pending).toBe(false)
     expect(harness.store.list()).toEqual([])
+  })
+
+  it('uses the embedding site a check without a page names, and refuses one that is not a website', async () => {
+    // Such a check, as Chromium makes for an embedded website's storage access, used the website's own decision.
+    const harness = await createHarness()
+    await harness.store.set(widget.origin, 'geolocation', 'allow', { workspaceId: WORK })
+    await harness.store.set(widget.origin, 'geolocation', 'deny', { workspaceId: WORK, embeddedIn: firstSite.origin })
+    await harness.store.set(widget.origin, 'geolocation', 'allow', { workspaceId: WORK, embeddedIn: secondSite.origin })
+    const pageless = (embeddingOrigin?: string) => check(harness.check, null, {
+      isMainFrame: false, ...(embeddingOrigin === undefined ? {} : { embeddingOrigin })
+    })
+    expect(pageless()).toBe(true)
+    expect(pageless(`${firstSite.origin}/`)).toBe(false)
+    expect(pageless(secondSite.url)).toBe(true)
+    // The website itself, or the same website on another address, is its own page.
+    expect(pageless(`${widget.origin}/`)).toBe(true)
+    // An embedding site with no decision of its own does not fall back to the website's own decision.
+    expect(pageless('https://third.example/')).toBe(false)
+    for (const embeddingOrigin of ['null', '', 'file:///home/person/page.html', 'chrome-extension://abcdef/']) {
+      expect(pageless(embeddingOrigin), embeddingOrigin).toBe(false)
+    }
+  })
+
+  it('forgets the decisions of workspaces that are neither open nor archived, and tells the shell', async () => {
+    // A workspace whose forget failed, or that went while Hronaut stopped, kept its decisions for good.
+    const harness = await createHarness()
+    await harness.store.set(widget.origin, 'geolocation', 'allow')
+    await harness.store.set(widget.origin, 'geolocation', 'allow', { workspaceId: WORK })
+    await harness.store.set(widget.origin, 'geolocation', 'deny', { workspaceId: CLIENT })
+    await harness.forgetRemovedWorkspacesSitePermissions(() => null)
+    expect(harness.store.list()).toHaveLength(3)
+    expect(harness.sent).toEqual([])
+    await harness.forgetRemovedWorkspacesSitePermissions(() => [WORK])
+    const kept = [
+      { origin: widget.origin, permission: 'geolocation', decision: 'allow' },
+      { origin: widget.origin, permission: 'geolocation', decision: 'allow', workspaceId: WORK }
+    ]
+    expect(harness.store.list()).toEqual(kept)
+    expect(harness.sent).toEqual([['permissions:changed', kept]])
   })
 
   it('forgets a removed workspace’s decisions, keeps the rest and tells the shell', async () => {

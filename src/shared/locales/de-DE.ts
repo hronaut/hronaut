@@ -412,7 +412,9 @@ export const deDE = {
       "forget": "Entscheidung vergessen",
       "help": "Nach dem Entfernen fragt Hronaut beim nächsten Berechtigungsbedarf erneut.",
       "allWorkspaces": "Alle Arbeitsbereiche",
-      "removedWorkspace": "Entfernter Arbeitsbereich",
+      "archivedWorkspace": "{name} (archiviert)",
+      "removedWorkspace": "Entfernter Arbeitsbereich {id}",
+      "loadingWorkspace": "Arbeitsbereich wird geladen…",
       "embeddedIn": "auf {site}"
     },
     "passwords": {
@@ -1216,7 +1218,8 @@ export const deDE = {
       "forgetAria": "Berechtigung „{permission}“ für {origin} vergessen",
       "resetAria": "Berechtigung „{permission}“ für {origin} zurücksetzen",
       "scopedAria": "Berechtigung „{permission}“ für {origin} ({scope})",
-      "scopedForgetAria": "Berechtigung „{permission}“ für {origin} ({scope}) vergessen"
+      "scopedForgetAria": "Berechtigung „{permission}“ für {origin} ({scope}) vergessen",
+      "scopedResetAria": "Berechtigung „{permission}“ für {origin} ({scope}) zurücksetzen"
     }
   },
   "privacyActions": {
@@ -1566,6 +1569,7 @@ export const deDE = {
       "visits": "Besuche",
       "permissions": "Berechtigungen",
       "defaults": "Standardwerte werden verwendet",
+      "customized": "{count} angepasst",
       "allow": "Zulassen",
       "block": "Blockieren",
       "reset": "Auf Standard zurücksetzen",
