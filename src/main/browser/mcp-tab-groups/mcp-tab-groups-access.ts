@@ -32,6 +32,8 @@ export interface McpTabGroupsOptions {
   configureSession?: (browserSession: Session) => void
   onActionFailed?: (action: string, error: unknown) => void
   onWorkspaceClosed?: (workspaceId: string) => void
+  /** A workspace is gone for good: closed with its storage, not archived. */
+  onWorkspaceForgotten?: (workspaceId: string) => void
   onWalletTabClosed?: (tabId: string) => void | Promise<void>
   onWalletTabRestored?: (tabId: string, navigationGeneration: number) => void | Promise<void>
   onWalletWorkspaceClosed?: (workspaceId: string) => void | Promise<void>

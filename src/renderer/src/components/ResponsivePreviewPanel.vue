@@ -63,7 +63,8 @@ const {
   syncState: props.syncState,
   beginMutation: props.beginMutation,
   isMutationCurrent: props.isMutationCurrent,
-  closeTransientPanels: props.closeTransientPanels
+  closeTransientPanels: props.closeTransientPanels,
+  translate: (key) => t(key)
 })
 
 const summary = computed(() => {

@@ -54,11 +54,34 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
       return ''
     }
   })
-  const activeSitePermissions = computed(() => (
-    activeOrigin.value
-      ? options.sitePermissions.value.filter((entry) => entry.origin === activeOrigin.value)
-      : []
-  ))
+  // The decisions that apply to the shown tab: its workspace's decisions for the page's own website and for websites
+  // embedded in the page, and a decision saved before decisions belonged to a workspace for the page's website, unless
+  // the workspace has its own, which applies instead. A tab outside a workspace gets no permission, so none applies.
+  const activeSitePermissions = computed(() => {
+    const origin = activeOrigin.value
+    const workspaceId = options.activeTab.value?.mcpGroupId
+    if (!origin || !workspaceId) return []
+    const own = (entry: SitePermissionEntry): boolean => entry.workspaceId !== undefined
+      && entry.workspaceId === workspaceId
+      && (entry.embeddedIn === undefined ? entry.origin === origin : entry.embeddedIn === origin)
+    const overridden = new Set(options.sitePermissions.value
+      .filter((entry) => own(entry) && entry.embeddedIn === undefined)
+      .map((entry) => entry.permission))
+    return options.sitePermissions.value.filter((entry) => own(entry) || (
+      entry.workspaceId === undefined && entry.origin === origin && !overridden.has(entry.permission)
+    ))
+  })
+  /**
+   * The decision a change in Site controls saves for one of its rows: the row's own, or for a decision saved before
+   * decisions belonged to a workspace, a decision of the tab's workspace for the same website and permission that
+   * overrides it there. Site controls shows such a decision only for the page's own website, and a change made for one
+   * tab never reaches another workspace.
+   */
+  function sitePermissionTarget(entry: SitePermissionEntry): SitePermissionEntry {
+    const workspaceId = options.activeTab.value?.mcpGroupId
+    if (entry.workspaceId !== undefined || !workspaceId) return entry
+    return { origin: entry.origin, permission: entry.permission, decision: entry.decision, workspaceId }
+  }
   const activeAddressKind = computed(() => (
     options.translate(activeWebUrl.value?.startsWith('https:') ? 'runtime.address.https' : 'runtime.address.http')
   ))
@@ -160,6 +183,7 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     activeOrigin,
     activeHostname,
     activeSitePermissions,
+    sitePermissionTarget,
     activeAddressKind,
     activeCredentials,
     activeDownloads,

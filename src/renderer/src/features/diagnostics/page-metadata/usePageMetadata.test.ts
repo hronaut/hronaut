@@ -7,7 +7,7 @@ function fixture(detached = false) {
   const activeTab = ref<BrowserTabState>({ id: 'tab-one', url: 'https://example.test', navigationGeneration: 0 } as BrowserTabState)
   const inspectPageMetadata = vi.fn<() => Promise<BrowserPageMetadataReport>>()
   const controller = usePageMetadata({ activeTab, browser: { inspectPageMetadata },
-    closeTransientPanels: vi.fn(), keepsSeparatePanelOpen: () => detached })
+    closeTransientPanels: vi.fn(), keepsSeparatePanelOpen: () => detached, translate: key => `t:${key}` })
   return { activeTab, inspectPageMetadata, controller }
 }
 function pending() {
@@ -71,6 +71,16 @@ describe('metadata feature request lifetime', () => {
       expect(controller.pageMetadataPanelOpen.value).toBe(true)
       expect(controller.pageMetadataState.value).toBe('idle')
       expect(controller.pageMetadataError.value).toBe('')
+    } finally { controller.dispose() }
+  })
+
+  it('shows a main-process failure without Electron\'s IPC wrapper', async () => {
+    const { controller, inspectPageMetadata } = fixture()
+    inspectPageMetadata.mockRejectedValueOnce(new Error("Error invoking remote method 'browser:inspect-page-metadata': Error: The tab is no longer available."))
+    try {
+      await controller.runPageMetadata()
+      expect(controller.pageMetadataState.value).toBe('error')
+      expect(controller.pageMetadataError.value).toBe('The tab is no longer available.')
     } finally { controller.dispose() }
   })
 })

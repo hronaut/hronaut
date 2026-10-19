@@ -104,7 +104,8 @@ export function useAppSiteNavigationFeatureController(
       const url = options.site.activeUrl()
       return tab && url ? { tabId: tab.id, url } : null
     },
-    load: actions.loadSiteSummary
+    load: actions.loadSiteSummary,
+    translate: (key) => options.address.translate(key)
   })
   const browserTabActionsController = useBrowserTabActionsController({
     state: options.state,

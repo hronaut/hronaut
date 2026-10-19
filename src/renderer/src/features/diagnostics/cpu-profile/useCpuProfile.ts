@@ -1,11 +1,13 @@
 import { ref, watch, type Ref } from 'vue'
 import type { BrowserCpuProfileResult, BrowserTabState, HronautApi } from '../../../../../shared/types.js'
 import type { DiagnosticsRecorderRequests } from '../diagnostics-request.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface CpuProfileOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   browser: Pick<HronautApi, 'manageCpuProfile'>
   closeTransientPanels: () => void
+  translate: (key: string) => string
 }
 
 /** The CPU profile panel, which records a profile of the active page. */
@@ -31,7 +33,7 @@ export function useCpuProfile(
     } catch (cause) {
       if (!current('cpu', request)) return
       cpuProfileState.value = 'error'
-      cpuProfileError.value = cause instanceof Error ? cause.message : String(cause)
+      cpuProfileError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     } finally {
       finishRecorderRequest('cpu', request)
     }

@@ -120,7 +120,8 @@ test('applies responsive presets and resets only the viewport', async ({ capabil
 
 test('isolates emulation between tabs and preserves it across reload', async ({ capabilities, appWindow }) => {
   const { client, tabId, fixtureOrigin } = capabilities
-  await appWindow.evaluate(`window.hronautPermissions.set(${JSON.stringify(fixtureOrigin)}, 'geolocation', 'allow')`)
+  // The decision belongs to the workspace of the agent's tab.
+  await appWindow.evaluate(`window.hronaut.getState().then((state) => window.hronautPermissions.set(${JSON.stringify(fixtureOrigin)}, 'geolocation', 'allow', { workspaceId: state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)}).mcpGroupId }))`)
   const isolatedTabResult = await client.callTool({
     name: 'browser_new_tab', arguments: { url: `${fixtureOrigin}/`, active: false }
   }) as CallToolResult

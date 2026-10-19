@@ -15,6 +15,7 @@ import type {
 } from '../../../shared/types.js'
 import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
 import { createFeedbackTimerRegistry } from './feedback-timer-registry.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 type SiteStorageBrowserApi = Pick<
   HronautApi,
@@ -250,7 +251,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
       if (sequence !== listSequence || !isCurrent(tab.id, expectedGeneration)) return
       result.value = null
       state.value = 'error'
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 
@@ -270,7 +271,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     } catch (cause) {
       if (sequence !== changesSequence || !isCurrent(tab.id, expectedGeneration)) return
       changesState.value = 'error'
-      changesError.value = cause instanceof Error ? cause.message : String(cause)
+      changesError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 
@@ -313,7 +314,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
       if (sequence !== usageSequence || !isCurrent(tab.id, expectedGeneration)) return null
       usageReport.value = null
       usageState.value = 'error'
-      usageError.value = cause instanceof Error ? cause.message : String(cause)
+      usageError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
       return null
     }
   }
@@ -368,7 +369,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
       if (sequence !== indexedDbSequence || !isCurrent(tab.id, expectedGeneration)) return null
       indexedDbReport.value = null
       indexedDbState.value = 'error'
-      indexedDbError.value = cause instanceof Error ? cause.message : String(cause)
+      indexedDbError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
       return null
     }
   }
@@ -458,7 +459,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
       if (sequence !== pwaSequence || !isCurrent(tab.id, expectedGeneration)) return null
       pwaReport.value = null
       pwaState.value = 'error'
-      pwaError.value = cause instanceof Error ? cause.message : String(cause)
+      pwaError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
       return null
     }
   }
@@ -556,7 +557,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     } catch (cause) {
       if (sequence !== listSequence || !isCurrent(tab.id, expectedGeneration)) return
       state.value = 'error'
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

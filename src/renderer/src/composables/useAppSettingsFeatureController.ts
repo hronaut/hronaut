@@ -84,6 +84,8 @@ export interface AppSettingsFeatureControllerOptions {
   detachedWindow?: boolean
   settings: Ref<AppSettings>
   browserState: Readonly<Ref<BrowserState>>
+  /** Whether `browserState` holds the workspaces main loaded, rather than the empty state the shell starts with. */
+  browserStateLoaded: Readonly<Ref<boolean>>
   settingsStore: AppSettingsFeatureStore
   syncBrowserState: (operation: Promise<BrowserState>) => Promise<BrowserState>
   apis: AppSettingsFeatureApis
@@ -109,7 +111,13 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
 
   const sitePermissionsController = useSitePermissionsController({
     api: options.apis.permissions,
-    translate: (key) => options.translate(key),
+    translate: (key, parameters) => options.translate(key, parameters),
+    workspaces: () => options.browserStateLoaded.value
+      ? [
+          ...options.browserState.value.mcpTabGroups.map(({ id, name }) => ({ id, name, archived: false })),
+          ...options.browserState.value.savedTabGroups.map(({ id, name }) => ({ id, name, archived: true }))
+        ]
+      : null,
     onError: (error) => options.showToast(
       'error',
       options.translate('runtime.toast.settingNotSaved'),
@@ -171,7 +179,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     api: options.apis.license,
     confirmDeactivate: () => options.confirm(options.translate('runtimeDetails.deactivate')),
     emptyKeyMessage: () => options.translate('runtime.license.enterKey'),
-    formatError: (error) => error instanceof Error ? error.message : String(error)
+    formatError: (error) => friendlyUiError(error, options.translate('runtime.toast.actionFailed'))
   })
   const mcpStatusController = useMcpStatusController({
     api: options.apis.mcp,
@@ -235,8 +243,9 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     confirmDisableAuthentication: () => options.confirm(
       options.translate('runtimeActions.mcp.disableConfirm')
     ),
+    copyText: options.copyText,
     translate: (key, parameters) => options.translate(key, parameters),
-    formatPortError: (error) => error instanceof Error ? error.message : String(error),
+    formatPortError: (error) => friendlyUiError(error, options.translate('runtime.toast.actionFailed')),
     onAuthenticationError: (error) => options.showToast(
       'error',
       options.translate('runtime.toast.settingNotSaved'),

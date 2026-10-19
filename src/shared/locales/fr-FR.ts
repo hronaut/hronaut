@@ -410,7 +410,12 @@ export const frFR = {
       "allow": "Autoriser",
       "block": "Bloquer",
       "forget": "Oublier la décision",
-      "help": "Après suppression, Hronaut reposera la question lors de la prochaine demande du site."
+      "help": "Après suppression, Hronaut reposera la question lors de la prochaine demande du site.",
+      "allWorkspaces": "Tous les espaces de travail",
+      "archivedWorkspace": "{name} (archivé)",
+      "removedWorkspace": "Espace de travail supprimé {id}",
+      "loadingWorkspace": "Chargement de l’espace de travail…",
+      "embeddedIn": "sur {site}"
     },
     "passwords": {
       "search": "Rechercher des mots de passe enregistrés",
@@ -1211,7 +1216,10 @@ export const frFR = {
     "permission": {
       "aria": "Autorisation {permission} pour {origin}",
       "forgetAria": "Oublier l’autorisation {permission} pour {origin}",
-      "resetAria": "Réinitialiser l’autorisation {permission} pour {origin}"
+      "resetAria": "Réinitialiser l’autorisation {permission} pour {origin}",
+      "scopedAria": "Autorisation {permission} pour {origin} ({scope})",
+      "scopedForgetAria": "Oublier l’autorisation {permission} pour {origin} ({scope})",
+      "scopedResetAria": "Réinitialiser l’autorisation {permission} pour {origin} ({scope})"
     }
   },
   "privacyActions": {
@@ -1561,6 +1569,7 @@ export const frFR = {
       "visits": "visites",
       "permissions": "Autorisations",
       "defaults": "Valeurs par défaut utilisées",
+      "customized": "{count} personnalisé | {count} personnalisés",
       "allow": "Autoriser",
       "block": "Bloquer",
       "reset": "Rétablir la valeur par défaut",
@@ -3615,6 +3624,7 @@ export const frFR = {
       "useFolder": "Utiliser ce dossier",
       "sitePermission": "Autorisation du site",
       "permissionRequest": "{origin} demande l’autorisation « {permission} ».",
+      "permissionRequestEmbedded": "{origin} sur {site} demande l’autorisation « {permission} ».",
       "deny": "Refuser",
       "allow": "Autoriser",
       "requestedDevices": "Appareils demandés : {devices}.",
@@ -3627,7 +3637,8 @@ export const frFR = {
       "fileReadAccess": "en lecture",
       "fileWriteAccess": "en écriture",
       "unspecifiedPath": "chemin non précisé",
-      "permissionRemember": "Hronaut peut mémoriser ce choix pour l’origine exacte du site.",
+      "permissionRemember": "Hronaut mémorise ce choix pour ce site dans cet espace de travail.",
+      "permissionRememberEmbedded": "Hronaut mémorise ce choix pour ce site sur {site} dans cet espace de travail.",
       "permissionAskAgain": "{detail} Hronaut ne mémorise pas ce choix. Après « Refuser », cette page ne pourra plus le demander tant qu’elle n’aura pas été rechargée.",
       "permissionSettings": "{detail} Vous pourrez le modifier plus tard dans Paramètres → Autorisations des sites.",
       "workspaceRecoveryTitle": "Impossible d’ouvrir les espaces enregistrés",

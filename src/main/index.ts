@@ -303,6 +303,8 @@ const {
   configureBrowserSession,
   configurePersistentSession,
   publishSitePermissions,
+  forgetWorkspaceSitePermissions,
+  forgetRemovedWorkspacesSitePermissions,
   flushBrowserProfile
 } = createBrowserSession({
   text,
@@ -1004,6 +1006,7 @@ async function createWindow(startMinimized = false): Promise<void> {
       mcpRuntime.server?.forgetAgentWorkspaceSteps(workspaceId)
       finalizeWorkspaceReceipts(workspaceId)
     },
+    onWorkspaceForgotten: (workspaceId) => { void forgetWorkspaceSitePermissions(workspaceId) },
     shortcutAvailable: pageShortcutAvailable,
     onShortcutRequested: runPageShortcut,
     copyText: copyTextToClipboard,
@@ -1141,6 +1144,14 @@ async function createWindow(startMinimized = false): Promise<void> {
     }
     await tabRuntime.tabs.initialize()
     tabRuntime.initializedTabs = tabRuntime.tabs
+    // Only workspaces that loaded can tell which decisions belong to none: a forget that failed, or a crash, leaves those.
+    const loadedTabs = tabRuntime.tabs
+    void forgetRemovedWorkspacesSitePermissions(() => tabRuntime.tabs === loadedTabs
+      ? [
+          ...loadedTabs.listMcpTabGroups().map((workspace) => workspace.id),
+          ...loadedTabs.listSavedTabGroups().map((workspace) => workspace.id)
+        ]
+      : null)
   } catch (error) {
     if (error instanceof WorkspaceMetadataError) tabRuntime.startupFailure = error
     throw error

@@ -2,28 +2,56 @@ import { computed, ref } from 'vue'
 import type {
   HronautPermissionsApi,
   SitePermissionDecision,
-  SitePermissionEntry
+  SitePermissionEntry,
+  SitePermissionScope
 } from '../../../shared/types.js'
 import { sitePermissionName } from '../../../shared/site-permission-names.js'
+import { sitePermissionKey, sitePermissionScopeOf } from '../../../shared/site-permission-scope.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 type SitePermissionsApi = Pick<HronautPermissionsApi, 'set' | 'remove' | 'clear'>
-type Translate = (key: string) => string
+type Translate = (key: string, parameters?: Record<string, unknown>) => string
+
+/** An open or archived workspace a decision can belong to. */
+export interface SitePermissionWorkspace {
+  id: string
+  name: string
+  archived: boolean
+}
 
 export interface SitePermissionsControllerOptions {
   api: SitePermissionsApi
   translate: Translate
+  /**
+   * The open and archived workspaces, read whenever rows show them, or null until they have loaded, while a workspace
+   * that is not listed may still be one of them.
+   */
+  workspaces: () => readonly SitePermissionWorkspace[] | null
   onError: (error: unknown) => void
 }
 
-function permissionKey(entry: Pick<SitePermissionEntry, 'origin' | 'permission'>): string {
-  return `${entry.origin}\u0000${entry.permission}`
+/** The few last characters of a workspace's id, which tell apart workspaces that read alike. */
+function shortWorkspaceId(workspaceId: string): string {
+  return workspaceId.replaceAll('-', '').slice(-6)
 }
+
+const permissionKey = sitePermissionKey
 
 function sortedEntries(entries: SitePermissionEntry[]): SitePermissionEntry[] {
   return [...entries].sort((left, right) => (
     left.origin.localeCompare(right.origin)
     || left.permission.localeCompare(right.permission)
+    || (left.workspaceId ?? '').localeCompare(right.workspaceId ?? '')
+    || (left.embeddedIn ?? '').localeCompare(right.embeddedIn ?? '')
   ))
+}
+
+/**
+ * The scope the permissions bridge names a decision by: none for a decision saved before decisions belonged to a
+ * workspace, so such a change or Forget is the same request it always was.
+ */
+function scopeArguments(entry: SitePermissionEntry): [] | [SitePermissionScope] {
+  return entry.workspaceId === undefined ? [] : [sitePermissionScopeOf(entry)]
 }
 
 export function useSitePermissionsController(options: SitePermissionsControllerOptions) {
@@ -48,6 +76,43 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
 
   function permissionLabel(permission: string): string {
     return sitePermissionName(permission, options.translate)
+  }
+
+  /**
+   * Each known workspace's name as rows show it, which also says when it is archived. Two workspaces that would read
+   * alike, such as one restored beside another of the same name, also show part of their id, so every row's controls
+   * have a name of their own. Null until the workspaces have loaded.
+   */
+  const workspaceLabels = computed(() => {
+    const workspaces = options.workspaces()
+    if (!workspaces) return null
+    const named = workspaces.map((workspace) => ({
+      id: workspace.id,
+      label: workspace.archived
+        ? options.translate('settings.permissions.archivedWorkspace', { name: workspace.name })
+        : workspace.name
+    }))
+    const counts = new Map<string, number>()
+    for (const { label } of named) counts.set(label, (counts.get(label) ?? 0) + 1)
+    return new Map(named.map(({ id, label }) => [id, counts.get(label)! > 1 ? `${label} · ${shortWorkspaceId(id)}` : label]))
+  })
+
+  /**
+   * Where a decision applies, in words: its workspace's name, "All workspaces" for one saved before decisions belonged
+   * to a workspace, a removed workspace with part of its id, and for a website embedded in another website's page, "on"
+   * that website. Until the workspaces have loaded, a workspace is only said to be loading, never removed.
+   */
+  function scopeLabel(entry: SitePermissionEntry): string {
+    const labels = workspaceLabels.value
+    const workspace = entry.workspaceId === undefined
+      ? options.translate('settings.permissions.allWorkspaces')
+      : !labels
+        ? options.translate('settings.permissions.loadingWorkspace')
+        : labels.get(entry.workspaceId)
+          ?? options.translate('settings.permissions.removedWorkspace', { id: shortWorkspaceId(entry.workspaceId) })
+    return entry.embeddedIn
+      ? `${workspace} · ${options.translate('settings.permissions.embeddedIn', { site: entry.embeddedIn })}`
+      : workspace
   }
 
   function replace(next: SitePermissionEntry[]): void {
@@ -89,7 +154,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
 
   function fail(operation: { generation: number }, error: unknown): false {
     if (operation.generation !== generation) return false
-    errorMessage.value = error instanceof Error ? error.message : String(error)
+    errorMessage.value = friendlyUiError(error, options.translate('runtime.toast.settingKept'))
     options.onError(error)
     return false
   }
@@ -98,7 +163,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     const operation = begin(entry)
     if (!operation) return false
     try {
-      const saved = await options.api.set(entry.origin, entry.permission, decision)
+      const saved = await options.api.set(entry.origin, entry.permission, decision, ...scopeArguments(entry))
       if (operation.generation !== generation) return false
       if (operation.revision === revision) {
         entries.value = sortedEntries([
@@ -118,7 +183,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     const operation = begin(entry)
     if (!operation) return false
     try {
-      await options.api.remove(entry.origin, entry.permission)
+      await options.api.remove(entry.origin, entry.permission, ...scopeArguments(entry))
       if (operation.generation !== generation) return false
       if (operation.revision === revision) {
         entries.value = entries.value.filter((candidate) => permissionKey(candidate) !== operation.key)
@@ -162,6 +227,8 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     clearing,
     errorMessage,
     permissionLabel,
+    scopeLabel,
+    permissionKey,
     initialize,
     replace,
     isPending,

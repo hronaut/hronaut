@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import type { BrowserInspectorIssuesReport, HronautApi } from '../../../../../shared/types.js'
 import type { DiagnosticsCopyFeedback, DiagnosticsRequests } from '../diagnostics-request.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface InspectorIssuesOptions {
   browser: Pick<HronautApi, 'listInspectorIssues'>
   closeTransientPanels: () => void
+  translate: (key: string) => string
 }
 
 /** The inspector issues panel and its copyable report. */
@@ -32,7 +34,7 @@ export function useInspectorIssues(
     } catch (cause) {
       if (!current('issues', request)) return
       inspectorIssuesState.value = 'error'
-      inspectorIssuesError.value = cause instanceof Error ? cause.message : String(cause)
+      inspectorIssuesError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

@@ -5,6 +5,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { normalizeSitePermissionOrigin, SitePermissionStore } from '../src/main/site-permission-store.js'
 
 const temporaryDirectories: string[] = []
+const WORK = '01912345-6789-7abc-8def-0123456789ab'
+const CLIENT = '01912345-678a-7abc-8def-0123456789ab'
+const widget = 'https://widget.example'
+const firstSite = 'https://first.example'
+const secondSite = 'https://second.example'
 
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
@@ -48,7 +53,7 @@ describe('SitePermissionStore', () => {
     expect(store.get('https://example.com', 'notifications')).toBe('deny')
     expect(store.get('https://sub.example.com', 'geolocation')).toBeUndefined()
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({
-      version: 1,
+      version: 2,
       permissions: [
         { origin: 'https://example.com', permission: 'geolocation', decision: 'allow' },
         { origin: 'https://example.com', permission: 'notifications', decision: 'deny' }
@@ -93,7 +98,7 @@ describe('SitePermissionStore', () => {
       { origin: 'https://safe.example', permission: 'geolocation', decision: 'allow' }
     ])
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({
-      version: 1,
+      version: 2,
       permissions: [
         { origin: 'https://safe.example', permission: 'geolocation', decision: 'allow' }
       ]
@@ -122,5 +127,156 @@ describe('SitePermissionStore', () => {
     await rm(profileDirectory, { force: true })
     await rename(backupDirectory, profileDirectory)
     expect(await new SitePermissionStore(path).load()).toEqual(before)
+  })
+
+  it('loads a version 1 file as decisions for every workspace and rewrites it only once a decision changes', async () => {
+    // Decisions saved before decisions belonged to a workspace must keep working where they were made.
+    const { path, store } = await createStore()
+    await mkdir(dirname(path), { recursive: true })
+    const saved = `${JSON.stringify({
+      version: 1,
+      permissions: [
+        { origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: WORK, note: 'ignored' },
+        { origin: firstSite, permission: 'notifications', decision: 'deny' }
+      ]
+    })}\n`
+    await writeFile(path, saved, 'utf8')
+    const legacy = [
+      { origin: firstSite, permission: 'notifications', decision: 'deny' },
+      { origin: widget, permission: 'geolocation', decision: 'allow' }
+    ]
+    expect(await store.load()).toEqual(legacy)
+    expect(store.decisionFor(widget, 'geolocation', CLIENT, secondSite)).toBe('allow')
+    // An older Hronaut can still read the file until a decision changes.
+    expect(await readFile(path, 'utf8')).toBe(saved)
+
+    await store.set(widget, 'geolocation', 'deny', { workspaceId: CLIENT })
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({
+      version: 2,
+      permissions: [...legacy, { origin: widget, permission: 'geolocation', decision: 'deny', workspaceId: CLIENT }]
+    })
+    expect(await new SitePermissionStore(path).load()).toEqual(store.list())
+  })
+
+  it('looks a request up in its own workspace and page, falling back only to a decision saved before scopes', async () => {
+    const { store } = await createStore()
+    await store.load()
+    await store.set(widget, 'geolocation', 'allow', { workspaceId: WORK, embeddedIn: `${firstSite}/room?secret=1` })
+    // An embedded decision is never reused on another embedding site, for the site's own page or in another workspace.
+    expect(store.decisionFor(widget, 'geolocation', WORK, firstSite)).toBe('allow')
+    expect(store.decisionFor(widget, 'geolocation', WORK, secondSite)).toBeUndefined()
+    expect(store.decisionFor(widget, 'geolocation', WORK)).toBeUndefined()
+    expect(store.decisionFor(widget, 'geolocation', CLIENT, firstSite)).toBeUndefined()
+
+    // A page's own decision is not used for the site embedded in a page.
+    await store.set(widget, 'geolocation', 'deny', { workspaceId: CLIENT })
+    expect(store.decisionFor(widget, 'geolocation', CLIENT)).toBe('deny')
+    expect(store.decisionFor(widget, 'geolocation', CLIENT, firstSite)).toBeUndefined()
+    expect(store.decisionFor(widget, 'geolocation', WORK)).toBeUndefined()
+
+    // A decision saved before decisions had a scope applies wherever the workspace has none of its own.
+    await store.set(widget, 'geolocation', 'allow')
+    expect(store.decisionFor(widget, 'geolocation', WORK)).toBe('allow')
+    expect(store.decisionFor(widget, 'geolocation', WORK, secondSite)).toBe('allow')
+    expect(store.decisionFor(widget, 'geolocation', CLIENT)).toBe('deny')
+    expect(store.decisionFor(widget, 'geolocation', 'not-a-workspace')).toBeUndefined()
+
+    // Only origins are kept, never a page's path or query.
+    expect(store.list()).toEqual([
+      { origin: widget, permission: 'geolocation', decision: 'allow' },
+      { origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: WORK, embeddedIn: firstSite },
+      { origin: widget, permission: 'geolocation', decision: 'deny', workspaceId: CLIENT }
+    ])
+    await expect(store.set(widget, 'geolocation', 'allow', { embeddedIn: firstSite })).rejects.toThrow('scope')
+    await expect(store.set(widget, 'geolocation', 'allow', { workspaceId: WORK, embeddedIn: widget })).rejects.toThrow('scope')
+    await expect(store.set(widget, 'geolocation', 'allow', { workspaceId: 'work' })).rejects.toThrow('scope')
+  })
+
+  it('drops a version 2 decision whose scope is malformed', async () => {
+    const { path, store } = await createStore()
+    await mkdir(dirname(path), { recursive: true })
+    const valid = [
+      { origin: widget, permission: 'geolocation', decision: 'allow' },
+      { origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: WORK },
+      { origin: widget, permission: 'geolocation', decision: 'deny', workspaceId: WORK, embeddedIn: firstSite }
+    ]
+    await writeFile(path, JSON.stringify({
+      version: 2,
+      permissions: [
+        ...valid,
+        { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: 'work' },
+        { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: null },
+        { origin: widget, permission: 'notifications', decision: 'allow', embeddedIn: firstSite },
+        { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: WORK, embeddedIn: widget },
+        { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: WORK, embeddedIn: `${firstSite}/page` },
+        { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: WORK, embeddedIn: 'file:///tmp/page.html' },
+        { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: WORK, tabUrl: `${firstSite}/page` }
+      ]
+    }), 'utf8')
+    expect(await store.load()).toEqual(valid)
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ version: 2, permissions: valid })
+  })
+
+  it('forgets a removed workspace’s decisions and saves none for it afterwards', async () => {
+    const { path, store } = await createStore()
+    await store.set(widget, 'geolocation', 'allow')
+    await store.set(widget, 'geolocation', 'allow', { workspaceId: WORK })
+    await store.set(widget, 'geolocation', 'deny', { workspaceId: CLIENT })
+    await store.set(widget, 'notifications', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite })
+    // A change that arrives after the workspace went, such as a late answer, is not kept.
+    const late = expect(store.set(widget, 'camera', 'allow', { workspaceId: CLIENT })).rejects.toThrow('removed')
+    expect(await store.removeWorkspace(CLIENT)).toBe(2)
+    await late
+    await expect(store.set(widget, 'geolocation', 'allow', { workspaceId: CLIENT })).rejects.toThrow('removed')
+    const kept = [
+      { origin: widget, permission: 'geolocation', decision: 'allow' },
+      { origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: WORK }
+    ]
+    expect(store.list()).toEqual(kept)
+    expect(await new SitePermissionStore(path).load()).toEqual(kept)
+    expect(await store.removeWorkspace(CLIENT)).toBe(0)
+    expect(await store.removeWorkspace('not-a-workspace')).toBe(0)
+  })
+
+  it('changes a decision for all workspaces only while it is saved, when asked to change one', async () => {
+    // A change that named no workspace saved a new decision for every workspace.
+    const { path, store } = await createStore()
+    await expect(store.set(widget, 'geolocation', 'allow', {}, { onlyIfSaved: true })).rejects.toThrow('no longer saved')
+    expect(store.list()).toEqual([])
+    await expect(readFile(path, 'utf8')).rejects.toThrow()
+    await store.set(widget, 'geolocation', 'allow')
+    await expect(store.set(widget, 'geolocation', 'deny', {}, { onlyIfSaved: true }))
+      .resolves.toEqual({ origin: widget, permission: 'geolocation', decision: 'deny' })
+    // The workspace's decision is another one.
+    await expect(store.set(widget, 'geolocation', 'deny', { workspaceId: WORK }, { onlyIfSaved: true })).rejects.toThrow('no longer saved')
+    expect(store.list()).toEqual([{ origin: widget, permission: 'geolocation', decision: 'deny' }])
+  })
+
+  it('forgets the decisions of workspaces that no longer exist, as they are when it runs', async () => {
+    // A workspace deleted while its forget failed, or while Hronaut stopped, kept its decisions for good.
+    const { path, store } = await createStore()
+    const added = '01912345-678b-7abc-8def-0123456789ab'
+    await store.set(widget, 'geolocation', 'allow')
+    await store.set(widget, 'geolocation', 'allow', { workspaceId: WORK })
+    await store.set(widget, 'geolocation', 'deny', { workspaceId: CLIENT })
+    await store.set(widget, 'notifications', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite })
+    expect(await store.retainWorkspaces(() => null)).toBe(0)
+    expect(store.list()).toHaveLength(4)
+
+    const current = [WORK]
+    const saving = store.set(widget, 'camera', 'allow', { workspaceId: added })
+    const pruning = store.retainWorkspaces(() => current)
+    // A workspace made before the forget runs is one of them.
+    current.push(added)
+    await saving
+    expect(await pruning).toBe(2)
+    const kept = [
+      { origin: widget, permission: 'camera', decision: 'allow', workspaceId: added },
+      { origin: widget, permission: 'geolocation', decision: 'allow' },
+      { origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: WORK }
+    ]
+    expect(store.list()).toEqual(kept)
+    expect(await new SitePermissionStore(path).load()).toEqual(kept)
+    expect(await store.retainWorkspaces(() => current)).toBe(0)
   })
 })

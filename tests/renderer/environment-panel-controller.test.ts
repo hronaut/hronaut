@@ -49,7 +49,8 @@ function createController() {
     syncState,
     beginMutation: () => ++currentMutation,
     isMutationCurrent: (sequence, tabId) => sequence === currentMutation && activeTab.value?.id === tabId,
-    closeTransientPanels
+    closeTransientPanels,
+    translate: (key) => `t:${key}`
   })
   return {
     open,
@@ -271,5 +272,17 @@ describe('environment panel controller', () => {
     expect(controller.state.value).toBe('idle')
     await controller.apply()
     expect(setTabEnvironment).toHaveBeenCalledOnce()
+  })
+
+  it('shows a main-process failure without Electron\'s IPC wrapper', async () => {
+    const { setTabEnvironment, controller } = createController()
+    setTabEnvironment.mockRejectedValueOnce(new Error("Error invoking remote method 'browser:set-tab-environment': Error: The tab is no longer available."))
+    controller.draft.value.network = 'offline'
+    controller.markDraftChanged()
+
+    await controller.apply()
+    expect(controller.state.value).toBe('error')
+    expect(controller.error.value).toBe('The tab is no longer available.')
+    controller.dispose()
   })
 })

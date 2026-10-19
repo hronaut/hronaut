@@ -1,5 +1,6 @@
 import { computed, ref, type Ref } from 'vue'
 import type { AppSettings, HronautSettingsApi } from '../../../shared/types.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 type DownloadSettingsApi = Pick<
   HronautSettingsApi,
@@ -31,7 +32,7 @@ export function useDownloadSettingsController(options: DownloadSettingsControlle
   function fail(operation: number, error: unknown): false {
     if (operation !== generation) return false
     state.value = 'error'
-    message.value = error instanceof Error ? error.message : String(error)
+    message.value = friendlyUiError(error, options.translate('runtime.toast.actionFailed'))
     return false
   }
 

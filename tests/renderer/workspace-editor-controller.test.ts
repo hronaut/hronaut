@@ -694,4 +694,30 @@ describe('workspace editor controller', () => {
     expect(browser.createWorkspace).not.toHaveBeenCalled()
     controller.dispose()
   })
+
+  it('shows main-process failures without Electron\'s IPC wrapper', async () => {
+    const wrapped = (channel: string, message: string) => new Error(`Error invoking remote method '${channel}': Error: ${message}`)
+    const { controller, browser, state } = createController()
+    state.value.savedTabGroups = [{ id: 'archived', name: 'Archived workspace', description: '', color: 'purple', savedAt: '',
+      storageOriginCount: 1, navigationPolicy: { mode: 'unrestricted', rules: [] }, tabs: [] },
+    { id: 'archived-target', name: 'Archived destination', description: '', color: 'blue', savedAt: '',
+      storageOriginCount: 0, navigationPolicy: { mode: 'unrestricted', rules: [] }, tabs: [] }]
+    await controller.openExisting('agent')
+    browser.listWorkspaceStorageOrigins.mockRejectedValueOnce(wrapped('browser:list-workspace-storage-origins', 'Workspace storage is unavailable.'))
+    controller.sourceWorkspaceId.value = 'archived'
+    await vi.waitFor(() => expect(controller.storageState.value).toBe('error'))
+    expect(controller.storageMessage.value).toBe('Workspace storage is unavailable.')
+
+    controller.sourceWorkspaceId.value = 'default'
+    controller.targetWorkspaceId.value = 'archived-target'
+    await vi.waitFor(() => expect(controller.storageState.value).toBe('idle'))
+    browser.transferWorkspaceStorage.mockRejectedValueOnce(wrapped('browser:transfer-workspace-storage', 'The destination workspace is no longer available.'))
+    await controller.transferStorage()
+    expect(controller.storageMessage.value).toBe('The destination workspace is no longer available.')
+
+    controller.close()
+    browser.getState.mockRejectedValueOnce(wrapped('browser:get-state', 'Workspace state unavailable'))
+    await controller.openTransfer()
+    expect(controller.error.value).toBe('Workspace state unavailable')
+  })
 })

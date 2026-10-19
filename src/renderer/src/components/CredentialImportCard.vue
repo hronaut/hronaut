@@ -6,6 +6,7 @@ import IconDownload from '~icons/material-symbols/download-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
 import type { CredentialImportResult } from '../../../shared/types.js'
+import { friendlyUiError } from '../composables/useAppToastController.js'
 
 const props = defineProps<{
   importFromCsv: () => Promise<CredentialImportResult>
@@ -33,7 +34,7 @@ async function importCredentials(): Promise<void> {
     })
   } catch (error) {
     state.value = 'error'
-    message.value = error instanceof Error ? error.message : t('runtime.toast.actionFailed')
+    message.value = friendlyUiError(error, t('runtime.toast.actionFailed'))
   }
 }
 </script>

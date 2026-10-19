@@ -42,7 +42,7 @@ async function request(
     setDownloadPath: () => undefined,
     setPermissionCheckHandler: () => undefined,
     setPermissionRequestHandler: (next: RequestHandler) => { handler = next }
-  } as unknown as Session)
+  } as unknown as Session, '01912345-6789-7abc-8def-0123456789ab')
   const url = 'https://files.example/'
   const frame = { frameTreeNodeId: 1, url, origin: 'https://files.example', detached: false }
   const webContents = Object.assign(new EventEmitter(), {

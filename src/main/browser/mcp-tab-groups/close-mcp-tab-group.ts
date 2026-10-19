@@ -26,8 +26,10 @@ export function closeMcpTabGroupInternal<Tab extends McpTabGroupsTab>(access: Mc
 /**
  * Closes the workspace's tabs and, unless archiving, deletes its storage,
  * reopening the tabs as they were when that fails. Then forgets the workspace,
- * its recently closed tabs and its continuity checkpoint, tells its wallets,
- * opens Home when no tab is left and saves the session after a deletion.
+ * its recently closed tabs and its continuity checkpoint, tells its wallets
+ * and, after a deletion, whoever keeps what belongs to it, such as its site
+ * permissions, opens Home when no tab is left and saves the session after a
+ * deletion.
  */
 async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(access: McpTabGroupsAccess<Tab>, groupId: string, preserveStorage: boolean): Promise<BrowserTabGroupState[]> {
   const group = access.mcpTabGroups().get(groupId)
@@ -121,6 +123,7 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
   if (preserveStorage) access.suspendWorkspaceContinuity(groupId)
   else access.retireWorkspaceContinuity(groupId)
   access.options().onWorkspaceClosed?.(groupId)
+  if (!preserveStorage) access.options().onWorkspaceForgotten?.(groupId)
   access.runWalletLifecycleAction('cancel wallet access after closing a workspace', () => (
     access.options().onWalletWorkspaceClosed?.(groupId)
   ))

@@ -36,6 +36,7 @@ import { createFeedbackTimerRegistry } from './feedback-timer-registry.js'
 import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
 import { useNetworkContentSearch } from './network/useNetworkContentSearch.js'
 import { useNetworkRequestConditions } from './network/useNetworkRequestConditions.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 type NetworkBrowserApi = Pick<
   HronautApi,
@@ -255,7 +256,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     } catch (cause) {
       if (sequence !== monitorRequestSequence || !isCurrent(tab.id, expectedGeneration)) return
       monitorState.value = 'error'
-      monitorError.value = cause instanceof Error ? cause.message : String(cause)
+      monitorError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 
@@ -284,7 +285,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
       ) requestDetails.value = details
     } catch (cause) {
       if (sequence !== requestDetailsSequence || !isCurrent(tab.id, expectedGeneration)) return
-      monitorError.value = cause instanceof Error ? cause.message : String(cause)
+      monitorError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     } finally {
       if (sequence === requestDetailsSequence && isCurrent(tab.id, expectedGeneration)) {
         requestDetailsLoading.value = false
@@ -339,7 +340,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     } catch (cause) {
       if (!isReplayCurrent()) return
       replayState.value = 'error'
-      replayMessage.value = cause instanceof Error ? cause.message : String(cause)
+      replayMessage.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 
@@ -386,7 +387,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
       })
     } catch (cause) {
       if (sequence !== detailsCopySequence || !isCurrent(tab.id, expectedGeneration)) return
-      monitorError.value = cause instanceof Error ? cause.message : String(cause)
+      monitorError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 
@@ -420,7 +421,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
       feedbackTimers.schedule('har', () => (harCopied.value = false))
     } catch (cause) {
       if (sequence !== harCopySequence || !isCurrent(tab.id, expectedGeneration)) return
-      monitorError.value = cause instanceof Error ? cause.message : String(cause)
+      monitorError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 
@@ -442,7 +443,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     } catch (cause) {
       if (!isCurrent(tab.id, expectedGeneration)) return
       harSaveState.value = 'idle'
-      monitorError.value = cause instanceof Error ? cause.message : String(cause)
+      monitorError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

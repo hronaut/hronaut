@@ -220,6 +220,7 @@ const appSettingsFeatureController = useAppSettingsFeatureController({
   detachedWindow: isDetachedPanelWindow,
   settings,
   browserState: state,
+  browserStateLoaded: browserStateInitialized,
   settingsStore,
   syncBrowserState: browserStore.syncOperation,
   apis: {

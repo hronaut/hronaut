@@ -393,4 +393,14 @@ describe('Downloads retained origin labels', () => {
     try { expect(h.controller.downloadOrigin({ ...download('report'), url })).toBe(expected) }
     finally { h.controller.dispose() }
   })
+
+  it('shows a main-process failure without Electron\'s IPC wrapper', async () => {
+    const { clearFinished, controller } = createController()
+    clearFinished.mockRejectedValueOnce(new Error("Error invoking remote method 'downloads:clear-finished': Error: Could not clear download history"))
+
+    await controller.clear()
+
+    expect(controller.error.value).toBe('Could not clear download history')
+    controller.dispose()
+  })
 })

@@ -67,6 +67,7 @@ import type {
   NewTabOptions,
   SitePermissionDecision,
   SitePermissionEntry,
+  SitePermissionScope,
   CredentialSummary,
   HelpMenuAction,
   McpControlState,
@@ -466,9 +467,10 @@ const settingsApi: HronautSettingsApi = {
 contextBridge.exposeInMainWorld('hronautSettings', settingsApi)
 const permissionsApi: HronautPermissionsApi = {
   list: () => ipcRenderer.invoke('permissions:list'),
-  set: (origin: string, permission: string, decision: SitePermissionDecision) =>
-    ipcRenderer.invoke('permissions:set', origin, permission, decision),
-  remove: (origin: string, permission: string) => ipcRenderer.invoke('permissions:remove', origin, permission),
+  set: (origin: string, permission: string, decision: SitePermissionDecision, scope?: SitePermissionScope) =>
+    ipcRenderer.invoke('permissions:set', origin, permission, decision, scope),
+  remove: (origin: string, permission: string, scope?: SitePermissionScope) =>
+    ipcRenderer.invoke('permissions:remove', origin, permission, scope),
   clear: () => ipcRenderer.invoke('permissions:clear'),
   onChanged: (listener: (permissions: SitePermissionEntry[]) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, permissions: SitePermissionEntry[]): void => listener(permissions)

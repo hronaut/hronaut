@@ -23,7 +23,8 @@ describe('site data summary controller', () => {
     let current: SiteDataSummaryContext | null = { tabId: 'workspace-a', url: 'https://example.test/page' }
     const controller = useSiteDataSummaryController({
       current: () => current,
-      load: ({ tabId }) => tabId === 'workspace-a' ? first.promise : second.promise
+      load: ({ tabId }) => tabId === 'workspace-a' ? first.promise : second.promise,
+      translate: key => key
     })
 
     const loadingFirst = controller.refresh()
@@ -42,7 +43,7 @@ describe('site data summary controller', () => {
   it('does not surface a late failure after the panel context resets', async () => {
     const pending = deferred<BrowsingDataSiteSummary>()
     let current: SiteDataSummaryContext | null = { tabId: 'workspace-a', url: 'https://example.test/' }
-    const controller = useSiteDataSummaryController({ current: () => current, load: () => pending.promise })
+    const controller = useSiteDataSummaryController({ current: () => current, load: () => pending.promise, translate: key => key })
     const loading = controller.refresh()
 
     current = null
@@ -53,5 +54,19 @@ describe('site data summary controller', () => {
     expect(controller.summary.value).toBeNull()
     expect(controller.state.value).toBe('idle')
     expect(controller.message.value).toBe('')
+  })
+
+  it('shows a main-process failure in its own words, without Electron\'s IPC wrapper', async () => {
+    const context = { tabId: 'workspace-a', url: 'https://example.test/' }
+    const failure = new Error("Error invoking remote method 'browsing-data:site-summary': Error: Site data is unavailable.")
+    const controller = useSiteDataSummaryController({ current: () => context, load: () => Promise.reject(failure), translate: key => `t:${key}` })
+
+    await controller.refresh()
+    expect(controller.state.value).toBe('error')
+    expect(controller.message.value).toBe('Site data is unavailable.')
+
+    const silent = useSiteDataSummaryController({ current: () => context, load: () => Promise.reject(new Error('')), translate: key => `t:${key}` })
+    await silent.refresh()
+    expect(silent.message.value).toBe('t:runtime.toast.actionFailed')
   })
 })
