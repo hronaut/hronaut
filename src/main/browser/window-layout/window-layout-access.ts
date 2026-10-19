@@ -1,12 +1,14 @@
 import type { BrowserWindow, Rectangle, WebContents, WebContentsView } from 'electron'
 import type { BrowserSplitViewState } from '../../../shared/split-view.js'
 
-/** The tab fields laying out the window reads: its page and view, and whether it sleeps. */
+/** The tab fields laying out the window reads: its page and view, whether it sleeps and whether its page is in full screen. */
 export interface WindowLayoutTab {
   id: string
   sleeping: boolean
   view: WebContentsView
   webContents: WebContents
+  /** Whether the page holds full screen for one of its elements, as a video player does. */
+  pageFullscreen?: boolean
 }
 
 /** How far the shell's tab rail and page frame reach into the window below the toolbar, in window pixels. */
@@ -71,6 +73,8 @@ export interface WindowLayoutAccess<Tab extends WindowLayoutTab> {
   tabViewBounds(tab: Tab, space: Rectangle): Rectangle
   /** Rounds a page view's corners to the shell's page card. */
   roundPageCorners(view: WebContentsView): void
+  /** Squares a page view's corners, for a page that fills the window. */
+  squarePageCorners(view: WebContentsView): void
   /** Repairs a shown page's visibility where the platform needs it. */
   reconcileTabPresentation(tab: Tab): void
   /** Captures the tab's overview preview once the page settles. */
@@ -79,6 +83,8 @@ export interface WindowLayoutAccess<Tab extends WindowLayoutTab> {
   publishSplitDivider(): void
   /** Sends the page cards and emulation frames to the shell when they changed. */
   publishPageGeometry(): void
+  /** Asks every page in full screen that the window no longer shows to leave it. */
+  exitHiddenPageFullscreen(): void
   /** Lays out the visible tabs through the manager, for a page area change. */
   layout(): void
 }

@@ -9,7 +9,7 @@ interface BrowserShortcutRoutingHost {
   /** The take over offers, which a page's take over key asks and acts on. */
   takeOvers: Pick<TakeOverOffers, 'available' | 'takeOverFromPage'>
   /** The tab runtime, whose Home tab and workspaces decide which keys a page keeps; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'isHomeTab' | 'listMcpTabGroups'> | null
+  tabs(): Pick<BrowserTabsManager, 'isHomeTab' | 'listMcpTabGroups' | 'exitPageFullscreen'> | null
   /** The agents in each workspace; a page keeps the agent card key while its workspace has none. */
   agentPresenceSnapshot(): AgentPresenceSnapshot
   /** The main window, whose shell runs a shortcut pressed in a page; read when the key is pressed. */
@@ -43,6 +43,9 @@ export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): 
       host.takeOvers.takeOverFromPage(page.tabId, page.workspaceId)
       return
     }
+    // A page in full screen covers the toolbar, the Find bar and the shell's other controls, so it leaves full
+    // screen first; zooming keeps it there.
+    if (!action.startsWith('zoom-')) host.tabs()?.exitPageFullscreen()
     if (host.mainWindowRefs.window && !host.mainWindowRefs.window.webContents.isDestroyed()) {
       // The page WebContentsView owns native focus when a website shortcut is
       // pressed. Move it to trusted chrome before the renderer focuses a

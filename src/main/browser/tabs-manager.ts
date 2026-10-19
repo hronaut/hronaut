@@ -284,7 +284,9 @@ import type { SplitViewAccess } from './split-view/split-view-access.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
 import type { WindowLayoutAccess } from './window-layout/window-layout-access.js'
 import { getSplitDivider, layout, publishSplitDivider } from './window-layout/window-layout.js'
-import { browserViewBounds, pageArea, setContentInsets, setToolbarHeight } from './window-layout/content-area.js'
+import { browserViewBounds, pageArea, setContentInsets, setToolbarHeight, shownPageFullscreenTab } from './window-layout/content-area.js'
+import type { PageFullscreenAccess } from './page-fullscreen/page-fullscreen-access.js'
+import { attachPageFullscreenEvents, exitHiddenPageFullscreen, exitPageFullscreen, watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
 import type { BrowserTabSelectionOptions, TabSelectionAccess } from './tab-selection/tab-selection-access.js'
 import { selectAgentTabAndWait, selectTab, selectTabAndWait } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
@@ -638,6 +640,10 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   navigationPolicyDenialSequence: number
   pinned: boolean
   sleeping: boolean
+  /** Whether the page holds full screen for one of its elements, as a video player does. */
+  pageFullscreen?: boolean
+  /** Whether Hronaut already asked the page to leave full screen since it took it. */
+  pageFullscreenExitRequested?: boolean
   /**
    * Set while going to sleep replaces the page: the discarded page may still
    * run until the sleeping page loads, and it cannot start a wallet call.
@@ -1087,6 +1093,8 @@ export class BrowserTabsManager {
   private contentInsets = { top: 0, right: 0, bottom: 0, left: 0 }
   /** The corner radius each page view has now, so layout does not repeat the native call. */
   private readonly pageCornerRadii = new WeakMap<WebContentsView, number>()
+  /** Whether the person has the window in full screen apart from any page's, which ends with the page. */
+  private personFullScreen = false
   private browserContentOccluded = false
   private occludedEmulationFrames: EmulationFrameGeometry[] = []
   private occludedPageCards: PageCardGeometry[] = []
@@ -1265,7 +1273,7 @@ export class BrowserTabsManager {
       : DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES
     this.mcpActivityFollower = new McpActivityFollowController({
       isEnabled: () => this.followAgentActivity,
-      isOccluded: () => this.browserContentOccluded || this.followAgentActivitySuspended,
+      isOccluded: () => this.browserContentOccluded || this.followAgentActivitySuspended || this.pageFullscreenShown(),
       getSelectionGeneration: () => this.tabSelectionGeneration,
       tabExists: (tabId) => {
         const tab = this.tabs.get(tabId)
@@ -1288,6 +1296,7 @@ export class BrowserTabsManager {
       },
       onError: (error) => console.error('[browser] Could not follow MCP activity:', error)
     })
+    watchWindowFullScreen(this.pageFullscreenAccess())
   }
 
   private text(key: MessageKey, parameters?: MessageParameters): string {
@@ -4753,12 +4762,48 @@ export class BrowserTabsManager {
       browserViewBounds: () => this.browserViewBounds(),
       tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
       roundPageCorners: (view) => this.roundPageCorners(view),
+      squarePageCorners: (view) => this.squarePageCorners(view),
       reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
       scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
       publishSplitDivider: () => this.publishSplitDivider(),
       publishPageGeometry: () => this.publishPageGeometry(),
+      exitHiddenPageFullscreen: () => exitHiddenPageFullscreen(this.pageFullscreenAccess()),
       layout: () => this.layout()
     }
+  }
+
+  /**
+   * The narrow view following a page's full screen gets of this manager's
+   * private tabs, window, active tab, split view, the person's own full
+   * screen and layout. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still
+   * provide it.
+   */
+  private pageFullscreenAccess(): PageFullscreenAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      window: () => this.window,
+      tabs: () => this.tabs.values(),
+      isShown: (tabId) => this.activeTabId === tabId || this.splitViewContains(tabId),
+      personFullScreen: () => this.personFullScreen,
+      writePersonFullScreen: (fullScreen) => { this.personFullScreen = fullScreen },
+      layout: () => this.layout()
+    }
+  }
+
+  /** Whether the window shows a page in full screen, such as a video, which Follow agents does not switch away from. */
+  private pageFullscreenShown(): boolean {
+    return shownPageFullscreenTab(this.windowLayoutAccess()) !== undefined
+  }
+
+  /** Asks the page in full screen, if any, to leave it so the browser's own controls show. */
+  exitPageFullscreen(): void {
+    exitPageFullscreen(this.pageFullscreenAccess())
+  }
+
+  /** The window's full screen to save: the person's own, not a page's, which ends with the page. */
+  windowFullScreenToSave(): boolean {
+    return windowFullScreenToSave(this.pageFullscreenAccess())
   }
 
   getSplitDivider(): SplitDividerGeometry | null {
@@ -4818,6 +4863,13 @@ export class BrowserTabsManager {
     if (this.pageCornerRadii.get(view) === radius) return
     view.setBorderRadius(radius)
     this.pageCornerRadii.set(view, radius)
+  }
+
+  /** Squares a page view's corners, for a page in full screen that fills the window. */
+  private squarePageCorners(view: WebContentsView): void {
+    if (this.pageCornerRadii.get(view) === 0) return
+    view.setBorderRadius(0)
+    this.pageCornerRadii.set(view, 0)
   }
 
   /** Where a tab's page goes in its space: see `emulationViewSize`. */
@@ -5224,6 +5276,7 @@ export class BrowserTabsManager {
     attachDebuggerEvents(this.debuggerEventsAccess(), tab, webContents)
     void this.ensureDialogMonitoring(tab)
     attachNavigationEvents(this.navigationEventsAccess(), tab, webContents)
+    attachPageFullscreenEvents(this.pageFullscreenAccess(), tab, webContents)
     attachConsoleMessageEvents(tab, webContents)
     attachRendererHealthEvents(this.rendererHealthEventsAccess(), tab, webContents)
     attachWindowOpenHandler(this.windowOpenHandlerAccess(), tab, webContents)
