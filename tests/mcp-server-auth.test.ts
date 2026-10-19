@@ -318,6 +318,7 @@ describe('MCP capability profile authentication', () => {
       history?: Record<string, unknown>
       humanWaiting?: Record<string, unknown>
       auditReceipts?: Record<string, unknown>
+      onTabActivity?: (...args: unknown[]) => void
     } = {}
   ) {
     directory = await mkdtemp(join(tmpdir(), 'hronaut-capability-server-'))
@@ -338,7 +339,8 @@ describe('MCP capability profile authentication', () => {
       history: (overrides.history ?? {}) as never,
       siteData: {} as never,
       humanWaiting: overrides.humanWaiting as never,
-      auditReceipts: overrides.auditReceipts as never
+      auditReceipts: overrides.auditReceipts as never,
+      ...(overrides.onTabActivity ? { onTabActivity: overrides.onTabActivity } : {})
     })
     const endpoint = await server.start()
     client = new Client({ name: 'restricted-client', version: '1.0.0' })
@@ -506,14 +508,17 @@ describe('MCP capability profile authentication', () => {
       if (dispatched && boundary === 'audit-receipt') expire()
       return result
     } }
+    const onTabActivity = vi.fn()
     await connectProfile({ name: 'Expiring capture reader', allowedTools: ['browser_workspaces', 'browser_pwa_lifecycle'],
       operationClasses: ['read', 'browser-state'], origins: ['https://allowed.example'], expiresAt: '2026-09-11T12:01:00.000Z'
-    }, () => now, { manager, humanWaiting, ...(boundary === 'audit-receipt' ? { auditReceipts } : {}) })
+    }, () => now, { manager, humanWaiting, onTabActivity, ...(boundary === 'audit-receipt' ? { auditReceipts } : {}) })
     expect((await client!.callTool({ name: 'browser_workspaces', arguments: { action: 'create', name: 'Synthetic' } })).isError).not.toBe(true)
     const result = await client!.callTool({ name: 'browser_pwa_lifecycle', arguments: { workspaceId: WORKSPACE_ID, tabId, action: 'get' } })
     expect(dispatched).toBe(true)
     expect(result.isError).toBe(true)
     expect(JSON.stringify(result)).not.toContain('synthetic-retained-evidence')
+    // The withheld call's activity ends as failed instead of staying shown as running.
+    expect(onTabActivity.mock.calls.map(([activity]) => (activity as { phase: string }).phase)).toEqual(['started', 'failed'])
   })
 
   it.each([false, true])('classifies semantic selection after outer capability expiry with submitted=%s', async submitted => {
