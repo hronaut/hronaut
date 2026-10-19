@@ -115,3 +115,22 @@ test('takes the window out of full screen when the page in full screen closes', 
     await closeFixtureServer(server)
   }
 })
+
+test('takes a page out of full screen when a browser shortcut opens the address field', async ({ appWindow, electronApp }) => {
+  // Ctrl/Cmd+L focused the address field and opened its suggestions behind the page in full screen.
+  const { server } = await openVideoPage(appWindow, electronApp)
+  try {
+    const before = await fullscreenState(electronApp)
+    expect(await requestFullscreen(electronApp)).toBe('entered')
+    await expect.poll(async () => (await fullscreenState(electronApp)).windowFullScreen).toBe(true)
+    await electronApp.evaluate(({ webContents }, title) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === title)!
+      page.sendInputEvent({ type: 'keyDown', keyCode: 'L', modifiers: [process.platform === 'darwin' ? 'meta' : 'control'] })
+      page.sendInputEvent({ type: 'keyUp', keyCode: 'L', modifiers: [process.platform === 'darwin' ? 'meta' : 'control'] })
+    }, TITLE)
+    await expect.poll(() => fullscreenState(electronApp)).toEqual(before)
+    await expect(appWindow.getByRole('combobox', { name: 'Address' })).toBeFocused()
+  } finally {
+    await closeFixtureServer(server)
+  }
+})

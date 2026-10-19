@@ -91,6 +91,14 @@ export function watchWindowFullScreen<Tab extends PageFullscreenTab>(access: Pag
   access.window().on('leave-full-screen', follow)
 }
 
+/**
+ * Asks the page in full screen to leave it, as when a browser shortcut opens the address field, Find or another
+ * control the page would otherwise cover.
+ */
+export function exitPageFullscreen<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>): void {
+  for (const tab of access.tabs()) if (tab.pageFullscreen) requestPageFullscreenExit(tab)
+}
+
 /** Asks every page in full screen that the window no longer shows to leave it. */
 export function exitHiddenPageFullscreen<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>): void {
   for (const tab of access.tabs()) {

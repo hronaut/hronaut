@@ -3,9 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
 import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
+import { createBrowserShortcutRouting } from '../src/main/browser-shortcut-routing.js'
 import {
   attachPageFullscreenEvents,
   exitHiddenPageFullscreen,
+  exitPageFullscreen,
   watchWindowFullScreen,
   windowFullScreenToSave
 } from '../src/main/browser/page-fullscreen/page-fullscreen.js'
@@ -268,5 +270,34 @@ describe('page full screen lifecycle', () => {
     shown.delete('video')
     exitHiddenPageFullscreen(access)
     expect(tabs.get('video')!.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('browser shortcuts from a page in full screen', () => {
+  it('asks the page to leave full screen before the shell opens a control, but keeps it for zooming', () => {
+    // Ctrl/Cmd+L focused the address field and opened its suggestions behind the page in full screen.
+    const tabs = { isHomeTab: () => false, listMcpTabGroups: () => [], exitPageFullscreen: vi.fn() }
+    const shell = { isDestroyed: () => false, focus: vi.fn(), send: vi.fn() }
+    const { runPageShortcut } = createBrowserShortcutRouting({
+      takeOvers: { available: () => undefined, takeOverFromPage: vi.fn() },
+      tabs: () => tabs,
+      agentPresenceSnapshot: () => ({ workspaces: {} }) as never,
+      mainWindowRefs: { window: { webContents: shell } as never }
+    })
+    runPageShortcut('zoom-in', { tabId: 'video', workspaceId: undefined })
+    expect(tabs.exitPageFullscreen).not.toHaveBeenCalled()
+    runPageShortcut('focus-address', { tabId: 'video', workspaceId: undefined })
+    expect(tabs.exitPageFullscreen).toHaveBeenCalledOnce()
+    expect(shell.send).toHaveBeenLastCalledWith('browser:shortcut-requested', 'focus-address')
+  })
+
+  it('asks the page in full screen the window shows to leave it', () => {
+    const { tabs, enter, access } = fullscreenFixture()
+    exitPageFullscreen(access)
+    expect(tabs.get('video')!.webContents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
+    enter('video')
+    exitPageFullscreen(access)
+    expect(tabs.get('video')!.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledOnce()
+    expect(tabs.get('other')!.webContents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
   })
 })

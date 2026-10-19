@@ -286,7 +286,7 @@ import type { WindowLayoutAccess } from './window-layout/window-layout-access.js
 import { getSplitDivider, layout, publishSplitDivider } from './window-layout/window-layout.js'
 import { browserViewBounds, pageArea, setContentInsets, setToolbarHeight, shownPageFullscreenTab } from './window-layout/content-area.js'
 import type { PageFullscreenAccess } from './page-fullscreen/page-fullscreen-access.js'
-import { attachPageFullscreenEvents, exitHiddenPageFullscreen, watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
+import { attachPageFullscreenEvents, exitHiddenPageFullscreen, exitPageFullscreen, watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
 import type { BrowserTabSelectionOptions, TabSelectionAccess } from './tab-selection/tab-selection-access.js'
 import { selectAgentTabAndWait, selectTab, selectTabAndWait } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
@@ -4794,6 +4794,11 @@ export class BrowserTabsManager {
   /** Whether the window shows a page in full screen, such as a video, which Follow agents does not switch away from. */
   private pageFullscreenShown(): boolean {
     return shownPageFullscreenTab(this.windowLayoutAccess()) !== undefined
+  }
+
+  /** Asks the page in full screen, if any, to leave it so the browser's own controls show. */
+  exitPageFullscreen(): void {
+    exitPageFullscreen(this.pageFullscreenAccess())
   }
 
   /** The window's full screen to save: the person's own, not a page's, which ends with the page. */
