@@ -5110,7 +5110,7 @@ export class BrowserTabsManager {
       }
       tab.loading = false
       if (!tab.pageProblem) {
-        tab.title = 'Site unavailable'
+        tab.title = translate(this.options.getLocale(), 'native.pageProblem.loadTabTitle')
         tab.pageProblem = loadFailureProblem(this.options.getLocale(), url, 0, 'ERR_FAILED')
       }
       this.changed()

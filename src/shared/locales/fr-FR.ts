@@ -3538,6 +3538,7 @@ export const frFR = {
     },
     "pageProblem": {
       "loadTitle": "Impossible d’accéder à ce site",
+      "loadTabTitle": "Site indisponible",
       "loadDefault": "Hronaut n’a pas pu charger cette adresse.",
       "rendererTitle": "Cette page a cessé de fonctionner",
       "rendererDefault": "Le processus de la page a disparu de façon inattendue.",

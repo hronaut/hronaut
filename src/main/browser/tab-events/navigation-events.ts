@@ -3,6 +3,7 @@ import { retireNetworkPriorityObservations } from '../network-recording.js'
 import { loadFailureProblem } from '../page-load-problem.js'
 import { normalizeTabTitle } from '../tab-metadata.js'
 import { isWebUrl } from '../url.js'
+import { translate } from '../../../shared/i18n.js'
 import type { NavigationEventsAccess, NavigationEventsTab } from './navigation-events-access.js'
 
 /** Chromium's error code for a load that was aborted, which shows no load failure. */
@@ -181,7 +182,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.loading = false
     if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined
     tab.url = failedUrl
-    tab.title = 'Site unavailable'
+    tab.title = translate(access.options().getLocale(), 'native.pageProblem.loadTabTitle')
     tab.pageProblem = loadFailureProblem(access.options().getLocale(), failedUrl, errorCode, errorDescription)
     access.appendConsoleMessage(tab, {
       timestamp: new Date().toISOString(),

@@ -3538,6 +3538,7 @@ export const plPL = {
     },
     "pageProblem": {
       "loadTitle": "Nie udało się otworzyć tej witryny",
+      "loadTabTitle": "Witryna niedostępna",
       "loadDefault": "Hronaut nie mógł wczytać tego adresu.",
       "rendererTitle": "Ta strona przestała działać",
       "rendererDefault": "Proces strony nieoczekiwanie zniknął.",
