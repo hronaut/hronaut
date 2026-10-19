@@ -58,7 +58,9 @@ import { FrameObservationController } from './frame-observation.js'
 import type { TabContextMenuAccess } from './context-menus/tab-context-menu-access.js'
 import { showTabContextMenu } from './context-menus/tab-context-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
+import { FixedDateController, type FixedDateAuthority } from './fixed-date/fixed-date.js'
 import type { ReactInspectionCommand } from '../../shared/react-inspection.js'
+import type { FixedDateAction, FixedDateBootstrap, FixedDateResult } from '../../shared/fixed-date.js'
 import { BrowserPwaLifecycle } from './pwa-lifecycle.js'
 import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
@@ -1108,6 +1110,28 @@ export class BrowserTabsManager {
     },
     mainWorldContextId: page => this.mainWorldContextId(page)
   })
+
+  private readonly fixedDateController = new FixedDateController({
+    resolve: tabId => {
+      const tab = this.getTab(tabId)
+      return {
+        identity: tab, page: tab.webContents, url: tab.webContents.getURL(), workspaceId: tab.mcpGroupId,
+        workspaceIdentity: tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+      }
+    },
+    tabIdOf: page => this.webContentsToTab.get(page.id)
+  })
+
+  fixedDateBootstrap(page: WebContents, frameOrigin: string): FixedDateBootstrap {
+    return this.fixedDateController.bootstrap(page, frameOrigin)
+  }
+
+  fixedDate(tabId: string, action: FixedDateAction, epochMs: number | undefined, authority: FixedDateAuthority): FixedDateResult {
+    if (action === 'status') return this.fixedDateController.status(tabId)
+    if (action === 'reset') return this.fixedDateController.reset(tabId)
+    if (epochMs === undefined) throw new Error('Give the instant to stage as at or epochMs')
+    return this.fixedDateController.stage(tabId, epochMs, authority)
+  }
 
   reactInspectionBootstrap(contents: WebContents) {
     const tab = [...this.tabs.values()].find(candidate => candidate.webContents === contents)
@@ -4781,6 +4805,7 @@ export class BrowserTabsManager {
     this.authorizedAgentKeyboardInput.clear()
     this.downloadController.destroy()
     this.reactInspectionController.dispose()
+    this.fixedDateController.dispose()
     this.debuggerQueue.clear()
     this.networkRouteQueues.clear()
     for (const timer of this.networkRouteRefreshTimers.values()) clearTimeout(timer)

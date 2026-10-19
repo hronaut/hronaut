@@ -5,6 +5,7 @@ import { toolDefinition } from './tool-results.js'
 
 export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
   browser_human_waiting: new Set(['list']),
+  browser_fixed_date: new Set(['status']),
   browser_continuity: new Set(['status']),
   browser_audit_receipts: new Set(['list', 'read', 'evidence']),
   browser_task_runs: new Set(['get', 'list', 'metrics', 'list-saved', 'preview']),
@@ -76,6 +77,7 @@ export const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabili
   browser_performance: 'browser-state',
   browser_code_coverage: 'browser-state',
   browser_react: 'browser-state',
+  browser_fixed_date: 'browser-state',
   browser_cpu_profile: 'browser-state',
   browser_memory: 'browser-state',
   browser_repro: 'browser-state',

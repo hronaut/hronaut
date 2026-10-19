@@ -6,6 +6,8 @@ import type { HronautHomeApi } from '../shared/home.js'
 import type { AgentGuideId } from '../shared/agent-guides.js'
 import type { WalletProviderEvent, WalletProviderRequest } from '../shared/wallet.js'
 import { installHronautWalletProviders } from './wallet-provider-bootstrap.js'
+import { installFixedDate } from './fixed-date-bootstrap.js'
+import type { FixedDateBootstrap } from '../shared/fixed-date.js'
 
 // Synchronous, main-owned opt-in is resolved before any page scripts execute.
 // Embedded frames never receive an installation authorization.
@@ -77,6 +79,11 @@ if (pageLocation?.protocol === 'hronaut:' && pageLocation.hostname === 'home') {
     unsubscribe: (listener: (event: WalletProviderEvent) => void) => { walletListeners.delete(listener) }
   })
   contextBridge.executeInMainWorld({ func: installHronautWalletProviders })
+  // A fixed Date an agent staged for this tab and origin, decided by the main process before page scripts run.
+  const fixedDate = ipcRenderer.sendSync('fixed-date:bootstrap') as FixedDateBootstrap
+  if (fixedDate?.enabled && Number.isSafeInteger(fixedDate.epochMs)) {
+    contextBridge.executeInMainWorld({ func: installFixedDate, args: [fixedDate.epochMs] })
+  }
 }
 
 function bounded(value: unknown): string | undefined {

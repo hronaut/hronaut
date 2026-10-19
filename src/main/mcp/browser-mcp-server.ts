@@ -94,6 +94,7 @@ import { registerBrowserPageMetadata } from './tools/browser-page-metadata/index
 import { registerBrowserMemory } from './tools/browser-memory/index.js'
 import { registerBrowserSecurity } from './tools/browser-security/index.js'
 import { registerBrowserReact } from './tools/browser-react/index.js'
+import { registerBrowserFixedDate } from './tools/browser-fixed-date/index.js'
 import { registerBrowserCodeCoverage } from './tools/browser-code-coverage/index.js'
 import { registerBrowserCpuProfile } from './tools/browser-cpu-profile/index.js'
 import { registerBrowserDebugReport } from './tools/browser-debug-report/index.js'
@@ -731,6 +732,7 @@ export function createBrowserMcpServer(
   registerBrowserMemory(toolContext)
   registerBrowserSecurity(toolContext)
   registerBrowserReact(toolContext)
+  registerBrowserFixedDate(toolContext)
   registerBrowserCodeCoverage(toolContext)
   registerBrowserCpuProfile(toolContext)
   registerBrowserDebugReport(toolContext)
