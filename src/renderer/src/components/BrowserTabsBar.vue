@@ -299,6 +299,39 @@ function handleTabAuxClick(event: MouseEvent, tab: BrowserTabState): void {
   emit('closeTab', tab.id)
 }
 
+// Closing the focused tab, as with Delete, takes its control out of the strip and Chromium leaves the focus on the page
+// body. The tab after it takes the focus, or the one before it when it was the last, as the tabs pattern asks; a tab
+// whose control was replaced, such as on moving to another workspace, keeps it. Not when the focus has moved on
+// meanwhile, or the window no longer has it, as when the page that replaces a closed active tab took it.
+watch(() => visibleTabs.value.map((tab) => tab.id), async (ids, previousIds) => {
+  const focused = document.activeElement
+  const tabId = focused instanceof HTMLElement && tabsStrip.value?.contains(focused) ? focused.dataset.tabId : undefined
+  if (!tabId || !(focused instanceof HTMLElement)) return
+  const remaining = new Set(ids)
+  const index = previousIds.indexOf(tabId)
+  const target = remaining.has(tabId) ? tabId : index < 0 ? undefined
+    : previousIds.slice(index + 1).find((id) => remaining.has(id)) ?? previousIds.slice(0, index).reverse().find((id) => remaining.has(id))
+  await nextTick()
+  if (!target || focused.isConnected || document.activeElement !== document.body || !document.hasFocus()) return
+  focusTab(target)
+}, { flush: 'pre' })
+
+// A scroll button is disabled once the strip reaches its end, or leaves when the tabs fit, and Chromium then drops its
+// focus to the page body. The other button, which can now scroll back, takes it, or else the strip's keyboard tab,
+// unless the focus has moved on meanwhile or the window no longer has it.
+watch([hasTabOverflow, canScrollTabsBack, canScrollTabsForward], async () => {
+  const focused = document.activeElement
+  if (!(focused instanceof HTMLElement) || !focused.classList.contains('tabs-scroll-button')) return
+  const otherSide = focused.classList.contains('previous') ? 'next' : 'previous'
+  const shell = focused.parentElement
+  await nextTick()
+  if (focused.isConnected && !focused.matches(':disabled')) return
+  if ((document.activeElement !== document.body && document.activeElement !== focused) || !document.hasFocus()) return
+  const other = shell?.isConnected ? shell.querySelector<HTMLElement>(`.tabs-scroll-button.${otherSide}`) : null
+  if (other && !other.matches(':disabled')) other.focus()
+  else if (keyboardTabId.value) focusTab(keyboardTabId.value)
+})
+
 // In the rail, a group shows its agents in its header and opens by itself when an agent starts working there or it
 // starts waiting for you. The top strip has room for neither; the toolbar shows the agents of the workspace in view.
 const groupAgents = useWorkspaceGroupAgents({

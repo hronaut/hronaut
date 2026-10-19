@@ -695,3 +695,96 @@ it.each(['copy', 'background', 'bookmark'])('preserves newer search focus throug
   await flushPromises()
   expect(search).toHaveFocus()
 })
+
+describe('History keyboard focus while an action disables its control', () => {
+  // Chromium moves the focus of a control to the page body while the control is disabled. JSDOM cannot blur a
+  // disabled control, so it is enabled for the blur itself.
+  function dropFocusLikeChromium(control: HTMLElement): void {
+    control.removeAttribute('disabled')
+    control.blur()
+    control.setAttribute('disabled', '')
+    expect(document.body).toHaveFocus()
+  }
+
+  // Opening an entry disables every Open control until it settles. When opening failed, the panel stayed open with
+  // the error, but nothing gave the focus back: Enter could not retry and the next Tab started at the top of the window.
+  it('gives the focus back to the entry once opening it fails', async () => {
+    let reject!: (cause: Error) => void
+    const openHistoryEntry = vi.fn(() => new Promise<void>((_resolve, fail) => { reject = fail }))
+    renderPanel({ openHistoryEntry })
+    const open = getByTooltip('https://example.test/alpha')
+    open.focus()
+    await userEvent.setup().keyboard('{Enter}')
+    expect(open).toBeDisabled()
+    dropFocusLikeChromium(open)
+
+    reject(new Error('Could not open the page'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not open the page')
+    await flushPromises()
+
+    expect(open).toBeEnabled()
+    expect(open).toHaveFocus()
+    expect(screen.getByRole('dialog', { name: 'Browsing history' })).toBeVisible()
+  })
+
+  // Clear all stays disabled once History is empty, so Chromium's blur left the focus on the page body for good.
+  it('moves the focus to Close once Clear all empties History', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    let finish!: (rows: BrowserHistoryEntry[]) => void
+    renderPanel({ clearHistory: vi.fn(() => new Promise<BrowserHistoryEntry[]>(resolve => { finish = resolve })) })
+    try {
+      const clear = screen.getByRole('button', { name: 'Clear all' })
+      clear.focus()
+      await userEvent.setup().keyboard('{Enter}')
+      expect(clear).toBeDisabled()
+      dropFocusLikeChromium(clear)
+
+      finish([])
+      await flushPromises()
+
+      expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+      expect(clear).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Close browsing history' })).toHaveFocus()
+    } finally { confirmSpy.mockRestore() }
+  })
+
+  it('gives the focus back to Clear all when clearing fails', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    let reject!: (cause: Error) => void
+    renderPanel({ clearHistory: vi.fn(() => new Promise<BrowserHistoryEntry[]>((_resolve, fail) => { reject = fail })) })
+    try {
+      const clear = screen.getByRole('button', { name: 'Clear all' })
+      clear.focus()
+      await userEvent.setup().keyboard('{Enter}')
+      dropFocusLikeChromium(clear)
+
+      reject(new Error('History could not be cleared'))
+      expect(await screen.findByRole('alert')).toHaveTextContent('History could not be cleared')
+      await flushPromises()
+
+      expect(clear).toBeEnabled()
+      expect(clear).toHaveFocus()
+    } finally { confirmSpy.mockRestore() }
+  })
+
+  it.each(['moved', 'closed'])('leaves the focus alone when you %s it while Clear all was pending', async change => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    let finish!: (rows: BrowserHistoryEntry[]) => void
+    const external = document.createElement('button')
+    document.body.append(external)
+    const view = renderPanel({ clearHistory: vi.fn(() => new Promise<BrowserHistoryEntry[]>(resolve => { finish = resolve })) })
+    try {
+      const clear = screen.getByRole('button', { name: 'Clear all' })
+      clear.focus()
+      await userEvent.setup().keyboard('{Enter}')
+      dropFocusLikeChromium(clear)
+      if (change === 'moved') external.focus()
+      else { await view.rerender({ open: false }); await view.rerender({ open: true }) }
+
+      finish([])
+      await flushPromises()
+
+      expect(change === 'moved' ? external : document.body).toHaveFocus()
+    } finally { confirmSpy.mockRestore(); external.remove() }
+  })
+})
