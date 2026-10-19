@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 import type { HronautApi } from '../../src/shared/types.js'
-import { closeHronaut, expect, launchHronaut, settleShellMotion, test } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, settleShellMotion, test } from './fixtures.js'
 
 test('switches language live through Settings and persists it across restart', async ({
   appWindow,
@@ -239,7 +239,7 @@ test('names a tab whose site could not be reached in the interface language', as
       else resolve(address.port)
     })
   })
-  await new Promise<void>((resolve) => server.close(() => resolve()))
+  await closeFixtureServer(server)
   const failedUrl = `http://127.0.0.1:${port}/unreachable`
 
   await appWindow.evaluate("window.hronautSettings.setLanguagePreference('uk-UA')")
