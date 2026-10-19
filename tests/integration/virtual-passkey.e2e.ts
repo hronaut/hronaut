@@ -81,12 +81,14 @@ document.querySelector('#register').onclick = () => attempt('register', () => re
 document.querySelector('#sign-in').onclick = () => attempt('sign-in', () => signIn(false))
 document.querySelector('#sign-in-unknown').onclick = () => attempt('sign-in-unknown', () => signIn(true))
 document.querySelector('#register-wrong-rp').onclick = () => attempt('register-wrong-rp', () => register('example.com'))
-document.querySelector('#embed').onclick = () => {
+function embed(path) {
   const frame = document.createElement('iframe')
   frame.setAttribute('allow', 'publickey-credentials-create *; publickey-credentials-get *')
-  frame.setAttribute('src', '${partnerOrigin}/partner')
+  frame.setAttribute('src', '${partnerOrigin}' + path)
   document.body.append(frame)
 }
+document.querySelector('#embed').onclick = () => embed('/partner')
+if (new URLSearchParams(location.search).has('partner')) embed('/partner-open')
 </script>`
 
 async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
@@ -147,7 +149,10 @@ async function passkeyApp(): Promise<PasskeyApp> {
   const server: Server = createServer((request, response) => {
     void (async () => {
       const path = new URL(request.url ?? '/', 'http://localhost').pathname
-      if (path === '/partner') {
+      if (path === '/partner-open') {
+        response.setHeader('content-type', 'text/html')
+        response.end('<!doctype html><title>Partner</title>partner')
+      } else if (path === '/partner') {
         app.partnerRequested = true
         await partnerHeld
         response.setHeader('content-type', 'text/html')
@@ -316,7 +321,7 @@ test('the virtual passkey ends before a frame of another origin loads, and other
     const otherTabId = (JSON.parse(text(opened)) as { tabs: Array<{ id: string }> }).tabs.find(tab => tab.id !== tabId)!.id
     await appWindow.getByRole('tab', { name: /^Passkey app \(other\)/u }).click()
     await pageClick(electronApp, `${app.origin}/?tab=other`, '#register')
-    await expect.poll(() => app.outcomes.find(entry => entry.tab === 'other'), { timeout: 10_000 }).toMatchObject({
+    await expect.poll(() => app.outcomes.find(entry => entry.tab === 'other' && entry.action === 'register'), { timeout: 10_000 }).toMatchObject({
       focused: true, ok: false, name: expect.stringMatching(/^(TimeoutError|AbortError)$/u)
     })
     const otherStatus = await passkey(agent.call, { tabId: otherTabId, action: 'status', origin: app.origin })
@@ -384,6 +389,29 @@ test('the person, a pause or a click in the page ends the virtual passkey', asyn
     expect(await status()).toMatchObject({ lastEnded: { reason: 'authority-changed' } })
     expect(await outcome(app, agent.call, tabId, '#register', 'register')).toMatchObject({ focused: true, ok: false, name: expect.stringMatching(/^(TimeoutError|AbortError)$/u) })
     expect(app.verified.registrations).toBe(0)
+  } finally {
+    await client?.close()
+    await app.close()
+  }
+})
+
+test('a page that comes back with a frame of another origin ends the virtual passkey', async ({ capabilities, appWindow, electronApp, mcpPort }) => {
+  const { client: owner, tabId, workspace } = capabilities
+  const app = await passkeyApp()
+  let client: Client | undefined
+  try {
+    client = await originGrant(appWindow, mcpPort, owner, workspace, [app.origin])
+    const agent = recorder(client)
+    expect((await agent.call('browser_navigate', { tabId, url: `${app.origin}/?partner=1` })).isError).not.toBe(true)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, frameUrl) => webContents.getAllWebContents()
+      .some(page => page.mainFrame.framesInSubtree.some(frame => frame.url === frameUrl)), `${app.partnerOrigin}/partner-open`)).toBe(true)
+    expect((await agent.call('browser_navigate', { tabId, url: `${app.origin}/next` })).isError).not.toBe(true)
+    await passkey(agent.call, { tabId, action: 'start', origin: app.origin })
+
+    // Back to the page with the partner frame, whether the browser restores it from its cache or loads it again.
+    expect((await agent.call('browser_history', { tabId, action: 'back' })).isError).not.toBe(true)
+    await expect.poll(async () => (await passkey(agent.call, { tabId, action: 'status', origin: app.origin })).status).toBe('inactive')
+    expect(await passkey(agent.call, { tabId, action: 'status', origin: app.origin })).toMatchObject({ lastEnded: { reason: 'origin-left', removalConfirmed: true } })
   } finally {
     await client?.close()
     await app.close()

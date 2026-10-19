@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WebContents } from 'electron'
-import { staysInOrigin, VirtualPasskeyController, type VirtualPasskeyTab } from '../src/main/browser/virtual-passkey/virtual-passkey.js'
+import { foreignFrame, staysInOrigin, VirtualPasskeyController, type VirtualPasskeyTab } from '../src/main/browser/virtual-passkey/virtual-passkey.js'
 import { virtualPasskeyOrigin } from '../src/shared/virtual-passkey.js'
 import { virtualPasskeySettlement } from '../src/main/mcp/tools/browser-virtual-passkey/virtual-passkey-settlement.js'
 
@@ -35,6 +35,7 @@ function page(options: { url?: string; frames?: Array<{ origin: string; url: str
     getURL: () => options.url ?? `${ORIGIN}/sign-in`,
     mainFrame: { framesInSubtree: options.frames ?? [{ origin: ORIGIN, url: `${ORIGIN}/sign-in` }] }
   })
+  const mainFrame = contents.mainFrame as { framesInSubtree: Array<{ origin: string; url: string }> }
   return {
     webContents: contents as unknown as WebContents,
     sent,
@@ -42,7 +43,12 @@ function page(options: { url?: string; frames?: Array<{ origin: string; url: str
     hold: (method: string) => { held.set(method, { resolve: () => undefined, reject: () => undefined }) },
     answer: (method: string, value: unknown) => { const deferred = held.get(method)!; held.delete(method); deferred.resolve(value) },
     reject: (method: string) => rejecting.add(method),
-    navigate: (url: string, isSameDocument = false, event = 'did-start-navigation') => contents.emit(event, {}, url, isSameDocument, false),
+    /** Starts a navigation; by default a frame of the origin started it. */
+    navigate: (url: string, isSameDocument = false, event = 'did-start-navigation', initiator: { origin: string } | null = { origin: ORIGIN }) =>
+      contents.emit(event, { initiator }, url, isSameDocument, false),
+    /** Commits a document whose page now has these frames, as a restore from the back-forward cache does with no frame navigation. */
+    commit: (frames: Array<{ origin: string; url: string }>) => { mainFrame.framesInSubtree = frames; contents.emit('did-frame-navigate', {}, frames[0]!.url, 200, 'OK', true) },
+    setFrames: (frames: Array<{ origin: string; url: string }>) => { mainFrame.framesInSubtree = frames },
     emit: (event: string) => contents.emit(event),
     detach: () => { attached = false; debuggerEvents.emit('detach') },
     destroy: () => { destroyed = true; contents.emit('destroyed') },
@@ -57,15 +63,28 @@ function fixture(pageOptions: Parameters<typeof page>[0] = {}) {
   const tab: VirtualPasskeyTab = { id: 'tab-1', webContents: fake.webContents }
   const changed = vi.fn()
   let current = true
+  let devToolsOpening = false
+  let afterOperation: (() => void) | undefined
   const controller = new VirtualPasskeyController<VirtualPasskeyTab>({
     isCurrent: () => current,
-    withDebugger: (_tab, operation) => operation(),
+    isDevToolsOpening: () => devToolsOpening,
+    // The real debugger queue can do work of its own after the operation, such as enabling domains it attached for.
+    withDebugger: async (_tab, operation) => {
+      const result = await operation()
+      afterOperation?.()
+      return result
+    },
     changed
   })
   const authority = { assertCurrent: vi.fn() }
   const start = (extra: { userVerified?: boolean; durationMs?: number } = {}) => controller.manage(tab, 'start', { origin: ORIGIN, ...extra }, authority)
   const status = (origin = ORIGIN) => controller.manage(tab, 'status', { origin }, authority)
-  return { ...fake, tab, controller, authority, changed, start, status, leave: () => { current = false } }
+  return {
+    ...fake, tab, controller, authority, changed, start, status,
+    leave: () => { current = false },
+    openDevTools: () => { devToolsOpening = true },
+    onAfterOperation: (run: () => void) => { afterOperation = run }
+  }
 }
 
 afterEach(() => { vi.useRealTimers() })
@@ -81,11 +100,24 @@ describe('virtual passkey origins', () => {
     }
   })
 
-  it('lets frames stay at the origin, in a blob it created or in an empty or inline document, and nothing else', () => {
-    for (const url of [`${ORIGIN}/next`, `blob:${ORIGIN}/0b5c`, 'about:blank', 'about:blank#top', 'about:srcdoc']) expect(staysInOrigin(url, ORIGIN), url).toBe(true)
+  it('lets frames stay at the origin, in a blob it created, an inline document or an empty one the origin started, and nothing else', () => {
+    for (const url of [`${ORIGIN}/next`, `blob:${ORIGIN}/0b5c`, 'about:blank', 'about:blank#top', 'about:srcdoc']) expect(staysInOrigin(url, ORIGIN, ORIGIN), url).toBe(true)
     for (const url of ['http://a.localhost:3000/', 'https://localhost:3000/', 'http://localhost:3001/', 'data:text/html,x', 'about:version', 'javascript:1', 'not a url']) {
-      expect(staysInOrigin(url, ORIGIN), url).toBe(false)
+      expect(staysInOrigin(url, ORIGIN, ORIGIN), url).toBe(false)
     }
+    // An empty document takes the origin of whoever started it.
+    expect(staysInOrigin('about:blank', ORIGIN, 'http://ads.localhost:3000')).toBe(false)
+    expect(staysInOrigin('about:blank', ORIGIN, undefined)).toBe(false)
+    expect(staysInOrigin('about:srcdoc', ORIGIN, undefined)).toBe(true)
+  })
+
+  it('counts every frame at another origin as foreign, except opaque ones at an empty, inline or same-origin document', () => {
+    const at = (frames: Array<{ origin: string; url: string }>) => foreignFrame({ mainFrame: { framesInSubtree: frames } } as unknown as WebContents, ORIGIN)
+    expect(at([{ origin: ORIGIN, url: `${ORIGIN}/` }, { origin: ORIGIN, url: 'about:blank' }, { origin: 'null', url: 'about:srcdoc' }, { origin: 'null', url: `${ORIGIN}/sandboxed` }])).toBe(false)
+    expect(at([{ origin: ORIGIN, url: `${ORIGIN}/` }, { origin: 'http://ads.localhost:3000', url: 'about:blank' }])).toBe(true)
+    expect(at([{ origin: ORIGIN, url: `${ORIGIN}/` }, { origin: 'null', url: 'https://evil.example/' }])).toBe(true)
+    const unreadable = { get origin(): string { throw new Error('Render frame was disposed') }, url: '' }
+    expect(at([{ origin: ORIGIN, url: `${ORIGIN}/` }, unreadable])).toBe(true)
   })
 })
 
@@ -131,6 +163,7 @@ describe('virtual passkey controller', () => {
       const before = listeners()
       navigate(`${ORIGIN}/account`)
       navigate('about:srcdoc')
+      navigate('about:blank')
       navigate(`blob:${ORIGIN}/0b5c`)
       navigate('https://evil.example/#same-document', true, event)
       expect(controller.active(tab)).toBe(true)
@@ -143,6 +176,57 @@ describe('virtual passkey controller', () => {
       expect(listeners()).toBe(0)
       expect(await status()).toMatchObject({ status: 'inactive', lastEnded: { reason: 'origin-left', removalConfirmed: true } })
     }
+  })
+
+  it('ends when a committed document or the periodic check finds a frame of another origin, and on an empty document another origin starts', async () => {
+    vi.useFakeTimers()
+    // A page restored from the back-forward cache comes back with its frames; only the top-level document commits.
+    const restored = fixture()
+    await restored.start()
+    restored.commit([{ origin: ORIGIN, url: `${ORIGIN}/` }])
+    expect(restored.controller.active(restored.tab)).toBe(true)
+    restored.commit([{ origin: ORIGIN, url: `${ORIGIN}/` }, { origin: 'http://ads.localhost:3000', url: 'http://ads.localhost:3000/frame' }])
+    expect(restored.methods().slice(-2)).toEqual(['WebAuthn.removeVirtualAuthenticator', 'WebAuthn.disable'])
+    expect((await restored.status()).lastEnded?.reason).toBe('origin-left')
+
+    const polled = fixture()
+    await polled.start()
+    polled.setFrames([{ origin: ORIGIN, url: `${ORIGIN}/` }, { origin: 'http://ads.localhost:3000', url: 'about:blank' }])
+    await vi.advanceTimersByTimeAsync(250)
+    expect((await polled.status()).lastEnded?.reason).toBe('origin-left')
+    expect(vi.getTimerCount()).toBe(0)
+
+    // Started by a frame of another origin, or by the browser itself.
+    for (const initiator of [{ origin: 'http://ads.localhost:3000' }, null]) {
+      const blank = fixture()
+      await blank.start()
+      blank.navigate('about:blank', false, 'did-start-navigation', initiator)
+      expect((await blank.status()).lastEnded?.reason).toBe('origin-left')
+    }
+  })
+
+  it('does not bring back a session that ended while the debugger queue finished its own work, or keep its timers', async () => {
+    vi.useFakeTimers()
+    const late = fixture()
+    await late.start()
+    await late.controller.manage(late.tab, 'stop', { origin: ORIGIN }, late.authority)
+    late.onAfterOperation(() => late.navigate('https://evil.example/'))
+    await expect(late.start()).rejects.toThrow('ended while it was starting')
+    expect(late.controller.active(late.tab)).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+    // The earlier session's end is still the one reported.
+    expect((await late.status()).lastEnded?.reason).toBe('stopped')
+
+    // A frame of another origin that arrived while the authenticator was being added is caught before the start succeeds.
+    const framed = fixture()
+    framed.hold('WebAuthn.addVirtualAuthenticator')
+    const pending = framed.start()
+    await vi.waitFor(() => expect(framed.methods()).toContain('WebAuthn.addVirtualAuthenticator'))
+    framed.setFrames([{ origin: ORIGIN, url: `${ORIGIN}/` }, { origin: 'http://ads.localhost:3000', url: 'http://ads.localhost:3000/frame' }])
+    framed.answer('WebAuthn.addVirtualAuthenticator', { authenticatorId: 'auth-1' })
+    await expect(pending).rejects.toThrow('frame of another origin')
+    expect(framed.methods().slice(-2)).toEqual(['WebAuthn.removeVirtualAuthenticator', 'WebAuthn.disable'])
+    expect(framed.controller.active(framed.tab)).toBe(false)
   })
 
   it('never leaves an authenticator behind when the page leaves the origin while it is starting', async () => {
@@ -215,6 +299,13 @@ describe('virtual passkey controller', () => {
     await devtools.start()
     devtools.emit('devtools-opened')
     expect((await devtools.status()).lastEnded?.reason).toBe('devtools-opened')
+
+    // Opening Developer Tools detaches Hronaut's debugger first.
+    const opening = fixture()
+    await opening.start()
+    opening.openDevTools()
+    opening.detach()
+    expect((await opening.status()).lastEnded?.reason).toBe('devtools-opened')
 
     const detached = fixture()
     await detached.start()

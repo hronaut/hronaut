@@ -930,6 +930,7 @@ export class BrowserTabsManager {
   })
   private readonly virtualPasskeys = new VirtualPasskeyController<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
+    isDevToolsOpening: tab => this.devToolsOpening.has(tab.webContents.id),
     withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
     changed: () => this.changed(false)
   })

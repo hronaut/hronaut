@@ -34,7 +34,7 @@ export interface VirtualPasskeySession {
   startedAt: string
   expiresAt: string
   remainingMs: number
-  /** Credentials the authenticator holds: created minus deleted by the page. */
+  /** Credentials the authenticator holds: created minus deleted, as Chromium reports them; a discoverable credential that replaces one for the same account may count twice. */
   credentials: number
   /** Credentials the authenticator created, whether or not the page then accepted them. */
   registrations: number

@@ -24,6 +24,8 @@ export interface VirtualPasskeyAuthority { assertCurrent(): void }
 
 export interface VirtualPasskeyHost<T> {
   isCurrent(tab: T): boolean
+  /** Whether Developer Tools are opening for the tab, which detaches Hronaut's debugger before they open. */
+  isDevToolsOpening(tab: T): boolean
   /** Runs in the tab's debugger queue after attaching; rejects while Developer Tools are open. */
   withDebugger<R>(tab: T, operation: () => Promise<R>): Promise<R>
   changed(): void
@@ -53,8 +55,8 @@ interface Session {
   release: () => void
 }
 
-/** How often the starting call's authority is checked between navigations. */
-const AUTHORITY_CHECK_MS = 250
+/** How often the page's frames and the starting call's authority are checked between navigations. */
+const PAGE_CHECK_MS = 250
 
 const AUTHENTICATOR = {
   protocol: 'ctap2',
@@ -67,17 +69,48 @@ const AUTHENTICATOR = {
 
 /**
  * Whether a frame navigating to this URL stays in the origin: a document of
- * the origin itself (a blob URL it created included), or an empty or inline
- * frame, whose origin comes from the frame that created it in this page.
+ * the origin itself (a blob URL it created included), an inline document,
+ * whose origin is its parent's, or an empty document a frame of the origin
+ * started, since an empty document takes the origin of whoever started it.
  */
-export function staysInOrigin(url: string, origin: string): boolean {
+export function staysInOrigin(url: string, origin: string, initiatorOrigin: string | undefined): boolean {
   try {
     const parsed = new URL(url)
-    if (parsed.protocol === 'about:') return parsed.pathname === 'blank' || parsed.pathname === 'srcdoc'
+    if (parsed.protocol === 'about:') return parsed.pathname === 'srcdoc' || (parsed.pathname === 'blank' && initiatorOrigin === origin)
     return parsed.origin === origin
   } catch {
     return false
   }
+}
+
+/** The origin of the frame that started a navigation, when Electron names one that is still there. */
+function initiatorOrigin(details: unknown): string | undefined {
+  try {
+    const origin = (details as { initiator?: { origin?: unknown } | null } | undefined)?.initiator?.origin
+    return typeof origin === 'string' ? origin : undefined
+  } catch {
+    // A frame that is gone cannot be asked.
+    return undefined
+  }
+}
+
+/**
+ * Whether any frame of the page, the top-level one included, is at another
+ * origin. A frame with an opaque origin, such as a sandboxed frame showing an
+ * empty or inline document or a page of the origin, cannot use passkeys and
+ * is not counted. A frame that cannot be read counts as foreign.
+ */
+export function foreignFrame(contents: WebContents, origin: string): boolean {
+  return contents.mainFrame.framesInSubtree.some(frame => {
+    try {
+      if (frame.origin === origin) return false
+      if (frame.origin !== 'null') return true
+      const parsed = new URL(frame.url)
+      return parsed.protocol === 'about:' ? parsed.pathname !== 'blank' && parsed.pathname !== 'srcdoc' : parsed.origin !== origin
+    } catch {
+      return true
+    }
+  })
 }
 
 function httpOrigin(url: string): string | undefined {
@@ -96,7 +129,10 @@ function httpOrigin(url: string): string | undefined {
  * the boundary is Hronaut's: a start is refused unless every frame is already
  * at the origin and nothing is loading, and from before the authenticator
  * exists until it ends, any frame starting or being redirected to load
- * another origin ends it in that same event, before the request is sent. The
+ * another origin ends it in that same event, before the request is sent.
+ * Every committed document, and a check four times a second, looks at all
+ * frames again, for pages that return with their frames and no frame
+ * navigation, such as one restored from the back-forward cache. The
  * WebAuthn commands are answered in the browser process as they are
  * dispatched, so the authenticator is gone before the event handler returns.
  * Credential events carry private keys and user details; only the
@@ -163,10 +199,11 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
       }
       if (!this.host.isCurrent(tab) || tab.webContents !== webContents || webContents.isDestroyed()) throw new Error('The tab changed while starting the virtual passkey')
     }
+    const strangers = (): void => {
+      if (foreignFrame(webContents, origin)) throw new Error(`A frame of another origin is in the page; a virtual passkey starts only when every frame is at ${origin}`)
+    }
     try {
-      const strangers = webContents.mainFrame.framesInSubtree.filter(frame => frame.origin !== origin
-        && !(frame.origin === 'null' && staysInOrigin(frame.url, origin)))
-      if (strangers.length) throw new Error(`A frame of another origin is in the page; a virtual passkey starts only when every frame is at ${origin}`)
+      strangers()
       if (webContents.isLoading()) throw new Error('Wait for the page to finish loading before starting a virtual passkey')
       await this.host.withDebugger(tab, async () => {
         assertCurrent()
@@ -178,8 +215,11 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
         if (typeof added.authenticatorId !== 'string') throw new Error('The browser did not create a virtual authenticator')
         session.authenticatorId = added.authenticatorId
         assertCurrent()
+        strangers()
         authority.assertCurrent()
       })
+      // The debugger queue can still have work of its own after the operation, during which the session can end.
+      assertCurrent()
     } catch (error) {
       // Whatever was enabled goes again; an ended session already removed it.
       if (this.sessions.get(tab) === session) this.end(tab, session, 'stopped', false)
@@ -189,7 +229,7 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
     session.startedAt = Date.now()
     session.expiresAt = session.startedAt + durationMs
     session.expiry = setTimeout(() => this.end(tab, session, 'expired'), durationMs)
-    session.authorityCheck = setInterval(() => this.checkAuthority(tab, session), AUTHORITY_CHECK_MS)
+    session.authorityCheck = setInterval(() => this.checkPage(tab, session), PAGE_CHECK_MS)
     this.lastEnded.delete(tab)
     this.host.changed()
   }
@@ -208,15 +248,18 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
   /** Follows everything that ends the session, from before the authenticator exists. */
   private watch(tab: T, session: Session): void {
     const contents = session.webContents
-    const navigation = (_event: unknown, url: string, isSameDocument: boolean): void => {
+    const navigation = (details: unknown, url: string, isSameDocument: boolean): void => {
       if (isSameDocument) return
-      if (!staysInOrigin(url, session.origin)) this.end(tab, session, 'origin-left')
+      if (!staysInOrigin(url, session.origin, initiatorOrigin(details))) this.end(tab, session, 'origin-left')
       else this.checkAuthority(tab, session)
     }
+    // A committed document can bring frames back without a navigation of their own.
+    const committed = (): void => { if (foreignFrame(contents, session.origin)) this.end(tab, session, 'origin-left') }
     const rendererGone = (): void => this.end(tab, session, 'renderer-exited')
     const destroyed = (): void => this.end(tab, session, 'tab-closed')
     const devtools = (): void => this.end(tab, session, 'devtools-opened')
-    const detached = (): void => this.end(tab, session, 'debugger-detached')
+    // Opening Developer Tools detaches Hronaut's debugger before they open.
+    const detached = (): void => this.end(tab, session, this.host.isDevToolsOpening(tab) ? 'devtools-opened' : 'debugger-detached')
     const message = (_event: unknown, method: string, params: { authenticatorId?: unknown }): void => {
       // Only the authenticator id is read: these events also carry the private key and the user's details.
       if (!method.startsWith('WebAuthn.credential') || session.authenticatorId === undefined || params?.authenticatorId !== session.authenticatorId) return
@@ -226,6 +269,7 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
     }
     contents.on('did-start-navigation', navigation)
     contents.on('did-redirect-navigation', navigation)
+    contents.on('did-frame-navigate', committed)
     contents.on('render-process-gone', rendererGone)
     contents.on('destroyed', destroyed)
     contents.on('devtools-opened', devtools)
@@ -235,12 +279,24 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
       if (contents.isDestroyed()) return
       contents.removeListener('did-start-navigation', navigation)
       contents.removeListener('did-redirect-navigation', navigation)
+      contents.removeListener('did-frame-navigate', committed)
       contents.removeListener('render-process-gone', rendererGone)
       contents.removeListener('destroyed', destroyed)
       contents.removeListener('devtools-opened', devtools)
       contents.debugger.removeListener('detach', detached)
       contents.debugger.removeListener('message', message)
     }
+  }
+
+  /** The periodic check: any frame of another origin ends the session, and so does lost authority. */
+  private checkPage(tab: T, session: Session): void {
+    if (this.sessions.get(tab) !== session) {
+      clearTimeout(session.expiry)
+      clearInterval(session.authorityCheck)
+      return
+    }
+    if (foreignFrame(session.webContents, session.origin)) this.end(tab, session, 'origin-left')
+    else this.checkAuthority(tab, session)
   }
 
   private checkAuthority(tab: T, session: Session): void {

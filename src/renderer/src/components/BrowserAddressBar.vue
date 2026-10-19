@@ -94,7 +94,7 @@ const cssStatePreview = computed(() => {
   }
 })
 
-// An agent's software passkey signs in to the page for it, so the person always sees it and can stop it.
+// An agent's software passkey signs in to the page for it, so the address bar shows it while its tab is shown and the person can stop it.
 const virtualPasskey = computed(() => {
   const passkey = props.activeTab?.virtualPasskey
   return passkey ? { action: t('runtime.virtualPasskey.stop', { origin: passkey.origin }) } : undefined
