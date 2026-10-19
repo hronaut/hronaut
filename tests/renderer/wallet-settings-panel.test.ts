@@ -3,6 +3,8 @@ import { ref } from 'vue'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import IconInfo from '~icons/material-symbols/info-rounded'
+import IconWarning from '~icons/material-symbols/warning-rounded'
 import WalletsSettingsPanel from '../../src/renderer/src/components/WalletsSettingsPanel.vue'
 import type { WalletsController } from '../../src/renderer/src/composables/useWalletsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
@@ -94,6 +96,24 @@ describe('WalletsSettingsPanel', () => {
     screen.getByRole('tab', { name: 'Activity' }).focus()
     await user.keyboard('{Home}')
     expect(screen.getByRole('tab', { name: 'Your wallets' })).toHaveFocus()
+  })
+
+  it('marks the wallet status with the same info and warning icons as other settings notices', () => {
+    // The notice used to show the letter "H" from the product name instead of an icon, even when wallets were off.
+    const iconMarkup = (icon: typeof IconInfo) => render(icon).container.innerHTML
+    const info = iconMarkup(IconInfo)
+    const warning = iconMarkup(IconWarning)
+    const ready = render(WalletsSettingsPanel, { props: { controller: controller(), workspaces: [] }, global })
+    const readyDot = ready.container.querySelector('.settings-info .info-dot')!
+    expect(readyDot.textContent?.trim()).toBe('')
+    expect(readyDot.innerHTML.trim()).toBe(info)
+    expect(ready.container.querySelector('.settings-info')).not.toHaveClass('security-warning')
+    ready.unmount()
+
+    const disabled = controller({ status: ref({ managedWallets: 'disabled', backend: 'unavailable', watchOnlyAvailable: false, reason: 'unavailable' }) })
+    const off = render(WalletsSettingsPanel, { props: { controller: disabled, workspaces: [] }, global })
+    expect(off.container.querySelector('.settings-info')).toHaveClass('security-warning')
+    expect(off.container.querySelector('.settings-info .info-dot')!.innerHTML.trim()).toBe(warning)
   })
 
   it('shows access and automation for the wallet selected in the visible list', async () => {
