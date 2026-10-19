@@ -198,7 +198,7 @@ test('keeps late Settings sections reachable by mouse wheel at large interface s
   await appWindow.screenshot({ path: testInfo.outputPath('settings-large-scale-wheel.png') })
 })
 
-test('names a new tab in the interface language while agents keep its English title', async ({ appWindow }) => {
+test('names a new tab in the interface language while agents keep its English title', async ({ appWindow, electronApp }) => {
   // Hronaut gave every blank tab the English title "New tab", and the tab strip showed it in every language.
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await appWindow.locator('#setting-language').selectOption('uk-UA')
@@ -209,4 +209,19 @@ test('names a new tab in the interface language while agents keep its English ti
   await expect(strip).not.toContainText('New tab')
   await expect.poll(async () => (await appWindow.evaluate('window.hronaut.getState()') as { tabs: Array<{ title: string; url: string }> })
     .tabs.filter((tab) => tab.url === 'about:blank').map((tab) => tab.title)).toEqual(['New tab'])
+
+  // The tab menu's Open beside list, shown from Home, names the other blank tab the same way.
+  await appWindow.keyboard.press('Control+t')
+  await expect(strip.locator('.tab-title')).toHaveText(['Нова вкладка', 'Нова вкладка'])
+  await appWindow.evaluate('window.hronaut.openHome()')
+  await electronApp.evaluate(({ Menu }) => {
+    Menu.prototype.popup = function (): void {
+      ;(globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu = this
+    }
+  })
+  await strip.locator('.tab-title').first().click({ button: 'right' })
+  await expect.poll(() => electronApp.evaluate(() => {
+    const menu = (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu
+    return menu?.getMenuItemById('open-in-split-view')?.submenu?.items.map((item) => item.label)
+  })).toEqual(['Нова вкладка'])
 })

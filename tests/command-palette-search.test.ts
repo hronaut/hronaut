@@ -23,9 +23,27 @@ describe('command palette search', () => {
         { id: 'docs', title: 'API reference', url: 'https://acme.test/docs?token=secret#auth', mcpGroupId: 'shop' }
       ],
       mcpTabGroups: [{ id: 'shop', name: 'Storefront', color: 'blue' }]
-    }, 'acme', 'Untitled tab')
+    }, 'acme', 'Untitled tab', 'New tab')
 
     expect(results).toEqual([{ kind: 'tabs', id: 'docs', label: 'API reference', description: 'acme.test/docs · Storefront', score: 5, color: 'blue' }])
+  })
+
+  it('names a blank tab in the interface language and finds it by that name', () => {
+    // Hronaut calls a blank tab "New tab" until a page names it; the palette listed that English title in every language.
+    const source = {
+      activeTabId: null,
+      tabs: [
+        { id: 'blank', title: 'New tab', url: 'about:blank' },
+        { id: 'loading', title: 'New tab', url: 'https://acme.test/orders', loading: true },
+        { id: 'site', title: 'New tab', url: 'https://acme.test/new' }
+      ],
+      mcpTabGroups: []
+    }
+    expect(searchPaletteTabs(source, 'нова', 'Вкладка без назви', 'Нова вкладка').map(result => [result.id, result.label]))
+      .toEqual([['blank', 'Нова вкладка']])
+    expect(searchPaletteTabs(source, 'acme', 'Вкладка без назви', 'Нова вкладка').map(result => [result.id, result.label]))
+      .toEqual([['loading', 'acme.test/orders'], ['site', 'New tab']])
+    expect(searchPaletteTabs(source, 'new tab', 'Вкладка без назви', 'Нова вкладка').map(result => result.id)).toEqual(['site'])
   })
 
   it('lists each visited address once, the best title match first and the newest among equals', () => {

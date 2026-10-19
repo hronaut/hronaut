@@ -2739,7 +2739,8 @@ export class BrowserTabsManager {
       withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
       reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
       getState: () => this.getState(),
-      options: () => this.options
+      options: () => this.options,
+      text: (key, parameters) => this.text(key, parameters)
     }
   }
 

@@ -124,7 +124,7 @@ defineExpose({ close, toggleMenu })
       class="icon-button split-view-button"
       :class="{ active: Boolean(state.splitView) }"
       type="button"
-      v-tooltip="state.splitView ? t('runtime.tabs.splitWith', { title: splitPartner ? tabTitleForDisplay(splitPartner, t('runtime.tabs.splitOther')) : t('runtime.tabs.splitOther') }) : t('runtime.tabs.splitOpen')"
+      v-tooltip="state.splitView ? t('runtime.tabs.splitWith', { title: splitPartner ? tabTitleForDisplay(splitPartner, t('shell.split.newTab')) : t('runtime.tabs.splitOther') }) : t('runtime.tabs.splitOpen')"
       :aria-label="t('shell.split.heading')"
       aria-haspopup="dialog"
       :aria-expanded="open"
@@ -150,7 +150,7 @@ defineExpose({ close, toggleMenu })
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('shell.split.closeMenu')" @click="close"><IconClose aria-hidden="true" /></UiButton>
       </header>
       <template v-if="state.splitView">
-        <p class="split-view-summary">{{ activeTab ? tabTitleForDisplay(activeTab, t('shell.split.tab')) : t('shell.split.tab') }} {{ t('shell.split.with') }} {{ splitPartner ? tabTitleForDisplay(splitPartner, t('shell.split.tab')) : t('shell.split.tab') }}</p>
+        <p class="split-view-summary">{{ activeTab ? tabTitleForDisplay(activeTab, t('shell.split.newTab')) : t('shell.split.tab') }} {{ t('shell.split.with') }} {{ splitPartner ? tabTitleForDisplay(splitPartner, t('shell.split.newTab')) : t('shell.split.tab') }}</p>
         <div class="split-layout-options" role="group" :aria-label="t('shell.split.layout')">
           <UiButton appearance="application"
             type="button"
@@ -186,7 +186,7 @@ defineExpose({ close, toggleMenu })
         </footer>
       </template>
       <template v-else>
-        <p class="split-view-summary">{{ t('shell.split.choose', { page: activeTab ? tabTitleForDisplay(activeTab, t('shell.split.thisPage')) : t('shell.split.thisPage') }) }}</p>
+        <p class="split-view-summary">{{ t('shell.split.choose', { page: activeTab ? tabTitleForDisplay(activeTab, t('shell.split.newTab')) : t('shell.split.thisPage') }) }}</p>
         <div class="split-candidate-list">
           <UiButton appearance="application" v-for="tab in splitCandidates" :key="tab.id" type="button" :disabled="busy" @click="openTabInSplitView(tab.id)">
             <img v-if="tab.faviconDataUrl" :src="tab.faviconDataUrl" alt="" />

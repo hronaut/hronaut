@@ -64,7 +64,7 @@ const splitMenuOpen = defineModel<boolean>('splitMenuOpen', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 const activeTabIsInternal = computed(() => !props.activeTab || isHronautHomeUrl(props.activeTab.url))
 const audioLabel = computed(() => t(props.activeTab?.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', {
-  title: props.activeTab ? tabTitleForDisplay(props.activeTab, t('runtime.tabs.unnamed')) : t('runtime.tabs.unnamed')
+  title: props.activeTab ? tabTitleForDisplay(props.activeTab, t('tabSearch.newTabTitle')) : t('runtime.tabs.unnamed')
 }))
 
 function reportSplitError(cause: unknown, fallback: string): void {

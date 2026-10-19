@@ -606,7 +606,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
             v-if="tab.audible || (tab.muted && !state.allTabsMuted)"
             class="tab-audio"
             :class="{ muted: tab.muted }"
-            v-tooltip="t(tab.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', { title: tabTitleForDisplay(tab, t('runtime.tabs.unnamed')) })"
+            v-tooltip="t(tab.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', { title: tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) })"
             aria-hidden="true"
             @click.stop="emit('toggleTabMuted', tab)"
           >

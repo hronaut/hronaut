@@ -1,4 +1,5 @@
 import type { BrowserState } from '../../../shared/types.js'
+import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { PersonTabCloseAccess, PersonTabCloseTab } from './close-tabs-for-person-access.js'
 
@@ -17,7 +18,7 @@ export async function closeTabsForPerson<Tab extends PersonTabCloseTab>(access: 
       await access.closeTabInternal(tabId, true, true)
       if (access.findTab(tabId) === tab) break
       const entry = access.closedTabs().findLast((candidate) => !remembered.has(candidate.id) && candidate.url === tab.url && candidate.mcpGroupId === tab.mcpGroupId)
-      if (entry) closed.push({ closedTabId: entry.id, index, title: entry.label || entry.title })
+      if (entry) closed.push({ closedTabId: entry.id, index, title: entry.label || tabTitleForDisplay(entry, access.text('tabSearch.newTabTitle')) })
     }
   } finally {
     if (closed.length) {

@@ -67,7 +67,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       ...state.savedTabGroups.map(group => ({ ...group, archived: true, timestamp: group.savedAt }))
     ].sort((a, b) => b.timestamp.localeCompare(a.timestamp) || a.name.localeCompare(b.name))
     const query = search.value.trim().toLocaleLowerCase(data.locale)
-    const visible = groups.filter(group => group.archived === (view === 'archived') && `${group.name} ${group.description ?? ''} ${group.tabs.map(tab => `${tabTitleForDisplay(tab, data.messages.tabSearch.newTabTitle)} ${tab.url}`).join(' ')}`.toLocaleLowerCase(data.locale).includes(query))
+    const visible = groups.filter(group => group.archived === (view === 'archived') && `${group.name} ${group.description ?? ''} ${group.tabs.map(tab => `${tabTitleForDisplay(tab, tab.url === 'about:blank' ? data.messages.tabSearch.newTabTitle : '')} ${tab.url}`).join(' ')}`.toLocaleLowerCase(data.locale).includes(query))
     for (const collection of ['open', 'archived'] as const) {
       const tab = element<HTMLButtonElement>(`workspaces-${collection}`)
       tab.textContent = `${messages[collection]} (${groups.filter(group => group.archived === (collection === 'archived')).length})`
