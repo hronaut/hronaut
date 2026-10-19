@@ -1,3 +1,5 @@
+import { LocalizedError } from '../localized-error.js'
+
 interface RecoveryContents {
   isDestroyed(): boolean
   forcefullyCrashRenderer(): void
@@ -20,7 +22,7 @@ export class RendererRecovery {
   }
 
   async recover(contents: RecoveryContents, loadReplacement: () => Promise<void>): Promise<void> {
-    if (this.isRecovering(contents)) throw new Error('The tab renderer is already being recovered.')
+    if (this.isRecovering(contents)) throw new LocalizedError('appErrors.navigation.recoveryRunning')
     const attempt = { expectsExit: true }
     this.pending.set(contents, attempt)
     let rejectFailure!: (error: unknown) => void
@@ -40,20 +42,20 @@ export class RendererRecovery {
       stopExpectingExit()
       resolveExit()
     }
-    const onDestroyed = (): void => fail(new Error('The tab closed while recovering its renderer.'))
+    const onDestroyed = (): void => fail(new LocalizedError('appErrors.navigation.recoveryTabClosed'))
     const onNavigation = (_event: unknown, _url: string, _sameDocument: boolean, mainFrame: boolean): void => {
-      if (mainFrame) fail(new Error('The page changed while recovering its renderer.'))
+      if (mainFrame) fail(new LocalizedError('appErrors.navigation.recoveryPageChanged'))
     }
     // One deadline covers both termination and replacement loading.
-    const timer = setTimeout(() => fail(new Error('Timed out recovering the tab renderer.')), 30_000)
+    const timer = setTimeout(() => fail(new LocalizedError('appErrors.navigation.recoveryTimedOut')), 30_000)
     contents.on('render-process-gone', onExit)
     contents.on('destroyed', onDestroyed)
     contents.on('did-start-navigation', onNavigation)
     try {
-      if (contents.isDestroyed()) throw new Error('The tab closed while recovering its renderer.')
+      if (contents.isDestroyed()) throw new LocalizedError('appErrors.navigation.recoveryTabClosed')
       contents.forcefullyCrashRenderer()
       await Promise.race([exited, failed])
-      if (contents.isDestroyed()) throw new Error('The tab closed while recovering its renderer.')
+      if (contents.isDestroyed()) throw new LocalizedError('appErrors.navigation.recoveryTabClosed')
       await Promise.race([loadReplacement(), failed])
     } finally {
       clearTimeout(timer)

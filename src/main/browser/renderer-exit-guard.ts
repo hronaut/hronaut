@@ -1,14 +1,13 @@
 import type { Debugger, WebContents } from 'electron'
+import { LocalizedError } from '../localized-error.js'
 
 /** A page script, DevTools command, capture or print that cannot finish because the page's renderer exited. */
-export class RendererExitedError extends Error {
+export class RendererExitedError extends LocalizedError {
   /** Whether the call reached the page before its renderer exited; false when it was refused unsent. */
   readonly sent: boolean
 
   constructor(sent: boolean) {
-    super(sent
-      ? 'The page stopped during this action because its renderer exited; its effects are unknown. Reload or close the tab, then inspect fresh state.'
-      : 'The page is not running because its renderer exited; nothing was sent to it. Reload or close the tab, then inspect fresh state.')
+    super(sent ? 'appErrors.page.rendererExitedDuringAction' : 'appErrors.page.rendererExitedBeforeAction')
     this.name = 'RendererExitedError'
     this.sent = sent
   }

@@ -1,4 +1,5 @@
 import type { BrowserState } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import type { PageZoomAccess, PageZoomTab } from './page-zoom-access.js'
 
 const PAGE_ZOOM_STEPS = [50, 60, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300, 400] as const
@@ -18,7 +19,7 @@ export function setZoom<Tab extends PageZoomTab>(access: PageZoomAccess<Tab>, op
   else if (options.action === 'out') percent = [...PAGE_ZOOM_STEPS].reverse().find((step) => step < current) ?? PAGE_ZOOM_STEPS[0]
   else {
     if (options.percent === undefined || !Number.isInteger(options.percent) || options.percent < 50 || options.percent > 400) {
-      throw new Error('Page zoom percent must be an integer from 50 to 400')
+      throw new LocalizedError('appErrors.page.zoomPercent')
     }
     percent = options.percent
   }

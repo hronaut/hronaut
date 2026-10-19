@@ -1,8 +1,16 @@
 import type { BrowserTabGroupState } from '../../../shared/types.js'
 import type { BrowserTabGroupColor } from '../../../shared/tab-groups.js'
 import { normalizeWorkspaceDescription } from '../../../shared/workspace-description.js'
+import { LocalizedError } from '../../localized-error.js'
 import { retireNetworkPriorityObservations } from '../network-recording.js'
 import type { McpTabGroupsAccess, McpTabGroupsTab } from './mcp-tab-groups-access.js'
+
+/** The error for a workspace that is gone. Its message tells agents how to find one; a person reads that it is gone. */
+function unknownWorkspace(groupId: string): LocalizedError {
+  return new LocalizedError('appErrors.workspace.unavailable', undefined, {
+    message: `Unknown workspace: ${groupId}. List workspaces with browser_workspaces or create one first.`
+  })
+}
 
 /** The longest workspace name, in characters after trimming and normalization. */
 const MAX_WORKSPACE_NAME_LENGTH = 80
@@ -60,7 +68,7 @@ export function updateMcpTabGroup<Tab extends McpTabGroupsTab>(
 ): BrowserTabGroupState {
   if (updates.name === undefined && updates.description === undefined && updates.color === undefined && updates.agentAccess === undefined && updates.hiddenFromSidebar === undefined && updates.deletionProtected === undefined) throw new TypeError('A workspace change is required.')
   const group = access.mcpTabGroups().get(groupId)
-  if (!group) throw new Error(`Unknown workspace: ${groupId}. List workspaces with browser_workspaces or create one first.`)
+  if (!group) throw unknownWorkspace(groupId)
   access.assertWorkspaceIdle(groupId)
   if (updates.name !== undefined) {
     const name = normalizedWorkspaceName(updates.name)
@@ -92,7 +100,7 @@ export function updateMcpTabGroup<Tab extends McpTabGroupsTab>(
 /** An open workspace as the browser state publishes it; throws for an unknown one. */
 export function requireMcpTabGroup<Tab extends McpTabGroupsTab>(access: McpTabGroupsAccess<Tab>, groupId: string): BrowserTabGroupState {
   const group = access.mcpTabGroups().get(groupId)
-  if (!group) throw new Error(`Unknown workspace: ${groupId}. List workspaces with browser_workspaces or create one first.`)
+  if (!group) throw unknownWorkspace(groupId)
   return {
     id: group.id,
     name: group.name,

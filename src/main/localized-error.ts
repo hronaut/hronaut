@@ -1,6 +1,17 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
 
+interface LocalizedErrorOptions {
+  /**
+   * The message to keep when it is not the English text a person reads: a raw Chromium load failure, or a message
+   * naming a tab or workspace by its internal ID. MCP results, logs and the code that compares messages read it
+   * unchanged; Hronaut's own pages show the translation of the key, in English too.
+   */
+  message?: string
+  /** The failure behind this one, such as the original load error or both errors of a failed rollback. */
+  cause?: unknown
+}
+
 /**
  * A failure a person can see, named by its message key. Its message is the English text, which MCP results, logs and
  * the code that compares messages keep reading; Hronaut's own pages get the interface language instead. Its name stays
@@ -10,8 +21,8 @@ export class LocalizedError extends Error {
   readonly key: MessageKey
   readonly parameters: MessageParameters | undefined
 
-  constructor(key: MessageKey, parameters?: MessageParameters) {
-    super(translate('en-US', key, parameters))
+  constructor(key: MessageKey, parameters?: MessageParameters, options: LocalizedErrorOptions = {}) {
+    super(options.message ?? translate('en-US', key, parameters), 'cause' in options ? { cause: options.cause } : undefined)
     this.key = key
     this.parameters = parameters
   }

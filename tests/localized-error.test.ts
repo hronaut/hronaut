@@ -43,6 +43,16 @@ describe('LocalizedError', () => {
     expect(String(error)).toBe('Error: Pinned tabs stay active.')
   })
 
+  it('can keep a message for agents that differs from what a person reads', () => {
+    const cause = new Error('raw')
+    const error = new LocalizedError('native.errors.tabUnavailable', undefined, { message: 'Tab not found: 3f1c', cause })
+    expect(error.message).toBe('Tab not found: 3f1c')
+    expect(error.cause).toBe(cause)
+    expect(personErrorMessage(error, (key, parameters) => translate('en-US', key, parameters))).toBe('The tab is no longer available.')
+    expect(personErrorMessage(error, ukrainian)).toBe('Вкладка більше недоступна.')
+    expect('cause' in new LocalizedError('appErrors.sleep.pinned')).toBe(false)
+  })
+
   it('gives a person the interface language and leaves other errors as they are', () => {
     expect(personErrorMessage(new LocalizedError('appErrors.splitView.notOpen'), ukrainian)).toBe('Розділений перегляд не відкрито.')
     expect(personErrorMessage(new Error('ERR_NAME_NOT_RESOLVED'), ukrainian)).toBe('ERR_NAME_NOT_RESOLVED')

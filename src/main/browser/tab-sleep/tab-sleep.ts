@@ -2,6 +2,7 @@ import type { MessageKey } from '../../../shared/i18n.js'
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { liveRegionRecordingKeepsTabAwake } from '../live-region-recorder.js'
+import { localizedLoadFailure } from '../load-failure-error.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import type { TabSleepAccess, TabSleepTab } from './tab-sleep-access.js'
@@ -78,7 +79,7 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
           tab.suppressInitialHistory = previousSuppressInitialHistory
           access.changed(false)
         }
-        throw fallbackError
+        throw localizedLoadFailure(fallbackError)
       }
     }
   })()
@@ -159,7 +160,7 @@ export async function setTabSleepingFromContextMenu<Tab extends TabSleepTab>(acc
 
 /** Puts every tab of the workspace that may sleep to sleep, skipping the others. */
 export async function sleepWorkspaceTabs<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, groupId: string): Promise<void> {
-  if (!access.mcpTabGroups().has(groupId)) throw new Error(`Unknown workspace: ${groupId}`)
+  if (!access.mcpTabGroups().has(groupId)) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}` })
   const workspaceTabs = [...access.tabs()].filter((tab) => tab.mcpGroupId === groupId)
   for (const tab of workspaceTabs) await putTabToSleep(access, tab, false)
 }
