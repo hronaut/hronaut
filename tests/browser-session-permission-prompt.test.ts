@@ -49,6 +49,8 @@ describe('site permission prompt', () => {
     expect((await prompt('en-US', 'geolocation')).message).toBe('https://files.example requests “Location” permission.')
     expect((await prompt('uk-UA', 'geolocation')).message).toBe('Сайт https://files.example запитує дозвіл «Розташування».')
     expect((await prompt('de-DE', 'clipboard-read')).message).toBe('https://files.example fordert die Berechtigung „Zwischenablage lesen“ an.')
+    expect((await prompt('uk-UA', 'pointerLock')).message).toBe('Сайт https://files.example запитує дозвіл «Блокування вказівника миші».')
+    expect((await prompt('fr-FR', 'screen-wake-lock')).message).toBe('https://files.example demande l’autorisation « Garder l’écran allumé ».')
   })
 
   it('shows a permission Settings has no name for as Settings does, without reading inherited names', async () => {

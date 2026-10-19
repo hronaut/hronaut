@@ -1097,7 +1097,12 @@ export const frFR = {
       "notifications": "Notifications",
       "storage": "Stockage tiers",
       "relatedStorage": "Stockage des sites associés",
-      "windows": "Gestion des fenêtres"
+      "windows": "Gestion des fenêtres",
+      "midiControl": "Contrôle des appareils MIDI",
+      "persistentStorage": "Stockage persistant",
+      "keyboardLock": "Verrouillage du clavier",
+      "pointerLock": "Verrouillage du pointeur",
+      "screenAwake": "Garder l’écran allumé"
     },
     "license": {
       "enterKey": "Saisissez la clé de licence commerciale figurant sur votre reçu Creem."

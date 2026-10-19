@@ -1097,7 +1097,12 @@ export const plPL = {
       "notifications": "Powiadomienia",
       "storage": "Pamięć podmiotów zewnętrznych",
       "relatedStorage": "Pamięć powiązanych witryn",
-      "windows": "Zarządzanie oknami"
+      "windows": "Zarządzanie oknami",
+      "midiControl": "Sterowanie urządzeniami MIDI",
+      "persistentStorage": "Trwała pamięć",
+      "keyboardLock": "Blokada klawiatury",
+      "pointerLock": "Blokada wskaźnika myszy",
+      "screenAwake": "Utrzymywanie włączonego ekranu"
     },
     "license": {
       "enterKey": "Wprowadź klucz licencji komercyjnej z potwierdzenia Creem."

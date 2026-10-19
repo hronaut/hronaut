@@ -1097,7 +1097,12 @@ export const ruRU = {
       "notifications": "Уведомления",
       "storage": "Стороннее хранилище",
       "relatedStorage": "Хранилище связанных сайтов",
-      "windows": "Управление окнами"
+      "windows": "Управление окнами",
+      "midiControl": "Управление MIDI-устройствами",
+      "persistentStorage": "Постоянное хранилище",
+      "keyboardLock": "Перехват клавиатуры",
+      "pointerLock": "Блокировка указателя мыши",
+      "screenAwake": "Не выключать экран"
     },
     "license": {
       "enterKey": "Введите ключ коммерческой лицензии из квитанции Creem."

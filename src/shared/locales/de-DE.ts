@@ -1097,7 +1097,12 @@ export const deDE = {
       "notifications": "Benachrichtigungen",
       "storage": "Drittanbieter-Speicher",
       "relatedStorage": "Speicher verbundener Websites",
-      "windows": "Fensterverwaltung"
+      "windows": "Fensterverwaltung",
+      "midiControl": "Steuerung von MIDI-Geräten",
+      "persistentStorage": "Dauerhafter Speicher",
+      "keyboardLock": "Tastatursperre",
+      "pointerLock": "Mauszeigersperre",
+      "screenAwake": "Bildschirm aktiv halten"
     },
     "license": {
       "enterKey": "Gib den kommerziellen Lizenzschlüssel aus deinem Creem-Beleg ein."
