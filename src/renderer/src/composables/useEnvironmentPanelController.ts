@@ -10,6 +10,7 @@ import {
   browserEnvironmentOverrideCount,
   isBrowserEnvironmentSettings
 } from '../../../shared/browser-environment.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 export type EnvironmentPanelState = 'idle' | 'applying' | 'applied' | 'error'
 export type EnvironmentPanelAction = 'apply' | 'apply-reload' | 'reset' | 'recover'
@@ -24,6 +25,8 @@ export interface EnvironmentPanelControllerOptions {
   beginMutation: () => number
   isMutationCurrent: (sequence: number, tabId: string) => boolean
   closeTransientPanels: () => void
+  /** Words for a failure that carries none of its own. */
+  translate: (key: string) => string
 }
 
 export function useEnvironmentPanelController(options: EnvironmentPanelControllerOptions) {
@@ -138,7 +141,7 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
         return
       }
       state.value = 'error'
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 
@@ -166,7 +169,7 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
       }
       if (operation !== operationGeneration) return
       state.value = 'error'
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     } finally {
       if (operation === operationGeneration) pendingAction.value = null
     }

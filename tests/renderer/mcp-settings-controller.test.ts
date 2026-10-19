@@ -1,6 +1,7 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useMcpSettingsController } from '../../src/renderer/src/composables/useMcpSettingsController.js'
+import type { CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
 import type { AppSettings, McpCapabilityCredentialResult, McpCapabilityProfileSummary, McpPortMoveResult } from '../../src/shared/types.js'
 
@@ -63,6 +64,7 @@ function createController() {
   const listCapabilityProfiles = vi.fn(async (): Promise<McpCapabilityProfileSummary[]> => [])
   const rotateCapabilityProfile = vi.fn()
   const revokeCapabilityProfile = vi.fn()
+  const copyText = vi.fn<CopyTextWithFeedback>(async () => true)
   const controller = useMcpSettingsController({
     settings,
     endpoint,
@@ -81,12 +83,14 @@ function createController() {
     rotateCapabilityProfile,
     revokeCapabilityProfile,
     confirmDisableAuthentication,
+    copyText,
     translate: (key, parameters) => `${key}:${JSON.stringify(parameters ?? {})}`,
     formatPortError: (error) => error instanceof Error ? error.message : String(error),
     onAuthenticationError
   })
   return {
     controller,
+    copyText,
     moveToSuggestedPort,
     confirmDisableAuthentication,
     listenerFailed,
@@ -520,5 +524,70 @@ describe('MCP settings controller', () => {
     await expect(operation).resolves.toBe(false)
     expect(controller.capabilityCredential.value).toBe('')
     expect(controller.capabilityProfiles.value).toEqual([])
+  })
+
+  describe('copying a new credential', () => {
+    const profile: McpCapabilityProfileSummary = {
+      id: '01912345-6788-7abc-8def-0123456789ab', name: 'Agent', revision: 1,
+      credentialId: '11111111-1111-4111-8111-111111111111', allowedTools: ['browser_snapshot'],
+      operationClasses: ['read'], useCount: 0, lineageActive: true,
+      createdAt: '2026-09-11T12:00:00.000Z', updatedAt: '2026-09-11T12:00:00.000Z'
+    }
+
+    async function showCredential(harness: ReturnType<typeof createController>, credential: string): Promise<void> {
+      harness.rotateCapabilityProfile.mockResolvedValueOnce({ profile, credential })
+      harness.controller.capabilityProfiles.value = [profile]
+      await harness.controller.rotateCapabilityProfile(profile.id)
+    }
+
+    it('reads as copied after the credential on screen was copied', async () => {
+      const harness = createController()
+      await showCredential(harness, 'first-credential')
+
+      await expect(harness.controller.copyCapabilityCredential()).resolves.toBe(true)
+
+      expect(harness.copyText).toHaveBeenCalledWith('first-credential', expect.any(Function))
+      expect(harness.copyText.mock.calls[0][1]!()).toBe(true)
+      expect(harness.controller.capabilityCopied.value).toBe(true)
+      await showCredential(harness, 'second-credential')
+      expect(harness.controller.capabilityCopied.value).toBe(false)
+      await harness.controller.copyCapabilityCredential()
+      harness.controller.clearCapabilityCredential()
+      expect(harness.controller.capabilityCopied.value).toBe(false)
+      harness.controller.dispose()
+    })
+
+    it('leaves a failed copy to copyText to report and does not read as copied', async () => {
+      const harness = createController()
+      await showCredential(harness, 'first-credential')
+      harness.copyText.mockResolvedValueOnce(false)
+
+      await expect(harness.controller.copyCapabilityCredential()).resolves.toBe(false)
+
+      expect(harness.copyText).toHaveBeenCalledOnce()
+      expect(harness.copyText.mock.calls[0][1]!()).toBe(true)
+      expect(harness.controller.capabilityCopied.value).toBe(false)
+      harness.controller.dispose()
+    })
+
+    it.each(['dismissed', 'replaced', 'disposed'] as const)('ignores a copy that finishes after the credential was %s', async (change) => {
+      const harness = createController()
+      await showCredential(harness, 'first-credential')
+      const copy = deferred<boolean>()
+      harness.copyText.mockReturnValueOnce(copy.promise)
+      const copying = harness.controller.copyCapabilityCredential()
+      const shouldReportFailure = harness.copyText.mock.calls[0][1]!
+
+      if (change === 'dismissed') harness.controller.clearCapabilityCredential()
+      else if (change === 'replaced') await showCredential(harness, 'newer-credential')
+      else harness.controller.dispose()
+      expect(shouldReportFailure()).toBe(false)
+      copy.resolve(true)
+
+      await expect(copying).resolves.toBe(false)
+      expect(harness.controller.capabilityCopied.value).toBe(false)
+      expect(harness.controller.capabilityCredential.value).toBe(change === 'replaced' ? 'newer-credential' : '')
+      harness.controller.dispose()
+    })
   })
 })

@@ -3,11 +3,13 @@ import type { BrowserReproCheckpointInput } from '../../../../../shared/repro-ch
 import { formatReproAsPlaywright } from '../../../../../shared/repro-export.js'
 import type { BrowserReproRecording, BrowserTabState, HronautApi } from '../../../../../shared/types.js'
 import type { DiagnosticsCopyFeedback, DiagnosticsRecorderRequests } from '../diagnostics-request.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface ReproRecorderOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   browser: Pick<HronautApi, 'manageRepro'>
   closeTransientPanels: () => void
+  translate: (key: string) => string
 }
 
 /** The repro recorder panel, with its JSON and Playwright copies. */
@@ -42,7 +44,7 @@ export function useReproRecorder(
     } catch (cause) {
       if (!current('repro', request)) return
       reproState.value = 'error'
-      reproError.value = cause instanceof Error ? cause.message : String(cause)
+      reproError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     } finally {
       finishRecorderRequest('repro', request)
     }

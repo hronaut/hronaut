@@ -37,10 +37,12 @@ const {
   capabilityCredential,
   capabilityError,
   capabilityBusy,
+  capabilityCopied,
   loadCapabilityProfiles,
   createCapabilityProfile,
   rotateCapabilityProfile,
   revokeCapabilityProfile,
+  copyCapabilityCredential,
   clearCapabilityCredential
 } = props.controller
 
@@ -102,10 +104,6 @@ async function submitCapabilityProfile(): Promise<void> {
     expiresInMinutes,
     singleUse: profileSingleUse.value
   })) profileName.value = ''
-}
-
-async function copyCapabilityCredential(): Promise<void> {
-  if (capabilityCredential.value) await window.hronaut.copyText(capabilityCredential.value)
 }
 
 async function revokeProfile(id: string, name: string): Promise<void> {
@@ -332,7 +330,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
         <p>{{ t('settings.mcp.capabilities.credentialWarning') }}</p>
         <code>{{ capabilityCredential }}</code>
         <div>
-          <UiButton type="button" @click="copyCapabilityCredential">{{ t('settings.mcp.capabilities.copy') }}</UiButton>
+          <UiButton type="button" @click="copyCapabilityCredential">{{ capabilityCopied ? t('settings.mcp.capabilities.copied') : t('settings.mcp.capabilities.copy') }}</UiButton>
           <UiButton type="button" @click="clearCapabilityCredential">{{ t('settings.mcp.capabilities.dismiss') }}</UiButton>
         </div>
       </div>

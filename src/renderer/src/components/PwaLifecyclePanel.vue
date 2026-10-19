@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import type { BrowserTabState } from '../../../shared/types'
 import type { PwaLifecycleAction, PwaLifecycleReport } from '../../../shared/pwa-lifecycle'
+import { friendlyUiError } from '../composables/useAppToastController.js'
 
 const props = defineProps<{ tab?: BrowserTabState }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -22,7 +23,7 @@ async function manage(action: PwaLifecycleAction): Promise<void> {
     const result = await window.hronaut.pwaLifecycle({ tabId, action })
     if (!disposed && current === request && props.tab?.id === tabId) report.value = result
   } catch (cause) {
-    if (!disposed && current === request) error.value = cause instanceof Error ? cause.message : String(cause)
+    if (!disposed && current === request) error.value = friendlyUiError(cause, t('runtime.toast.actionFailed'))
   } finally { if (!disposed && current === request) busy.value = false }
 }
 watch(() => props.tab?.id, () => { report.value = null; void manage('get') }, { immediate: true })

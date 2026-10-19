@@ -1,10 +1,13 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import type { BookmarkCollectionSnapshot, HronautBookmarkCollectionsApi } from '../../../shared/types.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 export function useBookmarkCollectionsController(options: {
   api?: HronautBookmarkCollectionsApi
   open: Readonly<Ref<boolean>>
   blocked: Readonly<Ref<boolean>>
+  /** Words for a failure that carries none of its own. */
+  translate: (key: string) => string
 }) {
   const snapshot = ref<BookmarkCollectionSnapshot>({ revision: -1, collections: [] })
   const selection = ref('all')
@@ -38,7 +41,7 @@ export function useBookmarkCollectionsController(options: {
       accept(next)
       return true
     } catch (cause) {
-      if (expected === generation && feedbackCurrent()) error.value = cause instanceof Error ? cause.message : String(cause)
+      if (expected === generation && feedbackCurrent()) error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
       return false
     } finally {
       if (expected === generation) pending.value = false

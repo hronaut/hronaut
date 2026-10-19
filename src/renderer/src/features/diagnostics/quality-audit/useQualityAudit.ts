@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import type { BrowserQualityAudit, HronautApi } from '../../../../../shared/types.js'
 import type { DiagnosticsCopyFeedback, DiagnosticsRequests } from '../diagnostics-request.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface QualityAuditOptions {
   browser: Pick<HronautApi, 'runQualityAudit'>
   closeTransientPanels: () => void
+  translate: (key: string) => string
 }
 
 /** The quality audit panel and its copyable report. */
@@ -35,7 +37,7 @@ export function useQualityAudit(
     } catch (cause) {
       if (!current('quality', request)) return
       qualityAuditState.value = 'error'
-      qualityAuditError.value = cause instanceof Error ? cause.message : String(cause)
+      qualityAuditError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

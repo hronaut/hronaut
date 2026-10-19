@@ -1,6 +1,7 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import type { BrowserHistoryEntry } from '../../../shared/types.js'
 import { historyDateBounds, type HistoryDateRange } from './history-date-range.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 type Translate = (
   key: string,
@@ -129,7 +130,7 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
       return true
     } catch (cause) {
       if (generation !== actionGeneration) return false
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
       return false
     } finally {
       if (generation === actionGeneration) pendingAction.value = null

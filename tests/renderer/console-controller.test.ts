@@ -595,4 +595,14 @@ describe('console controller', () => {
     controller.dispose()
   })
 
+  it('shows a main-process failure without Electron\'s IPC wrapper', async () => {
+    const { browser, controller, open } = createController()
+    browser.listConsoleMessages.mockRejectedValue(new Error("Error invoking remote method 'browser:list-console-messages': Error: The tab is no longer available."))
+    try {
+      open.value = true
+      await controller.refresh()
+      expect(controller.state.value).toBe('error')
+      expect(controller.error.value).toBe('The tab is no longer available.')
+    } finally { controller.dispose() }
+  })
 })

@@ -953,3 +953,43 @@ describe('diagnostic panel close copy ownership', () => {
     } finally { h.controller.dispose() }
   })
 })
+
+describe('diagnostic panel failures from main', () => {
+  type Harness = ReturnType<typeof createController>
+  const cases: Array<[string, keyof Harness['browser'], (h: Harness) => Promise<void>, (h: Harness) => string]> = [
+    ['accessibility audit', 'runAccessibilityAudit', h => h.controller.runAccessibilityAudit(), h => h.controller.accessibilityAuditError.value],
+    ['quality audit', 'runQualityAudit', h => h.controller.runQualityAudit(), h => h.controller.qualityAuditError.value],
+    ['performance', 'measurePerformance', h => h.controller.runPerformanceReport(), h => h.controller.performanceError.value],
+    ['design overview', 'inspectDesign', h => h.controller.runDesignOverview(), h => h.controller.designOverviewError.value],
+    ['page metadata', 'inspectPageMetadata', h => h.controller.runPageMetadata(), h => h.controller.pageMetadataError.value],
+    ['security', 'inspectSecurity', h => h.controller.runSecurityReport(), h => h.controller.securityReportError.value],
+    ['code coverage', 'manageCodeCoverage', h => h.controller.manageCodeCoverage('get'), h => h.controller.coverageError.value],
+    ['CPU profile', 'manageCpuProfile', h => h.controller.manageCpuProfile('get'), h => h.controller.cpuProfileError.value],
+    ['memory', 'measureMemory', h => h.controller.runMemoryReport(), h => h.controller.memoryError.value],
+    ['memory baseline', 'measureMemory', h => h.controller.clearMemoryBaseline(), h => h.controller.memoryError.value],
+    ['memory allocations', 'measureMemory', h => h.controller.manageMemoryAllocation('start'), h => h.controller.memoryError.value],
+    ['debug report', 'createDebugReport', h => h.controller.runDebugReport(), h => h.controller.debugReportError.value],
+    ['reproduction steps', 'manageRepro', h => h.controller.manageRepro('get'), h => h.controller.reproError.value],
+    ['DOM changes', 'manageDomChanges', h => h.controller.manageDomChanges('get'), h => h.controller.domChangesError.value],
+    ['visual compare', 'visualCompare', h => h.controller.manageVisualCompare('compare'), h => h.controller.visualCompareError.value],
+    ['inspector issues', 'listInspectorIssues', h => h.controller.refreshInspectorIssues(), h => h.controller.inspectorIssuesError.value]
+  ]
+
+  it.each(cases)('shows a %s failure without Electron\'s IPC wrapper', async (_name, method, run, error) => {
+    const h = createController()
+    h.browser[method].mockRejectedValue(new Error(`Error invoking remote method 'browser:${method}': Error: The tab is no longer available.`))
+    try {
+      await run(h)
+      expect(error(h)).toBe('The tab is no longer available.')
+    } finally { h.controller.dispose() }
+  })
+
+  it('shows a visual diff copy failure without Electron\'s IPC wrapper', async () => {
+    const h = prepareVisualCopy()
+    h.browser.copyVisualDiff.mockRejectedValue(new Error("Error invoking remote method 'browser:copy-visual-diff': Error: The system clipboard did not accept the image."))
+    try {
+      await h.controller.copyVisualDiff()
+      expect(h.controller.visualCompareError.value).toBe('The system clipboard did not accept the image.')
+    } finally { h.controller.dispose() }
+  })
+})

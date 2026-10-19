@@ -9,6 +9,7 @@ import type {
 import { MAX_ARCHIVED_WORKSPACES } from '../../../shared/undo.js'
 import { suggestWorkspaceName } from '../workspace-names.js'
 import { createWorkspaceOriginLoader } from './useWorkspaceOriginLoader.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 type WorkspaceEditorBrowserApi = Pick<
   HronautApi,
@@ -137,7 +138,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     originOptions.value = []
     selectedOrigins.value = []
     storageState.value = 'error'
-    storageMessage.value = result.error instanceof Error ? result.error.message : String(result.error)
+    storageMessage.value = friendlyUiError(result.error, options.translate('runtime.toast.actionFailed'))
   }
 
   async function openExisting(id: string): Promise<void> {
@@ -237,7 +238,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
       targetWorkspaceId.value = ''
       storageState.value = 'error'
       storageMessage.value = ''
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
       onPresent?.()
       options.open.value = true
       return
@@ -333,7 +334,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
       finishAndClose()
     } catch (cause) {
       if (!isPresentationCurrent(presentation)) return
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
       actionState.value = 'idle'
     }
   }
@@ -362,7 +363,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     } catch (cause) {
       if (!isPresentationCurrent(presentation)) return
       storageState.value = 'error'
-      storageMessage.value = cause instanceof Error ? cause.message : String(cause)
+      storageMessage.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
       return
     }
     if (!isPresentationCurrent(presentation)) return
@@ -420,7 +421,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
       finishAndClose()
     } catch (cause) {
       if (!isPresentationCurrent(presentation)) return
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
       actionState.value = 'idle'
     }
   }

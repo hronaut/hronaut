@@ -222,4 +222,17 @@ describe('privacy settings controller', () => {
     expect(controller.clearing.value).toBe(false)
     controller.dispose()
   })
+
+  it('shows main-process failures without Electron\'s IPC wrapper', async () => {
+    const { api, controller } = createController()
+    api.summary.mockRejectedValueOnce(new Error("Error invoking remote method 'browsing-data:summary': Error: Browsing data is unavailable."))
+    api.websites.mockRejectedValueOnce(new Error("Error invoking remote method 'browsing-data:websites': Error: Website inventory unavailable"))
+
+    await controller.refreshSummary()
+    await controller.refreshWebsites()
+
+    expect(controller.summaryMessage.value).toBe('Browsing data is unavailable.')
+    expect(controller.websiteMessage.value).toBe('Website inventory unavailable')
+    controller.dispose()
+  })
 })

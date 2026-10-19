@@ -13,6 +13,7 @@ import {
 } from '../../../shared/console-messages.js'
 import { createFeedbackTimerRegistry } from './feedback-timer-registry.js'
 import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 type ConsoleBrowserApi = Pick<
   HronautApi,
@@ -100,7 +101,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
     } catch (cause) {
       if (sequence !== requestSequence || !isCurrent(tab.id, expectedGeneration)) return
       state.value = 'error'
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     } finally {
       if (pendingRefresh === pending) pendingRefresh = null
     }

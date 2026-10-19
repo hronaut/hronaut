@@ -5,6 +5,7 @@ import type {
   SitePermissionEntry
 } from '../../../shared/types.js'
 import { sitePermissionName } from '../../../shared/site-permission-names.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 type SitePermissionsApi = Pick<HronautPermissionsApi, 'set' | 'remove' | 'clear'>
 type Translate = (key: string) => string
@@ -89,7 +90,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
 
   function fail(operation: { generation: number }, error: unknown): false {
     if (operation.generation !== generation) return false
-    errorMessage.value = error instanceof Error ? error.message : String(error)
+    errorMessage.value = friendlyUiError(error, options.translate('runtime.toast.settingKept'))
     options.onError(error)
     return false
   }

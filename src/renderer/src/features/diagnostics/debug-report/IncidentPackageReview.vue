@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { incidentKinds, incidentOmissionLimit, incidentReplacementLimit, incidentPathOmissionLimit, incidentLiteralPathSchema, type IncidentDraft, type IncidentKind, type IncidentPreview } from '../../../../../shared/incident-package'
 import UiButton from '../../../ui/UiButton.vue'
 import UiInput from '../../../ui/UiInput.vue'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 const props = defineProps<{ tabId: string }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -47,7 +48,7 @@ async function run(action: (current: () => boolean) => Promise<void>): Promise<v
   const expected = ++generation
   busy.value = true; error.value = ''; saved.value = false
   try { await action(() => expected === generation) }
-  catch (cause) { if (expected === generation) error.value = cause instanceof Error ? cause.message : String(cause) }
+  catch (cause) { if (expected === generation) error.value = friendlyUiError(cause, t('runtime.toast.actionFailed')) }
   finally { if (expected === generation) busy.value = false }
 }
 async function capture(): Promise<void> {

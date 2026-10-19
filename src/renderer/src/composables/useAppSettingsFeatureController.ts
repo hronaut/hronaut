@@ -171,7 +171,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     api: options.apis.license,
     confirmDeactivate: () => options.confirm(options.translate('runtimeDetails.deactivate')),
     emptyKeyMessage: () => options.translate('runtime.license.enterKey'),
-    formatError: (error) => error instanceof Error ? error.message : String(error)
+    formatError: (error) => friendlyUiError(error, options.translate('runtime.toast.actionFailed'))
   })
   const mcpStatusController = useMcpStatusController({
     api: options.apis.mcp,
@@ -235,8 +235,9 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     confirmDisableAuthentication: () => options.confirm(
       options.translate('runtimeActions.mcp.disableConfirm')
     ),
+    copyText: options.copyText,
     translate: (key, parameters) => options.translate(key, parameters),
-    formatPortError: (error) => error instanceof Error ? error.message : String(error),
+    formatPortError: (error) => friendlyUiError(error, options.translate('runtime.toast.actionFailed')),
     onAuthenticationError: (error) => options.showToast(
       'error',
       options.translate('runtime.toast.settingNotSaved'),

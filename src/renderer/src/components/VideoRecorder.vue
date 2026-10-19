@@ -5,6 +5,7 @@ import UiButton from '../ui/UiButton.vue'
 import VideoAudioEditor from './VideoAudioEditor.vue'
 import VideoMotionEditor from './VideoMotionEditor.vue'
 import { VIDEO_ANNOTATION_KINDS, VIDEO_PLACEMENTS, VIDEO_TEXT_PRESETS, videoAnnotationSchema, videoOptionsSchema, type BrowserVideoOptions, type BrowserVideoState, type VideoAnnotation } from '../../../shared/video.js'
+import { friendlyUiError } from '../composables/useAppToastController.js'
 
 const props = defineProps<{ tabId: string }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -89,7 +90,7 @@ async function perform(action: BrowserVideoOptions['action'], operation: (tabId:
       previewSource = source
     }
   } catch (cause) {
-    if (!disposed && expected === revision) error.value = cause instanceof Error ? cause.message : String(cause)
+    if (!disposed && expected === revision) error.value = friendlyUiError(cause, t('runtime.toast.actionFailed'))
   } finally {
     if (!disposed && expected === revision) { busy.value = false; pendingAction.value = undefined; void refresh() }
   }

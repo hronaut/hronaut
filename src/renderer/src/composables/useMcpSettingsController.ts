@@ -13,6 +13,7 @@ import {
   MIN_MCP_PORT,
   isValidMcpPort
 } from '../../../shared/mcp-port.js'
+import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
 
 type McpPortState = 'idle' | 'saving' | 'saved' | 'error'
 type McpOperation = 'idle' | 'remote-access' | 'authentication' | 'tool-set' | 'challenge-detection' | 'url-detail' | 'port' | 'reset'
@@ -39,6 +40,8 @@ export interface McpSettingsControllerOptions {
   rotateCapabilityProfile: (id: string) => Promise<McpCapabilityCredentialResult>
   revokeCapabilityProfile: (id: string) => Promise<McpCapabilityProfileSummary>
   confirmDisableAuthentication: () => boolean
+  /** Copies a credential and itself tells the person when the copy fails. */
+  copyText: CopyTextWithFeedback
   translate: (key: string, parameters?: Record<string, unknown>) => string
   formatPortError: (error: unknown) => string
   onAuthenticationError: (error: unknown) => void
@@ -53,11 +56,14 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
   const capabilityCredential = ref('')
   const capabilityError = ref('')
   const capabilityBusy = ref(false)
+  /** The credential on screen was copied; any newer credential, Dismiss or disposal clears it. */
+  const capabilityCopied = ref(false)
   let dirtyPortDraft = false
   let draftRevision = 0
   let generation = 0
   let capabilityListSequence = 0
   let credentialDisplayGeneration = 0
+  let credentialCopySequence = 0
 
   const parsedPort = computed(() => Number(portDraft.value))
   const portValid = computed(() => isValidMcpPort(parsedPort.value))
@@ -317,7 +323,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
         ...capabilityProfiles.value.filter(profile => profile.id !== created.profile.id),
         created.profile
       ])
-      if (displayGeneration === credentialDisplayGeneration) capabilityCredential.value = created.credential
+      if (displayGeneration === credentialDisplayGeneration) showCapabilityCredential(created.credential)
       return true
     } catch (error) {
       if (operationGeneration === generation) capabilityError.value = options.formatPortError(error)
@@ -340,7 +346,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
       capabilityProfiles.value = reconcileCapabilityLineage(
         capabilityProfiles.value.map(profile => profile.id === id ? rotated.profile : profile)
       )
-      if (displayGeneration === credentialDisplayGeneration) capabilityCredential.value = rotated.credential
+      if (displayGeneration === credentialDisplayGeneration) showCapabilityCredential(rotated.credential)
       return true
     } catch (error) {
       if (operationGeneration === generation) capabilityError.value = options.formatPortError(error)
@@ -371,8 +377,37 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     }
   }
 
+  /** A copy still pending no longer belongs to what is on screen: its result changes nothing and reports nothing. */
+  function resetCredentialCopy(): void {
+    credentialCopySequence += 1
+    capabilityCopied.value = false
+  }
+
+  function showCapabilityCredential(credential: string): void {
+    resetCredentialCopy()
+    capabilityCredential.value = credential
+  }
+
+  /** Copies the credential on screen; it reads as copied only while that same credential is still shown. */
+  async function copyCapabilityCredential(): Promise<boolean> {
+    const credential = capabilityCredential.value
+    if (!credential) return false
+    resetCredentialCopy()
+    const operationGeneration = generation
+    const sequence = credentialCopySequence
+    const ownsFeedback = (): boolean => (
+      operationGeneration === generation
+      && sequence === credentialCopySequence
+      && capabilityCredential.value === credential
+    )
+    if (!await options.copyText(credential, ownsFeedback) || !ownsFeedback()) return false
+    capabilityCopied.value = true
+    return true
+  }
+
   function clearCapabilityCredential(): void {
     credentialDisplayGeneration += 1
+    resetCredentialCopy()
     capabilityCredential.value = ''
   }
 
@@ -410,6 +445,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     generation += 1
     operation.value = 'idle'
     capabilityBusy.value = false
+    resetCredentialCopy()
     capabilityCredential.value = ''
     stopWatchingPort()
   }
@@ -436,10 +472,12 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     capabilityCredential,
     capabilityError,
     capabilityBusy,
+    capabilityCopied,
     loadCapabilityProfiles,
     createCapabilityProfile,
     rotateCapabilityProfile,
     revokeCapabilityProfile,
+    copyCapabilityCredential,
     clearCapabilityCredential,
     reset,
     dispose

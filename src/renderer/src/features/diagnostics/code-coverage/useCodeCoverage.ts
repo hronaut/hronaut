@@ -6,11 +6,13 @@ import type {
   HronautApi
 } from '../../../../../shared/types.js'
 import type { DiagnosticsRecorderRequests } from '../diagnostics-request.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface CodeCoverageOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   browser: Pick<HronautApi, 'manageCodeCoverage'>
   closeTransientPanels: () => void
+  translate: (key: string) => string
 }
 
 /** The code coverage panel, which records coverage on the active page. */
@@ -42,7 +44,7 @@ export function useCodeCoverage(
     } catch (cause) {
       if (!current('coverage', request)) return
       coverageState.value = 'error'
-      coverageError.value = cause instanceof Error ? cause.message : String(cause)
+      coverageError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     } finally {
       finishRecorderRequest('coverage', request)
     }

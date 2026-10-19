@@ -40,7 +40,8 @@ function createController(initialBookmarks = [bookmark('alpha')]) {
     removeBookmark,
     openBookmark,
     copyBookmarkAddress: vi.fn(async () => undefined),
-    openBookmarkInBackground: vi.fn(async () => undefined)
+    openBookmarkInBackground: vi.fn(async () => undefined),
+    translate: (key: string) => `t:${key}`
   })
   return {
     locale,
@@ -321,4 +322,14 @@ it('composes locale-aware natural title order with search and live updates witho
   h.locale.value = 'sv-SE'
   expect(h.controller.filteredBookmarks.value.map(entry => entry.id)).toEqual(['z', 'a'])
   h.controller.dispose()
+})
+
+it('shows a main-process list failure without Electron\'s IPC wrapper', async () => {
+  const { listBookmarks, controller } = createController()
+  listBookmarks.mockRejectedValueOnce(new Error("Error invoking remote method 'bookmarks:list': Error: Bookmark storage is unavailable"))
+
+  await controller.toggle()
+
+  expect(controller.error.value).toBe('Bookmark storage is unavailable')
+  controller.dispose()
 })

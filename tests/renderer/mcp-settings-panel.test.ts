@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import McpSettingsPanel from '../../src/renderer/src/components/McpSettingsPanel.vue'
 import { useMcpSettingsController } from '../../src/renderer/src/composables/useMcpSettingsController.js'
+import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
 import type { AppSettings, McpCapabilityProfileSummary } from '../../src/shared/types.js'
@@ -14,7 +15,10 @@ function deferred<Value>() {
   return { promise, resolve }
 }
 
-function renderPanel(initialCapabilityProfiles: McpCapabilityProfileSummary[] = []) {
+function renderPanel(
+  initialCapabilityProfiles: McpCapabilityProfileSummary[] = [],
+  copyText: CopyTextWithFeedback = vi.fn<CopyTextWithFeedback>(async () => true)
+) {
   const settings = ref<AppSettings>({ ...DEFAULT_RENDERER_SETTINGS })
   const endpoint = ref('http://127.0.0.1:47812/mcp')
   const setAuthentication = vi.fn(async (enabled: boolean) => {
@@ -75,6 +79,7 @@ function renderPanel(initialCapabilityProfiles: McpCapabilityProfileSummary[] = 
     rotateCapabilityProfile: vi.fn(),
     revokeCapabilityProfile: vi.fn(),
     confirmDisableAuthentication,
+    copyText,
     translate: (key, parameters) => createHronautI18n('en-US').global.t(key, parameters ?? {}),
     formatPortError: (error) => error instanceof Error ? error.message : String(error),
     onAuthenticationError: vi.fn()
@@ -290,6 +295,51 @@ describe('McpSettingsPanel', () => {
 
     await user.click(screen.getByRole('button', { name: 'Dismiss' }))
     expect(screen.queryByText(`hrc1_${'a'.repeat(43)}`)).not.toBeInTheDocument()
+    controller.dispose()
+  })
+
+  it('says the new credential was copied only after the copy worked, and not for a later credential', async () => {
+    const copyText = vi.fn<CopyTextWithFeedback>(async () => true)
+    const { controller } = renderPanel([], copyText)
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Profile name'), 'QA reader')
+    await user.click(screen.getByRole('button', { name: 'Create profile' }))
+    await user.click(screen.getByRole('button', { name: 'Copy credential' }))
+
+    expect(copyText).toHaveBeenCalledWith(`hrc1_${'a'.repeat(43)}`, expect.any(Function))
+    expect(screen.getByRole('button', { name: 'Credential copied' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }))
+    await user.type(screen.getByLabelText('Profile name'), 'QA reader')
+    await user.click(screen.getByRole('button', { name: 'Create profile' }))
+    expect(screen.getByRole('button', { name: 'Copy credential' })).toBeVisible()
+    expect(screen.queryByText('Credential copied')).not.toBeInTheDocument()
+    controller.dispose()
+  })
+
+  it('reports a failed credential copy to the person and keeps offering the copy', async () => {
+    const showToast = vi.fn()
+    const nativeCopy = vi.fn(async () => {
+      throw new Error("Error invoking remote method 'browser:copy-text': Error: The system clipboard did not accept the text.")
+    })
+    const i18n = createHronautI18n('en-US')
+    const shell = useShellFeedbackController({
+      browser: { copyText: nativeCopy },
+      translate: (key, parameters) => i18n.global.t(key, parameters ?? {}),
+      showToast
+    })
+    const { controller } = renderPanel([], shell.copyText)
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Profile name'), 'QA reader')
+    await user.click(screen.getByRole('button', { name: 'Create profile' }))
+    await user.click(screen.getByRole('button', { name: 'Copy credential' }))
+
+    expect(nativeCopy).toHaveBeenCalledWith(`hrc1_${'a'.repeat(43)}`)
+    expect(showToast).toHaveBeenCalledWith('error', i18n.global.t('runtime.capture.copyFailed'), 'The system clipboard did not accept the text.')
+    expect(screen.getByRole('button', { name: 'Copy credential' })).toBeVisible()
+    expect(screen.queryByText('Credential copied')).not.toBeInTheDocument()
     controller.dispose()
   })
 })

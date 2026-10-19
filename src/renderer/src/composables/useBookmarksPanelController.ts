@@ -1,5 +1,6 @@
 import { computed, nextTick, ref, watch, type Ref } from 'vue'
 import type { BrowserBookmark } from '../../../shared/types.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 export interface BookmarksPanelControllerOptions {
   locale: Readonly<Ref<string>>
@@ -16,6 +17,8 @@ export interface BookmarksPanelControllerOptions {
   openBookmark: (bookmark: BrowserBookmark) => Promise<void>
   copyBookmarkAddress: (bookmark: BrowserBookmark) => Promise<void>
   openBookmarkInBackground: (bookmark: BrowserBookmark) => Promise<void>
+  /** Words for a failure that carries none of its own. */
+  translate: (key: string) => string
 }
 
 export function useBookmarksPanelController(options: BookmarksPanelControllerOptions) {
@@ -110,7 +113,7 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
       return true
     } catch (cause) {
       if (generation !== actionGeneration || !feedbackCurrent()) return false
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
       return false
     } finally {
       if (generation === actionGeneration) pendingAction.value = null

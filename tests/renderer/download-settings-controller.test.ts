@@ -141,4 +141,14 @@ describe('download settings controller', () => {
     expect(controller.message.value).toBe('disk unavailable')
     controller.dispose()
   })
+
+  it('shows a main-process failure without Electron\'s IPC wrapper', async () => {
+    const { api, controller } = createController()
+    api.setAskWhereToSaveDownloads.mockRejectedValueOnce(new Error("Error invoking remote method 'settings:set-ask-where-to-save-downloads': Error: The settings file could not be saved."))
+
+    await expect(controller.setAskWhereToSave(true)).resolves.toBe(false)
+
+    expect(controller.message.value).toBe('The settings file could not be saved.')
+    controller.dispose()
+  })
 })

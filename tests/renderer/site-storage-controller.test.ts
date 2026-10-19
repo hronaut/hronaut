@@ -616,4 +616,28 @@ describe('Site Storage report copy failure ownership', () => {
       expect(showToast).not.toHaveBeenCalled()
     } finally { controller.dispose() }
   })
+
+  it.each([
+    ['list', 'manageStorage', 'error'],
+    ['save', 'manageStorage', 'error'],
+    ['changes', 'storageChanges', 'changesError'],
+    ['usage', 'inspectStorageUsage', 'usageError'],
+    ['IndexedDB', 'inspectIndexedDb', 'indexedDbError'],
+    ['service worker cache', 'inspectPwa', 'pwaError']
+  ] as const)('shows a main-process %s failure without Electron\'s IPC wrapper', async (operation, method, error) => {
+    const { browser, controller } = createController()
+    browser[method].mockRejectedValue(new Error(`Error invoking remote method 'browser:${method}': Error: The tab is no longer available.`))
+    try {
+      if (operation === 'list') await controller.refresh()
+      else if (operation === 'save') {
+        controller.key.value = 'theme'
+        controller.value.value = 'dark'
+        await controller.saveItem()
+      } else if (operation === 'changes') await controller.manageChanges('get')
+      else if (operation === 'usage') await controller.selectUsage()
+      else if (operation === 'IndexedDB') await controller.selectIndexedDb()
+      else await controller.selectPwa()
+      expect(controller[error].value).toBe('The tab is no longer available.')
+    } finally { controller.dispose() }
+  })
 })

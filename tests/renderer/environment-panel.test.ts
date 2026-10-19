@@ -42,7 +42,8 @@ function renderPanel(overrides: {
     syncState: async (operation) => { await operation },
     beginMutation: () => ++mutation,
     isMutationCurrent: (sequence, tabId) => sequence === mutation && activeTab.value?.id === tabId,
-    closeTransientPanels: vi.fn()
+    closeTransientPanels: vi.fn(),
+    translate: (key) => key
   })
   const view = render(EnvironmentPanel, {
     global: { plugins: [createHronautI18n('en-US')] },
