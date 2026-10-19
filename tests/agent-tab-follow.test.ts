@@ -18,17 +18,29 @@ vi.mock('electron', () => {
 })
 import type { WebContents } from 'electron'
 import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { McpActivityFollowController } from '../src/main/browser/mcp-activity-follow-controller.js'
 import { attachWindowOpenHandler } from '../src/main/browser/tab-events/window-open-handler.js'
 import type { WindowOpenHandlerAccess, WindowOpenHandlerTab } from '../src/main/browser/tab-events/window-open-handler-access.js'
 
 /** The manager's private state these cases set up and read. */
 interface ManagerInternals {
   activeTabId: string | null
-  tabs: Map<string, unknown>
+  tabs: Map<string, { sleeping: boolean; webContents: { isDestroyed(): boolean } }>
   mcpTabGroups: Map<string, { activeTabId: string | null }>
   agentInputWebContents: Map<number, number>
+  window: { isFocused(): boolean }
+  tabSelectionGeneration: number
+  followAgentActivity: boolean
+  browserContentOccluded: boolean
+  followAgentActivitySuspended: boolean
+  mcpActivityFollower: McpActivityFollowController
   focusTabOrTrustedChrome: ReturnType<typeof vi.fn>
   createTab: ReturnType<typeof vi.fn>
+  wakeTab: (tabId: string) => Promise<unknown>
+  assertTabLabelAdmission: () => void
+  saveTabLabel: (tabId: string, value: string, validateAuthority?: () => void, onCommitted?: () => void) => Promise<{ state: unknown; status: 'saved' }>
+  pageFullscreenShown(): boolean
+  selectTabPassively(tabId: string): void
   windowOpenHandlerAccess(): WindowOpenHandlerAccess<WindowOpenHandlerTab>
 }
 
@@ -48,7 +60,11 @@ function fixture(options: { pageFullscreen?: boolean; followAgentActivitySuspend
   }
   const agentTab = {
     id: 'agent-tab', url: 'https://agent.test/', mcpGroupId: 'Agent', sleeping: false, pinned: false, lastActiveAt: 0,
-    view: { id: 'agent-view' }, webContents: { id: 2, isDestroyed: () => false }
+    view: { id: 'agent-view' }, webContents: { id: 2, isDestroyed: vi.fn(() => false) }
+  }
+  const agentOther = {
+    id: 'agent-other', url: 'https://agent.test/other', mcpGroupId: 'Agent', sleeping: false, pinned: false, lastActiveAt: 0,
+    view: { id: 'agent-other-view' }, webContents: { id: 3, isDestroyed: () => false }
   }
   const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
     destroyed: false,
@@ -62,12 +78,13 @@ function fixture(options: { pageFullscreen?: boolean; followAgentActivitySuspend
       webContents: { isDestroyed: () => false, getZoomFactor: () => 1 },
       contentView: { children: [video.view], addChildView: vi.fn(), removeChildView: vi.fn() }
     },
-    tabs: new Map<string, unknown>([[video.id, video], [agentTab.id, agentTab]]),
+    tabs: new Map<string, unknown>([[video.id, video], [agentTab.id, agentTab], [agentOther.id, agentOther]]),
     mcpTabGroups: new Map([['Mine', workspace('Mine', video.id)], ['Agent', workspace('Agent', agentTab.id)]]),
     workspaceOperations: new Map(),
     webContentsToTab: new Map(),
     openedTabObservations: new Map(),
     agentInputWebContents: new Map(),
+    mcpActivitiesByTab: new Map(),
     activeTabId: video.id,
     splitView: null,
     tabSelectionGeneration: 0,
@@ -93,22 +110,113 @@ function fixture(options: { pageFullscreen?: boolean; followAgentActivitySuspend
   return { manager, internals, agentTab }
 }
 
+/** Follow agents as the manager's constructor wires it, for the cases that drive an agent's call through it. */
+function followAgents(internals: ManagerInternals): McpActivityFollowController {
+  internals.mcpActivityFollower = new McpActivityFollowController({
+    isEnabled: () => internals.followAgentActivity,
+    isOccluded: () => internals.browserContentOccluded || internals.followAgentActivitySuspended || internals.pageFullscreenShown(),
+    getSelectionGeneration: () => internals.tabSelectionGeneration,
+    tabExists: (tabId) => internals.tabs.get(tabId)?.webContents.isDestroyed() === false,
+    canSelectWithoutWake: (tabId) => internals.tabs.get(tabId)?.sleeping === false,
+    wakeTab: (tabId) => internals.wakeTab(tabId),
+    selectTabPassively: (tabId) => { if (internals.activeTabId !== tabId) internals.selectTabPassively(tabId) },
+    onError: (error) => { throw error }
+  })
+  return internals.mcpActivityFollower
+}
+
+/** The id of the one tab opened since the snapshot of tab ids. */
+function openedSince(internals: ManagerInternals, before: ReadonlySet<string>): string | undefined {
+  return [...internals.tabs.keys()].find((id) => !before.has(id))
+}
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void
+  const promise = new Promise<void>((accept) => { resolve = accept })
+  return { promise, resolve }
+}
+
 describe('a tab an agent opens or selects while Follow agents is on', () => {
-  const waits = {
-    'a page the person watches fills the window in full screen': { pageFullscreen: true },
-    'the person types in the address field': { followAgentActivitySuspended: true },
-    'trusted chrome, such as Settings, covers the pages': { browserContentOccluded: true }
-  }
-  for (const [reason, options] of Object.entries(waits)) {
-    it(`becomes its workspace's active tab without taking the view while ${reason}`, async () => {
-      // The agent's new tab used to be shown at once, taking a video out of full screen, as no Follow safeguard applied.
+  it('never takes the view itself, whatever Follow waits for, and becomes its workspace\'s active tab', async () => {
+    // The agent's new or selected tab used to be shown at once, past every Follow safeguard. Opening and selecting
+    // read none of them now: Follow shows the tab through the agent's call on it, which is where its waits apply.
+    for (const options of [{}, { pageFullscreen: true }, { followAgentActivitySuspended: true }, { browserContentOccluded: true }]) {
       const { manager, internals } = fixture(options)
+      const before = new Set(internals.tabs.keys())
       await manager.newAgentTab({ url: 'https://agent.test/new', mcpGroupId: 'Agent', focus: false })
       expect(internals.activeTabId).toBe('video')
-      const opened = [...internals.tabs.keys()].find((id) => id !== 'video' && id !== 'agent-tab')
-      expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe(opened)
+      expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe(openedSince(internals, before))
+      await manager.selectAgentTabAndWait('agent-tab')
+      expect(internals.activeTabId).toBe('video')
+      expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe('agent-tab')
+      expect(internals.focusTabOrTrustedChrome).not.toHaveBeenCalled()
+    }
+  })
+
+  it('opens a labeled tab without taking the view either', async () => {
+    const { manager, internals } = fixture()
+    internals.assertTabLabelAdmission = vi.fn()
+    internals.saveTabLabel = vi.fn(async (_tabId: string, _value: string, _validate?: () => void, onCommitted?: () => void) => {
+      onCommitted?.()
+      return { state: {}, status: 'saved' as const }
     })
-  }
+    const saved = await manager.newLabeledAgentTab({ url: 'https://agent.test/labeled', mcpGroupId: 'Agent', focus: false }, 'Checkout', () => undefined, () => undefined, () => undefined)
+    expect(saved.labelPersistence).toBe('saved')
+    expect(internals.activeTabId).toBe('video')
+    expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe(saved.createdTabId)
+  })
+
+  it('still shows the agent\'s new tab through Follow agents with the agent\'s call on it when nothing waits', async () => {
+    const { manager, internals } = fixture()
+    const follower = followAgents(internals)
+    // Passive selection keeps a focused window's keyboard focus in trusted chrome, which needs a real page.
+    internals.window.isFocused = () => false
+    const before = new Set(internals.tabs.keys())
+    await manager.newAgentTab({ url: 'https://agent.test/new', mcpGroupId: 'Agent', focus: false })
+    const opened = openedSince(internals, before)!
+    expect(internals.activeTabId).toBe('video')
+    manager.handleMcpTabActivity({ activityId: 'new-tab', tabId: opened, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, { id: 'agent', name: 'Agent' })
+    expect(internals.activeTabId).toBe(opened)
+    expect(internals.focusTabOrTrustedChrome).not.toHaveBeenCalled()
+    follower.dispose()
+  })
+
+  it('marks the agent\'s tab active in its workspace once it wakes', async () => {
+    const { manager, internals } = fixture()
+    const wake = deferred()
+    internals.wakeTab = vi.fn(() => wake.promise)
+    const selecting = manager.selectAgentTabAndWait('agent-other')
+    expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe('agent-tab')
+    wake.resolve()
+    await selecting
+    expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe('agent-other')
+    expect(internals.activeTabId).toBe('video')
+  })
+
+  it('keeps the tab the person picks in that workspace while the agent\'s tab wakes', async () => {
+    const { manager, internals } = fixture()
+    const wake = deferred()
+    internals.wakeTab = vi.fn(() => wake.promise)
+    const selecting = manager.selectAgentTabAndWait('agent-tab')
+    manager.selectTab('agent-other')
+    wake.resolve()
+    await selecting
+    // The agent's selection used to land after the wake and replace the person's pick.
+    expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBe('agent-other')
+    expect(internals.activeTabId).toBe('agent-other')
+  })
+
+  it('reports a tab whose renderer ended while it woke', async () => {
+    const { manager, internals, agentTab } = fixture()
+    internals.mcpTabGroups.get('Agent')!.activeTabId = null
+    const wake = deferred()
+    internals.wakeTab = vi.fn(() => wake.promise)
+    const selecting = manager.selectAgentTabAndWait('agent-tab')
+    agentTab.webContents.isDestroyed.mockReturnValue(true)
+    wake.resolve()
+    await expect(selecting).rejects.toThrow('This tab renderer is no longer available')
+    expect(internals.mcpTabGroups.get('Agent')?.activeTabId).toBeNull()
+  })
 
   it('leaves the page the person watches in full screen in view when the agent selects one of its tabs', async () => {
     const { manager, internals } = fixture({ pageFullscreen: true })

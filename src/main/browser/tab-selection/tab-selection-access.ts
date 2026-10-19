@@ -52,6 +52,8 @@ export interface TabSelectionAccess<Tab extends TabSelectionTab> {
   exitPageFullscreenCovering(tabId: string): void
   /** Wakes a sleeping tab. */
   wakeTab(tabId: string): Promise<BrowserState>
+  /** The active tab of the tab's workspace, if it has one. */
+  workspaceActiveTabId(tab: Tab): string | null | undefined
   /** Records the tab as its workspace's active tab. */
   markTabActiveInGroup(tab: Tab): void
   /** Lays out the window's views. */

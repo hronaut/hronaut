@@ -2652,6 +2652,7 @@ export class BrowserTabsManager {
       window: () => this.window,
       exitPageFullscreenCovering: (tabId) => exitPageFullscreenCovering(this.pageFullscreenAccess(), tabId),
       wakeTab: (tabId) => this.wakeTab(tabId),
+      workspaceActiveTabId: (tab) => tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId)?.activeTabId : undefined,
       markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
       layout: () => this.layout(),
       focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
@@ -2776,7 +2777,7 @@ export class BrowserTabsManager {
       splitViewContains: (tabId) => this.splitViewContains(tabId),
       window: () => this.window,
       closeTabTransition: (tab) => this.closeTabTransition(tab),
-      browserViewBounds: () => this.browserViewBounds(),
+      contentAreaBounds: () => contentAreaBounds(this.windowLayoutAccess()),
       tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
       roundPageCorners: (view) => this.roundPageCorners(view),
       publishPageGeometry: () => this.publishPageGeometry(),
@@ -4777,10 +4778,10 @@ export class BrowserTabsManager {
 
   /**
    * The narrow view following a page's full screen gets of this manager's
-   * private tabs, window, active tab, split view, the person's own full
-   * screen and layout. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still
-   * provide it.
+   * private tabs, window, active tab, split view, offscreen capture set, view
+   * bounds, the person's own full screen and layout. It is a prototype method
+   * rather than a field, so managers created without the constructor (as
+   * unit tests do) still provide it.
    */
   private pageFullscreenAccess(): PageFullscreenAccess<BrowserTab> {
     return {
@@ -4788,6 +4789,9 @@ export class BrowserTabsManager {
       window: () => this.window,
       tabs: () => this.tabs.values(),
       isShown: (tabId) => this.activeTabId === tabId || this.splitViewContains(tabId),
+      offscreenCaptureTabIds: () => this.offscreenCaptureTabIds,
+      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
+      contentAreaBounds: () => contentAreaBounds(this.windowLayoutAccess()),
       personFullScreen: () => this.personFullScreen,
       writePersonFullScreen: (fullScreen) => { this.personFullScreen = fullScreen },
       layout: () => this.layout()
