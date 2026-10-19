@@ -1061,6 +1061,10 @@ export const plPL = {
       "label": "Wirtualny klucz dostępu",
       "stop": "Zatrzymaj wirtualny klucz dostępu dla {origin}"
     },
+    "logpoints": {
+      "label": "Punkty logowania",
+      "stop": "Zatrzymaj punkty logowania agenta na {origin}"
+    },
     "suggestion": {
       "bookmark": "Zakładka",
       "history": "Historia",

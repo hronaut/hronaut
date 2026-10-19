@@ -7,8 +7,8 @@ import type { AgentPauseAccess, AgentPauseTab } from './agent-pause-access.js'
 /**
  * Pauses or resumes every agent, and whether a tab may still be resumed on its
  * own while all are paused. Pausing releases each tab's live region recording,
- * CSS state preview and virtual passkey; a tab the person took over is handed
- * back once it is no longer paused.
+ * CSS state preview, virtual passkey and logpoints; a tab the person took over
+ * is handed back once it is no longer paused.
  */
 export function setAllAgentsPaused<Tab extends AgentPauseTab>(access: AgentPauseAccess<Tab>, paused: boolean, allowTabOverrides = true): void {
   for (const tab of access.tabs()) tab.nativeInputEnvironmentGeneration += 1
@@ -24,6 +24,7 @@ export function setAllAgentsPaused<Tab extends AgentPauseTab>(access: AgentPause
       access.releaseLiveRegion(tab)
       void access.clearCssStatePreview(tab, 'agent-paused').catch(() => undefined)
       access.stopVirtualPasskey(tab, 'authority-changed')
+      access.stopLogpoints(tab, 'authority-changed')
     }
   }
   for (const tab of access.tabs()) settleTakeOver(access, tab)
@@ -33,8 +34,8 @@ export function setAllAgentsPaused<Tab extends AgentPauseTab>(access: AgentPause
 /**
  * Pauses or resumes the agent in a page tab, as an exception to a global
  * pause when there is one. A paused tab's live region recording, CSS state
- * preview and virtual passkey are released, and a take over marks the tab as
- * the person's until it is resumed and handed back.
+ * preview, virtual passkey and logpoints are released, and a take over marks
+ * the tab as the person's until it is resumed and handed back.
  */
 export function setTabAgentPaused<Tab extends AgentPauseTab>(access: AgentPauseAccess<Tab>, tabId: string, paused: boolean, options: { takeOver?: boolean } = {}): BrowserState {
   const tab = access.getTab(tabId)
@@ -53,6 +54,7 @@ export function setTabAgentPaused<Tab extends AgentPauseTab>(access: AgentPauseA
     access.releaseLiveRegion(tab)
     void access.clearCssStatePreview(tab, 'agent-paused').catch(() => undefined)
     access.stopVirtualPasskey(tab, 'authority-changed')
+    access.stopLogpoints(tab, 'authority-changed')
     if (options.takeOver && !tab.takeOver) {
       tab.takeOver = takeOverMark(tab)
       tab.handedBack = undefined

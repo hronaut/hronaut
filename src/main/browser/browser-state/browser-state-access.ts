@@ -14,6 +14,7 @@ import type {
   BrowserUnconfirmedEmulation
 } from '../../../shared/types.js'
 import type { BrowserVirtualPasskeySummary } from '../../../shared/virtual-passkey.js'
+import type { BrowserLogpointSummary } from '../../../shared/logpoint.js'
 import type { BrowserVideoState } from '../../../shared/video.js'
 
 /**
@@ -117,6 +118,8 @@ export interface BrowserStateAccess<Tab extends BrowserStateTab> {
   cssStatePreview(): { summary(tab: Tab): (BrowserCssStatePreviewSummary & { resetUncertain?: boolean }) | undefined }
   /** The virtual passkeys, for the tab's active passkey summary. */
   virtualPasskeys(): { summary(tab: Tab): BrowserVirtualPasskeySummary | undefined }
+  /** The logpoints, for the tab's armed logpoint summary. */
+  logpoints(): { summary(tab: Tab): BrowserLogpointSummary | undefined }
   /** The open workspaces by id, for the tab's workspace name. */
   mcpTabGroups(): ReadonlyMap<string, { name: string }>
 }
