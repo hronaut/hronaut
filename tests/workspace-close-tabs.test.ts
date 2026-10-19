@@ -3,8 +3,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }))
+vi.mock('../src/main/browser/workspace-storage.js', async (original) => ({
+  ...await original<typeof import('../src/main/browser/workspace-storage.js')>(),
+  destroyWorkspaceStorage: vi.fn(async () => undefined)
+}))
 import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
 import { TabStateStore, type PersistedBrowserState } from '../src/main/browser/tab-store.js'
+import { destroyWorkspaceStorage } from '../src/main/browser/workspace-storage.js'
 
 const CLOSING = '01912345-6789-7abc-8def-0123456789ab'
 const OTHER = '01912345-678a-7abc-8def-0123456789ab'
@@ -18,14 +23,20 @@ const OTHER_ASLEEP = '01912345-678e-7abc-8def-0123456789ab'
 const OTHER_AWAKE = '01912345-678f-7abc-8def-0123456789ab'
 
 const directories: string[] = []
-afterEach(async () => { await Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true, force: true }))) })
+afterEach(async () => {
+  vi.mocked(destroyWorkspaceStorage).mockClear()
+  await Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
+})
 
 type Tab = ReturnType<typeof page>
 interface Internals {
   tabs: Map<string, Tab>
   mcpTabGroups: Map<string, { activeTabId: string | null }>
   activeTabId: string | null
+  deletedWorkspaceStorageIds: Set<string>
   wakeTab: ReturnType<typeof vi.fn>
+  createTab: ReturnType<typeof vi.fn>
+  assertStorageDeletionOwnership: ReturnType<typeof vi.fn>
   persistedState(): PersistedBrowserState
 }
 
@@ -49,7 +60,8 @@ function workspace(id: string, storageId: string, activeTabId: string) {
 
 /**
  * A browser showing a tab of one workspace next to a sleeping one, with another workspace holding a sleeping and an
- * awake tab. Waking a sleeping tab takes until release is called, as restoring its page does.
+ * awake tab. Waking a sleeping tab takes until release is called, as restoring its page does. Deleting a workspace's
+ * storage is allowed and does nothing.
  */
 async function browser() {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-workspace-close-'))
@@ -84,6 +96,12 @@ async function browser() {
       if (tab) tab.sleeping = false
       return {}
     }),
+    createTab: vi.fn(async (options: { id: string; mcpGroupId: string }) => {
+      const tab = page(options.id, options.mcpGroupId)
+      tabs.set(tab.id, tab)
+      return tab
+    }),
+    assertStorageDeletionOwnership: vi.fn(async () => undefined),
     navigationHistorySnapshot: () => ({ entries: [], index: 0 }),
     cancelNativeSelectionSessions: vi.fn(), detachDialogMonitoring: vi.fn(),
     removeTabRecord: (tab: Tab) => { tabs.delete(tab.id) },
@@ -124,14 +142,49 @@ describe('closing a whole workspace', () => {
     expect(internals.activeTabId).toBe(OTHER_ASLEEP)
   })
 
-  it('stays open, with its tabs, when one of them is still open after the close', async () => {
+  it('stays open, with its tabs and storage, when one of them is still open after the close', async () => {
     const { manager, internals, release, workspaceTabs } = await browser()
     release()
-    // A close that leaves a tab behind, which the workspace must not be forgotten under.
-    Object.assign(manager, { closeTabs: vi.fn(async () => ({})) })
-    await expect(manager.closeMcpTabGroup(CLOSING, true)).rejects.toThrow('still has an open tab')
+    // A close that leaves the shown tab behind, which the workspace must not be forgotten or deleted under.
+    Object.assign(manager, { closeTabs: vi.fn(async () => { internals.tabs.delete(ASLEEP); return {} }) })
+    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('still has an open tab')
+    // It stopped before touching the workspace's storage.
+    expect(internals.assertStorageDeletionOwnership).not.toHaveBeenCalled()
+    expect(destroyWorkspaceStorage).not.toHaveBeenCalled()
+    expect(internals.deletedWorkspaceStorageIds.size).toBe(0)
+    // The tab that did close came back.
+    expect(internals.createTab).toHaveBeenCalledOnce()
+    expect(internals.createTab).toHaveBeenCalledWith(expect.objectContaining({ id: ASLEEP, mcpGroupId: CLOSING, active: false }))
     expect(internals.mcpTabGroups.get(CLOSING)?.activeTabId).toBe(SHOWN)
     expect(workspaceTabs(CLOSING)).toEqual([SHOWN, ASLEEP])
+    expect(internals.activeTabId).toBe(SHOWN)
+  })
+
+  it('shows its tab again when deleting its storage fails', async () => {
+    const { manager, internals, release, workspaceTabs } = await browser()
+    release()
+    internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
+    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
+    expect(workspaceTabs(CLOSING)).toEqual([SHOWN, ASLEEP])
+    // The close showed the next tab itself, so the person is taken back to the tab they were looking at.
+    expect(internals.activeTabId).toBe(SHOWN)
+  })
+
+  it('keeps a tab the person selects while deleting its storage fails', async () => {
+    const { manager, internals, release, workspaceTabs } = await browser()
+    release()
+    let refuse!: (error: Error) => void
+    internals.assertStorageDeletionOwnership.mockReturnValueOnce(new Promise((_resolve, reject) => { refuse = reject }))
+    const deleting = manager.closeMcpTabGroup(CLOSING)
+    await vi.waitFor(() => expect(internals.assertStorageDeletionOwnership).toHaveBeenCalled())
+    // The close showed the next tab; the person then chose another one.
+    expect(internals.activeTabId).toBe(OTHER_ASLEEP)
+    manager.selectTab(OTHER_AWAKE)
+    refuse(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
+    await expect(deleting).rejects.toThrow('ambiguous ownership')
+    expect(workspaceTabs(CLOSING)).toEqual([SHOWN, ASLEEP])
+    // Putting the workspace's tabs back used to take the person away from the tab they chose.
+    expect(internals.activeTabId).toBe(OTHER_AWAKE)
   })
 })
 
@@ -145,6 +198,34 @@ describe('closing the shown tab while the sleeping tab that follows it wakes', (
     release()
     await closing
     // The tool used to report the tab's state as if closed while it stayed open.
+    expect(internals.tabs.has(SHOWN)).toBe(false)
+    expect(internals.activeTabId).toBe(OTHER_AWAKE)
+  })
+
+  it('still closes an agent\'s tab that the person selects again meanwhile, once the tab that follows it is awake', async () => {
+    const { manager, internals, release } = await browser()
+    const closing = manager.closeTab(SHOWN)
+    await vi.waitFor(() => expect(internals.wakeTab).toHaveBeenCalledWith(ASLEEP))
+    manager.selectTab(OTHER_AWAKE)
+    manager.selectTab(SHOWN)
+    release()
+    await closing
+    expect(internals.tabs.has(SHOWN)).toBe(false)
+    expect(internals.activeTabId).toBe(ASLEEP)
+  })
+
+  it('still closes an agent\'s tab when the tab that follows it cannot wake after the person selects another tab', async () => {
+    const { manager, internals } = await browser()
+    let fail!: () => void
+    internals.wakeTab.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+      fail = () => reject(new Error('The page could not be restored.'))
+    }))
+    const closing = manager.closeTab(SHOWN)
+    await vi.waitFor(() => expect(internals.wakeTab).toHaveBeenCalledWith(ASLEEP))
+    manager.selectTab(OTHER_AWAKE)
+    fail()
+    await closing
+    // The tab needs no replacement once another tab shows, so the failed wake does not stop its close.
     expect(internals.tabs.has(SHOWN)).toBe(false)
     expect(internals.activeTabId).toBe(OTHER_AWAKE)
   })
