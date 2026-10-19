@@ -38,9 +38,24 @@ export function pageArea<Tab extends WindowLayoutTab>(access: WindowLayoutAccess
   return browserViewBounds(access)
 }
 
-/** The space the browser gives tab views: the window below the toolbar, inside the shell's insets, at least one pixel each way. */
+/** The tab the window shows whose page is in full screen, such as a video: the active tab or a split view pane. */
+export function shownPageFullscreenTab<Tab extends WindowLayoutTab>(access: WindowLayoutAccess<Tab>): Tab | undefined {
+  const splitView = access.splitView()
+  const shownIds = splitView ? [splitView.firstTabId, splitView.secondTabId] : [access.activeTabId()]
+  for (const tabId of shownIds) {
+    const tab = tabId ? access.findTab(tabId) : undefined
+    if (tab?.pageFullscreen && !tab.sleeping) return tab
+  }
+  return undefined
+}
+
+/**
+ * The space the browser gives tab views: the window below the toolbar, inside the shell's insets, at least one pixel
+ * each way. A shown page in full screen gets the whole window instead.
+ */
 export function browserViewBounds<Tab extends WindowLayoutTab>(access: WindowLayoutAccess<Tab>): Rectangle {
   const bounds = access.window().getContentBounds()
+  if (shownPageFullscreenTab(access)) return { x: 0, y: 0, width: Math.max(1, bounds.width), height: Math.max(1, bounds.height) }
   return {
     x: access.contentInsets().left,
     y: access.toolbarHeight() + access.contentInsets().top,

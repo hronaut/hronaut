@@ -4,6 +4,8 @@ import type { SavedWindowState, WindowStateStore } from '../window-state.js'
 interface WindowStatePersistenceHost {
   /** The window whose bounds are saved; read on every use because it opens later and goes when it closes. */
   window(): Pick<BrowserWindow, 'isDestroyed' | 'getNormalBounds' | 'isMaximized' | 'isFullScreen'> | null
+  /** The full screen to save when it is not simply the window's, such as while a page holds it; the window's otherwise. */
+  fullScreen?(): boolean
   /** The window's state file, once it is open. */
   store(): Pick<WindowStateStore, 'save'> | null
   /** The bounds last seen while the window was open, saved when the window has already gone. */
@@ -31,7 +33,7 @@ export function createWindowStatePersistence(host: WindowStatePersistenceHost): 
       bounds,
       displayId: screen.getDisplayMatching(bounds).id,
       maximized: host.window()!.isMaximized(),
-      fullScreen: host.window()!.isFullScreen()
+      fullScreen: host.fullScreen?.() ?? host.window()!.isFullScreen()
     }
   }
 

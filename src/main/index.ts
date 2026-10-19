@@ -247,6 +247,8 @@ const {
   flush: flushWindowState
 } = createWindowStatePersistence({
   window: () => mainWindowRefs.window,
+  // A page's full screen, such as a video's, ends with the page, so the next start opens the window as the person had it.
+  fullScreen: () => tabRuntime.tabs?.windowFullScreenToSave() ?? Boolean(mainWindowRefs.window?.isFullScreen()),
   store: () => mainWindowRefs.stateStore,
   lastState: () => mainWindowRefs.lastState,
   setLastState: (state) => { mainWindowRefs.lastState = state },
