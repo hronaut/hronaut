@@ -1,4 +1,5 @@
 import type { IpcMain, IpcMainInvokeEvent, Session } from 'electron'
+import { rememberedSitePermissions } from './browser-session.js'
 import { buildBrowsingDataWebsiteInventory } from './browsing-data-websites.js'
 import { LocalizedError } from './localized-error.js'
 import type { BookmarkStore } from './bookmark-store.js'
@@ -48,7 +49,7 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
       historyVisits: history.reduce((total, entry) => total + entry.visitCount, 0),
       bookmarkCount: host.bookmarkStore()?.list().length ?? 0,
       savedPasswordCount: host.credentialStore()?.list().length ?? 0,
-      permissionDecisionCount: host.sitePermissionStore()?.list().length ?? 0
+      permissionDecisionCount: rememberedSitePermissions(host.sitePermissionStore()?.list() ?? []).length
     }
   }
 
@@ -59,7 +60,7 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
       cookies: [],
       bookmarks: host.bookmarkStore()?.list() ?? [],
       credentials: host.credentialStore()?.list() ?? [],
-      permissions: host.sitePermissionStore()?.list() ?? [],
+      permissions: rememberedSitePermissions(host.sitePermissionStore()?.list() ?? []),
       tabs: browserState?.tabs ?? []
     })
   }

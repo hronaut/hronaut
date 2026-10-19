@@ -1,5 +1,6 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
+import { rememberedSitePermissions } from '../browser-session.js'
 import { loadNativeWindowWithRollback } from '../native-window-load.js'
 import { restoreWindowBounds, type SavedWindowState, type WindowStateStore } from '../window-state.js'
 import type { BookmarkStore } from '../bookmark-store.js'
@@ -124,7 +125,7 @@ export function createPanelWindow(host: PanelWindowHost): {
     target.webContents.send('updates:changed', host.updateState())
     target.webContents.send('mcp:changed', host.currentMcpControlState())
     target.webContents.send('credentials:changed', host.credentialStore()?.list() ?? [])
-    target.webContents.send('permissions:changed', host.sitePermissionStore()?.list() ?? [])
+    target.webContents.send('permissions:changed', rememberedSitePermissions(host.sitePermissionStore()?.list() ?? []))
     target.webContents.send('bookmarks:changed', host.bookmarkStore()?.list() ?? [])
     target.webContents.send('visit-history:changed', host.historyStore()?.list() ?? [])
   }
