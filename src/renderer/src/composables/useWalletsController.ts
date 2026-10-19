@@ -33,7 +33,10 @@ export function useWalletsController(options: WalletsControllerOptions) {
   const requests = ref<WalletRequestSummary[]>([])
   const audit = ref<WalletAuditSummary[]>([])
   const busy = ref(false)
+  /** The failure of the last Settings action. */
   const errorMessage = ref('')
+  /** The failure of the last approval or rejection, kept with its request so another request's dialog never shows it. */
+  const requestError = ref<{ requestId: string; message: string }>()
   let disposed = false
   let initialized = false
   let initializePromise: Promise<void> | null = null
@@ -145,10 +148,11 @@ export function useWalletsController(options: WalletsControllerOptions) {
     return trackedOperation
   }
 
-  async function run<T>(operation: () => Promise<T>, refresh = true): Promise<T | undefined> {
+  async function run<T>(operation: () => Promise<T>, refresh = true, requestId?: string): Promise<T | undefined> {
     if (busy.value) return undefined
     busy.value = true
-    errorMessage.value = ''
+    if (requestId === undefined) errorMessage.value = ''
+    else requestError.value = undefined
     let result: T | undefined
     try {
       result = await operation()
@@ -165,7 +169,10 @@ export function useWalletsController(options: WalletsControllerOptions) {
       }
       return result
     } catch (error) {
-      if (!disposed) setError(error)
+      if (!disposed) {
+        if (requestId === undefined) setError(error)
+        else requestError.value = { requestId, message: options.formatError(error) }
+      }
       // A failed follow-up read must not turn a committed mutation into a
       // retryable failure (import confirmation tokens are already consumed).
       return result
@@ -201,8 +208,8 @@ export function useWalletsController(options: WalletsControllerOptions) {
   const setPolicy = (policy: WalletPolicy) => run(() => options.api.setPolicy(policy))
   const removePolicy = (policyId: string) => run(() => options.api.removePolicy(policyId))
   const revokePermission = (permissionId: string) => run(() => options.api.revokePermission(permissionId))
-  const approve = (requestId: string) => run(() => options.api.approveRequest(requestId))
-  const reject = (requestId: string) => run(() => options.api.rejectRequest(requestId))
+  const approve = (requestId: string) => run(() => options.api.approveRequest(requestId), true, requestId)
+  const reject = (requestId: string) => run(() => options.api.rejectRequest(requestId), true, requestId)
 
   function dispose(): void {
     disposed = true
@@ -221,6 +228,7 @@ export function useWalletsController(options: WalletsControllerOptions) {
     awaitingApproval,
     busy,
     errorMessage,
+    requestError,
     initialize,
     refreshDetails,
     setupPassphrase,
