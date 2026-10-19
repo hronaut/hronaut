@@ -18,6 +18,26 @@ export interface BrowserSessionState {
   sitePermissionStore: SitePermissionStore | null
 }
 
+/**
+ * The names Settings → Site permissions gives the permissions websites ask for, so the prompt names a permission the
+ * same way instead of by Chromium's identifier, such as "geolocation". A permission without a name here keeps its
+ * identifier.
+ */
+const PERMISSION_NAMES: Record<string, MessageKey> = {
+  'clipboard-read': 'runtime.permissions.clipboardRead',
+  'clipboard-sanitized-write': 'runtime.permissions.clipboardWrite',
+  'display-capture': 'runtime.permissions.display',
+  fileSystem: 'runtime.permissions.files',
+  fullscreen: 'runtime.permissions.fullscreen',
+  geolocation: 'runtime.permissions.location',
+  'idle-detection': 'runtime.permissions.activity',
+  media: 'runtime.permissions.media',
+  notifications: 'runtime.permissions.notifications',
+  'storage-access': 'runtime.permissions.storage',
+  'top-level-storage-access': 'runtime.permissions.relatedStorage',
+  'window-management': 'runtime.permissions.windows'
+}
+
 interface BrowserSessionHost {
   /** Translates into the current interface language; read on every use because the language can change. */
   text(key: MessageKey, parameters?: MessageParameters): string
@@ -115,7 +135,9 @@ export function createBrowserSession(host: BrowserSessionHost): {
             : host.text('native.dialog.devicesUnknown')
         }
         if (permission === 'fileSystem' && 'filePath' in details) {
-          const access = details.fileAccessType ?? host.text('native.dialog.unspecifiedAccess')
+          const access = host.text(details.fileAccessType === 'readable'
+            ? 'native.dialog.fileReadAccess'
+            : details.fileAccessType === 'writable' ? 'native.dialog.fileWriteAccess' : 'native.dialog.unspecifiedAccess')
           return host.text('native.dialog.requestedFile', { access, path: details.filePath || host.text('native.dialog.unspecifiedPath') })
         }
         return host.text('native.dialog.permissionRemember')
@@ -131,10 +153,11 @@ export function createBrowserSession(host: BrowserSessionHost): {
             respond(currentRemembered === 'allow')
             return
           }
+          const permissionName = Object.hasOwn(PERMISSION_NAMES, permission) ? host.text(PERMISSION_NAMES[permission]!) : permission
           const { response } = await host.showMessageBox({
             type: 'question',
             title: host.text('native.dialog.sitePermission'),
-            message: host.text('native.dialog.permissionRequest', { origin, permission }),
+            message: host.text('native.dialog.permissionRequest', { origin, permission: permissionName }),
             detail: requiresFreshConsent
               ? host.text('native.dialog.permissionAskAgain', { detail: permissionDetail })
               : host.text('native.dialog.permissionSettings', { detail: permissionDetail }),
