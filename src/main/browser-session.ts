@@ -168,8 +168,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
         respond(false)
         return
       }
-      // Electron gives no address for a requester that runs as an opaque origin, such as a sandboxed frame that opens a
-      // link in another app. It is no website's, so it gets no permission.
+      // A request without the requesting frame's address cannot be tied to a website. Using the page's address instead
+      // would give a frame the page's permissions, so it gets none.
       const requestingUrl = details.requestingUrl
       if (!requestingUrl || isHronautHomeUrl(requestingUrl)) {
         respond(false)
