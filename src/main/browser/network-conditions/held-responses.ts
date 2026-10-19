@@ -206,7 +206,7 @@ export async function cancelHeldResponse<Tab extends NetworkConditionsTab>(acces
 
 /**
  * Fails every held request of these pages as Hronaut starts to quit, before
- * windows close, so no page closes with a request still paused.
+ * its tabs close, so no page closes with a request still paused.
  */
 export function failAllHeldResponses<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, pages: Iterable<WebContents>): void {
   for (const webContents of pages) if (!webContents.isDestroyed()) endHeldResponses(access, webContents, 'closed', true)
