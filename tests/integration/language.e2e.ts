@@ -1,5 +1,7 @@
 import { readFile } from 'node:fs/promises'
+import { createServer } from 'node:net'
 import { join } from 'node:path'
+import type { HronautApi } from '../../src/shared/types.js'
 import { closeHronaut, expect, launchHronaut, settleShellMotion, test } from './fixtures.js'
 
 test('switches language live through Settings and persists it across restart', async ({
@@ -224,4 +226,30 @@ test('names a new tab in the interface language while agents keep its English ti
     const menu = (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu
     return menu?.getMenuItemById('open-in-split-view')?.submenu?.items.map((item) => item.label)
   })).toEqual(['Нова вкладка'])
+})
+
+test('names a tab whose site could not be reached in the interface language', async ({ appWindow }) => {
+  // A failed load gave the tab the English title "Site unavailable" in every language.
+  const server = createServer()
+  const port = await new Promise<number>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      if (!address || typeof address === 'string') reject(new Error('The closed-port fixture did not expose a port'))
+      else resolve(address.port)
+    })
+  })
+  await new Promise<void>((resolve) => server.close(() => resolve()))
+  const failedUrl = `http://127.0.0.1:${port}/unreachable`
+
+  await appWindow.evaluate("window.hronautSettings.setLanguagePreference('uk-UA')")
+  await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
+  await appWindow.evaluate((url) => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), failedUrl)
+  await expect.poll(() => appWindow.evaluate((url) => (window as unknown as { hronaut: HronautApi }).hronaut.getState().then((state) => {
+    const tab = state.tabs.find((candidate) => candidate.url === url)
+    return tab?.pageProblem ? { title: tab.title, problem: tab.pageProblem.title } : null
+  }), failedUrl)).toEqual({ title: 'Сайт недоступний', problem: 'Не вдалося відкрити сайт' })
+  const strip = appWindow.getByRole('group', { name: 'Вкладки й робочі простори браузера' })
+  await expect(strip.locator('.tab-title').last()).toHaveText('Сайт недоступний')
+  await expect(strip).not.toContainText('Site unavailable')
 })

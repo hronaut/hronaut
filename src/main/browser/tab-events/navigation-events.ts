@@ -1,4 +1,5 @@
 import type { WebContents } from 'electron'
+import { translate } from '../../../shared/i18n.js'
 import { retireNetworkPriorityObservations } from '../network-recording.js'
 import { loadFailureProblem } from '../page-load-problem.js'
 import { normalizeTabTitle } from '../tab-metadata.js'
@@ -181,8 +182,9 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.loading = false
     if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined
     tab.url = failedUrl
-    tab.title = 'Site unavailable'
-    tab.pageProblem = loadFailureProblem(access.options().getLocale(), failedUrl, errorCode, errorDescription)
+    const locale = access.options().getLocale()
+    tab.title = translate(locale, 'native.pageProblem.loadTabTitle')
+    tab.pageProblem = loadFailureProblem(locale, failedUrl, errorCode, errorDescription)
     access.appendConsoleMessage(tab, {
       timestamp: new Date().toISOString(),
       level: 'error',
