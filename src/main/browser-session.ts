@@ -108,9 +108,10 @@ export function createBrowserSession(host: BrowserSessionHost): {
         : normalizeSitePermissionOrigin(webContents.mainFrame.framesInSubtree.find(
           (frame) => frame.frameTreeNodeId === requestingFrameTreeNodeId && !frame.detached
         )?.url ?? '')
+      const mediaTypes = permission === 'media' && 'mediaTypes' in details ? details.mediaTypes ?? [] : []
       const permissionDetail = (() => {
         if (permission === 'media' && 'mediaTypes' in details) {
-          const types = details.mediaTypes?.map((type) => host.text(type === 'video' ? 'native.dialog.camera' : 'native.dialog.microphone')) ?? []
+          const types = mediaTypes.map((type) => host.text(type === 'video' ? 'native.dialog.camera' : 'native.dialog.microphone'))
           return types.length
             ? host.text('native.dialog.requestedDevices', { devices: types.join(host.text('native.dialog.and')) })
             : host.text('native.dialog.devicesUnknown')
@@ -135,7 +136,6 @@ export function createBrowserSession(host: BrowserSessionHost): {
             return
           }
           // A camera-only or microphone-only request names just that device, not both.
-          const mediaTypes = permission === 'media' && 'mediaTypes' in details ? details.mediaTypes ?? [] : []
           const permissionName = mediaTypes.length > 0 && mediaTypes.every((type) => type === 'video')
             ? host.text('runtime.permissions.camera')
             : mediaTypes.length > 0 && mediaTypes.every((type) => type === 'audio')
