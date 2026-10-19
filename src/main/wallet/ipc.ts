@@ -7,6 +7,7 @@ import {
 } from '../../shared/wallet.js'
 import type { WalletBroker, WalletBrokerContext } from './broker.js'
 import type { WalletService } from './service.js'
+import { LocalizedError } from '../localized-error.js'
 
 type WalletIpcService = Pick<WalletService,
   'list' | 'setupPassphrase' | 'unlock' | 'prepareImport' | 'confirmImport' |
@@ -40,12 +41,13 @@ function walletIdentifier(value: unknown, label: string): string {
 export function registerWalletIpc(ipcMain: Pick<IpcMain, 'handle'>, host: WalletIpcHost): void {
   const requireWalletService = (): WalletIpcService => {
     const service = host.service()
-    if (!service) throw new Error('Wallet service is unavailable')
+    if (!service) throw new LocalizedError('appErrors.wallet.serviceUnavailable')
     return service
   }
   const requireWalletBroker = (): WalletIpcBroker => {
     const broker = host.broker()
-    if (!broker) throw new Error('Wallet broker is unavailable')
+    // The broker exists whenever the service does, so a person reads that the wallet service is unavailable.
+    if (!broker) throw new LocalizedError('appErrors.wallet.serviceUnavailable', undefined, { message: 'Wallet broker is unavailable' })
     return broker
   }
   ipcMain.handle('wallet-provider:request', (event, input: WalletProviderRequest) => (

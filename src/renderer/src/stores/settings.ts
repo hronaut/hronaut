@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { translate } from '../../../shared/i18n.js'
 import { DEFAULT_INTERFACE_SCALE } from '../../../shared/interface-scale.js'
 import { DEFAULT_TAB_POSITION } from '../../../shared/tab-position.js'
 import type { WindowMaterial } from '../../../shared/window-material.js'
@@ -122,7 +123,8 @@ export const useSettingsStore = defineStore('settings', () => {
           failures.push(cleanupError)
         }
         if (failures.length === 1) throw error
-        throw new AggregateError(failures, 'Settings initialization failed and listener cleanup was incomplete')
+        // The startup toast shows this message, so it speaks the language the settings were hydrated with.
+        throw new AggregateError(failures, translate(resolvedLocale.value, 'appErrors.startup.settingsCleanupIncomplete'))
       })
       .finally(() => {
         if (generation === currentGeneration) {

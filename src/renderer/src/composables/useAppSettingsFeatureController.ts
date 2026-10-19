@@ -259,7 +259,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
   })
   const walletsController = useWalletsController({
     api: options.apis.wallets,
-    formatError: (error) => friendlyUiError(error, 'The wallet operation could not be completed safely.'),
+    formatError: (error) => friendlyUiError(error, options.translate('wallets.operationFailed')),
     reportRequestError: (message) => options.showToast('error', options.translate('wallets.approval.requestFailed'), message)
   })
   const { reset: resetSettingsSection } = useSettingsSectionResetController({

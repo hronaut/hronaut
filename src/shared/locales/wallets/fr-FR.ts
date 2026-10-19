@@ -294,5 +294,6 @@ export const frFRWallets = {
     "reject": "Rejeter",
     "approve": "Approuver la demande exacte",
     "requestFailed": "Échec de la demande du portefeuille"
-  }
+  },
+  "operationFailed": "L’opération du portefeuille n’a pas pu être effectuée en toute sécurité."
 }

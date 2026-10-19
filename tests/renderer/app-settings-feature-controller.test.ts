@@ -241,6 +241,20 @@ describe('app settings feature controller', () => {
     expect(harness.disposalOrder).toEqual(['updates', 'license', 'mcp'])
   })
 
+  it('falls back to the translated wallet failure when a wallet error has no message', async () => {
+    const harness = createHarness()
+    try {
+      harness.options.apis.wallets.lock.mockRejectedValueOnce(new Error(''))
+      await harness.controller.walletsController.lock()
+      expect(harness.controller.walletsController.errorMessage.value).toBe('wallets.operationFailed')
+      harness.options.apis.wallets.lock.mockRejectedValueOnce(new Error('Wallet service is unavailable'))
+      await harness.controller.walletsController.lock()
+      expect(harness.controller.walletsController.errorMessage.value).toBe('Wallet service is unavailable')
+    } finally {
+      harness.controller.dispose()
+    }
+  })
+
   it('initializes detached panels without reading or subscribing to primary-window wallets', async () => {
     const harness = createHarness(undefined, true)
     try {

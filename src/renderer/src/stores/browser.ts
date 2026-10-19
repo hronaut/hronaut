@@ -1,10 +1,12 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { translate } from '../../../shared/i18n.js'
 import type {
   BrowserState,
   NavigateOptions,
   NewTabOptions
 } from '../../../shared/types.js'
+import { useSettingsStore } from './settings.js'
 
 export function emptyBrowserState(): BrowserState {
   return {
@@ -21,6 +23,7 @@ export function emptyBrowserState(): BrowserState {
 
 export const useBrowserStore = defineStore('browser', () => {
   const state = ref<BrowserState>(emptyBrowserState())
+  const settings = useSettingsStore()
   const initialized = ref(false)
   const initializing = ref(false)
   const initializationError = ref<unknown>(null)
@@ -85,7 +88,8 @@ export const useBrowserStore = defineStore('browser', () => {
           failures.push(cleanupError)
         }
         if (failures.length === 1) throw error
-        throw new AggregateError(failures, 'Browser initialization failed and listener cleanup was incomplete')
+        // The startup toast shows this message, so it speaks the interface language.
+        throw new AggregateError(failures, translate(settings.resolvedLocale, 'appErrors.startup.browserCleanupIncomplete'))
       })
       .finally(() => {
         if (generation === currentGeneration) {

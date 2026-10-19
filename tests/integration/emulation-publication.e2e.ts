@@ -116,7 +116,8 @@ test('an already-started same-origin commit vetoes queued restoration before ano
     expect((await predecessor).isError).toBe(true)
     const result = await appWindow.evaluate(() => (window as unknown as Renderer).pendingRestore!)
     expect(result.isError).toBe(true)
-    expect(result.error).toContain('Emulation target changed')
+    // The shell reads the sentence for a person; MCP results keep 'Emulation target changed'.
+    expect(result.error).toContain('The page changed while its emulation was being applied. Try again.')
     expect(await electronApp.evaluate(() => (globalThis as Scope).__emulationPublication!.configurationCommands)).toEqual(beforeCommit)
     const state = await appWindow.evaluate(async id => (await (window as unknown as Renderer).hronaut.getState()).tabs.find(t => t.id === id), tabId)
     expect(state?.emulationState).toMatchObject({ application: 'unknown', retainedSettings: { colorScheme: 'auto' } })

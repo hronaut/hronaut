@@ -37,6 +37,7 @@ import { WalletPolicyStore } from './policy-store.js'
 import { WalletPolicyUsageStore } from './policy-usage.js'
 import { discardObsoleteWalletData, readWalletVaultProtectionMode, WalletVault, type WalletSecret } from './vault.js'
 import { WalletWatchOnlyStore } from './watch-only-store.js'
+import { LocalizedError } from '../localized-error.js'
 
 const PASSPHRASE_PARAMETERS = { memoryKiB: 64 * 1024, passes: 3, parallelism: 1 } as const
 const IMPORT_CONFIRMATION_TTL_MS = 5 * 60_000
@@ -115,7 +116,7 @@ export class WalletService {
     this.approvals = new WalletApprovalStore(join(options.directory, 'requests.json'))
     this.audit = new WalletAuditStore(join(options.directory, 'audit.jsonl'))
     this.authority = new WalletAuthorityPersistence(() => {
-      if (!this.vault) throw new Error('Wallet vault is unavailable')
+      if (!this.vault) throw new LocalizedError('appErrors.wallet.vaultUnavailable')
       return this.vault
     })
     this.permissions = new WalletPermissionStore(this.authority)
@@ -183,7 +184,7 @@ export class WalletService {
   }
 
   async setupPassphrase(passphrase: string): Promise<WalletServiceStatus> {
-    if (this.statusValue.managedWallets !== 'passphrase-setup-required' || !this.vault) throw new Error('Wallet passphrase setup is unavailable')
+    if (this.statusValue.managedWallets !== 'passphrase-setup-required' || !this.vault) throw new LocalizedError('appErrors.wallet.passphraseSetupUnavailable')
     const bytes = this.passphraseBytes(passphrase)
     try {
       await this.vault.initialize(bytes, encodeWalletAuthorityState(emptyWalletAuthorityState()))
@@ -198,7 +199,7 @@ export class WalletService {
   }
 
   async unlock(passphrase: string): Promise<WalletServiceStatus> {
-    if (this.statusValue.managedWallets !== 'locked' || !this.vault) throw new Error('Wallet vault is not locked')
+    if (this.statusValue.managedWallets !== 'locked' || !this.vault) throw new LocalizedError('appErrors.wallet.vaultNotLocked')
     const bytes = this.protection?.mode === 'passphrase-required'
       ? this.passphraseBytes(passphrase)
       : undefined
@@ -267,7 +268,7 @@ export class WalletService {
 
   async prepareImport(chainFamily: WalletDescriptor['chainFamily'], format: WalletSecretFormat, recoveryMaterial: string): Promise<WalletPreparedImport> {
     this.readyVault()
-    if (!recoveryMaterial || recoveryMaterial.length > 65_536) throw new Error('Invalid wallet recovery material')
+    if (!recoveryMaterial || recoveryMaterial.length > 65_536) throw new LocalizedError('appErrors.wallet.recoveryMaterialInvalid')
     const material = Buffer.from(recoveryMaterial, 'utf8')
     try {
       const derived = await deriveWalletAccount(chainFamily, { format, material })
@@ -280,7 +281,7 @@ export class WalletService {
       this.importExpiryTimers.set(token, expiryTimer)
       return { token, chainFamily, publicAddress: derived.publicAddress, expiresAt: new Date(expiresAt).toISOString() }
     } catch {
-      throw new Error('Wallet recovery material is invalid for the selected chain and format')
+      throw new LocalizedError('appErrors.wallet.recoveryMaterialMismatch')
     } finally {
       material.fill(0)
       this.expireImports()
@@ -291,7 +292,7 @@ export class WalletService {
     const vault = this.readyVault()
     this.expireImports()
     const pending = this.imports.get(token)
-    if (!pending) throw new Error('Wallet import confirmation expired')
+    if (!pending) throw new LocalizedError('appErrors.wallet.importExpired')
     const input = WalletImportDetailsSchema.parse(details)
     assertWalletNetworkForChainFamily(pending.chainFamily, input.network)
     const now = this.now().toISOString()
@@ -303,7 +304,7 @@ export class WalletService {
       recoveryConfirmed: true, createdAt: now, updatedAt: now
     }
     const claimed = this.takePendingImport(token)
-    if (!claimed) throw new Error('Wallet import confirmation expired')
+    if (!claimed) throw new LocalizedError('appErrors.wallet.importExpired')
     try {
       await vault.add(wallet, { format: claimed.format, material: claimed.material })
       await this.audit.append('wallet-imported', {
@@ -323,7 +324,7 @@ export class WalletService {
   async addWatchOnly(input: WalletWatchOnlyInput): Promise<WalletDescriptor> {
     const validated = WalletWatchOnlyInputSchema.parse(input)
     assertWalletNetworkForChainFamily(validated.chainFamily, validated.network)
-    if (!validateWatchOnlyWalletAddress(validated.chainFamily, validated.publicAddress)) throw new Error('Invalid watch-only wallet address')
+    if (!validateWatchOnlyWalletAddress(validated.chainFamily, validated.publicAddress)) throw new LocalizedError('appErrors.wallet.watchOnlyAddressInvalid')
     const now = this.now().toISOString()
     const wallet = await this.watchOnly.add({
       id: randomUUID(), name: validated.name, kind: 'watch-only', chainFamily: validated.chainFamily,
@@ -371,12 +372,12 @@ export class WalletService {
       && outOfScopeWorkspaceIds.has(request.request.workspaceId)
       && ['signing', 'submitted'].includes(request.status)
     ))
-    if (detachedActive) throw new Error('Wallet has a signing or submitted request in a detached workspace')
+    if (detachedActive) throw new LocalizedError('appErrors.wallet.detachedRequestActive')
     if (rpcChanged) {
       const active = this.approvals.list().find((request) => (
         request.request.walletId === walletId && ['signing', 'submitted'].includes(request.status)
       ))
-      if (active) throw new Error('Wallet has a signing or submitted request in progress')
+      if (active) throw new LocalizedError('appErrors.wallet.requestActive')
       await this.approvals.cancelForWallet(walletId)
       const policyIds = this.policies.list(walletId).map((policy) => policy.id)
       removedPolicyCount = policyIds.length
@@ -421,7 +422,7 @@ export class WalletService {
   async remove(walletId: string): Promise<boolean> {
     const wallet = this.requireWallet(walletId)
     const active = this.approvals.list().find((request) => request.request.walletId === walletId && ['signing', 'submitted'].includes(request.status))
-    if (active) throw new Error('Wallet has a signing or submitted request in progress')
+    if (active) throw new LocalizedError('appErrors.wallet.requestActive')
     await this.approvals.cancelForWallet(walletId)
     await this.permissions.revokeForWallet(walletId)
     const policyIds = this.policies.list(walletId).map((policy) => policy.id)
@@ -440,74 +441,74 @@ export class WalletService {
   async setPolicy(input: WalletPolicy): Promise<WalletPolicy> {
     const candidate = WalletPolicySchema.parse(input)
     if (Date.parse(candidate.expiresAt) <= this.now().getTime()) {
-      throw new Error('Wallet policy expiry must be in the future')
+      throw new LocalizedError('appErrors.walletPolicy.expiryPast')
     }
     const wallet = this.requireWallet(candidate.walletId)
     if (candidate.mode === 'bounded-auto' && !wallet.capabilities.includes('sign')) {
-      throw new Error('Wallet does not support signing automation')
+      throw new LocalizedError('appErrors.walletPolicy.signingUnsupported')
     }
-    if (!walletAllowsWorkspace(wallet, candidate.workspaceId)) throw new Error('Wallet policy workspace is not attached to the wallet')
-    if (!candidate.networkIds.includes(wallet.network.id)) throw new Error('Wallet policy must include the wallet network')
+    if (!walletAllowsWorkspace(wallet, candidate.workspaceId)) throw new LocalizedError('appErrors.walletPolicy.workspaceDetached')
+    if (!candidate.networkIds.includes(wallet.network.id)) throw new LocalizedError('appErrors.walletPolicy.networkMissing')
     const websiteSignIn = candidate.allowWebsiteSignIn === true
     if (websiteSignIn || candidate.allowMainnetWebsiteSignIn) {
-      if (candidate.mode !== 'bounded-auto') throw new Error('Website sign-in without approval requires a bounded automatic policy')
-      if (!websiteSignIn) throw new Error('The mainnet website sign-in switch requires website sign-in without approval')
-      if (wallet.chainFamily !== 'evm') throw new Error('Website sign-in without approval is only available for EVM wallets')
-      if (candidate.origins.length === 0) throw new Error('Website sign-in without approval requires an allowed website origin')
+      if (candidate.mode !== 'bounded-auto') throw new LocalizedError('appErrors.walletPolicy.signInNeedsBounded')
+      if (!websiteSignIn) throw new LocalizedError('appErrors.walletPolicy.mainnetSignInNeedsSignIn')
+      if (wallet.chainFamily !== 'evm') throw new LocalizedError('appErrors.walletPolicy.signInEvmOnly')
+      if (candidate.origins.length === 0) throw new LocalizedError('appErrors.walletPolicy.signInNeedsOrigin')
     }
     const websiteTypedData = candidate.allowWebsiteTypedData === true
     if (websiteTypedData || candidate.allowMainnetWebsiteTypedData) {
-      if (!websiteTypedData) throw new Error('The mainnet typed-data switch requires typed-data signing without approval')
-      if (!websiteSignIn) throw new Error('Typed-data signing without approval requires website sign-in without approval')
-      if (wallet.kind !== 'agent') throw new Error('Typed-data signing without approval requires a dedicated agent wallet')
+      if (!websiteTypedData) throw new LocalizedError('appErrors.walletPolicy.mainnetTypedDataNeedsTypedData')
+      if (!websiteSignIn) throw new LocalizedError('appErrors.walletPolicy.typedDataNeedsSignIn')
+      if (wallet.kind !== 'agent') throw new LocalizedError('appErrors.walletPolicy.typedDataNeedsAgent')
       if (wallet.network.environment === 'mainnet') {
         if (!candidate.allowMainnetWebsiteTypedData) {
-          throw new Error('Mainnet typed-data signing without approval requires its separate mainnet switch')
+          throw new LocalizedError('appErrors.walletPolicy.mainnetTypedDataNeedsSwitch')
         }
       } else if (candidate.allowMainnetWebsiteTypedData) {
-        throw new Error('The mainnet typed-data switch is only valid for a mainnet wallet')
+        throw new LocalizedError('appErrors.walletPolicy.mainnetTypedDataMainnetOnly')
       }
     }
     if (candidate.mode === 'bounded-auto') {
       if (candidate.allowAnyTokenContract && candidate.contracts?.length) {
-        throw new Error('A wallet policy that allows any token contract cannot also name one')
+        throw new LocalizedError('appErrors.walletPolicy.anyTokenWithContract')
       }
       if (candidate.methods.some(isWalletTokenMethod) && !candidate.contracts?.length && candidate.allowAnyTokenContract !== true) {
-        throw new Error('A wallet policy for a token method must name its token contract or allow any token contract')
+        throw new LocalizedError('appErrors.walletPolicy.tokenMethodNeedsContract')
       }
       if (wallet.network.environment === 'mainnet') {
         if (wallet.chainFamily !== 'evm' || wallet.kind !== 'agent') {
-          throw new Error('Mainnet Bypass Approve mode requires a dedicated EVM agent wallet')
+          throw new LocalizedError('appErrors.walletPolicy.mainnetBypassNeedsAgent')
         }
-        if ((candidate.contracts?.length ?? 0) > 1) throw new Error('Mainnet Bypass Approve mode allows one token contract')
+        if ((candidate.contracts?.length ?? 0) > 1) throw new LocalizedError('appErrors.walletPolicy.mainnetBypassOneContract')
         if ((candidate.allowMainnetAgentAutomation || !websiteSignIn) && !isMainnetAgentAutomationPolicy(candidate, this.now())) {
-          throw new Error('Mainnet Bypass Approve mode requires complete transaction, spend, fee, operation, and expiry limits')
+          throw new LocalizedError('appErrors.walletPolicy.mainnetBypassLimits')
         }
         if (websiteSignIn) {
           if (!isMainnetWebsiteSignInPolicy(candidate, this.now())) {
-            throw new Error('Mainnet website sign-in without approval requires its separate mainnet switch, one website origin, at most 100 operations and an expiry within 7 days')
+            throw new LocalizedError('appErrors.walletPolicy.mainnetSignInLimits')
           }
           if (!candidate.allowMainnetAgentAutomation
             && (candidate.destinations.length > 0 || candidate.methods.length > 0
               || (candidate.contracts?.length ?? 0) > 0 || candidate.allowAnyTokenContract === true)) {
-            throw new Error('A mainnet sign-in policy without Bypass Approve cannot list transaction destinations, contracts or methods')
+            throw new LocalizedError('appErrors.walletPolicy.mainnetSignInNoTransactions')
           }
         }
       } else {
         if (candidate.allowMainnetAgentAutomation) {
-          throw new Error('Bypass Approve mode is only valid for a mainnet agent policy')
+          throw new LocalizedError('appErrors.walletPolicy.bypassMainnetOnly')
         }
         if (candidate.allowMainnetWebsiteSignIn) {
-          throw new Error('The mainnet website sign-in switch is only valid for a mainnet wallet')
+          throw new LocalizedError('appErrors.walletPolicy.mainnetSignInMainnetOnly')
         }
         if (!isWalletNetworkEligibleForAutomation(wallet)) {
-          throw new Error('Wallet network is not eligible for automatic approval')
+          throw new LocalizedError('appErrors.walletPolicy.networkIneligible')
         }
       }
     }
     const previousPolicy = this.policies.list().find((entry) => entry.id === candidate.id)
     if (previousPolicy && previousPolicy.walletId !== candidate.walletId) {
-      throw new Error('Wallet policy identity cannot be moved between wallets')
+      throw new LocalizedError('appErrors.walletPolicy.identityMoved')
     }
     const policy = await this.policies.set(candidate)
     try {
@@ -527,10 +528,9 @@ export class WalletService {
         if (previousPolicy) await this.policies.set(previousPolicy)
         else await this.policies.remove(policy.id)
       } catch (rollbackError) {
-        throw new AggregateError(
-          [descriptorError, rollbackError],
-          'Wallet policy descriptor update failed and its rollback was incomplete'
-        )
+        throw new LocalizedError('appErrors.walletPolicy.saveRollbackFailed', undefined, {
+          cause: new AggregateError([descriptorError, rollbackError])
+        })
       }
       throw descriptorError
     }
@@ -561,7 +561,7 @@ export class WalletService {
         descriptorUpdated = true
       }
       removed = await this.policies.remove(policyId)
-      if (!removed) throw new Error('Wallet policy disappeared during removal')
+      if (!removed) throw new LocalizedError('appErrors.walletPolicy.removedDuringRemoval')
       await this.policyUsage.remove(policyId)
     } catch (removalError) {
       const rollbackErrors: unknown[] = []
@@ -586,10 +586,9 @@ export class WalletService {
         }
       }
       if (rollbackErrors.length) {
-        throw new AggregateError(
-          [removalError, ...rollbackErrors],
-          'Wallet policy removal failed and its rollback was incomplete'
-        )
+        throw new LocalizedError('appErrors.walletPolicy.removeRollbackFailed', undefined, {
+          cause: new AggregateError([removalError, ...rollbackErrors])
+        })
       }
       throw removalError
     }
@@ -703,18 +702,18 @@ export class WalletService {
   }
 
   private readyVault(): WalletVault {
-    if (!this.vault || this.statusValue.managedWallets !== 'ready') throw new Error('Managed wallet vault is unavailable or locked')
+    if (!this.vault || this.statusValue.managedWallets !== 'ready') throw new LocalizedError('appErrors.wallet.vaultLocked')
     return this.vault
   }
 
   private requireWallet(walletId: string): WalletDescriptor {
     const wallet = this.list().find((entry) => entry.id === walletId)
-    if (!wallet) throw new Error('Wallet not found')
+    if (!wallet) throw new LocalizedError('appErrors.wallet.notFound')
     return wallet
   }
 
   private passphraseBytes(passphrase: string): Buffer {
-    if (typeof passphrase !== 'string' || passphrase.length < 12 || passphrase.length > 1024) throw new Error('Wallet vault passphrase must be between 12 and 1024 characters')
+    if (typeof passphrase !== 'string' || passphrase.length < 12 || passphrase.length > 1024) throw new LocalizedError('appErrors.wallet.passphraseLength')
     return Buffer.from(passphrase, 'utf8')
   }
 

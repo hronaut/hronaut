@@ -1,5 +1,6 @@
 import { DEFAULT_RENDERING_DEBUG } from '../../../shared/browser-environment.js'
 import type { BrowserEmulationOptions, BrowserEmulationResult, BrowserEmulationState } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import { prepareBrowserEmulation } from '../emulation-state.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { EmulationAccess, EmulationTab } from './emulation-access.js'
@@ -27,12 +28,13 @@ function emulationPublication<Tab extends EmulationTab>(access: EmulationAccess<
  * through the debugger as one transaction. A request that changes nothing
  * attaches no debugger. Network conditions must be known and confirmed first;
  * a change that failed after a command was sent leaves the emulation unknown
- * until it is explicitly restored.
+ * until it is explicitly restored. Its failures keep the messages agents read,
+ * while Hronaut's own pages say what changed in the interface language.
  */
 export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<Tab>, options: BrowserEmulationOptions = {}, validate: () => void = () => {}, markSubmitted: () => void = () => {}, retainPublication?: (assert: () => void) => void): Promise<BrowserEmulationResult> {
   const tab = access.getTab(options.tabId)
   validate()
-  if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before changing browser emulation')
+  if (isHronautHomeUrl(tab.url)) throw new LocalizedError('appErrors.emulation.homeTab')
   // Validation and reads never attach a debugger or repair native state.
   if (!prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)) {
     const result = access.emulationResult(tab)
@@ -48,12 +50,18 @@ export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<
   const debuggerEpoch = tab.networkDebuggerEpoch
   const context = (): void => {
     if (access.isDestroyed() || webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents
-      || tab.navigationGeneration !== generation || tab.observationGeneration !== observation || tab.emulationContextGeneration !== contextGeneration || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Emulation target changed')
+      || tab.navigationGeneration !== generation || tab.observationGeneration !== observation || tab.emulationContextGeneration !== contextGeneration || tab.networkDebuggerEpoch !== debuggerEpoch) {
+      throw new LocalizedError('appErrors.emulation.targetChanged', undefined, { message: 'Emulation target changed' })
+    }
   }
   const admission = (): void => { validate(); context() }
   return access.withDebugger(webContents, async () => {
     admission()
-    if (tab.networkConditionApplication !== 'confirmed') throw new Error('Network application must be confirmed before changing or restoring emulation. Recover Network conditions separately.')
+    if (tab.networkConditionApplication !== 'confirmed') {
+      throw new LocalizedError('appErrors.emulation.networkUnconfirmed', undefined, {
+        message: 'Network application must be confirmed before changing or restoring emulation. Recover Network conditions separately.'
+      })
+    }
     if (!options.recover) access.requireEmulationConfirmed(tab)
     const prepared = prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)
     if (!prepared) return access.emulationResult(tab)
@@ -61,7 +69,9 @@ export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<
     const networkEpoch = tab.networkConditionEpoch
     const routes = tab.networkRoutes
     const networkContext = (): void => {
-      if (tab.networkConditionEpoch !== networkEpoch || tab.networkRoutes !== routes) throw new Error('Network application changed during emulation')
+      if (tab.networkConditionEpoch !== networkEpoch || tab.networkRoutes !== routes) {
+        throw new LocalizedError('appErrors.emulation.networkChanged', undefined, { message: 'Network application changed during emulation' })
+      }
     }
     const previousApplication = tab.emulationApplication
     const revision = ++tab.emulationRevision
@@ -144,15 +154,21 @@ async function applyEmulationState<Tab extends EmulationTab>(
     bypass: state.bypassServiceWorker
   })
   access.requireNetworkConditionsKnown(tab)
-  if (webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Network emulation context changed before application')
+  if (webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) {
+    throw new LocalizedError('appErrors.emulation.networkChanged', undefined, { message: 'Network emulation context changed before application' })
+  }
   tab.networkConditionApplication = 'pending'
   try {
     await access.applyNetworkEmulation(webContents, state.network, projection, async (method, params) => {
       access.requireNetworkConditionsKnown(tab)
-      if (webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Network emulation context changed')
+      if (webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) {
+        throw new LocalizedError('appErrors.emulation.networkChanged', undefined, { message: 'Network emulation context changed' })
+      }
       return send(method, params)
     })
-    if (webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Network emulation acknowledgement was superseded')
+    if (webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) {
+      throw new LocalizedError('appErrors.emulation.networkChanged', undefined, { message: 'Network emulation acknowledgement was superseded' })
+    }
     // A proposed throttle is not yet the retained throttle. Keep Network
     // pending until the entire emulation configuration commits atomically.
     tab.networkConditionApplication = state.network === tab.emulation.network ? 'confirmed' : 'pending'

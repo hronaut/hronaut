@@ -294,5 +294,6 @@ export const plPLWallets = {
     "reject": "Odrzuć",
     "approve": "Zatwierdź dokładne żądanie",
     "requestFailed": "Żądanie portfela nie powiodło się"
-  }
+  },
+  "operationFailed": "Nie udało się bezpiecznie wykonać operacji portfela."
 }

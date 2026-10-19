@@ -4,6 +4,7 @@ import { summary } from '../request-summary.js'
 import type { WalletService } from '../service.js'
 import type { PendingResult } from './request-records.js'
 import { sanitizedError } from './sanitized-error.js'
+import { LocalizedError } from '../../localized-error.js'
 
 /**
  * What a person's approval or rejection needs from the broker, which keeps
@@ -33,7 +34,7 @@ export function approve(access: HumanApprovalsAccess, requestId: string): Promis
   const lockGeneration = access.lockGeneration()
   return access.queueLifecycle(() => {
     if (lockGeneration !== access.lockGeneration()) {
-      throw new Error('Wallet request was cancelled because signing keys were locked')
+      throw new LocalizedError('appErrors.wallet.requestCancelledLocked')
     }
     return approveRequest(access, requestId)
   })
@@ -45,14 +46,14 @@ export function approve(access: HumanApprovalsAccess, requestId: string): Promis
  */
 async function approveRequest(access: HumanApprovalsAccess, requestId: string): Promise<WalletRequestSummary> {
   const record = access.service.approvals.get(requestId)
-  if (!record) throw new Error('Wallet request not found')
-  if (record.status !== 'awaiting-human') throw new Error('Wallet request is not awaiting human approval')
+  if (!record) throw new LocalizedError('appErrors.wallet.requestNotFound')
+  if (record.status !== 'awaiting-human') throw new LocalizedError('appErrors.wallet.requestNotAwaiting')
   try {
     await access.service.approvals.approve(record.id, record.request, access.now())
   } catch (error) {
     const current = access.service.approvals.get(record.id)
     if (current?.status === 'expired') {
-      const expired = new Error('Wallet request expired before approval')
+      const expired = new LocalizedError('appErrors.wallet.requestExpired')
       try {
         await access.service.audit.append('request-expired', {
           requestId: record.id,

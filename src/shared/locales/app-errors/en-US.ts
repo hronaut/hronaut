@@ -1,7 +1,7 @@
 /**
- * Errors from the main process that a person sees, and the startup failure page, in English. MCP results and logs keep
- * this text, except for an error that keeps its own message: a raw load failure, or one naming a tab, workspace or
- * bookmark by its internal ID.
+ * Errors from the main process that a person sees, the shell's own startup failures and the startup failure page, in
+ * English. MCP results and logs keep this text, except for an error that keeps its own message: a raw load or secure
+ * storage failure, one naming a tab, workspace or bookmark by its internal ID, or one whose wording agents act on.
  */
 export const enUSAppErrors = {
   "startup": {
@@ -9,7 +9,9 @@ export const enUSAppErrors = {
     "unavailable": "Saved workspaces are unavailable.",
     "readUnavailable": "Workspace read is no longer available.",
     "tooManyReads": "Too many pending workspace reads.",
-    "metadataUnavailable": "Saved workspace metadata is unavailable ({reason}). Startup stopped to preserve recovery options."
+    "metadataUnavailable": "Saved workspace metadata is unavailable ({reason}). Startup stopped to preserve recovery options.",
+    "browserCleanupIncomplete": "Browser initialization failed and listener cleanup was incomplete",
+    "settingsCleanupIncomplete": "Settings initialization failed and listener cleanup was incomplete"
   },
   "sleep": {
     "onlyWebsites": "Only inactive website tabs can sleep.",
@@ -290,6 +292,75 @@ export const enUSAppErrors = {
     "mcpPortRange": "MCP port must be an integer from 1024 through 65535",
     "mcpPortInUse": "Could not listen on {host}:{port} because another app is using that port.",
     "mcpPortDenied": "Could not listen on {host}:{port} because the system does not allow Hronaut to use that port."
+  },
+  "credentials": {
+    "fillAgentActive": "The password was not filled because an agent command was still running. Agents stay paused; try again when it finishes.",
+    "notFound": "The saved password is no longer available.",
+    "changed": "The saved password changed while it was being read. Try again.",
+    "decryptFailed": "The saved password could not be decrypted. Make sure the system’s secure storage is unlocked, then try again."
+  },
+  "emulation": {
+    "homeTab": "Open a website tab before changing browser emulation",
+    "targetChanged": "The page changed while its emulation was being applied. Try again.",
+    "networkUnconfirmed": "Recover Network conditions in Request conditions first, then change or restore emulation.",
+    "networkChanged": "The page or its request conditions changed while network emulation was being applied. Try again.",
+    "unconfirmed": "Emulation is unconfirmed. Open Environment and restore the retained settings before making a new change."
+  },
+  "wallet": {
+    "serviceUnavailable": "Wallet service is unavailable",
+    "windowUnavailable": "The Hronaut window is unavailable",
+    "vaultUnavailable": "Wallet vault is unavailable",
+    "vaultLocked": "Managed wallet vault is unavailable or locked",
+    "passphraseSetupUnavailable": "Wallet passphrase setup is unavailable",
+    "vaultNotLocked": "Wallet vault is not locked",
+    "passphraseRequired": "Wallet vault passphrase is required",
+    "passphraseLength": "Wallet vault passphrase must be between 12 and 1024 characters",
+    "unlockFailed": "Wallet vault unlock failed",
+    "recoveryMaterialInvalid": "Invalid wallet recovery material",
+    "recoveryMaterialMismatch": "Wallet recovery material is invalid for the selected chain and format",
+    "importExpired": "Wallet import confirmation expired",
+    "watchOnlyAddressInvalid": "Invalid watch-only wallet address",
+    "notFound": "Wallet not found",
+    "detachedRequestActive": "Wallet has a signing or submitted request in a detached workspace",
+    "requestActive": "Wallet has a signing or submitted request in progress",
+    "vaultLimit": "Wallet vault limit reached ({max})",
+    "watchOnlyLimit": "Watch-only wallet limit reached ({max})",
+    "recoveryCancelled": "Wallet creation cancelled before recovery confirmation",
+    "recoveryFailed": "Wallet recovery confirmation failed",
+    "recoveryRollbackFailed": "Wallet recovery confirmation failed and the unconfirmed wallet could not be removed",
+    "requestNotFound": "Wallet request not found",
+    "requestNotAwaiting": "Wallet request is not awaiting human approval",
+    "requestExpired": "Wallet request expired before approval",
+    "requestCancelledLocked": "Wallet request was cancelled because signing keys were locked"
+  },
+  "walletPolicy": {
+    "expiryPast": "Wallet policy expiry must be in the future",
+    "signingUnsupported": "Wallet does not support signing automation",
+    "workspaceDetached": "Wallet policy workspace is not attached to the wallet",
+    "networkMissing": "Wallet policy must include the wallet network",
+    "signInNeedsBounded": "Website sign-in without approval requires a bounded automatic policy",
+    "mainnetSignInNeedsSignIn": "The mainnet website sign-in switch requires website sign-in without approval",
+    "signInEvmOnly": "Website sign-in without approval is only available for EVM wallets",
+    "signInNeedsOrigin": "Website sign-in without approval requires an allowed website origin",
+    "mainnetTypedDataNeedsTypedData": "The mainnet typed-data switch requires typed-data signing without approval",
+    "typedDataNeedsSignIn": "Typed-data signing without approval requires website sign-in without approval",
+    "typedDataNeedsAgent": "Typed-data signing without approval requires a dedicated agent wallet",
+    "mainnetTypedDataNeedsSwitch": "Mainnet typed-data signing without approval requires its separate mainnet switch",
+    "mainnetTypedDataMainnetOnly": "The mainnet typed-data switch is only valid for a mainnet wallet",
+    "anyTokenWithContract": "A wallet policy that allows any token contract cannot also name one",
+    "tokenMethodNeedsContract": "A wallet policy for a token method must name its token contract or allow any token contract",
+    "mainnetBypassNeedsAgent": "Mainnet Bypass Approve mode requires a dedicated EVM agent wallet",
+    "mainnetBypassOneContract": "Mainnet Bypass Approve mode allows one token contract",
+    "mainnetBypassLimits": "Mainnet Bypass Approve mode requires complete transaction, spend, fee, operation, and expiry limits",
+    "mainnetSignInLimits": "Mainnet website sign-in without approval requires its separate mainnet switch, one website origin, at most 100 operations and an expiry within 7 days",
+    "mainnetSignInNoTransactions": "A mainnet sign-in policy without Bypass Approve cannot list transaction destinations, contracts or methods",
+    "bypassMainnetOnly": "Bypass Approve mode is only valid for a mainnet agent policy",
+    "mainnetSignInMainnetOnly": "The mainnet website sign-in switch is only valid for a mainnet wallet",
+    "networkIneligible": "Wallet network is not eligible for automatic approval",
+    "identityMoved": "Wallet policy identity cannot be moved between wallets",
+    "removedDuringRemoval": "Wallet policy disappeared during removal",
+    "saveRollbackFailed": "Wallet policy descriptor update failed and its rollback was incomplete",
+    "removeRollbackFailed": "Wallet policy removal failed and its rollback was incomplete"
   },
   "startupScreen": {
     "title": "Hronaut could not start",

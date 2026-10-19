@@ -5,6 +5,7 @@ import {
   encryptWalletDataKey,
   generateWalletPassphraseSalt
 } from './crypto.js'
+import { LocalizedError } from '../localized-error.js'
 
 export type WalletSafeStorageBackend =
   | 'basic_text'
@@ -90,7 +91,7 @@ export class SafeStorageWalletKeyWrapper implements WalletKeyWrapper {
         replacement: decrypted.shouldReEncrypt ? await this.wrap(key) : undefined
       }
     } catch {
-      throw new Error('Wallet vault unlock failed')
+      throw new LocalizedError('appErrors.wallet.unlockFailed')
     } finally {
       wrapped?.fill(0)
     }
@@ -103,7 +104,7 @@ export class PassphraseWalletKeyWrapper implements WalletKeyWrapper {
   constructor(private readonly parameters: WalletArgon2Parameters) {}
 
   async wrap(dataEncryptionKey: Uint8Array, passphrase?: Uint8Array): Promise<PersistedWalletKeyProtection> {
-    if (!passphrase?.length) throw new Error('Wallet vault passphrase is required')
+    if (!passphrase?.length) throw new LocalizedError('appErrors.wallet.passphraseRequired')
     const salt = generateWalletPassphraseSalt()
     const wrappingKey = await deriveWalletPassphraseKey(passphrase, salt, this.parameters)
     try {
@@ -121,7 +122,7 @@ export class PassphraseWalletKeyWrapper implements WalletKeyWrapper {
 
   async unwrap(protection: PersistedWalletKeyProtection, passphrase?: Uint8Array): Promise<UnwrappedWalletDataKey> {
     if (protection.mode !== this.mode) throw new Error('Wallet vault protection mode mismatch')
-    if (!passphrase?.length) throw new Error('Wallet vault passphrase is required')
+    if (!passphrase?.length) throw new LocalizedError('appErrors.wallet.passphraseRequired')
     let salt: Buffer | undefined
     let wrappingKey: Buffer | undefined
     try {
@@ -129,7 +130,7 @@ export class PassphraseWalletKeyWrapper implements WalletKeyWrapper {
       wrappingKey = await deriveWalletPassphraseKey(passphrase, salt, protection.parameters)
       return { key: decryptWalletDataKey(wrappingKey, protection.wrappedKey) }
     } catch {
-      throw new Error('Wallet vault unlock failed')
+      throw new LocalizedError('appErrors.wallet.unlockFailed')
     } finally {
       salt?.fill(0)
       wrappingKey?.fill(0)
