@@ -3538,6 +3538,7 @@ export const ruRU = {
     },
     "pageProblem": {
       "loadTitle": "Не удалось открыть сайт",
+      "loadTabTitle": "Сайт недоступен",
       "loadDefault": "Hronaut не удалось загрузить этот адрес.",
       "rendererTitle": "Страница перестала работать",
       "rendererDefault": "Процесс страницы неожиданно завершился.",

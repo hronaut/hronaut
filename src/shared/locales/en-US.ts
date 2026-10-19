@@ -734,7 +734,7 @@ export const enUS = {
       back: 'Back', forward: 'Forward', reload: 'Reload', reloadWithoutCache: 'Reload Without Cache', copyPageAddress: 'Copy Page Address', inspect: 'Inspect'
     },
     pageProblem: {
-      loadTitle: 'This site could not be reached', loadDefault: 'Hronaut could not load this address.', rendererTitle: 'This page stopped working', rendererDefault: 'The page process unexpectedly disappeared.',
+      loadTitle: 'This site could not be reached', loadTabTitle: 'Site unavailable', loadDefault: 'Hronaut could not load this address.', rendererTitle: 'This page stopped working', rendererDefault: 'The page process unexpectedly disappeared.',
       addressUnreachable: 'The address could not be reached.', connectionClosed: 'The connection closed before the page was received.', connectionRefused: 'The website refused the connection.', connectionReset: 'The connection was reset while loading the page.', offline: 'The device appears to be offline.', nameNotResolved: 'The website address could not be found.', networkChanged: 'The network changed while the page was loading.', timedOut: 'The website took too long to respond.',
       abnormalExit: 'The page process exited unexpectedly.', crashed: 'The page process crashed.', integrityFailure: 'The page process failed an integrity check.', killed: 'The page process was terminated.', launchFailed: 'A new page process could not be started.', outOfMemory: 'The page ran out of memory.'
     },
