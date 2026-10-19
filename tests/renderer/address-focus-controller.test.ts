@@ -57,6 +57,8 @@ function createController() {
   const updateNoticeOpen = ref(true)
   const zoomOpen = ref(true)
   const tabSearchOpen = ref(true)
+  const findOpen = ref(false)
+  const downloadsOpen = ref(false)
   const selectBrowserTab = vi.fn(async (tabId: string) => {
     state.value = { ...state.value, activeTabId: tabId }
     return true
@@ -74,6 +76,7 @@ function createController() {
     updateNoticeOpen,
     zoomOpen,
     tabSearchOpen,
+    otherSurfacesOpen: [findOpen, downloadsOpen],
     runFindTransition,
     focusInput
   })
@@ -87,6 +90,8 @@ function createController() {
     updateNoticeOpen,
     zoomOpen,
     tabSearchOpen,
+    findOpen,
+    downloadsOpen,
     selectBrowserTab,
     runFindTransition,
     focusInput,
@@ -165,5 +170,93 @@ describe('useAddressFocusController', () => {
     await expect(focusing).resolves.toBe(false)
     expect(harness.browser.newTab).not.toHaveBeenCalled()
     expect(harness.focusInput).not.toHaveBeenCalled()
+  })
+
+  it('leaves Search tabs, opened while Home returns to the website, open and focused', async () => {
+    const harness = createController()
+    const pending = deferred<boolean>()
+    harness.home.value = true
+    harness.preferred.value = tab('preferred')
+    harness.tabSearchOpen.value = false
+    harness.selectBrowserTab.mockImplementationOnce(async (tabId) => {
+      const selected = await pending.promise
+      harness.state.value = { ...harness.state.value, activeTabId: tabId }
+      return selected
+    })
+
+    // Ctrl+L on Home, then Search tabs before the website is selected.
+    const focusing = harness.controller.focus()
+    harness.tabSearchOpen.value = true
+    pending.resolve(true)
+
+    await expect(focusing).resolves.toBe(false)
+    expect(harness.tabSearchOpen.value).toBe(true)
+    expect(harness.settingsOpen.value).toBe(true)
+    expect(harness.focusInput).not.toHaveBeenCalled()
+  })
+
+  it('gives way to an overlay the person opens after a request began', async () => {
+    const harness = createController()
+    harness.settingsOpen.value = false
+    harness.tabSearchOpen.value = false
+
+    const focusAfterwards = harness.controller.begin()
+    harness.settingsOpen.value = true
+
+    await expect(focusAfterwards()).resolves.toBe(false)
+    expect(harness.settingsOpen.value).toBe(true)
+    expect(harness.zoomOpen.value).toBe(true)
+    expect(harness.focusInput).not.toHaveBeenCalled()
+  })
+
+  it('gives way to Find or a panel the person opens while Home returns to the website', async () => {
+    for (const opened of ['findOpen', 'downloadsOpen'] as const) {
+      const harness = createController()
+      const pending = deferred<boolean>()
+      harness.home.value = true
+      harness.preferred.value = tab('preferred')
+      harness.selectBrowserTab.mockImplementationOnce(async (tabId) => {
+        const selected = await pending.promise
+        harness.state.value = { ...harness.state.value, activeTabId: tabId }
+        return selected
+      })
+
+      const focusing = harness.controller.focus()
+      harness[opened].value = true
+      pending.resolve(true)
+
+      await expect(focusing, opened).resolves.toBe(false)
+      expect(harness[opened].value, opened).toBe(true)
+      expect(harness.settingsOpen.value, opened).toBe(true)
+      expect(harness.runFindTransition, opened).not.toHaveBeenCalled()
+      expect(harness.focusInput, opened).not.toHaveBeenCalled()
+    }
+  })
+
+  it('takes the focus beside a panel that was already open when the request began', async () => {
+    const harness = createController()
+    harness.downloadsOpen.value = true
+
+    await expect(harness.controller.focus()).resolves.toBe(true)
+
+    expect(harness.downloadsOpen.value).toBe(true)
+    expect(harness.settingsOpen.value).toBe(false)
+    expect(harness.focusInput).toHaveBeenCalledOnce()
+  })
+
+  it('closes the overlays open when a request began and the update status that showed itself since', async () => {
+    const harness = createController()
+    harness.settingsOpen.value = false
+    harness.zoomOpen.value = false
+    harness.updateNoticeOpen.value = false
+
+    const focusAfterwards = harness.controller.begin()
+    harness.updateNoticeOpen.value = true
+
+    await expect(focusAfterwards()).resolves.toBe(true)
+    expect(harness.tabSearchOpen.value).toBe(false)
+    expect(harness.updateNoticeOpen.value).toBe(false)
+    expect(harness.settingsOpen.value).toBe(false)
+    expect(harness.focusInput).toHaveBeenCalledOnce()
   })
 })
