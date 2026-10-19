@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { beginSurfaceLeave, overlayTransitionHooks } from '../composables/overlay-motion.js'
+import { isImeCompositionEvent } from '../keyboard-composition.js'
 import UiButton from './UiButton.vue'
 import { vTooltip } from './tooltip.js'
 
@@ -40,10 +41,12 @@ function onDocumentPointerDown(event: PointerEvent): void {
 }
 
 function onDocumentKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape' && open.value) {
-    event.preventDefault()
-    close({ restoreFocus: true })
-  }
+  // An Escape that ends text composition, or one a control already used, is not for the popover.
+  if (event.key !== 'Escape' || !open.value || isImeCompositionEvent(event) || event.defaultPrevented) return
+  event.preventDefault()
+  // Focus goes back to the trigger only from the popover itself; a field the person is typing in elsewhere keeps it.
+  const focused = document.activeElement
+  close({ restoreFocus: !focused || focused === document.body || !!root.value?.contains(focused) })
 }
 
 onMounted(() => {

@@ -537,6 +537,23 @@ describe('useUndoToasts', () => {
     undo.dispose()
   })
 
+  it('keeps a newer offer\'s toast instead of saying an older Undo failed', async () => {
+    const undo = setupUndo()
+    let fail!: (error: Error) => void
+    undo.browser.undo.mockImplementationOnce(() => new Promise<boolean>((_resolve, reject) => { fail = reject }))
+    undo.offer(offer())
+    undo.toasts.act(undo.toasts.toasts.value[0].id)
+    undo.offer(offer({ token: TOKEN_B, kind: 'bookmark-removed', name: 'Docs' }))
+
+    fail(new Error('The workspace is busy'))
+    await flushTasks()
+
+    expect(undo.toasts.toasts.value).toEqual([expect.objectContaining({ title: 'Bookmark removed', message: 'Docs' })])
+    pressZ()
+    await vi.waitFor(() => expect(undo.browser.undo).toHaveBeenLastCalledWith(TOKEN_B))
+    undo.dispose()
+  })
+
   it('shows why Undo failed, without the IPC wrapper', async () => {
     const undo = setupUndo()
     undo.browser.undo.mockRejectedValueOnce(new Error("Error invoking remote method 'undo:run': Error: The workspace is busy"))

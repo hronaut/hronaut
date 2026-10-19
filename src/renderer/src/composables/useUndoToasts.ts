@@ -56,10 +56,10 @@ export function useUndoToasts(options: UndoToastsOptions) {
     if (live?.token === offer.token) live = undefined
     try {
       const undone = await options.browser.undo(offer.token)
-      // A newer offer keeps its toast: "Nothing to undo" about an older one would replace it.
+      // A newer offer keeps its toast: "Nothing to undo" or "Could not undo" about an older one would replace it.
       if (!disposed && !undone && !live) options.toasts.show('info', t('undo.expiredTitle'), t('undo.expired'))
     } catch (error) {
-      if (!disposed) options.toasts.show('error', t('undo.failed'), friendlyUiError(error, t('undo.failedDescription')))
+      if (!disposed && !live) options.toasts.show('error', t('undo.failed'), friendlyUiError(error, t('undo.failedDescription')))
     }
   }
 

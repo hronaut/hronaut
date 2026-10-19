@@ -7,6 +7,10 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - A website's own full screen, such as a video player's, now fills the whole window. Once you allowed **Fullscreen** for the site, the window went into full screen, but the page stayed in its card beside the tabs and under the toolbar. Showing another tab, or a browser shortcut such as **Ctrl/Cmd+L** that opens one of Hronaut's controls, now takes the page out of full screen, and closing a page in full screen takes the window out of it; the window used to stay in full screen showing Home or the other tab, and the next start opened it in full screen.
+- **Settings**, **Search tabs** or another panel you open right after pressing **Ctrl/Cmd+T**, or right after **Ctrl/Cmd+L** on Home, now stays open with the keyboard focus. It used to close by itself a moment later, once the new tab or the website was ready, and the address field took the focus.
+- Pressing Escape in the address field or another field while the agent status popover is open no longer moves the keyboard focus to the agent status button: the popover closes and the focus stays in the field. An Escape that ends typing with an input method, or that the field already used, such as to close the address suggestions, now leaves the popover open. Before, every Escape closed it and pulled the focus away.
+- When stopping the worker observation on one tab fails, the reason now shows only on that tab's **Stop observing workers** button, until a later stop works or the observation ends. It used to show on the button of every tab observing workers, and stayed until the next stop on any tab.
+- A late **Could not undo** about an earlier Undo no longer replaces the toast offering **Undo** for something you did since. That toast now stays, as it already did when the earlier Undo had nothing left to bring back.
 
 ## [3.3.1] - 2026-10-19
 

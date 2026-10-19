@@ -1,12 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import { describe, expect, it } from 'vitest'
-import { h } from 'vue'
+import { h, nextTick, ref } from 'vue'
 import UiButton from '../../src/renderer/src/ui/UiButton.vue'
 import UiDialog from '../../src/renderer/src/ui/UiDialog.vue'
 import UiField from '../../src/renderer/src/ui/UiField.vue'
 import UiInput from '../../src/renderer/src/ui/UiInput.vue'
 import UiMenu from '../../src/renderer/src/ui/UiMenu.vue'
 import UiNotice from '../../src/renderer/src/ui/UiNotice.vue'
+import UiPopover from '../../src/renderer/src/ui/UiPopover.vue'
 import UiSegmentedControl from '../../src/renderer/src/ui/UiSegmentedControl.vue'
 import UiSwitch from '../../src/renderer/src/ui/UiSwitch.vue'
 import UiTabs from '../../src/renderer/src/ui/UiTabs.vue'
@@ -156,5 +157,67 @@ describe('UI primitives', () => {
     await dialog.rerender({ open: false, title: 'Create workspace' })
     expect(trigger).toHaveFocus()
     trigger.remove()
+  })
+})
+
+describe('UiPopover', () => {
+  function renderOpenPopover(onAddressKeydown?: (event: KeyboardEvent) => void) {
+    const open = ref(true)
+    render({
+      setup: () => () => [
+        h(UiPopover, {
+          label: 'Agent status',
+          modelValue: open.value,
+          'onUpdate:modelValue': (value: boolean) => { open.value = value }
+        }, { default: () => h('button', 'Copy URL'), trigger: () => 'Ready' }),
+        h('input', { 'aria-label': 'Address', onKeydown: onAddressKeydown })
+      ]
+    })
+    return { open, address: screen.getByRole('textbox', { name: 'Address' }) }
+  }
+
+  async function escape(target: HTMLElement, init: KeyboardEventInit = {}): Promise<KeyboardEvent> {
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true, ...init })
+    target.dispatchEvent(event)
+    await nextTick()
+    await nextTick()
+    return event
+  }
+
+  it('closes on Escape from inside and returns focus to its trigger', async () => {
+    const { open } = renderOpenPopover()
+    const copy = screen.getByRole('button', { name: 'Copy URL' })
+    copy.focus()
+
+    expect((await escape(copy)).defaultPrevented).toBe(true)
+    expect(open.value).toBe(false)
+    expect(screen.getByRole('button', { name: 'Agent status' })).toHaveFocus()
+  })
+
+  it('stays open for an Escape that ends text composition in a field outside it', async () => {
+    const { open, address } = renderOpenPopover()
+    address.focus()
+
+    expect((await escape(address, { isComposing: true })).defaultPrevented).toBe(false)
+    expect(open.value).toBe(true)
+    expect(address).toHaveFocus()
+  })
+
+  it('leaves an Escape another control already handled to that control', async () => {
+    const { open, address } = renderOpenPopover((event) => { if (event.key === 'Escape') event.preventDefault() })
+    address.focus()
+
+    await escape(address)
+    expect(open.value).toBe(true)
+    expect(address).toHaveFocus()
+  })
+
+  it('closes on Escape from a field outside it without taking that field\'s focus', async () => {
+    const { open, address } = renderOpenPopover()
+    address.focus()
+
+    await escape(address)
+    expect(open.value).toBe(false)
+    expect(address).toHaveFocus()
   })
 })

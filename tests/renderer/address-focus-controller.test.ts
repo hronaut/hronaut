@@ -166,4 +166,57 @@ describe('useAddressFocusController', () => {
     expect(harness.browser.newTab).not.toHaveBeenCalled()
     expect(harness.focusInput).not.toHaveBeenCalled()
   })
+
+  it('leaves Search tabs, opened while Home returns to the website, open and focused', async () => {
+    const harness = createController()
+    const pending = deferred<boolean>()
+    harness.home.value = true
+    harness.preferred.value = tab('preferred')
+    harness.tabSearchOpen.value = false
+    harness.selectBrowserTab.mockImplementationOnce(async (tabId) => {
+      const selected = await pending.promise
+      harness.state.value = { ...harness.state.value, activeTabId: tabId }
+      return selected
+    })
+
+    // Ctrl+L on Home, then Search tabs before the website is selected.
+    const focusing = harness.controller.focus()
+    harness.tabSearchOpen.value = true
+    pending.resolve(true)
+
+    await expect(focusing).resolves.toBe(false)
+    expect(harness.tabSearchOpen.value).toBe(true)
+    expect(harness.settingsOpen.value).toBe(true)
+    expect(harness.focusInput).not.toHaveBeenCalled()
+  })
+
+  it('gives way to an overlay the person opens after a request began', async () => {
+    const harness = createController()
+    harness.settingsOpen.value = false
+    harness.tabSearchOpen.value = false
+
+    const focusAfterwards = harness.controller.begin()
+    harness.settingsOpen.value = true
+
+    await expect(focusAfterwards()).resolves.toBe(false)
+    expect(harness.settingsOpen.value).toBe(true)
+    expect(harness.zoomOpen.value).toBe(true)
+    expect(harness.focusInput).not.toHaveBeenCalled()
+  })
+
+  it('closes the overlays open when a request began and the update status that showed itself since', async () => {
+    const harness = createController()
+    harness.settingsOpen.value = false
+    harness.zoomOpen.value = false
+    harness.updateNoticeOpen.value = false
+
+    const focusAfterwards = harness.controller.begin()
+    harness.updateNoticeOpen.value = true
+
+    await expect(focusAfterwards()).resolves.toBe(true)
+    expect(harness.tabSearchOpen.value).toBe(false)
+    expect(harness.updateNoticeOpen.value).toBe(false)
+    expect(harness.settingsOpen.value).toBe(false)
+    expect(harness.focusInput).toHaveBeenCalledOnce()
+  })
 })
