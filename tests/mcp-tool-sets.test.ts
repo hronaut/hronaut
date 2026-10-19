@@ -64,6 +64,17 @@ describe('MCP tool sets', () => {
     expect(mcpCapabilityProfileInputFromPreset({ name: 'Names only', preset: 'complete', argumentConstraints: { 'browser_download_copy.filename': ['copy.txt'] } }).allowedTools).not.toContain('browser_download_copy')
   })
 
+  it('reaches virtual passkeys only through a profile that names the localhost origins', () => {
+    for (const preset of ['complete', 'qa', 'essentials', 'read-only'] as const) {
+      expect(mcpCapabilityProfileInputFromPreset({ name: 'Ordinary', preset }).allowedTools).not.toContain('browser_virtual_passkey')
+    }
+    const origins = { 'browser_virtual_passkey.origin': ['http://localhost:3000'] }
+    for (const preset of ['complete', 'qa'] as const) {
+      expect(mcpCapabilityProfileInputFromPreset({ name: 'Passkey QA', preset, argumentConstraints: origins }).allowedTools).toContain('browser_virtual_passkey')
+    }
+    expect(mcpCapabilityProfileInputFromPreset({ name: 'Read only', preset: 'read-only', argumentConstraints: origins }).allowedTools).not.toContain('browser_virtual_passkey')
+  })
+
   let server: McpHttpServer | undefined
   const clients: Client[] = []
 
@@ -134,6 +145,8 @@ describe('MCP tool sets', () => {
     expect(browse).not.toContain('browser_fixed_date')
     expect(qa).toContain('browser_download_copy')
     expect(browse).not.toContain('browser_download_copy')
+    expect(qa).toContain('browser_virtual_passkey')
+    expect(browse).not.toContain('browser_virtual_passkey')
     expect(browse).not.toContain('browser_hold_key')
     expect(browse).not.toContain('browser_touch')
     expect(browse).not.toContain('browser_wheel')
@@ -152,7 +165,7 @@ describe('MCP tool sets', () => {
   })
 
   it('publishes complete, conservative display and safety metadata for every tool', () => {
-    expect(BROWSER_TOOL_CATALOG).toHaveLength(100)
+    expect(BROWSER_TOOL_CATALOG).toHaveLength(101)
     for (const tool of BROWSER_TOOL_CATALOG) {
       expect(tool.title, tool.name).toMatch(/\S/)
       expect(tool.annotations, tool.name).toEqual({
@@ -237,6 +250,9 @@ describe('MCP tool sets', () => {
     expect(mcpCapabilityOperationClass('browser_fill_from_file', { selector: '#notes', path: '/tmp/notes.txt', expectedOrigin: 'https://app.example' })).toBe('external-request')
     // Listing downloads is a read; writing a copy of one to disk is not.
     expect(mcpCapabilityOperationClass('browser_download_copy', { downloadId: 'download', directory: '/tmp', filename: 'copy.txt' })).toBe('external-request')
+    // Reading a virtual passkey's status is a read; attaching, configuring or stopping one changes the tab.
+    expect(mcpCapabilityOperationClass('browser_virtual_passkey', { action: 'status', origin: 'http://localhost:3000' })).toBe('read')
+    expect(mcpCapabilityOperationClass('browser_virtual_passkey', { action: 'start', origin: 'http://localhost:3000' })).toBe('browser-state')
     expect(mcpCapabilityOperationClass('browser_network_routes', { action: 'set-enabled', routeId: 'retained', enabled: false })).toBe('network')
     expect(mcpCapabilityArgumentValueDigest(true)).not.toBe(mcpCapabilityArgumentValueDigest(false))
     expect(mcpCapabilityOperationClass('browser_console', {})).toBe('read')

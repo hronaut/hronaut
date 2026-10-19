@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import IconAdsClick from '~icons/material-symbols/ads-click-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconKeyboardArrowRight from '~icons/material-symbols/keyboard-arrow-right-rounded'
+import IconPasskey from '~icons/material-symbols/passkey-rounded'
 import IconRoute from '~icons/material-symbols/route-rounded'
 import IconSpeed from '~icons/material-symbols/speed-rounded'
 import IconTune from '~icons/material-symbols/tune-rounded'
@@ -28,6 +29,7 @@ export interface BrowserAddressBarActions {
   toggleSiteControls: () => unknown
   resetActiveTabEmulation: () => unknown
   clearActiveCssStatePreview: () => unknown
+  stopActiveVirtualPasskey: () => unknown
   openRequestConditions: () => unknown
   setSitePermission: (entry: SitePermissionEntry, decision: SitePermissionDecision) => boolean | Promise<boolean>
   resetSitePermission: (entry: SitePermissionEntry) => boolean | Promise<boolean>
@@ -90,6 +92,12 @@ const cssStatePreview = computed(() => {
     action: t(preview.resetUncertain ? 'runtime.cssStatePreview.retry' : 'runtime.cssStatePreview.reset', { states, selector: preview.selector }),
     uncertain: preview.resetUncertain === true
   }
+})
+
+// An agent's software passkey signs in to the page for it, so the address bar shows it while its tab is shown and the person can stop it.
+const virtualPasskey = computed(() => {
+  const passkey = props.activeTab?.virtualPasskey
+  return passkey ? { action: t('runtime.virtualPasskey.stop', { origin: passkey.origin }) } : undefined
 })
 
 function run(action: () => unknown): void {
@@ -184,6 +192,19 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
     >
       <IconAdsClick aria-hidden="true" />
       <span>{{ cssStatePreview.label }}</span>
+      <IconClose aria-hidden="true" />
+    </UiButton>
+    <UiButton appearance="application"
+      v-if="virtualPasskey"
+      class="emulation-pill"
+      data-testid="virtual-passkey-pill"
+      type="button"
+      v-tooltip="virtualPasskey.action"
+      :aria-label="virtualPasskey.action"
+      @click="run(actions.stopActiveVirtualPasskey)"
+    >
+      <IconPasskey aria-hidden="true" />
+      <span>{{ t('runtime.virtualPasskey.label') }}</span>
       <IconClose aria-hidden="true" />
     </UiButton>
     <UiButton appearance="application"

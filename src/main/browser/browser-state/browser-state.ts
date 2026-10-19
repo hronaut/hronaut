@@ -75,6 +75,7 @@ function toState<Tab extends BrowserStateTab>(access: BrowserStateAccess<Tab>, t
     } : {}),
     pwaLifecycleActive: access.pwaLifecycleRecorder().active(tab.id),
     ...(access.cssStatePreview().summary(tab) ? { cssStatePreview: access.cssStatePreview().summary(tab) } : {}),
+    ...(access.virtualPasskeys().summary(tab) ? { virtualPasskey: access.virtualPasskeys().summary(tab) } : {}),
     ...(tab.domChangesRecording?.observationGeneration === tab.observationGeneration ? {
       domChangesRecording: {
         active: tab.domChangesRecording.active,

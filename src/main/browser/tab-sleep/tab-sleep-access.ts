@@ -58,7 +58,7 @@ export interface TabSleepOptions {
  * What putting a tab to sleep and waking it needs from the tab manager, which
  * keeps the tabs, the active tab, the split view, its options, DevTools
  * opening, native selection sessions, agent input, video recording, CSS state
- * previews, DOM mutation source captures, MCP activity, downloads, render
+ * previews, DOM mutation source captures, virtual passkeys, MCP activity, downloads, render
  * queues, navigation history, tab overview previews, the debugger queue,
  * workspaces, selection and state publication private. The active tab stays a manager field because
  * selection and layout read and write it too; it is read again at every use.
@@ -96,6 +96,8 @@ export interface TabSleepAccess<Tab extends TabSleepTab> {
   cssStatePreview(): { active(tab: Tab): boolean }
   /** The armed DOM mutation source captures. */
   domMutationSource(): { active(tab: Tab): boolean }
+  /** The active virtual passkeys, whose credentials sleeping would lose. */
+  virtualPasskeys(): { active(tab: Tab): boolean }
   /** The MCP commands running on each tab, by tab id. */
   mcpActivitiesByTab(): ReadonlyMap<string, ReadonlySet<string>>
   /** The downloads. */

@@ -193,6 +193,7 @@ export function sleepBlockReason<Tab extends TabSleepTab>(access: TabSleepAccess
   if (liveRegionRecordingKeepsTabAwake(tab)) return 'A tab recording a live region stays active.'
   if (access.cssStatePreview().active(tab)) return 'A tab previewing a forced CSS state stays active.'
   if (access.domMutationSource().active(tab)) return 'A tab capturing a DOM mutation source stays active.'
+  if (access.virtualPasskeys().active(tab)) return 'A tab with a virtual passkey stays active.'
   if (tab.codeCoverage?.recording) return 'A tab recording code coverage stays active.'
   if (tab.cpuProfile?.recording) return 'A tab recording a JavaScript CPU profile stays active.'
   if (tab.memoryAllocation?.recording) return 'A tab recording memory allocations stays active.'

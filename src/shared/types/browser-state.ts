@@ -3,6 +3,7 @@ import type { BrowserTabGroupColor } from '../tab-groups.js'
 import type { BrowserJavaScriptDialog, BrowserPageProblem } from './page-problems.js'
 import type { BrowserEmulationState, BrowserUnconfirmedEmulation } from './emulation.js'
 import type { BrowserCssStatePreviewSummary } from './element-inspection.js'
+import type { BrowserVirtualPasskeySummary } from '../virtual-passkey.js'
 import type { BrowserCodeCoverageMode } from './profiling.js'
 import type { BrowserNetworkConditionState } from './console-network.js'
 
@@ -58,6 +59,8 @@ export interface BrowserTabState {
   }
   pwaLifecycleActive?: boolean
   cssStatePreview?: BrowserCssStatePreviewSummary & { resetUncertain?: boolean }
+  /** An agent's virtual passkey, shown in the trusted address bar with a stop control. */
+  virtualPasskey?: BrowserVirtualPasskeySummary
   domChangesRecording?: {
     active: boolean
     changeCount: number

@@ -20,7 +20,7 @@ function fixture() {
   const tabs = new Map([[tab.id, tab]])
   const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
     tabs, allAgentsPaused: false, agentPauseOverridesAllowed: true, globallyResumedAgentTabIds: new Set<string>(),
-    liveRegionRecorder: { release: vi.fn() }, cssStatePreview: { clear: vi.fn(async () => undefined) },
+    liveRegionRecorder: { release: vi.fn() }, cssStatePreview: { clear: vi.fn(async () => undefined) }, virtualPasskeys: { stop: vi.fn() },
     changed: vi.fn(), getTab: () => tab, getState: () => ({ tabs: [] })
   }) as BrowserTabsManager
   return { manager, tab }
@@ -31,6 +31,8 @@ it('marks a take over and hands the tab back with a note of what the person did'
   manager.setTabAgentPaused(tab.id, true, { takeOver: true })
   expect(manager.isTabTakenOver(tab.id)).toBe(true)
   expect(tab.takeOver?.at).toBe(1_000_000)
+  // Pausing the tab ends a virtual passkey the agent started in it.
+  expect((manager as unknown as { virtualPasskeys: { stop: ReturnType<typeof vi.fn> } }).virtualPasskeys.stop).toHaveBeenCalledWith(tab, 'authority-changed')
   // A second take over keeps the first mark, so the note covers the whole time.
   vi.setSystemTime(1_005_000)
   manager.setTabAgentPaused(tab.id, true, { takeOver: true })

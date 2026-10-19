@@ -14,14 +14,15 @@ export const MCP_CAPABILITY_OPERATION_CLASSES = [
 export type McpCapabilityOperationClass = typeof MCP_CAPABILITY_OPERATION_CLASSES[number]
 
 /**
- * Tools that reach local files the person named, so only a capability profile listing the exact allowed values of
- * one argument may call them: no full-access credential, preset or profile without that constraint does. `message`
- * explains a refused profile. Saved profiles that fail this check are dropped when they load, so add only tools no
- * released profile could already allow, or migrate saved profiles first.
+ * Tools that reach local files or sign-in credentials for places the person named, so only a capability profile
+ * listing the exact allowed values of one argument may call them: no full-access credential, preset or profile
+ * without that constraint does. `message` explains a refused profile. Saved profiles that fail this check are
+ * dropped when they load, so add only tools no released profile could already allow, or migrate saved profiles first.
  */
 export const MCP_REQUIRED_ARGUMENT_CONSTRAINTS: Readonly<Record<string, { path: string; message: string }>> = {
   browser_evaluate_file: { path: 'browser_evaluate_file.source', message: 'File evaluation requires an exact source tuple constraint' },
-  browser_download_copy: { path: 'browser_download_copy.directory', message: 'Copying downloads requires exact destination folder constraints' }
+  browser_download_copy: { path: 'browser_download_copy.directory', message: 'Copying downloads requires exact destination folder constraints' },
+  browser_virtual_passkey: { path: 'browser_virtual_passkey.origin', message: 'Virtual passkeys require exact localhost origin constraints' }
 }
 
 export interface McpCapabilityProfileInput {

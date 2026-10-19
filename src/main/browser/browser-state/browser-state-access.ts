@@ -13,6 +13,7 @@ import type {
   BrowserTabGroupState,
   BrowserUnconfirmedEmulation
 } from '../../../shared/types.js'
+import type { BrowserVirtualPasskeySummary } from '../../../shared/virtual-passkey.js'
 import type { BrowserVideoState } from '../../../shared/video.js'
 
 /**
@@ -114,6 +115,8 @@ export interface BrowserStateAccess<Tab extends BrowserStateTab> {
   pwaLifecycleRecorder(): { active(tabId: string): boolean }
   /** The CSS state preview, for the tab's preview summary. */
   cssStatePreview(): { summary(tab: Tab): (BrowserCssStatePreviewSummary & { resetUncertain?: boolean }) | undefined }
+  /** The virtual passkeys, for the tab's active passkey summary. */
+  virtualPasskeys(): { summary(tab: Tab): BrowserVirtualPasskeySummary | undefined }
   /** The open workspaces by id, for the tab's workspace name. */
   mcpTabGroups(): ReadonlyMap<string, { name: string }>
 }

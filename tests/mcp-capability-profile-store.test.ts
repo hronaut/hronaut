@@ -545,4 +545,22 @@ describe('MCP capability profile store', () => {
     }
   })
 
+  it('attaches virtual passkeys only for the exact localhost origins a profile lists', async () => {
+    const value = await store()
+    const input: McpCapabilityProfileInput = { name: 'Passkey QA', allowedTools: ['browser_virtual_passkey'], operationClasses: ['browser-state'] }
+    await expect(value.create(input)).rejects.toThrow(/exact localhost origin/)
+    const created = await value.create({ ...input, argumentValueDigests: { 'browser_virtual_passkey.origin': [mcpCapabilityArgumentValueDigest('http://localhost:3000')] } })
+    const grant = value.authenticate(created.credential)!
+    const request: McpCapabilityRequest = {
+      toolName: 'browser_virtual_passkey', operationClass: 'browser-state', workspaceId,
+      arguments: { tabId: 'tab', action: 'start', origin: 'http://localhost:3000' }
+    }
+    expect(() => value.authorize(grant, request)).not.toThrow()
+    for (const origin of ['http://localhost:3001', 'https://localhost:3000', 'http://app.localhost:3000', 'http://localhost:3000/']) {
+      expect(() => value.authorize(grant, { ...request, arguments: { ...request.arguments, origin } }), origin).toThrow(McpCapabilityAuthorizationError)
+    }
+    // Every action names the origin, so a status or stop for another origin is refused too.
+    expect(() => value.authorize(grant, { ...request, arguments: { tabId: 'tab', action: 'stop' } })).toThrow(McpCapabilityAuthorizationError)
+  })
+
 })

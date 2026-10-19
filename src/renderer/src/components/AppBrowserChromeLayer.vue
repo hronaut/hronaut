@@ -165,6 +165,10 @@ function clearActiveCssStatePreview(): Promise<void> | undefined {
   const tab = activeTab.value
   return tab?.cssStatePreview ? props.syncState(props.browser.clearCssStatePreview(tab.id)) : undefined
 }
+function stopActiveVirtualPasskey(): Promise<void> | undefined {
+  const tab = activeTab.value
+  return tab?.virtualPasskey ? props.syncState(props.browser.stopVirtualPasskey(tab.id)) : undefined
+}
 const {
   pageToolsPresentationController,
   areaCaptureState,
@@ -470,6 +474,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
             toggleSiteControls,
             resetActiveTabEmulation,
             clearActiveCssStatePreview,
+            stopActiveVirtualPasskey,
             openRequestConditions,
             setSitePermission: setSitePermissionDecision,
             resetSitePermission: removeSitePermission,

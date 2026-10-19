@@ -65,6 +65,8 @@ export interface WorkspaceContinuityAccess<Tab extends WorkspaceContinuityTab> {
   interruptPwaLifecycle(workspaceId: string, reason: string): void
   releaseLiveRegion(tab: Tab): void
   clearCssStatePreview(tab: Tab, reason: 'workspace-control-changed'): Promise<void>
+  /** Ends the tab's virtual passkey, which a workspace control change takes from the agent. */
+  stopVirtualPasskey(tab: Tab, reason: 'authority-changed'): void
   rejectNetworkWait(tabId: string, message: string): void
   advanceDownloadObservationGeneration(workspaceId: string, observationGeneration: number): void
 }

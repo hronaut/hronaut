@@ -1057,6 +1057,10 @@ export const frFR = {
       "uncertain": "Retrait de {states} non confirmé",
       "retry": "Réessayer de retirer {states} de {selector}"
     },
+    "virtualPasskey": {
+      "label": "Clé d’accès virtuelle",
+      "stop": "Arrêter la clé d’accès virtuelle pour {origin}"
+    },
     "suggestion": {
       "bookmark": "Favori",
       "history": "Historique",
