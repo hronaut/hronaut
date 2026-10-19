@@ -933,7 +933,10 @@ export class BrowserTabsManager {
     // DOM.getDocument would unbind a CSS state preview's element.
     conflict: tab => tab.codeCoverage?.recording ? 'Stop code coverage before capturing a DOM mutation source'
       : this.cssStatePreview.active(tab) ? 'Clear the CSS state preview before capturing a DOM mutation source' : undefined,
-    keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean)),
+    // A use that started after a renderer exit, before the capture's removal ran in the new renderer, keeps its domains.
+    keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean))
+      || Boolean(tab.codeCoverage?.recording) || this.cssStatePreview.active(tab),
+    keepDebuggerEnabled: tab => Boolean(tab.codeCoverage?.recording),
     isDevToolsOpening: tab => this.devToolsOpening.has(tab.webContents.id)
   })
   private readonly reproRecorder = new BrowserReproRecorder<BrowserTab>({

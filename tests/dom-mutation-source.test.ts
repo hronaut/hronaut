@@ -15,6 +15,8 @@ function fixture(options: {
   let devToolsOpening = false
   let removed = false
   let crashed = false
+  let keepDom = options.keepDomEnabled ?? false
+  let keepDebugger = false
   // Operations queued behind the debugger queue while it is held, run in order on release.
   let held: Array<() => void> | undefined
   // Like Hronaut's renderer exit guard, commands to an exited renderer fail unsent.
@@ -52,7 +54,8 @@ function fixture(options: {
       ? new Promise((resolve, reject) => { held!.push(() => { operation().then(resolve, reject) }) })
       : operation(),
     conflict,
-    keepDomEnabled: () => options.keepDomEnabled ?? false,
+    keepDomEnabled: () => keepDom,
+    keepDebuggerEnabled: () => keepDebugger,
     isDevToolsOpening: () => devToolsOpening
   })
   const authority = { assertCurrent: vi.fn() }
@@ -70,6 +73,8 @@ function fixture(options: {
     startOpeningDevTools: () => { devToolsOpening = true },
     removeTarget: () => { removed = true },
     setCrashed: (value: boolean) => { crashed = value },
+    /** Code coverage started after a renderer exit and owns the DOM and Debugger domains. */
+    startCoverage: () => { keepDom = true; keepDebugger = true },
     holdQueue: () => { held = [] },
     releaseQueue: () => { const pending = held ?? []; held = undefined; for (const run of pending) run() },
     arm: (kind: 'attribute-modified' | 'subtree-modified' | 'node-removed' = 'attribute-modified', selector = '#save', durationMs?: number) =>
@@ -326,15 +331,22 @@ it('removes the instrumentation only once the page runs in a new renderer, retry
   expect(f.listeners()).toBe(7)
   expect(f.captures.active(f.tab)).toBe(false)
   f.setCrashed(false)
+  // Browser-side events are not the new renderer, which has not reported yet.
+  f.emit('Network.requestWillBeSent', {})
+  await f.settle()
+  expect(f.methods()).toEqual([])
+  expect(f.captures.active(f.tab)).toBe(false)
+  f.holdQueue()
+  f.emit('Debugger.scriptParsed', { scriptId: '40', url: `${ORIGIN}/app.js`, executionContextAuxData: { isDefault: true } })
   // Until the removal ran in the new renderer, the capture still holds the debugger session.
   expect(f.captures.active(f.tab)).toBe(true)
-  f.emit('Debugger.scriptParsed', { scriptId: '40', url: `${ORIGIN}/app.js`, executionContextAuxData: { isDefault: true } })
+  f.releaseQueue()
   await f.settle()
   expect(f.methods()).toEqual(['DOMDebugger.removeDOMBreakpoint', 'Debugger.disable', 'Runtime.setAsyncCallStackDepth', 'DOM.disable'])
   expect(f.listeners()).toBe(0)
   expect(f.captures.active(f.tab)).toBe(false)
 
-  // A ready document, a read or a cancel also run it.
+  // A ready document also runs it.
   const ready = fixture()
   await ready.arm()
   ready.setCrashed(true)
@@ -343,16 +355,54 @@ it('removes the instrumentation only once the page runs in a new renderer, retry
   ready.page.emit('dom-ready')
   await ready.settle()
   expect(ready.listeners()).toBe(0)
+  // So does a read or a cancel, when the new renderer reported while the exit was still being recorded.
   for (const action of ['get', 'cancel'] as const) {
     const read = fixture()
     await read.arm()
     read.setCrashed(true)
     read.page.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
+    read.page.emit('dom-ready')
+    await read.settle()
+    expect(read.listeners()).toBe(7)
     read.setCrashed(false)
     expect(await read.captures.manage(read.tab, action)).toMatchObject({ status: 'invalidated', ended: { reason: 'renderer-gone' } })
     expect(read.listeners()).toBe(0)
     expect(read.methods()).toContain('Debugger.disable')
   }
+})
+
+it('treats a clean renderer exit like a crash: nothing waits on it, and the removal runs in the new renderer', async () => {
+  const f = fixture()
+  await f.arm()
+  f.sendCommand.mockClear()
+  // A clean exit is not reported as a crash, and Electron would hold commands until the next load.
+  f.page.emit('render-process-gone', {}, { reason: 'clean-exit', exitCode: 0 })
+  expect(f.captures.active(f.tab)).toBe(false)
+  expect(await f.captures.manage(f.tab, 'get')).toMatchObject({ status: 'invalidated', ended: { reason: 'renderer-gone' } })
+  expect(await f.captures.manage(f.tab, 'cancel')).toMatchObject({ status: 'invalidated' })
+  await expect(f.arm()).rejects.toThrow('renderer exited')
+  expect(f.methods()).toEqual([])
+  expect(f.listeners()).toBe(7)
+  f.page.emit('dom-ready')
+  await f.settle()
+  expect(f.methods()).toEqual(['DOMDebugger.removeDOMBreakpoint', 'Debugger.disable', 'Runtime.setAsyncCallStackDepth', 'DOM.disable'])
+  expect(f.listeners()).toBe(0)
+})
+
+it('leaves the Debugger and DOM domains to code coverage that started before the removal ran', async () => {
+  const f = fixture()
+  await f.arm()
+  f.sendCommand.mockClear()
+  f.setCrashed(true)
+  f.page.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
+  f.setCrashed(false)
+  f.startCoverage()
+  f.page.emit('dom-ready')
+  await f.settle()
+  expect(f.methods()).not.toContain('Debugger.disable')
+  expect(f.methods()).not.toContain('DOM.disable')
+  expect(f.listeners()).toBe(0)
+  expect(f.captures.active(f.tab)).toBe(false)
 })
 
 it('keeps the listeners for the next renderer when the renderer exits during the removal or while arming', async () => {
@@ -385,9 +435,11 @@ it('keeps the listeners for the next renderer when the renderer exits during the
   expect(g.listeners()).toBe(7)
   expect(g.captures.active(g.tab)).toBe(false)
   g.setCrashed(false)
+  g.page.emit('dom-ready')
   expect(await g.captures.manage(g.tab, 'get')).toMatchObject({ status: 'idle' })
   expect(g.listeners()).toBe(0)
-  expect(g.methods().filter(method => method === 'Debugger.disable')).toHaveLength(2)
+  // Nothing is sent to the exited renderer; the removal runs once in the new one.
+  expect(g.methods().filter(method => method === 'Debugger.disable')).toHaveLength(1)
 })
 
 it('keeps a finished capture under the same workspace control, also after the page moved to another origin', async () => {
