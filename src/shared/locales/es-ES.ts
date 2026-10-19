@@ -1097,7 +1097,12 @@ export const esES = {
       "notifications": "Notificaciones",
       "storage": "Almacenamiento de terceros",
       "relatedStorage": "Almacenamiento de sitios relacionados",
-      "windows": "Gestión de ventanas"
+      "windows": "Gestión de ventanas",
+      "midiControl": "Control de dispositivos MIDI",
+      "persistentStorage": "Almacenamiento persistente",
+      "keyboardLock": "Bloqueo del teclado",
+      "pointerLock": "Bloqueo del puntero",
+      "screenAwake": "Mantener la pantalla encendida"
     },
     "license": {
       "enterKey": "Introduce la clave de licencia comercial de tu recibo de Creem."

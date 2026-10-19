@@ -541,3 +541,48 @@ test('names the requested permission in the prompt the way Settings does, in the
     await closeFixtureServer(server)
   }
 })
+
+test('names the permissions games, music and media pages ask for instead of showing their identifiers', async ({
+  appWindow,
+  electronApp
+}) => {
+  // These requests reach Hronaut's prompt without a name, so it showed "pointerLock" or "screen wake lock".
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.end('<!doctype html><title>Permission names</title><canvas id="target" width="100" height="100"></canvas>')
+  })
+  const origin = `http://127.0.0.1:${await listen(server)}`
+  try {
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(origin)}, active: true })`)
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+      webContents.getAllWebContents().some((contents) => contents.getTitle() === 'Permission names')
+    ))).toBe(true)
+    await electronApp.evaluate(({ dialog }) => {
+      const prompts: string[] = []
+      ;(globalThis as typeof globalThis & { __permissionPrompts?: string[] }).__permissionPrompts = prompts
+      dialog.showMessageBox = async (...args: unknown[]) => {
+        prompts.push(String((args.at(-1) as Electron.MessageBoxOptions).message))
+        return { response: 0, checkboxChecked: false }
+      }
+    })
+    const requests = [
+      ['document.getElementById("target").requestPointerLock()', 'Mouse pointer lock'],
+      ['navigator.keyboard.lock()', 'Keyboard lock'],
+      ['navigator.requestMIDIAccess({ sysex: true })', 'MIDI device control'],
+      ['navigator.storage.persist()', 'Persistent storage'],
+      ['navigator.wakeLock.request("screen")', 'Keep screen on']
+    ] as const
+    for (const [index, [script, name]] of requests.entries()) {
+      await electronApp.evaluate(async ({ webContents }, request) => {
+        const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Permission names')
+        if (!page) throw new Error('Permission fixture web contents was not found')
+        await page.executeJavaScript(`Promise.resolve().then(() => ${request}).catch(() => undefined); true`, true)
+      }, script)
+      await expect.poll(() => electronApp.evaluate((_electron, position) => (
+        globalThis as typeof globalThis & { __permissionPrompts?: string[] }
+      ).__permissionPrompts?.[position], index)).toBe(`${origin} requests “${name}” permission.`)
+    }
+  } finally {
+    await closeFixtureServer(server)
+  }
+})

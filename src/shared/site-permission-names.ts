@@ -9,8 +9,13 @@ const SITE_PERMISSION_NAMES: Readonly<Record<string, MessageKey>> = {
   fullscreen: 'runtime.permissions.fullscreen',
   geolocation: 'runtime.permissions.location',
   'idle-detection': 'runtime.permissions.activity',
+  keyboardLock: 'runtime.permissions.keyboardLock',
   media: 'runtime.permissions.media',
+  midiSysex: 'runtime.permissions.midiControl',
   notifications: 'runtime.permissions.notifications',
+  'persistent-storage': 'runtime.permissions.persistentStorage',
+  pointerLock: 'runtime.permissions.pointerLock',
+  'screen-wake-lock': 'runtime.permissions.screenAwake',
   'storage-access': 'runtime.permissions.storage',
   'top-level-storage-access': 'runtime.permissions.relatedStorage',
   'window-management': 'runtime.permissions.windows'
