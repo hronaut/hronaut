@@ -70,9 +70,11 @@ function fixture(pageOptions: Parameters<typeof page>[0] = {}) {
     isDevToolsOpening: () => devToolsOpening,
     // The real debugger queue can do work of its own after the operation, such as enabling domains it attached for.
     withDebugger: async (_tab, operation) => {
-      const result = await operation()
-      afterOperation?.()
-      return result
+      try {
+        return await operation()
+      } finally {
+        afterOperation?.()
+      }
     },
     changed
   })
@@ -100,20 +102,23 @@ describe('virtual passkey origins', () => {
     }
   })
 
-  it('lets frames stay at the origin, in a blob it created, an inline document or an empty one the origin started, and nothing else', () => {
+  it('lets frames stay at the origin, in a blob it created, an inline document or an empty one no other origin started, and nothing else', () => {
     for (const url of [`${ORIGIN}/next`, `blob:${ORIGIN}/0b5c`, 'about:blank', 'about:blank#top', 'about:srcdoc']) expect(staysInOrigin(url, ORIGIN, ORIGIN), url).toBe(true)
     for (const url of ['http://a.localhost:3000/', 'https://localhost:3000/', 'http://localhost:3001/', 'data:text/html,x', 'about:version', 'javascript:1', 'not a url']) {
       expect(staysInOrigin(url, ORIGIN, ORIGIN), url).toBe(false)
     }
-    // An empty document takes the origin of whoever started it.
+    // An empty document takes the origin of whoever started it. A new frame's first one names no initiator, and one
+    // the browser starts gets an opaque origin; an initiator that can no longer be read counts as another origin.
     expect(staysInOrigin('about:blank', ORIGIN, 'http://ads.localhost:3000')).toBe(false)
-    expect(staysInOrigin('about:blank', ORIGIN, undefined)).toBe(false)
+    expect(staysInOrigin('about:blank', ORIGIN, '')).toBe(false)
+    expect(staysInOrigin('about:blank', ORIGIN, undefined)).toBe(true)
     expect(staysInOrigin('about:srcdoc', ORIGIN, undefined)).toBe(true)
   })
 
   it('counts every frame at another origin as foreign, except opaque ones at an empty, inline or same-origin document', () => {
     const at = (frames: Array<{ origin: string; url: string }>) => foreignFrame({ mainFrame: { framesInSubtree: frames } } as unknown as WebContents, ORIGIN)
-    expect(at([{ origin: ORIGIN, url: `${ORIGIN}/` }, { origin: ORIGIN, url: 'about:blank' }, { origin: 'null', url: 'about:srcdoc' }, { origin: 'null', url: `${ORIGIN}/sandboxed` }])).toBe(false)
+    expect(at([{ origin: ORIGIN, url: `${ORIGIN}/` }, { origin: ORIGIN, url: 'about:blank' }, { origin: 'null', url: 'about:srcdoc' },
+      { origin: 'null', url: `${ORIGIN}/sandboxed` }, { origin: 'null', url: '' }])).toBe(false)
     expect(at([{ origin: ORIGIN, url: `${ORIGIN}/` }, { origin: 'http://ads.localhost:3000', url: 'about:blank' }])).toBe(true)
     expect(at([{ origin: ORIGIN, url: `${ORIGIN}/` }, { origin: 'null', url: 'https://evil.example/' }])).toBe(true)
     const unreadable = { get origin(): string { throw new Error('Render frame was disposed') }, url: '' }
@@ -196,8 +201,14 @@ describe('virtual passkey controller', () => {
     expect((await polled.status()).lastEnded?.reason).toBe('origin-left')
     expect(vi.getTimerCount()).toBe(0)
 
-    // Started by a frame of another origin, or by the browser itself.
-    for (const initiator of [{ origin: 'http://ads.localhost:3000' }, null]) {
+    // A new frame's first empty document names no initiator and keeps the session; one a frame of another origin
+    // started, or whose initiator is gone, ends it.
+    const own = fixture()
+    await own.start()
+    own.navigate('about:blank', false, 'did-start-navigation', null)
+    expect(own.controller.active(own.tab)).toBe(true)
+    const gone = { get origin(): string { throw new Error('Render frame was disposed') } }
+    for (const initiator of [{ origin: 'http://ads.localhost:3000' }, gone]) {
       const blank = fixture()
       await blank.start()
       blank.navigate('about:blank', false, 'did-start-navigation', initiator)
@@ -217,8 +228,11 @@ describe('virtual passkey controller', () => {
     // The earlier session's end is still the one reported.
     expect((await late.status()).lastEnded?.reason).toBe('stopped')
 
-    // A frame of another origin that arrived while the authenticator was being added is caught before the start succeeds.
+    // A frame of another origin that arrived while the authenticator was being added is caught before the start
+    // succeeds, and the authenticator is removed before the debugger queue's own work after the operation.
     const framed = fixture()
+    let sentBeforeQueueWork: string[] = []
+    framed.onAfterOperation(() => { sentBeforeQueueWork = framed.methods() })
     framed.hold('WebAuthn.addVirtualAuthenticator')
     const pending = framed.start()
     await vi.waitFor(() => expect(framed.methods()).toContain('WebAuthn.addVirtualAuthenticator'))
@@ -226,6 +240,7 @@ describe('virtual passkey controller', () => {
     framed.answer('WebAuthn.addVirtualAuthenticator', { authenticatorId: 'auth-1' })
     await expect(pending).rejects.toThrow('frame of another origin')
     expect(framed.methods().slice(-2)).toEqual(['WebAuthn.removeVirtualAuthenticator', 'WebAuthn.disable'])
+    expect(sentBeforeQueueWork.slice(-2)).toEqual(['WebAuthn.removeVirtualAuthenticator', 'WebAuthn.disable'])
     expect(framed.controller.active(framed.tab)).toBe(false)
   })
 

@@ -70,41 +70,53 @@ const AUTHENTICATOR = {
 /**
  * Whether a frame navigating to this URL stays in the origin: a document of
  * the origin itself (a blob URL it created included), an inline document,
- * whose origin is its parent's, or an empty document a frame of the origin
- * started, since an empty document takes the origin of whoever started it.
+ * whose origin is its parent's, or an empty document no frame of another
+ * origin started. An empty document takes the origin of whoever started it:
+ * a frame of the page, the frame that created a new frame (whose first empty
+ * document names no initiator), or, when the browser starts it, a new opaque
+ * origin, which cannot use passkeys. `initiatorOrigin` is undefined when no
+ * frame started the navigation.
  */
 export function staysInOrigin(url: string, origin: string, initiatorOrigin: string | undefined): boolean {
   try {
     const parsed = new URL(url)
-    if (parsed.protocol === 'about:') return parsed.pathname === 'srcdoc' || (parsed.pathname === 'blank' && initiatorOrigin === origin)
+    if (parsed.protocol === 'about:') {
+      return parsed.pathname === 'srcdoc' || (parsed.pathname === 'blank' && (initiatorOrigin === undefined || initiatorOrigin === origin))
+    }
     return parsed.origin === origin
   } catch {
     return false
   }
 }
 
-/** The origin of the frame that started a navigation, when Electron names one that is still there. */
+/**
+ * The origin of the frame that started a navigation as Electron names it:
+ * undefined when no frame started it, and an empty string, which matches no
+ * origin, when the frame can no longer be read.
+ */
 function initiatorOrigin(details: unknown): string | undefined {
   try {
-    const origin = (details as { initiator?: { origin?: unknown } | null } | undefined)?.initiator?.origin
-    return typeof origin === 'string' ? origin : undefined
+    const initiator = (details as { initiator?: { origin?: unknown } | null } | undefined)?.initiator
+    if (initiator === undefined || initiator === null) return undefined
+    return typeof initiator.origin === 'string' ? initiator.origin : ''
   } catch {
-    // A frame that is gone cannot be asked.
-    return undefined
+    return ''
   }
 }
 
 /**
  * Whether any frame of the page, the top-level one included, is at another
  * origin. A frame with an opaque origin, such as a sandboxed frame showing an
- * empty or inline document or a page of the origin, cannot use passkeys and
- * is not counted. A frame that cannot be read counts as foreign.
+ * empty or inline document or a page of the origin, or one that has not
+ * loaded anything yet, cannot use passkeys and is not counted. A frame that
+ * cannot be read counts as foreign.
  */
 export function foreignFrame(contents: WebContents, origin: string): boolean {
   return contents.mainFrame.framesInSubtree.some(frame => {
     try {
       if (frame.origin === origin) return false
       if (frame.origin !== 'null') return true
+      if (frame.url === '') return false
       const parsed = new URL(frame.url)
       return parsed.protocol === 'about:' ? parsed.pathname !== 'blank' && parsed.pathname !== 'srcdoc' : parsed.origin !== origin
     } catch {
@@ -214,9 +226,15 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
         }) as { authenticatorId?: unknown }
         if (typeof added.authenticatorId !== 'string') throw new Error('The browser did not create a virtual authenticator')
         session.authenticatorId = added.authenticatorId
-        assertCurrent()
-        strangers()
-        authority.assertCurrent()
+        try {
+          assertCurrent()
+          strangers()
+          authority.assertCurrent()
+        } catch (error) {
+          // Removed now, not after the debugger queue's own work that follows the operation.
+          if (this.sessions.get(tab) === session) this.end(tab, session, 'stopped', false)
+          throw error
+        }
       })
       // The debugger queue can still have work of its own after the operation, during which the session can end.
       assertCurrent()
@@ -290,11 +308,6 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
 
   /** The periodic check: any frame of another origin ends the session, and so does lost authority. */
   private checkPage(tab: T, session: Session): void {
-    if (this.sessions.get(tab) !== session) {
-      clearTimeout(session.expiry)
-      clearInterval(session.authorityCheck)
-      return
-    }
     if (foreignFrame(session.webContents, session.origin)) this.end(tab, session, 'origin-left')
     else this.checkAuthority(tab, session)
   }

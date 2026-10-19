@@ -36,6 +36,7 @@ const page = (partnerOrigin: string) => `<!doctype html><title>Passkey app</titl
 <button id="sign-in-unknown">Sign in with an unknown passkey</button>
 <button id="register-wrong-rp">Create passkey for another site</button>
 <button id="embed">Embed partner</button>
+<button id="own-frames">Add own frames</button>
 <script>
 const tab = new URLSearchParams(location.search).get('tab') || 'main'
 if (tab !== 'main') document.title = 'Passkey app (' + tab + ')'
@@ -88,6 +89,17 @@ function embed(path) {
   document.body.append(frame)
 }
 document.querySelector('#embed').onclick = () => embed('/partner')
+// Frames of the page's own: an empty one with no address, an explicit empty one, an inline one and a sandboxed page.
+document.querySelector('#own-frames').onclick = () => {
+  const blank = document.createElement('iframe')
+  blank.setAttribute('src', 'about:blank')
+  const inline = document.createElement('iframe')
+  inline.setAttribute('srcdoc', '<p>inline</p>')
+  const sandboxed = document.createElement('iframe')
+  sandboxed.setAttribute('sandbox', '')
+  sandboxed.setAttribute('src', '/sandboxed')
+  document.body.append(document.createElement('iframe'), blank, inline, sandboxed)
+}
 if (new URLSearchParams(location.search).has('partner')) embed('/partner-open')
 </script>`
 
@@ -242,7 +254,7 @@ async function humanClick(electronApp: ElectronApplication, pageUrl: string): Pr
   }, pageUrl)
 }
 
-test('registers and signs in through a localhost app that verifies passkeys on its server, without exposing credential details', async ({ capabilities, appWindow, mcpPort }) => {
+test('registers and signs in through a localhost app that verifies passkeys on its server, without exposing credential details', async ({ capabilities, appWindow, electronApp, mcpPort }) => {
   const { client: owner, tabId, workspace } = capabilities
   const app = await passkeyApp()
   let client: Client | undefined
@@ -266,6 +278,13 @@ test('registers and signs in through a localhost app that verifies passkeys on i
       passkey: { userVerified: true, credentials: 0, registrations: 0, signIns: 0 }
     })
     await expect(appWindow.getByTestId('virtual-passkey-pill')).toHaveAccessibleName(`Stop the virtual passkey for ${app.origin}`)
+    // The page's own empty, inline and sandboxed frames keep it.
+    expect((await agent.call('browser_click', { tabId, selector: '#own-frames' })).isError).not.toBe(true)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, pageUrl) => webContents.getAllWebContents()
+      .find(page => page.getURL() === pageUrl)?.mainFrame.framesInSubtree.length, `${app.origin}/`)).toBe(5)
+    // Let two of Hronaut's periodic frame checks pass.
+    await new Promise(resolve => setTimeout(resolve, 500))
+    expect(await passkey(agent.call, { tabId, action: 'status', origin: app.origin })).toMatchObject({ status: 'active' })
 
     expect(await outcome(app, agent.call, tabId, '#register', 'register')).toMatchObject({ ok: true })
     expect(app.verified.registrations).toBe(1)
