@@ -570,7 +570,7 @@ describe('MCP settings controller', () => {
       harness.controller.dispose()
     })
 
-    it.each(['dismissed', 'replaced', 'disposed'] as const)('ignores a copy that finishes after the credential was %s', async (change) => {
+    it.each(['dismissed', 'replaced', 'disposed'] as const)('does not read as copied when a copy finishes after the credential was %s', async (change) => {
       const harness = createController()
       await showCredential(harness, 'first-credential')
       const copy = deferred<boolean>()
@@ -581,7 +581,8 @@ describe('MCP settings controller', () => {
       if (change === 'dismissed') harness.controller.clearCapabilityCredential()
       else if (change === 'replaced') await showCredential(harness, 'newer-credential')
       else harness.controller.dispose()
-      expect(shouldReportFailure()).toBe(false)
+      // A credential shown only once that never reached the clipboard is still reported until the panel goes away.
+      expect(shouldReportFailure()).toBe(change !== 'disposed')
       copy.resolve(true)
 
       await expect(copying).resolves.toBe(false)

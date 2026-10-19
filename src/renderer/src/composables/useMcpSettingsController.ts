@@ -388,19 +388,24 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     capabilityCredential.value = credential
   }
 
-  /** Copies the credential on screen; it reads as copied only while that same credential is still shown. */
+  /**
+   * Copies the credential on screen; it reads as copied only while that same credential is still shown.
+   * A failed copy is still reported after Dismiss or a newer credential, because the credential is shown
+   * only once and the person has to know it never reached the clipboard.
+   */
   async function copyCapabilityCredential(): Promise<boolean> {
     const credential = capabilityCredential.value
     if (!credential) return false
     resetCredentialCopy()
     const operationGeneration = generation
     const sequence = credentialCopySequence
+    const panelOpen = (): boolean => operationGeneration === generation
     const ownsFeedback = (): boolean => (
-      operationGeneration === generation
+      panelOpen()
       && sequence === credentialCopySequence
       && capabilityCredential.value === credential
     )
-    if (!await options.copyText(credential, ownsFeedback) || !ownsFeedback()) return false
+    if (!await options.copyText(credential, panelOpen) || !ownsFeedback()) return false
     capabilityCopied.value = true
     return true
   }

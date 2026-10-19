@@ -309,6 +309,8 @@ describe('McpSettingsPanel', () => {
 
     expect(copyText).toHaveBeenCalledWith(`hrc1_${'a'.repeat(43)}`, expect.any(Function))
     expect(screen.getByRole('button', { name: 'Credential copied' })).toBeVisible()
+    // A status region is atomic by default: the label change would make screen readers read the credential again.
+    expect(screen.getByText(`hrc1_${'a'.repeat(43)}`).closest('[role="status"]')).toHaveAttribute('aria-atomic', 'false')
 
     await user.click(screen.getByRole('button', { name: 'Dismiss' }))
     await user.type(screen.getByLabelText('Profile name'), 'QA reader')

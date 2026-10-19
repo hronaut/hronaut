@@ -325,7 +325,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
           {{ capabilityBusy ? t('settings.mcp.capabilities.saving') : t('settings.mcp.capabilities.create') }}
         </UiButton>
       </form>
-      <div v-if="capabilityCredential" class="mcp-capability-secret" role="status">
+      <div v-if="capabilityCredential" class="mcp-capability-secret" role="status" aria-atomic="false">
         <strong>{{ t('settings.mcp.capabilities.credentialHeading') }}</strong>
         <p>{{ t('settings.mcp.capabilities.credentialWarning') }}</p>
         <code>{{ capabilityCredential }}</code>

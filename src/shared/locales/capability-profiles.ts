@@ -303,7 +303,7 @@ export const capabilityProfileMessages = {
     "credentialHeading": "Skopiuj teraz to poświadczenie",
     "credentialWarning": "Hronaut przechowuje tylko jego skrót. Tego poświadczenia nie można wyświetlić ponownie.",
     "copy": "Kopiuj poświadczenie",
-    "copied": "Poświadczenie skopiowane",
+    "copied": "Skopiowano poświadczenie",
     "dismiss": "Zamknij",
     "profileSummary": "Wersja {revision} · narzędzia: {tools} · użycia: {uses} / {limit}",
     "revoked": "Unieważniony",

@@ -112,7 +112,7 @@ async function addAnnotation(): Promise<void> {
       color: color.value, animation: animation.value
     })
     await manage('edit', { annotations: [...(state.value?.annotations ?? []), annotation] })
-  } catch (cause) { error.value = cause instanceof Error ? cause.message : String(cause) }
+  } catch (cause) { error.value = friendlyUiError(cause, t('runtime.toast.actionFailed')) }
 }
 watch(kind, value => {
   if (value === 'callout') { placement.value = 'auto'; cardWidth.value = 30 }

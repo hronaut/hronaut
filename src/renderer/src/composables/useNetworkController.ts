@@ -387,7 +387,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
       })
     } catch (cause) {
       if (sequence !== detailsCopySequence || !isCurrent(tab.id, expectedGeneration)) return
-      monitorError.value = cause instanceof Error ? cause.message : String(cause)
+      monitorError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 
