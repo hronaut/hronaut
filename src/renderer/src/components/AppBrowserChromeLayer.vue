@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
+import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { useI18n } from 'vue-i18n'
 import { computed, nextTick, ref, watch } from 'vue'
 import { applicationHasFocus } from '../composables/useModalDialogFocus.js'
@@ -307,7 +308,7 @@ watch(fullPageActive, (active) => {
 // The band names the page, or offers to take over from the agent working on it once you touch it; resting on
 // the band shows the toolbar with the button.
 const fullPageTitle = computed(() => agentTakeOver.value?.offerText
-  || activeTab.value?.label || activeTab.value?.title || activeTab.value?.url || '')
+  || activeTab.value?.label || (activeTab.value ? tabTitleForDisplay(activeTab.value, t('tabSearch.newTabTitle')) : ''))
 
 // The exit button leaves with the view, whether it is pressed or the view ends by shortcut, menu or palette
 // while it has focus; focus moves to the active tab, or the address field, rather than out of the window.

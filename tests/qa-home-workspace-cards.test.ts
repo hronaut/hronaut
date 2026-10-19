@@ -259,7 +259,7 @@ describe('Workspace card tab tiles (#872)', () => {
           { id: 'a', mcpGroupId: 'shop', title: 'Cart', url: 'https://shop.example.com/cart', faviconDataUrl: icon },
           { id: 'b', mcpGroupId: 'shop', title: '', url: 'https://www.example.org/docs' },
           { id: 'c', mcpGroupId: 'shop', title: 'home page', url: 'hronaut://home' },
-          { id: 'd', mcpGroupId: 'shop', title: '', url: 'about:blank' },
+          { id: 'd', mcpGroupId: 'shop', title: '', url: 'data:text/plain,notes' },
           { id: 'e', mcpGroupId: 'docs', title: 'Elsewhere', url: 'https://docs.example/' }
         ]
       })
@@ -282,7 +282,31 @@ describe('Workspace card tab tiles (#872)', () => {
     expect(query('.card-tab-initial', byTitle!).textContent).toBe('H')
     expect(words(byTitle!.querySelector('.card-tab-title'))).toBe('home page')
     expect(query('.card-tab-initial', byDot!).textContent).toBe('·')
-    expect(words(byDot!.querySelector('.card-tab-title'))).toBe('about:blank')
+    expect(words(byDot!.querySelector('.card-tab-title'))).toBe('data:text/plain,notes')
+  })
+
+  // Hronaut calls a blank tab "New tab" until a page names it; that English title showed in every language.
+  it.each([
+    ['en-US', 'New tab', 'N'],
+    ['uk-UA', 'Нова вкладка', 'Н'],
+    ['de-DE', 'Neuer Tab', 'N']
+  ] as const)('names a blank tab in %s, and keeps a website that calls itself "New tab"', async (locale, name, initial) => {
+    mountTestHome({
+      locale,
+      workspaces: inventory({
+        tabs: [
+          { id: 'blank', mcpGroupId: 'shop', title: 'New tab', url: 'about:blank' },
+          { id: 'untitled', mcpGroupId: 'shop', title: '', url: 'about:blank' },
+          { id: 'site', mcpGroupId: 'shop', title: 'New tab', url: 'https://shop.example.com/new' }
+        ]
+      })
+    })
+    await flush()
+    const [blank, untitled, site] = tiles()
+    expect(words(blank!.querySelector('.card-tab-title'))).toBe(name)
+    expect(query('.card-tab-initial', blank!).textContent).toBe(initial)
+    expect(words(untitled!.querySelector('.card-tab-title'))).toBe(name)
+    expect(words(site!.querySelector('.card-tab-title'))).toBe('New tab')
   })
 })
 

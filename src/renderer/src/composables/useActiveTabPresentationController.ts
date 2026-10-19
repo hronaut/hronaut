@@ -1,5 +1,6 @@
 import { isActiveDownload } from '../../../shared/download-state.js'
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
+import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { computed, type Ref } from 'vue'
 import type {
   BrowserBookmark,
@@ -132,7 +133,7 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     const workspace = tab.mcpGroupName
       ? options.translate('runtimeDetails.tab.workspace', { name: tab.mcpGroupName })
       : ''
-    return `${tab.label ? `${tab.label}\n${tab.title}\n${tab.url}` : tab.title || options.translate('tabSearch.newTabTitle')}${tab.labelDurabilityUnconfirmed ? `\n${options.translate('tabLabel.uncertain')}` : ''}${problem}${pinned}${sleeping}${pageLifecycle}${audio}${locked}${emulation}${networkRoutes}${split}${workspace}`
+    return `${tab.label ? `${tab.label}\n${tabTitleForDisplay(tab, options.translate('tabSearch.newTabTitle'))}\n${tab.url}` : tabTitleForDisplay(tab, options.translate('tabSearch.newTabTitle'))}${tab.labelDurabilityUnconfirmed ? `\n${options.translate('tabLabel.uncertain')}` : ''}${problem}${pinned}${sleeping}${pageLifecycle}${audio}${locked}${emulation}${networkRoutes}${split}${workspace}`
   }
 
   function pageProblemDetails(tab: BrowserTabState): string {

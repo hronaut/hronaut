@@ -1,4 +1,5 @@
 import type { BrowserClosedTabState, BrowserState } from '../../../shared/types.js'
+import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
 import type { UndoableAction } from '../../undo-offers.js'
 
 /** The tab fields closing tabs for the person reads: its address, workspace and pin, which place it among its peers. */
@@ -57,4 +58,6 @@ export interface PersonTabCloseAccess<Tab extends PersonTabCloseTab> {
   getState(): BrowserState
   /** The tab manager's options. */
   options(): PersonTabCloseOptions
+  /** A message in the interface language, such as the name the Undo offer gives a blank tab. */
+  text(key: MessageKey, parameters?: MessageParameters): string
 }

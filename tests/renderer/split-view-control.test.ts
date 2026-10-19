@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import SplitViewControl from '../../src/renderer/src/components/SplitViewControl.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import type { SupportedLocale } from '../../src/shared/locale.js'
 import type { BrowserState, BrowserTabState, HronautApi } from '../../src/shared/types.js'
 
 function tab(id: string, overrides: Partial<BrowserTabState> = {}): BrowserTabState {
@@ -56,6 +57,7 @@ function renderControl(options: {
   state?: BrowserState
   open?: boolean
   browser?: Partial<Pick<HronautApi, 'openSplitView' | 'updateSplitView' | 'closeSplitView'>>
+  locale?: SupportedLocale
 } = {}) {
   const state = options.state ?? browserState()
   const browser = {
@@ -66,7 +68,7 @@ function renderControl(options: {
   const acceptState = vi.fn(async (next: Promise<BrowserState> | BrowserState) => { await next })
   const closeOtherMenus = vi.fn()
   const view = render(SplitViewControl, {
-    global: { plugins: [createHronautI18n('en-US')] },
+    global: { plugins: [createHronautI18n(options.locale ?? 'en-US')] },
     props: {
       open: options.open ?? true,
       state,
@@ -96,6 +98,31 @@ describe('SplitViewControl', () => {
     expect(opened.browser.openSplitView).toHaveBeenCalledWith('second')
     expect(opened.acceptState).toHaveBeenCalledOnce()
     expect(opened.view.emitted()['update:open']).toEqual([[false]])
+  })
+
+  // Hronaut calls a blank tab "New tab" until a page names it; split view showed that English title in every language.
+  it.each([
+    ['en-US', 'New tab', 'with'],
+    ['uk-UA', 'Нова вкладка', 'з']
+  ] as const)('names a blank tab in %s as a new tab, not as a generic tab', async (locale, name, withWord) => {
+    const blank = { title: 'New tab', url: 'about:blank' }
+    const choosing = renderControl({ locale, state: browserState({
+      tabs: browserState().tabs.map(value => value.id === 'first' ? { ...value, ...blank } : value)
+    }) })
+    expect(choosing.view.container.querySelector('.split-view-summary')?.textContent).toContain(name)
+    choosing.view.unmount()
+
+    const candidate = renderControl({ locale, state: browserState({
+      tabs: browserState().tabs.map(value => value.id === 'second' ? { ...value, ...blank } : value)
+    }) })
+    expect(screen.getByRole('button', { name: new RegExp(name) })).toBeInTheDocument()
+    candidate.view.unmount()
+
+    const split = renderControl({ locale, state: browserState({
+      tabs: browserState().tabs.map(value => value.id === 'first' ? { ...value, ...blank } : value),
+      splitView: { firstTabId: 'first', secondTabId: 'second', orientation: 'vertical', ratio: 0.5 }
+    }) })
+    expect(split.view.container.querySelector('.split-view-summary')?.textContent).toBe(`${name} ${withWord} Page second`)
   })
 
   it('closes stale menu state when candidates disappear or the toolbar unmounts', async () => {

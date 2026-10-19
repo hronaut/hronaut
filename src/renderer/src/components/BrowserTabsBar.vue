@@ -34,6 +34,7 @@ import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
 import type { BrowserState, BrowserTabGroupColor, BrowserTabGroupState, BrowserTabState, McpTabActivity, UserAttentionRequest } from '../../../shared/types.js'
 import { AGENT_AVATAR_VISIBLE_LIMIT, agentAvatarColorHex, type AgentPresence, type HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shared/tab-groups.js'
+import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { foldRailWorkspaces, pinnedWorkspacesFirst } from '../../../shared/workspace-rail.js'
 import { keyedPinnedWorkspaces } from '../../../shared/workspace-shortcuts.js'
 import { useWorkspaceGroupAgents } from '../composables/useWorkspaceGroupAgents.js'
@@ -582,7 +583,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
           <IconLanguage v-else class="favicon-fallback" aria-hidden="true" />
           <IconRecord v-if="tab.videoRecording === 'recording'" style="color: #e5484d" :aria-label="t('video.status.recording')" />
           <IconRecord v-if="tab.pwaLifecycleActive" :aria-label="t('pwaLifecycle.active')" />
-          <span class="tab-title">{{ tab.label || tab.title || t('tabSearch.newTabTitle') }}</span>
+          <span class="tab-title">{{ tab.label || tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) }}</span>
           <IconBedtime v-if="tab.sleeping" class="tab-sleep-mark" :aria-label="t('shell.tabs.sleeping')" />
           <IconPauseCircle v-else-if="tab.pageLifecycleState === 'frozen'" class="tab-freeze-mark" :aria-label="t('shell.tabs.frozen')" />
           <IconHelp v-else-if="tab.pageLifecycleState === 'unknown'" class="tab-freeze-mark unknown" :aria-label="t('shell.tabs.freezeUnknown')" />
@@ -605,7 +606,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
             v-if="tab.audible || (tab.muted && !state.allTabsMuted)"
             class="tab-audio"
             :class="{ muted: tab.muted }"
-            v-tooltip="t(tab.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', { title: tab.title || t('runtime.tabs.unnamed') })"
+            v-tooltip="t(tab.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', { title: tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) })"
             aria-hidden="true"
             @click.stop="emit('toggleTabMuted', tab)"
           >

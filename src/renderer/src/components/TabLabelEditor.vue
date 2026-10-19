@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MAX_TAB_LABEL_INPUT_LENGTH, normalizeTabLabel } from '../../../shared/tab-label.js'
 import type { BrowserTabState } from '../../../shared/types.js'
+import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import UiButton from '../ui/UiButton.vue'
 
 const props = defineProps<{ tab: BrowserTabState }>()
@@ -85,7 +86,7 @@ async function save(clear = false): Promise<void> {
 <template>
   <div ref="root" class="tab-label-editor" @keydown.stop>
     <p v-if="tab.labelDurabilityUnconfirmed && !editing" role="alert">{{ t('tabLabel.uncertain') }}</p>
-    <UiButton v-if="!editing" ref="trigger" size="small" :disabled="pending" :aria-label="t('tabLabel.editAria', { title: tab.label || tab.title })" @click="edit">{{ t('tabLabel.edit') }}</UiButton>
+    <UiButton v-if="!editing" ref="trigger" size="small" :disabled="pending" :aria-label="t('tabLabel.editAria', { title: tab.label || tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) })" @click="edit">{{ t('tabLabel.edit') }}</UiButton>
     <form v-else :aria-label="t('tabLabel.edit')" @submit.prevent="save()" @keydown.esc.stop.prevent="cancel">
       <label :for="`tab-label-${tab.id}`">{{ t('tabLabel.name') }}</label>
       <input class="ui-control ui-input" :id="`tab-label-${tab.id}`" ref="input" v-model="draft" :maxlength="MAX_TAB_LABEL_INPUT_LENGTH" :disabled="pending" :aria-describedby="`tab-label-help-${tab.id}`" autocomplete="off" />

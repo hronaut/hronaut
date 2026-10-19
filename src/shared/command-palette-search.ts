@@ -1,5 +1,6 @@
 import { labelMatchScore, normalizedWords } from './command-palette.js'
 import { isHronautHomeUrl } from './home-url.js'
+import { tabTitleForDisplay } from './tab-title.js'
 import type { BrowserHistoryEntry, BrowserTabGroupColor, BrowserTabGroupState, BrowserTabState } from './types.js'
 import { workspaceSiteHost } from './workspace-switcher.js'
 
@@ -67,12 +68,15 @@ export function paletteAddress(url: string): string {
 
 export interface PaletteTabSource {
   activeTabId: string | null
-  tabs: readonly Pick<BrowserTabState, 'id' | 'title' | 'url' | 'mcpGroupId'>[]
+  tabs: readonly (Pick<BrowserTabState, 'id' | 'title' | 'url' | 'mcpGroupId'> & { loading?: boolean })[]
   mcpTabGroups: readonly Pick<BrowserTabGroupState, 'id' | 'name' | 'color'>[]
 }
 
-/** Open tabs other than the one in view and Home, matched by title and address. */
-export function searchPaletteTabs(source: PaletteTabSource, query: string, untitled: string): CommandPaletteResult[] {
+/**
+ * Open tabs other than the one in view and Home, matched by title and address. A blank tab without a title of its own
+ * is named `newTabName`, the interface language's name for a new tab.
+ */
+export function searchPaletteTabs(source: PaletteTabSource, query: string, untitled: string, newTabName: string): CommandPaletteResult[] {
   const words = normalizedWords(query)
   if (!words.length) return []
   const groups = new Map(source.mcpTabGroups.map((group) => [group.id, group]))
@@ -80,7 +84,7 @@ export function searchPaletteTabs(source: PaletteTabSource, query: string, untit
   for (const tab of source.tabs) {
     if (tab.id === source.activeTabId || isHronautHomeUrl(tab.url)) continue
     const address = paletteAddress(tab.url)
-    const title = tab.title.trim() || address || untitled
+    const title = tabTitleForDisplay(tab, '').trim() || address || (tab.url === 'about:blank' ? newTabName : untitled)
     if (!matchesEvery(`${title} ${address}`, words)) continue
     const group = tab.mcpGroupId ? groups.get(tab.mcpGroupId) : undefined
     results.push({

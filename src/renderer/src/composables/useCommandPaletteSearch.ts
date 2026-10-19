@@ -81,7 +81,7 @@ export function useCommandPaletteSearch(options: CommandPaletteSearchOptions) {
     if (!query.trim()) return []
     const state = options.state.value
     return [
-      { id: 'tabs' as const, results: searchPaletteTabs(state, query, t('commandPalette.untitledTab')) },
+      { id: 'tabs' as const, results: searchPaletteTabs(state, query, t('commandPalette.untitledTab'), t('tabSearch.newTabTitle')) },
       { id: 'workspaces' as const, results: searchWorkspaces(query) },
       { id: 'settings' as const, results: searchPaletteSettings(settings.value, query) },
       { id: 'history' as const, results: searchPaletteHistory(history.value, openAddresses.value, query) }
