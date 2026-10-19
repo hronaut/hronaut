@@ -10,6 +10,7 @@ import { capabilityProfileMessages } from './capability-profiles.js'
 import { remoteConnectionMessages } from './remote-connections.js'
 import { homeReadinessMessages } from './home-readiness.js'
 import { walletMessages } from './wallets/index.js'
+import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
 export const ruRU = {
@@ -506,6 +507,7 @@ export const ruRU = {
     }
   },
   wallets: walletMessages['ru-RU'],
+  appErrors: appErrorMessages['ru-RU'],
   "workspaceNavigationAudit": { "reasonCredentials": "встроенные учётные данные", "reasonMalformed": "некорректный адрес", "reasonUnsupportedScheme": "неподдерживаемая схема", "reasonNoMatch": "нет в списке разрешённых", "sourceDirect": "адрес или запрос агента", "sourcePage": "переход со страницы", "sourceRedirect": "перенаправление", "sourcePopup": "всплывающее окно", "sourceHistory": "назад или вперёд", "sourcePolicyChange": "изменение политики", "sourceRestore": "восстановление сеанса" },
   "workspaceEditor": {
     transferData: "Перенести данные браузера",

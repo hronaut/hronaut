@@ -23,6 +23,18 @@ describe('startup failure screen', () => {
     expect(retry).toHaveBeenCalledOnce()
   })
 
+  it('speaks the system language with the Hronaut mark, since the chosen language is not loaded yet', () => {
+    const root = document.createElement('div')
+    document.body.append(root)
+    renderStartupFailure(root, new Error("Error invoking remote method 'settings:get-renderer-state': Error: "), vi.fn(), 'uk-UA')
+
+    expect(document.documentElement.lang).toBe('uk-UA')
+    expect(root.querySelector('[role="alert"]')).toHaveAccessibleName('Не вдалося запустити Hronaut')
+    expect(root.querySelector('code')).toHaveTextContent('Служба налаштувань інтерфейсу недоступна.')
+    expect(root.querySelector('button')).toHaveTextContent('Спробувати ще раз')
+    expect(root.querySelector('.startup-failure-mark')).toHaveTextContent('H')
+  })
+
   it('inserts error text without interpreting markup', () => {
     const root = document.createElement('div')
     document.body.append(root)

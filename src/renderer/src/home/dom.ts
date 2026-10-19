@@ -24,6 +24,15 @@ export function renderStatus(target: HTMLElement, status: string, label: string)
 export function interpolate(message: string, values: Record<string, string | number> = {}): string {
   return message.replace(/\{(\w+)\}/gu, (placeholder, key: string) => Object.hasOwn(values, key) ? String(values[key]) : placeholder)
 }
+/** A failure's words for the person, without the wrapper Electron puts around a main-process error, or the fallback. */
+export function errorText(error: unknown, fallback: string): string {
+  const raw = error instanceof Error ? error.message : ''
+  const message = raw
+    .replace(/^Error invoking remote method '[^']+':\s*/i, '')
+    .replace(/^Error:\s*/i, '')
+    .trim()
+  return message || fallback
+}
 export function remember(key: string, value?: string): string | null {
   try {
     if (value !== undefined) window.localStorage.setItem(key, value)
