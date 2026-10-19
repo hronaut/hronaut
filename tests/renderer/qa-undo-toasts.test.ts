@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { ref, type Ref } from 'vue'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import AppToastRegion from '../../src/renderer/src/components/AppToastRegion.vue'
 import { useAppToastController } from '../../src/renderer/src/composables/useAppToastController.js'
 import { useUndoToasts } from '../../src/renderer/src/composables/useUndoToasts.js'
@@ -535,6 +535,40 @@ describe('useUndoToasts', () => {
     expect(undo.browser.undo).toHaveBeenCalledOnce()
     expect(undo.toasts.toasts.value).toEqual([expect.objectContaining({ title: 'Bookmark removed', message: 'Docs' })])
     undo.dispose()
+  })
+
+  it('keeps a newer offer\'s toast instead of saying an older Undo failed', async () => {
+    const undo = setupUndo()
+    onTestFinished(undo.dispose)
+    let fail!: (error: Error) => void
+    undo.browser.undo.mockImplementationOnce(() => new Promise<boolean>((_resolve, reject) => { fail = reject }))
+    undo.offer(offer())
+    undo.toasts.act(undo.toasts.toasts.value[0].id)
+    undo.offer(offer({ token: TOKEN_B, kind: 'bookmark-removed', name: 'Docs' }))
+
+    fail(new Error('The workspace is busy'))
+    await flushTasks()
+
+    expect(undo.toasts.toasts.value).toEqual([expect.objectContaining({ title: 'Bookmark removed', message: 'Docs' })])
+    pressZ()
+    await vi.waitFor(() => expect(undo.browser.undo).toHaveBeenLastCalledWith(TOKEN_B))
+  })
+
+  it('says an older Undo failed when the newer offer\'s toast is no longer on screen', async () => {
+    const undo = setupUndo()
+    onTestFinished(undo.dispose)
+    let fail!: (error: Error) => void
+    undo.browser.undo.mockImplementationOnce(() => new Promise<boolean>((_resolve, reject) => { fail = reject }))
+    undo.offer(offer())
+    undo.toasts.act(undo.toasts.toasts.value[0].id)
+    undo.offer(offer({ token: TOKEN_B, kind: 'bookmark-removed', name: 'Docs' }))
+    // Another message takes the newer offer's place while main still holds that offer.
+    undo.toasts.show('info', 'Link copied', 'https://example.test')
+
+    fail(new Error('The workspace is busy'))
+    await flushTasks()
+
+    expect(undo.toasts.toasts.value).toEqual([expect.objectContaining({ tone: 'error', title: 'Could not undo', message: 'The workspace is busy' })])
   })
 
   it('shows why Undo failed, without the IPC wrapper', async () => {
