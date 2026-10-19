@@ -61,15 +61,20 @@ export function createIpcGuards(host: IpcGuardsHost): {
   runWorkspaceRead<T>(event: IpcMainInvokeEvent, assertSender: (event: IpcMainInvokeEvent) => void, read: () => T): Promise<T>
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
 } {
-  function assertTrustedShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
-    if (host.workspaceStartupFailure()) throw host.workspaceStartupFailure()
+  /** Whether a message came from the shell of the main window or of the detached panel. */
+  function isShellWindowSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean {
     const actual = event.senderFrame?.url
     const fromMain = Boolean(host.mainWindowRefs.window && event.sender === host.mainWindowRefs.window.webContents && trustedUrlMatches(actual, trustedShellUrl()))
     const fromPanel = Boolean(host.panelWindowRefs.window
       && host.panelWindowRefs.url
       && event.sender === host.panelWindowRefs.window.webContents
       && trustedUrlMatches(actual, host.panelWindowRefs.url))
-    if (!fromMain && !fromPanel) throw new Error('Rejected IPC from an untrusted renderer')
+    return fromMain || fromPanel
+  }
+
+  function assertTrustedShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
+    if (host.workspaceStartupFailure()) throw host.workspaceStartupFailure()
+    if (!isShellWindowSender(event)) throw new Error('Rejected IPC from an untrusted renderer')
   }
 
   function assertMainShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
@@ -91,13 +96,7 @@ export function createIpcGuards(host: IpcGuardsHost): {
   /** Whether a message came from one of Hronaut's own pages: the shell of either window, or Home. Never throws. */
   function isHronautPageSender(event: Electron.IpcMainInvokeEvent): boolean {
     try {
-      const actual = event.senderFrame?.url
-      const fromMain = Boolean(host.mainWindowRefs.window && event.sender === host.mainWindowRefs.window.webContents && trustedUrlMatches(actual, trustedShellUrl()))
-      const fromPanel = Boolean(host.panelWindowRefs.window
-        && host.panelWindowRefs.url
-        && event.sender === host.panelWindowRefs.window.webContents
-        && trustedUrlMatches(actual, host.panelWindowRefs.url))
-      return fromMain || fromPanel || isHronautHomeUrl(actual)
+      return isShellWindowSender(event) || isHronautHomeUrl(event.senderFrame?.url)
     } catch {
       return false
     }

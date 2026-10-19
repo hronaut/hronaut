@@ -69,6 +69,7 @@ function createController() {
   const settingsOpen = ref(true)
   const tabSearchOpen = ref(true)
   const focusAddress = vi.fn(async (_expectedActiveTabId: string): Promise<void> => undefined)
+  const beginAddressFocus = vi.fn(() => focusAddress)
   const expandTabGroup = vi.fn()
   const onWorkspaceError = vi.fn()
   const controller = useNewTabShellController({
@@ -77,7 +78,7 @@ function createController() {
     syncState,
     settingsOpen,
     tabSearchOpen,
-    focusAddress,
+    beginAddressFocus,
     expandTabGroup,
     onWorkspaceError
   })

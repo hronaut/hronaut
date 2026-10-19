@@ -34,6 +34,7 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
   if (!preserveStorage && group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
   access.invalidateReactInspectionWorkspace(groupId)
   const previousActiveTabId = access.activeTabId()
+  const previousSelectionGeneration = access.tabSelectionGeneration()
   const previousGroupActiveTabId = group.activeTabId
   const tabs = access.orderedTabs().filter((tab) => tab.mcpGroupId === groupId)
   const tabSnapshots = tabs.map((tab) => ({
@@ -78,12 +79,23 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
     if (previousGroupActiveTabId && access.tabs().get(previousGroupActiveTabId)?.mcpGroupId === groupId) {
       group.activeTabId = previousGroupActiveTabId
     }
-    if (previousActiveTabId && access.tabs().has(previousActiveTabId)) access.selectTab(previousActiveTabId)
+    // Closing the shown tab of this workspace shows another tab once; any other selection since the close began is
+    // the person's or an agent's newer choice, which the rollback keeps.
+    const ownSelections = tabSnapshots.some((tab) => tab.id === previousActiveTabId) ? 1 : 0
+    if (
+      previousActiveTabId
+      && access.tabs().has(previousActiveTabId)
+      && access.tabSelectionGeneration() - previousSelectionGeneration <= ownSelections
+    ) access.selectTab(previousActiveTabId)
     removeClosedWorkspaceTabs()
     access.changed()
   }
   try {
     await access.closeTabs(tabSnapshots.map((tab) => tab.id), false)
+    // A tab left open would name a workspace the saved session no longer has, which the next start refuses to load.
+    if ([...access.tabs().values()].some((tab) => tab.mcpGroupId === groupId)) {
+      throw new Error(`Workspace "${group.name}" still has an open tab, so it was not closed. Try again.`)
+    }
     if (!preserveStorage) {
       await access.assertStorageDeletionOwnership(groupId, group.storageId)
       await destroyWorkspaceStorage(

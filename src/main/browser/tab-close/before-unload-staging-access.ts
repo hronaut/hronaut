@@ -28,8 +28,8 @@ export interface BeforeUnloadStagingAccess<Tab extends BeforeUnloadStagingTab> {
   window(): BrowserWindow
   /** The split partner and the tab that becomes active when this tab closes. */
   closeTabTransition(tab: Tab): { splitPartnerId: string | null; nextId: string | undefined }
-  /** The bounds of the page area. */
-  browserViewBounds(): Rectangle
+  /** The page card's space, which the replacement is sized for even while the closing page fills the window. */
+  contentAreaBounds(): Rectangle
   /** The bounds of the tab's view within the space. */
   tabViewBounds(tab: Tab, space: Rectangle): Rectangle
   /** Rounds the view's page corners. */

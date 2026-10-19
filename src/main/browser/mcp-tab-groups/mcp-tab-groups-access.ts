@@ -77,6 +77,8 @@ export interface McpTabGroupsAccess<Tab extends McpTabGroupsTab> {
   closedTabs(): BrowserClosedTabState[]
   /** The tab the window shows. */
   activeTabId(): string | null
+  /** Counts tab selections, so an operation can tell whether another tab was selected while it waited. */
+  tabSelectionGeneration(): number
   /** The tab manager's options. */
   options(): McpTabGroupsOptions
   /** How often each workspace's agent access changed, keyed by the workspace record. */

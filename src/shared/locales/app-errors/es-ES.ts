@@ -12,11 +12,11 @@ export const esESAppErrors: AppErrorMessages = {
     "onlyWebsites": "Solo se pueden suspender las pestañas de sitios web inactivas.",
     "visible": "No se puede suspender una pestaña visible.",
     "pinned": "Las pestañas fijadas permanecen activas.",
-    "pageHold": "Una pestaña cuya página se mantiene activa de forma explícita permanece activa.",
+    "pageHold": "Una pestaña con la página retenida de forma explícita permanece activa.",
     "loading": "No se puede suspender una pestaña que se está cargando.",
     "audio": "Una pestaña que reproduce audio permanece activa.",
     "dialog": "Una pestaña con un cuadro de diálogo abierto permanece activa.",
-    "wallet": "Una pestaña que espera una solicitud de la cartera permanece activa.",
+    "wallet": "Una pestaña que espera una solicitud del monedero permanece activa.",
     "devTools": "Una pestaña con las herramientas de desarrollo abiertas permanece activa.",
     "interaction": "Una pestaña con una interacción en curso permanece activa.",
     "video": "Una pestaña que graba vídeo permanece activa.",
@@ -38,8 +38,8 @@ export const esESAppErrors: AppErrorMessages = {
   "splitView": {
     "sameTab": "Elige otra pestaña para la vista dividida.",
     "home": "El inicio de Hronaut no se puede abrir en la vista dividida.",
-    "currentUnavailable": "La pestaña actual ya no responde. Ciérrala y vuelve a abrirla desde Cerradas recientemente.",
-    "selectedUnavailable": "La pestaña seleccionada ya no responde. Ciérrala y vuelve a abrirla desde Cerradas recientemente.",
+    "currentUnavailable": "La pestaña actual ya no funciona. Ciérrala y vuelve a abrirla desde Cerradas recientemente.",
+    "selectedUnavailable": "La pestaña seleccionada ya no funciona. Ciérrala y vuelve a abrirla desde Cerradas recientemente.",
     "notOpen": "La vista dividida no está abierta."
   },
   "clipboard": {

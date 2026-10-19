@@ -9,7 +9,7 @@ describe('startup failure screen', () => {
     const root = document.createElement('div')
     document.body.append(root)
     const retry = vi.fn()
-    renderStartupFailure(root, new Error("Error invoking remote method 'settings:get-renderer-state': Error: settings offline"), retry)
+    renderStartupFailure(root, new Error("Error invoking remote method 'settings:get-renderer-state': Error: settings offline"), retry, 'en-US')
 
     const alert = root.querySelector<HTMLElement>('[role="alert"]')
     const button = root.querySelector<HTMLButtonElement>('button')
@@ -38,7 +38,7 @@ describe('startup failure screen', () => {
   it('inserts error text without interpreting markup', () => {
     const root = document.createElement('div')
     document.body.append(root)
-    renderStartupFailure(root, '<img src=x onerror=alert(1)>', vi.fn())
+    renderStartupFailure(root, '<img src=x onerror=alert(1)>', vi.fn(), 'en-US')
 
     expect(root.querySelector('img')).toBeNull()
     expect(root.querySelector('code')).toHaveTextContent('<img src=x onerror=alert(1)>')

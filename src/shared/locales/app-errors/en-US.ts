@@ -1,6 +1,7 @@
 /**
- * Errors from the main process that a person sees, in English. MCP results and logs keep this text, except for an
- * error that keeps its own message: a raw load failure, or one naming a tab, workspace or bookmark by its internal ID.
+ * Errors from the main process that a person sees, and the startup failure page, in English. MCP results and logs keep
+ * this text, except for an error that keeps its own message: a raw load failure, or one naming a tab, workspace or
+ * bookmark by its internal ID.
  */
 export const enUSAppErrors = {
   "startup": {

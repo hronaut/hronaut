@@ -14,7 +14,8 @@ interface LocalizedErrorOptions {
 
 /**
  * A failure a person can see, named by its message key. Its message is the English text, which MCP results, logs and
- * the code that compares messages keep reading; Hronaut's own pages get the interface language instead.
+ * the code that compares messages keep reading; Hronaut's own pages get the interface language instead. Its name stays
+ * "Error", because only `toString()` crosses IPC and the renderer strips that "Error: " prefix.
  */
 export class LocalizedError extends Error {
   readonly key: MessageKey

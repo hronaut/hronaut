@@ -14,7 +14,8 @@ export interface NewTabShellControllerOptions {
   syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
   settingsOpen: Ref<boolean>
   tabSearchOpen: Ref<boolean>
-  focusAddress: (expectedActiveTabId: string) => Promise<void>
+  /** Starts asking for the address; the focus it returns gives way to an overlay the person opens meanwhile. */
+  beginAddressFocus: () => (expectedActiveTabId: string) => Promise<unknown>
   expandTabGroup: (groupId: string) => void
   onWorkspaceError: (workspace: BrowserTabGroupState, error: unknown) => void
 }
@@ -23,6 +24,7 @@ export function useNewTabShellController(options: NewTabShellControllerOptions) 
   async function open(optionsForTab?: NewTabOptions, groupIdToExpand?: string): Promise<boolean> {
     options.settingsOpen.value = false
     options.tabSearchOpen.value = false
+    const focusAddress = options.beginAddressFocus()
 
     const operation = options.browser.newTab(optionsForTab)
     const [createdState] = await Promise.all([
@@ -33,7 +35,7 @@ export function useNewTabShellController(options: NewTabShellControllerOptions) 
     if (!createdTabId || options.state.value.activeTabId !== createdTabId) return false
 
     if (groupIdToExpand) options.expandTabGroup(groupIdToExpand)
-    await options.focusAddress(createdTabId)
+    await focusAddress(createdTabId)
     return options.state.value.activeTabId === createdTabId
   }
 

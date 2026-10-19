@@ -32,15 +32,24 @@ export async function selectTabAndWait<Tab extends TabSelectionTab>(access: TabS
 }
 
 /**
- * Shows an agent's tab when the browser follows agent activity, without
- * moving keyboard focus; otherwise only wakes it and makes it its
- * workspace's active tab.
+ * Wakes an agent's tab and makes it its workspace's active tab without
+ * showing it. Follow agents shows it through the agent's call on it, so it
+ * waits as for any call, such as while a page fills the window. Another
+ * active tab in its workspace while it wakes, such as the person's pick, or
+ * the tab closing, wins: this one then returns the state without marking it.
+ * A selection in another workspace does not stop it.
  */
 export async function selectAgentTabAndWait<Tab extends TabSelectionTab>(access: TabSelectionAccess<Tab>, tabId: string): Promise<BrowserState> {
-  if (access.followAgentActivity()) return selectTabAndWait(access, tabId, { focus: false })
   const tab = access.getTab(tabId)
+  if (tab.webContents.isDestroyed()) {
+    throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
+  }
+  const workspaceActiveTabId = access.workspaceActiveTabId(tab)
   await access.wakeTab(tabId)
-  if (access.findTab(tabId) !== tab) return access.getState()
+  if (access.findTab(tabId) !== tab || workspaceActiveTabId !== access.workspaceActiveTabId(tab)) return access.getState()
+  if (tab.webContents.isDestroyed()) {
+    throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
+  }
   access.markTabActiveInGroup(tab)
   access.changed()
   return access.getState()
@@ -48,8 +57,9 @@ export async function selectAgentTabAndWait<Tab extends TabSelectionTab>(access:
 
 /**
  * Shows a tab in the window, waking it if it sleeps. A pane of the open split
- * view becomes the active pane; any other tab replaces the split view or the
- * current tab.
+ * view becomes the active pane, and the other pane in full screen, which hides
+ * it, is asked to leave full screen; any other tab replaces the split view or
+ * the current tab.
  */
 export function selectTab<Tab extends TabSelectionTab>(access: TabSelectionAccess<Tab>, tabId: string, options: BrowserTabSelectionOptions = {}): BrowserState {
   const next = access.getTab(tabId)
@@ -60,6 +70,7 @@ export function selectTab<Tab extends TabSelectionTab>(access: TabSelectionAcces
   next.lastActiveAt = Date.now()
   if (next.sleeping) void access.wakeTab(next.id).catch((error) => console.error('[browser] Could not wake selected tab:', error))
   if (access.splitView() && access.splitViewContains(tabId)) {
+    access.exitPageFullscreenCovering(next.id)
     access.writeActiveTabId(next.id)
     access.markTabActiveInGroup(next)
     access.layout()

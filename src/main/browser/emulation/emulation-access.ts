@@ -69,5 +69,6 @@ export interface EmulationAccess<Tab extends EmulationTab> {
   layout(): void
   publishPageGeometry(): void
   tabViewBounds(tab: Tab, space: Rectangle): Rectangle
-  browserViewBounds(): Rectangle
+  /** The page card's space, which a tab the window does not show is sized for, even while a page fills the window. */
+  contentAreaBounds(): Rectangle
 }
