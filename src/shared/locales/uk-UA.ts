@@ -828,7 +828,14 @@ export const ukUA = {
       importPasswordsFile: 'Виберіть CSV паролів браузера', choosePasswordFile: 'Вибрати CSV', importPasswordsTitle: 'Імпортувати збережені паролі?', importPasswordsMessage: 'Імпортувати {count} збережених облікових записів у Hronaut?', importPasswordsDetail: 'Нових: {added} · оновлень: {updated} · пропущено: {skipped}\n\nПрийняті паролі буде повторно зашифровано через {backend}. Вибраний CSV залишається читабельним на диску; видаліть його після імпорту.', cancel: 'Скасувати', importPasswords: 'Імпортувати паролі',
       savePasswordTitle: 'Зберегти пароль?', updatePasswordTitle: 'Оновити збережений пароль?', savePasswordMessage: 'Зберегти пароль для {account}?', updatePasswordMessage: 'Оновити пароль для {account}?', unnamedAccount: 'облікового запису без назви',
       passwordDetail: 'Паролі для {origin} зашифровано безпечним сховищем операційної системи. Саме сховище ніколи не доступне через MCP.', notNow: 'Не зараз', "mcpPortInUseMessage": "Порт {port} зайнятий іншим застосунком", "mcpPortDeniedMessage": "Система не дозволяє Hronaut використовувати порт {port}", "mcpPortSuggestion": "Агенти не зможуть під’єднатися, доки Hronaut не слухатиме вільний порт. Порт {port} вільний. Після переходу вкажіть своєму агенту для програмування нову адресу, показану на головній.", "mcpPortNoneFree": "Агенти не зможуть під’єднатися, доки Hronaut не слухатиме вільний порт. Виберіть інший порт у Налаштуваннях → Безпека MCP.", "mcpUsePort": "Використати порт {port}", savePassword: 'Зберегти пароль', updatePassword: 'Оновити пароль',
-      installingUpdate: 'Встановлення оновлення. Hronaut перезапуститься автоматично.', restartingUpdate: 'Новий пакет установлено. Перезапуск Hronaut для завершення оновлення.'
+      installingUpdate: 'Встановлення оновлення. Hronaut перезапуститься автоматично.', restartingUpdate: 'Новий пакет установлено. Перезапуск Hronaut для завершення оновлення.',
+      walletRecoveryTitle: "Збережіть дані відновлення гаманця",
+      walletRecoveryMessage: "Запишіть цю фразу відновлення і зберігайте її офлайн.",
+      walletRecoveryWarning: "Hronaut не зможе відновити цю фразу. Ніколи не передавайте її вебсайту чи агенту програмування.",
+      walletRecoverySaved: "Фразу збережено",
+      walletRecoveryNotYet: "Ще ні",
+      wavAudioFilter: "Аудіо PCM WAV",
+      devToolsWindowTitle: "Інструменти розробника Hronaut — {title}"
     }
   }
 } satisfies MessageSchema

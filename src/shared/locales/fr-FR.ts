@@ -3632,7 +3632,14 @@ export const frFR = {
       "savePassword": "Enregistrer le mot de passe",
       "updatePassword": "Mettre à jour le mot de passe",
       "installingUpdate": "Installation de la mise à jour. Hronaut redémarrera automatiquement.",
-      "restartingUpdate": "Le nouveau paquet est installé. Redémarrage de Hronaut pour terminer la mise à jour."
+      "restartingUpdate": "Le nouveau paquet est installé. Redémarrage de Hronaut pour terminer la mise à jour.",
+      "walletRecoveryTitle": "Enregistrer les données de récupération du portefeuille",
+      "walletRecoveryMessage": "Notez cette phrase de récupération et conservez-la hors ligne.",
+      "walletRecoveryWarning": "Hronaut ne peut pas récupérer cette phrase. Ne la communiquez jamais à un site web ni à un agent de code.",
+      "walletRecoverySaved": "Je l’ai notée",
+      "walletRecoveryNotYet": "Pas encore",
+      "wavAudioFilter": "Audio PCM WAV",
+      "devToolsWindowTitle": "Outils de développement Hronaut — {title}"
     }
   }
 } satisfies MessageSchema

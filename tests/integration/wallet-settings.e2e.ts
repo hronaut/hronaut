@@ -372,6 +372,46 @@ test('discards a generated wallet when recovery material is not confirmed', asyn
   await expect.poll(() => appWindow.evaluate('window.hronautWallets.list()')).toEqual([])
 })
 
+test('asks for recovery confirmation in the interface language without the phrase leaving the dialog', async ({ appWindow, electronApp }) => {
+  // The recovery phrase dialog, its warning and its buttons were in English whatever the interface language.
+  await appWindow.evaluate(`(async () => {
+    const status = await window.hronautWallets.status()
+    if (status.managedWallets === 'passphrase-setup-required') {
+      await window.hronautWallets.setupPassphrase('docker-wallet-test-passphrase')
+    }
+  })()`)
+  await appWindow.evaluate("window.hronautSettings.setLanguagePreference('uk-UA')")
+  await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
+  await electronApp.evaluate(({ dialog }) => {
+    dialog.showMessageBox = async (...args: unknown[]) => {
+      const options = args.at(-1) as Electron.MessageBoxOptions
+      const [phrase = '', warning] = (options.detail ?? '').split('\n\n')
+      // Only the dialog's own text and the phrase's word count leave this stub.
+      ;(globalThis as typeof globalThis & { __walletRecoveryDialog?: unknown }).__walletRecoveryDialog = {
+        title: options.title, message: options.message, buttons: options.buttons, warning, phraseWords: phrase.split(' ').length
+      }
+      return { response: 1, checkboxChecked: false }
+    }
+  })
+
+  await expect(appWindow.evaluate(`window.hronautWallets.generate({
+    name: 'Discarded wallet',
+    chainFamily: 'evm',
+    network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
+    workspaceIds: []
+  })`)).rejects.toThrow('Wallet creation cancelled before recovery confirmation')
+  const shown = await electronApp.evaluate(() => (globalThis as typeof globalThis & { __walletRecoveryDialog?: { phraseWords: number } }).__walletRecoveryDialog)
+  expect(shown).toEqual({
+    title: 'Збережіть дані відновлення гаманця',
+    message: 'Запишіть цю фразу відновлення і зберігайте її офлайн.',
+    buttons: ['Фразу збережено', 'Ще ні'],
+    warning: 'Hronaut не зможе відновити цю фразу. Ніколи не передавайте її вебсайту чи агенту програмування.',
+    phraseWords: expect.any(Number)
+  })
+  expect([12, 24]).toContain(shown?.phraseWords)
+  await expect.poll(() => appWindow.evaluate('window.hronautWallets.list()')).toEqual([])
+})
+
 test('shows a selectable wallet list and readable tabs across themes and translated layouts', async ({ appWindow }, testInfo) => {
   await appWindow.setViewportSize({ width: 1200, height: 900 })
   await appWindow.evaluate(`(async () => {
