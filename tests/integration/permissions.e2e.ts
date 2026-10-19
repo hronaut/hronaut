@@ -499,3 +499,45 @@ test('does not persist an iframe permission after the requesting frame navigates
     ])
   }
 })
+
+test('names the requested permission in the prompt the way Settings does, in the interface language', async ({
+  appWindow,
+  electronApp
+}) => {
+  // The prompt named Chromium's identifier, such as "geolocation", in every language.
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.end('<!doctype html><title>Permission name</title><main>Location request</main>')
+  })
+  const origin = `http://127.0.0.1:${await listen(server)}`
+  try {
+    await appWindow.evaluate("window.hronautSettings.setLanguagePreference('uk-UA')")
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(origin)}, active: true })`)
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+      webContents.getAllWebContents().some((contents) => contents.getTitle() === 'Permission name')
+    ))).toBe(true)
+    await electronApp.evaluate(({ dialog }) => {
+      dialog.showMessageBox = async (...args: unknown[]) => {
+        const options = args.at(-1) as Electron.MessageBoxOptions
+        ;(globalThis as typeof globalThis & { __permissionPrompt?: unknown }).__permissionPrompt = {
+          title: options.title, message: options.message, buttons: options.buttons
+        }
+        return { response: 0, checkboxChecked: false }
+      }
+    })
+    await electronApp.evaluate(async ({ webContents }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Permission name')
+      if (!page) throw new Error('Permission fixture web contents was not found')
+      await page.executeJavaScript('navigator.geolocation.getCurrentPosition(() => undefined, () => undefined)')
+    })
+    await expect.poll(() => electronApp.evaluate(() => (
+      globalThis as typeof globalThis & { __permissionPrompt?: unknown }
+    ).__permissionPrompt)).toEqual({
+      title: 'Дозвіл сайту',
+      message: `Сайт ${origin} запитує дозвіл «Розташування».`,
+      buttons: ['Заборонити', 'Дозволити']
+    })
+  } finally {
+    await closeFixtureServer(server)
+  }
+})

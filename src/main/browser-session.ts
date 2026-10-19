@@ -4,6 +4,7 @@ import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { normalizeSitePermissionOrigin, SitePermissionStore } from './site-permission-store.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
+import { sitePermissionName } from '../shared/site-permission-names.js'
 import type { SitePermissionDecision } from '../shared/types.js'
 
 /**
@@ -115,7 +116,9 @@ export function createBrowserSession(host: BrowserSessionHost): {
             : host.text('native.dialog.devicesUnknown')
         }
         if (permission === 'fileSystem' && 'filePath' in details) {
-          const access = details.fileAccessType ?? host.text('native.dialog.unspecifiedAccess')
+          const access = host.text(details.fileAccessType === 'readable'
+            ? 'native.dialog.fileReadAccess'
+            : details.fileAccessType === 'writable' ? 'native.dialog.fileWriteAccess' : 'native.dialog.unspecifiedAccess')
           return host.text('native.dialog.requestedFile', { access, path: details.filePath || host.text('native.dialog.unspecifiedPath') })
         }
         return host.text('native.dialog.permissionRemember')
@@ -131,10 +134,11 @@ export function createBrowserSession(host: BrowserSessionHost): {
             respond(currentRemembered === 'allow')
             return
           }
+          const permissionName = sitePermissionName(permission, (key) => host.text(key))
           const { response } = await host.showMessageBox({
             type: 'question',
             title: host.text('native.dialog.sitePermission'),
-            message: host.text('native.dialog.permissionRequest', { origin, permission }),
+            message: host.text('native.dialog.permissionRequest', { origin, permission: permissionName }),
             detail: requiresFreshConsent
               ? host.text('native.dialog.permissionAskAgain', { detail: permissionDetail })
               : host.text('native.dialog.permissionSettings', { detail: permissionDetail }),

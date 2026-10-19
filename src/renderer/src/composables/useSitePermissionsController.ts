@@ -4,6 +4,7 @@ import type {
   SitePermissionDecision,
   SitePermissionEntry
 } from '../../../shared/types.js'
+import { sitePermissionName } from '../../../shared/site-permission-names.js'
 
 type SitePermissionsApi = Pick<HronautPermissionsApi, 'set' | 'remove' | 'clear'>
 type Translate = (key: string) => string
@@ -46,21 +47,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
   const busy = computed(() => clearing.value || pendingKeys.value.size > 0)
 
   function permissionLabel(permission: string): string {
-    const labels: Record<string, string> = {
-      'clipboard-read': options.translate('runtime.permissions.clipboardRead'),
-      'clipboard-sanitized-write': options.translate('runtime.permissions.clipboardWrite'),
-      'display-capture': options.translate('runtime.permissions.display'),
-      fileSystem: options.translate('runtime.permissions.files'),
-      fullscreen: options.translate('runtime.permissions.fullscreen'),
-      geolocation: options.translate('runtime.permissions.location'),
-      'idle-detection': options.translate('runtime.permissions.activity'),
-      media: options.translate('runtime.permissions.media'),
-      notifications: options.translate('runtime.permissions.notifications'),
-      'storage-access': options.translate('runtime.permissions.storage'),
-      'top-level-storage-access': options.translate('runtime.permissions.relatedStorage'),
-      'window-management': options.translate('runtime.permissions.windows')
-    }
-    return labels[permission] ?? permission.replaceAll('-', ' ')
+    return sitePermissionName(permission, options.translate)
   }
 
   function replace(next: SitePermissionEntry[]): void {
