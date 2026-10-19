@@ -35,8 +35,8 @@ export interface RenderableTabAccess<Tab extends RenderableTab> {
   layout(): void
   /** The bounds of the tab's view within the given space. */
   tabViewBounds(tab: Tab, space: Rectangle): Rectangle
-  /** The space the browser gives tab views. */
-  browserViewBounds(): Rectangle
+  /** The page card's space, which a tab the window does not show is sized for, even while a page fills the window. */
+  contentAreaBounds(): Rectangle
   /** Repairs the tab's presentation, unless its lifecycle is held. */
   reconcileTabPresentation(tab: Tab): void
 }

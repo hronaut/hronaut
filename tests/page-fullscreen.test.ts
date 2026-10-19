@@ -14,24 +14,35 @@ import {
 import type { PageFullscreenAccess, PageFullscreenTab } from '../src/main/browser/page-fullscreen/page-fullscreen-access.js'
 
 function pageView() {
-  return { setBounds: vi.fn(), setVisible: vi.fn(), setBorderRadius: vi.fn(), getVisible: () => true }
+  return { setBounds: vi.fn(), setVisible: vi.fn(), setBorderRadius: vi.fn(), getVisible: () => true, getBounds: () => ({ x: 280, y: 60, width: 1150, height: 830 }) }
 }
 
 /** A 1440 x 900 window with a 60 px toolbar, a 280 px rail and the gutters, as the page card tests use. */
 function layoutFixture(split = false) {
   const first = { id: 'first', view: pageView(), sleeping: false, pageFullscreen: false, webContents: pageContents() }
   const second = { id: 'second', view: pageView(), sleeping: false, pageFullscreen: false, webContents: pageContents() }
+  const children: unknown[] = split ? [first.view, second.view] : [first.view]
   const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
     destroyed: false,
     window: {
       isDestroyed: () => false,
+      isVisible: () => true,
+      isMinimized: () => false,
       getContentBounds: () => ({ x: 0, y: 0, width: 1440, height: 900 }),
       webContents: { getZoomFactor: () => 1, isDestroyed: () => false },
-      contentView: { children: [first.view, second.view] }
+      contentView: {
+        children,
+        addChildView: vi.fn((view: unknown) => { children.push(view) }),
+        removeChildView: vi.fn((view: unknown) => { if (children.includes(view)) children.splice(children.indexOf(view), 1) })
+      }
     },
     tabs: new Map([[first.id, first], [second.id, second]]),
+    mcpTabGroups: new Map(),
+    renderQueues: new Map(),
     activeTabId: first.id,
     splitView: split ? { firstTabId: first.id, secondTabId: second.id, orientation: 'vertical', ratio: 0.5 } : null,
+    tabSelectionGeneration: 0,
+    offscreenCaptureTabIds: new Set(),
     browserContentOccluded: false,
     allHumanInteractionLocked: false,
     toolbarHeight: 60,
@@ -43,7 +54,10 @@ function layoutFixture(split = false) {
     reconcileTabPresentation: vi.fn(),
     scheduleTabOverviewPreview: vi.fn(),
     publishSplitDivider: vi.fn(),
-    publishPageGeometry: vi.fn()
+    publishPageGeometry: vi.fn(),
+    focusTabOrTrustedChrome: vi.fn(),
+    changed: vi.fn(),
+    getState: () => ({})
   }) as BrowserTabsManager
   return { manager, first, second }
 }
@@ -58,12 +72,13 @@ function pageContents() {
 function fullscreenFixture(options: { shown?: string[], windowFullScreen?: boolean } = {}) {
   const window = Object.assign(new EventEmitter(), {
     fullScreen: options.windowFullScreen ?? false,
+    contentView: { children: [] as unknown[] },
     isDestroyed: () => false,
     isFullScreen(): boolean { return this.fullScreen },
     setFullScreen: vi.fn(function (this: { fullScreen: boolean }, fullScreen: boolean) { this.fullScreen = fullScreen })
   })
-  const tabs = new Map<string, Omit<PageFullscreenTab, 'webContents'> & { webContents: ReturnType<typeof pageContents> }>()
-  for (const id of ['video', 'other']) tabs.set(id, { id, webContents: pageContents() })
+  const tabs = new Map<string, Omit<PageFullscreenTab, 'webContents' | 'view'> & { webContents: ReturnType<typeof pageContents>; view: ReturnType<typeof pageView> }>()
+  for (const id of ['video', 'other']) tabs.set(id, { id, webContents: pageContents(), view: pageView() })
   let personFullScreen = false
   const shown = new Set(options.shown ?? ['video'])
   const layout = vi.fn()
@@ -72,6 +87,9 @@ function fullscreenFixture(options: { shown?: string[], windowFullScreen?: boole
     window: () => window as never,
     tabs: () => tabs.values() as unknown as Iterable<PageFullscreenTab>,
     isShown: (tabId) => shown.has(tabId),
+    offscreenCaptureTabIds: () => new Set(),
+    tabViewBounds: (_tab, space) => space,
+    contentAreaBounds: () => ({ x: 280, y: 60, width: 1150, height: 830 }),
     personFullScreen: () => personFullScreen,
     writePersonFullScreen: (fullScreen) => { personFullScreen = fullScreen },
     layout
@@ -131,6 +149,88 @@ describe('page full screen layout', () => {
       ISOLATED_WORLDS.pageFullscreen,
       [{ code: expect.stringContaining('document.exitFullscreen()') }]
     )
+  })
+
+  it('keeps a tab out of view at its page card\'s size while a shown page fills the window', () => {
+    const { manager, first } = layoutFixture()
+    const agent = { id: 'agent', view: pageView(), sleeping: false, pageFullscreen: false, emulationViewSize: undefined as { width: number; height: number } | undefined, webContents: pageContents() }
+    const internals = manager as unknown as { tabs: Map<string, unknown>; setEmulationViewSize(tab: unknown, viewport: { width: number; height: number } | undefined): void }
+    internals.tabs.set(agent.id, agent)
+    first.pageFullscreen = true
+    manager.layout()
+    // An agent resets the viewport of its tab in the background, which used to take the whole window's size.
+    agent.emulationViewSize = { width: 800, height: 600 }
+    internals.setEmulationViewSize(agent, undefined)
+    expect(agent.view.setBounds).toHaveBeenLastCalledWith({ x: 280, y: 60, width: 1150, height: 830 })
+    expect(first.view.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 1440, height: 900 })
+  })
+
+  it('gives a page that leaves full screen after the person switched away from it its page card\'s size back', () => {
+    const { manager, first, second } = layoutFixture()
+    attachPageFullscreenEvents((manager as unknown as { pageFullscreenAccess(): PageFullscreenAccess<PageFullscreenTab> }).pageFullscreenAccess(), first as never, first.webContents as never)
+    first.webContents.emit('enter-html-full-screen')
+    expect(first.view.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 1440, height: 900 })
+    manager.selectTab(second.id)
+    expect(first.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledOnce()
+    // Layout sizes only the tabs in view, so the page used to keep the whole window's size in the background.
+    first.webContents.emit('leave-html-full-screen')
+    expect(first.view.setBounds).toHaveBeenLastCalledWith({ x: 280, y: 60, width: 1150, height: 830 })
+    expect(second.view.setBounds).toHaveBeenLastCalledWith({ x: 280, y: 60, width: 1150, height: 830 })
+  })
+
+  it('gives the tab shown while a closing page in full screen runs its beforeunload check the page card\'s size', () => {
+    const { manager, first, second } = layoutFixture()
+    first.pageFullscreen = true
+    manager.layout()
+    // The replacement used to take the whole window the closing page in full screen filled.
+    const staged = (manager as unknown as { stageBeforeUnloadClose(tab: unknown): { targetDetached: boolean } }).stageBeforeUnloadClose(first)
+    expect(staged.targetDetached).toBe(true)
+    expect(second.view.setBounds).toHaveBeenLastCalledWith({ x: 280, y: 60, width: 1150, height: 830 })
+  })
+
+  it('restores a tab out of view to its page card\'s size after a capture during which its viewport changed', async () => {
+    const { manager, first } = layoutFixture()
+    const agent = {
+      id: 'agent', view: pageView(), sleeping: false, pageFullscreen: false,
+      emulationViewSize: { width: 800, height: 600 } as { width: number; height: number } | undefined,
+      webContents: Object.assign(pageContents(), { id: 7, isCrashed: () => false })
+    }
+    const internals = manager as unknown as {
+      tabs: Map<string, unknown>
+      setEmulationViewSize(tab: unknown, viewport: { width: number; height: number } | undefined): void
+      withRenderableTab<T>(tab: unknown, operation: () => Promise<T>, mode: 'surface'): Promise<T>
+    }
+    internals.tabs.set(agent.id, agent)
+    first.pageFullscreen = true
+    manager.layout()
+    // An agent resets the viewport of its tab while a capture presents it offscreen; the restore used to take the whole window.
+    await internals.withRenderableTab(agent, async () => { internals.setEmulationViewSize(agent, undefined) }, 'surface')
+    expect(agent.view.setBounds).toHaveBeenLastCalledWith({ x: 280, y: 60, width: 1150, height: 830 })
+  })
+
+  it('asks the split view pane in full screen to leave it when the person selects the pane it hides', () => {
+    const { manager, first, second } = layoutFixture(true)
+    const internals = manager as unknown as { activeTabId: string; focusTabOrTrustedChrome: ReturnType<typeof vi.fn> }
+    internals.activeTabId = second.id
+    second.pageFullscreen = true
+    manager.layout()
+    expect(first.view.setVisible).toHaveBeenLastCalledWith(false)
+    // A notification brings the hidden pane forward; it used to take keyboard focus behind the page in full screen.
+    manager.selectTab(first.id)
+    expect(internals.activeTabId).toBe(first.id)
+    expect(internals.focusTabOrTrustedChrome).toHaveBeenCalledWith(first)
+    expect(second.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledOnce()
+    expect(second.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledWith(
+      ISOLATED_WORLDS.pageFullscreen,
+      [{ code: expect.stringContaining('document.exitFullscreen()') }]
+    )
+  })
+
+  it('keeps the split view pane in full screen there when the person selects it', () => {
+    const { manager, second } = layoutFixture(true)
+    second.pageFullscreen = true
+    manager.selectTab(second.id)
+    expect(second.webContents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
   })
 
   it('keeps Follow agents on a page in full screen the window shows', () => {

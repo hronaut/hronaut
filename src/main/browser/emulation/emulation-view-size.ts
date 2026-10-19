@@ -18,7 +18,7 @@ export function setEmulationViewSize<Tab extends EmulationTab>(access: Emulation
       // The caption can change without the size, such as the pixel ratio.
       else access.publishPageGeometry()
     } else if (resized && !attached) {
-      tab.view.setBounds(access.tabViewBounds(tab, access.browserViewBounds()))
+      tab.view.setBounds(access.tabViewBounds(tab, access.contentAreaBounds()))
     }
     // An attached tab that is not in front stands in for a tab closing behind
     // its beforeunload check, and gets its size when it is next laid out.

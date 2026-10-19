@@ -37,8 +37,9 @@ function requestPageFullscreenExit(tab: PageFullscreenTab): void {
  * the window in full screen; while the page holds it, layout gives that page
  * the whole window. A page the window stops showing, such as after switching
  * tabs, is asked to leave full screen, and so is one that takes it while
- * hidden. A page closed while it holds full screen never leaves it, so the
- * window then leaves full screen itself unless the person had put it there.
+ * hidden; when it leaves, it gets the page card's size back. A page closed
+ * while it holds full screen never leaves it, so the window then leaves full
+ * screen itself unless the person had put it there.
  */
 export function attachPageFullscreenEvents<Tab extends PageFullscreenTab>(
   access: PageFullscreenAccess<Tab>,
@@ -53,6 +54,12 @@ export function attachPageFullscreenEvents<Tab extends PageFullscreenTab>(
   })
   webContents.on('leave-html-full-screen', () => {
     tab.pageFullscreen = false
+    // Layout sizes only the tabs the window shows, so a page that leaves full screen after the person switched away
+    // from it would keep the whole window's size in the background.
+    if (
+      !access.isDestroyed() && !access.window().isDestroyed() && !access.isShown(tab.id)
+      && !access.offscreenCaptureTabIds().has(tab.id) && !access.window().contentView.children.includes(tab.view)
+    ) tab.view.setBounds(access.tabViewBounds(tab, access.contentAreaBounds()))
     access.layout()
   })
   webContents.once('destroyed', () => {
@@ -97,6 +104,14 @@ export function watchWindowFullScreen<Tab extends PageFullscreenTab>(access: Pag
  */
 export function exitPageFullscreen<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>): void {
   for (const tab of access.tabs()) if (tab.pageFullscreen) requestPageFullscreenExit(tab)
+}
+
+/**
+ * Asks every page in full screen but this tab's to leave it, as when the person selects the split view pane that the
+ * other pane in full screen hides, so the selected page shows instead of taking keyboard focus behind it.
+ */
+export function exitPageFullscreenCovering<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>, tabId: string): void {
+  for (const tab of access.tabs()) if (tab.pageFullscreen && tab.id !== tabId) requestPageFullscreenExit(tab)
 }
 
 /** Asks every page in full screen that the window no longer shows to leave it. */
