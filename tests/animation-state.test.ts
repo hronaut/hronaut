@@ -70,7 +70,8 @@ function realmClasses() {
     }
   }
   class MutationRecord {
-    constructor(private readonly removed: object[]) {}
+    constructor(private readonly removed: object[], private readonly kind = 'childList') {}
+    get type() { return this.kind }
     get removedNodes() { return this.removed }
   }
   class AnimationEffect {
@@ -194,7 +195,7 @@ it('reports a missing, ambiguous or invalid target and a value the browser shoul
   expect(() => normalizeAnimationState(state.result, 'tab-1')).toThrow('did not report')
 })
 
-it('settles while the same element is the unique match and still in place, ignoring unrelated changes, and limits waiting readings', () => {
+it('settles while the same element is the unique match, in place and unchanged, ignoring unrelated changes, and limits waiting readings', () => {
   const fixture = read(1, () => [])
   expect(fixture.run(animationStateSettlementScript('token-1'))).toBe(true)
   expect(fixture.run(animationStateSettlementScript('token-1'))).toBe(false)
@@ -214,6 +215,11 @@ it('settles while the same element is the unique match and still in place, ignor
     else moved.observers[0]!.pending.push(record)
     expect(moved.run(animationStateSettlementScript('token-1'))).toBe(false)
   }
+
+  // So does a change to the target's own attributes, which can restart its CSS animations.
+  const restyled = read(1, () => [])
+  restyled.observers[0]!.notify([new restyled.realm.MutationRecord([], 'attributes')])
+  expect(restyled.run(animationStateSettlementScript('token-1'))).toBe(false)
 
   const replaced = read(1, () => [])
   replaced.realm.setMatches([new replaced.realm.Element()])

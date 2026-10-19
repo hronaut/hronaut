@@ -81,18 +81,22 @@ export function animationStateScript(selector: string, token: string): string {
       return 'active';
     };
     let dirty = false;
-    // Removing or moving the target or an ancestor fails publication. Other changes in the page, such as a
-    // ticking counter beside a spinner, do not; a replacement is caught when the selector is resolved again.
-    const removesTarget = records => {
+    // Removing or moving the target or an ancestor fails publication, and so does a change to the target's
+    // attributes, which can cancel or restart its CSS animations. Other changes in the page, such as a ticking
+    // counter beside a spinner, do not; a replacement is caught when the selector is resolved again.
+    const changesTarget = records => {
       for (const record of records) {
+        // Only the target is observed for attributes.
+        if (read(MutationRecord.prototype, 'type', record) === 'attributes') return true;
         for (const node of read(MutationRecord.prototype, 'removedNodes', record)) {
           if (read(Node.prototype, 'contains', node, element)) return true;
         }
       }
       return false;
     };
-    const observer = new MutationObserver(records => { if (removesTarget(records)) { dirty = true; observer.disconnect() } });
+    const observer = new MutationObserver(records => { if (changesTarget(records)) { dirty = true; observer.disconnect() } });
     observer.observe(document, { subtree: true, childList: true });
+    observer.observe(element, { attributes: true });
     let timer;
     const cleanup = () => { observer.disconnect(); clearTimeout(timer); handles.delete(token) };
     try {
@@ -140,7 +144,7 @@ export function animationStateScript(selector: string, token: string): string {
       if (JSON.stringify(result).length > limits.maxReportChars) throw Error('output limit');
       const settle = () => {
         try {
-          if (dirty || removesTarget(observer.takeRecords()) || !inDocument(element)) return false;
+          if (dirty || changesTarget(observer.takeRecords()) || !inDocument(element)) return false;
           const current = resolve();
           return current.length === 1 && current[0] === element;
         } catch { return false } finally { cleanup() }
