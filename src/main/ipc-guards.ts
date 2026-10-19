@@ -5,6 +5,8 @@ import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { WorkspaceStartupReads } from './workspace-startup-reads.js'
 import type { MainWindowRefs } from './windows/main-window.js'
 import type { PanelWindowRefs } from './windows/panel-window.js'
+import { isHronautHomeUrl } from '../shared/home-url.js'
+import { LocalizedError } from './localized-error.js'
 import { isLoopbackHost } from '../shared/mcp-network.js'
 
 /** The trusted shell document: the development server on a loopback host, or the packaged renderer file. */
@@ -52,21 +54,27 @@ export function createIpcGuards(host: IpcGuardsHost): {
   assertTrustedShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
   assertMainShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
   assertPanelShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
+  isHronautPageSender(event: IpcMainInvokeEvent): boolean
   assertWorkspaceInitialized(): void
   assertInitializedMainShellSender(event: IpcMainInvokeEvent): void
   assertInitializedTrustedShellSender(event: IpcMainInvokeEvent): void
   runWorkspaceRead<T>(event: IpcMainInvokeEvent, assertSender: (event: IpcMainInvokeEvent) => void, read: () => T): Promise<T>
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
 } {
-  function assertTrustedShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
-    if (host.workspaceStartupFailure()) throw host.workspaceStartupFailure()
+  /** Whether a message came from the shell of the main window or of the detached panel. */
+  function isShellWindowSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean {
     const actual = event.senderFrame?.url
     const fromMain = Boolean(host.mainWindowRefs.window && event.sender === host.mainWindowRefs.window.webContents && trustedUrlMatches(actual, trustedShellUrl()))
     const fromPanel = Boolean(host.panelWindowRefs.window
       && host.panelWindowRefs.url
       && event.sender === host.panelWindowRefs.window.webContents
       && trustedUrlMatches(actual, host.panelWindowRefs.url))
-    if (!fromMain && !fromPanel) throw new Error('Rejected IPC from an untrusted renderer')
+    return fromMain || fromPanel
+  }
+
+  function assertTrustedShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
+    if (host.workspaceStartupFailure()) throw host.workspaceStartupFailure()
+    if (!isShellWindowSender(event)) throw new Error('Rejected IPC from an untrusted renderer')
   }
 
   function assertMainShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
@@ -85,12 +93,21 @@ export function createIpcGuards(host: IpcGuardsHost): {
     }
   }
 
+  /** Whether a message came from one of Hronaut's own pages: the shell of either window, or Home. Never throws. */
+  function isHronautPageSender(event: Electron.IpcMainInvokeEvent): boolean {
+    try {
+      return isShellWindowSender(event) || isHronautHomeUrl(event.senderFrame?.url)
+    } catch {
+      return false
+    }
+  }
+
   // Readiness is separate from sender trust. Never admit browser mutations into
   // the partially initialized model, including while metadata IO is pending.
   function assertWorkspaceInitialized(): void {
     if (host.workspaceStartupFailure()) throw host.workspaceStartupFailure()
-    if (host.tabsInitializationPromise()) throw new Error('Saved workspaces are still initializing. Try again after startup completes.')
-    if (!host.tabs() || host.initializedTabs() !== host.tabs()) throw new Error('Saved workspaces are unavailable.')
+    if (host.tabsInitializationPromise()) throw new LocalizedError('appErrors.startup.initializing')
+    if (!host.tabs() || host.initializedTabs() !== host.tabs()) throw new LocalizedError('appErrors.startup.unavailable')
   }
 
   function assertInitializedMainShellSender(event: Electron.IpcMainInvokeEvent): void {
@@ -107,7 +124,7 @@ export function createIpcGuards(host: IpcGuardsHost): {
     const manager = host.tabs()
     return host.workspaceStartupReads.run(event, host.tabsInitializationPromise(), () => assertSender(event), () => {
       assertWorkspaceInitialized()
-      if (host.tabs() !== manager) throw new Error('Workspace read is no longer available.')
+      if (host.tabs() !== manager) throw new LocalizedError('appErrors.startup.readUnavailable')
     }, read)
   }
 
@@ -123,6 +140,7 @@ export function createIpcGuards(host: IpcGuardsHost): {
     assertTrustedShellSender,
     assertMainShellSender,
     assertPanelShellSender,
+    isHronautPageSender,
     assertWorkspaceInitialized,
     assertInitializedMainShellSender,
     assertInitializedTrustedShellSender,

@@ -10,6 +10,7 @@ import { capabilityProfileMessages } from './capability-profiles.js'
 import { remoteConnectionMessages } from './remote-connections.js'
 import { homeReadinessMessages } from './home-readiness.js'
 import { walletMessages } from './wallets/index.js'
+import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
 export const plPL = {
@@ -506,6 +507,7 @@ export const plPL = {
     }
   },
   wallets: walletMessages['pl-PL'],
+  appErrors: appErrorMessages['pl-PL'],
   "workspaceNavigationAudit": { "reasonCredentials": "osadzone dane logowania", "reasonMalformed": "nieprawidłowy adres", "reasonUnsupportedScheme": "nieobsługiwany schemat", "reasonNoMatch": "poza listą dozwolonych", "sourceDirect": "adres lub żądanie agenta", "sourcePage": "nawigacja strony", "sourceRedirect": "przekierowanie", "sourcePopup": "wyskakujące okno", "sourceHistory": "wstecz lub dalej", "sourcePolicyChange": "zmiana zasad", "sourceRestore": "przywrócenie sesji" },
   "workspaceEditor": {
     transferData: "Przenieś dane przeglądarki",

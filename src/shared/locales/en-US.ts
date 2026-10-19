@@ -10,6 +10,7 @@ import { capabilityProfileMessages } from './capability-profiles.js'
 import { remoteConnectionMessages } from './remote-connections.js'
 import { homeReadinessMessages } from './home-readiness.js'
 import { walletMessages } from './wallets/index.js'
+import { appErrorMessages } from './app-errors/index.js'
 export const enUS = {
   reactInspection: reactInspectionMessages['en-US'],
   agentStatus: { starting: "Getting ready for agents", ready: "Ready for agents", connected: "{name} connected", connectedMany: "{count} agent connected | {count} agents connected", working: "{name} is working", workingMany: "{count} agent working | {count} agents working", needsYou: "Needs you", paused: "Agents paused", error: "Agents can’t connect", details: "Details" },
@@ -226,6 +227,7 @@ export const enUS = {
     support: { trialNotStarted: "Your 10-day trial starts with the first agent tool call.", trialActive: "Trial ends {time}.", trialExpired: "Your trial has ended. Subscribe to continue agent automation.", kicker: 'License', thanks: 'Thank you for licensing Hronaut', heading: "Activate Hronaut", description: "All users need a subscription after a 10-day trial. $4/month or $24/year per user (50% off $48).", active: 'License {key} is active on this device.', activations: '{used} of {limit} device activations used.', unlimited: 'unlimited', lastChecked: 'Last checked {time}.', checking: 'Checking…', check: 'Check license', manage: 'Manage subscription ↗', deactivating: 'Deactivating…', deactivate: 'Deactivate device', activateDescription: 'Activate the license key from your Creem receipt.', secure: 'The key is encrypted with your operating system secure storage and is used only for Creem license validation.', unavailable: 'License activation requires an operating-system secure storage backend.', key: 'License key', placeholder: 'XXXX-XXXX-XXXX-XXXX', activating: 'Activating…', activate: 'Activate license', support: 'Buy license ↗', alternatives: 'License and community', license: "Hronaut License ↗", contributing: 'Contributing guide ↗', issue: 'Report an issue ↗' }
   },
   wallets: walletMessages['en-US'],
+  appErrors: appErrorMessages['en-US'],
   workspaceNavigationAudit: { reasonCredentials: 'embedded credentials', reasonMalformed: 'invalid address', reasonUnsupportedScheme: 'unsupported scheme', reasonNoMatch: 'not on allowlist', sourceDirect: 'address or agent request', sourcePage: 'page navigation', sourceRedirect: 'redirect', sourcePopup: 'popup', sourceHistory: 'back or forward', sourcePolicyChange: 'policy change', sourceRestore: 'session restore' },
   workspaceEditor: {
     transferData: "Transfer browser data",

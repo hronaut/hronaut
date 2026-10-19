@@ -26,6 +26,16 @@ describe('browser import picker', () => {
       expect(browserImport.commit).not.toHaveBeenCalled()
     } finally { wrapper.unmount() }
   })
+  it('shows a failure from the main process without Electron\'s IPC wrapper', async () => {
+    const list = vi.fn(async () => { throw new Error("Error invoking remote method 'browser-import:list': Error: Збережені робочі простори недоступні.") })
+    const browser = { browserImport: { list, preview: vi.fn(), cancel: vi.fn(async () => {}), commit: vi.fn() }, getState: vi.fn(async () => state) } as unknown as HronautApi
+    const wrapper = mount(BrowserImportPanel, { props: { workspaceId: 'chosen', state, browser, syncState: async value => { await value } }, global: { plugins: [createHronautI18n('en-US')] } })
+    try {
+      await flushPromises()
+      expect(wrapper.text()).toContain('Збережені робочі простори недоступні.')
+      expect(wrapper.text()).not.toContain('Error invoking remote method')
+    } finally { wrapper.unmount() }
+  })
   it('shows display names while selecting a duplicate-named profile by its opaque ID', async () => {
     const { wrapper, browserImport, button } = setup(state, [
       { id: 'first-id', browser: 'Chrome', name: 'Avery · Default' },

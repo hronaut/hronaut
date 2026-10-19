@@ -2,6 +2,7 @@ import { dialog, type MessageBoxOptions, type MessageBoxReturnValue } from 'elec
 import type { MainWindowRefs } from './main-window.js'
 import type { PanelWindowRefs } from './panel-window.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
+import { personErrorMessage } from '../localized-error.js'
 import type { BrowserActionFailure } from '../../shared/types.js'
 
 interface ShellWindowsHost {
@@ -30,7 +31,7 @@ export function createShellWindows(host: ShellWindowsHost): {
   showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>
 } {
   function reportBrowserActionFailure(action: string, error: unknown): void {
-    const rawMessage = error instanceof Error ? error.message : ''
+    const rawMessage = error instanceof Error ? personErrorMessage(error, host.text) : ''
     const failure: BrowserActionFailure = {
       action,
       message: /^Tab not found:/i.test(rawMessage)

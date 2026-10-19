@@ -1,4 +1,6 @@
+import type { MessageKey } from '../../../shared/i18n.js'
 import type { BrowserState } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import { liveRegionRecordingKeepsTabAwake } from '../live-region-recorder.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
@@ -127,14 +129,14 @@ export async function setTabSleepingFromContextMenu<Tab extends TabSleepTab>(acc
   const active = tab.id === access.activeTabId() && !access.splitViewContains(tab.id)
   const fallback = active ? sleepFallbackTab(access, tab) : undefined
   const blockReason = sleepBlockReason(access, tab, active && fallback !== undefined)
-  if (blockReason) throw new Error(blockReason)
+  if (blockReason) throw new LocalizedError(blockReason)
   if (!active || !fallback) {
     await putTabToSleep(access, tab, true)
     return
   }
 
   if (await hasChangedFormState(tab)) {
-    throw new Error('This tab has a partially filled form and stays active to protect unsaved input.')
+    throw new LocalizedError('appErrors.sleep.unsavedForm')
   }
   if (access.activeTabId() !== tab.id || access.splitViewContains(tab.id)) {
     await putTabToSleep(access, tab, true)
@@ -142,8 +144,8 @@ export async function setTabSleepingFromContextMenu<Tab extends TabSleepTab>(acc
   }
   const latestFallback = sleepFallbackTab(access, tab)
   const latestBlockReason = sleepBlockReason(access, tab, latestFallback !== undefined)
-  if (latestBlockReason) throw new Error(latestBlockReason)
-  if (!latestFallback) throw new Error('A visible tab cannot sleep.')
+  if (latestBlockReason) throw new LocalizedError(latestBlockReason)
+  if (!latestFallback) throw new LocalizedError('appErrors.sleep.visible')
   access.selectTab(latestFallback.id)
   try {
     await putTabToSleep(access, tab, true)
@@ -163,46 +165,46 @@ export async function sleepWorkspaceTabs<Tab extends TabSleepTab>(access: TabSle
 }
 
 /**
- * Why the tab must stay awake, in words for the person, or undefined when it
- * may sleep. The active tab may sleep only when allowActiveTab says another
- * tab will take its place.
+ * The message key of why the tab must stay awake, in words for the person, or
+ * undefined when it may sleep. The active tab may sleep only when
+ * allowActiveTab says another tab will take its place.
  */
-export function sleepBlockReason<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tab: Tab, allowActiveTab = false): string | undefined {
-  if (!access.hasTab(tab.id) || tab.webContents.isDestroyed()) return 'The tab is no longer available.'
-  if (isHronautHomeUrl(tab.url) || !isWebUrl(tab.url)) return 'Only inactive website tabs can sleep.'
-  if ((!allowActiveTab && tab.id === access.activeTabId()) || access.splitViewContains(tab.id)) return 'A visible tab cannot sleep.'
-  if (tab.pinned) return 'Pinned tabs stay active.'
-  if (tab.pageLifecycleState !== 'active' || tab.pageLifecycleOperation) return 'A tab with an explicit page hold stays active.'
-  if (tab.loading) return 'A loading tab cannot sleep.'
-  if (tab.audible) return 'A tab playing audio stays active.'
-  if (tab.dialog) return 'A tab with an open dialog stays active.'
-  if (access.options().walletKeepsTabAwake?.(tab.id)) return 'A tab waiting on a wallet request stays active.'
+export function sleepBlockReason<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tab: Tab, allowActiveTab = false): MessageKey | undefined {
+  if (!access.hasTab(tab.id) || tab.webContents.isDestroyed()) return 'native.errors.tabUnavailable'
+  if (isHronautHomeUrl(tab.url) || !isWebUrl(tab.url)) return 'appErrors.sleep.onlyWebsites'
+  if ((!allowActiveTab && tab.id === access.activeTabId()) || access.splitViewContains(tab.id)) return 'appErrors.sleep.visible'
+  if (tab.pinned) return 'appErrors.sleep.pinned'
+  if (tab.pageLifecycleState !== 'active' || tab.pageLifecycleOperation) return 'appErrors.sleep.pageHold'
+  if (tab.loading) return 'appErrors.sleep.loading'
+  if (tab.audible) return 'appErrors.sleep.audio'
+  if (tab.dialog) return 'appErrors.sleep.dialog'
+  if (access.options().walletKeepsTabAwake?.(tab.id)) return 'appErrors.sleep.wallet'
   if (tab.webContents.isDevToolsOpened() || access.devToolsOpening().has(tab.webContents.id)) {
-    return 'A tab with Developer Tools open stays active.'
+    return 'appErrors.sleep.devTools'
   }
   if (
     access.screenshotAreaSessions().has(tab.webContents.id)
     || access.elementPickerSessions().has(tab.webContents.id)
     || access.agentInputWebContents().has(tab.webContents.id)
   ) {
-    return 'A tab with an active interaction stays active.'
+    return 'appErrors.sleep.interaction'
   }
-  if (access.videoRecorder().state(tab.id).status === 'recording') return 'A tab recording video stays active.'
-  if (tab.reproRecording?.active) return 'A tab recording reproduction steps stays active.'
-  if (tab.domChangesRecording?.active) return 'A tab recording DOM changes stays active.'
-  if (liveRegionRecordingKeepsTabAwake(tab)) return 'A tab recording a live region stays active.'
-  if (access.cssStatePreview().active(tab)) return 'A tab previewing a forced CSS state stays active.'
-  if (access.domMutationSource().active(tab)) return 'A tab capturing a DOM mutation source stays active.'
-  if (access.virtualPasskeys().active(tab)) return 'A tab with a virtual passkey stays active.'
-  if (access.logpoints().active(tab)) return 'A tab with armed logpoints stays active.'
-  if (tab.codeCoverage?.recording) return 'A tab recording code coverage stays active.'
-  if (tab.cpuProfile?.recording) return 'A tab recording a JavaScript CPU profile stays active.'
-  if (tab.memoryAllocation?.recording) return 'A tab recording memory allocations stays active.'
-  if ((access.mcpActivitiesByTab().get(tab.id)?.size ?? 0) > 0) return 'A tab with an active MCP command stays active.'
+  if (access.videoRecorder().state(tab.id).status === 'recording') return 'appErrors.sleep.video'
+  if (tab.reproRecording?.active) return 'appErrors.sleep.repro'
+  if (tab.domChangesRecording?.active) return 'appErrors.sleep.domChanges'
+  if (liveRegionRecordingKeepsTabAwake(tab)) return 'appErrors.sleep.liveRegion'
+  if (access.cssStatePreview().active(tab)) return 'appErrors.sleep.cssState'
+  if (access.domMutationSource().active(tab)) return 'appErrors.sleep.domMutationSource'
+  if (access.virtualPasskeys().active(tab)) return 'appErrors.sleep.passkey'
+  if (access.logpoints().active(tab)) return 'appErrors.sleep.logpoints'
+  if (tab.codeCoverage?.recording) return 'appErrors.sleep.coverage'
+  if (tab.cpuProfile?.recording) return 'appErrors.sleep.cpuProfile'
+  if (tab.memoryAllocation?.recording) return 'appErrors.sleep.memory'
+  if ((access.mcpActivitiesByTab().get(tab.id)?.size ?? 0) > 0) return 'appErrors.sleep.mcpCommand'
   if (access.downloadController().hasActiveDownload(tab.id)) {
-    return 'A tab with an active download stays active.'
+    return 'appErrors.sleep.download'
   }
-  if (access.renderQueues().has(tab.webContents.id)) return 'A tab rendering a page capture or PDF stays active.'
+  if (access.renderQueues().has(tab.webContents.id)) return 'appErrors.sleep.render'
   return undefined
 }
 
@@ -265,17 +267,17 @@ export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAcc
   if (!isCurrent() || tab.sleeping) return false
   const blockReason = sleepBlockReason(access, tab)
   if (blockReason) {
-    if (reportBlocked) throw new Error(blockReason)
+    if (reportBlocked) throw new LocalizedError(blockReason)
     return false
   }
   if (await hasChangedFormState(tab)) {
-    if (reportBlocked) throw new Error('This tab has a partially filled form and stays active to protect unsaved input.')
+    if (reportBlocked) throw new LocalizedError('appErrors.sleep.unsavedForm')
     return false
   }
   if (!isCurrent()) return false
   const latestBlockReason = sleepBlockReason(access, tab)
   if (latestBlockReason) {
-    if (reportBlocked) throw new Error(latestBlockReason)
+    if (reportBlocked) throw new LocalizedError(latestBlockReason)
     return false
   }
   tab.sleepNavigationHistory = access.navigationHistorySnapshot(tab)

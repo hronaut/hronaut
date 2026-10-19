@@ -1,3 +1,5 @@
+import { LocalizedError } from './localized-error.js'
+
 export const MAX_CLIPBOARD_TEXT_BYTES = 8 * 1024 * 1024
 
 export interface TextClipboard {
@@ -16,7 +18,7 @@ export async function writeVerifiedClipboardText(
   delay: Wait = wait
 ): Promise<void> {
   if (Buffer.byteLength(text, 'utf8') > MAX_CLIPBOARD_TEXT_BYTES) {
-    throw new Error('The text is too large to copy safely (maximum 8 MB)')
+    throw new LocalizedError('appErrors.clipboard.textTooLarge')
   }
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -26,5 +28,5 @@ export async function writeVerifiedClipboardText(
     if (await target.readText() === text) return
   }
 
-  throw new Error('The text was prepared, but the system clipboard did not accept it')
+  throw new LocalizedError('appErrors.clipboard.textRejected')
 }

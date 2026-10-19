@@ -23,7 +23,7 @@ function exposedStub(name: string, props: string[], exposed: Record<string, unkn
   })
 }
 
-function createHarness() {
+function createHarness(options: { browser?: object; locale?: 'en-US' | 'uk-UA' } = {}) {
   const handles = {
     tabSearch: { openPanel: vi.fn(async () => undefined), close: vi.fn() },
     find: { openForTab: vi.fn(async () => undefined), close: vi.fn(async () => undefined) },
@@ -77,7 +77,7 @@ function createHarness() {
       helpDialogOpen: false,
       settingsOpen: false,
       websiteAvailable: false,
-      browser: {} as never,
+      browser: (options.browser ?? {}) as never,
       syncState,
       selectTab,
       expandTabGroup,
@@ -99,7 +99,7 @@ function createHarness() {
       onCreateWorkspace: createWorkspace
     },
     global: {
-      plugins: [createHronautI18n('en-US')],
+      plugins: [createHronautI18n(options.locale ?? 'en-US')],
       stubs: {
         TabSearchPanel: exposedStub('TabSearchPanel', [
           'open', 'state', 'mcpActivityByTab', 'syncState', 'selectTab', 'expandTabGroup',
@@ -260,6 +260,18 @@ describe('AppTransientShellLayer', () => {
     switcher().vm.$emit('create-workspace')
     expect(forwarded.searchTabs).toHaveBeenCalledOnce()
     expect(forwarded.createWorkspace).toHaveBeenCalledOnce()
+  })
+
+  it('names a failed workspace library request from Home in the interface language, without the IPC wrapper', async () => {
+    // It used to show the English title "Workspaces" and Electron's "Error invoking remote method" prefix.
+    let request: ((request: { view: 'edit'; workspaceId: string }) => void) | undefined
+    const browser = { onHomeWorkspaceEditorRequested: (listener: typeof request) => { request = listener; return () => undefined } }
+    const { wrapper, handles, forwarded } = createHarness({ browser, locale: 'uk-UA' })
+    try {
+      handles.workspace.openExisting.mockRejectedValueOnce(new Error("Error invoking remote method 'browser:workspace': Error: Збережені робочі простори недоступні."))
+      request?.({ view: 'edit', workspaceId: 'workspace-1' })
+      await vi.waitFor(() => expect(forwarded.showError).toHaveBeenCalledWith('Робочі простори', 'Збережені робочі простори недоступні.'))
+    } finally { wrapper.unmount() }
   })
 
   it('exposes one stable imperative surface for all child handles', async () => {

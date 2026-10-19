@@ -18,6 +18,7 @@ import type { CommandPaletteView } from '../composables/useCommandPaletteShellCo
 import type { AgentStepHistoryTarget } from '../composables/useAgentStepHistory.js'
 import { useAgentPresence } from '../composables/useAgentPresence.js'
 import { useCommandPaletteSearch } from '../composables/useCommandPaletteSearch.js'
+import { friendlyUiError } from '../composables/useAppToastController.js'
 import type { SettingsSection } from '../composables/useSettingsDialogController.js'
 import AgentStepsDialog from './AgentStepsDialog.vue'
 import AppBrowserCollectionsLayer from './AppBrowserCollectionsLayer.vue'
@@ -163,7 +164,7 @@ onMounted(() => {
       : request.view === 'import' ? editor.openImport(request.workspaceId)
       : request.view === 'edit' ? editor.openExisting(request.workspaceId)
       : editor.openTransfer(request.workspaceId)
-    void Promise.resolve(operation).catch(error => props.showError('Workspaces', String(error)))
+    void Promise.resolve(operation).catch(error => props.showError(t('workspaceLibrary.title'), friendlyUiError(error, t('runtime.toast.actionFailed'))))
   })
 })
 onBeforeUnmount(() => {
