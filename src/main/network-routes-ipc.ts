@@ -23,7 +23,10 @@ export function registerNetworkRoutesIpc(host: NetworkRoutesIpcHost): void {
   host.handleBrowserIpc('browser:add-network-route', async (event, tabId: unknown, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    return host.tabs()!.addNetworkRoute(tabId, parseNetworkRouteInput(value))
+    const input = parseNetworkRouteInput(value)
+    // Only agents can release a held request, so the Network panel cannot create one.
+    if (input.holdUntilReleased !== undefined || input.holdSeconds !== undefined) throw new TypeError('Held mock responses are available to agents only')
+    return host.tabs()!.addNetworkRoute(tabId, input)
   })
   host.handleBrowserIpc('browser:remove-network-route', async (event, tabId: unknown, routeId: unknown) => {
     host.assertTrustedSender(event)

@@ -115,7 +115,7 @@ import {
   requireNetworkConditionsKnown,
   setNetworkRouteEnabled
 } from './network-conditions/network-conditions.js'
-import { cancelHeldResponse, disposeHeldResponses, heldResponseSummaries, releaseHeldResponse, type HeldResponses } from './network-conditions/held-responses.js'
+import { cancelHeldResponse, disposeHeldResponses, failAllHeldResponses, heldResponseSummaries, releaseHeldResponse, type HeldResponses } from './network-conditions/held-responses.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
 import type { DownloadCopyAccess } from './download-copy/download-copy-access.js'
 import { copyDownload, type DownloadCopyProgress, type DownloadCopyRequest, type DownloadCopyResult } from './download-copy/download-copy.js'
@@ -3978,6 +3978,11 @@ export class BrowserTabsManager {
 
   cancelHeldNetworkResponse(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<void> {
     return cancelHeldResponse(this.networkConditionsAccess(), tabId, routeId, validate, markSubmitted)
+  }
+
+  /** Fails every held request as Hronaut starts to quit. */
+  failHeldNetworkResponses(): void {
+    failAllHeldResponses(this.networkConditionsAccess(), [...this.tabs.values()].map(tab => tab.webContents))
   }
 
   listDownloads(): BrowserDownloadState[] {

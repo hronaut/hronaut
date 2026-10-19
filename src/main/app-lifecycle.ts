@@ -75,6 +75,8 @@ export function registerAppLifecycle(app: Pick<App, 'on' | 'whenReady' | 'quit' 
     host.quit.quitting = true
     host.mainWindowRefs.lastState = host.currentWindowState() ?? host.mainWindowRefs.lastState
     host.panelWindowRefs.lastState = host.currentPanelWindowState() ?? host.panelWindowRefs.lastState
+    // A page that closes with a request still held lets Chromium send it to its real destination.
+    host.tabs()?.failHeldNetworkResponses()
   })
 
   app.whenReady().then(async () => {

@@ -171,6 +171,7 @@ function takeHeldResponse<Tab extends NetworkConditionsTab>(access: NetworkCondi
   }
   validate()
   if (access.isDestroyed() || tab.webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.networkDebuggerEpoch !== held.debuggerEpoch) {
+    failQuietly(tab.webContents, held.requestId, 'Aborted')
     forget(state, held, 'detached')
     throw holdEnded(routeId, 'detached')
   }
@@ -201,6 +202,14 @@ export async function cancelHeldResponse<Tab extends NetworkConditionsTab>(acces
   access.changed(false)
   markSubmitted()
   await tab.webContents.debugger.sendCommand('Fetch.failRequest', { requestId: held.requestId, errorReason: 'Aborted' })
+}
+
+/**
+ * Fails every held request of these pages as Hronaut starts to quit, before
+ * windows close, so no page closes with a request still paused.
+ */
+export function failAllHeldResponses<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, pages: Iterable<WebContents>): void {
+  for (const webContents of pages) if (!webContents.isDestroyed()) endHeldResponses(access, webContents, 'closed', true)
 }
 
 /** Stops every hold timer when the browser closes; tabs fail their held requests as their debuggers detach. */

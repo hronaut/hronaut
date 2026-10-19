@@ -83,10 +83,10 @@ for (const ending of ['cancel', 'timeout', 'clear', 'reload', 'close', 'devtools
     // Give a resumed request time to arrive before checking it never did.
     await new Promise(resolve => setTimeout(resolve, 1_500))
     expect(counters.routeRequests).toBe(0)
-    if (ending !== 'close' && ending !== 'devtools' && ending !== 'quit') {
+    if (ending !== 'close' && ending !== 'quit') {
       const late = await call(client, 'browser_network_routes', { action: 'release', tabId, routeId })
       expect(late.isError).toBe(true)
-      expect(late.structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', effects: 'none', routeId, reason: { cancel: 'cancelled', timeout: 'timed-out', clear: 'cleared', reload: 'navigated' }[ending] })
+      expect(late.structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', effects: 'none', routeId, reason: { cancel: 'cancelled', timeout: 'timed-out', clear: 'cleared', reload: 'navigated', devtools: 'detached' }[ending] })
       expect(text(late)).toContain(`No request is held for route ${routeId}`)
     }
   })

@@ -118,11 +118,15 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
         validateConditions()
         const state = manager.networkConditionState(tabId)
         if (state.application === 'confirmed') throw error
+        // Clearing would fail a held request, so an agent holding one is pointed at its hold instead.
+        const holding = manager.heldNetworkResponses(tabId).length > 0
         const outcome = { status: 'NETWORK_CONDITIONS_UNCONFIRMED', ...state, retrySafe: false,
-          nextAction: 'Explicitly clear conditions to recover. Future matching requests may reach their normal destination. Already-dispatched effects cannot be undone.' }
+          nextAction: holding
+            ? 'A request is held: use action held, release or cancel for it, and retry this action shortly if application is pending. Clearing conditions fails held requests.'
+            : 'Explicitly clear conditions to recover. Future matching requests may reach their normal destination. Already-dispatched effects cannot be undone.' }
         return { ...textResult(outcome), structuredContent: outcome, isError: true }
       }
     }),
-    { settlement: input => requestConditionsSettlement(false, input) }
+    { settlement: input => requestConditionsSettlement(false, input, input.action === 'list' || input.action === 'held') }
   )
 }

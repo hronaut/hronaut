@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { WebContents } from 'electron'
-import { cancelHeldResponse, heldResponseSummaries, releaseHeldResponse, type HeldResponses } from '../src/main/browser/network-conditions/held-responses.js'
+import { cancelHeldResponse, failAllHeldResponses, heldResponseSummaries, releaseHeldResponse, type HeldResponses } from '../src/main/browser/network-conditions/held-responses.js'
 import { addNetworkRoute, applyNetworkRoutes, clearNetworkRoutes, queueNetworkRouteRequest } from '../src/main/browser/network-conditions/network-conditions.js'
 import type { NetworkConditionsAccess, NetworkConditionsTab } from '../src/main/browser/network-conditions/network-conditions-access.js'
 
@@ -12,7 +12,13 @@ function fixture() {
   const order: string[] = []
   const debuggerEvents = new EventEmitter() as EventEmitter & { sendCommand: (method: string, params?: Record<string, unknown>) => Promise<unknown>; detach: () => void; isAttached: () => boolean }
   let attached = true
-  debuggerEvents.sendCommand = async (method, params) => { sent.push({ method, params }); order.push(method); return {} }
+  const failing = new Set<string>()
+  debuggerEvents.sendCommand = async (method, params) => {
+    sent.push({ method, params })
+    order.push(method)
+    if (failing.has(method)) throw new Error(`${method} lost its acknowledgement`)
+    return {}
+  }
   debuggerEvents.detach = () => { order.push('detach'); attached = false; debuggerEvents.emit('detach') }
   debuggerEvents.isAttached = () => attached
   const contents = Object.assign(new EventEmitter(), { id: 7, debugger: debuggerEvents, isDestroyed: () => false }) as unknown as WebContents
@@ -29,6 +35,7 @@ function fixture() {
   }
   const held = new Map<number, HeldResponses>()
   const queues = new Map<number, Promise<void>>()
+  const refreshTimers = new Map<number, NodeJS.Timeout>()
   const access: NetworkConditionsAccess<NetworkConditionsTab> = {
     getTab: () => tab,
     findTab: id => id === tab.id ? tab : undefined,
@@ -36,7 +43,7 @@ function fixture() {
     withDebugger: async (_contents, operation, admission) => { admission?.(); return operation() },
     applyNetworkEmulation: async () => {},
     networkRouteQueues: () => queues,
-    networkRouteRefreshTimers: () => new Map(),
+    networkRouteRefreshTimers: () => refreshTimers,
     heldNetworkResponses: () => held,
     changed: () => {}
   }
@@ -48,7 +55,7 @@ function fixture() {
     const routes = await addNetworkRoute(access, undefined, { urlPattern: 'https://app.test/api/*', response: { status: 201, headers: { 'content-type': 'text/plain' }, body: 'done' }, holdUntilReleased: true, holdSeconds: seconds })
     return routes.at(-1)!.id
   }
-  return { access, tab, contents, sent, order, pause, addHold }
+  return { access, tab, contents, sent, order, failing, held, pause, addHold }
 }
 
 beforeEach(() => { vi.useFakeTimers() })
@@ -152,14 +159,50 @@ it('ends holds when the page navigates', async () => {
   await expect(releaseHeldResponse(access, undefined, routeId)).rejects.toThrow('the page navigated away')
 })
 
-it('refuses a release after the page debugger was replaced', async () => {
+it('refuses a release after the page debugger was replaced, failing the request instead', async () => {
   const { access, tab, sent, pause, addHold } = fixture()
   const routeId = await addHold()
   await pause('r1')
   sent.length = 0
   tab.networkDebuggerEpoch++
   await expect(releaseHeldResponse(access, undefined, routeId)).rejects.toThrow('the page debugger detached')
+  expect(sent).toEqual([{ method: 'Fetch.failRequest', params: { requestId: 'r1', errorReason: 'Aborted' } }])
+})
+
+it('never answers a request twice after a release loses its acknowledgement', async () => {
+  const { access, sent, failing, pause, addHold } = fixture()
+  const routeId = await addHold()
+  await pause('r1')
+  sent.length = 0
+  failing.add('Fetch.fulfillRequest')
+  await expect(releaseHeldResponse(access, undefined, routeId)).rejects.toThrow('lost its acknowledgement')
+  failing.clear()
+  await expect(releaseHeldResponse(access, undefined, routeId)).rejects.toThrow('a release was sent but not confirmed; do not retry it')
+  await expect(cancelHeldResponse(access, undefined, routeId)).rejects.toThrow('do not retry it')
+  expect(sent.map(command => command.method)).toEqual(['Fetch.fulfillRequest'])
+  expect(heldResponseSummaries(access)).toEqual([])
+})
+
+it('ends holds without a command when the renderer exits, and forgets the page when it is destroyed', async () => {
+  const { access, contents, sent, held, pause, addHold } = fixture()
+  const routeId = await addHold()
+  await pause('r1')
+  sent.length = 0
+  contents.emit('render-process-gone')
   expect(sent).toEqual([])
+  await expect(releaseHeldResponse(access, undefined, routeId)).rejects.toThrow('the page renderer exited')
+  contents.emit('destroyed')
+  expect(held.size).toBe(0)
+})
+
+it('fails every held request when Hronaut starts to quit', async () => {
+  const { access, contents, sent, pause, addHold } = fixture()
+  const routeId = await addHold()
+  await pause('r1')
+  sent.length = 0
+  failAllHeldResponses(access, [contents])
+  expect(sent).toEqual([{ method: 'Fetch.failRequest', params: { requestId: 'r1', errorReason: 'Aborted' } }])
+  await expect(releaseHeldResponse(access, undefined, routeId)).rejects.toThrow('the tab closed')
 })
 
 it('cancels a held request by failing it', async () => {
@@ -172,12 +215,14 @@ it('cancels a held request by failing it', async () => {
   await expect(releaseHeldResponse(access, undefined, routeId)).rejects.toThrow('it was cancelled')
 })
 
-it('caps holds per tab, counting rules that have not matched yet', async () => {
-  const { pause, addHold } = fixture()
-  await addHold()
+it('caps holds per tab, counting rules that have not matched yet, and frees a place on release', async () => {
+  const { access, pause, addHold } = fixture()
+  const captured = await addHold()
   await pause('r1')
   await addHold()
   await addHold()
   await addHold()
   await expect(addHold()).rejects.toThrow('at most 4 requests')
+  await releaseHeldResponse(access, undefined, captured)
+  await expect(addHold()).resolves.toEqual(expect.any(String))
 })
