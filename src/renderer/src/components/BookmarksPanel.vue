@@ -177,6 +177,23 @@ async function assignCollection(bookmarkId: string, event: Event): Promise<void>
   else panel.querySelector<HTMLSelectElement>('.bookmark-collection-filter select')?.focus()
 }
 
+// Add current and Remove current are disabled while the change is saved, and Chromium then drops their focus. Once it
+// is saved or fails, the button gets the focus back, or Close when the button cannot be used, unless you have moved the
+// focus or closed the panel meanwhile.
+async function toggleCurrentPage(event: MouseEvent): Promise<void> {
+  const generation = focusGeneration
+  const focused = event.currentTarget instanceof HTMLButtonElement
+    && document.activeElement === event.currentTarget ? event.currentTarget : null
+  const panel = focused?.closest('.bookmarks-panel')
+  await toggleCurrent()
+  await nextTick()
+  if (!focused || generation !== focusGeneration || !open.value || !panel?.isConnected) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  const target = [focused, panel.querySelector<HTMLButtonElement>('.panel-close')]
+    .find(element => element?.isConnected && !element.matches(':disabled'))
+  target?.focus()
+}
+
 defineExpose({ toggle, toggleCurrent, handleEscape })
 
 async function finishRename(operation: () => void | Promise<void>): Promise<void> {
@@ -269,7 +286,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
         <UiButton appearance="application"
           type="button"
           :disabled="!activeUrl || anyPending"
-          @click="toggleCurrent"
+          @click="toggleCurrentPage"
         >{{ currentBookmark ? t('bookmarks.removeCurrent') : t('bookmarks.addCurrent') }}</UiButton>
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('bookmarks.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>

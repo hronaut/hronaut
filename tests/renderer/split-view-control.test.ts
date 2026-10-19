@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/vue'
+import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
+import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import SplitViewControl from '../../src/renderer/src/components/SplitViewControl.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
@@ -49,8 +50,9 @@ function browserState(overrides: Partial<BrowserState> = {}): BrowserState {
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise })
-  return { promise, resolve }
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => { resolve = resolvePromise; reject = rejectPromise })
+  return { promise, resolve, reject }
 }
 
 function renderControl(options: {
@@ -174,5 +176,98 @@ describe('SplitViewControl', () => {
       failure,
       'Split view could not be closed.'
     ]]))
+  })
+})
+
+describe('SplitViewControl keyboard focus while a change is saved', () => {
+  const splitState = () => browserState({
+    splitView: { firstTabId: 'first', secondTabId: 'second', orientation: 'vertical', ratio: 0.5 }
+  })
+
+  // Chromium moves the focus of a control to the page body while the control is disabled. JSDOM cannot blur a
+  // disabled control, so it is enabled for the blur itself.
+  function dropFocusLikeChromium(control: HTMLElement): void {
+    control.removeAttribute('disabled')
+    control.blur()
+    control.setAttribute('disabled', '')
+    expect(document.body).toHaveFocus()
+  }
+
+  // The menu stayed open with every control disabled, Chromium blurred the one you used, and nothing gave it the
+  // focus back: the next Tab started at the top of the window and the next arrow key on the size slider did nothing.
+  it.each([
+    ['Stacked', 'is saved'],
+    ['Swap panes', 'is saved'],
+    ['Swap panes', 'fails'],
+    ['size slider', 'is saved']
+  ] as const)('gives the focus back to %s once the change %s', async (control, outcome) => {
+    const pending = deferred<BrowserState>()
+    const state = splitState()
+    const updateSplitView = vi.fn(() => pending.promise)
+    const rendered = renderControl({ state, browser: { updateSplitView } })
+    const user = userEvent.setup()
+    let target: HTMLElement
+    if (control === 'size slider') {
+      target = screen.getByRole('slider')
+      target.focus()
+      await fireEvent.change(target, { target: { value: '60' } })
+    } else {
+      target = screen.getByRole('button', { name: control })
+      target.focus()
+      await user.keyboard('{Enter}')
+    }
+    expect(updateSplitView).toHaveBeenCalledOnce()
+    expect(target).toBeDisabled()
+    dropFocusLikeChromium(target)
+
+    if (outcome === 'is saved') pending.resolve(state)
+    else pending.reject(new Error('split renderer unavailable'))
+
+    await vi.waitFor(() => expect(target).toHaveFocus())
+    expect(target).toBeEnabled()
+    if (outcome === 'fails') expect(rendered.view.emitted().error).toHaveLength(1)
+  })
+
+  it('moves the focus to Close when the control you used is gone once the change is saved', async () => {
+    const pending = deferred<BrowserState>()
+    const rendered = renderControl({ state: splitState(), browser: { updateSplitView: vi.fn(() => pending.promise) } })
+    rendered.acceptState.mockImplementationOnce(async (next) => {
+      await rendered.view.rerender({ state: await next })
+    })
+    const swap = screen.getByRole('button', { name: 'Swap panes' })
+    swap.focus()
+    await userEvent.setup().keyboard('{Enter}')
+    dropFocusLikeChromium(swap)
+
+    // Split view ended meanwhile, so the menu now offers tabs to split with instead of Swap panes.
+    pending.resolve(browserState())
+
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Close split view menu' })).toHaveFocus())
+    expect(swap).not.toBeInTheDocument()
+  })
+
+  it.each(['moved', 'closed'] as const)('leaves the focus alone when you %s it while the change is saved', async (scenario) => {
+    const pending = deferred<BrowserState>()
+    const state = splitState()
+    const rendered = renderControl({ state, browser: { updateSplitView: vi.fn(() => pending.promise) } })
+    const elsewhere = document.createElement('button')
+    elsewhere.textContent = 'Elsewhere'
+    document.body.append(elsewhere)
+    try {
+      const stacked = screen.getByRole('button', { name: 'Stacked' })
+      stacked.focus()
+      await userEvent.setup().keyboard('{Enter}')
+      dropFocusLikeChromium(stacked)
+      if (scenario === 'moved') elsewhere.focus()
+      else await rendered.view.rerender({ open: false })
+
+      pending.resolve(state)
+      await flushPromises()
+
+      if (scenario === 'moved') expect(elsewhere).toHaveFocus()
+      else expect(document.body).toHaveFocus()
+    } finally {
+      elsewhere.remove()
+    }
   })
 })
