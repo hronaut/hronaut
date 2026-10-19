@@ -5,7 +5,12 @@ import { pwaLifecycleMessages } from './pwa-lifecycle.js'
 import { softNavigationMessages } from './soft-navigation.js'
 import { lcpAttributionMessages } from './lcp-attribution.js'
 import { browserImportMessages } from './browser-import.js'
-import { enUS, type MessageSchema } from './en-US.js'
+import { videoRecorderMessages } from './video-recorder/index.js'
+import { capabilityProfileMessages } from './capability-profiles.js'
+import { remoteConnectionMessages } from './remote-connections.js'
+import { homeReadinessMessages } from './home-readiness.js'
+import { walletMessages } from './wallets/index.js'
+import type { MessageSchema } from './en-US.js'
 
 export const deDE = {
   reactInspection: reactInspectionMessages['de-DE'],
@@ -18,7 +23,7 @@ export const deDE = {
   networkPriority: networkPriorityMessages['de-DE'],
   lcpAttribution: lcpAttributionMessages['de-DE'],
   browserImport: browserImportMessages['de-DE'],
-  video: enUS.video,
+  video: videoRecorderMessages['de-DE'],
   workspaceLibrary: {
     hidden: "In der Seitenleiste ausgeblendet",
     protected: "Vor Löschen geschützt",
@@ -374,9 +379,9 @@ export const deDE = {
       "help": "Sichtbare, angeheftete, ladende, Audio- und Download-Tabs, geänderte Formulare, DevTools und aktive MCP-Tabs bleiben aktiv."
     },
     "mcp": {
-      remote: enUS.settings.mcp.remote,
+      remote: remoteConnectionMessages['de-DE'],
       "heading": "MCP-Sicherheit",
-      "description": "Lege fest, welche lokalen Anwendungen auf dieses Browserprofil zugreifen dürfen.",
+      "description": "Lege fest, welche Anwendungen auf dieses Browserprofil zugreifen dürfen.",
       "require": "MCP-Authentifizierung verlangen",
       "requireDescription": "Das private Bearer-Token des Profils für MCP- und Statusanfragen verlangen.",
       challengeDetection: "Sichtbare Challenges erkennen", challengeDetectionDescription: "Standardmäßig aus. Die Beobachtungsqualität kann sichtbare CAPTCHA- und menschliche Verifizierungsaufgaben melden. Andere Qualitäts- und Berechtigungsprüfungen bleiben aktiv. Challenges werden weder gelöst noch umgangen.", omitUrlDetail: "URL-Details vor Agenten verbergen", omitUrlDetailDescription: "Standardmäßig aus. Agenten sehen die Adressen von Tabs und Snapshots nur als Website und Pfad, ohne Zugangsdaten und ohne den Teil nach ? oder #. Pfade, Seitentexte, Screenshots und andere Werkzeuge können weiterhin private Angaben zeigen.", "toolSet": "MCP-Werkzeugsatz",
@@ -389,9 +394,9 @@ export const deDE = {
       "portDescription": "Den lokalen Listener ohne Hronaut-Neustart verschieben. Clients müssen den neuen Endpunkt verwenden.",
       "moving": "Wird verschoben…",
       "applyPort": "Port anwenden",
-      "tokenHelp": "Das Token wird einmal pro Profil erstellt und nie auf der Hronaut-Startseite angezeigt.",
-      "warning": "Die Authentifizierung ist deaktiviert. Jeder Prozess auf diesem Computer kann angemeldete Tabs steuern und lokale Dateien anhängen.",
-      capabilities: enUS.settings.mcp.capabilities
+      "tokenHelp": "Das Kompatibilitäts-Token gewährt vollen Zugriff. Verwende für eingeschränkte Clients ein Berechtigungsprofil.",
+      "warning": "Die Authentifizierung ist deaktiviert. Jeder, der diesen Listener erreicht, kann angemeldete Tabs steuern und lokale Dateien anhängen, bei aktivem Fernzugriff auch von anderen Computern aus.",
+      capabilities: capabilityProfileMessages['de-DE']
     },
     "permissions": {
       "search": "Gespeicherte Website-Berechtigungen suchen",
@@ -500,42 +505,7 @@ export const deDE = {
       "issue": "Problem melden ↗"
     }
   },
-  wallets: {
-    ...enUS.wallets,
-    description: "Verwalten Sie lokale EVM-, Solana- und Tron-Wallets und steuern Sie den Zugriff durch Websites und Agenten.",
-    noWalletsConfiguredDescription: "Fügen Sie eine Wallet hinzu, um ein Konto zu erstellen, ein bestehendes zu importieren oder eine öffentliche Adresse zu beobachten.",
-    settingsTabs: "Wallet-Einstellungen",
-    accessTab: "Zugriff & Automatisierung",
-    activityTab: "Aktivität",
-    walletListDescription: "Wählen Sie eine Wallet, um Details anzuzeigen oder Änderungen vorzunehmen.",
-    manageAccess: "Zugriff verwalten",
-    accessDescription: "Wählen Sie eine Wallet, um Arbeitsbereichszugriff, Signierregeln und Website-Berechtigungen zu verwalten.",
-    accessEmptyDescription: "Fügen Sie eine Wallet hinzu, bevor Sie Zugriff und Automatisierung konfigurieren.",
-    noPolicies: "Für diese Wallet sind keine Automatisierungsrichtlinien eingerichtet.",
-    websiteSignIn: "Diese Website ohne Nachfrage verbinden und anmelden lassen",
-    websiteSignInDescription: "Seiten des erlaubten Ursprungs können diese Wallet verbinden und Sign-In-with-Ethereum-Nachrichten, die diese Website, diese Adresse und diese Chain nennen, ohne Klick signieren lassen, in EVM-Testnetzen und lokalen Chains. Andere Klartextnachrichten signiert nur eine eigene Agent-Wallet ohne Nachfrage, weil eine Nachrichtensignatur auf jeder Chain gültig ist. Typisierte Daten fragen weiterhin nach, sofern die Option für typisierte Daten unten bei einer eigenen Agent-Wallet nicht aktiv ist. Rohsignaturen und Transaktionen fragen weiterhin nach, sofern keine Transaktionsregel hier sie abdeckt. Jede Verbindung und Signatur zählt zum Operationslimit.",
-    mainnetWebsiteSignIn: "Auch im Mainnet erlauben",
-    mainnetWebsiteSignInWarning: "Warnung: Dies ist ein echtes Mainnet-Konto. Bis die Richtlinie abläuft oder ihr Operationslimit erreicht, können Seiten der erlaubten Website es verbinden und Klartextnachrichten ohne Ihren Klick signieren lassen. Manche Dienste werten eine signierte Nachricht als Autorisierung. Halten Sie in dieser Agent-Wallet daher nur Guthaben, dessen Verlust Sie verkraften können. Erfordert einen Ursprung, höchstens 100 Operationen und einen Ablauf innerhalb von 7 Tagen.",
-    websiteTypedData: "Auch typisierte Daten ohne Nachfrage signieren",
-    websiteTypedDataDescription: "Diese eigene Agent-Wallet signiert typisierte EIP-712-Daten von Seiten des erlaubten Ursprungs ohne Klick, in EVM-Testnetzen und lokalen Chains, nur wenn die Daten die Chain dieser Wallet nennen. Typisierte Daten können Token-Permits, Überweisungen und Aufträge autorisieren. Jede Signatur zählt zum Operationslimit.",
-    mainnetWebsiteTypedData: "Typisierte Daten auch im Mainnet signieren",
-    mainnetWebsiteTypedDataWarning: "Warnung: Im Mainnet können typisierte Daten echte Token-Permits, Überweisungen und Marktplatzaufträge autorisieren. Bis die Richtlinie abläuft oder ihr Operationslimit erreicht, können Seiten der erlaubten Website solche Signaturen ohne Ihren Klick von dieser Agent-Wallet erhalten, und ein signierter Permit kann Token später bewegen. Halten Sie in dieser Wallet nur Guthaben, dessen Verlust Sie verkraften können. Es gelten dieselben Grenzen: ein Ursprung, höchstens 100 Operationen und ein Ablauf innerhalb von 7 Tagen. Permits mit unbegrenztem oder nicht lesbarem Betrag und Safe-Transaktionen fragen weiterhin nach.",
-    signInOnlyNote: "Lassen Sie Ziel und Methode für eine reine Anmelderichtlinie leer.",
-    policySignInValue: "Website-Anmeldung ohne Nachfrage",
-    policyMainnetSignInValue: "Website-Anmeldung ohne Nachfrage, auch im Mainnet",
-    policyTypedDataValue: "Typisierte Daten ohne Nachfrage",
-    policyMainnetTypedDataValue: "Typisierte Daten ohne Nachfrage, auch im Mainnet",
-    noPermissions: "Für diese Wallet wurden keine Website-Berechtigungen erteilt.",
-    noActivity: "Noch keine Wallet-Aktivität",
-    activityDescription: "Hier erscheinen die letzten Wallet-Ereignisse.",
-    yourWallets: "Ihre Wallets",
-    addWallet: "Wallet hinzufügen",
-    kinds: {
-      "managed": "Signierende Wallet",
-      "agent": "Agenten-Wallet",
-      "watch-only": "Nur beobachten",
-    }
-  },
+  wallets: walletMessages['de-DE'],
   "workspaceNavigationAudit": { "reasonCredentials": "eingebettete Zugangsdaten", "reasonMalformed": "ungültige Adresse", "reasonUnsupportedScheme": "nicht unterstütztes Schema", "reasonNoMatch": "nicht auf der Positivliste", "sourceDirect": "Adresse oder Agentenanfrage", "sourcePage": "Seitennavigation", "sourceRedirect": "Weiterleitung", "sourcePopup": "Pop-up", "sourceHistory": "Zurück oder Vor", "sourcePolicyChange": "Richtlinienänderung", "sourceRestore": "Sitzungswiederherstellung" },
   "workspaceEditor": {
     transferData: "Browserdaten übertragen",
@@ -3260,7 +3230,7 @@ export const deDE = {
     "recentlyClosedTabs": "Kürzlich geschlossene Tabs"
   },
   "home": {
-    readiness: enUS.home.readiness,
+    readiness: homeReadinessMessages['de-DE'],
     "navigation": {"label": "Startbereiche", "overview": "Übersicht", "connect": "Agent verbinden", "tools": "Werkzeugbibliothek"},
     "agentList": {"connect": "Verbinden", "empty": "Noch kein Agent verbunden", "emptyHelp": "Verbinden Sie Claude Code, Codex oder einen anderen MCP-Client, dann erscheint er hier.", "sessions": "{count} Sitzung | {count} Sitzungen", "via": "über {client}", "connected": "{time} verbunden"},
     "mission": {"greeting": {"morning": "Guten Morgen", "afternoon": "Guten Tag", "evening": "Guten Abend"}, "agentsConnected": "{count} Agent verbunden. | {count} Agenten verbunden.", "workspacesNeedYou": "{count} Arbeitsbereich wartet auf Sie. | {count} Arbeitsbereiche warten auf Sie.", "agents": "Verbundene Agenten", "needsYou": "{name} wartet auf Sie", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Zuletzt verwendet {time}", "open": "{name} öffnen", "moreActions": "Weitere Aktionen für {name}", "newWorkspaceHelp": "Eigene Tabs und Anmeldungen", "checks": {"ok": "Bereit", "failed": "Braucht Aufmerksamkeit", "pending": "Noch nicht", "details": "Einrichtungsprüfungen und Verbindungen"}, "feed": {"heading": "Live-Aktivität", "local": "Nur lokal", "empty": "Sobald ein Agent in einem Arbeitsbereich arbeitet, erscheinen seine Schritte hier.", "meta": "{name} · {workspace} · {time}", "times": "{count}-mal | {count}-mal", "privacy": "Bleibt im Arbeitsspeicher dieses Computers und wird vergessen, wenn Hronaut beendet wird oder Sie den Verlauf löschen. Zeigt Namen von Bedienelementen und Seitenadressen, nie Eingaben."}},
