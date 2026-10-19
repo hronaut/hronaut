@@ -214,7 +214,8 @@ export class CredentialStore {
     try {
       decrypted = await this.encryption.decrypt(Buffer.from(expectedEntry.encryptedPassword, 'base64'))
     } catch (error) {
-      // Logs keep the secure storage's own text; a person reads that the password could not be decrypted.
+      // The error keeps the secure storage's own text as its English message and cause; a person reads that the password
+      // could not be decrypted.
       throw new LocalizedError('appErrors.credentials.decryptFailed', undefined, {
         message: error instanceof Error ? error.message : String(error),
         cause: error

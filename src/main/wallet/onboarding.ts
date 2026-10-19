@@ -8,7 +8,7 @@ interface WalletOnboardingService {
   remove(walletId: string): Promise<boolean>
 }
 
-/** The English message, which logs keep, when the person did not confirm that they saved the recovery phrase. */
+/** The English message the error keeps when the person did not confirm that they saved the recovery phrase. */
 export const WALLET_RECOVERY_CANCELLED_MESSAGE = 'Wallet creation cancelled before recovery confirmation'
 
 async function discardUnconfirmedWallet(service: WalletOnboardingService, walletId: string): Promise<void> {

@@ -27,7 +27,7 @@ export async function fillCredentialWhileMcpPaused<T>(
       await wait(pollIntervalMs)
     }
     if (options.getActiveRequestCount() > 0) {
-      // Logs keep the MCP wording; a person reads that an agent command was still running.
+      // The English message keeps the MCP wording; a person reads that an agent command was still running.
       throw new LocalizedError('appErrors.credentials.fillAgentActive', undefined, { message: 'Could not fill the password while an MCP command was still active' })
     }
     return await options.fill()
