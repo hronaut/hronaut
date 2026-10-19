@@ -1,10 +1,14 @@
-/** Errors from the main process that a person sees, in English; MCP results and logs keep this text. */
+/**
+ * Errors from the main process that a person sees, in English. MCP results and logs keep this text, except for an
+ * error that keeps its own message: a raw load failure, or one naming a tab, workspace or bookmark by its internal ID.
+ */
 export const enUSAppErrors = {
   "startup": {
     "initializing": "Saved workspaces are still initializing. Try again after startup completes.",
     "unavailable": "Saved workspaces are unavailable.",
     "readUnavailable": "Workspace read is no longer available.",
-    "tooManyReads": "Too many pending workspace reads."
+    "tooManyReads": "Too many pending workspace reads.",
+    "metadataUnavailable": "Saved workspace metadata is unavailable ({reason}). Startup stopped to preserve recovery options."
   },
   "sleep": {
     "onlyWebsites": "Only inactive website tabs can sleep.",
@@ -46,6 +50,93 @@ export const enUSAppErrors = {
     "screenshotRejected": "The screenshot was captured, but the system clipboard did not accept the image",
     "pageClosed": "The page closed before its image could be copied",
     "imageRejected": "The page image was selected, but the system clipboard did not accept it"
+  },
+  "tabs": {
+    "noActiveTab": "There is no active tab",
+    "rendererUnavailable": "This tab renderer is no longer available. Close the tab and reopen it from Recently closed.",
+    "limit": "Tab limit reached ({max})",
+    "homeNotPinned": "Hronaut Home cannot be pinned",
+    "homeNotReordered": "Hronaut Home cannot be reordered",
+    "pinnedBoundary": "Pin or unpin a tab before moving it across the pinned boundary",
+    "otherWorkspace": "Tabs can only be reordered within the same workspace",
+    "homeNotDuplicated": "Hronaut Home cannot be duplicated",
+    "homeInAgentWorkspace": "Hronaut Home is a human application page and cannot be added to an agent workspace.",
+    "workspaceCleanupFailed": "The new tab failed and its workspace could not be cleaned up. The workspace remains available for recovery."
+  },
+  "page": {
+    "rendererExitedDuringAction": "The page stopped during this action because its renderer exited; its effects are unknown. Reload or close the tab, then inspect fresh state.",
+    "rendererExitedBeforeAction": "The page is not running because its renderer exited; nothing was sent to it. Reload or close the tab, then inspect fresh state.",
+    "closedWhileWaiting": "The tab closed while waiting for the page.",
+    "rendererLostWhileWaiting": "The tab renderer became unavailable while waiting for the page.",
+    "loadTimedOut": "Timed out waiting for the page to finish loading.",
+    "zoomPercent": "Page zoom percent must be an integer from 50 to 400",
+    "findQuery": "Find query must contain between 1 and 1,000 characters"
+  },
+  "loadFailure": {
+    "nameNotResolved": "The website address could not be found ({code}).",
+    "connectionRefused": "The website refused the connection ({code}).",
+    "offline": "The device appears to be offline ({code}).",
+    "timedOut": "The website took too long to respond ({code}).",
+    "connectionReset": "The connection was reset while loading the page ({code}).",
+    "certificate": "Hronaut does not trust this website’s security certificate ({code})."
+  },
+  "navigation": {
+    "homeInAgentWorkspace": "Hronaut Home is a human application page and cannot be opened inside an agent workspace.",
+    "agentSchemes": "Agent workspaces cannot open local, privileged, or credential-bearing browser URLs.",
+    "originBlocked": "Workspace navigation to {origin} is blocked. Allow this origin in the trusted workspace Site access settings.",
+    "observerOrigin": "A public observer origin cannot be changed or widened.",
+    "recoveryRunning": "The tab renderer is already being recovered.",
+    "recoveryPageChanged": "The page changed while recovering its renderer.",
+    "recoveryTabClosed": "The tab closed while recovering its renderer.",
+    "recoveryTimedOut": "Timed out recovering the tab renderer."
+  },
+  "workspace": {
+    "unavailable": "The workspace is no longer available.",
+    "busyArchiving": "Workspace \"{name}\" is busy archiving the workspace. Try again after that operation finishes.",
+    "busyClosing": "Workspace \"{name}\" is busy closing the workspace. Try again after that operation finishes.",
+    "busyForking": "Workspace \"{name}\" is busy forking workspace data. Try again after that operation finishes.",
+    "busyRestoring": "Workspace \"{name}\" is busy restoring the archived workspace. Try again after that operation finishes.",
+    "busyClearingData": "Workspace \"{name}\" is busy clearing website data. Try again after that operation finishes.",
+    "busyMovingData": "Workspace \"{name}\" is busy moving workspace data. Try again after that operation finishes.",
+    "busyCopyingData": "Workspace \"{name}\" is busy copying workspace data. Try again after that operation finishes.",
+    "busyImportingCookies": "Workspace \"{name}\" is busy importing browser cookies. Try again after that operation finishes."
+  },
+  "lifecycle": {
+    "homeTab": "Only live page tabs can be frozen or resumed.",
+    "sleeping": "Wake the sleeping tab before changing its page lifecycle.",
+    "rendererUnavailable": "The tab renderer is unavailable.",
+    "closedWhileChanging": "The tab closed while changing its page lifecycle.",
+    "closedBeforeDispatch": "The tab closed before its page lifecycle command was dispatched.",
+    "documentChanged": "The document changed before its page lifecycle command was dispatched.",
+    "devTools": "Close Developer Tools for this tab before changing its page lifecycle."
+  },
+  "inputLock": {
+    "pageBusy": "A page is busy. Input locks were not changed. Wait for its operation to finish, then try again.",
+    "observer": "Page input remains locked in a read-only public observer workspace.",
+    "tabClosed": "The tab closed before its input lock changed.",
+    "tabNotRestored": "The tab’s input lock could not be updated or restored.",
+    "allNotRestored": "Global interaction lock could not be updated or restored for every tab.",
+    "allNotUpdated": "Global interaction lock could not be updated for every tab."
+  },
+  "agentPause": {
+    "serviceUnavailable": "Agent service is unavailable"
+  },
+  "devTools": {
+    "targetChanged": "Developer Tools handoff target changed",
+    "conditionsPending": "Request-condition application is pending. Wait for it to settle before opening Developer Tools.",
+    "conditionsChanged": "Request conditions changed before Developer Tools handoff"
+  },
+  "bookmarks": {
+    "invalidUrl": "Bookmark URL must be an HTTP or HTTPS address within 4,096 encoded characters",
+    "limit": "Bookmark limit reached ({max})",
+    "duplicate": "This address is already bookmarked",
+    "unavailable": "The bookmark is no longer available.",
+    "collectionLimit": "Collection limit reached (50)",
+    "collectionMissing": "Bookmark collection not found",
+    "collectionNameTaken": "A bookmark collection with this name already exists",
+    "collectionName": "Collection name must contain 1 to 80 characters",
+    "storageUnavailable": "Bookmark storage is unavailable",
+    "historyUnavailable": "Visit history is unavailable"
   },
   "startupScreen": {
     "title": "Hronaut could not start",

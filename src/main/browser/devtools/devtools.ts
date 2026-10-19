@@ -1,4 +1,5 @@
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
+import { LocalizedError } from '../../localized-error.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { DevToolsAccess, DevToolsTab } from './devtools-access.js'
 
@@ -36,12 +37,12 @@ export async function openDevTools<Tab extends DevToolsTab>(access: DevToolsAcce
   if (webContents.isDestroyed() || webContents.isDevToolsOpened()) return
   const debuggerEpoch = tab.networkDebuggerEpoch
   const validateOwnership = (): void => {
-    if (access.isDestroyed() || webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Developer Tools handoff target changed')
+    if (access.isDestroyed() || webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new LocalizedError('appErrors.devTools.targetChanged')
     access.requireNetworkConditionsKnown(tab)
   }
   const requireConfirmed = (): void => {
     validateOwnership()
-    if (tab.networkConditionApplication !== 'confirmed') throw new Error('Request-condition application is pending. Wait for it to settle before opening Developer Tools.')
+    if (tab.networkConditionApplication !== 'confirmed') throw new LocalizedError('appErrors.devTools.conditionsPending')
   }
   requireConfirmed()
   // DevTools cleanup is an ordinary mutation, never explicit recovery authority.
@@ -55,7 +56,7 @@ export async function openDevTools<Tab extends DevToolsTab>(access: DevToolsAcce
     // The queue tail settles even after failure. Check current health and the
     // original owner at the handoff itself, with no await before detachment.
     requireConfirmed()
-    if (tab.networkRoutes.length) throw new Error('Request conditions changed before Developer Tools handoff')
+    if (tab.networkRoutes.length) throw new LocalizedError('appErrors.devTools.conditionsChanged')
     if (webContents.isDevToolsOpened()) return
     if (webContents.debugger.isAttached()) webContents.debugger.detach()
     await new Promise<void>((resolve, reject) => {

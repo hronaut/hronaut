@@ -1,4 +1,6 @@
 import type { BrowserState } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
+import { localizedLoadFailure } from '../load-failure-error.js'
 import { isHronautHomeUrl, normalizeAddress } from '../url.js'
 import type { PageNavigationAccess, PageNavigationTab } from './page-navigation-access.js'
 
@@ -24,7 +26,7 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
   const tab = access.getTab(tabId)
   const normalized = normalizeAddress(url, access.searchEngine())
   if (tab.mcpGroupId && isHronautHomeUrl(normalized)) {
-    throw new Error('Hronaut Home is a human application page and cannot be opened inside an agent workspace.')
+    throw new LocalizedError('appErrors.navigation.homeInAgentWorkspace')
   }
   if (tab.mcpGroupId) {
     access.assertWorkspaceNavigationAllowed(tab.mcpGroupId, normalized, 'direct')
@@ -66,7 +68,7 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
       access.findTab(tab.id) === tab
       && !isAbortedLoad(outcome.error)
       && tab.navigationPolicyDenialSequence === navigationPolicyDenialSequence
-    ) throw outcome.error
+    ) throw localizedLoadFailure(outcome.error)
   }
   return access.getState()
 }
@@ -118,7 +120,7 @@ export async function reloadIgnoringCache<Tab extends PageNavigationTab>(access:
  */
 async function reloadPage<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tabId: string | undefined, ignoreCache: boolean): Promise<BrowserState> {
   const tab = access.getTab(tabId)
-  if (access.isRendererRecovering(tab.webContents)) throw new Error('The tab renderer is already being recovered.')
+  if (access.isRendererRecovering(tab.webContents)) throw new LocalizedError('appErrors.navigation.recoveryRunning')
   access.prepareDiagnosticNavigation(tab)
   if (tab.sleeping || tab.wakePromise) {
     await access.wakeTab(tab.id)
@@ -139,7 +141,7 @@ async function reloadPage<Tab extends PageNavigationTab>(access: PageNavigationA
       && tab.navigationGeneration === navigationGeneration
     try {
       await access.recoverRenderer(contents, async () => {
-        if (!isCurrent()) throw new Error('The page changed while recovering its renderer.')
+        if (!isCurrent()) throw new LocalizedError('appErrors.navigation.recoveryPageChanged')
         // Reloading before the old process exits can stop at its crash rather
         // than load a replacement. Await that one intentional exit first.
         if (ignoreCache) contents.reloadIgnoringCache()

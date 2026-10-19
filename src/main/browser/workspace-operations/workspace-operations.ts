@@ -1,19 +1,39 @@
+import type { MessageKey } from '../../../shared/i18n.js'
+import { LocalizedError } from '../../localized-error.js'
 import type { BrowserWorkspaceOperation, WorkspaceOperationsAccess } from './workspace-operations-access.js'
+
+/** The sentence for each operation that holds an open workspace busy, by the action its caller names. */
+const BUSY_WORKSPACE_MESSAGES = new Map<string, MessageKey>([
+  ['archiving the workspace', 'appErrors.workspace.busyArchiving'],
+  ['closing the workspace', 'appErrors.workspace.busyClosing'],
+  ['forking workspace data', 'appErrors.workspace.busyForking'],
+  ['restoring the archived workspace', 'appErrors.workspace.busyRestoring'],
+  ['clearing website data', 'appErrors.workspace.busyClearingData'],
+  ['moving workspace data', 'appErrors.workspace.busyMovingData'],
+  ['copying workspace data', 'appErrors.workspace.busyCopyingData'],
+  ['importing browser cookies', 'appErrors.workspace.busyImportingCookies']
+])
+
+/** The error for an open workspace another operation holds busy; an action without its own sentence stays English. */
+function workspaceBusyError(name: string, action: string): Error {
+  const key = BUSY_WORKSPACE_MESSAGES.get(action)
+  return key
+    ? new LocalizedError(key, { name })
+    : new Error(`Workspace "${name}" is busy ${action}. Try again after that operation finishes.`)
+}
 
 /** Throws while another operation holds the open workspace busy. */
 export function assertWorkspaceIdle(access: WorkspaceOperationsAccess, workspaceId: string): void {
   const operation = access.workspaceOperations().get(workspaceId)
   if (!operation) return
-  const name = access.mcpTabGroups().get(workspaceId)?.name ?? workspaceId
-  throw new Error(`Workspace "${name}" is busy ${operation.action}. Try again after that operation finishes.`)
+  throw workspaceBusyError(access.mcpTabGroups().get(workspaceId)?.name ?? workspaceId, operation.action)
 }
 
 /** Throws while an operation that keeps new tabs out holds the open workspace busy. */
 export function assertWorkspaceCanOpenTab(access: WorkspaceOperationsAccess, workspaceId: string): void {
   const operation = access.workspaceOperations().get(workspaceId)
   if (!operation?.blocksNewTabs) return
-  const name = access.mcpTabGroups().get(workspaceId)?.name ?? workspaceId
-  throw new Error(`Workspace "${name}" is busy ${operation.action}. Try again after that operation finishes.`)
+  throw workspaceBusyError(access.mcpTabGroups().get(workspaceId)?.name ?? workspaceId, operation.action)
 }
 
 /**

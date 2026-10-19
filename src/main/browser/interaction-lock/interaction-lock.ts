@@ -1,4 +1,5 @@
 import type { BrowserState } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import type { InteractionLockAccess, InteractionLockTab } from './interaction-lock-access.js'
 
 /**
@@ -18,7 +19,7 @@ async function prepareInteractionLock<Tab extends InteractionLockTab>(access: In
       await Promise.race([
         Promise.allSettled(pending),
         new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error('A page is busy. Input locks were not changed. Wait for its operation to finish, then try again.')), 2000)
+          timer = setTimeout(() => reject(new LocalizedError('appErrors.inputLock.pageBusy')), 2000)
         })
       ])
     } finally { if (timer) clearTimeout(timer) }
@@ -56,10 +57,10 @@ export function setTabHumanInteractionLocked<Tab extends InteractionLockTab>(acc
 async function applyTabHumanInteractionLocked<Tab extends InteractionLockTab>(access: InteractionLockAccess<Tab>, tabId: string, locked: boolean): Promise<BrowserState> {
   const tab = access.getTab(tabId)
   if (!locked && tab.mcpGroupId && access.findWorkspace(tab.mcpGroupId)?.contextClass === 'public-observer') {
-    throw new Error('Page input remains locked in a read-only public observer workspace.')
+    throw new LocalizedError('appErrors.inputLock.observer')
   }
   await prepareInteractionLock(access, [tab])
-  if (access.findTab(tabId) !== tab || tab.webContents.isDestroyed()) throw new Error('The tab closed before its input lock changed.')
+  if (access.findTab(tabId) !== tab || tab.webContents.isDestroyed()) throw new LocalizedError('appErrors.inputLock.tabClosed')
   const previousLocked = tab.humanInteractionLocked
   const wasGloballyUnlocked = access.globallyUnlockedTabIds().has(tabId)
   if (access.allHumanInteractionLocked()) {
@@ -81,10 +82,11 @@ async function applyTabHumanInteractionLocked<Tab extends InteractionLockTab>(ac
       await access.syncHumanInteractionInputGuard(tab)
     } catch (rollbackError) {
       access.changed()
-      throw new AggregateError(
-        [error, rollbackError],
-        `Tab ${tab.id} interaction lock could not be updated or restored.`
-      )
+      // The message names the tab for logs; a person reads that this tab's lock is in doubt.
+      throw new LocalizedError('appErrors.inputLock.tabNotRestored', undefined, {
+        message: `Tab ${tab.id} interaction lock could not be updated or restored.`,
+        cause: new AggregateError([error, rollbackError])
+      })
     }
     access.changed()
     throw error
@@ -137,13 +139,10 @@ async function applyAllHumanInteractionLocked<Tab extends InteractionLockTab>(ac
       .map((result) => result.reason)
     access.changed()
     if (rollbackErrors.length) {
-      throw new AggregateError(
-        [...errors, ...rollbackErrors],
-        'Global interaction lock could not be updated or restored for every tab.'
-      )
+      throw new LocalizedError('appErrors.inputLock.allNotRestored', undefined, { cause: new AggregateError([...errors, ...rollbackErrors]) })
     }
     if (errors.length === 1) throw errors[0]
-    throw new AggregateError(errors, 'Global interaction lock could not be updated for every tab.')
+    throw new LocalizedError('appErrors.inputLock.allNotUpdated', undefined, { cause: new AggregateError(errors) })
   }
   access.changed()
   return access.getState()

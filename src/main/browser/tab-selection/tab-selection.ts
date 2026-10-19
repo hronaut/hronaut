@@ -1,4 +1,5 @@
 import type { BrowserState } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import type { BrowserTabSelectionOptions, TabSelectionAccess, TabSelectionTab } from './tab-selection-access.js'
 
 /**
@@ -8,7 +9,7 @@ import type { BrowserTabSelectionOptions, TabSelectionAccess, TabSelectionTab } 
 export async function selectTabAndWait<Tab extends TabSelectionTab>(access: TabSelectionAccess<Tab>, tabId: string, options: BrowserTabSelectionOptions = {}): Promise<BrowserState> {
   const next = access.getTab(tabId)
   if (next.webContents.isDestroyed()) {
-    throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
+    throw new LocalizedError('appErrors.tabs.rendererUnavailable')
   }
   access.writeTabSelectionGeneration(access.tabSelectionGeneration() + 1)
   const selectionGeneration = access.tabSelectionGeneration()
@@ -53,7 +54,7 @@ export async function selectAgentTabAndWait<Tab extends TabSelectionTab>(access:
 export function selectTab<Tab extends TabSelectionTab>(access: TabSelectionAccess<Tab>, tabId: string, options: BrowserTabSelectionOptions = {}): BrowserState {
   const next = access.getTab(tabId)
   if (next.webContents.isDestroyed()) {
-    throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
+    throw new LocalizedError('appErrors.tabs.rendererUnavailable')
   }
   access.writeTabSelectionGeneration(access.tabSelectionGeneration() + 1)
   next.lastActiveAt = Date.now()

@@ -1,4 +1,5 @@
 import { MAX_BROWSER_TABS, type BrowserState } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import { uuidV7 } from '../../uuid-v7.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { TabReopeningAccess, TabReopeningTab } from './tab-reopening-access.js'
@@ -22,7 +23,7 @@ export async function reopenClosedTabEntry<Tab extends TabReopeningTab>(access: 
     ? access.closedTabs().length - 1
     : access.closedTabs().findIndex((tab) => tab.id === closedTabId)
   if (index < 0) return undefined
-  if (access.tabCount() >= MAX_TABS) throw new Error(`Tab limit reached (${MAX_TABS})`)
+  if (access.tabCount() >= MAX_TABS) throw new LocalizedError('appErrors.tabs.limit', { max: MAX_TABS })
   const [closed] = access.closedTabs().splice(index, 1)
   if (!closed) return undefined
   try {
@@ -36,7 +37,7 @@ export async function reopenClosedTabEntry<Tab extends TabReopeningTab>(access: 
 /** Opens a copy of the tab, with its back and forward history, right after it, once tab label saves have settled. Hronaut Home has no copy. */
 export async function duplicateTabAfterLabelSave<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, tabId: string): Promise<BrowserState> {
   const source = access.getTab(tabId)
-  if (isHronautHomeUrl(source.url)) throw new Error('Hronaut Home cannot be duplicated')
+  if (isHronautHomeUrl(source.url)) throw new LocalizedError('appErrors.tabs.homeNotDuplicated')
   const navigationHistory = access.navigationHistorySnapshot(source)
   const duplicate = await access.createTab({
     url: source.url,

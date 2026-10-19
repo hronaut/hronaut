@@ -300,6 +300,7 @@ import {
   type MemorySaverTimeoutMinutes
 } from '../../shared/memory-saver.js'
 import { uuidV7 } from '../uuid-v7.js'
+import { LocalizedError } from '../localized-error.js'
 import { RendererRecovery } from './renderer-recovery.js'
 import { guardPageCallsAcrossRendererExit } from './renderer-exit-guard.js'
 import type { CredentialFillContext } from './credential-fill-context.js'
@@ -2071,7 +2072,9 @@ export class BrowserTabsManager {
   getTab(tabId?: string): BrowserTab {
     const resolvedId = tabId ?? this.activeTabId
     const tab = resolvedId ? this.tabs.get(resolvedId) : undefined
-    if (!tab) throw new Error(resolvedId ? `Tab not found: ${resolvedId}` : 'There is no active tab')
+    // Agents read which tab is gone; a person reads that it is no longer available.
+    if (!tab && resolvedId) throw new LocalizedError('native.errors.tabUnavailable', undefined, { message: `Tab not found: ${resolvedId}` })
+    if (!tab) throw new LocalizedError('appErrors.tabs.noActiveTab')
     return tab
   }
 
@@ -5026,8 +5029,10 @@ export class BrowserTabsManager {
     onCreated?: (tab: BrowserTab) => void
     onCreationAttempt?: () => void
   }): Promise<BrowserTab> {
-    if (this.tabs.size >= MAX_TABS) throw new Error(`Tab limit reached (${MAX_TABS})`)
-    if (options.mcpGroupId && !this.mcpTabGroups.has(options.mcpGroupId)) throw new Error(`Unknown workspace: ${options.mcpGroupId}`)
+    if (this.tabs.size >= MAX_TABS) throw new LocalizedError('appErrors.tabs.limit', { max: MAX_TABS })
+    if (options.mcpGroupId && !this.mcpTabGroups.has(options.mcpGroupId)) {
+      throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${options.mcpGroupId}` })
+    }
     if (options.mcpGroupId && !options.allowBusyWorkspace) this.assertWorkspaceCanOpenTab(options.mcpGroupId)
     const id = options.id ?? uuidV7()
     const url = normalizeAddress(options.url, this.options.getSearchEngine?.())

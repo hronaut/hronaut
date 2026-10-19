@@ -1,5 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent, Session } from 'electron'
 import { buildBrowsingDataWebsiteInventory } from './browsing-data-websites.js'
+import { LocalizedError } from './localized-error.js'
 import type { BookmarkStore } from './bookmark-store.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { CredentialStore } from './credential-store.js'
@@ -84,7 +85,7 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
     if (typeof url !== 'string') throw new TypeError('Invalid website')
     if (typeof tabId !== 'string') throw new TypeError('Tab ID is required')
     const tab = host.tabs()?.getState().tabs.find((candidate) => candidate.id === tabId)
-    if (!tab) throw new Error(`Tab not found: ${tabId}`)
+    if (!tab) throw new LocalizedError('native.errors.tabUnavailable', undefined, { message: `Tab not found: ${tabId}` })
     if (!tab.mcpGroupId) throw new Error('Website workspace is required')
     const browserSession = host.tabs()?.workspaceSession(tab.mcpGroupId)
     return host.currentBrowsingDataSiteSummary(url, browserSession)

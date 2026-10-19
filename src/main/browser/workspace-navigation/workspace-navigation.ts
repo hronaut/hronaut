@@ -4,6 +4,7 @@ import type {
   BrowserWorkspaceNavigationAuditSource,
   BrowserWorkspaceNavigationPolicy
 } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import { uuidV7 } from '../../uuid-v7.js'
 import { isAgentWorkspaceNavigationUrl } from '../url.js'
 import {
@@ -28,14 +29,16 @@ function isAbortedLoad(error: unknown): boolean {
     || /\bERR_ABORTED\b|\(-3\)\s+loading\b/.test(error.message)
 }
 
-/** The error for a denied navigation that no Site access rule could allow. */
-const AGENT_NAVIGATION_SCHEME_ERROR = 'Agent workspaces cannot open local, privileged, or credential-bearing browser URLs.'
+/** The error for a workspace that is gone. Its message names the workspace for agents; a person reads that it is gone. */
+function unknownWorkspace(groupId: string): LocalizedError {
+  return new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}.` })
+}
 
 /** An active or archived workspace's recorded navigation denials, newest first. */
 export function listWorkspaceNavigationAudit<Tab extends WorkspaceNavigationTab>(access: WorkspaceNavigationAccess<Tab>, groupId: string): BrowserWorkspaceNavigationAuditEntry[] {
   const audit = access.findWorkspace(groupId)?.navigationAudit
     ?? access.findArchivedWorkspace(groupId)?.navigationAudit
-  if (!audit) throw new Error(`Unknown workspace: ${groupId}.`)
+  if (!audit) throw unknownWorkspace(groupId)
   return [...audit].reverse().map((entry) => ({ ...entry }))
 }
 
@@ -52,12 +55,12 @@ export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavig
   value: BrowserWorkspaceNavigationPolicy
 ): Promise<BrowserState> {
   const group = access.findWorkspace(groupId)
-  if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
+  if (!group) throw unknownWorkspace(groupId)
   access.assertWorkspaceIdle(groupId)
   const policy = normalizeWorkspaceNavigationPolicy(value)
   if (group.contextClass === 'public-observer'
     && JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)) {
-    throw new Error('A public observer origin cannot be changed or widened.')
+    throw new LocalizedError('appErrors.navigation.observerOrigin')
   }
   if (JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)) access.setInspectionPermission(group, (access.inspectionPermission(group) ?? 0) + 1)
   group.navigationPolicy = policy
@@ -85,7 +88,7 @@ export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavig
  */
 function workspaceNavigationDecision<Tab extends WorkspaceNavigationTab>(access: WorkspaceNavigationAccess<Tab>, groupId: string, url: string): WorkspaceNavigationDecision {
   const group = access.findWorkspace(groupId)
-  if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
+  if (!group) throw unknownWorkspace(groupId)
   const decision = evaluateWorkspaceNavigation(group.navigationPolicy, url)
   if (isAgentWorkspaceNavigationUrl(url) || !decision.allowed) return decision
   return { allowed: false, targetOrigin: decision.targetOrigin, reason: 'unsupported-scheme' }
@@ -157,8 +160,7 @@ export function assertWorkspaceNavigationAllowed<Tab extends WorkspaceNavigation
   access.options().onWorkspaceNavigationDecision?.(groupId, decision, source)
   if (decision.allowed) return
   recordWorkspaceNavigationDenied(access, groupId, decision, source)
-  if (decision.reason !== 'no-match') throw new Error(AGENT_NAVIGATION_SCHEME_ERROR)
-  throw new Error(
-    `Workspace navigation to ${decision.targetOrigin} is blocked. Allow this origin in the trusted workspace Site access settings.`
-  )
+  // No Site access rule could allow a denial for any other reason.
+  if (decision.reason !== 'no-match') throw new LocalizedError('appErrors.navigation.agentSchemes')
+  throw new LocalizedError('appErrors.navigation.originBlocked', { origin: decision.targetOrigin })
 }
