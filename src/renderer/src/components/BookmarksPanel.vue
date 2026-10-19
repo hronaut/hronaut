@@ -81,11 +81,12 @@ const {
   removeBookmark: props.removeBookmark,
   openBookmark: props.openBookmark,
   copyBookmarkAddress: props.copyBookmarkAddress,
-  openBookmarkInBackground: props.openBookmarkInBackground
+  openBookmarkInBackground: props.openBookmarkInBackground,
+  translate: (key) => t(key)
 })
 
 const collectionController = useBookmarkCollectionsController({
-  api: props.collectionsApi, open, blocked: computed(() => pendingAction.value !== null)
+  api: props.collectionsApi, open, blocked: computed(() => pendingAction.value !== null), translate: (key) => t(key)
 })
 const { pending: collectionsPending, collections, selection } = collectionController
 const anyPending = computed(() => pendingAction.value !== null || collectionsPending.value)

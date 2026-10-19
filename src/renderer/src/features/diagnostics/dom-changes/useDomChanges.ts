@@ -1,11 +1,13 @@
 import { ref, watch, type Ref } from 'vue'
 import type { BrowserDomChangesReport, BrowserTabState, HronautApi } from '../../../../../shared/types.js'
 import type { DiagnosticsCopyFeedback, DiagnosticsRecorderRequests } from '../diagnostics-request.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface DomChangesOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   browser: Pick<HronautApi, 'manageDomChanges'>
   closeTransientPanels: () => void
+  translate: (key: string) => string
 }
 
 /** The DOM changes panel, which refreshes itself while a recording is active. */
@@ -59,7 +61,7 @@ export function useDomChanges(
     } catch (cause) {
       if (!current('dom', request)) return
       domChangesState.value = 'error'
-      domChangesError.value = cause instanceof Error ? cause.message : String(cause)
+      domChangesError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     } finally {
       finishRecorderRequest('dom', request)
     }

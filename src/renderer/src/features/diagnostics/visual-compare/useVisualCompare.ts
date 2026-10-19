@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import type { BrowserVisualCompareView, HronautApi } from '../../../../../shared/types.js'
 import type { DiagnosticsRequests } from '../diagnostics-request.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface VisualCompareOptions {
   browser: Pick<HronautApi, 'visualCompare' | 'copyVisualDiff'>
   closeTransientPanels: () => void
+  translate: (key: string) => string
 }
 
 /** The copied-diff feedback timer, shared with the controller's other copy feedback. */
@@ -38,7 +40,7 @@ export function useVisualCompare(
     } catch (cause) {
       if (!current('visual', request)) return
       visualCompareState.value = 'error'
-      visualCompareError.value = cause instanceof Error ? cause.message : String(cause)
+      visualCompareError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 
@@ -67,7 +69,7 @@ export function useVisualCompare(
     } catch (cause) {
       if (!current('visual', request)) return
       visualCompareState.value = 'error'
-      visualCompareError.value = cause instanceof Error ? cause.message : String(cause)
+      visualCompareError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

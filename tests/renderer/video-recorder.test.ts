@@ -199,3 +199,15 @@ it.each(['revision', 'recording', 'clear', 'close'] as const)('discards a late p
   expect(createObjectURL).not.toHaveBeenCalled()
   expect(view.container.querySelector('video')).toBeNull()
 })
+
+it('shows a main-process failure without Electron\'s IPC wrapper', async () => {
+  const manageVideo = vi.fn().mockResolvedValue(state('tab'))
+  Object.assign(window, { hronaut: { manageVideo } })
+  render(VideoRecorder, { props: { tabId: 'tab' }, global: { plugins: [createHronautI18n('en-US')] } })
+  await flushPromises()
+  manageVideo.mockRejectedValueOnce(new Error("Error invoking remote method 'browser:manage-video': Error: Annotations must fit inside the recording"))
+  await fireEvent.update(screen.getByLabelText('Caption text'), 'Click Publish')
+  await fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }))
+  await flushPromises()
+  expect(screen.getByRole('alert')).toHaveTextContent(/^Annotations must fit inside the recording$/)
+})

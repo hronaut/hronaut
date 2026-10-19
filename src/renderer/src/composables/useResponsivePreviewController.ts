@@ -10,6 +10,7 @@ import {
   matchingViewportPreset,
   resolveViewportPreset
 } from '../../../shared/viewport-presets.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 export type ResponsivePreviewState = 'idle' | 'applying' | 'applied' | 'error'
 export type ResponsivePreviewAction = 'apply' | 'reset'
@@ -22,6 +23,8 @@ export interface ResponsivePreviewControllerOptions {
   beginMutation: () => number
   isMutationCurrent: (sequence: number, tabId: string) => boolean
   closeTransientPanels: () => void
+  /** Words for a failure that carries none of its own. */
+  translate: (key: string) => string
 }
 
 export function useResponsivePreviewController(options: ResponsivePreviewControllerOptions) {
@@ -177,7 +180,7 @@ export function useResponsivePreviewController(options: ResponsivePreviewControl
         return
       }
       state.value = 'error'
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 
@@ -216,7 +219,7 @@ export function useResponsivePreviewController(options: ResponsivePreviewControl
         return
       }
       state.value = 'error'
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

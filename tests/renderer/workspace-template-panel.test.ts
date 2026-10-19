@@ -139,4 +139,11 @@ describe('workspace template review', () => {
     expect(wrapper.text()).toContain('remaining imported profiles were removed')
     expect(button('Retry cleanup')).toBeUndefined()
   })
+
+  it('shows a main-process failure without Electron\'s IPC wrapper', async () => {
+    const { wrapper, browser, button } = setup()
+    browser.openWorkspaceTemplateFile.mockRejectedValueOnce(new Error("Error invoking remote method 'browser:open-workspace-template-file': Error: The selected template could not be read."))
+    await button('Open workspace template').trigger('click'); await flushPromises()
+    expect(wrapper.get('[role=alert]').text()).toBe('The selected template could not be read.')
+  })
 })

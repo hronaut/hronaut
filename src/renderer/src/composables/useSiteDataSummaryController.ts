@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import type { BrowsingDataSiteSummary } from '../../../shared/types.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 export interface SiteDataSummaryContext {
   tabId: string
@@ -9,6 +10,8 @@ export interface SiteDataSummaryContext {
 export function useSiteDataSummaryController(options: {
   current: () => SiteDataSummaryContext | null
   load: (context: SiteDataSummaryContext) => Promise<BrowsingDataSiteSummary>
+  /** Words for a failure that carries none of its own. */
+  translate: (key: string) => string
 }) {
   const summary = ref<BrowsingDataSiteSummary | null>(null)
   const state = ref<'idle' | 'loading' | 'error'>('idle')
@@ -47,7 +50,7 @@ export function useSiteDataSummaryController(options: {
       if (!isCurrent(expectedGeneration, context)) return
       summary.value = null
       state.value = 'error'
-      message.value = error instanceof Error ? error.message : String(error)
+      message.value = friendlyUiError(error, options.translate('runtime.toast.actionFailed'))
     }
   }
 

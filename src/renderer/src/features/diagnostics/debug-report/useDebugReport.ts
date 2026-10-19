@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import type { BrowserDebugReport, HronautApi } from '../../../../../shared/types.js'
 import type { DiagnosticsCopyFeedback, DiagnosticsRequests } from '../diagnostics-request.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface DebugReportOptions {
   browser: Pick<HronautApi, 'createDebugReport'>
   closeTransientPanels: () => void
+  translate: (key: string) => string
 }
 
 /** The debug report panel and its copyable report. */
@@ -39,7 +41,7 @@ export function useDebugReport(
     } catch (cause) {
       if (!current('debug', request)) return
       debugReportState.value = 'error'
-      debugReportError.value = cause instanceof Error ? cause.message : String(cause)
+      debugReportError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

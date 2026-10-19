@@ -15,7 +15,7 @@ function fixture() {
     assign: vi.fn(async (_id: string, _collection: string | null) => initial),
     onChanged: vi.fn((listener: typeof notify) => { notify = listener; return unsubscribe })
   }
-  const controller = useBookmarkCollectionsController({ open, blocked, api })
+  const controller = useBookmarkCollectionsController({ open, blocked, api, translate: key => `t:${key}` })
   notify(initial)
   return { controller, api, open, blocked, notify: (value: BookmarkCollectionSnapshot) => notify(value), unsubscribe }
 }
@@ -158,5 +158,16 @@ it.each(['remove', 'assign'] as const)('preserves %s failure feedback when an un
     expect(await pending).toBe(false)
     expect(controller.error.value).toBe('Operation failed')
     expect(controller.pending.value).toBe(false)
+  } finally { controller.dispose() }
+})
+
+it('shows a main-process failure without Electron\'s IPC wrapper', async () => {
+  const { controller, api } = fixture()
+  try {
+    controller.beginEdit()
+    controller.draft.value = 'New'
+    api.create.mockRejectedValueOnce(new Error("Error invoking remote method 'bookmark-collections:create': Error: A collection with this name already exists."))
+    expect(await controller.save()).toBe(false)
+    expect(controller.error.value).toBe('A collection with this name already exists.')
   } finally { controller.dispose() }
 })

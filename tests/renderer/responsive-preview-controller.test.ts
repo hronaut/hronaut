@@ -44,7 +44,8 @@ function createController(viewport?: BrowserViewportEmulation) {
     syncState,
     beginMutation: () => ++currentMutation,
     isMutationCurrent: (sequence, tabId) => sequence === currentMutation && activeTab.value?.id === tabId,
-    closeTransientPanels
+    closeTransientPanels,
+    translate: (key) => `t:${key}`
   })
   return {
     open,
@@ -213,6 +214,19 @@ describe('responsive preview controller', () => {
     expect(controller.presetId.value).toBe('phone')
     expect(controller.viewport.value).toMatchObject({ width: 390, height: 844, orientation: 'portrait' })
     expect(controller.state.value).toBe('idle')
+    controller.dispose()
+  })
+
+  it('shows a main-process failure without Electron\'s IPC wrapper, for apply and reset', async () => {
+    const { setTabViewport, controller } = createController()
+    setTabViewport.mockRejectedValue(new Error("Error invoking remote method 'browser:set-tab-viewport': Error: The tab is no longer available."))
+    controller.selectPreset('laptop')
+
+    await controller.apply()
+    expect(controller.error.value).toBe('The tab is no longer available.')
+    await controller.reset()
+    expect(controller.state.value).toBe('error')
+    expect(controller.error.value).toBe('The tab is no longer available.')
     controller.dispose()
   })
 })

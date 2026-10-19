@@ -6,6 +6,7 @@ import type {
   BrowserTabState,
   HronautApi
 } from '../../../../shared/types.js'
+import { friendlyUiError } from '../useAppToastController.js'
 
 interface NetworkContentSearchOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
@@ -80,7 +81,7 @@ export function useNetworkContentSearch(
     } catch (cause) {
       if (sequence !== contentSearchSequence || !isCurrent(tab.id, expectedGeneration)) return
       contentSearchState.value = 'error'
-      contentSearchError.value = cause instanceof Error ? cause.message : String(cause)
+      contentSearchError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

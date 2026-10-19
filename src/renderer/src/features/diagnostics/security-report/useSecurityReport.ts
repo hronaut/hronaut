@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import type { BrowserSecurityReport, HronautApi } from '../../../../../shared/types.js'
 import type { DiagnosticsRequests } from '../diagnostics-request.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface SecurityReportOptions {
   browser: Pick<HronautApi, 'inspectSecurity'>
   closeTransientPanels: () => void
+  translate: (key: string) => string
 }
 
 /** The security report panel. */
@@ -32,7 +34,7 @@ export function useSecurityReport(
     } catch (cause) {
       if (!current('security', request)) return
       securityReportState.value = 'error'
-      securityReportError.value = cause instanceof Error ? cause.message : String(cause)
+      securityReportError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

@@ -32,3 +32,10 @@ it('keeps trusted stop available while a refresh is pending', async () => {
   await waitFor(() => expect(api).toHaveBeenLastCalledWith({ tabId: 'a', action: 'stop' }))
   await screen.findByText(/Capture stopped/)
 })
+
+it('shows a main-process failure without Electron\'s IPC wrapper', async () => {
+  const api = vi.fn().mockRejectedValue(new Error("Error invoking remote method 'browser:pwa-lifecycle': Error: The tab is no longer available."))
+  Object.defineProperty(window, 'hronaut', { configurable: true, value: { pwaLifecycle: api } })
+  render(PwaLifecyclePanel, { props: { tab: tab('a') }, global: { plugins: [createHronautI18n('en-US')] } })
+  expect(await screen.findByRole('alert')).toHaveTextContent(/^The tab is no longer available\.$/)
+})

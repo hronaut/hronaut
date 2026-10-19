@@ -49,4 +49,14 @@ describe('CredentialImportCard', () => {
     expect(await screen.findByText('Imported 1 new and updated 0; skipped 0.')).toBeVisible()
     expect(importFromCsv).toHaveBeenCalledTimes(2)
   })
+
+  it('shows a main-process import failure without Electron\'s IPC wrapper', async () => {
+    const importFromCsv = vi.fn().mockRejectedValueOnce(new Error("Error invoking remote method 'credentials:import-csv': Error: The CSV must contain url, username, and password columns."))
+    renderCard(importFromCsv)
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Choose browser CSV…' }))
+
+    expect(await screen.findByText('The CSV must contain url, username, and password columns.')).toBeVisible()
+    expect(document.body).not.toHaveTextContent('Error invoking remote method')
+  })
 })

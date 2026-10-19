@@ -1753,3 +1753,43 @@ it('ignores stale reads and a toggle result after a tab switch', async () => {
   expect(controller.routes.value).toEqual([])
   controller.dispose()
 })
+
+it.each([
+  { action: 'refresh', method: 'listNetworkRequests', error: 'monitorError' },
+  { action: 'details', method: 'getNetworkRequestDetails', error: 'monitorError' },
+  { action: 'replay', method: 'replayNetworkRequest', error: 'replayMessage' },
+  { action: 'copy HAR', method: 'createNetworkHar', error: 'monitorError' },
+  { action: 'save HAR', method: 'saveNetworkHar', error: 'monitorError' },
+  { action: 'search', method: 'searchNetwork', error: 'contentSearchError' },
+  { action: 'read conditions', method: 'listNetworkRoutes', error: 'routeError' },
+  { action: 'add condition', method: 'addNetworkRoute', error: 'routeError' },
+  { action: 'enable condition', method: 'setNetworkRouteEnabled', error: 'routeError' },
+  { action: 'move condition', method: 'moveNetworkRoute', error: 'routeError' },
+  { action: 'remove condition', method: 'removeNetworkRoute', error: 'routeError' },
+  { action: 'clear conditions', method: 'clearNetworkRoutes', error: 'routeError' }
+] as const)('shows a main-process $action failure without Electron\'s IPC wrapper', async ({ action, method, error }) => {
+  const { activeTab, browser, controller } = createController()
+  activeTab.value = tab('tab-1', 1)
+  browser[method].mockRejectedValue(new Error(`Error invoking remote method 'network:${method}': Error: The tab is no longer available.`))
+  try {
+    if (action === 'refresh') await controller.refresh()
+    else if (action === 'details') await controller.selectRequest(request('original'))
+    else if (action === 'replay') {
+      controller.requestDetails.value = details('original')
+      await controller.replaySelectedRequest()
+    } else if (action === 'copy HAR') await controller.copyHar()
+    else if (action === 'save HAR') await controller.saveHar()
+    else if (action === 'search') {
+      controller.contentSearchQuery.value = 'token'
+      await controller.runContentSearch()
+    } else if (action === 'read conditions') await controller.refreshRoutes()
+    else if (action === 'add condition') {
+      controller.routePattern.value = 'https://example.test/api/new'
+      await controller.addRouteFromDraft()
+    } else if (action === 'enable condition') await controller.setRouteEnabled('first', false)
+    else if (action === 'move condition') await controller.moveRoute('first', 'down')
+    else if (action === 'remove condition') await controller.removeRoute('first')
+    else await controller.clearRoutes()
+    expect(controller[error].value).toBe('The tab is no longer available.')
+  } finally { controller.dispose() }
+})

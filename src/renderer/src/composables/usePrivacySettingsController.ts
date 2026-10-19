@@ -5,6 +5,7 @@ import type {
   BrowsingDataSummary,
   BrowsingDataWebsiteSummary
 } from '../../../shared/types.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 type PrivacyBrowsingDataApi = Pick<HronautBrowsingDataApi, 'summary' | 'websites' | 'clear'>
 type Translate = (key: string, parameters?: Record<string, string | number>, plural?: number) => string
@@ -56,7 +57,7 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
   })
 
   function errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error)
+    return friendlyUiError(error, options.translate('runtime.toast.actionFailed'))
   }
 
   async function refreshSummary(): Promise<void> {

@@ -9,6 +9,7 @@ import type {
   HronautApi
 } from '../../../../shared/types.js'
 import { DEFAULT_BROWSER_NETWORK_ABORT_REASON } from '../../../../shared/types.js'
+import { friendlyUiError } from '../useAppToastController.js'
 
 interface NetworkRequestConditionsOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
@@ -96,7 +97,7 @@ export function useNetworkRequestConditions(
     } catch (cause) {
       if (sequence !== routeRequestSequence || !isCurrent(tabId, expectedGeneration) || preserveMutationError) return
       routeState.value = 'error'
-      routeError.value = cause instanceof Error ? cause.message : String(cause)
+      routeError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 
@@ -180,7 +181,7 @@ export function useNetworkRequestConditions(
       routeState.value = 'error'
       routeError.value = committed
         ? options.translate('network.conditions.refreshAfterChangeFailed')
-        : cause instanceof Error ? cause.message : String(cause)
+        : friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     } finally {
       await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
     }
@@ -207,7 +208,7 @@ export function useNetworkRequestConditions(
       routeState.value = 'error'
       routeError.value = committed
         ? options.translate('network.conditions.refreshAfterChangeFailed')
-        : cause instanceof Error ? cause.message : String(cause)
+        : friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     } finally {
       await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
     }
@@ -234,7 +235,7 @@ export function useNetworkRequestConditions(
       routeState.value = 'error'
       routeError.value = committed
         ? options.translate('network.conditions.refreshAfterChangeFailed')
-        : cause instanceof Error ? cause.message : String(cause)
+        : friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     } finally {
       await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
     }
@@ -255,7 +256,7 @@ export function useNetworkRequestConditions(
     } catch (cause) {
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
       routeState.value = 'error'
-      routeError.value = cause instanceof Error ? cause.message : String(cause)
+      routeError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     } finally {
       await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
     }
@@ -276,7 +277,7 @@ export function useNetworkRequestConditions(
     } catch (cause) {
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
       routeState.value = 'error'
-      routeError.value = cause instanceof Error ? cause.message : String(cause)
+      routeError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     } finally {
       await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
     }
