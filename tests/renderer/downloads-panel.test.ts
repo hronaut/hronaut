@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/vue'
 import { flushPromises } from '@vue/test-utils'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import DownloadsPanel from '../../src/renderer/src/components/DownloadsPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserDownloadState, SupportedLocale } from '../../src/shared/types.js'
@@ -615,6 +615,49 @@ describe('Downloads keyboard focus after a row changes', () => {
     await flushPromises()
 
     expect(screen.getByRole('button', { name: next })).toHaveFocus()
+  })
+
+  // A cancellation published before its reply removed the focused Cancel button while every control was still
+  // disabled, so the live list moved the focus to the search box and the reply left it there.
+  it.each([
+    ['cancelled', 'Remove known.bin from list'],
+    ['completed', 'Show known.bin in folder']
+  ] as const)('keeps the focus in the row when the transfer becomes %s before the Cancel reply', async (state, next) => {
+    const active = download('known', 'progressing', 50, 100)
+    const done = { ...active, state, completedAt: '2026-08-22T00:01:00.000Z' }
+    let finish!: (downloads: BrowserDownloadState[]) => void
+    const view = renderPanel({ downloads: [active], cancelDownload: vi.fn(() => new Promise<BrowserDownloadState[]>(resolve => { finish = resolve })) })
+    screen.getByRole('button', { name: 'Cancel known.bin' }).focus()
+    await userEvent.keyboard('{Enter}')
+
+    await view.rerender({ downloads: [done] })
+    await flushPromises()
+    finish([done])
+    await flushPromises()
+
+    expect(screen.getByRole('button', { name: next })).toHaveFocus()
+  })
+
+  // Focus given to a control in a window you have left would pull the focus back when you return.
+  it('leaves the focus alone while the Hronaut window is in the background', async () => {
+    const windowFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    onTestFinished(() => windowFocus.mockRestore())
+    const reveal = pendingReveal()
+    const active = download('report', 'progressing', 50, 100)
+    const finished = download('complete', 'completed', 100, 100)
+    const view = renderPanel({ downloads: [active, finished], showInFolder: reveal.showInFolder })
+    const show = screen.getByRole('button', { name: 'Show complete.bin in folder' })
+    show.focus()
+    await userEvent.keyboard('{Enter}')
+    dropFocusLikeChromium(show)
+    reveal.settle()
+    await flushPromises()
+    expect(document.body).toHaveFocus()
+
+    screen.getByRole('button', { name: 'Pause report.bin' }).focus()
+    await view.rerender({ downloads: [{ ...active, state: 'completed', receivedBytes: 100, completedAt: '2026-08-22T00:01:00.000Z' }, finished] })
+    await flushPromises()
+    expect(document.body).toHaveFocus()
   })
 
   it('keeps the focus on a transfer control through a progress update', async () => {

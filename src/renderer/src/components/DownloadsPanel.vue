@@ -68,12 +68,13 @@ const {
   copySavedPath: props.copySavedPath
 })
 
-let removalFocusRow: Element | null = null
+let actionFocusRow: Element | null = null
 let focusGeneration = 0
 const stopFocusSessionTracking = watch([open, query, statusFilter, sortOrder], () => { focusGeneration += 1 }, { flush: 'sync' })
 
-// Every row action disables the panel's controls until it settles, and Chromium then drops the focus of the one you
-// used, so each action gives it back here.
+// Pause, Resume, Cancel, Remove and Show in folder disable the panel's controls until they settle, and Chromium then
+// drops the focus of the one you used, so each of them gives it back here.
+// Copy path only marks itself busy and keeps its focus.
 async function changeTransfer(action: 'pause' | 'resume' | 'cancel' | 'remove' | 'reveal', downloadId: string, event: MouseEvent): Promise<void> {
   const generation = focusGeneration
   const focused = event.currentTarget instanceof HTMLButtonElement
@@ -82,16 +83,16 @@ async function changeTransfer(action: 'pause' | 'resume' | 'cancel' | 'remove' |
   const panel = row?.closest('.downloads-panel')
   const next = action === 'remove' ? row?.nextElementSibling?.querySelector<HTMLButtonElement>('.download-remove') : null
   const previous = action === 'remove' ? row?.previousElementSibling?.querySelector<HTMLButtonElement>('.download-remove') : null
-  // A published removal can arrive before its reply enables the other controls.
-  // Leave this action responsible for focus instead of the live-list watcher.
-  if (action === 'remove' && row) removalFocusRow = row
+  // The live list can publish this action's change, or a finished transfer, before the reply enables the other
+  // controls. Leave this action responsible for focus instead of the live-list watcher.
+  if (row) actionFocusRow = row
   try {
     await { pause, resume, cancel, remove, reveal }[action](downloadId)
     await nextTick()
   } finally {
-    if (removalFocusRow === row) removalFocusRow = null
+    if (actionFocusRow === row) actionFocusRow = null
   }
-  if (generation !== focusGeneration || !open.value || !panel?.isConnected) return
+  if (generation !== focusGeneration || !open.value || !panel?.isConnected || !document.hasFocus()) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
   const target = [focused, row?.querySelector<HTMLButtonElement>('.download-action'), next, previous,
     !row?.isConnected ? panel.querySelector<HTMLInputElement>('.downloads-filters input') : null,
@@ -108,9 +109,9 @@ const stopVisibleTracking = watch(filteredDownloads, async () => {
   const focused = document.activeElement
   const row = focused instanceof HTMLElement ? focused.closest('.download-item') : null
   const panel = row?.closest('.downloads-panel')
-  if (!focused || !row || !panel || row === removalFocusRow) return
+  if (!focused || !row || !panel || row === actionFocusRow) return
   await nextTick()
-  if (!open.value || !panel.isConnected || focused.isConnected) return
+  if (!open.value || !panel.isConnected || focused.isConnected || !document.hasFocus()) return
   if (document.activeElement !== document.body) return
   const target = [row.querySelector<HTMLButtonElement>('.download-action'),
     panel.querySelector<HTMLInputElement>('.downloads-filters input'),
