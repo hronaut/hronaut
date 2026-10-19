@@ -805,3 +805,116 @@ it.each(['copy', 'background'])('preserves newer human focus during a pending %s
   await flushPromises()
   expect(search).toHaveFocus()
 })
+
+describe('current page bookmark focus', () => {
+  // Chromium moves the focus of a button to the page body while the button is disabled. JSDOM cannot blur a disabled
+  // button, so it is enabled for the blur itself.
+  function dropFocusLikeChromium(button: HTMLElement): void {
+    button.removeAttribute('disabled')
+    button.blur()
+    button.setAttribute('disabled', '')
+    expect(document.body).toHaveFocus()
+  }
+
+  // Add current and Remove current were disabled while the change was saved, and nothing gave the button its focus
+  // back, so pressing Enter again to undo did nothing and the next Tab started at the top of the window.
+  it.each([
+    ['Remove current', 'is saved'],
+    ['Add current', 'is saved'],
+    ['Add current', 'fails']
+  ] as const)('gives the focus back to %s once the change %s', async (name, outcome) => {
+    let finish!: (bookmarks: BrowserBookmark[]) => void
+    let fail!: (error: Error) => void
+    const pending = () => new Promise<BrowserBookmark[]>((resolve, reject) => { finish = resolve; fail = reject })
+    const addBookmark = vi.fn(pending)
+    const removeBookmark = vi.fn(pending)
+    renderPanel({ addBookmark, removeBookmark, currentBookmark: name === 'Remove current' ? bookmark('alpha', 'Alpha docs') : undefined })
+    const button = screen.getByRole('button', { name })
+    button.focus()
+    await userEvent.setup().keyboard('{Enter}')
+    expect(name === 'Remove current' ? removeBookmark : addBookmark).toHaveBeenCalledOnce()
+    expect(button).toBeDisabled()
+    dropFocusLikeChromium(button)
+
+    if (outcome === 'is saved') finish([bookmark('beta', 'Beta page')])
+    else fail(new Error('Bookmark limit reached'))
+
+    await vi.waitFor(() => expect(button).toHaveFocus())
+    expect(button).toBeEnabled()
+    if (outcome === 'fails') expect(screen.getByRole('alert')).toHaveTextContent('Bookmark limit reached')
+  })
+
+  it.each(['moved', 'reopened'] as const)('leaves the focus alone when you %s it while the change is saved', async (scenario) => {
+    let finish!: (bookmarks: BrowserBookmark[]) => void
+    const view = renderPanel({
+      currentBookmark: undefined,
+      addBookmark: vi.fn(() => new Promise<BrowserBookmark[]>(resolve => { finish = resolve }))
+    })
+    const button = screen.getByRole('button', { name: 'Add current' })
+    button.focus()
+    const user = userEvent.setup()
+    await user.keyboard('{Enter}')
+    dropFocusLikeChromium(button)
+    if (scenario === 'moved') await user.click(screen.getByRole('searchbox'))
+    else {
+      await view.rerender({ open: false })
+      await view.rerender({ open: true })
+    }
+
+    finish([bookmark('beta', 'Beta page')])
+    await flushPromises()
+
+    if (scenario === 'moved') expect(screen.getByRole('searchbox')).toHaveFocus()
+    else {
+      // The reopened panel's own Add current must not take the focus.
+      expect(document.body).toHaveFocus()
+      expect(screen.getByRole('button', { name: /^(Add|Remove) current$/ })).not.toHaveFocus()
+    }
+  })
+
+  it('moves the focus to Close when Add current cannot be used once the change is saved', async () => {
+    let finish!: (bookmarks: BrowserBookmark[]) => void
+    const view = renderPanel({
+      currentBookmark: undefined,
+      addBookmark: vi.fn(() => new Promise<BrowserBookmark[]>(resolve => { finish = resolve }))
+    })
+    const button = screen.getByRole('button', { name: 'Add current' })
+    button.focus()
+    await userEvent.setup().keyboard('{Enter}')
+    dropFocusLikeChromium(button)
+    // The tab now shows a page without a web address, such as Home, so there is nothing to bookmark.
+    await view.rerender({ activeUrl: null })
+
+    finish([bookmark('beta', 'Beta page')])
+
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Close bookmarks' })).toHaveFocus())
+  })
+
+  // The shortcut calls the panel's exposed toggleCurrent, which disables the same controls.
+  it('gives the focus back to the panel control you were on after the bookmark shortcut', async () => {
+    let finish!: (bookmarks: BrowserBookmark[]) => void
+    const wrapper = mount(BookmarksPanel, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: panelProps({
+        currentBookmark: undefined,
+        addBookmark: vi.fn(() => new Promise<BrowserBookmark[]>(resolve => { finish = resolve }))
+      })
+    })
+    try {
+      const button = screen.getByRole('button', { name: 'Add current' })
+      button.focus()
+      const toggling = (wrapper.vm as unknown as { toggleCurrent: () => Promise<void> }).toggleCurrent()
+      await flushPromises()
+      expect(button).toBeDisabled()
+      dropFocusLikeChromium(button)
+
+      finish([bookmark('beta', 'Beta page')])
+      await toggling
+
+      expect(button).toHaveFocus()
+    } finally {
+      wrapper.unmount()
+    }
+  })
+})
