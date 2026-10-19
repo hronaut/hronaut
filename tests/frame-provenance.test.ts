@@ -42,4 +42,18 @@ describe('frame provenance', () => {
     if(reason==='failure')p.observe('Network.loadingFailed',{requestId:child.loaderId})
     commit(p,child);expect(p.pair(parent,child)).toBe(false)
   })
+  it('keeps history through dedicated worker sessions, and still fails closed for any other child session', () => {
+    const p=new FrameProvenance('s');commit(p,parent);commit(p,child)
+    p.observe('Target.attachedToTarget',{sessionId:'worker',targetInfo:{type:'worker',targetId:'w1'}})
+    p.observe('Inspector.workerScriptLoaded',{},'worker')
+    expect(p.pair(parent,child)).toBe(true)
+    // A detached worker session is forgotten, so a later event under that id is a gap again.
+    p.observe('Target.detachedFromTarget',{sessionId:'worker'})
+    p.observe('Inspector.workerScriptLoaded',{},'worker')
+    expect(p.pair(parent,child)).toBe(false)
+    const frames=new FrameProvenance('s');commit(frames,parent);commit(frames,child)
+    frames.observe('Target.attachedToTarget',{sessionId:'frame',targetInfo:{type:'iframe',targetId:'f1'}})
+    frames.observe('Page.frameNavigated',{frame:child},'frame')
+    expect(frames.pair(parent,child)).toBe(false)
+  })
 })

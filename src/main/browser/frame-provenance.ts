@@ -20,6 +20,8 @@ export function committedHttpOrigin(value: string): string | undefined {
 export class FrameProvenance {
   private readonly entries = new Map<string, DocumentEvidence>()
   private readonly active = new Map<string, string>()
+  /** Child sessions Chromium attached to dedicated workers: a worker has no frames, so its events are no document evidence. */
+  private readonly workerSessions = new Set<string>()
   private unavailable = false
   private unavailableReason = 'unknown'
   revision = 0
@@ -41,8 +43,21 @@ export class FrameProvenance {
   }
   observe(method: string, input: unknown, sessionId?: string): void {
     if (this.unavailable) return
-    if (sessionId) { this.invalidate(); return }
     const p = object(input)
+    if (sessionId) {
+      if (!this.workerSessions.has(sessionId)) this.invalidate()
+      return
+    }
+    if (method === 'Target.attachedToTarget') {
+      const session = string(p.sessionId)
+      if (session && object(p.targetInfo).type === 'worker' && this.workerSessions.size < 64) this.workerSessions.add(session)
+      return
+    }
+    if (method === 'Target.detachedFromTarget') {
+      const session = string(p.sessionId)
+      if (session) this.workerSessions.delete(session)
+      return
+    }
     if (method === 'Page.frameDetached') {
       this.revision++
       if (p.reason === 'swap') this.invalidate('process-swap')
