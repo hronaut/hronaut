@@ -294,5 +294,6 @@ export const esESWallets = {
     "reject": "Rechazar",
     "approve": "Aprobar solicitud exacta",
     "requestFailed": "La solicitud de la cartera ha fallado"
-  }
+  },
+  "operationFailed": "No se pudo completar la operación del monedero de forma segura."
 }

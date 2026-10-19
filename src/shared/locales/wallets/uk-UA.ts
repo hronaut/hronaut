@@ -294,5 +294,6 @@ export const ukUAWallets = {
     "reject": "Відхилити",
     "approve": "Схвалити точний запит",
     "requestFailed": "Не вдалося виконати запит гаманця"
-  }
+  },
+  "operationFailed": "Не вдалося безпечно виконати дію з гаманцем."
 }

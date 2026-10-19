@@ -54,7 +54,8 @@ test('unknown conditions fence consumption refresh, reattachment, emulation and 
     }, tabId)
     expect(refusals).toHaveLength(2)
     expect(refusals[0]).toContain('unknown')
-    expect(refusals[1]).toContain('Native emulation application is not confirmed')
+    // The shell reads the sentence for a person; MCP results keep the instruction not to replay the request.
+    expect(refusals[1]).toContain('Emulation is unconfirmed. Open Environment and restore the retained settings')
     expect(await electronApp.evaluate(() => (globalThis as Scope).__conditionBackground!.commands)).toEqual(before)
     const beforeClear = await appWindow.evaluate(async tabId => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(t => t.id === tabId)!, tabId)
     expect(beforeClear.networkConditionState).toEqual({ application: 'unknown', retainedRules: [] })

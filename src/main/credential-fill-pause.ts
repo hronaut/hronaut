@@ -1,3 +1,5 @@
+import { LocalizedError } from './localized-error.js'
+
 export interface CredentialFillPauseOptions<T> {
   pausePersistently: () => void
   acquireTemporaryPause: () => () => void
@@ -25,7 +27,8 @@ export async function fillCredentialWhileMcpPaused<T>(
       await wait(pollIntervalMs)
     }
     if (options.getActiveRequestCount() > 0) {
-      throw new Error('Could not fill the password while an MCP command was still active')
+      // The English message keeps the MCP wording; a person reads that an agent command was still running.
+      throw new LocalizedError('appErrors.credentials.fillAgentActive', undefined, { message: 'Could not fill the password while an MCP command was still active' })
     }
     return await options.fill()
   } finally {

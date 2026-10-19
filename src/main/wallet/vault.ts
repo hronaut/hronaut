@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { z } from 'zod'
 import { WalletDescriptorSchema, type WalletDescriptor, type WalletSecretFormat } from '../../shared/wallet.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
+import { LocalizedError } from '../localized-error.js'
 import {
   decryptWalletAuthorityState,
   decryptWalletSecret,
@@ -245,7 +246,7 @@ export class WalletVault {
       if (!this.keyProtection) throw new Error('Wallet vault is not initialized')
       const validated = WalletDescriptorSchema.parse(descriptor)
       if (this.wallets.has(validated.id)) throw new Error('Wallet already exists')
-      if (this.wallets.size >= MAX_VAULT_WALLETS) throw new Error(`Wallet vault limit reached (${MAX_VAULT_WALLETS})`)
+      if (this.wallets.size >= MAX_VAULT_WALLETS) throw new LocalizedError('appErrors.wallet.vaultLimit', { max: MAX_VAULT_WALLETS })
       if (validated.kind === 'watch-only' && secret) throw new Error('Watch-only wallets must not contain signing material')
       if (validated.kind !== 'watch-only' && !secret) throw new Error('Managed wallets require signing material')
       const nextWallets = new Map(this.wallets)

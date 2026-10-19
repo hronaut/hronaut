@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import type { CredentialSummary } from '../shared/types.js'
 import { writeTextFileAtomically } from './atomic-file.js'
+import { LocalizedError } from './localized-error.js'
 
 interface PersistedCredential extends CredentialSummary {
   encryptedPassword: string
@@ -207,9 +208,19 @@ export class CredentialStore {
 
   async password(id: string): Promise<string> {
     const entry = this.entries.get(id)
-    if (!entry) throw new Error('Saved credential not found')
+    if (!entry) throw new LocalizedError('appErrors.credentials.notFound', undefined, { message: 'Saved credential not found' })
     let expectedEntry: PersistedCredential = entry
-    const decrypted = await this.encryption.decrypt(Buffer.from(expectedEntry.encryptedPassword, 'base64'))
+    let decrypted: Awaited<ReturnType<CredentialEncryption['decrypt']>>
+    try {
+      decrypted = await this.encryption.decrypt(Buffer.from(expectedEntry.encryptedPassword, 'base64'))
+    } catch (error) {
+      // The error keeps the secure storage's own text as its English message and cause; a person reads that the password
+      // could not be decrypted.
+      throw new LocalizedError('appErrors.credentials.decryptFailed', undefined, {
+        message: error instanceof Error ? error.message : String(error),
+        cause: error
+      })
+    }
     if (decrypted.shouldReEncrypt) {
       await this.queueMutation(async () => {
         if (this.entries.get(id) !== expectedEntry) return
@@ -225,7 +236,9 @@ export class CredentialStore {
         expectedEntry = reEncryptedEntry
       })
     }
-    if (this.entries.get(id) !== expectedEntry) throw new Error('Saved credential changed during access')
+    if (this.entries.get(id) !== expectedEntry) {
+      throw new LocalizedError('appErrors.credentials.changed', undefined, { message: 'Saved credential changed during access' })
+    }
     return decrypted.result
   }
 

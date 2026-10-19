@@ -401,7 +401,7 @@ test('asks for recovery confirmation in the interface language without the phras
     chainFamily: 'evm',
     network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
     workspaceIds: []
-  })`)).rejects.toThrow('Wallet creation cancelled before recovery confirmation')
+  })`)).rejects.toThrow('Створення гаманця скасовано до підтвердження фрази відновлення.')
   // The wallet generator always makes a 12-word phrase.
   expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __walletRecoveryDialog?: unknown }).__walletRecoveryDialog)).toEqual({
     title: 'Збережіть дані відновлення гаманця',

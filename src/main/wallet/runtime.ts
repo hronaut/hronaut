@@ -10,6 +10,7 @@ import type { BrowserTabsManager } from '../browser/tabs-manager.js'
 import type { CommercialLicenseStore } from '../commercial-license-store.js'
 import type { WalletAgentOperations, WalletAgentToolTarget } from '../mcp/server.js'
 import type { MainWindowRefs } from '../windows/main-window.js'
+import { LocalizedError } from '../localized-error.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { WalletCreateInput, WalletDescriptor, WalletServiceStatus } from '../../shared/wallet.js'
 
@@ -95,7 +96,7 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
   }
 
   function requireWalletService(): WalletService {
-    if (!host.state.service) throw new Error('Wallet service is unavailable')
+    if (!host.state.service) throw new LocalizedError('appErrors.wallet.serviceUnavailable')
     return host.state.service
   }
 
@@ -128,7 +129,7 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
   async function generateWallet(input: WalletCreateInput): Promise<WalletDescriptor> {
     const service = requireWalletService()
     const owner = host.mainWindowRefs.window
-    if (!owner || owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
+    if (!owner || owner.isDestroyed()) throw new LocalizedError('appErrors.wallet.windowUnavailable')
     return generateWalletWithRecoveryConfirmation(service, input, async (recoveryMaterial) => {
       if (owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
       const { response } = await dialog.showMessageBox(owner, {

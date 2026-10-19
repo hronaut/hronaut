@@ -294,5 +294,6 @@ export const deDEWallets = {
     "reject": "Ablehnen",
     "approve": "Exakte Anfrage genehmigen",
     "requestFailed": "Wallet-Anfrage fehlgeschlagen"
-  }
+  },
+  "operationFailed": "Der Wallet-Vorgang konnte nicht sicher abgeschlossen werden."
 }

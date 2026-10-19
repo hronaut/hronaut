@@ -294,5 +294,6 @@ export const enUSWallets = {
     "reject": "Reject",
     "approve": "Approve exact request",
     "requestFailed": "Wallet request failed"
-  }
+  },
+  "operationFailed": "The wallet operation could not be completed safely."
 }

@@ -195,6 +195,22 @@ describe('browser Pinia store lifecycle', () => {
     store.dispose()
   })
 
+  it('reports incomplete browser listener cleanup in the interface language', async () => {
+    useSettingsStore().hydrate(settingsState('uk-UA'))
+    const sourceError = new Error('state unavailable')
+    const cleanupError = new Error('browser listener already closed')
+    installBrowserApi({
+      getState: vi.fn().mockRejectedValueOnce(sourceError),
+      onStateChanged: vi.fn(() => () => { throw cleanupError })
+    })
+    const store = useBrowserStore()
+
+    const failure = await store.initialize().catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect((failure as AggregateError).message).toBe('Не вдалося ініціалізувати браузер, а слухачів його подій не вдалося повністю відключити.')
+    expect((failure as AggregateError).errors).toEqual([sourceError, cleanupError])
+  })
+
   it('delegates actions and does not apply events after disposal', async () => {
     let listener: ((state: BrowserState) => void) | undefined
     const selectTab = vi.fn(async (tabId: string) => browserState(tabId))
@@ -438,6 +454,22 @@ describe('settings Pinia store lifecycle', () => {
     expect(store.resolvedLocale).toBe('en-US')
     expect(onRendererStateChanged).toHaveBeenCalledTimes(2)
     store.dispose()
+  })
+
+  it('reports incomplete settings listener cleanup in the language the settings were hydrated with', async () => {
+    const sourceError = new Error('settings unavailable')
+    const cleanupError = new Error('settings listener already closed')
+    installSettingsApi({
+      getRendererState: vi.fn().mockRejectedValueOnce(sourceError),
+      onRendererStateChanged: vi.fn(() => () => { throw cleanupError })
+    })
+    const store = useSettingsStore()
+    store.hydrate(settingsState('uk-UA'))
+
+    const failure = await store.initialize().catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect((failure as AggregateError).message).toBe('Не вдалося ініціалізувати налаштування, а слухачів їхніх подій не вдалося повністю відключити.')
+    expect((failure as AggregateError).errors).toEqual([sourceError, cleanupError])
   })
 
   it('does not let an older settings response overwrite a newer response', async () => {

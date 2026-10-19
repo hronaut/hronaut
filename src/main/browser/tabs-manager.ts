@@ -3813,7 +3813,12 @@ export class BrowserTabsManager {
   }
 
   private requireEmulationConfirmed(tab: BrowserTab): void {
-    if (tab.emulationApplication !== 'confirmed') throw new Error('Native emulation application is not confirmed. Inspect retained settings and explicitly restore them before a new change; do not replay the failed request.')
+    if (tab.emulationApplication !== 'confirmed') {
+      // Agents keep the instruction not to replay the request; a person reads to restore the retained settings.
+      throw new LocalizedError('appErrors.emulation.unconfirmed', undefined, {
+        message: 'Native emulation application is not confirmed. Inspect retained settings and explicitly restore them before a new change; do not replay the failed request.'
+      })
+    }
   }
 
   emulate(options: BrowserEmulationOptions = {}, validate: () => void = () => {}, markSubmitted: () => void = () => {}, retainPublication?: (assert: () => void) => void): Promise<BrowserEmulationResult> {
