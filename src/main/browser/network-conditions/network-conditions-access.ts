@@ -1,5 +1,6 @@
 import type { WebContents } from 'electron'
 import type { BrowserEmulationState, BrowserNetworkRouteSummary } from '../../../shared/types.js'
+import type { HeldResponses } from './held-responses.js'
 
 /** A retained request-condition rule, with the response it fulfills requests with. */
 export interface BrowserNetworkRouteRecord extends BrowserNetworkRouteSummary {
@@ -21,15 +22,17 @@ export interface NetworkConditionsTab {
   networkConditionApplication: 'confirmed' | 'pending' | 'unknown'
   networkConditionEpoch: number
   networkDebuggerEpoch: number
+  /** The page's top frame, which a hold rule's request must come from. */
+  mainFrameId?: string
   emulation: Pick<BrowserEmulationState, 'network'>
 }
 
 /**
  * What request conditions need from the tab manager, which keeps the tabs,
  * its destroyed flag, the debugger queue, native network emulation, the
- * paused request queues, the rule refresh timers and state publication
- * private. The queues and timers stay manager fields because closing the
- * browser clears them; native network emulation stays a manager method
+ * paused request queues, the rule refresh timers, the held requests and state
+ * publication private. The queues, timers and holds stay manager fields
+ * because closing the browser clears them; native network emulation stays a manager method
  * because emulation applies it too.
  */
 export interface NetworkConditionsAccess<Tab extends NetworkConditionsTab> {
@@ -52,6 +55,8 @@ export interface NetworkConditionsAccess<Tab extends NetworkConditionsTab> {
   networkRouteQueues(): Map<number, Promise<void>>
   /** The scheduled rule refresh of each page, by WebContents id. */
   networkRouteRefreshTimers(): Map<number, NodeJS.Timeout>
+  /** The requests each page holds for release, by WebContents id. */
+  heldNetworkResponses(): Map<number, HeldResponses>
   /** Publishes the browser state, and saves it unless persist is false. */
   changed(persist?: boolean): void
 }

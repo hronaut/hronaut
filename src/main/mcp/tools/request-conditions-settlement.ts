@@ -7,9 +7,10 @@ import type { ToolActivityClassification } from './tool-context.js'
 /**
  * How browser_emulate and browser_network_routes settle a call. Before the first configuration command a failure
  * reports that nothing was dispatched; after it, that application is unknown. A result is published only after the
- * tool's own publication check, and the tab activity waits for the settled result.
+ * tool's own publication check, and the tab activity waits for the settled result. A read-only call's error stays as
+ * it is.
  */
-export function requestConditionsSettlement(emulation: boolean, input: Record<string, unknown>) {
+export function requestConditionsSettlement(emulation: boolean, input: Record<string, unknown>, readOnly = false) {
   let attempted = false
   let policy: Record<string, unknown> | undefined
   let emulationInputError: keyof typeof EMULATION_INPUT_ERRORS | undefined
@@ -23,7 +24,7 @@ export function requestConditionsSettlement(emulation: boolean, input: Record<st
   }
   const settle = (result: CallToolResult): CallToolResult => {
     let settled = result
-    if (result.isError && (emulation || (input.action !== 'list' && input.action !== undefined))) {
+    if (result.isError && !readOnly && (emulation || input.action !== undefined)) {
       const outcome = { ...result.structuredContent, ...policy,
         ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
         ...(emulation && !attempted && !policy && !reviewFinalizationFailed && result.structuredContent?.permission !== 'denied' && emulationInputError

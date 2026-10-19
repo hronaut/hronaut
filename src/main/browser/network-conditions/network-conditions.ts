@@ -8,6 +8,7 @@ import type {
 import { networkRoutePatternMatches } from '../../../shared/network-routes.js'
 import { normalizeNetworkRouteInput } from '../network-route-input.js'
 import { isHronautHomeUrl } from '../url.js'
+import { endHeldResponses, heldResponseCount, holdNetworkResponse, MAX_HELD_RESPONSES } from './held-responses.js'
 import type { BrowserNetworkRouteRecord, NetworkConditionsAccess, NetworkConditionsTab } from './network-conditions-access.js'
 
 /** How many request-condition rules one tab can retain. */
@@ -65,6 +66,9 @@ export async function addNetworkRoute<Tab extends NetworkConditionsTab>(access: 
   await applyNetworkRoutes(access, tab, validate, false, () => {
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before adding a network route')
     if (tab.networkRoutes.length >= MAX_NETWORK_ROUTES) throw new Error(`Network route limit reached (${MAX_NETWORK_ROUTES})`)
+    if (normalized.hold && heldResponseCount(access, tab.webContents) + tab.networkRoutes.filter(route => route.hold).length >= MAX_HELD_RESPONSES) {
+      throw new Error(`A tab can hold at most ${MAX_HELD_RESPONSES} requests, counting hold rules not matched yet. Release or cancel one first.`)
+    }
     tab.networkRoutes = [...tab.networkRoutes, { ...normalized, id: randomUUID(), createdAt: new Date().toISOString() }]
   }, markSubmitted)
   return networkRoutes(access, tab.id)
@@ -121,10 +125,14 @@ export async function moveNetworkRoute<Tab extends NetworkConditionsTab>(access:
   return networkRoutes(access, tab.id)
 }
 
-/** Removes every rule. As the recovery path, it applies even while the native application is unknown. */
+/** Removes every rule and fails every held request. As the recovery path, it applies even while the native application is unknown. */
 export async function clearNetworkRoutes<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId?: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
   const tab = access.getTab(tabId)
-  await applyNetworkRoutes(access, tab, validate, true, () => { tab.networkRoutes = [] }, markSubmitted)
+  await applyNetworkRoutes(access, tab, validate, true, () => {
+    tab.networkRoutes = []
+    if (heldResponseCount(access, tab.webContents)) markSubmitted()
+    endHeldResponses(access, tab.webContents, 'cleared', true)
+  }, markSubmitted)
   return networkRoutes(access, tab.id)
 }
 
@@ -140,7 +148,8 @@ function networkRouteSummary(route: BrowserNetworkRouteRecord): BrowserNetworkRo
     createdAt: route.createdAt,
     ...(route.response ? { response: { ...route.response, headerNames: [...route.response.headerNames] } } : {}),
     ...(route.abort ? { abort: route.abort } : {}),
-    ...(route.throttle ? { throttle: route.throttle } : {})
+    ...(route.throttle ? { throttle: route.throttle } : {}),
+    ...(route.hold ? { hold: { ...route.hold } } : {})
   }
 }
 
@@ -188,6 +197,8 @@ export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(acces
       access.changed(false)
       const interception = projection.filter(route => route.enabled && route.behavior !== 'throttle')
       if (interception.length) await send('Fetch.enable', { patterns: [...new Set(interception.map(route => route.urlPattern))].map(urlPattern => ({ urlPattern })) })
+      // Disabling interception fails held requests; empty patterns keep them and pause nothing new.
+      else if (heldResponseCount(access, contents)) await send('Fetch.enable', { patterns: [] })
       else await send('Fetch.disable')
       await access.applyNetworkEmulation(contents, network, projection, send)
       // Native acknowledgement is independent of subsequent UI/MCP publication.
@@ -210,7 +221,22 @@ export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(acces
 }
 
 /**
- * Continues, fails or fulfills one paused request by the first enabled rule
+ * Whether a hold rule may capture this request: a fetch or XMLHttpRequest
+ * from the tab's top frame to the page's own origin, not a redirect. Other
+ * requests pass the hold rule by, as a rule for another method would.
+ */
+function holdable(tab: NetworkConditionsTab, frameId: string | undefined, resourceType: string | undefined, redirectedRequestId: string | undefined, url: string): boolean {
+  if (!frameId || frameId !== tab.mainFrameId || (resourceType !== 'Fetch' && resourceType !== 'XHR') || redirectedRequestId) return false
+  try {
+    const page = new URL(tab.url)
+    return /^https?:$/.test(page.protocol) && new URL(url).origin === page.origin
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Continues, fails, fulfills or holds one paused request by the first enabled rule
  * that matches it, using up one of the rule's matches, unless a newer
  * application superseded the request. A failed disposition makes the
  * application unknown and is never replayed.
@@ -220,6 +246,9 @@ async function handleNetworkRouteRequest<Tab extends NetworkConditionsTab>(acces
   const details = params as {
     requestId?: string
     request?: { url?: string; method?: string }
+    frameId?: string
+    resourceType?: string
+    redirectedRequestId?: string
   }
   const requestId = details.requestId
   const url = details.request?.url
@@ -230,6 +259,7 @@ async function handleNetworkRouteRequest<Tab extends NetworkConditionsTab>(acces
   const route = ownedRoutes.find((candidate) => (
     candidate.enabled && (!candidate.method || candidate.method === method)
     && networkRoutePatternMatches(candidate.urlPattern, url)
+    && (!candidate.hold || holdable(tab, details.frameId, details.resourceType, details.redirectedRequestId, url))
   ))
 
   try {
@@ -248,7 +278,9 @@ async function handleNetworkRouteRequest<Tab extends NetworkConditionsTab>(acces
       tab.networkRoutes = tab.networkRoutes.filter(candidate => candidate !== route)
       if (tab.networkConditionApplication === 'confirmed') tab.networkConditionApplication = 'pending'
     }
-    if (route.behavior === 'abort') {
+    if (route.hold) {
+      holdNetworkResponse(access, tab, route, requestId)
+    } else if (route.behavior === 'abort') {
       await tab.webContents.debugger.sendCommand('Fetch.failRequest', {
         requestId,
         errorReason: route.abort

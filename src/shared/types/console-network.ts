@@ -297,6 +297,10 @@ export interface BrowserNetworkRouteInput {
   }
   abort?: BrowserNetworkAbortReason
   throttle?: BrowserNetworkThrottlePreset
+  /** Hold the matching request's mock response until it is released, cancelled or times out. */
+  holdUntilReleased?: boolean
+  /** How long a held request waits for release before it fails. */
+  holdSeconds?: number
 }
 
 export interface BrowserNetworkRouteSummary {
@@ -314,6 +318,16 @@ export interface BrowserNetworkRouteSummary {
   }
   abort?: BrowserNetworkAbortReason
   throttle?: BrowserNetworkThrottlePreset
+  /** The rule holds the request it matches until release; seconds before the hold fails it. */
+  hold?: { seconds: number }
+}
+
+/** A request a hold rule captured, waiting for release. Never its URL, headers or body. */
+export interface BrowserHeldNetworkResponse {
+  routeId: string
+  urlPattern: string
+  heldAt: string
+  expiresAt: string
 }
 
 /** Desired rules are distinct from acknowledged native application. */

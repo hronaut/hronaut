@@ -74,3 +74,17 @@ it('enforces both header count and cumulative byte limits at their boundaries', 
   expect(() => normalizeNetworkRouteInput({ urlPattern, response: { headers: { x: 'a'.repeat(32767) } } })).not.toThrow()
   expect(() => normalizeNetworkRouteInput({ urlPattern, response: { headers: { x: 'a'.repeat(32768) } } })).toThrow('32768 bytes')
 })
+
+it('normalizes a held mock to one GET request with a bounded hold', () => {
+  expect(normalizeNetworkRouteInput({ urlPattern, response: { body: 'ok' }, holdUntilReleased: true })).toEqual({
+    enabled: true, urlPattern, method: 'GET', behavior: 'fulfill', remainingMatches: 1, hold: { seconds: 30 },
+    response: { status: 200, headerNames: [], bodyBytes: 2 }, responseHeaders: {}, responseBody: 'ok'
+  })
+  expect(normalizeNetworkRouteInput({ urlPattern, method: 'get', times: 1, response: {}, holdUntilReleased: true, holdSeconds: 120 }).hold).toEqual({ seconds: 120 })
+  expect(() => normalizeNetworkRouteInput({ urlPattern, abort: 'Failed', holdUntilReleased: true })).toThrow('requires a mock response')
+  expect(() => normalizeNetworkRouteInput({ urlPattern, response: {}, holdUntilReleased: true, times: 2 })).toThrow('exactly one request')
+  expect(() => normalizeNetworkRouteInput({ urlPattern, response: {}, holdUntilReleased: true, method: 'POST' })).toThrow('only GET')
+  expect(() => normalizeNetworkRouteInput({ urlPattern, response: {}, holdSeconds: 10 })).toThrow('holdSeconds requires holdUntilReleased')
+  expect(() => normalizeNetworkRouteInput({ urlPattern, response: {}, holdUntilReleased: true, holdSeconds: 121 })).toThrow()
+  expect(normalizeNetworkRouteInput({ urlPattern, response: {} })).not.toHaveProperty('hold')
+})
