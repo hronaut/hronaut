@@ -15,7 +15,7 @@ export function registerBrowserNewTab(context: McpToolContext): void {
       inputSchema: {
         url: z.string().optional(),
         label: z.string().max(MAX_TAB_LABEL_INPUT_LENGTH).refine(value => { try { normalizeTabLabel(value); return true } catch { return false } }, 'Invalid tab label').optional().describe('Optional authored task label, at most 100 Unicode code points after trim/NFC. Not verified page identity. Creation reports label persistence separately.'),
-        active: z.boolean().optional().describe('Select the new tab within the agent workspace; show it only while Follow agents is enabled.'),
+        active: z.boolean().optional().describe('Select the new tab within the agent workspace without taking the view: Follow agents may show it once you work in it, unless the person is busy; browser_show makes it visible.'),
         zoomIsolated: z.boolean().optional().describe('Give the new tab its own page zoom, starting at 100%, instead of sharing zoom with same-origin tabs. Set only at creation; it cannot be switched later.'),
         defaultFontSize: z.number().int().min(DEFAULT_FONT_SIZE_LIMITS.min).max(DEFAULT_FONT_SIZE_LIMITS.max).optional()
           .describe(`Browser default (standard) font size in CSS px for this tab, ${DEFAULT_FONT_SIZE_LIMITS.min}–${DEFAULT_FONT_SIZE_LIMITS.max}; the browser default is ${DEFAULT_FONT_SIZE_LIMITS.browserDefault}. Changes text sized by the browser default and em/rem media queries, unlike page zoom or OS text scale. Set only at creation; open another tab for another size.`)

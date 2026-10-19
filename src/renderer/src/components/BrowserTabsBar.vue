@@ -2,6 +2,7 @@
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import IconStopCircle from '~icons/material-symbols/stop-circle-rounded'
 import UiButton from "../ui/UiButton.vue"
+import { friendlyUiError } from '../composables/useAppToastController.js'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconRecord from '~icons/material-symbols/fiber-manual-record-rounded'
@@ -395,11 +396,18 @@ watch(
 )
 
 defineExpose({ expandTabGroup, expandTabGroupForTab })
-const workerCaptureError = ref('')
+/** Why stopping a tab's worker capture failed, shown on that tab's Stop button until a stop works or the capture ends. */
+const workerCaptureErrors = ref(new Map<string, string>())
+const capturingTabIds = (): string[] => props.state.tabs.filter((tab) => tab.pwaLifecycleActive).map((tab) => tab.id)
+watch(capturingTabIds, (capturing) => {
+  for (const tabId of workerCaptureErrors.value.keys()) if (!capturing.includes(tabId)) workerCaptureErrors.value.delete(tabId)
+})
 async function stopWorkerCapture(tabId: string): Promise<void> {
-  workerCaptureError.value = ''
+  workerCaptureErrors.value.delete(tabId)
   try { await window.hronaut.pwaLifecycle({ tabId, action: 'stop' }) }
-  catch (error) { workerCaptureError.value = error instanceof Error ? error.message : String(error) }
+  catch (error) {
+    if (capturingTabIds().includes(tabId)) workerCaptureErrors.value.set(tabId, friendlyUiError(error, ''))
+  }
 }
 </script>
 
@@ -620,7 +628,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
             @click.stop="emit('closeTab', tab.id)"
           ><IconClose aria-hidden="true" /></span>
         </UiButton>
-        <UiButton v-if="tab.pwaLifecycleActive" variant="ghost" size="small" class="tab-pwa-stop" :aria-label="t('pwaLifecycle.stop')" v-tooltip="workerCaptureError || t('pwaLifecycle.stop')" @click="stopWorkerCapture(tab.id)"><IconStopCircle aria-hidden="true" /></UiButton>
+        <UiButton v-if="tab.pwaLifecycleActive" variant="ghost" size="small" class="tab-pwa-stop" :data-testid="`worker-capture-stop-${tab.id}`" :aria-label="t('pwaLifecycle.stop')" v-tooltip="workerCaptureErrors.get(tab.id) || t('pwaLifecycle.stop')" @click="stopWorkerCapture(tab.id)"><IconStopCircle aria-hidden="true" /></UiButton>
         </template>
       </div>
       <UiButton appearance="application"

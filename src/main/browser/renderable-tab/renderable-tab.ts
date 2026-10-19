@@ -109,7 +109,7 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
               access.layout()
             } else {
               // A viewport change during the capture left the view's size to this restore.
-              tab.view.setBounds(tab.emulationViewSize === viewSizeAtStart ? originalBounds : access.tabViewBounds(tab, access.browserViewBounds()))
+              tab.view.setBounds(tab.emulationViewSize === viewSizeAtStart ? originalBounds : access.tabViewBounds(tab, access.contentAreaBounds()))
             }
           } catch (error) {
             cleanupError ??= error

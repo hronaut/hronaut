@@ -20,8 +20,8 @@ export interface TabSelectionTab {
 
 /**
  * What selecting a tab needs from the tab manager, which keeps the tabs, the
- * selection generation, the active tab, the split view, the window, agent
- * following, tab waking, workspace activation, layout, focus and state
+ * selection generation, the active tab, the split view, the window, pages in
+ * full screen, tab waking, workspace activation, layout, focus and state
  * publication private. The selection generation, the active tab and the
  * split view stay manager fields because closing, splitting, following and
  * page input read or write them too; they are written back through their
@@ -48,10 +48,12 @@ export interface TabSelectionAccess<Tab extends TabSelectionTab> {
   splitViewContains(tabId: string): boolean
   /** The browser window, whose content view shows the selected tab. */
   window(): BrowserWindow
-  /** Whether the browser follows agent activity, so an agent's tab is shown. */
-  followAgentActivity(): boolean
+  /** Asks a page in full screen other than this tab's, such as the split view pane hiding it, to leave full screen. */
+  exitPageFullscreenCovering(tabId: string): void
   /** Wakes a sleeping tab. */
   wakeTab(tabId: string): Promise<BrowserState>
+  /** The active tab of the tab's workspace, if it has one. */
+  workspaceActiveTabId(tab: Tab): string | null | undefined
   /** Records the tab as its workspace's active tab. */
   markTabActiveInGroup(tab: Tab): void
   /** Lays out the window's views. */

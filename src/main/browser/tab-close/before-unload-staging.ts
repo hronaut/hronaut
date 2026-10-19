@@ -31,8 +31,8 @@ export function stageBeforeUnloadClose<Tab extends BeforeUnloadStagingTab>(acces
     if (replacement && !replacement.webContents.isDestroyed()) {
       access.window().contentView.addChildView(replacement.view)
       replacementWasAttached = true
-      // The closing tab's bounds can be sized for its own emulated viewport.
-      replacement.view.setBounds(access.tabViewBounds(replacement, access.browserViewBounds()))
+      // The closing tab's bounds can be sized for its own emulated viewport, or fill the window in full screen.
+      replacement.view.setBounds(access.tabViewBounds(replacement, access.contentAreaBounds()))
       access.roundPageCorners(replacement.view)
       replacement.view.setVisible(visible)
     }
