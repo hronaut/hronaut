@@ -1,4 +1,5 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import { rememberedSitePermissions } from './browser-session.js'
 import { isSitePermissionDecision, type SitePermissionStore } from './site-permission-store.js'
 
 interface PermissionsIpcHost {
@@ -9,7 +10,10 @@ interface PermissionsIpcHost {
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerPermissionsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: PermissionsIpcHost): void {
-  ipcMain.handle('permissions:list', (event) => { host.assertTrustedSender(event); return host.sitePermissionStore()!.list() })
+  ipcMain.handle('permissions:list', (event) => {
+    host.assertTrustedSender(event)
+    return rememberedSitePermissions(host.sitePermissionStore()!.list())
+  })
   ipcMain.handle(
     'permissions:set',
     async (event, origin: unknown, permission: unknown, decision: unknown) => {

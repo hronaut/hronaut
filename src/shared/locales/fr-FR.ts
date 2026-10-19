@@ -3626,7 +3626,7 @@ export const frFR = {
       "fileWriteAccess": "en écriture",
       "unspecifiedPath": "chemin non précisé",
       "permissionRemember": "Hronaut peut mémoriser ce choix pour l’origine exacte du site.",
-      "permissionAskAgain": "{detail} Hronaut redemandera la prochaine fois.",
+      "permissionAskAgain": "{detail} Hronaut ne mémorise pas ce choix. Après « Refuser », cette page ne pourra plus le demander tant qu’elle n’aura pas été rechargée.",
       "permissionSettings": "{detail} Vous pourrez le modifier plus tard dans Paramètres → Autorisations des sites.",
       "workspaceRecoveryTitle": "Impossible d’ouvrir les espaces enregistrés",
       "workspaceRecoveryMessage": "Le démarrage a été arrêté pour éviter de remplacer les espaces enregistrés.",

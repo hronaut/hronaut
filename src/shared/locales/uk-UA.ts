@@ -820,7 +820,7 @@ export const ukUA = {
       sitePermission: 'Дозвіл сайту', permissionRequest: 'Сайт {origin} запитує дозвіл «{permission}».', deny: 'Заборонити', allow: 'Дозволити',
       requestedDevices: 'Запитані пристрої: {devices}.', requestedFile: 'Запитано {access}: {path}. Це рішення діятиме лише один раз.', requestedExternalApp: '«Дозволити» відкриє це посилання {scheme} поза Hronaut — у застосунку, який ваша система використовує для таких посилань.',
       camera: 'камера', microphone: 'мікрофон', and: ' і ', unspecifiedAccess: 'невказаний доступ', fileReadAccess: 'доступ на читання', fileWriteAccess: 'доступ на запис', unspecifiedPath: 'невказаний шлях',
-      permissionRemember: 'Hronaut може запам’ятати цей вибір для точного джерела сайту.', permissionAskAgain: '{detail} Наступного разу Hronaut запитає знову.', permissionSettings: '{detail} Змінити рішення можна пізніше в Налаштуваннях → Дозволи сайтів.',
+      permissionRemember: 'Hronaut може запам’ятати цей вибір для точного джерела сайту.', permissionAskAgain: '{detail} Hronaut не запам’ятовує цей вибір. Після «Заборонити» ця сторінка не зможе запитати це знову, доки її не буде перезавантажено.', permissionSettings: '{detail} Змінити рішення можна пізніше в Налаштуваннях → Дозволи сайтів.',
       workspaceRecoveryTitle: 'Не вдалося відкрити збережені простори',
       workspaceRecoveryMessage: 'Запуск зупинено, щоб не замінити збережені простори.',
       workspaceRecoveryDetail: 'Закрийте Hronaut. Використайте сумісну з профілем версію або відновіть справну копію tabs.json у профілі Hronaut, поки застосунок закрито. Збережіть наявні файли; не скидайте профіль.',

@@ -3626,7 +3626,7 @@ export const ruRU = {
       "fileWriteAccess": "запись",
       "unspecifiedPath": "неуказанный путь",
       "permissionRemember": "Hronaut может запомнить этот выбор для точного источника сайта.",
-      "permissionAskAgain": "{detail} Hronaut снова спросит в следующий раз.",
+      "permissionAskAgain": "{detail} Hronaut не запоминает этот выбор. После «Запретить» эта страница не сможет запросить это снова, пока её не перезагрузят.",
       "permissionSettings": "{detail} Позже это можно изменить в Настройки → Разрешения сайтов.",
       "workspaceRecoveryTitle": "Не удалось открыть сохранённые пространства",
       "workspaceRecoveryMessage": "Запуск остановлен, чтобы не заменить сохранённые пространства.",

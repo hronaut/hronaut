@@ -3626,7 +3626,7 @@ export const plPL = {
       "fileWriteAccess": "zapis",
       "unspecifiedPath": "nieokreślona ścieżka",
       "permissionRemember": "Hronaut może zapamiętać ten wybór dla dokładnego źródła witryny.",
-      "permissionAskAgain": "{detail} Hronaut zapyta ponownie następnym razem.",
+      "permissionAskAgain": "{detail} Hronaut nie zapamiętuje tego wyboru. Po wybraniu „Odmów” ta strona nie będzie mogła zapytać o to ponownie, dopóki nie zostanie ponownie wczytana.",
       "permissionSettings": "{detail} Możesz to później zmienić w Ustawienia → Uprawnienia witryn.",
       "workspaceRecoveryTitle": "Nie można otworzyć zapisanych przestrzeni",
       "workspaceRecoveryMessage": "Uruchamianie zatrzymano, aby nie zastąpić zapisanych przestrzeni.",

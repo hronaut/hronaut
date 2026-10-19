@@ -3626,7 +3626,7 @@ export const esES = {
       "fileWriteAccess": "escritura",
       "unspecifiedPath": "ruta no especificada",
       "permissionRemember": "Hronaut puede recordar esta elección para el origen exacto del sitio web.",
-      "permissionAskAgain": "{detail} Hronaut volverá a preguntar la próxima vez.",
+      "permissionAskAgain": "{detail} Hronaut no recuerda esta elección. Tras «Denegar», esta página no podrá volver a pedirlo hasta que se recargue.",
       "permissionSettings": "{detail} Puedes cambiarlo más tarde en Configuración → Permisos de sitios.",
       "workspaceRecoveryTitle": "No se pudieron abrir los espacios guardados",
       "workspaceRecoveryMessage": "Se detuvo el inicio para evitar reemplazar los espacios guardados.",

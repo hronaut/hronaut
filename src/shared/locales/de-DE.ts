@@ -3626,7 +3626,7 @@ export const deDE = {
       "fileWriteAccess": "Schreiben",
       "unspecifiedPath": "nicht angegebener Pfad",
       "permissionRemember": "Hronaut kann diese Auswahl für den genauen Website-Ursprung speichern.",
-      "permissionAskAgain": "{detail} Hronaut fragt beim nächsten Mal erneut.",
+      "permissionAskAgain": "{detail} Hronaut speichert diese Auswahl nicht. Nach „Ablehnen“ kann diese Seite erst wieder danach fragen, wenn sie neu geladen wird.",
       "permissionSettings": "{detail} Sie können dies später unter Einstellungen → Website-Berechtigungen ändern.",
       "workspaceRecoveryTitle": "Gespeicherte Arbeitsbereiche konnten nicht geöffnet werden",
       "workspaceRecoveryMessage": "Der Start wurde gestoppt, um gespeicherte Arbeitsbereiche nicht zu ersetzen.",

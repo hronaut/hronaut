@@ -74,7 +74,9 @@ describe('site permission prompt', () => {
     expect((await prompt('de-DE', 'media', { mediaTypes: ['video'] })).message).toBe('https://files.example fordert die Berechtigung „Kamera“ an.')
     const both = await prompt('en-US', 'media', { mediaTypes: ['audio', 'video'] })
     expect(both.message).toBe('https://files.example requests “Camera and microphone” permission.')
-    expect(both.detail).toBe('Requested devices: microphone and camera. Hronaut will ask again next time.')
+    expect(both.detail).toBe(
+      "Requested devices: microphone and camera. Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads."
+    )
   })
 
   it('refuses a screen sharing request without asking about the camera and microphone', async () => {
@@ -93,7 +95,8 @@ describe('site permission prompt', () => {
   it('names read and write file access in the interface language', async () => {
     // The detail used to show Electron's "readable" or "writable" between translated words.
     expect((await prompt('en-US', 'fileSystem', { fileAccessType: 'readable', filePath: '/home/notes.txt' })).detail)
-      .toBe('Requested read access: /home/notes.txt. This decision will apply only once. Hronaut will ask again next time.')
+      .toBe('Requested read access: /home/notes.txt. This decision will apply only once. '
+        + "Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads.")
     const writable = await prompt('uk-UA', 'fileSystem', { fileAccessType: 'writable', filePath: '/home/notes.txt' })
     expect(writable.message).toBe('Сайт https://files.example запитує дозвіл «Файли й папки».')
     expect(writable.detail).toContain('Запитано доступ на запис: /home/notes.txt.')

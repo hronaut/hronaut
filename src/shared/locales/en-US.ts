@@ -747,7 +747,7 @@ export const enUS = {
       sitePermission: 'Site permission', permissionRequest: '{origin} requests “{permission}” permission.', deny: 'Deny', allow: 'Allow',
       requestedDevices: 'Requested devices: {devices}.', requestedFile: 'Requested {access}: {path}. This decision will apply only once.', requestedExternalApp: 'Allow opens this {scheme} link outside Hronaut, in the app your system uses for it.',
       camera: 'camera', microphone: 'microphone', and: ' and ', unspecifiedAccess: 'unspecified access', fileReadAccess: 'read access', fileWriteAccess: 'write access', unspecifiedPath: 'unspecified path',
-      permissionRemember: 'Hronaut can remember this choice for the exact website origin.', permissionAskAgain: '{detail} Hronaut will ask again next time.', permissionSettings: '{detail} You can change it later in Settings → Site permissions.',
+      permissionRemember: 'Hronaut can remember this choice for the exact website origin.', permissionAskAgain: "{detail} Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads.", permissionSettings: '{detail} You can change it later in Settings → Site permissions.',
       workspaceRecoveryTitle: "Saved workspaces could not be opened",
       workspaceRecoveryMessage: "Startup stopped to avoid replacing saved workspaces.",
       workspaceRecoveryDetail: "Quit Hronaut. If this profile was saved by another version, use a compatible version. Otherwise, restore a known-good tabs.json backup in your Hronaut profile while the app is closed. Keep the existing files for recovery; do not reset the profile.",
