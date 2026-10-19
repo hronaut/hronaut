@@ -8,6 +8,8 @@ import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
+import IconInfo from '~icons/material-symbols/info-rounded'
+import IconWarning from '~icons/material-symbols/warning-rounded'
 import type { WalletPreparedImport } from '../../../shared/types.js'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import WalletNetworkFields from './WalletNetworkFields.vue'
@@ -538,7 +540,10 @@ async function addPolicy(): Promise<void> {
         </div>
       </template>
       <div class="settings-info" :class="{ 'security-warning': controller.status.value.managedWallets === 'disabled' }">
-        <span class="info-dot" aria-hidden="true">{{ t('common.hronaut').slice(0, 1) }}</span>
+        <span class="info-dot" aria-hidden="true">
+          <IconWarning v-if="controller.status.value.managedWallets === 'disabled'" />
+          <IconInfo v-else />
+        </span>
         <p>{{ statusCopy }}</p>
       </div>
       <output v-if="controller.errorMessage.value" class="site-controls-error wallet-error" role="alert">{{ controller.errorMessage.value }}</output>
