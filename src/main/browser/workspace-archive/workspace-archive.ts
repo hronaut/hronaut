@@ -1,6 +1,7 @@
 import type { BrowserSavedTabGroupState, BrowserState, BrowserTabGroupState } from '../../../shared/types.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../../shared/undo.js'
 import { LocalizedError } from '../../localized-error.js'
+import { archivedWorkspaceBusyError } from '../workspace-operations/workspace-operations.js'
 import { canonicalStorageId } from '../workspace-storage-deletion.js'
 import { destroyWorkspaceStorage, workspacePartition } from '../workspace-storage.js'
 import type { WorkspaceArchiveAccess } from './workspace-archive-access.js'
@@ -49,12 +50,12 @@ export function isClosingWorkspace(access: WorkspaceArchiveAccess, workspaceId: 
 export async function closeWorkspaceForPerson(access: WorkspaceArchiveAccess, groupId: string): Promise<BrowserState> {
   const group = access.mcpTabGroups().get(groupId)
   if (!group) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}.` })
-  if (group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
+  if (group.deletionProtected) throw new LocalizedError('appErrors.workspace.protectedClose', { name: group.name })
   // A workspace closed just before is deleted first, so it does not take the archive place this one needs.
   await access.options().endUndo?.()
   // Undo needs an archive place; the editor asks first and closes without Undo when the archive is full.
   if (access.savedTabGroups().size >= MAX_SAVED_TAB_GROUPS) {
-    throw new Error(`Hronaut keeps at most ${MAX_SAVED_TAB_GROUPS} archived workspaces, so "${group.name}" cannot be closed with Undo. Delete an archived workspace in Home, then try again.`)
+    throw new LocalizedError('appErrors.workspace.archiveLimitUndo', { max: MAX_SAVED_TAB_GROUPS, name: group.name })
   }
   const archived = await saveAndCloseTabGroup(access, groupId)
   // Only this archive is deleted: not one made after the workspace was restored and archived again.
@@ -103,9 +104,9 @@ export async function restoreSavedTabGroup(access: WorkspaceArchiveAccess, saved
 /** Changes whether an archived workspace shows in the sidebar and is protected from deletion, unless an operation holds it busy. */
 export function updateArchivedWorkspacePreferences(access: WorkspaceArchiveAccess, workspaceId: string, updates: { hiddenFromSidebar?: boolean; deletionProtected?: boolean }): void {
   const group = access.savedTabGroups().get(workspaceId)
-  if (!group) throw new Error('Archived workspace is unavailable.')
+  if (!group) throw new LocalizedError('appErrors.workspace.archivedUnavailable', undefined, { message: 'Archived workspace is unavailable.' })
   const operation = access.savedWorkspaceOperations().get(workspaceId)
-  if (operation) throw new Error(`Archived workspace "${group.name}" is busy ${operation.action}. Try again after that operation finishes.`)
+  if (operation) throw archivedWorkspaceBusyError(group.name, operation.action)
   if (updates.hiddenFromSidebar !== undefined) group.hiddenFromSidebar = updates.hiddenFromSidebar
   if (updates.deletionProtected !== undefined) group.deletionProtected = updates.deletionProtected
   access.changed()
@@ -120,8 +121,8 @@ export function updateArchivedWorkspacePreferences(access: WorkspaceArchiveAcces
 export async function deleteSavedTabGroup(access: WorkspaceArchiveAccess, savedGroupId: string): Promise<BrowserSavedTabGroupState[]> {
   return access.withSavedWorkspaceOperation(savedGroupId, 'deleting the archived workspace', async () => {
     const saved = access.savedTabGroups().get(savedGroupId)
-    if (!saved) throw new Error(`Unknown saved workspace: ${savedGroupId}.`)
-    if (saved.deletionProtected) throw new Error(`Workspace "${saved.name}" is protected from deletion. Turn off deletion protection in Home first.`)
+    if (!saved) throw new LocalizedError('appErrors.workspace.archivedUnavailable', undefined, { message: `Unknown saved workspace: ${savedGroupId}.` })
+    if (saved.deletionProtected) throw new LocalizedError('appErrors.workspace.protectedDelete', { name: saved.name })
     {
       await access.assertStorageDeletionOwnership(savedGroupId, saved.storageId)
       await destroyWorkspaceStorage(

@@ -1,6 +1,7 @@
 import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { writeTextFileAtomically } from './atomic-file.js'
+import { LocalizedError } from './localized-error.js'
 
 export const STARTUP_LAUNCH_ARGUMENT = '--launch-at-login'
 const AUTOSTART_FILE_NAME = 'hronaut.desktop'
@@ -45,7 +46,7 @@ function validateDesktopExecutablePath(value: string): void {
     return codePoint <= 0x1f || codePoint === 0x7f || character === '='
   })
   if (invalid) {
-    throw new Error('The Hronaut executable path is not valid for desktop autostart')
+    throw new LocalizedError('appErrors.settings.autostartPath')
   }
 }
 
@@ -144,7 +145,7 @@ export class StartupLaunchManager {
 
   async setEnabled(enabled: boolean): Promise<void> {
     if (!this.options.isPackaged) {
-      throw new Error('Launch at sign-in is available in packaged Hronaut builds')
+      throw new LocalizedError('appErrors.settings.launchPackagedOnly')
     }
     if (this.options.platform === 'linux') {
       if (enabled) await writeTextFileAtomically(this.autostartPath(), this.linuxDesktopEntry())
@@ -154,11 +155,11 @@ export class StartupLaunchManager {
     } else if (this.options.platform === 'win32') {
       this.requireNativeLoginItems().setLoginItemSettings({ openAtLogin: enabled, ...this.windowsOptions() })
     } else {
-      throw new Error('Launch at sign-in is not supported on this operating system')
+      throw new LocalizedError('appErrors.settings.launchUnsupported')
     }
     if (await this.isEnabled() !== enabled) {
       if (enabled) await this.removeRegistration().catch(() => undefined)
-      throw new Error(`Hronaut could not ${enabled ? 'enable' : 'disable'} launch at sign-in`)
+      throw new LocalizedError(enabled ? 'appErrors.settings.launchEnableFailed' : 'appErrors.settings.launchDisableFailed')
     }
   }
 
@@ -197,7 +198,7 @@ export class StartupLaunchManager {
   }
 
   private requireNativeLoginItems(): NativeLoginItems {
-    if (!this.options.nativeLoginItems) throw new Error('Native login-item integration is unavailable')
+    if (!this.options.nativeLoginItems) throw new LocalizedError('appErrors.settings.loginItemsUnavailable')
     return this.options.nativeLoginItems
   }
 }

@@ -1,4 +1,5 @@
 import { BrowserWindow, type WebContents } from 'electron'
+import { LocalizedError } from '../../localized-error.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import type { RenderableTab, RenderableTabAccess } from './renderable-tab-access.js'
 
@@ -38,7 +39,7 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
   await previous
 
   try {
-    if (!tabIsLive()) throw new Error('The tab closed while rendering its page.')
+    if (!tabIsLive()) throw new LocalizedError('appErrors.pageTools.renderClosed')
     if (webContents.isCrashed()) throw new RendererExitedError(false)
     try {
       if (
@@ -118,7 +119,7 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
         if (cleanupError) throw cleanupError
       }
     } catch (error) {
-      if (!tabIsLive()) throw new Error('The tab closed while rendering its page.')
+      if (!tabIsLive()) throw new LocalizedError('appErrors.pageTools.renderClosed')
       throw error
     }
   } finally {
@@ -164,7 +165,7 @@ async function waitForPresentation(webContents: WebContents): Promise<void> {
     // bounded, but allow enough time for tray captures and visual comparisons on
     // slower or heavily loaded machines.
     const timer = setTimeout(
-      () => finish(new Error('Timed out waiting for the tab to become renderable')),
+      () => finish(new LocalizedError('appErrors.pageTools.renderTimedOut')),
       OFFSCREEN_PRESENTATION_TIMEOUT_MS
     )
     try {
@@ -172,7 +173,7 @@ async function waitForPresentation(webContents: WebContents): Promise<void> {
       webContents.beginFrameSubscription(false, () => finish())
       const invalidate = (): void => {
         if (webContents.isDestroyed()) {
-          finish(new Error('The tab closed while waiting for a renderable frame'))
+          finish(new LocalizedError('appErrors.pageTools.renderFrameClosed'))
           return
         }
         try {
@@ -191,7 +192,7 @@ async function waitForPresentation(webContents: WebContents): Promise<void> {
       const probeCapture = async (): Promise<void> => {
         if (finished || captureProbeInFlight) return
         if (webContents.isDestroyed()) {
-          finish(new Error('The tab closed while waiting for a renderable frame'))
+          finish(new LocalizedError('appErrors.pageTools.renderFrameClosed'))
           return
         }
         captureProbeInFlight = true

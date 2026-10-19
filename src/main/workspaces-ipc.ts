@@ -9,6 +9,7 @@ import type {
 } from 'electron'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import { normalizeWorkspaceNavigationPolicy } from './browser/workspace-navigation-policy.js'
+import { LocalizedError } from './localized-error.js'
 import { agentAnswerForDecision } from './mcp/agent-presence.js'
 import type { HumanWaitingService } from './mcp/human-waiting-service.js'
 import type { McpHttpServer } from './mcp/server.js'
@@ -94,7 +95,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
   host.handleBrowserIpc('browser:list-human-waiting', (event, workspaceId: unknown) => {
     const authorize = (): void => { host.assertTrustedSender(event) }
     authorize()
-    if (typeof workspaceId !== 'string' || workspaceId.length > 128 || !host.humanWaiting()) throw new Error('Waiting workspace unavailable')
+    if (typeof workspaceId !== 'string' || workspaceId.length > 128 || !host.humanWaiting()) throw new LocalizedError('appErrors.continuity.waitingWorkspaceUnavailable')
     return host.humanWaiting()!.list(workspaceId, authorize)
   })
   host.handleBrowserIpc('browser:change-human-waiting', async (event, workspaceId: unknown, id: unknown, revision: unknown, action: unknown, confirmation: unknown, note: unknown) => {
@@ -102,7 +103,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
     authorize()
     if (typeof workspaceId !== 'string' || typeof id !== 'string' || typeof revision !== 'string'
       || workspaceId.length > 128 || id.length > 128 || revision.length > 128
-      || (action !== 'acknowledge' && action !== 'cancel' && action !== 'reject' && action !== 'resolve') || !host.humanWaiting()) throw new Error('Waiting decision unavailable')
+      || (action !== 'acknowledge' && action !== 'cancel' && action !== 'reject' && action !== 'resolve') || !host.humanWaiting()) throw new LocalizedError('appErrors.continuity.decisionUnavailable')
     const trustedConfirmation = confirmation === undefined
       ? undefined
       : confirmation && typeof confirmation === 'object' && !Array.isArray(confirmation)
@@ -111,11 +112,11 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
         ? { accountAndTargetVerified: true as const }
         : null
     if (trustedConfirmation === null || (action !== 'resolve' && trustedConfirmation !== undefined)) {
-      throw new Error('Waiting decision confirmation unavailable')
+      throw new LocalizedError('appErrors.continuity.confirmationUnavailable')
     }
     const answerNote = normalizeHumanWaitingNote(note)
     if (answerNote === null || (answerNote !== undefined && action === 'acknowledge')) {
-      throw new Error('Waiting decision note unavailable')
+      throw new LocalizedError('appErrors.continuity.noteUnavailable')
     }
     let checkpointId: string | null | undefined
     const validateFresh = async (): Promise<void> => {
@@ -125,7 +126,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
         || (checkpointId !== undefined && checkpointId !== report.checkpointId)
         || (report.priorOutcome === 'OUTCOME_UNKNOWN' && !report.priorOutcomeAcknowledged)) {
         host.tabs()!.suspendWorkspaceContinuity(workspaceId)
-        throw new Error('Review current workspace continuity before resolving the human decision')
+        throw new LocalizedError('appErrors.continuity.reviewBeforeResolving')
       }
       checkpointId = report.checkpointId
     }

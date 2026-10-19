@@ -7,6 +7,7 @@ import {
   type Session,
   type WebContents
 } from 'electron'
+import { LocalizedError } from '../localized-error.js'
 
 const STORAGE_TRANSFER_TIMEOUT_MS = 8_000
 
@@ -62,7 +63,7 @@ export async function flushBrowserSessionStorage(browserSession: Session): Promi
   ])
   const errors = results.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
   if (errors.length) {
-    throw new AggregateError(errors, 'Browser profile storage could not be fully flushed.')
+    throw new LocalizedError('appErrors.workspaceData.flushFailed', undefined, { cause: new AggregateError(errors) })
   }
 }
 
@@ -76,7 +77,8 @@ export function normalizeWorkspaceStorageOrigins(values: string[]): string[] {
   for (const value of values) {
     const parsed = new URL(value)
     if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || !parsed.hostname) {
-      throw new TypeError(`Workspace storage origin must be HTTP or HTTPS: ${value}`)
+      // Agents read which origin was refused; a person reads the rule without the address.
+      throw new LocalizedError('appErrors.workspaceData.invalidOrigin', undefined, { message: `Workspace storage origin must be HTTP or HTTPS: ${value}` })
     }
     origins.add(parsed.origin)
   }
@@ -102,7 +104,8 @@ async function expireCookie(browserSession: Session, cookie: Cookie): Promise<vo
 
 function cookieUrl(cookie: Cookie): string {
   const hostname = cookie.domain?.replace(/^\./, '')
-  if (!hostname) throw new Error(`Cannot copy cookie ${cookie.name} without a domain`)
+  // The cookie's name is site data, so a person reads the sentence without it.
+  if (!hostname) throw new LocalizedError('appErrors.workspaceData.cookieWithoutDomain', undefined, { message: `Cannot copy cookie ${cookie.name} without a domain` })
   return `${cookie.secure ? 'https' : 'http'}://${hostname}${cookie.path || '/'}`
 }
 
@@ -162,7 +165,7 @@ async function storageDeadline<T>(operation: Promise<T>, stage: string): Promise
   let timer: NodeJS.Timeout | undefined
   try {
     return await Promise.race([operation, new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => reject(new Error(`Workspace storage ${stage} timed out`)), STORAGE_TRANSFER_TIMEOUT_MS)
+      timer = setTimeout(() => reject(new LocalizedError('appErrors.workspaceData.timedOut', undefined, { message: `Workspace storage ${stage} timed out` })), STORAGE_TRANSFER_TIMEOUT_MS)
       timer.unref()
     })])
   } finally { if (timer) clearTimeout(timer) }
@@ -232,7 +235,7 @@ class LocalStorageSurface {
       const timer = setTimeout(() => {
         if (!this.pendingRequest) return
         this.pendingRequest = null
-        reject(new Error(`Timed out preparing workspace storage for ${origin}`))
+        reject(new LocalizedError('appErrors.workspaceData.timedOut', undefined, { message: `Timed out preparing workspace storage for ${origin}` }))
       }, STORAGE_TRANSFER_TIMEOUT_MS)
       timer.unref()
       this.pendingRequest = { resolve, reject, timer }
@@ -303,7 +306,7 @@ export async function transferWorkspaceStorage(
 ): Promise<WorkspaceStorageTransferResult> {
   if (options.mode !== undefined && options.mode !== 'copy' && options.mode !== 'move') throw new TypeError('Invalid workspace storage transfer mode')
   if (options.sourcePartition === options.targetPartition) {
-    throw new Error('Source and target workspace storage must be different')
+    throw new LocalizedError('appErrors.workspaceData.sameStorage')
   }
   const origins = normalizeWorkspaceStorageOrigins(options.origins)
   const source = session.fromPartition(options.sourcePartition, { cache: true })
@@ -352,7 +355,7 @@ export async function transferWorkspaceStorage(
     await flushBrowserSessionStorage(target)
     const copiedCookies = new Map((await target.cookies.get({})).map((cookie) => [cookieIdentity(cookie), cookie]))
     if (cookies.some((cookie) => !sameCookie(copiedCookies.get(cookieIdentity(cookie)), cookie))) {
-      throw new Error('Workspace cookie copy verification failed. Source data was not removed.')
+      throw new LocalizedError('appErrors.workspaceData.cookieCopyUnverified')
     }
     if (capturedLocalStorage.length) {
       const targetSurface = new LocalStorageSurface(options.targetPartition)
@@ -362,7 +365,7 @@ export async function transferWorkspaceStorage(
           await targetSurface.loadOrigin(entry.origin)
           const copied = new Map(await targetSurface.read())
           if (entry.items.some(([key, value]) => copied.get(key) !== value)) {
-            throw new Error('Workspace local storage copy verification failed. Source data was not removed.')
+            throw new LocalizedError('appErrors.workspaceData.localStorageCopyUnverified')
           }
         }
       } finally { targetSurface.close() }
@@ -410,10 +413,7 @@ export async function transferWorkspaceStorage(
       rollbackErrors.push(error)
     }
     if (rollbackErrors.length) {
-      throw new AggregateError(
-        [transferError, ...rollbackErrors],
-        'Workspace storage transfer failed and the destination could not be fully restored.'
-      )
+      throw new LocalizedError('appErrors.workspaceData.rollbackFailed', undefined, { cause: new AggregateError([transferError, ...rollbackErrors]) })
     }
     throw transferError
   }

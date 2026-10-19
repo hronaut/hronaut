@@ -1,5 +1,6 @@
 import { formatElementInspectionForAgent, normalizeElementInspection } from '../../../shared/element-inspection.js'
 import type { BrowserElementInspection } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { createElementPickerSession } from '../native-selection-session.js'
 import {
@@ -49,7 +50,7 @@ export async function captureElementScreenshot<Tab extends ElementPickerTab>(acc
  */
 async function selectElement<Tab extends ElementPickerTab>(access: ElementPickerAccess<Tab>, tabId?: string): Promise<BrowserElementInspection | null> {
   const tab = access.getTab(tabId)
-  if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before selecting an element')
+  if (isHronautHomeUrl(tab.url)) throw new LocalizedError('appErrors.pageTools.pickOnHome')
   const webContents = tab.webContents
   const existing = access.elementPickerSessions().get(webContents.id)
   if (existing) {

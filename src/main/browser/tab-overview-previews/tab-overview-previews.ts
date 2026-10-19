@@ -1,6 +1,7 @@
 import { nativeImage } from 'electron'
 import { boundedScreenshotSize, fullPageScreenshotBounds } from '../../../shared/screenshot.js'
 import type { BrowserTabOverviewPreview } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import { isHronautHomeUrl } from '../url.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import type {
@@ -105,25 +106,25 @@ export async function getTabOverviewPagePreview<Tab extends TabOverviewPreviewsT
     return JSON.stringify([width, height, webContents.getZoomFactor(), access.screenshotPixelRatio(tab), tab.emulation.viewport])
   }
   const assertCurrent = (): void => {
-    if (expired) throw new Error('Full-page preview timed out. Try again when the page is ready.')
+    if (expired) throw new LocalizedError('appErrors.previews.timedOut')
     if (access.isDestroyed() || access.window().isDestroyed() || access.findTab(tabId) !== tab || webContents.isDestroyed()) {
-      throw new Error('The tab closed before its full-page preview was ready.')
+      throw new LocalizedError('appErrors.previews.tabClosed')
     }
-    if (tab.sleeping || tab.wakePromise) throw new Error('Wake this tab before requesting a full-page preview.')
-    if (tab.navigationGeneration !== navigationGeneration) throw new Error('The page changed while preparing its preview. Try again.')
-    if (tab.loading || webContents.isLoadingMainFrame()) throw new Error('Wait for the page to finish loading, then try its preview again.')
+    if (tab.sleeping || tab.wakePromise) throw new LocalizedError('appErrors.previews.sleeping')
+    if (tab.navigationGeneration !== navigationGeneration) throw new LocalizedError('appErrors.previews.pageChanged')
+    if (tab.loading || webContents.isLoadingMainFrame()) throw new LocalizedError('appErrors.previews.loading')
     if (viewportIdentity !== undefined && currentViewportIdentity() !== viewportIdentity) {
-      throw new Error('The page viewport changed while preparing its preview. Try again.')
+      throw new LocalizedError('appErrors.previews.viewportChanged')
     }
     if (access.isDevToolsOpening(webContents.id) || webContents.isDevToolsOpened()) {
-      throw new Error('Close Developer Tools for this tab before requesting a full-page preview.')
+      throw new LocalizedError('appErrors.previews.devTools')
     }
   }
   assertCurrent()
   const existing = access.tabOverviewPageCaptures().get(tabId)
   if (existing) return existing
   if (access.tabOverviewPageCaptures().size >= MAX_TAB_OVERVIEW_PAGE_CAPTURES) {
-    throw new Error('Other full-page previews are still finishing. Try again shortly.')
+    throw new LocalizedError('appErrors.previews.busy')
   }
 
   viewportIdentity = currentViewportIdentity()
@@ -140,7 +141,7 @@ export async function getTabOverviewPagePreview<Tab extends TabOverviewPreviewsT
     const size = metrics.cssContentSize
     if (!size || ![size.x, size.y, size.width, size.height].every(Number.isFinite)
       || size.width <= 0 || size.height <= 0 || size.width > 1_000_000 || size.height > 1_000_000) {
-      throw new Error('This page does not provide a supported full-page preview size.')
+      throw new LocalizedError('appErrors.previews.unsupportedSize')
     }
     // Page JavaScript can replace devicePixelRatio. Only trusted native and
     // Hronaut emulation values may influence capture allocation limits.
@@ -165,16 +166,16 @@ export async function getTabOverviewPagePreview<Tab extends TabOverviewPreviewsT
     }) as { data?: unknown }
     assertCurrent()
     if (typeof result.data !== 'string' || result.data.length > Math.ceil(MAX_TAB_OVERVIEW_PAGE_BYTES / 3) * 4) {
-      throw new Error('This full-page preview exceeds the image size limit.')
+      throw new LocalizedError('appErrors.previews.tooLarge')
     }
     const jpeg = Buffer.from(result.data, 'base64')
-    if (!jpeg.length || jpeg.length > MAX_TAB_OVERVIEW_PAGE_BYTES) throw new Error('The full-page preview could not be captured within the image size limit.')
+    if (!jpeg.length || jpeg.length > MAX_TAB_OVERVIEW_PAGE_BYTES) throw new LocalizedError('appErrors.previews.sizeLimit')
     const image = nativeImage.createFromBuffer(jpeg)
     const actual = image.getSize()
     if (image.isEmpty() || actual.width <= 0 || actual.height <= 0
       || actual.width > MAX_TAB_OVERVIEW_PAGE_WIDTH || actual.height > MAX_TAB_OVERVIEW_PAGE_HEIGHT
       || actual.width * actual.height > MAX_TAB_OVERVIEW_PAGE_PIXELS) {
-      throw new Error('The full-page preview could not be captured within the image dimensions limit.')
+      throw new LocalizedError('appErrors.previews.dimensionsLimit')
     }
     assertCurrent()
     return { tabId, navigationGeneration, dataUrl: `data:image/jpeg;base64,${jpeg.toString('base64')}`, ...actual }
@@ -183,7 +184,7 @@ export async function getTabOverviewPagePreview<Tab extends TabOverviewPreviewsT
   const deadline = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
       expired = true
-      reject(new Error('Full-page preview timed out. Try again when the page is ready.'))
+      reject(new LocalizedError('appErrors.previews.timedOut'))
     }, TAB_OVERVIEW_PAGE_TIMEOUT_MS)
     timer.unref()
   })

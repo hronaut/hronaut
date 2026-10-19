@@ -1,6 +1,7 @@
 import { lstat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { webContents, type Session } from 'electron'
+import { LocalizedError } from '../localized-error.js'
 import { flushBrowserSessionStorage } from './workspace-storage.js'
 
 export interface WorkspaceMoveCleanupPermissions {
@@ -10,17 +11,17 @@ export interface WorkspaceMoveCleanupPermissions {
 
 async function assertSourceIdle(source: Session): Promise<void> {
   if (webContents.getAllWebContents().some((contents) => !contents.isDestroyed() && contents.session === source)) {
-    throw new Error('Archive the source workspace before moving its browser data. Use Copy while its pages are open.')
+    throw new LocalizedError('appErrors.workspaceData.sourceOpen')
   }
   if (Object.keys(source.serviceWorkers.getAllRunning()).length) {
-    throw new Error('Use Copy: the source workspace has background site workers.')
+    throw new LocalizedError('appErrors.workspaceData.runningWorkers')
   }
   const storagePath = source.getStoragePath()
-  if (!storagePath) throw new Error('Use Copy: the source workspace does not have a verifiable persistent browser profile.')
+  if (!storagePath) throw new LocalizedError('appErrors.workspaceData.noPersistentProfile')
   try {
     if (!(await lstat(storagePath)).isDirectory()) throw new Error('Invalid profile directory')
   } catch (error) {
-    throw new Error('Use Copy: the source workspace persistent browser profile could not be checked.', { cause: error })
+    throw new LocalizedError('appErrors.workspaceData.profileUnchecked', undefined, { cause: error })
   }
   try {
     // Deliberately conservative: even an old/empty worker directory is enough
@@ -29,9 +30,9 @@ async function assertSourceIdle(source: Session): Promise<void> {
     await lstat(join(storagePath, 'Service Worker'))
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
-    throw new Error('Use Copy: the source workspace background storage could not be checked.', { cause: error })
+    throw new LocalizedError('appErrors.workspaceData.workerStorageUnchecked', undefined, { cause: error })
   }
-  throw new Error('Use Copy: the source workspace has stored background site workers.')
+  throw new LocalizedError('appErrors.workspaceData.storedWorkers')
 }
 
 /**

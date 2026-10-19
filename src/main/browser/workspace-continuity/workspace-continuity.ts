@@ -7,6 +7,7 @@ import {
 } from '../../../shared/browser-reconciliation.js'
 import { readBrowserPostcondition, type PostconditionReadResult } from '../../mcp/post-write-browser-read.js'
 import { compareWorkspaceContinuity, type WorkspaceContinuityResult } from '../../mcp/workspace-continuity.js'
+import { LocalizedError } from '../../localized-error.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import type { WorkspaceContinuityAccess, WorkspaceContinuityTab } from './workspace-continuity-access.js'
 
@@ -162,12 +163,12 @@ export async function readBrowserReconciliation<Tab extends WorkspaceContinuityT
  * with an unknown outcome.
  */
 export async function armWorkspaceContinuity<Tab extends WorkspaceContinuityTab>(access: WorkspaceContinuityAccess<Tab>, workspaceId: string, markerSelector?: string, validateCurrent: () => void = () => undefined): Promise<string> {
-  if (access.continuityActions().has(workspaceId)) throw new Error('Wait for pending workspace actions before creating a checkpoint')
+  if (access.continuityActions().has(workspaceId)) throw new LocalizedError('appErrors.continuity.checkpointPending')
   if (markerSelector !== undefined) continuityMarkerScript(markerSelector)
   const revision = access.continuityRevision()
   const { evidence, pageSettled } = await currentWorkspaceContinuity(access, workspaceId, markerSelector)
-  if (access.continuityActions().has(workspaceId) || revision !== access.continuityRevision()) throw new Error('Workspace control changed while capturing continuity')
-  if (!evidence || !pageSettled) throw new Error('Inspect a settled web page before creating a continuity checkpoint')
+  if (access.continuityActions().has(workspaceId) || revision !== access.continuityRevision()) throw new LocalizedError('appErrors.continuity.controlChanged')
+  if (!evidence || !pageSettled) throw new LocalizedError('appErrors.continuity.pageUnsettled')
   validateCurrent()
   const checkpointId = access.workspaceContinuity().arm(evidence)
   access.setContinuityRevision(access.continuityRevision() + 1)
@@ -177,7 +178,7 @@ export async function armWorkspaceContinuity<Tab extends WorkspaceContinuityTab>
     await access.store().save(() => access.persistedState())
   } catch {
     access.workspaceContinuity().suspend(workspaceId, 'OUTCOME_UNKNOWN')
-    throw new Error('Could not save the continuity checkpoint; inspect before retrying')
+    throw new LocalizedError('appErrors.continuity.saveFailed')
   }
   return checkpointId
 }
@@ -267,9 +268,9 @@ export async function inspectWorkspaceContinuity<Tab extends WorkspaceContinuity
  * workspace action is pending and the page still matches what the review saw.
  */
 export async function reconcileWorkspaceContinuity<Tab extends WorkspaceContinuityTab>(access: WorkspaceContinuityAccess<Tab>, workspaceId: string, reviewId: string, acknowledgeUnknownOutcome: boolean, validateCurrent: () => void = () => undefined): Promise<void> {
-  if (access.continuityActions().has(workspaceId)) throw new Error('Wait for pending workspace actions before reconciling continuity')
+  if (access.continuityActions().has(workspaceId)) throw new LocalizedError('appErrors.continuity.reconcilePending')
   const { evidence, pageSettled } = await currentWorkspaceContinuity(access, workspaceId, access.continuityMarkers().get(workspaceId))
-  if (access.continuityActions().has(workspaceId)) throw new Error('Wait for pending workspace actions before reconciling continuity')
+  if (access.continuityActions().has(workspaceId)) throw new LocalizedError('appErrors.continuity.reconcilePending')
   validateCurrent()
   access.workspaceContinuity().reconcile(workspaceId, reviewId, evidence, pageSettled, acknowledgeUnknownOutcome)
 }

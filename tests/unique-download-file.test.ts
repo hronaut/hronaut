@@ -32,7 +32,8 @@ describe('unique export file writer', () => {
       })
       return handle
     })
-    await expect(writeUniqueDownloadFile(directory, 'page.pdf', Buffer.from('complete'))).rejects.toBe(failure)
+    // A full disk keeps Node's message and code for agents, and a person reads a sentence without the path.
+    await expect(writeUniqueDownloadFile(directory, 'page.pdf', Buffer.from('complete'))).rejects.toMatchObject({ message: 'disk full', code: 'ENOSPC', cause: failure })
     expect(await readdir(directory)).toEqual([])
 
     const path = await writeUniqueDownloadFile(directory, 'page.pdf', Buffer.from('complete'))
@@ -118,7 +119,7 @@ describe('unique export file writer', () => {
       return handle
     })
 
-    await expect(writeUniqueDownloadFile(directory, 'page.pdf', Buffer.from('export'))).rejects.toBe(failure)
+    await expect(writeUniqueDownloadFile(directory, 'page.pdf', Buffer.from('export'))).rejects.toMatchObject({ message: 'disk full', code: 'ENOSPC', cause: failure })
 
     expect(await readFile(path, 'utf8')).toBe('replacement contents')
     expect(await readFile(moved, 'utf8')).toBe('partial')
@@ -130,7 +131,7 @@ describe('unique export file writer', () => {
     await writeFile(path, 'existing')
     const failure = Object.assign(new Error('access denied'), { code: 'EACCES' })
     vi.mocked(open).mockRejectedValueOnce(failure)
-    await expect(writeUniqueDownloadFile(directory, 'page.pdf', Buffer.from('new'))).rejects.toBe(failure)
+    await expect(writeUniqueDownloadFile(directory, 'page.pdf', Buffer.from('new'))).rejects.toMatchObject({ message: 'access denied', code: 'EACCES', cause: failure })
     expect(await readFile(path, 'utf8')).toBe('existing')
   })
 })

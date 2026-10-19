@@ -18,9 +18,9 @@ const MAX_WORKSPACE_NAME_LENGTH = 80
 /** Trims and NFC-normalizes a workspace name, and rejects an empty or overlong one. */
 export function normalizedWorkspaceName(name: string): string {
   const normalized = name.trim().normalize('NFC')
-  if (!normalized) throw new TypeError('Workspace name cannot be empty.')
+  if (!normalized) throw new LocalizedError('appErrors.workspace.nameEmpty')
   if (normalized.length > MAX_WORKSPACE_NAME_LENGTH) {
-    throw new TypeError(`Workspace name cannot exceed ${MAX_WORKSPACE_NAME_LENGTH} characters.`)
+    throw new LocalizedError('appErrors.workspace.nameTooLong', { max: MAX_WORKSPACE_NAME_LENGTH })
   }
   return normalized
 }

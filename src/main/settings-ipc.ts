@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { McpCapabilityProfileStore } from './mcp/capability-profile-store.js'
 import { mcpCapabilityProfileInputFromPreset, type McpHttpServer } from './mcp/server.js'
+import { LocalizedError } from './localized-error.js'
 import type { McpTokenConfiguration } from './mcp-token-store.js'
 import { DEFAULT_SETTINGS, isThemeName } from './settings-store.js'
 import type { StartupLaunchManager } from './startup-launch.js'
@@ -109,7 +110,7 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
   let followAgentActivityIntent = 0
   const requireCapabilityProfiles = (): SettingsIpcCapabilityProfiles => {
     const profiles = host.mcpCapabilityProfiles()
-    if (!profiles) throw new Error('MCP capability profile storage is unavailable')
+    if (!profiles) throw new LocalizedError('appErrors.settings.capabilityProfilesUnavailable')
     return profiles
   }
   ipcMain.handle('settings:get', (event) => { host.assertTrustedSender(event); return { ...host.settings() } })
@@ -124,7 +125,7 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
   ipcMain.handle('settings:reset-appearance', async (event) => {
     host.assertTrustedSender(event)
     if (host.isPackaged() && !host.startupLaunchManager()) {
-      throw new Error('Startup integration is unavailable')
+      throw new LocalizedError('appErrors.settings.startupIntegrationUnavailable')
     }
     await host.updateSettings({
       theme: DEFAULT_SETTINGS.theme,
@@ -252,7 +253,7 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
   ipcMain.handle('settings:set-launch-at-startup', async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Launch-at-startup preference must be a boolean')
-    if (!host.startupLaunchManager()) throw new Error('Startup integration is unavailable')
+    if (!host.startupLaunchManager()) throw new LocalizedError('appErrors.settings.startupIntegrationUnavailable')
     await host.updateSettings(
       { launchAtStartup: enabled },
       (next) => host.startupLaunchManager()!.setEnabled(next.launchAtStartup)
@@ -376,7 +377,7 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     const normalized = mcpCapabilityProfileInputFromPreset(input)
     if (!input.parentProfileId) return profiles.create(normalized)
     const parent = profiles.list().find(profile => profile.id === input.parentProfileId)
-    if (!parent) throw new Error('Parent MCP capability profile not found')
+    if (!parent) throw new LocalizedError('appErrors.settings.parentProfileMissing')
     return profiles.derive({
       profileId: parent.id,
       revision: parent.revision,

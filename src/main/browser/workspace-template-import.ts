@@ -1,4 +1,5 @@
 import { previewWorkspaceTemplate, type WorkspaceTemplateEntry, type WorkspaceTemplateImportResult } from '../../shared/workspace-template.js'
+import { LocalizedError } from '../localized-error.js'
 import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
 
 export interface WorkspaceTemplateImportPort {
@@ -25,7 +26,7 @@ export class WorkspaceTemplateImporter {
   private async commit(text: string): Promise<WorkspaceTemplateImportResult> {
     const existing = this.port.existingWorkspaces()
     const preview = previewWorkspaceTemplate(text, existing.map(workspace => workspace.name))
-    if (!preview.canImport) throw new Error('Resolve workspace name collisions before importing.')
+    if (!preview.canImport) throw new LocalizedError('appErrors.workspace.templateCollisions')
     const existingIds = new Set(existing.map(workspace => workspace.id))
     const created: string[] = []
     try {
