@@ -252,6 +252,11 @@ it('refuses reports that do not match the contract', () => {
 
 it('embeds the selector as data and rejects snapshot refs', async () => {
   expect(animationStateScript('a"); alert(1); ("', 'token')).toContain(JSON.stringify('a"); alert(1); ("'))
+  // Markup and line separators are escaped, so the embedded literal cannot end a script or a line.
+  const script = animationStateScript('[title="</script>\u2028\u2029"]', 'token')
+  expect(script).not.toMatch(/<\/script>|[\u2028\u2029]/)
+  expect(script).toContain('"[title=\\"\\u003c/script\\u003e\\u2028\\u2029\\"]"')
+  expect(animationStateSettlementScript('</script>\u2028')).not.toMatch(/<\/script>|\u2028/)
   const access = { getTab: vi.fn() }
   await expect(animationState(access as never, { selector: '#a', ref: 'e1' } as never)).rejects.toThrow('snapshot refs')
   await expect(animationState(access as never, { selector: ' ' })).rejects.toThrow('nonempty selector')

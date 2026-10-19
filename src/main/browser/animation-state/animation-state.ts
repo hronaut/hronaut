@@ -5,6 +5,7 @@ import {
   type BrowserAnimationRecord,
   type BrowserAnimationState
 } from '../../../shared/animation-state.js'
+import { javascriptLiteral } from '../../../shared/javascript-literal.js'
 import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
 import type { PendingElementInspection } from '../element-inspection-publication.js'
 import type { ElementInspectionAccess, ElementInspectionTab } from '../element-inspection/element-inspection-access.js'
@@ -40,7 +41,7 @@ export function animationStateScript(selector: string, token: string): string {
     deadlineMs: ANIMATION_STATE_LIMITS.deadlineMs
   }
   return `(() => {
-    const selector = ${JSON.stringify(selector)}, token = ${JSON.stringify(token)}, limits = ${JSON.stringify(limits)};
+    const selector = ${javascriptLiteral(selector)}, token = ${javascriptLiteral(token)}, limits = ${javascriptLiteral(limits)};
     // A symbol key and an own property: an element with a matching id cannot stand in for the registry.
     const key = Symbol.for('hronaut.animationState');
     if (!Object.getOwnPropertyDescriptor(globalThis, key)) Object.defineProperty(globalThis, key, { value: new Map() });
@@ -118,7 +119,7 @@ export function animationStateScript(selector: string, token: string): string {
         const record = {
           index: records.length + 1,
           kind: animation instanceof CSSTransition ? 'css-transition' : animation instanceof CSSAnimation ? 'css-animation' : 'web-animation',
-          playState: oneOf(read(Animation.prototype, 'playState', animation), ${JSON.stringify(PLAY_STATES)}),
+          playState: oneOf(read(Animation.prototype, 'playState', animation), ${javascriptLiteral(PLAY_STATES)}),
           pending: boolean(read(Animation.prototype, 'pending', animation)),
           playbackRate: finite(rate),
           phase: 'idle',
@@ -129,8 +130,8 @@ export function animationStateScript(selector: string, token: string): string {
           durationMs: unbounded(timing.duration),
           iterations: unbounded(timing.iterations),
           iterationStart: finite(timing.iterationStart),
-          direction: oneOf(timing.direction, ${JSON.stringify(DIRECTIONS)}),
-          fill: oneOf(timing.fill, ${JSON.stringify(FILLS)}),
+          direction: oneOf(timing.direction, ${javascriptLiteral(DIRECTIONS)}),
+          fill: oneOf(timing.fill, ${javascriptLiteral(FILLS)}),
           progress: nullable(timing.progress, finite),
           currentIteration: nullable(timing.currentIteration, unbounded),
           activeDurationMs: unbounded(activeDuration),
@@ -157,7 +158,7 @@ export function animationStateScript(selector: string, token: string): string {
 }
 
 export function animationStateSettlementScript(token: string, cancel = false): string {
-  return `(() => {const handle=Object.getOwnPropertyDescriptor(globalThis,Symbol.for('hronaut.animationState'))?.value?.get(${JSON.stringify(token)});${cancel ? 'handle?.cleanup();return false' : 'return handle?handle.settle():false'}})()`
+  return `(() => {const handle=Object.getOwnPropertyDescriptor(globalThis,Symbol.for('hronaut.animationState'))?.value?.get(${javascriptLiteral(token)});${cancel ? 'handle?.cleanup();return false' : 'return handle?handle.settle():false'}})()`
 }
 
 const FAILURES: Record<string, string> = {
