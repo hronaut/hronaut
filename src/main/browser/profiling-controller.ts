@@ -89,6 +89,13 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
   constructor(private readonly host: BrowserProfilingHost<Tab>) {}
 
   handleDebuggerMessage(tab: Tab, method: string, params: unknown): void {
+    if (method === 'Debugger.paused') {
+      // Coverage never pauses the page itself, but a pause another debugger session in the same renderer asked for,
+      // or a near-heap-limit check, would otherwise have no one to resume it. Sent directly rather than queued:
+      // a queued command may be waiting on this very page.
+      if (tab.codeCoverage?.recording) void tab.webContents.debugger.sendCommand('Debugger.resume').catch(() => undefined)
+      return
+    }
     if (method === 'CSS.styleSheetAdded') {
       const header = (params as {
         header?: { styleSheetId?: string; sourceURL?: string; length?: number }
@@ -138,10 +145,11 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
           try {
             await tab.webContents.debugger.sendCommand('DOM.enable')
             await tab.webContents.debugger.sendCommand('CSS.enable')
-            await tab.webContents.debugger.sendCommand('Debugger.enable')
             // Coverage only reads script sources. Without this, a debugger statement in the page would pause it until
-            // coverage stops. Skipping pauses would not do: a reload, such as the one that starts coverage, resets it.
+            // coverage stops. Sent before enabling, so breakpoints are never active in this session, not even for a
+            // moment. Skipping pauses would not do: a reload, such as the one that starts coverage, resets it.
             await tab.webContents.debugger.sendCommand('Debugger.setBreakpointsActive', { active: false })
+            await tab.webContents.debugger.sendCommand('Debugger.enable')
             await tab.webContents.debugger.sendCommand('Profiler.enable')
             await tab.webContents.debugger.sendCommand('Profiler.startPreciseCoverage', {
               callCount: false,

@@ -280,13 +280,23 @@ describe('browser profiling controller', () => {
     })
     // The page must not pause on a debugger statement while coverage records.
     const commands = f.sendCommand.mock.calls.map(([method]) => method)
-    expect(commands.indexOf('Debugger.setBreakpointsActive')).toBe(commands.indexOf('Debugger.enable') + 1)
+    expect(commands.indexOf('Debugger.setBreakpointsActive')).toBeGreaterThanOrEqual(0)
+    expect(commands.indexOf('Debugger.setBreakpointsActive')).toBeLessThan(commands.indexOf('Debugger.enable'))
     expect(f.sendCommand).toHaveBeenCalledWith('Debugger.setBreakpointsActive', { active: false })
     expect(f.prepareNavigation).toHaveBeenCalledWith(f.tab)
     expect(f.reloadIgnoringCache).toHaveBeenCalledOnce()
     expect(f.prepareNavigation.mock.invocationCallOrder[0]).toBeLessThan(f.reloadIgnoringCache.mock.invocationCallOrder[0]!)
     expect(result).toMatchObject({ status: 'recording', recording: { mode: 'block' } })
     expect(JSON.stringify(result)).not.toContain('private-value')
+  })
+
+  it('resumes any pause while coverage records, and leaves pauses alone otherwise', async () => {
+    const f = fixture()
+    f.controller.handleDebuggerMessage(f.tab, 'Debugger.paused', { reason: 'other' })
+    expect(f.sendCommand).not.toHaveBeenCalledWith('Debugger.resume')
+    await f.controller.codeCoverage({ action: 'start', reload: false })
+    f.controller.handleDebuggerMessage(f.tab, 'Debugger.paused', { reason: 'OOM' })
+    expect(f.sendCommand).toHaveBeenCalledWith('Debugger.resume')
   })
 
   it('keeps coverage, CPU profiling and allocation sampling mutually exclusive', async () => {

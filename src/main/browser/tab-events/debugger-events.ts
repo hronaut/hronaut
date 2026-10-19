@@ -100,7 +100,7 @@ export function attachDebuggerEvents<Tab extends DebuggerEventsTab>(access: Debu
       access.changed(false)
     } else if (method === 'Audits.issueAdded') {
       access.addInspectorIssue(tab, (params as { issue?: unknown }).issue)
-    } else if (method === 'CSS.styleSheetAdded' || method === 'CSS.styleSheetRemoved') {
+    } else if (method === 'CSS.styleSheetAdded' || method === 'CSS.styleSheetRemoved' || method === 'Debugger.paused') {
       access.profiling().handleDebuggerMessage(tab, method, params)
     }
   })

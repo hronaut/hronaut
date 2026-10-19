@@ -1,7 +1,7 @@
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { ElectronApplication } from '@playwright/test'
-import { createServer } from 'node:http'
+import { createServer, type Server } from 'node:http'
 import { expect, test, text } from './capability-fixtures.js'
 import { closeFixtureServer } from './fixtures.js'
 
@@ -22,14 +22,18 @@ async function pageState(electronApp: ElectronApplication, pageUrl: string): Pro
   }, pageUrl)
 }
 
-test('recording code coverage does not pause the page on a debugger statement', async ({ capabilities, electronApp }) => {
-  const { client, tabId } = capabilities
+async function serve(): Promise<{ server: Server; pageUrl: string }> {
   const server = createServer((_request, response) => {
     response.setHeader('content-type', 'text/html')
     response.end(PAGE)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
-  const pageUrl = `http://127.0.0.1:${(server.address() as { port: number }).port}/ticks`
+  return { server, pageUrl: `http://127.0.0.1:${(server.address() as { port: number }).port}/ticks` }
+}
+
+test('recording code coverage does not pause the page on a debugger statement', async ({ capabilities, electronApp }) => {
+  const { client, tabId } = capabilities
+  const { server, pageUrl } = await serve()
   try {
     const navigated = await call(client, 'browser_navigate', { tabId, url: pageUrl })
     expect(navigated.isError, text(navigated)).not.toBe(true)
@@ -44,6 +48,27 @@ test('recording code coverage does not pause the page on a debugger statement', 
     const stopped = await call(client, 'browser_code_coverage', { tabId, action: 'stop' })
     expect(stopped.isError, text(stopped)).not.toBe(true)
     expect(JSON.parse(text(stopped))).toMatchObject({ status: 'complete' })
+  } finally {
+    await call(client, 'browser_code_coverage', { tabId, action: 'clear' }).catch(() => undefined)
+    await closeFixtureServer(server)
+  }
+})
+
+test('starting code coverage without a reload keeps the open page running', async ({ capabilities, electronApp }) => {
+  const { client, tabId } = capabilities
+  const { server, pageUrl } = await serve()
+  try {
+    const navigated = await call(client, 'browser_navigate', { tabId, url: pageUrl })
+    expect(navigated.isError, text(navigated)).not.toBe(true)
+    await expect.poll(async () => (await pageState(electronApp, pageUrl))?.ticks ?? 0, { timeout: 10_000 }).toBeGreaterThan(0)
+    const before = (await pageState(electronApp, pageUrl))!
+    const started = await call(client, 'browser_code_coverage', { tabId, action: 'start', mode: 'function', reload: false })
+    expect(started.isError, text(started)).not.toBe(true)
+    // The same document keeps counting: a tick that ran while coverage was starting did not stay paused.
+    await expect.poll(async () => {
+      const state = await pageState(electronApp, pageUrl)
+      return state?.document === before.document ? state.ticks - before.ticks : -1
+    }, { timeout: 10_000 }).toBeGreaterThan(20)
   } finally {
     await call(client, 'browser_code_coverage', { tabId, action: 'clear' }).catch(() => undefined)
     await closeFixtureServer(server)
