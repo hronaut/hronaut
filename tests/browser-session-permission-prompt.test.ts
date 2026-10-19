@@ -1,4 +1,5 @@
 import type { MessageBoxOptions, Session } from 'electron'
+import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { translate } from '../src/shared/i18n.js'
 import type { SupportedLocale } from '../src/shared/locale.js'
@@ -43,11 +44,12 @@ async function request(
     setPermissionRequestHandler: (next: RequestHandler) => { handler = next }
   } as unknown as Session)
   const url = 'https://files.example/'
-  const webContents = {
+  const frame = { frameTreeNodeId: 1, url, origin: 'https://files.example', detached: false }
+  const webContents = Object.assign(new EventEmitter(), {
     isDestroyed: () => false,
     getURL: () => url,
-    mainFrame: { frameTreeNodeId: 1, framesInSubtree: [{ frameTreeNodeId: 1, url, detached: false }] }
-  }
+    mainFrame: { ...frame, framesInSubtree: [frame] }
+  })
   const allowed = await new Promise<boolean>((resolve) => {
     handler!(webContents as never, permission as never, resolve, { requestingUrl: url, isMainFrame: true, ...details } as never)
   })

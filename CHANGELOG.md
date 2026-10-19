@@ -7,6 +7,9 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - A website's own full screen, such as a video player's, now fills the whole window. Once you allowed **Fullscreen** for the site, the window went into full screen, but the page stayed in its card beside the tabs and under the toolbar. Showing another tab, or a browser shortcut such as **Ctrl/Cmd+L** that opens one of Hronaut's controls, now takes the page out of full screen, and closing a page in full screen takes the window out of it; the window used to stay in full screen showing Home or the other tab, and the next start opened it in full screen.
+- When a website asks to open a link in another app, such as a Zoom or VS Code link, Hronaut now asks every time and its prompt names the link's scheme, such as `zoommtg:`, under the name **External apps**. The prompt used to say only "requests “openExternal” permission", and one Allow was saved for the site, so it could later open any other app, such as `ms-msdt:` or `search-ms:` links, without asking.
+- A website can no longer trap you behind camera or microphone prompts. Identical requests made at the same time now share one prompt, and after you choose **Deny** the page's repeated requests are refused without asking until it loads again; the same holds for file access and links to other apps. A page that asked 25 times at once, or asked again after every refusal, used to show one window-blocking prompt after another.
+- A permission you allowed for a website now also works in its `about:blank`, `about:srcdoc` and `blob:` frames, such as a mail client's message view or an editor's preview. Those frames were told the permission was granted but their requests were refused without a prompt.
 
 ## [3.3.1] - 2026-10-19
 

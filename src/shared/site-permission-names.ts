@@ -13,6 +13,7 @@ const SITE_PERMISSION_NAMES: Readonly<Record<string, MessageKey>> = {
   media: 'runtime.permissions.media',
   midiSysex: 'runtime.permissions.midiControl',
   notifications: 'runtime.permissions.notifications',
+  openExternal: 'runtime.permissions.externalApps',
   'persistent-storage': 'runtime.permissions.persistentStorage',
   pointerLock: 'runtime.permissions.pointerLock',
   'screen-wake-lock': 'runtime.permissions.screenAwake',
