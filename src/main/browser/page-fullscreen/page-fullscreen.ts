@@ -2,8 +2,16 @@ import type { WebContents } from 'electron'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import type { PageFullscreenAccess, PageFullscreenTab } from './page-fullscreen-access.js'
 
-/** Leaves the document's full screen if it has one, from a world the page's own scripts cannot replace. */
-const EXIT_FULLSCREEN_SCRIPT = 'document.fullscreenElement ? document.exitFullscreen().then(() => true, () => false) : false'
+/**
+ * Leaves the document's full screen, from a world the page's own scripts cannot replace. Electron reports a page's
+ * full screen before the document shows it, so a document not in full screen yet waits up to 2 seconds for it.
+ */
+const EXIT_FULLSCREEN_SCRIPT = `new Promise((resolve) => {
+  const leave = () => document.exitFullscreen().then(() => resolve(true), () => resolve(false))
+  if (document.fullscreenElement) return leave()
+  document.addEventListener('fullscreenchange', () => document.fullscreenElement ? leave() : resolve(false), { once: true })
+  setTimeout(() => resolve(false), 2000)
+})`
 
 /** The tab holding full screen for one of its elements, if any. */
 function pageFullscreenHolder<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>): Tab | undefined {
@@ -11,12 +19,16 @@ function pageFullscreenHolder<Tab extends PageFullscreenTab>(access: PageFullscr
   return undefined
 }
 
-/** Asks the page to leave full screen, once until it takes full screen again; Electron then restores the window. */
+/**
+ * Asks the page to leave full screen; Electron then restores the window. A request still running is not repeated,
+ * and one that did not leave lets the next layout ask again.
+ */
 function requestPageFullscreenExit(tab: PageFullscreenTab): void {
   if (tab.pageFullscreenExitRequested || tab.webContents.isDestroyed()) return
   tab.pageFullscreenExitRequested = true
   tab.webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.pageFullscreen, [{ code: EXIT_FULLSCREEN_SCRIPT }])
-    .catch(() => undefined)
+    .then((left) => { if (left !== true) tab.pageFullscreenExitRequested = false })
+    .catch(() => { tab.pageFullscreenExitRequested = false })
 }
 
 /**
@@ -55,10 +67,11 @@ export function attachPageFullscreenEvents<Tab extends PageFullscreenTab>(
 /**
  * Keeps the person's own full screen apart from a page's. The window reports
  * full screen around a page's on its own schedule (on Windows just before
- * the page does), so each report is read on the next turn: with no page in
- * full screen it is the person's, and when the window left full screen while
- * a page held it, the person left it from the system or the View menu, so
- * the page leaves too.
+ * the page does), so each report is read on the next turn. A window out of
+ * full screen is the person's choice too; when a page still held full
+ * screen, the person left it from the system or the View menu, so the page
+ * leaves too. A window in full screen is the person's only while no page
+ * holds it.
  */
 export function watchWindowFullScreen<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>): void {
   access.writePersonFullScreen(access.window().isFullScreen())
@@ -66,8 +79,12 @@ export function watchWindowFullScreen<Tab extends PageFullscreenTab>(access: Pag
     setImmediate(() => {
       if (access.isDestroyed() || access.window().isDestroyed()) return
       const holder = pageFullscreenHolder(access)
-      if (!holder) access.writePersonFullScreen(access.window().isFullScreen())
-      else if (!access.window().isFullScreen()) requestPageFullscreenExit(holder)
+      if (!access.window().isFullScreen()) {
+        access.writePersonFullScreen(false)
+        if (holder) requestPageFullscreenExit(holder)
+      } else if (!holder) {
+        access.writePersonFullScreen(true)
+      }
     })
   }
   access.window().on('enter-full-screen', follow)

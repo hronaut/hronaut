@@ -94,6 +94,7 @@ export function layout<Tab extends WindowLayoutTab>(access: WindowLayoutAccess<T
   }
   // The page in view: the split view's pane in full screen, or the active tab.
   const shownTab = access.splitView() ? fullscreenTab! : tab
+  // Closing the split view can leave the pane in full screen out of view, with the active tab in its card.
   const fillsWindow = shownPageFullscreenTab(access) === shownTab
   if (placeViews) {
     shownTab.view.setBounds(access.tabViewBounds(shownTab, access.browserViewBounds()))

@@ -284,7 +284,7 @@ import type { SplitViewAccess } from './split-view/split-view-access.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
 import type { WindowLayoutAccess } from './window-layout/window-layout-access.js'
 import { getSplitDivider, layout, publishSplitDivider } from './window-layout/window-layout.js'
-import { browserViewBounds, pageArea, setContentInsets, setToolbarHeight } from './window-layout/content-area.js'
+import { browserViewBounds, pageArea, setContentInsets, setToolbarHeight, shownPageFullscreenTab } from './window-layout/content-area.js'
 import type { PageFullscreenAccess } from './page-fullscreen/page-fullscreen-access.js'
 import { attachPageFullscreenEvents, exitHiddenPageFullscreen, watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
 import type { BrowserTabSelectionOptions, TabSelectionAccess } from './tab-selection/tab-selection-access.js'
@@ -1273,7 +1273,7 @@ export class BrowserTabsManager {
       : DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES
     this.mcpActivityFollower = new McpActivityFollowController({
       isEnabled: () => this.followAgentActivity,
-      isOccluded: () => this.browserContentOccluded || this.followAgentActivitySuspended,
+      isOccluded: () => this.browserContentOccluded || this.followAgentActivitySuspended || this.pageFullscreenShown(),
       getSelectionGeneration: () => this.tabSelectionGeneration,
       tabExists: (tabId) => {
         const tab = this.tabs.get(tabId)
@@ -4789,6 +4789,11 @@ export class BrowserTabsManager {
       writePersonFullScreen: (fullScreen) => { this.personFullScreen = fullScreen },
       layout: () => this.layout()
     }
+  }
+
+  /** Whether the window shows a page in full screen, such as a video, which Follow agents does not switch away from. */
+  private pageFullscreenShown(): boolean {
+    return shownPageFullscreenTab(this.windowLayoutAccess()) !== undefined
   }
 
   /** The window's full screen to save: the person's own, not a page's, which ends with the page. */

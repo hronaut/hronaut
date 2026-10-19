@@ -130,6 +130,17 @@ describe('page full screen layout', () => {
       [{ code: expect.stringContaining('document.exitFullscreen()') }]
     )
   })
+
+  it('keeps Follow agents on a page in full screen the window shows', () => {
+    const { manager, first, second } = layoutFixture()
+    const pageFullscreenShown = () => (manager as unknown as { pageFullscreenShown(): boolean }).pageFullscreenShown()
+    expect(pageFullscreenShown()).toBe(false)
+    // A background tab in full screen is asked to leave it and does not hold Follow back.
+    second.pageFullscreen = true
+    expect(pageFullscreenShown()).toBe(false)
+    first.pageFullscreen = true
+    expect(pageFullscreenShown()).toBe(true)
+  })
 })
 
 describe('page full screen lifecycle', () => {
@@ -191,6 +202,44 @@ describe('page full screen lifecycle', () => {
     window.emit('enter-full-screen')
     await nextTurn()
     expect(personFullScreen()).toBe(true)
+  })
+
+  it('forgets the person\'s full screen once they leave it while a page holds it', async () => {
+    // The person's full screen was kept after they left it, so the window stayed in full screen when a later video closed.
+    const { window, tabs, enter, personFullScreen } = fullscreenFixture({ windowFullScreen: true })
+    enter('video')
+    window.setFullScreen(false)
+    window.emit('leave-full-screen')
+    await nextTurn()
+    expect(personFullScreen()).toBe(false)
+    expect(tabs.get('video')!.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledOnce()
+    tabs.get('video')!.webContents.emit('leave-html-full-screen')
+    enter('video')
+    window.emit('enter-full-screen')
+    await nextTurn()
+    expect(personFullScreen()).toBe(false)
+    tabs.get('video')!.webContents.emit('destroyed')
+    expect(window.isFullScreen()).toBe(false)
+  })
+
+  it('asks again when a page did not leave full screen', async () => {
+    const { tabs, enter, access } = fullscreenFixture({ shown: ['other'] })
+    const run = tabs.get('video')!.webContents.executeJavaScriptInIsolatedWorld
+    run.mockResolvedValueOnce(false).mockRejectedValueOnce(new Error('The page navigated'))
+    enter('video')
+    // A request still running is not repeated.
+    exitHiddenPageFullscreen(access)
+    expect(run).toHaveBeenCalledTimes(1)
+    await nextTurn()
+    exitHiddenPageFullscreen(access)
+    expect(run).toHaveBeenCalledTimes(2)
+    await nextTurn()
+    exitHiddenPageFullscreen(access)
+    expect(run).toHaveBeenCalledTimes(3)
+    // Once the page left, it is not asked again until it takes full screen again.
+    await nextTurn()
+    exitHiddenPageFullscreen(access)
+    expect(run).toHaveBeenCalledTimes(3)
   })
 
   it('asks the page to leave full screen when the person takes the window out of it', async () => {
