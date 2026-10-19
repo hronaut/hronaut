@@ -15,6 +15,7 @@ import {
   isMcpToolSet
 } from '../src/shared/mcp-tool-sets.js'
 import { mcpCapabilityArgumentValueDigest } from '../src/main/mcp/capability-profile-store.js'
+import { normalizeProfileInput } from '../src/main/mcp/capability-profile-records.js'
 
 describe('MCP tool sets', () => {
   it('builds a read-only capability preset with exact read actions for mixed tools', () => {
@@ -73,6 +74,22 @@ describe('MCP tool sets', () => {
       expect(mcpCapabilityProfileInputFromPreset({ name: 'Passkey QA', preset, argumentConstraints: origins }).allowedTools).toContain('browser_virtual_passkey')
     }
     expect(mcpCapabilityProfileInputFromPreset({ name: 'Read only', preset: 'read-only', argumentConstraints: origins }).allowedTools).not.toContain('browser_virtual_passkey')
+  })
+
+  it('builds presets the capability store accepts, naming actions only for allowed tools', () => {
+    const constraints = {
+      'browser_virtual_passkey.origin': ['http://localhost:3000'],
+      'browser_download_copy.directory': ['/home/person/reports']
+    }
+    const inputs = [
+      ...(['complete', 'qa', 'essentials', 'read-only'] as const).map(preset => ({ name: 'Stored', preset })),
+      ...(['complete', 'qa'] as const).map(preset => ({ name: 'Constrained', preset, argumentConstraints: constraints }))
+    ]
+    for (const input of inputs) {
+      const profile = mcpCapabilityProfileInputFromPreset(input)
+      for (const tool of Object.keys(profile.allowedActions ?? {})) expect(profile.allowedTools).toContain(tool)
+      expect(() => normalizeProfileInput(profile, new Date('2026-10-19T08:00:00.000Z')), input.preset).not.toThrow()
+    }
   })
 
   let server: McpHttpServer | undefined
