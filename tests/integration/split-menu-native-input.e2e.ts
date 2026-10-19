@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import type { Locator } from '@playwright/test'
 import { expect, test } from './fixtures.js'
+import { waitForSettledTitleBar } from './settled-title-bar.js'
 import type { HronautApi } from '../../src/shared/types.js'
 
 const execFileAsync = promisify(execFile)
@@ -24,17 +25,7 @@ for (const position of ['top', 'left']) {
           await (window as unknown as { hronaut: HronautApi }).hronaut.setAllHumanInteractionLocked(false)
           for (const tab of state.tabs) await (window as unknown as { hronaut: HronautApi }).hronaut.setTabHumanInteractionLocked(tab.id, false)
         })
-        // A new interface scale changes how many CSS pixels the native window controls take. The title bar keeps
-        // their old room until the overlay's new report has held for a moment (useTitleBarPresentationController),
-        // and with tabs on the left the toolbar moves when it lands. Wait for that before reading where to click.
-        await expect.poll(() => appWindow.evaluate(() => {
-          const overlay = (navigator as Navigator & { windowControlsOverlay?: { visible: boolean, getTitlebarAreaRect(): DOMRect } }).windowControlsOverlay
-          if (!overlay?.visible) return true
-          const area = overlay.getTitlebarAreaRect()
-          const published = (name: string) => Number.parseFloat(document.documentElement.style.getPropertyValue(name))
-          return Math.abs(published('--titlebar-controls-left-runtime') - area.x) < 0.5
-            && Math.abs(published('--titlebar-controls-right-runtime') - (window.innerWidth - area.x - area.width)) < 0.5
-        }), { message: 'the title bar gives the window controls their room at the new scale' }).toBe(true)
+        await waitForSettledTitleBar(appWindow, width / scale)
         const session = await appWindow.context().newCDPSession(appWindow)
         await session.send('Emulation.setFocusEmulationEnabled', { enabled: false })
         const nativePages = () => electronApp.evaluate(({ BrowserWindow, WebContentsView }) => BrowserWindow.getAllWindows()[0]!.contentView.children
