@@ -21,10 +21,15 @@ function page(workers: FakeWorker[]) {
   let attached = true
   let evaluation: ((params: Record<string, unknown>, sessionId: string) => unknown) | undefined
   let held: Deferred | undefined
+  /** Commands that never answer, as one pending when its session detaches. */
+  const silent = new Set<string>()
+  /** Runs once auto-attach is on, before the next command, as a navigation committing during a listing would. */
+  let onAttached: (() => void) | undefined
   const root = (method: string, params: unknown): void => { debuggerEvents.emit('message', {}, method, params) }
   debuggerEvents.isAttached = () => attached
   debuggerEvents.sendCommand = (method: string, params?: Record<string, unknown>, sessionId?: string) => {
     sent.push({ method, params, sessionId })
+    if (silent.has(method)) return new Promise(() => undefined)
     if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { ...frame } } })
     if (method === 'Target.setAutoAttach') {
       if (params?.autoAttach) {
@@ -33,6 +38,8 @@ function page(workers: FakeWorker[]) {
           sessions.set(id, worker)
           root('Target.attachedToTarget', { sessionId: id, waitingForDebugger: false, targetInfo: { type: 'worker', title: worker.title ?? worker.url, parentFrameId: 'main', ...worker } })
         }
+        onAttached?.()
+        onAttached = undefined
       } else {
         for (const id of [...sessions.keys()]) { sessions.delete(id); root('Target.detachedFromTarget', { sessionId: id }) }
       }
@@ -61,12 +68,15 @@ function page(workers: FakeWorker[]) {
     answerWith: (answer: (params: Record<string, unknown>, sessionId: string) => unknown) => { evaluation = answer },
     hold: () => { held = { resolve: () => undefined, reject: () => undefined } },
     rejectHeld: (error: Error) => held!.reject(error),
+    neverAnswer: (method: string) => silent.add(method),
+    whenAttached: (run: () => void) => { onAttached = run },
     exitRenderer: () => contents.emit('render-process-gone', {}, { reason: 'crashed' }),
     endWorker: (targetId: string) => {
       const id = [...sessions].find(([, worker]) => worker.targetId === targetId)?.[0]
       if (id) { sessions.delete(id); root('Target.detachedFromTarget', { sessionId: id }) }
     },
-    detach: () => { attached = false; debuggerEvents.emit('detach') },
+    /** As Electron's detach: pending commands fail before the detach event. */
+    detach: () => { attached = false; held?.reject(new Error('target closed while handling command')); debuggerEvents.emit('detach') },
     listeners: () => contents.eventNames().reduce((total, name) => total + contents.listenerCount(name), 0)
       + debuggerEvents.eventNames().reduce((total, name) => total + debuggerEvents.listenerCount(name), 0)
   }
@@ -116,7 +126,7 @@ describe('worker evaluation', () => {
       { autoAttach: true, waitForDebuggerOnStart: false, flatten: true, filter: [{ type: 'worker' }] },
       { autoAttach: false, waitForDebuggerOnStart: false, flatten: true }
     ])
-    expect(f.authority.assertCurrent).toHaveBeenCalledWith(ORIGIN)
+    expect(f.authority.assertCurrent).toHaveBeenCalledTimes(2)
     // Only the detach watch that retires handles stays.
     expect(f.listeners()).toBe(baseline + 1)
   })
@@ -143,10 +153,15 @@ describe('worker evaluation', () => {
     ;({ workers } = await f.list())
     await expect(f.evaluate(old)).rejects.toThrow(/Unknown worker handle/)
 
+    // A same-document navigation, such as a route change through pushState, keeps the document and its workers.
     f.tab.navigationGeneration++
+    await expect(f.evaluate(workers[0]!.handle)).resolves.toMatchObject({ result: { target: 'classic' } })
+
+    f.frame.url = 'http://localhost:4000/app'
+    f.tab.url = 'http://localhost:4000/app'
     await expect(f.evaluate(workers[0]!.handle)).rejects.toThrow(/handle expired/)
     await expect(f.evaluate(workers[0]!.handle)).rejects.toThrow(/Unknown worker handle/)
-    f.tab.navigationGeneration--
+    f.frame.url = f.tab.url = `${ORIGIN}/app`
 
     ;({ workers } = await f.list())
     f.tab.observationGeneration++
@@ -161,7 +176,15 @@ describe('worker evaluation', () => {
     ;({ workers } = await f.list())
     f.detach()
     await expect(f.evaluate(workers[0]!.handle)).rejects.toThrow(/Unknown worker handle/)
-    expect(f.evaluations()).toHaveLength(0)
+    expect(f.evaluations()).toHaveLength(1)
+  })
+
+  it('keeps no handles from a listing during which the page loaded another document', async () => {
+    const f = fixture()
+    f.whenAttached(() => { f.frame.loaderId = 'loader-2' })
+    await expect(f.list()).rejects.toThrow(/page changed while its workers were being listed/)
+    f.whenAttached(() => undefined)
+    expect((await f.list()).workers).toHaveLength(2)
   })
 
   it('keeps no handles from a listing during which the debugger left the page', async () => {
@@ -218,11 +241,9 @@ describe('worker evaluation', () => {
     const error = await f.evaluate(workers[0]!.handle).then(() => new Error("resolved"), (reason: Error) => reason)
     expect(error.message).toMatch(/^The worker script threw: Error: z+$/)
     expect(error.message.length).toBeLessThanOrEqual(WORKER_EVALUATION_LIMITS.maxExceptionChars + 40)
-    const session = f.evaluations()[0]!.sessionId
-    expect(f.sent.filter(command => command.method === 'Runtime.releaseObject')).toEqual([
-      { method: 'Runtime.releaseObject', params: { objectId: 'result-1' }, sessionId: session },
-      { method: 'Runtime.releaseObject', params: { objectId: 'error-1' }, sessionId: session }
-    ])
+    // Its handle goes with the worker's session, which is detached before the call returns.
+    expect(f.sent.some(command => command.method === 'Runtime.releaseObject')).toBe(false)
+    expect(f.sent.at(-1)).toMatchObject({ method: 'Target.setAutoAttach', params: { autoAttach: false } })
   })
 
   it('stops a script at its deadline, terminates what still runs in that worker and detaches', async () => {
@@ -235,6 +256,32 @@ describe('worker evaluation', () => {
     const session = f.evaluations()[0]!.sessionId
     await vi.waitFor(() => expect(f.sent.at(-1)).toMatchObject({ method: 'Target.setAutoAttach', params: { autoAttach: false } }))
     expect(f.sent.find(command => command.method === 'Runtime.terminateExecution')).toEqual({ method: 'Runtime.terminateExecution', params: {}, sessionId: session })
+  })
+
+  it('releases the debugger queue when stopping the script gets no answer', async () => {
+    const f = fixture()
+    const { workers } = await f.list()
+    f.hold()
+    f.neverAnswer('Runtime.terminateExecution')
+    const error = await f.evaluate(workers[0]!.handle, 'new Promise(() => {})', 20).catch((reason: unknown) => reason)
+    expect(error).toMatchObject({ reason: 'SCRIPT_TIMEOUT', sent: true })
+    // The operation the tab's debugger queue waits for still ends: auto-attach goes off after a second at most.
+    await vi.waitFor(() => expect(f.sent.at(-1)).toMatchObject({ method: 'Target.setAutoAttach', params: { autoAttach: false } }), { timeout: 3_000 })
+  })
+
+  it('reports a script failed by a debugger detach as unknown, and one the exit guard refused as not sent', async () => {
+    const f = fixture()
+    let { workers } = await f.list()
+    f.hold()
+    const pending = f.evaluate(workers[0]!.handle, 'self.marker', 5_000).catch((reason: unknown) => reason)
+    await vi.waitFor(() => expect(f.evaluations()).toHaveLength(1))
+    f.detach()
+    expect(await pending).toMatchObject({ reason: 'WORKER_ENDED', sent: true })
+
+    const g = fixture()
+    ;({ workers } = await g.list())
+    g.answerWith(() => Promise.reject(new RendererExitedError(false)))
+    expect(await g.evaluate(workers[0]!.handle).catch((reason: unknown) => reason)).toMatchObject({ reason: 'WORKER_ENDED', sent: false })
   })
 
   it('sends nothing once the call is cancelled, and reports a worker that ends mid-script as unknown', async () => {

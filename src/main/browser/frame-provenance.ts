@@ -50,7 +50,7 @@ export class FrameProvenance {
     }
     if (method === 'Target.attachedToTarget') {
       const session = string(p.sessionId)
-      if (session && object(p.targetInfo).type === 'worker' && this.workerSessions.size < 64) this.workerSessions.add(session)
+      if (session && object(p.targetInfo).type === 'worker' && this.workerSessions.size < 1024) this.workerSessions.add(session)
       return
     }
     if (method === 'Target.detachedFromTarget') {

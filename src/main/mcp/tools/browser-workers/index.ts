@@ -12,6 +12,8 @@ import type { McpToolContext, ToolActivityClassification, WorkspaceToolCall } fr
 function workerEvaluationSettlement() {
   let stoppedScript: 'sent' | 'unsent' | undefined
   return {
+    // Each re-check names this tab, so a capability profile's origins apply to the page the workers belong to.
+    authorizesResolvedTab: true,
     stopped: (sent: boolean): void => { stoppedScript = sent ? 'sent' : 'unsent' },
     effectsPossible: (): boolean => stoppedScript === 'sent',
     classifyActivity: (activity: ToolActivityClassification): ToolActivityClassification =>
@@ -43,8 +45,9 @@ export function registerBrowserWorkers(context: McpToolContext): void {
       script?: string
       timeoutMs?: number
     }, call: WorkspaceToolCall<ReturnType<typeof workerEvaluationSettlement>>) => {
-      // Checked before each dispatch and before a result is kept, without renewing the agent's write ownership.
-      const authority = { assertCurrent: (origin: string) => call.validateLifecycle(origin) }
+      // Checked before each dispatch and before a result is kept. Cancellation is the evaluation's own stop, which
+      // reports whether the script was sent, so these checks leave it out.
+      const authority = { assertCurrent: () => call.requireCurrentTarget() }
       if (action === 'list') {
         if (worker !== undefined || script !== undefined || timeoutMs !== undefined) throw new Error('worker, script and timeoutMs are only for action evaluate')
         return textResult(await manager.listWorkers(tabId, authority))

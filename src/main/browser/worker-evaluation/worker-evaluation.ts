@@ -13,13 +13,12 @@ import {
 interface WorkerTab {
   id: string
   url: string
-  navigationGeneration: number
   observationGeneration: number
   webContents: WebContents
 }
 
-/** The calling agent's authority over the tab's origin, checked before each dispatch and before a result is kept. */
-export interface WorkerEvaluationAuthority { assertCurrent(origin: string): void }
+/** The calling agent's authority over the tab, checked before each dispatch and before a result is kept. */
+export interface WorkerEvaluationAuthority { assertCurrent(): void }
 
 export interface WorkerEvaluationHost<T> {
   isCurrent(tab: T): boolean
@@ -52,11 +51,12 @@ export class WorkerEvaluationStoppedError extends Error {
 function stopMessage(reason: StopReason, sent: boolean, timeoutMs: number): string {
   if (!sent) {
     return reason === 'SCRIPT_TIMEOUT' ? `The ${timeoutMs} ms deadline passed before the script was sent; nothing ran.`
-      : 'The call was cancelled before the script was sent; nothing ran.'
+      : reason === 'CANCELLED' ? 'The call was cancelled before the script was sent; nothing ran.'
+        : 'The page\'s renderer exited before the script was sent; nothing ran.'
   }
-  if (reason === 'WORKER_ENDED') return 'The worker ended, or Hronaut\'s debugger left the page, before the script finished, so its effects are unknown.'
+  if (reason === 'WORKER_ENDED') return 'The worker ended, the page\'s renderer exited or Hronaut\'s debugger left the page before the script finished, so its effects are unknown.'
   const stopped = reason === 'SCRIPT_TIMEOUT' ? `The script did not finish within ${timeoutMs} ms` : 'The call was cancelled before the script finished'
-  return `${stopped}. Hronaut stopped the code still running in the worker, but callbacks it scheduled may still run, so its effects are unknown.`
+  return `${stopped}. Hronaut then stops the code still running in the worker, but callbacks it scheduled may still run, so its effects are unknown.`
 }
 
 /** The worker a handle stands for. */
@@ -72,7 +72,6 @@ interface Listing {
   origin: string
   mainFrameId: string
   loaderId: string
-  navigationGeneration: number
   observationGeneration: number
   workers: Map<string, ListedWorker>
 }
@@ -86,12 +85,15 @@ interface AttachedWorker {
 }
 
 interface EvaluateResponse {
-  result?: { value?: unknown; objectId?: string }
-  exceptionDetails?: { text?: string; exception?: { description?: string; objectId?: string } }
+  result?: { value?: unknown }
+  exceptionDetails?: { text?: string; exception?: { description?: string } }
 }
 
 const UNKNOWN_HANDLE = 'Unknown worker handle for this tab. Handles last until the tab\'s next listing, so list its workers again; nothing ran.'
-const STALE_HANDLE = 'The worker handle expired: the page navigated or reloaded, the workspace\'s agent control changed, or Hronaut\'s debugger left the page. List the tab\'s workers again; nothing ran.'
+const STALE_HANDLE = 'The worker handle expired: the page loaded another document or reloaded, the workspace\'s agent control changed, or Hronaut\'s debugger left the page. List the tab\'s workers again; nothing ran.'
+const PAGE_CHANGED = 'The page changed while its workers were being listed; list them again'
+/** How long a command in a worker's session may take before Hronaut stops waiting for it. */
+const SESSION_COMMAND_MS = 1_000
 const ENDED_HANDLE = 'The worker behind this handle ended. List the tab\'s workers again; nothing ran.'
 // Control, formatting and line-separator characters, which a page-chosen name could use to break or disguise text.
 // eslint-disable-next-line no-control-regex
@@ -122,6 +124,24 @@ async function mainFrame(contents: WebContents): Promise<{ id: string; loaderId:
   const frame = tree.frameTree?.frame
   if (typeof frame?.id !== 'string' || typeof frame.loaderId !== 'string' || typeof frame.url !== 'string') throw new Error('Could not read the page\'s top-level document')
   return { id: frame.id, loaderId: frame.loaderId, url: frame.url }
+}
+
+/**
+ * Sends a command to a worker's session and waits at most until the session
+ * ends or a second passes: a command pending when its session detaches never
+ * answers, and the tab's debugger queue waits for this call.
+ */
+async function sessionCommand(contents: WebContents, method: string, sessionId: string, ended: Promise<void>): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      contents.debugger.sendCommand(method, {}, sessionId).catch(() => undefined),
+      ended,
+      new Promise(resolve => { timer = setTimeout(resolve, SESSION_COMMAND_MS) })
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**
@@ -271,13 +291,13 @@ export class WorkerEvaluations<T extends WorkerTab> {
     const contents = tab.webContents
     const origin = httpOrigin(tab.url)
     if (!origin || contents.isDestroyed() || httpOrigin(contents.getURL()) !== origin) throw new Error('Workers can be listed only on an HTTP(S) page')
-    authority.assertCurrent(origin)
-    const navigationGeneration = tab.navigationGeneration, observationGeneration = tab.observationGeneration
+    authority.assertCurrent()
+    const observationGeneration = tab.observationGeneration
     const unchanged = (): void => {
       // A detached debugger, as when Developer Tools opened, would leave handles its detach no longer retires.
       if (!this.host.isCurrent(tab) || tab.webContents !== contents || contents.isDestroyed() || !contents.debugger.isAttached()
-        || tab.navigationGeneration !== navigationGeneration || tab.observationGeneration !== observationGeneration || httpOrigin(tab.url) !== origin) {
-        throw new Error('The page changed while its workers were being listed; list them again')
+        || tab.observationGeneration !== observationGeneration || httpOrigin(tab.url) !== origin) {
+        throw new Error(PAGE_CHANGED)
       }
     }
     // A new listing retires the tab's earlier handles, also when it fails.
@@ -287,8 +307,10 @@ export class WorkerEvaluations<T extends WorkerTab> {
     const listing = await this.host.withDebugger(tab, async (): Promise<Listing> => {
       unchanged()
       const main = await mainFrame(contents)
-      if (httpOrigin(main.url) !== origin) throw new Error('The page changed while its workers were being listed; list them again')
+      if (httpOrigin(main.url) !== origin) throw new Error(PAGE_CHANGED)
       return withAttachedWorkers(contents, async attached => {
+        // The main frame keeps its id across documents: the attached workers are this document's only if it stayed.
+        if ((await mainFrame(contents)).loaderId !== main.loaderId) throw new Error(PAGE_CHANGED)
         const workers = new Map<string, ListedWorker>()
         for (const worker of attached.values()) {
           if (worker.parentFrameId !== main.id) omitted.frameWorkers++
@@ -300,11 +322,11 @@ export class WorkerEvaluations<T extends WorkerTab> {
             workers.set(handle, { targetId: worker.targetId, url: worker.url, summary: { handle, path: workerPath(worker.url), ...(name ? { name } : {}) } })
           }
         }
-        return { webContents: contents, origin, mainFrameId: main.id, loaderId: main.loaderId, navigationGeneration, observationGeneration, workers }
+        return { webContents: contents, origin, mainFrameId: main.id, loaderId: main.loaderId, observationGeneration, workers }
       })
     })
     unchanged()
-    authority.assertCurrent(origin)
+    authority.assertCurrent()
     this.listings.set(tab, listing)
     return {
       action: 'list', tabId: tab.id, origin,
@@ -320,15 +342,15 @@ export class WorkerEvaluations<T extends WorkerTab> {
     const contents = tab.webContents
     const current = (): void => {
       if (this.listings.get(tab) !== listing || !listing.workers.has(handle)) throw new Error(STALE_HANDLE)
+      // Same-document navigations keep the document; another document's loader is checked in the debugger turn.
       if (!this.host.isCurrent(tab) || contents !== listing.webContents || contents.isDestroyed()
-        || tab.navigationGeneration !== listing.navigationGeneration || tab.observationGeneration !== listing.observationGeneration
-        || httpOrigin(tab.url) !== listing.origin) {
+        || tab.observationGeneration !== listing.observationGeneration || httpOrigin(tab.url) !== listing.origin) {
         this.listings.delete(tab)
         throw new Error(STALE_HANDLE)
       }
     }
     current()
-    authority.assertCurrent(listing.origin)
+    authority.assertCurrent()
     const stop = stopSignal(deadline)
     let sent = false
     const stopped = (): WorkerEvaluationStoppedError | undefined => stop.aborted ? new WorkerEvaluationStoppedError(stopReason(stop), sent, deadline.timeoutMs) : undefined
@@ -353,30 +375,37 @@ export class WorkerEvaluations<T extends WorkerTab> {
         }
         unstopped()
         current()
-        authority.assertCurrent(listing.origin)
+        authority.assertCurrent()
         sent = true
+        const sessionEnded = ended(target.sessionId)
         const command = contents.debugger.sendCommand('Runtime.evaluate', {
           expression: workerScript(script), awaitPromise: true, returnByValue: true, allowUnsafeEvalBlockedByCSP: true
         }, target.sessionId) as Promise<EvaluateResponse>
-        const workerEnded = ended(target.sessionId).then((): never => { throw new WorkerEvaluationStoppedError('WORKER_ENDED', true, deadline.timeoutMs) })
+        const workerEnded = sessionEnded.then((): never => { throw new WorkerEvaluationStoppedError('WORKER_ENDED', true, deadline.timeoutMs) })
         let response: EvaluateResponse
         try {
           response = await untilStopped(Promise.race([command, workerEnded]), stop, stopped)
         } catch (error) {
-          // The worker ran in the renderer that exited.
-          if (error instanceof RendererExitedError) throw new WorkerEvaluationStoppedError('WORKER_ENDED', true, deadline.timeoutMs)
-          if (error instanceof WorkerEvaluationStoppedError && error.reason !== 'WORKER_ENDED') {
+          if (error instanceof WorkerEvaluationStoppedError) {
             // Stops code still running, such as a loop; the worker itself keeps running.
-            await contents.debugger.sendCommand('Runtime.terminateExecution', {}, target.sessionId).catch(() => undefined)
+            if (error.reason !== 'WORKER_ENDED') await sessionCommand(contents, 'Runtime.terminateExecution', target.sessionId, sessionEnded)
+            throw error
           }
-          throw error
+          // The exit guard refused it unsent, as the renderer had already exited.
+          if (error instanceof RendererExitedError && !error.sent) {
+            sent = false
+            throw new WorkerEvaluationStoppedError('WORKER_ENDED', false, deadline.timeoutMs)
+          }
+          // Anything else ended a script already sent: the renderer exited, or the debugger detached and Electron
+          // failed the command, while the script may still run.
+          throw new WorkerEvaluationStoppedError('WORKER_ENDED', true, deadline.timeoutMs)
         }
-        return readResponse(contents, target.sessionId, response)
+        return readResponse(response)
       })
     })
     // Also stops waiting for the debugger queue; the queued operation then finds the stop and sends nothing.
     const outcome = await untilStopped(operation, stop, stopped)
-    authority.assertCurrent(listing.origin)
+    authority.assertCurrent()
     return { action: 'evaluate', tabId: tab.id, worker: worker.summary, ...outcome }
   }
 
@@ -390,10 +419,11 @@ export class WorkerEvaluations<T extends WorkerTab> {
   }
 }
 
-async function readResponse(contents: WebContents, sessionId: string, response: EvaluateResponse): Promise<ReturnType<typeof readResult>> {
-  // Exceptions allocate handles even by value; they belong to the worker's session.
-  const objectIds = new Set([response.result?.objectId, response.exceptionDetails?.exception?.objectId].filter((id): id is string => typeof id === 'string'))
-  await Promise.allSettled([...objectIds].map(objectId => contents.debugger.sendCommand('Runtime.releaseObject', { objectId }, sessionId)))
+/**
+ * The script's outcome. A thrown exception's handle is not released one by
+ * one: it belongs to the worker's session, which detaching discards whole.
+ */
+function readResponse(response: EvaluateResponse): ReturnType<typeof readResult> {
   if (response.exceptionDetails) {
     const detail = response.exceptionDetails.exception?.description ?? response.exceptionDetails.text ?? 'unknown error'
     throw new Error(`The worker script threw: ${detail.slice(0, WORKER_EVALUATION_LIMITS.maxExceptionChars)}`)
