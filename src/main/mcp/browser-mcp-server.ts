@@ -104,6 +104,7 @@ import { registerBrowserDomChanges } from './tools/browser-dom-changes/index.js'
 import { registerBrowserDomMutationSource } from './tools/browser-dom-mutation-source/index.js'
 import { registerBrowserLiveRegion } from './tools/browser-live-region/index.js'
 import { registerBrowserCssStatePreview } from './tools/browser-css-state-preview/index.js'
+import { registerBrowserVirtualPasskey } from './tools/browser-virtual-passkey/index.js'
 import { registerBrowserVisualCompare } from './tools/browser-visual-compare/index.js'
 import { registerBrowserConsole } from './tools/browser-console/index.js'
 import { registerBrowserDiagnosticLogs } from './tools/browser-diagnostic-logs/index.js'
@@ -743,6 +744,7 @@ export function createBrowserMcpServer(
   registerBrowserDomMutationSource(toolContext)
   registerBrowserLiveRegion(toolContext)
   registerBrowserCssStatePreview(toolContext)
+  registerBrowserVirtualPasskey(toolContext)
   registerBrowserVisualCompare(toolContext)
   registerBrowserConsole(toolContext)
   registerBrowserDiagnosticLogs(toolContext)

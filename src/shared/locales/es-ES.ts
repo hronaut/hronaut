@@ -1057,6 +1057,10 @@ export const esES = {
       "uncertain": "Retirada de {states} sin confirmar",
       "retry": "Reintentar quitar {states} de {selector}"
     },
+    "virtualPasskey": {
+      "label": "Llave de acceso virtual",
+      "stop": "Detener la llave de acceso virtual para {origin}"
+    },
     "suggestion": {
       "bookmark": "Marcador",
       "history": "Historial",

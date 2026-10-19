@@ -1057,6 +1057,10 @@ export const ruRU = {
       "uncertain": "Снятие {states} не подтверждено",
       "retry": "Повторить снятие {states} с {selector}"
     },
+    "virtualPasskey": {
+      "label": "Виртуальный ключ доступа",
+      "stop": "Остановить виртуальный ключ доступа для {origin}"
+    },
     "suggestion": {
       "bookmark": "Закладка",
       "history": "История",

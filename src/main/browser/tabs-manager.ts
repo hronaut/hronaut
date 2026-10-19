@@ -100,6 +100,8 @@ import { HomeRefresh } from './home-refresh.js'
 import { BrowserDebuggerQueue } from './debugger-queue.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
 import { BrowserCssStatePreview } from './css-state-preview.js'
+import { VirtualPasskeyController, type VirtualPasskeyAuthority, type VirtualPasskeyOptions } from './virtual-passkey/virtual-passkey.js'
+import type { VirtualPasskeyAction, VirtualPasskeyReport } from '../../shared/virtual-passkey.js'
 import { DomMutationSourceCaptures, type DomMutationSourceAuthority } from './dom-mutation-source/dom-mutation-source.js'
 import { normalizeDefaultFontSize } from '../../shared/default-font-size.js'
 import { BrowserLiveRegionRecorder, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
@@ -853,6 +855,7 @@ export class BrowserTabsManager {
       interruptPwaLifecycle: (workspaceId, reason) => this.pwaLifecycleRecorder.interruptWorkspace(workspaceId, reason),
       releaseLiveRegion: (tab) => this.liveRegionRecorder.release(tab),
       clearCssStatePreview: (tab, reason) => this.cssStatePreview.clear(tab, reason),
+      stopVirtualPasskey: (tab, reason) => this.virtualPasskeys.stop(tab, reason),
       rejectNetworkWait: (tabId, message) => this.networkWaitController.reject(tabId, message),
       advanceDownloadObservationGeneration: (workspaceId, observationGeneration) => this.downloadController.advanceWorkspaceObservationGeneration(workspaceId, observationGeneration)
     }
@@ -923,6 +926,11 @@ export class BrowserTabsManager {
     conflict: tab => tab.codeCoverage?.recording ? 'Stop code coverage before previewing CSS states'
       : this.domMutationSource.active(tab) ? 'Cancel the DOM mutation source capture before previewing CSS states' : undefined,
     keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean)),
+    changed: () => this.changed(false)
+  })
+  private readonly virtualPasskeys = new VirtualPasskeyController<BrowserTab>({
+    isCurrent: tab => this.tabs.get(tab.id) === tab,
+    withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
     changed: () => this.changed(false)
   })
   private readonly domMutationSource: DomMutationSourceCaptures<BrowserTab> = new DomMutationSourceCaptures<BrowserTab>({
@@ -1396,6 +1404,7 @@ export class BrowserTabsManager {
       networkConditionState: (tabId) => this.networkConditionState(tabId),
       pwaLifecycleRecorder: () => this.pwaLifecycleRecorder,
       cssStatePreview: () => this.cssStatePreview,
+      virtualPasskeys: () => this.virtualPasskeys,
       mcpTabGroups: () => this.mcpTabGroups
     }
   }
@@ -2363,6 +2372,7 @@ export class BrowserTabsManager {
       videoRecorder: () => this.videoRecorder,
       cssStatePreview: () => this.cssStatePreview,
       domMutationSource: () => this.domMutationSource,
+      virtualPasskeys: () => this.virtualPasskeys,
       mcpActivitiesByTab: () => this.mcpActivitiesByTab,
       downloadController: () => this.downloadController,
       renderQueues: () => this.renderQueues,
@@ -2974,6 +2984,7 @@ export class BrowserTabsManager {
   private removeTabRecord(tab: BrowserTab): void {
     const browserSession = tab.browserSession
     this.cssStatePreview.forget(tab)
+    this.virtualPasskeys.forget(tab)
     this.domMutationSource.forget(tab)
     this.invalidateTabOverviewPreview(tab)
     this.tabOverviewSleepPreviews.delete(tab.id)
@@ -3113,6 +3124,7 @@ export class BrowserTabsManager {
       globallyResumedAgentTabIds: () => this.globallyResumedAgentTabIds,
       releaseLiveRegion: (tab) => this.liveRegionRecorder.release(tab),
       clearCssStatePreview: (tab, reason) => this.cssStatePreview.clear(tab, reason),
+      stopVirtualPasskey: (tab, reason) => this.virtualPasskeys.stop(tab, reason),
       changed: (persist) => this.changed(persist),
       getState: () => this.getState()
     }
@@ -3915,6 +3927,16 @@ export class BrowserTabsManager {
   /** The trusted address-bar reset. It works whatever the agent's state, including while paused. */
   async clearCssStatePreview(tabId: string): Promise<BrowserState> {
     await this.cssStatePreview.clear(this.getTab(tabId), 'human-reset')
+    return this.getState()
+  }
+
+  virtualPasskey(tabId: string, action: VirtualPasskeyAction, options: VirtualPasskeyOptions, authority: VirtualPasskeyAuthority): Promise<VirtualPasskeyReport> {
+    return this.virtualPasskeys.manage(this.getTab(tabId), action, options, authority)
+  }
+
+  /** The trusted address-bar stop. It works whatever the agent's state, including while paused. */
+  stopVirtualPasskey(tabId: string): BrowserState {
+    this.virtualPasskeys.stop(this.getTab(tabId), 'person-stopped')
     return this.getState()
   }
 

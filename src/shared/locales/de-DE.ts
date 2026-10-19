@@ -1057,6 +1057,10 @@ export const deDE = {
       "uncertain": "Entfernen von {states} nicht bestätigt",
       "retry": "Erneut versuchen, {states} von {selector} zu entfernen"
     },
+    "virtualPasskey": {
+      "label": "Virtueller Passkey",
+      "stop": "Virtuellen Passkey für {origin} beenden"
+    },
     "suggestion": {
       "bookmark": "Lesezeichen",
       "history": "Verlauf",

@@ -1057,6 +1057,10 @@ export const plPL = {
       "uncertain": "Nie potwierdzono usunięcia {states}",
       "retry": "Ponów usunięcie {states} z {selector}"
     },
+    "virtualPasskey": {
+      "label": "Wirtualny klucz dostępu",
+      "stop": "Zatrzymaj wirtualny klucz dostępu dla {origin}"
+    },
     "suggestion": {
       "bookmark": "Zakładka",
       "history": "Historia",

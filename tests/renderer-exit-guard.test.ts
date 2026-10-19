@@ -83,7 +83,9 @@ describe('page calls across a renderer exit', () => {
       page.debugger.sendCommand('Fetch.continueRequest', { requestId: 'r1' }),
       page.debugger.sendCommand('Network.deleteCookies', { name: 'n', domain: 'example.test' }),
       page.debugger.sendCommand('Network.getAllCookies'),
-      page.debugger.sendCommand('Page.setWebLifecycleState', { state: 'active' })
+      page.debugger.sendCommand('Page.setWebLifecycleState', { state: 'active' }),
+      // A virtual passkey survives the renderer, so it must stay removable.
+      page.debugger.sendCommand('WebAuthn.disable')
     ]
     expect(calls.map(call => call.args)).toEqual([
       ['Input.setIgnoreInputEvents', { ignore: true }],
@@ -91,11 +93,12 @@ describe('page calls across a renderer exit', () => {
       ['Fetch.continueRequest', { requestId: 'r1' }],
       ['Network.deleteCookies', { name: 'n', domain: 'example.test' }],
       ['Network.getAllCookies'],
-      ['Page.setWebLifecycleState', { state: 'active' }]
+      ['Page.setWebLifecycleState', { state: 'active' }],
+      ['WebAuthn.disable']
     ])
     for (const call of calls) call.reply.resolve({})
     await expect(before).resolves.toEqual({})
-    await expect(Promise.all(during)).resolves.toEqual([{}, {}, {}, {}, {}])
+    await expect(Promise.all(during)).resolves.toEqual([{}, {}, {}, {}, {}, {}])
   })
 
   it('lets calls through again for the next renderer, and guards them against its exit', async () => {

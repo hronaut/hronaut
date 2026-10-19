@@ -109,6 +109,7 @@ describe('extracted shell components', () => {
           toggleSiteControls: vi.fn(),
           resetActiveTabEmulation: vi.fn(),
           clearActiveCssStatePreview: vi.fn(),
+          stopActiveVirtualPasskey: vi.fn(),
           openRequestConditions: openRoutes,
           setSitePermission: vi.fn(async () => true),
           resetSitePermission: resetPermission,
@@ -197,6 +198,7 @@ describe('extracted shell components', () => {
           toggleSiteControls: vi.fn(),
           resetActiveTabEmulation: vi.fn(),
           clearActiveCssStatePreview: vi.fn(),
+          stopActiveVirtualPasskey: vi.fn(),
           openRequestConditions: vi.fn(),
           setSitePermission: vi.fn(async () => true),
           resetSitePermission: resetPermission,
@@ -228,6 +230,7 @@ describe('extracted shell components', () => {
 
   it('shows an active forced CSS state in the address bar and lets the person end it', async () => {
     const clearPreview = vi.fn()
+    const stopPasskey = vi.fn()
     const preview = {
       states: ['hover', 'active'] as Array<'hover' | 'active'>,
       selector: '#card',
@@ -278,6 +281,7 @@ describe('extracted shell components', () => {
         toggleSiteControls: vi.fn(),
         resetActiveTabEmulation: vi.fn(),
         clearActiveCssStatePreview: clearPreview,
+        stopActiveVirtualPasskey: stopPasskey,
         openRequestConditions: vi.fn(),
         setSitePermission: vi.fn(async () => true),
         resetSitePermission: vi.fn(async () => true),
@@ -300,6 +304,14 @@ describe('extracted shell components', () => {
     const retry = screen.getByRole('button', { name: 'Try again to remove forced :hover from #card' })
     expect(retry).toHaveTextContent('Forced :hover not confirmed removed')
     expect(retry).toHaveClass('offline')
+
+    // An agent's virtual passkey is always visible, with the person's stop.
+    expect(screen.queryByTestId('virtual-passkey-pill')).toBeNull()
+    await view.rerender({ activeTab: { ...tab(), virtualPasskey: { origin: 'http://localhost:3000', expiresAt: '2026-10-19T06:00:00.000Z' } } })
+    const passkey = screen.getByRole('button', { name: 'Stop the virtual passkey for http://localhost:3000' })
+    expect(passkey).toHaveTextContent('Virtual passkey')
+    await userEvent.setup().click(passkey)
+    expect(stopPasskey).toHaveBeenCalledOnce()
   })
 
   it('renders page failure details and delegates a retry', async () => {

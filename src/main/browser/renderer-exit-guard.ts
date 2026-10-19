@@ -21,12 +21,13 @@ type GuardedPage = Pick<WebContents, 'isDestroyed' | 'isCrashed' | 'executeJavaS
 
 // Chromium answers these in the browser process without the renderer: the
 // input barrier must keep following the person's lock, request rules must let
-// the reload of a crashed page through, and cookies stay manageable.
+// the reload of a crashed page through, cookies stay manageable, and a virtual
+// passkey, which survives the renderer, can still be removed.
 const BROWSER_PROCESS_COMMANDS = new Set([
   'Input.setIgnoreInputEvents', 'Network.getAllCookies', 'Network.deleteCookies', 'Page.setWebLifecycleState',
   'Storage.getUsageAndQuota'
 ])
-const BROWSER_PROCESS_DOMAINS = ['Fetch.']
+const BROWSER_PROCESS_DOMAINS = ['Fetch.', 'WebAuthn.']
 
 /**
  * Electron never settles a page's executeJavaScript or

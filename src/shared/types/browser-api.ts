@@ -127,6 +127,7 @@ export interface HronautApi {
   /** With `takeOver`, a pause records that the person took the tab over, and the resume that ends it hands it back. */
   setTabAgentPaused(tabId: string, paused: boolean, options?: { takeOver?: boolean }): Promise<BrowserState>
   clearCssStatePreview(tabId: string): Promise<BrowserState>
+  stopVirtualPasskey(tabId: string): Promise<BrowserState>
   setTabPageLifecycle(tabId: string, state: 'active' | 'frozen'): Promise<BrowserState>
   sleepInactiveTabs(): Promise<BrowserState>
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): Promise<BrowserState>
