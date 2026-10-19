@@ -591,7 +591,8 @@ test('refuses a screen sharing request without asking about the camera and micro
   appWindow,
   electronApp
 }) => {
-  // getDisplayMedia showed "requests “Camera and microphone” permission", and Allow then failed as not supported.
+  // Both requests showed "requests “Camera and microphone” permission". Allowing getDisplayMedia then failed as not
+  // supported, and allowing getUserMedia's chromeMediaSource "desktop" gave the page a live capture of the whole screen.
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
     response.end('<!doctype html><title>Screen sharing</title><main>Share screen</main>')
@@ -610,15 +611,20 @@ test('refuses a screen sharing request without asking about the camera and micro
         return { response: 1, checkboxChecked: false }
       }
     })
-    const outcome = await electronApp.evaluate(async ({ webContents }) => {
-      const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Screen sharing')
-      if (!page) throw new Error('Screen sharing fixture web contents was not found')
-      return page.executeJavaScript(
-        'navigator.mediaDevices.getDisplayMedia({ video: true }).then(() => "shared", (error) => error.name)',
-        true
-      )
-    })
-    expect(outcome).toBe('NotAllowedError')
+    for (const capture of [
+      'navigator.mediaDevices.getDisplayMedia({ video: true })',
+      'navigator.mediaDevices.getUserMedia({ audio: false, video: { mandatory: { chromeMediaSource: "desktop" } } })'
+    ]) {
+      const outcome = await electronApp.evaluate(async ({ webContents }, script) => {
+        const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Screen sharing')
+        if (!page) throw new Error('Screen sharing fixture web contents was not found')
+        return page.executeJavaScript(
+          `${script}.then((stream) => { stream.getTracks().forEach((track) => track.stop()); return "shared" }, (error) => error.name)`,
+          true
+        )
+      }, capture)
+      expect(outcome, capture).toBe('NotAllowedError')
+    }
     expect(await electronApp.evaluate(() => (
       globalThis as typeof globalThis & { __permissionPrompts?: string[] }
     ).__permissionPrompts)).toEqual([])

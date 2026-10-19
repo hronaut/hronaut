@@ -3615,7 +3615,6 @@ export const esES = {
       "deny": "Denegar",
       "allow": "Permitir",
       "requestedDevices": "Dispositivos solicitados: {devices}.",
-      "devicesUnknown": "No se especificaron los dispositivos multimedia solicitados.",
       "requestedFile": "Acceso solicitado ({access}): {path}. Esta decisión se aplicará una sola vez.",
       "camera": "cámara",
       "microphone": "micrófono",

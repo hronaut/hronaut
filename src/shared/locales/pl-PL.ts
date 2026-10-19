@@ -3615,7 +3615,6 @@ export const plPL = {
       "deny": "Odmów",
       "allow": "Zezwól",
       "requestedDevices": "Żądane urządzenia: {devices}.",
-      "devicesUnknown": "Nie określono żądanych urządzeń multimedialnych.",
       "requestedFile": "Żądany dostęp ({access}): {path}. Ta decyzja zostanie zastosowana tylko raz.",
       "camera": "kamera",
       "microphone": "mikrofon",

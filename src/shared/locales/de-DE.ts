@@ -3615,7 +3615,6 @@ export const deDE = {
       "deny": "Ablehnen",
       "allow": "Zulassen",
       "requestedDevices": "Angeforderte Geräte: {devices}.",
-      "devicesUnknown": "Die angeforderten Mediengeräte wurden nicht angegeben.",
       "requestedFile": "Angeforderter Zugriff ({access}): {path}. Diese Entscheidung gilt nur einmal.",
       "camera": "Kamera",
       "microphone": "Mikrofon",

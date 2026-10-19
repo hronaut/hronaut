@@ -3615,7 +3615,6 @@ export const ruRU = {
       "deny": "Запретить",
       "allow": "Разрешить",
       "requestedDevices": "Запрошенные устройства: {devices}.",
-      "devicesUnknown": "Запрошенные мультимедийные устройства не указаны.",
       "requestedFile": "Запрошен доступ ({access}): {path}. Это решение применяется один раз.",
       "camera": "камера",
       "microphone": "микрофон",

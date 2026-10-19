@@ -17,11 +17,12 @@ async function prompt(locale: SupportedLocale, permission: string, details: Reco
   return shown[0]!
 }
 
-/** Asks for one permission from a page at https://files.example, declining any prompt, and returns what happened. */
+/** Asks for one permission from a page at https://files.example, answering any prompt, and returns what happened. */
 async function request(
   locale: SupportedLocale,
   permission: string,
-  details: Record<string, unknown> = {}
+  details: Record<string, unknown> = {},
+  answer: 'deny' | 'allow' = 'deny'
 ): Promise<{ allowed: boolean, shown: MessageBoxOptions[] }> {
   let handler: RequestHandler | undefined
   const shown: MessageBoxOptions[] = []
@@ -30,7 +31,7 @@ async function request(
     effectiveDownloadDirectory: () => '',
     showMessageBox: async (options) => {
       shown.push(options)
-      return { response: 0, checkboxChecked: false }
+      return { response: answer === 'allow' ? 1 : 0, checkboxChecked: false }
     },
     state: { persistentSession: null, sitePermissionStore: null },
     sendToShellWindows: () => undefined,
@@ -72,13 +73,14 @@ describe('site permission prompt', () => {
     const both = await prompt('en-US', 'media', { mediaTypes: ['audio', 'video'] })
     expect(both.message).toBe('https://files.example requests “Camera and microphone” permission.')
     expect(both.detail).toBe('Requested devices: microphone and camera. Hronaut will ask again next time.')
-    expect((await prompt('en-US', 'media')).message).toBe('https://files.example requests “Camera and microphone” permission.')
   })
 
   it('refuses a screen sharing request without asking about the camera and microphone', async () => {
-    // A getDisplayMedia request lists no device. It used to show "requests “Camera and microphone” permission", and
-    // Allow then failed as not supported because Hronaut cannot share a screen, window or tab.
-    expect(await request('en-US', 'media', { mediaTypes: [] })).toEqual({ allowed: false, shown: [] })
+    // A screen, window or tab capture request lists no device. It used to show "requests “Camera and microphone”
+    // permission", and Allow shared the whole screen for getUserMedia's chromeMediaSource "desktop".
+    expect(await request('en-US', 'media', { mediaTypes: [] }, 'allow')).toEqual({ allowed: false, shown: [] })
+    expect(await request('en-US', 'media', {}, 'allow')).toEqual({ allowed: false, shown: [] })
+    expect(await request('en-US', 'media', { mediaTypes: ['video'] }, 'allow')).toMatchObject({ allowed: true, shown: [{}] })
   })
 
   it('shows a permission Settings has no name for as Settings does, without reading inherited names', async () => {

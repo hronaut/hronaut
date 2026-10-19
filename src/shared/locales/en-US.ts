@@ -745,7 +745,7 @@ export const enUS = {
       unresponsiveTitle: "This page isn't responding", unresponsiveMessage: 'You can wait for it to recover or reload it now.', saveDownload: 'Save download',
       chooseDownloadFolder: 'Choose download folder', useFolder: 'Use this folder',
       sitePermission: 'Site permission', permissionRequest: '{origin} requests “{permission}” permission.', deny: 'Deny', allow: 'Allow',
-      requestedDevices: 'Requested devices: {devices}.', devicesUnknown: 'Requested media devices were not specified.', requestedFile: 'Requested {access}: {path}. This decision will apply only once.',
+      requestedDevices: 'Requested devices: {devices}.', requestedFile: 'Requested {access}: {path}. This decision will apply only once.',
       camera: 'camera', microphone: 'microphone', and: ' and ', unspecifiedAccess: 'unspecified access', fileReadAccess: 'read access', fileWriteAccess: 'write access', unspecifiedPath: 'unspecified path',
       permissionRemember: 'Hronaut can remember this choice for the exact website origin.', permissionAskAgain: '{detail} Hronaut will ask again next time.', permissionSettings: '{detail} You can change it later in Settings → Site permissions.',
       workspaceRecoveryTitle: "Saved workspaces could not be opened",

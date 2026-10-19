@@ -85,9 +85,11 @@ export function createBrowserSession(host: BrowserSessionHost): {
         respond(false)
         return
       }
-      // A screen, window or tab sharing request lists no camera or microphone. Hronaut sets no display media handler,
-      // so an allowed request still fails as not supported: refuse it without a prompt that would name the camera.
-      if (permission === 'media' && 'mediaTypes' in details && (details.mediaTypes ?? []).length === 0) {
+      // A camera or microphone request lists its devices. One that lists neither asks to capture the screen, a window
+      // or a tab, through getDisplayMedia or getUserMedia's chromeMediaSource, and the prompt could only call it
+      // "Camera and microphone": an allowed desktop source shared the whole screen. Refuse it without asking.
+      const mediaTypes = permission === 'media' && 'mediaTypes' in details ? details.mediaTypes ?? [] : []
+      if (permission === 'media' && mediaTypes.length === 0) {
         respond(false)
         return
       }
@@ -114,13 +116,10 @@ export function createBrowserSession(host: BrowserSessionHost): {
         : normalizeSitePermissionOrigin(webContents.mainFrame.framesInSubtree.find(
           (frame) => frame.frameTreeNodeId === requestingFrameTreeNodeId && !frame.detached
         )?.url ?? '')
-      const mediaTypes = permission === 'media' && 'mediaTypes' in details ? details.mediaTypes ?? [] : []
       const permissionDetail = (() => {
-        if (permission === 'media' && 'mediaTypes' in details) {
+        if (permission === 'media') {
           const types = mediaTypes.map((type) => host.text(type === 'video' ? 'native.dialog.camera' : 'native.dialog.microphone'))
-          return types.length
-            ? host.text('native.dialog.requestedDevices', { devices: types.join(host.text('native.dialog.and')) })
-            : host.text('native.dialog.devicesUnknown')
+          return host.text('native.dialog.requestedDevices', { devices: types.join(host.text('native.dialog.and')) })
         }
         if (permission === 'fileSystem' && 'filePath' in details) {
           const access = host.text(details.fileAccessType === 'readable'

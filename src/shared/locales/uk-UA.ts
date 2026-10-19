@@ -818,7 +818,7 @@ export const ukUA = {
       unresponsiveTitle: 'Сторінка не відповідає', unresponsiveMessage: 'Можна зачекати на відновлення або перезавантажити її зараз.', saveDownload: 'Зберегти завантаження',
       chooseDownloadFolder: 'Виберіть папку завантажень', useFolder: 'Використати цю папку',
       sitePermission: 'Дозвіл сайту', permissionRequest: 'Сайт {origin} запитує дозвіл «{permission}».', deny: 'Заборонити', allow: 'Дозволити',
-      requestedDevices: 'Запитані пристрої: {devices}.', devicesUnknown: 'Запитані медіапристрої не вказано.', requestedFile: 'Запитано {access}: {path}. Це рішення діятиме лише один раз.',
+      requestedDevices: 'Запитані пристрої: {devices}.', requestedFile: 'Запитано {access}: {path}. Це рішення діятиме лише один раз.',
       camera: 'камера', microphone: 'мікрофон', and: ' і ', unspecifiedAccess: 'невказаний доступ', fileReadAccess: 'доступ на читання', fileWriteAccess: 'доступ на запис', unspecifiedPath: 'невказаний шлях',
       permissionRemember: 'Hronaut може запам’ятати цей вибір для точного джерела сайту.', permissionAskAgain: '{detail} Наступного разу Hronaut запитає знову.', permissionSettings: '{detail} Змінити рішення можна пізніше в Налаштуваннях → Дозволи сайтів.',
       workspaceRecoveryTitle: 'Не вдалося відкрити збережені простори',
