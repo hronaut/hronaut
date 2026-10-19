@@ -78,11 +78,11 @@ async function runMutation(
 
 // The menu's controls are disabled while a change is saved, and Chromium then drops the focus of the one you used.
 // Once the change is saved or fails, that control gets it back, or the menu's Close button when the control is gone,
-// unless you have moved the focus or closed the menu meanwhile.
+// unless you have moved the focus, gone to the website or another app, or closed the menu meanwhile.
 async function restoreMenuFocus(panel: HTMLElement, focused: HTMLElement): Promise<void> {
   await nextTick()
   if (!open.value || menu.value !== panel || !panel.isConnected) return
-  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  if (!document.hasFocus() || (document.activeElement !== document.body && document.activeElement !== focused)) return
   const target = [focused, panel.querySelector<HTMLElement>('.panel-close')]
     .find((element) => element?.isConnected && panel.contains(element) && !element.matches(':disabled'))
   target?.focus()

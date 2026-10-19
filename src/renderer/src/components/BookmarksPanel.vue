@@ -177,24 +177,25 @@ async function assignCollection(bookmarkId: string, event: Event): Promise<void>
   else panel.querySelector<HTMLSelectElement>('.bookmark-collection-filter select')?.focus()
 }
 
-// Add current and Remove current are disabled while the change is saved, and Chromium then drops their focus. Once it
-// is saved or fails, the button gets the focus back, or Close when the button cannot be used, unless you have moved the
-// focus or closed the panel meanwhile.
-async function toggleCurrentPage(event: MouseEvent): Promise<void> {
+// Changing the current page's bookmark disables the panel's controls while it is saved, and Chromium then drops the
+// focus of the one you used, whether you pressed Add current or Remove current or the shortcut. Once it is saved or
+// fails, that control gets the focus back, or Close when it cannot be used, unless you have moved the focus, gone to
+// the website or another app, or closed the panel meanwhile.
+async function toggleCurrentPage(): Promise<void> {
   const generation = focusGeneration
-  const focused = event.currentTarget instanceof HTMLButtonElement
-    && document.activeElement === event.currentTarget ? event.currentTarget : null
-  const panel = focused?.closest('.bookmarks-panel')
+  const panel = panelRoot.value
+  const active = document.activeElement
+  const focused = panel && active instanceof HTMLElement && panel.contains(active) ? active : null
   await toggleCurrent()
   await nextTick()
-  if (!focused || generation !== focusGeneration || !open.value || !panel?.isConnected) return
-  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  if (!focused || !panel || generation !== focusGeneration || !open.value || panel !== panelRoot.value || !panel.isConnected) return
+  if (!document.hasFocus() || (document.activeElement !== document.body && document.activeElement !== focused)) return
   const target = [focused, panel.querySelector<HTMLButtonElement>('.panel-close')]
     .find(element => element?.isConnected && !element.matches(':disabled'))
   target?.focus()
 }
 
-defineExpose({ toggle, toggleCurrent, handleEscape })
+defineExpose({ toggle, toggleCurrent: toggleCurrentPage, handleEscape })
 
 async function finishRename(operation: () => void | Promise<void>): Promise<void> {
   const generation = focusGeneration

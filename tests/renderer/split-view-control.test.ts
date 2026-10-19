@@ -246,7 +246,8 @@ describe('SplitViewControl keyboard focus while a change is saved', () => {
     expect(swap).not.toBeInTheDocument()
   })
 
-  it.each(['moved', 'closed'] as const)('leaves the focus alone when you %s it while the change is saved', async (scenario) => {
+  // Closing the menu detaches the control you used, so the reopened menu's own controls must not take the focus either.
+  it.each(['moved', 'closed and reopened'] as const)('leaves the focus alone when you %s it while the change is saved', async (scenario) => {
     const pending = deferred<BrowserState>()
     const state = splitState()
     const rendered = renderControl({ state, browser: { updateSplitView: vi.fn(() => pending.promise) } })
@@ -259,13 +260,19 @@ describe('SplitViewControl keyboard focus while a change is saved', () => {
       await userEvent.setup().keyboard('{Enter}')
       dropFocusLikeChromium(stacked)
       if (scenario === 'moved') elsewhere.focus()
-      else await rendered.view.rerender({ open: false })
+      else {
+        await rendered.view.rerender({ open: false })
+        await rendered.view.rerender({ open: true })
+      }
 
       pending.resolve(state)
       await flushPromises()
 
       if (scenario === 'moved') expect(elsewhere).toHaveFocus()
-      else expect(document.body).toHaveFocus()
+      else {
+        expect(document.body).toHaveFocus()
+        expect(screen.getByRole('button', { name: 'Stacked' })).not.toHaveFocus()
+      }
     } finally {
       elsewhere.remove()
     }

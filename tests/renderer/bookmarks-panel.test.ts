@@ -865,6 +865,56 @@ describe('current page bookmark focus', () => {
     await flushPromises()
 
     if (scenario === 'moved') expect(screen.getByRole('searchbox')).toHaveFocus()
-    else expect(document.body).toHaveFocus()
+    else {
+      // The reopened panel's own Add current must not take the focus.
+      expect(document.body).toHaveFocus()
+      expect(screen.getByRole('button', { name: /^(Add|Remove) current$/ })).not.toHaveFocus()
+    }
+  })
+
+  it('moves the focus to Close when Add current cannot be used once the change is saved', async () => {
+    let finish!: (bookmarks: BrowserBookmark[]) => void
+    const view = renderPanel({
+      currentBookmark: undefined,
+      addBookmark: vi.fn(() => new Promise<BrowserBookmark[]>(resolve => { finish = resolve }))
+    })
+    const button = screen.getByRole('button', { name: 'Add current' })
+    button.focus()
+    await userEvent.setup().keyboard('{Enter}')
+    dropFocusLikeChromium(button)
+    // The tab now shows a page without a web address, such as Home, so there is nothing to bookmark.
+    await view.rerender({ activeUrl: null })
+
+    finish([bookmark('beta', 'Beta page')])
+
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Close bookmarks' })).toHaveFocus())
+  })
+
+  // The shortcut calls the panel's exposed toggleCurrent, which disables the same controls.
+  it('gives the focus back to the panel control you were on after the bookmark shortcut', async () => {
+    let finish!: (bookmarks: BrowserBookmark[]) => void
+    const wrapper = mount(BookmarksPanel, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: panelProps({
+        currentBookmark: undefined,
+        addBookmark: vi.fn(() => new Promise<BrowserBookmark[]>(resolve => { finish = resolve }))
+      })
+    })
+    try {
+      const button = screen.getByRole('button', { name: 'Add current' })
+      button.focus()
+      const toggling = (wrapper.vm as unknown as { toggleCurrent: () => Promise<void> }).toggleCurrent()
+      await flushPromises()
+      expect(button).toBeDisabled()
+      dropFocusLikeChromium(button)
+
+      finish([bookmark('beta', 'Beta page')])
+      await toggling
+
+      expect(button).toHaveFocus()
+    } finally {
+      wrapper.unmount()
+    }
   })
 })
