@@ -11,6 +11,19 @@ type RequestHandler = Parameters<Session['setPermissionRequestHandler']>[0] & {}
 
 /** Asks for one permission from a page at https://files.example and returns the prompt Hronaut showed. */
 async function prompt(locale: SupportedLocale, permission: string, details: Record<string, unknown> = {}): Promise<MessageBoxOptions> {
+  const { allowed, shown } = await request(locale, permission, details)
+  expect(allowed).toBe(false)
+  expect(shown).toHaveLength(1)
+  return shown[0]!
+}
+
+/** Asks for one permission from a page at https://files.example, answering any prompt, and returns what happened. */
+async function request(
+  locale: SupportedLocale,
+  permission: string,
+  details: Record<string, unknown> = {},
+  answer: 'deny' | 'allow' = 'deny'
+): Promise<{ allowed: boolean, shown: MessageBoxOptions[] }> {
   let handler: RequestHandler | undefined
   const shown: MessageBoxOptions[] = []
   const browserSession = createBrowserSession({
@@ -18,7 +31,7 @@ async function prompt(locale: SupportedLocale, permission: string, details: Reco
     effectiveDownloadDirectory: () => '',
     showMessageBox: async (options) => {
       shown.push(options)
-      return { response: 0, checkboxChecked: false }
+      return { response: answer === 'allow' ? 1 : 0, checkboxChecked: false }
     },
     state: { persistentSession: null, sitePermissionStore: null },
     sendToShellWindows: () => undefined,
@@ -38,9 +51,7 @@ async function prompt(locale: SupportedLocale, permission: string, details: Reco
   const allowed = await new Promise<boolean>((resolve) => {
     handler!(webContents as never, permission as never, resolve, { requestingUrl: url, isMainFrame: true, ...details } as never)
   })
-  expect(allowed).toBe(false)
-  expect(shown).toHaveLength(1)
-  return shown[0]!
+  return { allowed, shown }
 }
 
 describe('site permission prompt', () => {
@@ -62,8 +73,14 @@ describe('site permission prompt', () => {
     const both = await prompt('en-US', 'media', { mediaTypes: ['audio', 'video'] })
     expect(both.message).toBe('https://files.example requests “Camera and microphone” permission.')
     expect(both.detail).toBe('Requested devices: microphone and camera. Hronaut will ask again next time.')
-    expect((await prompt('en-US', 'media', { mediaTypes: [] })).message).toBe('https://files.example requests “Camera and microphone” permission.')
-    expect((await prompt('en-US', 'media')).message).toBe('https://files.example requests “Camera and microphone” permission.')
+  })
+
+  it('refuses a screen sharing request without asking about the camera and microphone', async () => {
+    // A screen, window or tab capture request lists no device. It used to show "requests “Camera and microphone”
+    // permission", and Allow shared the whole screen for getUserMedia's chromeMediaSource "desktop".
+    expect(await request('en-US', 'media', { mediaTypes: [] }, 'allow')).toEqual({ allowed: false, shown: [] })
+    expect(await request('en-US', 'media', {}, 'allow')).toEqual({ allowed: false, shown: [] })
+    expect(await request('en-US', 'media', { mediaTypes: ['video'] }, 'allow')).toMatchObject({ allowed: true, shown: [{}] })
   })
 
   it('shows a permission Settings has no name for as Settings does, without reading inherited names', async () => {

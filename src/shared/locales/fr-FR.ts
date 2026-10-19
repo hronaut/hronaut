@@ -3615,7 +3615,6 @@ export const frFR = {
       "deny": "Refuser",
       "allow": "Autoriser",
       "requestedDevices": "Appareils demandés : {devices}.",
-      "devicesUnknown": "Les appareils multimédias demandés n’ont pas été précisés.",
       "requestedFile": "Accès {access} demandé : {path}. Cette décision ne s’appliquera qu’une fois.",
       "camera": "caméra",
       "microphone": "microphone",

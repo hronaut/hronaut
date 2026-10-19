@@ -36,10 +36,10 @@ interface BrowserSessionHost {
 /**
  * The browser sessions pages run in: each gets the download folder, a permission check that admits only what the
  * person allowed for the site, and a permission prompt that asks one request at a time and refuses a request whose
- * frame navigated meanwhile. Camera, microphone and file system access always ask again. Home never gets a
- * permission. `configurePersistentSession` opens the remembered site permissions and the profile's own session,
- * `publishSitePermissions` tells both shell windows the remembered permissions, and `flushBrowserProfile` writes that
- * session's storage to disk at shutdown.
+ * frame navigated meanwhile. Camera, microphone and file system access always ask again, and screen sharing is refused
+ * without asking. Home never gets a permission. `configurePersistentSession` opens the remembered site permissions and
+ * the profile's own session, `publishSitePermissions` tells both shell windows the remembered permissions, and
+ * `flushBrowserProfile` writes that session's storage to disk at shutdown.
  */
 export function createBrowserSession(host: BrowserSessionHost): {
   configureBrowserSession(browserSession: Session): void
@@ -85,6 +85,14 @@ export function createBrowserSession(host: BrowserSessionHost): {
         respond(false)
         return
       }
+      // A camera or microphone request lists its devices. One that lists neither asks to capture the screen, a window
+      // or a tab, through getDisplayMedia or getUserMedia's chromeMediaSource, and the prompt could only call it
+      // "Camera and microphone": an allowed desktop source shared the whole screen. Refuse it without asking.
+      const mediaTypes = permission === 'media' && 'mediaTypes' in details ? details.mediaTypes ?? [] : []
+      if (permission === 'media' && mediaTypes.length === 0) {
+        respond(false)
+        return
+      }
       const requiresFreshConsent = permission === 'media' || permission === 'fileSystem'
       const remembered = requiresFreshConsent ? undefined : host.state.sitePermissionStore?.get(origin, permission)
       if (remembered) {
@@ -108,13 +116,10 @@ export function createBrowserSession(host: BrowserSessionHost): {
         : normalizeSitePermissionOrigin(webContents.mainFrame.framesInSubtree.find(
           (frame) => frame.frameTreeNodeId === requestingFrameTreeNodeId && !frame.detached
         )?.url ?? '')
-      const mediaTypes = permission === 'media' && 'mediaTypes' in details ? details.mediaTypes ?? [] : []
       const permissionDetail = (() => {
-        if (permission === 'media' && 'mediaTypes' in details) {
+        if (permission === 'media') {
           const types = mediaTypes.map((type) => host.text(type === 'video' ? 'native.dialog.camera' : 'native.dialog.microphone'))
-          return types.length
-            ? host.text('native.dialog.requestedDevices', { devices: types.join(host.text('native.dialog.and')) })
-            : host.text('native.dialog.devicesUnknown')
+          return host.text('native.dialog.requestedDevices', { devices: types.join(host.text('native.dialog.and')) })
         }
         if (permission === 'fileSystem' && 'filePath' in details) {
           const access = host.text(details.fileAccessType === 'readable'

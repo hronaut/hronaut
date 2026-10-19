@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- A website can no longer capture your screen behind a prompt about your camera and microphone. A page that asked for the screen through `getUserMedia` with `chromeMediaSource: "desktop"` showed "requests “Camera and microphone” permission", and Allow gave it a live video of your whole screen, other apps included. Hronaut now refuses every request to capture the screen, a window or a tab at once, without a prompt, and the website gets a permission error. `getDisplayMedia` requests used to show the same prompt and then fail even when allowed.
+
 ### Fixed
 
 - When a website asks for only your microphone or only your camera, Hronaut's prompt now names just that device, such as "Microphone", in Hronaut's language. It used to say "Camera and microphone" for every such request; the line below it already listed the requested devices.
