@@ -62,7 +62,8 @@ describe('fixed Date', () => {
       'JSON.stringify(Object.getOwnPropertyDescriptor(globalThis, "Date"), ["writable", "enumerable", "configurable"])',
       'JSON.stringify(Object.getOwnPropertyDescriptor(Date, "prototype"), ["writable", "enumerable", "configurable"])',
       'JSON.stringify(Object.getOwnPropertyDescriptor(Date, "now"), ["writable", "enumerable", "configurable"])',
-      'Object.keys(Date).length'
+      'Object.keys(Date).length',
+      'JSON.stringify(Object.getOwnPropertyNames(Date).sort())'
     ]) expect(page(expression), expression).toEqual(native(expression))
     expect(page('(() => { try { new Date.now() } catch (error) { return error.name } })()')).toBe('TypeError')
   })

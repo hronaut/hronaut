@@ -6,9 +6,12 @@
  * `Intl` formatting without a date keep the real clock.
  *
  * This function is serialized into the main world before page scripts run.
- * Keep all runtime dependencies inside it and capture intrinsics first.
+ * Keep all runtime dependencies inside it and capture intrinsics first. Page
+ * code can still tell the Date was replaced, for example from its source text.
  */
 export function installFixedDate(epochMs: number): void {
+  // The function runs outside its module, so strict mode keeps sloppy-mode arguments and caller properties off the replacement.
+  'use strict'
   const NativeDate = Date
   const construct = Reflect.construct
   const apply = Reflect.apply

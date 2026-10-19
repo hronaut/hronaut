@@ -1,8 +1,12 @@
 import type { WebContents } from 'electron'
 import type { FixedDateBootstrap, FixedDateDisarmReason, FixedDateDocumentState, FixedDateResult } from '../../../shared/fixed-date.js'
 
-/** The staging call's authority, checked again before every installation into a new document. */
-export interface FixedDateAuthority { assertCurrent(): void }
+/**
+ * The staging call's authority for an origin, checked again before every
+ * installation into a new document and on status, without renewing the
+ * agent's write ownership.
+ */
+export interface FixedDateAuthority { assertCurrent(origin: string): void }
 
 /** One tab as fixed Date staging sees it. */
 export interface FixedDateTarget {
@@ -66,24 +70,7 @@ export class FixedDateController {
     // Tabs that never had a fixed Date are not tracked.
     if (!setting && !this.documents.has(tabId)) return { enabled: false }
     this.observe(tabId, page)
-    let reason: FixedDateDisarmReason | undefined
-    if (setting) {
-      try {
-        const current = this.host.resolve(tabId)
-        if (current.identity !== setting.target.identity || current.page !== page
-          || current.workspaceId !== setting.target.workspaceId || current.workspaceIdentity !== setting.target.workspaceIdentity) reason = 'workspace-changed'
-      } catch {
-        reason = 'workspace-changed'
-      }
-      if (!reason && frameOrigin !== setting.origin) reason = 'origin-changed'
-      if (!reason) {
-        try {
-          setting.authority.assertCurrent()
-        } catch {
-          reason = 'authority-changed'
-        }
-      }
-    }
+    const reason = setting ? this.disarmReason(tabId, setting, page, frameOrigin) : undefined
     if (!setting || reason) {
       if (setting && reason) this.disarm(tabId, setting, reason)
       this.documents.set(tabId, { state: 'native' })
@@ -95,10 +82,10 @@ export class FixedDateController {
 
   /** Stages one instant for the tab's current HTTP(S) origin, replacing any earlier one; applies from the next document. */
   stage(tabId: string, epochMs: number, authority: FixedDateAuthority): FixedDateResult {
-    authority.assertCurrent()
     const target = { ...this.host.resolve(tabId) }
     const origin = httpOrigin(target.url)
     if (!origin) throw new Error('Open an HTTP(S) page in this tab before staging a fixed Date; it applies to that origin only.')
+    authority.assertCurrent(origin)
     this.observe(tabId, target.page)
     this.disarmed.delete(tabId)
     this.settings.set(tabId, { epochMs, origin, target, authority })
@@ -114,7 +101,11 @@ export class FixedDateController {
   }
 
   status(tabId: string): FixedDateResult {
-    this.host.resolve(tabId)
+    const target = this.host.resolve(tabId)
+    const staged = this.settings.get(tabId)
+    // A setting whose authority or workspace changed is reported as disarmed now, not at the next document.
+    const reason = staged ? this.disarmReason(tabId, staged, target.page) : undefined
+    if (staged && reason) this.disarm(tabId, staged, reason)
     const setting = this.settings.get(tabId)
     const disarmed = this.disarmed.get(tabId)
     const document = this.documents.get(tabId) ?? { state: 'native' }
@@ -149,6 +140,24 @@ export class FixedDateController {
     this.documents.clear()
   }
 
+  /** Why the setting must not apply to the tab's page (or to a new document of that origin) any more, if it must not. */
+  private disarmReason(tabId: string, setting: Setting, page: WebContents, frameOrigin?: string): FixedDateDisarmReason | undefined {
+    try {
+      const current = this.host.resolve(tabId)
+      if (current.identity !== setting.target.identity || current.page !== page
+        || current.workspaceId !== setting.target.workspaceId || current.workspaceIdentity !== setting.target.workspaceIdentity) return 'workspace-changed'
+    } catch {
+      return 'workspace-changed'
+    }
+    if (frameOrigin !== undefined && frameOrigin !== setting.origin) return 'origin-changed'
+    try {
+      setting.authority.assertCurrent(setting.origin)
+    } catch {
+      return 'authority-changed'
+    }
+    return undefined
+  }
+
   private disarm(tabId: string, setting: Setting, reason: FixedDateDisarmReason): void {
     this.settings.delete(tabId)
     this.disarmed.set(tabId, { epochMs: setting.epochMs, origin: setting.origin, reason })
@@ -159,10 +168,11 @@ export class FixedDateController {
     if (this.observed.has(page)) return
     this.observed.add(page)
     page.on('did-start-navigation', (_event, _url, isSameDocument, isMainFrame) => {
-      // A navigation that never commits (a download or a 204) keeps the old document, so its Date is unknown until the next one asks.
-      if (!isMainFrame || isSameDocument || this.documents.get(tabId)?.state !== 'fixed') return
-      this.documents.set(tabId, { state: 'unknown' })
+      // Until the next document asks, the Date is unknown: the navigation may never commit (a download or a 204)
+      // and keep the old document, or restore a cached one that never asks.
+      if (isMainFrame && !isSameDocument) this.documents.set(tabId, { state: 'unknown' })
     })
+    page.on('render-process-gone', () => this.documents.set(tabId, { state: 'unknown' }))
     page.on('did-navigate', (_event, url) => {
       // Only HTTP(S) documents ask for a fixed Date; any other document has the native one.
       if (!httpOrigin(url)) this.documents.set(tabId, { state: 'native' })

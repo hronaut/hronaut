@@ -32,7 +32,31 @@ it('installs the staged instant only in new documents of the staged origin', () 
   expect(controller.bootstrap(page, ORIGIN)).toEqual({ enabled: true, epochMs: AT })
   expect(controller.status('tab-1')).toMatchObject({ status: 'active', currentDocument: 'fixed', currentDocumentFixedDate: '2026-12-31T23:59:30.000Z', reloadRequired: false })
   expect(controller.bootstrap(page, ORIGIN)).toEqual({ enabled: true, epochMs: AT })
-  expect(authority.assertCurrent).toHaveBeenCalledTimes(3)
+  // Staging (and the status it returns), both documents and the status check the staging authority for the staged origin.
+  expect(authority.assertCurrent).toHaveBeenCalledTimes(5)
+  expect(authority.assertCurrent.mock.calls.every(([origin]) => origin === ORIGIN)).toBe(true)
+})
+
+it('reports a setting whose authority changed as disarmed before the next document', () => {
+  const { controller, authority } = fixture()
+  controller.stage('tab-1', AT, authority)
+  authority.assertCurrent.mockImplementation(() => { throw new Error('Workspace ownership changed') })
+  expect(controller.status('tab-1')).toMatchObject({ status: 'disarmed', armed: false, disarmedReason: 'authority-changed' })
+})
+
+it('says the document is unknown when a cached page may come back, or the renderer exits', () => {
+  const { controller, page, authority } = fixture()
+  controller.stage('tab-1', AT, authority)
+  controller.bootstrap(page, ORIGIN)
+  controller.bootstrap(page, 'https://other.test')
+  expect(controller.status('tab-1')).toMatchObject({ status: 'disarmed', currentDocument: 'native' })
+  // Going back can restore the cached document that has the fixed Date without asking again.
+  page.emit('did-start-navigation', {}, `${ORIGIN}/calendar`, false, true)
+  expect(controller.status('tab-1')).toMatchObject({ currentDocument: 'unknown', reloadRequired: true })
+  controller.bootstrap(page, ORIGIN)
+  expect(controller.status('tab-1')).toMatchObject({ currentDocument: 'native', reloadRequired: false })
+  page.emit('render-process-gone', {}, { reason: 'crashed' })
+  expect(controller.status('tab-1')).toMatchObject({ currentDocument: 'unknown' })
 })
 
 it('disarms instead of installing in a document of another origin, and stays disarmed', () => {
@@ -88,6 +112,17 @@ it('says the document is unknown after a navigation starts, and native on a page
   expect(controller.status('tab-1')).toMatchObject({ currentDocument: 'unknown' })
   navigate('about:blank')
   expect(controller.status('tab-1')).toMatchObject({ currentDocument: 'native' })
+})
+
+it('stays armed through a page that is not HTTP(S), such as a sleeping tab, and installs when the origin loads again', () => {
+  const { controller, page, authority, navigate } = fixture()
+  controller.stage('tab-1', AT, authority)
+  controller.bootstrap(page, ORIGIN)
+  navigate('data:text/html,sleeping')
+  expect(controller.status('tab-1')).toMatchObject({ status: 'staged', armed: true, currentDocument: 'native' })
+  navigate(`${ORIGIN}/calendar`)
+  expect(controller.bootstrap(page, ORIGIN)).toEqual({ enabled: true, epochMs: AT })
+  expect(controller.status('tab-1')).toMatchObject({ status: 'active', currentDocument: 'fixed' })
 })
 
 it('replaces an earlier instant and needs a reload to apply the new one', () => {
