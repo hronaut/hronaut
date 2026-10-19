@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import type { BrowserBookmark, BrowserBookmarkCollection, BookmarkCollectionSnapshot } from '../shared/types.js'
 import { normalizeCollectionTitle } from './collection-title.js'
 import { writeTextFileAtomically } from './atomic-file.js'
+import { LocalizedError } from './localized-error.js'
 
 const MAX_BOOKMARKS = 500
 const MAX_BOOKMARK_TITLE = 200
@@ -54,9 +55,14 @@ function sortedBookmarks(entries: Iterable<BrowserBookmark>): BrowserBookmark[] 
     .map((entry) => ({ ...entry }))
 }
 
+/** The error for a bookmark that is gone. Its message names the bookmark; a person reads that it is gone. */
+function bookmarkNotFound(id: string): LocalizedError {
+  return new LocalizedError('appErrors.bookmarks.unavailable', undefined, { message: `Bookmark not found: ${id}` })
+}
+
 function collectionName(value: string): string {
   const name = value.trim().replace(/\s+/g, ' ')
-  if (!name || name.length > 80) throw new TypeError('Collection name must contain 1 to 80 characters')
+  if (!name || name.length > 80) throw new LocalizedError('appErrors.bookmarks.collectionName')
   return name
 }
 
@@ -172,12 +178,12 @@ export class BookmarkStore {
 
   private async saveBookmark(value: { url: string; title: string }, onlyIfMissing: boolean): Promise<BrowserBookmark> {
     const url = normalizeBookmarkUrl(value.url)
-    if (!url) throw new TypeError('Bookmark URL must be an HTTP or HTTPS address within 4,096 encoded characters')
+    if (!url) throw new LocalizedError('appErrors.bookmarks.invalidUrl')
     return this.queueMutation(async () => {
       const nextEntries = new Map(this.entries)
       const existing = [...nextEntries.values()].find((entry) => entry.url === url)
       if (existing && onlyIfMissing) return { ...existing }
-      if (!existing && nextEntries.size >= MAX_BOOKMARKS) throw new Error(`Bookmark limit reached (${MAX_BOOKMARKS})`)
+      if (!existing && nextEntries.size >= MAX_BOOKMARKS) throw new LocalizedError('appErrors.bookmarks.limit', { max: MAX_BOOKMARKS })
       const now = new Date().toISOString()
       const entry: BrowserBookmark = {
         id: existing?.id ?? randomUUID(),
@@ -196,7 +202,7 @@ export class BookmarkStore {
   async rename(id: string, title: string): Promise<BrowserBookmark> {
     return this.queueMutation(async () => {
       const existing = this.entries.get(id)
-      if (!existing) throw new Error(`Bookmark not found: ${id}`)
+      if (!existing) throw bookmarkNotFound(id)
       const entry = {
         ...existing,
         title: normalizeBookmarkTitle(title, existing.url),
@@ -212,12 +218,12 @@ export class BookmarkStore {
 
   async updateDestination(id: string, value: string): Promise<BrowserBookmark> {
     const url = normalizeBookmarkUrl(value)
-    if (!url) throw new TypeError('Bookmark URL must be an HTTP or HTTPS address within 4,096 encoded characters')
+    if (!url) throw new LocalizedError('appErrors.bookmarks.invalidUrl')
     return this.queueMutation(async () => {
       const existing = this.entries.get(id)
-      if (!existing) throw new Error(`Bookmark not found: ${id}`)
+      if (!existing) throw bookmarkNotFound(id)
       if ([...this.entries.values()].some(entry => entry.id !== id && entry.url === url)) {
-        throw new Error('This address is already bookmarked')
+        throw new LocalizedError('appErrors.bookmarks.duplicate')
       }
       if (existing.url === url) return { ...existing }
       const entry = { ...existing, url, updatedAt: new Date().toISOString() }
@@ -258,7 +264,7 @@ export class BookmarkStore {
     return this.queueMutation(async () => {
       const { bookmark } = removed
       if (this.entries.has(bookmark.id) || [...this.entries.values()].some((entry) => entry.url === bookmark.url)) return false
-      if (this.entries.size >= MAX_BOOKMARKS) throw new Error(`Bookmark limit reached (${MAX_BOOKMARKS})`)
+      if (this.entries.size >= MAX_BOOKMARKS) throw new LocalizedError('appErrors.bookmarks.limit', { max: MAX_BOOKMARKS })
       const nextEntries = new Map(this.entries)
       nextEntries.set(bookmark.id, { ...bookmark })
       const nextCollections = this.collections.map((collection) => {
@@ -282,7 +288,7 @@ export class BookmarkStore {
   createCollection(value: string): Promise<BrowserBookmarkCollection> {
     const name = collectionName(value)
     return this.queueMutation(async () => {
-      if (this.collections.length >= 50) throw new Error('Collection limit reached (50)')
+      if (this.collections.length >= 50) throw new LocalizedError('appErrors.bookmarks.collectionLimit')
       this.assertCollectionNameAvailable(name)
       const collection = { id: randomUUID(), name, bookmarkIds: [] as string[] }
       await this.commitCollections([...this.collections, collection])
@@ -308,7 +314,7 @@ export class BookmarkStore {
 
   assignCollection(bookmarkId: string, collectionId: string | null): Promise<void> {
     return this.queueMutation(async () => {
-      if (!this.entries.has(bookmarkId)) throw new Error(`Bookmark not found: ${bookmarkId}`)
+      if (!this.entries.has(bookmarkId)) throw bookmarkNotFound(bookmarkId)
       if (collectionId !== null) this.requireCollection(collectionId)
       await this.commitCollections(this.collections.map(collection => ({
         ...collection,
@@ -318,12 +324,12 @@ export class BookmarkStore {
   }
 
   private requireCollection(id: string): void {
-    if (!this.collections.some(collection => collection.id === id)) throw new Error('Bookmark collection not found')
+    if (!this.collections.some(collection => collection.id === id)) throw new LocalizedError('appErrors.bookmarks.collectionMissing')
   }
 
   private assertCollectionNameAvailable(name: string, exceptId?: string): void {
     if (this.collections.some(collection => collection.id !== exceptId && collection.name.toLowerCase() === name.toLowerCase())) {
-      throw new Error('A bookmark collection with this name already exists')
+      throw new LocalizedError('appErrors.bookmarks.collectionNameTaken')
     }
   }
 

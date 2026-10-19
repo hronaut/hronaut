@@ -1,5 +1,6 @@
 import type { BrowserSavedTabGroupState, BrowserState, BrowserTabGroupState } from '../../../shared/types.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../../shared/undo.js'
+import { LocalizedError } from '../../localized-error.js'
 import { canonicalStorageId } from '../workspace-storage-deletion.js'
 import { destroyWorkspaceStorage, workspacePartition } from '../workspace-storage.js'
 import type { WorkspaceArchiveAccess } from './workspace-archive-access.js'
@@ -47,7 +48,7 @@ export function isClosingWorkspace(access: WorkspaceArchiveAccess, workspaceId: 
  */
 export async function closeWorkspaceForPerson(access: WorkspaceArchiveAccess, groupId: string): Promise<BrowserState> {
   const group = access.mcpTabGroups().get(groupId)
-  if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
+  if (!group) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}.` })
   if (group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
   // A workspace closed just before is deleted first, so it does not take the archive place this one needs.
   await access.options().endUndo?.()

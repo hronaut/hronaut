@@ -2,7 +2,7 @@ import type { Session } from 'electron'
 import type { BrowserSavedTabGroupState, BrowserState } from '../../../shared/types.js'
 import type { UndoableAction } from '../../undo-offers.js'
 import type { PersistedBrowserState, TabStateStore } from '../tab-store.js'
-import type { BrowserWorkspaceOperation } from '../workspace-operations/workspace-operations-access.js'
+import type { BrowserWorkspaceOperation, WorkspaceOperationAction } from '../workspace-operations/workspace-operations-access.js'
 import type { ActiveWorkspace, ArchivedWorkspace, WorkspaceRegistry } from '../workspace-registry.js'
 
 /**
@@ -52,7 +52,7 @@ export interface WorkspaceArchiveAccess {
   /** Runs an operation once pending tab label edits settle, admitting no new edit until it ends. */
   withTabLabelLifecycle<T>(run: () => Promise<T>): Promise<T>
   /** Runs an operation that holds an archived workspace busy. */
-  withSavedWorkspaceOperation<T>(savedWorkspaceId: string, action: string, operation: () => Promise<T>): Promise<T>
+  withSavedWorkspaceOperation<T>(savedWorkspaceId: string, action: WorkspaceOperationAction, operation: () => Promise<T>): Promise<T>
   /** Throws unless the workspace alone owns the storage, so deleting it cannot touch another workspace's data. */
   assertStorageDeletionOwnership(workspaceId: string, storageId: string): Promise<void>
   /** The storage ids of deleted workspaces, which are saved so no workspace reuses them. */

@@ -1,4 +1,6 @@
 import type { BrowserSavedTabGroupState, BrowserTabGroupColor, BrowserTabGroupState, BrowserWorkspaceContextClass, BrowserWorkspaceNavigationAuditEntry, BrowserWorkspaceNavigationPolicy } from '../../shared/types.js'
+import { LocalizedError } from '../localized-error.js'
+import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from './workspace-operations/workspace-operations-access.js'
 
 export interface ActiveWorkspace {
   hiddenFromSidebar?: boolean
@@ -32,8 +34,8 @@ interface WorkspaceRuntimePorts {
   tabs(): WorkspaceTab[]
   requireActive(id: string): BrowserTabGroupState
   assertRestoreCapacity(name: string, id: string): void
-  withActiveOperation<T>(id: string, action: string, run: () => Promise<T>): Promise<T>
-  withArchivedOperation<T>(id: string, action: string, run: () => Promise<T>): Promise<T>
+  withActiveOperation<T>(id: string, action: OpenWorkspaceOperationAction, run: () => Promise<T>): Promise<T>
+  withArchivedOperation<T>(id: string, action: WorkspaceOperationAction, run: () => Promise<T>): Promise<T>
   closeActive(id: string, preserveStorage: boolean): Promise<unknown>
   createTab(tab: { label?: string; title: string; url: string; pinned: boolean; mcpGroupId: string; allowBusyWorkspace: true; active: false }): Promise<unknown>
   selectTab(id: string): unknown
@@ -80,7 +82,7 @@ export class WorkspaceRegistry {
     const host = this.runtime
     return host.withArchivedOperation(id, 'restoring the archived workspace', async () => {
       const saved = this.archived.get(id)
-      if (!saved) throw new Error(`Unknown archived workspace: ${id}.`)
+      if (!saved) throw new LocalizedError('appErrors.workspace.archivedUnavailable', undefined, { message: `Unknown archived workspace: ${id}.` })
       host.assertRestoreCapacity(saved.name, id)
       if (host.tabs().length + saved.tabs.length > host.maxTabs) throw new Error(`Restoring "${saved.name}" would exceed the ${host.maxTabs}-tab limit.`)
       const now = new Date().toISOString()

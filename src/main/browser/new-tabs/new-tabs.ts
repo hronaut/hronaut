@@ -1,6 +1,7 @@
 import { DEFAULT_FONT_SIZE_LIMITS, isDefaultFontSize } from '../../../shared/default-font-size.js'
 import { normalizeTabLabel } from '../../../shared/tab-label.js'
 import { MAX_BROWSER_TABS, type BrowserState, type NewTabOptions } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import { isHronautHomeUrl, normalizeAddress } from '../url.js'
 import type { NewTabsAccess, NewTabsTab } from './new-tabs-access.js'
 
@@ -48,10 +49,10 @@ export async function newLabeledAgentTab<Tab extends NewTabsTab>(access: NewTabs
 export async function createNewTab<Tab extends NewTabsTab>(access: NewTabsAccess<Tab>, options: NewTabOptions, selectVisible: boolean, onCreated?: (tab: Tab) => void, onCreationAttempt?: () => void): Promise<BrowserState> {
   const url = normalizeAddress(options.url ?? 'about:blank', access.options().getSearchEngine?.())
   if (isHronautHomeUrl(url)) {
-    if (options.mcpGroupId) throw new Error('Hronaut Home is a human application page and cannot be added to an agent workspace.')
+    if (options.mcpGroupId) throw new LocalizedError('appErrors.tabs.homeInAgentWorkspace')
     return access.openHome()
   }
-  if (access.tabs().size >= MAX_TABS) throw new Error(`Tab limit reached (${MAX_TABS})`)
+  if (access.tabs().size >= MAX_TABS) throw new LocalizedError('appErrors.tabs.limit', { max: MAX_TABS })
   if (options.defaultFontSize !== undefined && !isDefaultFontSize(options.defaultFontSize)) {
     throw new Error(`defaultFontSize must be an integer from ${DEFAULT_FONT_SIZE_LIMITS.min} to ${DEFAULT_FONT_SIZE_LIMITS.max} CSS pixels`)
   }
@@ -74,7 +75,7 @@ export async function createNewTab<Tab extends NewTabsTab>(access: NewTabsAccess
   } catch (error) {
     if (createsWorkspace) {
       try { await access.closeMcpTabGroup(groupId) } catch (cleanupError) {
-        throw new AggregateError([error, cleanupError], 'The new tab failed and its workspace could not be cleaned up. The workspace remains available for recovery.')
+        throw new LocalizedError('appErrors.tabs.workspaceCleanupFailed', undefined, { cause: new AggregateError([error, cleanupError]) })
       }
     }
     throw error

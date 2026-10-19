@@ -1,5 +1,6 @@
 import { session, type Session } from 'electron'
 import type { BrowserWorkspaceStorageTransferOptions, BrowserWorkspaceStorageTransferResult } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import { withWorkspaceMoveGuard } from '../workspace-move-guard.js'
 import {
   normalizeWorkspaceStorageOrigins,
@@ -8,17 +9,22 @@ import {
 } from '../workspace-storage.js'
 import type { WorkspaceDataAccess } from './workspace-data-access.js'
 
+/** A workspace that is gone: agents read its id, the person that it is no longer available. */
+function unknownWorkspace(workspaceId: string): LocalizedError {
+  return new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${workspaceId}.` })
+}
+
 /** The origins an open or archived workspace keeps site data for. */
 export function listWorkspaceStorageOrigins(access: WorkspaceDataAccess, workspaceId: string): string[] {
   const workspace = access.mcpTabGroups().get(workspaceId) ?? access.savedTabGroups().get(workspaceId)
-  if (!workspace) throw new Error(`Unknown workspace: ${workspaceId}.`)
+  if (!workspace) throw unknownWorkspace(workspaceId)
   return [...workspace.origins]
 }
 
 /** The configured session of an open workspace's isolated storage. */
 export function workspaceSession(access: WorkspaceDataAccess, workspaceId: string): Session {
   const workspace = access.mcpTabGroups().get(workspaceId)
-  if (!workspace) throw new Error(`Unknown workspace: ${workspaceId}.`)
+  if (!workspace) throw unknownWorkspace(workspaceId)
   const partition = workspacePartition(access.options().partition, workspace.storageId)
   const browserSession = session.fromPartition(partition, { cache: true })
   access.options().configureSession?.(browserSession)

@@ -9,6 +9,7 @@ import {
 } from '../../shared/split-view.js'
 import { isUuidV7 } from '../uuid-v7.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
+import { LocalizedError } from '../localized-error.js'
 import { MAX_TAB_TITLE_CHARS, normalizeTabTitle } from './tab-metadata.js'
 import { isAgentWorkspaceNavigationUrl } from './url.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
@@ -305,9 +306,9 @@ function sanitizePersistedStateUrls(state: PersistedBrowserState): PersistedBrow
   }
 }
 
-export class WorkspaceMetadataError extends Error {
+export class WorkspaceMetadataError extends LocalizedError {
   constructor(readonly reason: 'invalid-json' | 'unsupported-version' | 'invalid-schema' | 'unreadable' | 'missing-after-validation' | 'write-failed') {
-    super(`Saved workspace metadata is unavailable (${reason}). Startup stopped to preserve recovery options.`)
+    super('appErrors.startup.metadataUnavailable', { reason })
     this.name = 'WorkspaceMetadataError'
   }
 }

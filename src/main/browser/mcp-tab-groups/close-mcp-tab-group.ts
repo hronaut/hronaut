@@ -1,4 +1,5 @@
 import type { BrowserTabGroupState } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import { canonicalStorageId } from '../workspace-storage-deletion.js'
 import { destroyWorkspaceStorage, workspacePartition } from '../workspace-storage.js'
 import type { McpTabGroupsAccess, McpTabGroupsTab } from './mcp-tab-groups-access.js'
@@ -32,7 +33,7 @@ export function closeMcpTabGroupInternal<Tab extends McpTabGroupsTab>(access: Mc
  */
 async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(access: McpTabGroupsAccess<Tab>, groupId: string, preserveStorage: boolean): Promise<BrowserTabGroupState[]> {
   const group = access.mcpTabGroups().get(groupId)
-  if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
+  if (!group) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}.` })
   if (!preserveStorage && group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
   access.invalidateReactInspectionWorkspace(groupId)
   const previousActiveTabId = access.activeTabId()

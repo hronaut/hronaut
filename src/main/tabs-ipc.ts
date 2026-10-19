@@ -1,6 +1,7 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { McpHttpServer } from './mcp/server.js'
+import { LocalizedError } from './localized-error.js'
 import { tabAgentPauseOptions, type TakeOverOffers } from './take-over-offers.js'
 import { validateTabOverviewPreviewIds } from '../shared/types.js'
 
@@ -101,7 +102,7 @@ export function registerTabsIpc(host: TabsIpcHost): void {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string' || typeof paused !== 'boolean') throw new TypeError('Invalid tab agent pause state')
     const pauseOptions = tabAgentPauseOptions(options)
-    if (!host.mcpServer()) throw new Error('Agent service is unavailable')
+    if (!host.mcpServer()) throw new LocalizedError('appErrors.agentPause.serviceUnavailable')
     const state = host.mcpServer()!.setTabAgentPaused(tabId, paused, pauseOptions)
     if (paused) host.takeOvers().paused(tabId)
     return state

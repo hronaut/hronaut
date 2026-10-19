@@ -731,7 +731,8 @@ test('clears stale VS Code launch errors after a successful retry', async ({ ele
   await expect.poll(feedback).toEqual({
     disabled: false,
     status: 'Could not open VS Code. Use the manual setup below.',
-    title: 'Error invoking remote method \'hronaut-home:open-vscode-install\': Error: VS Code protocol handler is unavailable'
+    // Home shows the reason without Electron's IPC wrapper.
+    title: 'VS Code protocol handler is unavailable'
   })
 
   await electronApp.evaluate(() => {

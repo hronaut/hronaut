@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { join } from 'node:path'
 import { BookmarkStore, type RemovedBookmark } from './bookmark-store.js'
 import { HistoryStore } from './history-store.js'
+import { LocalizedError } from './localized-error.js'
 import type { BookmarkOperations, HistoryOperations, McpHttpServer } from './mcp/server.js'
 import type { UndoableAction } from './undo-offers.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
@@ -90,7 +91,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
       kind: 'bookmark-removed',
       name: removed.bookmark.title,
       undo: async () => {
-        if (!host.state.bookmarks) throw new Error('Bookmark storage is unavailable')
+        if (!host.state.bookmarks) throw new LocalizedError('appErrors.bookmarks.storageUnavailable')
         // A bookmark saved again meanwhile stays as it is.
         if (!await host.state.bookmarks.restore(removed)) return false
         publishBookmarks()
@@ -108,17 +109,17 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   const agentBookmarks: BookmarkOperations = {
     list: () => host.state.bookmarks?.list() ?? [],
     add: async (url, title) => {
-      if (!host.state.bookmarks) throw new Error('Bookmark storage is unavailable')
+      if (!host.state.bookmarks) throw new LocalizedError('appErrors.bookmarks.storageUnavailable')
       await host.state.bookmarks.add({ url, title })
       return publishBookmarks()
     },
     rename: async (id, title) => {
-      if (!host.state.bookmarks) throw new Error('Bookmark storage is unavailable')
+      if (!host.state.bookmarks) throw new LocalizedError('appErrors.bookmarks.storageUnavailable')
       await host.state.bookmarks.rename(id, title)
       return publishBookmarks()
     },
     remove: async (id) => {
-      if (!host.state.bookmarks) throw new Error('Bookmark storage is unavailable')
+      if (!host.state.bookmarks) throw new LocalizedError('appErrors.bookmarks.storageUnavailable')
       await host.state.bookmarks.remove(id)
       return publishBookmarks()
     }
@@ -128,12 +129,12 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   const agentHistory: HistoryOperations = {
     list: () => host.state.history?.list() ?? [],
     remove: async (id) => {
-      if (!host.state.history) throw new Error('Visit history is unavailable')
+      if (!host.state.history) throw new LocalizedError('appErrors.bookmarks.historyUnavailable')
       await host.state.history.remove(id)
       return publishVisitHistory()
     },
     clear: async () => {
-      if (!host.state.history) throw new Error('Visit history is unavailable')
+      if (!host.state.history) throw new LocalizedError('appErrors.bookmarks.historyUnavailable')
       await host.state.history.clear()
       historyCleared()
       return publishVisitHistory()
