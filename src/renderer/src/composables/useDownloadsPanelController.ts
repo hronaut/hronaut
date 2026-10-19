@@ -1,6 +1,7 @@
 import { isActiveDownload } from '../../../shared/download-state.js'
 import { computed, ref, watch, type Ref } from 'vue'
 import type { BrowserDownloadState } from '../../../shared/types.js'
+import { friendlyUiError } from './useAppToastController.js'
 
 type Translate = (key: string, parameters?: Record<string, string | number>) => string
 
@@ -132,7 +133,7 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
       if (nextDownloads) options.downloads.value = nextDownloads
     } catch (cause) {
       if (generation !== actionGeneration) return
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     } finally {
       if (generation === actionGeneration) pendingAction.value = null
     }

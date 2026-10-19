@@ -133,4 +133,14 @@ describe('site permissions controller', () => {
     expect(controller.busy.value).toBe(false)
     controller.dispose()
   })
+
+  it('shows a main-process failure without Electron\'s IPC wrapper', async () => {
+    const { api, controller } = createController()
+    api.set.mockRejectedValueOnce(new Error("Error invoking remote method 'permissions:set': Error: The permission store is unavailable."))
+
+    await expect(controller.setDecision(permission('allow'), 'deny')).resolves.toBe(false)
+
+    expect(controller.errorMessage.value).toBe('The permission store is unavailable.')
+    controller.dispose()
+  })
 })

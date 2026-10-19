@@ -1,11 +1,13 @@
 import { ref, watch, type Ref } from 'vue'
 import type { BrowserMemoryReport, BrowserTabState, HronautApi } from '../../../../../shared/types.js'
 import type { DiagnosticsRequests } from '../diagnostics-request.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface MemoryReportOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   browser: Pick<HronautApi, 'measureMemory'>
   closeTransientPanels: () => void
+  translate: (key: string) => string
 }
 
 /** The memory panel: measurements, the baseline and allocation sampling. */
@@ -33,7 +35,7 @@ export function useMemoryReport(
     } catch (cause) {
       if (!current('memory', request)) return
       memoryState.value = 'error'
-      memoryError.value = cause instanceof Error ? cause.message : String(cause)
+      memoryError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 
@@ -55,7 +57,7 @@ export function useMemoryReport(
     } catch (cause) {
       if (!current('memory', request)) return
       memoryState.value = 'error'
-      memoryError.value = cause instanceof Error ? cause.message : String(cause)
+      memoryError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 
@@ -79,7 +81,7 @@ export function useMemoryReport(
     } catch (cause) {
       if (!current('memory', request)) return
       memoryState.value = 'error'
-      memoryError.value = cause instanceof Error ? cause.message : String(cause)
+      memoryError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

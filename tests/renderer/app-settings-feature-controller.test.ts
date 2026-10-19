@@ -298,6 +298,58 @@ describe('app settings feature controller', () => {
     expect(harness.options.closeTransientPanels).toHaveBeenCalled()
     expect(harness.controller.releaseHistoryController.open.value).toBe(true)
   })
+
+  it('shows MCP and license failures from main in their own words, without Electron\'s IPC wrapper', async () => {
+    const harness = createHarness()
+    const wrapped = (channel: string, message: string) => new Error(`Error invoking remote method '${channel}': Error: ${message}`)
+    vi.stubGlobal('hronautSettings', {
+      listMcpCapabilityProfiles: vi.fn(async () => { throw wrapped('settings:list-mcp-capability-profiles', 'Capability profiles are unavailable.') }),
+      createMcpCapabilityProfile: vi.fn(async () => { throw wrapped('settings:create-mcp-capability-profile', 'Capability profile argument constraints are invalid') })
+    })
+    harness.options.settingsStore.setMcpPort.mockRejectedValueOnce(wrapped('settings:set-mcp-port', 'Port 49000 is already in use.'))
+    harness.options.apis.license.activate.mockRejectedValueOnce(wrapped('license:activate', 'The license key is not valid.'))
+    const { mcpSettingsController: mcp, commercialLicenseController: license } = harness.controller
+    try {
+      mcp.editPort('49000')
+      await mcp.applyPort()
+      expect(mcp.portMessage.value).toBe('Port 49000 is already in use.')
+      await mcp.loadCapabilityProfiles()
+      expect(mcp.capabilityError.value).toBe('Capability profiles are unavailable.')
+      await mcp.createCapabilityProfile({ name: 'Agent', preset: 'read-only' })
+      expect(mcp.capabilityError.value).toBe('Capability profile argument constraints are invalid')
+      license.keyDraft.value = 'HRONAUT-KEY'
+      await license.activate()
+      expect(license.errorMessage.value).toBe('The license key is not valid.')
+    } finally {
+      vi.unstubAllGlobals()
+      harness.controller.dispose()
+    }
+  })
+
+  it('wires the credential copy through the shell copy, which reports its own failures', async () => {
+    const harness = createHarness()
+    vi.stubGlobal('hronautSettings', {
+      createMcpCapabilityProfile: vi.fn(async () => ({
+        profile: {
+          id: '01912345-6789-7abc-8def-0123456789ab', name: 'Agent', revision: 1,
+          credentialId: '11111111-1111-4111-8111-111111111111', allowedTools: ['browser_snapshot'],
+          operationClasses: ['read'], useCount: 0, lineageActive: true,
+          createdAt: '2026-09-11T12:00:00.000Z', updatedAt: '2026-09-11T12:00:00.000Z'
+        },
+        credential: 'new-credential'
+      }))
+    })
+    const mcp = harness.controller.mcpSettingsController
+    try {
+      await mcp.createCapabilityProfile({ name: 'Agent', preset: 'read-only' })
+      await expect(mcp.copyCapabilityCredential()).resolves.toBe(true)
+      expect(harness.options.copyText).toHaveBeenCalledWith('new-credential', expect.any(Function))
+      expect(mcp.capabilityCopied.value).toBe(true)
+    } finally {
+      vi.unstubAllGlobals()
+      harness.controller.dispose()
+    }
+  })
 })
 
 

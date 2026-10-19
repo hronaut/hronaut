@@ -100,7 +100,8 @@ export function useAppEmulationFeatureController(options: AppEmulationFeatureCon
     syncState: options.syncState,
     beginMutation: emulationController.beginMutation,
     isMutationCurrent: emulationController.isMutationCurrent,
-    closeTransientPanels: options.closeTransientPanels
+    closeTransientPanels: options.closeTransientPanels,
+    translate: (key) => options.translate(key)
   })
   let disposed = false
 

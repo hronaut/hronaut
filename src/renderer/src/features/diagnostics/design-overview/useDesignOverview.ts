@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import type { BrowserDesignOverviewReport, HronautApi } from '../../../../../shared/types.js'
 import type { DiagnosticsRequests } from '../diagnostics-request.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface DesignOverviewOptions {
   browser: Pick<HronautApi, 'inspectDesign'>
   closeTransientPanels: () => void
+  translate: (key: string) => string
 }
 
 /** The design overview panel. */
@@ -32,7 +34,7 @@ export function useDesignOverview(
     } catch (cause) {
       if (!current('design', request)) return
       designOverviewState.value = 'error'
-      designOverviewError.value = cause instanceof Error ? cause.message : String(cause)
+      designOverviewError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

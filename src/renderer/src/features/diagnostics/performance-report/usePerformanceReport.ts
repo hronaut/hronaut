@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import type { BrowserPerformanceAction, BrowserPerformanceReport, HronautApi } from '../../../../../shared/types.js'
 import type { DiagnosticsRequests } from '../diagnostics-request.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface PerformanceReportOptions {
   browser: Pick<HronautApi, 'measurePerformance'>
   closeTransientPanels: () => void
+  translate: (key: string) => string
 }
 
 /** The performance report panel and its baseline actions. */
@@ -32,7 +34,7 @@ export function usePerformanceReport(
     } catch (cause) {
       if (!current('performance', request)) return
       performanceState.value = 'error'
-      performanceError.value = cause instanceof Error ? cause.message : String(cause)
+      performanceError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

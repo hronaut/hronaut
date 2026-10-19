@@ -226,3 +226,12 @@ it('ignores a pending preview response after a rule edit and waits for server in
   await user.click(screen.getByRole('button', { name: 'Preview exact package' }))
   expect(await screen.findByRole('button', { name: 'Save reviewed HTML' })).toBeDisabled()
 })
+
+it('shows a main-process failure without Electron\'s IPC wrapper', async () => {
+  const { api, user } = setup()
+  api.captureIncident.mockRejectedValueOnce(new Error("Error invoking remote method 'browser:capture-incident': Error: The tab is no longer available."))
+  await user.click(screen.getByText('Reviewed incident package'))
+  await user.click(screen.getByRole('checkbox', { name: 'Repro steps' }))
+  await user.click(screen.getByRole('button', { name: 'Capture selected evidence' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(/^The tab is no longer available\.$/)
+})

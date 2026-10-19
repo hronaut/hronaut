@@ -305,3 +305,13 @@ it('composes visit order with exact origin, last-visit dates and search without 
     expect(h.controller.filteredEntries.value.map(row => row.id)).toEqual(['recent', 'frequent', 'tie'])
   } finally { h.controller.dispose() }
 })
+
+it('shows a main-process failure without Electron\'s IPC wrapper', async () => {
+  const { listHistory, controller } = createController()
+  listHistory.mockRejectedValueOnce(new Error("Error invoking remote method 'history:list': Error: History storage is unavailable"))
+
+  await controller.toggle()
+
+  expect(controller.error.value).toBe('History storage is unavailable')
+  controller.dispose()
+})

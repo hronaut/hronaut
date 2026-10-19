@@ -5,6 +5,7 @@ import UiButton from '../ui/UiButton.vue'
 import { BROWSER_TAB_GROUP_COLORS } from '../../../shared/tab-groups.js'
 import { nextWorkspaceTemplateName, parseWorkspaceTemplate, previewWorkspaceTemplate, type WorkspaceTemplate } from '../../../shared/workspace-template.js'
 import type { BrowserState, HronautApi } from '../../../shared/types.js'
+import { friendlyUiError } from '../composables/useAppToastController.js'
 
 const props = defineProps<{
   state: BrowserState
@@ -49,7 +50,7 @@ async function run(action: () => Promise<void>): Promise<void> {
   if (busy.value) return
   busy.value = true; emit('busy', true); error.value = ''; message.value = ''
   try { await action() } catch (cause) {
-    if (!disposed) error.value = cause instanceof Error ? cause.message : String(cause)
+    if (!disposed) error.value = friendlyUiError(cause, t('runtime.toast.actionFailed'))
   } finally { if (!disposed) { busy.value = false; emit('busy', false) } }
 }
 async function openFile(): Promise<void> {

@@ -1,12 +1,14 @@
 import { ref, watch, type Ref } from 'vue'
 import { isHronautHomeUrl } from '../../../../../shared/home-url.js'
 import type { BrowserPageMetadataReport, BrowserTabState, HronautApi } from '../../../../../shared/types.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface PageMetadataOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   browser: Pick<HronautApi, 'inspectPageMetadata'>
   closeTransientPanels: () => void
   keepsSeparatePanelOpen: () => boolean
+  translate: (key: string) => string
 }
 
 /** The same request lifetime is used by docked and detached metadata panels. */
@@ -46,7 +48,7 @@ export function usePageMetadata(options: PageMetadataOptions) {
     } catch (cause) {
       if (!current()) return
       pageMetadataState.value = 'error'
-      pageMetadataError.value = cause instanceof Error ? cause.message : String(cause)
+      pageMetadataError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

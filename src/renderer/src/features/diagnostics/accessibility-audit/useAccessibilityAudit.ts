@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import type { BrowserAccessibilityAudit, BrowserAccessibilityAuditAction, HronautApi } from '../../../../../shared/types.js'
 import type { DiagnosticsRequests } from '../diagnostics-request.js'
+import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 interface AccessibilityAuditOptions {
   browser: Pick<HronautApi, 'runAccessibilityAudit'>
   closeTransientPanels: () => void
+  translate: (key: string) => string
 }
 
 /** The accessibility audit panel: one WCAG AA audit of the active page at a time. */
@@ -39,7 +41,7 @@ export function useAccessibilityAudit(
     } catch (cause) {
       if (!current('accessibility', request)) return
       accessibilityAuditState.value = 'error'
-      accessibilityAuditError.value = cause instanceof Error ? cause.message : String(cause)
+      accessibilityAuditError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

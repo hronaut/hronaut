@@ -16,7 +16,8 @@ function createHarness() {
   const loadSiteSummary = vi.fn(async () => siteSummary)
   const siteDataController = useSiteDataSummaryController({
     current: () => activeContext.value,
-    load: loadSiteSummary
+    load: loadSiteSummary,
+    translate: (key) => key
   })
   const siteControlsOpen = ref(false)
   const siteStorageOpen = ref(false)
