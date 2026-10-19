@@ -51,8 +51,9 @@ describe('site permission prompt', () => {
     expect((await prompt('de-DE', 'clipboard-read')).message).toBe('https://files.example fordert die Berechtigung „Zwischenablage lesen“ an.')
   })
 
-  it('keeps the identifier of a permission Settings has no name for', async () => {
-    expect((await prompt('en-US', 'midi')).message).toBe('https://files.example requests “midi” permission.')
+  it('shows a permission Settings has no name for as Settings does, without reading inherited names', async () => {
+    expect((await prompt('en-US', 'local-fonts')).message).toBe('https://files.example requests “local fonts” permission.')
+    expect((await prompt('en-US', 'toString')).message).toBe('https://files.example requests “toString” permission.')
   })
 
   it('names read and write file access in the interface language', async () => {
@@ -67,5 +68,7 @@ describe('site permission prompt', () => {
     expect((await prompt('fr-FR', 'fileSystem', { filePath: '/home/notes.txt' })).detail).toContain('Accès non précisé demandé : /home/notes.txt.')
     expect((await prompt('ru-RU', 'fileSystem', { fileAccessType: 'writable', filePath: '/home/notes.txt' })).detail)
       .toContain('Запрошен доступ (запись): /home/notes.txt.')
+    expect((await prompt('es-ES', 'fileSystem', { filePath: '/home/notes.txt' })).detail).toContain('Acceso solicitado (no especificado): /home/notes.txt.')
+    expect((await prompt('pl-PL', 'fileSystem', { filePath: '/home/notes.txt' })).detail).toContain('Żądany dostęp (nieokreślony): /home/notes.txt.')
   })
 })

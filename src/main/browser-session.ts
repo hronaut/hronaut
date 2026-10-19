@@ -4,6 +4,7 @@ import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { normalizeSitePermissionOrigin, SitePermissionStore } from './site-permission-store.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
+import { sitePermissionName } from '../shared/site-permission-names.js'
 import type { SitePermissionDecision } from '../shared/types.js'
 
 /**
@@ -16,26 +17,6 @@ export interface BrowserSessionState {
   persistentSession: Session | null
   /** The site permissions the person chose, once open. */
   sitePermissionStore: SitePermissionStore | null
-}
-
-/**
- * The names Settings → Site permissions gives the permissions websites ask for, so the prompt names a permission the
- * same way instead of by Chromium's identifier, such as "geolocation". A permission without a name here keeps its
- * identifier.
- */
-const PERMISSION_NAMES: Record<string, MessageKey> = {
-  'clipboard-read': 'runtime.permissions.clipboardRead',
-  'clipboard-sanitized-write': 'runtime.permissions.clipboardWrite',
-  'display-capture': 'runtime.permissions.display',
-  fileSystem: 'runtime.permissions.files',
-  fullscreen: 'runtime.permissions.fullscreen',
-  geolocation: 'runtime.permissions.location',
-  'idle-detection': 'runtime.permissions.activity',
-  media: 'runtime.permissions.media',
-  notifications: 'runtime.permissions.notifications',
-  'storage-access': 'runtime.permissions.storage',
-  'top-level-storage-access': 'runtime.permissions.relatedStorage',
-  'window-management': 'runtime.permissions.windows'
 }
 
 interface BrowserSessionHost {
@@ -153,7 +134,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
             respond(currentRemembered === 'allow')
             return
           }
-          const permissionName = Object.hasOwn(PERMISSION_NAMES, permission) ? host.text(PERMISSION_NAMES[permission]!) : permission
+          const permissionName = sitePermissionName(permission, (key) => host.text(key))
           const { response } = await host.showMessageBox({
             type: 'question',
             title: host.text('native.dialog.sitePermission'),
