@@ -67,7 +67,7 @@ export class WorkspaceRegistry {
     return host.withActiveOperation(id, 'archiving the workspace', async () => {
       host.requireActive(id)
       const tabs = host.tabs().filter(tab => tab.mcpGroupId === id)
-      if (this.archived.size >= host.maxArchived) throw new Error(`Hronaut can keep up to ${host.maxArchived} archived workspaces.`)
+      if (this.archived.size >= host.maxArchived) throw new LocalizedError('appErrors.workspace.archiveLimit', { max: host.maxArchived })
       const internal = this.active.get(id)!
       const saved: ArchivedWorkspace = { ...this.publicFields(internal), savedAt: new Date().toISOString(),
         storageId: internal.storageId, origins: [...internal.origins], navigationAudit: [...internal.navigationAudit],
@@ -84,7 +84,7 @@ export class WorkspaceRegistry {
       const saved = this.archived.get(id)
       if (!saved) throw new LocalizedError('appErrors.workspace.archivedUnavailable', undefined, { message: `Unknown archived workspace: ${id}.` })
       host.assertRestoreCapacity(saved.name, id)
-      if (host.tabs().length + saved.tabs.length > host.maxTabs) throw new Error(`Restoring "${saved.name}" would exceed the ${host.maxTabs}-tab limit.`)
+      if (host.tabs().length + saved.tabs.length > host.maxTabs) throw new LocalizedError('appErrors.workspace.restoreTabLimit', { name: saved.name, max: host.maxTabs })
       const now = new Date().toISOString()
       const restored: ActiveWorkspace = { ...this.publicFields(saved), createdAt: now, lastUsedAt: now, activeTabId: null,
         storageId: saved.storageId, origins: [...saved.origins], navigationAudit: [...saved.navigationAudit] }
@@ -103,7 +103,7 @@ export class WorkspaceRegistry {
           try { await host.closeActive(id, true) }
           catch (rollbackError) {
             host.remapDownloads(id, id); host.changed()
-            throw new AggregateError([error, rollbackError], `Archived workspace "${saved.name}" could not be restored or rolled back. Its recoverable active workspace remains open; close or archive it before retrying.`)
+            throw new LocalizedError('appErrors.workspace.restoreRollbackFailed', { name: saved.name }, { cause: new AggregateError([error, rollbackError]) })
           }
           this.archived.set(id, saved); host.changed(); throw error
         }

@@ -1,4 +1,5 @@
 import type { AppReleaseHistoryEntry, AppReleaseHistoryPage } from '../shared/types.js'
+import { LocalizedError } from './localized-error.js'
 
 const RELEASES_PER_PAGE = 10
 const MAX_PAGE = 20
@@ -150,7 +151,7 @@ export class ReleaseHistoryService {
     } catch (error) {
       const fallback = this.#cache.get(page)
       if (fallback) return clonePage(fallback.value)
-      throw new Error('Could not load release history from GitHub.', { cause: error })
+      throw new LocalizedError('appErrors.settings.releaseHistoryUnavailable', undefined, { cause: error })
     }
   }
 }

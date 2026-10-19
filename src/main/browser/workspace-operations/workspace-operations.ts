@@ -7,35 +7,66 @@ import type {
   WorkspaceOperationsAccess
 } from './workspace-operations-access.js'
 
-/** The sentence for each operation that holds an open workspace busy; a new action does not compile without one. */
-const BUSY_WORKSPACE_MESSAGES: Record<OpenWorkspaceOperationAction, MessageKey> = {
+/** The sentence for each operation that holds a workspace busy; a new action does not compile without one. */
+const BUSY_WORKSPACE_MESSAGES: Record<WorkspaceOperationAction, MessageKey> = {
   'archiving the workspace': 'appErrors.workspace.busyArchiving',
   'closing the workspace': 'appErrors.workspace.busyClosing',
   'forking workspace data': 'appErrors.workspace.busyForking',
   'restoring the archived workspace': 'appErrors.workspace.busyRestoring',
+  'deleting the archived workspace': 'appErrors.workspace.busyDeleting',
   'clearing website data': 'appErrors.workspace.busyClearingData',
   'moving workspace data': 'appErrors.workspace.busyMovingData',
   'copying workspace data': 'appErrors.workspace.busyCopyingData',
   'importing browser cookies': 'appErrors.workspace.busyImportingCookies'
 }
 
-/** The error for an open workspace another operation holds busy. */
-function workspaceBusyError(name: string, action: OpenWorkspaceOperationAction): LocalizedError {
-  return new LocalizedError(BUSY_WORKSPACE_MESSAGES[action], { name })
+/** The sentence for each operation that holds the storage of every workspace busy; a new action needs one too. */
+const BUSY_STORAGE_MESSAGES: Record<WorkspaceOperationAction, MessageKey> = {
+  'archiving the workspace': 'appErrors.workspaceStorage.busyArchiving',
+  'closing the workspace': 'appErrors.workspaceStorage.busyClosing',
+  'forking workspace data': 'appErrors.workspaceStorage.busyForking',
+  'restoring the archived workspace': 'appErrors.workspaceStorage.busyRestoring',
+  'deleting the archived workspace': 'appErrors.workspaceStorage.busyDeleting',
+  'clearing website data': 'appErrors.workspaceStorage.busyClearingData',
+  'moving workspace data': 'appErrors.workspaceStorage.busyMovingData',
+  'copying workspace data': 'appErrors.workspaceStorage.busyCopyingData',
+  'importing browser cookies': 'appErrors.workspaceStorage.busyImportingCookies'
+}
+
+/**
+ * The error for an open workspace another operation holds busy. When its record is already gone, agents still read
+ * its ID in place of the name; a person reads that the workspace is busy, without the ID.
+ */
+function workspaceBusyError(access: WorkspaceOperationsAccess, workspaceId: string, action: OpenWorkspaceOperationAction): LocalizedError {
+  const name = access.mcpTabGroups().get(workspaceId)?.name
+  if (name !== undefined) return new LocalizedError(BUSY_WORKSPACE_MESSAGES[action], { name })
+  return new LocalizedError('appErrors.workspace.busyUnnamed', undefined, {
+    message: `Workspace "${workspaceId}" is busy ${action}. Try again after that operation finishes.`
+  })
+}
+
+/**
+ * The error for an archived workspace another operation holds busy. Agents read that it is archived; a person reads
+ * the sentence an open workspace busy with that operation gets, which already names what it is doing.
+ */
+export function archivedWorkspaceBusyError(name: string, action: WorkspaceOperationAction): LocalizedError {
+  return new LocalizedError(BUSY_WORKSPACE_MESSAGES[action], { name }, {
+    message: `Archived workspace "${name}" is busy ${action}. Try again after that operation finishes.`
+  })
 }
 
 /** Throws while another operation holds the open workspace busy. */
 export function assertWorkspaceIdle(access: WorkspaceOperationsAccess, workspaceId: string): void {
   const operation = access.workspaceOperations().get(workspaceId)
   if (!operation) return
-  throw workspaceBusyError(access.mcpTabGroups().get(workspaceId)?.name ?? workspaceId, operation.action)
+  throw workspaceBusyError(access, workspaceId, operation.action)
 }
 
 /** Throws while an operation that keeps new tabs out holds the open workspace busy. */
 export function assertWorkspaceCanOpenTab(access: WorkspaceOperationsAccess, workspaceId: string): void {
   const operation = access.workspaceOperations().get(workspaceId)
   if (!operation?.blocksNewTabs) return
-  throw workspaceBusyError(access.mcpTabGroups().get(workspaceId)?.name ?? workspaceId, operation.action)
+  throw workspaceBusyError(access, workspaceId, operation.action)
 }
 
 /**
@@ -74,14 +105,13 @@ export async function withSavedWorkspaceOperation<T>(
   action: WorkspaceOperationAction,
   operation: () => Promise<T>
 ): Promise<T> {
-  if (!access.savedTabGroups().has(savedWorkspaceId)) {
+  // Read once, so a busy archive is always named, never by its internal ID.
+  const saved = access.savedTabGroups().get(savedWorkspaceId)
+  if (!saved) {
     throw new LocalizedError('appErrors.workspace.archivedUnavailable', undefined, { message: `Unknown archived workspace: ${savedWorkspaceId}.` })
   }
   const existing = access.savedWorkspaceOperations().get(savedWorkspaceId)
-  if (existing) {
-    const name = access.savedTabGroups().get(savedWorkspaceId)?.name ?? savedWorkspaceId
-    throw new Error(`Archived workspace "${name}" is busy ${existing.action}. Try again after that operation finishes.`)
-  }
+  if (existing) throw archivedWorkspaceBusyError(saved.name, existing.action)
   const current: BrowserWorkspaceOperation = { action, blocksNewTabs: true, token: Symbol(action) }
   access.savedWorkspaceOperations().set(savedWorkspaceId, current)
   try {
@@ -114,9 +144,8 @@ export async function withGlobalWorkspaceStorageOperation<T>(
   action: WorkspaceOperationAction,
   operation: () => Promise<T>
 ): Promise<T> {
-  if (access.workspaceStorageOperation()) {
-    throw new Error(`Workspace storage is busy ${access.workspaceStorageOperation()!.action}. Try again after that operation finishes.`)
-  }
+  const busy = access.workspaceStorageOperation()
+  if (busy) throw new LocalizedError(BUSY_STORAGE_MESSAGES[busy.action])
   const current: BrowserWorkspaceOperation = { action, blocksNewTabs: false, token: Symbol(action) }
   access.setWorkspaceStorageOperation(current)
   try {

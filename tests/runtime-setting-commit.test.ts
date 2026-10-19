@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { LocalizedError } from '../src/main/localized-error.js'
 import { commitRuntimeSetting } from '../src/main/runtime-setting-commit.js'
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
@@ -102,7 +103,10 @@ describe('runtime setting commits', () => {
       persist: async () => { throw persistenceError }
     }).then(() => undefined, (error: unknown) => error)
 
-    expect(thrown).toBeInstanceOf(AggregateError)
-    expect((thrown as AggregateError).errors).toEqual([persistenceError, rollbackError])
+    // A person reads one sentence in the interface language; both failures stay its cause.
+    expect(thrown).toBeInstanceOf(LocalizedError)
+    expect((thrown as Error).message).toBe('The runtime setting could not be persisted or restored')
+    expect((thrown as Error).cause).toBeInstanceOf(AggregateError)
+    expect(((thrown as Error).cause as AggregateError).errors).toEqual([persistenceError, rollbackError])
   })
 })

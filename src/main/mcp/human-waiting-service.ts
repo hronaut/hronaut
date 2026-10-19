@@ -1,5 +1,6 @@
 import { HumanWaitingStore, currentHumanWaitingReviewStep } from './human-waiting-store.js'
 import type { HumanWaitingPersistence } from './human-waiting-persistence.js'
+import { LocalizedError } from '../localized-error.js'
 import {
   normalizeHumanWaitingNote,
   requiresHumanWaitingAccountAndTargetConfirmation,
@@ -68,7 +69,7 @@ export class HumanWaitingService {
         }
       } catch {
         this.unavailable = true
-        throw new Error('Human waiting history is unavailable')
+        throw new LocalizedError('appErrors.continuity.historyUnavailable')
       }
     })()
     return this.initialization
@@ -79,7 +80,7 @@ export class HumanWaitingService {
     this.pendingRequests++
     const pending = this.queue.then(async () => {
       await this.initialize()
-      if (this.unavailable) throw new Error('Human waiting history is unavailable')
+      if (this.unavailable) throw new LocalizedError('appErrors.continuity.historyUnavailable')
       return operation()
     }).finally(() => {
       this.pendingRequests--
@@ -97,7 +98,7 @@ export class HumanWaitingService {
       this.unreportedRecords = snapshot.records.map(({ id, workspaceId, state }) => ({ id, workspaceId, state }))
     } catch {
       this.unavailable = true
-      throw new Error('Human waiting change could not be saved; inspect recovery before retrying')
+      throw new LocalizedError('appErrors.continuity.changeNotSaved')
     }
   }
 
@@ -158,14 +159,17 @@ export class HumanWaitingService {
   ) {
     return this.serialize(async () => {
       if (answer?.note !== undefined && (action === 'acknowledge' || normalizeHumanWaitingNote(answer.note) !== answer.note)) {
-        throw new Error('Waiting decision note unavailable')
+        throw new LocalizedError('appErrors.continuity.noteUnavailable')
       }
       authorize()
-      if (!this.store.list(workspaceId).some(record => record.id === id)) throw new Error('Waiting decision unavailable')
+      if (!this.store.list(workspaceId).some(record => record.id === id)) throw new LocalizedError('appErrors.continuity.decisionUnavailable')
       if (action === 'resolve') {
         const record = this.current(workspaceId, id)
         if (requiresHumanWaitingAccountAndTargetConfirmation(record) && trustedConfirmation?.accountAndTargetVerified !== true) {
-          throw new Error('Confirm the signed-in account and target in the trusted review UI')
+          // Only a person resolves, in that review UI, so their sentence names the box they tick there.
+          throw new LocalizedError('appErrors.continuity.accountAndTargetUnconfirmed', undefined, {
+            message: 'Confirm the signed-in account and target in the trusted review UI'
+          })
         }
         if (!validateFresh) throw new Error('Fresh browser review is required')
         await validateFresh()
@@ -182,7 +186,7 @@ export class HumanWaitingService {
           this.answers.delete(id)
           this.store.invalidateResolution(id)
           await this.save()
-          throw new Error('Browser review changed while saving; inspect current state again')
+          throw new LocalizedError('appErrors.continuity.reviewChangedWhileSaving')
         }
       } else authorize()
       return this.withAnswer(this.current(workspaceId, result.id))
@@ -204,7 +208,7 @@ export class HumanWaitingService {
 
   private current(workspaceId: string, id: string) {
     const record = this.store.list(workspaceId).find(candidate => candidate.id === id)
-    if (!record) throw new Error('Waiting decision unavailable')
+    if (!record) throw new LocalizedError('appErrors.continuity.decisionUnavailable')
     return record
   }
 

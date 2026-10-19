@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { BrowserTabGroupState, BrowserWorkspaceContextClass, BrowserWorkspaceNavigationPolicy } from '../../../shared/types.js'
 import { defaultTabGroupColor, type BrowserTabGroupColor } from '../../../shared/tab-groups.js'
 import { normalizeWorkspaceDescription } from '../../../shared/workspace-description.js'
+import { LocalizedError } from '../../localized-error.js'
 import { uuidV7 } from '../../uuid-v7.js'
 import { RetainedBrowserWorkspaceError } from '../workspace-errors.js'
 import { normalizeWorkspaceNavigationPolicy } from '../workspace-navigation-policy.js'
@@ -51,7 +52,7 @@ export async function createMcpTabGroup<Tab extends McpTabGroupsTab>(
 ): Promise<BrowserTabGroupState> {
   const normalizedPolicy = normalizeWorkspaceNavigationPolicy(navigationPolicy)
   if (contextClass === 'public-observer' && (storage !== 'scratch' || !publicObserverOrigin(normalizedPolicy))) {
-    throw new TypeError('A public observer requires clean scratch storage and one restricted HTTP(S) origin.')
+    throw new LocalizedError('appErrors.workspace.observerRequirements')
   }
   const normalizedName = normalizedWorkspaceName(name)
   access.assertWorkspaceNameAvailable(normalizedName, undefined, undefined, allowDuplicateName)
@@ -76,8 +77,8 @@ export async function createMcpTabGroup<Tab extends McpTabGroupsTab>(
   if (storage === 'fork-workspace') {
     const sourceId = sourceWorkspaceId
     const source = sourceId ? access.mcpTabGroups().get(sourceId) ?? access.savedTabGroups().get(sourceId) : undefined
-    if (!source) throw new Error('Source workspace is unavailable.')
-    if (access.isClosingWorkspace(sourceId!)) throw new Error(`"${source.name}" was just closed. Undo the close to copy it.`)
+    if (!source) throw new LocalizedError('appErrors.workspace.sourceUnavailable')
+    if (access.isClosingWorkspace(sourceId!)) throw new LocalizedError('appErrors.workspace.sourceJustClosed', { name: source.name })
     group.navigationPolicy = normalizeWorkspaceNavigationPolicy(source.navigationPolicy)
     const fork = async () => {
       access.mcpTabGroups().set(group.id, group)

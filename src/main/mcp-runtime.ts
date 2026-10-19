@@ -9,6 +9,7 @@ import type { McpPortRecovery } from './mcp-port-suggestion.js'
 import type { McpHttpServer } from './mcp/server.js'
 import type { McpTokenConfiguration } from './mcp-token-store.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
+import { LocalizedError } from './localized-error.js'
 import type { AppSettings, McpControlState, McpServerStatus } from '../shared/types.js'
 
 /**
@@ -128,9 +129,25 @@ export function createMcpRuntime(host: McpRuntimeHost): {
     }
   }
 
+  /**
+   * Why the listener could not start on a port, keeping Node's text in the message logs read. A port another app uses
+   * or the system refuses gets a sentence a person can act on; any other reason keeps Node's words. Moving the port
+   * keeps Node's error as the cause, which the port suggestion reads.
+   */
+  function listenFailure(port: number, error: unknown, cause: boolean): Error {
+    const message = `Could not listen on ${host.state.host}:${port}: ${error instanceof Error ? error.message : String(error)}`
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    const key: MessageKey | undefined = code === 'EADDRINUSE' ? 'appErrors.settings.mcpPortInUse'
+      : code === 'EACCES' || code === 'EPERM' ? 'appErrors.settings.mcpPortDenied'
+        : undefined
+    const options = cause ? { cause: error } : undefined
+    if (!key) return new Error(message, options)
+    return new LocalizedError(key, { host: host.state.host, port }, { message, ...options })
+  }
+
   async function setMcpPort(port: number): Promise<AppSettings> {
     host.assertWorkspaceInitialized()
-    if (!isValidMcpPort(port)) throw new TypeError('MCP port must be an integer from 1024 through 65535')
+    if (!isValidMcpPort(port)) throw new LocalizedError('appErrors.settings.mcpPortRange')
     if (port === host.state.port && host.state.status === 'ready') {
       if (host.persistedSettings().mcpPort !== port) await host.updateSettings({ mcpPort: port })
       return { ...host.settings() }
@@ -142,7 +159,7 @@ export function createMcpRuntime(host: McpRuntimeHost): {
       await candidate.start()
     } catch (error) {
       await candidate.stop().catch(() => undefined)
-      throw new Error(`Could not listen on ${host.state.host}:${port}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
+      throw listenFailure(port, error, true)
     }
 
     try {
@@ -200,9 +217,7 @@ export function createMcpRuntime(host: McpRuntimeHost): {
       await candidate.start()
     } catch (error) {
       await candidate.stop().catch(() => undefined)
-      throw new Error(
-        `Could not listen on ${host.state.host}:${DEFAULT_MCP_PORT}: ${error instanceof Error ? error.message : String(error)}`
-      )
+      throw listenFailure(DEFAULT_MCP_PORT, error, false)
     }
 
     try {

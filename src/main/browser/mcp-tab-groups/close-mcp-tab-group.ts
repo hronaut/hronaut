@@ -34,7 +34,7 @@ export function closeMcpTabGroupInternal<Tab extends McpTabGroupsTab>(access: Mc
 async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(access: McpTabGroupsAccess<Tab>, groupId: string, preserveStorage: boolean): Promise<BrowserTabGroupState[]> {
   const group = access.mcpTabGroups().get(groupId)
   if (!group) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}.` })
-  if (!preserveStorage && group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
+  if (!preserveStorage && group.deletionProtected) throw new LocalizedError('appErrors.workspace.protectedClose', { name: group.name })
   access.invalidateReactInspectionWorkspace(groupId)
   const previousActiveTabId = access.activeTabId()
   const previousSelectionGeneration = access.tabSelectionGeneration()
@@ -97,7 +97,7 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
     await access.closeTabs(tabSnapshots.map((tab) => tab.id), false)
     // A tab left open would name a workspace the saved session no longer has, which the next start refuses to load.
     if ([...access.tabs().values()].some((tab) => tab.mcpGroupId === groupId)) {
-      throw new Error(`Workspace "${group.name}" still has an open tab, so it was not closed. Try again.`)
+      throw new LocalizedError('appErrors.workspace.tabStillOpen', { name: group.name })
     }
     if (!preserveStorage) {
       await access.assertStorageDeletionOwnership(groupId, group.storageId)
@@ -113,10 +113,7 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
       // Keep both the workspace metadata and any recoverable recently closed
       // entries when an Electron failure prevents a complete rollback.
       access.changed()
-      throw new AggregateError(
-        [error, restoreError],
-        `Workspace "${group.name}" could not be closed and all of its tabs could not be restored. Recoverable tabs remain in tab search.`
-      )
+      throw new LocalizedError('appErrors.workspace.closeRollbackFailed', { name: group.name }, { cause: new AggregateError([error, restoreError]) })
     }
     throw error
   }
