@@ -5,6 +5,7 @@ import { COMMERCIAL_LICENSE_API_BASE_URL } from './commercial-license-links.js'
 import { CommercialLicenseOperationCoordinator } from './commercial-license-operations.js'
 import { CommercialLicenseStore, commercialLicenseStateRefreshDelay } from './commercial-license-store.js'
 import type { AppQuitState } from './app-lifecycle.js'
+import { LocalizedError } from './localized-error.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import type { CommercialLicenseState, CredentialStorageStatus } from '../shared/types.js'
 
@@ -103,8 +104,8 @@ export function createCommercialLicenseRuntime(host: CommercialLicenseRuntimeHos
   async function activateCommercialLicenseNow(value: unknown): Promise<CommercialLicenseState> {
     if (typeof value !== 'string') throw new TypeError('Commercial license key must be a string')
     const licenseKey = value.trim().toUpperCase()
-    if (!/^[A-Z0-9][A-Z0-9-]{15,127}$/.test(licenseKey)) throw new TypeError('Enter the complete commercial license key from your Creem receipt')
-    if (!host.credentialStorageStatus().available || !host.state.store || !commercialLicenseClient) throw new Error('Secure license storage is unavailable')
+    if (!/^[A-Z0-9][A-Z0-9-]{15,127}$/.test(licenseKey)) throw new LocalizedError('native.errors.invalidLicenseKey', undefined, { message: 'Enter the complete commercial license key from your Creem receipt' })
+    if (!host.credentialStorageStatus().available || !host.state.store || !commercialLicenseClient) throw new LocalizedError('appErrors.settings.licenseStorageUnavailable')
     try {
       const result = await commercialLicenseClient.activate(licenseKey, host.state.store!.installationName())
       if (!result.valid || result.status !== 'active') throw new CommercialLicenseError('license_inactive')

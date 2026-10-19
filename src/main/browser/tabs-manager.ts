@@ -1634,7 +1634,7 @@ export class BrowserTabsManager {
   private screenshotPixelRatio(tab: BrowserTab): number {
     this.requireEmulationConfirmed(tab)
     const ratio = Math.max(1, screen.getDisplayMatching(this.window.getBounds()).scaleFactor, tab.emulation.viewport?.deviceScaleFactor ?? 1)
-    if (!Number.isFinite(ratio) || ratio > 32) throw new Error('This page uses an unsupported screenshot scale.')
+    if (!Number.isFinite(ratio) || ratio > 32) throw new LocalizedError('appErrors.pageTools.pageScale')
     return ratio
   }
 
@@ -2060,7 +2060,7 @@ export class BrowserTabsManager {
     const canonical = canonicalStorageId(storageId)
     if (this.workspaceStorageCleanupBlocked || !canonical || [...this.mcpTabGroups.values(), ...this.savedTabGroups.values()]
       .some(group => group.id !== workspaceId && canonicalStorageId(group.storageId) === canonical)) {
-      throw new Error('Workspace storage has ambiguous ownership; deletion was stopped.')
+      throw new LocalizedError('appErrors.workspaceStorage.ambiguousOwnership')
     }
     await this.store.withStableSnapshot(() => assertExclusiveWorkspaceStorage(this.options.storePath, workspaceId, storageId))
   }
@@ -4598,7 +4598,7 @@ export class BrowserTabsManager {
       captureScale: (tab) => {
         this.requireEmulationConfirmed(tab)
         const scale = Math.max(1, ...screen.getAllDisplays().map((display) => display.scaleFactor))
-        if (!Number.isFinite(scale) || scale > 32) throw new Error('This display uses an unsupported screenshot scale.')
+        if (!Number.isFinite(scale) || scale > 32) throw new LocalizedError('appErrors.pageTools.displayScale')
         return scale
       },
       writeUniqueDownload: (filename, data, validate) => this.writeUniqueDownload(filename, data, validate),
@@ -5211,7 +5211,7 @@ export class BrowserTabsManager {
 
   private assertActiveWorkspaceCapacity(): void {
     if (this.mcpTabGroups.size >= MAX_ACTIVE_WORKSPACES) {
-      throw new Error(`Hronaut can keep up to ${MAX_ACTIVE_WORKSPACES} active workspaces.`)
+      throw new LocalizedError('appErrors.workspace.activeLimit', { max: MAX_ACTIVE_WORKSPACES })
     }
   }
 
@@ -5230,7 +5230,7 @@ export class BrowserTabsManager {
       workspace.id !== excludeSavedWorkspaceId && workspaceNameKey(workspace.name) === key
     ))
     const collision = activeCollision ?? savedCollision
-    if (collision) throw new Error(`A workspace named "${name}" already exists. Workspace names must be unique.`)
+    if (collision) throw new LocalizedError('appErrors.workspace.nameTaken', { name })
   }
 
   /**

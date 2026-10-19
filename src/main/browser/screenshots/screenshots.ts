@@ -4,11 +4,27 @@ import { annotateScreenshotBitmap, normalizeScreenshotRefs, screenshotAnnotation
 import { boundedScreenshotSize, cssScreenshotBounds, fullPageScreenshotBounds, type ScreenshotLayoutMetrics } from '../../../shared/screenshot.js'
 import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
 import type { BrowserScreenshotOptions } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { targetExpression } from '../page-scripts.js'
 import type { ScreenshotsAccess, ScreenshotsTab } from './screenshots-access.js'
 
 const SCREENSHOT_ANNOTATION_WORLD_ID = ISOLATED_WORLDS.screenshotAnnotation
+
+/** What the page script throws for an element target that is gone or has no area, which agents read as it is. */
+const TARGET_MISSING = 'Screenshot target not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.'
+const TARGET_HIDDEN = 'Screenshot target has no visible area.'
+
+/**
+ * The page script's failure for an element target, as a person reads it: the message stays the text the page
+ * rejected with, which names agent tools; any other failure is returned unchanged.
+ */
+function screenshotTargetError(error: unknown): unknown {
+  if (!(error instanceof Error) || error instanceof LocalizedError) return error
+  if (error.message.includes(TARGET_MISSING)) return new LocalizedError('appErrors.pageTools.targetMissing', undefined, { message: error.message, cause: error })
+  if (error.message.includes(TARGET_HIDDEN)) return new LocalizedError('appErrors.pageTools.targetHidden', undefined, { message: error.message, cause: error })
+  return error
+}
 
 /**
  * Captures the tab's page as PNG or JPEG: its viewport, its full page, one
@@ -39,11 +55,11 @@ export async function screenshot<Tab extends ScreenshotsTab>(access: Screenshots
       const requestedClip = hasTarget
         ? await webContents.executeJavaScript(`(async () => {
               const element = ${targetExpression(options)};
-              if (!element) throw new Error('Screenshot target not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
+              if (!element) throw new Error(${JSON.stringify(TARGET_MISSING)});
               element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
               await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
               const rect = element.getBoundingClientRect();
-              if (rect.width <= 0 || rect.height <= 0) throw new Error('Screenshot target has no visible area.');
+              if (rect.width <= 0 || rect.height <= 0) throw new Error(${JSON.stringify(TARGET_HIDDEN)});
               const x = Math.max(0, rect.left + scrollX);
               const y = Math.max(0, rect.top + scrollY);
               return {
@@ -52,7 +68,7 @@ export async function screenshot<Tab extends ScreenshotsTab>(access: Screenshots
                 width: Math.min(rect.width - Math.max(0, -(rect.left + scrollX)), document.documentElement.scrollWidth - x),
                 height: Math.min(rect.height - Math.max(0, -(rect.top + scrollY)), document.documentElement.scrollHeight - y)
               };
-            })()`, true) as { x: number; y: number; width: number; height: number }
+            })()`, true).catch((error: unknown) => { throw screenshotTargetError(error) }) as { x: number; y: number; width: number; height: number }
         : await webContents.executeJavaScript(`(() => {
               const clip = ${JSON.stringify(options.clip)};
               if (clip.x + clip.width > innerWidth || clip.y + clip.height > innerHeight) {
@@ -61,9 +77,9 @@ export async function screenshot<Tab extends ScreenshotsTab>(access: Screenshots
               return { x: scrollX + clip.x, y: scrollY + clip.y, width: clip.width, height: clip.height };
             })()`, true) as { x: number; y: number; width: number; height: number }
       if (![requestedClip.x, requestedClip.y, requestedClip.width, requestedClip.height].every(Number.isFinite)) {
-        throw new Error('Could not determine a finite screenshot area')
+        throw new LocalizedError('appErrors.pageTools.areaNotFinite')
       }
-      if (requestedClip.width <= 0 || requestedClip.height <= 0) throw new Error('Screenshot area is outside the page')
+      if (requestedClip.width <= 0 || requestedClip.height <= 0) throw new LocalizedError('appErrors.pageTools.areaOutsidePage')
       let data = ''
       await access.withDebugger(webContents, async () => {
         const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as ScreenshotLayoutMetrics

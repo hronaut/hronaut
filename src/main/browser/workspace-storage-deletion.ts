@@ -1,6 +1,7 @@
 import { lstat, readFile, readdir, realpath, rm } from 'node:fs/promises'
 import { basename, dirname, join, parse, resolve } from 'node:path'
 import { writeTextFileAtomically } from '../atomic-file.js'
+import { LocalizedError } from '../localized-error.js'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export function canonicalStorageId(value: unknown): string | undefined {
@@ -15,10 +16,10 @@ type Metadata = Record<string, unknown> & {
 async function readAuthority(path: string): Promise<Metadata> {
   const files = await readdir(dirname(path))
   // Atomic-save remnants and recovery copies can still reference old profiles.
-  if (files.some(name => name.startsWith(`${basename(path)}.`))) throw new Error('Workspace metadata recovery requires review.')
-  if (!(await lstat(path)).isFile() || (await lstat(path)).isSymbolicLink()) throw new Error('Workspace metadata is not a regular file.')
+  if (files.some(name => name.startsWith(`${basename(path)}.`))) throw new LocalizedError('appErrors.workspaceStorage.metadataRecovery')
+  if (!(await lstat(path)).isFile() || (await lstat(path)).isSymbolicLink()) throw new LocalizedError('appErrors.workspaceStorage.metadataNotFile')
   const data: unknown = JSON.parse(await readFile(path, 'utf8'))
-  if (!data || typeof data !== 'object') throw new Error('Workspace metadata is unavailable.')
+  if (!data || typeof data !== 'object') throw new LocalizedError('appErrors.workspaceStorage.metadataUnavailable')
   const record = data as Metadata
   if (record.version !== 3 || !Array.isArray(record.tabs)
     || !Array.isArray(record.mcpTabGroups) || !Array.isArray(record.savedTabGroups)
@@ -26,20 +27,20 @@ async function readAuthority(path: string): Promise<Metadata> {
     || (record.deletedWorkspaceStorageIds !== undefined && (!Array.isArray(record.deletedWorkspaceStorageIds)
       || record.deletedWorkspaceStorageIds.some(id => !canonicalStorageId(id))))
     || (record.workspaceStorageCleanupBlocked !== undefined && typeof record.workspaceStorageCleanupBlocked !== 'boolean')) {
-    throw new Error('Workspace metadata cannot authorize storage removal.')
+    throw new LocalizedError('appErrors.workspaceStorage.metadataUnauthorized')
   }
   const ids = [...record.mcpTabGroups, ...record.savedTabGroups].map(group => canonicalStorageId(group.storageId))
-  if (new Set(ids).size !== ids.length) throw new Error('Workspace storage references overlap.')
+  if (new Set(ids).size !== ids.length) throw new LocalizedError('appErrors.workspaceStorage.referencesOverlap')
   return record
 }
 
 export async function assertExclusiveWorkspaceStorage(path: string, workspaceId: string, storageId: string): Promise<void> {
   const canonical = canonicalStorageId(storageId)
-  if (!canonical) throw new Error('Workspace storage identity is invalid.')
+  if (!canonical) throw new LocalizedError('appErrors.workspaceStorage.identityInvalid')
   const raw = await readAuthority(path)
   if (raw.workspaceStorageCleanupBlocked || [...raw.mcpTabGroups, ...raw.savedTabGroups]
     .some(group => group.id !== workspaceId && canonicalStorageId(group.storageId) === canonical)) {
-    throw new Error('Workspace storage has ambiguous ownership; deletion was stopped.')
+    throw new LocalizedError('appErrors.workspaceStorage.ambiguousOwnership')
   }
 }
 
@@ -47,11 +48,11 @@ async function ordinaryDirectoryChain(path: string): Promise<void> {
   let current = resolve(path)
   while (true) {
     const entry = await lstat(current)
-    if (!entry.isDirectory() || entry.isSymbolicLink()) throw new Error('Storage cleanup requires ordinary directories.')
+    if (!entry.isDirectory() || entry.isSymbolicLink()) throw new LocalizedError('appErrors.workspaceStorage.ordinaryDirectories')
     if (current === parse(current).root) break
     current = dirname(current)
   }
-  if (await realpath(path) !== resolve(path)) throw new Error('Storage cleanup path changed.')
+  if (await realpath(path) !== resolve(path)) throw new LocalizedError('appErrors.workspaceStorage.pathChanged')
 }
 async function rejectLinkedTree(path: string): Promise<void> {
   const queue = [path]
@@ -59,7 +60,7 @@ async function rejectLinkedTree(path: string): Promise<void> {
   while (queue.length) {
     const current = queue.pop()!
     const entry = await lstat(current)
-    if (++inspected > 100_000 || entry.isSymbolicLink() || (!entry.isDirectory() && !entry.isFile())) throw new Error('Storage cleanup tree requires review.')
+    if (++inspected > 100_000 || entry.isSymbolicLink() || (!entry.isDirectory() && !entry.isFile())) throw new LocalizedError('appErrors.workspaceStorage.treeReview')
     if (entry.isDirectory()) for (const name of await readdir(current)) queue.push(join(current, name))
   }
 }

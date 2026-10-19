@@ -124,7 +124,8 @@ test('rejects sleeping and closed full-page preview targets without waking or se
     await expect(appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/wake this tab/i)
     expect(await appWindow.evaluate(`window.hronaut.getState().then(state => ({ active: state.activeTabId, sleeping: state.tabs.find(tab => tab.id === ${JSON.stringify(target.id)})?.sleeping }))`)).toEqual({ active: selected.id, sleeping: true })
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(target.id)})`)
-    await expect(appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/tab not found/i)
+    // The shell reads that the closed tab is gone; agents keep "Tab not found: <id>".
+    await expect(appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/tab is no longer available/i)
   } finally { await closeFixtureServer(server) }
 })
 

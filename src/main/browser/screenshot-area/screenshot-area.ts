@@ -1,3 +1,4 @@
+import { LocalizedError } from '../../localized-error.js'
 import { createNativeSelectionSession } from '../native-selection-session.js'
 import { cancelScreenshotAreaScript, screenshotAreaNativeInputScript, screenshotAreaScript } from '../page-scripts.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
@@ -18,7 +19,7 @@ function nativeSelectionContextUnavailable(error: unknown): boolean {
  */
 export async function captureScreenshotArea<Tab extends ScreenshotAreaTab>(access: ScreenshotAreaAccess<Tab>, tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
   const tab = access.getTab(tabId)
-  if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before capturing an area')
+  if (isHronautHomeUrl(tab.url)) throw new LocalizedError('appErrors.pageTools.areaOnHome')
   const webContents = tab.webContents
   const existing = access.screenshotAreaSessions().get(webContents.id)
   if (existing) {
@@ -78,13 +79,13 @@ export async function cancelScreenshotArea<Tab extends ScreenshotAreaTab>(access
 /** Captures the selected area of the tab's rendered page, scaled from its viewport to the view, as a PNG. */
 async function captureScreenshotAreaSelection<Tab extends ScreenshotAreaTab>(access: ScreenshotAreaAccess<Tab>, tab: Tab, selection: BrowserScreenshotAreaResult): Promise<Buffer> {
   const { clip, viewport } = selection
-  if (!clip || !viewport) throw new Error('The selected screenshot area was incomplete; try selecting it again')
+  if (!clip || !viewport) throw new LocalizedError('appErrors.pageTools.areaIncomplete')
   if ([clip.x, clip.y, clip.width, clip.height, viewport.width, viewport.height]
     .some((value) => !Number.isFinite(value))) {
-    throw new Error('Could not determine a finite screenshot area')
+    throw new LocalizedError('appErrors.pageTools.areaNotFinite')
   }
   if (clip.width < 2 || clip.height < 2 || viewport.width < 1 || viewport.height < 1) {
-    throw new Error('Drag a larger screenshot area')
+    throw new LocalizedError('appErrors.pageTools.areaTooSmall')
   }
   const webContents = tab.webContents
 
@@ -101,7 +102,7 @@ async function captureScreenshotAreaSelection<Tab extends ScreenshotAreaTab>(acc
     captureRect.width = Math.min(captureRect.width, Math.max(1, bounds.width - captureRect.x))
     captureRect.height = Math.min(captureRect.height, Math.max(1, bounds.height - captureRect.y))
     const image = await webContents.capturePage(captureRect)
-    if (image.isEmpty()) throw new Error('The selected website area did not produce an image')
+    if (image.isEmpty()) throw new LocalizedError('appErrors.pageTools.areaNoImage')
     return image.toPNG()
   })
 }

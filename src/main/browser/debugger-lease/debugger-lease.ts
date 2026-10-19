@@ -1,4 +1,5 @@
 import type { WebContents } from 'electron'
+import { LocalizedError } from '../../localized-error.js'
 import type { DebuggerLeaseAccess } from './debugger-lease-access.js'
 
 /**
@@ -16,7 +17,8 @@ export async function withDebugger<T>(access: DebuggerLeaseAccess, webContents: 
     await access.dialogMonitorAttach(webContents.id)
     validateAdmission?.()
     if (access.isDevToolsOpening(webContents.id) || webContents.isDevToolsOpened()) {
-      throw new Error('Close Developer Tools for this tab before using this MCP action')
+      // Agents read which action waits; a person reads to close Developer Tools and try again.
+      throw new LocalizedError('appErrors.pageTools.devToolsOpen', undefined, { message: 'Close Developer Tools for this tab before using this MCP action' })
     }
     const attachedHere = !webContents.debugger.isAttached()
     if (attachedHere) {

@@ -11,6 +11,7 @@ import {
 import { BROWSER_SNAPSHOT_FORMAT_VERSION, boundedSnapshotDelta, snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import { urlWithoutDetail } from '../../../shared/url-detail.js'
+import { LocalizedError } from '../../localized-error.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { snapshotScript } from '../page-scripts.js'
 import { isHronautHomeUrl } from '../url.js'
@@ -63,15 +64,18 @@ export async function snapshotDetails<Tab extends PageSnapshotsTab>(access: Page
     throw new Error(messages[snapshot.scopeError] ?? 'Snapshot root could not be captured')
   }
   if (snapshot.formatVersion !== BROWSER_SNAPSHOT_FORMAT_VERSION) {
-    throw new Error('The page snapshot format changed during capture. Capture a fresh snapshot.')
+    throw new LocalizedError('appErrors.pageTools.snapshotFormatChanged')
   }
   const current = access.findTab(tab.id)
   if (!current || current !== tab || current.webContents.isDestroyed()) {
-    throw new Error('The snapshot tab changed while it was being observed. Capture a fresh snapshot.')
+    throw new LocalizedError('appErrors.pageTools.snapshotTabChanged')
   }
   const invalidation = snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(current))
   if (invalidation) {
-    throw new Error(`The snapshot context changed during observation (${invalidation}). Capture a fresh snapshot.`)
+    // Agents read which part of the context changed; a person reads that the page changed.
+    throw new LocalizedError('appErrors.pageTools.snapshotContextChanged', undefined, {
+      message: `The snapshot context changed during observation (${invalidation}). Capture a fresh snapshot.`
+    })
   }
   const { targetNames, ...captured } = snapshot
   rememberAgentStepNames(current, targetNames)

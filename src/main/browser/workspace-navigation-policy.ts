@@ -1,5 +1,6 @@
 import { isIP } from 'node:net'
 import type { BrowserWorkspaceNavigationPolicy } from '../../shared/types.js'
+import { LocalizedError } from '../localized-error.js'
 
 const MAX_RULES = 100
 const MAX_RULE_LENGTH = 500
@@ -35,7 +36,7 @@ function canonicalHostname(value: string): string {
   try {
     parsed = new URL(`http://${value}`)
   } catch {
-    throw new TypeError('Navigation rule contains an invalid hostname.')
+    throw new LocalizedError('appErrors.siteAccess.invalidHostname')
   }
   if (
     !parsed.hostname
@@ -45,7 +46,7 @@ function canonicalHostname(value: string): string {
     || parsed.pathname !== '/'
     || parsed.search
     || parsed.hash
-  ) throw new TypeError('Navigation rule must contain only a hostname.')
+  ) throw new LocalizedError('appErrors.siteAccess.hostnameOnly')
   return parsed.hostname.toLowerCase().replace(/\.$/, '')
 }
 
@@ -59,21 +60,21 @@ function canonicalWildcardHostname(value: string): string {
   const hostname = canonicalHostname(value)
   const bare = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
   if (hostname.includes('*') || isIP(bare) !== 0 || hostname === 'localhost' || !hostname.includes('.')) {
-    throw new TypeError('Subdomain wildcard rules require a DNS hostname.')
+    throw new LocalizedError('appErrors.siteAccess.wildcardHostname')
   }
   return hostname
 }
 
 function assertOriginOnly(url: URL): void {
-  if (url.username || url.password) throw new TypeError('Navigation rules cannot contain credentials.')
+  if (url.username || url.password) throw new LocalizedError('appErrors.siteAccess.credentials')
   if (url.pathname !== '/' || url.search || url.hash) {
-    throw new TypeError('Navigation rules must be origins without paths, queries, or fragments.')
+    throw new LocalizedError('appErrors.siteAccess.originOnly')
   }
 }
 
 export function canonicalizeWorkspaceNavigationRule(input: string): string {
   const rule = input.trim().normalize('NFC')
-  if (!rule || rule.length > MAX_RULE_LENGTH) throw new TypeError('Navigation rule is empty or too long.')
+  if (!rule || rule.length > MAX_RULE_LENGTH) throw new LocalizedError('appErrors.siteAccess.length')
 
   if (rule.startsWith('*.')) return `*.${canonicalWildcardHostname(rule.slice(2))}`
 
@@ -81,7 +82,7 @@ export function canonicalizeWorkspaceNavigationRule(input: string): string {
   if (wildcardPort) {
     const protocol = wildcardPort[1]!.toLowerCase()
     const hostname = canonicalHostname(wildcardPort[2]!)
-    if (!isLoopbackHostname(hostname)) throw new TypeError('Port wildcards are allowed only for loopback hosts.')
+    if (!isLoopbackHostname(hostname)) throw new LocalizedError('appErrors.siteAccess.portWildcard')
     return `${protocol}://${hostname}:*`
   }
 
@@ -94,7 +95,7 @@ export function canonicalizeWorkspaceNavigationRule(input: string): string {
     const hostnameInput = hasPort ? authority.slice(0, separator) : authority
     const port = hasPort ? authority.slice(separator + 1) : ''
     if (port && (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535)) {
-      throw new TypeError('Navigation rule contains an invalid port.')
+      throw new LocalizedError('appErrors.siteAccess.invalidPort')
     }
     const hostname = canonicalWildcardHostname(hostnameInput)
     const normalizedPort = (protocol === 'https' && Number(port) === 443)
@@ -108,10 +109,10 @@ export function canonicalizeWorkspaceNavigationRule(input: string): string {
   try {
     url = new URL(rule)
   } catch {
-    throw new TypeError('Navigation rule must be an HTTP(S) origin or supported wildcard.')
+    throw new LocalizedError('appErrors.siteAccess.unsupportedRule')
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new TypeError('Navigation rules support only HTTP and HTTPS origins.')
+    throw new LocalizedError('appErrors.siteAccess.httpOnly')
   }
   assertOriginOnly(url)
   return url.origin
@@ -127,7 +128,7 @@ export function normalizeWorkspaceNavigationPolicy(value: unknown): BrowserWorks
     throw new TypeError('Workspace navigation policy mode is invalid.')
   }
   if (!Array.isArray(candidate.rules) || candidate.rules.length > MAX_RULES || candidate.rules.some((rule) => typeof rule !== 'string')) {
-    throw new TypeError(`Workspace navigation policy must contain at most ${MAX_RULES} text rules.`)
+    throw new LocalizedError('appErrors.siteAccess.tooManyRules', { max: MAX_RULES })
   }
   if (candidate.mode === 'unrestricted') return { mode: 'unrestricted', rules: [] }
   const rules = [...new Set(candidate.rules.map((rule) => canonicalizeWorkspaceNavigationRule(rule as string)))]

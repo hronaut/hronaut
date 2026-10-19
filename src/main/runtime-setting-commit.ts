@@ -1,3 +1,5 @@
+import { LocalizedError } from './localized-error.js'
+
 export interface RuntimeSettingCommitOptions<T> {
   previous: T
   next: T
@@ -14,10 +16,7 @@ export async function commitRuntimeSetting<T>(options: RuntimeSettingCommitOptio
     try {
       await options.apply(options.previous)
     } catch (rollbackError) {
-      throw new AggregateError(
-        [applyError, rollbackError],
-        'The runtime setting change failed and its previous state could not be restored'
-      )
+      throw new LocalizedError('appErrors.settings.runtimeRollbackFailed', undefined, { cause: new AggregateError([applyError, rollbackError]) })
     }
     throw applyError
   }
@@ -27,10 +26,7 @@ export async function commitRuntimeSetting<T>(options: RuntimeSettingCommitOptio
     try {
       await options.apply(options.previous)
     } catch (rollbackError) {
-      throw new AggregateError(
-        [persistError, rollbackError],
-        'The runtime setting could not be persisted or restored'
-      )
+      throw new LocalizedError('appErrors.settings.runtimePersistFailed', undefined, { cause: new AggregateError([persistError, rollbackError]) })
     }
     throw persistError
   }

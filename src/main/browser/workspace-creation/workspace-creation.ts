@@ -1,5 +1,6 @@
 import type { BrowserState, BrowserWorkspaceCreateOptions } from '../../../shared/types.js'
 import type { WorkspaceTemplateImportResult } from '../../../shared/workspace-template.js'
+import { LocalizedError } from '../../localized-error.js'
 import { RetainedBrowserWorkspaceError } from '../workspace-errors.js'
 import { WorkspaceTemplateImporter } from '../workspace-template-import.js'
 import type { WorkspaceCreationAccess } from './workspace-creation-access.js'
@@ -35,7 +36,7 @@ export async function importWorkspaceTemplate(access: WorkspaceCreationAccess, t
  * can be deleted.
  */
 export async function createWorkspace(access: WorkspaceCreationAccess, options: BrowserWorkspaceCreateOptions): Promise<BrowserState> {
-  if (!options.name.trim()) throw new TypeError('Workspace name cannot be empty.')
+  if (!options.name.trim()) throw new LocalizedError('appErrors.workspace.nameEmpty')
   const workspace = await access.createMcpTabGroup(
     options.name,
     options.color,

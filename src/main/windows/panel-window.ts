@@ -2,6 +2,7 @@ import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
 import { rememberedSitePermissions } from '../browser-session.js'
 import { loadNativeWindowWithRollback } from '../native-window-load.js'
+import { LocalizedError } from '../localized-error.js'
 import { restoreWindowBounds, type SavedWindowState, type WindowStateStore } from '../window-state.js'
 import type { BookmarkStore } from '../bookmark-store.js'
 import type { BrowserTabsManager } from '../browser/tabs-manager.js'
@@ -131,7 +132,7 @@ export function createPanelWindow(host: PanelWindowHost): {
   }
 
   async function openPanelWindow(panel: DetachablePanelId): Promise<void> {
-    if (!host.mainWindow() || host.mainWindow()!.isDestroyed()) throw new Error('The Hronaut window is not available')
+    if (!host.mainWindow() || host.mainWindow()!.isDestroyed()) throw new LocalizedError('appErrors.settings.windowUnavailable')
     const ownerWindow = host.mainWindow()!
     host.refs.panel = panel
     if (panelWindowOpening) {
@@ -163,7 +164,7 @@ export function createPanelWindow(host: PanelWindowHost): {
       const primaryDisplay = screen.getPrimaryDisplay()
       const orderedDisplays = [primaryDisplay, ...displays.filter((display) => display.id !== primaryDisplay.id)]
       const savedPanelState = host.refs.lastState ?? await host.refs.stateStore?.load() ?? null
-      if (!host.mainWindow() || host.mainWindow()!.isDestroyed()) throw new Error('The Hronaut window is not available')
+      if (!host.mainWindow() || host.mainWindow()!.isDestroyed()) throw new LocalizedError('appErrors.settings.windowUnavailable')
       const panelBounds = savedPanelState
         ? restoreWindowBounds(savedPanelState, orderedDisplays, { width, height })
         : {

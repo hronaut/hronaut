@@ -56,14 +56,14 @@ export async function transferWorkspaceStorage(
 ): Promise<BrowserWorkspaceStorageTransferResult> {
   const sourceId = options.sourceWorkspaceId
   const targetId = options.targetWorkspaceId
-  if (sourceId === targetId) throw new Error('Choose two different workspaces.')
+  if (sourceId === targetId) throw new LocalizedError('appErrors.workspaceData.sameWorkspace')
   const source = access.mcpTabGroups().get(sourceId) ?? access.savedTabGroups().get(sourceId)
   const target = access.mcpTabGroups().get(targetId) ?? access.savedTabGroups().get(targetId)
-  if (!source || !target) throw new Error('Source or destination workspace is unavailable.')
+  if (!source || !target) throw new LocalizedError('appErrors.workspaceData.unavailable')
   const closing = [source, target].find((workspace) => access.isClosingWorkspace(workspace.id))
-  if (closing) throw new Error(`"${closing.name}" was just closed. Undo the close to move or copy its data.`)
+  if (closing) throw new LocalizedError('appErrors.workspaceData.justClosed', { name: closing.name })
   const mode = options.mode
-  if (mode === 'move' && (!access.savedTabGroups().has(sourceId) || !access.savedTabGroups().has(targetId))) throw new Error('Archive both workspaces before moving data, or choose Copy to keep their pages open.')
+  if (mode === 'move' && (!access.savedTabGroups().has(sourceId) || !access.savedTabGroups().has(targetId))) throw new LocalizedError('appErrors.workspaceData.moveRequiresArchive')
   const action = mode === 'move' ? 'moving workspace data' : 'copying workspace data'
   const lock = <T>(id: string, operation: () => Promise<T>): Promise<T> => (
     access.mcpTabGroups().has(id)

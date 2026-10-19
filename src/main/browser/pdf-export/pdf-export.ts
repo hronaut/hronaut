@@ -1,5 +1,6 @@
 import { basename } from 'node:path'
 import type { BrowserPdfExport, BrowserPdfOptions } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import type { PendingPdfExport } from '../pdf-export-publication.js'
 import { CSS_PAGE_SIZE_PAGE_LIMIT, pdfPageCount } from '../pdf-pages.js'
 import type { PdfExportAccess, PdfExportTab } from './pdf-export-access.js'
@@ -31,10 +32,10 @@ export async function savePdf<Tab extends PdfExportTab>(access: PdfExportAccess<
       }
     }
     if (access.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
-      throw new Error('The tab closed while exporting its PDF. Open the page and export again.')
+      throw new LocalizedError('appErrors.pageTools.pdfTabClosed')
     }
     if (documentCommitted || tab.navigationGeneration !== navigationGeneration) {
-      throw new Error('The page changed while exporting its PDF. Export the current page again.')
+      throw new LocalizedError('appErrors.pageTools.pdfPageChanged')
     }
   }
   assertCurrent()
