@@ -20,22 +20,24 @@ export function mcpCapabilityProfileInputFromPreset(
     ? BROWSER_TOOL_CATALOG.filter(tool => !tool.name.startsWith('wallet_')
       && (tool.annotations.readOnlyHint || READ_ONLY_MULTI_ACTIONS[tool.name]))
     : mcpToolCatalogForSet(input.preset)
-  const allowedActions = input.preset === 'read-only'
-    ? Object.fromEntries(catalog.flatMap(tool => {
-        const actions = READ_ONLY_MULTI_ACTIONS[tool.name]
-        return actions ? [[tool.name, [...actions]]] : []
-      }))
-    : undefined
   const argumentValueDigests = input.argumentConstraints
     ? Object.fromEntries(Object.entries(input.argumentConstraints).map(([path, values]) => [
         path,
         values.map(mcpCapabilityArgumentValueDigest)
       ]))
     : undefined
+  const allowedTools = catalog.filter(tool => !MCP_REQUIRED_ARGUMENT_CONSTRAINTS[tool.name]
+    || input.preset !== 'read-only' && !!argumentValueDigests?.[MCP_REQUIRED_ARGUMENT_CONSTRAINTS[tool.name]!.path]?.length).map(tool => tool.name)
+  // Only tools the profile allows may name actions; the store refuses actions for any other tool.
+  const allowedActions = input.preset === 'read-only'
+    ? Object.fromEntries(allowedTools.flatMap(tool => {
+        const actions = READ_ONLY_MULTI_ACTIONS[tool]
+        return actions ? [[tool, [...actions]]] : []
+      }))
+    : undefined
   return {
     name: input.name,
-    allowedTools: catalog.filter(tool => !MCP_REQUIRED_ARGUMENT_CONSTRAINTS[tool.name]
-      || input.preset !== 'read-only' && !!argumentValueDigests?.[MCP_REQUIRED_ARGUMENT_CONSTRAINTS[tool.name]!.path]?.length).map(tool => tool.name),
+    allowedTools,
     ...(allowedActions && Object.keys(allowedActions).length ? { allowedActions } : {}),
     operationClasses: input.preset === 'read-only' ? ['read'] : [...MCP_CAPABILITY_OPERATION_CLASSES],
     ...(input.workspaceIds ? { workspaceIds: input.workspaceIds } : {}),
