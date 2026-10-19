@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/vue'
+import { fireEvent, render, screen } from '@testing-library/vue'
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import BrowserTabsBar from '../../src/renderer/src/components/BrowserTabsBar.vue'
@@ -73,11 +73,8 @@ function renderTabs(state: BrowserState) {
   })
 }
 
-function stopButton(container: Element, tabId: 'a' | 'b'): HTMLElement {
-  const tabButton = container.querySelector(`[data-tab-id="${tabId}"]`)
-  const stop = tabButton?.nextElementSibling
-  if (!(stop instanceof HTMLElement) || !stop.classList.contains('tab-pwa-stop')) throw new Error(`No stop button for tab ${tabId}`)
-  return stop
+function stopButton(tabId: 'a' | 'b'): HTMLElement {
+  return screen.getByTestId(`worker-capture-stop-${tabId}`)
 }
 
 afterEach(() => { Reflect.deleteProperty(window, 'hronaut') })
@@ -85,31 +82,31 @@ afterEach(() => { Reflect.deleteProperty(window, 'hronaut') })
 describe('BrowserTabsBar worker capture stop', () => {
   it('shows a failed stop on the tab it failed for until that tab\'s capture ends or a later stop works', async () => {
     const pwaLifecycle = vi.fn(async ({ tabId }: { tabId: string }) => {
-      if (tabId === 'a') throw new Error('Could not stop observing workers on A')
+      if (tabId === 'a') throw new Error("Error invoking remote method 'browser:pwa-lifecycle': Error: Could not stop observing workers on A")
       return null
     })
     Object.defineProperty(window, 'hronaut', { configurable: true, value: { pwaLifecycle } })
     const view = renderTabs(browserState({ a: true, b: true }))
 
-    await fireEvent.click(stopButton(view.container, 'a'))
+    await fireEvent.click(stopButton('a'))
     await flushPromises()
     expect(pwaLifecycle).toHaveBeenCalledWith({ tabId: 'a', action: 'stop' })
-    expect(stopButton(view.container, 'a')).toHaveAttribute('data-tooltip', 'Could not stop observing workers on A')
+    expect(stopButton('a')).toHaveAttribute('data-tooltip', 'Could not stop observing workers on A')
     // Tab B's capture never failed, so its button still offers to stop it.
-    expect(stopButton(view.container, 'b')).toHaveAttribute('data-tooltip', 'Stop observing workers')
+    expect(stopButton('b')).toHaveAttribute('data-tooltip', 'Stop observing workers')
 
     // A later stop that works takes the reason away.
     pwaLifecycle.mockResolvedValueOnce(null)
-    await fireEvent.click(stopButton(view.container, 'a'))
+    await fireEvent.click(stopButton('a'))
     await flushPromises()
-    expect(stopButton(view.container, 'a')).toHaveAttribute('data-tooltip', 'Stop observing workers')
+    expect(stopButton('a')).toHaveAttribute('data-tooltip', 'Stop observing workers')
 
     // So does the capture ending: a new capture on the tab starts without the old reason.
-    await fireEvent.click(stopButton(view.container, 'a'))
+    await fireEvent.click(stopButton('a'))
     await flushPromises()
-    expect(stopButton(view.container, 'a')).toHaveAttribute('data-tooltip', 'Could not stop observing workers on A')
+    expect(stopButton('a')).toHaveAttribute('data-tooltip', 'Could not stop observing workers on A')
     await view.rerender({ state: browserState({ a: false, b: true }) })
     await view.rerender({ state: browserState({ a: true, b: true }) })
-    expect(stopButton(view.container, 'a')).toHaveAttribute('data-tooltip', 'Stop observing workers')
+    expect(stopButton('a')).toHaveAttribute('data-tooltip', 'Stop observing workers')
   })
 })

@@ -50,6 +50,8 @@ function createController() {
   const updateNoticeOpen = ref(false)
   const zoomOpen = ref(true)
   const tabSearchOpen = ref(true)
+  const downloadsOpen = ref(false)
+  const commandPaletteOpen = ref(false)
   const focusInput = vi.fn()
   const controller = useTabNavigationController({
     state,
@@ -62,12 +64,13 @@ function createController() {
     updateNoticeOpen,
     zoomOpen,
     tabSearchOpen,
+    otherSurfacesOpen: [downloadsOpen, commandPaletteOpen],
     runFindTransition: async (action) => { await action() },
     focusInput,
     expandTabGroup: vi.fn(),
     onWorkspaceError: vi.fn()
   })
-  return { created, settingsOpen, zoomOpen, tabSearchOpen, focusInput, controller }
+  return { created, settingsOpen, zoomOpen, tabSearchOpen, downloadsOpen, commandPaletteOpen, focusInput, controller }
 }
 
 describe('useTabNavigationController', () => {
@@ -94,5 +97,20 @@ describe('useTabNavigationController', () => {
     await expect(opening).resolves.toBe(true)
     expect(harness.settingsOpen.value).toBe(true)
     expect(harness.focusInput).not.toHaveBeenCalled()
+  })
+
+  it('leaves Downloads or Commands, opened while the new tab was being created, open and focused', async () => {
+    for (const opened of ['downloadsOpen', 'commandPaletteOpen'] as const) {
+      const harness = createController()
+
+      const opening = harness.controller.openNewTab()
+      harness[opened].value = true
+      harness.created.resolve(browserState('created', ['current', 'created']))
+
+      await expect(opening, opened).resolves.toBe(true)
+      expect(harness[opened].value, opened).toBe(true)
+      expect(harness.zoomOpen.value, opened).toBe(true)
+      expect(harness.focusInput, opened).not.toHaveBeenCalled()
+    }
   })
 })

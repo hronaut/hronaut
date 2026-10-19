@@ -194,13 +194,26 @@ describe('UiPopover', () => {
     expect(screen.getByRole('button', { name: 'Agent status' })).toHaveFocus()
   })
 
-  it('stays open for an Escape that ends text composition in a field outside it', async () => {
+  it.each([
+    ['marked as composing', { isComposing: true }],
+    ['reported with the IME key code', { keyCode: 229 }]
+  ])('stays open for an Escape that ends text composition in a field outside it, %s', async (_name, init) => {
     const { open, address } = renderOpenPopover()
     address.focus()
 
-    expect((await escape(address, { isComposing: true })).defaultPrevented).toBe(false)
+    expect((await escape(address, init)).defaultPrevented).toBe(false)
     expect(open.value).toBe(true)
     expect(address).toHaveFocus()
+  })
+
+  it('returns focus to its trigger on Escape when nothing has the focus', async () => {
+    const { open } = renderOpenPopover()
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    expect(document.activeElement).toBe(document.body)
+
+    await escape(document.body)
+    expect(open.value).toBe(false)
+    expect(screen.getByRole('button', { name: 'Agent status' })).toHaveFocus()
   })
 
   it('leaves an Escape another control already handled to that control', async () => {
