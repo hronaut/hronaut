@@ -284,9 +284,9 @@ import type { SplitViewAccess } from './split-view/split-view-access.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
 import type { WindowLayoutAccess } from './window-layout/window-layout-access.js'
 import { getSplitDivider, layout, publishSplitDivider } from './window-layout/window-layout.js'
-import { browserViewBounds, pageArea, setContentInsets, setToolbarHeight, shownPageFullscreenTab } from './window-layout/content-area.js'
+import { browserViewBounds, contentAreaBounds, pageArea, setContentInsets, setToolbarHeight, shownPageFullscreenTab } from './window-layout/content-area.js'
 import type { PageFullscreenAccess } from './page-fullscreen/page-fullscreen-access.js'
-import { attachPageFullscreenEvents, exitHiddenPageFullscreen, exitPageFullscreen, watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
+import { attachPageFullscreenEvents, exitHiddenPageFullscreen, exitPageFullscreen, exitPageFullscreenCovering, watchWindowFullScreen, windowFullScreenToSave } from './page-fullscreen/page-fullscreen.js'
 import type { BrowserTabSelectionOptions, TabSelectionAccess } from './tab-selection/tab-selection-access.js'
 import { selectAgentTabAndWait, selectTab, selectTabAndWait } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
@@ -1654,6 +1654,7 @@ export class BrowserTabsManager {
       orderedTabs: () => this.orderedTabs(),
       closedTabs: () => this.closedTabs,
       activeTabId: () => this.activeTabId,
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
       options: () => this.options,
       inspectionPermissions: () => this.inspectionPermissions,
       deletedWorkspaceStorageIds: () => this.deletedWorkspaceStorageIds,
@@ -2202,23 +2203,26 @@ export class BrowserTabsManager {
     return fillCredential(this.credentialFillAccess(), tabId, expectedContext, username, password)
   }
 
+  /**
+   * Opens an agent's tab, which becomes its workspace's active tab without
+   * being shown. Follow agents shows it through the agent's call on it, so it
+   * waits as for any call, such as while a page fills the window.
+   */
   async newAgentTab(options: NewTabOptions): Promise<BrowserState> {
-    return this.newTab(options, this.followAgentActivity)
+    return this.newTab(options, false)
   }
 
   /**
    * The narrow view opening a new tab gets of this manager's private tabs,
-   * workspaces, options, agent follow, workspace navigation checks, tab
-   * creation, Home, label saves and state. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit tests
-   * do) still provide it. The delegates below return the feature's promise
-   * directly, so a labeled tab's save is still admitted before the caller's
-   * next tick.
+   * workspaces, options, workspace navigation checks, tab creation, Home,
+   * label saves and state. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it. The delegates below return the feature's promise directly, so a
+   * labeled tab's save is still admitted before the caller's next tick.
    */
   private newTabsAccess(): NewTabsAccess<BrowserTab> {
     return {
       options: () => this.options,
-      followAgentActivity: () => this.followAgentActivity,
       tabs: () => this.tabs,
       mcpTabGroups: () => this.mcpTabGroups,
       ensureHumanWorkspace: () => this.ensureHumanWorkspace(),
@@ -2628,10 +2632,10 @@ export class BrowserTabsManager {
 
   /**
    * The narrow view selecting a tab gets of this manager's private tabs,
-   * selection generation, active tab, split view, window, agent following,
-   * tab waking, workspace activation, layout, focus and state publication.
-   * It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it. The
+   * selection generation, active tab, split view, window, pages in full
+   * screen, tab waking, workspace activation, layout, focus and state
+   * publication. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. The
    * delegates below return the feature's value or promise directly, so
    * callers see the same ticks as before.
    */
@@ -2647,8 +2651,9 @@ export class BrowserTabsManager {
       writeSplitView: (splitView) => { this.splitView = splitView },
       splitViewContains: (tabId) => this.splitViewContains(tabId),
       window: () => this.window,
-      followAgentActivity: () => this.followAgentActivity,
+      exitPageFullscreenCovering: (tabId) => exitPageFullscreenCovering(this.pageFullscreenAccess(), tabId),
       wakeTab: (tabId) => this.wakeTab(tabId),
+      workspaceActiveTabId: (tab) => tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId)?.activeTabId : undefined,
       markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
       layout: () => this.layout(),
       focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
@@ -2741,10 +2746,12 @@ export class BrowserTabsManager {
       findTab: (tabId) => this.tabs.get(tabId),
       orderedTabs: () => this.orderedTabs(),
       closedTabs: () => this.closedTabs,
-      closeTabInternal: (tabId, ensureReplacement, respectBeforeUnload) => this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload),
+      closeTabInternal: (tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection) => (
+        this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection)
+      ),
       pendingHumanTabCloses: () => this.pendingHumanTabCloses,
-      performCloseTab: (tabId, ensureReplacement, respectBeforeUnload, forceClose) =>
-        this.performCloseTab(tabId, ensureReplacement, respectBeforeUnload, forceClose),
+      performCloseTab: (tabId, ensureReplacement, respectBeforeUnload, forceClose, yieldsToNewerSelection) =>
+        this.performCloseTab(tabId, ensureReplacement, respectBeforeUnload, forceClose, yieldsToNewerSelection),
       reopenClosedTabEntry: (closedTabId, active) => this.reopenClosedTabEntry(closedTabId, active),
       withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
       reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
@@ -2773,7 +2780,7 @@ export class BrowserTabsManager {
       splitViewContains: (tabId) => this.splitViewContains(tabId),
       window: () => this.window,
       closeTabTransition: (tab) => this.closeTabTransition(tab),
-      browserViewBounds: () => this.browserViewBounds(),
+      contentAreaBounds: () => contentAreaBounds(this.windowLayoutAccess()),
       tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
       roundPageCorners: (view) => this.roundPageCorners(view),
       publishPageGeometry: () => this.publishPageGeometry(),
@@ -2812,15 +2819,26 @@ export class BrowserTabsManager {
     return { splitPartnerId, nextId }
   }
 
-  private async prepareActiveCloseReplacement(tab: BrowserTab): Promise<boolean> {
+  /**
+   * Wakes the sleeping tab that replaces the shown tab before it closes. False
+   * when the close stops: the tab closed meanwhile, or the close yields to a
+   * tab selected while the replacement wakes, as the person's own close does.
+   * A close that does not yield, such as an agent's or a whole workspace's,
+   * still closes the tab, which needs no replacement once another tab shows.
+   */
+  private async prepareActiveCloseReplacement(tab: BrowserTab, yieldsToNewerSelection: boolean): Promise<boolean> {
     if (tab.id !== this.activeTabId) return true
     const selectionGeneration = this.tabSelectionGeneration
+    /** Whether the close stops, goes on with no replacement to wake, or still waits for the tab's replacement. */
+    const nextStep = (): 'stop' | 'close' | 'wake' => {
+      if (this.tabs.get(tab.id) !== tab) return 'stop'
+      if (this.activeTabId === tab.id && this.tabSelectionGeneration === selectionGeneration) return 'wake'
+      if (yieldsToNewerSelection) return 'stop'
+      return this.activeTabId === tab.id ? 'wake' : 'close'
+    }
     while (true) {
-      if (
-        this.tabs.get(tab.id) !== tab
-        || this.activeTabId !== tab.id
-        || this.tabSelectionGeneration !== selectionGeneration
-      ) return false
+      const step = nextStep()
+      if (step !== 'wake') return step === 'close'
       const transition = this.closeTabTransition(tab)
       if (!transition.nextId) return true
       const replacement = this.tabs.get(transition.nextId)
@@ -2828,11 +2846,8 @@ export class BrowserTabsManager {
       try {
         await this.wakeTab(replacement.id)
       } catch (error) {
-        if (
-          this.tabs.get(tab.id) !== tab
-          || this.activeTabId !== tab.id
-          || this.tabSelectionGeneration !== selectionGeneration
-        ) return false
+        const stepAfterFailure = nextStep()
+        if (stepAfterFailure !== 'wake') return stepAfterFailure === 'close'
         const currentReplacementId = this.closeTabTransition(tab).nextId
         if (this.tabs.get(replacement.id) !== replacement || currentReplacementId !== replacement.id) {
           continue
@@ -2848,16 +2863,18 @@ export class BrowserTabsManager {
   private closeTabInternal(
     tabId: string,
     ensureReplacement: boolean,
-    respectBeforeUnload = false
+    respectBeforeUnload = false,
+    yieldsToNewerSelection = false
   ): Promise<BrowserState> {
-    return this.withTabLabelLifecycle(() => closeTabAfterLabelSave(this.personTabCloseAccess(), tabId, ensureReplacement, respectBeforeUnload))
+    return this.withTabLabelLifecycle(() => closeTabAfterLabelSave(this.personTabCloseAccess(), tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection))
   }
 
   private async performCloseTab(
     tabId: string,
     ensureReplacement: boolean,
     respectBeforeUnload: boolean,
-    forceClose: boolean
+    forceClose: boolean,
+    yieldsToNewerSelection: boolean
   ): Promise<BrowserState> {
     const tab = this.getTab(tabId)
     const webContents = tab.webContents
@@ -2878,7 +2895,7 @@ export class BrowserTabsManager {
       if (replacement) this.selectTab(replacement.id)
       else if (!webContents.isDestroyed()) this.selectTab(tab.id)
     }
-    if (!(await this.prepareActiveCloseReplacement(tab))) return this.getState()
+    if (!(await this.prepareActiveCloseReplacement(tab, yieldsToNewerSelection))) return this.getState()
     if (this.tabs.get(tab.id) !== tab) return this.getState()
     let stagedClose: ReturnType<BrowserTabsManager['stageBeforeUnloadClose']> | undefined
     if (respectBeforeUnload && !forceClose && !webContents.isDestroyed()) {
@@ -2921,7 +2938,7 @@ export class BrowserTabsManager {
           || webContents.isDestroyed()
           || tab.navigationGeneration !== navigationGeneration
         ) return this.getState()
-        return this.performCloseTab(tabId, ensureReplacement, true, true)
+        return this.performCloseTab(tabId, ensureReplacement, true, true, yieldsToNewerSelection)
       }
       if (this.tabs.get(tab.id) !== tab) {
         stagedClose.cleanup()
@@ -3012,17 +3029,17 @@ export class BrowserTabsManager {
     cancelNativeSelectionSessions(this.nativeSelectionsAccess(), tab)
   }
 
-  private async closeTabs(
-    tabIds: string[],
-    ensureReplacement = true,
-    respectBeforeUnload = false
-  ): Promise<BrowserState> {
-    for (const tabId of tabIds) {
-      if (this.tabs.has(tabId)) {
-        const requestedTab = this.tabs.get(tabId)
-        await this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload)
-        if (respectBeforeUnload && this.tabs.get(tabId) === requestedTab) break
-      }
+  /**
+   * Closes tabs together, such as a workspace's. The active one closes last,
+   * so it hands over to a tab that stays open rather than waking a sleeping
+   * one only to close it next.
+   */
+  private async closeTabs(tabIds: string[], ensureReplacement = true): Promise<BrowserState> {
+    const pending = [...tabIds]
+    while (pending.length) {
+      const inactiveIndex = pending.findIndex((tabId) => tabId !== this.activeTabId)
+      const tabId = pending.splice(inactiveIndex === -1 ? 0 : inactiveIndex, 1)[0]!
+      if (this.tabs.has(tabId)) await this.closeTabInternal(tabId, ensureReplacement)
     }
     return this.getState()
   }
@@ -3762,7 +3779,7 @@ export class BrowserTabsManager {
       layout: () => this.layout(),
       publishPageGeometry: () => this.publishPageGeometry(),
       tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
-      browserViewBounds: () => this.browserViewBounds()
+      contentAreaBounds: () => contentAreaBounds(this.windowLayoutAccess())
     }
   }
 
@@ -4774,10 +4791,10 @@ export class BrowserTabsManager {
 
   /**
    * The narrow view following a page's full screen gets of this manager's
-   * private tabs, window, active tab, split view, the person's own full
-   * screen and layout. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still
-   * provide it.
+   * private tabs, window, active tab, split view, offscreen capture set, view
+   * bounds, the person's own full screen and layout. It is a prototype method
+   * rather than a field, so managers created without the constructor (as
+   * unit tests do) still provide it.
    */
   private pageFullscreenAccess(): PageFullscreenAccess<BrowserTab> {
     return {
@@ -4785,6 +4802,9 @@ export class BrowserTabsManager {
       window: () => this.window,
       tabs: () => this.tabs.values(),
       isShown: (tabId) => this.activeTabId === tabId || this.splitViewContains(tabId),
+      offscreenCaptureTabIds: () => this.offscreenCaptureTabIds,
+      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
+      contentAreaBounds: () => contentAreaBounds(this.windowLayoutAccess()),
       personFullScreen: () => this.personFullScreen,
       writePersonFullScreen: (fullScreen) => { this.personFullScreen = fullScreen },
       layout: () => this.layout()
@@ -5060,7 +5080,8 @@ export class BrowserTabsManager {
       view.setBackgroundColor('#ffffff')
       // Background tabs need a real initial layout even before their first selection.
       // A zero-sized viewport cannot paint a meaningful explicit page preview.
-      view.setBounds(this.browserViewBounds())
+      // Their space is the page card's, even while a shown page in full screen fills the window.
+      view.setBounds(contentAreaBounds(this.windowLayoutAccess()))
       this.roundPageCorners(view)
     } catch (error) {
       // This view has no registered tab or owner yet, so normal tab rollback
@@ -5505,10 +5526,9 @@ export class BrowserTabsManager {
   /**
    * The narrow view a page's window open handler gets of this manager's
    * private opened tab observations, workspace navigation policy, options,
-   * tab creation, in-flight agent input and activity following. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. Each member reads the
-   * manager when called.
+   * tab creation and in-flight agent input. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit tests
+   * do) still provide it. Each member reads the manager when called.
    */
   private windowOpenHandlerAccess(): WindowOpenHandlerAccess<BrowserTab> {
     return {
@@ -5516,8 +5536,7 @@ export class BrowserTabsManager {
       workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
       options: () => this.options,
       createTab: (options) => this.createTab(options),
-      agentInputWebContents: () => this.agentInputWebContents,
-      followAgentActivity: () => this.followAgentActivity
+      agentInputWebContents: () => this.agentInputWebContents
     }
   }
 
@@ -5860,7 +5879,7 @@ export class BrowserTabsManager {
       splitViewContains: (tabId) => this.splitViewContains(tabId),
       layout: () => this.layout(),
       tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
-      browserViewBounds: () => this.browserViewBounds(),
+      contentAreaBounds: () => contentAreaBounds(this.windowLayoutAccess()),
       reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab)
     }
   }

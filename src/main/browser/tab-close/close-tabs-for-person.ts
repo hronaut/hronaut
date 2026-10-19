@@ -15,7 +15,8 @@ export async function closeTabsForPerson<Tab extends PersonTabCloseTab>(access: 
       if (!tab) continue
       const index = tabPeers(access, tab).indexOf(tab)
       const remembered = new Set(access.closedTabs().map((entry) => entry.id))
-      await access.closeTabInternal(tabId, true, true)
+      // The person's own close yields to a tab they select while the one that replaces it wakes.
+      await access.closeTabInternal(tabId, true, true, true)
       if (access.findTab(tabId) === tab) break
       const entry = access.closedTabs().findLast((candidate) => !remembered.has(candidate.id) && candidate.url === tab.url && candidate.mcpGroupId === tab.mcpGroupId)
       if (entry) closed.push({ closedTabId: entry.id, index, title: entry.label || tabTitleForDisplay(entry, access.text('tabSearch.newTabTitle')) })

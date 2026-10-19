@@ -26,15 +26,12 @@ export interface NewTabCreation<Tab extends NewTabsTab> {
 
 /**
  * What opening a new tab, labeled or not, needs from the tab manager, which
- * keeps the tabs, the workspaces, its options, agent follow, workspace
- * navigation checks, tab creation, Home, label saves and the browser state
- * private.
+ * keeps the tabs, the workspaces, its options, workspace navigation checks,
+ * tab creation, Home, label saves and the browser state private.
  */
 export interface NewTabsAccess<Tab extends NewTabsTab> {
   /** The tab manager's options. */
   options(): NewTabsOptions
-  /** Whether the person follows the agent's activity, so the agent's new tab shows. */
-  followAgentActivity(): boolean
   /** The open tabs by id. */
   tabs(): ReadonlyMap<string, Tab>
   /** The open workspaces by id. */

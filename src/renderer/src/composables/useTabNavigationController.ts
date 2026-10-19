@@ -11,7 +11,7 @@ export interface TabNavigationControllerOptions extends AddressFocusControllerOp
 }
 
 export function useTabNavigationController(options: TabNavigationControllerOptions) {
-  const { focus: focusAddress } = useAddressFocusController(options)
+  const { focus: focusAddress, begin: beginAddressFocus } = useAddressFocusController(options)
   const {
     openDefault: openNewTab,
     openInWorkspace: newTabInWorkspace
@@ -21,7 +21,7 @@ export function useTabNavigationController(options: TabNavigationControllerOptio
     syncState: options.syncState,
     settingsOpen: options.settingsOpen,
     tabSearchOpen: options.tabSearchOpen,
-    focusAddress: async (expectedActiveTabId) => { await focusAddress(expectedActiveTabId) },
+    beginAddressFocus,
     expandTabGroup: options.expandTabGroup,
     onWorkspaceError: options.onWorkspaceError
   })

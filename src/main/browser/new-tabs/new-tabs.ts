@@ -10,7 +10,9 @@ const MAX_TABS = MAX_BROWSER_TABS
 /**
  * Opens an agent's website tab in its workspace and saves its label, admitted
  * before creation yields so later edits and lifecycle copies queue behind it.
- * The created tab stays the agent's even when the label is not saved.
+ * The created tab stays the agent's even when the label is not saved. It is
+ * not shown: Follow agents shows it through the agent's call on it, so it
+ * waits as for any call, such as while a page fills the window.
  */
 export async function newLabeledAgentTab<Tab extends NewTabsTab>(access: NewTabsAccess<Tab>, options: NewTabOptions, value: string, validateAuthority: () => void, onCreated: (id: string) => void, onCreationAttempt: () => void): Promise<{ createdTabId: string; labelPersistence: 'saved' | 'durability-unconfirmed' | 'not-saved' }> {
   const label = normalizeTabLabel(value)
@@ -21,7 +23,7 @@ export async function newLabeledAgentTab<Tab extends NewTabsTab>(access: NewTabs
   let committed = false
   let saving: Promise<'saved' | 'durability-unconfirmed' | 'not-saved'> | undefined
   try {
-    await createNewTab(access, options, access.followAgentActivity(), tab => {
+    await createNewTab(access, options, false, tab => {
       createdTabId = tab.id
       // Admit before createTab yields, so later edits and lifecycle copies see
       // this save on the same queue. The label is staged, not yet visible.
