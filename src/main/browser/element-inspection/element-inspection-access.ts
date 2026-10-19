@@ -36,6 +36,8 @@ export interface ElementInspectionAccess<Tab extends ElementInspectionTab> {
   acquireImageInspectionSlot(owner: object): ReturnType<ImageInspectionSlots['acquire']>
   isDevToolsOpening(webContentsId: number): boolean
   cssStatePreviewActive(tab: Tab): boolean
+  /** Whether a DOM mutation source capture is armed or ending on the tab; CSS provenance would clear its breakpoint. */
+  domMutationSourceActive(tab: Tab): boolean
   withDebugger<T>(webContents: WebContents, operation: () => Promise<T>): Promise<T>
   isUnavailableCdpMethod(error: unknown): boolean
 }
