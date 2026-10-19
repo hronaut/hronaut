@@ -5,7 +5,7 @@ import { MAX_ARCHIVED_WORKSPACES } from '../../../shared/undo.js'
 import { agentStepText } from '../../../shared/agent-step-text.js'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { mountActivityFeed } from './activity-feed.js'
-import { element, interpolate, messageAt, pluralText, timeAgo } from './dom.js'
+import { element, errorText, interpolate, messageAt, pluralText, timeAgo } from './dom.js'
 import { renderNewWorkspaceTile, renderWorkspaceCard, renderWorkspaceEmpty, updateCardStatus, type CardStatus } from './workspace-card.js'
 
 type LiveAgents = Pick<HomeDashboard, 'agents' | 'workspaceActivity' | 'feed'>
@@ -152,7 +152,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
         notice.textContent = interpolate(messages[request.view === 'archive' ? 'archiveNotice' : request.view === 'restore' ? 'restoreNotice' : request.view === 'clear' ? 'clearNotice' : 'deleteNotice'], { name: group?.name ?? '' })
       }
     } catch (cause) {
-      if (generation === revision && !signal.aborted) { error.textContent = cause instanceof Error ? cause.message : messages.actionError; error.hidden = false }
+      if (generation === revision && !signal.aborted) { error.textContent = errorText(cause, messages.actionError); error.hidden = false }
     } finally {
       if (generation === revision && !signal.aborted) {
         pending = false

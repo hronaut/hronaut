@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Error notices from Hronaut itself now appear in your interface language, starting with those about Hronaut still starting, a tab that cannot sleep, split view and copying. The page shown when Hronaut cannot start speaks your system's language when Hronaut has it, and the error title of the workspace library is translated. Home's buttons and workspace list no longer start an error with "Error invoking remote method". An error a website's page could receive stays in English, so it never tells a website your interface language.
+
 ### Fixed
 
 - A website's own full screen, such as a video player's, now fills the whole window. Once you allowed **Fullscreen** for the site, the window went into full screen, but the page stayed in its card beside the tabs and under the toolbar. Showing another tab, or a browser shortcut such as **Ctrl/Cmd+L** that opens one of Hronaut's controls, now takes the page out of full screen, and closing a page in full screen takes the window out of it; the window used to stay in full screen showing Home or the other tab, and the next start opened it in full screen.

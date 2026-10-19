@@ -1,7 +1,7 @@
 import { agentStepKind } from '../../../shared/agent-steps.js'
 import { agentStatus, agentStatusText, agentStatusTone } from '../../../shared/agent-status.js'
 import type { HomeBootstrap, HomeDashboard, HronautHomeApi } from '../../../shared/home.js'
-import { element, escapeText as h, interpolate, messageAt, pluralText, remember, renderStatus } from './dom.js'
+import { element, errorText, escapeText as h, interpolate, messageAt, pluralText, remember, renderStatus } from './dom.js'
 import { mountAgentList } from './agent-list.js'
 import { mountWorkspaces } from './workspaces.js'
 import { mountClaudeSetup } from './claude-setup.js'
@@ -83,7 +83,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       await api.openAgentGuide(selectedGuide)
     } catch (error) {
       if (sequence !== guideSequence || signal.aborted) return
-      guideButton.title = error instanceof Error ? error.message : messages.connect.guideUnavailable
+      guideButton.title = errorText(error, messages.connect.guideUnavailable)
       text('guide-open-status', guideButton.title); guideButton.textContent = `${messages.journey.retry} · ${guideLabel()}`
     } finally { if (sequence === guideSequence && !signal.aborted) guideButton.disabled = false }
   }, { signal })
@@ -98,7 +98,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     } catch (error) {
       if (sequence === vscodeSequence && !signal.aborted) {
         text('guide-primary-status', messages.connect.vscodeFailed)
-        vscodeButton.title = error instanceof Error ? error.message : messages.connect.vscodeUnavailable
+        vscodeButton.title = errorText(error, messages.connect.vscodeUnavailable)
       }
     } finally { if (sequence === vscodeSequence && !signal.aborted) vscodeButton.disabled = false }
   }, { signal })
@@ -113,7 +113,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       try { if (!api?.[method]) throw new Error(unavailable); await api[method]() }
       catch (error) {
         if (signal.aborted) return
-        button.title = error instanceof Error ? error.message : unavailable
+        button.title = errorText(error, unavailable)
         text(status, button.title); button.hidden = false; button.textContent = `${messages.journey.retry} · ${label}`
       } finally { if (!signal.aborted) button.disabled = false }
     }, { signal })
@@ -135,7 +135,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       } catch (error) {
         if (signal.aborted || sequence !== state.sequence || target.textContent !== value) return
         button.textContent = messages.copy.failed
-        button.title = error instanceof Error ? error.message : messages.copy.rejected
+        button.title = errorText(error, messages.copy.rejected)
         if (feedbackSequence === copyFeedbackSequence) {
           text('copy-status', `${messages.copy.failed} ${messages.copy.rejected}`)
           const selection = window.getSelection(); const range = document.createRange()

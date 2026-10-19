@@ -1,4 +1,4 @@
-import { ipcMain, type IpcMainInvokeEvent } from 'electron'
+import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { BrowserImportResponse } from '../../shared/browser-import.js'
 import { BrowserImportService, type ImportDestination } from './service.js'
 import { BrowserImportError } from './contracts.js'
@@ -7,6 +7,8 @@ import type { BrowserImportProfile, BrowserImportResult } from '../../shared/bro
 import type { Cookie } from 'electron'
 
 interface Options {
+  /** Where the handlers register; index.ts passes the one that gives Hronaut's pages errors in the interface language. */
+  ipcMain: Pick<IpcMain, 'handle'>
   assertSender(event: IpcMainInvokeEvent): void
   destination(id: string): ImportDestination
   consent(profile: BrowserImportProfile, destination: ImportDestination): Promise<boolean>
@@ -19,7 +21,7 @@ function identifier(value: unknown): string {
 export function registerBrowserImportIpc(options: Options): () => void {
   const service = new BrowserImportService({ ...options, discover: () => discoverImportProfiles(), read: readImportCookies })
   const handle = <T>(channel: string, run: (...values: unknown[]) => Promise<T>): void => {
-    ipcMain.handle(channel, async (event, ...values: unknown[]): Promise<BrowserImportResponse<T>> => {
+    options.ipcMain.handle(channel, async (event, ...values: unknown[]): Promise<BrowserImportResponse<T>> => {
       options.assertSender(event)
       try { return { ok: true, value: await run(...values) } }
       catch (error) { return { ok: false, error: error instanceof BrowserImportError ? error.code : 'failed' } }
@@ -31,6 +33,6 @@ export function registerBrowserImportIpc(options: Options): () => void {
     if (!Array.isArray(domains) || domains.length > 20_000 || domains.some(d => typeof d !== 'string' || d.length > 253)) throw new BrowserImportError('expired')
     return service.commit(identifier(id), domains as string[])
   })
-  ipcMain.handle('browser-import:cancel', event => { options.assertSender(event); service.cancel() })
+  options.ipcMain.handle('browser-import:cancel', event => { options.assertSender(event); service.cancel() })
   return () => service.cancel()
 }

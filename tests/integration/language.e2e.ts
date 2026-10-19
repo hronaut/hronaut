@@ -253,3 +253,15 @@ test('names a tab whose site could not be reached in the interface language', as
   await expect(strip.locator('.tab-title').last()).toHaveText('Сайт недоступний')
   await expect(strip).not.toContainText('Site unavailable')
 })
+
+test('says why a tab cannot sleep in the interface language', async ({ appWindow }) => {
+  // Errors from the main process reached the shell in English whatever the interface language.
+  await appWindow.evaluate("window.hronautSettings.setLanguagePreference('uk-UA')")
+  await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
+  const tabId = await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut
+    .newTab({ url: 'http://127.0.0.1:9/', active: true }).then((state) => state.activeTabId))
+  const message = await appWindow.evaluate((id) => (window as unknown as { hronaut: HronautApi }).hronaut
+    .setTabSleeping(id!, true).then(() => 'slept', (error: unknown) => error instanceof Error ? error.message : String(error)), tabId)
+  expect(message).toContain('Видиму вкладку не можна приспати.')
+  expect(message).not.toContain('cannot sleep')
+})

@@ -1,6 +1,7 @@
 import type { IpcMainInvokeEvent, WebContents } from 'electron'
+import { LocalizedError } from './localized-error.js'
 
-const unavailable = (): Error => new Error('Workspace read is no longer available.')
+const unavailable = (): Error => new LocalizedError('appErrors.startup.readUnavailable')
 const MAX_PENDING_READS = 64
 interface PendingRead { finish(error?: unknown): void; cancel(): void }
 interface SenderReads { reads: Set<PendingRead>; dispose(): void }
@@ -28,7 +29,7 @@ export class WorkspaceStartupReads {
       assertSender()
       assertReady()
     }
-    if (this.pendingCount >= MAX_PENDING_READS) throw new Error('Too many pending workspace reads.')
+    if (this.pendingCount >= MAX_PENDING_READS) throw new LocalizedError('appErrors.startup.tooManyReads')
     if (initialization && this.initialization !== initialization) {
       this.cancelAll()
       this.initialization = initialization

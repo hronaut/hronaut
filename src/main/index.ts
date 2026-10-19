@@ -21,6 +21,7 @@ import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { createTrayAttention, type UserAttentionState } from './tray-attention.js'
 import { join } from 'node:path'
 import { createIpcGuards, trustedShellUrl, trustedUrlMatches } from './ipc-guards.js'
+import { withTranslatedIpcErrors } from './localized-error.js'
 import {
   app,
   BrowserWindow,
@@ -621,17 +622,26 @@ const { applyLanguagePreferenceRuntime } = createInterfaceLanguage({
   refreshHomeAfterCommittedChange
 })
 
+// Hronaut's handlers register here, so a LocalizedError reaches Hronaut's own pages in the interface language; only the
+// synchronous bootstraps below stay on ipcMain itself. The sender check is read only when a handler fails, after the
+// guards below exist.
+const hronautIpcMain = withTranslatedIpcErrors(ipcMain, {
+  isHronautPage: (event) => isHronautPageSender(event),
+  text
+})
+
 const {
   assertTrustedShellSender,
   assertMainShellSender,
   assertPanelShellSender,
+  isHronautPageSender,
   assertWorkspaceInitialized,
   assertInitializedMainShellSender,
   assertInitializedTrustedShellSender,
   runWorkspaceRead,
   handleBrowserIpc
 } = createIpcGuards({
-  ipcMain,
+  ipcMain: hronautIpcMain,
   workspaceStartupFailure: () => tabRuntime.startupFailure,
   tabsInitializationPromise: () => tabRuntime.initialization,
   tabs: () => tabRuntime.tabs,
@@ -642,7 +652,7 @@ const {
 })
 
 function registerIpc(): void {
-  registerOverlayViewsIpc(ipcMain, {
+  registerOverlayViewsIpc(hronautIpcMain, {
     assertMainShellSender,
     workspaceStartupFailure: () => tabRuntime.startupFailure,
     shellTooltips: () => shellTooltips,
@@ -652,12 +662,12 @@ function registerIpc(): void {
     toastOverlayView: () => toastOverlayView,
     tooltipView: () => tooltipView
   })
-  registerAddressOverlayIpc(ipcMain, {
+  registerAddressOverlayIpc(hronautIpcMain, {
     assertMainShellSender,
     workspaceStartupFailure: () => tabRuntime.startupFailure,
     addressOverlay: () => addressSuggestionOverlay
   })
-  registerPanelWindowIpc(ipcMain, {
+  registerPanelWindowIpc(hronautIpcMain, {
     assertMainShellSender,
     assertTrustedSender: assertTrustedShellSender,
     assertPanelShellSender,
@@ -666,14 +676,14 @@ function registerIpc(): void {
     detachedPanelTitle,
     mainWindow: () => mainWindowRefs.window
   })
-  registerMcpControlIpc(ipcMain, {
+  registerMcpControlIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
     currentMcpControlState,
     mcpPortRecovery: () => mcpPortRecovery,
     setMcpPaused
   })
-  registerWalletIpc(ipcMain, {
+  registerWalletIpc(hronautIpcMain, {
     assertMainShellSender,
     assertWalletPageSender,
     service: () => walletRuntime.service,
@@ -690,7 +700,7 @@ function registerIpc(): void {
     mcpServer: () => mcpRuntime.server,
     takeOvers: () => takeOvers
   })
-  registerAttentionIpc(ipcMain, {
+  registerAttentionIpc(hronautIpcMain, {
     assertMainShellSender,
     shellUserAttention,
     userAttention: () => userAttentionState.request,
@@ -700,16 +710,16 @@ function registerIpc(): void {
     endUserAttention,
     takeOvers: () => takeOvers
   })
-  registerUndoIpc(ipcMain, {
+  registerUndoIpc(hronautIpcMain, {
     assertMainShellSender,
     undoOffers: () => undoOffers
   })
-  registerAgentPresenceIpc(ipcMain, {
+  registerAgentPresenceIpc(hronautIpcMain, {
     assertMainShellSender,
     agentPresenceSnapshot,
     mcpServer: () => mcpRuntime.server
   })
-  registerShellIpc(ipcMain, {
+  registerShellIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     assertMainShellSender,
     handleBrowserIpc,
@@ -776,6 +786,7 @@ function registerIpc(): void {
     text
   })
   const cancelBrowserImport = registerBrowserImportIpc({
+    ipcMain: hronautIpcMain,
     assertSender: assertInitializedMainShellSender,
     destination: id => tabRuntime.tabs!.browserImportDestination(id),
     consent: async (profile, destination) => {
@@ -813,7 +824,7 @@ function registerIpc(): void {
     copyTextToClipboard,
     copyPngToClipboard
   })
-  registerCollectionIpc(ipcMain, {
+  registerCollectionIpc(hronautIpcMain, {
     runRead: (event, read) => runWorkspaceRead(event, assertTrustedShellSender, read),
     assertTrustedSender: assertInitializedTrustedShellSender,
     bookmarks: () => bookmarksAndHistory.bookmarks!,
@@ -836,7 +847,7 @@ function registerIpc(): void {
     publishVisitHistory,
     currentBrowsingDataSiteSummary
   })
-  registerIncidentPackageIpc(ipcMain, {
+  registerIncidentPackageIpc(hronautIpcMain, {
     assertTrustedSender: assertInitializedTrustedShellSender,
     tabs: () => tabRuntime.tabs!,
     version: app.getVersion(),
@@ -850,7 +861,7 @@ function registerIpc(): void {
       return selection.canceled ? undefined : selection.filePath
     }
   })
-  registerDiagnosticsIpc(ipcMain, {
+  registerDiagnosticsIpc(hronautIpcMain, {
     assertTrustedSender: assertInitializedTrustedShellSender,
     tabs: () => tabRuntime.tabs!,
     pngDataUrl: (data) => nativeImage.createFromBuffer(data).toDataURL(),
@@ -866,7 +877,7 @@ function registerIpc(): void {
       return selection.canceled ? undefined : selection.filePaths[0]
     }
   })
-  registerSettingsIpc(ipcMain, {
+  registerSettingsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
     settings: () => settingsState.current,
@@ -902,12 +913,12 @@ function registerIpc(): void {
     resetMcpSettings,
     mcpCapabilityProfiles: () => agentServices.capabilityProfiles
   })
-  registerPermissionsIpc(ipcMain, {
+  registerPermissionsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     sitePermissionStore: () => browserSessionState.sitePermissionStore,
     publishSitePermissions
   })
-  registerCredentialsIpc(ipcMain, {
+  registerCredentialsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
     credentialStorageStatus: () => credentialRuntime.storageStatus,
@@ -923,7 +934,7 @@ function registerIpc(): void {
     mcpServer: () => mcpRuntime.server,
     mcpActionTracker: () => mcpActionTracker
   })
-  registerLicenseIpc(ipcMain, {
+  registerLicenseIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     currentCommercialLicenseState,
     activateCommercialLicense,
@@ -931,7 +942,7 @@ function registerIpc(): void {
     deactivateCommercialLicense,
     openExternal: (url) => shell.openExternal(url)
   })
-  registerUpdatesIpc(ipcMain, {
+  registerUpdatesIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     updateState: () => appUpdates.current,
     checkForUpdates,

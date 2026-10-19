@@ -10,6 +10,7 @@ import { capabilityProfileMessages } from './capability-profiles.js'
 import { remoteConnectionMessages } from './remote-connections.js'
 import { homeReadinessMessages } from './home-readiness.js'
 import { walletMessages } from './wallets/index.js'
+import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
 export const ukUA = {
@@ -297,6 +298,7 @@ export const ukUA = {
     support: { trialNotStarted: "10-денний пробний період починається з першого виклику інструмента агентом.", trialActive: "Пробний період завершується {time}.", trialExpired: "Пробний період завершено. Оформіть підписку для автоматизації агентами.", kicker: 'Комерційна ліцензія', thanks: 'Дякуємо за придбання ліцензії Hronaut', heading: "Активуйте Hronaut", description: "Після 10-денної пробної версії всім користувачам потрібна підписка: $4/місяць або $24/рік (знижка 50% від $48).", active: 'Комерційна ліцензія {key} активна на цьому пристрої.', activations: 'Використано активацій пристрою: {used} із {limit}.', unlimited: 'без обмежень', lastChecked: 'Остання перевірка: {time}.', checking: 'Перевірка…', check: 'Перевірити ліцензію', manage: 'Керувати підпискою ↗', deactivating: 'Деактивація…', deactivate: 'Деактивувати пристрій', activateDescription: 'Активуйте ключ комерційної ліцензії з квитанції Creem.', secure: 'Ключ зашифровано в захищеному сховищі операційної системи й використовується лише для перевірки ліцензії Creem.', unavailable: 'Для активації ліцензії потрібне захищене сховище операційної системи.', key: 'Ключ комерційної ліцензії', placeholder: 'XXXX-XXXX-XXXX-XXXX', activating: 'Активація…', activate: 'Активувати комерційну ліцензію', support: 'Купити комерційну ліцензію ↗', alternatives: 'Ліцензія і спільнота', license: "Ліцензія Hronaut ↗", contributing: 'Посібник для учасників ↗', issue: 'Повідомити про проблему ↗' }
   },
   wallets: walletMessages['uk-UA'],
+  appErrors: appErrorMessages['uk-UA'],
   workspaceNavigationAudit: { reasonCredentials: 'вбудовані облікові дані', reasonMalformed: 'некоректна адреса', reasonUnsupportedScheme: 'непідтримувана схема', reasonNoMatch: 'немає у списку дозволених', sourceDirect: 'адреса або запит агента', sourcePage: 'перехід зі сторінки', sourceRedirect: 'перенаправлення', sourcePopup: 'спливне вікно', sourceHistory: 'назад або вперед', sourcePolicyChange: 'зміна політики', sourceRestore: 'відновлення сесії' },
   workspaceEditor: {
     transferData: "Перенести дані браузера",

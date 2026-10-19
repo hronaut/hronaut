@@ -1,5 +1,6 @@
 import { clipboard, ClipboardItem, nativeImage, type BrowserWindow, type NativeImage, type WebContents } from 'electron'
 import { writeVerifiedClipboardText } from './verified-clipboard.js'
+import { LocalizedError, personErrorMessage } from './localized-error.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 
 interface ClipboardOperationsHost {
@@ -34,7 +35,7 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
   }
 
   function reportClipboardFailure(error: unknown): void {
-    const message = error instanceof Error ? error.message : host.text('native.errors.clipboard')
+    const message = error instanceof Error ? personErrorMessage(error, host.text) : host.text('native.errors.clipboard')
     if (host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
       host.mainWindow()!.webContents.send('clipboard:failed', message)
     }
@@ -74,7 +75,7 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
       }
     }
 
-    throw new Error('The screenshot was captured, but the system clipboard did not accept the image')
+    throw new LocalizedError('appErrors.clipboard.screenshotRejected')
   }
 
   async function copyPngToClipboard(data: Buffer): Promise<{ width: number; height: number }> {
@@ -84,7 +85,7 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
   async function copyPageImageToClipboard(webContents: WebContents, x: number, y: number): Promise<void> {
     await queueClipboardOperation(async () => {
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        if (webContents.isDestroyed()) throw new Error('The page closed before its image could be copied')
+        if (webContents.isDestroyed()) throw new LocalizedError('appErrors.clipboard.pageClosed')
         clipboard.clear()
         webContents.copyImageAt(x, y)
         await new Promise<void>((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
@@ -97,7 +98,7 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
           }
         }
       }
-      throw new Error('The page image was selected, but the system clipboard did not accept it')
+      throw new LocalizedError('appErrors.clipboard.imageRejected')
     })
   }
 

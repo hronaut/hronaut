@@ -2,6 +2,7 @@ import type { BrowserState } from '../../../shared/types.js'
 import { isBrowserSplitOrientation, normalizeSplitViewRatio, type BrowserSplitOrientation } from '../../../shared/split-view.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { SplitViewAccess, SplitViewTab } from './split-view-access.js'
+import { LocalizedError } from '../../localized-error.js'
 
 /**
  * Wakes the active tab and the chosen one, then opens them side by side,
@@ -10,13 +11,13 @@ import type { SplitViewAccess, SplitViewTab } from './split-view-access.js'
 export async function openSplitViewAndWait<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>, tabId: string): Promise<BrowserState> {
   const current = access.getActiveTab()
   const target = access.getTab(tabId)
-  if (current.id === target.id) throw new Error('Choose a different tab for split view.')
-  if (isHronautHomeUrl(current.url) || isHronautHomeUrl(target.url)) throw new Error('Hronaut Home cannot be opened in split view.')
+  if (current.id === target.id) throw new LocalizedError('appErrors.splitView.sameTab')
+  if (isHronautHomeUrl(current.url) || isHronautHomeUrl(target.url)) throw new LocalizedError('appErrors.splitView.home')
   if (current.webContents.isDestroyed()) {
-    throw new Error('The current tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
+    throw new LocalizedError('appErrors.splitView.currentUnavailable')
   }
   if (target.webContents.isDestroyed()) {
-    throw new Error('The selected tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
+    throw new LocalizedError('appErrors.splitView.selectedUnavailable')
   }
   access.writeSplitViewGeneration(access.splitViewGeneration() + 1)
   const splitGeneration = access.splitViewGeneration()
@@ -40,17 +41,17 @@ export async function openSplitViewAndWait<Tab extends SplitViewTab>(access: Spl
 export function openSplitView<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>, tabId: string): BrowserState {
   const current = access.getActiveTab()
   const target = access.getTab(tabId)
-  if (current.id === target.id) throw new Error('Choose a different tab for split view.')
-  if (isHronautHomeUrl(current.url) || isHronautHomeUrl(target.url)) throw new Error('Hronaut Home cannot be opened in split view.')
+  if (current.id === target.id) throw new LocalizedError('appErrors.splitView.sameTab')
+  if (isHronautHomeUrl(current.url) || isHronautHomeUrl(target.url)) throw new LocalizedError('appErrors.splitView.home')
   // A WebContentsView can outlive its WebContents when Electron or DevTools
   // tears the renderer down independently. Validate both panes before
   // mutating split state; addChildView/setBounds throw native exceptions for
   // a destroyed child and would otherwise leave splitView half-applied.
   if (current.webContents.isDestroyed()) {
-    throw new Error('The current tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
+    throw new LocalizedError('appErrors.splitView.currentUnavailable')
   }
   if (target.webContents.isDestroyed()) {
-    throw new Error('The selected tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
+    throw new LocalizedError('appErrors.splitView.selectedUnavailable')
   }
   access.writeSplitViewGeneration(access.splitViewGeneration() + 1)
   current.lastActiveAt = Date.now()
@@ -81,7 +82,7 @@ export function openSplitView<Tab extends SplitViewTab>(access: SplitViewAccess<
 
 /** Changes the open split view's orientation or ratio, or swaps its tabs. */
 export function updateSplitView<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>, updates: { orientation?: BrowserSplitOrientation; ratio?: number; swap?: boolean }): BrowserState {
-  if (!access.splitView()) throw new Error('Split view is not open.')
+  if (!access.splitView()) throw new LocalizedError('appErrors.splitView.notOpen')
   if (updates.orientation !== undefined && !isBrowserSplitOrientation(updates.orientation)) {
     throw new TypeError('Split orientation must be vertical or horizontal.')
   }

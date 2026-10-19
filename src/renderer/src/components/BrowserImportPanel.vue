@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { BrowserState, HronautApi } from '../../../shared/types.js'
 import type { BrowserImportPreview, BrowserImportProfile, BrowserImportResponse, BrowserImportResult } from '../../../shared/browser-import.js'
 import UiButton from '../ui/UiButton.vue'
+import { friendlyUiError } from '../composables/useAppToastController.js'
 
 const props = defineProps<{ workspaceId: string; state: BrowserState; browser: HronautApi; syncState: (next: Promise<BrowserState> | BrowserState) => Promise<void> }>()
 const emit = defineEmits<{ busy: [boolean]; close: [] }>()
@@ -31,7 +32,7 @@ async function run(action: () => Promise<void>): Promise<void> {
   if (busy.value) return
   error.value = ''; setBusy(true)
   const current = generation
-  try { await action() } catch (cause) { if (current === generation) error.value = cause instanceof Error ? cause.message : t('browserImport.error') }
+  try { await action() } catch (cause) { if (current === generation) error.value = friendlyUiError(cause, t('browserImport.error')) }
   finally { if (current === generation) setBusy(false) }
 }
 async function start(): Promise<void> {
