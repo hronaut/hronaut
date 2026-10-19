@@ -70,6 +70,21 @@ function documentPermissionOrigin(documentUrl: string, documentOrigin: string): 
 }
 
 /**
+ * The website a requester at `origin` is embedded in: the website of the page's main frame, resolved as its documents'
+ * are, when it is another website. The page's own website, in its main frame or in any of its frames, is embedded in
+ * none. A page whose website cannot be known, or that is gone, gives null: its frames get no permission, since neither
+ * another page's decision nor the website's own may stand in for it.
+ */
+function embeddingSiteOf(webContents: WebContents, origin: string, isMainFrame: boolean): string | undefined | null {
+  if (isMainFrame) return undefined
+  if (webContents.isDestroyed()) return null
+  const mainFrame = webContents.mainFrame
+  const pageOrigin = documentPermissionOrigin(mainFrame.url, mainFrame.origin)
+  if (!pageOrigin) return null
+  return pageOrigin === origin ? undefined : pageOrigin
+}
+
+/**
  * What one page asked for. The page's document and each frame's have a number: the page's is renewed when the main
  * frame loads another document, and a frame's when that frame does, so a request belongs to the document that made it.
  * A prompt waiting or showing gives its answer to every identical request from the same frame's document. A Deny for a
@@ -91,19 +106,26 @@ interface PagePermissionRequests {
 /**
  * The browser sessions pages run in: each gets the download folder, a permission check that admits only what the
  * person allowed for the site, and a permission prompt that asks one request at a time, shows identical requests one
- * prompt and refuses a request whose frame loaded another document meanwhile. Camera, microphone, file system access and
- * every link to another app always ask again, unless the person denied the same request for the same page document, and
- * screen sharing is refused without asking. Home never gets a permission. `configurePersistentSession` opens the
- * remembered site permissions and the profile's own session, `publishSitePermissions` tells both shell windows the
- * remembered permissions, and `flushBrowserProfile` writes that session's storage to disk at shutdown.
+ * prompt and refuses a request whose frame loaded another document meanwhile. A decision belongs to the workspace whose
+ * session the page runs in and, for a website embedded in a page of another website, to that page's website, as
+ * `SitePermissionStore.decisionFor` looks it up; a session no workspace claimed gets no permission. Camera, microphone,
+ * file system access and every link to another app always ask again, unless the person denied the same request for the
+ * same page document, and screen sharing is refused without asking. Home never gets a permission.
+ * `configurePersistentSession` opens the remembered site permissions and the profile's own session,
+ * `publishSitePermissions` tells both shell windows the remembered permissions, `forgetWorkspaceSitePermissions` forgets
+ * the decisions of a workspace that is gone for good, and `flushBrowserProfile` writes that session's storage to disk at
+ * shutdown.
  */
 export function createBrowserSession(host: BrowserSessionHost): {
-  configureBrowserSession(browserSession: Session): void
+  configureBrowserSession(browserSession: Session, workspaceId?: string): void
   configurePersistentSession(): Promise<void>
   publishSitePermissions(): void
+  forgetWorkspaceSitePermissions(workspaceId: string): Promise<void>
   flushBrowserProfile(): Promise<void>
 } {
   const configuredBrowserSessions = new WeakSet<Session>()
+  /** The workspace each workspace session belongs to, or null for a session two workspaces claimed. */
+  const sessionWorkspaces = new WeakMap<Session, string | null>()
   let permissionRequestQueue: Promise<void> = Promise.resolve()
   const pagePermissionRequests = new WeakMap<WebContents, PagePermissionRequests>()
   let documentCount = 0
@@ -145,17 +167,32 @@ export function createBrowserSession(host: BrowserSessionHost): {
     return page
   }
 
-  function configureBrowserSession(browserSession: Session): void {
+  /**
+   * Gives a browser session its download folder and permission handlers once. A tab's session also names the workspace
+   * it belongs to, the one whose decisions its pages get; each workspace has its own session, so a session that two
+   * workspaces claim gets no permission at all.
+   */
+  function configureBrowserSession(browserSession: Session, workspaceId?: string): void {
+    if (workspaceId !== undefined) {
+      const known = sessionWorkspaces.get(browserSession)
+      sessionWorkspaces.set(browserSession, known === undefined || known === workspaceId ? workspaceId : null)
+    }
     if (configuredBrowserSessions.has(browserSession)) return
     configuredBrowserSessions.add(browserSession)
     browserSession.setDownloadPath(host.effectiveDownloadDirectory())
-    browserSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details) => {
+    browserSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
       if (FRESH_CONSENT_PERMISSIONS.has(permission)) return false
+      const workspaceId = sessionWorkspaces.get(browserSession)
+      if (!workspaceId) return false
       // Electron gives the checking document's real origin, so an about:blank, about:srcdoc or blob: document resolves
       // to the same website here as its requests do.
       const documentOrigin = requestingOrigin || details.securityOrigin || ''
       const origin = documentPermissionOrigin(details.requestingUrl || documentOrigin, documentOrigin)
-      return Boolean(origin && host.state.sitePermissionStore?.get(origin, permission) === 'allow')
+      if (!origin) return false
+      // A check without a page, such as a service worker's, is the website's own.
+      const embeddedIn = webContents ? embeddingSiteOf(webContents, origin, details.isMainFrame) : undefined
+      if (embeddedIn === null) return false
+      return host.state.sitePermissionStore?.decisionFor(origin, permission, workspaceId, embeddedIn) === 'allow'
     })
     browserSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
       let responded = false
@@ -164,7 +201,9 @@ export function createBrowserSession(host: BrowserSessionHost): {
         responded = true
         callback(allowed)
       }
-      if (webContents.isDestroyed()) {
+      // A page whose session no workspace claimed, such as Home's, has no decisions to use or keep.
+      const workspaceId = sessionWorkspaces.get(browserSession)
+      if (webContents.isDestroyed() || !workspaceId) {
         respond(false)
         return
       }
@@ -186,10 +225,14 @@ export function createBrowserSession(host: BrowserSessionHost): {
         )
       const frameOrigins = new Set(requestingFrames.map((frame) => documentPermissionOrigin(requestingUrl, frame.origin)))
       const origin = frameOrigins.size === 1 ? frameOrigins.values().next().value ?? null : null
-      if (!origin) {
+      // A website embedded in a page of another website asks as embedded in that page's website, the one its decision
+      // belongs to.
+      const embeddedIn = origin ? embeddingSiteOf(webContents, origin, details.isMainFrame) : null
+      if (!origin || embeddedIn === null) {
         respond(false)
         return
       }
+      const decisionScope = { workspaceId, ...(embeddedIn ? { embeddedIn } : {}) }
       // A camera or microphone request lists its devices. One that lists neither asks to capture the screen, a window
       // or a tab, through getDisplayMedia or getUserMedia's chromeMediaSource, and the prompt could only call it
       // "Camera and microphone": an allowed desktop source shared the whole screen. Refuse it without asking.
@@ -212,7 +255,9 @@ export function createBrowserSession(host: BrowserSessionHost): {
         return
       }
       const requiresFreshConsent = FRESH_CONSENT_PERMISSIONS.has(permission)
-      const remembered = requiresFreshConsent ? undefined : host.state.sitePermissionStore?.get(origin, permission)
+      const remembered = requiresFreshConsent
+        ? undefined
+        : host.state.sitePermissionStore?.decisionFor(origin, permission, workspaceId, embeddedIn)
       if (remembered) {
         respond(remembered === 'allow')
         return
@@ -256,7 +301,9 @@ export function createBrowserSession(host: BrowserSessionHost): {
         const frame = webContents.mainFrame.framesInSubtree.find(
           (candidate) => candidate.frameTreeNodeId === frameTreeNodeId && !candidate.detached
         )
-        return Boolean(frame && documentPermissionOrigin(frame.url, frame.origin) === origin)
+        // The decision belongs to the website of the page around the frame, so that page must still be the same website.
+        return Boolean(frame && documentPermissionOrigin(frame.url, frame.origin) === origin
+          && embeddingSiteOf(webContents, origin, details.isMainFrame) === embeddedIn)
       }
       const permissionDetail = (() => {
         if (permission === 'media') {
@@ -274,12 +321,16 @@ export function createBrowserSession(host: BrowserSessionHost): {
           const shown = scheme.length > SHOWN_SCHEME_LENGTH ? `${scheme.slice(0, SHOWN_SCHEME_LENGTH - 1)}…` : scheme
           return host.text('native.dialog.requestedExternalApp', { scheme: shown })
         }
-        return host.text('native.dialog.permissionRemember')
+        return embeddedIn
+          ? host.text('native.dialog.permissionRememberEmbedded', { site: embeddedIn })
+          : host.text('native.dialog.permissionRemember')
       })()
       const askPerson = async (): Promise<boolean> => {
         // A Deny the person chose while this request waited holds for it too.
         if (!requestIsCurrent() || page.denied.has(hold)) return false
-        const currentRemembered = requiresFreshConsent ? undefined : host.state.sitePermissionStore?.get(origin, permission)
+        const currentRemembered = requiresFreshConsent
+          ? undefined
+          : host.state.sitePermissionStore?.decisionFor(origin, permission, workspaceId, embeddedIn)
         if (currentRemembered) return currentRemembered === 'allow'
         // A camera-only or microphone-only request names just that device, not both.
         const permissionName = mediaTypes.length > 0 && mediaTypes.every((type) => type === 'video')
@@ -290,7 +341,9 @@ export function createBrowserSession(host: BrowserSessionHost): {
         const { response } = await host.showMessageBox({
           type: 'question',
           title: host.text('native.dialog.sitePermission'),
-          message: host.text('native.dialog.permissionRequest', { origin, permission: permissionName }),
+          message: embeddedIn
+            ? host.text('native.dialog.permissionRequestEmbedded', { origin, site: embeddedIn, permission: permissionName })
+            : host.text('native.dialog.permissionRequest', { origin, permission: permissionName }),
           detail: requiresFreshConsent
             ? host.text('native.dialog.permissionAskAgain', { detail: permissionDetail })
             : host.text('native.dialog.permissionSettings', { detail: permissionDetail }),
@@ -307,7 +360,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
           return decision === 'allow'
         }
         try {
-          await host.state.sitePermissionStore?.set(origin, permission, decision)
+          await host.state.sitePermissionStore?.set(origin, permission, decision, decisionScope)
           publishSitePermissions()
         } catch (error) {
           console.error('[permissions] Failed to persist site permission:', error)
@@ -337,10 +390,30 @@ export function createBrowserSession(host: BrowserSessionHost): {
     host.sendToShellWindows('permissions:changed', rememberedSitePermissions(host.state.sitePermissionStore?.list() ?? []))
   }
 
+  /**
+   * Forgets the decisions made in a workspace the person closed or deleted for good, not one they archived, and tells
+   * the shell windows. Decisions saved before decisions belonged to a workspace stay.
+   */
+  async function forgetWorkspaceSitePermissions(workspaceId: string): Promise<void> {
+    const store = host.state.sitePermissionStore
+    if (!store) return
+    try {
+      if (await store.removeWorkspace(workspaceId)) publishSitePermissions()
+    } catch (error) {
+      console.error('[permissions] Failed to forget a removed workspace’s site permissions:', error)
+    }
+  }
+
   async function flushBrowserProfile(): Promise<void> {
     if (!host.state.persistentSession) return
     await flushBrowserSessionStorage(host.state.persistentSession)
   }
 
-  return { configureBrowserSession, configurePersistentSession, publishSitePermissions, flushBrowserProfile }
+  return {
+    configureBrowserSession,
+    configurePersistentSession,
+    publishSitePermissions,
+    forgetWorkspaceSitePermissions,
+    flushBrowserProfile
+  }
 }

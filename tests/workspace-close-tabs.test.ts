@@ -241,3 +241,35 @@ describe('closing the shown tab while the sleeping tab that follows it wakes', (
     expect(internals.activeTabId).toBe(OTHER_AWAKE)
   })
 })
+
+describe('a workspace that is gone for good', () => {
+  it('is forgotten, with what belongs to it such as its site permissions, when closed or deleted, not archived', async () => {
+    // Its site permission decisions stayed saved after the workspace and its data were deleted.
+    const { manager, internals, release } = await browser()
+    release()
+    const forgotten = vi.fn()
+    Object.assign(internals, { options: { partition: 'persist:hronaut', onWorkspaceForgotten: forgotten } })
+    await manager.closeMcpTabGroup(CLOSING, true)
+    expect(forgotten).not.toHaveBeenCalled()
+
+    await manager.closeMcpTabGroup(OTHER)
+    expect(forgotten).toHaveBeenCalledExactlyOnceWith(OTHER)
+
+    const archived = { ...workspace(CLOSING, '8e3da8ea-cba4-41c2-9619-a6e04a493a44', SHOWN), savedAt: '2026-10-19T11:00:00.000Z', tabs: [] }
+    ;(internals as unknown as { savedTabGroups: Map<string, unknown> }).savedTabGroups.set(CLOSING, archived)
+    Object.assign(internals, { workspaceRegistry: { listArchived: () => [] } })
+    await expect(manager.deleteSavedTabGroup(CLOSING)).resolves.toEqual([])
+    expect(forgotten).toHaveBeenLastCalledWith(CLOSING)
+    expect(forgotten).toHaveBeenCalledTimes(2)
+  })
+
+  it('is not forgotten when deleting its storage fails', async () => {
+    const { manager, internals, release } = await browser()
+    release()
+    const forgotten = vi.fn()
+    Object.assign(internals, { options: { partition: 'persist:hronaut', onWorkspaceForgotten: forgotten } })
+    internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
+    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
+    expect(forgotten).not.toHaveBeenCalled()
+  })
+})

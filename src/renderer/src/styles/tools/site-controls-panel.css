@@ -26,6 +26,7 @@
 .site-permission-control { @apply grid [min-height:46px] items-center [gap:9px] [padding:6px_7px_6px_11px] [grid-template-columns:minmax(0,_1fr)_86px_28px]; }
 .site-permission-control + .site-permission-control { @apply [border-top:1px_solid_var(--border-soft)]; }
 .site-permission-control label { @apply overflow-hidden [font-size:var(--type-body-size)] [font-weight:var(--weight-strong)] text-ellipsis whitespace-nowrap; }
+.site-permission-control label small { @apply block overflow-hidden text-muted [font-size:var(--type-small-size)] [font-weight:var(--weight-regular)] text-ellipsis; }
 .site-permission-control select { @apply [width:86px] [padding:6px_8px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-1)] text-copy bg-surface-raised [font:inherit] [font-size:var(--type-small-size)]; }
 .site-permission-control button { @apply grid [width:28px] [height:28px] p-0 place-items-center border-0 [border-radius:var(--corner-1)] text-muted bg-transparent cursor-pointer; }
 .site-permission-control button:hover { @apply text-copy bg-hover; }

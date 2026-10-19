@@ -112,7 +112,8 @@ export function updateArchivedWorkspacePreferences(access: WorkspaceArchiveAcces
 
 /**
  * Deletes an archived workspace that is not protected from deletion, with
- * its isolated storage, while no other operation holds it busy, and saves the
+ * its isolated storage, while no other operation holds it busy, tells whoever
+ * keeps what belongs to it, such as its site permissions, and saves the
  * session before returning the archives left.
  */
 export async function deleteSavedTabGroup(access: WorkspaceArchiveAccess, savedGroupId: string): Promise<BrowserSavedTabGroupState[]> {
@@ -130,6 +131,7 @@ export async function deleteSavedTabGroup(access: WorkspaceArchiveAccess, savedG
     access.savedTabGroups().delete(savedGroupId)
     access.deletedWorkspaceStorageIds().add(canonicalStorageId(saved.storageId)!)
     access.retireWorkspaceContinuity(savedGroupId)
+    access.options().onWorkspaceForgotten?.(savedGroupId)
     access.changed()
     await access.store().save(() => access.persistedState())
     return access.listSavedTabGroups()

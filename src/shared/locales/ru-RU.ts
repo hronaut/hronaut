@@ -410,7 +410,10 @@ export const ruRU = {
       "allow": "Разрешить",
       "block": "Заблокировать",
       "forget": "Забыть решение",
-      "help": "После удаления решения Hronaut снова спросит разрешение при следующем запросе сайта."
+      "help": "После удаления решения Hronaut снова спросит разрешение при следующем запросе сайта.",
+      "allWorkspaces": "Все рабочие пространства",
+      "removedWorkspace": "Удалённое рабочее пространство",
+      "embeddedIn": "на {site}"
     },
     "passwords": {
       "search": "Поиск сохранённых паролей",
@@ -1211,7 +1214,9 @@ export const ruRU = {
     "permission": {
       "aria": "Разрешение «{permission}» для {origin}",
       "forgetAria": "Забыть разрешение «{permission}» для {origin}",
-      "resetAria": "Сбросить разрешение «{permission}» для {origin}"
+      "resetAria": "Сбросить разрешение «{permission}» для {origin}",
+      "scopedAria": "Разрешение «{permission}» для {origin} ({scope})",
+      "scopedForgetAria": "Забыть разрешение «{permission}» для {origin} ({scope})"
     }
   },
   "privacyActions": {
@@ -3615,6 +3620,7 @@ export const ruRU = {
       "useFolder": "Использовать эту папку",
       "sitePermission": "Разрешение сайта",
       "permissionRequest": "{origin} запрашивает разрешение «{permission}».",
+      "permissionRequestEmbedded": "{origin} на странице {site} запрашивает разрешение «{permission}».",
       "deny": "Запретить",
       "allow": "Разрешить",
       "requestedDevices": "Запрошенные устройства: {devices}.",
@@ -3627,7 +3633,8 @@ export const ruRU = {
       "fileReadAccess": "чтение",
       "fileWriteAccess": "запись",
       "unspecifiedPath": "неуказанный путь",
-      "permissionRemember": "Hronaut может запомнить этот выбор для точного источника сайта.",
+      "permissionRemember": "Hronaut запомнит этот выбор для этого сайта в этом рабочем пространстве.",
+      "permissionRememberEmbedded": "Hronaut запомнит этот выбор для этого сайта на странице {site} в этом рабочем пространстве.",
       "permissionAskAgain": "{detail} Hronaut не запоминает этот выбор. После «Запретить» эта страница не сможет запросить это снова, пока её не перезагрузят.",
       "permissionSettings": "{detail} Позже это можно изменить в Настройки → Разрешения сайтов.",
       "workspaceRecoveryTitle": "Не удалось открыть сохранённые пространства",

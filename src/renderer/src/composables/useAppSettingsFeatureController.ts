@@ -109,7 +109,9 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
 
   const sitePermissionsController = useSitePermissionsController({
     api: options.apis.permissions,
-    translate: (key) => options.translate(key),
+    translate: (key, parameters) => options.translate(key, parameters),
+    workspaceName: (workspaceId) => [...options.browserState.value.mcpTabGroups, ...options.browserState.value.savedTabGroups]
+      .find((workspace) => workspace.id === workspaceId)?.name,
     onError: (error) => options.showToast(
       'error',
       options.translate('runtime.toast.settingNotSaved'),

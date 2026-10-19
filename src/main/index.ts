@@ -303,6 +303,7 @@ const {
   configureBrowserSession,
   configurePersistentSession,
   publishSitePermissions,
+  forgetWorkspaceSitePermissions,
   flushBrowserProfile
 } = createBrowserSession({
   text,
@@ -1004,6 +1005,7 @@ async function createWindow(startMinimized = false): Promise<void> {
       mcpRuntime.server?.forgetAgentWorkspaceSteps(workspaceId)
       finalizeWorkspaceReceipts(workspaceId)
     },
+    onWorkspaceForgotten: (workspaceId) => { void forgetWorkspaceSitePermissions(workspaceId) },
     shortcutAvailable: pageShortcutAvailable,
     onShortcutRequested: runPageShortcut,
     copyText: copyTextToClipboard,

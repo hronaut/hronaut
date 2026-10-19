@@ -312,7 +312,8 @@ test('drops a queued permission request when its tab closes before presentation'
     await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([{
       origin: blockingOrigin,
       permission: 'geolocation',
-      decision: 'allow'
+      decision: 'allow',
+      workspaceId: expect.any(String)
     }])
   } finally {
     await Promise.all([
@@ -437,10 +438,13 @@ test('persists a permission decision for a still-live cross-origin iframe', asyn
     await requestIframeGeolocationPermission(electronApp)
     await allowDelayedPermission(electronApp)
 
+    // The decision belongs to the page the frame was embedded in.
     await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([{
       origin: childOrigin,
       permission: 'geolocation',
-      decision: 'allow'
+      decision: 'allow',
+      workspaceId: expect.any(String),
+      embeddedIn: `http://127.0.0.1:${hostPort}`
     }])
   } finally {
     await Promise.all([
@@ -690,6 +694,63 @@ test('refuses a page’s repeated links to a denied app without asking until the
     expect(await electronApp.evaluate(() => (
       globalThis as typeof globalThis & { __openedExternalLinks?: string[] }
     ).__openedExternalLinks)).toEqual([])
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('asks again in another workspace and forgets a workspace’s decisions when it is closed for good', async ({
+  appWindow,
+  electronApp
+}) => {
+  // A decision made in one workspace applied in every workspace, though each keeps its own sign-ins and data.
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.end(`<!doctype html><title>Workspace permission ${request.url === '/client' ? 'client' : 'own'}</title><main>Location</main>`)
+  })
+  const origin = `http://127.0.0.1:${await listen(server)}`
+  const requestLocation = (title: string) => electronApp.evaluate(async ({ webContents }, pageTitle) => {
+    const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === pageTitle)
+    if (!page) throw new Error(`${pageTitle} was not found`)
+    await page.executeJavaScript('navigator.geolocation.getCurrentPosition(() => undefined, () => undefined)')
+  }, title)
+  const titleShown = (title: string) => expect.poll(() => electronApp.evaluate(({ webContents }, pageTitle) => (
+    webContents.getAllWebContents().some((contents) => contents.getTitle() === pageTitle)
+  ), title)).toBe(true)
+
+  try {
+    const own = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(`${origin}/own`)}, active: true })`) as {
+      tabs: Array<{ id: string, url: string, mcpGroupId?: string }>
+    }
+    const ownWorkspaceId = own.tabs.find((tab) => tab.url === `${origin}/own`)!.mcpGroupId!
+    await titleShown('Workspace permission own')
+    await installPermissionDialogProbe(electronApp)
+    await requestLocation('Workspace permission own')
+    await expect.poll(() => permissionDialogStats(electronApp)).toMatchObject({ calls: 1 })
+    await resolveNextPermissionDialog(electronApp, 1)
+    await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([
+      { origin, permission: 'geolocation', decision: 'allow', workspaceId: ownWorkspaceId }
+    ])
+
+    const created = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Permission client', storage: 'scratch' })`) as {
+      tabs: Array<{ id: string, mcpGroupId?: string }>
+      mcpTabGroups: Array<{ id: string, name: string }>
+    }
+    const clientWorkspaceId = created.mcpTabGroups.find((group) => group.name === 'Permission client')!.id
+    const clientTabId = created.tabs.find((tab) => tab.mcpGroupId === clientWorkspaceId)!.id
+    await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(clientTabId)}, url: ${JSON.stringify(`${origin}/client`)} })`)
+    await titleShown('Workspace permission client')
+    await requestLocation('Workspace permission client')
+    await expect.poll(() => permissionDialogStats(electronApp)).toMatchObject({ calls: 2 })
+    await resolveNextPermissionDialog(electronApp, 0)
+    await expect.poll(async () => (await appWindow.evaluate('window.hronautPermissions.list()') as Array<{ workspaceId?: string, decision: string }>)
+      .map((entry) => [entry.workspaceId, entry.decision]).sort())
+      .toEqual([[clientWorkspaceId, 'deny'], [ownWorkspaceId, 'allow']].sort())
+
+    await appWindow.evaluate(`window.hronaut.closeWorkspace(${JSON.stringify(clientWorkspaceId)})`)
+    await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([
+      { origin, permission: 'geolocation', decision: 'allow', workspaceId: ownWorkspaceId }
+    ])
   } finally {
     await closeFixtureServer(server)
   }

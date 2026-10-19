@@ -2,28 +2,40 @@ import { computed, ref } from 'vue'
 import type {
   HronautPermissionsApi,
   SitePermissionDecision,
-  SitePermissionEntry
+  SitePermissionEntry,
+  SitePermissionScope
 } from '../../../shared/types.js'
 import { sitePermissionName } from '../../../shared/site-permission-names.js'
+import { sitePermissionKey, sitePermissionScopeOf } from '../../../shared/site-permission-scope.js'
 
 type SitePermissionsApi = Pick<HronautPermissionsApi, 'set' | 'remove' | 'clear'>
-type Translate = (key: string) => string
+type Translate = (key: string, parameters?: Record<string, unknown>) => string
 
 export interface SitePermissionsControllerOptions {
   api: SitePermissionsApi
   translate: Translate
+  /** The name of an open or archived workspace, read whenever a row shows it; undefined for one that is gone. */
+  workspaceName?: (workspaceId: string) => string | undefined
   onError: (error: unknown) => void
 }
 
-function permissionKey(entry: Pick<SitePermissionEntry, 'origin' | 'permission'>): string {
-  return `${entry.origin}\u0000${entry.permission}`
-}
+const permissionKey = sitePermissionKey
 
 function sortedEntries(entries: SitePermissionEntry[]): SitePermissionEntry[] {
   return [...entries].sort((left, right) => (
     left.origin.localeCompare(right.origin)
     || left.permission.localeCompare(right.permission)
+    || (left.workspaceId ?? '').localeCompare(right.workspaceId ?? '')
+    || (left.embeddedIn ?? '').localeCompare(right.embeddedIn ?? '')
   ))
+}
+
+/**
+ * The scope the permissions bridge names a decision by: none for a decision saved before decisions belonged to a
+ * workspace, so such a change or Forget is the same request it always was.
+ */
+function scopeArguments(entry: SitePermissionEntry): [] | [SitePermissionScope] {
+  return entry.workspaceId === undefined ? [] : [sitePermissionScopeOf(entry)]
 }
 
 export function useSitePermissionsController(options: SitePermissionsControllerOptions) {
@@ -48,6 +60,19 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
 
   function permissionLabel(permission: string): string {
     return sitePermissionName(permission, options.translate)
+  }
+
+  /**
+   * Where a decision applies, in words: its workspace's name, "All workspaces" for one saved before decisions belonged
+   * to a workspace, and for a website embedded in another website's page, "on" that website.
+   */
+  function scopeLabel(entry: SitePermissionEntry): string {
+    const workspace = entry.workspaceId === undefined
+      ? options.translate('settings.permissions.allWorkspaces')
+      : options.workspaceName?.(entry.workspaceId) ?? options.translate('settings.permissions.removedWorkspace')
+    return entry.embeddedIn
+      ? `${workspace} · ${options.translate('settings.permissions.embeddedIn', { site: entry.embeddedIn })}`
+      : workspace
   }
 
   function replace(next: SitePermissionEntry[]): void {
@@ -98,7 +123,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     const operation = begin(entry)
     if (!operation) return false
     try {
-      const saved = await options.api.set(entry.origin, entry.permission, decision)
+      const saved = await options.api.set(entry.origin, entry.permission, decision, ...scopeArguments(entry))
       if (operation.generation !== generation) return false
       if (operation.revision === revision) {
         entries.value = sortedEntries([
@@ -118,7 +143,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     const operation = begin(entry)
     if (!operation) return false
     try {
-      await options.api.remove(entry.origin, entry.permission)
+      await options.api.remove(entry.origin, entry.permission, ...scopeArguments(entry))
       if (operation.generation !== generation) return false
       if (operation.revision === revision) {
         entries.value = entries.value.filter((candidate) => permissionKey(candidate) !== operation.key)
@@ -162,6 +187,8 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     clearing,
     errorMessage,
     permissionLabel,
+    scopeLabel,
+    permissionKey,
     initialize,
     replace,
     isPending,

@@ -83,7 +83,21 @@ export interface DownloadDirectorySelection {
 
 export type SitePermissionDecision = 'allow' | 'deny'
 
-export interface SitePermissionEntry {
+/** Where a saved site permission decision applies, besides its website and permission. */
+export interface SitePermissionScope {
+  /**
+   * The workspace the decision was made in. A decision saved before Hronaut kept decisions per workspace has none and
+   * applies in every workspace that has no decision of its own for the website.
+   */
+  workspaceId?: string
+  /**
+   * The website, as an origin, of the page the requesting website was embedded in, such as the page around a video-call
+   * widget. A decision for a page's own website has none. Only a decision with a workspace has one.
+   */
+  embeddedIn?: string
+}
+
+export interface SitePermissionEntry extends SitePermissionScope {
   origin: string
   permission: string
   decision: SitePermissionDecision

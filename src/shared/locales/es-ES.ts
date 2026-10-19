@@ -410,7 +410,10 @@ export const esES = {
       "allow": "Permitir",
       "block": "Bloquear",
       "forget": "Olvidar decisión",
-      "help": "Al eliminar una decisión, Hronaut volverá a preguntar la próxima vez que el sitio necesite el permiso."
+      "help": "Al eliminar una decisión, Hronaut volverá a preguntar la próxima vez que el sitio necesite el permiso.",
+      "allWorkspaces": "Todos los espacios de trabajo",
+      "removedWorkspace": "Espacio de trabajo eliminado",
+      "embeddedIn": "en {site}"
     },
     "passwords": {
       "search": "Buscar contraseñas guardadas",
@@ -1211,7 +1214,9 @@ export const esES = {
     "permission": {
       "aria": "Permiso {permission} para {origin}",
       "forgetAria": "Olvidar el permiso {permission} para {origin}",
-      "resetAria": "Restablecer el permiso {permission} para {origin}"
+      "resetAria": "Restablecer el permiso {permission} para {origin}",
+      "scopedAria": "Permiso {permission} para {origin} ({scope})",
+      "scopedForgetAria": "Olvidar el permiso {permission} para {origin} ({scope})"
     }
   },
   "privacyActions": {
@@ -3615,6 +3620,7 @@ export const esES = {
       "useFolder": "Usar esta carpeta",
       "sitePermission": "Permiso del sitio",
       "permissionRequest": "{origin} solicita el permiso «{permission}».",
+      "permissionRequestEmbedded": "{origin} en {site} solicita el permiso «{permission}».",
       "deny": "Denegar",
       "allow": "Permitir",
       "requestedDevices": "Dispositivos solicitados: {devices}.",
@@ -3627,7 +3633,8 @@ export const esES = {
       "fileReadAccess": "lectura",
       "fileWriteAccess": "escritura",
       "unspecifiedPath": "ruta no especificada",
-      "permissionRemember": "Hronaut puede recordar esta elección para el origen exacto del sitio web.",
+      "permissionRemember": "Hronaut recuerda esta elección para este sitio web en este espacio de trabajo.",
+      "permissionRememberEmbedded": "Hronaut recuerda esta elección para este sitio web en {site}, dentro de este espacio de trabajo.",
       "permissionAskAgain": "{detail} Hronaut no recuerda esta elección. Tras «Denegar», esta página no podrá volver a pedirlo hasta que se recargue.",
       "permissionSettings": "{detail} Puedes cambiarlo más tarde en Configuración → Permisos de sitios.",
       "workspaceRecoveryTitle": "No se pudieron abrir los espacios guardados",

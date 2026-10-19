@@ -5,12 +5,17 @@ import type { PersistedBrowserState, TabStateStore } from '../tab-store.js'
 import type { BrowserWorkspaceOperation } from '../workspace-operations/workspace-operations-access.js'
 import type { ActiveWorkspace, ArchivedWorkspace, WorkspaceRegistry } from '../workspace-registry.js'
 
-/** The tab manager options archiving uses: Undo, and the storage partition a deleted archive's data is removed from. */
+/**
+ * The tab manager options archiving uses: Undo, the storage partition a deleted archive's data is removed from, and the
+ * hook a deleted archive notifies.
+ */
 export interface WorkspaceArchiveOptions {
   partition: string
   configureSession?: (browserSession: Session) => void
   offerUndo?: (action: UndoableAction) => void
   endUndo?: () => Promise<void>
+  /** An archived workspace was deleted with its storage, so it is gone for good. */
+  onWorkspaceForgotten?: (workspaceId: string) => void
 }
 
 /** A workspace the person closed with Undo on offer, and whether a restore meanwhile kept it. */

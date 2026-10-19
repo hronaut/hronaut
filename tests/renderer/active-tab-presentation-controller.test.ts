@@ -93,7 +93,7 @@ function create(active = tab()) {
     formatNumber: (value) => `#${value}`,
     describeEmulation: () => 'mobile viewport'
   })
-  return { controller, browserState, activeTab, downloads }
+  return { controller, browserState, activeTab, downloads, sitePermissions }
 }
 
 describe('active tab presentation controller', () => {
@@ -107,6 +107,36 @@ describe('active tab presentation controller', () => {
     expect(controller.activeSitePermissions.value.map((entry) => entry.origin)).toEqual(['https://example.test'])
     expect(controller.activeCredentials.value.map((entry) => entry.id)).toEqual(['credential'])
     expect(controller.currentBookmark.value?.id).toBe('bookmark')
+  })
+
+  it('shows Site controls only the decisions for the tab’s workspace and page, and older ones it did not replace', () => {
+    // Site controls listed every decision for the website, from every workspace and every page that embedded it.
+    const { controller, sitePermissions, activeTab } = create(tab({ mcpGroupId: 'isolated' }))
+    const page = 'https://example.test'
+    sitePermissions.value = [
+      { origin: page, permission: 'geolocation', decision: 'allow' },
+      { origin: page, permission: 'notifications', decision: 'allow' },
+      { origin: page, permission: 'notifications', decision: 'deny', workspaceId: 'isolated' },
+      { origin: page, permission: 'geolocation', decision: 'deny', workspaceId: 'other' },
+      { origin: page, permission: 'camera', decision: 'allow', workspaceId: 'isolated', embeddedIn: 'https://other.test' },
+      { origin: 'https://widget.test', permission: 'geolocation', decision: 'allow', workspaceId: 'isolated', embeddedIn: page },
+      { origin: 'https://widget.test', permission: 'geolocation', decision: 'deny', workspaceId: 'isolated', embeddedIn: 'https://other.test' },
+      { origin: 'https://widget.test', permission: 'geolocation', decision: 'allow', workspaceId: 'other', embeddedIn: page },
+      { origin: 'https://widget.test', permission: 'notifications', decision: 'allow' }
+    ]
+    expect(controller.activeSitePermissions.value).toEqual([
+      { origin: page, permission: 'geolocation', decision: 'allow' },
+      { origin: page, permission: 'notifications', decision: 'deny', workspaceId: 'isolated' },
+      { origin: 'https://widget.test', permission: 'geolocation', decision: 'allow', workspaceId: 'isolated', embeddedIn: page }
+    ])
+
+    // The other workspace's tab sees its own decisions instead.
+    activeTab.value = tab({ mcpGroupId: 'other' })
+    expect(controller.activeSitePermissions.value).toEqual([
+      { origin: page, permission: 'notifications', decision: 'allow' },
+      { origin: page, permission: 'geolocation', decision: 'deny', workspaceId: 'other' },
+      { origin: 'https://widget.test', permission: 'geolocation', decision: 'allow', workspaceId: 'other', embeddedIn: page }
+    ])
   })
 
   it('does not treat a lookalike internal host as Hronaut Home', () => {

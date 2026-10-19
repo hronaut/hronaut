@@ -15,6 +15,7 @@ const cameraPermission: SitePermissionEntry = {
 function renderPanel(options: {
   setPermission?: (entry: SitePermissionEntry, decision: SitePermissionDecision) => boolean | Promise<boolean>
   permissionPending?: () => boolean
+  permissions?: SitePermissionEntry[]
 } = {}) {
   const setPermission = options.setPermission ?? vi.fn(() => true)
   const resetPermission = vi.fn(() => true)
@@ -31,9 +32,9 @@ function renderPanel(options: {
       summary: { origin: 'https://example.test', cookieCount: 2, historyEntries: 3, historyVisits: 5 },
       state: 'idle',
       message: '',
-      permissions: [cameraPermission],
+      permissions: options.permissions ?? [cameraPermission],
       locale: 'en-US',
-      permissionLabel: () => 'Camera',
+      permissionLabel: (permission: string) => permission === 'geolocation' ? 'Location' : 'Camera',
       permissionPending: options.permissionPending ?? (() => false),
       setPermission,
       resetPermission,
@@ -84,5 +85,24 @@ describe('SiteControlsPanel', () => {
 
     expect(permission).toHaveValue('allow')
     expect(setPermission).toHaveBeenCalledWith(cameraPermission, 'deny')
+  })
+
+  it('tells a website embedded in the page and a decision for all workspaces apart from the page’s own', async () => {
+    const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
+    const embedded = { origin: 'https://widget.test', permission: 'geolocation', decision: 'allow' as const, workspaceId, embeddedIn: 'https://example.test' }
+    const { setPermission } = renderPanel({ permissions: [
+      { ...cameraPermission, workspaceId },
+      { origin: 'https://example.test', permission: 'geolocation', decision: 'deny' },
+      embedded
+    ] })
+    const user = userEvent.setup()
+    expect(screen.getByText('All workspaces')).toBeVisible()
+    expect(screen.getByText('https://widget.test')).toBeVisible()
+    const ownLocation = screen.getByRole('combobox', { name: 'Location permission for https://example.test' })
+    const widgetLocation = screen.getByRole('combobox', { name: 'Location permission for https://widget.test' })
+    expect(ownLocation.id).not.toBe(widgetLocation.id)
+    expect(screen.getByLabelText(/Location\s+https:\/\/widget\.test/)).toBe(widgetLocation)
+    await user.selectOptions(widgetLocation, 'deny')
+    expect(setPermission).toHaveBeenCalledWith(embedded, 'deny')
   })
 })

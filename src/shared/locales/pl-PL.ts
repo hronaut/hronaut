@@ -410,7 +410,10 @@ export const plPL = {
       "allow": "Zezwól",
       "block": "Zablokuj",
       "forget": "Zapomnij decyzję",
-      "help": "Po usunięciu decyzji Hronaut zapyta ponownie przy następnej prośbie witryny."
+      "help": "Po usunięciu decyzji Hronaut zapyta ponownie przy następnej prośbie witryny.",
+      "allWorkspaces": "Wszystkie obszary robocze",
+      "removedWorkspace": "Usunięty obszar roboczy",
+      "embeddedIn": "na {site}"
     },
     "passwords": {
       "search": "Szukaj zapisanych haseł",
@@ -1211,7 +1214,9 @@ export const plPL = {
     "permission": {
       "aria": "Uprawnienie {permission} dla {origin}",
       "forgetAria": "Zapomnij uprawnienie {permission} dla {origin}",
-      "resetAria": "Zresetuj uprawnienie {permission} dla {origin}"
+      "resetAria": "Zresetuj uprawnienie {permission} dla {origin}",
+      "scopedAria": "Uprawnienie {permission} dla {origin} ({scope})",
+      "scopedForgetAria": "Zapomnij uprawnienie {permission} dla {origin} ({scope})"
     }
   },
   "privacyActions": {
@@ -3615,6 +3620,7 @@ export const plPL = {
       "useFolder": "Użyj tego folderu",
       "sitePermission": "Uprawnienie witryny",
       "permissionRequest": "{origin} żąda uprawnienia „{permission}”.",
+      "permissionRequestEmbedded": "{origin} na stronie {site} żąda uprawnienia „{permission}”.",
       "deny": "Odmów",
       "allow": "Zezwól",
       "requestedDevices": "Żądane urządzenia: {devices}.",
@@ -3627,7 +3633,8 @@ export const plPL = {
       "fileReadAccess": "odczyt",
       "fileWriteAccess": "zapis",
       "unspecifiedPath": "nieokreślona ścieżka",
-      "permissionRemember": "Hronaut może zapamiętać ten wybór dla dokładnego źródła witryny.",
+      "permissionRemember": "Hronaut zapamięta ten wybór dla tej witryny w tym obszarze roboczym.",
+      "permissionRememberEmbedded": "Hronaut zapamięta ten wybór dla tej witryny na stronie {site} w tym obszarze roboczym.",
       "permissionAskAgain": "{detail} Hronaut nie zapamiętuje tego wyboru. Po wybraniu „Odmów” ta strona nie będzie mogła zapytać o to ponownie, dopóki nie zostanie ponownie wczytana.",
       "permissionSettings": "{detail} Możesz to później zmienić w Ustawienia → Uprawnienia witryn.",
       "workspaceRecoveryTitle": "Nie można otworzyć zapisanych przestrzeni",

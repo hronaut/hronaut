@@ -29,11 +29,19 @@ interface FakeFrame {
 
 const temporaryDirectories: string[] = []
 
+/** The workspace the harness's pages belong to, and another one with its own browser session. */
+const WORK = '01912345-6789-7abc-8def-0123456789ab'
+const CLIENT = '01912345-678a-7abc-8def-0123456789ab'
+
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
-/** One profile's permission handlers with a real site permission store, answering each prompt with `decide`. */
+/**
+ * One profile's permission handlers with a real site permission store, answering each prompt with `decide`. Its pages
+ * run in the session of the workspace WORK; `workspaceSession` gives another workspace's session, or one no workspace
+ * claimed, such as Home's.
+ */
 async function createHarness(locale: SupportedLocale = 'en-US') {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-permission-requests-test-'))
   temporaryDirectories.push(directory)
@@ -61,13 +69,25 @@ async function createHarness(locale: SupportedLocale = 'en-US') {
     sendToShellWindows: (...args) => { sent.push(args) },
     partition: 'persist:test'
   })
-  browserSession.configureBrowserSession({
-    setDownloadPath: () => undefined,
-    setPermissionCheckHandler: (next: CheckHandler) => { harness.check = next },
-    setPermissionRequestHandler: (next: RequestHandler) => { harness.request = next }
-  } as unknown as Session)
+  const workspaceSession = (workspaceId?: string) => {
+    const handlers = { request: undefined as RequestHandler | undefined, check: undefined as CheckHandler | undefined }
+    const fakeSession = {
+      setDownloadPath: () => undefined,
+      setPermissionCheckHandler: (next: CheckHandler) => { handlers.check = next },
+      setPermissionRequestHandler: (next: RequestHandler) => { handlers.request = next }
+    } as unknown as Session
+    browserSession.configureBrowserSession(fakeSession, workspaceId)
+    return Object.assign(handlers, { session: fakeSession })
+  }
+  const work = workspaceSession(WORK)
+  harness.request = work.request
+  harness.check = work.check
   harness.publishSitePermissions = browserSession.publishSitePermissions
-  return harness
+  return Object.assign(harness, {
+    workspaceSession,
+    configureBrowserSession: browserSession.configureBrowserSession,
+    forgetWorkspaceSitePermissions: browserSession.forgetWorkspaceSitePermissions
+  })
 }
 
 /** A page whose main frame and child frames show the given addresses, each running as the given origin. */
@@ -386,7 +406,7 @@ describe('frames that run as their page’s origin', () => {
     const page = createPage(inbox, [{ url: 'about:srcdoc', origin: inbox.origin }])
     expect(await ask(harness, page, 'geolocation', { requestingUrl: 'about:srcdoc', isMainFrame: false })).toBe(true)
     expect(harness.shown[0]!.message).toBe('https://app.example requests “Location” permission.')
-    expect(harness.store.list()).toContainEqual({ origin: inbox.origin, permission: 'geolocation', decision: 'allow' })
+    expect(harness.store.list()).toContainEqual({ origin: inbox.origin, permission: 'geolocation', decision: 'allow', workspaceId: WORK })
   })
 
   it('uses a remembered decision when several frames show the same address as one origin', async () => {
@@ -475,5 +495,160 @@ describe('frames that run as their page’s origin', () => {
     answer('allow')
     expect(await pending).toBe(false)
     expect(harness.store.list()).toEqual([])
+  })
+})
+
+describe('decisions that belong to a workspace and a page', () => {
+  const widget = { url: 'https://widget.example/call', origin: 'https://widget.example' }
+  const firstSite = { url: 'https://first.example/room', origin: 'https://first.example' }
+  const secondSite = { url: 'https://second.example/room', origin: 'https://second.example' }
+  const fromWidget = { requestingUrl: widget.url, isMainFrame: false }
+  const check = (handler: CheckHandler | undefined, page: { contents: unknown } | null, details: Record<string, unknown>) => (
+    handler!(page ? page.contents as never : null, 'geolocation', `${widget.origin}/`, details as never)
+  )
+
+  it('asks again for a website embedded in another page, and keeps each page’s decision', async () => {
+    // An Allow given to a video-call widget on one page was saved for the widget alone, so every other page that
+    // embedded it got the camera or location without asking.
+    const harness = await createHarness()
+    harness.decide = () => 'allow'
+    const onFirst = createPage(firstSite, [widget])
+    expect(await ask(harness, onFirst, 'geolocation', fromWidget)).toBe(true)
+    expect(harness.shown[0]).toMatchObject({
+      message: 'https://widget.example on https://first.example requests “Location” permission.',
+      detail: 'Hronaut remembers this choice for this website on https://first.example in this workspace. '
+        + 'You can change it later in Settings → Site permissions.'
+    })
+    expect(harness.store.list()).toEqual([
+      { origin: widget.origin, permission: 'geolocation', decision: 'allow', workspaceId: WORK, embeddedIn: firstSite.origin }
+    ])
+
+    harness.decide = () => 'deny'
+    const onSecond = createPage(secondSite, [widget])
+    expect(await ask(harness, onSecond, 'geolocation', fromWidget)).toBe(false)
+    expect(harness.shown).toHaveLength(2)
+    expect(harness.shown[1]!.message).toBe('https://widget.example on https://second.example requests “Location” permission.')
+
+    // Each page keeps its own answer, for requests and for checks.
+    expect(await ask(harness, createPage(firstSite, [widget]), 'geolocation', fromWidget)).toBe(true)
+    expect(await ask(harness, createPage(secondSite, [widget]), 'geolocation', fromWidget)).toBe(false)
+    expect(harness.shown).toHaveLength(2)
+    expect(check(harness.check, onFirst, fromWidget)).toBe(true)
+    expect(check(harness.check, onSecond, fromWidget)).toBe(false)
+
+    // Neither is the widget's own decision, on its own page or for its service worker.
+    const own = createPage(widget)
+    expect(check(harness.check, own, { requestingUrl: widget.url, isMainFrame: true })).toBe(false)
+    expect(check(harness.check, null, { isMainFrame: false })).toBe(false)
+    expect(await ask(harness, own, 'geolocation', { requestingUrl: widget.url, isMainFrame: true })).toBe(false)
+    expect(harness.shown).toHaveLength(3)
+    expect(harness.shown[2]!.message).toBe('https://widget.example requests “Location” permission.')
+  })
+
+  it('does not use a website’s own decision for it embedded in a page, and a same-site frame uses the page’s', async () => {
+    const harness = await createHarness()
+    await harness.store.set(widget.origin, 'geolocation', 'allow', { workspaceId: WORK })
+    expect(check(harness.check, createPage(widget), { requestingUrl: widget.url, isMainFrame: true })).toBe(true)
+    expect(check(harness.check, null, { isMainFrame: false })).toBe(true)
+    expect(check(harness.check, createPage(widget, [{ url: 'https://widget.example/frame', origin: widget.origin }]),
+      { requestingUrl: 'https://widget.example/frame', isMainFrame: false })).toBe(true)
+    expect(check(harness.check, createPage(firstSite, [widget]), fromWidget)).toBe(false)
+    expect(await ask(harness, createPage(firstSite, [widget]), 'geolocation', fromWidget)).toBe(false)
+    expect(harness.shown).toHaveLength(1)
+  })
+
+  it('does not use a decision made in another workspace', async () => {
+    // A decision made in one workspace applied in every workspace, though each keeps its own sign-ins and data.
+    const harness = await createHarness()
+    const client = harness.workspaceSession(CLIENT)
+    harness.decide = () => 'allow'
+    const site = { url: firstSite.url, isMainFrame: true }
+    expect(await ask(harness, createPage(firstSite), 'geolocation', { requestingUrl: site.url, isMainFrame: true })).toBe(true)
+
+    harness.decide = () => 'deny'
+    expect(await ask(client, createPage(firstSite), 'geolocation', { requestingUrl: site.url, isMainFrame: true })).toBe(false)
+    expect(harness.shown).toHaveLength(2)
+    const checkIn = (handler: CheckHandler | undefined) => handler!(
+      createPage(firstSite).contents as never, 'geolocation', `${firstSite.origin}/`, { requestingUrl: site.url, isMainFrame: true } as never
+    )
+    expect([checkIn(harness.check), checkIn(client.check)]).toEqual([true, false])
+    expect(harness.store.list()).toEqual([
+      { origin: firstSite.origin, permission: 'geolocation', decision: 'allow', workspaceId: WORK },
+      { origin: firstSite.origin, permission: 'geolocation', decision: 'deny', workspaceId: CLIENT }
+    ].sort((left, right) => left.workspaceId.localeCompare(right.workspaceId)))
+  })
+
+  it('still uses a decision saved before decisions belonged to a workspace, unless the workspace has its own', async () => {
+    const harness = await createHarness()
+    const client = harness.workspaceSession(CLIENT)
+    await harness.store.set(widget.origin, 'geolocation', 'allow')
+    const own = { requestingUrl: widget.url, isMainFrame: true }
+    for (const handlers of [harness, client]) {
+      expect(await ask(handlers, createPage(widget), 'geolocation', own)).toBe(true)
+      expect(await ask(handlers, createPage(firstSite, [widget]), 'geolocation', fromWidget)).toBe(true)
+      expect(check(handlers.check, createPage(secondSite, [widget]), fromWidget)).toBe(true)
+      expect(check(handlers.check, null, { isMainFrame: false })).toBe(true)
+    }
+    expect(harness.shown).toEqual([])
+
+    await harness.store.set(widget.origin, 'geolocation', 'deny', { workspaceId: CLIENT })
+    expect(await ask(client, createPage(widget), 'geolocation', own)).toBe(false)
+    expect(await ask(harness, createPage(widget), 'geolocation', own)).toBe(true)
+    // The client's own-page Deny is not its decision for the widget embedded in a page, which still falls back.
+    expect(await ask(client, createPage(firstSite, [widget]), 'geolocation', fromWidget)).toBe(true)
+    expect(harness.shown).toEqual([])
+  })
+
+  it('gives no permission in a session no single workspace claims, or in a page whose website is unknown', async () => {
+    const harness = await createHarness()
+    harness.decide = () => 'allow'
+    await harness.store.set(firstSite.origin, 'geolocation', 'allow')
+    await harness.store.set(widget.origin, 'geolocation', 'allow')
+    const fromSite = { requestingUrl: firstSite.url, isMainFrame: true }
+    const home = harness.workspaceSession()
+    expect(await ask(home, createPage(firstSite), 'geolocation', fromSite)).toBe(false)
+    expect(await ask(home, createPage(firstSite), 'media', { ...fromSite, mediaTypes: ['video'] })).toBe(false)
+    expect(home.check!(createPage(firstSite).contents as never, 'geolocation', firstSite.origin, fromSite as never)).toBe(false)
+
+    const claimedTwice = harness.workspaceSession(CLIENT)
+    harness.configureBrowserSession(claimedTwice.session, WORK)
+    expect(await ask(claimedTwice, createPage(firstSite), 'geolocation', fromSite)).toBe(false)
+    expect(claimedTwice.check!(null, 'geolocation', firstSite.origin, { isMainFrame: false } as never)).toBe(false)
+
+    const unknownPage = createPage({ url: 'file:///home/person/page.html', origin: 'file://' }, [widget])
+    expect(await ask(harness, unknownPage, 'geolocation', fromWidget)).toBe(false)
+    expect(check(harness.check, unknownPage, fromWidget)).toBe(false)
+    expect(harness.shown).toEqual([])
+  })
+
+  it('does not keep an answer after the page around the frame became another website', async () => {
+    const harness = await createHarness()
+    const answers = answerLater(harness)
+    const page = createPage(firstSite, [widget])
+    const pending = ask(harness, page, 'geolocation', fromWidget)
+    await vi.waitFor(() => expect(harness.shown).toHaveLength(1))
+    // The main frame shows another website, which Electron has not reported yet.
+    Object.assign(page.frames[0]!, { url: secondSite.url, origin: secondSite.origin })
+    answers[0]!('allow')
+    expect(await pending).toBe(false)
+    expect(harness.store.list()).toEqual([])
+  })
+
+  it('forgets a removed workspace’s decisions, keeps the rest and tells the shell', async () => {
+    const harness = await createHarness()
+    await harness.store.set(widget.origin, 'geolocation', 'allow')
+    await harness.store.set(widget.origin, 'geolocation', 'allow', { workspaceId: WORK })
+    await harness.store.set(widget.origin, 'geolocation', 'deny', { workspaceId: CLIENT })
+    await harness.store.set(widget.origin, 'notifications', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite.origin })
+    await harness.forgetWorkspaceSitePermissions(CLIENT)
+    const kept = [
+      { origin: widget.origin, permission: 'geolocation', decision: 'allow' },
+      { origin: widget.origin, permission: 'geolocation', decision: 'allow', workspaceId: WORK }
+    ]
+    expect(harness.store.list()).toEqual(kept)
+    expect(harness.sent).toEqual([['permissions:changed', kept]])
+    // Nothing to forget tells the shell nothing.
+    await harness.forgetWorkspaceSitePermissions(CLIENT)
+    expect(harness.sent).toHaveLength(1)
   })
 })

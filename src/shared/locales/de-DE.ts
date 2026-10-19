@@ -410,7 +410,10 @@ export const deDE = {
       "allow": "Zulassen",
       "block": "Blockieren",
       "forget": "Entscheidung vergessen",
-      "help": "Nach dem Entfernen fragt Hronaut beim nächsten Berechtigungsbedarf erneut."
+      "help": "Nach dem Entfernen fragt Hronaut beim nächsten Berechtigungsbedarf erneut.",
+      "allWorkspaces": "Alle Arbeitsbereiche",
+      "removedWorkspace": "Entfernter Arbeitsbereich",
+      "embeddedIn": "auf {site}"
     },
     "passwords": {
       "search": "Gespeicherte Passwörter suchen",
@@ -1211,7 +1214,9 @@ export const deDE = {
     "permission": {
       "aria": "Berechtigung „{permission}“ für {origin}",
       "forgetAria": "Berechtigung „{permission}“ für {origin} vergessen",
-      "resetAria": "Berechtigung „{permission}“ für {origin} zurücksetzen"
+      "resetAria": "Berechtigung „{permission}“ für {origin} zurücksetzen",
+      "scopedAria": "Berechtigung „{permission}“ für {origin} ({scope})",
+      "scopedForgetAria": "Berechtigung „{permission}“ für {origin} ({scope}) vergessen"
     }
   },
   "privacyActions": {
@@ -3615,6 +3620,7 @@ export const deDE = {
       "useFolder": "Diesen Ordner verwenden",
       "sitePermission": "Website-Berechtigung",
       "permissionRequest": "{origin} fordert die Berechtigung „{permission}“ an.",
+      "permissionRequestEmbedded": "{origin} auf {site} fordert die Berechtigung „{permission}“ an.",
       "deny": "Ablehnen",
       "allow": "Zulassen",
       "requestedDevices": "Angeforderte Geräte: {devices}.",
@@ -3627,7 +3633,8 @@ export const deDE = {
       "fileReadAccess": "Lesen",
       "fileWriteAccess": "Schreiben",
       "unspecifiedPath": "nicht angegebener Pfad",
-      "permissionRemember": "Hronaut kann diese Auswahl für den genauen Website-Ursprung speichern.",
+      "permissionRemember": "Hronaut merkt sich diese Auswahl für diese Website in diesem Arbeitsbereich.",
+      "permissionRememberEmbedded": "Hronaut merkt sich diese Auswahl für diese Website auf {site} in diesem Arbeitsbereich.",
       "permissionAskAgain": "{detail} Hronaut speichert diese Auswahl nicht. Nach „Ablehnen“ kann diese Seite erst wieder danach fragen, wenn sie neu geladen wird.",
       "permissionSettings": "{detail} Sie können dies später unter Einstellungen → Website-Berechtigungen ändern.",
       "workspaceRecoveryTitle": "Gespeicherte Arbeitsbereiche konnten nicht geöffnet werden",

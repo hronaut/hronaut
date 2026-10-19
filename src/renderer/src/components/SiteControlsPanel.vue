@@ -13,6 +13,7 @@ import type {
   SitePermissionEntry,
   SupportedLocale
 } from '../../../shared/types'
+import { sitePermissionKey } from '../../../shared/site-permission-scope'
 import PanelDockPicker from './PanelDockPicker.vue'
 import { vTooltip } from '../ui/tooltip.js'
 
@@ -37,6 +38,15 @@ const open = defineModel<boolean>('open', { required: true })
 const dock = defineModel<PanelDock>('dock', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 const localNumber = (value: number): string => formatNumber(props.locale, value)
+
+/**
+ * What tells a decision apart from the page's own decisions in this workspace: a website embedded in the page shows
+ * its origin, and a decision saved before decisions belonged to a workspace says it applies in all of them.
+ */
+function permissionDetail(entry: SitePermissionEntry): string {
+  if (entry.embeddedIn) return entry.origin
+  return entry.workspaceId === undefined ? t('settings.permissions.allWorkspaces') : ''
+}
 
 async function changePermission(entry: SitePermissionEntry, event: Event): Promise<void> {
   const input = event.target as HTMLSelectElement
@@ -83,10 +93,13 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
         <span>{{ permissions.length ? `${permissions.length} customized` : t('shell.siteControls.defaults') }}</span>
       </div>
       <div v-if="permissions.length" class="site-permission-list">
-        <div v-for="permission in permissions" :key="permission.permission" class="site-permission-control">
-          <label :for="`site-control-${permission.permission}`">{{ permissionLabel(permission.permission) }}</label>
+        <div v-for="(permission, index) in permissions" :key="sitePermissionKey(permission)" class="site-permission-control">
+          <label :for="`site-control-${index}`">
+            {{ permissionLabel(permission.permission) }}
+            <small v-if="permissionDetail(permission)">{{ permissionDetail(permission) }}</small>
+          </label>
           <select
-            :id="`site-control-${permission.permission}`"
+            :id="`site-control-${index}`"
             :value="permission.decision"
             :disabled="permissionPending(permission)"
             :aria-label="t('runtimeActions.permission.aria', { permission: permissionLabel(permission.permission), origin: permission.origin })"
