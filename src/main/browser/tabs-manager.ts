@@ -63,6 +63,7 @@ import { ReactInspectionController, type ReactInspectionAuthority } from './reac
 import { FixedDateController, type FixedDateAuthority } from './fixed-date/fixed-date.js'
 import type { ReactInspectionCommand } from '../../shared/react-inspection.js'
 import type { FixedDateAction, FixedDateBootstrap, FixedDateResult } from '../../shared/fixed-date.js'
+import type { DomMutationSourceAction, DomMutationSourceKind, DomMutationSourceReport } from '../../shared/dom-mutation-source.js'
 import { BrowserPwaLifecycle } from './pwa-lifecycle.js'
 import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
@@ -101,6 +102,7 @@ import { HomeRefresh } from './home-refresh.js'
 import { BrowserDebuggerQueue } from './debugger-queue.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
 import { BrowserCssStatePreview } from './css-state-preview.js'
+import { DomMutationSourceCaptures, type DomMutationSourceAuthority } from './dom-mutation-source/dom-mutation-source.js'
 import { normalizeDefaultFontSize } from '../../shared/default-font-size.js'
 import { BrowserLiveRegionRecorder, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
@@ -915,14 +917,29 @@ export class BrowserTabsManager {
   private readonly liveRegionRecorder = new BrowserLiveRegionRecorder<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab
   })
-  private readonly cssStatePreview = new BrowserCssStatePreview<BrowserTab>({
+  private readonly cssStatePreview: BrowserCssStatePreview<BrowserTab> = new BrowserCssStatePreview<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
     inDebuggerQueue: (tab, operation) => this.debuggerQueue.run(tab.webContents.id, operation),
     // Stopping coverage disables the DOM domain, which would silently drop the override.
-    conflict: tab => tab.codeCoverage?.recording ? 'Stop code coverage before previewing CSS states' : undefined,
+    conflict: tab => tab.codeCoverage?.recording ? 'Stop code coverage before previewing CSS states'
+      : this.domMutationSource.active(tab) ? 'Cancel the DOM mutation source capture before previewing CSS states' : undefined,
     keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean)),
     changed: () => this.changed(false)
+  })
+  private readonly domMutationSource: DomMutationSourceCaptures<BrowserTab> = new DomMutationSourceCaptures<BrowserTab>({
+    isCurrent: tab => this.tabs.get(tab.id) === tab,
+    withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
+    inDebuggerQueue: (tab, operation) => this.debuggerQueue.run(tab.webContents.id, operation),
+    // Coverage deactivates breakpoints and later disables the Debugger and DOM domains; a capture's
+    // DOM.getDocument would unbind a CSS state preview's element.
+    conflict: tab => tab.codeCoverage?.recording ? 'Stop code coverage before capturing a DOM mutation source'
+      : this.cssStatePreview.active(tab) ? 'Clear the CSS state preview before capturing a DOM mutation source' : undefined,
+    // A use that started after a renderer exit, before the capture's removal ran in the new renderer, keeps its domains.
+    keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean))
+      || Boolean(tab.codeCoverage?.recording) || this.cssStatePreview.active(tab),
+    keepDebuggerEnabled: tab => Boolean(tab.codeCoverage?.recording),
+    isDevToolsOpening: tab => this.devToolsOpening.has(tab.webContents.id)
   })
   private readonly reproRecorder = new BrowserReproRecorder<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
@@ -2347,6 +2364,7 @@ export class BrowserTabsManager {
       agentInputWebContents: () => this.agentInputWebContents,
       videoRecorder: () => this.videoRecorder,
       cssStatePreview: () => this.cssStatePreview,
+      domMutationSource: () => this.domMutationSource,
       mcpActivitiesByTab: () => this.mcpActivitiesByTab,
       downloadController: () => this.downloadController,
       renderQueues: () => this.renderQueues,
@@ -2958,6 +2976,7 @@ export class BrowserTabsManager {
   private removeTabRecord(tab: BrowserTab): void {
     const browserSession = tab.browserSession
     this.cssStatePreview.forget(tab)
+    this.domMutationSource.forget(tab)
     this.invalidateTabOverviewPreview(tab)
     this.tabOverviewSleepPreviews.delete(tab.id)
     this.tabOverviewPreviewCaptures.cancelPending(tab.id)
@@ -3352,6 +3371,9 @@ export class BrowserTabsManager {
     if (options.action === 'start' && this.cssStatePreview.active(this.getTab(options.tabId))) {
       return Promise.reject(new Error('Clear the CSS state preview before recording code coverage'))
     }
+    if (options.action === 'start' && this.domMutationSource.active(this.getTab(options.tabId))) {
+      return Promise.reject(new Error('Cancel the DOM mutation source capture before recording code coverage'))
+    }
     return this.profiling.codeCoverage(options)
   }
 
@@ -3409,6 +3431,7 @@ export class BrowserTabsManager {
       acquireImageInspectionSlot: (owner) => this.imageInspectionSlots.acquire(owner),
       isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
       cssStatePreviewActive: (tab) => this.cssStatePreview.active(tab),
+      domMutationSourceActive: (tab) => this.domMutationSource.active(tab),
       withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
       isUnavailableCdpMethod: (error) => this.isUnavailableCdpMethod(error)
     }
@@ -3878,6 +3901,14 @@ export class BrowserTabsManager {
     options: { selector?: string; states?: readonly string[]; durationMs?: number } = {}
   ): Promise<BrowserCssStatePreviewReport> {
     return this.cssStatePreview.manage(this.getTab(tabId), action, options)
+  }
+
+  domMutationSourceAction(
+    tabId: string,
+    action: DomMutationSourceAction,
+    options: { selector?: string; kind?: DomMutationSourceKind; durationMs?: number; authority?: DomMutationSourceAuthority } = {}
+  ): Promise<DomMutationSourceReport> {
+    return this.domMutationSource.manage(this.getTab(tabId), action, options)
   }
 
   /** Marks screenshots and inspections taken while a forced CSS state was applied. */

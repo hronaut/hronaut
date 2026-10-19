@@ -102,6 +102,7 @@ import { registerBrowserDebugReport } from './tools/browser-debug-report/index.j
 import { registerBrowserVideo } from './tools/browser-video/index.js'
 import { registerBrowserRepro } from './tools/browser-repro/index.js'
 import { registerBrowserDomChanges } from './tools/browser-dom-changes/index.js'
+import { registerBrowserDomMutationSource } from './tools/browser-dom-mutation-source/index.js'
 import { registerBrowserLiveRegion } from './tools/browser-live-region/index.js'
 import { registerBrowserCssStatePreview } from './tools/browser-css-state-preview/index.js'
 import { registerBrowserVisualCompare } from './tools/browser-visual-compare/index.js'
@@ -741,6 +742,7 @@ export function createBrowserMcpServer(
   registerBrowserVideo(toolContext)
   registerBrowserRepro(toolContext)
   registerBrowserDomChanges(toolContext)
+  registerBrowserDomMutationSource(toolContext)
   registerBrowserLiveRegion(toolContext)
   registerBrowserCssStatePreview(toolContext)
   registerBrowserVisualCompare(toolContext)
