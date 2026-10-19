@@ -1,4 +1,5 @@
 import { MAX_FIND_QUERY_LENGTH } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import type { PageFindAccess } from './page-find-access.js'
 
 /**
@@ -11,7 +12,7 @@ export async function findInPage(
   query: string,
   options: { tabId?: string; forward?: boolean; findNext?: boolean; caseSensitive?: boolean } = {}
 ): Promise<{ activeMatchOrdinal: number; matches: number }> {
-  if (!query || query.length > MAX_FIND_QUERY_LENGTH) throw new Error('Find query must contain between 1 and 1,000 characters')
+  if (!query || query.length > MAX_FIND_QUERY_LENGTH) throw new LocalizedError('appErrors.page.findQuery')
   const webContents = access.getTab(options.tabId).webContents
   return access.searchPage(webContents, query, {
     forward: options.forward ?? true,

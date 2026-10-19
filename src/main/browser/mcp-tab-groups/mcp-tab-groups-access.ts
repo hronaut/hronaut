@@ -2,6 +2,7 @@ import type { NavigationEntry, Session } from 'electron'
 import type { BrowserClosedTabState, BrowserState } from '../../../shared/types.js'
 import type { BrowserNetworkRecordingState } from '../network-recording.js'
 import type { PersistedBrowserState, TabStateStore } from '../tab-store.js'
+import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from '../workspace-operations/workspace-operations-access.js'
 import type { ActiveWorkspace, ArchivedWorkspace } from '../workspace-registry.js'
 
 /**
@@ -98,11 +99,11 @@ export interface McpTabGroupsAccess<Tab extends McpTabGroupsTab> {
   /** Whether the person just closed the workspace and it waits to be deleted. */
   isClosingWorkspace(workspaceId: string): boolean
   /** Runs an operation that holds an open workspace busy. */
-  withWorkspaceOperation<T>(workspaceId: string, action: string, operation: () => Promise<T>, blocksNewTabs?: boolean): Promise<T>
+  withWorkspaceOperation<T>(workspaceId: string, action: OpenWorkspaceOperationAction, operation: () => Promise<T>, blocksNewTabs?: boolean): Promise<T>
   /** Runs an operation that holds an archived workspace busy. */
-  withSavedWorkspaceOperation<T>(savedWorkspaceId: string, action: string, operation: () => Promise<T>): Promise<T>
+  withSavedWorkspaceOperation<T>(savedWorkspaceId: string, action: WorkspaceOperationAction, operation: () => Promise<T>): Promise<T>
   /** Runs an operation that holds the storage of every workspace busy. */
-  withGlobalWorkspaceStorageOperation<T>(action: string, operation: () => Promise<T>): Promise<T>
+  withGlobalWorkspaceStorageOperation<T>(action: WorkspaceOperationAction, operation: () => Promise<T>): Promise<T>
   /** Runs an operation once pending tab label edits settle, admitting no new edit until it ends. */
   withTabLabelLifecycle<T>(run: () => Promise<T>): Promise<T>
   /** Opens a tab. */

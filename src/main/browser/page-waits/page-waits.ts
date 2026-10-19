@@ -1,6 +1,7 @@
 import { javascriptLiteral } from '../../../shared/javascript-literal.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import { normalizePageUrlWaitPattern, pageUrlMatchesWait } from '../../../shared/page-url-wait.js'
+import { LocalizedError } from '../../localized-error.js'
 import { targetStateScript } from '../page-scripts.js'
 import type { PageWaitsAccess } from './page-waits-access.js'
 
@@ -9,15 +10,13 @@ export async function waitForPage(access: PageWaitsAccess, tabId?: string, timeo
   const tab = access.getTab(tabId)
   const webContents = tab.webContents
   const rendererUnavailable = (): boolean => tab.pageProblem?.kind === 'renderer-gone'
-  const rendererUnavailableError = (): Error => new Error(
-    'The tab renderer became unavailable while waiting for the page.'
-  )
-  if (webContents.isDestroyed()) throw new Error('The tab closed while waiting for the page.')
+  const rendererUnavailableError = (): Error => new LocalizedError('appErrors.page.rendererLostWhileWaiting')
+  if (webContents.isDestroyed()) throw new LocalizedError('appErrors.page.closedWhileWaiting')
   if (rendererUnavailable()) throw rendererUnavailableError()
   try {
     if (!webContents.isLoading()) return
   } catch {
-    throw new Error('The tab closed while waiting for the page.')
+    throw new LocalizedError('appErrors.page.closedWhileWaiting')
   }
   await new Promise<void>((resolve, reject) => {
     let stopSettlement: NodeJS.Immediate | undefined
@@ -69,7 +68,7 @@ export async function waitForPage(access: PageWaitsAccess, tabId?: string, timeo
     }
     const onDestroyed = (): void => {
       cleanup()
-      reject(new Error('The tab closed while waiting for the page.'))
+      reject(new LocalizedError('appErrors.page.closedWhileWaiting'))
     }
     const rejectForRendererUnavailable = (): void => {
       cleanup()
@@ -85,7 +84,7 @@ export async function waitForPage(access: PageWaitsAccess, tabId?: string, timeo
     }
     const onTimeout = (): void => {
       cleanup()
-      reject(new Error('Timed out waiting for the page to finish loading.'))
+      reject(new LocalizedError('appErrors.page.loadTimedOut'))
     }
     const timer = setTimeout(onTimeout, Math.min(Math.max(timeoutMs, 1), 60_000))
     webContents.on('did-stop-loading', onDidStopLoading)

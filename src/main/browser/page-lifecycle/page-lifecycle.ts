@@ -1,4 +1,5 @@
 import type { BrowserPageLifecycleResult, BrowserPageLifecycleState, BrowserState } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { PageLifecycleAccess, PageLifecycleTab } from './page-lifecycle-access.js'
 
@@ -58,14 +59,14 @@ export async function controlPageLifecycle<Tab extends PageLifecycleTab>(
 ): Promise<BrowserPageLifecycleResult> {
   const tab = access.getTab(tabId)
   tab.nativeInputEnvironmentGeneration += 1
-  if (isHronautHomeUrl(tab.url)) throw new Error('Only live page tabs can be frozen or resumed.')
-  if (tab.sleeping || tab.wakePromise) throw new Error('Wake the sleeping tab before changing its page lifecycle.')
-  if (tab.webContents.isDestroyed()) throw new Error('The tab renderer is unavailable.')
+  if (isHronautHomeUrl(tab.url)) throw new LocalizedError('appErrors.lifecycle.homeTab')
+  if (tab.sleeping || tab.wakePromise) throw new LocalizedError('appErrors.lifecycle.sleeping')
+  if (tab.webContents.isDestroyed()) throw new LocalizedError('appErrors.lifecycle.rendererUnavailable')
   const pending = tab.pageLifecycleOperation
   if (pending) {
     if (pending.requestedState === requestedState) return pending.promise
     await pending.promise
-    if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed()) throw new Error('The tab closed while changing its page lifecycle.')
+    if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed()) throw new LocalizedError('appErrors.lifecycle.closedWhileChanging')
     return controlPageLifecycle(access, tab.id, requestedState)
   }
   if (tab.pageLifecycleState === requestedState) {
@@ -114,17 +115,17 @@ async function controlPageLifecycleInternal<Tab extends PageLifecycleTab>(
   let dispatched = false
   const assertCurrentDocument = (): void => {
     if (access.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
-      throw new Error('The tab closed before its page lifecycle command was dispatched.')
+      throw new LocalizedError('appErrors.lifecycle.closedBeforeDispatch')
     }
     if (tab.navigationGeneration !== navigationGeneration) {
-      throw new Error('The document changed before its page lifecycle command was dispatched.')
+      throw new LocalizedError('appErrors.lifecycle.documentChanged')
     }
   }
   const command = access.inDebuggerQueue(webContents.id, async () => {
     assertCurrentDocument()
     await access.dialogMonitorAttach(webContents.id)
     if (access.isDevToolsOpening(webContents.id) || webContents.isDevToolsOpened()) {
-      throw new Error('Close Developer Tools for this tab before changing its page lifecycle.')
+      throw new LocalizedError('appErrors.lifecycle.devTools')
     }
     if (!webContents.debugger.isAttached()) {
       webContents.debugger.attach('1.3')
