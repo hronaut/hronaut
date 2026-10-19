@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import type { Locator } from '@playwright/test'
 import { expect, test } from './fixtures.js'
+import { waitForSettledTitleBar } from './settled-title-bar.js'
 import type { HronautApi } from '../../src/shared/types.js'
 const exec = promisify(execFile)
 for (const position of ['top', 'left']) for (const mode of ['candidates', 'controls']) {
@@ -14,6 +15,7 @@ for (const position of ['top', 'left']) for (const mode of ['candidates', 'contr
     for (let index = 0; index < 13; index++) {
       await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Candidate ${index}</title><h1>Live page</h1>', active: true })`)
     }
+    await waitForSettledTitleBar(appWindow, 608)
     const session = await appWindow.context().newCDPSession(appWindow)
     await session.send('Emulation.setFocusEmulationEnabled', { enabled: false })
     const click = async (locator: Locator) => {
