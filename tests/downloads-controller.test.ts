@@ -19,7 +19,7 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
 
-async function fixture(askWhereToSaveDownloads = false) {
+async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platform) {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-download-controller-'))
   cleanups.push(() => rm(directory, { recursive: true, force: true }))
   const session = new EventEmitter()
@@ -30,7 +30,7 @@ async function fixture(askWhereToSaveDownloads = false) {
     workspaceObservationGeneration: id => generations.get(id) ?? 0,
     isAvailable: () => true,
     publish: () => {}
-  })
+  }, platform)
   cleanups.push(() => controller.destroy())
   controller.attachSession(session as Session)
   function download(tabId = 1, failSetup = false, url = 'https://download.example/file.txt', filename = 'file.txt') {
@@ -240,6 +240,21 @@ it.each([false, true])('records native download setup failure without throwing o
   expect(controller.listDownloads()[0]?.filename).toBe('file.txt')
 })
 
+it('frees the name of a download whose setup failed in any spelling on macOS', async () => {
+  const { controller, download } = await fixture(false, 'darwin')
+  download(1, true, 'https://download.example/File.TXT', 'File.TXT')
+  controller.manageDownloads('clear')
+  download(1, false, 'https://download.example/File.TXT', 'File.TXT')
+  expect(controller.listDownloads()[0]?.filename).toBe('File.TXT')
+})
+
+it('reserves names that differ only in Unicode normalization as one name on macOS', async () => {
+  const { controller, download } = await fixture(false, 'darwin')
+  download(1, false, 'https://download.example/cafe.txt', 'caf\u00e9.txt')
+  download(1, false, 'https://download.example/cafe.txt', 'cafe\u0301.txt')
+  expect(controller.listDownloads().map((item) => item.filename).sort()).toEqual(['caf\u00e9.txt', 'cafe\u0301 (1).txt'].sort())
+})
+
 it('rejects an exhausted destination without an uncaught exception or losing existing history', async () => {
   const { controller, download } = await fixture()
   download().complete()
@@ -314,6 +329,23 @@ it.each(['a'.repeat(251) + '.txt', '界'.repeat(83) + 'ab.txt', '😀'.repeat(62
     expect(controller.listDownloads().some(entry => entry.filename.endsWith(' (2).txt'))).toBe(true)
   }
 )
+
+it.each([
+  ['darwin', 'report (1).pdf'],
+  ['win32', 'report (1).pdf'],
+  ['linux', 'report.pdf']
+] as const)('keeps simultaneous downloads whose names differ only in letter case apart as the %s file system does', async (platform, secondName) => {
+  const { controller, download } = await fixture(false, platform)
+  const filenames = () => controller.listDownloads().map(entry => entry.filename)
+  // Chromium has created neither file yet, as when a page starts both downloads at once.
+  const first = download(1, false, 'https://download.example/Report.pdf', 'Report.pdf')
+  download(1, false, 'https://download.example/report.pdf', 'report.pdf')
+  expect(filenames().sort()).toEqual(['Report.pdf', secondName])
+  // A finished download releases its name in any spelling; only its file on disk protects it after that.
+  first.complete()
+  download(1, false, 'https://download.example/REPORT.PDF', 'REPORT.PDF')
+  expect(filenames()).toContain('REPORT.PDF')
+})
 
 it('removes only the selected finished record and preserves both downloaded files', async () => {
   const { controller, download } = await fixture()
