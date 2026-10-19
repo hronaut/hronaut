@@ -586,3 +586,43 @@ test('names the permissions games, music and media pages ask for instead of show
     await closeFixtureServer(server)
   }
 })
+
+test('refuses a screen sharing request without asking about the camera and microphone', async ({
+  appWindow,
+  electronApp
+}) => {
+  // getDisplayMedia showed "requests “Camera and microphone” permission", and Allow then failed as not supported.
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.end('<!doctype html><title>Screen sharing</title><main>Share screen</main>')
+  })
+  const origin = `http://127.0.0.1:${await listen(server)}`
+  try {
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(origin)}, active: true })`)
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+      webContents.getAllWebContents().some((contents) => contents.getTitle() === 'Screen sharing')
+    ))).toBe(true)
+    await electronApp.evaluate(({ dialog }) => {
+      const prompts: string[] = []
+      ;(globalThis as typeof globalThis & { __permissionPrompts?: string[] }).__permissionPrompts = prompts
+      dialog.showMessageBox = async (...args: unknown[]) => {
+        prompts.push(String((args.at(-1) as Electron.MessageBoxOptions).message))
+        return { response: 1, checkboxChecked: false }
+      }
+    })
+    const outcome = await electronApp.evaluate(async ({ webContents }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Screen sharing')
+      if (!page) throw new Error('Screen sharing fixture web contents was not found')
+      return page.executeJavaScript(
+        'navigator.mediaDevices.getDisplayMedia({ video: true }).then(() => "shared", (error) => error.name)',
+        true
+      )
+    })
+    expect(outcome).toBe('NotAllowedError')
+    expect(await electronApp.evaluate(() => (
+      globalThis as typeof globalThis & { __permissionPrompts?: string[] }
+    ).__permissionPrompts)).toEqual([])
+  } finally {
+    await closeFixtureServer(server)
+  }
+})

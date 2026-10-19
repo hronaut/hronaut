@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - When a website asks for only your microphone or only your camera, Hronaut's prompt now names just that device, such as "Microphone", in Hronaut's language. It used to say "Camera and microphone" for every such request; the line below it already listed the requested devices.
+- When a website asks to share your screen, a window or a tab, Hronaut now refuses at once, and the website gets a permission error. It used to ask about "Camera and microphone" and, if you allowed it, the sharing failed anyway, because Hronaut cannot share a screen, window or tab with a website.
 
 ## [3.3.0] - 2026-10-19
 

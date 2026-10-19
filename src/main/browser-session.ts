@@ -36,10 +36,10 @@ interface BrowserSessionHost {
 /**
  * The browser sessions pages run in: each gets the download folder, a permission check that admits only what the
  * person allowed for the site, and a permission prompt that asks one request at a time and refuses a request whose
- * frame navigated meanwhile. Camera, microphone and file system access always ask again. Home never gets a
- * permission. `configurePersistentSession` opens the remembered site permissions and the profile's own session,
- * `publishSitePermissions` tells both shell windows the remembered permissions, and `flushBrowserProfile` writes that
- * session's storage to disk at shutdown.
+ * frame navigated meanwhile. Camera, microphone and file system access always ask again, and screen sharing is refused
+ * without asking. Home never gets a permission. `configurePersistentSession` opens the remembered site permissions and
+ * the profile's own session, `publishSitePermissions` tells both shell windows the remembered permissions, and
+ * `flushBrowserProfile` writes that session's storage to disk at shutdown.
  */
 export function createBrowserSession(host: BrowserSessionHost): {
   configureBrowserSession(browserSession: Session): void
@@ -82,6 +82,12 @@ export function createBrowserSession(host: BrowserSessionHost): {
       }
       const origin = normalizeSitePermissionOrigin(requestingUrl)
       if (!origin) {
+        respond(false)
+        return
+      }
+      // A screen, window or tab sharing request lists no camera or microphone. Hronaut sets no display media handler,
+      // so an allowed request still fails as not supported: refuse it without a prompt that would name the camera.
+      if (permission === 'media' && 'mediaTypes' in details && (details.mediaTypes ?? []).length === 0) {
         respond(false)
         return
       }
