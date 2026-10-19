@@ -102,6 +102,8 @@ import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorde
 import { BrowserCssStatePreview } from './css-state-preview.js'
 import { VirtualPasskeyController, type VirtualPasskeyAuthority, type VirtualPasskeyOptions } from './virtual-passkey/virtual-passkey.js'
 import type { VirtualPasskeyAction, VirtualPasskeyReport } from '../../shared/virtual-passkey.js'
+import { WorkerEvaluations, type WorkerEvaluationAuthority, type WorkerEvaluationDeadline } from './worker-evaluation/worker-evaluation.js'
+import type { WorkerEvaluationReport, WorkerListReport } from '../../shared/worker-evaluation.js'
 import { DomMutationSourceCaptures, type DomMutationSourceAuthority } from './dom-mutation-source/dom-mutation-source.js'
 import { normalizeDefaultFontSize } from '../../shared/default-font-size.js'
 import { BrowserLiveRegionRecorder, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
@@ -933,6 +935,10 @@ export class BrowserTabsManager {
     isDevToolsOpening: tab => this.devToolsOpening.has(tab.webContents.id),
     withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
     changed: () => this.changed(false)
+  })
+  private readonly workerEvaluations = new WorkerEvaluations<BrowserTab>({
+    isCurrent: tab => this.tabs.get(tab.id) === tab,
+    withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation)
   })
   private readonly domMutationSource: DomMutationSourceCaptures<BrowserTab> = new DomMutationSourceCaptures<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
@@ -2987,6 +2993,7 @@ export class BrowserTabsManager {
     this.cssStatePreview.forget(tab)
     this.virtualPasskeys.forget(tab)
     this.domMutationSource.forget(tab)
+    this.workerEvaluations.forget(tab)
     this.invalidateTabOverviewPreview(tab)
     this.tabOverviewSleepPreviews.delete(tab.id)
     this.tabOverviewPreviewCaptures.cancelPending(tab.id)
@@ -3933,6 +3940,14 @@ export class BrowserTabsManager {
 
   virtualPasskey(tabId: string, action: VirtualPasskeyAction, options: VirtualPasskeyOptions, authority: VirtualPasskeyAuthority): Promise<VirtualPasskeyReport> {
     return this.virtualPasskeys.manage(this.getTab(tabId), action, options, authority)
+  }
+
+  listWorkers(tabId: string, authority: WorkerEvaluationAuthority): Promise<WorkerListReport> {
+    return this.workerEvaluations.list(this.getTab(tabId), authority)
+  }
+
+  evaluateInWorker(tabId: string, handle: string, script: string, deadline: WorkerEvaluationDeadline, authority: WorkerEvaluationAuthority): Promise<WorkerEvaluationReport> {
+    return this.workerEvaluations.evaluate(this.getTab(tabId), handle, script, deadline, authority)
   }
 
   /** The trusted address-bar stop. It works whatever the agent's state, including while paused. */

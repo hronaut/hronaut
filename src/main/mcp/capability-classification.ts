@@ -29,6 +29,7 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   browser_diagnostic_logs: new Set(['get']),
   browser_network: new Set(['list']),
   browser_network_routes: new Set(['list', 'held']),
+  browser_workers: new Set(['list']),
   browser_downloads: new Set(['list']),
   browser_webmcp: new Set(['status', 'list'])
 }
@@ -102,6 +103,7 @@ export const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabili
   browser_download_copy: 'external-request',
   browser_evaluate: 'interact',
   browser_evaluate_file: 'interact',
+  browser_workers: 'interact',
   browser_webmcp: 'interact',
   wallet_list: 'wallet',
   wallet_balance: 'wallet',
