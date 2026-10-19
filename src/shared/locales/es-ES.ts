@@ -3639,6 +3639,8 @@ export const esES = {
       "walletRecoverySaved": "Ya la guardé",
       "walletRecoveryNotYet": "Todavía no",
       "wavAudioFilter": "Audio PCM WAV",
+      "chooseVideoAudio": "Elegir audio para el vídeo",
+      "chooseAudio": "Elegir audio",
       "devToolsWindowTitle": "Herramientas de desarrollo de Hronaut — {title}"
     }
   }

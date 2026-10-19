@@ -386,10 +386,12 @@ test('asks for recovery confirmation in the interface language without the phras
     dialog.showMessageBox = async (...args: unknown[]) => {
       const options = args.at(-1) as Electron.MessageBoxOptions
       const [phrase = '', warning] = (options.detail ?? '').split('\n\n')
-      // Only the dialog's own text and the phrase's word count leave this stub.
-      ;(globalThis as typeof globalThis & { __walletRecoveryDialog?: unknown }).__walletRecoveryDialog = {
-        title: options.title, message: options.message, buttons: options.buttons, warning, phraseWords: phrase.split(' ').length
-      }
+      const text = [options.title, options.message, ...(options.buttons ?? []), warning]
+      const phraseInText = !phrase || text.some((part) => part?.includes(phrase))
+      // Only the dialog's own text and the phrase's word count leave this stub, and no text at all if the phrase moved into it.
+      ;(globalThis as typeof globalThis & { __walletRecoveryDialog?: unknown }).__walletRecoveryDialog = phraseInText
+        ? { phraseInText }
+        : { title: options.title, message: options.message, buttons: options.buttons, warning, phraseWords: phrase.split(' ').length }
       return { response: 1, checkboxChecked: false }
     }
   })
@@ -400,15 +402,14 @@ test('asks for recovery confirmation in the interface language without the phras
     network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
     workspaceIds: []
   })`)).rejects.toThrow('Wallet creation cancelled before recovery confirmation')
-  const shown = await electronApp.evaluate(() => (globalThis as typeof globalThis & { __walletRecoveryDialog?: { phraseWords: number } }).__walletRecoveryDialog)
-  expect(shown).toEqual({
+  // The wallet generator always makes a 12-word phrase.
+  expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __walletRecoveryDialog?: unknown }).__walletRecoveryDialog)).toEqual({
     title: 'Збережіть дані відновлення гаманця',
-    message: 'Запишіть цю фразу відновлення і зберігайте її офлайн.',
+    message: 'Запишіть цю фразу відновлення й зберігайте її офлайн.',
     buttons: ['Фразу збережено', 'Ще ні'],
     warning: 'Hronaut не зможе відновити цю фразу. Ніколи не передавайте її вебсайту чи агенту програмування.',
-    phraseWords: expect.any(Number)
+    phraseWords: 12
   })
-  expect([12, 24]).toContain(shown?.phraseWords)
   await expect.poll(() => appWindow.evaluate('window.hronautWallets.list()')).toEqual([])
 })
 

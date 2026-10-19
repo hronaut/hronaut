@@ -3639,6 +3639,8 @@ export const deDE = {
       "walletRecoverySaved": "Ich habe sie gesichert",
       "walletRecoveryNotYet": "Noch nicht",
       "wavAudioFilter": "PCM-WAV-Audio",
+      "chooseVideoAudio": "Audio für das Video auswählen",
+      "chooseAudio": "Audio auswählen",
       "devToolsWindowTitle": "Hronaut-Entwicklertools — {title}"
     }
   }

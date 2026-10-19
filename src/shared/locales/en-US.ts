@@ -762,6 +762,8 @@ export const enUS = {
       walletRecoverySaved: "I saved it",
       walletRecoveryNotYet: "Not yet",
       wavAudioFilter: "PCM WAV audio",
+      chooseVideoAudio: "Choose audio for the video",
+      chooseAudio: "Choose audio",
       devToolsWindowTitle: "Hronaut Developer Tools — {title}"
     }
   }

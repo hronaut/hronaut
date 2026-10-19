@@ -3639,6 +3639,8 @@ export const plPL = {
       "walletRecoverySaved": "Fraza zapisana",
       "walletRecoveryNotYet": "Jeszcze nie",
       "wavAudioFilter": "Dźwięk PCM WAV",
+      "chooseVideoAudio": "Wybierz dźwięk do filmu",
+      "chooseAudio": "Wybierz dźwięk",
       "devToolsWindowTitle": "Narzędzia deweloperskie Hronaut — {title}"
     }
   }

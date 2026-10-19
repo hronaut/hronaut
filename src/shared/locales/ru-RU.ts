@@ -3639,6 +3639,8 @@ export const ruRU = {
       "walletRecoverySaved": "Фраза сохранена",
       "walletRecoveryNotYet": "Пока нет",
       "wavAudioFilter": "Аудио PCM WAV",
+      "chooseVideoAudio": "Выберите аудио для видео",
+      "chooseAudio": "Выбрать аудио",
       "devToolsWindowTitle": "Инструменты разработчика Hronaut — {title}"
     }
   }

@@ -3639,6 +3639,8 @@ export const frFR = {
       "walletRecoverySaved": "Je l’ai notée",
       "walletRecoveryNotYet": "Pas encore",
       "wavAudioFilter": "Audio PCM WAV",
+      "chooseVideoAudio": "Choisir l’audio de la vidéo",
+      "chooseAudio": "Choisir l’audio",
       "devToolsWindowTitle": "Outils de développement Hronaut — {title}"
     }
   }
