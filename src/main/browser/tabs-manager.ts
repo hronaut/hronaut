@@ -104,6 +104,8 @@ import { VirtualPasskeyController, type VirtualPasskeyAuthority, type VirtualPas
 import type { VirtualPasskeyAction, VirtualPasskeyReport } from '../../shared/virtual-passkey.js'
 import { WorkerEvaluations, type WorkerEvaluationAuthority, type WorkerEvaluationDeadline } from './worker-evaluation/worker-evaluation.js'
 import type { WorkerEvaluationReport, WorkerListReport } from '../../shared/worker-evaluation.js'
+import { ComputedAccessibilityReader, type ComputedAccessibilityAuthority, type ComputedAccessibilityTarget } from './computed-accessibility/computed-accessibility.js'
+import type { ComputedAccessibilityReport } from '../../shared/computed-accessibility.js'
 import { DomMutationSourceCaptures, type DomMutationSourceAuthority } from './dom-mutation-source/dom-mutation-source.js'
 import { LogpointSets, type LogpointAuthority } from './logpoints/logpoints.js'
 import type { LogpointAction, LogpointReport, LogpointRequest, LogpointScriptsReport } from '../../shared/logpoint.js'
@@ -942,6 +944,16 @@ export class BrowserTabsManager {
   private readonly workerEvaluations = new WorkerEvaluations<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation)
+  })
+  private readonly computedAccessibilityReader = new ComputedAccessibilityReader<BrowserTab>({
+    isCurrent: tab => this.tabs.get(tab.id) === tab,
+    withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
+    // Reading resets this session's DOM bindings, which would drop a CSS state preview, and disables the DOM
+    // domain, which would clear a DOM mutation source capture's breakpoint.
+    conflict: tab => tab.codeCoverage?.recording || tab.cpuProfile?.recording ? 'Stop code coverage or CPU profiling before reading computed accessibility'
+      : this.cssStatePreview.active(tab) ? 'Clear the CSS state preview before reading computed accessibility'
+        : this.domMutationSource.active(tab) ? 'Cancel the DOM mutation source capture before reading computed accessibility' : undefined,
+    keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean))
   })
   private readonly domMutationSource: DomMutationSourceCaptures<BrowserTab> = new DomMutationSourceCaptures<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
@@ -3972,6 +3984,10 @@ export class BrowserTabsManager {
 
   evaluateInWorker(tabId: string, handle: string, script: string, deadline: WorkerEvaluationDeadline, authority: WorkerEvaluationAuthority): Promise<WorkerEvaluationReport> {
     return this.workerEvaluations.evaluate(this.getTab(tabId), handle, script, deadline, authority)
+  }
+
+  computedAccessibility(tabId: string, target: ComputedAccessibilityTarget, authority: ComputedAccessibilityAuthority): Promise<ComputedAccessibilityReport> {
+    return this.computedAccessibilityReader.read(this.getTab(tabId), target, authority)
   }
 
   logpoint(
