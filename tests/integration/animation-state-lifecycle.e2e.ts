@@ -114,6 +114,10 @@ for (const change of ['navigation', 'close', 'pause', 'global pause', 'workspace
         expect(JSON.parse(text(result))).toMatchObject({ count: 1, animations: [{ kind: 'css-animation', playState: 'running' }] })
         const write = await call('browser_press', { workspaceId: workspace.id, tabId, key: 'Tab' })
         expect(write.isError).toBe(true)
+      } else if (change === 'selector id ABA') {
+        // The id changed and changed back on the same element: it is still the unique match, so the sample stands.
+        expect(result.isError, text(result)).not.toBe(true)
+        expect(JSON.parse(text(result))).toMatchObject({ count: 1, animations: [{ kind: 'css-animation', playState: 'running' }] })
       } else {
         expect(result.isError).toBe(true)
         expect(text(result)).not.toContain('observedAt')

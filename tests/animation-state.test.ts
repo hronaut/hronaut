@@ -26,15 +26,16 @@ function page(selectorMatches: number, animations: (realm: ReturnType<typeof rea
   const list = animations(realm, element)
   realm.Element.prototype.getAnimations = function () { return list }
   realm.setMatches(Array.from({ length: selectorMatches }, () => element))
-  const observers: Array<{ notify: (records: object[]) => void; pending: object[] }> = []
+  const observers: Array<{ notify: (records: object[]) => void; pending: object[]; observed: Array<{ target: unknown; options: object }> }> = []
   const context = {
     ...realm,
     globalThis: undefined as unknown,
     document: new realm.Document(),
     MutationObserver: class {
       readonly pending: object[] = []
-      constructor(callback: (records: object[]) => void) { observers.push({ notify: records => callback(records), pending: this.pending }) }
-      observe() {}
+      readonly observed: Array<{ target: unknown; options: object }> = []
+      constructor(callback: (records: object[]) => void) { observers.push({ notify: records => callback(records), pending: this.pending, observed: this.observed }) }
+      observe(target: unknown, options: object) { this.observed.push({ target, options }) }
       disconnect() {}
       takeRecords() { return this.pending.splice(0) }
     },
@@ -142,6 +143,12 @@ it('reads kind, state, timing and phase from native accessors, and normalizes th
   expect(report.animations[1]).toMatchObject({ delayMs: 500, progress: null, currentIteration: null })
   expect(report.animations[3]).toMatchObject({ currentTimeMs: null, startTimeMs: null, localTimeMs: null })
   expect(report.animations[4]).toMatchObject({ playbackRate: -0.5, startTimeMs: null })
+
+  // Times are rounded to microseconds; a slow rate and fine progress are not rounded to zero.
+  const slow = read(1, ({ Animation, KeyframeEffect }, element) => [
+    new Animation({ effect: new KeyframeEffect(timing({ progress: 0.0001234, localTime: 250.0004567 }), element), playbackRate: 0.0004, currentTime: 250.0004567 })
+  ])
+  expect(normalizeAnimationState(slow.result, 'tab-1').animations[0]).toMatchObject({ playbackRate: 0.0004, progress: 0.0001234, currentTimeMs: 250, localTimeMs: 250 })
 })
 
 it('omits other timelines and effects before reading their fields, and bounds what it examines and returns', () => {
@@ -177,7 +184,8 @@ it('reads the element and document through native accessors, so named elements c
   Object.defineProperty(clobbered.context.document, 'querySelectorAll', { get: poison })
   Object.defineProperty(clobbered.element, 'isConnected', { get: poison })
   Object.defineProperty(clobbered.element, 'getRootNode', { get: poison })
-  Object.defineProperty(clobbered.context, '__hronautAnimationState', { get: poison })
+  // An element whose id matches the registry's description only becomes a string-keyed global.
+  Object.defineProperty(clobbered.context, 'hronaut.animationState', { get: poison })
   expect(clobbered.run(animationStateScript('#target', 'token-1'))).toMatchObject({ count: 0 })
   expect(clobbered.run(animationStateSettlementScript('token-1'))).toBe(true)
 })
@@ -195,8 +203,10 @@ it('reports a missing, ambiguous or invalid target and a value the browser shoul
   expect(() => normalizeAnimationState(state.result, 'tab-1')).toThrow('did not report')
 })
 
-it('settles while the same element is the unique match, in place and unchanged, ignoring unrelated changes, and limits waiting readings', () => {
+it('settles while the same element is the unique match and in place, ignoring other changes, and limits waiting readings', () => {
   const fixture = read(1, () => [])
+  // Only the document's tree is observed, for removals; attributes are not.
+  expect(fixture.observers[0]!.observed).toEqual([{ target: fixture.context.document, options: { subtree: true, childList: true } }])
   expect(fixture.run(animationStateSettlementScript('token-1'))).toBe(true)
   expect(fixture.run(animationStateSettlementScript('token-1'))).toBe(false)
 
@@ -216,10 +226,10 @@ it('settles while the same element is the unique match, in place and unchanged, 
     expect(moved.run(animationStateSettlementScript('token-1'))).toBe(false)
   }
 
-  // So does a change to the target's own attributes, which can restart its CSS animations.
+  // A progress bar updating its own attributes does not: the reading is a sample of the same element.
   const restyled = read(1, () => [])
   restyled.observers[0]!.notify([new restyled.realm.MutationRecord([], 'attributes')])
-  expect(restyled.run(animationStateSettlementScript('token-1'))).toBe(false)
+  expect(restyled.run(animationStateSettlementScript('token-1'))).toBe(true)
 
   const replaced = read(1, () => [])
   replaced.realm.setMatches([new replaced.realm.Element()])

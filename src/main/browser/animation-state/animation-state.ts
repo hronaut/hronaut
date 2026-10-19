@@ -63,12 +63,15 @@ export function animationStateScript(selector: string, token: string): string {
       element = matches[0];
       if (!inDocument(element)) return { failure: 'unsupported-target' };
     } catch { return { failure: 'native-unavailable' } }
-    // Rounded to microseconds where that cannot overflow; larger values are already coarser than that.
     const finite = value => {
       if (typeof value !== 'number' || !Number.isFinite(value)) throw Error('scalar');
-      return Math.abs(value) < 1e12 ? Math.round(value * 1000) / 1000 : value;
+      return value;
     };
-    const unbounded = value => value === Infinity ? 'infinite' : finite(value);
+    // Times are rounded to microseconds where that cannot overflow; larger values are already coarser than that.
+    // Unitless values (rates, progress, iteration counts) are reported as the browser gives them.
+    const ms = value => { finite(value); return Math.abs(value) < 1e12 ? Math.round(value * 1000) / 1000 : value };
+    const unbounded = (value, convert = finite) => value === Infinity ? 'infinite' : convert(value);
+    const unboundedMs = value => unbounded(value, ms);
     const nullable = (value, convert) => value === null ? null : convert(value);
     const oneOf = (value, allowed) => { if (!allowed.includes(value)) throw Error('scalar'); return value };
     const boolean = value => { if (typeof value !== 'boolean') throw Error('scalar'); return value };
@@ -82,22 +85,20 @@ export function animationStateScript(selector: string, token: string): string {
       return 'active';
     };
     let dirty = false;
-    // Removing or moving the target or an ancestor fails publication, and so does a change to the target's
-    // attributes, which can cancel or restart its CSS animations. Other changes in the page, such as a ticking
-    // counter beside a spinner, do not; a replacement is caught when the selector is resolved again.
-    const changesTarget = records => {
+    // Publication only checks that the reading still describes the same element: removing or moving the target or
+    // an ancestor fails it, and a replacement is caught when the selector is resolved again. Other changes, such as
+    // a progress bar updating its own attributes or a counter ticking beside a spinner, do not; the reading is a
+    // sample taken at observedAt, not a promise that the animations are unchanged since.
+    const removesTarget = records => {
       for (const record of records) {
-        // Only the target is observed for attributes.
-        if (read(MutationRecord.prototype, 'type', record) === 'attributes') return true;
         for (const node of read(MutationRecord.prototype, 'removedNodes', record)) {
           if (read(Node.prototype, 'contains', node, element)) return true;
         }
       }
       return false;
     };
-    const observer = new MutationObserver(records => { if (changesTarget(records)) { dirty = true; observer.disconnect() } });
+    const observer = new MutationObserver(records => { if (removesTarget(records)) { dirty = true; observer.disconnect() } });
     observer.observe(document, { subtree: true, childList: true });
-    observer.observe(element, { attributes: true });
     let timer;
     const cleanup = () => { observer.disconnect(); clearTimeout(timer); handles.delete(token) };
     try {
@@ -123,20 +124,20 @@ export function animationStateScript(selector: string, token: string): string {
           pending: boolean(read(Animation.prototype, 'pending', animation)),
           playbackRate: finite(rate),
           phase: 'idle',
-          currentTimeMs: nullable(read(Animation.prototype, 'currentTime', animation), finite),
-          startTimeMs: nullable(read(Animation.prototype, 'startTime', animation), finite),
-          delayMs: finite(delay),
-          endDelayMs: finite(timing.endDelay),
-          durationMs: unbounded(timing.duration),
+          currentTimeMs: nullable(read(Animation.prototype, 'currentTime', animation), ms),
+          startTimeMs: nullable(read(Animation.prototype, 'startTime', animation), ms),
+          delayMs: ms(delay),
+          endDelayMs: ms(timing.endDelay),
+          durationMs: unboundedMs(timing.duration),
           iterations: unbounded(timing.iterations),
           iterationStart: finite(timing.iterationStart),
           direction: oneOf(timing.direction, ${javascriptLiteral(DIRECTIONS)}),
           fill: oneOf(timing.fill, ${javascriptLiteral(FILLS)}),
           progress: nullable(timing.progress, finite),
           currentIteration: nullable(timing.currentIteration, unbounded),
-          activeDurationMs: unbounded(activeDuration),
-          endTimeMs: unbounded(endTime),
-          localTimeMs: nullable(local, finite)
+          activeDurationMs: unboundedMs(activeDuration),
+          endTimeMs: unboundedMs(endTime),
+          localTimeMs: nullable(local, ms)
         };
         record.phase = phaseOf(local, delay, activeDuration, endTime, rate);
         records.push(record);
@@ -145,7 +146,7 @@ export function animationStateScript(selector: string, token: string): string {
       if (JSON.stringify(result).length > limits.maxReportChars) throw Error('output limit');
       const settle = () => {
         try {
-          if (dirty || changesTarget(observer.takeRecords()) || !inDocument(element)) return false;
+          if (dirty || removesTarget(observer.takeRecords()) || !inDocument(element)) return false;
           const current = resolve();
           return current.length === 1 && current[0] === element;
         } catch { return false } finally { cleanup() }

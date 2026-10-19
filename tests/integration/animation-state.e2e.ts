@@ -16,19 +16,22 @@ const PAGE = `<!doctype html><title>Animations</title>
 #scroll { animation: private-keyframes-name linear; animation-timeline: scroll() }
 #finite { animation: private-keyframes-name 200ms linear 1 forwards }
 #clobbered { animation: private-keyframes-name 1s linear infinite }
+#bar { animation: private-keyframes-name 1s linear infinite }
 body { height: 3000px }
 </style>
 <div id="css">a</div><div id="delayed">b</div><div id="paused">c</div><div id="trans">d</div><div id="waapi">e</div>
 <div id="scroll">f</div><div id="many">g</div><div id="none">h</div><div id="finite">i</div><div id="forever">j</div><input id="field">
 <!-- Named elements that shadow the registry, the document's querySelectorAll and the form's own node fields. -->
-<div id="__hronautAnimationState"></div><img name="querySelectorAll" alt="">
+<div id="hronaut.animationState"></div><img name="querySelectorAll" alt="">
 <form id="clobbered"><input name="isConnected"><input name="getRootNode"></form><span id="ticker">0</span>
+<div id="bar" role="progressbar" aria-valuenow="0"></div>
 <script>
 const transition = document.getElementById('trans'); transition.getBoundingClientRect(); setTimeout(() => { transition.style.opacity = '0' }, 30)
 document.getElementById('waapi').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 3000, iterations: Infinity, id: 'private-anim-id' })
 document.getElementById('forever').animate([{ opacity: 0 }, { opacity: 1 }], { duration: Infinity })
-// A counter beside the animations changes the page every frame.
-const ticker = document.getElementById('ticker'); const tick = () => { ticker.textContent = String(Number(ticker.textContent) + 1); requestAnimationFrame(tick) }; requestAnimationFrame(tick)
+// A counter beside the animations, and a progress bar's own attribute, change every frame.
+const ticker = document.getElementById('ticker'), bar = document.getElementById('bar')
+const tick = () => { ticker.textContent = String(Number(ticker.textContent) + 1); bar.setAttribute('aria-valuenow', ticker.textContent); requestAnimationFrame(tick) }; requestAnimationFrame(tick)
 window.makeMany = (n) => { const el = document.getElementById('many'); for (let i = 0; i < n; i++) el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 100000 + i }); return n }
 // After this, any call into a page-defined replacement counts a hit.
 window.hostile = () => {
@@ -89,7 +92,7 @@ test('reads CSS animations, transitions and Web Animations from native state wit
     await run(electronApp, pageUrl, 'scrollTo(0, 120); document.getElementById("field").focus(); 1')
     const activeTab = await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')
     expect(await run(electronApp, pageUrl, 'hostile()')).toBe('armed')
-    const markupScript = `document.documentElement.outerHTML.replace(/<span id="ticker">\\d+<\\/span>/, '')`
+    const markupScript = `document.documentElement.outerHTML.replace(/<span id="ticker">\\d+<\\/span>/, '').replace(/aria-valuenow="\\d+"/, '')`
     const markup = await run(electronApp, pageUrl, markupScript)
 
     const css = await state(client, tabId, '#css')
@@ -111,6 +114,8 @@ test('reads CSS animations, transitions and Web Animations from native state wit
     // An infinite duration is reported, and named elements cannot shadow what the reading uses.
     expect((await state(client, tabId, '#forever')).animations[0]).toMatchObject({ durationMs: 'infinite', activeDurationMs: 'infinite', phase: 'active' })
     expect((await state(client, tabId, '#clobbered')).animations[0]).toMatchObject({ kind: 'css-animation', playState: 'running' })
+    // A progress bar that updates its own attributes every frame is still read and published.
+    expect((await state(client, tabId, '#bar')).animations[0]).toMatchObject({ kind: 'css-animation', playState: 'running' })
 
     // Repeated readings: the running animation advances and the paused one holds still.
     const later = await state(client, tabId, '#css')
