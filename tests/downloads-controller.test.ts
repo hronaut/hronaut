@@ -240,6 +240,21 @@ it.each([false, true])('records native download setup failure without throwing o
   expect(controller.listDownloads()[0]?.filename).toBe('file.txt')
 })
 
+it('frees the name of a download whose setup failed in any spelling on macOS', async () => {
+  const { controller, download } = await fixture(false, 'darwin')
+  download(1, true, 'https://download.example/File.TXT', 'File.TXT')
+  controller.manageDownloads('clear')
+  download(1, false, 'https://download.example/File.TXT', 'File.TXT')
+  expect(controller.listDownloads()[0]?.filename).toBe('File.TXT')
+})
+
+it('reserves names that differ only in Unicode normalization as one name on macOS', async () => {
+  const { controller, download } = await fixture(false, 'darwin')
+  download(1, false, 'https://download.example/cafe.txt', 'caf\u00e9.txt')
+  download(1, false, 'https://download.example/cafe.txt', 'cafe\u0301.txt')
+  expect(controller.listDownloads().map((item) => item.filename).sort()).toEqual(['caf\u00e9.txt', 'cafe\u0301 (1).txt'].sort())
+})
+
 it('rejects an exhausted destination without an uncaught exception or losing existing history', async () => {
   const { controller, download } = await fixture()
   download().complete()

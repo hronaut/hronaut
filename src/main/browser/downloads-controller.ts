@@ -303,8 +303,9 @@ export class BrowserDownloadsController {
       ? `download-${sourceFilename}`
       : sourceFilename
     const direct = join(directory, safeFilename)
-    if (!existsSync(direct) && !this.reservedDownloadPaths.has(this.reservationKey(direct))) {
-      this.reservedDownloadPaths.add(this.reservationKey(direct))
+    const directKey = this.reservationKey(direct)
+    if (!existsSync(direct) && !this.reservedDownloadPaths.has(directKey)) {
+      this.reservedDownloadPaths.add(directKey)
       return direct
     }
     const extension = extname(safeFilename)
@@ -317,19 +318,22 @@ export class BrowserDownloadsController {
       while (characters.length && Buffer.byteLength(characters.join('') + suffix) > 255) characters.pop()
       if (Buffer.byteLength(characters.join('') + suffix) > 255) break
       const candidate = join(directory, characters.join('') + suffix)
-      if (existsSync(candidate) || this.reservedDownloadPaths.has(this.reservationKey(candidate))) continue
-      this.reservedDownloadPaths.add(this.reservationKey(candidate))
+      const candidateKey = this.reservationKey(candidate)
+      if (existsSync(candidate) || this.reservedDownloadPaths.has(candidateKey)) continue
+      this.reservedDownloadPaths.add(candidateKey)
       return candidate
     }
     throw new Error(`Could not allocate a unique download path for ${safeFilename}`)
   }
 
   /**
-   * macOS and Windows file systems treat names that differ only in letter case as the same file, so two downloads
-   * reserved as `Report.pdf` and `report.pdf` would end up in one file there. Linux keeps them apart.
+   * The default file systems of macOS and Windows treat names that differ only in letter case as the same file, and
+   * macOS also names that differ only in Unicode normalization, so two downloads reserved as `Report.pdf` and
+   * `report.pdf` would end up in one file there. Linux's usual file systems keep them apart.
    */
   private reservationKey(path: string): string {
-    return this.platform === 'darwin' || this.platform === 'win32' ? path.toLowerCase() : path
+    if (this.platform === 'darwin') return path.normalize('NFC').toLowerCase()
+    return this.platform === 'win32' ? path.toLowerCase() : path
   }
 
   /** Records the completed file's identity, without following a symbolic link; anything but a regular file records none. */
