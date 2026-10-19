@@ -59,7 +59,9 @@ export function useUndoToasts(options: UndoToastsOptions) {
       // A newer offer keeps its toast: "Nothing to undo" about an older one would replace it.
       if (!disposed && !undone && !live) options.toasts.show('info', t('undo.expiredTitle'), t('undo.expired'))
     } catch (error) {
-      if (!disposed) options.toasts.show('error', t('undo.failed'), friendlyUiError(error, t('undo.failedDescription')))
+      // The failure is said unless it would replace a newer offer's Undo toast on screen; this offer's own toast has
+      // already gone.
+      if (!disposed && !visible) options.toasts.show('error', t('undo.failed'), friendlyUiError(error, t('undo.failedDescription')))
     }
   }
 
