@@ -5,7 +5,12 @@ import { pwaLifecycleMessages } from './pwa-lifecycle.js'
 import { softNavigationMessages } from './soft-navigation.js'
 import { lcpAttributionMessages } from './lcp-attribution.js'
 import { browserImportMessages } from './browser-import.js'
-import { enUS, type MessageSchema } from './en-US.js'
+import { videoRecorderMessages } from './video-recorder/index.js'
+import { capabilityProfileMessages } from './capability-profiles.js'
+import { remoteConnectionMessages } from './remote-connections.js'
+import { homeReadinessMessages } from './home-readiness.js'
+import { walletMessages } from './wallets/index.js'
+import type { MessageSchema } from './en-US.js'
 
 export const esES = {
   reactInspection: reactInspectionMessages['es-ES'],
@@ -18,7 +23,7 @@ export const esES = {
   networkPriority: networkPriorityMessages['es-ES'],
   lcpAttribution: lcpAttributionMessages['es-ES'],
   browserImport: browserImportMessages['es-ES'],
-  video: enUS.video,
+  video: videoRecorderMessages['es-ES'],
   workspaceLibrary: {
     hidden: "Oculto en la barra lateral",
     protected: "Protegido contra eliminación",
@@ -332,7 +337,7 @@ export const esES = {
       "performanceDescription": "Pestañas suspendidas",
       "mcp": "Seguridad MCP",
       "mcpDescription": "Autenticación local",
-      "wallets": "Carteras",
+      "wallets": "Monederos",
       "walletsDescription": "Cuentas y políticas Web3",
       "privacy": "Espacios y datos",
       "privacyDescription": "Perfiles, transferencias y limpieza",
@@ -374,9 +379,9 @@ export const esES = {
       "help": "Las pestañas visibles, fijadas, cargando, con audio, descargas, formularios modificados, DevTools o MCP activo permanecen despiertas."
     },
     "mcp": {
-      remote: enUS.settings.mcp.remote,
+      remote: remoteConnectionMessages['es-ES'],
       "heading": "Seguridad MCP",
-      "description": "Controla qué aplicaciones locales pueden conectarse a este perfil.",
+      "description": "Controla qué aplicaciones pueden conectarse a este perfil.",
       "require": "Requerir autenticación MCP",
       "requireDescription": "Requerir el token bearer privado del perfil para MCP y las consultas de estado.",
       challengeDetection: "Detectar desafíos visibles", challengeDetectionDescription: "Desactivado por defecto. Permite que la evaluación detecte CAPTCHA y verificaciones humanas visibles. Las demás comprobaciones de calidad y permisos siguen activas. No resuelve ni evita desafíos.", omitUrlDetail: "Ocultar detalles de URL a los agentes", omitUrlDetailDescription: "Desactivado por defecto. Los agentes ven las direcciones de pestañas e instantáneas solo como sitio y ruta, sin credenciales ni la parte tras ? o #. Las rutas, el texto de la página, las capturas de pantalla y otras herramientas aún pueden mostrar datos privados.", "toolSet": "Conjunto de herramientas MCP",
@@ -389,9 +394,9 @@ export const esES = {
       "portDescription": "Mueve el servidor local sin reiniciar Hronaut. Los clientes deben usar el nuevo punto de acceso.",
       "moving": "Moviendo…",
       "applyPort": "Aplicar puerto",
-      "tokenHelp": "El token se genera una vez por perfil y nunca se muestra en el inicio de Hronaut.",
-      "warning": "La autenticación está desactivada. Cualquier proceso de este equipo puede controlar pestañas con sesión y adjuntar archivos locales.",
-      capabilities: enUS.settings.mcp.capabilities
+      "tokenHelp": "El token de compatibilidad concede acceso completo. Usa un perfil de capacidades para clientes restringidos.",
+      "warning": "La autenticación está desactivada. Cualquiera que pueda llegar a este servidor puede controlar pestañas con sesión y adjuntar archivos locales, incluso desde otros equipos cuando el acceso remoto está activado.",
+      capabilities: capabilityProfileMessages['es-ES']
     },
     "permissions": {
       "search": "Buscar permisos de sitios guardados",
@@ -500,42 +505,7 @@ export const esES = {
       "issue": "Informar de un problema ↗"
     }
   },
-  wallets: {
-    ...enUS.wallets,
-    description: "Gestiona monederos locales de EVM, Solana y Tron y controla cómo pueden usarlos los sitios web y los agentes.",
-    noWalletsConfiguredDescription: "Añade un monedero para crear una cuenta, importar una existente o seguir una dirección pública.",
-    settingsTabs: "Ajustes de monederos",
-    accessTab: "Acceso y automatización",
-    activityTab: "Actividad",
-    walletListDescription: "Selecciona un monedero para ver sus datos o realizar cambios.",
-    manageAccess: "Gestionar acceso",
-    accessDescription: "Selecciona un monedero para gestionar el acceso de los espacios de trabajo, las reglas de firma y los permisos de sitios web.",
-    accessEmptyDescription: "Añade un monedero antes de configurar el acceso y la automatización.",
-    noPolicies: "Este monedero no tiene políticas de automatización configuradas.",
-    websiteSignIn: "Permitir que este sitio se conecte e inicie sesión sin preguntar",
-    websiteSignInDescription: "Las páginas del origen permitido pueden conectar este monedero y obtener sin un clic la firma de mensajes Sign-In with Ethereum que nombren ese sitio, esta dirección y esta cadena, en redes de prueba EVM y cadenas locales. Otros mensajes de texto plano solo los firma sin preguntar un monedero de agente dedicado, porque la firma de un mensaje es válida en cualquier cadena. Los datos tipados siguen pidiendo aprobación salvo que la opción de datos tipados de abajo esté activada en un monedero de agente dedicado. La firma sin procesar y las transacciones siguen pidiendo aprobación salvo que una regla de transacción de aquí las cubra. Cada conexión o firma cuenta para el límite de operaciones.",
-    mainnetWebsiteSignIn: "Permitir también en mainnet",
-    mainnetWebsiteSignInWarning: "Advertencia: esta es una cuenta real de mainnet. Hasta que la política caduque o alcance su límite de operaciones, las páginas del sitio permitido pueden conectarla y obtener la firma de mensajes de texto plano sin tu clic. Algunos servicios tratan un mensaje firmado como una autorización, así que guarda en este monedero de agente solo fondos que puedas permitirte perder. Requiere un origen, como máximo 100 operaciones y una caducidad dentro de 7 días.",
-    websiteTypedData: "Firmar también datos tipados sin preguntar",
-    websiteTypedDataDescription: "Este monedero de agente dedicado firma sin un clic los datos tipados EIP-712 de las páginas del origen permitido, en redes de prueba EVM y cadenas locales, solo cuando los datos nombran la cadena de este monedero. Los datos tipados pueden autorizar permisos de tokens, transferencias y órdenes. Cada firma cuenta para el límite de operaciones.",
-    mainnetWebsiteTypedData: "Firmar también datos tipados en mainnet",
-    mainnetWebsiteTypedDataWarning: "Advertencia: en mainnet, los datos tipados pueden autorizar permisos de tokens, transferencias y órdenes de mercado reales. Hasta que la política caduque o alcance su límite de operaciones, las páginas del sitio permitido pueden obtener esas firmas de este monedero de agente sin tu clic, y un permiso firmado puede mover tokens más tarde. Guarda en este monedero solo fondos que puedas permitirte perder. Se aplican los mismos límites: un origen, como máximo 100 operaciones y una caducidad dentro de 7 días. Los permisos con un importe ilimitado o ilegible y las transacciones de Safe siguen pidiendo aprobación.",
-    signInOnlyNote: "Deja vacíos el destino y el método para una política solo de inicio de sesión.",
-    policySignInValue: "Inicio de sesión en sitios sin preguntar",
-    policyMainnetSignInValue: "Inicio de sesión en sitios sin preguntar, también en mainnet",
-    policyTypedDataValue: "Datos tipados sin preguntar",
-    policyMainnetTypedDataValue: "Datos tipados sin preguntar, también en mainnet",
-    noPermissions: "Este monedero no tiene permisos de sitios web concedidos.",
-    noActivity: "Aún no hay actividad de monederos",
-    activityDescription: "Aquí aparecerán los eventos recientes de los monederos.",
-    yourWallets: "Tus monederos",
-    addWallet: "Añadir monedero",
-    kinds: {
-      "managed": "Monedero de firma",
-      "agent": "Monedero de agente",
-      "watch-only": "Solo lectura",
-    }
-  },
+  wallets: walletMessages['es-ES'],
   "workspaceNavigationAudit": { "reasonCredentials": "credenciales incrustadas", "reasonMalformed": "dirección no válida", "reasonUnsupportedScheme": "esquema no compatible", "reasonNoMatch": "fuera de la lista permitida", "sourceDirect": "dirección o solicitud del agente", "sourcePage": "navegación de página", "sourceRedirect": "redirección", "sourcePopup": "ventana emergente", "sourceHistory": "atrás o adelante", "sourcePolicyChange": "cambio de política", "sourceRestore": "restauración de sesión" },
   "workspaceEditor": {
     transferData: "Transferir datos del navegador",
@@ -1060,6 +1030,10 @@ export const esES = {
     "virtualPasskey": {
       "label": "Llave de acceso virtual",
       "stop": "Detener la llave de acceso virtual para {origin}"
+    },
+    "logpoints": {
+      "label": "Puntos de registro",
+      "stop": "Detener los puntos de registro del agente en {origin}"
     },
     "suggestion": {
       "bookmark": "Marcador",
@@ -3256,7 +3230,7 @@ export const esES = {
     "recentlyClosedTabs": "Pestañas cerradas recientemente"
   },
   "home": {
-    readiness: enUS.home.readiness,
+    readiness: homeReadinessMessages['es-ES'],
     "navigation": {"label": "Secciones de inicio", "overview": "Resumen", "connect": "Conectar un agente", "tools": "Biblioteca de herramientas"},
     "agentList": {"connect": "Conectar", "empty": "Aún no hay ningún agente conectado", "emptyHelp": "Conecta Claude Code, Codex u otro cliente MCP y aparecerá aquí.", "sessions": "{count} sesión | {count} sesiones", "via": "a través de {client}", "connected": "conexión {time}"},
     "mission": {"greeting": {"morning": "Buenos días", "afternoon": "Buenas tardes", "evening": "Buenas noches"}, "agentsConnected": "{count} agente conectado. | {count} agentes conectados.", "workspacesNeedYou": "{count} espacio te necesita. | {count} espacios te necesitan.", "agents": "Agentes conectados", "needsYou": "{name} te necesita", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Usado por última vez {time}", "open": "Abrir {name}", "moreActions": "Más acciones para {name}", "newWorkspaceHelp": "Con sus propias pestañas y sesiones", "checks": {"ok": "Listo", "failed": "Requiere atención", "pending": "Todavía no", "details": "Comprobaciones y conexiones"}, "feed": {"heading": "Actividad en directo", "local": "Solo local", "empty": "Cuando un agente trabaje en un espacio, sus pasos aparecerán aquí.", "meta": "{name} · {workspace} · {time}", "times": "{count} vez | {count} veces", "privacy": "Se guarda en la memoria de este equipo y se olvida al cerrar Hronaut o al borrar el historial. Muestra nombres de controles y direcciones de páginas, nunca lo que se escribió."}},

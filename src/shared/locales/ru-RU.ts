@@ -5,7 +5,12 @@ import { pwaLifecycleMessages } from './pwa-lifecycle.js'
 import { softNavigationMessages } from './soft-navigation.js'
 import { lcpAttributionMessages } from './lcp-attribution.js'
 import { browserImportMessages } from './browser-import.js'
-import { enUS, type MessageSchema } from './en-US.js'
+import { videoRecorderMessages } from './video-recorder/index.js'
+import { capabilityProfileMessages } from './capability-profiles.js'
+import { remoteConnectionMessages } from './remote-connections.js'
+import { homeReadinessMessages } from './home-readiness.js'
+import { walletMessages } from './wallets/index.js'
+import type { MessageSchema } from './en-US.js'
 
 export const ruRU = {
   reactInspection: reactInspectionMessages['ru-RU'],
@@ -18,7 +23,7 @@ export const ruRU = {
   networkPriority: networkPriorityMessages['ru-RU'],
   lcpAttribution: lcpAttributionMessages['ru-RU'],
   browserImport: browserImportMessages['ru-RU'],
-  video: enUS.video,
+  video: videoRecorderMessages['ru-RU'],
   workspaceLibrary: {
     hidden: "Скрыто из боковой панели",
     protected: "Защищено от удаления",
@@ -374,9 +379,9 @@ export const ruRU = {
       "help": "Видимые, закреплённые, загружающиеся, воспроизводящие звук, скачивающие файлы, изменённые формы, DevTools и активные MCP-вкладки не засыпают."
     },
     "mcp": {
-      remote: enUS.settings.mcp.remote,
+      remote: remoteConnectionMessages['ru-RU'],
       "heading": "Безопасность MCP",
-      "description": "Управляйте локальными приложениями, которые могут подключаться к этому профилю.",
+      "description": "Управляйте приложениями, которые могут подключаться к этому профилю.",
       "require": "Требовать аутентификацию MCP",
       "requireDescription": "Требовать закрытый bearer-токен профиля для MCP и запросов состояния.",
       challengeDetection: "Обнаруживать видимые проверки", challengeDetectionDescription: "По умолчанию выключено. Оценка качества наблюдения может отмечать видимые CAPTCHA и проверки человека. Остальные проверки качества и разрешений остаются активными. Эта функция не решает и не обходит проверки.", omitUrlDetail: "Скрывать детали URL от агентов", omitUrlDetailDescription: "По умолчанию выключено. Агенты видят адреса вкладок и текстовых снимков страниц только как сайт и путь, без учётных данных и части после ? или #. Пути, текст страниц, снимки экрана и другие инструменты по-прежнему могут показывать личные данные.", "toolSet": "Набор инструментов MCP",
@@ -389,9 +394,9 @@ export const ruRU = {
       "portDescription": "Переместить локальный сервер без перезапуска Hronaut. Клиенты должны использовать новый адрес.",
       "moving": "Перемещение…",
       "applyPort": "Применить порт",
-      "tokenHelp": "Токен создаётся один раз для профиля и не показывается на главной странице Hronaut.",
-      "warning": "Аутентификация отключена. Любой процесс на этом компьютере может управлять авторизованными вкладками и прикреплять локальные файлы.",
-      capabilities: enUS.settings.mcp.capabilities
+      "tokenHelp": "Токен совместимости даёт полный доступ. Для клиентов с ограниченным доступом используйте профиль полномочий.",
+      "warning": "Аутентификация отключена. Любой, у кого есть сетевой доступ к этому прослушивателю, может управлять авторизованными вкладками и прикреплять локальные файлы, в том числе с других компьютеров, если включён удалённый доступ.",
+      capabilities: capabilityProfileMessages['ru-RU']
     },
     "permissions": {
       "search": "Поиск сохранённых разрешений сайтов",
@@ -500,42 +505,7 @@ export const ruRU = {
       "issue": "Сообщить о проблеме ↗"
     }
   },
-  wallets: {
-    ...enUS.wallets,
-    description: "Управляйте локальными кошельками EVM, Solana и Tron и настраивайте доступ сайтов и агентов к ним.",
-    noWalletsConfiguredDescription: "Добавьте кошелёк, чтобы создать новый аккаунт, импортировать существующий или отслеживать публичный адрес.",
-    settingsTabs: "Настройки кошельков",
-    accessTab: "Доступ и автоматизация",
-    activityTab: "Активность",
-    walletListDescription: "Выберите кошелёк, чтобы просмотреть его данные или внести изменения.",
-    manageAccess: "Управлять доступом",
-    accessDescription: "Выберите кошелёк, чтобы настроить доступ рабочих пространств, правила подписания и разрешения сайтов.",
-    accessEmptyDescription: "Добавьте кошелёк, прежде чем настраивать доступ и автоматизацию.",
-    noPolicies: "Для этого кошелька нет политик автоматизации.",
-    websiteSignIn: "Разрешить этому сайту подключаться и входить без запроса",
-    websiteSignInDescription: "Страницы разрешённого источника могут подключать этот кошелёк и без нажатия получать подпись сообщений Sign-In with Ethereum, которые называют этот сайт, этот адрес и эту сеть, в тестовых и локальных сетях EVM. Другие текстовые сообщения без запроса подписывает только отдельный кошелёк агента, потому что подпись сообщения действительна в любой сети. Типизированные данные по-прежнему требуют подтверждения, если для отдельного кошелька агента не включён параметр типизированных данных ниже. Сырая подпись и транзакции по-прежнему требуют подтверждения, если их не покрывает правило транзакций здесь. Каждое подключение или подпись учитывается в лимите операций.",
-    mainnetWebsiteSignIn: "Разрешить и в основной сети",
-    mainnetWebsiteSignInWarning: "Внимание: это настоящий аккаунт в основной сети. Пока политика не истечёт или не исчерпает лимит операций, страницы разрешённого сайта могут подключать его и получать подпись текстовых сообщений без вашего нажатия. Некоторые сервисы считают подписанное сообщение разрешением, поэтому держите в этом кошельке агента только средства, которые не жалко потерять. Требуются один источник, не более 100 операций и истечение в пределах 7 дней.",
-    websiteTypedData: "Также подписывать типизированные данные без запроса",
-    websiteTypedDataDescription: "Этот отдельный кошелёк агента без нажатия подписывает типизированные данные EIP-712 со страниц разрешённого источника в тестовых и локальных сетях EVM, только если данные называют сеть этого кошелька. Типизированные данные могут разрешать permit для токенов, переводы и ордера. Каждая подпись учитывается в лимите операций.",
-    mainnetWebsiteTypedData: "Подписывать типизированные данные и в основной сети",
-    mainnetWebsiteTypedDataWarning: "Внимание: в основной сети типизированные данные могут разрешать настоящие permit для токенов, переводы и ордера на маркетплейсах. Пока политика не истечёт или не исчерпает лимит операций, страницы разрешённого сайта могут получать такие подписи от этого кошелька агента без вашего нажатия, а подписанный permit может переместить токены позже. Держите в этом кошельке только средства, которые не жалко потерять. Действуют те же ограничения: один источник, не более 100 операций и истечение в пределах 7 дней. Permit с неограниченной или нечитаемой суммой и транзакции Safe по-прежнему требуют подтверждения.",
-    signInOnlyNote: "Оставьте адрес назначения и метод пустыми для политики только входа.",
-    policySignInValue: "Вход на сайты без запроса",
-    policyMainnetSignInValue: "Вход на сайты без запроса, включая основную сеть",
-    policyTypedDataValue: "Типизированные данные без запроса",
-    policyMainnetTypedDataValue: "Типизированные данные без запроса, включая основную сеть",
-    noPermissions: "Для этого кошелька нет разрешений сайтов.",
-    noActivity: "Активности кошельков пока нет",
-    activityDescription: "Здесь будут появляться последние события кошельков.",
-    yourWallets: "Ваши кошельки",
-    addWallet: "Добавить кошелёк",
-    kinds: {
-      "managed": "Кошелёк для подписания",
-      "agent": "Кошелёк агента",
-      "watch-only": "Только просмотр",
-    }
-  },
+  wallets: walletMessages['ru-RU'],
   "workspaceNavigationAudit": { "reasonCredentials": "встроенные учётные данные", "reasonMalformed": "некорректный адрес", "reasonUnsupportedScheme": "неподдерживаемая схема", "reasonNoMatch": "нет в списке разрешённых", "sourceDirect": "адрес или запрос агента", "sourcePage": "переход со страницы", "sourceRedirect": "перенаправление", "sourcePopup": "всплывающее окно", "sourceHistory": "назад или вперёд", "sourcePolicyChange": "изменение политики", "sourceRestore": "восстановление сеанса" },
   "workspaceEditor": {
     transferData: "Перенести данные браузера",
@@ -1060,6 +1030,10 @@ export const ruRU = {
     "virtualPasskey": {
       "label": "Виртуальный ключ доступа",
       "stop": "Остановить виртуальный ключ доступа для {origin}"
+    },
+    "logpoints": {
+      "label": "Точки логирования",
+      "stop": "Остановить точки логирования агента на {origin}"
     },
     "suggestion": {
       "bookmark": "Закладка",
@@ -3256,7 +3230,7 @@ export const ruRU = {
     "recentlyClosedTabs": "Недавно закрытые вкладки"
   },
   "home": {
-    readiness: enUS.home.readiness,
+    readiness: homeReadinessMessages['ru-RU'],
     "navigation": {"label": "Разделы главной", "overview": "Обзор", "connect": "Подключить агента", "tools": "Библиотека инструментов"},
     "agentList": {"connect": "Подключить", "empty": "Пока нет подключённых агентов", "emptyHelp": "Подключите Claude Code, Codex или другой MCP-клиент, и он появится здесь.", "sessions": "{count} сеанс | {count} сеанса | {count} сеансов", "via": "через {client}", "connected": "подключено {time}"},
     "mission": {"greeting": {"morning": "Доброе утро", "afternoon": "Добрый день", "evening": "Добрый вечер"}, "agentsConnected": "{count} агент подключён. | {count} агента подключены. | {count} агентов подключено.", "workspacesNeedYou": "{count} пространство ждёт вас. | {count} пространства ждут вас. | {count} пространств ждут вас.", "agents": "Подключённые агенты", "needsYou": "{name} ждёт вас", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Последний раз: {time}", "open": "Открыть {name}", "moreActions": "Другие действия: {name}", "newWorkspaceHelp": "Свои вкладки и входы", "checks": {"ok": "Готово", "failed": "Требует внимания", "pending": "Пока нет", "details": "Проверки настройки и подключения"}, "feed": {"heading": "Текущая активность", "local": "Только локально", "empty": "Когда агент работает в пространстве, его шаги появятся здесь.", "meta": "{name} · {workspace} · {time}", "times": "{count} раз | {count} раза | {count} раз", "privacy": "Хранится в памяти этого компьютера и забывается, когда Hronaut закрывается или вы очищаете историю. Показывает названия элементов и адреса страниц, но не введённый текст."}},

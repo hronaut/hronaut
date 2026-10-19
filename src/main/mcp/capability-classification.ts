@@ -30,6 +30,8 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   browser_network: new Set(['list']),
   browser_network_routes: new Set(['list', 'held']),
   browser_workers: new Set(['list']),
+  // Records are what expressions read from the page, so reading them takes the same permission as adding them.
+  browser_logpoint: new Set(['scripts']),
   browser_downloads: new Set(['list']),
   browser_webmcp: new Set(['status', 'list'])
 }
@@ -104,6 +106,7 @@ export const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabili
   browser_evaluate: 'interact',
   browser_evaluate_file: 'interact',
   browser_workers: 'interact',
+  browser_logpoint: 'interact',
   browser_webmcp: 'interact',
   wallet_list: 'wallet',
   wallet_balance: 'wallet',

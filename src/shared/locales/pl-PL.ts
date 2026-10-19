@@ -5,7 +5,12 @@ import { pwaLifecycleMessages } from './pwa-lifecycle.js'
 import { softNavigationMessages } from './soft-navigation.js'
 import { lcpAttributionMessages } from './lcp-attribution.js'
 import { browserImportMessages } from './browser-import.js'
-import { enUS, type MessageSchema } from './en-US.js'
+import { videoRecorderMessages } from './video-recorder/index.js'
+import { capabilityProfileMessages } from './capability-profiles.js'
+import { remoteConnectionMessages } from './remote-connections.js'
+import { homeReadinessMessages } from './home-readiness.js'
+import { walletMessages } from './wallets/index.js'
+import type { MessageSchema } from './en-US.js'
 
 export const plPL = {
   reactInspection: reactInspectionMessages['pl-PL'],
@@ -18,7 +23,7 @@ export const plPL = {
   networkPriority: networkPriorityMessages['pl-PL'],
   lcpAttribution: lcpAttributionMessages['pl-PL'],
   browserImport: browserImportMessages['pl-PL'],
-  video: enUS.video,
+  video: videoRecorderMessages['pl-PL'],
   workspaceLibrary: {
     hidden: "Ukryty na pasku bocznym",
     protected: "Chroniony przed usunięciem",
@@ -374,9 +379,9 @@ export const plPL = {
       "help": "Widoczne, przypięte, ładowane, odtwarzające dźwięk, pobierające, ze zmienionym formularzem, DevTools i aktywne karty MCP pozostają aktywne."
     },
     "mcp": {
-      remote: enUS.settings.mcp.remote,
+      remote: remoteConnectionMessages['pl-PL'],
       "heading": "Bezpieczeństwo MCP",
-      "description": "Kontroluj, które lokalne aplikacje mogą łączyć się z tym profilem.",
+      "description": "Kontroluj, które aplikacje mogą łączyć się z tym profilem.",
       "require": "Wymagaj uwierzytelniania MCP",
       "requireDescription": "Wymagaj prywatnego tokenu bearer profilu dla MCP i zapytań o stan.",
       challengeDetection: "Wykrywaj widoczne wyzwania", challengeDetectionDescription: "Domyślnie wyłączone. Ocena jakości obserwacji może wykrywać widoczne CAPTCHA i weryfikację człowieka. Pozostałe kontrole jakości i uprawnień pozostają aktywne. Nie rozwiązuje ani nie omija wyzwań.", omitUrlDetail: "Ukrywaj szczegóły adresów URL przed agentami", omitUrlDetailDescription: "Domyślnie wyłączone. Agenci widzą adresy kart i migawek tylko jako witrynę i ścieżkę, bez danych logowania i części po ? lub #. Ścieżki, tekst strony, zrzuty ekranu i inne narzędzia nadal mogą pokazywać prywatne dane.", "toolSet": "Zestaw narzędzi MCP",
@@ -389,9 +394,9 @@ export const plPL = {
       "portDescription": "Przenieś lokalny serwer bez ponownego uruchamiania Hronaut. Klienci muszą użyć nowego adresu.",
       "moving": "Przenoszenie…",
       "applyPort": "Zastosuj port",
-      "tokenHelp": "Token jest tworzony raz dla profilu i nigdy nie jest wyświetlany na stronie głównej Hronaut.",
-      "warning": "Uwierzytelnianie jest wyłączone. Każdy proces na tym komputerze może sterować zalogowanymi kartami i dołączać lokalne pliki.",
-      capabilities: enUS.settings.mcp.capabilities
+      "tokenHelp": "Token zgodności daje pełny dostęp. Dla klientów z ograniczonym dostępem użyj profilu uprawnień.",
+      "warning": "Uwierzytelnianie jest wyłączone. Każdy, kto może połączyć się z tym serwerem nasłuchującym, może sterować zalogowanymi kartami i dołączać lokalne pliki, także z innych komputerów, gdy dostęp zdalny jest włączony.",
+      capabilities: capabilityProfileMessages['pl-PL']
     },
     "permissions": {
       "search": "Szukaj zapisanych uprawnień witryn",
@@ -500,42 +505,7 @@ export const plPL = {
       "issue": "Zgłoś problem ↗"
     }
   },
-  wallets: {
-    ...enUS.wallets,
-    description: "Zarządzaj lokalnymi portfelami EVM, Solana i Tron oraz kontroluj ich używanie przez witryny i agentów.",
-    noWalletsConfiguredDescription: "Dodaj portfel, aby utworzyć konto, zaimportować istniejące lub obserwować adres publiczny.",
-    settingsTabs: "Ustawienia portfeli",
-    accessTab: "Dostęp i automatyzacja",
-    activityTab: "Aktywność",
-    walletListDescription: "Wybierz portfel, aby zobaczyć jego szczegóły lub wprowadzić zmiany.",
-    manageAccess: "Zarządzaj dostępem",
-    accessDescription: "Wybierz portfel, aby zarządzać dostępem obszarów roboczych, regułami podpisywania i uprawnieniami witryn.",
-    accessEmptyDescription: "Dodaj portfel przed skonfigurowaniem dostępu i automatyzacji.",
-    noPolicies: "Ten portfel nie ma skonfigurowanych zasad automatyzacji.",
-    websiteSignIn: "Pozwól tej witrynie łączyć się i logować bez pytania",
-    websiteSignInDescription: "Strony z dozwolonego źródła mogą łączyć ten portfel i bez kliknięcia uzyskiwać podpis wiadomości Sign-In with Ethereum, które wskazują tę witrynę, ten adres i tę sieć, w sieciach testowych EVM i sieciach lokalnych. Inne wiadomości tekstowe bez pytania podpisuje tylko dedykowany portfel agenta, bo podpis wiadomości jest ważny w każdej sieci. Dane typowane nadal wymagają zatwierdzenia, chyba że w dedykowanym portfelu agenta włączono poniższą opcję danych typowanych. Surowe podpisy i transakcje nadal wymagają zatwierdzenia, chyba że obejmuje je tutejsza reguła transakcji. Każde połączenie lub podpis wlicza się do limitu operacji.",
-    mainnetWebsiteSignIn: "Zezwól także w sieci głównej",
-    mainnetWebsiteSignInWarning: "Ostrzeżenie: to prawdziwe konto w sieci głównej. Dopóki zasada nie wygaśnie lub nie osiągnie limitu operacji, strony dozwolonej witryny mogą je łączyć i uzyskiwać podpis wiadomości tekstowych bez Twojego kliknięcia. Niektóre usługi traktują podpisaną wiadomość jako autoryzację, więc trzymaj w tym portfelu agenta tylko środki, których utratę możesz zaakceptować. Wymaga jednego źródła, najwyżej 100 operacji i wygaśnięcia w ciągu 7 dni.",
-    websiteTypedData: "Podpisuj też dane typowane bez pytania",
-    websiteTypedDataDescription: "Ten dedykowany portfel agenta bez kliknięcia podpisuje dane typowane EIP-712 ze stron dozwolonego źródła, w sieciach testowych EVM i sieciach lokalnych, tylko gdy dane wskazują sieć tego portfela. Dane typowane mogą autoryzować pozwolenia na tokeny, przelewy i zlecenia. Każdy podpis wlicza się do limitu operacji.",
-    mainnetWebsiteTypedData: "Podpisuj dane typowane także w sieci głównej",
-    mainnetWebsiteTypedDataWarning: "Ostrzeżenie: w sieci głównej dane typowane mogą autoryzować prawdziwe pozwolenia na tokeny, przelewy i zlecenia na rynkach. Dopóki zasada nie wygaśnie lub nie osiągnie limitu operacji, strony dozwolonej witryny mogą bez Twojego kliknięcia uzyskiwać takie podpisy z tego portfela agenta, a podpisane pozwolenie może później przenieść tokeny. Trzymaj w tym portfelu tylko środki, których utratę możesz zaakceptować. Obowiązują te same limity: jedno źródło, najwyżej 100 operacji i wygaśnięcie w ciągu 7 dni. Pozwolenia z nieograniczoną lub nieczytelną kwotą oraz transakcje Safe nadal wymagają zatwierdzenia.",
-    signInOnlyNote: "Pozostaw cel i metodę puste, aby utworzyć zasadę tylko do logowania.",
-    policySignInValue: "Logowanie w witrynach bez pytania",
-    policyMainnetSignInValue: "Logowanie w witrynach bez pytania, także w sieci głównej",
-    policyTypedDataValue: "Dane typowane bez pytania",
-    policyMainnetTypedDataValue: "Dane typowane bez pytania, także w sieci głównej",
-    noPermissions: "Temu portfelowi nie przyznano uprawnień witryn.",
-    noActivity: "Brak aktywności portfeli",
-    activityDescription: "Tutaj pojawią się ostatnie zdarzenia portfeli.",
-    yourWallets: "Twoje portfele",
-    addWallet: "Dodaj portfel",
-    kinds: {
-      "managed": "Portfel do podpisywania",
-      "agent": "Portfel agenta",
-      "watch-only": "Tylko podgląd",
-    }
-  },
+  wallets: walletMessages['pl-PL'],
   "workspaceNavigationAudit": { "reasonCredentials": "osadzone dane logowania", "reasonMalformed": "nieprawidłowy adres", "reasonUnsupportedScheme": "nieobsługiwany schemat", "reasonNoMatch": "poza listą dozwolonych", "sourceDirect": "adres lub żądanie agenta", "sourcePage": "nawigacja strony", "sourceRedirect": "przekierowanie", "sourcePopup": "wyskakujące okno", "sourceHistory": "wstecz lub dalej", "sourcePolicyChange": "zmiana zasad", "sourceRestore": "przywrócenie sesji" },
   "workspaceEditor": {
     transferData: "Przenieś dane przeglądarki",
@@ -1060,6 +1030,10 @@ export const plPL = {
     "virtualPasskey": {
       "label": "Wirtualny klucz dostępu",
       "stop": "Zatrzymaj wirtualny klucz dostępu dla {origin}"
+    },
+    "logpoints": {
+      "label": "Punkty logowania",
+      "stop": "Zatrzymaj punkty logowania agenta na {origin}"
     },
     "suggestion": {
       "bookmark": "Zakładka",
@@ -3256,7 +3230,7 @@ export const plPL = {
     "recentlyClosedTabs": "Ostatnio zamknięte karty"
   },
   "home": {
-    readiness: enUS.home.readiness,
+    readiness: homeReadinessMessages['pl-PL'],
     "navigation": {"label": "Sekcje główne", "overview": "Przegląd", "connect": "Połącz agenta", "tools": "Biblioteka narzędzi"},
     "agentList": {"connect": "Połącz", "empty": "Nie połączono jeszcze żadnego agenta", "emptyHelp": "Połącz Claude Code, Codex lub inny klient MCP, a pojawi się tutaj.", "sessions": "{count} sesja | {count} sesje | {count} sesji", "via": "przez {client}", "connected": "połączono {time}"},
     "mission": {"greeting": {"morning": "Dzień dobry", "afternoon": "Dzień dobry", "evening": "Dobry wieczór"}, "agentsConnected": "Połączono {count} agenta. | Połączono {count} agentów. | Połączono {count} agentów.", "workspacesNeedYou": "{count} obszar czeka na Ciebie. | {count} obszary czekają na Ciebie. | {count} obszarów czeka na Ciebie.", "agents": "Połączeni agenci", "needsYou": "{name} czeka na Ciebie", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Ostatnio używany {time}", "open": "Otwórz {name}", "moreActions": "Więcej działań: {name}", "newWorkspaceHelp": "Własne karty i logowania", "checks": {"ok": "Gotowe", "failed": "Wymaga uwagi", "pending": "Jeszcze nie", "details": "Sprawdzenia konfiguracji i połączenia"}, "feed": {"heading": "Aktywność na żywo", "local": "Tylko lokalnie", "empty": "Gdy agent pracuje w obszarze, jego kroki pojawią się tutaj.", "meta": "{name} · {workspace} · {time}", "times": "{count} raz | {count} razy | {count} razy", "privacy": "Przechowywane w pamięci tego komputera i zapominane po zamknięciu Hronaut lub wyczyszczeniu historii. Pokazuje nazwy kontrolek i adresy stron, nigdy wpisanego tekstu."}},

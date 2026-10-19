@@ -123,6 +123,7 @@ import { registerBrowserWebmcp } from './tools/browser-webmcp/index.js'
 import { registerBrowserEvaluateFile } from './tools/browser-evaluate-file/index.js'
 import { registerBrowserEvaluate } from './tools/browser-evaluate/index.js'
 import { registerBrowserWorkers } from './tools/browser-workers/index.js'
+import { registerBrowserLogpoint } from './tools/browser-logpoint/index.js'
 import { registerWalletList } from './tools/wallet-list/index.js'
 import { registerWalletBalance } from './tools/wallet-balance/index.js'
 import { registerWalletPrepareTransaction } from './tools/wallet-prepare-transaction/index.js'
@@ -765,6 +766,7 @@ export function createBrowserMcpServer(
   registerBrowserEvaluateFile(toolContext)
   registerBrowserEvaluate(toolContext)
   registerBrowserWorkers(toolContext)
+  registerBrowserLogpoint(toolContext)
   registerWalletList(toolContext)
   registerWalletBalance(toolContext)
   registerWalletPrepareTransaction(toolContext)

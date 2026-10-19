@@ -107,6 +107,8 @@ import type { WorkerEvaluationReport, WorkerListReport } from '../../shared/work
 import { ComputedAccessibilityReader, type ComputedAccessibilityAuthority, type ComputedAccessibilityTarget } from './computed-accessibility/computed-accessibility.js'
 import type { ComputedAccessibilityReport } from '../../shared/computed-accessibility.js'
 import { DomMutationSourceCaptures, type DomMutationSourceAuthority } from './dom-mutation-source/dom-mutation-source.js'
+import { LogpointSets, type LogpointAuthority } from './logpoints/logpoints.js'
+import type { LogpointAction, LogpointReport, LogpointRequest, LogpointScriptsReport } from '../../shared/logpoint.js'
 import { normalizeDefaultFontSize } from '../../shared/default-font-size.js'
 import { BrowserLiveRegionRecorder, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
@@ -860,6 +862,7 @@ export class BrowserTabsManager {
       releaseLiveRegion: (tab) => this.liveRegionRecorder.release(tab),
       clearCssStatePreview: (tab, reason) => this.cssStatePreview.clear(tab, reason),
       stopVirtualPasskey: (tab, reason) => this.virtualPasskeys.stop(tab, reason),
+      stopLogpoints: (tab, reason) => this.logpoints.stop(tab, reason),
       rejectNetworkWait: (tabId, message) => this.networkWaitController.reject(tabId, message),
       advanceDownloadObservationGeneration: (workspaceId, observationGeneration) => this.downloadController.advanceWorkspaceObservationGeneration(workspaceId, observationGeneration)
     }
@@ -959,12 +962,26 @@ export class BrowserTabsManager {
     // Coverage deactivates breakpoints and later disables the Debugger and DOM domains; a capture's
     // DOM.getDocument would unbind a CSS state preview's element.
     conflict: tab => tab.codeCoverage?.recording ? 'Stop code coverage before capturing a DOM mutation source'
-      : this.cssStatePreview.active(tab) ? 'Clear the CSS state preview before capturing a DOM mutation source' : undefined,
+      : this.cssStatePreview.active(tab) ? 'Clear the CSS state preview before capturing a DOM mutation source'
+        : this.logpoints.active(tab) ? 'Remove the logpoints before capturing a DOM mutation source' : undefined,
     // A use that started after a renderer exit, before the capture's removal ran in the new renderer, keeps its domains.
     keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean))
       || Boolean(tab.codeCoverage?.recording) || this.cssStatePreview.active(tab),
-    keepDebuggerEnabled: tab => Boolean(tab.codeCoverage?.recording),
+    keepDebuggerEnabled: tab => Boolean(tab.codeCoverage?.recording) || this.logpoints.active(tab),
     isDevToolsOpening: tab => this.devToolsOpening.has(tab.webContents.id)
+  })
+  private readonly logpoints: LogpointSets<BrowserTab> = new LogpointSets<BrowserTab>({
+    isCurrent: tab => this.tabs.get(tab.id) === tab,
+    withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
+    inDebuggerQueue: (tab, operation) => this.debuggerQueue.run(tab.webContents.id, operation),
+    // Coverage deactivates breakpoints and later disables the Debugger domain; a DOM mutation source capture
+    // resumes every pause at once and disables the Debugger domain when it ends.
+    conflict: tab => tab.codeCoverage?.recording ? 'Stop code coverage before using logpoints'
+      : this.domMutationSource.active(tab) ? 'Cancel the DOM mutation source capture before using logpoints' : undefined,
+    // A use that started after a renderer exit, before the logpoints' removal ran in the new renderer, keeps the domain.
+    keepDebuggerEnabled: tab => Boolean(tab.codeCoverage?.recording) || this.domMutationSource.active(tab),
+    isDevToolsOpening: tab => this.devToolsOpening.has(tab.webContents.id),
+    changed: () => this.changed(false)
   })
   private readonly reproRecorder = new BrowserReproRecorder<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
@@ -1424,6 +1441,7 @@ export class BrowserTabsManager {
       pwaLifecycleRecorder: () => this.pwaLifecycleRecorder,
       cssStatePreview: () => this.cssStatePreview,
       virtualPasskeys: () => this.virtualPasskeys,
+      logpoints: () => this.logpoints,
       mcpTabGroups: () => this.mcpTabGroups
     }
   }
@@ -2392,6 +2410,7 @@ export class BrowserTabsManager {
       cssStatePreview: () => this.cssStatePreview,
       domMutationSource: () => this.domMutationSource,
       virtualPasskeys: () => this.virtualPasskeys,
+      logpoints: () => this.logpoints,
       mcpActivitiesByTab: () => this.mcpActivitiesByTab,
       downloadController: () => this.downloadController,
       renderQueues: () => this.renderQueues,
@@ -3005,6 +3024,7 @@ export class BrowserTabsManager {
     this.cssStatePreview.forget(tab)
     this.virtualPasskeys.forget(tab)
     this.domMutationSource.forget(tab)
+    this.logpoints.forget(tab)
     this.workerEvaluations.forget(tab)
     this.invalidateTabOverviewPreview(tab)
     this.tabOverviewSleepPreviews.delete(tab.id)
@@ -3145,6 +3165,7 @@ export class BrowserTabsManager {
       releaseLiveRegion: (tab) => this.liveRegionRecorder.release(tab),
       clearCssStatePreview: (tab, reason) => this.cssStatePreview.clear(tab, reason),
       stopVirtualPasskey: (tab, reason) => this.virtualPasskeys.stop(tab, reason),
+      stopLogpoints: (tab, reason) => this.logpoints.stop(tab, reason),
       changed: (persist) => this.changed(persist),
       getState: () => this.getState()
     }
@@ -3403,6 +3424,9 @@ export class BrowserTabsManager {
     }
     if (options.action === 'start' && this.domMutationSource.active(this.getTab(options.tabId))) {
       return Promise.reject(new Error('Cancel the DOM mutation source capture before recording code coverage'))
+    }
+    if (options.action === 'start' && this.logpoints.active(this.getTab(options.tabId))) {
+      return Promise.reject(new Error('Remove the logpoints before recording code coverage'))
     }
     return this.profiling.codeCoverage(options)
   }
@@ -3964,6 +3988,20 @@ export class BrowserTabsManager {
 
   computedAccessibility(tabId: string, target: ComputedAccessibilityTarget, authority: ComputedAccessibilityAuthority): Promise<ComputedAccessibilityReport> {
     return this.computedAccessibilityReader.read(this.getTab(tabId), target, authority)
+  }
+
+  logpoint(
+    tabId: string,
+    action: LogpointAction,
+    options: { probes?: LogpointRequest[]; maxHits?: number; durationMs?: number; authority?: LogpointAuthority } = {}
+  ): Promise<LogpointReport | LogpointScriptsReport> {
+    return this.logpoints.manage(this.getTab(tabId), action, options)
+  }
+
+  /** The address bar's stop for a tab's logpoints. It works whatever the agent's state, including while paused. */
+  stopLogpoints(tabId: string): BrowserState {
+    this.logpoints.stop(this.getTab(tabId), 'person-stopped')
+    return this.getState()
   }
 
   /** The trusted address-bar stop. It works whatever the agent's state, including while paused. */

@@ -40,6 +40,8 @@ export interface AgentPauseAccess<Tab extends AgentPauseTab> {
   clearCssStatePreview(tab: Tab, reason: 'agent-paused'): Promise<void>
   /** Ends the tab's virtual passkey, which an agent's lost authority must not keep. */
   stopVirtualPasskey(tab: Tab, reason: 'authority-changed'): void
+  /** Ends the tab's logpoints, whose values a person using the tab may reveal. */
+  stopLogpoints(tab: Tab, reason: 'authority-changed'): void
   changed(persist?: boolean): void
   getState(): BrowserState
 }

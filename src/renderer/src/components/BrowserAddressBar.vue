@@ -3,6 +3,7 @@ import UiButton from "../ui/UiButton.vue"
 import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconAdsClick from '~icons/material-symbols/ads-click-rounded'
+import IconBugReport from '~icons/material-symbols/bug-report-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconKeyboardArrowRight from '~icons/material-symbols/keyboard-arrow-right-rounded'
 import IconPasskey from '~icons/material-symbols/passkey-rounded'
@@ -30,6 +31,7 @@ export interface BrowserAddressBarActions {
   resetActiveTabEmulation: () => unknown
   clearActiveCssStatePreview: () => unknown
   stopActiveVirtualPasskey: () => unknown
+  stopActiveLogpoints: () => unknown
   openRequestConditions: () => unknown
   setSitePermission: (entry: SitePermissionEntry, decision: SitePermissionDecision) => boolean | Promise<boolean>
   resetSitePermission: (entry: SitePermissionEntry) => boolean | Promise<boolean>
@@ -98,6 +100,12 @@ const cssStatePreview = computed(() => {
 const virtualPasskey = computed(() => {
   const passkey = props.activeTab?.virtualPasskey
   return passkey ? { action: t('runtime.virtualPasskey.stop', { origin: passkey.origin }) } : undefined
+})
+
+// Armed logpoints pause the page at each hit and read its values, so the person sees them and can stop them.
+const logpoints = computed(() => {
+  const summary = props.activeTab?.logpoints
+  return summary ? { action: t('runtime.logpoints.stop', { origin: summary.origin }) } : undefined
 })
 
 function run(action: () => unknown): void {
@@ -205,6 +213,19 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
     >
       <IconPasskey aria-hidden="true" />
       <span>{{ t('runtime.virtualPasskey.label') }}</span>
+      <IconClose aria-hidden="true" />
+    </UiButton>
+    <UiButton appearance="application"
+      v-if="logpoints"
+      class="emulation-pill"
+      data-testid="logpoints-pill"
+      type="button"
+      v-tooltip="logpoints.action"
+      :aria-label="logpoints.action"
+      @click="run(actions.stopActiveLogpoints)"
+    >
+      <IconBugReport aria-hidden="true" />
+      <span>{{ t('runtime.logpoints.label') }}</span>
       <IconClose aria-hidden="true" />
     </UiButton>
     <UiButton appearance="application"

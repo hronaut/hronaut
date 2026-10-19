@@ -5,7 +5,12 @@ import { pwaLifecycleMessages } from './pwa-lifecycle.js'
 import { softNavigationMessages } from './soft-navigation.js'
 import { lcpAttributionMessages } from './lcp-attribution.js'
 import { browserImportMessages } from './browser-import.js'
-import { enUS, type MessageSchema } from './en-US.js'
+import { videoRecorderMessages } from './video-recorder/index.js'
+import { capabilityProfileMessages } from './capability-profiles.js'
+import { remoteConnectionMessages } from './remote-connections.js'
+import { homeReadinessMessages } from './home-readiness.js'
+import { walletMessages } from './wallets/index.js'
+import type { MessageSchema } from './en-US.js'
 
 export const frFR = {
   reactInspection: reactInspectionMessages['fr-FR'],
@@ -18,7 +23,7 @@ export const frFR = {
   networkPriority: networkPriorityMessages['fr-FR'],
   lcpAttribution: lcpAttributionMessages['fr-FR'],
   browserImport: browserImportMessages['fr-FR'],
-  video: enUS.video,
+  video: videoRecorderMessages['fr-FR'],
   workspaceLibrary: {
     hidden: "Masqué dans la barre latérale",
     protected: "Suppression protégée",
@@ -374,9 +379,9 @@ export const frFR = {
       "help": "Les onglets visibles, épinglés, en chargement, audio, téléchargement, formulaire modifié, DevTools et MCP actif restent éveillés."
     },
     "mcp": {
-      remote: enUS.settings.mcp.remote,
+      remote: remoteConnectionMessages['fr-FR'],
       "heading": "Sécurité MCP",
-      "description": "Contrôlez quelles applications locales peuvent se connecter à ce profil.",
+      "description": "Contrôlez quelles applications peuvent se connecter à ce profil.",
       "require": "Exiger l’authentification MCP",
       "requireDescription": "Exiger le jeton bearer privé du profil pour MCP et les contrôles d’état.",
       challengeDetection: "Détecter les défis visibles", challengeDetectionDescription: "Désactivé par défaut. Permet de signaler les CAPTCHA et vérifications humaines visibles dans la qualité des observations. Les autres contrôles de qualité et de permissions restent actifs. Ne résout ni ne contourne les défis.", omitUrlDetail: "Masquer les détails d’URL aux agents", omitUrlDetailDescription: "Désactivé par défaut. Les agents voient les adresses des onglets et des instantanés réduites au site et au chemin, sans identifiants ni la partie après ? ou #. Les chemins, le texte des pages, les captures d’écran et d’autres outils peuvent encore montrer des informations privées.", "toolSet": "Ensemble d’outils MCP",
@@ -389,9 +394,9 @@ export const frFR = {
       "portDescription": "Déplacer l’écoute locale sans redémarrer Hronaut. Les clients doivent utiliser le nouveau point d’accès.",
       "moving": "Déplacement…",
       "applyPort": "Appliquer le port",
-      "tokenHelp": "Le jeton est créé une seule fois par profil et n’apparaît jamais sur l’accueil Hronaut.",
-      "warning": "L’authentification est désactivée. Tout processus de cet ordinateur peut contrôler les onglets connectés et joindre des fichiers locaux.",
-      capabilities: enUS.settings.mcp.capabilities
+      "tokenHelp": "Le jeton de compatibilité donne un accès complet. Utilisez un profil de capacités pour les clients restreints.",
+      "warning": "L’authentification est désactivée. Toute personne pouvant atteindre cet écouteur peut contrôler les onglets connectés et joindre des fichiers locaux, y compris depuis d’autres ordinateurs lorsque l’accès à distance est activé.",
+      capabilities: capabilityProfileMessages['fr-FR']
     },
     "permissions": {
       "search": "Rechercher les autorisations enregistrées",
@@ -500,42 +505,7 @@ export const frFR = {
       "issue": "Signaler un problème ↗"
     }
   },
-  wallets: {
-    ...enUS.wallets,
-    description: "Gérez vos portefeuilles locaux EVM, Solana et Tron et contrôlez leur utilisation par les sites et les agents.",
-    noWalletsConfiguredDescription: "Ajoutez un portefeuille pour créer un compte, en importer un ou suivre une adresse publique.",
-    settingsTabs: "Paramètres des portefeuilles",
-    accessTab: "Accès et automatisation",
-    activityTab: "Activité",
-    walletListDescription: "Sélectionnez un portefeuille pour consulter ses détails ou le modifier.",
-    manageAccess: "Gérer les accès",
-    accessDescription: "Sélectionnez un portefeuille pour gérer les accès des espaces de travail, les règles de signature et les autorisations des sites.",
-    accessEmptyDescription: "Ajoutez un portefeuille avant de configurer les accès et l’automatisation.",
-    noPolicies: "Aucune règle d’automatisation pour ce portefeuille.",
-    websiteSignIn: "Laisser ce site se connecter et s’identifier sans demander",
-    websiteSignInDescription: "Les pages de l’origine autorisée peuvent connecter ce portefeuille et faire signer sans clic des messages Sign-In with Ethereum qui nomment ce site, cette adresse et cette chaîne, sur les réseaux de test EVM et les chaînes locales. Les autres messages en texte brut ne sont signés sans demander que par un portefeuille d’agent dédié, car la signature d’un message est valable sur toutes les chaînes. Les données typées demandent toujours une validation, sauf si l’option des données typées ci-dessous est activée pour un portefeuille d’agent dédié. La signature brute et les transactions demandent toujours une validation, sauf si une règle de transaction ici les couvre. Chaque connexion ou signature compte dans la limite d’opérations.",
-    mainnetWebsiteSignIn: "Autoriser aussi sur le mainnet",
-    mainnetWebsiteSignInWarning: "Avertissement : il s’agit d’un vrai compte mainnet. Jusqu’à l’expiration de la règle ou l’atteinte de sa limite d’opérations, les pages du site autorisé peuvent le connecter et faire signer des messages en texte brut sans votre clic. Certains services considèrent un message signé comme une autorisation : ne gardez dans ce portefeuille d’agent que des fonds que vous pouvez vous permettre de perdre. Exige une seule origine, au plus 100 opérations et une expiration sous 7 jours.",
-    websiteTypedData: "Signer aussi les données typées sans demander",
-    websiteTypedDataDescription: "Ce portefeuille d’agent dédié signe sans clic les données typées EIP-712 des pages de l’origine autorisée, sur les réseaux de test EVM et les chaînes locales, uniquement quand les données nomment la chaîne de ce portefeuille. Les données typées peuvent autoriser des permits de jetons, des transferts et des ordres. Chaque signature compte dans la limite d’opérations.",
-    mainnetWebsiteTypedData: "Signer aussi les données typées sur le mainnet",
-    mainnetWebsiteTypedDataWarning: "Avertissement : sur le mainnet, les données typées peuvent autoriser de vrais permits de jetons, transferts et ordres de place de marché. Jusqu’à l’expiration de la règle ou l’atteinte de sa limite d’opérations, les pages du site autorisé peuvent obtenir de telles signatures de ce portefeuille d’agent sans votre clic, et un permit signé peut déplacer des jetons plus tard. Ne gardez dans ce portefeuille que des fonds que vous pouvez vous permettre de perdre. Les mêmes limites s’appliquent : une seule origine, au plus 100 opérations et une expiration sous 7 jours. Les permits au montant illimité ou illisible et les transactions Safe demandent toujours une validation.",
-    signInOnlyNote: "Laissez la destination et la méthode vides pour une règle de connexion uniquement.",
-    policySignInValue: "Connexion aux sites sans demander",
-    policyMainnetSignInValue: "Connexion aux sites sans demander, y compris sur le mainnet",
-    policyTypedDataValue: "Données typées sans demander",
-    policyMainnetTypedDataValue: "Données typées sans demander, y compris sur le mainnet",
-    noPermissions: "Aucune autorisation de site accordée pour ce portefeuille.",
-    noActivity: "Aucune activité pour le moment",
-    activityDescription: "Les événements récents des portefeuilles apparaîtront ici.",
-    yourWallets: "Vos portefeuilles",
-    addWallet: "Ajouter un portefeuille",
-    kinds: {
-      "managed": "Portefeuille de signature",
-      "agent": "Portefeuille d’agent",
-      "watch-only": "Lecture seule",
-    }
-  },
+  wallets: walletMessages['fr-FR'],
   "workspaceNavigationAudit": { "reasonCredentials": "identifiants intégrés", "reasonMalformed": "adresse invalide", "reasonUnsupportedScheme": "schéma non pris en charge", "reasonNoMatch": "absent de la liste autorisée", "sourceDirect": "adresse ou demande d’agent", "sourcePage": "navigation de page", "sourceRedirect": "redirection", "sourcePopup": "fenêtre contextuelle", "sourceHistory": "précédent ou suivant", "sourcePolicyChange": "changement de politique", "sourceRestore": "restauration de session" },
   "workspaceEditor": {
     transferData: "Transférer des données du navigateur",
@@ -1060,6 +1030,10 @@ export const frFR = {
     "virtualPasskey": {
       "label": "Clé d’accès virtuelle",
       "stop": "Arrêter la clé d’accès virtuelle pour {origin}"
+    },
+    "logpoints": {
+      "label": "Points de journalisation",
+      "stop": "Arrêter les points de journalisation de l’agent sur {origin}"
     },
     "suggestion": {
       "bookmark": "Favori",
@@ -3256,7 +3230,7 @@ export const frFR = {
     "recentlyClosedTabs": "Onglets fermés récemment"
   },
   "home": {
-    readiness: enUS.home.readiness,
+    readiness: homeReadinessMessages['fr-FR'],
     "navigation": {"label": "Rubriques de l’accueil", "overview": "Vue d’ensemble", "connect": "Connecter un agent", "tools": "Bibliothèque d’outils"},
     "agentList": {"connect": "Connecter", "empty": "Aucun agent connecté pour l’instant", "emptyHelp": "Connectez Claude Code, Codex ou un autre client MCP pour le voir apparaître ici.", "sessions": "{count} session | {count} sessions", "via": "via {client}", "connected": "connexion {time}"},
     "mission": {"greeting": {"morning": "Bonjour", "afternoon": "Bonjour", "evening": "Bonsoir"}, "agentsConnected": "{count} agent connecté. | {count} agents connectés.", "workspacesNeedYou": "{count} espace vous attend. | {count} espaces vous attendent.", "agents": "Agents connectés", "needsYou": "{name} vous attend", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Dernière utilisation {time}", "open": "Ouvrir {name}", "moreActions": "Plus d’actions pour {name}", "newWorkspaceHelp": "Ses propres onglets et connexions", "checks": {"ok": "Prêt", "failed": "À vérifier", "pending": "Pas encore", "details": "Vérifications et connexions"}, "feed": {"heading": "Activité en direct", "local": "Local uniquement", "empty": "Quand un agent travaille dans un espace, ses étapes s’affichent ici.", "meta": "{name} · {workspace} · {time}", "times": "{count} fois | {count} fois", "privacy": "Conservé en mémoire sur cet ordinateur et oublié quand Hronaut se ferme ou que vous effacez l’historique. Affiche les noms des contrôles et les adresses des pages, jamais ce qui a été saisi."}},

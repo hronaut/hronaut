@@ -31,6 +31,31 @@ function placeholderNames(message: string): string[] {
   return [...new Set([...message.matchAll(/\{([\w]+)\}/g)].map((match) => match[1]!))].sort()
 }
 
+/** Words of three or more letters in a message's first plural form, leaving placeholders out. */
+function wordCount(message: string): number {
+  return message.split(' | ')[0]!.replace(/\{\w+\}/g, ' ').match(/\p{L}{3,}/gu)?.length ?? 0
+}
+
+// Names, web platform terms and examples that any language may write as English does.
+const SAME_IN_EVERY_LANGUAGE = new Set([
+  'appearance.themes.cyberpunk-turbo.label',
+  'home.endpoint',
+  'network.filters.fetchXhr',
+  'pageMetadata.issues.robotsNoindex.label',
+  'pageMetadata.openGraph',
+  'runtime.storage.cacheStorage',
+  'runtime.storage.serviceWorkers',
+  'runtime.storage.webSql',
+  'settings.mcp.capabilities.argumentsPlaceholder',
+  'settings.support.placeholder',
+  'wallets.methodPlaceholder',
+  'wallets.originPlaceholder',
+  'workspaceEditor.allowedSitesPlaceholder'
+])
+
+// Groups of messages that every language writes as English does: chain names.
+const SAME_GROUPS_IN_EVERY_LANGUAGE = new Set(['wallets.chains'])
+
 describe('locale resolution', () => {
   it.each([
     ['uk', 'uk-UA'], ['uk-UA', 'uk-UA'], ['uk_UA', 'uk-UA'], ['uk-CA', 'uk-UA'],
@@ -104,6 +129,24 @@ describe('locale catalogs', () => {
       }
     }
   )
+
+  // A section copied from the English catalog shows English to every reader of that language.
+  it.each(['uk-UA', 'ru-RU', 'de-DE', 'fr-FR', 'es-ES', 'pl-PL'] as const)('shows no English labels or sentences in %s', (locale) => {
+    const catalog = flattenMessages(localeMessages[locale])
+    const untranslated = [...catalog]
+      .filter(([key, message]) => message === english.get(key) && wordCount(message) > 1 && !SAME_IN_EVERY_LANGUAGE.has(key))
+      .map(([key]) => key)
+    // One-word labels such as sizes or alignments only show a copied section as a whole group.
+    const groups = new Map<string, string[]>()
+    for (const key of catalog.keys()) {
+      const group = key.slice(0, key.lastIndexOf('.'))
+      groups.set(group, [...(groups.get(group) ?? []), key])
+    }
+    const copiedGroups = [...groups]
+      .filter(([group, keys]) => keys.length > 1 && !SAME_GROUPS_IN_EVERY_LANGUAGE.has(group) && keys.every((key) => catalog.get(key) === english.get(key)))
+      .map(([group]) => group)
+    expect({ untranslated, copiedGroups }).toEqual({ untranslated: [], copiedGroups: [] })
+  })
 
   it('renders both languages with named interpolation', () => {
     expect(translate('en-US', 'updates.status.available', { version: '2.0.0' })).toBe('Hronaut 2.0.0 is available')

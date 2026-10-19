@@ -88,6 +88,7 @@
   },
   "dependencies": {
     "@foleyjs/core": "^2.9.0",
+    "@jridgewell/trace-mapping": "^0.3.31",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@noble/ciphers": "^2.4.0",
     "@node-rs/argon2": "2.2.2",

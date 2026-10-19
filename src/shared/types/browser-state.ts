@@ -4,6 +4,7 @@ import type { BrowserJavaScriptDialog, BrowserPageProblem } from './page-problem
 import type { BrowserEmulationState, BrowserUnconfirmedEmulation } from './emulation.js'
 import type { BrowserCssStatePreviewSummary } from './element-inspection.js'
 import type { BrowserVirtualPasskeySummary } from '../virtual-passkey.js'
+import type { BrowserLogpointSummary } from '../logpoint.js'
 import type { BrowserCodeCoverageMode } from './profiling.js'
 import type { BrowserNetworkConditionState } from './console-network.js'
 
@@ -61,6 +62,8 @@ export interface BrowserTabState {
   cssStatePreview?: BrowserCssStatePreviewSummary & { resetUncertain?: boolean }
   /** An agent's virtual passkey, shown in the trusted address bar with a stop control. */
   virtualPasskey?: BrowserVirtualPasskeySummary
+  /** An agent's armed logpoints, shown in the trusted address bar with a stop control. */
+  logpoints?: BrowserLogpointSummary
   domChangesRecording?: {
     active: boolean
     changeCount: number
