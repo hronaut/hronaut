@@ -4,10 +4,11 @@ import type { SitePermissionEntry } from '../../src/shared/types.js'
 import { expect, test } from './fixtures.js'
 
 test('finds saved permissions by site and permission name without modifying hidden decisions', async ({ appWindow, profileDirectory }) => {
+  // Camera, microphone and file access are never remembered, so Settings lists none of them; these are all remembered.
   const entries: SitePermissionEntry[] = [
     { origin: 'https://staging.example.test', permission: 'geolocation', decision: 'allow' },
-    { origin: 'https://staging.example.test', permission: 'media', decision: 'allow' },
-    { origin: 'https://production.example.test', permission: 'media', decision: 'deny' },
+    { origin: 'https://staging.example.test', permission: 'clipboard-read', decision: 'allow' },
+    { origin: 'https://production.example.test', permission: 'clipboard-read', decision: 'deny' },
     { origin: 'https://production.example.test', permission: 'notifications', decision: 'allow' }
   ]
   for (const entry of entries) {
@@ -20,13 +21,13 @@ test('finds saved permissions by site and permission name without modifying hidd
   const panel = appWindow.locator('.permissions-settings')
   const search = panel.getByRole('searchbox', { name: 'Search saved site permissions' })
   await expect(search).toBeVisible()
-  await search.fill('CAMERA')
+  await search.fill('CLIPBOARD')
   await expect(panel.getByRole('combobox')).toHaveCount(2)
   await expect(panel.getByRole('status')).toHaveText('2 of 4 saved decisions')
   expect(await saved()).toEqual(before)
-  await search.fill(' CAMERA   STAGING.EXAMPLE.TEST ')
+  await search.fill(' CLIPBOARD   STAGING.EXAMPLE.TEST ')
   await expect(panel.getByRole('combobox')).toHaveCount(1)
-  await expect(panel.getByRole('combobox')).toHaveAccessibleName('Camera and microphone permission for https://staging.example.test')
+  await expect(panel.getByRole('combobox')).toHaveAccessibleName('Clipboard read permission for https://staging.example.test')
   await expect(panel.getByRole('status')).toHaveText('1 of 4 saved decisions')
   await expect(search).toBeFocused()
   expect(await saved()).toEqual(before)
