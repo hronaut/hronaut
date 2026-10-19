@@ -1,18 +1,18 @@
 {
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Visible desktop Chromium workspaces that persist across coding-agent tasks through a loopback MCP endpoint",
   "homepage": "https://hronaut.dev",
   "license": "SEE LICENSE IN LICENSE",
   "notes": "Hronaut's current Windows binaries are not code-signed. Verify the release hash and review any Windows security warning before running it.",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/hronaut/hronaut/releases/download/v3.1.0/hronaut-3.1.0-x64-windows-portable.exe",
-      "hash": "587f3f434c858f70a8458e62dffe0f8d2e498b21cd1c0e9696c2a95afcd14517"
+      "url": "https://github.com/hronaut/hronaut/releases/download/v3.2.0/hronaut-3.2.0-x64-windows-portable.exe",
+      "hash": "aaa58113c8f0d2a42395071fb0abc6e0d2a110dae97475d6ccce81ceef9c5e56"
     }
   },
   "shortcuts": [
     [
-      "hronaut-3.1.0-x64-windows-portable.exe",
+      "hronaut-3.2.0-x64-windows-portable.exe",
       "Hronaut"
     ]
   ],
