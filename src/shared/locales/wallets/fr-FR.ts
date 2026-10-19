@@ -292,6 +292,7 @@ export const frFRWallets = {
     "hash": "Hachage d’approbation",
     "hashPending": "calculé lors de l’approbation",
     "reject": "Rejeter",
-    "approve": "Approuver la demande exacte"
+    "approve": "Approuver la demande exacte",
+    "requestFailed": "Échec de la demande du portefeuille"
   }
 }

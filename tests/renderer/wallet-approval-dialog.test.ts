@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import WalletApprovalDialog from '../../src/renderer/src/components/WalletApprovalDialog.vue'
-import type { WalletsController } from '../../src/renderer/src/composables/useWalletsController.js'
+import { useWalletsController, type WalletsController } from '../../src/renderer/src/composables/useWalletsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import type { HronautWalletsApi } from '../../src/shared/types.js'
 import type { WalletRequestSummary } from '../../src/shared/wallet.js'
 
 function request(id = 'request-1', walletName = 'Main wallet'): WalletRequestSummary {
@@ -27,12 +28,80 @@ function request(id = 'request-1', walletName = 'Main wallet'): WalletRequestSum
 function controller(): WalletsController {
   const pending = request()
   return {
-    awaitingApproval: ref([pending]), busy: ref(false), errorMessage: ref(''),
+    awaitingApproval: ref([pending]), busy: ref(false), requestError: ref(),
     approve: vi.fn(async () => undefined), reject: vi.fn(async () => undefined)
   } as unknown as WalletsController
 }
 
+/** The real controller over a wallet service whose unlock always fails and whose approval fails after the queue moved on. */
+function liveController() {
+  let publish: (requests: WalletRequestSummary[]) => void = () => undefined
+  const api = {
+    status: vi.fn(async () => ({ managedWallets: 'ready', backend: 'safe-storage', watchOnlyAvailable: true })),
+    list: vi.fn(async () => []),
+    listPolicies: vi.fn(async () => []),
+    listPermissions: vi.fn(async () => []),
+    listRequests: vi.fn(async () => []),
+    auditHistory: vi.fn(async () => []),
+    unlock: vi.fn(async () => { throw new Error('Wrong passphrase') }),
+    approveRequest: vi.fn(async (requestId: string) => {
+      publish([request('request-2', 'Second wallet')])
+      throw new Error(`Request ${requestId} expired`)
+    }),
+    rejectRequest: vi.fn(async () => { throw new Error('The wallet service stopped') }),
+    onChanged: vi.fn(() => () => undefined),
+    onStatusChanged: vi.fn(() => () => undefined),
+    onRequestsChanged: vi.fn((listener: (requests: WalletRequestSummary[]) => void) => {
+      publish = listener
+      return () => undefined
+    })
+  } as unknown as HronautWalletsApi
+  const reportRequestError = vi.fn()
+  const wallets = useWalletsController({
+    api, formatError: (error) => error instanceof Error ? error.message : String(error), reportRequestError
+  })
+  return { wallets, reportRequestError, publish: (requests: WalletRequestSummary[]) => publish(requests) }
+}
+
 describe('WalletApprovalDialog', () => {
+  it('does not open a request with the error of an earlier Settings action', async () => {
+    const { wallets, publish } = liveController()
+    await wallets.initialize()
+    await wallets.unlock('mistyped')
+    expect(wallets.errorMessage.value).toBe('Wrong passphrase')
+    render(WalletApprovalDialog, { props: { controller: wallets, workspaces: [] }, global: { plugins: [createHronautI18n('en-US')] } })
+
+    publish([request()])
+
+    expect(await screen.findByRole('alertdialog', { name: /sign message/i })).toHaveTextContent('Main wallet')
+    expect(screen.queryByText('Wrong passphrase')).toBeNull()
+    expect(wallets.errorMessage.value).toBe('Wrong passphrase')
+    wallets.dispose()
+  })
+
+  it('shows a failed decision on its own request, never on the next one in the queue', async () => {
+    const { wallets, reportRequestError, publish } = liveController()
+    await wallets.initialize()
+    render(WalletApprovalDialog, { props: { controller: wallets, workspaces: [] }, global: { plugins: [createHronautI18n('en-US')] } })
+    publish([request(), request('request-2', 'Second wallet')])
+    await screen.findByText('Main wallet')
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Approve exact request' }))
+    await screen.findByText('Second wallet')
+    await vi.waitFor(() => expect(wallets.busy.value).toBe(false))
+    await nextTick()
+    expect(screen.queryByText('Request request-1 expired')).toBeNull()
+    // The request the failure ended has no dialog left, so the failure is reported apart from the queue.
+    expect(reportRequestError).toHaveBeenCalledExactlyOnceWith('Request request-1 expired')
+
+    await user.click(screen.getByRole('button', { name: 'Reject' }))
+    expect(await screen.findByText('The wallet service stopped')).toHaveAttribute('role', 'alert')
+    expect(reportRequestError).toHaveBeenCalledOnce()
+    expect(wallets.errorMessage.value).toBe('')
+    wallets.dispose()
+  })
+
   it('shows exact trusted message content and only acts from explicit chrome buttons', async () => {
     const wallets = controller()
     const view = render(WalletApprovalDialog, {
@@ -361,7 +430,7 @@ describe('WalletApprovalDialog', () => {
     const wallets = {
       awaitingApproval,
       busy: ref(false),
-      errorMessage: ref(''),
+      requestError: ref(),
       approve,
       reject: vi.fn(async () => undefined)
     } as unknown as WalletsController
