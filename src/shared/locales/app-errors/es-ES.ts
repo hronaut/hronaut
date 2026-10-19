@@ -255,9 +255,9 @@ export const esESAppErrors: AppErrorMessages = {
     "renderClosed": "La pestaña se cerró mientras se preparaba su página.",
     "renderTimedOut": "Se agotó el tiempo de espera para que la pestaña estuviera lista.",
     "renderFrameClosed": "La pestaña se cerró mientras se esperaba un fotograma listo.",
-    "snapshotFormatChanged": "El formato de la instantánea de la página cambió durante la captura. Toma una instantánea nueva.",
-    "snapshotTabChanged": "La pestaña de la instantánea cambió mientras se observaba. Toma una instantánea nueva.",
-    "snapshotContextChanged": "La página cambió mientras se tomaba su instantánea. Toma una instantánea nueva.",
+    "snapshotFormatChanged": "El formato de la captura de página cambió mientras se hacía. Haz una captura de página nueva.",
+    "snapshotTabChanged": "La pestaña cambió mientras se hacía la captura de página. Haz una captura de página nueva.",
+    "snapshotContextChanged": "La página cambió mientras se hacía la captura de página. Haz una captura de página nueva.",
     "pdfTabClosed": "La pestaña se cerró mientras se exportaba su PDF. Abre la página y vuelve a exportarla.",
     "pdfPageChanged": "La página cambió mientras se exportaba su PDF. Vuelve a exportar la página actual."
   },
