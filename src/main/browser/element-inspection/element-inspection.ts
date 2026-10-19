@@ -146,11 +146,13 @@ export async function elementInspection<Tab extends ElementInspectionTab>(access
   try {
     assertCurrent()
     if (properties || includeFonts) {
-      // CSS provenance resets this session's DOM bindings, which would drop a CSS state preview.
+      // CSS provenance resets this session's DOM bindings, which would drop a CSS state preview, and
+      // disables the DOM domain, which would clear a DOM mutation source capture's breakpoint.
       const conflict = (): boolean => access.isDevToolsOpening(tab.webContents.id)
         || tab.webContents.isDevToolsOpened()
         || Boolean(tab.codeCoverage?.recording || tab.cpuProfile?.recording)
         || access.cssStatePreviewActive(tab)
+        || access.domMutationSourceActive(tab)
       if (conflict()) {
         if (properties) cssProvenance = unavailableCssProvenance(properties, 'debugger-in-use')
         if (includeFonts) renderedFonts = unavailableRenderedFonts('debugger-in-use')
