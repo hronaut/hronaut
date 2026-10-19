@@ -10,6 +10,7 @@ import type { BrowserTabsManager } from '../browser/tabs-manager.js'
 import type { CommercialLicenseStore } from '../commercial-license-store.js'
 import type { WalletAgentOperations, WalletAgentToolTarget } from '../mcp/server.js'
 import type { MainWindowRefs } from '../windows/main-window.js'
+import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { WalletCreateInput, WalletDescriptor, WalletServiceStatus } from '../../shared/wallet.js'
 
 /**
@@ -38,6 +39,8 @@ interface WalletRuntimeHost {
   workspaceStartupFailure(): Error | undefined
   /** The main window, which owns the recovery phrase dialog; read on every use because it can close. */
   mainWindowRefs: Pick<MainWindowRefs, 'window'>
+  /** A message in the interface language, for the recovery phrase dialog. */
+  text(key: MessageKey, parameters?: MessageParameters): string
 }
 
 /**
@@ -130,10 +133,11 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
       if (owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
       const { response } = await dialog.showMessageBox(owner, {
         type: 'warning',
-        title: 'Save wallet recovery material',
-        message: 'Write down this recovery phrase and store it offline.',
-        detail: `${recoveryMaterial}\n\nHronaut cannot recover this phrase. Never share it with a website or coding agent.`,
-        buttons: ['I saved it', 'Not yet'],
+        title: host.text('native.dialog.walletRecoveryTitle'),
+        message: host.text('native.dialog.walletRecoveryMessage'),
+        // The phrase is joined here rather than passed to text(), so it never enters the message catalog's lookup.
+        detail: `${recoveryMaterial}\n\n${host.text('native.dialog.walletRecoveryWarning')}`,
+        buttons: [host.text('native.dialog.walletRecoverySaved'), host.text('native.dialog.walletRecoveryNotYet')],
         defaultId: 1,
         cancelId: 1,
         noLink: true

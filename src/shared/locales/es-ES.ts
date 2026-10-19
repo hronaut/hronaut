@@ -3633,7 +3633,16 @@ export const esES = {
       "savePassword": "Guardar contraseña",
       "updatePassword": "Actualizar contraseña",
       "installingUpdate": "Instalando la actualización. Hronaut se reiniciará automáticamente.",
-      "restartingUpdate": "El paquete nuevo está instalado. Reiniciando Hronaut para completar la actualización."
+      "restartingUpdate": "El paquete nuevo está instalado. Reiniciando Hronaut para completar la actualización.",
+      "walletRecoveryTitle": "Guarda los datos de recuperación del monedero",
+      "walletRecoveryMessage": "Anota esta frase de recuperación y guárdala sin conexión.",
+      "walletRecoveryWarning": "Hronaut no puede recuperar esta frase. Nunca la compartas con un sitio web ni con un agente de programación.",
+      "walletRecoverySaved": "Ya la guardé",
+      "walletRecoveryNotYet": "Todavía no",
+      "wavAudioFilter": "Audio PCM WAV",
+      "chooseVideoAudio": "Elegir audio para el vídeo",
+      "chooseAudio": "Elegir audio",
+      "devToolsWindowTitle": "Herramientas de desarrollo de Hronaut — {title}"
     }
   }
 } satisfies MessageSchema

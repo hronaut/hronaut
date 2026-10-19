@@ -3633,7 +3633,16 @@ export const ruRU = {
       "savePassword": "Сохранить пароль",
       "updatePassword": "Обновить пароль",
       "installingUpdate": "Установка обновления. Hronaut перезапустится автоматически.",
-      "restartingUpdate": "Новый пакет установлен. Hronaut перезапускается для завершения обновления."
+      "restartingUpdate": "Новый пакет установлен. Hronaut перезапускается для завершения обновления.",
+      "walletRecoveryTitle": "Сохраните данные для восстановления кошелька",
+      "walletRecoveryMessage": "Запишите эту фразу восстановления и храните её офлайн.",
+      "walletRecoveryWarning": "Hronaut не сможет восстановить эту фразу. Никогда не передавайте её сайту или агенту программирования.",
+      "walletRecoverySaved": "Фраза сохранена",
+      "walletRecoveryNotYet": "Пока нет",
+      "wavAudioFilter": "Аудио PCM WAV",
+      "chooseVideoAudio": "Выберите аудио для видео",
+      "chooseAudio": "Выбрать аудио",
+      "devToolsWindowTitle": "Инструменты разработчика Hronaut — {title}"
     }
   }
 } satisfies MessageSchema
