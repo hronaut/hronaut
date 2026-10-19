@@ -544,3 +544,88 @@ describe('Downloads source origin', () => {
     expect(screen.getByText('report.bin')).toBeVisible()
   })
 })
+
+describe('Downloads keyboard focus after a row changes', () => {
+  // Chromium moves the focus of a control to the page body while the control is disabled. JSDOM cannot blur a
+  // disabled control, so it is enabled for the blur itself.
+  function dropFocusLikeChromium(control: HTMLElement): void {
+    control.removeAttribute('disabled')
+    control.blur()
+    control.setAttribute('disabled', '')
+    expect(document.body).toHaveFocus()
+  }
+
+  function pendingReveal() {
+    let settle!: (error?: Error) => void
+    const showInFolder = vi.fn(() => new Promise<void>((resolve, reject) => {
+      settle = error => error ? reject(error) : resolve()
+    }))
+    return { showInFolder, settle: (error?: Error) => settle(error) }
+  }
+
+  // Show in folder disables the panel's controls until the folder opens, so Chromium dropped the focus of the button
+  // you pressed and nothing gave it back: the next Tab started at the top of the window, also after a failure.
+  it.each(['opens the folder', 'fails'] as const)('gives the focus back to Show in folder once it %s', async outcome => {
+    const reveal = pendingReveal()
+    renderPanel({ showInFolder: reveal.showInFolder })
+    const show = screen.getByRole('button', { name: 'Show complete.bin in folder' })
+    show.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(reveal.showInFolder).toHaveBeenCalledExactlyOnceWith('complete')
+    expect(show).toBeDisabled()
+    dropFocusLikeChromium(show)
+
+    reveal.settle(outcome === 'fails' ? new Error('Only a completed download that still exists can be shown in its folder') : undefined)
+    await flushPromises()
+
+    if (outcome === 'fails') expect(screen.getByRole('alert')).toHaveTextContent('Only a completed download that still exists')
+    expect(show).toBeEnabled()
+    expect(show).toHaveFocus()
+  })
+
+  it('leaves the focus where you moved it while the folder opens', async () => {
+    const reveal = pendingReveal()
+    renderPanel({ showInFolder: reveal.showInFolder })
+    const show = screen.getByRole('button', { name: 'Show complete.bin in folder' })
+    show.focus()
+    await userEvent.keyboard('{Enter}')
+    dropFocusLikeChromium(show)
+    const search = screen.getByRole('searchbox')
+    search.focus()
+
+    reveal.settle()
+    await flushPromises()
+
+    expect(search).toHaveFocus()
+  })
+
+  // With every status shown, a transfer that finishes keeps its row but trades Pause and Cancel for its finished
+  // actions, so the focused control left the page and the focus fell to the body.
+  it.each([
+    ['Pause', 'completed', 'Show report.bin in folder'],
+    ['Cancel', 'completed', 'Show report.bin in folder'],
+    ['Cancel', 'interrupted', 'Remove report.bin from list']
+  ] as const)('moves the focus from %s to the row\'s first action when the transfer becomes %s', async (control, state, next) => {
+    const active = download('report', 'progressing', 50, 100)
+    const other = download('other', 'completed', 100, 100)
+    const view = renderPanel({ downloads: [active, other] })
+    screen.getByRole('button', { name: `${control} report.bin` }).focus()
+
+    await view.rerender({ downloads: [{ ...active, state, receivedBytes: 100, completedAt: '2026-08-22T00:01:00.000Z' }, other] })
+    await flushPromises()
+
+    expect(screen.getByRole('button', { name: next })).toHaveFocus()
+  })
+
+  it('keeps the focus on a transfer control through a progress update', async () => {
+    const active = download('report', 'progressing', 50, 100)
+    const view = renderPanel({ downloads: [active] })
+    const cancel = screen.getByRole('button', { name: 'Cancel report.bin' })
+    cancel.focus()
+
+    await view.rerender({ downloads: [{ ...active, receivedBytes: 75 }] })
+    await flushPromises()
+
+    expect(cancel).toHaveFocus()
+  })
+})

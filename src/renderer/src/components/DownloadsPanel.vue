@@ -72,7 +72,9 @@ let removalFocusRow: Element | null = null
 let focusGeneration = 0
 const stopFocusSessionTracking = watch([open, query, statusFilter, sortOrder], () => { focusGeneration += 1 }, { flush: 'sync' })
 
-async function changeTransfer(action: 'pause' | 'resume' | 'cancel' | 'remove', downloadId: string, event: MouseEvent): Promise<void> {
+// Every row action disables the panel's controls until it settles, and Chromium then drops the focus of the one you
+// used, so each action gives it back here.
+async function changeTransfer(action: 'pause' | 'resume' | 'cancel' | 'remove' | 'reveal', downloadId: string, event: MouseEvent): Promise<void> {
   const generation = focusGeneration
   const focused = event.currentTarget instanceof HTMLButtonElement
     && document.activeElement === event.currentTarget ? event.currentTarget : null
@@ -84,7 +86,7 @@ async function changeTransfer(action: 'pause' | 'resume' | 'cancel' | 'remove', 
   // Leave this action responsible for focus instead of the live-list watcher.
   if (action === 'remove' && row) removalFocusRow = row
   try {
-    await (action === 'pause' ? pause(downloadId) : action === 'resume' ? resume(downloadId) : action === 'remove' ? remove(downloadId) : cancel(downloadId))
+    await { pause, resume, cancel, remove, reveal }[action](downloadId)
     await nextTick()
   } finally {
     if (removalFocusRow === row) removalFocusRow = null
@@ -98,18 +100,22 @@ async function changeTransfer(action: 'pause' | 'resume' | 'cancel' | 'remove', 
   target?.focus()
 }
 
-// A live status update can remove a focused row from the active filter even
-// when no panel action is pending. Capture focus before Vue removes the row.
-const stopVisibleTracking = watch(() => filteredDownloads.value.map(download => download.id), async () => {
+// A live status update can remove a focused row from the active filter, or
+// trade a finished transfer's Pause and Cancel for its finished actions, even
+// when no panel action is pending. Capture focus before Vue removes it, and
+// give it to the row's first action while the row stays.
+const stopVisibleTracking = watch(filteredDownloads, async () => {
   const focused = document.activeElement
   const row = focused instanceof HTMLElement ? focused.closest('.download-item') : null
   const panel = row?.closest('.downloads-panel')
-  if (!row || !panel || row === removalFocusRow) return
+  if (!focused || !row || !panel || row === removalFocusRow) return
   await nextTick()
-  if (!open.value || !panel.isConnected || row.isConnected) return
-  if (document.activeElement !== document.body && document.activeElement !== focused) return
-  const target = panel.querySelector<HTMLInputElement>('.downloads-filters input')
-    ?? panel.querySelector<HTMLButtonElement>('.panel-close')
+  if (!open.value || !panel.isConnected || focused.isConnected) return
+  if (document.activeElement !== document.body) return
+  const target = [row.querySelector<HTMLButtonElement>('.download-action'),
+    panel.querySelector<HTMLInputElement>('.downloads-filters input'),
+    panel.querySelector<HTMLButtonElement>('.panel-close')
+  ].find(element => element?.isConnected && !element.matches(':disabled'))
   target?.focus()
 }, { flush: 'pre' })
 
@@ -200,7 +206,7 @@ onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVi
         <UiButton appearance="application" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.cancelAria', { filename: download.filename })" v-tooltip="t('downloads.cancel')" @click="changeTransfer('cancel', download.id, $event)"><IconClose aria-hidden="true" /></UiButton>
         </div>
         <div v-else class="download-actions">
-          <UiButton appearance="application" v-if="download.state === 'completed'" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.showAria', { filename: download.filename })" v-tooltip="t('downloads.show')" @click="reveal(download.id)"><IconFolderOpen aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" v-if="download.state === 'completed'" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.showAria', { filename: download.filename })" v-tooltip="t('downloads.show')" @click="changeTransfer('reveal', download.id, $event)"><IconFolderOpen aria-hidden="true" /></UiButton>
           <UiButton appearance="application" v-if="canCopyPath(download)" class="download-action download-copy-path" type="button"
             :aria-disabled="pendingAction !== null"
             :aria-label="t('downloads.copyPathAria', { filename: download.filename })"
