@@ -55,6 +55,9 @@ const { StartupLaunchManager } = await import('../src/main/startup-launch.js')
 const { createMcpRuntime } = await import('../src/main/mcp-runtime.js')
 const { ReleaseHistoryService } = await import('../src/main/release-history.js')
 const { commitRuntimeSetting } = await import('../src/main/runtime-setting-commit.js')
+const { HumanWaitingService } = await import('../src/main/mcp/human-waiting-service.js')
+const { WorkspaceContinuityStore } = await import('../src/main/mcp/workspace-continuity-store.js')
+const { screenshot } = await import('../src/main/browser/screenshots/screenshots.js')
 
 const SHELL_URL = 'http://127.0.0.1:5173/'
 const ukrainian = (key: Parameters<typeof translate>[1], parameters?: Parameters<typeof translate>[2]) => translate('uk-UA', key, parameters)
@@ -392,10 +395,13 @@ describe('main-process failures people see in page tools, workspace management a
   it('keeps the file system details of a failed export and leaves its name out of the sentence', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-translated-export-'))
     exportDirectories.push(directory)
-    const denied = Object.assign(new Error('EACCES: permission denied, open'), { code: 'EACCES', errno: -13, syscall: 'open', path: join(directory, 'Private title.pdf') })
+    // Node's message names the path, as it does when the download folder refuses the file.
+    const path = join(directory, 'Private title.pdf')
+    const denied = Object.assign(new Error(`EACCES: permission denied, open '${path}'`), { code: 'EACCES', errno: -13, syscall: 'open', path })
     vi.mocked(open).mockRejectedValueOnce(denied)
     const error = await failure(() => writeUniqueDownloadFile(directory, 'Private title.pdf', Buffer.from('%PDF')))
     expect(error).toMatchObject({ message: denied.message, code: 'EACCES', errno: -13, syscall: 'open', path: denied.path, cause: denied })
+    expect((error as Error).message).toContain('Private title')
     const shown = await shownTo(SHELL_URL, error)
     expect(shown).toBe('Hronaut не має дозволу зберігати файли в папці завантажень (EACCES).')
     expect(shown).not.toContain('Private title')
@@ -425,5 +431,251 @@ describe('main-process failures people see in page tools, workspace management a
     }
     expect(archivedSentences.size).toBe(Object.keys(actions).length)
     expect(storageSentences.size).toBe(Object.keys(actions).length)
+  })
+})
+
+const waitingWorkspaceId = '0198dc5b-4192-7000-8000-000000000001'
+const waitingInput = {
+  workspaceId: waitingWorkspaceId, runId: '0198dc5b-4192-7000-8000-000000000002',
+  decision: 'review-page' as const, owner: 'local-operator', fallbackOwner: 'local-operator',
+  timeoutMs: 60_000, priorOutcome: 'NONE' as const
+}
+const tabBoundApproval = {
+  ...waitingInput, decision: 'approve-action' as const,
+  review: {
+    toolName: 'browser_click', actionClass: 'interact' as const, reversibility: 'unknown' as const,
+    representation: 'bounded-description' as const, description: 'Submit the visible form',
+    artifactHash: 'a'.repeat(64), sessionBinding: 'b'.repeat(64), workspaceName: 'QA', profileName: 'Full access',
+    tabId: '0198dc5b-4192-7000-8000-000000000004', browserSessionGeneration: 6
+  }
+}
+const authorized = () => undefined
+const goneDecisionId = '0198dc5b-4192-7000-8000-000000000009'
+
+/** A waiting service whose history saves, until save number `failingSave` fails. */
+function waitingService(failingSave = Number.POSITIVE_INFINITY): InstanceType<typeof HumanWaitingService> {
+  let saves = 0
+  return new HumanWaitingService({ load: async () => null, save: async () => { if (++saves >= failingSave) throw new Error('ENOSPC: no space left on device') } })
+}
+
+const checkpointEvidence = { epoch: 'epoch', workspaceId: 'research', tabId: 'tab', originDigest: 'origin', policyDigest: 'policy', navigationGeneration: 0, humanInteractionGeneration: 0 }
+
+/** A continuity store whose checkpoint for Research waits for review, with the review it read last. */
+function suspendedCheckpoint(outcome: 'NONE' | 'OUTCOME_UNKNOWN') {
+  const clock = { now: 1000 }
+  const store = new WorkspaceContinuityStore(100, () => clock.now)
+  store.arm(checkpointEvidence)
+  store.suspend('research', outcome)
+  return { store, clock, reviewId: store.inspect('research', checkpointEvidence, true).reviewId! }
+}
+
+describe('main-process failures people see in continuity checkpoints and waiting decisions', () => {
+  it.each([
+    // Waiting decisions
+    ['waiting decisions whose history cannot be read', () => new HumanWaitingService({ load: async () => { throw new Error('EACCES: permission denied') }, save: async () => undefined }).list(waitingWorkspaceId, authorized),
+      'Human waiting history is unavailable',
+      'Історія рішень людини недоступна.'],
+    ['an answer that could not be saved', async () => {
+      const service = waitingService(2)
+      const record = await service.create(waitingInput, authorized)
+      return service.change(waitingWorkspaceId, record.id, record.revision, 'cancel', authorized)
+    },
+    'Human waiting change could not be saved; inspect recovery before retrying',
+    'Не вдалося зберегти зміну рішення; перевірте відновлення, перш ніж повторити спробу.'],
+    ['waiting decisions after an answer could not be saved', async () => {
+      const service = waitingService(2)
+      const record = await service.create(waitingInput, authorized)
+      await service.change(waitingWorkspaceId, record.id, record.revision, 'cancel', authorized).catch(() => undefined)
+      return service.list(waitingWorkspaceId, authorized)
+    },
+    'Human waiting history is unavailable',
+    'Історія рішень людини недоступна.'],
+    ['a note on an acknowledgement', async () => {
+      const service = waitingService()
+      const record = await service.create(waitingInput, authorized)
+      return service.change(waitingWorkspaceId, record.id, record.revision, 'acknowledge', authorized, undefined, undefined, { note: 'Seen' })
+    },
+    'Waiting decision note unavailable',
+    'Примітка до рішення, на яке очікують, недоступна.'],
+    ['answering a decision that is gone', () => waitingService().change(waitingWorkspaceId, goneDecisionId, goneDecisionId, 'cancel', authorized),
+      'Waiting decision unavailable',
+      'Рішення, на яке очікують, недоступне.'],
+    ['a decision that is gone when it is read back', () => waitingService().notify(waitingWorkspaceId, goneDecisionId, authorized, async () => undefined),
+      'Waiting decision unavailable',
+      'Рішення, на яке очікують, недоступне.'],
+    ['answering a decision that changed since it was shown', async () => {
+      const service = waitingService()
+      const record = await service.create(waitingInput, authorized)
+      return service.change(waitingWorkspaceId, record.id, goneDecisionId, 'cancel', authorized)
+    },
+    'Waiting decision unavailable or stale',
+    'Рішення, на яке очікують, недоступне або застаріло.'],
+    ['approving a tab-bound action without confirming its account and target', async () => {
+      const service = waitingService()
+      const record = await service.create(tabBoundApproval, authorized)
+      return service.change(waitingWorkspaceId, record.id, record.revision, 'resolve', authorized, async () => undefined)
+    },
+    'Confirm the signed-in account and target in the trusted review UI',
+    'Підтвердьте, що перевірили обліковий запис, у який виконано вхід, і видиму ціль у пов’язаній вкладці браузера.'],
+    ['a page that changed while the review was saved', async () => {
+      let checks = 0
+      const service = waitingService()
+      const record = await service.create(waitingInput, authorized)
+      return service.change(waitingWorkspaceId, record.id, record.revision, 'resolve', authorized, async () => { if (++checks === 2) throw new Error('page changed') })
+    },
+    'Browser review changed while saving; inspect current state again',
+    'Стан браузера змінився під час збереження перевірки; перевірте поточний стан ще раз.'],
+    // Continuity checkpoints
+    ['a new checkpoint while the last one waits for review', () => suspendedCheckpoint('NONE').store.arm(checkpointEvidence),
+      'Reconcile the suspended checkpoint before replacing it',
+      'Підтвердьте перевірений стан, перш ніж створювати нову контрольну точку.'],
+    ['a checkpoint once every checkpoint place is taken', () => {
+      const store = new WorkspaceContinuityStore(1)
+      store.arm({ ...checkpointEvidence, workspaceId: 'work' })
+      return store.arm(checkpointEvidence)
+    },
+    'Continuity checkpoint capacity reached',
+    'Досягнуто ліміту контрольних точок.'],
+    ['confirming a review that a newer one replaced', () => suspendedCheckpoint('NONE').store.reconcile('research', goneDecisionId, checkpointEvidence, true, false),
+      'Continuity review is unavailable or stale',
+      'Перевірка стану робочого простору недоступна або застаріла.'],
+    ['confirming a review after 30 seconds', () => {
+      const { store, clock, reviewId } = suspendedCheckpoint('NONE')
+      clock.now += 30_000
+      return store.reconcile('research', reviewId, checkpointEvidence, true, false)
+    },
+    'Continuity review expired; inspect current state again',
+    'Час перевірки стану робочого простору минув; перевірте поточний стан ще раз.'],
+    ['confirming a review after the person used the page', () => {
+      const { store, reviewId } = suspendedCheckpoint('NONE')
+      return store.reconcile('research', reviewId, { ...checkpointEvidence, humanInteractionGeneration: 1 }, true, false)
+    },
+    'Browser state changed after continuity review',
+    'Стан браузера змінився після перевірки стану робочого простору.'],
+    ['confirming a review without accepting that the earlier action may have taken effect', () => {
+      const { store, reviewId } = suspendedCheckpoint('OUTCOME_UNKNOWN')
+      return store.reconcile('research', reviewId, checkpointEvidence, true, false)
+    },
+    'Explicitly acknowledge the unresolved prior outcome',
+    'Підтвердьте, що сторінку перевірено й що попередня дія вже могла мати наслідки.'],
+    // Workspaces
+    ['a busy workspace whose record is already gone', () => assertWorkspaceIdle({
+      workspaceOperations: () => new Map([['019a0000-0000-7000-8000-000000000001', { action: 'closing the workspace', blocksNewTabs: true, token: Symbol('close') }]]),
+      mcpTabGroups: () => new Map()
+    } as never, '019a0000-0000-7000-8000-000000000001'),
+    'Workspace "019a0000-0000-7000-8000-000000000001" is busy closing the workspace. Try again after that operation finishes.',
+    'Цей робочий простір зараз зайнятий іншою дією. Спробуйте ще раз, коли це завершиться.']
+  ] as const)('%s keeps its English message and reaches the shell in the interface language', async (_name, action, inEnglish, inUkrainian) => {
+    const error = await failure(action)
+    expect(error).toBeInstanceOf(LocalizedError)
+    expect((error as Error).message).toBe(inEnglish)
+    await expect(shownTo(SHELL_URL, error)).resolves.toBe(inUkrainian)
+    await expect(shownTo('https://site.example/', error)).resolves.toBe(inEnglish)
+  })
+
+  it('names a busy archived workspace by the archive it checked, never by its internal ID', async () => {
+    // The archive is read once, so a busy one is named even if a second lookup would no longer find it.
+    const savedId = '019a0000-0000-7000-8000-000000000002'
+    let reads = 0
+    const error = await failure(() => withSavedWorkspaceOperation({
+      savedTabGroups: () => reads++ === 0 ? new Map([[savedId, { ...archivedResearch, id: savedId }]]) : new Map(),
+      savedWorkspaceOperations: () => new Map([[savedId, { action: 'deleting the archived workspace', blocksNewTabs: true, token: Symbol('delete') }]])
+    } as never, savedId, 'restoring the archived workspace', async () => undefined))
+    expect(error).toBeInstanceOf(LocalizedError)
+    expect((error as Error).message).toBe('Archived workspace "Research" is busy deleting the archived workspace. Try again after that operation finishes.')
+    const shown = await shownTo(SHELL_URL, error)
+    expect(shown).toBe('Архівний робочий простір «Research» зараз видаляється. Спробуйте ще раз, коли це завершиться.')
+    expect(shown).not.toContain(savedId)
+  })
+})
+
+describe('translated failures keep the English and the cause agents and logs read', () => {
+  const elementTab = { id: 'site', loading: false, navigationGeneration: 0, webContents: { executeJavaScript: vi.fn() } }
+  const screenshots = {
+    getTab: () => elementTab, validateTarget: () => undefined,
+    withRenderableTab: (_tab: unknown, run: () => unknown) => run(), dismissAgentPointer: async () => undefined
+  }
+
+  it.each([
+    ['gone', 'Screenshot target not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.', 'Елемента більше немає на сторінці. Виберіть його ще раз.'],
+    ['hidden', 'Screenshot target has no visible area.', 'Вибраний елемент не має видимої області.']
+  ])('keeps the page script error for an element screenshot target that is %s', async (_state, pageError, inUkrainian) => {
+    const rejected = new Error(`Error: ${pageError}`)
+    elementTab.webContents.executeJavaScript.mockRejectedValueOnce(rejected)
+    const error = await failure(() => screenshot(screenshots as never, { selector: '#target' }))
+    expect(error).toBeInstanceOf(LocalizedError)
+    expect(error).toMatchObject({ message: rejected.message, cause: rejected })
+    await expect(shownTo(SHELL_URL, error)).resolves.toBe(inUkrainian)
+    await expect(shownTo('https://site.example/', error)).resolves.toBe(rejected.message)
+  })
+
+  it('passes any other element screenshot failure through as it is', async () => {
+    const rejected = new Error('Script failed to execute')
+    elementTab.webContents.executeJavaScript.mockRejectedValueOnce(rejected)
+    await expect(failure(() => screenshot(screenshots as never, { selector: '#target' }))).resolves.toBe(rejected)
+  })
+
+  it.each([
+    ['EACCES', 'listen EACCES: permission denied 127.0.0.1:13001'],
+    ['EPERM', 'listen EPERM: operation not permitted 127.0.0.1:13001']
+  ])('names the listen address when the system refuses an MCP port (%s)', async (code, nodeMessage) => {
+    const refused = Object.assign(new Error(nodeMessage), { code })
+    const error = await failure(() => createMcpRuntime({
+      ...mcpRuntimeHost,
+      createServer: () => ({ setPaused: () => undefined, start: () => Promise.reject(refused), stop: async () => undefined })
+    } as never).setMcpPort(13001))
+    expect(error).toBeInstanceOf(LocalizedError)
+    expect(error).toMatchObject({ message: `Could not listen on 127.0.0.1:13001: ${nodeMessage}`, cause: refused })
+    await expect(shownTo(SHELL_URL, error)).resolves.toBe('Не вдалося слухати 127.0.0.1:13001, бо система не дозволяє Hronaut використовувати цей порт.')
+    await expect(shownTo('https://site.example/', error)).resolves.toBe(`Could not listen on 127.0.0.1:13001: ${nodeMessage}`)
+  })
+
+  it('keeps the system error for an MCP port that fails for another reason', async () => {
+    const unavailable = Object.assign(new Error('listen EADDRNOTAVAIL: address not available 127.0.0.1:13001'), { code: 'EADDRNOTAVAIL' })
+    const error = await failure(() => createMcpRuntime({
+      ...mcpRuntimeHost,
+      createServer: () => ({ setPaused: () => undefined, start: () => Promise.reject(unavailable), stop: async () => undefined })
+    } as never).setMcpPort(13001))
+    expect(error).not.toBeInstanceOf(LocalizedError)
+    expect(error).toMatchObject({ message: `Could not listen on 127.0.0.1:13001: ${unavailable.message}`, cause: unavailable })
+  })
+
+  it.each([
+    ['EROFS', -30, 'read-only file system', 'Папка завантажень доступна лише для читання (EROFS).'],
+    ['EDQUOT', -122, 'disk quota exceeded', 'Недостатньо місця на диску, щоб зберегти файл (EDQUOT).']
+  ])('ends the sentence for an export that fails with %s with that code', async (code, errno, reason, inUkrainian) => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-translated-export-'))
+    exportDirectories.push(directory)
+    const path = join(directory, 'Private title.pdf')
+    const refused = Object.assign(new Error(`${code}: ${reason}, open '${path}'`), { code, errno, syscall: 'open', path })
+    vi.mocked(open).mockRejectedValueOnce(refused)
+    const error = await failure(() => writeUniqueDownloadFile(directory, 'Private title.pdf', Buffer.from('%PDF')))
+    expect(error).toBeInstanceOf(LocalizedError)
+    expect(error).toMatchObject({ message: refused.message, code, errno, syscall: 'open', path, cause: refused })
+    await expect(shownTo(SHELL_URL, error)).resolves.toBe(inUkrainian)
+    await expect(shownTo('https://site.example/', error)).resolves.toBe(refused.message)
+  })
+
+  it('keeps both errors of a restore that could not be rolled back as the cause', async () => {
+    const createFailed = new Error('The tab could not be created')
+    const closeFailed = new Error('The restored workspace could not be closed')
+    const registry = new WorkspaceRegistry({
+      withArchivedOperation: (_id: string, _action: string, run: () => unknown) => run(),
+      withActiveOperation: (_id: string, _action: string, run: () => unknown) => run(),
+      assertRestoreCapacity: () => undefined,
+      tabs: () => [],
+      maxTabs: MAX_BROWSER_TABS,
+      createTab: async () => { throw createFailed },
+      closeActive: async () => { throw closeFailed },
+      remapDownloads: () => undefined,
+      changed: () => undefined
+    } as never)
+    registry.archived.set('saved', { ...archivedResearch, navigationPolicy: { mode: 'open', rules: [] }, navigationAudit: [] } as never)
+    const error = await failure(() => registry.restore('saved'))
+    expect(error).toBeInstanceOf(LocalizedError)
+    expect((error as Error).message).toBe('Archived workspace "Research" could not be restored or rolled back. Its recoverable active workspace remains open; close or archive it before retrying.')
+    expect((error as Error).cause).toBeInstanceOf(AggregateError)
+    expect(((error as Error).cause as AggregateError).errors).toEqual([createFailed, closeFailed])
+    await expect(shownTo(SHELL_URL, error)).resolves.toBe('Не вдалося відновити архівний робочий простір «Research» або повернути попередній стан. Його активна копія залишається відкритою для відновлення; закрийте або заархівуйте її, перш ніж повторити спробу.')
   })
 })

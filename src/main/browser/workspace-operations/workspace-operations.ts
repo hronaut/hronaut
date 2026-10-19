@@ -33,9 +33,16 @@ const BUSY_STORAGE_MESSAGES: Record<WorkspaceOperationAction, MessageKey> = {
   'importing browser cookies': 'appErrors.workspaceStorage.busyImportingCookies'
 }
 
-/** The error for an open workspace another operation holds busy. */
-function workspaceBusyError(name: string, action: OpenWorkspaceOperationAction): LocalizedError {
-  return new LocalizedError(BUSY_WORKSPACE_MESSAGES[action], { name })
+/**
+ * The error for an open workspace another operation holds busy. When its record is already gone, agents still read
+ * its ID in place of the name; a person reads that the workspace is busy, without the ID.
+ */
+function workspaceBusyError(access: WorkspaceOperationsAccess, workspaceId: string, action: OpenWorkspaceOperationAction): LocalizedError {
+  const name = access.mcpTabGroups().get(workspaceId)?.name
+  if (name !== undefined) return new LocalizedError(BUSY_WORKSPACE_MESSAGES[action], { name })
+  return new LocalizedError('appErrors.workspace.busyUnnamed', undefined, {
+    message: `Workspace "${workspaceId}" is busy ${action}. Try again after that operation finishes.`
+  })
 }
 
 /**
@@ -52,14 +59,14 @@ export function archivedWorkspaceBusyError(name: string, action: WorkspaceOperat
 export function assertWorkspaceIdle(access: WorkspaceOperationsAccess, workspaceId: string): void {
   const operation = access.workspaceOperations().get(workspaceId)
   if (!operation) return
-  throw workspaceBusyError(access.mcpTabGroups().get(workspaceId)?.name ?? workspaceId, operation.action)
+  throw workspaceBusyError(access, workspaceId, operation.action)
 }
 
 /** Throws while an operation that keeps new tabs out holds the open workspace busy. */
 export function assertWorkspaceCanOpenTab(access: WorkspaceOperationsAccess, workspaceId: string): void {
   const operation = access.workspaceOperations().get(workspaceId)
   if (!operation?.blocksNewTabs) return
-  throw workspaceBusyError(access.mcpTabGroups().get(workspaceId)?.name ?? workspaceId, operation.action)
+  throw workspaceBusyError(access, workspaceId, operation.action)
 }
 
 /**
@@ -98,13 +105,13 @@ export async function withSavedWorkspaceOperation<T>(
   action: WorkspaceOperationAction,
   operation: () => Promise<T>
 ): Promise<T> {
-  if (!access.savedTabGroups().has(savedWorkspaceId)) {
+  // Read once, so a busy archive is always named, never by its internal ID.
+  const saved = access.savedTabGroups().get(savedWorkspaceId)
+  if (!saved) {
     throw new LocalizedError('appErrors.workspace.archivedUnavailable', undefined, { message: `Unknown archived workspace: ${savedWorkspaceId}.` })
   }
   const existing = access.savedWorkspaceOperations().get(savedWorkspaceId)
-  if (existing) {
-    throw archivedWorkspaceBusyError(access.savedTabGroups().get(savedWorkspaceId)?.name ?? savedWorkspaceId, existing.action)
-  }
+  if (existing) throw archivedWorkspaceBusyError(saved.name, existing.action)
   const current: BrowserWorkspaceOperation = { action, blocksNewTabs: true, token: Symbol(action) }
   access.savedWorkspaceOperations().set(savedWorkspaceId, current)
   try {

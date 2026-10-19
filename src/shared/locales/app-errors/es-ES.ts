@@ -107,6 +107,7 @@ export const esESAppErrors: AppErrorMessages = {
     "busyCopyingData": "Se están copiando los datos del espacio de trabajo «{name}». Vuelve a intentarlo cuando termine la operación.",
     "busyImportingCookies": "Se están importando cookies del navegador al espacio de trabajo «{name}». Vuelve a intentarlo cuando termine la operación.",
     "busyDeleting": "El espacio de trabajo archivado «{name}» se está eliminando. Vuelve a intentarlo cuando termine la operación.",
+    "busyUnnamed": "Este espacio de trabajo está ocupado con otra operación. Vuelve a intentarlo cuando termine la operación.",
     "nameEmpty": "El nombre del espacio de trabajo no puede estar vacío.",
     "nameTooLong": "El nombre del espacio de trabajo no puede superar los {max} caracteres.",
     "nameTaken": "Ya existe un espacio de trabajo llamado «{name}». Los nombres de los espacios de trabajo deben ser únicos.",
@@ -188,7 +189,18 @@ export const esESAppErrors: AppErrorMessages = {
     "decisionUnavailable": "La decisión pendiente no está disponible.",
     "confirmationUnavailable": "La confirmación de la decisión pendiente no está disponible.",
     "noteUnavailable": "La nota de la decisión pendiente no está disponible.",
-    "reviewBeforeResolving": "Revisa la continuidad actual del espacio de trabajo antes de finalizar la decisión."
+    "reviewBeforeResolving": "Revisa la continuidad actual del espacio de trabajo antes de finalizar la decisión.",
+    "decisionStale": "La decisión pendiente no está disponible o está desactualizada.",
+    "accountAndTargetUnconfirmed": "Confirma que has verificado la cuenta iniciada y el objetivo visible en la pestaña vinculada del navegador.",
+    "reviewChangedWhileSaving": "El estado revisado del navegador cambió mientras se guardaba; revisa de nuevo el estado actual.",
+    "historyUnavailable": "El historial de decisiones humanas no está disponible.",
+    "changeNotSaved": "No se pudo guardar el cambio de la decisión; revisa la recuperación antes de volver a intentarlo.",
+    "replaceSuspended": "Confirma el estado revisado antes de crear un nuevo punto de control.",
+    "checkpointCapacity": "Se alcanzó el límite de puntos de control.",
+    "reviewStale": "La revisión de continuidad no está disponible o está desactualizada.",
+    "reviewExpired": "La revisión de continuidad caducó; revisa de nuevo el estado actual.",
+    "changedAfterReview": "El estado del navegador cambió después de la revisión de continuidad.",
+    "unknownOutcomeUnacknowledged": "Confirma que has revisado la página y entiendes que la acción anterior puede haber surtido efecto."
   },
   "lifecycle": {
     "homeTab": "Solo se pueden congelar o reanudar las pestañas con páginas en ejecución.",
@@ -243,9 +255,9 @@ export const esESAppErrors: AppErrorMessages = {
     "renderClosed": "La pestaña se cerró mientras se preparaba su página.",
     "renderTimedOut": "Se agotó el tiempo de espera para que la pestaña estuviera lista.",
     "renderFrameClosed": "La pestaña se cerró mientras se esperaba un fotograma listo.",
-    "snapshotFormatChanged": "El formato de la captura de página cambió durante la captura. Haz una captura nueva.",
-    "snapshotTabChanged": "La pestaña cambió mientras se hacía la captura. Haz una captura nueva.",
-    "snapshotContextChanged": "La página cambió mientras se hacía su captura. Haz una captura nueva.",
+    "snapshotFormatChanged": "El formato de la instantánea de la página cambió durante la captura. Toma una instantánea nueva.",
+    "snapshotTabChanged": "La pestaña de la instantánea cambió mientras se observaba. Toma una instantánea nueva.",
+    "snapshotContextChanged": "La página cambió mientras se tomaba su instantánea. Toma una instantánea nueva.",
     "pdfTabClosed": "La pestaña se cerró mientras se exportaba su PDF. Abre la página y vuelve a exportarla.",
     "pdfPageChanged": "La página cambió mientras se exportaba su PDF. Vuelve a exportar la página actual."
   },
@@ -258,7 +270,7 @@ export const esESAppErrors: AppErrorMessages = {
   "previews": {
     "timedOut": "Se agotó el tiempo de la vista de página completa. Vuelve a intentarlo cuando la página esté lista.",
     "tabClosed": "La pestaña se cerró antes de que la vista de página completa estuviera lista.",
-    "sleeping": "Activa esta pestaña antes de pedir una vista de página completa.",
+    "sleeping": "Reactiva esta pestaña antes de pedir una vista de página completa.",
     "pageChanged": "La página cambió mientras se preparaba su vista. Vuelve a intentarlo.",
     "loading": "Espera a que la página termine de cargarse y vuelve a pedir su vista.",
     "viewportChanged": "El área visible de la página cambió mientras se preparaba su vista. Vuelve a intentarlo.",
@@ -271,7 +283,7 @@ export const esESAppErrors: AppErrorMessages = {
   },
   "settings": {
     "capabilityProfilesUnavailable": "El almacenamiento de perfiles de capacidades MCP no está disponible.",
-    "parentProfileMissing": "No se encontró el perfil de capacidades MCP principal.",
+    "parentProfileMissing": "No se encontró el perfil de capacidades MCP padre.",
     "startupIntegrationUnavailable": "El inicio con el sistema no está disponible.",
     "autostartPath": "La ruta del ejecutable de Hronaut no es válida para el inicio automático del escritorio.",
     "launchPackagedOnly": "El inicio al acceder solo está disponible en las compilaciones instaladas de Hronaut.",
