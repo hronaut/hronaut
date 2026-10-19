@@ -40,12 +40,13 @@ export class BrowserDownloadsController {
   private readonly downloads = new Map<string, BrowserDownloadState>()
   private readonly downloadItems = new Map<string, DownloadItem>()
   private readonly downloadWorkspaceIds = new Map<string, string | undefined>()
+  /** Save paths handed to downloads that Chromium may not have created yet, keyed by `reservationKey`. */
   private readonly reservedDownloadPaths = new Set<string>()
   /** Read once when each download completes, so a later copy can refuse a file that was replaced or changed. */
   private readonly completedFileIdentities = new Map<string, Promise<CompletedDownloadFile['identity'] | undefined>>()
   private downloadNotifyTimer: NodeJS.Timeout | null = null
 
-  constructor(private readonly host: BrowserDownloadsHost) {}
+  constructor(private readonly host: BrowserDownloadsHost, private readonly platform = process.platform) {}
 
   hasActiveDownload(tabId: string): boolean {
     return [...this.downloads.values()].some(download => download.tabId === tabId && isActiveDownload(download))
@@ -246,7 +247,7 @@ export class BrowserDownloadsController {
             item.setSavePath(suggestedPath)
           }
         } catch {
-          this.reservedDownloadPaths.delete(suggestedPath)
+          this.reservedDownloadPaths.delete(this.reservationKey(suggestedPath))
           event.preventDefault()
           download.state = 'interrupted'
           download.failureReason = 'destination-unavailable'
@@ -268,7 +269,7 @@ export class BrowserDownloadsController {
         }
         const onDone = (_downloadEvent: Event, state: 'completed' | 'cancelled' | 'interrupted') => {
           detachItemListeners()
-          this.reservedDownloadPaths.delete(suggestedPath)
+          this.reservedDownloadPaths.delete(this.reservationKey(suggestedPath))
           download.state = state
           download.receivedBytes = item.getReceivedBytes()
           download.totalBytes = item.getTotalBytes()
@@ -302,8 +303,8 @@ export class BrowserDownloadsController {
       ? `download-${sourceFilename}`
       : sourceFilename
     const direct = join(directory, safeFilename)
-    if (!existsSync(direct) && !this.reservedDownloadPaths.has(direct)) {
-      this.reservedDownloadPaths.add(direct)
+    if (!existsSync(direct) && !this.reservedDownloadPaths.has(this.reservationKey(direct))) {
+      this.reservedDownloadPaths.add(this.reservationKey(direct))
       return direct
     }
     const extension = extname(safeFilename)
@@ -316,11 +317,19 @@ export class BrowserDownloadsController {
       while (characters.length && Buffer.byteLength(characters.join('') + suffix) > 255) characters.pop()
       if (Buffer.byteLength(characters.join('') + suffix) > 255) break
       const candidate = join(directory, characters.join('') + suffix)
-      if (existsSync(candidate) || this.reservedDownloadPaths.has(candidate)) continue
-      this.reservedDownloadPaths.add(candidate)
+      if (existsSync(candidate) || this.reservedDownloadPaths.has(this.reservationKey(candidate))) continue
+      this.reservedDownloadPaths.add(this.reservationKey(candidate))
       return candidate
     }
     throw new Error(`Could not allocate a unique download path for ${safeFilename}`)
+  }
+
+  /**
+   * macOS and Windows file systems treat names that differ only in letter case as the same file, so two downloads
+   * reserved as `Report.pdf` and `report.pdf` would end up in one file there. Linux keeps them apart.
+   */
+  private reservationKey(path: string): string {
+    return this.platform === 'darwin' || this.platform === 'win32' ? path.toLowerCase() : path
   }
 
   /** Records the completed file's identity, without following a symbolic link; anything but a regular file records none. */
