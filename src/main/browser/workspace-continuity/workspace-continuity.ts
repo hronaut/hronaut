@@ -239,6 +239,7 @@ function advanceWorkspaceObservationGeneration<Tab extends WorkspaceContinuityTa
     access.releaseLiveRegion(tab)
     void access.clearCssStatePreview(tab, 'workspace-control-changed').catch(() => undefined)
     access.stopVirtualPasskey(tab, 'authority-changed')
+    access.stopLogpoints(tab, 'authority-changed')
     access.rejectNetworkWait(tab.id, 'Workspace control changed while waiting for network activity.')
   }
   access.advanceDownloadObservationGeneration(workspaceId, observationGeneration)

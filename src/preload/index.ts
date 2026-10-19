@@ -131,6 +131,7 @@ const api: HronautApi = {
   setTabAgentPaused: (tabId: string, paused: boolean, options?: { takeOver?: boolean }) => ipcRenderer.invoke('browser:set-tab-agent-paused', tabId, paused, options),
   clearCssStatePreview: (tabId: string) => ipcRenderer.invoke('browser:clear-css-state-preview', tabId),
   stopVirtualPasskey: (tabId: string) => ipcRenderer.invoke('browser:stop-virtual-passkey', tabId),
+  stopLogpoints: (tabId: string) => ipcRenderer.invoke('browser:stop-logpoints', tabId),
   setTabPageLifecycle: (tabId: string, state: 'active' | 'frozen') => ipcRenderer.invoke('browser:set-tab-page-lifecycle', tabId, state),
   sleepInactiveTabs: () => ipcRenderer.invoke('browser:sleep-inactive-tabs'),
   reorderTab: (tabId: string, targetTabId: string, placement: 'before' | 'after') =>

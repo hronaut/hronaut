@@ -87,6 +87,7 @@ import { createWindowAppearance, resolvedTheme, THEME_BACKGROUND } from './windo
 import { createInterfaceLanguage } from './interface-language.js'
 import { registerEmulationIpc } from './emulation-ipc.js'
 import { registerVirtualPasskeyIpc } from './virtual-passkey-ipc.js'
+import { registerLogpointIpc } from './logpoint-ipc.js'
 import { registerPageGeometryIpc } from './page-geometry-ipc.js'
 import { DEFAULT_MCP_PORT } from '../shared/mcp-port.js'
 import { registerShellIpc } from './shell-ipc.js'
@@ -747,6 +748,11 @@ function registerIpc(): void {
     tabs: () => tabRuntime.tabs
   })
   registerVirtualPasskeyIpc({
+    assertTrustedSender: assertTrustedShellSender,
+    handleBrowserIpc,
+    tabs: () => tabRuntime.tabs
+  })
+  registerLogpointIpc({
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
     tabs: () => tabRuntime.tabs

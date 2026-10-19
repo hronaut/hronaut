@@ -1061,6 +1061,10 @@ export const frFR = {
       "label": "Clé d’accès virtuelle",
       "stop": "Arrêter la clé d’accès virtuelle pour {origin}"
     },
+    "logpoints": {
+      "label": "Points de journalisation",
+      "stop": "Arrêter les points de journalisation de l’agent sur {origin}"
+    },
     "suggestion": {
       "bookmark": "Favori",
       "history": "Historique",

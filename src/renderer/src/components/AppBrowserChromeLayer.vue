@@ -169,6 +169,10 @@ function stopActiveVirtualPasskey(): Promise<void> | undefined {
   const tab = activeTab.value
   return tab?.virtualPasskey ? props.syncState(props.browser.stopVirtualPasskey(tab.id)) : undefined
 }
+function stopActiveLogpoints(): Promise<void> | undefined {
+  const tab = activeTab.value
+  return tab?.logpoints ? props.syncState(props.browser.stopLogpoints(tab.id)) : undefined
+}
 const {
   pageToolsPresentationController,
   areaCaptureState,
@@ -475,6 +479,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
             resetActiveTabEmulation,
             clearActiveCssStatePreview,
             stopActiveVirtualPasskey,
+            stopActiveLogpoints,
             openRequestConditions,
             setSitePermission: setSitePermissionDecision,
             resetSitePermission: removeSitePermission,

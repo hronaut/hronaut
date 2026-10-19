@@ -98,6 +98,8 @@ export interface TabSleepAccess<Tab extends TabSleepTab> {
   domMutationSource(): { active(tab: Tab): boolean }
   /** The active virtual passkeys, whose credentials sleeping would lose. */
   virtualPasskeys(): { active(tab: Tab): boolean }
+  /** The armed logpoints, whose hits sleeping would miss. */
+  logpoints(): { active(tab: Tab): boolean }
   /** The MCP commands running on each tab, by tab id. */
   mcpActivitiesByTab(): ReadonlyMap<string, ReadonlySet<string>>
   /** The downloads. */

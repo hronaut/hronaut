@@ -1061,6 +1061,10 @@ export const deDE = {
       "label": "Virtueller Passkey",
       "stop": "Virtuellen Passkey für {origin} beenden"
     },
+    "logpoints": {
+      "label": "Logpoints",
+      "stop": "Logpoints des Agenten auf {origin} beenden"
+    },
     "suggestion": {
       "bookmark": "Lesezeichen",
       "history": "Verlauf",

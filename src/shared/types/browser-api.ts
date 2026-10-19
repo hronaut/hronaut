@@ -128,6 +128,7 @@ export interface HronautApi {
   setTabAgentPaused(tabId: string, paused: boolean, options?: { takeOver?: boolean }): Promise<BrowserState>
   clearCssStatePreview(tabId: string): Promise<BrowserState>
   stopVirtualPasskey(tabId: string): Promise<BrowserState>
+  stopLogpoints(tabId: string): Promise<BrowserState>
   setTabPageLifecycle(tabId: string, state: 'active' | 'frozen'): Promise<BrowserState>
   sleepInactiveTabs(): Promise<BrowserState>
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): Promise<BrowserState>

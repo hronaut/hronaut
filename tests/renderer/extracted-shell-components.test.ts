@@ -110,6 +110,7 @@ describe('extracted shell components', () => {
           resetActiveTabEmulation: vi.fn(),
           clearActiveCssStatePreview: vi.fn(),
           stopActiveVirtualPasskey: vi.fn(),
+          stopActiveLogpoints: vi.fn(),
           openRequestConditions: openRoutes,
           setSitePermission: vi.fn(async () => true),
           resetSitePermission: resetPermission,
@@ -199,6 +200,7 @@ describe('extracted shell components', () => {
           resetActiveTabEmulation: vi.fn(),
           clearActiveCssStatePreview: vi.fn(),
           stopActiveVirtualPasskey: vi.fn(),
+          stopActiveLogpoints: vi.fn(),
           openRequestConditions: vi.fn(),
           setSitePermission: vi.fn(async () => true),
           resetSitePermission: resetPermission,
@@ -231,6 +233,7 @@ describe('extracted shell components', () => {
   it('shows an active forced CSS state in the address bar and lets the person end it', async () => {
     const clearPreview = vi.fn()
     const stopPasskey = vi.fn()
+    const stopLogpoints = vi.fn()
     const preview = {
       states: ['hover', 'active'] as Array<'hover' | 'active'>,
       selector: '#card',
@@ -282,6 +285,7 @@ describe('extracted shell components', () => {
         resetActiveTabEmulation: vi.fn(),
         clearActiveCssStatePreview: clearPreview,
         stopActiveVirtualPasskey: stopPasskey,
+        stopActiveLogpoints: stopLogpoints,
         openRequestConditions: vi.fn(),
         setSitePermission: vi.fn(async () => true),
         resetSitePermission: vi.fn(async () => true),
@@ -312,6 +316,14 @@ describe('extracted shell components', () => {
     expect(passkey).toHaveTextContent('Virtual passkey')
     await userEvent.setup().click(passkey)
     expect(stopPasskey).toHaveBeenCalledOnce()
+
+    // An agent's armed logpoints are always visible, with the person's stop.
+    expect(screen.queryByTestId('logpoints-pill')).toBeNull()
+    await view.rerender({ activeTab: { ...tab(), logpoints: { origin: 'https://shop.example', probes: 2, expiresAt: '2026-10-19T06:00:00.000Z' } } })
+    const logpoints = screen.getByRole('button', { name: 'Stop the agent\'s logpoints on https://shop.example' })
+    expect(logpoints).toHaveTextContent('Logpoints')
+    await userEvent.setup().click(logpoints)
+    expect(stopLogpoints).toHaveBeenCalledOnce()
   })
 
   it('renders page failure details and delegates a retry', async () => {

@@ -1061,6 +1061,10 @@ export const esES = {
       "label": "Llave de acceso virtual",
       "stop": "Detener la llave de acceso virtual para {origin}"
     },
+    "logpoints": {
+      "label": "Puntos de registro",
+      "stop": "Detener los puntos de registro del agente en {origin}"
+    },
     "suggestion": {
       "bookmark": "Marcador",
       "history": "Historial",

@@ -67,6 +67,8 @@ export interface WorkspaceContinuityAccess<Tab extends WorkspaceContinuityTab> {
   clearCssStatePreview(tab: Tab, reason: 'workspace-control-changed'): Promise<void>
   /** Ends the tab's virtual passkey, which a workspace control change takes from the agent. */
   stopVirtualPasskey(tab: Tab, reason: 'authority-changed'): void
+  /** Ends the tab's logpoints, which a workspace control change takes from the agent. */
+  stopLogpoints(tab: Tab, reason: 'authority-changed'): void
   rejectNetworkWait(tabId: string, message: string): void
   advanceDownloadObservationGeneration(workspaceId: string, observationGeneration: number): void
 }
