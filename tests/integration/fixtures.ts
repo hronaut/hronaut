@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
@@ -77,17 +77,21 @@ export interface HronautFixtures {
   mcpPort: number
   profileDirectory: string
   /**
-   * Starts Hronaut with an empty stand-in home folder, so agents installed on this computer, such as Claude Code, do
-   * not change what Home lists. Off by default: the home folder also holds display and font settings.
+   * Starts the `electronApp` fixture's Hronaut with an empty stand-in home folder, so agents installed on this
+   * computer, such as Claude Code, do not change what Home lists. Off by default: the home folder also holds display
+   * and font settings. A case that launches Hronaut again passes `standInHomeEnvironment` to `launchHronaut` itself.
    */
   standInHome: boolean
 }
 
-/** An empty home folder inside the test profile, with no agent's settings in it. */
-async function standInHomeEnvironment(profileDirectory: string): Promise<Record<string, string | undefined>> {
+/** An empty home folder inside the test profile, with no agent's settings in it, as `launchHronaut` overrides. */
+export async function standInHomeEnvironment(profileDirectory: string): Promise<Record<string, string | undefined>> {
   const home = join(profileDirectory, 'stand-in-home')
   await mkdir(home, { recursive: true })
-  return { HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: undefined }
+  // An X11 desktop that does not export XAUTHORITY keeps the display's key in the real home folder.
+  const authority = process.env.XAUTHORITY ?? (process.env.HOME ? join(process.env.HOME, '.Xauthority') : undefined)
+  const keepAuthority = authority !== undefined && await access(authority).then(() => true, () => false)
+  return { HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: undefined, ...(keepAuthority ? { XAUTHORITY: authority } : {}) }
 }
 
 export async function launchHronaut(
@@ -96,7 +100,10 @@ export async function launchHronaut(
   interfaceScale = 1,
   appArguments: string[] = [],
   electronArguments: string[] = [],
-  /** Variables to change for this launch only; undefined removes one. */
+  /**
+   * Variables to change for this launch only; undefined removes one. The MCP port and host, the profile and the
+   * download folder always come from the arguments above.
+   */
   environmentOverrides: Record<string, string | undefined> = {}
 ): Promise<HronautInstance> {
   const settingsPath = join(profileDirectory, 'settings.json')
