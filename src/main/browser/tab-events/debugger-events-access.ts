@@ -53,7 +53,7 @@ export interface DebuggerEventsAccess<Tab extends DebuggerEventsTab> {
   changed(persist?: boolean): void
   /** Records an issue the page's inspector reported. */
   addInspectorIssue(tab: Tab, value: unknown): void
-  /** Profiling, which follows style sheets and debugger detachment. */
+  /** Profiling, which follows style sheets, debugger pauses and debugger detachment. */
   profiling(): { handleDebuggerMessage(tab: Tab, method: string, params: unknown): void; handleDebuggerDetached(tab: Tab): void }
   /** The CSS state preview, which ends when the debugger detaches. */
   cssStatePreview(): { debuggerDetached(tab: Tab): void }

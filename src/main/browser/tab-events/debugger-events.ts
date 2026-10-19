@@ -17,7 +17,8 @@ import type { DebuggerEventsAccess, DebuggerEventsTab } from './debugger-events-
  * request rules, network activity to the recording and network waits, the
  * main frame, console messages and revoked exceptions, the main world
  * execution contexts, website dialogs (dismissed while trusted chrome covers
- * the page), inspector issues and style sheets for profiling. Detachment
+ * the page), inspector issues, and style sheets and debugger pauses for
+ * profiling. Detachment
  * marks emulation and request conditions unknown, forgets the dialog, main
  * frame and contexts, marks a frozen lifecycle unknown, and monitors dialogs
  * again on the next turn unless the tab closed or Developer Tools took the

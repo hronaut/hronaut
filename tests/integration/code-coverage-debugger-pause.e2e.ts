@@ -64,7 +64,7 @@ test('starting code coverage without a reload keeps the open page running', asyn
     const before = (await pageState(electronApp, pageUrl))!
     const started = await call(client, 'browser_code_coverage', { tabId, action: 'start', mode: 'function', reload: false })
     expect(started.isError, text(started)).not.toBe(true)
-    // The same document keeps counting: a tick that ran while coverage was starting did not stay paused.
+    // The open document keeps counting after coverage starts without a reload.
     await expect.poll(async () => {
       const state = await pageState(electronApp, pageUrl)
       return state?.document === before.document ? state.ticks - before.ticks : -1
