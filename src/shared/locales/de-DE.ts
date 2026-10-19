@@ -3538,6 +3538,7 @@ export const deDE = {
     },
     "pageProblem": {
       "loadTitle": "Diese Website konnte nicht erreicht werden",
+      "loadTabTitle": "Website nicht erreichbar",
       "loadDefault": "Hronaut konnte diese Adresse nicht laden.",
       "rendererTitle": "Diese Seite funktioniert nicht mehr",
       "rendererDefault": "Der Seitenprozess ist unerwartet verschwunden.",

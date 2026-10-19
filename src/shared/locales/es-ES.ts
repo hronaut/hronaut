@@ -3538,6 +3538,7 @@ export const esES = {
     },
     "pageProblem": {
       "loadTitle": "No se pudo acceder a este sitio",
+      "loadTabTitle": "Sitio no disponible",
       "loadDefault": "Hronaut no pudo cargar esta dirección.",
       "rendererTitle": "Esta página dejó de funcionar",
       "rendererDefault": "El proceso de la página desapareció inesperadamente.",
