@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.3.1] - 2026-10-19
+
 ### Security
 
 - A website can no longer capture your screen behind a prompt about your camera and microphone. A page that asked for the screen through `getUserMedia` with `chromeMediaSource: "desktop"` showed "requests “Camera and microphone” permission", and Allow gave it a live video of your whole screen, other apps included. Hronaut now refuses every request to capture the screen, a window or a tab at once, without a prompt, and the website gets a permission error. `getDisplayMedia` requests used to show the same prompt and then fail even when allowed.
@@ -11,6 +13,19 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - When a website asks for only your microphone or only your camera, Hronaut's prompt now names just that device, such as "Microphone", in Hronaut's language. It used to say "Camera and microphone" for every such request; the line below it already listed the requested devices.
+
+### Known issues
+
+- A panel opened in its own window keeps the operating system's tooltips instead of the themed ones.
+- While a notification such as **Tab closed** shows at the bottom of the page, the page does not get clicks or wheel scrolling in the area just around the notification, about 10 px on each side.
+- `wallet_sendCalls` batches are not atomic: when a later call is rejected, fails or reverts, the earlier calls stay on chain, as separate transactions would. A dApp that requires an atomic batch gets error code 5760. A batch whose transaction the network dropped while its nonce is still unused stays pending, and `wallet_showCallsStatus` is not supported.
+- An EVM node that lags behind for more than a minute, or has pruned old transactions, can make a mined transaction look replaced, so Hronaut reports it as failed.
+- A link or form on a dApp that starts a download, or that the server answers with no content, counts as leaving the page for wallet requests: Hronaut cancels the page's open wallet requests and returns it to its default network without a `chainChanged` event, although the page stays.
+- `wallet_balance` marks an allowance `unlimited` only at 2^160 − 1 or more, so a token that stores allowances in 96 bits, such as UNI, shows its maximum approval as a large amount.
+- Typed-data meta-transactions are recognized by type name, by a `bytes` call-data field named `data`, `callData`, `calldata` or `functionSignature`, or as a MetaMask delegation. One that uses another name and another field name is still signed on mainnet when **Also sign typed data on mainnet** is on, so that switch is not a general spending limit.
+- Wallet policies saved by 2.45.0 or earlier that list a token method (`erc20.`, `trc20.` or `nft.`) do not sign token calls without a click. Remove such a policy and add it again with its token contract, or with **Allow any token contract**.
+- Websites' raw `eth_sign`, Solana and TRON requests still need a person to approve, even under a website sign-in policy, and typed data is signed without a click only by a dedicated agent wallet with the typed-data switch on.
+- Hronaut does not inject `window.tronLink` or `window.tronWeb` as a full TronWeb instance; Tron dApps that require TronLink specifically will not detect it.
 
 ## [3.3.0] - 2026-10-19
 
