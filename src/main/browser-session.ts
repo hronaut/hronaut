@@ -134,7 +134,13 @@ export function createBrowserSession(host: BrowserSessionHost): {
             respond(currentRemembered === 'allow')
             return
           }
-          const permissionName = sitePermissionName(permission, (key) => host.text(key))
+          // A camera-only or microphone-only request names just that device, not both.
+          const mediaTypes = permission === 'media' && 'mediaTypes' in details ? details.mediaTypes ?? [] : []
+          const permissionName = mediaTypes.length > 0 && mediaTypes.every((type) => type === 'video')
+            ? host.text('runtime.permissions.camera')
+            : mediaTypes.length > 0 && mediaTypes.every((type) => type === 'audio')
+              ? host.text('runtime.permissions.microphone')
+              : sitePermissionName(permission, (key) => host.text(key))
           const { response } = await host.showMessageBox({
             type: 'question',
             title: host.text('native.dialog.sitePermission'),

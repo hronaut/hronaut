@@ -1094,6 +1094,8 @@ export const plPL = {
       "location": "Lokalizacja",
       "activity": "Wykrywanie aktywności",
       "media": "Kamera i mikrofon",
+      "camera": "Kamera",
+      "microphone": "Mikrofon",
       "notifications": "Powiadomienia",
       "storage": "Pamięć podmiotów zewnętrznych",
       "relatedStorage": "Pamięć powiązanych witryn",

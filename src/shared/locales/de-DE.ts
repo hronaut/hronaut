@@ -1094,6 +1094,8 @@ export const deDE = {
       "location": "Standort",
       "activity": "Aktivitätserkennung",
       "media": "Kamera und Mikrofon",
+      "camera": "Kamera",
+      "microphone": "Mikrofon",
       "notifications": "Benachrichtigungen",
       "storage": "Drittanbieter-Speicher",
       "relatedStorage": "Speicher verbundener Websites",

@@ -53,6 +53,19 @@ describe('site permission prompt', () => {
     expect((await prompt('fr-FR', 'screen-wake-lock')).message).toBe('https://files.example demande l’autorisation « Garder l’écran allumé ».')
   })
 
+  it('names only the device a camera-only or microphone-only request asks for', async () => {
+    // A microphone-only request used to read "requests “Camera and microphone” permission".
+    expect((await prompt('en-US', 'media', { mediaTypes: ['audio'] })).message).toBe('https://files.example requests “Microphone” permission.')
+    expect((await prompt('en-US', 'media', { mediaTypes: ['video'] })).message).toBe('https://files.example requests “Camera” permission.')
+    expect((await prompt('uk-UA', 'media', { mediaTypes: ['audio'] })).message).toBe('Сайт https://files.example запитує дозвіл «Мікрофон».')
+    expect((await prompt('de-DE', 'media', { mediaTypes: ['video'] })).message).toBe('https://files.example fordert die Berechtigung „Kamera“ an.')
+    const both = await prompt('en-US', 'media', { mediaTypes: ['video', 'audio'] })
+    expect(both.message).toBe('https://files.example requests “Camera and microphone” permission.')
+    expect(both.detail).toBe('Requested devices: camera and microphone. Hronaut will ask again next time.')
+    expect((await prompt('en-US', 'media', { mediaTypes: [] })).message).toBe('https://files.example requests “Camera and microphone” permission.')
+    expect((await prompt('en-US', 'media')).message).toBe('https://files.example requests “Camera and microphone” permission.')
+  })
+
   it('shows a permission Settings has no name for as Settings does, without reading inherited names', async () => {
     expect((await prompt('en-US', 'local-fonts')).message).toBe('https://files.example requests “local fonts” permission.')
     expect((await prompt('en-US', 'toString')).message).toBe('https://files.example requests “toString” permission.')
