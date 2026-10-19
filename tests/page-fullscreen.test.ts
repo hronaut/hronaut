@@ -32,6 +32,8 @@ function layoutFixture(split = false) {
     tabs: new Map([[first.id, first], [second.id, second]]),
     activeTabId: first.id,
     splitView: split ? { firstTabId: first.id, secondTabId: second.id, orientation: 'vertical', ratio: 0.5 } : null,
+    tabSelectionGeneration: 0,
+    offscreenCaptureTabIds: new Set(),
     browserContentOccluded: false,
     allHumanInteractionLocked: false,
     toolbarHeight: 60,
@@ -43,7 +45,10 @@ function layoutFixture(split = false) {
     reconcileTabPresentation: vi.fn(),
     scheduleTabOverviewPreview: vi.fn(),
     publishSplitDivider: vi.fn(),
-    publishPageGeometry: vi.fn()
+    publishPageGeometry: vi.fn(),
+    focusTabOrTrustedChrome: vi.fn(),
+    changed: vi.fn(),
+    getState: () => ({})
   }) as BrowserTabsManager
   return { manager, first, second }
 }
@@ -131,6 +136,45 @@ describe('page full screen layout', () => {
       ISOLATED_WORLDS.pageFullscreen,
       [{ code: expect.stringContaining('document.exitFullscreen()') }]
     )
+  })
+
+  it('keeps a tab out of view at its page card\'s size while a shown page fills the window', () => {
+    const { manager, first } = layoutFixture()
+    const agent = { id: 'agent', view: pageView(), sleeping: false, pageFullscreen: false, emulationViewSize: undefined as { width: number; height: number } | undefined, webContents: pageContents() }
+    const internals = manager as unknown as { tabs: Map<string, unknown>; setEmulationViewSize(tab: unknown, viewport: { width: number; height: number } | undefined): void }
+    internals.tabs.set(agent.id, agent)
+    first.pageFullscreen = true
+    manager.layout()
+    // An agent resets the viewport of its tab in the background, which used to take the whole window's size.
+    agent.emulationViewSize = { width: 800, height: 600 }
+    internals.setEmulationViewSize(agent, undefined)
+    expect(agent.view.setBounds).toHaveBeenLastCalledWith({ x: 280, y: 60, width: 1150, height: 830 })
+    expect(first.view.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 1440, height: 900 })
+  })
+
+  it('asks the split view pane in full screen to leave it when the person selects the pane it hides', () => {
+    const { manager, first, second } = layoutFixture(true)
+    const internals = manager as unknown as { activeTabId: string; focusTabOrTrustedChrome: ReturnType<typeof vi.fn> }
+    internals.activeTabId = second.id
+    second.pageFullscreen = true
+    manager.layout()
+    expect(first.view.setVisible).toHaveBeenLastCalledWith(false)
+    // A notification brings the hidden pane forward; it used to take keyboard focus behind the page in full screen.
+    manager.selectTab(first.id)
+    expect(internals.activeTabId).toBe(first.id)
+    expect(internals.focusTabOrTrustedChrome).toHaveBeenCalledWith(first)
+    expect(second.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledOnce()
+    expect(second.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledWith(
+      ISOLATED_WORLDS.pageFullscreen,
+      [{ code: expect.stringContaining('document.exitFullscreen()') }]
+    )
+  })
+
+  it('keeps the split view pane in full screen there when the person selects it', () => {
+    const { manager, second } = layoutFixture(true)
+    second.pageFullscreen = true
+    manager.selectTab(second.id)
+    expect(second.webContents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
   })
 
   it('keeps Follow agents on a page in full screen the window shows', () => {

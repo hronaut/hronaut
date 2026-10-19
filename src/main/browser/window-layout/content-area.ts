@@ -49,13 +49,20 @@ export function shownPageFullscreenTab<Tab extends WindowLayoutTab>(access: Wind
   return undefined
 }
 
-/**
- * The space the browser gives tab views: the window below the toolbar, inside the shell's insets, at least one pixel
- * each way. A shown page in full screen gets the whole window instead.
- */
+/** The space the browser gives the tab views it shows: the page card's, or the whole window for a shown page in full screen. */
 export function browserViewBounds<Tab extends WindowLayoutTab>(access: WindowLayoutAccess<Tab>): Rectangle {
   const bounds = access.window().getContentBounds()
   if (shownPageFullscreenTab(access)) return { x: 0, y: 0, width: Math.max(1, bounds.width), height: Math.max(1, bounds.height) }
+  return contentAreaBounds(access)
+}
+
+/**
+ * The space of the page card: the window below the toolbar, inside the shell's insets, at least one pixel each way.
+ * A tab the window does not show is sized for it, even while a shown page in full screen fills the window, so the
+ * page, such as one an agent works in, keeps the size it has in front.
+ */
+export function contentAreaBounds<Tab extends WindowLayoutTab>(access: WindowLayoutAccess<Tab>): Rectangle {
+  const bounds = access.window().getContentBounds()
   return {
     x: access.contentInsets().left,
     y: access.toolbarHeight() + access.contentInsets().top,

@@ -7,6 +7,9 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - A website's own full screen, such as a video player's, now fills the whole window. Once you allowed **Fullscreen** for the site, the window went into full screen, but the page stayed in its card beside the tabs and under the toolbar. Showing another tab, or a browser shortcut such as **Ctrl/Cmd+L** that opens one of Hronaut's controls, now takes the page out of full screen, and closing a page in full screen takes the window out of it; the window used to stay in full screen showing Home or the other tab, and the next start opened it in full screen.
+- With **Follow agents** on, a tab an agent opens or selects now waits like the rest of following: while a page you watch fills the window in full screen, while the address field has focus or an agent card is open, while **Settings** or another of Hronaut's dialogs covers the pages, for a few seconds after you use a page, or while another agent is being followed, the tab opens or becomes active in the agent's workspace without taking the view. It used to show at once, which took a video out of full screen. A tab an agent opens from a bookmark, its history or a click on a link now shows once the agent works in it.
+- While a page fills the window in full screen, tabs in the background keep the size of the page card, so a page an agent works on behind it, and its screenshots, have the size it shows at. They used to take the size of the whole window.
+- Selecting the other page of a split view while one page is in full screen, such as from a notification, now takes that page out of full screen so the page you selected shows. The selected page used to stay hidden behind the page in full screen while it got your typing.
 
 ## [3.3.1] - 2026-10-19
 

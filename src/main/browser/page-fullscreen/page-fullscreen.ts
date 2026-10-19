@@ -99,6 +99,14 @@ export function exitPageFullscreen<Tab extends PageFullscreenTab>(access: PageFu
   for (const tab of access.tabs()) if (tab.pageFullscreen) requestPageFullscreenExit(tab)
 }
 
+/**
+ * Asks every page in full screen but this tab's to leave it, as when the person selects the split view pane that the
+ * other pane in full screen hides, so the selected page shows instead of taking keyboard focus behind it.
+ */
+export function exitPageFullscreenCovering<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>, tabId: string): void {
+  for (const tab of access.tabs()) if (tab.pageFullscreen && tab.id !== tabId) requestPageFullscreenExit(tab)
+}
+
 /** Asks every page in full screen that the window no longer shows to leave it. */
 export function exitHiddenPageFullscreen<Tab extends PageFullscreenTab>(access: PageFullscreenAccess<Tab>): void {
   for (const tab of access.tabs()) {

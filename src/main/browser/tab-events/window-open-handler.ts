@@ -26,7 +26,10 @@ function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: 
  * Opens the page's new windows as tabs in its workspace, never as windows:
  * Home and addresses the workspace's navigation policy refuses are blocked,
  * a requested referrer and form post are carried over, and observations of
- * tabs opened during an agent's click learn the outcome.
+ * tabs opened during an agent's click learn the outcome. A tab opened by an
+ * agent's input is not shown: Follow agents shows it through the agent's
+ * calls on it, so it waits as for any call, such as while a page fills the
+ * window.
  */
 export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access: WindowOpenHandlerAccess<Tab>, tab: Tab, webContents: WebContents): void {
   webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
@@ -51,7 +54,7 @@ export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access
     void access.createTab({
       url,
       active: disposition !== 'background-tab',
-      selectVisible: !access.agentInputWebContents().has(webContents.id) || access.followAgentActivity(),
+      selectVisible: !access.agentInputWebContents().has(webContents.id),
       mcpGroupId: tab.mcpGroupId,
       loadOptions,
       onCreated: (created) => { for (const creation of creations) creation.created(created.id) }
