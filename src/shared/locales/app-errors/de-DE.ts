@@ -37,8 +37,8 @@ export const deDEAppErrors: AppErrorMessages = {
   "splitView": {
     "sameTab": "Wählen Sie einen anderen Tab für die geteilte Ansicht.",
     "home": "Die Hronaut-Startseite kann nicht in der geteilten Ansicht geöffnet werden.",
-    "currentUnavailable": "Der aktuelle Tab reagiert nicht mehr. Schließen Sie ihn und öffnen Sie ihn unter „Kürzlich geschlossen“ erneut.",
-    "selectedUnavailable": "Der ausgewählte Tab reagiert nicht mehr. Schließen Sie ihn und öffnen Sie ihn unter „Kürzlich geschlossen“ erneut.",
+    "currentUnavailable": "Der aktuelle Tab funktioniert nicht mehr. Schließen Sie ihn und öffnen Sie ihn unter „Kürzlich geschlossen“ erneut.",
+    "selectedUnavailable": "Der ausgewählte Tab funktioniert nicht mehr. Schließen Sie ihn und öffnen Sie ihn unter „Kürzlich geschlossen“ erneut.",
     "notOpen": "Die geteilte Ansicht ist nicht geöffnet."
   },
   "clipboard": {
@@ -50,7 +50,7 @@ export const deDEAppErrors: AppErrorMessages = {
   },
   "startupScreen": {
     "title": "Hronaut konnte nicht starten",
-    "description": "Die Anwendungsoberfläche konnte ihre ersten Einstellungen nicht laden.",
+    "description": "Die Anwendungsoberfläche konnte ihre anfänglichen Einstellungen nicht laden.",
     "retry": "Erneut versuchen",
     "privacy": "Ihr Browserprofil bleibt auf diesem Gerät.",
     "settingsUnavailable": "Der Einstellungsdienst der Oberfläche ist nicht verfügbar."

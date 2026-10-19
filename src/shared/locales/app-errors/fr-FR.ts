@@ -37,8 +37,8 @@ export const frFRAppErrors: AppErrorMessages = {
   "splitView": {
     "sameTab": "Choisissez un autre onglet pour la vue fractionnée.",
     "home": "L’accueil Hronaut ne peut pas être ouvert en vue fractionnée.",
-    "currentUnavailable": "L’onglet actuel ne répond plus. Fermez-le et rouvrez-le depuis Fermés récemment.",
-    "selectedUnavailable": "L’onglet sélectionné ne répond plus. Fermez-le et rouvrez-le depuis Fermés récemment.",
+    "currentUnavailable": "L’onglet actuel ne fonctionne plus. Fermez-le et rouvrez-le depuis Fermés récemment.",
+    "selectedUnavailable": "L’onglet sélectionné ne fonctionne plus. Fermez-le et rouvrez-le depuis Fermés récemment.",
     "notOpen": "La vue fractionnée n’est pas ouverte."
   },
   "clipboard": {

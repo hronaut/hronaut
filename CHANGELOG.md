@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
-- Error notices from Hronaut itself now appear in your interface language, starting with those about Hronaut still starting, a tab that cannot sleep, split view and copying. The page shown when Hronaut cannot start speaks your system's language when Hronaut has it, and the error title of the workspace library is translated. Home's buttons and workspace list no longer start an error with "Error invoking remote method". Websites still get these errors in English, so an error never tells a website your interface language.
+- Error notices from Hronaut itself now appear in your interface language, starting with those about Hronaut still starting, a tab that cannot sleep, split view and copying. The page shown when Hronaut cannot start speaks your system's language when Hronaut has it, and the error title of the workspace library is translated. Home's buttons and workspace list no longer start an error with "Error invoking remote method". An error a website's page could receive stays in English, so it never tells a website your interface language.
 
 ### Fixed
 

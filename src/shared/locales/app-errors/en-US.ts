@@ -1,4 +1,4 @@
-/** Errors from the main process that a person sees, in English; MCP results and logs keep this text. */
+/** Errors from the main process that a person sees, and the startup failure page, in English; MCP results and logs keep this text. */
 export const enUSAppErrors = {
   "startup": {
     "initializing": "Saved workspaces are still initializing. Try again after startup completes.",

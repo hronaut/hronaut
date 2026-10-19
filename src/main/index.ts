@@ -622,8 +622,9 @@ const { applyLanguagePreferenceRuntime } = createInterfaceLanguage({
   refreshHomeAfterCommittedChange
 })
 
-// Every handler registers here, so a LocalizedError reaches Hronaut's own pages in the interface language. The sender
-// check is read only when a handler fails, after the guards below exist.
+// Hronaut's handlers register here, so a LocalizedError reaches Hronaut's own pages in the interface language; only the
+// synchronous bootstraps below stay on ipcMain itself. The sender check is read only when a handler fails, after the
+// guards below exist.
 const hronautIpcMain = withTranslatedIpcErrors(ipcMain, {
   isHronautPage: (event) => isHronautPageSender(event),
   text
@@ -785,6 +786,7 @@ function registerIpc(): void {
     text
   })
   const cancelBrowserImport = registerBrowserImportIpc({
+    ipcMain: hronautIpcMain,
     assertSender: assertInitializedMainShellSender,
     destination: id => tabRuntime.tabs!.browserImportDestination(id),
     consent: async (profile, destination) => {
