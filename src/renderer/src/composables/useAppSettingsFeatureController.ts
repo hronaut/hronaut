@@ -84,6 +84,8 @@ export interface AppSettingsFeatureControllerOptions {
   detachedWindow?: boolean
   settings: Ref<AppSettings>
   browserState: Readonly<Ref<BrowserState>>
+  /** Whether `browserState` holds the workspaces main loaded, rather than the empty state the shell starts with. */
+  browserStateLoaded: Readonly<Ref<boolean>>
   settingsStore: AppSettingsFeatureStore
   syncBrowserState: (operation: Promise<BrowserState>) => Promise<BrowserState>
   apis: AppSettingsFeatureApis
@@ -109,7 +111,13 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
 
   const sitePermissionsController = useSitePermissionsController({
     api: options.apis.permissions,
-    translate: (key) => options.translate(key),
+    translate: (key, parameters) => options.translate(key, parameters),
+    workspaces: () => options.browserStateLoaded.value
+      ? [
+          ...options.browserState.value.mcpTabGroups.map(({ id, name }) => ({ id, name, archived: false })),
+          ...options.browserState.value.savedTabGroups.map(({ id, name }) => ({ id, name, archived: true }))
+        ]
+      : null,
     onError: (error) => options.showToast(
       'error',
       options.translate('runtime.toast.settingNotSaved'),

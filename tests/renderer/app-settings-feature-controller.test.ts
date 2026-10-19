@@ -47,6 +47,7 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
     detachedWindow,
     settings,
     browserState,
+    browserStateLoaded: ref(false),
     settingsStore: {
       resetAppearance: vi.fn(async () => rendererState()),
       setFollowAgentActivity: vi.fn(async (followAgentActivity: boolean) => applySettings({ ...settings.value, followAgentActivity })),
@@ -371,6 +372,31 @@ describe('Settings active-tab hydration', () => {
       options.browserState.value = { ...options.browserState.value, activeTabId: 'after-empty' }
       await nextTick()
       expect(controller.settingsDialogController.open.value).toBe(false)
+    } finally { controller.dispose() }
+  })
+
+  it('names a site permission’s open or archived workspace only once the workspaces have loaded', () => {
+    // Settings called every decision's workspace removed until the browser state arrived, since none was listed yet.
+    const { controller, options } = createHarness()
+    try {
+      const open = '01912345-6789-7abc-8def-0123456789ab'
+      const archived = '01912345-678a-7abc-8def-0123456789ab'
+      const removed = '01912345-678b-7abc-8def-0123456789ab'
+      const label = (workspaceId: string) => controller.sitePermissionsController.scopeLabel({
+        origin: 'https://example.test', permission: 'geolocation', decision: 'allow', workspaceId
+      })
+      expect([open, archived, removed].map(label)).toEqual(Array(3).fill('settings.permissions.loadingWorkspace'))
+      options.browserState.value = {
+        ...emptyBrowserState(),
+        mcpTabGroups: [{ id: open, name: 'Client A' } as BrowserState['mcpTabGroups'][number]],
+        savedTabGroups: [{ id: archived, name: 'Client B' } as BrowserState['savedTabGroups'][number]]
+      }
+      options.browserStateLoaded.value = true
+      expect([open, archived, removed].map(label)).toEqual([
+        'Client A',
+        'settings.permissions.archivedWorkspace',
+        'settings.permissions.removedWorkspace'
+      ])
     } finally { controller.dispose() }
   })
 

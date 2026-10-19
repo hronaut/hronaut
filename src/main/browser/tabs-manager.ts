@@ -817,7 +817,13 @@ export interface TabsManagerOptions {
   /** True while a page in the tab still waits on a wallet request, so the tab must not sleep. */
   walletKeepsTabAwake?: (tabId: string) => boolean
   confirmBeforeUnloadClose?: () => Promise<boolean>
-  configureSession?: (browserSession: Session) => void
+  /**
+   * Prepares a browser session before a page uses it. A tab's session also names the workspace the tab belongs to,
+   * whose site permission decisions its pages get; Home's names none.
+   */
+  configureSession?: (browserSession: Session, workspaceId?: string) => void
+  /** A workspace is gone for good: closed or deleted with its storage, not archived. */
+  onWorkspaceForgotten?: (workspaceId: string) => void
 }
 
 export class BrowserTabsManager {
@@ -5173,7 +5179,7 @@ export class BrowserTabsManager {
       group.lastUsedAt = new Date().toISOString()
     }
     this.webContentsToTab.set(view.webContents.id, id)
-    this.options.configureSession?.(view.webContents.session)
+    this.options.configureSession?.(view.webContents.session, isHronautHomeUrl(url) ? undefined : workspace?.id)
     this.installSessionHooks(view.webContents.session)
     this.attachTabEvents(tab)
     // Restore all tabs before selecting the saved global tab. Selecting the first

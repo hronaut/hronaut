@@ -20,6 +20,8 @@ const {
   clearing,
   errorMessage,
   permissionLabel,
+  scopeLabel,
+  permissionKey,
   isPending,
   setDecision,
   remove
@@ -32,7 +34,8 @@ const filteredGroups = computed(() => {
   if (!terms.length) return groups.value
   return groups.value.flatMap(group => {
     const permissions = group.permissions.filter(entry => {
-      const text = [group.origin, entry.permission, permissionLabel(entry.permission)]
+      // Where the decision applies is searchable too: its row names its workspace and the website it was embedded in.
+      const text = [group.origin, entry.permission, permissionLabel(entry.permission), scopeLabel(entry)]
         .join('\n').toLocaleLowerCase(locale.value)
       return terms.every(term => text.includes(term))
     })
@@ -46,7 +49,7 @@ const localNumber = (value: number): string => formatNumber(locale.value as Supp
 // Track row identity before Vue removes or moves the focused control. The same
 // path covers Forget and authoritative permission updates across site groups.
 watch(() => filteredGroups.value.flatMap(group => group.permissions.map(entry =>
-  JSON.stringify([entry.origin, entry.permission])
+  permissionKey(entry)
 )).join('\n'), async (_current, _previous, onCleanup) => {
   const panel = panelRoot.value
   const focused = document.activeElement
@@ -73,6 +76,22 @@ watch(() => filteredGroups.value.flatMap(group => group.permissions.map(entry =>
     ?? panel.querySelector<HTMLElement>('.setting-copy h3')
   target?.focus()
 }, { flush: 'pre' })
+
+/**
+ * The accessible name of a row's control. A decision saved before decisions belonged to a workspace keeps the name it
+ * always had; one with a workspace also names where it applies, since one website can have a row in each workspace.
+ */
+function controlLabel(entry: SitePermissionEntry, kind: 'select' | 'forget'): string {
+  const permission = permissionLabel(entry.permission)
+  if (entry.workspaceId === undefined) {
+    return t(kind === 'select' ? 'runtimeActions.permission.aria' : 'runtimeActions.permission.forgetAria', { permission, origin: entry.origin })
+  }
+  return t(kind === 'select' ? 'runtimeActions.permission.scopedAria' : 'runtimeActions.permission.scopedForgetAria', {
+    permission,
+    origin: entry.origin,
+    scope: scopeLabel(entry)
+  })
+}
 
 async function changePermission(entry: SitePermissionEntry, event: Event): Promise<void> {
   const input = event.target as HTMLSelectElement
@@ -103,17 +122,17 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
         <h4>{{ group.origin }}</h4>
         <div
           v-for="permission in group.permissions"
-          :key="permission.permission"
+          :key="permissionKey(permission)"
           class="permission-row"
         >
           <span class="permission-name">
             <strong>{{ permissionLabel(permission.permission) }}</strong>
-            <small>{{ permission.permission }}</small>
+            <small>{{ permission.permission }} · {{ scopeLabel(permission) }}</small>
           </span>
           <select
             :value="permission.decision"
             :disabled="clearing || isPending(permission)"
-            :aria-label="t('runtimeActions.permission.aria', { permission: permissionLabel(permission.permission), origin: group.origin })"
+            :aria-label="controlLabel(permission, 'select')"
             @change="changePermission(permission, $event)"
           >
             <option value="allow">{{ t('settings.permissions.allow') }}</option>
@@ -122,7 +141,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
           <UiIconButton variant="danger"
             class="permission-remove"
             type="button"
-            :label="t('runtimeActions.permission.forgetAria', { permission: permissionLabel(permission.permission), origin: group.origin })"
+            :label="controlLabel(permission, 'forget')"
             :tooltip="t('settings.permissions.forget')"
             :aria-disabled="clearing || isPending(permission)"
             @click="remove(permission)"

@@ -5,16 +5,23 @@ import { describe, expect, it, vi } from 'vitest'
 import BrowserAddressBar from '../../src/renderer/src/components/BrowserAddressBar.vue'
 import DetachedPanelUnavailableState from '../../src/renderer/src/components/DetachedPanelUnavailableState.vue'
 import PageProblemBar from '../../src/renderer/src/components/PageProblemBar.vue'
-import type { ActiveTabPresentationController } from '../../src/renderer/src/composables/useActiveTabPresentationController.js'
+import {
+  useActiveTabPresentationController,
+  type ActiveTabPresentationController
+} from '../../src/renderer/src/composables/useActiveTabPresentationController.js'
 import type { AddressBarController } from '../../src/renderer/src/composables/useAddressBarController.js'
 import type { EmulationController } from '../../src/renderer/src/composables/useEmulationController.js'
 import type { PageToolsPresentationController } from '../../src/renderer/src/composables/usePageToolsPresentationController.js'
 import type { SiteDataSummaryController } from '../../src/renderer/src/composables/useSiteDataSummaryController.js'
-import type { SitePermissionsController } from '../../src/renderer/src/composables/useSitePermissionsController.js'
+import {
+  useSitePermissionsController,
+  type SitePermissionsController
+} from '../../src/renderer/src/composables/useSitePermissionsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserTabState, SitePermissionEntry } from '../../src/shared/types.js'
 
 const global = { plugins: [createHronautI18n('en-US')] }
+const WORKSPACE = '01912345-6789-7abc-8def-0123456789ab'
 
 function tab(pageProblem?: BrowserTabState['pageProblem']): BrowserTabState {
   return {
@@ -43,7 +50,8 @@ describe('extracted shell components', () => {
     const permission: SitePermissionEntry = {
       origin: 'https://example.test',
       permission: 'camera',
-      decision: 'deny'
+      decision: 'deny',
+      workspaceId: WORKSPACE
     }
     const submit = vi.fn()
     const openRoutes = vi.fn()
@@ -69,6 +77,7 @@ describe('extracted shell components', () => {
       activeOrigin: ref('https://example.test'),
       activeHostname: ref('example.test'),
       activeSitePermissions: ref([permission]),
+      sitePermissionTarget: (entry: SitePermissionEntry) => entry,
       activeAddressKind: ref('Secure HTTPS connection'),
       activeTabUsesDefaultProfile: ref(true)
     } as unknown as ActiveTabPresentationController
@@ -139,7 +148,8 @@ describe('extracted shell components', () => {
     const permission: SitePermissionEntry = {
       origin: 'https://example.test',
       permission: 'camera',
-      decision: 'deny'
+      decision: 'deny',
+      workspaceId: WORKSPACE
     }
     let finishReset!: (removed: boolean) => void
     const resetPermission = vi.fn(() => new Promise<boolean>((resolve) => {
@@ -150,6 +160,7 @@ describe('extracted shell components', () => {
       activeOrigin: ref('https://example.test'),
       activeHostname: ref('example.test'),
       activeSitePermissions: ref([permission]),
+      sitePermissionTarget: (entry: SitePermissionEntry) => entry,
       activeAddressKind: ref('Secure HTTPS connection'),
       activeTabUsesDefaultProfile: ref(true)
     } as unknown as ActiveTabPresentationController
@@ -230,6 +241,97 @@ describe('extracted shell components', () => {
     newerTarget.remove()
   })
 
+  it('changes a decision for all workspaces in Site controls only for the tab’s workspace', async () => {
+    // Site controls saved the change to the decision for all workspaces, so it reached every workspace.
+    const legacy: SitePermissionEntry = { origin: 'https://example.test', permission: 'geolocation', decision: 'allow' }
+    const i18n = createHronautI18n('en-US')
+    const activeTab = ref<BrowserTabState | undefined>({ ...tab(), mcpGroupId: WORKSPACE })
+    let finishSave!: (entry: SitePermissionEntry) => void
+    const api = {
+      set: vi.fn((_origin: string, _permission: string, _decision: string, _scope?: unknown) => (
+        new Promise<SitePermissionEntry>((resolve) => { finishSave = resolve })
+      )),
+      remove: vi.fn(async () => true),
+      clear: vi.fn(async () => undefined)
+    }
+    const sitePermissionsController = useSitePermissionsController({
+      api,
+      translate: (key, parameters) => i18n.global.t(key, parameters ?? {}),
+      workspaces: () => [{ id: WORKSPACE, name: 'Client A', archived: false }],
+      onError: vi.fn()
+    })
+    sitePermissionsController.replace([legacy])
+    const activeTabPresentation = useActiveTabPresentationController({
+      state: ref({ tabs: [activeTab.value!], closedTabs: [], activeTabId: 'tab-1', allHumanInteractionLocked: false, mcpUrl: '', profilePath: '', mcpTabGroups: [], savedTabGroups: [] }),
+      activeTab,
+      sitePermissions: sitePermissionsController.entries,
+      credentials: ref([]),
+      downloads: ref([]),
+      bookmarks: ref([]),
+      translate: (key) => key,
+      formatNumber: (value) => String(value),
+      describeEmulation: () => ''
+    })
+    render(BrowserAddressBar, {
+      global: { plugins: [i18n] },
+      props: {
+        siteControlsOpen: true,
+        panelDock: 'right',
+        activeTab: activeTab.value,
+        addressController: {
+          address: ref('https://example.test/app'),
+          input: ref<HTMLInputElement | null>(null),
+          form: ref<HTMLFormElement | null>(null),
+          selection: ref(-1),
+          suggestions: ref([]),
+          visible: ref(false),
+          selected: ref(undefined),
+          suggestionId: vi.fn(),
+          suggestionMeta: vi.fn(),
+          handleFocus: vi.fn(),
+          handleInput: vi.fn(),
+          handleFocusOut: vi.fn(),
+          handleKeydown: vi.fn(),
+          submit: vi.fn()
+        } as unknown as AddressBarController,
+        activeTabPresentation,
+        emulationController: { activeEmulation: ref(undefined), resetPending: ref(false), label: vi.fn(), describe: vi.fn() } as unknown as EmulationController,
+        pageToolsPresentation: { activeNetworkRouteCount: ref(0) } as unknown as PageToolsPresentationController,
+        siteDataController: { summary: ref(null), state: ref('idle'), message: ref('') } as unknown as SiteDataSummaryController,
+        sitePermissionsController,
+        locale: 'en-US',
+        formatNumber: (value: number) => String(value),
+        runAction: (action: () => unknown) => action(),
+        actions: {
+          toggleSiteControls: vi.fn(),
+          resetActiveTabEmulation: vi.fn(),
+          clearActiveCssStatePreview: vi.fn(),
+          stopActiveVirtualPasskey: vi.fn(),
+          stopActiveLogpoints: vi.fn(),
+          openRequestConditions: vi.fn(),
+          setSitePermission: sitePermissionsController.setDecision,
+          resetSitePermission: sitePermissionsController.remove,
+          openSitePermissionSettings: vi.fn(),
+          openSitePrivacySettings: vi.fn()
+        }
+      }
+    })
+    const user = userEvent.setup()
+    const control = screen.getByRole('combobox', { name: 'Location permission for https://example.test (All workspaces)' })
+    expect(screen.queryByRole('button', { name: /^Reset Location/ })).not.toBeInTheDocument()
+    await user.selectOptions(control, 'deny')
+    expect(api.set).toHaveBeenCalledExactlyOnceWith('https://example.test', 'geolocation', 'deny', { workspaceId: WORKSPACE })
+    expect(control).toBeDisabled()
+
+    finishSave({ ...legacy, decision: 'deny', workspaceId: WORKSPACE })
+    // The workspace's own decision takes the row's place, and the decision for all workspaces stays as it was.
+    await vi.waitFor(() => expect(screen.getByRole('combobox', { name: 'Location permission for https://example.test' })).toBe(control))
+    expect(control).not.toBeDisabled()
+    expect(control).toHaveValue('deny')
+    expect(screen.getByRole('button', { name: 'Reset Location permission for https://example.test' })).toBeVisible()
+    expect(sitePermissionsController.entries.value).toEqual([legacy, { ...legacy, decision: 'deny', workspaceId: WORKSPACE }])
+  })
+
   it('shows an active forced CSS state in the address bar and lets the person end it', async () => {
     const clearPreview = vi.fn()
     const stopPasskey = vi.fn()
@@ -265,6 +367,7 @@ describe('extracted shell components', () => {
         activeOrigin: ref('https://example.test'),
         activeHostname: ref('example.test'),
         activeSitePermissions: ref([]),
+        sitePermissionTarget: (entry: SitePermissionEntry) => entry,
         activeAddressKind: ref('Secure HTTPS connection'),
         activeTabUsesDefaultProfile: ref(true)
       } as unknown as ActiveTabPresentationController,

@@ -78,6 +78,7 @@ const {
   activeOrigin,
   activeHostname,
   activeSitePermissions,
+  sitePermissionTarget,
   activeAddressKind,
 } = props.activeTabPresentation
 const { activeEmulation, resetPending, label: emulationLabel, describe: emulationDescription } = props.emulationController
@@ -110,6 +111,15 @@ const logpoints = computed(() => {
 
 function run(action: () => unknown): void {
   void props.runAction(action)
+}
+
+// A row for all workspaces changes as the tab's workspace's own decision, which Site controls then shows in its place.
+function setSitePermission(entry: SitePermissionEntry, decision: SitePermissionDecision): boolean | Promise<boolean> {
+  return props.actions.setSitePermission(sitePermissionTarget(entry), decision)
+}
+
+function sitePermissionPending(entry: SitePermissionEntry): boolean {
+  return isSitePermissionPending(sitePermissionTarget(entry))
 }
 
 async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean> {
@@ -252,8 +262,8 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       :permissions="activeSitePermissions"
       :locale="locale"
       :permission-label="permissionLabel"
-      :permission-pending="isSitePermissionPending"
-      :set-permission="actions.setSitePermission"
+      :permission-pending="sitePermissionPending"
+      :set-permission="setSitePermission"
       :reset-permission="resetSitePermission"
       :open-permission-settings="actions.openSitePermissionSettings"
       :open-privacy-settings="actions.openSitePrivacySettings"

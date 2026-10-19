@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ElectronApplication } from '@playwright/test'
 import { closeFixtureServer, blockFileDestination, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
@@ -113,16 +113,23 @@ test('manages and persists per-website permission decisions', async ({
   mcpPort,
   profileDirectory
 }) => {
+  // A new decision always belongs to a workspace; a request that names none is refused unless it changes a saved one.
+  const created = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Permission decisions', storage: 'scratch' })`) as {
+    mcpTabGroups: Array<{ id: string, name: string }>
+  }
+  const workspaceId = created.mcpTabGroups.find((group) => group.name === 'Permission decisions')!.id
+  expect(await appWindow.evaluate(
+    "window.hronautPermissions.set('https://example.com', 'geolocation', 'allow').then(() => 'saved', (error) => error.message)"
+  )).toContain('no longer saved')
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await appWindow.getByRole('button', { name: 'Site permissions' }).click()
   await expect(appWindow.getByText('No saved decisions')).toBeVisible()
 
   await appWindow.evaluate(
-    "window.hronautPermissions.set('https://example.com/path', 'geolocation', 'allow')"
+    `window.hronautPermissions.set('https://example.com/path', 'geolocation', 'allow', { workspaceId: ${JSON.stringify(workspaceId)} })`
   )
-  const locationPermission = appWindow.getByRole('combobox', {
-    name: 'Location permission for https://example.com'
-  })
+  const locationName = 'Location permission for https://example.com (Permission decisions)'
+  const locationPermission = appWindow.getByRole('combobox', { name: locationName })
   await expect(locationPermission).toHaveValue('allow')
 
   const permissionsPath = join(profileDirectory, 'site-permissions.json')
@@ -134,7 +141,8 @@ test('manages and persists per-website permission decisions', async ({
     await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([{
       origin: 'https://example.com',
       permission: 'geolocation',
-      decision: 'allow'
+      decision: 'allow',
+      workspaceId
     }])
   } finally {
     await restorePermissionsFile()
@@ -146,18 +154,31 @@ test('manages and persists per-website permission decisions', async ({
     .toBe('deny')
   await closeHronaut(electronApp)
 
+  // A decision an earlier version saved for all workspaces, and one of a workspace that went while Hronaut was closed.
+  const saved = JSON.parse(await readFile(permissionsPath, 'utf8')) as { permissions: unknown[] }
+  const legacy = { origin: 'https://legacy.example', permission: 'notifications', decision: 'allow' }
+  await writeFile(permissionsPath, JSON.stringify({ version: 2, permissions: [
+    ...saved.permissions,
+    legacy,
+    { origin: 'https://example.com', permission: 'notifications', decision: 'allow', workspaceId: '01912345-6789-7abc-8def-0123456789ab' }
+  ] }), 'utf8')
+
   const restarted = await launchHronaut(profileDirectory, mcpPort + 1)
   try {
+    const own = { origin: 'https://example.com', permission: 'geolocation', decision: 'deny', workspaceId }
+    await expect.poll(() => restarted.window.evaluate('window.hronautPermissions.list()')).toEqual([own, legacy])
+    await expect.poll(async () => JSON.parse(await readFile(permissionsPath, 'utf8')).permissions).toEqual([own, legacy])
     await restarted.window.getByRole('button', { name: 'Settings' }).click()
     await restarted.window.getByRole('button', { name: 'Site permissions' }).click()
-    const restoredPermission = restarted.window.getByRole('combobox', {
-      name: 'Location permission for https://example.com'
-    })
+    const restoredPermission = restarted.window.getByRole('combobox', { name: locationName })
     await expect(restoredPermission).toHaveValue('deny')
-    await restarted.window.getByRole('button', {
-      name: 'Forget Location permission for https://example.com'
-    }).click()
-    await expect(restarted.window.getByText('No saved decisions')).toBeVisible()
+    // Settings still changes the decision for all workspaces.
+    await restarted.window.getByRole('combobox', { name: 'Notifications permission for https://legacy.example' }).selectOption('deny')
+    await expect.poll(async () => JSON.parse(await readFile(permissionsPath, 'utf8')).permissions)
+      .toEqual([own, { ...legacy, decision: 'deny' }])
+    await restarted.window.getByRole('button', { name: `Forget ${locationName}` }).click()
+    await expect(restoredPermission).toHaveCount(0)
+    await expect.poll(() => restarted.window.evaluate('window.hronautPermissions.list()')).toEqual([{ ...legacy, decision: 'deny' }])
   } finally {
     await closeHronaut(restarted.app)
   }
@@ -312,7 +333,8 @@ test('drops a queued permission request when its tab closes before presentation'
     await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([{
       origin: blockingOrigin,
       permission: 'geolocation',
-      decision: 'allow'
+      decision: 'allow',
+      workspaceId: expect.any(String)
     }])
   } finally {
     await Promise.all([
@@ -437,10 +459,13 @@ test('persists a permission decision for a still-live cross-origin iframe', asyn
     await requestIframeGeolocationPermission(electronApp)
     await allowDelayedPermission(electronApp)
 
+    // The decision belongs to the page the frame was embedded in.
     await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([{
       origin: childOrigin,
       permission: 'geolocation',
-      decision: 'allow'
+      decision: 'allow',
+      workspaceId: expect.any(String),
+      embeddedIn: `http://127.0.0.1:${hostPort}`
     }])
   } finally {
     await Promise.all([
@@ -628,6 +653,63 @@ test('refuses a screen sharing request without asking about the camera and micro
     expect(await electronApp.evaluate(() => (
       globalThis as typeof globalThis & { __permissionPrompts?: string[] }
     ).__permissionPrompts)).toEqual([])
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('asks again in another workspace and forgets a workspace’s decisions when it is closed for good', async ({
+  appWindow,
+  electronApp
+}) => {
+  // A decision made in one workspace applied in every workspace, though each keeps its own sign-ins and data.
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.end(`<!doctype html><title>Workspace permission ${request.url === '/client' ? 'client' : 'own'}</title><main>Location</main>`)
+  })
+  const origin = `http://127.0.0.1:${await listen(server)}`
+  const requestLocation = (title: string) => electronApp.evaluate(async ({ webContents }, pageTitle) => {
+    const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === pageTitle)
+    if (!page) throw new Error(`${pageTitle} was not found`)
+    await page.executeJavaScript('navigator.geolocation.getCurrentPosition(() => undefined, () => undefined)')
+  }, title)
+  const titleShown = (title: string) => expect.poll(() => electronApp.evaluate(({ webContents }, pageTitle) => (
+    webContents.getAllWebContents().some((contents) => contents.getTitle() === pageTitle)
+  ), title)).toBe(true)
+
+  try {
+    const own = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(`${origin}/own`)}, active: true })`) as {
+      tabs: Array<{ id: string, url: string, mcpGroupId?: string }>
+    }
+    const ownWorkspaceId = own.tabs.find((tab) => tab.url === `${origin}/own`)!.mcpGroupId!
+    await titleShown('Workspace permission own')
+    await installPermissionDialogProbe(electronApp)
+    await requestLocation('Workspace permission own')
+    await expect.poll(() => permissionDialogStats(electronApp)).toMatchObject({ calls: 1 })
+    await resolveNextPermissionDialog(electronApp, 1)
+    await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([
+      { origin, permission: 'geolocation', decision: 'allow', workspaceId: ownWorkspaceId }
+    ])
+
+    const created = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Permission client', storage: 'scratch' })`) as {
+      tabs: Array<{ id: string, mcpGroupId?: string }>
+      mcpTabGroups: Array<{ id: string, name: string }>
+    }
+    const clientWorkspaceId = created.mcpTabGroups.find((group) => group.name === 'Permission client')!.id
+    const clientTabId = created.tabs.find((tab) => tab.mcpGroupId === clientWorkspaceId)!.id
+    await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(clientTabId)}, url: ${JSON.stringify(`${origin}/client`)} })`)
+    await titleShown('Workspace permission client')
+    await requestLocation('Workspace permission client')
+    await expect.poll(() => permissionDialogStats(electronApp)).toMatchObject({ calls: 2 })
+    await resolveNextPermissionDialog(electronApp, 0)
+    await expect.poll(async () => (await appWindow.evaluate('window.hronautPermissions.list()') as Array<{ workspaceId?: string, decision: string }>)
+      .map((entry) => [entry.workspaceId, entry.decision]).sort())
+      .toEqual([[clientWorkspaceId, 'deny'], [ownWorkspaceId, 'allow']].sort())
+
+    await appWindow.evaluate(`window.hronaut.closeWorkspace(${JSON.stringify(clientWorkspaceId)})`)
+    await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([
+      { origin, permission: 'geolocation', decision: 'allow', workspaceId: ownWorkspaceId }
+    ])
   } finally {
     await closeFixtureServer(server)
   }
