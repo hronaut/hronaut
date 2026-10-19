@@ -139,6 +139,9 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
             await tab.webContents.debugger.sendCommand('DOM.enable')
             await tab.webContents.debugger.sendCommand('CSS.enable')
             await tab.webContents.debugger.sendCommand('Debugger.enable')
+            // Coverage only reads script sources. Without this, a debugger statement in the page would pause it until
+            // coverage stops. Skipping pauses would not do: a reload, such as the one that starts coverage, resets it.
+            await tab.webContents.debugger.sendCommand('Debugger.setBreakpointsActive', { active: false })
             await tab.webContents.debugger.sendCommand('Profiler.enable')
             await tab.webContents.debugger.sendCommand('Profiler.startPreciseCoverage', {
               callCount: false,

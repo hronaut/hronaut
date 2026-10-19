@@ -278,6 +278,10 @@ describe('browser profiling controller', () => {
     expect(f.sendCommand).toHaveBeenCalledWith('Profiler.startPreciseCoverage', {
       callCount: false, detailed: true, allowTriggeredUpdates: false
     })
+    // The page must not pause on a debugger statement while coverage records.
+    const commands = f.sendCommand.mock.calls.map(([method]) => method)
+    expect(commands.indexOf('Debugger.setBreakpointsActive')).toBe(commands.indexOf('Debugger.enable') + 1)
+    expect(f.sendCommand).toHaveBeenCalledWith('Debugger.setBreakpointsActive', { active: false })
     expect(f.prepareNavigation).toHaveBeenCalledWith(f.tab)
     expect(f.reloadIgnoringCache).toHaveBeenCalledOnce()
     expect(f.prepareNavigation.mock.invocationCallOrder[0]).toBeLessThan(f.reloadIgnoringCache.mock.invocationCallOrder[0]!)
