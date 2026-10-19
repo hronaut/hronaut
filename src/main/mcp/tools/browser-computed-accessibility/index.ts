@@ -5,8 +5,12 @@ import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 
 function computedAccessibilitySettlement() {
-  // Each re-check names this tab, so a capability profile's origins apply to the page the element belongs to.
-  return { authorizesResolvedTab: true }
+  return {
+    // Each re-check names this tab, so a capability profile's origins apply to the page the element belongs to.
+    authorizesResolvedTab: true,
+    // A cancelled call fails its next check, so Chromium is not asked once the agent stopped waiting.
+    cancelledMessage: 'Computed accessibility read cancelled'
+  }
 }
 
 export function registerBrowserComputedAccessibility(context: McpToolContext): void {

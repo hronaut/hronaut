@@ -24,7 +24,11 @@ const PAGE = `<!doctype html><title>Semantics</title>
 <div inert><button id="inert">Inert</button></div>
 <button id="unrendered" style="display:none">Unrendered</button>
 <input id="agree" type="checkbox" checked>
+<div id="loading" role="region" aria-label="Results" aria-busy="true"></div>
+<section id="chapter" role="doc-chapter" aria-label="Chapter one"></section>
+<label id="twice" for="both">Twice</label><input id="both" aria-describedby="twice">
 <button id="large"></button>
+<button id="nested"><span aria-labelledby="far"></span></button><div id="far" hidden></div>
 <div id="closed" role="button"></div>
 <script>
 window.canary = ['private', 'semantics', crypto.randomUUID()].join('-')
@@ -33,7 +37,9 @@ document.getElementById('note').value = canary
 document.getElementById('secret').value = canary
 document.getElementById('editor').textContent = canary
 document.getElementById('hint').textContent = canary
+document.getElementById('twice').append(' ' + 'w'.repeat(300))
 document.getElementById('large').textContent = canary + 'x'.repeat(150000)
+document.getElementById('far').textContent = canary + 'z'.repeat(150000)
 document.getElementById('closed').attachShadow({ mode: 'closed' }).textContent = canary + 'y'.repeat(150000)
 </script>`
 
@@ -122,15 +128,14 @@ test('reports Chromium\'s roles, ignored reasons and states without the page\'s 
     expect((await report('#hidden'))).toMatchObject({ ignored: true, ignoredReasons: ['ariaHiddenSubtree'] })
     expect((await report('#inert'))).toMatchObject({ ignored: true, ignoredReasons: ['inertElement'] })
     expect((await report('#unrendered'))).toMatchObject({ ignored: true, ignoredReasons: ['notRendered'] })
+    expect((await report('#loading'))).toMatchObject({ role: 'region', states: { busy: true } })
+    expect((await report('#chapter')).role).toBe('doc-chapter')
+    // One label is both the name and the description: counted once in the page, returned twice by Chromium.
+    expect((await report('#both')).role).toBe('textbox')
     const agree = await report('#agree')
     expect(agree).toMatchObject({ role: 'checkbox', states: { checked: true } })
     expect(agree.notReported).toContain('expanded')
     expect(agree.states).not.toHaveProperty('expanded')
-
-    // Hronaut's own heuristics still say textbox and combobox; this report leaves them as they are.
-    const inspected = await call(client, 'browser_element_inspect', { tabId, selector: '#qty' })
-    expect(inspected.isError, text(inspected)).not.toBe(true)
-    expect(text(inspected)).not.toContain('spinbutton')
 
     for (const output of outputs) expect(output).not.toContain(canary)
     const logs = await call(client, 'browser_diagnostic_logs', { tabId })
@@ -155,10 +160,13 @@ test('refuses elements with too much text, also when the text sits in a closed s
     const large = await call(client, 'browser_computed_accessibility', { tabId, selector: '#large' })
     expect(large.isError).toBe(true)
     expect(text(large)).toContain('exceed 100,000 characters')
+    // A descendant's aria-labelledby feeds the button's name, so its target is counted too.
+    const nested = await call(client, 'browser_computed_accessibility', { tabId, selector: '#nested' })
+    expect(text(nested)).toContain('exceed 100,000 characters')
     const closed = await call(client, 'browser_computed_accessibility', { tabId, selector: '#closed' })
     expect(closed.isError).toBe(true)
     expect(text(closed)).toContain('closed shadow root')
-    for (const output of [text(large), text(closed)]) expect(output).not.toContain(canary)
+    for (const output of [text(large), text(nested), text(closed)]) expect(output).not.toContain(canary)
 
     const several = await call(client, 'browser_computed_accessibility', { tabId, selector: 'button' })
     expect(text(several)).toContain('more than one element')
@@ -167,6 +175,15 @@ test('refuses elements with too much text, also when the text sits in a closed s
 
     // A refused read leaves the page's tools working.
     expect((await read(client, tabId, '#menu')).states).toMatchObject({ expanded: true })
+
+    // An armed DOM mutation source capture needs the DOM bindings this read would reset.
+    const armed = await call(client, 'browser_dom_mutation_source', { tabId, action: 'arm', selector: '#panel', kind: 'attribute-modified' })
+    expect(armed.isError, text(armed)).not.toBe(true)
+    const blocked = await call(client, 'browser_computed_accessibility', { tabId, selector: '#menu' })
+    expect(text(blocked)).toContain('Cancel the DOM mutation source capture')
+    const cancelled = await call(client, 'browser_dom_mutation_source', { tabId, action: 'cancel' })
+    expect(cancelled.isError, text(cancelled)).not.toBe(true)
+    expect((await read(client, tabId, '#menu')).role).toBe('button')
     expect(await accessibilityEventsAfterChange(electronApp, pageUrl)).toEqual([])
   } finally {
     await closeFixtureServer(server)

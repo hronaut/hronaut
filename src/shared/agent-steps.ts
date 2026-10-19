@@ -70,7 +70,7 @@ const STEP_BY_TOOL: Readonly<Record<string, AgentStepKind>> = {
   browser_human_waiting: 'askYou'
 }
 
-const INSPECT_TOOL = /^browser_(?:console|network|issues|performance|accessibility_audit|quality_audit|design_overview|page_metadata|security|react|code_coverage|cpu_profile|memory|debug_report|dom_changes|live_region|css_state_preview|element_inspect|image_state|media_state|generate_locator|storage|indexeddb|pwa|diagnostic_logs|site_data|downloads)/u
+const INSPECT_TOOL = /^browser_(?:console|network|issues|performance|accessibility_audit|quality_audit|design_overview|page_metadata|security|react|code_coverage|cpu_profile|memory|debug_report|dom_changes|live_region|css_state_preview|element_inspect|computed_accessibility|image_state|media_state|generate_locator|storage|indexeddb|pwa|diagnostic_logs|site_data|downloads)/u
 
 export function agentStepKind(toolName: string): AgentStepKind {
   return STEP_BY_TOOL[toolName] ?? (INSPECT_TOOL.test(toolName) ? 'inspect' : 'working')

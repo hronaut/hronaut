@@ -9,6 +9,7 @@ import {
   type ComputedAccessibilityState,
   type ComputedAccessibilityStateValue
 } from '../../../shared/computed-accessibility.js'
+import { RendererExitedError } from '../renderer-exit-guard.js'
 
 interface ComputedAccessibilityTab {
   id: string
@@ -54,8 +55,9 @@ const WORLD_NAME = 'hronaut-computed-accessibility'
 const OBJECT_GROUP = 'hronaut-computed-accessibility'
 const PAGE_CHANGED = 'The page or the element changed while its computed accessibility was read; read it again'
 const TOO_MUCH_TEXT = `The element and the text its name, description and value may draw on exceed ${COMPUTED_ACCESSIBILITY_LIMITS.maxTextChars.toLocaleString('en-US')} characters or ${COMPUTED_ACCESSIBILITY_LIMITS.maxElements.toLocaleString('en-US')} elements, so Hronaut did not ask Chromium; choose a smaller element`
-const EXCEEDED_BOUND = 'Chromium computed more text for this element than Hronaut could count in the page, such as text in a closed shadow root, so nothing was returned'
-const ROLE_PATTERN = new RegExp(`^[A-Za-z][A-Za-z0-9]{0,${COMPUTED_ACCESSIBILITY_LIMITS.maxRoleChars - 1}}$`)
+const EXCEEDED_BOUND = 'Chromium computed more text for this element than Hronaut could count in the page, such as text in a closed shadow root or set through a custom element\'s internals, so nothing was returned'
+// ARIA role names include hyphenated ones such as doc-chapter and graphics-document.
+const ROLE_PATTERN = new RegExp(`^[A-Za-z][A-Za-z0-9-]{0,${COMPUTED_ACCESSIBILITY_LIMITS.maxRoleChars - 1}}$`)
 const TOKEN_PATTERN = new RegExp(`^[a-z][A-Za-z-]{0,${COMPUTED_ACCESSIBILITY_LIMITS.maxTokenChars - 1}}$`)
 const IGNORED_REASONS = new Set<string>(COMPUTED_ACCESSIBILITY_IGNORED_REASONS)
 const STATE_NAMES = Object.keys(COMPUTED_ACCESSIBILITY_STATES) as ComputedAccessibilityState[]
@@ -65,32 +67,38 @@ const MAX_LIST_ENTRIES = 64
 /**
  * Counts, in an isolated world, the text Chromium may draw on for the
  * element's name, description and value: its subtree with open shadow trees,
- * every attribute, form values, generated content, its labels and the
- * elements it references. Closed shadow trees are out of reach here; the
- * answer is checked against this count afterwards for that reason. It stops
- * counting once either limit is passed.
+ * text and CDATA, attributes other than class and style, form values,
+ * generated content, its labels, and for every element it visits the elements
+ * named by aria-labelledby, aria-describedby and aria-owns (as attributes or
+ * as element references) and by popover and interest targets. Closed shadow
+ * trees and a custom element's internals are out of reach here; the answer is
+ * checked against this count afterwards for that reason. It stops counting
+ * once either limit is passed.
  */
 const TEXT_BOUND_FUNCTION = `function (maxChars, maxElements) {
   let chars = 0, elements = 0
   const seen = new Set([this]), stack = [this]
   const add = node => { if (node && !seen.has(node)) { seen.add(node); stack.push(node) } }
-  const root = this.getRootNode()
-  for (const name of ['aria-labelledby', 'aria-describedby', 'aria-owns']) {
-    for (const id of (this.getAttribute(name) || '').split(/\\s+/)) if (id && root.getElementById) add(root.getElementById(id))
-  }
   for (const label of this.labels || []) add(label)
   while (stack.length && chars <= maxChars && elements <= maxElements) {
     const node = stack.pop()
-    if (node.nodeType === Node.TEXT_NODE) { chars += node.data.length; continue }
+    if (node.nodeType === Node.TEXT_NODE || node.nodeType === Node.CDATA_SECTION_NODE) { chars += node.data.length; continue }
     if (node.nodeType === Node.ELEMENT_NODE) {
       elements++
-      for (const attribute of node.attributes) chars += attribute.value.length
+      for (const attribute of node.attributes) if (attribute.name !== 'class' && attribute.name !== 'style') chars += attribute.value.length
       if (typeof node.value === 'string') chars += node.value.length
       for (const pseudo of ['::before', '::after', '::marker']) {
         const content = getComputedStyle(node, pseudo).content
         if (content && content !== 'none' && content !== 'normal') chars += content.length
       }
       if (node.shadowRoot) add(node.shadowRoot)
+      const root = node.getRootNode()
+      for (const name of ['aria-labelledby', 'aria-describedby', 'aria-owns']) {
+        for (const id of (node.getAttribute(name) || '').split(/\\s+/)) if (id && root.getElementById) add(root.getElementById(id))
+      }
+      for (const property of ['ariaLabelledByElements', 'ariaDescribedByElements', 'ariaOwnsElements']) for (const element of node[property] || []) add(element)
+      add(node.popoverTargetElement)
+      add(node.interestForElement)
     } else if (node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) continue
     for (const child of node.childNodes) add(child)
   }
@@ -128,22 +136,27 @@ function readBound(response: unknown): TextBound {
   return { chars, elements }
 }
 
-/** The length of the name, description and value Chromium computed, read without copying them. */
-export function accessibleTextChars(node: AxNode): number {
-  const length = (value: unknown): number => typeof value === 'string' ? value.length : 0
-  return length(node.name?.value) + length(node.description?.value) + length(node.value?.value)
-}
-
-/** The most text Chromium may compute from what the page count saw: separators join the parts it draws on. */
+/**
+ * Whether each text Chromium computed fits what the page count saw: the name,
+ * description and value, and every text-valued property, checked one by one
+ * since Chromium can use the same text for more than one of them. Separators
+ * join the parts it draws on. Only lengths are read; nothing is copied.
+ */
 export function withinBound(node: AxNode, bound: TextBound): boolean {
-  return accessibleTextChars(node) <= bound.chars + 2 * bound.elements + 256
+  const most = bound.chars + 2 * bound.elements + 256
+  const fits = (value: unknown): boolean => typeof value !== 'string' || value.length <= most
+  const properties = Array.isArray(node.properties) ? node.properties.slice(0, MAX_LIST_ENTRIES) : []
+  return fits(node.name?.value) && fits(node.description?.value) && fits(node.value?.value)
+    && properties.every(property => fits((property as { value?: { value?: unknown } } | null)?.value?.value))
 }
 
 function stateValue(type: string, value: { type?: unknown; value?: unknown } | undefined): ComputedAccessibilityStateValue | undefined {
   const raw = value?.value
   switch (type) {
     case 'boolean':
-      return (value?.type === 'boolean' || value?.type === 'booleanOrUndefined') && typeof raw === 'boolean' ? raw : undefined
+      // Chromium 152 sends some booleans, such as busy, as 1 or 0.
+      return (value?.type === 'boolean' || value?.type === 'booleanOrUndefined') && (typeof raw === 'boolean' || raw === 0 || raw === 1)
+        ? Boolean(raw) : undefined
     case 'tristate':
       return value?.type === 'tristate' && (typeof raw === 'boolean' || raw === 'mixed') ? raw
         : value?.type === 'tristate' && (raw === 'true' || raw === 'false') ? raw === 'true' : undefined
@@ -231,19 +244,21 @@ export class ComputedAccessibilityReader<T extends ComputedAccessibilityTab> {
         const { frameTree } = await send<{ frameTree: { frame: { id: string; loaderId: string } } }>('Page.getFrameTree')
         return { id: frameTree.frame.id, loaderId: frameTree.frame.loaderId }
       }
-      let resolved = false
+      let resolved = false, askedChromium = false
       try {
         const main = await mainFrame()
         await send('DOM.enable')
         const document = await send<{ root: { nodeId: number } }>('DOM.getDocument', { depth: 0, pierce: false })
-        const find = async (): Promise<number[]> => {
+        const find = async (first: boolean): Promise<number[]> => {
           try {
             return (await send<{ nodeIds: number[] }>('DOM.querySelectorAll', { nodeId: document.root.nodeId, selector })).nodeIds
           } catch (error) {
-            throw new Error('The selector is not valid CSS', { cause: error })
+            if (error instanceof RendererExitedError) throw error
+            // A selector that worked once fails again only because the document it was found in is gone.
+            throw new Error(first ? 'The selector is not valid CSS' : PAGE_CHANGED, { cause: error })
           }
         }
-        const nodeIds = await find()
+        const nodeIds = await find(true)
         if (nodeIds.length !== 1) {
           throw new Error(nodeIds.length ? 'The target matches more than one element; use a ref or a selector that identifies exactly one element'
             : 'No element in the top-level document matches the target; take a fresh snapshot or check the selector')
@@ -267,6 +282,7 @@ export class ComputedAccessibilityReader<T extends ComputedAccessibilityTab> {
           throw new Error(TOO_MUCH_TEXT)
         }
         current()
+        askedChromium = true
         const answer = await send<{ nodes?: unknown }>('Accessibility.getPartialAXTree', { backendNodeId: node.backendNodeId, fetchRelatives: false })
         const axNode = Array.isArray(answer.nodes)
           ? answer.nodes.slice(0, MAX_LIST_ENTRIES).find((candidate: AxNode | null) => candidate?.backendDOMNodeId === node.backendNodeId) as AxNode | undefined
@@ -275,14 +291,19 @@ export class ComputedAccessibilityReader<T extends ComputedAccessibilityTab> {
         if (!withinBound(axNode, bound)) throw new Error(EXCEEDED_BOUND)
         const report = projectComputedAccessibility(axNode)
         // The same element of the same document, or nothing.
-        const after = await find()
+        const after = await find(false)
         if (after.length !== 1 || after[0] !== nodeId || (await mainFrame()).loaderId !== main.loaderId) throw new Error(PAGE_CHANGED)
         current()
         return report
       } finally {
         if (!contents.isDestroyed() && contents.debugger.isAttached()) {
           if (resolved) await contents.debugger.sendCommand('Runtime.releaseObjectGroup', { objectGroup: OBJECT_GROUP }).catch(() => undefined)
-          await contents.debugger.sendCommand('Accessibility.disable').catch(() => undefined)
+          if (askedChromium) {
+            // The read leaves the document's accessibility tree on, kept up to date on every change. Chromium 152
+            // releases it only when disabling a domain it enabled, so it is enabled first; no events follow either.
+            await contents.debugger.sendCommand('Accessibility.enable').catch(() => undefined)
+            await contents.debugger.sendCommand('Accessibility.disable').catch(() => undefined)
+          }
           if (!keepDomEnabled) await contents.debugger.sendCommand('DOM.disable').catch(() => undefined)
         }
       }

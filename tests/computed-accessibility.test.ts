@@ -5,6 +5,7 @@ import {
   projectComputedAccessibility,
   withinBound
 } from '../src/main/browser/computed-accessibility/computed-accessibility.js'
+import { RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 import { COMPUTED_ACCESSIBILITY_LIMITS, COMPUTED_ACCESSIBILITY_STATES } from '../src/shared/computed-accessibility.js'
 
 const ORIGIN = 'http://localhost:3000'
@@ -60,11 +61,14 @@ describe('computed accessibility projection', () => {
         { name: 'checked', value: { type: 'tristate', value: 'true' } },
         { name: 'selected', value: { type: 'string', value: 'CANARY_VALUE' } },
         { name: 'level', value: { type: 'integer', value: 2 } },
-        { name: 'hasPopup', value: { type: 'token', value: 'CANARY VALUE with spaces' } }
+        { name: 'hasPopup', value: { type: 'token', value: 'CANARY VALUE with spaces' } },
+        // As Chromium 152 sends aria-busy.
+        { name: 'busy', value: { type: 'boolean', value: 1 } },
+        { name: 'modal', value: { type: 'boolean', value: 2 } }
       ]
     }))
-    expect(report.states).toEqual({ expanded: false, pressed: 'mixed', checked: true, level: 2 })
-    expect(report.unsupported).toEqual(['selected', 'hasPopup'])
+    expect(report.states).toEqual({ expanded: false, pressed: 'mixed', checked: true, level: 2, busy: true })
+    expect(report.unsupported).toEqual(['selected', 'hasPopup', 'modal'])
     expect(report.notReported).toContain('readonly')
     expect(report.notReported).not.toContain('expanded')
     expect(JSON.stringify(report)).not.toContain('CANARY')
@@ -86,16 +90,23 @@ describe('computed accessibility projection', () => {
     expect(JSON.stringify(report)).not.toContain('CANARY')
   })
 
-  it('replaces a role that is not a plain token', () => {
+  it('replaces a role that is not a plain role name, keeping hyphenated ARIA roles', () => {
+    expect(projectComputedAccessibility({ role: { value: 'doc-chapter' } }).role).toBe('doc-chapter')
+    expect(projectComputedAccessibility({ role: { value: 'graphics-document' } }).role).toBe('graphics-document')
     expect(projectComputedAccessibility({ role: { value: 'CANARY NAME <b>' } }).role).toBe('unknown')
     expect(projectComputedAccessibility({ role: { value: 'x'.repeat(65) } }).role).toBe('unknown')
     expect(projectComputedAccessibility({}).role).toBe('unknown')
   })
 
-  it('accepts names, descriptions and values within what the page count saw, with room for separators', () => {
+  it('checks the name, description, value and text properties one by one against what the page count saw', () => {
     const bound = { chars: 10, elements: 2 }
     expect(withinBound({ name: { value: 'n'.repeat(10 + 4 + 256) } }, bound)).toBe(true)
-    expect(withinBound({ name: { value: 'n'.repeat(200) }, value: { value: 'v'.repeat(71) } }, bound)).toBe(false)
+    expect(withinBound({ name: { value: 'n'.repeat(10 + 4 + 257) } }, bound)).toBe(false)
+    expect(withinBound({ value: { value: 'v'.repeat(271) } }, bound)).toBe(false)
+    expect(withinBound({ properties: [{ name: 'roledescription', value: { type: 'string', value: 'r'.repeat(271) } }] }, bound)).toBe(false)
+    // One label used as both name and description is counted once in the page and returned twice.
+    const label = 'l'.repeat(300)
+    expect(withinBound({ name: { value: label }, description: { value: label } }, { chars: 304, elements: 2 })).toBe(true)
   })
 })
 
@@ -155,7 +166,8 @@ describe('computed accessibility reader', () => {
     expect(fake.sent.find(command => command.method === 'Page.createIsolatedWorld')?.params).toMatchObject({ frameId: 'main', grantUniveralAccess: false })
     expect(fake.sent.find(command => command.method === 'DOM.resolveNode')?.params).toMatchObject({ backendNodeId: 7, executionContextId: 9 })
     expect(fake.sent.find(command => command.method === 'Accessibility.getPartialAXTree')?.params).toEqual({ backendNodeId: 7, fetchRelatives: false })
-    expect(methods.slice(-3)).toEqual(['Runtime.releaseObjectGroup', 'Accessibility.disable', 'DOM.disable'])
+    // Chromium 152 releases the accessibility tree the read created only on disabling a domain it enabled.
+    expect(methods.slice(-4)).toEqual(['Runtime.releaseObjectGroup', 'Accessibility.enable', 'Accessibility.disable', 'DOM.disable'])
   })
 
   it('resolves a ref through the attribute snapshots set, escaped character by character', async () => {
@@ -169,8 +181,8 @@ describe('computed accessibility reader', () => {
       const fake = page()
       fake.answer('Runtime.callFunctionOn', () => ({ result: { value: counted } }))
       await expect(reader().read(fake.tab, { selector: '#big' }, allowed)).rejects.toThrow(/exceed 100,000 characters or 5,000 elements/)
-      expect(fake.methods()).not.toContain('Accessibility.getPartialAXTree')
-      expect(fake.methods().slice(-3)).toEqual(['Runtime.releaseObjectGroup', 'Accessibility.disable', 'DOM.disable'])
+      expect(fake.methods().filter(method => method.startsWith('Accessibility.'))).toEqual([])
+      expect(fake.methods().slice(-2)).toEqual(['Runtime.releaseObjectGroup', 'DOM.disable'])
     }
   })
 
@@ -236,7 +248,31 @@ describe('computed accessibility reader', () => {
     }).catch((error: Error) => error)
     expect((failure as Error).message).toBe('Capability revoked')
     expect(revoked.methods()).toContain('Accessibility.getPartialAXTree')
-    expect(revoked.methods().slice(-3)).toEqual(['Runtime.releaseObjectGroup', 'Accessibility.disable', 'DOM.disable'])
+    expect(revoked.methods().slice(-4)).toEqual(['Runtime.releaseObjectGroup', 'Accessibility.enable', 'Accessibility.disable', 'DOM.disable'])
+
+    // Revoked before Chromium is asked: it never is.
+    const early = page()
+    let checks = 0
+    await expect(reader().read(early.tab, { selector: '#x' }, {
+      assertCurrent: () => { if (++checks === 3) throw new Error('Capability revoked') }
+    })).rejects.toThrow('Capability revoked')
+    expect(early.methods()).toContain('Runtime.callFunctionOn')
+    expect(early.methods().filter(method => method.startsWith('Accessibility.'))).toEqual([])
+  })
+
+  it('blames the selector only when its first use fails, and keeps a renderer exit as it is', async () => {
+    const invalid = page()
+    invalid.answer('DOM.querySelectorAll', () => { throw new Error('DOM Error while querying') })
+    await expect(reader().read(invalid.tab, { selector: 'button[' }, allowed)).rejects.toThrow('The selector is not valid CSS')
+
+    const navigated = page()
+    let finds = 0
+    navigated.answer('DOM.querySelectorAll', () => { if (++finds > 1) throw new Error('Could not find node with given id'); return { nodeIds: [5] } })
+    await expect(reader().read(navigated.tab, { selector: '#x' }, allowed)).rejects.toThrow(/changed/)
+
+    const exited = page()
+    exited.answer('DOM.querySelectorAll', () => { throw new RendererExitedError(false) })
+    await expect(reader().read(exited.tab, { selector: '#x' }, allowed)).rejects.toBeInstanceOf(RendererExitedError)
   })
 
   it('refuses while another debugger use needs the DOM bindings, and keeps the DOM domain for one that needs it', async () => {
