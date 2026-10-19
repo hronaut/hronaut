@@ -62,7 +62,10 @@ export const enUSAppErrors = {
     "otherWorkspace": "Tabs can only be reordered within the same workspace",
     "homeNotDuplicated": "Hronaut Home cannot be duplicated",
     "homeInAgentWorkspace": "Hronaut Home is a human application page and cannot be added to an agent workspace.",
-    "workspaceCleanupFailed": "The new tab failed and its workspace could not be cleaned up. The workspace remains available for recovery."
+    "workspaceCleanupFailed": "The new tab failed and its workspace could not be cleaned up. The workspace remains available for recovery.",
+    "labelBusy": "Wait for the tab operation to finish before editing its label.",
+    "labelsPending": "Wait for pending label edits to finish.",
+    "homeNotLabeled": "Hronaut Home cannot be labeled."
   },
   "page": {
     "rendererExitedDuringAction": "The page stopped during this action because its renderer exited; its effects are unknown. Reload or close the tab, then inspect fresh state.",
@@ -79,6 +82,10 @@ export const enUSAppErrors = {
     "offline": "The device appears to be offline ({code}).",
     "timedOut": "The website took too long to respond ({code}).",
     "connectionReset": "The connection was reset while loading the page ({code}).",
+    "nameResolutionFailed": "The website address could not be looked up ({code}).",
+    "addressUnreachable": "The address could not be reached ({code}).",
+    "connectionClosed": "The connection closed before the page was received ({code}).",
+    "emptyResponse": "The website sent no data ({code}).",
     "certificate": "Hronaut does not trust this website’s security certificate ({code})."
   },
   "navigation": {
@@ -93,6 +100,7 @@ export const enUSAppErrors = {
   },
   "workspace": {
     "unavailable": "The workspace is no longer available.",
+    "archivedUnavailable": "The archived workspace is no longer available.",
     "busyArchiving": "Workspace \"{name}\" is busy archiving the workspace. Try again after that operation finishes.",
     "busyClosing": "Workspace \"{name}\" is busy closing the workspace. Try again after that operation finishes.",
     "busyForking": "Workspace \"{name}\" is busy forking workspace data. Try again after that operation finishes.",

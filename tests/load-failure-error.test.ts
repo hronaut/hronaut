@@ -17,11 +17,15 @@ function electronLoadError(code: string, errno: number, url: string): Error {
 describe('a failed page load as a person reads it', () => {
   it.each([
     ['ERR_NAME_NOT_RESOLVED', -105, 'Не вдалося знайти адресу сайту (ERR_NAME_NOT_RESOLVED).'],
-    ['ERR_CONNECTION_REFUSED', -102, 'Не вдалося підключитися до сайту (ERR_CONNECTION_REFUSED).'],
+    ['ERR_CONNECTION_REFUSED', -102, 'Сайт відхилив з’єднання (ERR_CONNECTION_REFUSED).'],
     ['ERR_INTERNET_DISCONNECTED', -106, 'Схоже, пристрій не в мережі (ERR_INTERNET_DISCONNECTED).'],
     ['ERR_TIMED_OUT', -7, 'Сайт надто довго не відповідав (ERR_TIMED_OUT).'],
     ['ERR_CONNECTION_TIMED_OUT', -118, 'Сайт надто довго не відповідав (ERR_CONNECTION_TIMED_OUT).'],
     ['ERR_CONNECTION_RESET', -101, 'З’єднання скинуто під час завантаження сторінки (ERR_CONNECTION_RESET).'],
+    ['ERR_NAME_RESOLUTION_FAILED', -137, 'Не вдалося визначити адресу сайту (ERR_NAME_RESOLUTION_FAILED).'],
+    ['ERR_ADDRESS_UNREACHABLE', -109, 'Не вдалося зв’язатися з адресою (ERR_ADDRESS_UNREACHABLE).'],
+    ['ERR_CONNECTION_CLOSED', -100, 'З’єднання закрилося до отримання сторінки (ERR_CONNECTION_CLOSED).'],
+    ['ERR_EMPTY_RESPONSE', -324, 'Сайт не надіслав жодних даних (ERR_EMPTY_RESPONSE).'],
     ['ERR_CERT_AUTHORITY_INVALID', -202, 'Hronaut не довіряє сертифікату безпеки цього сайту (ERR_CERT_AUTHORITY_INVALID).'],
     ['ERR_CERT_DATE_INVALID', -201, 'Hronaut не довіряє сертифікату безпеки цього сайту (ERR_CERT_DATE_INVALID).']
   ] as const)('names %s in a sentence and keeps Electron’s error for agents', (code, errno, inUkrainian) => {
@@ -38,9 +42,20 @@ describe('a failed page load as a person reads it', () => {
     expect(inEnglish).not.toContain('private.example')
   })
 
-  it('reads the code from the message when the error carries none', () => {
+  it('reads the code from the message when the error carries none, and adds no details Electron did not give', () => {
     const failure = localizedLoadFailure(new Error("ERR_NAME_NOT_RESOLVED (-105) loading 'https://example.invalid/'"))
     expect(personErrorMessage(failure, ukrainian)).toBe('Не вдалося знайти адресу сайту (ERR_NAME_NOT_RESOLVED).')
+    expect(['code', 'errno', 'url'].filter((detail) => Object.hasOwn(failure as object, detail))).toEqual([])
+  })
+
+  it.each([
+    ['ERR_CERT_DATABASE_CHANGED', -714],
+    ['ERR_CERT_VERIFIER_CHANGED', -716]
+  ] as const)('does not call %s an untrusted site certificate', (code, errno) => {
+    // These report that the certificate store or verifier changed, not a problem with the site's certificate.
+    const raw = electronLoadError(code, errno, 'https://example.test/')
+    expect(localizedLoadFailure(raw)).toBe(raw)
+    expect(personErrorMessage(localizedLoadFailure(raw), ukrainian)).toBe(`${code} (${errno}) loading 'https://example.test/'`)
   })
 
   it('leaves an unknown code, any other error and a translated error as they are', () => {
@@ -86,7 +101,7 @@ describe('a failed address bar load', () => {
     const shown = (url: string) => Promise.resolve(handlers.get('browser:navigate')!({ senderFrame: { url } } as unknown as IpcMainInvokeEvent))
       .catch((error: unknown) => (error as Error).message)
 
-    await expect(shown(SHELL_URL)).resolves.toBe('Не вдалося підключитися до сайту (ERR_CONNECTION_REFUSED).')
+    await expect(shown(SHELL_URL)).resolves.toBe('Сайт відхилив з’єднання (ERR_CONNECTION_REFUSED).')
     await expect(shown('https://site.example/')).resolves.toBe("ERR_CONNECTION_REFUSED (-102) loading 'http://127.0.0.1:3000/temporarily-unavailable'")
     // The English shell notice keeps the code the shell's own test looks for.
     expect(personErrorMessage(thrown, english)).toBe('The website refused the connection (ERR_CONNECTION_REFUSED).')

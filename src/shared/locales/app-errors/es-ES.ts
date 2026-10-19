@@ -38,8 +38,8 @@ export const esESAppErrors: AppErrorMessages = {
   "splitView": {
     "sameTab": "Elige otra pestaña para la vista dividida.",
     "home": "El inicio de Hronaut no se puede abrir en la vista dividida.",
-    "currentUnavailable": "La pestaña actual ya no funciona. Ciérrala y vuelve a abrirla desde Cerradas recientemente.",
-    "selectedUnavailable": "La pestaña seleccionada ya no funciona. Ciérrala y vuelve a abrirla desde Cerradas recientemente.",
+    "currentUnavailable": "La pestaña actual ya no funciona. Ciérrala y vuelve a abrirla desde «Cerradas recientemente».",
+    "selectedUnavailable": "La pestaña seleccionada ya no funciona. Ciérrala y vuelve a abrirla desde «Cerradas recientemente».",
     "notOpen": "La vista dividida no está abierta."
   },
   "clipboard": {
@@ -51,7 +51,7 @@ export const esESAppErrors: AppErrorMessages = {
   },
   "tabs": {
     "noActiveTab": "No hay ninguna pestaña activa.",
-    "rendererUnavailable": "Esta pestaña ya no responde. Ciérrala y vuelve a abrirla desde Cerradas recientemente.",
+    "rendererUnavailable": "Esta pestaña ya no responde. Ciérrala y vuelve a abrirla desde «Cerradas recientemente».",
     "limit": "Se alcanzó el límite de pestañas ({max}).",
     "homeNotPinned": "El inicio de Hronaut no se puede fijar.",
     "homeNotReordered": "El inicio de Hronaut no se puede mover.",
@@ -59,7 +59,10 @@ export const esESAppErrors: AppErrorMessages = {
     "otherWorkspace": "Las pestañas solo se pueden reordenar dentro del mismo espacio de trabajo.",
     "homeNotDuplicated": "El inicio de Hronaut no se puede duplicar.",
     "homeInAgentWorkspace": "El inicio de Hronaut es una página de la aplicación para personas y no se puede añadir a un espacio de trabajo de agente.",
-    "workspaceCleanupFailed": "No se pudo abrir la nueva pestaña ni limpiar su espacio de trabajo. El espacio de trabajo sigue disponible para recuperarlo."
+    "workspaceCleanupFailed": "No se pudo abrir la nueva pestaña ni limpiar su espacio de trabajo. El espacio de trabajo sigue disponible para recuperarlo.",
+    "labelBusy": "Espera a que termine la operación de la pestaña antes de editar su etiqueta.",
+    "labelsPending": "Espera a que terminen los cambios de etiqueta pendientes.",
+    "homeNotLabeled": "No se puede poner una etiqueta al inicio de Hronaut."
   },
   "page": {
     "rendererExitedDuringAction": "La página se detuvo durante esta acción porque su proceso terminó; se desconocen sus efectos. Recarga o cierra la pestaña y comprueba su estado actual.",
@@ -76,12 +79,16 @@ export const esESAppErrors: AppErrorMessages = {
     "offline": "Parece que el dispositivo no tiene conexión ({code}).",
     "timedOut": "El sitio web tardó demasiado en responder ({code}).",
     "connectionReset": "La conexión se restableció al cargar la página ({code}).",
+    "nameResolutionFailed": "No se pudo consultar la dirección del sitio web ({code}).",
+    "addressUnreachable": "No se pudo acceder a la dirección ({code}).",
+    "connectionClosed": "La conexión se cerró antes de recibir la página ({code}).",
+    "emptyResponse": "El sitio web no envió ningún dato ({code}).",
     "certificate": "Hronaut no confía en el certificado de seguridad de este sitio web ({code})."
   },
   "navigation": {
     "homeInAgentWorkspace": "El inicio de Hronaut es una página de la aplicación para personas y no se puede abrir en un espacio de trabajo de agente.",
     "agentSchemes": "Los espacios de trabajo de agentes no pueden abrir direcciones del navegador locales, privilegiadas ni con credenciales.",
-    "originBlocked": "La navegación a {origin} está bloqueada en este espacio de trabajo. Permite este origen en la configuración Acceso a sitios del espacio de trabajo de confianza.",
+    "originBlocked": "La navegación a {origin} está bloqueada en este espacio de trabajo. Permite este origen en la configuración «Acceso a sitios» del espacio de trabajo de confianza.",
     "observerOrigin": "El origen de un observador público no se puede cambiar ni ampliar.",
     "recoveryRunning": "La pestaña ya se está recuperando.",
     "recoveryPageChanged": "La página cambió mientras se recuperaba la pestaña.",
@@ -90,6 +97,7 @@ export const esESAppErrors: AppErrorMessages = {
   },
   "workspace": {
     "unavailable": "El espacio de trabajo ya no está disponible.",
+    "archivedUnavailable": "El espacio de trabajo archivado ya no está disponible.",
     "busyArchiving": "El espacio de trabajo «{name}» se está archivando. Vuelve a intentarlo cuando termine la operación.",
     "busyClosing": "El espacio de trabajo «{name}» se está cerrando. Vuelve a intentarlo cuando termine la operación.",
     "busyForking": "Se está creando una copia del espacio de trabajo «{name}». Vuelve a intentarlo cuando termine la operación.",

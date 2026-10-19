@@ -160,7 +160,7 @@ export async function setTabSleepingFromContextMenu<Tab extends TabSleepTab>(acc
 
 /** Puts every tab of the workspace that may sleep to sleep, skipping the others. */
 export async function sleepWorkspaceTabs<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, groupId: string): Promise<void> {
-  if (!access.mcpTabGroups().has(groupId)) throw new Error(`Unknown workspace: ${groupId}`)
+  if (!access.mcpTabGroups().has(groupId)) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}` })
   const workspaceTabs = [...access.tabs()].filter((tab) => tab.mcpGroupId === groupId)
   for (const tab of workspaceTabs) await putTabToSleep(access, tab, false)
 }

@@ -1,5 +1,6 @@
 import { normalizeTabLabel } from '../../../shared/tab-label.js'
 import type { BrowserState } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { TabLabelsAccess, TabLabelsTab } from './tab-labels-access.js'
 
@@ -17,8 +18,8 @@ export async function withTabLabelLifecycle<Tab extends TabLabelsTab, T>(access:
 
 /** Throws unless a label edit may start now: restored, not shutting down, no label-bearing operation held and fewer than eight saves pending. */
 export function assertTabLabelAdmission<Tab extends TabLabelsTab>(access: TabLabelsAccess<Tab>): void {
-  if (!access.initialized() || access.isDestroyed() || access.tabLabelAdmissionClosed() || access.tabLabelLifecycleHolds()) throw new Error('Wait for the tab operation to finish before editing its label.')
-  if (access.pendingTabLabels().size >= 8) throw new Error('Wait for pending label edits to finish.')
+  if (!access.initialized() || access.isDestroyed() || access.tabLabelAdmissionClosed() || access.tabLabelLifecycleHolds()) throw new LocalizedError('appErrors.tabs.labelBusy')
+  if (access.pendingTabLabels().size >= 8) throw new LocalizedError('appErrors.tabs.labelsPending')
 }
 
 /**
@@ -30,9 +31,9 @@ export async function saveTabLabel<Tab extends TabLabelsTab>(access: TabLabelsAc
   const label = normalizeTabLabel(value)
   assertTabLabelAdmission(access)
   const tab = access.getTab(tabId)
-  if (isHronautHomeUrl(tab.url)) throw new Error('Hronaut Home cannot be labeled.')
+  if (isHronautHomeUrl(tab.url)) throw new LocalizedError('appErrors.tabs.homeNotLabeled')
   const validate = (): void => {
-    if (access.isDestroyed() || access.findTab(tabId) !== tab) throw new Error('The tab is no longer available.')
+    if (access.isDestroyed() || access.findTab(tabId) !== tab) throw new LocalizedError('native.errors.tabUnavailable')
     validateAuthority?.()
   }
   let committed = false

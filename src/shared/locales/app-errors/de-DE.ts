@@ -59,7 +59,10 @@ export const deDEAppErrors: AppErrorMessages = {
     "otherWorkspace": "Tabs können nur innerhalb desselben Arbeitsbereichs neu angeordnet werden.",
     "homeNotDuplicated": "Die Hronaut-Startseite kann nicht dupliziert werden.",
     "homeInAgentWorkspace": "Die Hronaut-Startseite ist eine Anwendungsseite für Menschen und kann keinem Agenten-Arbeitsbereich hinzugefügt werden.",
-    "workspaceCleanupFailed": "Der neue Tab konnte nicht geöffnet werden, und sein Arbeitsbereich konnte nicht aufgeräumt werden. Der Arbeitsbereich bleibt für die Wiederherstellung verfügbar."
+    "workspaceCleanupFailed": "Der neue Tab konnte nicht geöffnet werden, und sein Arbeitsbereich konnte nicht aufgeräumt werden. Der Arbeitsbereich bleibt für die Wiederherstellung verfügbar.",
+    "labelBusy": "Warten Sie, bis der Tab-Vorgang abgeschlossen ist, bevor Sie sein Label bearbeiten.",
+    "labelsPending": "Warten Sie, bis die ausstehenden Label-Änderungen abgeschlossen sind.",
+    "homeNotLabeled": "Die Hronaut-Startseite kann kein Label erhalten."
   },
   "page": {
     "rendererExitedDuringAction": "Die Seite wurde während dieser Aktion angehalten, weil ihr Prozess beendet wurde; die Auswirkungen sind unbekannt. Laden Sie den Tab neu oder schließen Sie ihn, und prüfen Sie dann seinen aktuellen Zustand.",
@@ -76,6 +79,10 @@ export const deDEAppErrors: AppErrorMessages = {
     "offline": "Das Gerät scheint offline zu sein ({code}).",
     "timedOut": "Die Antwort der Website hat zu lange gedauert ({code}).",
     "connectionReset": "Die Verbindung wurde beim Laden der Seite zurückgesetzt ({code}).",
+    "nameResolutionFailed": "Die Website-Adresse konnte nicht ermittelt werden ({code}).",
+    "addressUnreachable": "Die Adresse konnte nicht erreicht werden ({code}).",
+    "connectionClosed": "Die Verbindung wurde geschlossen, bevor die Seite empfangen wurde ({code}).",
+    "emptyResponse": "Die Website hat keine Daten gesendet ({code}).",
     "certificate": "Hronaut vertraut dem Sicherheitszertifikat dieser Website nicht ({code})."
   },
   "navigation": {
@@ -90,11 +97,12 @@ export const deDEAppErrors: AppErrorMessages = {
   },
   "workspace": {
     "unavailable": "Der Arbeitsbereich ist nicht mehr verfügbar.",
+    "archivedUnavailable": "Der archivierte Arbeitsbereich ist nicht mehr verfügbar.",
     "busyArchiving": "Der Arbeitsbereich „{name}“ wird gerade archiviert. Versuchen Sie es erneut, sobald der Vorgang abgeschlossen ist.",
     "busyClosing": "Der Arbeitsbereich „{name}“ wird gerade geschlossen. Versuchen Sie es erneut, sobald der Vorgang abgeschlossen ist.",
     "busyForking": "Vom Arbeitsbereich „{name}“ wird gerade eine Kopie erstellt. Versuchen Sie es erneut, sobald der Vorgang abgeschlossen ist.",
     "busyRestoring": "Der Arbeitsbereich „{name}“ wird gerade aus dem Archiv wiederhergestellt. Versuchen Sie es erneut, sobald der Vorgang abgeschlossen ist.",
-    "busyClearingData": "Im Arbeitsbereich „{name}“ werden gerade Websitedaten gelöscht. Versuchen Sie es erneut, sobald der Vorgang abgeschlossen ist.",
+    "busyClearingData": "Im Arbeitsbereich „{name}“ werden gerade Website-Daten gelöscht. Versuchen Sie es erneut, sobald der Vorgang abgeschlossen ist.",
     "busyMovingData": "Die Daten des Arbeitsbereichs „{name}“ werden gerade verschoben. Versuchen Sie es erneut, sobald der Vorgang abgeschlossen ist.",
     "busyCopyingData": "Die Daten des Arbeitsbereichs „{name}“ werden gerade kopiert. Versuchen Sie es erneut, sobald der Vorgang abgeschlossen ist.",
     "busyImportingCookies": "In den Arbeitsbereich „{name}“ werden gerade Browser-Cookies importiert. Versuchen Sie es erneut, sobald der Vorgang abgeschlossen ist."

@@ -38,8 +38,8 @@ export const frFRAppErrors: AppErrorMessages = {
   "splitView": {
     "sameTab": "Choisissez un autre onglet pour la vue fractionnée.",
     "home": "L’accueil Hronaut ne peut pas être ouvert en vue fractionnée.",
-    "currentUnavailable": "L’onglet actuel ne fonctionne plus. Fermez-le et rouvrez-le depuis Fermés récemment.",
-    "selectedUnavailable": "L’onglet sélectionné ne fonctionne plus. Fermez-le et rouvrez-le depuis Fermés récemment.",
+    "currentUnavailable": "L’onglet actuel ne fonctionne plus. Fermez-le et rouvrez-le depuis « Fermés récemment ».",
+    "selectedUnavailable": "L’onglet sélectionné ne fonctionne plus. Fermez-le et rouvrez-le depuis « Fermés récemment ».",
     "notOpen": "La vue fractionnée n’est pas ouverte."
   },
   "clipboard": {
@@ -51,15 +51,18 @@ export const frFRAppErrors: AppErrorMessages = {
   },
   "tabs": {
     "noActiveTab": "Aucun onglet n’est actif.",
-    "rendererUnavailable": "Cet onglet ne répond plus. Fermez-le et rouvrez-le depuis Fermés récemment.",
+    "rendererUnavailable": "Cet onglet ne répond plus. Fermez-le et rouvrez-le depuis « Fermés récemment ».",
     "limit": "Limite d’onglets atteinte ({max}).",
     "homeNotPinned": "L’accueil Hronaut ne peut pas être épinglé.",
     "homeNotReordered": "L’accueil Hronaut ne peut pas être déplacé.",
-    "pinnedBoundary": "Épinglez ou détachez l’onglet avant de le déplacer entre les onglets épinglés et les autres.",
+    "pinnedBoundary": "Épinglez ou désépinglez l’onglet avant de le déplacer entre les onglets épinglés et les autres.",
     "otherWorkspace": "Les onglets ne peuvent être réorganisés qu’au sein du même espace de travail.",
     "homeNotDuplicated": "L’accueil Hronaut ne peut pas être dupliqué.",
     "homeInAgentWorkspace": "L’accueil Hronaut est une page de l’application destinée aux personnes et ne peut pas être ajouté à un espace de travail d’agent.",
-    "workspaceCleanupFailed": "Le nouvel onglet n’a pas pu s’ouvrir et son espace de travail n’a pas pu être nettoyé. L’espace de travail reste disponible pour la récupération."
+    "workspaceCleanupFailed": "Le nouvel onglet n’a pas pu s’ouvrir et son espace de travail n’a pas pu être nettoyé. L’espace de travail reste disponible pour la récupération.",
+    "labelBusy": "Attendez la fin de l’opération sur l’onglet avant de modifier son libellé.",
+    "labelsPending": "Attendez la fin des modifications de libellé en cours.",
+    "homeNotLabeled": "L’accueil Hronaut ne peut pas recevoir de libellé."
   },
   "page": {
     "rendererExitedDuringAction": "La page s’est arrêtée pendant cette action, car son processus s’est terminé ; ses effets sont inconnus. Rechargez ou fermez l’onglet, puis vérifiez son état actuel.",
@@ -76,12 +79,16 @@ export const frFRAppErrors: AppErrorMessages = {
     "offline": "L’appareil semble hors ligne ({code}).",
     "timedOut": "Le site web a mis trop de temps à répondre ({code}).",
     "connectionReset": "La connexion a été réinitialisée pendant le chargement de la page ({code}).",
+    "nameResolutionFailed": "Impossible de résoudre l’adresse du site web ({code}).",
+    "addressUnreachable": "Impossible d’atteindre l’adresse ({code}).",
+    "connectionClosed": "La connexion s’est fermée avant la réception de la page ({code}).",
+    "emptyResponse": "Le site web n’a envoyé aucune donnée ({code}).",
     "certificate": "Hronaut ne fait pas confiance au certificat de sécurité de ce site web ({code})."
   },
   "navigation": {
     "homeInAgentWorkspace": "L’accueil Hronaut est une page de l’application destinée aux personnes et ne peut pas être ouvert dans un espace de travail d’agent.",
     "agentSchemes": "Les espaces de travail d’agent ne peuvent pas ouvrir d’adresses de navigateur locales, privilégiées ou contenant des identifiants.",
-    "originBlocked": "La navigation vers {origin} est bloquée dans cet espace de travail. Autorisez cette origine dans les paramètres Accès aux sites de l’espace de travail de confiance.",
+    "originBlocked": "La navigation vers {origin} est bloquée dans cet espace de travail. Autorisez cette origine dans les paramètres « Accès aux sites » de l’espace de travail de confiance.",
     "observerOrigin": "L’origine d’un observateur public ne peut être ni modifiée ni élargie.",
     "recoveryRunning": "L’onglet est déjà en cours de récupération.",
     "recoveryPageChanged": "La page a changé pendant la récupération de l’onglet.",
@@ -90,6 +97,7 @@ export const frFRAppErrors: AppErrorMessages = {
   },
   "workspace": {
     "unavailable": "L’espace de travail n’est plus disponible.",
+    "archivedUnavailable": "L’espace de travail archivé n’est plus disponible.",
     "busyArchiving": "L’espace de travail « {name} » est en cours d’archivage. Réessayez une fois l’opération terminée.",
     "busyClosing": "L’espace de travail « {name} » est en cours de fermeture. Réessayez une fois l’opération terminée.",
     "busyForking": "Une copie de l’espace de travail « {name} » est en cours de création. Réessayez une fois l’opération terminée.",

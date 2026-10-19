@@ -446,7 +446,12 @@ import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/clo
 import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
 import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from './mcp-tab-groups/mcp-tab-groups.js'
 import { setWorkspacePinned } from './mcp-tab-groups/workspace-pinning.js'
-import type { BrowserWorkspaceOperation, WorkspaceOperationsAccess } from './workspace-operations/workspace-operations-access.js'
+import type {
+  BrowserWorkspaceOperation,
+  OpenWorkspaceOperationAction,
+  WorkspaceOperationAction,
+  WorkspaceOperationsAccess
+} from './workspace-operations/workspace-operations-access.js'
 import {
   assertWorkspaceCanOpenTab,
   assertWorkspaceIdle,
@@ -1032,7 +1037,7 @@ export class BrowserTabsManager {
   private readonly deletedWorkspaceStorageIds = new Set<string>()
   private workspaceStorageCleanupBlocked = false
   private readonly savedTabGroups = this.workspaceRegistry.archived
-  private readonly workspaceOperations = new Map<string, BrowserWorkspaceOperation>()
+  private readonly workspaceOperations = new Map<string, BrowserWorkspaceOperation<OpenWorkspaceOperationAction>>()
   private readonly savedWorkspaceOperations = new Map<string, BrowserWorkspaceOperation>()
   /** A workspace the person closed with Undo on offer: archived, and deleted when Undo is gone unless kept meanwhile. */
   private closingWorkspace: { id: string; kept: boolean } | undefined
@@ -2537,7 +2542,7 @@ export class BrowserTabsManager {
 
   showWorkspaceContextMenu(groupId: string): void {
     const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}`)
+    if (!group) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}` })
     Menu.buildFromTemplate(this.workspaceContextMenuItems(group)).popup({ window: this.window })
   }
 
@@ -5258,7 +5263,7 @@ export class BrowserTabsManager {
 
   private withWorkspaceOperation<T>(
     workspaceId: string,
-    action: string,
+    action: OpenWorkspaceOperationAction,
     operation: () => Promise<T>,
     blocksNewTabs?: boolean
   ): Promise<T> {
@@ -5267,7 +5272,7 @@ export class BrowserTabsManager {
 
   private withSavedWorkspaceOperation<T>(
     savedWorkspaceId: string,
-    action: string,
+    action: WorkspaceOperationAction,
     operation: () => Promise<T>
   ): Promise<T> {
     return withSavedWorkspaceOperation(this.workspaceOperationsAccess(), savedWorkspaceId, action, operation)
@@ -5275,7 +5280,7 @@ export class BrowserTabsManager {
 
   private withWorkspaceStorageOperation<T>(
     workspaceId: string,
-    action: string,
+    action: OpenWorkspaceOperationAction,
     operation: () => Promise<T>,
     blocksNewTabs?: boolean
   ): Promise<T> {
@@ -5283,7 +5288,7 @@ export class BrowserTabsManager {
   }
 
   private withGlobalWorkspaceStorageOperation<T>(
-    action: string,
+    action: WorkspaceOperationAction,
     operation: () => Promise<T>
   ): Promise<T> {
     return withGlobalWorkspaceStorageOperation(this.workspaceOperationsAccess(), action, operation)

@@ -38,8 +38,8 @@ export const plPLAppErrors: AppErrorMessages = {
   "splitView": {
     "sameTab": "Wybierz inną kartę do widoku dzielonego.",
     "home": "Strony głównej Hronaut nie można otworzyć w widoku dzielonym.",
-    "currentUnavailable": "Bieżąca karta przestała działać. Zamknij ją i otwórz ponownie z listy Ostatnio zamknięte.",
-    "selectedUnavailable": "Wybrana karta przestała działać. Zamknij ją i otwórz ponownie z listy Ostatnio zamknięte.",
+    "currentUnavailable": "Bieżąca karta przestała działać. Zamknij ją i otwórz ponownie z listy „Ostatnio zamknięte”.",
+    "selectedUnavailable": "Wybrana karta przestała działać. Zamknij ją i otwórz ponownie z listy „Ostatnio zamknięte”.",
     "notOpen": "Widok dzielony nie jest otwarty."
   },
   "clipboard": {
@@ -51,7 +51,7 @@ export const plPLAppErrors: AppErrorMessages = {
   },
   "tabs": {
     "noActiveTab": "Brak aktywnej karty.",
-    "rendererUnavailable": "Ta karta przestała działać. Zamknij ją i otwórz ponownie z listy Ostatnio zamknięte.",
+    "rendererUnavailable": "Ta karta przestała działać. Zamknij ją i otwórz ponownie z listy „Ostatnio zamknięte”.",
     "limit": "Osiągnięto limit kart ({max}).",
     "homeNotPinned": "Strony głównej Hronaut nie można przypiąć.",
     "homeNotReordered": "Strony głównej Hronaut nie można przenosić.",
@@ -59,7 +59,10 @@ export const plPLAppErrors: AppErrorMessages = {
     "otherWorkspace": "Karty można przestawiać tylko w obrębie jednego obszaru roboczego.",
     "homeNotDuplicated": "Strony głównej Hronaut nie można zduplikować.",
     "homeInAgentWorkspace": "Strona główna Hronaut to strona aplikacji dla ludzi i nie można jej dodać do obszaru roboczego agenta.",
-    "workspaceCleanupFailed": "Nie udało się otworzyć nowej karty ani uporządkować jej obszaru roboczego. Obszar roboczy pozostaje dostępny do odzyskania."
+    "workspaceCleanupFailed": "Nie udało się otworzyć nowej karty ani uporządkować jej obszaru roboczego. Obszar roboczy pozostaje dostępny do odzyskania.",
+    "labelBusy": "Poczekaj na zakończenie operacji na karcie, zanim zmienisz jej etykietę.",
+    "labelsPending": "Poczekaj na zakończenie oczekujących zmian etykiet.",
+    "homeNotLabeled": "Stronie głównej Hronaut nie można nadać etykiety."
   },
   "page": {
     "rendererExitedDuringAction": "Strona zatrzymała się podczas tej czynności, bo jej proces się zakończył; skutki są nieznane. Odśwież lub zamknij kartę, a potem sprawdź jej bieżący stan.",
@@ -74,14 +77,18 @@ export const plPLAppErrors: AppErrorMessages = {
     "nameNotResolved": "Nie udało się znaleźć adresu witryny ({code}).",
     "connectionRefused": "Witryna odrzuciła połączenie ({code}).",
     "offline": "Urządzenie prawdopodobnie jest offline ({code}).",
-    "timedOut": "Witryna odpowiadała zbyt długo ({code}).",
+    "timedOut": "Witryna zbyt długo nie odpowiadała ({code}).",
     "connectionReset": "Połączenie zostało zresetowane podczas wczytywania strony ({code}).",
+    "nameResolutionFailed": "Nie udało się ustalić adresu witryny ({code}).",
+    "addressUnreachable": "Nie udało się uzyskać dostępu do adresu ({code}).",
+    "connectionClosed": "Połączenie zostało zamknięte przed odebraniem strony ({code}).",
+    "emptyResponse": "Witryna nie wysłała żadnych danych ({code}).",
     "certificate": "Hronaut nie ufa certyfikatowi bezpieczeństwa tej witryny ({code})."
   },
   "navigation": {
     "homeInAgentWorkspace": "Strona główna Hronaut to strona aplikacji dla ludzi i nie można jej otworzyć w obszarze roboczym agenta.",
     "agentSchemes": "Obszary robocze agentów nie mogą otwierać lokalnych ani uprzywilejowanych adresów przeglądarki ani adresów z danymi logowania.",
-    "originBlocked": "Przejście do {origin} jest zablokowane w tym obszarze roboczym. Zezwól na to źródło w ustawieniach Dostęp do witryn zaufanego obszaru roboczego.",
+    "originBlocked": "Przejście do {origin} jest zablokowane w tym obszarze roboczym. Zezwól na to źródło w ustawieniach „Dostęp do witryn” zaufanego obszaru roboczego.",
     "observerOrigin": "Źródła publicznego obserwatora nie można zmienić ani rozszerzyć.",
     "recoveryRunning": "Karta jest już przywracana.",
     "recoveryPageChanged": "Strona zmieniła się podczas przywracania karty.",
@@ -90,6 +97,7 @@ export const plPLAppErrors: AppErrorMessages = {
   },
   "workspace": {
     "unavailable": "Obszar roboczy nie jest już dostępny.",
+    "archivedUnavailable": "Zarchiwizowany obszar roboczy nie jest już dostępny.",
     "busyArchiving": "Obszar roboczy „{name}” jest właśnie archiwizowany. Spróbuj ponownie po zakończeniu tej operacji.",
     "busyClosing": "Obszar roboczy „{name}” jest właśnie zamykany. Spróbuj ponownie po zakończeniu tej operacji.",
     "busyForking": "Trwa tworzenie kopii obszaru roboczego „{name}”. Spróbuj ponownie po zakończeniu tej operacji.",

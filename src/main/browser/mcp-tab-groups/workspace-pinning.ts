@@ -1,4 +1,5 @@
 import type { BrowserState } from '../../../shared/types.js'
+import { LocalizedError } from '../../localized-error.js'
 import type { McpTabGroupsAccess, McpTabGroupsTab } from './mcp-tab-groups-access.js'
 
 /**
@@ -7,7 +8,7 @@ import type { McpTabGroupsAccess, McpTabGroupsTab } from './mcp-tab-groups-acces
  */
 export function setWorkspacePinned<Tab extends McpTabGroupsTab>(access: McpTabGroupsAccess<Tab>, groupId: string, pinned: boolean): BrowserState {
   const group = access.mcpTabGroups().get(groupId)
-  if (!group) throw new Error(`Unknown workspace: ${groupId}`)
+  if (!group) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}` })
   if (pinned === (group.pinnedAt !== undefined)) return access.getState()
   if (pinned) {
     // After every earlier pin even if the clock went back since, so a new pin always goes last.

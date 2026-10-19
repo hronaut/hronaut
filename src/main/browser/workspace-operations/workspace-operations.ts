@@ -1,25 +1,27 @@
 import type { MessageKey } from '../../../shared/i18n.js'
 import { LocalizedError } from '../../localized-error.js'
-import type { BrowserWorkspaceOperation, WorkspaceOperationsAccess } from './workspace-operations-access.js'
+import type {
+  BrowserWorkspaceOperation,
+  OpenWorkspaceOperationAction,
+  WorkspaceOperationAction,
+  WorkspaceOperationsAccess
+} from './workspace-operations-access.js'
 
-/** The sentence for each operation that holds an open workspace busy, by the action its caller names. */
-const BUSY_WORKSPACE_MESSAGES = new Map<string, MessageKey>([
-  ['archiving the workspace', 'appErrors.workspace.busyArchiving'],
-  ['closing the workspace', 'appErrors.workspace.busyClosing'],
-  ['forking workspace data', 'appErrors.workspace.busyForking'],
-  ['restoring the archived workspace', 'appErrors.workspace.busyRestoring'],
-  ['clearing website data', 'appErrors.workspace.busyClearingData'],
-  ['moving workspace data', 'appErrors.workspace.busyMovingData'],
-  ['copying workspace data', 'appErrors.workspace.busyCopyingData'],
-  ['importing browser cookies', 'appErrors.workspace.busyImportingCookies']
-])
+/** The sentence for each operation that holds an open workspace busy; a new action does not compile without one. */
+const BUSY_WORKSPACE_MESSAGES: Record<OpenWorkspaceOperationAction, MessageKey> = {
+  'archiving the workspace': 'appErrors.workspace.busyArchiving',
+  'closing the workspace': 'appErrors.workspace.busyClosing',
+  'forking workspace data': 'appErrors.workspace.busyForking',
+  'restoring the archived workspace': 'appErrors.workspace.busyRestoring',
+  'clearing website data': 'appErrors.workspace.busyClearingData',
+  'moving workspace data': 'appErrors.workspace.busyMovingData',
+  'copying workspace data': 'appErrors.workspace.busyCopyingData',
+  'importing browser cookies': 'appErrors.workspace.busyImportingCookies'
+}
 
-/** The error for an open workspace another operation holds busy; an action without its own sentence stays English. */
-function workspaceBusyError(name: string, action: string): Error {
-  const key = BUSY_WORKSPACE_MESSAGES.get(action)
-  return key
-    ? new LocalizedError(key, { name })
-    : new Error(`Workspace "${name}" is busy ${action}. Try again after that operation finishes.`)
+/** The error for an open workspace another operation holds busy. */
+function workspaceBusyError(name: string, action: OpenWorkspaceOperationAction): LocalizedError {
+  return new LocalizedError(BUSY_WORKSPACE_MESSAGES[action], { name })
 }
 
 /** Throws while another operation holds the open workspace busy. */
@@ -44,13 +46,13 @@ export function assertWorkspaceCanOpenTab(access: WorkspaceOperationsAccess, wor
 export async function withWorkspaceOperation<T>(
   access: WorkspaceOperationsAccess,
   workspaceId: string,
-  action: string,
+  action: OpenWorkspaceOperationAction,
   operation: () => Promise<T>,
   blocksNewTabs = true
 ): Promise<T> {
-  if (!access.mcpTabGroups().has(workspaceId)) throw new Error(`Unknown workspace: ${workspaceId}.`)
+  if (!access.mcpTabGroups().has(workspaceId)) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${workspaceId}.` })
   assertWorkspaceIdle(access, workspaceId)
-  const current: BrowserWorkspaceOperation = { action, blocksNewTabs, token: Symbol(action) }
+  const current: BrowserWorkspaceOperation<OpenWorkspaceOperationAction> = { action, blocksNewTabs, token: Symbol(action) }
   access.workspaceOperations().set(workspaceId, current)
   try {
     return await trackWorkspaceOperation(access, operation)
@@ -69,10 +71,12 @@ export async function withWorkspaceOperation<T>(
 export async function withSavedWorkspaceOperation<T>(
   access: WorkspaceOperationsAccess,
   savedWorkspaceId: string,
-  action: string,
+  action: WorkspaceOperationAction,
   operation: () => Promise<T>
 ): Promise<T> {
-  if (!access.savedTabGroups().has(savedWorkspaceId)) throw new Error(`Unknown archived workspace: ${savedWorkspaceId}.`)
+  if (!access.savedTabGroups().has(savedWorkspaceId)) {
+    throw new LocalizedError('appErrors.workspace.archivedUnavailable', undefined, { message: `Unknown archived workspace: ${savedWorkspaceId}.` })
+  }
   const existing = access.savedWorkspaceOperations().get(savedWorkspaceId)
   if (existing) {
     const name = access.savedTabGroups().get(savedWorkspaceId)?.name ?? savedWorkspaceId
@@ -95,7 +99,7 @@ export async function withSavedWorkspaceOperation<T>(
 export async function withWorkspaceStorageOperation<T>(
   access: WorkspaceOperationsAccess,
   workspaceId: string,
-  action: string,
+  action: OpenWorkspaceOperationAction,
   operation: () => Promise<T>,
   blocksNewTabs = false
 ): Promise<T> {
@@ -107,7 +111,7 @@ export async function withWorkspaceStorageOperation<T>(
 /** Runs an operation that holds the storage of every workspace busy, refusing to start while another one does. */
 export async function withGlobalWorkspaceStorageOperation<T>(
   access: WorkspaceOperationsAccess,
-  action: string,
+  action: WorkspaceOperationAction,
   operation: () => Promise<T>
 ): Promise<T> {
   if (access.workspaceStorageOperation()) {
