@@ -122,17 +122,26 @@ describe('Responsive preview docked back from its window', () => {
   const tabletPreset = () => screen.getByRole('button', { name: /^Tablet/ })
 
   it('shows the tab’s viewport as it is now', async () => {
-    const view = renderPanel({ dock: 'window' })
-    expect(tabletPreset().getAttribute('aria-pressed')).toBe('false')
+    const view = renderPanel()
+    expect(tabletPreset()).toHaveAttribute('aria-pressed', 'false')
+    await view.rerender({ dock: 'window' })
     await view.rerender({ dock: 'window', activeTab: tablet })
-    expect(tabletPreset().getAttribute('aria-pressed')).toBe('false')
+    expect(tabletPreset()).toHaveAttribute('aria-pressed', 'false')
     await view.rerender({ dock: 'right', activeTab: tablet })
-    expect(tabletPreset().getAttribute('aria-pressed')).toBe('true')
+    expect(tabletPreset()).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps a draft not yet applied when its window did not open', async () => {
+    const view = renderPanel()
+    await userEvent.setup().click(tabletPreset())
+    await view.rerender({ dock: 'window' })
+    await view.rerender({ dock: 'right' })
+    expect(tabletPreset()).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('keeps the draft in the panel window as it docks back and closes', async () => {
     const view = renderPanel({ dock: 'window', keepsSeparatePanelOpen: () => true })
     await view.rerender({ dock: 'right', activeTab: tablet })
-    expect(tabletPreset().getAttribute('aria-pressed')).toBe('false')
+    expect(tabletPreset()).toHaveAttribute('aria-pressed', 'false')
   })
 })

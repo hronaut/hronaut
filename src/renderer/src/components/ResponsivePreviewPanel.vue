@@ -98,11 +98,14 @@ async function keepFocusThrough(action: () => Promise<unknown>): Promise<void> {
   target.focus()
 }
 
-// Docked back from its window, the panel was open all along, so it shows the tab's viewport as it is now instead of the
-// draft it had before it left, which Apply preview would put back. The panel window itself is closing then, and keeps
-// its draft in case it stays open.
+// Docked back from its window, the panel was open all along, so when the tab's viewport changed meanwhile it shows it as
+// it is now instead of the draft it had before it left, which Apply preview would put back. A window that failed to open
+// changed nothing, so the panel keeps its draft; so does the closing panel window itself, in case it stays open.
+const appliedViewport = (): string => JSON.stringify([props.activeTab?.id, props.activeTab?.emulation?.viewport ?? null])
+let viewportWhenDetached = ''
 watch(dock, (next, previous) => {
-  if (open.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && !pendingAction.value) loadDraft()
+  if (next === 'window') viewportWhenDetached = appliedViewport()
+  else if (open.value && previous === 'window' && !props.keepsSeparatePanelOpen() && !pendingAction.value && appliedViewport() !== viewportWhenDetached) loadDraft()
 })
 
 defineExpose({ toggle, loadDraft, resetFeedback, handleEscape })

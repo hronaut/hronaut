@@ -72,11 +72,14 @@ async function keepFocusThrough(action: () => Promise<unknown>): Promise<void> {
   target.focus()
 }
 
-// Docked back from its window, the panel was open all along, so it shows the tab's environment as it is now instead of
-// the draft it had before it left, which Apply would put back. The panel window itself is closing then, and keeps its
-// draft in case it stays open.
+// Docked back from its window, the panel was open all along, so when the tab's environment changed meanwhile it shows
+// it as it is now instead of the draft it had before it left, which Apply would put back. A window that failed to open
+// changed nothing, so the panel keeps its draft; so does the closing panel window itself, in case it stays open.
+const appliedEnvironment = (): string => JSON.stringify([props.activeTab?.id, props.activeTab?.emulation ?? props.activeTab?.emulationState?.retainedSettings])
+let environmentWhenDetached = ''
 watch(dock, (next, previous) => {
-  if (open.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && !pendingAction.value) loadDraft()
+  if (next === 'window') environmentWhenDetached = appliedEnvironment()
+  else if (open.value && previous === 'window' && !props.keepsSeparatePanelOpen() && !pendingAction.value && appliedEnvironment() !== environmentWhenDetached) loadDraft()
 })
 
 defineExpose({ handleEscape })

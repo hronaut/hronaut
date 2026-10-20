@@ -198,21 +198,45 @@ describe('Environment docked back from its window', () => {
   // The panel stayed open while it was in its own window, so docked back it kept the draft it had before it left, and
   // Apply put those settings back over the ones applied in the window.
   const fast = (): BrowserTabState => ({ ...browserTab(), emulation: { ...browserEnvironmentFromEmulation(), network: 'fast-4g' } } as BrowserTabState)
+  const network = () => screen.getByRole<HTMLSelectElement>('combobox', { name: 'Network' })
 
   it('shows the tab’s environment as it is now', async () => {
-    const { view, activeTab } = renderPanel({ dock: 'window' })
-    const network = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Network' })
-    expect(network.value).toBe('slow-3g')
+    const { view, activeTab } = renderPanel()
+    expect(network().value).toBe('slow-3g')
+    await view.rerender({ dock: 'window' })
+    activeTab.value = fast()
+    await view.rerender({ dock: 'window', activeTab: activeTab.value })
+    expect(network().value).toBe('slow-3g')
+    await view.rerender({ dock: 'right', activeTab: activeTab.value })
+    expect(network().value).toBe('fast-4g')
+  })
+
+  it('keeps a draft not yet applied when its window did not open', async () => {
+    const { view } = renderPanel()
+    await userEvent.setup().selectOptions(network(), 'offline')
+    await view.rerender({ dock: 'window' })
+    await view.rerender({ dock: 'right' })
+    expect(network().value).toBe('offline')
+  })
+
+  it('lets a running Apply finish before it shows the tab again', async () => {
+    const pending = deferred<BrowserState>()
+    const { view, activeTab } = renderPanel({ setTabEnvironment: vi.fn(() => pending.promise) })
+    const user = userEvent.setup()
+    await user.selectOptions(network(), 'offline')
+    await user.click(screen.getByRole('button', { name: /^Apply$/ }))
+    await view.rerender({ dock: 'window' })
     activeTab.value = fast()
     await view.rerender({ dock: 'right', activeTab: activeTab.value })
-    expect(network.value).toBe('fast-4g')
+    expect(screen.getByRole('dialog', { name: 'Environment' })).toHaveAttribute('aria-busy', 'true')
+    expect(network().value).toBe('offline')
+    pending.resolve(browserState())
   })
 
   it('keeps the draft in the panel window as it docks back and closes', async () => {
     const { view, activeTab } = renderPanel({ dock: 'window', keepsSeparatePanelOpen: () => true })
-    const network = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Network' })
     activeTab.value = fast()
     await view.rerender({ dock: 'right', activeTab: activeTab.value })
-    expect(network.value).toBe('slow-3g')
+    expect(network().value).toBe('slow-3g')
   })
 })

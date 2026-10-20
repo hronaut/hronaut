@@ -51,7 +51,7 @@ test('Environment shows the tab’s settings as they are now when it docks back 
     await expect(environment).toBeVisible()
     await expect(environment.getByLabel('Color scheme', { exact: true })).toHaveValue('dark')
     await environment.getByRole('button', { name: 'Apply', exact: true }).click()
-    await expect(environment).not.toHaveAttribute('aria-busy', 'true')
+    await expect(environment.getByText('Environment applied', { exact: true })).toBeVisible()
     expect(await colorScheme(tabId)).toBe('dark')
   } finally {
     await electronApp.evaluate(({ BrowserWindow }) => {
