@@ -425,6 +425,8 @@ import type { PageNavigationAccess } from './page-navigation/page-navigation-acc
 import { back, forward, navigate, reload, reloadIgnoringCache, stop } from './page-navigation/page-navigation.js'
 import type { PageZoomAccess } from './page-zoom/page-zoom-access.js'
 import { setZoom } from './page-zoom/page-zoom.js'
+import type { PageWheelZoomAccess } from './page-zoom/page-wheel-zoom-access.js'
+import { attachPageWheelZoom } from './page-zoom/page-wheel-zoom.js'
 import {
   normalizeWorkspaceNavigationPolicy,
   type WorkspaceNavigationDecision
@@ -3198,6 +3200,24 @@ export class BrowserTabsManager {
   }
 
   /**
+   * The narrow view zooming a page with Control and the mouse wheel gets of
+   * this manager's private tabs, trusted chrome occlusion, human input lock,
+   * in-flight agent input, native selection sessions and page zoom. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit tests
+   * do) still provide it. Each member reads the manager when called.
+   */
+  private pageWheelZoomAccess(): PageWheelZoomAccess<BrowserTab> {
+    return {
+      findTab: (tabId) => this.tabs.get(tabId),
+      browserContentOccluded: () => this.browserContentOccluded,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      agentInputWebContents: () => this.agentInputWebContents,
+      nativeSelectionUnderWay: (webContentsId) => this.screenshotAreaSessions.has(webContentsId) || this.elementPickerSessions.has(webContentsId),
+      zoom: (tabId, direction) => { setZoom(this.pageZoomAccess(), { tabId, action: direction }) }
+    }
+  }
+
+  /**
    * The narrow view agent pausing gets of this manager's private tabs, global
    * pause fields, live region recorder, CSS state preview and state
    * publication. It is a prototype method rather than a field, so managers
@@ -5321,6 +5341,7 @@ export class BrowserTabsManager {
     attachPageFocusEvents(this.pageFocusEventsAccess(), tab, webContents)
     attachPageKeyboardEvents(this.pageKeyboardEventsAccess(), tab, webContents)
     attachPagePointerEvents(this.pagePointerEventsAccess(), tab, webContents)
+    attachPageWheelZoom(this.pageWheelZoomAccess(), tab, webContents)
     attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
     attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
     this.frameObservation.track(webContents)
