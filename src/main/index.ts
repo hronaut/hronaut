@@ -353,12 +353,14 @@ const {
   updatePageTitle,
   offerBookmarkRestore,
   historyCleared,
+  historyEntryRemoved,
   agentBookmarks,
   agentHistory
 } = createBookmarksAndHistory({
   state: bookmarksAndHistory,
   sendToShellWindows,
   mcpServer: () => mcpRuntime.server,
+  tabs: () => tabRuntime.tabs,
   offerUndo: (action) => undoOffers.offer(action)
 })
 // The person's latest reversible action, until its Undo toast closes.
@@ -847,6 +849,7 @@ function registerIpc(): void {
     publishBookmarks,
     publishVisitHistory,
     historyCleared,
+    historyEntryRemoved,
     bookmarkRemoved: offerBookmarkRestore
   })
   registerBrowsingDataIpc({

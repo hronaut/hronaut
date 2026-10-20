@@ -204,14 +204,16 @@ export class HistoryStore {
     })
   }
 
-  async remove(id: string): Promise<boolean> {
+  /** Removes the visit with this id; the removed visit, or null when there was none. */
+  async remove(id: string): Promise<BrowserHistoryEntry | null> {
     return this.queueMutation(async () => {
-      if (!this.entries.has(id)) return false
+      const removed = this.entries.get(id)
+      if (!removed) return null
       const nextEntries = new Map(this.entries)
       nextEntries.delete(id)
       await this.persist(nextEntries.values())
       this.replaceEntries(nextEntries)
-      return true
+      return { ...removed }
     })
   }
 

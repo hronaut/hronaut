@@ -78,6 +78,11 @@ export interface McpTabGroupsAccess<Tab extends McpTabGroupsTab> {
   orderedTabs(): Tab[]
   /** The recently closed tabs, which closing a workspace prunes of its own. */
   closedTabs(): BrowserClosedTabState[]
+  /**
+   * Recently closed tabs held out of closedTabs while an operation waits, such as a workspace closing, until it puts
+   * them back. Forgetting closed tabs with the history reaches these too, so one forgotten meanwhile does not come back.
+   */
+  detachedClosedTabs(): Set<BrowserClosedTabState[]>
   /** The tab the window shows. */
   activeTabId(): string | null
   /** Counts tab selections, so an operation can tell whether another tab was selected while it waited. */

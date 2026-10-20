@@ -38,6 +38,11 @@ export interface TabReopeningCreation {
 export interface TabReopeningAccess<Tab extends TabReopeningTab> {
   /** The recently closed tabs, oldest first, which these functions add to and take from. */
   closedTabs(): BrowserClosedTabState[]
+  /**
+   * Recently closed tabs held out of closedTabs while an operation waits, such as a tab reopening, until it puts them
+   * back. Forgetting closed tabs reaches these too, so one forgotten meanwhile does not come back.
+   */
+  detachedClosedTabs(): Set<BrowserClosedTabState[]>
   /** How many tabs are open. */
   tabCount(): number
   /** The tab with this id, or the active tab; it throws when there is none. */

@@ -19,7 +19,7 @@ interface BrowsingDataIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
-  tabs(): Pick<BrowserTabsManager, 'getState' | 'workspaceSession'> | null
+  tabs(): Pick<BrowserTabsManager, 'getState' | 'workspaceSession' | 'forgetClosedTabs'> | null
   historyStore(): Pick<HistoryStore, 'list' | 'clearOrigin' | 'clear'> | null
   bookmarkStore(): Pick<BookmarkStore, 'list'> | null
   credentialStore(): Pick<CredentialStore, 'list'> | null
@@ -27,6 +27,14 @@ interface BrowsingDataIpcHost {
   mcpServer(): Pick<McpHttpServer, 'forgetHomeFeed'> | null
   publishVisitHistory(): void
   currentBrowsingDataSiteSummary(value: string, browserSession: Session | undefined): Promise<BrowsingDataSiteSummary>
+}
+
+function closedTabOrigin(url: string): string | undefined {
+  try {
+    return new URL(url).origin
+  } catch {
+    return undefined
+  }
 }
 
 function normalizeBrowsingDataOrigin(value: string | undefined): string | undefined {
@@ -71,8 +79,10 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
     const origin = normalizeBrowsingDataOrigin(options.origin)
     if (origin) await host.historyStore()!.clearOrigin(origin)
     else await host.historyStore()!.clear()
-    // Home's feed names pages agents acted on, so it goes with any history clearing.
+    // Home's feed names pages agents acted on, so it goes with any history clearing. Recently closed tabs of the
+    // cleared website go too, as Chrome forgets them with the history.
     host.mcpServer()?.forgetHomeFeed()
+    host.tabs()?.forgetClosedTabs((url) => !origin || closedTabOrigin(url) === origin)
     host.publishVisitHistory()
     return currentBrowsingDataSummary()
   }

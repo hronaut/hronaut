@@ -537,7 +537,7 @@ import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
 import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import type { TabReopeningAccess } from './tab-reopening/tab-reopening-access.js'
-import { duplicateTabAfterLabelSave, rememberClosedTab, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
+import { duplicateTabAfterLabelSave, forgetClosedTabs, rememberClosedTab, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
 import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
 import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import type { BrowserWalletPageContext, WalletPagesAccess } from './wallet-pages/wallet-pages-access.js'
@@ -1274,6 +1274,11 @@ export class BrowserTabsManager {
   private readonly tabOverviewPreviewableTabs = new Set<string>()
   private tabOverviewLiveCaptureCursor = 0
   private readonly closedTabs: BrowserClosedTabState[] = []
+  /**
+   * Recently closed tabs held out of closedTabs while a tab reopens or a workspace closes, until that puts them back.
+   * Forgetting closed tabs with the history reaches these too.
+   */
+  private readonly detachedClosedTabs = new Set<BrowserClosedTabState[]>()
   private mcpUrl: string
 
   constructor(
@@ -1672,6 +1677,7 @@ export class BrowserTabsManager {
       tabs: () => this.tabs,
       orderedTabs: () => this.orderedTabs(),
       closedTabs: () => this.closedTabs,
+      detachedClosedTabs: () => this.detachedClosedTabs,
       activeTabId: () => this.activeTabId,
       tabSelectionGeneration: () => this.tabSelectionGeneration,
       options: () => this.options,
@@ -2277,6 +2283,12 @@ export class BrowserTabsManager {
     return this.withTabLabelLifecycle(() => reopenClosedTabAfterLabelSave(this.tabReopeningAccess(), closedTabId))
   }
 
+  /** Forgets the recently closed tabs whose address matches, when the history that names them is cleared. */
+  forgetClosedTabs(matches: (url: string) => boolean): void {
+    // Recently closed tabs are not saved with the tabs, so only the state is published.
+    if (forgetClosedTabs(this.tabReopeningAccess(), matches)) this.changed(false)
+  }
+
   /**
    * The narrow view remembering, reopening and duplicating tabs gets of this
    * manager's private recently closed tabs, tabs, tab creation, navigation
@@ -2288,6 +2300,7 @@ export class BrowserTabsManager {
   private tabReopeningAccess(): TabReopeningAccess<BrowserTab> {
     return {
       closedTabs: () => this.closedTabs,
+      detachedClosedTabs: () => this.detachedClosedTabs,
       tabCount: () => this.tabs.size,
       getTab: (tabId) => this.getTab(tabId),
       navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),

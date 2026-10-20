@@ -421,7 +421,9 @@ describe('HistoryStore', () => {
     const first = await store.record({ url: 'https://one.example/', title: 'One' })
     await store.record({ url: 'https://two.example/', title: 'Two' })
     expect(first).not.toBeNull()
-    await store.remove(first!.id)
+    // Removing names the page that left, which Recently closed forgets with it; an id already gone names none.
+    await expect(store.remove(first!.id)).resolves.toEqual(first)
+    await expect(store.remove(first!.id)).resolves.toBeNull()
     expect(store.list()).toHaveLength(1)
     await store.clear()
     expect(store.list()).toEqual([])
