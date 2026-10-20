@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { CopyTextWithFeedback } from '../composables/useShellFeedbackController.js'
 import UiButton from "../ui/UiButton.vue"
-import { onBeforeUnmount, toRef } from 'vue'
+import { onBeforeUnmount, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconCookie from '~icons/material-symbols/cookie-rounded'
@@ -118,6 +118,13 @@ function localNumber(value: number): string {
 function localBytes(value: number): string {
   return formatLocalizedBytes(props.locale, value)
 }
+
+// Docked back from its window, the panel was open all along, so it reads the site's storage as it is now instead of
+// showing what it had before it left, such as an item deleted in the window. The panel window itself is closing then,
+// so it reads nothing.
+watch(dock, (next, previous) => {
+  if (open.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen()) void refreshActiveSiteStorageView()
+})
 
 defineExpose({ reset, refresh, refreshActiveSiteStorageView })
 onBeforeUnmount(dispose)
