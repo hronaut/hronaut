@@ -18,6 +18,7 @@ import type { McpStatusController } from '../composables/useMcpStatusController.
 import McpStatusControls from './McpStatusControls.vue'
 import UpdateNotification from './UpdateNotification.vue'
 import { vTooltip } from '../ui/tooltip.js'
+import { ignoreHeldEnter } from '../held-enter.js'
 
 defineProps<{
   interactionPending?: boolean
@@ -75,6 +76,7 @@ const { t } = useI18n({ useScope: 'global' })
       :aria-label="t('shell.actions.searchTabs')"
       aria-keyshortcuts="Control+Shift+A Meta+Shift+A"
       :aria-expanded="tabSearchOpen"
+      @keydown="ignoreHeldEnter"
       @click="emit('toggleTabSearch')"
     >
       <IconTabSearch aria-hidden="true" />
