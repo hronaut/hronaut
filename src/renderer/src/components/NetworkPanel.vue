@@ -33,6 +33,7 @@ import type {
   SupportedLocale
 } from '../../../shared/types'
 import { useNetworkController } from '../composables/useNetworkController'
+import { ignoreHeldEnter } from '../held-enter.js'
 import NetworkContentSearch from './NetworkContentSearch.vue'
 import NetworkRequestConditions from './NetworkRequestConditions.vue'
 import NetworkRequestPriority from './NetworkRequestPriority.vue'
@@ -201,6 +202,13 @@ async function keepConditionFocus(action: () => Promise<unknown>): Promise<void>
   if (document.activeElement !== document.body && document.activeElement !== focused) return
   const target = focused.isConnected && !focused.matches(':disabled') ? focused : section
   target.focus()
+}
+
+// The second click of a double-click is the same decision as the first, so it cannot confirm a replay the first one
+// asked to confirm.
+function replayClicked(event: MouseEvent): void {
+  if (event.detail > 1) return
+  void replaySelectedNetworkRequest()
 }
 
 function setNetworkSortBy(event: Event): void {
@@ -445,7 +453,8 @@ onBeforeUnmount(dispose)
                     v-tooltip="networkReplayRequiresConfirmation(networkRequestDetails.method)
                       ? t('network.details.replayRisk')
                       : t('network.details.replaySafe')"
-                    @click="replaySelectedNetworkRequest"
+                    @keydown="ignoreHeldEnter"
+                    @click="replayClicked"
                   >
                     <IconProgress v-if="networkReplayState === 'replaying'" class="state-spinner" aria-hidden="true" />
                     <IconCheck v-else-if="networkReplayState === 'replayed'" aria-hidden="true" />

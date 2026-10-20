@@ -223,6 +223,35 @@ test('replays retained XHRs for people and agents with explicit side-effect conf
     await expect.poll(() => postCount).toBe(4)
     await expect(networkPanel).toContainText('The new request is selected for inspection')
     await expect(networkPanel.getByRole('button', { name: 'Replayed XHR' })).toBeVisible()
+
+    // The first press makes Replay XHR read Confirm replay POST and keeps the focus there, so a held Enter's repeats
+    // replayed the POST without a second press.
+    await networkPanel.locator(`[data-request-id="${latestPost.id}"]`).click()
+    await expect(replayButton).toBeEnabled()
+    await replayButton.focus()
+    await appWindow.keyboard.down('Enter')
+    const confirmButton = networkPanel.getByRole('button', { name: 'Confirm replay POST' })
+    await expect(confirmButton).toBeFocused()
+    for (let repeat = 0; repeat < 6; repeat += 1) {
+      await appWindow.waitForTimeout(50)
+      await appWindow.keyboard.down('Enter')
+    }
+    await appWindow.keyboard.up('Enter')
+    await appWindow.waitForTimeout(300)
+    expect(postCount).toBe(4)
+    await expect(confirmButton).toBeFocused()
+    await appWindow.keyboard.press('Enter')
+    await expect.poll(() => postCount).toBe(5)
+
+    // The second click of a double-click confirmed it too.
+    await networkPanel.locator(`[data-request-id="${latestPost.id}"]`).click()
+    await expect(replayButton).toBeEnabled()
+    await replayButton.dblclick()
+    await expect(confirmButton).toBeVisible()
+    await appWindow.waitForTimeout(300)
+    expect(postCount).toBe(5)
+    await confirmButton.click()
+    await expect.poll(() => postCount).toBe(6)
   } finally {
     await client.close()
     await closeFixtureServer(server)
