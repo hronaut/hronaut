@@ -378,6 +378,33 @@ describe('Undo after archive and clear (#872)', () => {
     expect(undo.hidden).toBe(true)
   })
 
+  it('keeps a held Enter from pressing Undo or a card menu button again', async () => {
+    // Archiving hands the focus to Undo, and a menu's action hands it back to the menu's button, so a held Enter's
+    // repeats restored the workspace just archived and opened the menu again.
+    const archived = inventory({ mcpTabGroups: [docs], savedTabGroups: [archivedWorkspace(shop)] })
+    const workspaceAction = vi.fn().mockResolvedValue(archived)
+    const home = mountTestHome({ workspaces: inventory(), api: { workspaceAction } })
+    await flush()
+    const pressEnter = (target: Element, repeat: boolean): boolean => {
+      const event = new KeyboardEvent('keydown', { key: 'Enter', repeat, bubbles: true, cancelable: true })
+      target.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    const menu = query<HTMLDetailsElement>('.card-menu', card('Acme Store'))
+    expect(pressEnter(query('summary', menu), true)).toBe(true)
+    expect(pressEnter(query('summary', menu), false)).toBe(false)
+    menu.open = true
+    home.setWorkspaces(archived)
+    query<HTMLButtonElement>('[data-workspace-action="archive"]', menu).click()
+    await flush()
+    const undo = byId<HTMLButtonElement>('workspace-undo')
+    expect(document.activeElement).toBe(undo)
+    expect(pressEnter(undo, true)).toBe(true)
+    expect(pressEnter(undo, false)).toBe(false)
+    // The search field keeps its own keys.
+    expect(pressEnter(byId('workspace-search'), true)).toBe(false)
+  })
+
   it('offers Undo after an undoable clear and moves focus to it', async () => {
     const cleared = inventory({ mcpTabGroups: [docs], savedTabGroups: [archivedWorkspace(shop)] })
     const workspaceAction = vi.fn().mockResolvedValue(cleared)
