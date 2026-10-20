@@ -711,7 +711,7 @@ onBeforeUnmount(dispose)
               </details>
               <details v-if="networkRequestDetails.request.body">
                 <summary>{{ t('network.details.requestBody') }} <span v-if="networkRequestDetails.request.body.redacted">{{ t('network.details.sanitized') }}</span></summary>
-                <p v-if="networkBodyPlaceholderLabel(networkRequestDetails.request.body.text)">{{ networkBodyPlaceholderLabel(networkRequestDetails.request.body.text) }}</p>
+                <p v-if="networkBodyPlaceholderLabel(networkRequestDetails.request.body)">{{ networkBodyPlaceholderLabel(networkRequestDetails.request.body) }}</p>
                 <pre v-else>{{ networkRequestDetails.request.body.text }}</pre>
               </details>
               <details open>
@@ -731,7 +731,7 @@ onBeforeUnmount(dispose)
                   {{ networkDetailsCopied === 'response' ? t('network.details.copiedResponseBody') : t('network.details.copyResponseBody') }}
                 </UiButton>
                 <template v-if="networkRequestDetails.response.body.available">
-                  <p v-if="networkBodyPlaceholderLabel(networkRequestDetails.response.body.text)">{{ networkBodyPlaceholderLabel(networkRequestDetails.response.body.text) }}</p>
+                  <p v-if="networkBodyPlaceholderLabel(networkRequestDetails.response.body)">{{ networkBodyPlaceholderLabel(networkRequestDetails.response.body) }}</p>
                   <pre v-else>{{ networkRequestDetails.response.body.text }}</pre>
                 </template>
                 <p v-else>{{ networkBodyReasonLabel(networkRequestDetails.response.body.reason) }}</p>

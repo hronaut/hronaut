@@ -148,7 +148,7 @@ export const networkLabelMessages = {
       "binary": "Binärer Inhalt ausgelassen.",
       "multipart": "Multipart-Inhalt ausgelassen.",
       "unsafeJson": "JSON-Inhalt ausgelassen, weil er sich nicht sicher bereinigen ließ.",
-      "nonText": "Inhalt ohne Text ausgelassen."
+      "nonText": "Nicht-Text-Inhalt ausgelassen."
     },
     "bodyReasons": {
       "eventStream": "Server-Sent Events stehen im begrenzten Abschnitt „Ereignisstrom“.",
@@ -157,7 +157,7 @@ export const networkLabelMessages = {
       "incomplete": "Der Antworttext ist noch nicht vollständig.",
       "devToolsCapture": "Die detaillierte Erfassung war nicht verfügbar, während die Entwicklertools diesen Tab belegten.",
       "omittedFromExport": "Der Antworttext wurde in diesem bereinigten Export ausgelassen.",
-      "closeDevTools": "Schließen Sie die Entwicklertools für diesen Tab und fordern Sie diese Details dann erneut an.",
+      "closeDevTools": "Schließe die Entwicklertools für diesen Tab und fordere diese Details dann erneut an.",
       "evicted": "Chromium hat diesen Antworttext nicht mehr in seinem begrenzten Diagnosepuffer."
     },
     "searchFields": {
@@ -233,8 +233,8 @@ export const networkLabelMessages = {
       "nonText": "Cuerpo no textual omitido."
     },
     "bodyReasons": {
-      "eventStream": "Los eventos enviados por el servidor están en la sección limitada Flujo de eventos.",
-      "webSocket": "Los mensajes de WebSocket están en la sección limitada Mensajes.",
+      "eventStream": "Los eventos enviados por el servidor están en la sección limitada «Flujo de eventos».",
+      "webSocket": "Los mensajes de WebSocket están en la sección limitada «Mensajes».",
       "expired": "Chromium ya no ofrece el cuerpo de la respuesta.",
       "incomplete": "El cuerpo de la respuesta aún no se ha completado.",
       "devToolsCapture": "La captura detallada no estaba disponible mientras las herramientas de desarrollo controlaban esta pestaña.",
@@ -315,14 +315,14 @@ export const networkLabelMessages = {
       "nonText": "Corps non textuel omis."
     },
     "bodyReasons": {
-      "eventStream": "Les événements envoyés par le serveur figurent dans la section limitée Flux d’événements.",
-      "webSocket": "Les messages WebSocket figurent dans la section limitée Messages.",
+      "eventStream": "Les événements envoyés par le serveur figurent dans la section limitée « Flux d’événements ».",
+      "webSocket": "Les messages WebSocket figurent dans la section limitée « Messages ».",
       "expired": "Chromium ne fournit plus le corps de la réponse.",
       "incomplete": "Le corps de la réponse n’est pas encore complet.",
       "devToolsCapture": "La capture détaillée était indisponible pendant que les outils de développement contrôlaient cet onglet.",
       "omittedFromExport": "Le corps de la réponse a été omis de cet export nettoyé.",
       "closeDevTools": "Fermez les outils de développement de cet onglet, puis demandez de nouveau ces détails.",
-      "evicted": "Chromium ne conserve plus ce corps de réponse dans sa mémoire tampon de diagnostic limitée."
+      "evicted": "Chromium ne conserve plus ce corps de réponse dans son tampon de diagnostic limité."
     },
     "searchFields": {
       "error": "Erreur de la requête",
@@ -397,8 +397,8 @@ export const networkLabelMessages = {
       "nonText": "Pominięto treść, która nie jest tekstem."
     },
     "bodyReasons": {
-      "eventStream": "Zdarzenia wysyłane przez serwer są w ograniczonej sekcji Strumień zdarzeń.",
-      "webSocket": "Wiadomości WebSocket są w ograniczonej sekcji Wiadomości.",
+      "eventStream": "Zdarzenia wysyłane przez serwer są w ograniczonej sekcji „Strumień zdarzeń”.",
+      "webSocket": "Wiadomości WebSocket są w ograniczonej sekcji „Wiadomości”.",
       "expired": "Chromium nie udostępnia już treści odpowiedzi.",
       "incomplete": "Treść odpowiedzi nie jest jeszcze kompletna.",
       "devToolsCapture": "Szczegółowe przechwytywanie było niedostępne, gdy narzędzia deweloperskie zajmowały tę kartę.",
@@ -479,13 +479,13 @@ export const networkLabelMessages = {
       "nonText": "Нетекстове тіло виключено."
     },
     "bodyReasons": {
-      "eventStream": "Події, надіслані сервером, є в обмеженому розділі «Потік подій».",
-      "webSocket": "Повідомлення WebSocket є в обмеженому розділі «Повідомлення».",
+      "eventStream": "Події, надіслані сервером, доступні в обмеженому розділі «Потік подій».",
+      "webSocket": "Повідомлення WebSocket доступні в обмеженому розділі «Повідомлення».",
       "expired": "Chromium більше не надає тіло відповіді.",
-      "incomplete": "Тіло відповіді ще не завершено.",
+      "incomplete": "Тіло відповіді ще не отримано повністю.",
       "devToolsCapture": "Докладне захоплення було недоступне, поки інструменти розробника займали цю вкладку.",
       "omittedFromExport": "Тіло відповіді виключено з цього очищеного експорту.",
-      "closeDevTools": "Закрийте інструменти розробника для цієї вкладки, а потім знову запросіть ці деталі.",
+      "closeDevTools": "Закрийте інструменти розробника для цієї вкладки, а потім знову запросіть ці відомості.",
       "evicted": "Chromium більше не зберігає це тіло відповіді у своєму обмеженому діагностичному буфері."
     },
     "searchFields": {
@@ -564,7 +564,7 @@ export const networkLabelMessages = {
       "eventStream": "События, отправленные сервером, находятся в ограниченном разделе «Поток событий».",
       "webSocket": "Сообщения WebSocket находятся в ограниченном разделе «Сообщения».",
       "expired": "Chromium больше не предоставляет тело ответа.",
-      "incomplete": "Тело ответа ещё не завершено.",
+      "incomplete": "Тело ответа ещё не получено полностью.",
       "devToolsCapture": "Подробный захват был недоступен, пока инструменты разработчика занимали эту вкладку.",
       "omittedFromExport": "Тело ответа исключено из этого очищенного экспорта.",
       "closeDevTools": "Закройте инструменты разработчика для этой вкладки, а затем снова запросите эти сведения.",

@@ -80,7 +80,7 @@ it('says in the interface language why a body is withheld or unavailable', async
     expect(responseBody.querySelector('p')?.textContent).toBe('Der Antworttext ist noch nicht vollständig.')
 
     await user.click(image)
-    await screen.findByText('Inhalt ohne Text ausgelassen.')
+    await screen.findByText('Nicht-Text-Inhalt ausgelassen.')
     const imageBody = screen.getByText('Antworttext', { selector: 'summary', exact: false }).closest('details')!
     expect(imageBody.querySelector('pre')).toBeNull()
   } finally { view.unmount() }
@@ -130,7 +130,7 @@ describe('network body notes', () => {
       const missing: string[] = []
       i18n.global.setMissingHandler((_locale, key) => { missing.push(key); return key })
       const labels = createNetworkLabels((key, parameters) => i18n.global.t(key, parameters ?? {}))
-      for (const placeholder of Object.values(NETWORK_BODY_PLACEHOLDERS)) expect(labels.bodyPlaceholder(placeholder), locale).toBeTruthy()
+      for (const text of Object.values(NETWORK_BODY_PLACEHOLDERS)) expect(labels.bodyPlaceholder({ text, redacted: true }), locale).toBeTruthy()
       for (const reason of Object.values(NETWORK_BODY_UNAVAILABLE_REASONS)) labels.bodyReason(reason)
       const fields: Array<Pick<BrowserNetworkSearchMatch, 'field' | 'label'>> = [
         { field: 'error', label: 'Request error' },
@@ -144,8 +144,10 @@ describe('network body notes', () => {
 
   it('shows text Hronaut does not recognize as it is', () => {
     const labels = createNetworkLabels(() => 'translated')
-    expect(labels.bodyPlaceholder('{"ok":true}')).toBeUndefined()
+    expect(labels.bodyPlaceholder({ text: '{"ok":true}', redacted: true })).toBeUndefined()
     expect(labels.bodyPlaceholder(undefined)).toBeUndefined()
+    // A page that sends the placeholder text itself still sees its own body.
+    expect(labels.bodyPlaceholder({ text: NETWORK_BODY_PLACEHOLDERS.binary, redacted: false })).toBeUndefined()
     expect(labels.bodyReason('A reason from a newer main process.')).toBe('A reason from a newer main process.')
     expect(labels.searchField({ field: 'url', label: 'URL' })).toBe('URL')
     expect(labels.searchField({ field: 'request-header', label: 'x-trace' })).toBe('x-trace')

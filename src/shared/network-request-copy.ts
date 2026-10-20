@@ -1,5 +1,6 @@
 import type { BrowserNetworkRequestDetails } from './types.js'
 import { redactNetworkUrl } from './network-details.js'
+import { NETWORK_BODY_PLACEHOLDERS } from './network-body-notes.js'
 import type { MessageKey } from './i18n.js'
 
 export type BrowserNetworkRequestCopyFormat = 'curl' | 'fetch' | 'powershell'
@@ -101,10 +102,8 @@ function copyPayload(details: BrowserNetworkRequestDetails): CopyPayload {
 
   const requestBody = details.request.body
   const requestBodyText = requestBody?.text
-  const bodyIsOmittedPlaceholder = requestBodyText?.startsWith('[JSON body omitted:')
-    || requestBodyText?.startsWith('[multipart body omitted]')
-    || requestBodyText?.startsWith('[non-text body omitted]')
-    || requestBodyText?.startsWith('[binary body omitted]')
+  const bodyIsOmittedPlaceholder = Object.values(NETWORK_BODY_PLACEHOLDERS)
+    .some((placeholder) => requestBodyText?.startsWith(placeholder))
   const body = requestBody
     && requestBodyText !== undefined
     && !requestBody.truncated

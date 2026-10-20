@@ -98,9 +98,12 @@ export function createNetworkLabels(translate: Translate) {
     return MESSAGE_KINDS.has(kind) ? translate(`networkLabels.messageKinds.${kind}`) : kind
   }
 
-  /** The note shown instead of a body Hronaut withheld, or undefined for a real body. */
-  function bodyPlaceholder(text: string | undefined): string | undefined {
-    const placeholder = networkBodyPlaceholder(text)
+  /**
+   * The note shown instead of a body Hronaut withheld, or undefined for a real body. Hronaut marks
+   * every withheld body redacted, so a page that sends the placeholder text itself still sees its body.
+   */
+  function bodyPlaceholder(body: { text?: string; redacted?: boolean } | undefined): string | undefined {
+    const placeholder = body?.redacted === true ? networkBodyPlaceholder(body.text) : undefined
     return placeholder ? translate(`networkLabels.bodyNotes.${placeholder}`) : undefined
   }
 
