@@ -5527,7 +5527,7 @@ test('uses the next close replacement when the pending sleeping replacement clos
       ;(globalThis as typeof globalThis & { __hronautRemovedCloseWake?: typeof control }).__hronautRemovedCloseWake = control
       Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        // The page never starts going back; the test closes the tab meanwhile, which ends the wake.
+        // The page never starts going back, so the later release does nothing; the test closes the tab meanwhile, which ends the wake.
         value: () => {
           control.started = true
           void new Promise<void>((resolve) => { control.release = resolve })
@@ -5946,7 +5946,7 @@ test('treats tab closure as cancellation while a sleeping selection is waking', 
       ;(globalThis as typeof globalThis & { __hronautClosingSelectionWake?: typeof control }).__hronautClosingSelectionWake = control
       Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        // The page never starts going back; the test closes the tab meanwhile, which ends the wake.
+        // The page never starts going back, so the later release does nothing; the test closes the tab meanwhile, which ends the wake.
         value: () => {
           control.started = true
           void new Promise<void>((resolve) => { control.release = resolve })
