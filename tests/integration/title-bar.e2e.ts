@@ -367,7 +367,8 @@ test('persists the system-title-bar fallback across restart on every platform', 
   const fallback = appWindow.getByRole('checkbox', { name: 'Use system title bar' })
   await expect(fallback).not.toBeChecked()
   await fallback.check()
-  await expect(appWindow.getByRole('status')).toContainText('Restart Hronaut')
+  // The license card keeps an empty status region mounted, so the restart notice is found by its text.
+  await expect(appWindow.getByRole('status').filter({ hasText: 'Restart Hronaut' })).toContainText('Restart Hronaut to apply')
   await expect(appWindow.locator('html')).toHaveAttribute('data-title-bar-mode', 'overlay')
 
   await closeHronaut(electronApp)
@@ -414,7 +415,7 @@ test('persists the system-title-bar fallback across restart on every platform', 
 
     await restarted.window.getByRole('button', { name: 'Settings' }).click()
     await expect(restarted.window.getByRole('checkbox', { name: 'Use system title bar' })).toBeChecked()
-    await expect(restarted.window.getByRole('status')).toHaveCount(0)
+    await expect(restarted.window.getByRole('status').filter({ hasText: 'Restart Hronaut' })).toHaveCount(0)
   } finally {
     await closeHronaut(restarted.app)
   }
