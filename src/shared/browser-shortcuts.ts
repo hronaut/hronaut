@@ -69,8 +69,12 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   if (input.alt) return null
 
   if (input.control && key === 'tab') return input.shift ? 'previous-tab' : 'next-tab'
-  if (!input.shift && ((input.control && key === 'h') || (input.meta && key === 'y'))) return 'visit-history'
-  if (!input.control && !input.meta) return null
+  // On macOS the browser keys use Command, as in Chrome. Control with a letter belongs to the focused field or web app
+  // there: Control+F moves the caret, Control+D deletes forward and Control+H backward, and a web terminal reads
+  // Control+W or Control+R itself.
+  const primary = input.mac ? input.meta && !input.control : input.control || input.meta
+  if (!input.shift && ((!input.mac && input.control && key === 'h') || (input.meta && key === 'y'))) return 'visit-history'
+  if (!primary) return null
   if (!input.shift && /^[1-8]$/.test(key)) return `select-tab-${key}` as BrowserShortcutAction
   if (!input.shift && key === '9') return 'select-last-tab'
   if (input.shift && (key === 'delete' || key === 'backspace')) return 'clear-browsing-data'

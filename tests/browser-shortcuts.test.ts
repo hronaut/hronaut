@@ -30,6 +30,30 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'H', meta: true }))).toBeNull()
   })
 
+  it.each(['f', 'w', 'r', 't', 'd', 'l', 'h', 'k', '=', '-', '.', 'R', 'T', 'A', 'P'])(
+    'leaves Control+%s to the page on macOS, where Command is the browser key', key => {
+      // Control+F opened Find instead of moving the caret, and Control+W in a web terminal closed the tab.
+      for (const shift of [false, true]) {
+        expect(browserShortcutAction(input({ key, control: true, shift, mac: true }))).toBeNull()
+        expect(browserShortcutAction(input({ key, control: true, meta: true, shift, mac: true }))).toBeNull()
+      }
+    }
+  )
+
+  it('keeps the Command keys and Control+Tab on macOS', () => {
+    const mac = (overrides: Partial<BrowserShortcutInput>) => browserShortcutAction(input({ mac: true, ...overrides }))
+    expect(mac({ key: 'f', meta: true })).toBe('find')
+    expect(mac({ key: 'w', meta: true })).toBe('close-tab')
+    expect(mac({ key: '=', meta: true })).toBe('zoom-in')
+    expect(mac({ key: 'T', meta: true, shift: true })).toBe('reopen-closed-tab')
+    expect(mac({ key: 'y', meta: true })).toBe('visit-history')
+    expect(mac({ key: '3', code: 'Digit3', meta: true })).toBe('select-tab-3')
+    expect(mac({ key: 'Tab', control: true })).toBe('next-tab')
+    expect(mac({ key: 'Tab', control: true, shift: true })).toBe('previous-tab')
+    expect(mac({ key: 'I', meta: true, alt: true })).toBe('toggle-devtools')
+    expect(mac({ key: '2', code: 'Digit2', control: true })).toBe('select-workspace-2')
+  })
+
   it('maps reopen and tab-cycling shortcuts', () => {
     expect(browserShortcutAction(input({ key: 'T', control: true, shift: true }))).toBe('reopen-closed-tab')
     expect(browserShortcutAction(input({ key: 'Tab', control: true }))).toBe('next-tab')
