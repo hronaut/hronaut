@@ -100,7 +100,7 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
         activeDownloads.value.length
       )
     }
-    if (options.downloads.value[0]?.state === 'completed') {
+    if (options.downloads.value[0]?.state === 'completed' && !options.downloads.value[0].fileRemoved) {
       return options.translate('runtime.downloads.complete', { filename: options.downloads.value[0].filename })
     }
     if (options.downloads.value.length) return options.translate('runtime.downloads.recent')

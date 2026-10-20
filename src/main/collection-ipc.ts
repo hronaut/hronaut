@@ -15,14 +15,14 @@ interface CollectionIpcHost {
   historyCleared?(): void
   /** The person removed one page from their history, so anything else that names it goes too. */
   historyEntryRemoved?(url: string): void
-  downloads(): Pick<BrowserTabsManager, 'listDownloads' | 'removeFinishedDownload' | 'manageDownloads' | 'showDownloadInFolder'>
+  downloads(): Pick<BrowserTabsManager, 'listDownloadsCheckingFiles' | 'removeFinishedDownload' | 'manageDownloads' | 'showDownloadInFolder'>
   publishBookmarks(): BrowserBookmark[]
   publishVisitHistory(): BrowserHistoryEntry[]
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: CollectionIpcHost): void {
-  ipcMain.handle('downloads:list', (event) => host.runRead(event, () => host.downloads().listDownloads()))
+  ipcMain.handle('downloads:list', (event) => host.runRead(event, () => host.downloads().listDownloadsCheckingFiles()))
   for (const action of ['cancel', 'pause', 'resume'] as const) {
     ipcMain.handle(`downloads:${action}`, (event, downloadId: unknown) => {
       host.assertTrustedSender(event)
@@ -39,10 +39,10 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
     host.assertTrustedSender(event)
     return host.downloads().manageDownloads('clear')
   })
-  ipcMain.handle('downloads:show-in-folder', (event, downloadId: unknown) => {
+  ipcMain.handle('downloads:show-in-folder', async (event, downloadId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
-    host.downloads().showDownloadInFolder(downloadId)
+    await host.downloads().showDownloadInFolder(downloadId)
   })
   ipcMain.handle('bookmarks:list', (event) => host.runRead(event, () => host.bookmarks().list()))
   ipcMain.handle('bookmarks:add', async (event, url: unknown, title: unknown) => {

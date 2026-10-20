@@ -4255,8 +4255,12 @@ export class BrowserTabsManager {
     this.downloadController.remapDownloadWorkspaceOwnership(sourceWorkspaceId, targetWorkspaceId)
   }
 
-  showDownloadInFolder(downloadId: string): void {
-    this.downloadController.showDownloadInFolder(downloadId)
+  listDownloadsCheckingFiles(): BrowserDownloadState[] {
+    return this.downloadController.listDownloadsCheckingFiles()
+  }
+
+  showDownloadInFolder(downloadId: string): Promise<void> {
+    return this.downloadController.showDownloadInFolder(downloadId)
   }
 
   /**

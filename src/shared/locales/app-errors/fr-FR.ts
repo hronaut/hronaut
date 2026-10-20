@@ -232,6 +232,15 @@ export const frFRAppErrors: AppErrorMessages = {
     "conditionsPending": "Les conditions de requête sont encore en cours d’application. Attendez la fin avant d’ouvrir les outils de développement.",
     "conditionsChanged": "Les conditions de requête ont changé avant l’ouverture des outils de développement."
   },
+  "downloads": {
+    "unavailable": "Ce téléchargement n’est plus dans la liste.",
+    "removeActive": "Annulez ce téléchargement avant de le retirer.",
+    "notActive": "Ce téléchargement est déjà terminé ou arrêté.",
+    "notProgressing": "Seul un téléchargement en cours peut être mis en pause.",
+    "notResumable": "Ce téléchargement ne peut pas être repris.",
+    "notCompleted": "Seul un téléchargement terminé peut être affiché dans son dossier.",
+    "fileRemoved": "Ce fichier a été déplacé ou supprimé : il ne peut donc pas être affiché dans son dossier."
+  },
   "bookmarks": {
     "invalidUrl": "L’adresse du favori doit être une adresse HTTP ou HTTPS de 4096 caractères encodés au maximum.",
     "limit": "Limite de favoris atteinte ({max}).",

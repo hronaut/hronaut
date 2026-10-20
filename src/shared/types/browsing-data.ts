@@ -15,6 +15,8 @@ export interface BrowserDownloadState {
   totalBytes: number
   startedAt: string
   completedAt?: string
+  /** A completed download whose file was moved or deleted, as Hronaut last checked: when the Downloads panel opened or showed the file. */
+  fileRemoved?: boolean
 }
 
 export interface BrowserBookmarkCollection {

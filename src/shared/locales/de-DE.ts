@@ -2965,7 +2965,8 @@ export const deDE = {
     "downloaded": "{received} heruntergeladen",
     "complete": "{size} · Abgeschlossen",
     "cancelled": "Abgebrochen",
-    "interrupted": "Unterbrochen"
+    "interrupted": "Unterbrochen",
+    "fileRemoved": "Verschoben oder gelöscht"
   },
   "bookmarks": { sortOrder: "Lesezeichen sortieren", sortUpdated: "Zuletzt aktualisiert", sortTitle: "Titel", copyAddress: "Adresse kopieren", copyAddressAria: "Adresse von {title} kopieren", addressCopied: "Adresse kopiert", copyFailed: "Adresse konnte nicht kopiert werden. Erneut versuchen.",
     "collection": "Sammlung",

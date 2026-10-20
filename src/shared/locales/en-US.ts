@@ -465,7 +465,7 @@ export const enUS = {
     resume: 'Resume',
     resumeAria: 'Resume {filename}',
     paused: 'Paused',
-    kicker: 'Browser files', heading: 'Downloads', clearFinished: "Clear all finished", close: 'Close downloads', empty: 'No downloads yet', emptyDescription: 'Files you download will appear here.', downloading: 'Downloading {filename}', cancelAria: 'Cancel {filename}', cancel: 'Cancel download', showAria: 'Show {filename} in folder', show: 'Show in folder', received: '{received} of {total}', downloaded: '{received} downloaded', complete: '{size} · Complete', cancelled: 'Cancelled', interrupted: 'Interrupted' },
+    kicker: 'Browser files', heading: 'Downloads', clearFinished: "Clear all finished", close: 'Close downloads', empty: 'No downloads yet', emptyDescription: 'Files you download will appear here.', downloading: 'Downloading {filename}', cancelAria: 'Cancel {filename}', cancel: 'Cancel download', showAria: 'Show {filename} in folder', show: 'Show in folder', received: '{received} of {total}', downloaded: '{received} downloaded', complete: '{size} · Complete', cancelled: 'Cancelled', interrupted: 'Interrupted', fileRemoved: 'Moved or deleted' },
   bookmarks: { sortOrder: "Sort bookmarks", sortUpdated: "Recently updated", sortTitle: "Title", copyAddress: "Copy address", copyAddressAria: "Copy address for {title}", addressCopied: "Address copied", copyFailed: "Could not copy address. Try again.",
     "collection": "Collection",
     "collectionFilter": "Filter bookmarks by collection",

@@ -236,6 +236,15 @@ export const enUSAppErrors = {
     "conditionsPending": "Request-condition application is pending. Wait for it to settle before opening Developer Tools.",
     "conditionsChanged": "Request conditions changed before Developer Tools handoff"
   },
+  "downloads": {
+    "unavailable": "This download is no longer in the list.",
+    "removeActive": "Cancel this download before removing it.",
+    "notActive": "This download has already finished or stopped.",
+    "notProgressing": "Only a download in progress can be paused.",
+    "notResumable": "This download cannot be resumed.",
+    "notCompleted": "Only a completed download can be shown in its folder.",
+    "fileRemoved": "This file was moved or deleted, so it cannot be shown in its folder."
+  },
   "bookmarks": {
     "invalidUrl": "Bookmark URL must be an HTTP or HTTPS address within 4,096 encoded characters",
     "limit": "Bookmark limit reached ({max})",

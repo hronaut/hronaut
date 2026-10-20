@@ -232,6 +232,15 @@ export const deDEAppErrors: AppErrorMessages = {
     "conditionsPending": "Anfragebedingungen werden noch angewendet. Warten Sie, bis dies abgeschlossen ist, bevor Sie die Entwicklertools öffnen.",
     "conditionsChanged": "Die Anfragebedingungen haben sich geändert, bevor die Entwicklertools geöffnet wurden."
   },
+  "downloads": {
+    "unavailable": "Dieser Download ist nicht mehr in der Liste.",
+    "removeActive": "Brechen Sie diesen Download ab, bevor Sie ihn entfernen.",
+    "notActive": "Dieser Download ist bereits beendet oder abgebrochen.",
+    "notProgressing": "Nur ein laufender Download kann pausiert werden.",
+    "notResumable": "Dieser Download kann nicht fortgesetzt werden.",
+    "notCompleted": "Nur ein abgeschlossener Download kann im Ordner angezeigt werden.",
+    "fileRemoved": "Diese Datei wurde verschoben oder gelöscht und kann daher nicht im Ordner angezeigt werden."
+  },
   "bookmarks": {
     "invalidUrl": "Die Lesezeichenadresse muss eine HTTP- oder HTTPS-Adresse mit höchstens 4.096 codierten Zeichen sein.",
     "limit": "Lesezeichenlimit erreicht ({max}).",

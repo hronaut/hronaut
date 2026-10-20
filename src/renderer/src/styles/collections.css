@@ -206,6 +206,9 @@
 .download-item.completed .download-state-icon { @apply [color:var(--success)] [background:color-mix(in_srgb,_var(--success)_12%,_transparent)]; }
 .download-item.cancelled .download-state-icon,
 .download-item.interrupted .download-state-icon { @apply [color:#d9534f] [background:rgba(217,_83,_79,_.1)]; }
+/* A finished file that was moved or deleted since, struck through as in Chrome. */
+.download-item.completed.file-removed .download-state-icon { @apply text-muted bg-surface-muted; }
+.download-item.file-removed .download-copy strong { @apply [text-decoration:line-through] text-muted; }
 .download-state-icon .state-spinner { @apply [animation:spin_.9s_linear_infinite]; }
 .download-copy { @apply min-w-0; }
 .download-copy strong,

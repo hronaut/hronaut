@@ -14,7 +14,7 @@ function fixture() {
   const listeners = new Map<string, Listener>()
   const bookmarks = { collectionSnapshot: vi.fn(() => ({ revision: 0, collections: [] })), createCollection: vi.fn(), renameCollection: vi.fn(), removeCollection: vi.fn(), assignCollection: vi.fn(), list: vi.fn(() => []), add: vi.fn(), addIfMissing: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), removeRestorably: vi.fn() }
   const history = { list: vi.fn(() => []), remove: vi.fn(), clear: vi.fn() }
-  const downloads = { removeFinishedDownload: vi.fn(() => []), listDownloads: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn() }
+  const downloads = { removeFinishedDownload: vi.fn(() => []), listDownloadsCheckingFiles: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn() }
   const host = {
     assertTrustedSender: vi.fn(),
     async runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T> { host.assertTrustedSender(event); return read() },
@@ -96,7 +96,7 @@ it('routes download actions and publishes completed history mutations', async ()
   expect(downloads.removeFinishedDownload).toHaveBeenCalledExactlyOnceWith('finished')
   await invoke('downloads:clear-finished')
   await invoke('downloads:show-in-folder', 'transfer')
-  expect(downloads.listDownloads).toHaveBeenCalledOnce()
+  expect(downloads.listDownloadsCheckingFiles).toHaveBeenCalledOnce()
   expect(downloads.manageDownloads.mock.calls).toEqual([['pause', 'transfer'], ['resume', 'transfer'], ['cancel', 'transfer'], ['clear']])
   expect(downloads.showDownloadInFolder).toHaveBeenCalledWith('transfer')
   await invoke('visit-history:remove', 'visit')

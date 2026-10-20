@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { lstat } from 'node:fs/promises'
+import { access, lstat } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import { shell, type DownloadItem, type Event, type Session, type WebContents } from 'electron'
 import { isActiveDownload } from '../../shared/download-state.js'
 import { redactNetworkUrl } from '../../shared/network-details.js'
 import { isWindowsReservedFilename } from '../../shared/portable-filename.js'
 import type { BrowserDownloadAction, BrowserDownloadState } from '../../shared/types.js'
+import { LocalizedError } from '../localized-error.js'
 
 const MAX_DOWNLOAD_HISTORY = 200
 const MAX_DOWNLOAD_URL_CHARS = 4_096
@@ -65,6 +66,17 @@ function downloadExtension(filename: string): string {
   return COMPRESSED_ENDING.test(final) && inner.length <= 5 ? inner + final : final
 }
 
+/** Whether a finished download's file is still there. Only a missing file counts as gone; one Hronaut may not read stays. */
+async function fileStillThere(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    return code !== 'ENOENT' && code !== 'ENOTDIR'
+  }
+}
+
 /** Owns native downloads; the manager remains authoritative for tabs and workspaces. */
 export class BrowserDownloadsController {
   private readonly downloadHookSessions = new Map<Session, () => void>()
@@ -78,6 +90,10 @@ export class BrowserDownloadsController {
   /** Read once when each download completes, so a later copy can refuse a file that was replaced or changed. */
   private readonly completedFileIdentities = new Map<string, Promise<CompletedDownloadFile['identity'] | undefined>>()
   private downloadNotifyTimer: NodeJS.Timeout | null = null
+  /** How many times each record's file has been checked, so only the newest check's answer counts. */
+  private readonly fileChecks = new Map<string, number>()
+  private fileCheckRunning = false
+  private fileCheckRequested = false
 
   constructor(private readonly host: BrowserDownloadsHost, private readonly platform = process.platform) {}
 
@@ -109,6 +125,7 @@ export class BrowserDownloadsController {
     this.downloadWorkspaceIds.clear()
     this.reservedDownloadPaths.clear()
     this.completedFileIdentities.clear()
+    this.fileChecks.clear()
   }
 
   listDownloads(): BrowserDownloadState[] {
@@ -135,14 +152,72 @@ export class BrowserDownloadsController {
       .map((download) => ({ ...download }))
   }
 
+  /** Every download, as `listDownloads`, after starting a check of finished files for the Downloads panel opening. */
+  listDownloadsCheckingFiles(): BrowserDownloadState[] {
+    this.checkCompletedFiles()
+    return this.listDownloads()
+  }
+
+  /**
+   * Checks in the background that each completed download's file is still where it was saved, as Chrome does when its
+   * downloads page opens: one file at a time, so a slow network folder holds no more than one of Node's file threads,
+   * and once more after a check already running instead of beside it. A file that was moved or deleted marks its
+   * record, so the Downloads panel says so instead of offering to show it in its folder; a file that is back clears
+   * the mark. Each change is published as it settles.
+   */
+  private checkCompletedFiles(): void {
+    this.fileCheckRequested = true
+    if (this.fileCheckRunning || this.destroyed) return
+    this.fileCheckRunning = true
+    void this.runFileChecks().catch((error: unknown) => console.error('[downloads] Could not check finished files:', error))
+  }
+
+  private async runFileChecks(): Promise<void> {
+    try {
+      while (this.fileCheckRequested && !this.destroyed) {
+        this.fileCheckRequested = false
+        this.listDownloads()
+        for (const download of [...this.downloads.values()]) {
+          if (this.destroyed) return
+          if (download.state === 'completed' && download.savePath) await this.checkFile(download, download.savePath)
+        }
+      }
+    } finally {
+      // In the same turn as the last loop test, so a request made after it starts a new run rather than being lost.
+      this.fileCheckRunning = false
+    }
+  }
+
+  /**
+   * Whether a completed download's file is still there, recorded on the record unless it was removed or a newer check
+   * of it started meanwhile, so a slow answer never replaces a newer one.
+   */
+  private async checkFile(download: BrowserDownloadState, savePath: string, publishNow = false): Promise<boolean> {
+    const check = (this.fileChecks.get(download.id) ?? 0) + 1
+    this.fileChecks.set(download.id, check)
+    const present = await fileStillThere(savePath)
+    if (this.downloads.get(download.id) === download && this.fileChecks.get(download.id) === check
+      && this.markFileRemoved(download, !present)) this.notifyDownloadsChanged(publishNow)
+    return present
+  }
+
+  /** Records whether a completed download's file is gone; returns whether that changed. */
+  private markFileRemoved(download: BrowserDownloadState, removed: boolean): boolean {
+    if ((download.fileRemoved === true) === removed) return false
+    if (removed) download.fileRemoved = true
+    else delete download.fileRemoved
+    return true
+  }
+
   removeFinishedDownload(downloadId: string): BrowserDownloadState[] {
     this.listDownloads()
     const download = this.downloads.get(downloadId)
-    if (!download) throw new Error('Download record not found')
-    if (isActiveDownload(download)) throw new Error('Only finished download records can be removed')
+    if (!download) throw new LocalizedError('appErrors.downloads.unavailable')
+    if (isActiveDownload(download)) throw new LocalizedError('appErrors.downloads.removeActive')
     this.downloads.delete(downloadId)
     this.downloadWorkspaceIds.delete(downloadId)
     this.completedFileIdentities.delete(downloadId)
+    this.fileChecks.delete(downloadId)
     const downloads = this.listDownloads()
     this.sendDownloadsChanged(downloads)
     return downloads
@@ -175,14 +250,17 @@ export class BrowserDownloadsController {
       if (!downloadId) throw new Error(`downloadId is required to ${action} a download`)
       const download = this.downloads.get(downloadId)
       const item = download && inScope(download) ? this.downloadItems.get(downloadId) : undefined
-      if (!item) throw new Error(`Active download not found: ${downloadId}`)
+      // MCP results keep these messages, which agents already read.
+      if (!item) throw new LocalizedError('appErrors.downloads.notActive', undefined, { message: `Active download not found: ${downloadId}` })
       if (action === 'cancel') item.cancel()
       else if (action === 'pause') {
-        if (item.getState() !== 'progressing') throw new Error('Only a progressing download can be paused')
+        if (item.getState() !== 'progressing') {
+          throw new LocalizedError('appErrors.downloads.notProgressing', undefined, { message: 'Only a progressing download can be paused' })
+        }
         item.pause()
       } else {
         if (!item.isPaused() && !(item.getState() === 'interrupted' && item.canResume())) {
-          throw new Error('Download is not paused or resumable')
+          throw new LocalizedError('appErrors.downloads.notResumable', undefined, { message: 'Download is not paused or resumable' })
         }
         item.resume()
       }
@@ -192,6 +270,7 @@ export class BrowserDownloadsController {
         this.downloads.delete(id)
         this.downloadWorkspaceIds.delete(id)
         this.completedFileIdentities.delete(id)
+        this.fileChecks.delete(id)
       }
     }
     const downloads = this.listDownloads()
@@ -232,13 +311,16 @@ export class BrowserDownloadsController {
     return { savePath: download.savePath, identity }
   }
 
-  showDownloadInFolder(downloadId: string): void {
+  async showDownloadInFolder(downloadId: string): Promise<void> {
     const download = this.downloads.get(downloadId)
-    if (!download) throw new Error(`Download not found: ${downloadId}`)
-    if (download.state !== 'completed' || !download.savePath || !existsSync(download.savePath)) {
-      throw new Error('Only a completed download that still exists can be shown in its folder')
-    }
-    shell.showItemInFolder(download.savePath)
+    if (!download) throw new LocalizedError('appErrors.downloads.unavailable')
+    const savePath = download.state === 'completed' ? download.savePath : undefined
+    if (!savePath) throw new LocalizedError('appErrors.downloads.notCompleted')
+    // The row changes with the error, not after the next progress update.
+    const present = await this.checkFile(download, savePath, true)
+    if (this.downloads.get(downloadId) !== download) throw new LocalizedError('appErrors.downloads.unavailable')
+    if (!present) throw new LocalizedError('appErrors.downloads.fileRemoved')
+    shell.showItemInFolder(savePath)
   }
 
   attachSession(browserSession: Session): void {
@@ -324,6 +406,8 @@ export class BrowserDownloadsController {
         item.on('updated', onUpdated)
         item.once('done', onDone)
         this.notifyDownloadsChanged(true)
+        // A new download opens the Downloads panel, so its finished files are checked as when the panel opens.
+        this.checkCompletedFiles()
       }
       browserSession.on('will-download', onWillDownload)
       this.downloadHookSessions.set(browserSession, () => browserSession.removeListener('will-download', onWillDownload))
@@ -409,6 +493,7 @@ export class BrowserDownloadsController {
       this.downloads.delete(id)
       this.downloadWorkspaceIds.delete(id)
       this.completedFileIdentities.delete(id)
+      this.fileChecks.delete(id)
     }
   }
 

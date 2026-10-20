@@ -232,6 +232,15 @@ export const esESAppErrors: AppErrorMessages = {
     "conditionsPending": "Las condiciones de solicitud aún se están aplicando. Espera a que terminen antes de abrir las herramientas de desarrollo.",
     "conditionsChanged": "Las condiciones de solicitud cambiaron antes de abrir las herramientas de desarrollo."
   },
+  "downloads": {
+    "unavailable": "Esta descarga ya no está en la lista.",
+    "removeActive": "Cancela esta descarga antes de quitarla.",
+    "notActive": "Esta descarga ya ha terminado o se ha detenido.",
+    "notProgressing": "Solo se puede pausar una descarga en curso.",
+    "notResumable": "Esta descarga no se puede reanudar.",
+    "notCompleted": "Solo se puede mostrar en su carpeta una descarga completada.",
+    "fileRemoved": "Este archivo se movió o se eliminó, así que no se puede mostrar en su carpeta."
+  },
   "bookmarks": {
     "invalidUrl": "La dirección del marcador debe ser una dirección HTTP o HTTPS de hasta 4096 caracteres codificados.",
     "limit": "Se alcanzó el límite de marcadores ({max}).",

@@ -538,7 +538,7 @@ export const ukUA = {
     resume: 'Продовжити',
     resumeAria: 'Продовжити {filename}',
     paused: 'Призупинено',
-    kicker: 'Файли браузера', heading: 'Завантаження', clearFinished: "Очистити всі завершені", close: 'Закрити завантаження', empty: 'Завантажень ще немає', emptyDescription: 'Завантажені файли зʼявляться тут.', downloading: 'Завантаження {filename}', cancelAria: 'Скасувати {filename}', cancel: 'Скасувати завантаження', showAria: 'Показати {filename} у папці', show: 'Показати в папці', received: '{received} із {total}', downloaded: 'Завантажено {received}', complete: '{size} · Завершено', cancelled: 'Скасовано', interrupted: 'Перервано' },
+    kicker: 'Файли браузера', heading: 'Завантаження', clearFinished: "Очистити всі завершені", close: 'Закрити завантаження', empty: 'Завантажень ще немає', emptyDescription: 'Завантажені файли зʼявляться тут.', downloading: 'Завантаження {filename}', cancelAria: 'Скасувати {filename}', cancel: 'Скасувати завантаження', showAria: 'Показати {filename} у папці', show: 'Показати в папці', received: '{received} із {total}', downloaded: 'Завантажено {received}', complete: '{size} · Завершено', cancelled: 'Скасовано', interrupted: 'Перервано', fileRemoved: 'Переміщено або видалено' },
   bookmarks: { sortOrder: "Порядок закладок", sortUpdated: "Нещодавно оновлені", sortTitle: "Назва", copyAddress: "Копіювати адресу", copyAddressAria: "Копіювати адресу «{title}»", addressCopied: "Адресу скопійовано", copyFailed: "Не вдалося скопіювати адресу. Спробуйте ще раз.",
     "collection": "Колекція",
     "collectionFilter": "Фільтрувати закладки за колекцією",

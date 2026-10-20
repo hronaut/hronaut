@@ -51,7 +51,7 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
   let actionGeneration = 0
 
   function canCopyPath(download: BrowserDownloadState): boolean {
-    return download.state === 'completed' && typeof download.savePath === 'string' && download.savePath.length > 0
+    return download.state === 'completed' && !download.fileRemoved && typeof download.savePath === 'string' && download.savePath.length > 0
   }
 
   function resetCopyFeedback(): void {
@@ -105,6 +105,7 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
         : options.translate('downloads.downloaded', { received })
       return download.paused ? `${options.translate('downloads.paused')} · ${progress}` : progress
     }
+    if (download.state === 'completed' && download.fileRemoved) return options.translate('downloads.fileRemoved')
     if (download.state === 'completed') return options.translate('downloads.complete', { size: options.formatBytes(download.receivedBytes) })
     if (download.state === 'cancelled') return options.translate('downloads.cancelled')
     return options.translate('downloads.interrupted')

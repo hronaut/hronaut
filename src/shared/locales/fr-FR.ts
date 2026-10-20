@@ -2965,7 +2965,8 @@ export const frFR = {
     "downloaded": "{received} téléchargés",
     "complete": "{size} · Terminé",
     "cancelled": "Annulé",
-    "interrupted": "Interrompu"
+    "interrupted": "Interrompu",
+    "fileRemoved": "Déplacé ou supprimé"
   },
   "bookmarks": { sortOrder: "Trier les favoris", sortUpdated: "Récemment modifiés", sortTitle: "Titre", copyAddress: "Copier l’adresse", copyAddressAria: "Copier l’adresse de {title}", addressCopied: "Adresse copiée", copyFailed: "Impossible de copier l’adresse. Réessayez.",
     "collection": "Collection",
