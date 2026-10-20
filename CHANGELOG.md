@@ -74,6 +74,7 @@ All notable changes to Hronaut are documented in this file.
 - Holding Enter on **Switch workspace**, the palette's **Switch workspace** command or the command palette button now leaves the choice to you. The switcher and the palette open with the keyboard focus in their search field and a choice already selected, so the held key's repeats switched to another workspace or ran the first command. Holding Enter to close them, or on a command, no longer opens them again from the button they give the focus back to.
 - **New workspace** in the workspace switcher now opens the workspace editor. It closed the switcher and nothing opened, because the editor still saw the switcher as open.
 - A tab an agent just opened or acted on now gets its preview in the tab overview. When the picture of the agent's step was being taken at the same moment, the tab's own capture got nothing and was not tried again, so the overview could show no preview for the tab until its page changed.
+- Holding Enter on **Archive** in a workspace card's menu on Home now leaves the workspace archived. Archiving moves the keyboard focus to **Undo**, so the held key's repeats pressed it and restored the workspace. A held Enter on Home's workspace buttons and card menus now presses them once.
 
 ### Security
 
