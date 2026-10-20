@@ -48,16 +48,21 @@ interface BrowserDownloadsHost {
   publish(downloads: BrowserDownloadState[]): void
 }
 
+/** Endings after which Chrome counts a short part before them as part of the extension, as in `.tar.gz` or `.tar.zst`. */
+const COMPRESSED_ENDING = /^\.(?:bz2?|gz|lz(?:ma|o)?|xz|z|zst)$/i
+
 /**
- * A download name's extension as Chrome reads it: a compressed archive's two extensions, such as `.tar.gz` or
- * `.sql.gz`, count as one, so a second `release.tar.gz` is saved as `release (1).tar.gz` rather than
- * `release.tar (1).gz`, and a shortened name keeps both.
+ * A download name's extension as Chrome reads it: one to four characters before a compressed ending count as part of
+ * it, as does `.user` before `.js`, so a second `release.tar.gz` is saved as `release (1).tar.gz` rather than
+ * `release.tar (1).gz`, and a shortened name keeps both parts.
  */
 function downloadExtension(filename: string): string {
   const final = extname(filename)
-  if (!/^\.(?:gz|xz|bz2|bz|z)$/i.test(final)) return final
+  if (!final) return final
   const inner = extname(filename.slice(0, -final.length))
-  return /^\.[^.]{1,4}$/.test(inner) ? inner + final : final
+  if (inner.length < 2) return final
+  if ((inner + final).toLowerCase() === '.user.js') return inner + final
+  return COMPRESSED_ENDING.test(final) && inner.length <= 5 ? inner + final : final
 }
 
 /** Owns native downloads; the manager remains authoritative for tabs and workspaces. */
