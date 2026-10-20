@@ -69,6 +69,8 @@ export interface AppShellKeyboardFeatureControllerOptions {
   }
   responsivePreview: AppShellKeyboardSurface
   environmentPanel: Ref<boolean>
+  /** True while the panels that can move to their own window, such as Site storage, are shown there. */
+  panelsInOwnWindow: () => boolean
   runShortcut: (action: BrowserShortcutAction) => void
 }
 
@@ -91,6 +93,10 @@ export function useAppShellKeyboardFeatureController(
   options: AppShellKeyboardFeatureControllerOptions
 ) {
   const { modals, overlays, collections, pageTools } = options
+  const panel = (surface: ShellKeyboardSurface): ShellKeyboardSurface => ({
+    ...surface,
+    inOwnWindow: options.panelsInOwnWindow
+  })
   return useShellKeyboardController({
     allInteractionLocked: options.allInteractionLocked,
     commandPalette: refSurface(options.commandPalette),
@@ -104,37 +110,37 @@ export function useAppShellKeyboardFeatureController(
       refSurface(overlays.tabSearch, 'search-tabs')
     ],
     escapeSurfaces: [
-      refSurface(overlays.siteStorage),
-      refSurface(overlays.siteControls),
+      panel(refSurface(overlays.siteStorage)),
+      panel(refSurface(overlays.siteControls)),
       refSurface(overlays.addressSuggestions),
       customSurface(overlays.find),
       refSurface(overlays.splitMenu),
       refSurface(overlays.zoom),
       refSurface(collections.downloadsOpen),
-      customSurface({
+      panel(customSurface({
         open: collections.bookmarksOpen,
         close: () => collections.bookmarksPanel.value?.handleEscape()
-      }),
+      })),
       refSurface(collections.historyOpen),
-      refSurface(pageTools.panelOpen),
-      refSurface(pageTools.accessibilityPanelOpen),
-      refSurface(pageTools.qualityAuditPanelOpen),
-      refSurface(pageTools.performancePanelOpen),
-      refSurface(pageTools.designOverviewPanelOpen),
-      refSurface(pageTools.pageMetadataPanelOpen),
-      refSurface(pageTools.securityPanelOpen),
-      refSurface(pageTools.coveragePanelOpen),
-      refSurface(pageTools.cpuProfilePanelOpen),
-      refSurface(pageTools.memoryPanelOpen),
-      refSurface(options.developerPanels.console),
-      refSurface(pageTools.debugReportPanelOpen),
-      refSurface(pageTools.reproPanelOpen),
-      refSurface(pageTools.domChangesPanelOpen),
-      refSurface(pageTools.visualComparePanelOpen),
-      refSurface(pageTools.inspectorIssuesOpen),
-      refSurface(options.developerPanels.network),
-      customSurface(options.responsivePreview),
-      refSurface(options.environmentPanel),
+      panel(refSurface(pageTools.panelOpen)),
+      panel(refSurface(pageTools.accessibilityPanelOpen)),
+      panel(refSurface(pageTools.qualityAuditPanelOpen)),
+      panel(refSurface(pageTools.performancePanelOpen)),
+      panel(refSurface(pageTools.designOverviewPanelOpen)),
+      panel(refSurface(pageTools.pageMetadataPanelOpen)),
+      panel(refSurface(pageTools.securityPanelOpen)),
+      panel(refSurface(pageTools.coveragePanelOpen)),
+      panel(refSurface(pageTools.cpuProfilePanelOpen)),
+      panel(refSurface(pageTools.memoryPanelOpen)),
+      panel(refSurface(options.developerPanels.console)),
+      panel(refSurface(pageTools.debugReportPanelOpen)),
+      panel(refSurface(pageTools.reproPanelOpen)),
+      panel(refSurface(pageTools.domChangesPanelOpen)),
+      panel(refSurface(pageTools.visualComparePanelOpen)),
+      panel(refSurface(pageTools.inspectorIssuesOpen)),
+      panel(refSurface(options.developerPanels.network)),
+      panel(customSurface(options.responsivePreview)),
+      panel(refSurface(options.environmentPanel)),
       {
         isOpen: () => pageTools.areaCaptureState.value === 'picking',
         close: () => { void pageTools.toggleAreaCapture() }

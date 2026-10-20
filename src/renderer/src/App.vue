@@ -143,6 +143,7 @@ const {
   updateViewportWidth,
   panelDock,
   keepsSeparatePanelOpen,
+  panelsInOwnWindow,
   persistDock: persistPanelDock
 } = appShellPresentationFeatureController
 // Main draws toasts at the bottom of the page area, clear of tabs and the toolbar; the panel window keeps its own.
@@ -443,7 +444,7 @@ const {
       onActivate: setDetachedPanelTitle
     },
     transient: {
-      shouldCloseDockedPanels: () => isDetachedPanelWindow || panelDock.value !== 'window',
+      shouldCloseDockedPanels: () => !panelsInOwnWindow(),
       addressSuggestionsOpen,
       zoomOpen,
       downloadsOpen,
@@ -546,7 +547,8 @@ const {
       open: responsivePanelOpen,
       close: () => responsivePanel.value?.handleEscape()
     },
-    environment: environmentPanelOpen
+    environment: environmentPanelOpen,
+    panelsInOwnWindow
   },
   features: {
     collections: browserCollectionsFeatureController,

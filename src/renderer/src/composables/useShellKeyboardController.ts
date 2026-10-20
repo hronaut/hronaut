@@ -8,6 +8,8 @@ export interface ShellKeyboardSurface {
   isOpen: () => boolean
   close: () => void
   toggleShortcut?: BrowserShortcutAction
+  /** True while the surface is shown in a window of its own, beside the one that has the keyboard. */
+  inOwnWindow?: () => boolean
 }
 
 export interface ShellKeyboardControllerOptions {
@@ -34,6 +36,13 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
     if (!surface) return false
     surface.close()
     return true
+  }
+
+  // Escape closes what is open in this window first, such as Downloads, and a panel in its own window only after it.
+  function closeNearest(surfaces: readonly ShellKeyboardSurface[]): void {
+    const surface = surfaces.find((candidate) => candidate.isOpen() && !candidate.inOwnWindow?.())
+      ?? surfaces.find((candidate) => candidate.isOpen())
+    surface?.close()
   }
 
   function handleKeyDown(event: KeyboardEvent): void {
@@ -78,7 +87,7 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
       options.runShortcut(shortcut)
       return
     }
-    if (escape) closeFirst(options.escapeSurfaces)
+    if (escape) closeNearest(options.escapeSurfaces)
   }
 
   return { guardInteraction, handleKeyDown }

@@ -175,7 +175,8 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = 
       console: refs.console,
       network: refs.network,
       responsive: { open: refs.responsive, close: noop },
-      environment: refs.environment
+      environment: refs.environment,
+      panelsInOwnWindow: () => false
     },
     features: {
       collections,
