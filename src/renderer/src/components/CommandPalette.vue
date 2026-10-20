@@ -175,7 +175,7 @@ onBeforeUnmount(disposeComponent)
           <span class="command-palette-keys" aria-hidden="true"><kbd v-for="key in paletteKeys" :key="key">{{ key }}</kbd></span>
         </div>
         <span class="sr-only" role="status" aria-live="polite">
-          {{ t('commandPalette.matches', { count: formatNumber(entries.length) }, entries.length) }}<template v-if="selectedEntry"> {{ t('commandPalette.selected', { label: selectedEntry.kind === 'command' ? selectedEntry.command.label : selectedEntry.result.label }) }}</template>
+          {{ t('commandPalette.matches', { count: formatNumber(entries.length) }, entries.length) }}<template v-if="selectedEntry">{{ ' ' + t('commandPalette.selected', { label: selectedEntry.kind === 'command' ? selectedEntry.command.label : selectedEntry.result.label }) }}</template>
         </span>
         <div v-if="entries.length" id="command-palette-results" class="command-palette-results" role="listbox" :aria-label="t('commandPalette.available')">
           <div v-for="section in groups" :key="section.id" class="command-palette-section" role="group" :aria-labelledby="`command-palette-section-${section.id}`" :data-section="section.id">

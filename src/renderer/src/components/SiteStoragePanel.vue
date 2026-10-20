@@ -178,7 +178,7 @@ onBeforeUnmount(dispose)
               <UiButton appearance="application" class="site-storage-item-main" type="button" :disabled="item.protected || item.valueTruncated || siteStorageState === 'saving'" v-tooltip="item.protected ? t('siteStorage.protectedTitle') : item.valueTruncated ? t('siteStorage.partialValueTitle') : t('siteStorage.editTitle')" @click="editSiteStorageItem(item)">
                   <strong>{{ item.key }}</strong>
                   <code>{{ item.protected ? t('siteStorage.protectedValue') : (item.value || t('siteStorage.emptyValue')) }}</code>
-                  <small>{{ localBytes(item.valueBytes) }}<template v-if="item.domain"> · {{ item.domain }}{{ item.path }}</template><template v-if="item.valueTruncated"> {{ t('siteStorage.previewTruncated') }}</template></small>
+                  <small>{{ localBytes(item.valueBytes) }}<template v-if="item.domain"> · {{ item.domain }}{{ item.path }}</template><template v-if="item.valueTruncated">{{ ' ' + t('siteStorage.previewTruncated') }}</template></small>
               </UiButton>
               <UiButton appearance="application" class="site-storage-item-delete" type="button" :disabled="item.protected || siteStorageState === 'saving'" :aria-label="item.protected ? t('siteStorage.protectedAria', { key: item.key }) : t('siteStorage.deleteAria', { key: item.key })" v-tooltip="item.protected ? t('siteStorage.protectedCookie') : t('siteStorage.deleteEntry')" @click="deleteSiteStorageItem(item)"><IconLock v-if="item.protected" aria-hidden="true" /><IconDelete v-else aria-hidden="true" /></UiButton>
             </article>

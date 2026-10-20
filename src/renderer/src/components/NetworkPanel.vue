@@ -448,7 +448,7 @@ onBeforeUnmount(dispose)
               </details>
               <div class="network-detail-actions">
                 <span>
-                  {{ t('network.details.evidence') }}<template v-if="canFormatNetworkRequestCopy(networkRequestDetails)"> {{ t('network.details.reviewCommands') }}</template>
+                  {{ t('network.details.evidence') }}<template v-if="canFormatNetworkRequestCopy(networkRequestDetails)">{{ ' ' + t('network.details.reviewCommands') }}</template>
                 </span>
                 <div class="network-detail-copy-actions">
                   <UiButton appearance="application" variant="danger"
@@ -615,7 +615,7 @@ onBeforeUnmount(dispose)
               <details v-if="networkRequestDetails.webSocket" open>
                 <summary>
                   {{ t('network.details.messages') }}
-                  <span>{{ localNumber(networkRequestDetails.webSocket.messages.length) }}<template v-if="networkRequestDetails.webSocket.droppedMessages"> {{ t('network.details.olderCount', { count: localNumber(networkRequestDetails.webSocket.droppedMessages) }) }}</template></span>
+                  <span>{{ localNumber(networkRequestDetails.webSocket.messages.length) }}<template v-if="networkRequestDetails.webSocket.droppedMessages">{{ ' ' + t('network.details.olderCount', { count: localNumber(networkRequestDetails.webSocket.droppedMessages) }) }}</template></span>
                 </summary>
                 <div class="network-websocket-summary">
                   <span :class="networkRequestDetails.webSocket.open ? 'open' : 'closed'">{{ networkRequestDetails.webSocket.open ? t('network.details.connectionOpen') : t('network.details.connectionClosed') }}</span>
@@ -634,7 +634,7 @@ onBeforeUnmount(dispose)
                       <code>{{ formatBytes(message.sizeBytes) }}</code>
                     </header>
                     <pre v-if="message.text">{{ message.text }}</pre>
-                    <p v-else>{{ t('network.details.payloadOmitted', { kind: networkMessageKindLabel(message.kind) }) }}<template v-if="message.opcode !== undefined"> {{ t('network.details.opcode', { opcode: message.opcode }) }}</template>.</p>
+                    <p v-else>{{ t('network.details.payloadOmitted', { kind: networkMessageKindLabel(message.kind) }) }}<template v-if="message.opcode !== undefined">{{ ' ' + t('network.details.opcode', { opcode: message.opcode }) }}</template>.</p>
                   </article>
                 </div>
                 <p v-else>{{ t('network.details.noMessages') }}</p>
@@ -643,7 +643,7 @@ onBeforeUnmount(dispose)
               <details v-if="networkRequestDetails.eventSource" open>
                 <summary>
                   {{ t('network.details.eventStream') }}
-                  <span>{{ localNumber(networkRequestDetails.eventSource.messages.length) }}<template v-if="networkRequestDetails.eventSource.droppedMessages"> {{ t('network.details.olderCount', { count: localNumber(networkRequestDetails.eventSource.droppedMessages) }) }}</template></span>
+                  <span>{{ localNumber(networkRequestDetails.eventSource.messages.length) }}<template v-if="networkRequestDetails.eventSource.droppedMessages">{{ ' ' + t('network.details.olderCount', { count: localNumber(networkRequestDetails.eventSource.droppedMessages) }) }}</template></span>
                 </summary>
                 <div class="network-websocket-summary">
                   <span :class="networkRequestDetails.eventSource.open ? 'open' : 'closed'">{{ networkRequestDetails.eventSource.open ? t('network.details.streamOpen') : t('network.details.streamClosed') }}</span>

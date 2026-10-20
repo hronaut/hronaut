@@ -116,6 +116,7 @@ All notable changes to Hronaut are documented in this file.
 - **Site controls** now show the site's cookie and history counts when they dock back from their own window after the tab navigated or another tab was selected while they were there. They showed "…" until closed and opened again.
 - A file access prompt that names no file no longer says both that Hronaut remembers the choice and that it asks again next time.
 - The Network panel now names request types, response sources, initiators and WebSocket messages in the interface language, in the request list, request details and content search. A German panel showed Chromium's English codes, such as `fetch/xhr`, **Disk cache** and `received binary`. In English, a row's type now reads as its filter chip does, such as **Fetch/XHR** or **JS**, and the details name types and initiators as words, such as **Script** or **Signed exchange**. Filters, HAR files and MCP results keep the codes, and the filter box still matches the English names.
+- Text Hronaut adds only in some cases no longer runs into the words before it. A WebSocket frame read **Payload omitted for binary(opcode 2).**, a request condition **Fail as Failed· until removed**, and the Network panel's message counts, copy note and search summary, Site storage notes, the Design overview's large-text note and the command palette's and tab search's spoken selection lost the space before them too.
 
 ### Security
 
