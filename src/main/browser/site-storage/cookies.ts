@@ -45,7 +45,11 @@ export async function manageCookies<Tab extends SiteStorageTab>(
   assertCurrent()
   let changed: boolean | undefined
   let expired: string[] | undefined
-  if (action === 'set') {
+  if (action === 'set' && exact) {
+    const cookie = exactCookie(cookies, { name: key!, ...exact }, 'replaced')
+    await operation.write(() => replaceCookieValue(cookieStore, cookie, value!))
+    changed = true
+  } else if (action === 'set') {
     const protectedMatch = cookies.some((cookie) => cookie.name === key && cookie.httpOnly)
     if (protectedMatch) throw new Error('HttpOnly cookies are protected and cannot be replaced by the storage manager.')
     await operation.write(() => cookieStore.set({
@@ -58,7 +62,7 @@ export async function manageCookies<Tab extends SiteStorageTab>(
     }))
     changed = true
   } else if (action === 'delete' && exact) {
-    const cookie = exactCookie(cookies, { name: key!, ...exact })
+    const cookie = exactCookie(cookies, { name: key!, ...exact }, 'deleted')
     await operation.write(() => expireCookie(cookieStore, cookie))
     const remaining = await cookieStore.get({ url })
     assertCurrent()
@@ -143,13 +147,37 @@ function expireCookie(cookieStore: Electron.Cookies, cookie: Electron.Cookie): P
 // partitioned cookies without their partition key, so a second listed cookie of
 // the selected identity makes the selection ambiguous. A partitioned cookie
 // alone survives expiry, and the caller's fresh read reports it still present.
-function exactCookie(listing: Electron.Cookie[], target: { name: string; domain: string; path: string }): Electron.Cookie {
+function exactCookie(
+  listing: Electron.Cookie[],
+  target: { name: string; domain: string; path: string },
+  change: 'deleted' | 'replaced'
+): Electron.Cookie {
   const listed = listing.filter((cookie) => cookie.name === target.name && cookie.domain === target.domain && cookie.path === target.path)
   const [only] = listed
   if (!only) throw new Error('No cookie for this page matches that exact name, domain and path. List cookies again and use the reported domain and path.')
-  if (listed.some((cookie) => cookie.httpOnly)) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
-  if (listed.length > 1) throw new Error('More than one cookie has that name, domain and path, for example in another partition. It was not deleted.')
+  if (listed.some((cookie) => cookie.httpOnly)) throw new Error(`HttpOnly cookies are protected and cannot be ${change} by the storage manager.`)
+  if (listed.length > 1) throw new Error(`More than one cookie has that name, domain and path, for example in another partition. It was not ${change}.`)
   return only
+}
+
+// Gives one listed cookie a new value and keeps the rest of it: its domain, or
+// host-only scope, path, Secure, SameSite and expiry. A plain set writes a
+// host-only cookie at "/" instead, which beside a cookie on another path or
+// domain is a second cookie of that name. The address is https, as for expiry,
+// and Chromium refuses to replace an HttpOnly cookie with this one.
+function replaceCookieValue(cookieStore: Electron.Cookies, cookie: Electron.Cookie, value: string): Promise<void> {
+  const domain = cookie.domain ?? ''
+  return cookieStore.set({
+    url: `https://${domain.replace(/^\./, '')}/`,
+    name: cookie.name,
+    value,
+    ...(cookie.hostOnly ? {} : { domain }),
+    path: cookie.path ?? '/',
+    secure: cookie.secure,
+    httpOnly: false,
+    sameSite: cookie.sameSite,
+    ...(cookie.session || cookie.expirationDate === undefined ? {} : { expirationDate: cookie.expirationDate })
+  })
 }
 
 // Name-only deletion and clear expire each selected cookie's exact name, domain

@@ -21,9 +21,9 @@ export interface BrowserStorageOptions {
   key?: string
   value?: string
   includeValues?: boolean
-  /** Exact cookie domain from a listing; requires cookiePath and cookie delete. */
+  /** Exact cookie domain from a listing; requires cookiePath and cookie delete or set. */
   cookieDomain?: string
-  /** Exact cookie path from a listing; requires cookieDomain and cookie delete. */
+  /** Exact cookie path from a listing; requires cookieDomain and cookie delete or set. */
   cookiePath?: string
 }
 

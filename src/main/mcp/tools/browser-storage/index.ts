@@ -21,9 +21,9 @@ export function registerBrowserStorage(context: McpToolContext): void {
         value: z.string().max(256 * 1024).optional().describe('Required for set. Limited to 256 KiB.'),
         includeValues: z.boolean().default(false).describe('Include bounded values when listing. Explicit get always returns the bounded value. HttpOnly cookie values are never exposed.'),
         cookieDomain: z.string().min(1).max(255).optional()
-          .describe('Cookie delete only: exact domain from a cookie listing, including any leading dot. Requires cookiePath and deletes only that one cookie.'),
+          .describe('Cookie delete or set only: exact domain from a cookie listing, including any leading dot. Requires cookiePath; delete removes only that one cookie, and set gives only that existing cookie the new value, keeping its domain, path, Secure, SameSite and expiry.'),
         cookiePath: z.string().min(1).max(1024).startsWith('/').optional()
-          .describe('Cookie delete only: exact path from a cookie listing. Requires cookieDomain; no prefix or wildcard matching.')
+          .describe('Cookie delete or set only: exact path from a cookie listing. Requires cookieDomain; no prefix or wildcard matching.')
       }
     },
     tabTool('browser_storage', async ({ tabId, kind, action, key, value, includeValues, cookieDomain, cookiePath }: {

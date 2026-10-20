@@ -102,3 +102,59 @@ test('deletes only the cookie row chosen and keeps HttpOnly cookies when clearin
     await closeFixtureServer(server)
   }
 })
+
+test('updates the cookie row chosen on its own path instead of writing another cookie at "/"', async ({ appWindow, electronApp }) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, {
+      'content-type': 'text/html',
+      'set-cookie': ['pref=root; Path=/', 'pref=app; Path=/app', 'sid=signed-in; HttpOnly; Path=/', 'sid=guest; Path=/app']
+    })
+    response.end('<title>Cookie edit fixture</title>')
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Missing cookie fixture address')
+    const pageUrl = `http://127.0.0.1:${address.port}/app/page`
+    const state = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(pageUrl)}, active: true })`) as BrowserState
+    const tabId = state.activeTabId
+    const cookies = async () => ((await appWindow.evaluate(`window.hronaut.manageStorage({ tabId: ${JSON.stringify(tabId)}, kind: 'cookies', action: 'list', includeValues: true })`)) as { items: Array<{ key: string; value?: string; path: string; protected?: boolean }> })
+      .items.map(item => `${item.key}=${item.protected ? 'HttpOnly' : item.value}${item.path}`).sort()
+    // What the page itself now receives, without its HttpOnly cookie.
+    const pageCookies = async () => (await electronApp.evaluate(({ webContents }, pageUrl) => webContents.getAllWebContents()
+      .find(candidate => candidate.getURL() === pageUrl)!.executeJavaScript('document.cookie') as Promise<string>, pageUrl)).split('; ').sort()
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.title)')).toBe('Cookie edit fixture')
+    expect(await cookies()).toEqual(['pref=app/app', 'pref=root/', 'sid=HttpOnly/', 'sid=guest/app'])
+    await appWindow.getByRole('button', { name: 'Page tools', exact: true }).click()
+    await appWindow.getByRole('button', { name: 'Site storage for 127.0.0.1', exact: true }).click()
+    const panel = appWindow.getByRole('dialog', { name: 'Site storage · 127.0.0.1', exact: true })
+    await panel.getByRole('button', { name: 'Cookies', exact: true }).click()
+    await expect(panel.locator('.site-storage-item')).toHaveCount(4)
+    const search = panel.getByRole('searchbox', { name: 'Filter site storage', exact: true })
+    const value = panel.getByRole('textbox', { name: 'Storage value', exact: true })
+
+    // A plain set wrote pref at "/", which replaced pref=root and left the /app row as it was.
+    await search.fill('pref app')
+    await expect(panel.locator('.site-storage-item')).toHaveCount(1)
+    await panel.locator('.site-storage-item-main').click()
+    await expect(panel.getByRole('textbox', { name: 'Storage key', exact: true })).toHaveValue('pref')
+    await value.fill('updated')
+    await panel.getByRole('button', { name: 'Update', exact: true }).click()
+    await expect.poll(cookies).toEqual(['pref=root/', 'pref=updated/app', 'sid=HttpOnly/', 'sid=guest/app'])
+    expect(await pageCookies()).toEqual(['pref=root', 'pref=updated', 'sid=guest'])
+
+    // The script cookie on /app beside an HttpOnly cookie of its name on "/" was refused as protected.
+    await search.fill('sid guest')
+    await expect(panel.locator('.site-storage-item')).toHaveCount(1)
+    await panel.locator('.site-storage-item-main').click()
+    await value.fill('changed')
+    await panel.getByRole('button', { name: 'Update', exact: true }).click()
+    await expect.poll(cookies).toEqual(['pref=root/', 'pref=updated/app', 'sid=HttpOnly/', 'sid=changed/app'])
+    expect(await pageCookies()).toEqual(['pref=root', 'pref=updated', 'sid=changed'])
+    await expect(panel).not.toContainText('HttpOnly cookies are protected')
+    await search.fill('')
+    await expect(panel.locator('.site-storage-item')).toHaveCount(4)
+  } finally {
+    await closeFixtureServer(server)
+  }
+})

@@ -4,7 +4,7 @@ export const WEB_STORAGE_INPUT_ERRORS = {
   KEY_TOO_LARGE: 'Storage keys are limited to 512 characters.',
   VALUE_TOO_LARGE: 'Storage values are limited to 256 KiB.',
   UNSUPPORTED_SCHEME: 'Site storage is available only for HTTP and HTTPS tabs.',
-  COOKIE_SELECTOR_UNSUPPORTED: 'cookieDomain and cookiePath apply only to cookie deletion.'
+  COOKIE_SELECTOR_UNSUPPORTED: 'cookieDomain and cookiePath apply only to deleting or setting one cookie.'
 } as const
 
 export class WebStorageInputError extends TypeError {
