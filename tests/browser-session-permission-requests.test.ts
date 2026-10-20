@@ -56,7 +56,8 @@ async function createHarness(locale: SupportedLocale = 'en-US') {
     decide: (_options: MessageBoxOptions): Answer | Promise<Answer> => 'deny',
     request: undefined as RequestHandler | undefined,
     check: undefined as CheckHandler | undefined,
-    publishSitePermissions: (): void => undefined
+    publishSitePermissions: (): void => undefined,
+    workspaces: [] as Array<{ id: string, name: string }>
   }
   const browserSession = createBrowserSession({
     text: (key, parameters) => translate(locale, key, parameters),
@@ -67,6 +68,7 @@ async function createHarness(locale: SupportedLocale = 'en-US') {
       const closed = new Promise<Answer>((resolve) => { options.signal?.addEventListener('abort', () => resolve('deny')) })
       return { response: await Promise.race([harness.decide(options), closed]) === 'allow' ? 1 : 0, checkboxChecked: false }
     },
+    workspaces: () => harness.workspaces,
     state: { persistentSession: null, sitePermissionStore: store },
     sendToShellWindows: (...args) => { sent.push(args) },
     partition: 'persist:test'
@@ -620,6 +622,17 @@ describe('decisions that belong to a workspace and a page', () => {
   const check = (handler: CheckHandler | undefined, page: { contents: unknown } | null, details: Record<string, unknown>) => (
     handler!(page ? page.contents as never : null, 'geolocation', `${widget.origin}/`, details as never)
   )
+
+  it('names the workspace and the page a website embedded in it asks in', async () => {
+    const harness = await createHarness()
+    harness.workspaces = [{ id: WORK, name: 'Client A' }, { id: CLIENT, name: 'Personal' }]
+    expect(await ask(harness, createPage(firstSite, [widget]), 'geolocation', fromWidget)).toBe(false)
+    expect(harness.shown[0]).toMatchObject({
+      message: 'https://widget.example on https://first.example requests “Location” permission.',
+      detail: 'Hronaut remembers this choice for this website on https://first.example in the “Client A” workspace. '
+        + 'You can change it later in Settings → Site permissions.'
+    })
+  })
 
   it('asks again for a website embedded in another page, and keeps each page’s decision', async () => {
     // An Allow given to a video-call widget on one page was saved for the widget alone, so every other page that

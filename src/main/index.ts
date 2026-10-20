@@ -325,6 +325,7 @@ const {
   text,
   effectiveDownloadDirectory,
   showMessageBox,
+  workspaces: () => tabRuntime.tabs ? [...tabRuntime.tabs.listMcpTabGroups(), ...tabRuntime.tabs.listSavedTabGroups()] : [],
   state: browserSessionState,
   sendToShellWindows,
   partition: PARTITION
