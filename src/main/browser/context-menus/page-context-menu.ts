@@ -1,6 +1,7 @@
 import { Menu, type ContextMenuParams, type MenuItemConstructorOptions } from 'electron'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
+import { savedResourceReferrer } from './page-context-menu-referrer.js'
 
 /**
  * Shows the native context menu for a right-click in the page: link, image,
@@ -40,6 +41,14 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   const copyText = (text: string): void => {
     void access.options().copyText(text).catch((error) => reportCopyFailure('text', error))
   }
+  // Electron types the frame's referrer policy as a Referrer, but reports the policy name.
+  const referrerPolicy = params.referrerPolicy as unknown as string | Partial<Electron.Referrer> | undefined
+  const policy = typeof referrerPolicy === 'string' ? referrerPolicy : referrerPolicy?.policy ?? 'default'
+  const download = (url: string): void => {
+    const referrer = savedResourceReferrer(params.frameURL || params.pageURL, url, policy)
+    if (referrer) webContents.downloadURL(url, { headers: { Referer: referrer } })
+    else webContents.downloadURL(url)
+  }
   const copyImage = (): void => {
     void access.options().copyImageAt(webContents, params.x, params.y)
       .catch((error) => reportCopyFailure('image', error))
@@ -63,7 +72,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
         id: 'save-link',
         label: access.text('native.context.saveLink'),
         enabled: webLink,
-        click: withLiveContents('save link', () => webContents.downloadURL(params.linkURL))
+        click: withLiveContents('save link', () => download(params.linkURL))
       }
     ])
   }
@@ -91,7 +100,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
         id: 'save-image',
         label: access.text('native.context.saveImage'),
         enabled: isWebUrl(params.srcURL),
-        click: withLiveContents('save image', () => webContents.downloadURL(params.srcURL))
+        click: withLiveContents('save image', () => download(params.srcURL))
       }
     ])
   }
