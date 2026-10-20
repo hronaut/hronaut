@@ -290,7 +290,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
           :disabled="!activeUrl || anyPending"
           @click="toggleCurrentPage"
         >{{ currentBookmark ? t('bookmarks.removeCurrent') : t('bookmarks.addCurrent') }}</UiButton>
-        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('bookmarks.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('bookmarks.close')" @keydown="ignoreHeldEnter" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <BookmarkCollectionsToolbar v-if="collectionsApi" ref="collectionsToolbar" :controller="collectionController" :blocked="pendingAction !== null" />

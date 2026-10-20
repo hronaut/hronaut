@@ -918,3 +918,21 @@ describe('current page bookmark focus', () => {
     }
   })
 })
+
+describe('held Enter', () => {
+  it('keeps a held Enter from pressing Remove or Close again', () => {
+    renderPanel()
+    for (const name of ['Remove Alpha docs', 'Close bookmarks']) {
+      const button = screen.getByRole('button', { name })
+      const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+      button.dispatchEvent(press)
+      button.dispatchEvent(repeat)
+
+      // Remove hands its focus to the next row's Remove, and the last row's to Close, so each repeat of a held Enter
+      // pressed one more of them.
+      expect(press.defaultPrevented).toBe(false)
+      expect(repeat.defaultPrevented).toBe(true)
+    }
+  })
+})

@@ -199,7 +199,7 @@ async function clearOrigin(event: Event): Promise<void> {
       </div>
       <div class="history-header-actions">
         <UiButton appearance="application" type="button" :disabled="!entries.length || pendingAction !== null" @click="keepFocusThrough($event, clear)">{{ t('history.clearAll') }}</UiButton>
-        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('history.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('history.close')" @keydown="ignoreHeldEnter" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div v-if="entries.length" class="history-search-field">

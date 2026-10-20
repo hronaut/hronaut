@@ -146,7 +146,7 @@ onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVi
       </div>
       <div class="downloads-header-actions">
         <UiButton appearance="application" type="button" :disabled="!finishedDownloads.length || pendingAction !== null" aria-describedby="downloads-clear-hint" @click="clearDownloads">{{ t('downloads.clearFinished') }}</UiButton>
-        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('downloads.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('downloads.close')" @keydown="ignoreHeldEnter" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div v-if="downloads.length" class="downloads-filters">

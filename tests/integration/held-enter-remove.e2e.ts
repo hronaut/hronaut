@@ -1,23 +1,28 @@
-import { writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join } from 'node:path'
 import type { Locator, Page } from '@playwright/test'
-import type { CredentialStorageStatus, CredentialSummary, HronautApi, HronautBookmarksApi, HronautHistoryApi } from '../../src/shared/types.js'
+import type { HronautApi, HronautBookmarksApi, HronautHistoryApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 /**
- * Presses Enter on the first of `removes` and keeps it held once that row is gone and the next row's Remove has the
- * focus, with repeats at a keyboard's usual pace.
+ * Presses Enter on the first of `removes` and keeps it held once that row is gone, sending each repeat, at a
+ * keyboard's usual pace, only once the next row's Remove has the focus and can be pressed.
  */
 async function holdEnterOnFirstRemove(page: Page, removes: Locator, rows: number): Promise<void> {
+  await expect(removes.first()).toBeEnabled()
   await removes.first().focus()
+  await expect(removes.first()).toBeFocused()
   await page.keyboard.down('Enter')
   await expect(removes).toHaveCount(rows - 1)
+  await expect(removes.first()).toBeEnabled()
   // Remove hands its focus to the next row's Remove. History's live list can take that focus elsewhere first, so it
   // is given here rather than waited for.
   await removes.first().focus()
   for (let repeat = 0; repeat < 6; repeat += 1) {
     await page.waitForTimeout(50)
+    await expect(removes.first()).toBeEnabled()
+    await expect(removes.first()).toBeFocused()
     await page.keyboard.down('Enter')
   }
   await page.keyboard.up('Enter')
@@ -53,9 +58,24 @@ test('a held Enter on Remove in Bookmarks or History removes one row', async ({ 
     expect(await appWindow.evaluate(() => (window as unknown as { hronautBookmarks: HronautBookmarksApi }).hronautBookmarks.list()
       .then(list => list.length))).toBe(3)
     await expect(bookmarkRemoves).toHaveCount(3)
-    // A new press still removes the next one.
+    // New presses still remove the next one.
     await appWindow.keyboard.press('Enter')
     await expect(bookmarkRemoves).toHaveCount(2)
+    await expect(bookmarkRemoves.first()).toBeFocused()
+    await appWindow.keyboard.press('Enter')
+    await expect(bookmarkRemoves).toHaveCount(1)
+    await expect(bookmarkRemoves.first()).toBeFocused()
+    // Removing the last one hands the focus to Close, and the held Enter used to close Bookmarks with it.
+    const close = bookmarks.getByRole('button', { name: 'Close bookmarks' })
+    await appWindow.keyboard.down('Enter')
+    await expect(bookmarkRemoves).toHaveCount(0)
+    for (let repeat = 0; repeat < 6; repeat += 1) {
+      await appWindow.waitForTimeout(50)
+      await expect(close).toBeFocused()
+      await appWindow.keyboard.down('Enter')
+    }
+    await appWindow.keyboard.up('Enter')
+    await expect(bookmarks).toBeVisible()
 
     await appWindow.getByRole('button', { name: 'Browsing history' }).click()
     const history = appWindow.getByRole('dialog', { name: 'Browsing history' })
@@ -70,33 +90,23 @@ test('a held Enter on Remove in Bookmarks or History removes one row', async ({ 
   }
 })
 
-test('a held Enter on Remove in saved passwords removes one password', async ({ appWindow, electronApp, profileDirectory }) => {
-  const status = await appWindow.evaluate('window.hronautCredentials.status()') as CredentialStorageStatus
-  console.log('[held-enter] credential storage available:', status.available)
-  // Without secure storage nothing can be saved, as credentials.e2e.ts checks.
-  if (!status.available) {
-    await expect(appWindow.evaluate('window.hronautCredentials.importFromCsv()')).rejects.toThrow(status.reason)
-    return
+test('a held Enter on Forget in site permissions forgets one decision', async ({ appWindow, profileDirectory }) => {
+  const origins = ['https://one.example.test', 'https://two.example.test', 'https://three.example.test', 'https://four.example.test']
+  // A new decision belongs to a workspace.
+  const created = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Held decisions', storage: 'scratch' })`) as {
+    mcpTabGroups: Array<{ id: string, name: string }>
   }
-  const csvPath = join(profileDirectory, 'held-enter-passwords.csv')
-  await writeFile(csvPath, [
-    'name,url,username,password,note',
-    'One,https://one.example/login,first-person,first-secret,',
-    'Two,https://two.example/login,second-person,second-secret,',
-    'Three,https://three.example/login,third-person,third-secret,'
-  ].join('\n'), { encoding: 'utf8', mode: 0o600 })
-  await electronApp.evaluate(({ dialog }, selectedPath) => {
-    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selectedPath] })
-    dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
-  }, csvPath)
-  expect(await appWindow.evaluate('window.hronautCredentials.importFromCsv()')).toMatchObject({ added: 3 })
-
-  await appWindow.getByRole('button', { name: 'Settings' }).click()
-  await appWindow.getByRole('button', { name: 'Passwords' }).click()
-  const removes = appWindow.getByRole('button', { name: /^Remove saved password for / })
-  await expect(removes).toHaveCount(3)
-  await holdEnterOnFirstRemove(appWindow, removes, 3)
-  // Each repeat used to remove the next saved password.
-  expect((await appWindow.evaluate('window.hronautCredentials.list()') as CredentialSummary[]).length).toBe(2)
-  await expect(removes).toHaveCount(2)
+  const workspaceId = created.mcpTabGroups.find(group => group.name === 'Held decisions')!.id
+  for (const origin of origins) {
+    await appWindow.evaluate(`window.hronautPermissions.set(${JSON.stringify(origin)}, 'geolocation', 'allow', { workspaceId: ${JSON.stringify(workspaceId)} })`)
+  }
+  await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
+  await appWindow.getByRole('button', { name: 'Site permissions' }).click()
+  const forgets = appWindow.getByRole('button', { name: /^Forget Location permission for .+ \(Held decisions\)$/ })
+  await expect(forgets).toHaveCount(4)
+  await holdEnterOnFirstRemove(appWindow, forgets, 4)
+  // Forget hands its focus to the next decision's Forget, and each repeat used to forget that one too.
+  await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'site-permissions.json'), 'utf8')).permissions.length)
+    .toBe(3)
+  await expect(forgets).toHaveCount(3)
 })
