@@ -76,6 +76,7 @@ All notable changes to Hronaut are documented in this file.
 - A tab an agent just opened or acted on now gets its preview in the tab overview. When the picture of the agent's step was being taken at the same moment, the tab's own capture got nothing and was not tried again, so the overview could show no preview for the tab until its page changed.
 - Holding Delete to close the active tab no longer deletes text in the next tab's page. The tab that takes its place gets the keyboard focus, and the held key's repeats went on to that page, where they could delete the text in its focused field. A key held down in the shell no longer repeats into the page it hands the focus to, and a key pressed in the page still repeats as before.
 - Holding Enter on **Archive** in a workspace card's menu on Home now leaves the workspace archived. Archiving moves the keyboard focus to **Undo**, so the held key's repeats pressed it and restored the workspace. A held Enter on Home's workspace buttons and card menus now presses them once.
+- **Set up Claude Code** in Home's first-run panel now puts the keyboard focus on the change it shows, as the same button in **Connect an agent** does. The first-run button hid with its panel but kept the focus for a moment, so the change sometimes did not take the focus, and the focus went to the top of the page.
 
 ### Security
 

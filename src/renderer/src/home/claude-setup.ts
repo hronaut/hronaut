@@ -163,8 +163,16 @@ export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signa
       if (connected) notice = ''
       render()
     },
-    /** From the first-run panel: show the change straight away. */
-    start(): void { if (shown && !start.hidden && !start.disabled) start.click() },
+    /**
+     * From the first-run panel: show the change straight away, with the focus, as when Start itself is pressed. The
+     * first-run button hides with its panel once Connect is open but keeps the focus until Chromium next draws, so the
+     * change would not take the focus from it and it then went to the page.
+     */
+    start(): void {
+      if (!shown || start.hidden || start.disabled) return
+      start.focus({ preventScroll: true })
+      start.click()
+    },
     /** Whether Home can offer to add Hronaut to Claude Code right now. */
     offered(): boolean { return setup?.claudeCode?.state === 'not-configured' || setup?.claudeCode?.state === 'other-address' }
   }
