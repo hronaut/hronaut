@@ -174,6 +174,8 @@ describe('external cookie sources', () => {
         const insert = db.prepare('INSERT INTO moz_cookies VALUES(?,?,?,?,?,?,?,?,?,?)')
         insert.run('example.test', 'long', 'firefox', '/', now + 500 * 24 * 60 * 60 * 1000, 1, 1, '', 1, 0)
         insert.run('example.test', 'within', 'firefox', '/', (longest - 1) * 1000, 1, 1, '', 1, 0)
+        // A malformed expiry stays invalid instead of becoming 400 days.
+        insert.run('example.test', 'infinite', 'firefox', '/', Number.POSITIVE_INFINITY, 1, 1, '', 1, 0)
         db.close()
       }
       const { cookies } = await readImportCookies(profile(file, kind))

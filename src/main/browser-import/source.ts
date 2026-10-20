@@ -144,23 +144,16 @@ function validCookie(cookie: Cookie): boolean {
     && (cookie.session || (Number.isFinite(cookie.expirationDate) && cookie.expirationDate! > Date.now() / 1000))
 }
 
-/**
- * Chromium's expiry, microseconds from 1601, as the seconds from 1970 that Electron gives back for it. Subtracting in
- * whole microseconds keeps it exact: dividing first rounds most expiries with a fraction of a second, which login
- * cookies set with Max-Age have, to a value the imported cookie never reads back as.
- */
+/** Chromium's expiry, microseconds from 1601, as Electron reads it back: subtracting before dividing keeps it exact. */
 function chromiumExpiry(value: unknown): number {
   const microseconds = String(value)
-  if (!/^\d{1,20}$/.test(microseconds)) return Number(value) / 1_000_000 - 11_644_473_600
+  if (!/^\d{1,20}$/.test(microseconds)) return (Number(value) - Number(CHROMIUM_EPOCH_OFFSET_MICROSECONDS)) / 1_000_000
   return Number(BigInt(microseconds) - CHROMIUM_EPOCH_OFFSET_MICROSECONDS) / 1_000_000
 }
 
-/**
- * The expiry the imported cookie keeps: one past the 400 days Chromium allows, which another browser can save, is
- * shortened to whole seconds within them, so the cookie reads back as written.
- */
-function cookieExpiry(seconds: number): number {
-  return Math.min(seconds, Math.floor(Date.now() / 1000) + MAX_COOKIE_LIFETIME_SECONDS)
+/** The expiry, shortened to Chromium's 400 days in whole seconds when it is longer, so the written cookie reads back unchanged. */
+function cappedExpiry(seconds: number): number {
+  return Number.isFinite(seconds) ? Math.min(seconds, Math.floor(Date.now() / 1000) + MAX_COOKIE_LIFETIME_SECONDS) : seconds
 }
 
 function cookieMetadata(row: Record<string, unknown>, kind: ImportProfile['kind'], version: number): Cookie | null {
@@ -172,7 +165,7 @@ function cookieMetadata(row: Record<string, unknown>, kind: ImportProfile['kind'
     || ![0, 1].includes(chrome ? row.is_httponly as number : row.isHttpOnly as number)) return null
   if (chrome && row.encrypted_value instanceof Uint8Array && row.encrypted_value.length && row.value !== '') return null
   const domain = String(chrome ? row.host_key : row.host)
-  const expirationDate = cookieExpiry(chrome ? chromiumExpiry(row.expires_utc) : Number(row.expiry) / (version >= 16 ? 1000 : 1))
+  const expirationDate = cappedExpiry(chrome ? chromiumExpiry(row.expires_utc) : Number(row.expiry) / (version >= 16 ? 1000 : 1))
   const session = chrome ? row.is_persistent === 0 && row.has_expires === 0 : false
   const sameSiteValue = chrome ? Number(row.samesite)
     : version >= 15 ? Number(row.sameSite)
