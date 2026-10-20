@@ -25,8 +25,15 @@ describe('URL detail omission', () => {
     for (const malformed of ['', 'not a url', 'https://[broken', '/relative?x=1']) expect(urlWithoutDetail(malformed), malformed).toBe('')
   })
 
+  it('leaves out a session id that a Java server keeps in the path', () => {
+    // With URL detail omitted, agents still saw the session that the default redaction hides.
+    expect(urlWithoutDetail('https://shop.example/cart;jsessionid=SECRET?step=2')).toBe('https://shop.example/cart;jsessionid=[REDACTED]')
+    expect(urlWithoutDetail('https://shop.example/a;JSESSIONID=SECRET/b;v=2')).toBe('https://shop.example/a;JSESSIONID=[REDACTED]/b;v=2')
+  })
+
   it('runs from its source text alone, as the snapshot scripts embed it', () => {
     expect(runInNewContext(`(${urlWithoutDetail.toString()})(value)`, { value: SECRET_URL, URL })).toBe('https://shop.example.test:8443/checkout/step%202')
+    expect(runInNewContext(`(${urlWithoutDetail.toString()})(value)`, { value: 'https://shop.example/cart;jsessionid=SECRET', URL })).toBe('https://shop.example/cart;jsessionid=[REDACTED]')
     expect(runInNewContext(`(${urlWithoutDetail.toString()})(value)`, { value: 'nope', URL })).toBe('')
   })
 

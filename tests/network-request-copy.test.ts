@@ -137,6 +137,13 @@ describe('formatNetworkRequestCopy', () => {
     expect(calls).toEqual([{ method: 'POST', headers: [['X-Mixed', ''], ['X-Mixed', 'kept'], ["X-Owner's", '']] }])
   })
 
+  it('omits pwd and passphrase headers like other sensitive headers', () => {
+    const curl = formatNetworkRequestCopy(requestDetails({ request: { headers: { 'X-Pwd': 'SECRET', 'X-Passphrase': 'SECRET', 'X-Allowed': 'kept' } } }), 'curl')
+    expect(curl).not.toContain('SECRET')
+    expect(curl).toContain("--header 'X-Allowed: kept'")
+    expect(curl).toContain('2 sensitive, transport, invalid, or oversized headers were omitted')
+  })
+
   it('keeps empty sensitive, transport and invalid headers filtered before curl formatting', () => {
     const curl = formatNetworkRequestCopy(requestDetails({ request: { headers: {
       Authorization: '', Cookie: '', 'X-Api-Key': '', 'Content-Length': '', 'Bad\r\nName': '', 'X-Allowed': ''

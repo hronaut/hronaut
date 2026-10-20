@@ -20,7 +20,7 @@ const REDACTED = '[REDACTED]'
 const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g
-const SENSITIVE_ASSIGNMENT_PATTERN = /\b(api[-_ ]?key|authorization|auth[-_ ]?token|cookie|credential|csrf|password|passwd|passcode|secret|session|token)\b(\s*[:=]\s*)(?:Bearer\s+)?(\[REDACTED\]|%5BREDACTED%5D|[^\s,;)}\]]+)/gi
+const SENSITIVE_ASSIGNMENT_PATTERN = /\b(api[-_ ]?key|authorization|auth[-_ ]?token|cookie|credential|csrf|password|passwd|passcode|passphrase|pwd|secret|session|phpsessid|jsessionid|token)\b(\s*[:=]\s*)(?:Bearer\s+)?(\[REDACTED\]|%5BREDACTED%5D|[^\s,;)}\]]+)/gi
 
 export interface BrowserDebugReportInput {
   generatedAt?: string
