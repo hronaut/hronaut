@@ -125,7 +125,8 @@ export const deDEAppErrors: AppErrorMessages = {
     "sourceUnavailable": "Der Quellarbeitsbereich ist nicht verfügbar.",
     "sourceJustClosed": "„{name}“ wurde gerade geschlossen. Machen Sie das Schließen rückgängig, um ihn zu kopieren.",
     "observerRequirements": "Ein öffentlicher Beobachter benötigt einen sauberen temporären Speicher und genau einen eingeschränkten HTTP(S)-Ursprung.",
-    "templateCollisions": "Lösen Sie vor dem Import die Namenskonflikte der Arbeitsbereiche."
+    "templateCollisions": "Lösen Sie vor dem Import die Namenskonflikte der Arbeitsbereiche.",
+    "templateRoom": "Für diese Vorlage ist nicht genug Platz. Benötigte Tabs: {tabs}, frei: {freeTabs}. Benötigte offene Arbeitsbereiche: {workspaces}, frei: {freeWorkspaces}. Schließen Sie einige Tabs oder Arbeitsbereiche, oder entfernen Sie Arbeitsbereiche oder Startseiten aus dieser Vorlage."
   },
   "workspaceStorage": {
     "busyArchiving": "Der Speicher der Arbeitsbereiche ist belegt: Gerade wird ein Arbeitsbereich archiviert. Versuchen Sie es erneut, sobald der Vorgang abgeschlossen ist.",

@@ -4,7 +4,10 @@ import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
 
 export interface WorkspaceTemplateImportPort {
   existingWorkspaces(): { id: string; name: string }[]
+  /** How many more tabs and open workspaces Hronaut can open now. */
+  room(): { tabs: number; workspaces: number }
   create(entry: WorkspaceTemplateEntry): Promise<string>
+  /** Opens each address as a background tab of the workspace. */
   openStartPages(workspaceId: string, urls: string[]): Promise<void>
   remove(workspaceId: string): Promise<void>
 }
@@ -27,6 +30,16 @@ export class WorkspaceTemplateImporter {
     const existing = this.port.existingWorkspaces()
     const preview = previewWorkspaceTemplate(text, existing.map(workspace => workspace.name))
     if (!preview.canImport) throw new LocalizedError('appErrors.workspace.templateCollisions')
+    // Each workspace opens its start pages, or one blank tab, under the browser's tab and open workspace limits. A
+    // template that cannot fit is refused before anything is created, instead of being rolled back part way.
+    const pages = preview.template.workspaces.map(entry => entry.startPages.length ? entry.startPages : ['about:blank'])
+    const needed = { tabs: pages.reduce((total, urls) => total + urls.length, 0), workspaces: pages.length }
+    const room = this.port.room()
+    if (needed.tabs > room.tabs || needed.workspaces > room.workspaces) {
+      throw new LocalizedError('appErrors.workspace.templateRoom', {
+        tabs: needed.tabs, freeTabs: Math.max(0, room.tabs), workspaces: needed.workspaces, freeWorkspaces: Math.max(0, room.workspaces)
+      })
+    }
     const existingIds = new Set(existing.map(workspace => workspace.id))
     const created: string[] = []
     try {
@@ -45,8 +58,8 @@ export class WorkspaceTemplateImporter {
         if (!id || existingIds.has(id) || created.includes(id)) throw new Error('Workspace allocation did not return a fresh identity.')
         created.push(id)
       }
-      for (const [index, entry] of preview.template.workspaces.entries()) {
-        await this.port.openStartPages(created[index]!, entry.startPages)
+      for (const [index, urls] of pages.entries()) {
+        await this.port.openStartPages(created[index]!, urls)
       }
       return { status: 'completed', workspaceIds: created }
     } catch {

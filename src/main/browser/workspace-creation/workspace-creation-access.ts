@@ -36,6 +36,8 @@ export interface WorkspaceCreationAccess {
   savedTabGroups(): ReadonlyMap<string, ArchivedWorkspace>
   /** Throws when Hronaut already keeps as many open workspaces as it can. */
   assertActiveWorkspaceCapacity(): void
+  /** How many more open workspaces Hronaut can keep. */
+  openWorkspaceRoom(): number
   /** Creates an open workspace, empty or copied from another one. */
   createMcpTabGroup(
     name: string,
