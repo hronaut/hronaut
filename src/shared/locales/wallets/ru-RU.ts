@@ -12,6 +12,7 @@ export const ruRUWallets = {
   "activityDescription": "Здесь будут появляться последние события кошельков.",
   "kinds": {
     "managed": "Кошелёк для подписания",
+    "imported": "Импортированный кошелёк",
     "agent": "Кошелёк агента",
     "watch-only": "Только просмотр"
   },
