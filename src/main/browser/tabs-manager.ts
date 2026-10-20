@@ -203,6 +203,7 @@ import {
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import type { PageKeyboardEventsAccess } from './tab-events/page-keyboard-events-access.js'
 import { attachPageKeyboardEvents } from './tab-events/page-keyboard-events.js'
+import { trackShellHeldKeys } from './tab-events/shell-held-keys.js'
 import { MAX_BROWSER_TABS } from '../../shared/types.js'
 import type { PageFindAccess } from './page-find/page-find-access.js'
 import { findInPage, stopFindInPage } from './page-find/page-find.js'
@@ -1253,6 +1254,7 @@ export class BrowserTabsManager {
     request => performTabOverviewPreviewCapture(this.tabOverviewPreviewsAccess(), request.tab, request.sequence, request.mode)
   )
   private readonly nativePreviewCapture = new NativePreviewCapture(TAB_OVERVIEW_CAPTURE_TIMEOUT_MS)
+  private readonly shellHeldKeys: Set<string>
   private readonly occlusionSnapshot = new OcclusionSnapshot({
     panes: () => this.occlusionSnapshotPanes(),
     layout: () => this.occlusionLayout(),
@@ -1276,6 +1278,7 @@ export class BrowserTabsManager {
     private readonly window: BrowserWindow,
     private readonly options: TabsManagerOptions
   ) {
+    this.shellHeldKeys = trackShellHeldKeys(window)
     powerMonitor.on('suspend', this.pauseVideoForSuspend)
     this.store = new TabStateStore(options.storePath)
     this.toolbarHeight = options.toolbarHeight ?? 104
@@ -5446,6 +5449,7 @@ export class BrowserTabsManager {
       consumeExpectedAgentKeyboardInput: (webContentsId, input) => this.consumeExpectedAgentKeyboardInput(webContentsId, input),
       pageShortcut: (requested, input) => pageShortcut(requested, input),
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      shellHeldKeys: () => this.shellHeldKeys,
       reproRecorder: () => this.reproRecorder,
       scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
       mcpActivityFollower: () => this.mcpActivityFollower,

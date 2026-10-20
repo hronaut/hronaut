@@ -21,8 +21,9 @@ export interface PageKeyboardEventsOptions {
 /**
  * What following the person's keyboard input on a page needs from the tab
  * manager, which keeps trusted chrome occlusion, in-flight and expected agent
- * input, the native selection sessions, the human input lock, repro
- * recording, tab overview previews, the MCP activity follower and its options
+ * input, the native selection sessions, the human input lock, the keys held
+ * in the shell, repro recording, tab overview previews, the MCP activity
+ * follower and its options
  * private. Choosing which shortcuts a page keeps is take-over.ts's function,
  * passed through so that module still loads where the manager's own import
  * loads it.
@@ -46,6 +47,8 @@ export interface PageKeyboardEventsAccess<Tab extends PageKeyboardEventsTab> {
   pageShortcut(requested: BrowserShortcutAction | null, input: { available: boolean; expectedAgentInput: boolean }): BrowserShortcutAction | null
   /** Whether the person's input to the tab's page is locked. */
   isHumanInteractionLocked(tab: Tab): boolean
+  /** The physical keys held down in the shell, which a page forgets once it sees a key pressed or released. */
+  shellHeldKeys(): Set<string>
   /** The repro recorder, which notes the person's keys while it records. */
   reproRecorder(): { observeReproKeyboard(tab: Tab, input: Electron.Input): void }
   /** Captures the tab's overview preview once the page settles for this long. */
