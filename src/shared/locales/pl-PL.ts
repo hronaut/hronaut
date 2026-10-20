@@ -369,9 +369,8 @@ export const plPL = {
     "memory": {
       "heading": "Oszczędzanie pamięci",
       "description": "Zwalniaj nieaktywne karty, aby aktywna praca miała więcej procesora i pamięci.",
-      "sleeping": "uśpionych",
-      "of": "z",
-      "websiteTabs": "kart witryn",
+      "sleeping": "uśpiona | uśpione | uśpionych",
+      "ofWebsiteTabs": "z {count} karty witryny | z {count} kart witryn | z {count} kart witryn",
       "auto": "Automatycznie usypiaj nieaktywne karty",
       "autoDescription": "Uśpione karty budzą się przed wybraniem lub użyciem przez MCP.",
       "sleepAfter": "Uśpij po",
@@ -1047,7 +1046,7 @@ export const plPL = {
     "suggestion": {
       "bookmark": "Zakładka",
       "history": "Historia",
-      "visits": "Historia · {count} wizyt"
+      "visits": "Historia · {count} wizyta | Historia · {count} wizyty | Historia · {count} wizyt"
     },
     "network": {
       "notObserved": "Nie zaobserwowano",
@@ -1846,9 +1845,9 @@ export const plPL = {
     "clear": "Nie wykryto automatycznych blokad",
     "review": "Przejrzyj ostrzeżenia",
     "attention": "Problemy z jakością wymagają uwagi",
-    "errors": "błędy",
-    "warnings": "ostrzeżenia",
-    "information": "informacje",
+    "errors": "błąd | błędy | błędów",
+    "warnings": "ostrzeżenie | ostrzeżenia | ostrzeżeń",
+    "information": "informacja | informacje | informacji",
     "categories": "Kategorie jakości",
     "categoryCount": "{count} kategorii · {time}",
     "findings": "Wyniki",
@@ -1934,7 +1933,7 @@ export const plPL = {
     "largestShifts": "Największe nieoczekiwane przesunięcia",
     "affectedUnavailable": "Element, którego dotyczy problem, jest niedostępny",
     "afterNavigation": "ms po nawigacji",
-    "affectedElements": "elementy, których dotyczy problem",
+    "affectedElements": "element, którego dotyczy problem | elementy, których dotyczy problem | elementów, których dotyczy problem",
     "shiftsLimit": "Wyświetlane są ograniczone przesunięcia z najwyższymi wynikami.",
     "noShifts": "Podczas tej wizyty nie zaobserwowano nieoczekiwanego przesunięcia układu.",
     "userTiming": "Czasy użytkownika",
@@ -2761,9 +2760,9 @@ export const plPL = {
     "toolAria": "Zmiany DOM: {status}",
     "change": {
       "attribute": "Zmieniono {attribute}",
-      "attributeRepeated": "Zmieniono {attribute} {count} razy",
+      "attributeRepeated": "Zmieniono {attribute} {count} raz | Zmieniono {attribute} {count} razy | Zmieniono {attribute} {count} razy",
       "text": "Zmieniono treść tekstową (treść nie została zapisana)",
-      "textRepeated": "Zmieniono treść tekstową {count} razy (treść nie została zapisana)",
+      "textRepeated": "Zmieniono treść tekstową {count} raz (treść nie została zapisana) | Zmieniono treść tekstową {count} razy (treść nie została zapisana) | Zmieniono treść tekstową {count} razy (treść nie została zapisana)",
       "added": "Dodano: {count}",
       "removed": "Usunięto: {count}",
       "child": "Zmieniono strukturę podrzędną"
@@ -3026,7 +3025,7 @@ export const plPL = {
     "removeAria": "Usuń {title} z historii",
     "remove": "Usuń z historii",
     "retention": "Przechowywane tylko na tym urządzeniu przez maksymalnie 90 dni.",
-    "visits": "{count} wizyt"
+    "visits": "{count} wizyta | {count} wizyty | {count} wizyt"
   },
   "siteStorage": {
     "kicker": "Bieżąca witryna",
@@ -3234,7 +3233,7 @@ export const plPL = {
     "label": "Lokalne sugestie adresów",
     "bookmark": "Zakładka",
     "history": "Historia",
-    "historyVisits": "Historia · {count} wizyt",
+    "historyVisits": "Historia · {count} wizyta | Historia · {count} wizyty | Historia · {count} wizyt",
     "localOnly": "Tylko lokalnie"
   },
   "panelDocks": {
@@ -3602,7 +3601,7 @@ export const plPL = {
       "importPasswordsFile": "Wybierz CSV haseł przeglądarki",
       "choosePasswordFile": "Wybierz CSV",
       "importPasswordsTitle": "Importować zapisane hasła?",
-      "importPasswordsMessage": "Importować {count} zapisanych kont do Hronaut?",
+      "importPasswordsMessage": "Importować {count} zapisane konto do Hronaut? | Importować {count} zapisane konta do Hronaut? | Importować {count} zapisanych kont do Hronaut?",
       "importPasswordsDetail": "Nowe: {added} · aktualizacje: {updated} · pominięte: {skipped}\n\nPrzyjęte hasła zostaną ponownie zaszyfrowane przez {backend}. Wybrany CSV pozostaje czytelny na dysku; usuń go po imporcie.",
       "cancel": "Anuluj",
       "importPasswords": "Importuj hasła",

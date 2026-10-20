@@ -369,9 +369,8 @@ export const frFR = {
     "memory": {
       "heading": "Économiseur de mémoire",
       "description": "Décharger les onglets inactifs afin de réserver plus de processeur et de mémoire au travail actif.",
-      "sleeping": "en veille",
-      "of": "sur",
-      "websiteTabs": "onglets de sites",
+      "sleeping": "en veille | en veille",
+      "ofWebsiteTabs": "sur {count} onglet de site | sur {count} onglets de sites",
       "auto": "Mettre automatiquement les onglets inactifs en veille",
       "autoDescription": "Les onglets en veille se réveillent avant leur sélection ou leur utilisation par MCP.",
       "sleepAfter": "Mettre en veille après",
@@ -1047,7 +1046,7 @@ export const frFR = {
     "suggestion": {
       "bookmark": "Favori",
       "history": "Historique",
-      "visits": "Historique · {count} visites"
+      "visits": "Historique · {count} visite | Historique · {count} visites"
     },
     "network": {
       "notObserved": "Non observé",
@@ -1846,9 +1845,9 @@ export const frFR = {
     "clear": "Aucun blocage automatique détecté",
     "review": "Examiner les avertissements",
     "attention": "Les problèmes de qualité requièrent votre attention",
-    "errors": "erreurs",
-    "warnings": "avertissements",
-    "information": "informations",
+    "errors": "erreur | erreurs",
+    "warnings": "avertissement | avertissements",
+    "information": "information | informations",
     "categories": "Catégories de qualité",
     "categoryCount": "{count} catégories · {time}",
     "findings": "Résultats",
@@ -1934,7 +1933,7 @@ export const frFR = {
     "largestShifts": "Plus grands décalages inattendus",
     "affectedUnavailable": "Élément affecté indisponible",
     "afterNavigation": "ms après la navigation",
-    "affectedElements": "éléments affectés",
+    "affectedElements": "élément affecté | éléments affectés",
     "shiftsLimit": "Affichage des décalages limités ayant les scores les plus élevés.",
     "noShifts": "Aucun décalage inattendu de mise en page n’a été observé pendant cette visite.",
     "userTiming": "Chronométrage utilisateur",
@@ -2761,9 +2760,9 @@ export const frFR = {
     "toolAria": "Modifications du DOM : {status}",
     "change": {
       "attribute": "{attribute} modifié",
-      "attributeRepeated": "{attribute} modifié {count} fois",
+      "attributeRepeated": "{attribute} modifié {count} fois | {attribute} modifié {count} fois",
       "text": "Contenu textuel modifié (contenu non enregistré)",
-      "textRepeated": "Contenu textuel modifié {count} fois (contenu non enregistré)",
+      "textRepeated": "Contenu textuel modifié {count} fois (contenu non enregistré) | Contenu textuel modifié {count} fois (contenu non enregistré)",
       "added": "{count} ajouté(s)",
       "removed": "{count} supprimé(s)",
       "child": "Structure enfant modifiée"
@@ -3234,7 +3233,7 @@ export const frFR = {
     "label": "Suggestions d’adresses locales",
     "bookmark": "Favori",
     "history": "Historique",
-    "historyVisits": "Historique · {count} visites",
+    "historyVisits": "Historique · {count} visite | Historique · {count} visites",
     "localOnly": "Local uniquement"
   },
   "panelDocks": {
@@ -3602,7 +3601,7 @@ export const frFR = {
       "importPasswordsFile": "Choisir le CSV de mots de passe du navigateur",
       "choosePasswordFile": "Choisir le CSV",
       "importPasswordsTitle": "Importer les mots de passe enregistrés ?",
-      "importPasswordsMessage": "Importer {count} comptes enregistrés dans Hronaut ?",
+      "importPasswordsMessage": "Importer {count} compte enregistré dans Hronaut ? | Importer {count} comptes enregistrés dans Hronaut ?",
       "importPasswordsDetail": "Nouveaux : {added} · mises à jour : {updated} · ignorés : {skipped}\n\nLes mots de passe acceptés seront rechiffrés avec {backend}. Le CSV sélectionné reste lisible sur le disque ; supprimez-le après l’importation.",
       "cancel": "Annuler",
       "importPasswords": "Importer les mots de passe",

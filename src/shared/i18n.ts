@@ -6,6 +6,7 @@ import { deDE } from './locales/de-DE.js'
 import { frFR } from './locales/fr-FR.js'
 import { esES } from './locales/es-ES.js'
 import { plPL } from './locales/pl-PL.js'
+import { pluralFormIndex } from './plural.js'
 
 export const localeMessages = {
   'en-US': enUS,
@@ -37,11 +38,19 @@ function messageAt(locale: SupportedLocale, key: MessageKey): string | undefined
   return typeof value === 'string' ? value : undefined
 }
 
+/**
+ * The message for the locale, or English when the locale has none, with its placeholders filled in. A message with
+ * plural forms ("{count} account | {count} accounts") takes the form the locale uses for a numeric `count`.
+ */
 export function translate(
   locale: SupportedLocale,
   key: MessageKey,
   parameters: MessageParameters = {}
 ): string {
-  const template = messageAt(locale, key) ?? messageAt('en-US', key) ?? key
+  let template = messageAt(locale, key) ?? messageAt('en-US', key) ?? key
+  if (typeof parameters.count === 'number' && template.includes(' | ')) {
+    const forms = template.split(' | ')
+    template = forms[pluralFormIndex(locale, parameters.count, forms.length)] ?? forms[0]!
+  }
   return template.replace(/\{([A-Za-z][\w]*)\}/g, (_match, name: string) => String(parameters[name] ?? `{${name}}`))
 }

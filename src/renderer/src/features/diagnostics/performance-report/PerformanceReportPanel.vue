@@ -254,7 +254,7 @@ function performanceContributorSource(contributor: BrowserPerformanceScriptContr
             <h4>{{ t('performance.largestShifts') }}</h4>
             <ol>
               <li v-for="(entry, index) in performanceReport.layoutShifts.entries" :key="`${entry.startTimeMs}-${index}`">
-                <span><strong>{{ entry.sources[0] || t('performance.affectedUnavailable') }}</strong><small>{{ localNumber(Math.round(entry.startTimeMs)) }} {{ t('performance.afterNavigation') }}<span v-if="entry.sources.length > 1"> · {{ localNumber(entry.sources.length) }} {{ t('performance.affectedElements') }}</span></small></span>
+                <span><strong>{{ entry.sources[0] || t('performance.affectedUnavailable') }}</strong><small>{{ localNumber(Math.round(entry.startTimeMs)) }} {{ t('performance.afterNavigation') }}<span v-if="entry.sources.length > 1"> · {{ localNumber(entry.sources.length) }} {{ t('performance.affectedElements', entry.sources.length) }}</span></small></span>
                 <output>{{ entry.value.toFixed(3) }}</output>
               </li>
             </ol>

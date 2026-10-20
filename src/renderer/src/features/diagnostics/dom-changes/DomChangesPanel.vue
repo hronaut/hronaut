@@ -51,12 +51,12 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
   if (entry.kind === 'attributes') {
     const attribute = entry.attributeName ?? t('runtime.storage.attribute')
     return entry.occurrences > 1
-      ? t('domChanges.change.attributeRepeated', { attribute, count: localNumber(entry.occurrences) })
+      ? t('domChanges.change.attributeRepeated', { attribute, count: localNumber(entry.occurrences) }, entry.occurrences)
       : t('domChanges.change.attribute', { attribute })
   }
   if (entry.kind === 'text') {
     return entry.occurrences > 1
-      ? t('domChanges.change.textRepeated', { count: localNumber(entry.occurrences) })
+      ? t('domChanges.change.textRepeated', { count: localNumber(entry.occurrences) }, entry.occurrences)
       : t('domChanges.change.text')
   }
   const parts: string[] = []

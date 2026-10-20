@@ -157,6 +157,17 @@ describe('split diagnostic panels', () => {
     controller.dispose()
   })
 
+  it('counts repeated DOM changes in the form the interface language takes', async () => {
+    // The repeat count kept one form for every number: "aria-expanded змінено 3 разів".
+    const controller = createController(activeTab(), { manageDomChanges: vi.fn(async () => domChangesReport()) })
+    const view = render(DomChangesPanel, { global: { plugins: [createHronautI18n('uk-UA')] }, props: { dock: 'right', controller, locale: 'uk-UA' } })
+    controller.domChangesPanelOpen.value = true
+    const panel = await screen.findByRole('dialog', { name: 'Зміни DOM' })
+    expect(await within(panel).findByText('aria-expanded змінено 3 рази')).toBeVisible()
+    view.unmount()
+    controller.dispose()
+  })
+
   it('keeps the debug report preservation toggle and incident review on the panel props', async () => {
     vi.stubGlobal('hronaut', {
       discardIncident: vi.fn(async () => undefined),

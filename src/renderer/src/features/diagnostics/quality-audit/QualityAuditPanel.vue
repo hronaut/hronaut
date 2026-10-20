@@ -76,7 +76,7 @@ function localTime(value: Date | number | string): string {
         <IconError v-else aria-hidden="true" />
         <span>
           <strong>{{ qualityAuditReport.status === 'pass' ? t('qualityAudit.clear') : qualityAuditReport.status === 'warning' ? t('qualityAudit.review') : t('qualityAudit.attention') }}</strong>
-          <small>{{ qualityAuditReport.totals.errors }} {{ t('qualityAudit.errors') }} · {{ qualityAuditReport.totals.warnings }} {{ t('qualityAudit.warnings') }} · {{ qualityAuditReport.totals.info }} {{ t('qualityAudit.information') }}</small>
+          <small>{{ qualityAuditReport.totals.errors }} {{ t('qualityAudit.errors', qualityAuditReport.totals.errors) }} · {{ qualityAuditReport.totals.warnings }} {{ t('qualityAudit.warnings', qualityAuditReport.totals.warnings) }} · {{ qualityAuditReport.totals.info }} {{ t('qualityAudit.information', qualityAuditReport.totals.info) }}</small>
         </span>
       </div>
       <div class="quality-audit-content">

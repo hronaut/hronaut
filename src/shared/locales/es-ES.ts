@@ -369,9 +369,8 @@ export const esES = {
     "memory": {
       "heading": "Ahorro de memoria",
       "description": "Descarga las pestañas inactivas para dar más CPU y memoria al trabajo activo.",
-      "sleeping": "suspendidas",
-      "of": "de",
-      "websiteTabs": "pestañas web",
+      "sleeping": "suspendida | suspendidas",
+      "ofWebsiteTabs": "de {count} pestaña web | de {count} pestañas web",
       "auto": "Suspender automáticamente pestañas inactivas",
       "autoDescription": "Las pestañas suspendidas se reactivan antes de seleccionarlas o usarlas mediante MCP.",
       "sleepAfter": "Suspender después de",
@@ -1047,7 +1046,7 @@ export const esES = {
     "suggestion": {
       "bookmark": "Marcador",
       "history": "Historial",
-      "visits": "Historial · {count} visitas"
+      "visits": "Historial · {count} visita | Historial · {count} visitas"
     },
     "network": {
       "notObserved": "No observado",
@@ -1846,9 +1845,9 @@ export const esES = {
     "clear": "No se detectaron bloqueos automáticos",
     "review": "Revisar las advertencias",
     "attention": "Los problemas de calidad requieren atención",
-    "errors": "errores",
-    "warnings": "advertencias",
-    "information": "información",
+    "errors": "error | errores",
+    "warnings": "advertencia | advertencias",
+    "information": "informativo | informativos",
     "categories": "Categorías de calidad",
     "categoryCount": "{count} categorías · {time}",
     "findings": "Resultados",
@@ -1934,7 +1933,7 @@ export const esES = {
     "largestShifts": "Mayores desplazamientos inesperados",
     "affectedUnavailable": "Elemento afectado no disponible",
     "afterNavigation": "ms después de la navegación",
-    "affectedElements": "elementos afectados",
+    "affectedElements": "elemento afectado | elementos afectados",
     "shiftsLimit": "Se muestran los desplazamientos limitados con mayor puntuación.",
     "noShifts": "No se observó ningún desplazamiento de diseño inesperado en esta visita.",
     "userTiming": "Tiempos de usuario",
@@ -2761,9 +2760,9 @@ export const esES = {
     "toolAria": "Cambios del DOM: {status}",
     "change": {
       "attribute": "{attribute} cambió",
-      "attributeRepeated": "{attribute} cambió {count} veces",
+      "attributeRepeated": "{attribute} cambió {count} vez | {attribute} cambió {count} veces",
       "text": "El contenido de texto cambió (contenido no registrado)",
-      "textRepeated": "El contenido de texto cambió {count} veces (contenido no registrado)",
+      "textRepeated": "El contenido de texto cambió {count} vez (contenido no registrado) | El contenido de texto cambió {count} veces (contenido no registrado)",
       "added": "{count} añadidos",
       "removed": "{count} eliminados",
       "child": "La estructura secundaria cambió"
@@ -3234,7 +3233,7 @@ export const esES = {
     "label": "Sugerencias de direcciones locales",
     "bookmark": "Marcador",
     "history": "Historial",
-    "historyVisits": "Historial · {count} visitas",
+    "historyVisits": "Historial · {count} visita | Historial · {count} visitas",
     "localOnly": "Solo local"
   },
   "panelDocks": {
@@ -3602,7 +3601,7 @@ export const esES = {
       "importPasswordsFile": "Elegir CSV de contraseñas del navegador",
       "choosePasswordFile": "Elegir CSV",
       "importPasswordsTitle": "¿Importar contraseñas guardadas?",
-      "importPasswordsMessage": "¿Importar {count} cuentas guardadas en Hronaut?",
+      "importPasswordsMessage": "¿Importar {count} cuenta guardada en Hronaut? | ¿Importar {count} cuentas guardadas en Hronaut?",
       "importPasswordsDetail": "Nuevas: {added} · actualizaciones: {updated} · omitidas: {skipped}\n\nLas contraseñas aceptadas se volverán a cifrar con {backend}. El CSV seleccionado seguirá siendo legible en el disco; elimínalo después de importarlo.",
       "cancel": "Cancelar",
       "importPasswords": "Importar contraseñas",

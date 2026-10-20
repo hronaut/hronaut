@@ -82,7 +82,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   function suggestionMeta(suggestion: AddressSuggestion): string {
     if (suggestion.kind === 'bookmark') return options.translate('runtime.suggestion.bookmark')
     return suggestion.visitCount && suggestion.visitCount > 1
-      ? options.translate('runtime.suggestion.visits', { count: options.formatNumber(suggestion.visitCount) })
+      ? options.translate('runtime.suggestion.visits', { count: options.formatNumber(suggestion.visitCount) }, suggestion.visitCount)
       : options.translate('runtime.suggestion.history')
   }
 

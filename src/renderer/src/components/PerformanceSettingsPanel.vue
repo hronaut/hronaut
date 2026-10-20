@@ -74,7 +74,7 @@ async function changeTimeout(event: Event): Promise<void> {
     </div>
     <div class="memory-saver-summary" aria-live="polite">
       <span class="settings-nav-icon" aria-hidden="true"><IconBedtime /></span>
-      <span><strong>{{ sleepingTabsCount }} {{ t('settings.memory.sleeping') }}</strong><small>{{ t('settings.memory.of') }} {{ regularTabsCount }} {{ t('settings.memory.websiteTabs') }}</small></span>
+      <span><strong>{{ sleepingTabsCount }} {{ t('settings.memory.sleeping', sleepingTabsCount) }}</strong><small>{{ t('settings.memory.ofWebsiteTabs', { count: regularTabsCount }, regularTabsCount) }}</small></span>
     </div>
     <div class="settings-rows">
       <label class="settings-row" for="setting-memory-saver">

@@ -369,9 +369,8 @@ export const deDE = {
     "memory": {
       "heading": "Arbeitsspeicher sparen",
       "description": "Inaktive Website-Tabs entladen, damit aktive Arbeit mehr CPU und Speicher erhält.",
-      "sleeping": "im Ruhezustand",
-      "of": "von",
-      "websiteTabs": "Website-Tabs",
+      "sleeping": "im Ruhezustand | im Ruhezustand",
+      "ofWebsiteTabs": "von {count} Website-Tab | von {count} Website-Tabs",
       "auto": "Inaktive Tabs automatisch in den Ruhezustand versetzen",
       "autoDescription": "Schlafende Tabs werden vor Auswahl oder MCP-Nutzung geweckt.",
       "sleepAfter": "Ruhezustand nach",
@@ -1047,7 +1046,7 @@ export const deDE = {
     "suggestion": {
       "bookmark": "Lesezeichen",
       "history": "Verlauf",
-      "visits": "Verlauf · {count} Besuche"
+      "visits": "Verlauf · {count} Besuch | Verlauf · {count} Besuche"
     },
     "network": {
       "notObserved": "Nicht beobachtet",
@@ -1846,9 +1845,9 @@ export const deDE = {
     "clear": "Keine automatischen Blocker gefunden",
     "review": "Warnungen prüfen",
     "attention": "Qualitätsprobleme erfordern Aufmerksamkeit",
-    "errors": "Fehler",
-    "warnings": "Warnungen",
-    "information": "Hinweise",
+    "errors": "Fehler | Fehler",
+    "warnings": "Warnung | Warnungen",
+    "information": "Hinweis | Hinweise",
     "categories": "Qualitätskategorien",
     "categoryCount": "{count} Kategorien · {time}",
     "findings": "Ergebnisse",
@@ -1934,7 +1933,7 @@ export const deDE = {
     "largestShifts": "Größte unerwartete Verschiebungen",
     "affectedUnavailable": "Betroffenes Element nicht verfügbar",
     "afterNavigation": "ms nach Navigation",
-    "affectedElements": "betroffene Elemente",
+    "affectedElements": "betroffenes Element | betroffene Elemente",
     "shiftsLimit": "Die begrenzten Verschiebungen mit den höchsten Bewertungen werden angezeigt.",
     "noShifts": "Bei diesem Besuch wurde keine unerwartete Layoutverschiebung beobachtet.",
     "userTiming": "Benutzerdefinierte Zeitmessung",
@@ -2761,9 +2760,9 @@ export const deDE = {
     "toolAria": "DOM-Änderungen: {status}",
     "change": {
       "attribute": "{attribute} geändert",
-      "attributeRepeated": "{attribute} {count}-mal geändert",
+      "attributeRepeated": "{attribute} {count}-mal geändert | {attribute} {count}-mal geändert",
       "text": "Textinhalt geändert (Inhalt nicht aufgezeichnet)",
-      "textRepeated": "Textinhalt {count}-mal geändert (Inhalt nicht aufgezeichnet)",
+      "textRepeated": "Textinhalt {count}-mal geändert (Inhalt nicht aufgezeichnet) | Textinhalt {count}-mal geändert (Inhalt nicht aufgezeichnet)",
       "added": "{count} hinzugefügt",
       "removed": "{count} entfernt",
       "child": "Untergeordnete Struktur geändert"
@@ -3234,7 +3233,7 @@ export const deDE = {
     "label": "Lokale Adressvorschläge",
     "bookmark": "Lesezeichen",
     "history": "Verlauf",
-    "historyVisits": "Verlauf · {count} Besuche",
+    "historyVisits": "Verlauf · {count} Besuch | Verlauf · {count} Besuche",
     "localOnly": "Nur lokal"
   },
   "panelDocks": {
@@ -3602,7 +3601,7 @@ export const deDE = {
       "importPasswordsFile": "Browser-Passwort-CSV auswählen",
       "choosePasswordFile": "CSV auswählen",
       "importPasswordsTitle": "Gespeicherte Passwörter importieren?",
-      "importPasswordsMessage": "{count} gespeicherte Konten in Hronaut importieren?",
+      "importPasswordsMessage": "{count} gespeichertes Konto in Hronaut importieren? | {count} gespeicherte Konten in Hronaut importieren?",
       "importPasswordsDetail": "Neu: {added} · Aktualisierungen: {updated} · Übersprungen: {skipped}\n\nAkzeptierte Passwörter werden mit {backend} neu verschlüsselt. Die ausgewählte CSV bleibt auf dem Datenträger lesbar; löschen Sie sie nach dem Import.",
       "cancel": "Abbrechen",
       "importPasswords": "Passwörter importieren",
