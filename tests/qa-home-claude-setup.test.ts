@@ -60,6 +60,8 @@ const openConnect = () => byId<HTMLButtonElement>('home-tab-connect').click()
 const startButton = () => byId<HTMLButtonElement>('claude-setup-start')
 const applyButton = () => byId<HTMLButtonElement>('claude-setup-apply')
 const command = () => byId('guide-code').closest('pre')!
+/** The change the panel shows before Apply. */
+const change = () => byId('claude-setup-after').closest('pre')!
 
 describe('Agents found on this computer (#874)', () => {
   it('lead the guide list in the guides\' own order, each marked, the rest in their order', async () => {
@@ -147,7 +149,7 @@ describe('The first-run offer (#874)', () => {
     expect(byId('onboarding-claude').hidden).toBe(!offered)
   })
 
-  it('opens the Claude Code guide, shows the change and puts focus on Apply', async () => {
+  it('opens the Claude Code guide, shows the change and puts focus on it', async () => {
     const bridge = setupBridge(setupState('not-configured', ['codex', 'claude-code']))
     await mountSetup(bridge)
     expect(words(byId('guide-name'))).toBe('Codex')
@@ -160,7 +162,24 @@ describe('The first-run offer (#874)', () => {
     expect(panel()).toMatchObject({ shown: true, status: 'Reading Claude Code’s settings…', startDisabled: true })
     await flush()
     expect(panel()).toMatchObject({ preview: true, start: null, status: '' })
-    expect(document.activeElement).toBe(applyButton())
+    // Not Apply, which a held Enter would press; the change is named by the line above it.
+    expect(document.activeElement).toBe(change())
+    expect(change().getAttribute('aria-labelledby')).toBe('claude-setup-intro')
+  })
+
+  it('leaves the focus where the person moved it while the change was read', async () => {
+    const bridge = setupBridge(setupState())
+    const prepared = deferred<ClaudeCodeSetupPreview>()
+    bridge.prepareClaudeCodeSetup.mockReturnValueOnce(prepared.promise)
+    await mountSetup(bridge)
+    openConnect()
+    startButton().click()
+    const search = byId('agent-search')
+    search.focus()
+    prepared.resolve(plan('plan-1'))
+    await flush()
+    expect(panel().preview).toBe(true)
+    expect(document.activeElement).toBe(search)
   })
 
   it('goes away by the next status read once Claude Code is set up', async () => {
@@ -220,7 +239,8 @@ describe('The Set up Claude Code panel (#874)', () => {
     expect(words(byId('claude-setup-backup'))).toBe('A copy of the file is saved first as .claude.json.plan-1.bak.')
     byId<HTMLButtonElement>('claude-setup-cancel').click()
     expect(panel()).toMatchObject({ preview: false, start: 'Update Claude Code', status: 'Nothing was changed.' })
-    expect(document.activeElement).toBe(startButton())
+    // Not Update Claude Code, which a held Enter would press to show the change again.
+    expect(document.activeElement).toBe(command())
     expect(bridge.applyClaudeCodeSetup).not.toHaveBeenCalled()
   })
 
@@ -325,7 +345,9 @@ describe('Focus after Apply (#874)', () => {
     openConnect()
     startButton().click()
     await flush()
-    expect(document.activeElement).toBe(applyButton())
+    expect(document.activeElement).toBe(change())
+    // The person moves on to Apply once they have read the change.
+    applyButton().focus()
   }
 
   it('waits for the new state, then lands on the command once Claude Code is set up', async () => {
@@ -393,10 +415,10 @@ describe('Focus after Apply (#874)', () => {
     // The person starts again before the new state is read.
     startButton().click()
     await flush()
-    expect(document.activeElement).toBe(applyButton())
+    expect(document.activeElement).toBe(change())
     bridge.held.at(-1)!.resolve(setupState('configured'))
     await flush()
     expect(panel().preview).toBe(true)
-    expect(document.activeElement).toBe(applyButton())
+    expect(document.activeElement).toBe(change())
   })
 })

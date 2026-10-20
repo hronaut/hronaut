@@ -69,7 +69,8 @@ test('sets up Claude Code from Home after a native confirmation, keeping its oth
     await expect(page.locator('#claude-setup-after')).toHaveText(entry)
     await expect(page.locator('#claude-setup-before-wrap')).toBeHidden()
     await expect(page.locator('#claude-setup-backup')).toHaveText(/^A copy of the file is saved first as \.claude\.json\.hronaut-backup-\d{8}T\d{6}Z(?:-\d+)?\.$/u)
-    await expect(preview.getByRole('button', { name: 'Apply change…', exact: true })).toBeFocused()
+    // The focus is on the change, not on Apply, whose confirmation a held Enter would otherwise reach.
+    await expect(page.locator('pre:has(#claude-setup-after)')).toBeFocused()
 
     // Cancel on Home writes nothing.
     await preview.getByRole('button', { name: 'Cancel', exact: true }).click()
@@ -86,7 +87,7 @@ test('sets up Claude Code from Home after a native confirmation, keeping its oth
     await preview.getByRole('button', { name: 'Apply change…', exact: true }).click()
     await expect(status).toHaveText('Nothing was changed.')
     const [asked] = await messageBoxes(app)
-    expect(asked).toMatchObject({ title: 'Set up Claude Code', message: 'Add Hronaut to Claude Code?', buttons: ['Cancel', 'Add to Claude Code'], defaultId: 1, cancelId: 0 })
+    expect(asked).toMatchObject({ title: 'Set up Claude Code', message: 'Add Hronaut to Claude Code?', buttons: ['Cancel', 'Add to Claude Code'], defaultId: 0, cancelId: 0 })
     expect(asked!.detail).toContain(`File: ${configPath}`)
     expect(asked!.detail).toContain(entry)
     expect(asked!.detail).toContain(`A copy of the file is saved first as ${cancelledBackup}.`)
