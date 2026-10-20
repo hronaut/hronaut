@@ -8,6 +8,26 @@ describe('network detail redaction', () => {
     )
   })
 
+  it.each([
+    ['Azure SAS', 'https://store.blob.core.windows.net/files/report.pdf?sv=2024-11-04&se=2026-10-21&sr=b&sp=r&sig=SECRET', ['sv', 'se', 'sr', 'sp']],
+    ['CloudFront', 'https://d1.cloudfront.net/report.pdf?Expires=1790000000&Signature=SECRET&Key-Pair-Id=K2', ['Expires', 'Key-Pair-Id']],
+    ['S3 SigV2', 'https://bucket.s3.amazonaws.com/report.pdf?AWSAccessKeyId=AKIA&Expires=1790000000&Signature=SECRET', ['AWSAccessKeyId', 'Expires']],
+    ['S3 SigV4', 'https://bucket.s3.amazonaws.com/report.pdf?X-Amz-Date=20261020T000000Z&X-Amz-Signature=SECRET', ['X-Amz-Date']],
+    ['Google Cloud Storage', 'https://storage.googleapis.com/b/report.pdf?X-Goog-Date=20261020T000000Z&X-Goog-Signature=SECRET', ['X-Goog-Date']],
+    ['release asset', 'https://release-assets.example/asset?sp=r&sig=SECRET&jwt=SECRET', ['sp']]
+  ])('redacts the signature of a signed %s link', (_label, url, kept) => {
+    // The signature stayed in download records and network results, so the link kept working for whoever read them.
+    const redacted = redactNetworkUrl(url)
+    expect(redacted).not.toContain('SECRET')
+    const parameters = new URL(redacted).searchParams
+    for (const name of kept) expect(parameters.get(name)).toBe(new URL(url).searchParams.get(name))
+  })
+
+  it('keeps ordinary query parameters whose names contain sig', () => {
+    expect(redactNetworkUrl('https://example.test/?design=dark&signal=on&signup=1&assign=me'))
+      .toBe('https://example.test/?design=dark&signal=on&signup=1&assign=me')
+  })
+
   it('redacts security headers while preserving diagnostic headers', () => {
     expect(redactNetworkHeaders({
       Authorization: 'Bearer secret',

@@ -2,6 +2,10 @@ const REDACTED_VALUE = '[REDACTED]'
 const MAX_JSON_REDACTION_DEPTH = 100
 
 const SENSITIVE_NAME = /(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|secret|session|token)/i
+// A signed storage or download link carries its signature in one of these query parameters (Azure SAS, CloudFront,
+// S3 and Google Cloud Storage), and the link works for anyone until it expires. Matched whole, since `sig` is part of
+// many ordinary names.
+const SIGNED_URL_PARAMETER = /^(?:sig|signature|x-amz-signature|x-goog-signature|jwt)$/i
 const JSON_CONTENT_TYPE = /(?:^|[+/])json(?:;|$)/i
 const FORM_CONTENT_TYPE = /^application\/x-www-form-urlencoded(?:;|$)/i
 const MULTIPART_CONTENT_TYPE = /^multipart\//i
@@ -74,7 +78,7 @@ function redactParameters(parameters: URLSearchParams): URLSearchParams | undefi
   const visible: Array<[string, string]> = []
   const sensitive = new Map<string, number>()
   for (const [name, value] of parameters) {
-    if (!isSensitiveName(name)) {
+    if (!isSensitiveName(name) && !SIGNED_URL_PARAMETER.test(name)) {
       visible.push([name, value])
       continue
     }
