@@ -28,12 +28,17 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     if (target.textContent !== next) target.textContent = next
   }
   // Disabling the focused button while its action runs sends Chromium's focus to the page body, so the next Tab would
-  // start at the top of Home. The button gets it back once it works again, unless the person moved the focus or left.
+  // start at the top of Home. The button gets it back once it works again, unless the person moved the focus.
   const giveFocusBack = (button: HTMLButtonElement, hadFocus: boolean): void => {
-    const active = document.activeElement
-    if (!hadFocus || button.disabled || !button.isConnected || button.closest('[hidden]')) return
-    if ((active && active !== document.body) || !document.hasFocus()) return
-    button.focus({ preventScroll: true })
+    if (!hadFocus) return
+    const restore = (): void => {
+      const active = document.activeElement
+      if (button.disabled || !button.isConnected || button.closest('[hidden]') || (active && active !== document.body)) return
+      button.focus({ preventScroll: true })
+    }
+    // A guide or VS Code opening in front of Hronaut takes the window's focus; the button gets it when the person is back.
+    if (document.hasFocus()) restore()
+    else window.addEventListener('focus', restore, { once: true, signal })
   }
   const count = (one: string, other: string, value: number): string => interpolate(value === 1 ? one : other, { count: new Intl.NumberFormat(locale).format(value) })
   let selectedGuide = guides.find(guide => guide.id === remember('hronaut.home.guide'))?.id ?? guides[0]!.id
@@ -295,8 +300,9 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     text('support-kicker', successful ? messages.support.activeKicker : messages.support.kicker)
     text('support-heading', successful ? count(messages.support.activeHeadingOne, messages.support.activeHeadingOther, successful) : completed ? messages.support.failedHeading : messages.support.heading)
     text('support-message', successful ? messages.support.activeMessage : completed ? messages.support.failedMessage : messages.support.message)
-    const help = element('support-troubleshoot')
-    help.hidden = successful > 0 && document.activeElement !== help && !element('support-help-status').textContent
+    const help = element<HTMLButtonElement>('support-troubleshoot')
+    // It stays while the person is on it, or waits for it, which takes its focus.
+    help.hidden = successful > 0 && document.activeElement !== help && !help.disabled && !element('support-help-status').textContent
     if (!element('support-feedback-status').textContent) text('support-feedback', successful ? messages.support.feedback : messages.support.reportTrouble)
     element('support-recommend').hidden = !successful; element('support-welcome').hidden = successful > 0; element('support-recommend-privacy').hidden = !successful
     const outcomes = { succeeded: messages.activity.done, failed: messages.activity.failed, cancelled: messages.activity.cancelled, blocked: messages.activity.blocked, 'timed-out': messages.activity.timedOut, interrupted: messages.activity.interrupted, 'outcome-unknown': messages.activity.unknown }

@@ -85,15 +85,55 @@ describe('Home links that open outside Home', () => {
     expect(document.activeElement).toBe(search)
   })
 
-  it('does not take the focus while Hronaut is in the background', async () => {
+  it.each(links)('give the focus back to $name when the person comes back after it opened in front of Hronaut', async link => {
+    const { answer, button } = await pressLink(link)
+    windowFocused.mockReturnValue(false)
+    answer.resolve()
+    await flush()
+    // The focus does not move while another app is in front.
+    expect(document.activeElement).toBe(document.body)
+    windowFocused.mockReturnValue(true)
+    window.dispatchEvent(new Event('focus'))
+    expect(document.activeElement).toBe(button)
+  })
+
+  it('leaves the focus where the person put it before coming back', async () => {
     const { answer } = await pressLink(links[0]!)
     windowFocused.mockReturnValue(false)
     answer.resolve()
     await flush()
-    expect(document.activeElement).toBe(document.body)
+    const search = byId('agent-search')
+    search.focus()
+    window.dispatchEvent(new Event('focus'))
+    expect(document.activeElement).toBe(search)
   })
 
-  it('does not move the focus for a button pressed with the pointer elsewhere', async () => {
+  it('keeps Troubleshoot connection, and its focus, while it opens the guide after agents succeeded', async () => {
+    const opening = deferred<void>()
+    const openSetupHelp = vi.fn().mockRejectedValueOnce(new Error('No browser is set up.')).mockReturnValueOnce(opening.promise)
+    const home = mountTestHome({ api: { openSetupHelp } })
+    await flush()
+    openView('tools')
+    const help = byId<HTMLButtonElement>('support-troubleshoot')
+    help.click()
+    await flush()
+    // The failure keeps it on screen with a Retry, beside agents' successful steps.
+    home.show({ ...baseDashboard, completedToolCalls: 1 })
+    expect(help.hidden).toBe(false)
+    blurWhenDisabled(help)
+    help.focus()
+    help.click()
+    await flush()
+    expect(document.activeElement).toBe(document.body)
+    // A status read while it waits used to hide it, as it no longer had the focus or a failure to show.
+    home.show({ ...baseDashboard, completedToolCalls: 2 })
+    expect(help.hidden).toBe(false)
+    opening.resolve()
+    await flush()
+    expect(document.activeElement).toBe(help)
+  })
+
+  it('does not move the focus for a button pressed without it, as the first-run offer presses Set up Claude Code', async () => {
     const opening = deferred<void>()
     mountTestHome({ api: { openAgentGuide: vi.fn(() => opening.promise) } })
     await flush()
@@ -132,6 +172,22 @@ describe('Use port', () => {
     await flush()
     expect(words(byId('mcp-port-status'))).not.toBe('')
     expect(document.activeElement).toBe(button)
+  })
+
+  it('leaves the focus alone when no free port is left to offer', async () => {
+    const moved = deferred<McpPortMoveResult>()
+    const home = mountTestHome({ dashboard: busy, api: { useMcpPort: vi.fn(() => moved.promise) } })
+    await flush()
+    const button = byId<HTMLButtonElement>('mcp-port-use')
+    blurWhenDisabled(button)
+    button.focus()
+    button.click()
+    await flush()
+    home.show({ ...busy, suggestedPort: undefined })
+    moved.resolve({ outcome: 'taken', port: 47813 })
+    await flush()
+    expect(button.hidden).toBe(true)
+    expect(document.activeElement).toBe(document.body)
   })
 })
 
@@ -175,6 +231,14 @@ describe('Set up Claude Code', () => {
     await flush()
     expect(byId('claude-setup-start').hidden).toBe(true)
     expect(document.activeElement).toBe(byId('guide-code').closest('pre'))
+  })
+
+  it('does not take the focus while Hronaut is in the background', async () => {
+    const { prepared } = await pressStart(notConfigured)
+    windowFocused.mockReturnValue(false)
+    prepared.reject(new Error('claude-code-setup:busy'))
+    await flush()
+    expect(document.activeElement).toBe(document.body)
   })
 
   it('leaves the focus where the person moved it while the change was prepared', async () => {
