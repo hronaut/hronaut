@@ -78,3 +78,59 @@ describe('DownloadSettingsPanel', () => {
     controller.dispose()
   })
 })
+
+describe('DownloadSettingsPanel focus after a change', () => {
+  // JSDOM keeps focus on a control that becomes disabled; Chromium moves it to the document body.
+  function dropFocusLikeChromium(control: HTMLElement): void {
+    control.removeAttribute('disabled')
+    control.blur()
+    control.setAttribute('disabled', '')
+    expect(document.body).toHaveFocus()
+  }
+
+  // Every download control was disabled while one change saved, so Chromium moved the focus of the one you used to the
+  // document body and nothing gave it back: Space on the switch saved the preference and the next Tab started outside
+  // Settings.
+  it.each([
+    ['checkbox', /^Ask where to save each file/, 'setAskWhereToSaveDownloads'],
+    ['button', /^Open folder/, 'openDownloadDirectory'],
+    ['button', /^Change/, 'chooseDownloadDirectory']
+  ] as const)('gives the focus back to the %s %s once its change settles', async (role, name, method) => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const { api, controller, settings } = renderPanel()
+    const pending = deferred<never>()
+    api[method].mockImplementationOnce(() => pending.promise)
+    try {
+      const control = screen.getByRole(role, { name })
+      await userEvent.setup().click(control)
+      expect(control).toBeDisabled()
+      dropFocusLikeChromium(control)
+      pending.resolve((method === 'openDownloadDirectory' ? undefined
+        : method === 'chooseDownloadDirectory' ? { canceled: true, settings: settings.value }
+          : { ...settings.value, askWhereToSaveDownloads: true }) as never)
+      await vi.waitFor(() => expect(control).toBeEnabled())
+      await vi.waitFor(() => expect(control).toHaveFocus())
+    } finally {
+      vi.restoreAllMocks()
+      controller.dispose()
+    }
+  })
+
+  it('does not take the focus while Hronaut is in the background', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    const { api, controller, settings } = renderPanel()
+    const pending = deferred<AppSettings>()
+    api.setAskWhereToSaveDownloads.mockImplementationOnce(() => pending.promise)
+    try {
+      const control = screen.getByRole('checkbox', { name: /^Ask where to save each file/ })
+      await userEvent.setup().click(control)
+      dropFocusLikeChromium(control)
+      pending.resolve({ ...settings.value, askWhereToSaveDownloads: true })
+      await vi.waitFor(() => expect(control).toBeEnabled())
+      expect(document.body).toHaveFocus()
+    } finally {
+      vi.restoreAllMocks()
+      controller.dispose()
+    }
+  })
+})

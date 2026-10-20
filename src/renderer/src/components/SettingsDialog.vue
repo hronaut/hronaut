@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
 import UiOverlayTransition from "../ui/UiOverlayTransition.vue"
-import { computed, ref, watch, type Component } from 'vue'
+import { computed, nextTick, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
@@ -88,6 +88,22 @@ const navigation = computed<Array<{
 
 const { query, matches, searchKeydown } = useSettingsSectionSearch(navigation, section)
 
+/**
+ * Reset to default disables itself and the section while it runs, so Chromium moves its focus to the document body.
+ * Give it back once the reset is done, or else to Settings itself, unless you moved it meanwhile or Settings closed.
+ */
+async function resetWithFocus(event: Event): Promise<void> {
+  const button = event.currentTarget instanceof HTMLElement && document.activeElement === event.currentTarget
+    ? event.currentTarget : null
+  const dialog = panel.value
+  await resetCurrent()
+  await nextTick()
+  if (!button || !dialog || !open.value || dialog !== panel.value || !dialog.isConnected || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== button) return
+  const target = button.isConnected && !button.matches(':disabled') ? button : dialog
+  target.focus({ preventScroll: true })
+}
+
 watch(open, async (active, _previous, onCleanup) => {
   if (!active) { query.value = ''; return }
   let current = true
@@ -118,7 +134,7 @@ watch(open, async (active, _previous, onCleanup) => {
               class="secondary-button"
               type="button"
               :disabled="resetDisabled"
-              @click="resetCurrent"
+              @click="resetWithFocus"
             >{{ t('settings.reset') }}</UiButton>
             <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('settings.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
           </div>

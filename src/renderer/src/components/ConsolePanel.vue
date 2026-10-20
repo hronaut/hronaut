@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -81,6 +82,23 @@ function levelLabel(value: string): string {
 function entryKey(message: BrowserConsoleMessage): string {
   return `${message.timestamp}\n${message.sourceId}\n${message.lineNumber}\n${message.message}`
 }
+
+// The newest message is listed first, so a row's position changes with every new message and a repeated message
+// updates its latest time. Key each row by when it was first logged instead, so an expanded call stack and a focused
+// Copy button survive live updates. Identical records are counted from the oldest, so a new one leaves the keys of
+// those already shown alone.
+const rowKeys = computed(() => {
+  const occurrences = new Map<string, number>()
+  const keys: string[] = []
+  for (let index = props.filteredMessages.length - 1; index >= 0; index -= 1) {
+    const message = props.filteredMessages[index]
+    const identity = `${message.firstTimestamp ?? message.timestamp}\n${message.level}\n${message.sourceId}\n${message.lineNumber}\n${message.message}`
+    const occurrence = occurrences.get(identity) ?? 0
+    occurrences.set(identity, occurrence + 1)
+    keys[index] = `${identity}\n${occurrence}`
+  }
+  return keys
+})
 </script>
 
 <template>
@@ -136,7 +154,7 @@ function entryKey(message: BrowserConsoleMessage): string {
     <div v-else class="console-messages" role="log" aria-live="polite" :aria-label="t('console.logAria')">
       <article
         v-for="(message, index) in filteredMessages"
-        :key="`${message.timestamp}-${index}`"
+        :key="rowKeys[index]"
         class="console-message"
         :class="browserConsoleLevel(message.level)"
       >

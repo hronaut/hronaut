@@ -10,7 +10,7 @@ import UiInput from '../ui/UiInput.vue'
 import UiSelect from '../ui/UiSelect.vue'
 import UiTextarea from '../ui/UiTextarea.vue'
 import UiOverlayTransition from '../ui/UiOverlayTransition.vue'
-import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -115,6 +115,24 @@ const pendingMessage = computed(() => {
 })
 
 useModalDialogFocus({ open, panel, focusOnOpen: false })
+
+/**
+ * Saving, closing a workspace or transferring its data disables every control of the editor, so Chromium moves the
+ * focus of the one you used to the document body. When the editor stays open, after a failure or a finished transfer,
+ * give the focus back to that control, or else the editor's Close button, unless you moved it meanwhile.
+ */
+async function keepFocusThrough(action: () => Promise<unknown>): Promise<void> {
+  const dialog = panel.value
+  const active = document.activeElement
+  const focused = active instanceof HTMLElement && dialog?.contains(active) ? active : null
+  await action()
+  await nextTick()
+  if (!focused || !dialog || !open.value || dialog !== panel.value || !dialog.isConnected || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  const target = [focused, dialog.querySelector<HTMLElement>('.panel-close')]
+    .find((element) => element?.isConnected && !element.matches(':disabled'))
+  target?.focus()
+}
 
 function colorStyle(value: (typeof BROWSER_TAB_GROUP_COLORS)[number]): Record<string, string> {
   return { '--tab-group-color': BROWSER_TAB_GROUP_COLOR_HEX[value] }
@@ -232,7 +250,7 @@ onBeforeUnmount(dispose)
 <template>
   <UiOverlayTransition>
     <div v-if="open" class="tab-group-editor-overlay">
-      <form ref="panel" class="tab-group-editor workspace-editor" :class="{ 'workspace-editor--import': importTarget }" role="dialog" aria-modal="true" aria-labelledby="tab-group-editor-title" :aria-busy="dismissBlocked || templateBusy || importBusy" @submit.prevent="!templateView && !importTarget && (mode === 'transfer' ? transferStorage() : save())">
+      <form ref="panel" class="tab-group-editor workspace-editor" :class="{ 'workspace-editor--import': importTarget }" role="dialog" aria-modal="true" aria-labelledby="tab-group-editor-title" :aria-busy="dismissBlocked || templateBusy || importBusy" @submit.prevent="!templateView && !importTarget && keepFocusThrough(mode === 'transfer' ? transferStorage : save)">
         <header>
           <div><span class="eyebrow">{{ t('workspaceEditor.kicker') }}</span><h2 id="tab-group-editor-title">{{ importTarget ? t('browserImport.action') : templateView ? t('workspaceTemplates.title') : mode === 'transfer' ? t('workspaceEditor.transferData') : mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.edit') }}</h2></div>
           <div class="workspace-editor-header-actions">
@@ -379,13 +397,13 @@ onBeforeUnmount(dispose)
               <p v-else-if="!originOptions.length">{{ t('workspaceEditor.noSourceOrigins') }}</p>
               <label v-for="origin in originOptions" :key="origin"><input v-model="selectedOrigins" type="checkbox" :value="origin" :disabled="dismissBlocked" /><span>{{ origin }}</span></label>
             </div>
-            <UiButton class="workspace-transfer-button" type="button" :disabled="transferDisabled" @click="transferStorage"><IconSwapHoriz aria-hidden="true" /> {{ storageState === 'saving' ? pendingMessage : t(transferMode === 'move' ? 'workspaceEditor.moveSelected' : 'workspaceEditor.copySelected') }}</UiButton>
+            <UiButton class="workspace-transfer-button" type="button" :disabled="transferDisabled" @click="keepFocusThrough(transferStorage)"><IconSwapHoriz aria-hidden="true" /> {{ storageState === 'saving' ? pendingMessage : t(transferMode === 'move' ? 'workspaceEditor.moveSelected' : 'workspaceEditor.copySelected') }}</UiButton>
             <UiButton v-if="storageState === 'error'" type="button" :disabled="dismissBlocked" @click="loadOrigins()">{{ t('workspaceEditor.reloadOrigins') }}</UiButton>
             <output v-if="storageMessage" :class="{ error: storageState === 'error', warning: storageState === 'warning' }" role="status">{{ storageMessage }}</output>
 
           </section>
           </details>
-            <div v-if="mode === 'edit'" class="workspace-danger-zone"><div><strong>{{ t('workspaceEditor.closePermanently') }}</strong><span>{{ t('workspaceEditor.closeDescription') }}</span></div><UiButton variant="danger" type="button" :disabled="dismissBlocked || deletionBlocked" @click="closeWorkspace">{{ t('workspaceEditor.closeWorkspace') }}</UiButton></div>
+            <div v-if="mode === 'edit'" class="workspace-danger-zone"><div><strong>{{ t('workspaceEditor.closePermanently') }}</strong><span>{{ t('workspaceEditor.closeDescription') }}</span></div><UiButton variant="danger" type="button" :disabled="dismissBlocked || deletionBlocked" @click="keepFocusThrough(closeWorkspace)">{{ t('workspaceEditor.closeWorkspace') }}</UiButton></div>
           <output v-if="error" class="workspace-editor-error" role="alert">{{ error }}</output>
         </div>
         <footer v-if="!importTarget"><UiButton type="button" :disabled="dismissBlocked || templateBusy || importBusy" @click="close">{{ templateView || mode === 'transfer' ? t('common.close') : t('workspaceEditor.cancel') }}</UiButton><UiButton v-if="!importTarget && !templateView && mode !== 'transfer'" variant="primary" class="primary" type="submit" :disabled="saveDisabled"><IconProgress v-if="actionPending" class="state-spinner" aria-hidden="true" />{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.save') }}</UiButton></footer>

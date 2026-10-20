@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
 import type { CopyTextWithFeedback } from '../composables/useShellFeedbackController.js'
-import { onBeforeUnmount, toRef, watch } from 'vue'
+import { nextTick, onBeforeUnmount, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -163,6 +163,25 @@ function debugTimestamp(value: string): string {
     second: '2-digit',
     fractionalSecondDigits: 3
   }).format(date)
+}
+
+/**
+ * Clear is disabled once nothing is left to clear, so Chromium moves its focus to the document body. Give the focus to
+ * the request filter instead, unless you moved it meanwhile or the panel closed.
+ */
+async function clearRequests(event: Event): Promise<void> {
+  const button = event.currentTarget instanceof HTMLElement && document.activeElement === event.currentTarget
+    ? event.currentTarget : null
+  const panel = button?.closest('.network-monitor-panel')
+  await refreshNetworkMonitor(true)
+  await nextTick()
+  if (!button || !panel?.isConnected || !open.value || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== button) return
+  const target = [button,
+    panel.querySelector<HTMLInputElement>('.network-monitor-tools .network-monitor-search input'),
+    panel.querySelector<HTMLButtonElement>('.panel-close')
+  ].find((element) => element?.isConnected && !element.matches(':disabled'))
+  target?.focus()
 }
 
 function setNetworkSortBy(event: Event): void {
@@ -687,7 +706,7 @@ onBeforeUnmount(dispose)
       <footer>
         <span>{{ t('network.summary', { visible: localNumber(filteredNetworkRequests.length), total: localNumber(networkRequests.length), bytes: formatBytes(networkResponseBytes) }) }}</span>
         <div class="network-monitor-actions">
-          <UiButton appearance="application" type="button" :disabled="!networkRequests.length" @click="refreshNetworkMonitor(true)"><IconDelete aria-hidden="true" /> {{ t('network.clear') }}</UiButton>
+          <UiButton appearance="application" type="button" :disabled="!networkRequests.length" @click="clearRequests"><IconDelete aria-hidden="true" /> {{ t('network.clear') }}</UiButton>
           <UiButton appearance="application" type="button" :disabled="!filteredNetworkRequests.length" @click="copySanitizedNetworkHar">
             <IconCheck v-if="networkHarCopied" aria-hidden="true" />
             <IconCopy v-else aria-hidden="true" />

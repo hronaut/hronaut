@@ -84,3 +84,65 @@ describe('PerformanceSettingsPanel', () => {
     controller.dispose()
   })
 })
+
+describe('PerformanceSettingsPanel focus after a change', () => {
+  // JSDOM keeps focus on a control that becomes disabled; Chromium moves it to the document body.
+  function dropFocusLikeChromium(control: HTMLElement): void {
+    control.removeAttribute('disabled')
+    control.blur()
+    control.setAttribute('disabled', '')
+    expect(document.body).toHaveFocus()
+  }
+
+  function pending<Value>() {
+    let resolve!: (value: Value) => void
+    let reject!: (error: unknown) => void
+    const promise = new Promise<Value>((accept, fail) => { resolve = accept; reject = fail })
+    return { promise, resolve, reject }
+  }
+
+  // Every Memory Saver control was disabled while one change saved, so Chromium moved the focus of the one you used to
+  // the document body and nothing gave it back: an arrow key on Sleep after saved one choice and the next one did nothing.
+  it.each(['is saved', 'fails'] as const)('gives the focus back to Sleep after once the change %s', async (outcome) => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const saving = pending<AppSettings>()
+    const { controller, setTimeout } = renderPanel()
+    setTimeout.mockImplementationOnce(() => saving.promise)
+    try {
+      const timeout = screen.getByRole('combobox', { name: /^Sleep after/ })
+      await userEvent.setup().selectOptions(timeout, '15')
+      expect(timeout).toBeDisabled()
+      dropFocusLikeChromium(timeout)
+      if (outcome === 'fails') saving.reject(new Error('cannot persist memory saver'))
+      else saving.resolve({ ...DEFAULT_RENDERER_SETTINGS, memorySaverTimeoutMinutes: 15 })
+      await vi.waitFor(() => expect(timeout).toBeEnabled())
+      await vi.waitFor(() => expect(timeout).toHaveFocus())
+    } finally {
+      vi.restoreAllMocks()
+      controller.dispose()
+    }
+  })
+
+  it.each([
+    ['checkbox', /^Automatically sleep inactive tabs/],
+    ['button', /^Sleep eligible tabs now/]
+  ] as const)('gives the focus back to the %s %s once its action settles', async (role, name) => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const { controller, setEnabled, sleepInactiveTabs } = renderPanel()
+    const action = pending<never>()
+    if (role === 'checkbox') setEnabled.mockImplementationOnce(() => action.promise)
+    else sleepInactiveTabs.mockImplementationOnce(() => action.promise)
+    try {
+      const control = screen.getByRole(role, { name })
+      await userEvent.setup().click(control)
+      expect(control).toBeDisabled()
+      dropFocusLikeChromium(control)
+      action.reject(new Error('refused'))
+      await vi.waitFor(() => expect(control).toBeEnabled())
+      await vi.waitFor(() => expect(control).toHaveFocus())
+    } finally {
+      vi.restoreAllMocks()
+      controller.dispose()
+    }
+  })
+})

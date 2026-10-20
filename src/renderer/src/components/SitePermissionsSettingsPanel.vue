@@ -95,8 +95,17 @@ function controlLabel(entry: SitePermissionEntry, kind: 'select' | 'forget'): st
 
 async function changePermission(entry: SitePermissionEntry, event: Event): Promise<void> {
   const input = event.target as HTMLSelectElement
+  const panel = panelRoot.value
+  const focused = document.activeElement === input
   const decision = input.value as SitePermissionDecision
   if (!(await setDecision(entry, decision))) input.value = entry.decision
+  // The select is disabled while its decision saves, so Chromium moves its focus to the document body. Give it back
+  // once the select is enabled again, unless the human moved on or the row went away.
+  await nextTick()
+  if (!focused || !panel || panelRoot.value !== panel || !panel.isConnected || !input.isConnected
+    || input.matches(':disabled') || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== input) return
+  input.focus()
 }
 </script>
 

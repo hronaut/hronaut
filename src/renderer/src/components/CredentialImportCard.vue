@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconDownload from '~icons/material-symbols/download-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
@@ -16,8 +16,20 @@ const { t } = useI18n({ useScope: 'global' })
 const state = ref<'idle' | 'importing' | 'imported' | 'error'>('idle')
 const message = ref('')
 
-async function importCredentials(): Promise<void> {
+async function importCredentials(event: Event): Promise<void> {
   if (state.value === 'importing') return
+  const button = event.currentTarget instanceof HTMLElement && document.activeElement === event.currentTarget
+    ? event.currentTarget : null
+  await importFromFile()
+  // The button is disabled while the native chooser and the import run, so Chromium moves its focus to the document
+  // body. Give it back once the button is enabled again, unless you moved it meanwhile or left this section.
+  await nextTick()
+  if (!button?.isConnected || button.matches(':disabled') || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== button) return
+  button.focus()
+}
+
+async function importFromFile(): Promise<void> {
   state.value = 'importing'
   message.value = ''
   try {

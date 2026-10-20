@@ -60,3 +60,53 @@ describe('CredentialImportCard', () => {
     expect(document.body).not.toHaveTextContent('Error invoking remote method')
   })
 })
+
+describe('CredentialImportCard focus after an import', () => {
+  // JSDOM keeps focus on a control that becomes disabled; Chromium moves it to the document body.
+  function dropFocusLikeChromium(control: HTMLElement): void {
+    control.removeAttribute('disabled')
+    control.blur()
+    control.setAttribute('disabled', '')
+    expect(document.body).toHaveFocus()
+  }
+
+  // The import button was disabled while the native file chooser and import ran, so Chromium moved its focus to the
+  // document body, and nothing gave it back once the import finished or was canceled.
+  it.each([
+    ['finishes', { canceled: false, added: 1, updated: 0, skipped: 0 }],
+    ['is canceled', { canceled: true, added: 0, updated: 0, skipped: 0 }]
+  ] as const)('gives the focus back to the import button once the import %s', async (_outcome, result) => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    let finish!: (value: CredentialImportResult) => void
+    const view = renderCard(() => new Promise((resolve) => { finish = resolve }))
+    try {
+      const button = screen.getByRole('button', { name: 'Choose browser CSV…' })
+      await userEvent.setup().click(button)
+      expect(button).toBeDisabled()
+      dropFocusLikeChromium(button)
+      finish(result)
+      await vi.waitFor(() => expect(button).toBeEnabled())
+      await vi.waitFor(() => expect(button).toHaveFocus())
+    } finally {
+      view.unmount()
+      vi.restoreAllMocks()
+    }
+  })
+
+  it('leaves the focus alone while Hronaut is in the background', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    let finish!: (value: CredentialImportResult) => void
+    const view = renderCard(() => new Promise((resolve) => { finish = resolve }))
+    try {
+      const button = screen.getByRole('button', { name: 'Choose browser CSV…' })
+      await userEvent.setup().click(button)
+      dropFocusLikeChromium(button)
+      finish({ canceled: true, added: 0, updated: 0, skipped: 0 })
+      await vi.waitFor(() => expect(button).toBeEnabled())
+      expect(document.body).toHaveFocus()
+    } finally {
+      view.unmount()
+      vi.restoreAllMocks()
+    }
+  })
+})
