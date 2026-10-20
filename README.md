@@ -71,7 +71,7 @@ Choose **Archive** when you finish a task. Tabs and sign-ins remain saved, and *
 
 Hronaut starts on Home without creating a Default workspace. Opening your first tab creates an isolated workspace. Obsolete base-profile data and unsupported persistence formats are discarded.
 
-- **Fork a workspace** to reuse its cookies and local storage in an independent profile. Choose any active or archived source; the fork starts with a blank tab and keeps the source's site restrictions.
+- **Fork a workspace** to reuse its cookies and local storage in an independent profile. Choose any active or archived source; the fork starts with a blank tab and keeps the source's site restrictions, or only some of its listed sites if you choose them.
 - **Disable direct agent access** when a workspace should stay under your control. Agents can still fork it, but cannot browse or change its original tabs. The fork receives a copy of its site data, so this setting does not prevent agents from reusing copied sign-ins.
 - **Copy or Move site data** with explicit source and destination controls. Move requires both workspaces archived and verifies the destination before removing transferred data from the source. Profiles with background site-worker storage cannot currently be moved.
 
