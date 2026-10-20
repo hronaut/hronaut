@@ -233,13 +233,14 @@ export const deDEAppErrors: AppErrorMessages = {
     "conditionsChanged": "Die Anfragebedingungen haben sich geändert, bevor die Entwicklertools geöffnet wurden."
   },
   "network": {
-    "requestGone": "Diese Anfrage ist nicht mehr im Netzwerkprotokoll. Aktualisieren Sie die Liste und wählen Sie sie erneut aus.",
+    "requestGone": "Diese Anfrage ist nicht mehr im Netzwerkprotokoll. Aktualisieren Sie die Liste, um die aktuellen Anfragen zu sehen.",
     "requestChanged": "Die Seite hat sich geändert, während Hronaut diese Anfrage gelesen hat. Aktualisieren Sie die Liste und wählen Sie sie erneut aus.",
-    "replayNeedsReload": "Chromium hat nicht behalten, was zum Wiederholen dieser Anfrage nötig ist, wie es bei geöffneten Entwicklertools geschieht. Schließen Sie die Entwicklertools, laden Sie die Seite neu und wiederholen Sie die neue Anfrage.",
+    "replayNeedsReload": "Chromium hat nicht gespeichert, was zum Wiederholen dieser Anfrage nötig ist. Das passiert, wenn die Entwicklertools geöffnet sind. Schließen Sie die Entwicklertools, laden Sie die Seite neu und wiederholen Sie die neue Anfrage.",
     "replayUnsupported": "Diese Chromium-Version kann keine Anfragen wiederholen.",
+    "replayUnconfirmed": "Chromium hat die Anfrage wiederholt, aber Hronaut konnte das Ende der neuen Anfrage nicht sehen, etwa weil sie länger als 10 Sekunden dauerte oder sich die Seite geändert hat. Aktualisieren Sie die Liste, um sie zu finden.",
     "copyCurlNul": "Diese Anfrage enthält ein NUL-Zeichen, das cURL nicht senden kann. Kopieren Sie sie stattdessen als fetch.",
-    "copyPowerShellMethod": "PowerShell kann die Methode dieser Anfrage nicht senden. Kopieren Sie sie stattdessen als cURL oder fetch.",
-    "copyPowerShellBody": "PowerShell kann mit einer GET- oder HEAD-Anfrage keinen Anfragetext senden. Kopieren Sie sie stattdessen als cURL oder fetch.",
+    "copyPowerShellMethod": "PowerShell kann die Methode dieser Anfrage nicht senden. Kopieren Sie die Anfrage stattdessen als cURL oder fetch.",
+    "copyPowerShellBody": "PowerShell kann mit einer GET- oder HEAD-Anfrage keinen Anfragetext senden. Kopieren Sie die Anfrage stattdessen als cURL oder fetch.",
     "copyPowerShellDuplicateHeader": "PowerShell kann denselben Header nicht zweimal senden. Kopieren Sie die Anfrage stattdessen als cURL oder fetch.",
     "copyPowerShellNul": "Ein Header dieser Anfrage enthält ein NUL-Zeichen, das PowerShell nicht senden kann. Kopieren Sie die Anfrage stattdessen als fetch."
   },

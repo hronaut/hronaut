@@ -233,10 +233,11 @@ export const esESAppErrors: AppErrorMessages = {
     "conditionsChanged": "Las condiciones de solicitud cambiaron antes de abrir las herramientas de desarrollo."
   },
   "network": {
-    "requestGone": "Esta solicitud ya no está en el registro de red. Actualiza la lista y vuelve a seleccionarla.",
+    "requestGone": "Esta solicitud ya no está en el registro de red. Actualiza la lista para ver las solicitudes actuales.",
     "requestChanged": "La página cambió mientras Hronaut leía esta solicitud. Actualiza la lista y vuelve a seleccionarla.",
     "replayNeedsReload": "Chromium no conservó lo necesario para repetir esta solicitud, como ocurre con las herramientas de desarrollo abiertas. Cierra las herramientas de desarrollo, recarga la página y repite la nueva solicitud.",
     "replayUnsupported": "Esta versión de Chromium no puede repetir solicitudes.",
+    "replayUnconfirmed": "Chromium repitió la solicitud, pero Hronaut no pudo ver terminar la nueva solicitud, por ejemplo porque tardó más de 10 segundos o la página cambió. Actualiza la lista para encontrarla.",
     "copyCurlNul": "Esta solicitud contiene un carácter NUL, que cURL no puede enviar. Cópiala como fetch.",
     "copyPowerShellMethod": "PowerShell no puede enviar el método de esta solicitud. Cópiala como cURL o fetch.",
     "copyPowerShellBody": "PowerShell no puede enviar un cuerpo con una solicitud GET o HEAD. Cópiala como cURL o fetch.",

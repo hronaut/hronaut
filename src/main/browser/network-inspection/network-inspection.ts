@@ -325,15 +325,24 @@ export async function replayNetworkRequest<Tab extends NetworkInspectionTab>(
     throw error
   }
 
-  const replayed = await waitForNetworkRequest(access, {
-    tabId: tab.id,
-    urlPattern: networkReplayUrlPattern(request.url),
-    method,
-    resourceType: 'xhr',
-    phase: 'complete',
-    afterRequestId: cursor.id,
-    timeoutMs: 10_000
-  })
+  let replayed: BrowserNetworkWaitResult
+  try {
+    replayed = await waitForNetworkRequest(access, {
+      tabId: tab.id,
+      urlPattern: networkReplayUrlPattern(request.url),
+      method,
+      resourceType: 'xhr',
+      phase: 'complete',
+      afterRequestId: cursor.id,
+      timeoutMs: 10_000
+    })
+  } catch (error) {
+    // Chromium has replayed it; only its completion went unseen, such as after a timeout or a navigation.
+    throw new LocalizedError('appErrors.network.replayUnconfirmed', undefined, {
+      message: error instanceof Error ? error.message : String(error),
+      cause: error
+    })
+  }
   return {
     tabId: tab.id,
     originalRequestId: request.id,

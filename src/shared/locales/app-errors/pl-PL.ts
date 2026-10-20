@@ -233,10 +233,11 @@ export const plPLAppErrors: AppErrorMessages = {
     "conditionsChanged": "Warunki żądań zmieniły się przed otwarciem narzędzi deweloperskich."
   },
   "network": {
-    "requestGone": "Tego żądania nie ma już w dzienniku sieci. Odśwież listę i wybierz je ponownie.",
+    "requestGone": "Tego żądania nie ma już w dzienniku sieci. Odśwież listę, aby zobaczyć bieżące żądania.",
     "requestChanged": "Strona zmieniła się, gdy Hronaut odczytywał to żądanie. Odśwież listę i wybierz je ponownie.",
-    "replayNeedsReload": "Chromium nie zachował tego, czego wymaga powtórzenie tego żądania, jak dzieje się przy otwartych narzędziach deweloperskich. Zamknij narzędzia deweloperskie, odśwież stronę i powtórz nowe żądanie.",
+    "replayNeedsReload": "Chromium nie zachował danych potrzebnych do powtórzenia tego żądania, co zdarza się przy otwartych narzędziach deweloperskich. Zamknij narzędzia deweloperskie, odśwież stronę i powtórz nowe żądanie.",
     "replayUnsupported": "Ta wersja Chromium nie może powtarzać żądań.",
+    "replayUnconfirmed": "Chromium powtórzył żądanie, ale Hronaut nie mógł zobaczyć zakończenia nowego żądania, na przykład dlatego, że trwało ponad 10 sekund albo strona się zmieniła. Odśwież listę, aby je znaleźć.",
     "copyCurlNul": "To żądanie zawiera znak NUL, którego cURL nie może wysłać. Skopiuj je jako fetch.",
     "copyPowerShellMethod": "PowerShell nie może wysłać metody tego żądania. Skopiuj je jako cURL lub fetch.",
     "copyPowerShellBody": "PowerShell nie może wysłać treści z żądaniem GET lub HEAD. Skopiuj je jako cURL lub fetch.",

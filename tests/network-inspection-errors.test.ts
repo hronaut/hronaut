@@ -67,7 +67,7 @@ describe('Network panel request errors', () => {
     const replay = await failure(replayNetworkRequest(access, 'tab-1', 'request-9'))
     expect(replay.key).toBe('appErrors.network.requestGone')
     expect(replay.message).toBe(details.message)
-    expect(translate('de-DE', replay.key)).toBe('Diese Anfrage ist nicht mehr im Netzwerkprotokoll. Aktualisieren Sie die Liste und wählen Sie sie erneut aus.')
+    expect(translate('de-DE', replay.key)).toBe('Diese Anfrage ist nicht mehr im Netzwerkprotokoll. Aktualisieren Sie die Liste, um die aktuellen Anfragen zu sehen.')
   })
 
   it('names a request whose page changed while its details were read', async () => {
@@ -92,5 +92,14 @@ describe('Network panel request errors', () => {
     expect(error.key).toBe('appErrors.network.replayUnsupported')
     expect(error.message).toBe('XHR replay is unavailable in this Chromium build')
     expect(translate('uk-UA', error.key)).toBe('Ця версія Chromium не може повторювати запити.')
+  })
+
+  it('names a replay whose new request Hronaut did not see finish', async () => {
+    const access = inspection([record()], {
+      waitForNetworkActivity: async (_tab, options) => { throw new Error(`Timed out after ${options.timeoutMs} ms waiting for a matching network complete.`) }
+    })
+    const error = await failure(replayNetworkRequest(access, 'tab-1', 'request-1'))
+    expect(error.key).toBe('appErrors.network.replayUnconfirmed')
+    expect(error.message).toBe('Timed out after 10000 ms waiting for a matching network complete.')
   })
 })
