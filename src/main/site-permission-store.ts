@@ -141,11 +141,15 @@ export class SitePermissionStore {
    * The decision that applies to a website's request in a workspace, embedded in a page of `embeddedIn` or on its own
    * page: the workspace's decision for exactly that, or else a decision saved before decisions belonged to a workspace.
    * It never uses another workspace's decision, another embedding site's, or the website's own for an embedded request.
+   * A workspace's decision for the website's own page, which Site controls saves when it changes an earlier decision,
+   * replaces that earlier decision in the workspace, so the website embedded in a page there asks again instead.
    */
   decisionFor(origin: string, permission: string, workspaceId: string, embeddedIn?: string): SitePermissionDecision | undefined {
     if (!isUuidV7(workspaceId)) return undefined
-    return this.get(origin, permission, { workspaceId, ...(embeddedIn !== undefined ? { embeddedIn } : {}) })
-      ?? this.get(origin, permission)
+    if (embeddedIn === undefined) return this.get(origin, permission, { workspaceId }) ?? this.get(origin, permission)
+    const embedded = this.get(origin, permission, { workspaceId, embeddedIn })
+    if (embedded !== undefined || this.get(origin, permission, { workspaceId }) !== undefined) return embedded
+    return this.get(origin, permission)
   }
 
   /**

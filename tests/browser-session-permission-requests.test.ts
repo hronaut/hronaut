@@ -708,9 +708,16 @@ describe('decisions that belong to a workspace and a page', () => {
     await harness.store.set(widget.origin, 'geolocation', 'deny', { workspaceId: CLIENT })
     expect(await ask(client, createPage(widget), 'geolocation', own)).toBe(false)
     expect(await ask(harness, createPage(widget), 'geolocation', own)).toBe(true)
-    // The client's own-page Deny is not its decision for the widget embedded in a page, which still falls back.
-    expect(await ask(client, createPage(firstSite, [widget]), 'geolocation', fromWidget)).toBe(true)
     expect(harness.shown).toEqual([])
+    // The client's Deny for the widget's own page, as Site controls saves it, replaces the earlier Allow in the client.
+    // The widget embedded in a page there was still allowed without asking; it asks again now.
+    expect(check(client.check, createPage(secondSite, [widget]), fromWidget)).toBe(false)
+    expect(await ask(client, createPage(firstSite, [widget]), 'geolocation', fromWidget)).toBe(false)
+    expect(harness.shown).toHaveLength(1)
+    expect(harness.shown[0]!.message).toBe('https://widget.example on https://first.example requests “Location” permission.')
+    expect(await ask(harness, createPage(firstSite, [widget]), 'geolocation', fromWidget)).toBe(true)
+    expect(check(harness.check, createPage(secondSite, [widget]), fromWidget)).toBe(true)
+    expect(harness.shown).toHaveLength(1)
   })
 
   it('gives no permission in a session no single workspace claims, or in a page whose website is unknown', async () => {

@@ -158,7 +158,7 @@ describe('SitePermissionStore', () => {
     expect(await new SitePermissionStore(path).load()).toEqual(store.list())
   })
 
-  it('looks a request up in its own workspace and page, falling back only to a decision saved before scopes', async () => {
+  it('looks a request up in its own workspace and page, falling back only to a decision saved before scopes the workspace did not replace', async () => {
     const { store } = await createStore()
     await store.load()
     await store.set(widget, 'geolocation', 'allow', { workspaceId: WORK, embeddedIn: `${firstSite}/room?secret=1` })
@@ -174,12 +174,19 @@ describe('SitePermissionStore', () => {
     expect(store.decisionFor(widget, 'geolocation', CLIENT, firstSite)).toBeUndefined()
     expect(store.decisionFor(widget, 'geolocation', WORK)).toBeUndefined()
 
-    // A decision saved before decisions had a scope applies wherever the workspace has none of its own.
+    // A decision saved before decisions had a scope applies wherever the workspace has none of its own for it.
     await store.set(widget, 'geolocation', 'allow')
     expect(store.decisionFor(widget, 'geolocation', WORK)).toBe('allow')
     expect(store.decisionFor(widget, 'geolocation', WORK, secondSite)).toBe('allow')
     expect(store.decisionFor(widget, 'geolocation', CLIENT)).toBe('deny')
     expect(store.decisionFor(widget, 'geolocation', 'not-a-workspace')).toBeUndefined()
+    // The client's decision for the site's own page replaced it in the client, so the site embedded there asks, unless
+    // the client has a decision for that embedding site.
+    expect(store.decisionFor(widget, 'geolocation', CLIENT, secondSite)).toBeUndefined()
+    await store.set(widget, 'geolocation', 'allow', { workspaceId: CLIENT, embeddedIn: secondSite })
+    expect(store.decisionFor(widget, 'geolocation', CLIENT, secondSite)).toBe('allow')
+    expect(store.decisionFor(widget, 'geolocation', CLIENT, firstSite)).toBeUndefined()
+    await store.remove(widget, 'geolocation', { workspaceId: CLIENT, embeddedIn: secondSite })
 
     // Only origins are kept, never a page's path or query.
     expect(store.list()).toEqual([
