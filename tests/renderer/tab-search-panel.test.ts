@@ -287,4 +287,53 @@ describe('TabSearchPanel', () => {
       else Reflect.deleteProperty(window, 'hronautShell')
     }
   })
+
+  it.each([
+    ['darwin', '⌘ ⇧ A'],
+    ['linux', 'Ctrl+Shift+A']
+  ])('shows the key that opens tab search on %s', (platform, keys) => {
+    // macOS showed ⌃/⌘ ⇧ A, but Control+Shift+A stays with the page there.
+    const browserState = state()
+    const browser = {
+      closeTab: vi.fn(async () => browserState),
+      reopenClosedTab: vi.fn(async () => browserState),
+      setTabPinned: vi.fn(async () => browserState),
+      restoreSavedTabGroup: vi.fn(async () => browserState),
+      deleteSavedTabGroup: vi.fn(async () => browserState),
+      getTabOverviewPreviews: vi.fn(async () => [])
+    }
+    const previousHronaut = Object.getOwnPropertyDescriptor(window, 'hronaut')
+    const previousHronautShell = Object.getOwnPropertyDescriptor(window, 'hronautShell')
+    Object.defineProperty(window, 'hronaut', { configurable: true, value: browser })
+    Object.defineProperty(window, 'hronautShell', {
+      configurable: true,
+      value: { isWindowFocused: vi.fn(async () => true), windowChrome: { platform } }
+    })
+    const view = render(TabSearchPanel, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: {
+        open: true,
+        state: browserState,
+        mcpActivityByTab: {},
+        syncState: vi.fn(async () => undefined),
+        selectTab: vi.fn(async () => undefined),
+        expandTabGroup: vi.fn(),
+        describeEmulation: () => '',
+        formatNumber: String,
+        formatTime: String,
+        formatError: (_cause: unknown, fallback: string) => fallback,
+        showError: vi.fn()
+      }
+    })
+
+    try {
+      expect(screen.getByTestId('tab-search-keys')).toHaveTextContent(keys)
+    } finally {
+      view.unmount()
+      if (previousHronaut) Object.defineProperty(window, 'hronaut', previousHronaut)
+      else Reflect.deleteProperty(window, 'hronaut')
+      if (previousHronautShell) Object.defineProperty(window, 'hronautShell', previousHronautShell)
+      else Reflect.deleteProperty(window, 'hronautShell')
+    }
+  })
 })

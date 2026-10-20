@@ -74,7 +74,8 @@ describe('workspace keys on macOS', () => {
   })
 
   it('leaves Control on the keypad alone', () => {
-    expect(browserShortcutAction(input({ key: '1', code: 'Numpad1', control: true, mac: true }))).not.toMatch(/workspace/)
+    // Control is not a browser key on macOS, so a keypad digit with it goes to the page rather than to a tab.
+    expect(browserShortcutAction(input({ key: '1', code: 'Numpad1', control: true, mac: true }))).toBeNull()
   })
 })
 
