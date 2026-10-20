@@ -27,24 +27,30 @@ export function tabBelongsToMcpGroup<Tab extends WorkspaceScopeTab>(access: Work
   return access.findTab(tabId)?.mcpGroupId === groupId
 }
 
-/** The browser state as the workspace sees it: only its tabs and closed tabs, and the split view only when both panes are its own. */
+/**
+ * The browser state as the workspace sees it: only its tabs and closed tabs, the split view only when both panes
+ * are its own, and the agent that Follow shows only when the tab in view is its own.
+ */
 export function getMcpGroupState<Tab extends WorkspaceScopeTab>(access: WorkspaceScopeAccess<Tab>, groupId: string): BrowserState {
   access.requireMcpTabGroup(groupId)
   const state = access.getState()
   const tabs = state.tabs.filter((tab) => tab.mcpGroupId === groupId)
   const group = access.findWorkspace(groupId)!
-  const { splitView, ...scopedState } = state
+  const { splitView, agentFollow, ...scopedState } = state
   const visibleSplitView = splitView
     && tabs.some((tab) => tab.id === splitView.firstTabId)
     && tabs.some((tab) => tab.id === splitView.secondTabId)
     ? splitView
     : undefined
+  // Following another workspace's tab would name that tab and the agent working there.
+  const visibleAgentFollow = agentFollow && tabs.some((tab) => tab.id === agentFollow.tabId) ? agentFollow : undefined
   return {
     ...scopedState,
     tabs,
     closedTabs: state.closedTabs.filter((tab) => tab.mcpGroupId === groupId),
     activeTabId: tabs.some((tab) => tab.id === group.activeTabId) ? group.activeTabId : tabs[0]?.id ?? null,
     ...(visibleSplitView ? { splitView: visibleSplitView } : {}),
+    ...(visibleAgentFollow ? { agentFollow: visibleAgentFollow } : {}),
     mcpTabGroups: [access.requireMcpTabGroup(groupId)],
     savedTabGroups: []
   }

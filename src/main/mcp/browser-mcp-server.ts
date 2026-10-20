@@ -299,7 +299,9 @@ export function createBrowserMcpServer(
     target?: { workspaceId: string; tabId?: string; origins?: string[] }
   ): McpCapabilityProfile | undefined => {
     assertAutomationAccess?.()
-    requireAgentControl(name, input, target?.tabId)
+    // Agent control is checked for the workspace and tab the capability check names, which can be a second
+    // workspace of the call, never for the target tab against the call's own workspace.
+    requireAgentControl(name, target ? { ...input, workspaceId: target.workspaceId } : input, target?.tabId)
     if (!capability) return undefined
     return capability.store.authorizeActiveDispatch(capability.grant, capabilityRequest(name, input, target))
   }
