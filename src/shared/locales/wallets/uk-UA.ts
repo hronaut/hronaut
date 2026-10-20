@@ -12,6 +12,7 @@ export const ukUAWallets = {
   "activityDescription": "Тут з’являтимуться останні події гаманців.",
   "kinds": {
     "managed": "Гаманець для підписання",
+    "imported": "Імпортований гаманець",
     "agent": "Гаманець агента",
     "watch-only": "Лише перегляд"
   },

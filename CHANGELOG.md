@@ -68,6 +68,7 @@ All notable changes to Hronaut are documented in this file.
 - Holding Delete on a focused tab now closes only that tab, and holding M mutes or unmutes it once. A closed tab hands the keyboard focus to the next tab, so each repeat of the held key closed one more tab, and holding Delete for a moment closed every tab after it. Ctrl or Cmd with Shift and Delete on a focused tab now opens **Workspaces & data** instead of closing the tab.
 - Holding Enter to validate a wallet import no longer adds the wallet before you see its review. **Validate and review** hands the keyboard focus to **Add encrypted wallet**, so the held key's repeats added the wallet before its address could be checked; adding it now takes a new press.
 - Holding Enter to fill a saved password on a site with more than one saved account now leaves the choice of account to you. The account picker opens with the keyboard focus in its search field, so the held key's repeats filled the first account into the page.
+- Imported wallets in **Settings > Wallets** now show **Imported wallet** as their kind, in every language. The list showed the untranslated text `wallets.kinds.imported` instead.
 
 ### Security
 
