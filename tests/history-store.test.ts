@@ -311,6 +311,45 @@ describe('HistoryStore', () => {
     expect(await readFile(path, 'utf8')).not.toContain('private-fragment-token')
   })
 
+  it.each([
+    // The first title is what Electron 44.9.0's webContents.getTitle() returned for an untitled page at that address,
+    // probed under Xvfb; the others follow Chromium's address formatting for such titles.
+    ['http://127.0.0.1:3000/callback#access_token=history-secret', '127.0.0.1:3000/callback#access_token=history-secret', 'http://127.0.0.1:3000/callback'],
+    ['https://app.example/oauth/callback#access_token=history-secret', 'app.example/oauth/callback#access_token=history-secret', 'https://app.example/oauth/callback'],
+    ['https://www.app.example/cb?step=2#id_token=history-secret', 'app.example/cb?step=2#id_token=history-secret', 'https://www.app.example/cb?step=2'],
+    ['https://docs.example/a%20b#key=history-secret', 'docs.example/a b#key=history-secret', 'https://docs.example/a%20b'],
+    ['https://xn--e1afmkfd.example/#key=history-secret', 'пример.example#key=history-secret', 'https://xn--e1afmkfd.example/']
+  ])('does not save the fragment of the address Chromium shows as an untitled page\'s title (%s)', async (url, title, saved) => {
+    // An untitled sign-in callback was saved with its fragment as the title, such as
+    // app.example/oauth/callback#access_token=…, since Chromium leaves out the scheme there.
+    const { path, store } = await storeAt()
+    expect(await store.record({ url, title })).toMatchObject({ title: saved })
+    await store.updateTitle({ url, title: 'Ordinary title' })
+    expect(await store.updateTitle({ url, title })).toMatchObject({ title: saved })
+    expect(await readFile(path, 'utf8')).not.toContain('history-secret')
+  })
+
+  it('keeps a real title that only looks like an address', async () => {
+    const { store } = await storeAt()
+    expect(await store.record({ url: 'https://app.example/dashboard', title: 'app.example/status' })).toMatchObject({ title: 'app.example/status' })
+    expect(await store.record({ url: 'https://news.example/', title: 'news.example — Today' })).toMatchObject({ title: 'news.example — Today' })
+  })
+
+  it('repairs a saved untitled page\'s title that kept a fragment without its scheme', async () => {
+    const now = Date.UTC(2026, 7, 13)
+    const { path, store } = await storeAt(now)
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      entries: [{
+        id: 'callback', url: 'https://app.example/oauth/callback', title: 'app.example/oauth/callback#access_token=history-secret',
+        visitedAt: new Date(now - 1_000).toISOString(), visitCount: 1
+      }]
+    }), 'utf8')
+
+    expect(await store.load()).toEqual([expect.objectContaining({ title: 'https://app.example/oauth/callback' })])
+    expect(await readFile(path, 'utf8')).not.toContain('history-secret')
+  })
+
   it('repairs a legacy fallback title truncated inside a URL fragment', async () => {
     const now = Date.UTC(2026, 7, 13)
     const { path, store } = await storeAt(now)

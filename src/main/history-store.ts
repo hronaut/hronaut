@@ -31,7 +31,21 @@ export function normalizeHistoryUrl(value: string): string | null {
   }
 }
 
+// Chromium names an untitled page by its address without `http://` (and, in newer versions, `https://` or a leading
+// `www.`) and without the slash of a bare host, but with its fragment, which the history leaves out:
+// `app.example/callback#access_token=…`. These are the prefixes that address can have lost.
+const SCHEME_LESS_TITLE_PREFIXES = ['http://', 'https://', 'http://www.', 'https://www.']
+
+/** Whether a title is the page's own address as Chromium shows it for an untitled page, scheme left out. */
+function isSchemeLessAddressTitle(value: string, url: string): boolean {
+  const title = value.trim()
+  if (!title || /^[a-z][a-z\d+.-]*:\/\//i.test(title)) return false
+  return SCHEME_LESS_TITLE_PREFIXES.some((prefix) => normalizeHistoryUrl(`${prefix}${title}`) === url)
+}
+
 function normalizeTitle(value: string, url: string, sourceUrl = url): string {
+  // Such a title is replaced by the address the history keeps, so a fragment's sign-in token is not saved with it.
+  if (isSchemeLessAddressTitle(value, url)) value = sourceUrl
   return normalizeCollectionTitle(value, url, sourceUrl, {
     maxLength: MAX_HISTORY_TITLE,
     normalizeUrl: normalizeHistoryUrl,
