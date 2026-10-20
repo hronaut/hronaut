@@ -419,6 +419,11 @@ describe('WalletsSettingsPanel', () => {
     expect(screen.getByText('Wallet validated')).toBeInTheDocument()
     expect(screen.getByText('No workspace access')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add encrypted wallet' })).toHaveFocus()
+    // The focus comes here from Validate and review, so the repeats of a held Enter added the wallet before its review
+    // could be read.
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    screen.getByRole('button', { name: 'Add encrypted wallet' }).dispatchEvent(repeat)
+    expect(repeat.defaultPrevented).toBe(true)
 
     await user.click(screen.getByRole('button', { name: 'Add encrypted wallet' }))
     expect(wallets.confirmImport).toHaveBeenCalledOnce()

@@ -14,6 +14,7 @@ import type { WalletPreparedImport } from '../../../shared/types.js'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import WalletNetworkFields from './WalletNetworkFields.vue'
 import { confirmAction } from '../confirm-action.js'
+import { ignoreHeldEnter } from '../held-enter.js'
 import {
   isWalletTokenMethod,
   WalletNetworkSchema,
@@ -678,7 +679,7 @@ async function addPolicy(): Promise<void> {
             <div><dt>{{ t('wallets.workspaceAccess') }}</dt><dd>{{ preparedImportWorkspaceLabel }}</dd></div>
           </dl>
           <div class="wallet-actions">
-            <UiButton variant="primary" ref="addImportedWalletButton" class="primary-button" type="button" :disabled="controller.busy.value || cancellingImport" @click="confirmPreparedImport">{{ t('wallets.addEncryptedWallet') }}</UiButton>
+            <UiButton variant="primary" ref="addImportedWalletButton" class="primary-button" type="button" :disabled="controller.busy.value || cancellingImport" @keydown="ignoreHeldEnter" @click="confirmPreparedImport">{{ t('wallets.addEncryptedWallet') }}</UiButton>
             <UiButton class="secondary-button" type="button" :disabled="controller.busy.value || cancellingImport" @click="cancelPreparedImport"><IconProgress v-if="cancellingImport" class="state-spinner" aria-hidden="true" />{{ t('wallets.cancel') }}</UiButton>
           </div>
         </div>
