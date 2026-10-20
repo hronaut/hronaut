@@ -242,12 +242,17 @@ const CHANGED_FORM_STATE_SCRIPT = `(() => {
     return window.__hronautContentEditableDirty === true;
   })()`
 
+/** How long an embedded frame has to answer the form check, so a busy or vanishing frame cannot hold up sleeping. */
+const FRAME_FORM_CHECK_TIMEOUT_MS = 1_000
+
 /**
  * Whether the page holds form input the person changed, including edited
  * content, so sleeping would lose it. Every frame is checked, since a draft
  * can be in an embedded form or editor. A page that cannot answer counts as
- * changed, except one whose renderer exited, which holds no input; a frame
- * that cannot answer counts as changed unless it is gone.
+ * changed, except one whose renderer exited, which holds no input. An
+ * embedded frame that cannot answer in time, such as one not allowed to run
+ * scripts, is skipped, as before frames were checked, so it cannot keep the
+ * tab awake for good.
  */
 async function hasChangedFormState(tab: TabSleepTab): Promise<boolean> {
   try {
@@ -257,14 +262,21 @@ async function hasChangedFormState(tab: TabSleepTab): Promise<boolean> {
   }
   if (tab.webContents.isDestroyed()) return false
   for (const frame of tab.webContents.mainFrame.framesInSubtree) {
-    if (frame === tab.webContents.mainFrame) continue
-    try {
-      if (await frame.executeJavaScript(CHANGED_FORM_STATE_SCRIPT) === true) return true
-    } catch {
-      if (!frame.isDestroyed() && !frame.detached) return true
-    }
+    if (frame === tab.webContents.mainFrame || frame.isDestroyed() || frame.detached) continue
+    if (await frameAnswer(frame.executeJavaScript(CHANGED_FORM_STATE_SCRIPT)) === true) return true
   }
   return false
+}
+
+/** The frame's answer, or undefined when it fails or does not answer in time. */
+async function frameAnswer(call: Promise<unknown>): Promise<unknown> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<undefined>((resolve) => { timer = setTimeout(() => resolve(undefined), FRAME_FORM_CHECK_TIMEOUT_MS) })
+  try {
+    return await Promise.race([call.catch(() => undefined), late])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** Records in a document whether the person edits editable content, which forms do not show, inside shadow roots too. */
@@ -282,10 +294,11 @@ const WATCH_FORM_EDITS_SCRIPT = `(() => {
 
 /**
  * Starts recording in the page, or in one of its frames once it loads, whether the person edits editable content,
- * which forms do not show.
+ * which forms do not show. Adding a listener needs no user activation, so none is granted: activation would let the
+ * page, or an embedded frame and every page above it, act as if the person had just clicked.
  */
 export function watchUnsavedFormEdits(tab: TabSleepTab, frame?: WebFrameMain): void {
-  const run = frame ? frame.executeJavaScript(WATCH_FORM_EDITS_SCRIPT, true) : tab.webContents.executeJavaScript(WATCH_FORM_EDITS_SCRIPT, true)
+  const run = frame ? frame.executeJavaScript(WATCH_FORM_EDITS_SCRIPT, false) : tab.webContents.executeJavaScript(WATCH_FORM_EDITS_SCRIPT, false)
   void run.catch(() => undefined)
 }
 

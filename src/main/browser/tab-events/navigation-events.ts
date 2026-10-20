@@ -211,10 +211,14 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
   webContents.on('did-frame-finish-load', (_event, isMainFrame, frameProcessId, frameRoutingId) => {
     if (!isMainFrame && !tab.sleeping) {
       // An embedded form or editor can hold a draft too, so its frame records edits as the page does.
-      const frame = webContents.mainFrame.framesInSubtree.find((candidate) => (
-        candidate.processId === frameProcessId && candidate.routingId === frameRoutingId
-      ))
-      if (frame) access.watchUnsavedFormEdits(tab, frame)
+      try {
+        const frame = webContents.mainFrame.framesInSubtree.find((candidate) => (
+          candidate.processId === frameProcessId && candidate.routingId === frameRoutingId
+        ))
+        if (frame) access.watchUnsavedFormEdits(tab, frame)
+      } catch {
+        // The page's frames are already gone; there is nothing left to watch.
+      }
     }
     if (!access.isHumanInteractionLocked(tab)) return
     void access.syncHumanInteractionInputGuard(tab).catch((error) => {

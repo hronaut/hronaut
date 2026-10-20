@@ -12,22 +12,32 @@ import { closeFixtureServer, expect, test } from './fixtures.js'
 const drafts = [
   { name: 'a form in an embedded page from another site', path: '/embedded-form', frame: 'form', field: "document.querySelector('#draft')", typed: false },
   { name: 'an editor in an embedded page', path: '/embedded-editor', frame: 'editor', field: "document.querySelector('#draft')", typed: true },
-  { name: 'a field inside a web component', path: '/component-form', frame: undefined, field: "document.querySelector('#host').shadowRoot.querySelector('#draft')", typed: true }
+  { name: 'a field inside a web component', path: '/component-form', frame: undefined, field: "document.querySelector('#host').shadowRoot.querySelector('#draft')", typed: true },
+  { name: 'an editor inside a web component', path: '/component-editor', frame: undefined, field: "document.querySelector('#host').shadowRoot.querySelector('#draft')", typed: true }
 ] as const
+
+/** Serves the pages: each draft's page, the pages it embeds, and a page that embeds one from another site. */
+function draftPages() {
+  const server = createServer((request, response) => {
+    const port = (server.address() as AddressInfo).port
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    if (request.url === '/embedded-form') response.end(`<!doctype html><title>Draft page</title><iframe name="form" src="http://localhost:${port}/form"></iframe>`)
+    else if (request.url === '/form') response.end('<!doctype html><title>Form</title><textarea id="draft"></textarea>')
+    else if (request.url === '/embedded-editor') response.end('<!doctype html><title>Draft page</title><iframe name="editor" src="/editor"></iframe>')
+    else if (request.url === '/editor') response.end('<!doctype html><title>Editor</title><div id="draft" contenteditable="true"></div>')
+    else if (request.url === '/component-editor') response.end(`<!doctype html><title>Draft page</title><div id="host"></div><script>
+      document.querySelector('#host').attachShadow({ mode: 'open' }).innerHTML = '<div id="draft" contenteditable="true"></div>'
+    </script>`)
+    else response.end(`<!doctype html><title>Draft page</title><div id="host"></div><script>
+      document.querySelector('#host').attachShadow({ mode: 'open' }).innerHTML = '<textarea id="draft"></textarea>'
+    </script>`)
+  })
+  return server
+}
 
 for (const draft of drafts) {
   test(`keeps a tab awake while ${draft.name} holds a draft`, async ({ appWindow, electronApp }) => {
-    const server = createServer((request, response) => {
-      const port = (server.address() as AddressInfo).port
-      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-      if (request.url === '/embedded-form') response.end(`<!doctype html><title>Draft page</title><iframe name="form" src="http://localhost:${port}/form"></iframe>`)
-      else if (request.url === '/form') response.end('<!doctype html><title>Form</title><textarea id="draft"></textarea>')
-      else if (request.url === '/embedded-editor') response.end('<!doctype html><title>Draft page</title><iframe name="editor" src="/editor"></iframe>')
-      else if (request.url === '/editor') response.end('<!doctype html><title>Editor</title><div id="draft" contenteditable="true"></div>')
-      else response.end(`<!doctype html><title>Draft page</title><div id="host"></div><script>
-        document.querySelector('#host').attachShadow({ mode: 'open' }).innerHTML = '<textarea id="draft"></textarea>'
-      </script>`)
-    })
+    const server = draftPages()
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject)
       server.listen(0, () => resolve())
@@ -83,3 +93,29 @@ for (const draft of drafts) {
     }
   })
 }
+
+test('loading a page gives neither it nor a page it embeds the activation of a click', async ({ appWindow, electronApp }) => {
+  const server = draftPages()
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, () => resolve())
+  })
+  try {
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/embedded-form`
+    await appWindow.evaluate(async (url) => {
+      await (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true })
+    }, url)
+    const frames = (script: string) => electronApp.evaluate(async ({ webContents }, { url, script }) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+      if (!page) return []
+      return Promise.all(page.mainFrame.framesInSubtree.map(frame => frame.executeJavaScript(script)))
+    }, { url, script })
+    // Once Hronaut has started watching both documents for edits, neither may act as if the person had clicked.
+    await expect.poll(() => frames('window.__hronautFormEditTrackingInstalled === true')).toEqual([true, true])
+    // Watching used to run as a click, so the page, and an embedded page from another site, could open windows or
+    // move the whole tab elsewhere without the person doing anything.
+    expect(await frames('navigator.userActivation.hasBeenActive')).toEqual([false, false])
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
