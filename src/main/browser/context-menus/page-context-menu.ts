@@ -47,8 +47,10 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   // A sandboxed frame or page has an opaque origin and sends no referrer, as in Chrome. It is read now, since the frame
   // can be gone by the time an item is chosen.
   const sandboxedFrame = hasOpaqueOrigin(params.frame)
-  const download = (url: string): void => {
+  const download = (url: string, linkName = ''): void => {
     const referrer = sandboxedFrame ? undefined : savedResourceReferrer(params.frameURL, url, policy)
+    // Blink gives a same-origin link's `download` name, which Chrome saves the link under.
+    if (linkName) access.expectSavedLinkName(webContents, url, linkName)
     if (referrer) webContents.downloadURL(url, { headers: { Referer: referrer } })
     else webContents.downloadURL(url)
   }
@@ -75,7 +77,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
         id: 'save-link',
         label: access.text('native.context.saveLink'),
         enabled: webLink,
-        click: withLiveContents('save link', () => download(params.linkURL))
+        click: withLiveContents('save link', () => download(params.linkURL, params.suggestedFilename))
       }
     ])
   }

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
 import { access, lstat, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import type { DownloadItem, Session } from 'electron'
 import { afterEach, expect, it, vi } from 'vitest'
 import { BrowserDownloadsController } from '../src/main/browser/downloads-controller.js'
@@ -42,7 +42,7 @@ async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platfo
   }, platform)
   cleanups.push(() => controller.destroy())
   controller.attachSession(session as Session)
-  function download(tabId = 1, failSetup = false, url = 'https://download.example/file.txt', filename = 'file.txt') {
+  function download(tabId = 1, failSetup = false, url = 'https://download.example/file.txt', filename = 'file.txt', contentDisposition = '') {
     const item = new EventEmitter()
     let state: 'progressing' | 'interrupted' | 'completed' | 'cancelled' = 'progressing'
     let savePath = ''
@@ -55,6 +55,8 @@ async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platfo
     })
     Object.assign(item, {
       getURL: () => url,
+      getURLChain: () => [url],
+      getContentDisposition: () => contentDisposition,
       getFilename: () => filename,
       getState: () => state,
       getReceivedBytes: () => 1,
@@ -455,6 +457,20 @@ it.each([
   first.complete()
   download(1, false, 'https://download.example/REPORT.PDF', 'REPORT.PDF')
   expect(filenames()).toContain('REPORT.PDF')
+})
+
+it('saves a link under its download name with Save Link As unless the server names the file', async () => {
+  // Electron's downloadURL cannot carry the name, so Save Link As saved `/export?id=5` as export.csv, not report.csv.
+  const { controller, download } = await fixture()
+  const savedAs = (transfer: { item: unknown }) => basename((transfer.item as DownloadItem).getSavePath())
+  controller.expectSavedLinkName(1, 'https://download.example/export?id=5#top', 'report.csv')
+  expect(savedAs(download(2, false, 'https://download.example/export?id=5', 'export.csv'))).toBe('export.csv')
+  expect(savedAs(download(1, false, 'https://download.example/export?id=5', 'export.csv'))).toBe('report.csv')
+  // The name is used once, by the download it was given for.
+  expect(savedAs(download(1, false, 'https://download.example/export?id=5', 'export.csv'))).toBe('export (1).csv')
+  controller.expectSavedLinkName(1, 'https://download.example/export?id=6', 'mine.csv')
+  expect(savedAs(download(1, false, 'https://download.example/export?id=6', 'server.csv', 'attachment; filename="server.csv"'))).toBe('server.csv')
+  expect(controller.listDownloads().map(entry => entry.filename).sort()).toEqual(['export (1).csv', 'export.csv', 'report.csv', 'server.csv'])
 })
 
 it('removes only the selected finished record and preserves both downloaded files', async () => {

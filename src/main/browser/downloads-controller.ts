@@ -8,6 +8,7 @@ import { redactNetworkUrl } from '../../shared/network-details.js'
 import { isWindowsReservedFilename } from '../../shared/portable-filename.js'
 import type { BrowserDownloadAction, BrowserDownloadState } from '../../shared/types.js'
 import { LocalizedError } from '../localized-error.js'
+import { SavedLinkNames, savedLinkFilename } from './saved-link-names.js'
 
 const MAX_DOWNLOAD_HISTORY = 200
 const MAX_DOWNLOAD_URL_CHARS = 4_096
@@ -94,6 +95,7 @@ export class BrowserDownloadsController {
   private readonly fileChecks = new Map<string, number>()
   private fileCheckRunning = false
   private fileCheckRequested = false
+  private readonly savedLinkNames = new SavedLinkNames()
 
   constructor(private readonly host: BrowserDownloadsHost, private readonly platform = process.platform) {}
 
@@ -126,6 +128,15 @@ export class BrowserDownloadsController {
     this.reservedDownloadPaths.clear()
     this.completedFileIdentities.clear()
     this.fileChecks.clear()
+    this.savedLinkNames.clear()
+  }
+
+  /**
+   * Names the download that Save Link As is about to start from this page with the link's `download` name, which
+   * Electron's `downloadURL` cannot carry, unless the server names the file itself, as in Chrome.
+   */
+  expectSavedLinkName(webContentsId: number, url: string, linkName: string): void {
+    if (!this.destroyed) this.savedLinkNames.expect(webContentsId, url, linkName)
   }
 
   listDownloads(): BrowserDownloadState[] {
@@ -335,7 +346,8 @@ export class BrowserDownloadsController {
         const downloadUrl = item.getURL()
         const { tabId, workspaceId, observationGeneration } = this.host.getSource(webContents?.id, downloadUrl)
         const settings = this.host.getSettings()
-        const filename = item.getFilename()
+        const linkName = this.savedLinkNames.take(webContents?.id, item.getURLChain()[0] ?? downloadUrl)
+        const filename = linkName ? savedLinkFilename(linkName, item.getFilename(), item.getContentDisposition()) : item.getFilename()
         const download: BrowserDownloadState = {
           id,
           observationGeneration,

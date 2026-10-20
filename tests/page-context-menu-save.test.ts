@@ -18,6 +18,8 @@ type PageContextMenuAccess = import('../src/main/browser/context-menus/page-cont
 
 const PAGE = 'https://gallery.example/album/7?sort=new'
 
+const expectSavedLinkName = vi.fn()
+
 function saveFromMenu(itemId: 'save-link' | 'save-image', params: Partial<ContextMenuParams>): ReturnType<typeof vi.fn> {
   const downloadURL = vi.fn()
   const webContents = {
@@ -32,7 +34,8 @@ function saveFromMenu(itemId: 'save-link' | 'save-image', params: Partial<Contex
     window: () => ({}),
     options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined }),
     text: (key: string) => key,
-    isHumanInteractionLocked: () => false
+    isHumanInteractionLocked: () => false,
+    expectSavedLinkName
   } as unknown as PageContextMenuAccess
   showContextMenu(access, tab, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
@@ -43,7 +46,10 @@ function saveFromMenu(itemId: 'save-link' | 'save-image', params: Partial<Contex
   return downloadURL
 }
 
-afterEach(() => { built.templates.length = 0 })
+afterEach(() => {
+  built.templates.length = 0
+  expectSavedLinkName.mockReset()
+})
 
 describe('saving from the page menu', () => {
   it('sends the page\'s origin as the referrer with Save Image and Save Link', () => {
@@ -70,6 +76,17 @@ describe('saving from the page menu', () => {
     expect(sandboxed).toHaveBeenCalledWith('https://files.example/a.zip')
     const refused = saveFromMenu('save-link', { linkURL: 'https://files.example/a.zip', referrerPolicy: 'no-referrer' as unknown as ContextMenuParams['referrerPolicy'] })
     expect(refused).toHaveBeenCalledWith('https://files.example/a.zip')
+  })
+
+  it('gives Save Link the link\'s download name before starting the download, and Save Image none', () => {
+    // downloadURL cannot carry the name, so Save Link saved `/export?id=5` as export.csv instead of report.csv.
+    const link = saveFromMenu('save-link', { linkURL: 'https://gallery.example/export?id=5', suggestedFilename: 'report.csv' })
+    expect(expectSavedLinkName).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 7 }), 'https://gallery.example/export?id=5', 'report.csv')
+    expect(expectSavedLinkName.mock.invocationCallOrder[0]).toBeLessThan(link.mock.invocationCallOrder[0]!)
+    expectSavedLinkName.mockReset()
+    saveFromMenu('save-link', { linkURL: 'https://gallery.example/files/a.zip', suggestedFilename: '' })
+    saveFromMenu('save-image', { mediaType: 'image', srcURL: 'https://images.example/a.png', hasImageContents: true, linkURL: 'https://gallery.example/export?id=5', suggestedFilename: 'report.csv' })
+    expect(expectSavedLinkName).not.toHaveBeenCalled()
   })
 
   it('takes the referrer from the frame that was right-clicked, not the top-level page', () => {
