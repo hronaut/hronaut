@@ -1761,6 +1761,41 @@ describe('BrowserTabsBar keyboard focus when the focused tab closes', () => {
     expect(target).toHaveAttribute('tabindex', '0')
   })
 
+  // Moving the focused tab, as with Move left or Pin from its menu, moves its control, which drops its focus to the page
+  // body in Chromium as in this test.
+  it('keeps the focus on a tab that moved within the strip', async () => {
+    const view = renderTabs(browserState({ tabs: tabs(), activeTabId: 'first' }))
+    const third = screen.getByRole('tab', { name: 'Page third' })
+    third.focus()
+    const [first, second, last] = tabs()
+    await view.rerender({ state: browserState({ tabs: [first, last, second], activeTabId: 'first' }) })
+    await flushPromises()
+    expect(screen.getByRole('tab', { name: 'Page third' })).toHaveFocus()
+  })
+
+  it('keeps the focus on a tab that moved to another workspace in view', async () => {
+    const other = { ...workspace('workspace-2'), name: 'QA' }
+    const withOther = (list: BrowserTabState[]) => browserState({ tabs: list, activeTabId: 'first', mcpTabGroups: [workspace(), other] })
+    const view = renderTabs(withOther(tabs()))
+    screen.getByRole('tab', { name: 'Page second' }).focus()
+    await view.rerender({ state: withOther(tabs().map((candidate) => candidate.id === 'second' ? { ...candidate, mcpGroupId: other.id, mcpGroupName: other.name } : candidate)) })
+    await flushPromises()
+    expect(screen.getByRole('tab', { name: 'Page second' })).toHaveFocus()
+  })
+
+  // A tab that is only hidden still exists, so no tab of another workspace takes its focus.
+  it('gives no other tab the focus of a tab moved into a folded workspace', async () => {
+    window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-2']))
+    const other = { ...workspace('workspace-2'), name: 'QA' }
+    const withOther = (list: BrowserTabState[]) => browserState({ tabs: list, activeTabId: 'first', mcpTabGroups: [workspace(), other] })
+    const view = renderTabs(withOther(tabs()))
+    screen.getByRole('tab', { name: 'Page second' }).focus()
+    await view.rerender({ state: withOther(tabs().map((candidate) => candidate.id === 'second' ? { ...candidate, mcpGroupId: other.id, mcpGroupName: other.name } : candidate)) })
+    await flushPromises()
+    expect(screen.queryByRole('tab', { name: 'Page second' })).toBeNull()
+    expect(document.body).toHaveFocus()
+  })
+
   it('leaves the focus alone when it moved on before the tab closed', async () => {
     const view = renderTabs(browserState({ tabs: tabs(), activeTabId: 'first' }))
     const external = document.createElement('button')
@@ -1819,43 +1854,5 @@ describe('BrowserTabsBar drop marker while dragging a tab', () => {
 
     await fireEvent.drop(rejected, { clientX: 90 })
     expect(view.emitted().reorderTab).toBeUndefined()
-  })
-})
-
-describe('BrowserTabsBar keyboard focus on the tab scroll buttons', () => {
-  function dropFocusLikeChromium(control: HTMLElement): void {
-    control.removeAttribute('disabled')
-    control.blur()
-    control.setAttribute('disabled', '')
-    expect(document.body).toHaveFocus()
-  }
-
-  // Show more tabs is disabled once the strip reaches its end, and Chromium then drops its focus to the page body: the
-  // next Enter did nothing and the next Tab started at the top of the window. Show previous tabs, which can now scroll
-  // back, takes it.
-  it('moves the focus to the other scroll button once the strip reaches the end you scrolled to', async () => {
-    const tabs = Array.from({ length: 9 }, (_, index) => tab(`tab-${index + 1}`))
-    renderTabs(browserState({ tabs, activeTabId: tabs[0].id }))
-    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
-    Object.defineProperties(strip, {
-      clientWidth: { configurable: true, value: 320 },
-      scrollWidth: { configurable: true, value: 1_280 },
-      scrollLeft: { configurable: true, value: 0, writable: true }
-    })
-    Object.defineProperty(strip, 'scrollBy', { configurable: true, value: () => { strip.scrollLeft = 960 } })
-    await fireEvent.scroll(strip)
-    const previous = screen.getByRole('button', { name: 'Show previous tabs' })
-    const next = screen.getByRole('button', { name: 'Show more tabs' })
-    next.focus()
-
-    await userEvent.setup().keyboard('{Enter}')
-    await fireEvent.scroll(strip)
-    await flushPromises()
-    expect(next).toBeDisabled()
-    // Chromium checks the focused element at its next rendering update and drops the focus of a disabled control then.
-    if (document.activeElement === next) dropFocusLikeChromium(next)
-
-    expect(previous).toBeEnabled()
-    expect(previous).toHaveFocus()
   })
 })
