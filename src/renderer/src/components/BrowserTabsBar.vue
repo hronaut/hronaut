@@ -258,7 +258,8 @@ function activateTab(tabId: string): void {
 function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
   if (event.key === 'Delete') {
     event.preventDefault()
-    emit('closeTab', tab.id)
+    // A closed tab hands the focus to the next tab, so a held Delete would close one tab after another.
+    if (!event.repeat) emit('closeTab', tab.id)
     return
   }
   if (
@@ -269,7 +270,8 @@ function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
     && (tab.audible || tab.muted)
   ) {
     event.preventDefault()
-    emit('toggleTabMuted', tab)
+    // A held M would mute and unmute the tab on every repeat.
+    if (!event.repeat) emit('toggleTabMuted', tab)
     return
   }
   const tabs = visibleTabs.value
