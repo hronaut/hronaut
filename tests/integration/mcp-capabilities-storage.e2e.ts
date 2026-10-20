@@ -245,6 +245,12 @@ test('isolates storage and manages site data, history and bookmarks', async ({ c
   expect(bookmark).toMatchObject({ url: bookmarkUrl, title: 'Capability bookmark' })
   const listedBookmarks = await client.callTool({ name: 'browser_bookmarks', arguments: { action: 'list' } }) as CallToolResult
   expect(JSON.parse(text(listedBookmarks))).toEqual([expect.objectContaining({ id: bookmark.id })])
+  // Adding the address again, without a title or with another one, keeps the bookmark and its title.
+  for (const again of [{}, { title: 'Agent title' }]) {
+    const addedAgain = await client.callTool({ name: 'browser_bookmarks', arguments: { action: 'add', url: bookmarkUrl, ...again } }) as CallToolResult
+    expect(addedAgain.isError, text(addedAgain)).not.toBe(true)
+    expect(JSON.parse(text(addedAgain))).toEqual([bookmark])
+  }
   const renamedBookmarks = await client.callTool({
     name: 'browser_bookmarks',
     arguments: { action: 'rename', id: bookmark.id, title: 'Renamed capability' }

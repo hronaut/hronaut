@@ -105,12 +105,15 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     host.mcpServer()?.forgetHomeFeed()
   }
 
-  /** Agents' bookmark operations; each change is published to both shell windows. */
+  /**
+   * Agents' bookmark operations; each change is published to both shell windows. Adding an address that is already
+   * bookmarked keeps that bookmark as the person left it, with its title; an agent renames it with `rename`.
+   */
   const agentBookmarks: BookmarkOperations = {
     list: () => host.state.bookmarks?.list() ?? [],
     add: async (url, title) => {
       if (!host.state.bookmarks) throw new LocalizedError('appErrors.bookmarks.storageUnavailable')
-      await host.state.bookmarks.add({ url, title })
+      await host.state.bookmarks.addIfMissing({ url, title })
       return publishBookmarks()
     },
     rename: async (id, title) => {

@@ -21,7 +21,7 @@ export function registerBrowserBookmarks(context: McpToolContext): void {
         action: z.enum(['list', 'add', 'rename', 'remove', 'open']).default('list'),
         id: z.string().optional().describe('Bookmark ID for rename, remove, or open.'),
         url: z.string().optional().describe('HTTP or HTTPS address to bookmark.'),
-        title: z.string().optional().describe('Bookmark title for add or rename.'),
+        title: z.string().optional().describe('Bookmark title for add or rename. Adding an address that is already bookmarked leaves that bookmark and its title unchanged; use rename to change it.'),
         active: z.boolean().optional().describe('Whether an opened bookmark becomes the active tab.')
       }
     },
