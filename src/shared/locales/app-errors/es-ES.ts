@@ -174,6 +174,7 @@ export const esESAppErrors: AppErrorMessages = {
     "invalidHostname": "La regla de acceso a sitios contiene un nombre de host no válido.",
     "hostnameOnly": "La regla de acceso a sitios solo debe contener un nombre de host.",
     "wildcardHostname": "Las reglas comodín de subdominios requieren un nombre de host DNS.",
+    "wildcardPlacement": "Un * solo puede iniciar una regla de subdominios, por ejemplo *.example.com, o sustituir el puerto de un host local, por ejemplo http://localhost:*.",
     "credentials": "Las reglas de acceso a sitios no pueden contener credenciales.",
     "originOnly": "Las reglas de acceso a sitios deben ser orígenes sin rutas, consultas ni fragmentos.",
     "length": "La regla de acceso a sitios está vacía o es demasiado larga.",

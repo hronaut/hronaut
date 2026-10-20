@@ -496,6 +496,50 @@ describe('TabStateStore', () => {
     await expect(store.load()).rejects.toBeInstanceOf(WorkspaceMetadataError)
   })
 
+  it('drops saved Site access rules with a misplaced wildcard instead of refusing the saved workspaces', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    // Rules like these were accepted as written before they were refused, and never matched a site.
+    state.mcpTabGroups![1]!.navigationPolicy = {
+      mode: 'restricted',
+      rules: ['https://shop.example', 'http://*.localhost:*']
+    }
+    state.savedTabGroups![0]!.navigationPolicy = {
+      mode: 'restricted',
+      rules: ['https://a.*.example.com', 'https://docs.example']
+    }
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    const loaded = await store.load()
+    expect(loaded?.mcpTabGroups?.[1]?.navigationPolicy).toEqual({ mode: 'restricted', rules: ['https://shop.example'] })
+    expect(loaded?.savedTabGroups?.[0]?.navigationPolicy).toEqual({ mode: 'restricted', rules: ['https://docs.example'] })
+    expect(loaded?.savedTabGroups?.[0]?.tabs).toEqual([{ title: 'Orders', url: 'https://docs.example/orders', pinned: true }])
+    expect(loaded?.tabs.find((tab) => tab.id === ACTIVE_TAB_ID)?.url).toBe('https://shop.example/checkout')
+    // The repair is written back, so the next start reads the rules without them.
+    const rewritten = JSON.parse(await readFile(path, 'utf8')) as PersistedBrowserState
+    expect(rewritten.mcpTabGroups?.[1]?.navigationPolicy?.rules).toEqual(['https://shop.example'])
+    expect(rewritten.savedTabGroups?.[0]?.navigationPolicy?.rules).toEqual(['https://docs.example'])
+  })
+
+  it('keeps a public observer whose saved origin had a misplaced wildcard, limited to no site', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    // An agent could create an observer for this origin, and its one rule never matched a site.
+    state.mcpTabGroups![1]!.contextClass = 'public-observer'
+    state.mcpTabGroups![1]!.navigationPolicy = { mode: 'restricted', rules: ['https://a.*.example.com'] }
+    state.savedTabGroups![0]!.contextClass = 'public-observer'
+    state.savedTabGroups![0]!.navigationPolicy = { mode: 'restricted', rules: ['http://local*host:8080'] }
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    // Dropping the rule used to leave the observer without its one origin, which stopped Hronaut from starting.
+    for (const loaded of [await store.load(), await new TabStateStore(path).load()]) {
+      expect(loaded?.mcpTabGroups?.[1]).toMatchObject({ contextClass: 'public-observer', navigationPolicy: { mode: 'restricted', rules: [] } })
+      expect(loaded?.savedTabGroups?.[0]).toMatchObject({ contextClass: 'public-observer', navigationPolicy: { mode: 'restricted', rules: [] } })
+    }
+  })
+
   it('persists only bounded origin-level denied-navigation audit entries', async () => {
     const { store } = await createStore()
     const state = currentState()

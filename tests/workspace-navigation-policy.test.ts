@@ -2,8 +2,19 @@ import { describe, expect, it } from 'vitest'
 import {
   canonicalizeWorkspaceNavigationRule,
   evaluateWorkspaceNavigation,
+  normalizeSavedWorkspaceNavigationPolicy,
   normalizeWorkspaceNavigationPolicy
 } from '../src/main/browser/workspace-navigation-policy.js'
+import { LocalizedError } from '../src/main/localized-error.js'
+
+function ruleError(rule: string): string | undefined {
+  try {
+    canonicalizeWorkspaceNavigationRule(rule)
+    return undefined
+  } catch (error) {
+    return error instanceof LocalizedError ? error.key : String(error)
+  }
+}
 
 describe('workspace navigation policies', () => {
   it.each([
@@ -28,6 +39,34 @@ describe('workspace navigation policies', () => {
     'javascript:alert(1)'
   ])('rejects unsafe or ambiguous rule %s', (rule) => {
     expect(() => canonicalizeWorkspaceNavigationRule(rule)).toThrow()
+  })
+
+  it.each([
+    'http://*.localhost:*',
+    'http://app.*.localhost:*',
+    'https://a.*.example.com',
+    'https://*example.com',
+    'http://local*host:8080',
+    '*.*.example.com',
+    'https://*.*.example.com:8443',
+    'https://*.example.com:*',
+    'https://a.%2A.example.com'
+  ])('refuses %s, whose * could never match a site', (rule) => {
+    // These were kept as written, so a workspace limited to them allowed no site at all.
+    expect(ruleError(rule)).toBe('appErrors.siteAccess.wildcardPlacement')
+  })
+
+  it('drops saved rules with a misplaced * and keeps refusing other invalid saved rules', () => {
+    expect(normalizeSavedWorkspaceNavigationPolicy({
+      mode: 'restricted',
+      rules: ['http://*.localhost:*', 'https://App.example', 'https://a.*.example.com', '*.trusted.example']
+    })).toEqual({ mode: 'restricted', rules: ['https://app.example', '*.trusted.example'] })
+    expect(normalizeSavedWorkspaceNavigationPolicy({ mode: 'restricted', rules: ['http://*.localhost:*'] }))
+      .toEqual({ mode: 'restricted', rules: [] })
+    expect(normalizeSavedWorkspaceNavigationPolicy(undefined)).toEqual({ mode: 'unrestricted', rules: [] })
+    expect(() => normalizeSavedWorkspaceNavigationPolicy({ mode: 'restricted', rules: ['https://example.com/private'] }))
+      .toThrow()
+    expect(() => normalizeWorkspaceNavigationPolicy({ mode: 'restricted', rules: ['http://*.localhost:*'] })).toThrow()
   })
 
   it('matches exact origins without leaking URL paths into decisions', () => {
