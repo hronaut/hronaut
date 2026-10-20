@@ -59,7 +59,7 @@ export async function selectAgentTabAndWait<Tab extends TabSelectionTab>(access:
  * Shows a tab in the window, waking it if it sleeps. A pane of the open split
  * view becomes the active pane, and the other pane in full screen, which hides
  * it, is asked to leave full screen; any other tab replaces the split view or
- * the current tab.
+ * the current tab, which count as active until they leave the window.
  */
 export function selectTab<Tab extends TabSelectionTab>(access: TabSelectionAccess<Tab>, tabId: string, options: BrowserTabSelectionOptions = {}): BrowserState {
   const next = access.getTab(tabId)
@@ -79,13 +79,18 @@ export function selectTab<Tab extends TabSelectionTab>(access: TabSelectionAcces
     return access.getState()
   }
   const current = access.activeTabId() ? access.findTab(access.activeTabId()!) : undefined
+  // A page leaving the window was in view until now, so Memory Saver counts its inactivity from here.
   if (access.splitView()) {
     for (const visibleTabId of [access.splitView()!.firstTabId, access.splitView()!.secondTabId]) {
       const visibleTab = access.findTab(visibleTabId)
-      if (visibleTab && visibleTab.id !== next.id) access.window().contentView.removeChildView(visibleTab.view)
+      if (visibleTab && visibleTab.id !== next.id) {
+        visibleTab.lastActiveAt = Date.now()
+        access.window().contentView.removeChildView(visibleTab.view)
+      }
     }
     access.writeSplitView(null)
   } else if (current && current.id !== next.id) {
+    current.lastActiveAt = Date.now()
     access.window().contentView.removeChildView(current.view)
   }
   if (current?.id !== next.id) access.window().contentView.addChildView(next.view)
