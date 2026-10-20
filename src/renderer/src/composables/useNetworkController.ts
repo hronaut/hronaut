@@ -112,6 +112,11 @@ export function useNetworkController(options: NetworkControllerOptions) {
     feedbackTimers.clear('details')
     feedbackTimers.clear('har')
   }, { flush: 'sync' })
+  // However the panel opens, from Page tools, Request conditions or the command palette, it reads the page's requests
+  // and request conditions as they are now. The read waits for the flush, so it reads the tab the panel opens for.
+  const stopPanelOpenRefresh = watch(options.open, (open) => {
+    if (open) void refreshAll()
+  })
   // Content search and request conditions own their state, request sequences
   // and input watchers; the page generation stays here.
   const { contentSearchOpen, contentSearchQuery, contentSearchCaseSensitive, contentSearchState,
@@ -577,6 +582,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
 
   function dispose(): void {
     stopPanelOpenTracking()
+    stopPanelOpenRefresh()
     stopContentSearchInputTracking()
     stopRouteDraftTracking()
     stopHarFilterTracking()

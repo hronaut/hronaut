@@ -70,17 +70,14 @@ export function useDeveloperPanelsShellController(options: DeveloperPanelsShellC
     await options.networkPanel.value?.refreshAll()
   }
 
-  async function toggleNetwork(): Promise<void> {
+  // The Network panel reads the page's requests itself whenever it opens.
+  function toggleNetwork(): void {
     if (options.networkOpen.value) {
       options.networkOpen.value = false
       return
     }
     options.closeTransientPanels()
     options.networkOpen.value = true
-    const sequence = networkOpenSequence
-    await nextTick()
-    if (disposed || sequence !== networkOpenSequence || !options.networkOpen.value) return
-    await options.networkPanel.value?.refreshAll()
   }
 
   async function openRequestConditions(): Promise<void> {

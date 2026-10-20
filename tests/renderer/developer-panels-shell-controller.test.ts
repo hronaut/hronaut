@@ -1,4 +1,4 @@
-import { nextTick, ref } from 'vue'
+import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useDeveloperPanelsShellController } from '../../src/renderer/src/composables/useDeveloperPanelsShellController.js'
 
@@ -41,14 +41,14 @@ describe('useDeveloperPanelsShellController', () => {
     expect(harness.closeTransientPanels).toHaveBeenCalledOnce()
   })
 
-  it('does not refresh a network panel that was closed again before it rendered', async () => {
+  it('opens and closes the Network panel and leaves reading its requests to the panel', () => {
+    // The panel reads them whenever it opens, however it was opened.
     const harness = setup()
 
-    const opening = harness.controller.toggleNetwork()
-    const closing = harness.controller.toggleNetwork()
-    await Promise.all([opening, closing])
-    await nextTick()
-
+    harness.controller.toggleNetwork()
+    expect(harness.networkOpen.value).toBe(true)
+    expect(harness.closeTransientPanels).toHaveBeenCalledOnce()
+    harness.controller.toggleNetwork()
     expect(harness.networkOpen.value).toBe(false)
     expect(harness.networkPanel.value.refreshAll).not.toHaveBeenCalled()
   })
@@ -70,18 +70,6 @@ describe('useDeveloperPanelsShellController', () => {
     await opening
 
     expect(harness.networkPanel.value.openRequestConditions).not.toHaveBeenCalled()
-  })
-
-  it('does not refresh a Network panel reopened externally during an older render', async () => {
-    const harness = setup()
-
-    const opening = harness.controller.toggleNetwork()
-    harness.networkOpen.value = false
-    harness.networkOpen.value = true
-    await opening
-
-    expect(harness.networkOpen.value).toBe(true)
-    expect(harness.networkPanel.value.refreshAll).not.toHaveBeenCalled()
   })
 
   it('does not open request conditions in a panel reopened externally during an older render', async () => {

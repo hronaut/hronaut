@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useNetworkController } from '../../src/renderer/src/composables/useNetworkController.js'
 import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
@@ -266,6 +266,60 @@ function createController(copyTextOverride?: CopyTextWithFeedback, locale: Suppo
 
 afterEach(() => {
   vi.useRealTimers()
+})
+
+describe('Network panel opening', () => {
+  it('reads the page\'s requests and request conditions whenever the panel opens', async () => {
+    // Opening the panel from Request conditions, or docking its window back, showed no requests or the ones of an
+    // earlier read, since only the Page tools button read them.
+    const { controller, browser, open } = createController()
+    try {
+      open.value = false
+      await nextTick()
+      browser.listNetworkRequests.mockResolvedValueOnce([request('page'), request('data')])
+      open.value = true
+      await vi.waitFor(() => expect(controller.requests.value.map(({ id }) => id)).toEqual(['page', 'data']))
+      expect(browser.listNetworkRequests).toHaveBeenCalledWith('tab-1', false)
+      expect(browser.listNetworkRoutes).toHaveBeenCalledWith('tab-1')
+    } finally { controller.dispose() }
+  })
+
+  it('keeps the newest read when the panel closes and opens again before an older one finishes', async () => {
+    const { controller, browser, open } = createController()
+    try {
+      open.value = false
+      await nextTick()
+      const older = deferred<BrowserNetworkRequest[]>()
+      browser.listNetworkRequests.mockReturnValueOnce(older.promise)
+      open.value = true
+      await nextTick()
+      open.value = false
+      await nextTick()
+      browser.listNetworkRequests.mockResolvedValueOnce([request('newer')])
+      open.value = true
+      await vi.waitFor(() => expect(controller.requests.value.map(({ id }) => id)).toEqual(['newer']))
+      older.resolve([request('older')])
+      await older.promise
+      await Promise.resolve()
+      expect(controller.requests.value.map(({ id }) => id)).toEqual(['newer'])
+    } finally { controller.dispose() }
+  })
+
+  it('reads the tab the panel opens for when the tab changes in the same update', async () => {
+    const { controller, browser, open, activeTab } = createController()
+    try {
+      open.value = false
+      await nextTick()
+      browser.listNetworkRequests.mockClear()
+      browser.listNetworkRequests.mockResolvedValue([request('other')])
+      open.value = true
+      activeTab.value = tab('tab-2')
+      await vi.waitFor(() => expect(controller.monitorState.value).toBe('ready'))
+      expect(browser.listNetworkRequests).not.toHaveBeenCalledWith('tab-1', false)
+      expect(browser.listNetworkRequests).toHaveBeenCalledWith('tab-2', false)
+      expect(controller.requests.value.map(({ id }) => id)).toEqual(['other'])
+    } finally { controller.dispose() }
+  })
 })
 
 describe('Network request durations', () => {
