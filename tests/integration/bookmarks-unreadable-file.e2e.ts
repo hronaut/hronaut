@@ -15,6 +15,8 @@ test('keeps a bookmarks file it cannot read aside instead of replacing it with t
   const instance = await launchHronaut(profileDirectory, mcpPort)
   try {
     await expect.poll(() => instance.window.evaluate('window.hronautBookmarks.list()')).toEqual([])
+    // Nothing is moved before a bookmark is saved, so a newer Hronaut opened again still finds the file.
+    expect(await readFile(join(profileDirectory, 'bookmarks.json'), 'utf8')).toBe(unreadable)
     await instance.window.evaluate(`window.hronautBookmarks.add('https://example.com/new', 'New')`)
     await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'bookmarks.json'), 'utf8')).bookmarks.map((bookmark: { title: string }) => bookmark.title))
       .toEqual(['New'])
