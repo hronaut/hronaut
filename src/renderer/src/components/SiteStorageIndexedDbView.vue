@@ -71,7 +71,7 @@ function localNumber(value: number): string { return formatNumber(props.locale, 
         <article v-for="(entry, index) in entries" :key="`${entry.primaryKey}-${index}`" class="indexeddb-record">
           <header><strong>{{ entry.key }}</strong><span>{{ entry.valueType }}</span></header>
           <code>{{ entry.valuePreview ?? t('siteStorage.indexed.omitted') }}</code>
-          <small>{{ t('siteStorage.indexed.primaryKey', { key: entry.primaryKey }) }}<template v-if="entry.valuePreviewBytes !== undefined"> {{ t('siteStorage.indexed.preview', { size: bytes(entry.valuePreviewBytes) }) }}</template><template v-if="entry.valueTruncated"> {{ t('siteStorage.indexed.truncated') }}</template></small>
+          <small>{{ t('siteStorage.indexed.primaryKey', { key: entry.primaryKey }) }}<template v-if="entry.valuePreviewBytes !== undefined">{{ ' ' + t('siteStorage.indexed.preview', { size: bytes(entry.valuePreviewBytes) }) }}</template><template v-if="entry.valueTruncated">{{ ' ' + t('siteStorage.indexed.truncated') }}</template></small>
         </article>
       </div>
       <details class="storage-changes-caveats indexeddb-caveats">

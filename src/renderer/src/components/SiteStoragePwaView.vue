@@ -63,7 +63,7 @@ function timestamp(value: string): string {
         </dl>
         <div v-if="report.manifest.parseErrors.length || report.manifest.installabilityErrors.length" class="pwa-manifest-errors">
           <strong>{{ t('siteStorage.pwa.findings') }}</strong>
-          <ul><li v-for="(item, index) in report.manifest.parseErrors" :key="`manifest-${index}`">{{ item.message }}<template v-if="item.line !== undefined"> {{ t('siteStorage.pwa.line', { line: localNumber(item.line) }) }}</template></li><li v-for="item in report.manifest.installabilityErrors" :key="item.errorId">{{ item.errorId }}<template v-if="item.arguments.length"> · {{ item.arguments.map((argument) => `${argument.name}: ${argument.value}`).join(', ') }}</template></li></ul>
+          <ul><li v-for="(item, index) in report.manifest.parseErrors" :key="`manifest-${index}`">{{ item.message }}<template v-if="item.line !== undefined">{{ ' ' + t('siteStorage.pwa.line', { line: localNumber(item.line) }) }}</template></li><li v-for="item in report.manifest.installabilityErrors" :key="item.errorId">{{ item.errorId }}<template v-if="item.arguments.length"> · {{ item.arguments.map((argument) => `${argument.name}: ${argument.value}`).join(', ') }}</template></li></ul>
         </div>
         <small v-else-if="report.installabilityInspectionAvailable">{{ t('siteStorage.pwa.noInstallErrors') }}</small><small v-else>{{ t('siteStorage.pwa.installUnavailable') }}</small>
       </article>

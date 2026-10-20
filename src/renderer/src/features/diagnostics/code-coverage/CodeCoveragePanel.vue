@@ -148,7 +148,7 @@ function debugTimestamp(value: string): string {
         </ul>
       </details>
       <footer>
-        <span>{{ t('coverage.mode', { mode: coverageResult.report.mode }) }}<span v-if="coverageResult.report.truncated"> {{ t('coverage.bounded') }}</span></span>
+        <span>{{ t('coverage.mode', { mode: coverageResult.report.mode }) }}<span v-if="coverageResult.report.truncated">{{ ' ' + t('coverage.bounded') }}</span></span>
         <div>
           <UiButton appearance="application" type="button" @click="manageCodeCoverage('clear')"><IconDelete aria-hidden="true" /> {{ t('coverage.clear') }}</UiButton>
           <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageCodeCoverage('start', true)"><IconRefresh aria-hidden="true" /> {{ t('coverage.recordAgain') }}</UiButton>

@@ -121,7 +121,7 @@ function debugTimestamp(value: string): string {
             <article v-for="issue in designOverviewReport.contrastIssues" :key="`${issue.selector}-${issue.ratio}`" role="listitem">
               <header><code>{{ issue.selector }}</code><strong>{{ localNumber(issue.ratio) }}:1</strong></header>
               <span>{{ t('designOverview.contrastColors', { foreground: issue.foreground, background: issue.background, ratio: localNumber(issue.requiredRatio) }) }}</span>
-              <small>{{ t('designOverview.contrastFont', { size: issue.fontSizePx == null ? t('designOverview.unknownSize') : `${localNumber(issue.fontSizePx)}px`, weight: issue.fontWeight }) }}<template v-if="issue.largeText"> {{ t('designOverview.largeText') }}</template></small>
+              <small>{{ t('designOverview.contrastFont', { size: issue.fontSizePx == null ? t('designOverview.unknownSize') : `${localNumber(issue.fontSizePx)}px`, weight: issue.fontWeight }) }}<template v-if="issue.largeText">{{ ' ' + t('designOverview.largeText') }}</template></small>
             </article>
           </div>
           <p v-else>{{ t('designOverview.noContrast') }}</p>

@@ -97,7 +97,7 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
               <template v-else-if="route.behavior === 'fulfill'">{{ t('network.conditions.respond', { status: route.response?.status ?? '', bytes: localNumber(route.response?.bodyBytes || 0) }) }}</template>
               <template v-else>{{ t('network.conditions.throttleAs', { profile: networkProfileLabel(route.throttle || 'slow-4g') }) }}</template>
               <template v-if="route.remainingMatches !== undefined"> · {{ t('network.conditions.matchesLeft', { count: localNumber(route.remainingMatches) }, route.remainingMatches) }}</template>
-              <template v-else> {{ t('network.conditions.untilRemoved') }}</template>
+              <template v-else>{{ ' ' + t('network.conditions.untilRemoved') }}</template>
             </small>
           </span>
           <span class="request-condition-controls">

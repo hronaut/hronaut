@@ -327,7 +327,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
           </select>
         </label>
         <span id="tab-search-status" class="sr-only" role="status" aria-live="polite">
-          {{ t('tabSearch.matches', { count: formatNumber(results.length) }, results.length) }}<template v-if="selectedResult"> {{ t('tabSearch.selected', { item: resultLabel(selectedResult) }) }}</template>
+          {{ t('tabSearch.matches', { count: formatNumber(results.length) }, results.length) }}<template v-if="selectedResult">{{ ' ' + t('tabSearch.selected', { item: resultLabel(selectedResult) }) }}</template>
         </span>
         <div v-if="!regularTabs.length && !state.closedTabs.length && !state.savedTabGroups.length" class="tab-search-empty">
           <IconTabSearch aria-hidden="true" />
