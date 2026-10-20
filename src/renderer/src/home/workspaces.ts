@@ -196,6 +196,12 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     const opened = event.target as HTMLDetailsElement
     if (opened.classList?.contains('card-menu') && opened.open) root.querySelectorAll<HTMLDetailsElement>('.card-menu[open]').forEach(menu => { if (menu !== opened) menu.open = false })
   }, { capture: true, signal })
+  // Enter repeats while it is held. A menu's action gives the focus back to the menu's button and an archive or clear
+  // gives it to Undo, so the repeats opened the menu again and restored the workspace just archived. A button here
+  // takes a new press.
+  root.addEventListener('keydown', event => {
+    if (event.repeat && event.key === 'Enter' && (event.target as Element).closest('button, summary')) event.preventDefault()
+  }, { signal })
   root.addEventListener('keydown', event => {
     const menu = (event.target as Element).closest<HTMLDetailsElement>('.card-menu[open]')
     if (event.key !== 'Escape' || event.isComposing || !menu) return
