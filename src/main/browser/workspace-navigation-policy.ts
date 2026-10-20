@@ -56,10 +56,19 @@ function isLoopbackHostname(hostname: string): boolean {
   return /^127(?:\.\d{1,3}){3}$/.test(normalized)
 }
 
+/**
+ * A hostname may not hold another `*`: a rule with one in any other place, such as `https://a.*.example.com` or
+ * `http://*.localhost:*`, would be kept as written and never match a site.
+ */
+function assertNoWildcard(hostname: string): void {
+  if (hostname.includes('*')) throw new LocalizedError('appErrors.siteAccess.wildcardPlacement')
+}
+
 function canonicalWildcardHostname(value: string): string {
   const hostname = canonicalHostname(value)
+  assertNoWildcard(hostname)
   const bare = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
-  if (hostname.includes('*') || isIP(bare) !== 0 || hostname === 'localhost' || !hostname.includes('.')) {
+  if (isIP(bare) !== 0 || hostname === 'localhost' || !hostname.includes('.')) {
     throw new LocalizedError('appErrors.siteAccess.wildcardHostname')
   }
   return hostname
@@ -82,6 +91,7 @@ export function canonicalizeWorkspaceNavigationRule(input: string): string {
   if (wildcardPort) {
     const protocol = wildcardPort[1]!.toLowerCase()
     const hostname = canonicalHostname(wildcardPort[2]!)
+    assertNoWildcard(hostname)
     if (!isLoopbackHostname(hostname)) throw new LocalizedError('appErrors.siteAccess.portWildcard')
     return `${protocol}://${hostname}:*`
   }
@@ -115,6 +125,7 @@ export function canonicalizeWorkspaceNavigationRule(input: string): string {
     throw new LocalizedError('appErrors.siteAccess.httpOnly')
   }
   assertOriginOnly(url)
+  assertNoWildcard(url.hostname)
   return url.origin
 }
 
@@ -133,6 +144,26 @@ export function normalizeWorkspaceNavigationPolicy(value: unknown): BrowserWorks
   if (candidate.mode === 'unrestricted') return { mode: 'unrestricted', rules: [] }
   const rules = [...new Set(candidate.rules.map((rule) => canonicalizeWorkspaceNavigationRule(rule as string)))]
   return { mode: 'restricted', rules }
+}
+
+/**
+ * A policy read back from the profile. A rule with a misplaced `*` was accepted before it was refused, and never matched
+ * a site, so it is dropped instead of making every saved workspace unreadable; any other invalid rule still fails.
+ */
+export function normalizeSavedWorkspaceNavigationPolicy(value: unknown): BrowserWorkspaceNavigationPolicy {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return normalizeWorkspaceNavigationPolicy(value)
+  const candidate = value as Record<string, unknown>
+  if (!Array.isArray(candidate.rules)) return normalizeWorkspaceNavigationPolicy(value)
+  const rules = candidate.rules.filter((rule) => {
+    if (typeof rule !== 'string') return true
+    try {
+      canonicalizeWorkspaceNavigationRule(rule)
+      return true
+    } catch (error) {
+      return !(error instanceof LocalizedError && error.key === 'appErrors.siteAccess.wildcardPlacement')
+    }
+  })
+  return normalizeWorkspaceNavigationPolicy({ ...candidate, rules })
 }
 
 function parseNavigationTarget(value: string): NavigationTarget | null {

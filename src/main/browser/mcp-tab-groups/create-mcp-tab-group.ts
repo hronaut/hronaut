@@ -16,9 +16,12 @@ import {
 import type { McpTabGroupsAccess, McpTabGroupsTab } from './mcp-tab-groups-access.js'
 import { normalizedWorkspaceName, requireMcpTabGroup } from './mcp-tab-groups.js'
 
-/** The one HTTP(S) origin a restricted policy allows, which a public observer workspace requires, or undefined. */
+/**
+ * The one HTTP(S) origin a restricted policy allows, which a public observer workspace requires, or undefined. A
+ * subdomain wildcard such as `https://*.example.com` parses as an origin too, but allows every subdomain.
+ */
 function publicObserverOrigin(policy: BrowserWorkspaceNavigationPolicy): string | undefined {
-  if (policy.mode !== 'restricted' || policy.rules.length !== 1) return undefined
+  if (policy.mode !== 'restricted' || policy.rules.length !== 1 || policy.rules[0]!.includes('*')) return undefined
   try {
     const parsed = new URL(policy.rules[0]!)
     return (parsed.protocol === 'http:' || parsed.protocol === 'https:')

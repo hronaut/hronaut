@@ -178,6 +178,7 @@ export const enUSAppErrors = {
     "invalidHostname": "Navigation rule contains an invalid hostname.",
     "hostnameOnly": "Navigation rule must contain only a hostname.",
     "wildcardHostname": "Subdomain wildcard rules require a DNS hostname.",
+    "wildcardPlacement": "A * can only start a subdomain rule, such as *.example.com, or stand for the port of a loopback host, such as http://localhost:*.",
     "credentials": "Navigation rules cannot contain credentials.",
     "originOnly": "Navigation rules must be origins without paths, queries, or fragments.",
     "length": "Navigation rule is empty or too long.",

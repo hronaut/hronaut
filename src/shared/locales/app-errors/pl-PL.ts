@@ -174,6 +174,7 @@ export const plPLAppErrors: AppErrorMessages = {
     "invalidHostname": "Reguła dostępu do witryn zawiera nieprawidłową nazwę hosta.",
     "hostnameOnly": "Reguła dostępu do witryn może zawierać tylko nazwę hosta.",
     "wildcardHostname": "Reguły z symbolem wieloznacznym dla subdomen wymagają nazwy hosta DNS.",
+    "wildcardPlacement": "Symbol * może tylko rozpoczynać regułę dla subdomen, np. *.example.com, albo zastępować port hosta lokalnego, np. http://localhost:*.",
     "credentials": "Reguły dostępu do witryn nie mogą zawierać danych logowania.",
     "originOnly": "Reguły dostępu do witryn muszą być źródłami bez ścieżek, zapytań i fragmentów.",
     "length": "Reguła dostępu do witryn jest pusta lub zbyt długa.",

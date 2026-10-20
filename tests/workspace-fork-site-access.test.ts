@@ -66,3 +66,33 @@ describe('Site access of a workspace copy', () => {
     }
   })
 })
+
+describe('Site access of a public observer', () => {
+  it('refuses a subdomain wildcard as the one origin of a public observer', async () => {
+    const workspaces = new Map<string, unknown>()
+    const access = {
+      mcpTabGroups: () => workspaces,
+      savedTabGroups: () => new Map(),
+      tabs: () => new Map(),
+      options: () => ({ partition: 'persist:test', configureSession: () => undefined }),
+      assertWorkspaceNameAvailable: () => undefined,
+      assertActiveWorkspaceCapacity: () => undefined,
+      isClosingWorkspace: () => false,
+      withGlobalWorkspaceStorageOperation: (_action: string, run: () => unknown) => run(),
+      withWorkspaceOperation: (_id: string, _action: string, run: () => unknown) => run(),
+      createTab: async () => ({}),
+      changed: () => undefined
+    }
+    const observe = (origin: string) => createMcpTabGroup(access as never, `Observer ${origin}`, undefined, 'scratch', undefined, true,
+      listed(origin), undefined, undefined, 'public-observer')
+
+    // `https://*.example.com/`, or `https://%2A.example.com/`, parses as this origin and was kept as a subdomain
+    // wildcard, allowing every subdomain.
+    await expect(observe('https://*.example.com')).rejects.toMatchObject({ key: 'appErrors.workspace.observerRequirements' })
+    await expect(observe('https://a.%2A.example.com')).rejects.toBeInstanceOf(LocalizedError)
+    expect(workspaces.size).toBe(0)
+    await expect(observe('https://public.example')).resolves.toMatchObject({
+      contextClass: 'public-observer', navigationPolicy: listed('https://public.example')
+    })
+  })
+})

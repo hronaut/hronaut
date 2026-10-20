@@ -11,7 +11,7 @@ Enter one rule per line:
 - `https://*.example.com:8443` constrains a subdomain wildcard to one scheme and port.
 - `http://localhost:*` allows any port on that loopback host. Port wildcards are rejected for non-loopback hosts.
 
-Rules cannot contain credentials, paths, queries, fragments, privileged schemes, or ambiguous multiple wildcards. Internationalized hostnames are stored in canonical ASCII form. `about:blank` remains available as a neutral document so a newly created or newly restricted workspace always has a safe page.
+Rules cannot contain credentials, paths, queries, fragments, privileged schemes, or ambiguous multiple wildcards. A `*` can only start a subdomain rule or stand for the port of a loopback host, so `http://*.localhost:*` and `https://a.*.example.com` are refused; list each loopback host instead, such as `http://app.localhost:*`. Earlier versions saved rules like these as written, where they never matched a site; they are dropped when Hronaut starts, and a public observer workspace whose origin was such a rule is kept limited to no site. A public observer's origin cannot be a subdomain wildcard. Internationalized hostnames are stored in canonical ASCII form. `about:blank` remains available as a neutral document so a newly created or newly restricted workspace always has a safe page.
 
 ## What is enforced
 
