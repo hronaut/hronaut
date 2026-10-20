@@ -67,6 +67,7 @@ All notable changes to Hronaut are documented in this file.
 - Removing an entry in **History** now moves the keyboard focus to the next entry's remove button, as **Bookmarks** and **Downloads** do. History's updated list arrived before the removal finished, while the other entries' buttons were still unavailable, so the focus often went to the search field instead.
 - Holding Delete on a focused tab now closes only that tab, and holding M mutes or unmutes it once. A closed tab hands the keyboard focus to the next tab, so each repeat of the held key closed one more tab, and holding Delete for a moment closed every tab after it. Ctrl or Cmd with Shift and Delete on a focused tab now opens **Workspaces & data** instead of closing the tab.
 - Holding Enter to validate a wallet import no longer adds the wallet before you see its review. **Validate and review** hands the keyboard focus to **Add encrypted wallet**, so the held key's repeats added the wallet before its address could be checked; adding it now takes a new press.
+- Holding Enter on **Switch workspace** or the command palette button now leaves the choice to you. Both open with the keyboard focus in their search field and a choice already selected, so the held key's repeats switched to another workspace or ran the first command.
 
 ### Security
 

@@ -216,7 +216,9 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
     }
     if (event.key === 'Enter' && selectedEntry.value) {
       event.preventDefault()
-      void runSelectedEntry()
+      // The palette opens with the focus here, often from a button pressed with Enter, so a held Enter would run the
+      // first command without a choice.
+      if (!event.repeat) void runSelectedEntry()
     }
   }
 
