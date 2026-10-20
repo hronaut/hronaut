@@ -1,4 +1,4 @@
-import type { BrowserTabGroupState } from '../../../shared/types.js'
+import { MAX_BROWSER_TABS, type BrowserTabGroupState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { canonicalStorageId } from '../workspace-storage-deletion.js'
 import { destroyWorkspaceStorage, workspacePartition } from '../workspace-storage.js'
@@ -7,6 +7,9 @@ import { listMcpTabGroups } from './mcp-tab-groups.js'
 
 /** Hronaut Home, which closing a workspace opens when it leaves no tab; the tab manager's Home address. */
 const HRONAUT_HOME_URL = 'hronaut://home/'
+
+/** How many recently closed tabs the tab manager remembers; a copy of the tab reopening limit. */
+const MAX_CLOSED_TABS = MAX_BROWSER_TABS
 
 /**
  * Closes an open workspace and deletes its storage, or keeps the storage when
@@ -53,11 +56,26 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
     navigationGeneration: tab.navigationGeneration,
     navigationHistory: access.navigationHistorySnapshot(tab)
   }))
-  const removeClosedWorkspaceTabs = (): void => {
-    for (let index = access.closedTabs().length - 1; index >= 0; index -= 1) {
-      if (access.closedTabs()[index]?.mcpGroupId === groupId) access.closedTabs().splice(index, 1)
+  // Closing each tab remembers it among the recently closed tabs, whose bounded list would then push out the oldest
+  // tabs closed elsewhere, although this workspace's entries leave again below. Those are held aside meanwhile, so a
+  // tab the person closed in another workspace stays recoverable.
+  const overflow = access.closedTabs().length + tabSnapshots.length - MAX_CLOSED_TABS
+  const heldClosedTabs = overflow > 0 ? access.closedTabs().splice(0, overflow) : []
+  const returnHeldClosedTabs = (removeWorkspaceEntries: boolean): void => {
+    if (removeWorkspaceEntries) {
+      for (let index = access.closedTabs().length - 1; index >= 0; index -= 1) {
+        if (access.closedTabs()[index]?.mcpGroupId === groupId) access.closedTabs().splice(index, 1)
+      }
     }
+    // Each goes back where it was closed in time, also among tabs another workspace's close holds aside meanwhile.
+    // They were older than every entry left in the list, so they go before entries closed at the same moment.
+    for (const held of heldClosedTabs.splice(0).reverse()) {
+      const newer = access.closedTabs().findIndex((entry) => entry.closedAt >= held.closedAt)
+      access.closedTabs().splice(newer < 0 ? access.closedTabs().length : newer, 0, held)
+    }
+    if (access.closedTabs().length > MAX_CLOSED_TABS) access.closedTabs().splice(0, access.closedTabs().length - MAX_CLOSED_TABS)
   }
+  const removeClosedWorkspaceTabs = (): void => returnHeldClosedTabs(true)
   const restoreWorkspaceTabs = async (): Promise<void> => {
     for (const tab of tabSnapshots) {
       if (access.tabs().has(tab.id)) continue
@@ -112,6 +130,7 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
     } catch (restoreError) {
       // Keep both the workspace metadata and any recoverable recently closed
       // entries when an Electron failure prevents a complete rollback.
+      returnHeldClosedTabs(false)
       access.changed()
       throw new LocalizedError('appErrors.workspace.closeRollbackFailed', { name: group.name }, { cause: new AggregateError([error, restoreError]) })
     }
