@@ -11,6 +11,7 @@ export interface BrowsingDataCookie {
   domain?: string
   hostOnly?: boolean
   secure?: boolean
+  path?: string
 }
 
 export interface BrowsingDataWebsiteSources {
@@ -53,13 +54,33 @@ function cookieOrigin(cookie: BrowsingDataCookie): string | null {
   return `${cookie.secure ? 'https' : 'http'}://${address}`
 }
 
+/** Hosts Chromium trusts over plain HTTP, so it sends them Secure cookies: localhost, its subdomains and loopback addresses. */
+function loopbackHostname(hostname: string): boolean {
+  const host = hostname.endsWith('.') ? hostname.slice(0, -1) : hostname
+  return host === 'localhost' || host.endsWith('.localhost') || host === '[::1]' || /^127(?:\.\d{1,3}){3}$/.test(host)
+}
+
+/**
+ * Whether a request to the origin can match the cookie's path: the origin's address at that path spells it the same
+ * way. One with a space, for example, never matches, and Chromium writes `|` in a request path as `%7C`.
+ */
+function pathReceivedBy(origin: string, path: string): boolean {
+  if (path.includes('|')) return false
+  try {
+    return new URL(`${origin}${path}`).pathname === path
+  } catch {
+    return false
+  }
+}
+
 export function cookieAvailableToOrigin(cookie: BrowsingDataCookie, origin: string): boolean {
   const domain = cookieHostname(cookie)
   if (!domain) return false
   const url = new URL(origin)
-  if (cookie.secure && url.protocol !== 'https:') return false
   const hostname = url.hostname.toLocaleLowerCase()
-  return hostname === domain || (!cookie.hostOnly && hostname.endsWith(`.${domain}`))
+  if (cookie.secure && url.protocol !== 'https:' && !loopbackHostname(hostname)) return false
+  if (hostname !== domain && (cookie.hostOnly || !hostname.endsWith(`.${domain}`))) return false
+  return cookie.path === undefined || pathReceivedBy(url.origin, cookie.path)
 }
 
 export function buildBrowsingDataWebsiteInventory(sources: BrowsingDataWebsiteSources): BrowsingDataWebsiteSummary[] {
