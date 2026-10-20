@@ -34,10 +34,12 @@ describe('plural forms', () => {
     ])
   })
 
-  it('keeps one and other in the other languages', () => {
+  it('keeps one and other in the other languages, each by its own rule', () => {
     expect(tabs('en-US')).toEqual(['0 tabs', '1 tab', '2 tabs', '5 tabs', '11 tabs', '12 tabs', '21 tabs', '22 tabs', '25 tabs'])
     expect(tabs('de-DE').slice(0, 3)).toEqual(['0 Tabs', '1 Tab', '2 Tabs'])
-    expect(tabs('fr-FR').slice(0, 3)).toEqual(['0 onglets', '1 onglet', '2 onglets'])
+    // French counts 0 as one, as it does 1; it read "0 onglets".
+    expect(tabs('fr-FR').slice(0, 3)).toEqual(['0 onglet', '1 onglet', '2 onglets'])
+    expect(tabs('es-ES').slice(0, 3)).toEqual(['0 pestañas', '1 pestaña', '2 pestañas'])
   })
 
   it('gives every plural message the forms its language picks from', () => {
@@ -53,6 +55,7 @@ describe('plural forms', () => {
     expect(COUNTS.map((count) => pluralFormIndex('ru-RU', count, 3))).toEqual([2, 0, 1, 2, 2, 2, 0, 1, 2])
     expect(COUNTS.map((count) => pluralFormIndex('pl-PL', count, 3))).toEqual([2, 0, 1, 2, 2, 2, 2, 1, 2])
     expect(COUNTS.map((count) => pluralFormIndex('en-US', count, 2))).toEqual([1, 0, 1, 1, 1, 1, 1, 1, 1])
+    expect(COUNTS.map((count) => pluralFormIndex('fr-FR', count, 2))).toEqual([0, 0, 1, 1, 1, 1, 1, 1, 1])
     expect(pluralFormIndex('ru-RU', 5, 1)).toBe(0)
   })
 })
