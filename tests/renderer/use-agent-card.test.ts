@@ -286,11 +286,12 @@ function setup() {
 describe('agent card lifecycle', () => {
   it('shows the card under its avatar and keeps it current while it is open', async () => {
     document.documentElement.dataset.theme = 'dark'
+    document.documentElement.lang = 'pl-PL'
     const { card, shows, models } = setup()
     card.open('a')
     await nextTick()
     expect(shows).toHaveLength(1)
-    expect(shows[0]).toMatchObject({ anchor: { x: 600, y: 8, width: 32, height: 32 }, theme: 'dark', model: { name: 'Claude Code' } })
+    expect(shows[0]).toMatchObject({ anchor: { x: 600, y: 8, width: 32, height: 32 }, theme: 'dark', locale: 'pl-PL', model: { name: 'Claude Code' } })
     models.value = { ...models.value, a: { ...models.value.a!, stateLabel: 'Idle' } }
     await nextTick()
     expect(shows).toHaveLength(2)

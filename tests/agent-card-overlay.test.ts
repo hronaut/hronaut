@@ -29,7 +29,7 @@ function model(overrides: Partial<AgentCardModel> = {}): AgentCardModel {
 }
 
 function request(cardId = 1, overrides: Partial<AgentCardShowRequest> = {}): AgentCardShowRequest {
-  return { cardId, anchor: { x: 600, y: 8, width: 32, height: 32 }, theme: 'light', model: model(), ...overrides }
+  return { cardId, anchor: { x: 600, y: 8, width: 32, height: 32 }, theme: 'light', locale: 'en-US', model: model(), ...overrides }
 }
 
 describe('agent card contracts', () => {
@@ -38,6 +38,7 @@ describe('agent card contracts', () => {
     const bad: unknown[] = [
       { ...request(), cardId: 0 },
       { ...request(), theme: 'neon' },
+      { ...request(), locale: 'xx-XX' },
       { ...request(), anchor: { x: Number.NaN, y: 0, width: 1, height: 1 } },
       { ...request(), model: model({ color: 'red' }) },
       { ...request(), model: { ...model(), state: 'sleeping' } },
@@ -197,7 +198,7 @@ describe('agent card overlay', () => {
     overlay.show(request(1), 1)
     await load()
     const first = lastState()
-    expect(first).toMatchObject({ cardId: 1, theme: 'light' })
+    expect(first).toMatchObject({ cardId: 1, theme: 'light', locale: 'en-US' })
     // Nothing shows before the view laid the card out.
     expect(surface.present).not.toHaveBeenCalled()
     overlay.measured({ cardId: 1, revision: first.revision, width: 320, height: 300 })

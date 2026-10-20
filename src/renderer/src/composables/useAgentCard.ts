@@ -12,6 +12,7 @@ import {
   type HronautAgentCardApi
 } from '../../../shared/agent-card.js'
 import type { AgentPresence } from '../../../shared/agent-presence.js'
+import { isSupportedLocale } from '../../../shared/locale.js'
 import { isResolvedThemeName } from '../../../shared/theme.js'
 import { agentFinishedStepText, agentStepText } from '../../../shared/agent-step-text.js'
 import { agentCardCompletes, type AgentDecisionAnswerState } from './useAgentDecisionAnswers.js'
@@ -295,10 +296,12 @@ export function useAgentCard(options: AgentCardOptions): AgentCardController {
     }
     const box = anchor.getBoundingClientRect()
     const theme = document.documentElement.dataset.theme
+    const locale = document.documentElement.lang
     const request = {
       cardId,
       anchor: { x: box.left, y: box.top, width: box.width, height: box.height },
       theme: isResolvedThemeName(theme) ? theme : 'dark' as const,
+      locale: isSupportedLocale(locale) ? locale : 'en-US' as const,
       model
     }
     const serialized = JSON.stringify(request)

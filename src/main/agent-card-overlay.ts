@@ -142,7 +142,7 @@ export class AgentCardOverlay {
       if (this.disposed || this.card?.generation !== generation || surface.isDestroyed()) return
       this.current = surface
       surface.setZoomFactor(zoom)
-      surface.send({ cardId: request.cardId, revision, theme: request.theme, model: request.model })
+      surface.send({ cardId: request.cardId, revision, theme: request.theme, locale: request.locale, model: request.model })
     }).catch((error: unknown) => {
       console.error('[agent card] Failed to show the card:', error)
       if (this.card?.generation === generation) this.close('lost')

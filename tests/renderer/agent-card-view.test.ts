@@ -47,9 +47,18 @@ afterEach(() => {
 })
 
 describe('agent card view', () => {
+  it('marks its page with the interface language, so a screen reader reads the card in it', async () => {
+    // The page always said English, so Ukrainian text in the card was read with English rules.
+    const view = await loadView()
+    view.render({ cardId: 1, revision: 1, theme: 'dark', locale: 'uk-UA', model: model({ label: 'Claude Code, відомості про агента' }) })
+    expect(document.documentElement.lang).toBe('uk-UA')
+    view.render({ cardId: 1, revision: 2, theme: 'dark', locale: 'de-DE', model: model() })
+    expect(document.documentElement.lang).toBe('de-DE')
+  })
+
   it('renders the card as text, focuses the card itself when it opens and moves in only then', async () => {
     const view = await loadView()
-    view.render({ cardId: 1, revision: 1, theme: 'dark', model: model() })
+    view.render({ cardId: 1, revision: 1, theme: 'dark', locale: 'en-US', model: model() })
     const card = view.card()
     expect(card.getAttribute('role')).toBe('dialog')
     expect(card.getAttribute('aria-label')).toBe('Claude Code, agent details')
@@ -60,28 +69,28 @@ describe('agent card view', () => {
     expect(card.dataset.opening).toBe('true')
     expect(document.documentElement.dataset.theme).toBe('dark')
     // An update of the same card replaces it without moving in again.
-    view.render({ cardId: 1, revision: 2, theme: 'dark', model: model({ stateLabel: 'Idle' }) })
+    view.render({ cardId: 1, revision: 2, theme: 'dark', locale: 'en-US', model: model({ stateLabel: 'Idle' }) })
     expect(view.card().dataset.opening).toBeUndefined()
     expect(document.activeElement).toBe(view.card())
   })
 
   it('keeps focus on the control that was used when it changes, Pause to Resume or the switch', async () => {
     const view = await loadView()
-    view.render({ cardId: 1, revision: 1, theme: 'light', model: model() })
+    view.render({ cardId: 1, revision: 1, theme: 'light', locale: 'en-US', model: model() })
     view.control('[data-action="pause"]').focus()
     view.control('[data-action="pause"]').click()
     expect(view.sent).toEqual([{ cardId: 1, kind: 'action', action: 'pause' }])
-    view.render({ cardId: 1, revision: 2, theme: 'light', model: model({ buttons: [{ action: 'resume', label: 'Resume on this tab' }, { action: 'take-over', label: 'Take over' }] }) })
+    view.render({ cardId: 1, revision: 2, theme: 'light', locale: 'en-US', model: model({ buttons: [{ action: 'resume', label: 'Resume on this tab' }, { action: 'take-over', label: 'Take over' }] }) })
     expect((document.activeElement as HTMLElement).dataset.action).toBe('resume')
     view.control('[data-action="follow-on"]').focus()
-    view.render({ cardId: 1, revision: 3, theme: 'light', model: model({ follow: { label: 'Follow agents in all workspaces', checked: true } }) })
+    view.render({ cardId: 1, revision: 3, theme: 'light', locale: 'en-US', model: model({ follow: { label: 'Follow agents in all workspaces', checked: true } }) })
     expect((document.activeElement as HTMLElement).dataset.action).toBe('follow-off')
     expect(view.control('[data-action="follow-off"]').getAttribute('aria-checked')).toBe('true')
   })
 
   it('keeps a held Enter from pressing a control again', async () => {
     const view = await loadView()
-    view.render({ cardId: 1, revision: 1, theme: 'light', model: model() })
+    view.render({ cardId: 1, revision: 1, theme: 'light', locale: 'en-US', model: model() })
     const pause = view.control('[data-action="pause"]')
     pause.focus()
     const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
@@ -96,7 +105,7 @@ describe('agent card view', () => {
 
   it('turns agent cursors off and on from their switch, keeping focus on it', async () => {
     const view = await loadView()
-    view.render({ cardId: 2, revision: 1, theme: 'light', model: model() })
+    view.render({ cardId: 2, revision: 1, theme: 'light', locale: 'en-US', model: model() })
     const cursor = view.control('[data-action="cursor-off"]')
     expect(cursor.getAttribute('role')).toBe('switch')
     expect(cursor.getAttribute('aria-checked')).toBe('true')
@@ -104,14 +113,14 @@ describe('agent card view', () => {
     cursor.focus()
     cursor.click()
     expect(view.sent).toEqual([{ cardId: 2, kind: 'action', action: 'cursor-off' }])
-    view.render({ cardId: 2, revision: 2, theme: 'light', model: model({ cursor: { label: 'Show agent cursors on the page', checked: false } }) })
+    view.render({ cardId: 2, revision: 2, theme: 'light', locale: 'en-US', model: model({ cursor: { label: 'Show agent cursors on the page', checked: false } }) })
     expect((document.activeElement as HTMLElement).dataset.action).toBe('cursor-on')
     expect(view.control('[data-action="cursor-on"]').getAttribute('aria-checked')).toBe('false')
   })
 
   it('pins and unpins the live status from its switch, keeping focus on it', async () => {
     const view = await loadView()
-    view.render({ cardId: 3, revision: 1, theme: 'light', model: model() })
+    view.render({ cardId: 3, revision: 1, theme: 'light', locale: 'en-US', model: model() })
     const pin = view.control('[data-action="pin-on"]')
     expect(pin.getAttribute('role')).toBe('switch')
     expect(pin.getAttribute('aria-checked')).toBe('false')
@@ -119,14 +128,14 @@ describe('agent card view', () => {
     pin.focus()
     pin.click()
     expect(view.sent).toEqual([{ cardId: 3, kind: 'action', action: 'pin-on' }])
-    view.render({ cardId: 3, revision: 2, theme: 'light', model: model({ pin: { label: 'Pin live status below the toolbar', checked: true } }) })
+    view.render({ cardId: 3, revision: 2, theme: 'light', locale: 'en-US', model: model({ pin: { label: 'Pin live status below the toolbar', checked: true } }) })
     expect((document.activeElement as HTMLElement).dataset.action).toBe('pin-off')
     expect(view.control('[data-action="pin-off"]').getAttribute('aria-checked')).toBe('true')
   })
 
   it('shows the answers under the reason and sends each with the key of the request it answers', async () => {
     const view = await loadView()
-    view.render({ cardId: 4, revision: 1, theme: 'light', model: model({
+    view.render({ cardId: 4, revision: 1, theme: 'light', locale: 'en-US', model: model({
       state: 'needs-you',
       reason: { heading: 'Why it needs you', text: 'Log in, then hand back.', answers: [
         { action: 'hand-back', label: 'Done, hand back', key: 'attention-1' },
@@ -146,7 +155,7 @@ describe('agent card view', () => {
 
   it('closes on Esc and keeps Tab inside the card', async () => {
     const view = await loadView()
-    view.render({ cardId: 3, revision: 1, theme: 'light', model: model() })
+    view.render({ cardId: 3, revision: 1, theme: 'light', locale: 'en-US', model: model() })
     key('Tab')
     expect(document.activeElement).toBe(view.control('.agent-card-close'))
     key('Tab', true)
@@ -164,8 +173,8 @@ describe('agent card view', () => {
     try {
       const view = await loadView()
       vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, left: 0, top: 0, right: 320, bottom: 200, width: 320, height: 200, toJSON: () => ({}) })
-      view.render({ cardId: 1, revision: 1, theme: 'light', model: model() })
-      view.render({ cardId: 1, revision: 2, theme: 'light', model: model() })
+      view.render({ cardId: 1, revision: 1, theme: 'light', locale: 'en-US', model: model() })
+      view.render({ cardId: 1, revision: 2, theme: 'light', locale: 'en-US', model: model() })
       fontsReady()
       await Promise.resolve()
       await Promise.resolve()
@@ -233,7 +242,7 @@ describe('agent card view: answering a decision', () => {
 
   it('waits for the page check before handing back, tells the shell when you tick, and sends the decision key without a note', async () => {
     const view = await loadView()
-    view.render({ cardId: 5, revision: 1, theme: 'light', model: reviewPage() })
+    view.render({ cardId: 5, revision: 1, theme: 'light', locale: 'en-US', model: reviewPage() })
     expect(view.control('.agent-card-check-text').textContent).toBe(check.text)
     const looksGood = view.control('[data-action="answer-resolve"]') as HTMLButtonElement
     expect(looksGood.disabled).toBe(true)
@@ -250,7 +259,7 @@ describe('agent card view: answering a decision', () => {
     looksGood.click()
     expect(view.sent.at(-1)).toEqual({ cardId: 5, kind: 'action', action: 'answer-resolve', key: 'decision-1_r1' })
     // A check with nothing to confirm leaves the answer free.
-    view.render({ cardId: 5, revision: 2, theme: 'light', model: reviewPage({ check: undefined }) })
+    view.render({ cardId: 5, revision: 2, theme: 'light', locale: 'en-US', model: reviewPage({ check: undefined }) })
     expect((view.control('[data-action="answer-resolve"]') as HTMLButtonElement).disabled).toBe(false)
   })
 
@@ -260,7 +269,7 @@ describe('agent card view: answering a decision', () => {
     const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ x: 0, y: 0, left: 0, top: 0, right: 320, bottom: height, width: 320, height, toJSON: () => ({}) }))
     try {
       const view = await loadView()
-      view.render({ cardId: 6, revision: 1, theme: 'light', model: reviewPage() })
+      view.render({ cardId: 6, revision: 1, theme: 'light', locale: 'en-US', model: reviewPage() })
       const field = view.control('.agent-card-field')
       expect(field.hidden).toBe(true)
       // A closed field is out of the Tab order: Tab from inside it goes where it would from outside the card.
@@ -289,7 +298,7 @@ describe('agent card view: answering a decision', () => {
 
   it('keeps what you typed, the caret and focus through an update, and waits while sending', async () => {
     const view = await loadView()
-    view.render({ cardId: 7, revision: 1, theme: 'light', model: provideInput() })
+    view.render({ cardId: 7, revision: 1, theme: 'light', locale: 'en-US', model: provideInput() })
     const textarea = view.control('[data-focus="answer-note"]') as HTMLTextAreaElement
     const send = () => view.control('[data-focus="answer-send"]') as HTMLButtonElement
     expect(textarea.required).toBe(true)
@@ -306,7 +315,7 @@ describe('agent card view: answering a decision', () => {
     type(textarea, 'Use the second address')
     textarea.setSelectionRange(4, 10)
     expect(send().disabled).toBe(false)
-    view.render({ cardId: 7, revision: 2, theme: 'light', model: provideInput({ status: { text: 'Sending…' }, busy: true }) })
+    view.render({ cardId: 7, revision: 2, theme: 'light', locale: 'en-US', model: provideInput({ status: { text: 'Sending…' }, busy: true }) })
     const kept = view.control('[data-focus="answer-note"]') as HTMLTextAreaElement
     expect(kept).not.toBe(textarea)
     expect(kept.value).toBe('Use the second address')
@@ -318,23 +327,23 @@ describe('agent card view: answering a decision', () => {
     expect(view.control('.agent-card-status').textContent).toBe('Sending…')
     expect(live()).toEqual([['status', 'Sending…'], ['alert', '']])
     // A failure keeps the text; a new reading of the page, even one that reads the same, asks for a new tick.
-    view.render({ cardId: 7, revision: 3, theme: 'light', model: provideInput({ status: { text: 'Confirm the page again', alert: true }, check: { ...check, id: 'check-2' } }) })
+    view.render({ cardId: 7, revision: 3, theme: 'light', locale: 'en-US', model: provideInput({ status: { text: 'Confirm the page again', alert: true }, check: { ...check, id: 'check-2' } }) })
     expect((view.control('[data-focus="answer-note"]') as HTMLTextAreaElement).value).toBe('Use the second address')
     expect((view.control('[data-focus="answer-check"]') as HTMLInputElement).checked).toBe(false)
     expect(send().disabled).toBe(true)
     expect(live()).toEqual([['status', ''], ['alert', 'Confirm the page again']])
     // An update that changes nothing announces nothing again; a card that briefly lacks the decision keeps the draft.
     const alert = document.querySelector('.agent-card-live[role="alert"]')!.firstChild
-    view.render({ cardId: 7, revision: 4, theme: 'light', model: provideInput({ status: { text: 'Confirm the page again', alert: true }, check: { ...check, id: 'check-2' } }) })
+    view.render({ cardId: 7, revision: 4, theme: 'light', locale: 'en-US', model: provideInput({ status: { text: 'Confirm the page again', alert: true }, check: { ...check, id: 'check-2' } }) })
     expect(document.querySelector('.agent-card-live[role="alert"]')!.firstChild).toBe(alert)
-    view.render({ cardId: 7, revision: 5, theme: 'light', model: model({ state: 'needs-you', reason: { heading: 'Why it needs you', text: 'Needs you.' } }) })
-    view.render({ cardId: 7, revision: 6, theme: 'light', model: provideInput() })
+    view.render({ cardId: 7, revision: 5, theme: 'light', locale: 'en-US', model: model({ state: 'needs-you', reason: { heading: 'Why it needs you', text: 'Needs you.' } }) })
+    view.render({ cardId: 7, revision: 6, theme: 'light', locale: 'en-US', model: provideInput() })
     expect((view.control('[data-focus="answer-note"]') as HTMLTextAreaElement).value).toBe('Use the second address')
   })
 
   it('sends with Ctrl or Cmd and Enter, leaves Enter alone for a new line, and leaves keys to an input method', async () => {
     const view = await loadView()
-    view.render({ cardId: 8, revision: 1, theme: 'light', model: provideInput({ check: undefined }) })
+    view.render({ cardId: 8, revision: 1, theme: 'light', locale: 'en-US', model: provideInput({ check: undefined }) })
     const textarea = view.control('[data-focus="answer-note"]') as HTMLTextAreaElement
     textarea.focus()
     const press = (init: KeyboardEventInit) => {
@@ -361,17 +370,17 @@ describe('agent card view: answering a decision', () => {
 
   it('starts a new card with nothing typed or ticked', async () => {
     const view = await loadView()
-    view.render({ cardId: 9, revision: 1, theme: 'light', model: provideInput() })
+    view.render({ cardId: 9, revision: 1, theme: 'light', locale: 'en-US', model: provideInput() })
     type(view.control('[data-focus="answer-note"]') as HTMLTextAreaElement, 'Secret answer')
     tick(view.control('[data-focus="answer-check"]') as HTMLInputElement)
-    view.render({ cardId: 10, revision: 1, theme: 'light', model: provideInput() })
+    view.render({ cardId: 10, revision: 1, theme: 'light', locale: 'en-US', model: provideInput() })
     expect((view.control('[data-focus="answer-note"]') as HTMLTextAreaElement).value).toBe('')
     expect((view.control('[data-focus="answer-check"]') as HTMLInputElement).checked).toBe(false)
   })
 
   it('shows what an approval would do, offers no approval there and keeps Tab inside the card', async () => {
     const view = await loadView()
-    view.render({ cardId: 11, revision: 1, theme: 'light', model: model({
+    view.render({ cardId: 11, revision: 1, theme: 'light', locale: 'en-US', model: model({
       state: 'needs-you',
       buttons: [],
       reason: {
