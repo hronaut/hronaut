@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -71,6 +71,49 @@ describe('CredentialStore', () => {
     await writeFile(path, 'null\n', 'utf8')
 
     await expect(store.load()).resolves.toEqual([])
+  })
+
+  it.each([
+    ['cut short', (saved: string) => saved.slice(0, -3)],
+    ['from a newer version', (saved: string) => JSON.stringify({ ...JSON.parse(saved), version: 2 })]
+  ])('keeps a saved-passwords file %s aside instead of replacing it on the next save', async (_case, damage) => {
+    // The next saved password replaced the file, and every password in it was gone.
+    const { path, store } = await createStore()
+    for (const index of [1, 2, 3]) await store.save(`https://site${index}.example`, `user${index}`, `secret ${index}`)
+    const unreadable = damage(await readFile(path, 'utf8'))
+    await writeFile(path, unreadable, 'utf8')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      const reopened = new CredentialStore(path, encryption)
+      await expect(reopened.load()).resolves.toEqual([])
+      // Until something is saved the file stays in place, so a newer Hronaut opened again still finds it.
+      expect(await readdir(dirname(path))).toEqual(['credentials.json'])
+
+      await reopened.save('https://new.example', 'new', 'new secret')
+      await reopened.save('https://second.example', 'second', 'second secret')
+
+      const files = await readdir(dirname(path))
+      const aside = files.find((name) => /^credentials\.json\.unreadable-\d{4}-\d{2}-\d{2}T[\d-]+Z$/.test(name))
+      expect(files.sort()).toEqual(['credentials.json', aside].sort())
+      expect(await readFile(join(dirname(path), aside!), 'utf8')).toBe(unreadable)
+      expect(reopened.list().map((credential) => credential.origin)).toEqual(['https://new.example', 'https://second.example'])
+      expect(warn).toHaveBeenCalledExactlyOnceWith('[credentials] Kept an unreadable saved-passwords file aside before saving a new one.')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('removes an unreadable saved-passwords file and the ones kept aside when every password is removed', async () => {
+    const { path, store } = await createStore()
+    await store.save('https://site.example', 'user', 'secret')
+    await writeFile(`${path}.unreadable-2026-10-01T00-00-00-000Z`, '{"version":2}', 'utf8')
+    await writeFile(path, '{"version":', 'utf8')
+    const reopened = new CredentialStore(path, encryption)
+    await expect(reopened.load()).resolves.toEqual([])
+
+    await reopened.clear()
+    expect(await readdir(dirname(path))).toEqual(['credentials.json'])
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ version: 1, credentials: [] })
   })
 
   it('persists encrypted passwords and exposes metadata only', async () => {
