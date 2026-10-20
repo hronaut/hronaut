@@ -1,5 +1,6 @@
 import { isBrowserTabGroupColor, type BrowserTabGroupColor } from './tab-groups.js'
 import { normalizeWorkspaceDescription } from './workspace-description.js'
+import { plainWorkspaceName } from './plain-workspace-name.js'
 
 export const WORKSPACE_TEMPLATE_MAX_BYTES = 256 * 1024
 export const WORKSPACE_TEMPLATE_MAX_WORKSPACES = 20
@@ -77,8 +78,9 @@ export function parseWorkspaceTemplate(text: string): WorkspaceTemplate {
   const workspaces = root.workspaces.map(value => {
     const entry = record(value, ['name', 'description', 'color', 'startPages'], 'workspace entry')
     if (typeof entry.name !== 'string') throw new TypeError('Invalid template workspace name.')
-    const name = entry.name.trim().normalize('NFC')
-    if (!name || name.length > 80 || /[\u0000-\u001f\u007f]/u.test(name)) throw new TypeError('Invalid template workspace name.')
+    // The name the workspace will get, so a collision found at commit is found here too.
+    const name = plainWorkspaceName(entry.name)
+    if (!name || name.length > 80 || /[\u0000-\u001f\u007f]/u.test(entry.name.trim())) throw new TypeError('Invalid template workspace name.')
     if (names.has(nameKey(name))) throw new TypeError('Duplicate template workspace names.')
     names.add(nameKey(name))
     if (entry.description !== undefined && typeof entry.description !== 'string') throw new TypeError('Invalid template workspace description.')
