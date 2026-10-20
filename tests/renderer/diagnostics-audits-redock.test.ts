@@ -87,6 +87,24 @@ describe.each(panels)('$name docked back from its window', ({ open, state, reque
     }
   })
 
+  it('does not run when it moves between docked places or is closed', async () => {
+    const { view, controller, browser, activeTab, moveTo } = renderPanels()
+    try {
+      await moveTo('right')
+      open(controller).value = true
+      state(controller).value = 'idle'
+      await moveTo('left')
+      activeTab.value = secondPage
+      await moveTo('window', secondPage)
+      open(controller).value = false
+      await moveTo('right')
+      expect(request(browser)).not.toHaveBeenCalled()
+    } finally {
+      view.unmount()
+      controller.dispose()
+    }
+  })
+
   it('keeps what it shows when nothing cleared it', async () => {
     const { view, controller, browser, moveTo } = renderPanels()
     try {
