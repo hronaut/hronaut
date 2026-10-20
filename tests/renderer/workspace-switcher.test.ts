@@ -307,6 +307,18 @@ describe('WorkspaceSwitcher', () => {
     expect(calls.showError).toHaveBeenCalledOnce()
   })
 
+  it('asks for a new workspace once it shows as closed', async () => {
+    // The workspace editor opens only while the palette is closed, and New workspace asked while the switcher still
+    // showed as open, so the editor never opened.
+    const { wrapper, openPanel } = await setup()
+    await openPanel()
+    let openWhenAsked: unknown
+    await wrapper.setProps({ onCreateWorkspace: () => { openWhenAsked = wrapper.props('open') } })
+    await userEvent.click(screen.getByRole('button', { name: 'New workspace' }))
+    await vi.waitFor(() => expect(wrapper.emitted('createWorkspace')).toHaveLength(1))
+    expect(openWhenAsked).toBe(false)
+  })
+
   it('hands off to tab search or a new workspace, and says when there are no workspaces yet', async () => {
     const { wrapper, openPanel } = await setup()
     await openPanel()
@@ -315,7 +327,7 @@ describe('WorkspaceSwitcher', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     await openPanel()
     await userEvent.click(screen.getByRole('button', { name: 'New workspace' }))
-    expect(wrapper.emitted('createWorkspace')).toHaveLength(1)
+    await vi.waitFor(() => expect(wrapper.emitted('createWorkspace')).toHaveLength(1))
 
     await wrapper.setProps({ state: { ...browserState(), activeTabId: null, tabs: [], mcpTabGroups: [], savedTabGroups: [] } })
     await openPanel()
