@@ -95,25 +95,29 @@ export class WorkspaceRegistry {
         storageId: saved.storageId, origins: [...saved.origins], navigationAudit: [...saved.navigationAudit] }
       // Until its tabs are open, the archive keeps its place for a rollback.
       this.archived.delete(id); this.active.set(id, restored); this.reservedArchivePlaces++
-      return host.withActiveOperation(id, 'restoring the archived workspace', async () => {
-        try {
-          for (const tab of saved.tabs) await host.createTab({ label: tab.label, title: tab.title, url: tab.url, pinned: tab.pinned, mcpGroupId: id, allowBusyWorkspace: true, active: false })
-          const tabs = host.tabs().filter(tab => tab.mcpGroupId === id)
-          if (tabs.length) host.selectTab(tabs[tabs.length - 1]!.id)
-          const result = host.requireActive(id)
-          host.changed(); host.remapDownloads(id, id)
-          return result
-        } catch (error) {
-          // Never give an archive and active workspace the same partition.
-          // Publish the archive only after removing every temporary active tab.
-          try { await host.closeActive(id, true) }
-          catch (rollbackError) {
-            host.remapDownloads(id, id); host.changed()
-            throw new LocalizedError('appErrors.workspace.restoreRollbackFailed', { name: saved.name }, { cause: new AggregateError([error, rollbackError]) })
+      try {
+        return await host.withActiveOperation(id, 'restoring the archived workspace', async () => {
+          try {
+            for (const tab of saved.tabs) await host.createTab({ label: tab.label, title: tab.title, url: tab.url, pinned: tab.pinned, mcpGroupId: id, allowBusyWorkspace: true, active: false })
+            const tabs = host.tabs().filter(tab => tab.mcpGroupId === id)
+            if (tabs.length) host.selectTab(tabs[tabs.length - 1]!.id)
+            const result = host.requireActive(id)
+            host.changed(); host.remapDownloads(id, id)
+            return result
+          } catch (error) {
+            // Never give an archive and active workspace the same partition.
+            // Publish the archive only after removing every temporary active tab.
+            try { await host.closeActive(id, true) }
+            catch (rollbackError) {
+              host.remapDownloads(id, id); host.changed()
+              throw new LocalizedError('appErrors.workspace.restoreRollbackFailed', { name: saved.name }, { cause: new AggregateError([error, rollbackError]) })
+            }
+            this.archived.set(id, saved); host.changed(); throw error
           }
-          this.archived.set(id, saved); host.changed(); throw error
-        }
-      }).finally(() => { this.reservedArchivePlaces-- })
+        })
+      } finally {
+        this.reservedArchivePlaces--
+      }
     })
   }
   private publicFields(group: ActiveWorkspace | ArchivedWorkspace) {

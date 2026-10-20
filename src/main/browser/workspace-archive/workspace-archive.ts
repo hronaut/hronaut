@@ -57,7 +57,16 @@ export async function closeWorkspaceForPerson(access: WorkspaceArchiveAccess, gr
   if (access.savedTabGroups().size >= MAX_SAVED_TAB_GROUPS) {
     throw new LocalizedError('appErrors.workspace.archiveLimitUndo', { max: MAX_SAVED_TAB_GROUPS, name: group.name })
   }
-  const archived = await saveAndCloseTabGroup(access, groupId)
+  let archived: BrowserSavedTabGroupState
+  try {
+    archived = await saveAndCloseTabGroup(access, groupId)
+  } catch (error) {
+    // Another workspace archived at the same time can take the last place after the check above.
+    if (error instanceof LocalizedError && error.key === 'appErrors.workspace.archiveLimit') {
+      throw new LocalizedError('appErrors.workspace.archiveLimitUndo', { max: MAX_SAVED_TAB_GROUPS, name: group.name })
+    }
+    throw error
+  }
   // Only this archive is deleted: not one made after the workspace was restored and archived again.
   const saved = access.savedTabGroups().get(archived.id)
   const closing = { id: archived.id, kept: false }

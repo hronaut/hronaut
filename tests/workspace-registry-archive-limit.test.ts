@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { WorkspaceRegistry, type ActiveWorkspace, type ArchivedWorkspace } from '../src/main/browser/workspace-registry.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../src/shared/undo.js'
 
+vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
+const { closeWorkspaceForPerson } = await import('../src/main/browser/workspace-archive/workspace-archive.js')
+
 function deferred() {
   let resolve!: () => void
   let reject!: (error: Error) => void
@@ -62,21 +65,26 @@ function harness(archivedCount: number) {
     await vi.waitFor(() => expect(closing.has(id)).toBe(true))
     closing.get(id)!.resolve()
   }
-  return { registry, closeActive, open, finishClosing, opening }
+  // Lets every close started so far finish, including ones that only a missing limit check lets start.
+  const finishAllClosing = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    for (const close of closing.values()) close.resolve()
+  }
+  return { registry, closeActive, open, finishClosing, finishAllClosing, opening, busy }
 }
 
 describe('workspace archive limit', () => {
   it('lets only one of two archives started together take the last archive place', async () => {
-    const { registry, closeActive, open, finishClosing } = harness(MAX_ARCHIVED_WORKSPACES - 1)
+    const { registry, closeActive, open, finishAllClosing } = harness(MAX_ARCHIVED_WORKSPACES - 1)
     open('a'); open('b')
 
-    const first = registry.archive('a')
-    const second = registry.archive('b')
-    await expect(second).rejects.toThrow(`Hronaut can keep up to ${MAX_ARCHIVED_WORKSPACES} archived workspaces.`)
-    await finishClosing('a')
-    await first
+    const results = Promise.allSettled([registry.archive('a'), registry.archive('b')])
+    await finishAllClosing()
+    const [first, second] = await results
 
     expect(registry.archived.size).toBe(MAX_ARCHIVED_WORKSPACES)
+    expect(first.status).toBe('fulfilled')
+    expect(second).toMatchObject({ status: 'rejected', reason: expect.objectContaining({ message: `Hronaut can keep up to ${MAX_ARCHIVED_WORKSPACES} archived workspaces.` }) })
     expect(registry.active.has('b')).toBe(true)
     expect(closeActive).toHaveBeenCalledExactlyOnceWith('a', true)
   })
@@ -94,18 +102,57 @@ describe('workspace archive limit', () => {
   })
 
   it('keeps a restoring archive\'s place until its tabs are open, so a failed restore cannot go past the limit', async () => {
-    const { registry, open, opening, finishClosing } = harness(MAX_ARCHIVED_WORKSPACES - 1)
+    const { registry, open, opening, finishAllClosing } = harness(MAX_ARCHIVED_WORKSPACES - 1)
     registry.archived.set('restoring', archivedWorkspace('restoring', [{ title: 'Page', url: 'https://example.test/', pinned: false }]))
     open('other')
 
-    const restore = registry.restore('restoring')
-    await expect(registry.archive('other')).rejects.toThrow(`Hronaut can keep up to ${MAX_ARCHIVED_WORKSPACES} archived workspaces.`)
+    const restore = Promise.allSettled([registry.restore('restoring')])
+    const archive = Promise.allSettled([registry.archive('other')])
     opening.reject(new Error('The tab limit is reached.'))
-    const restoreFailure = expect(restore).rejects.toThrow('The tab limit is reached.')
-    await finishClosing('restoring')
-    await restoreFailure
+    await finishAllClosing()
+    const [[restored], [archived]] = await Promise.all([restore, archive])
+
     expect(registry.archived.size).toBe(MAX_ARCHIVED_WORKSPACES)
     expect(registry.archived.has('restoring')).toBe(true)
+    expect(restored).toMatchObject({ status: 'rejected', reason: expect.objectContaining({ message: 'The tab limit is reached.' }) })
+    expect(archived).toMatchObject({ status: 'rejected', reason: expect.objectContaining({ message: `Hronaut can keep up to ${MAX_ARCHIVED_WORKSPACES} archived workspaces.` }) })
+    expect(registry.active.has('other')).toBe(true)
+  })
+
+  it('gives the place back when a restore is refused before it starts opening tabs', async () => {
+    const { registry, open, finishClosing, busy } = harness(MAX_ARCHIVED_WORKSPACES - 1)
+    registry.archived.set('restoring', archivedWorkspace('restoring'))
+    open('other')
+    // Another operation already holds the restoring workspace, so the restore is refused.
+    busy.add('restoring')
+    await expect(registry.restore('restoring')).rejects.toThrow('busy')
+
+    const archived = registry.archive('other')
+    await finishClosing('other')
+    await archived
+    expect(registry.archived.size).toBe(MAX_ARCHIVED_WORKSPACES)
+  })
+
+  it('tells a person closing with Undo to delete an archive when another workspace took the last place meanwhile', async () => {
+    const { registry, open, finishAllClosing } = harness(MAX_ARCHIVED_WORKSPACES - 1)
+    open('agent'); open('person')
+    const access = {
+      mcpTabGroups: () => new Map([['person', { id: 'person', name: 'Client work', deletionProtected: false }]]),
+      options: () => ({ endUndo: async () => undefined, offerUndo: vi.fn() }),
+      savedTabGroups: () => registry.archived,
+      withTabLabelLifecycle: (run: () => Promise<unknown>) => run(),
+      workspaceRegistry: () => registry
+    }
+
+    // An agent's archive is still closing its tabs when the person closes another workspace with Undo.
+    const agentArchive = registry.archive('agent')
+    const personClose = Promise.allSettled([closeWorkspaceForPerson(access as never, 'person')])
+    await finishAllClosing()
+    await agentArchive
+    const [closed] = await personClose
+
+    expect(closed).toMatchObject({ status: 'rejected', reason: expect.objectContaining({ key: 'appErrors.workspace.archiveLimitUndo' }) })
+    expect(registry.active.has('person')).toBe(true)
   })
 
   it('frees the place once a restore finishes', async () => {
