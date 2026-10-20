@@ -294,6 +294,24 @@ describe('HistoryPanel', () => {
     expect(search).toHaveFocus()
   })
 
+  it('gives the focus to the next Remove when the live list drops the row before its removal finishes', async () => {
+    let finish!: (entries: BrowserHistoryEntry[]) => void
+    const beta = entry('beta', 'Beta page')
+    const view = renderPanel({ removeHistoryEntry: vi.fn(() => new Promise<BrowserHistoryEntry[]>(resolve => { finish = resolve })) })
+    const remove = screen.getByRole('button', { name: 'Remove Alpha docs from history' })
+    remove.focus()
+    await fireEvent.click(remove)
+
+    // Main publishes the new list before it answers the removal, while the other rows' controls are still disabled.
+    await view.rerender({ entries: [beta] })
+    await flushPromises()
+    finish([beta])
+    await flushPromises()
+
+    // The live list used to give the focus to Search, passing over the next row's Remove while it was disabled.
+    expect(screen.getByRole('button', { name: 'Remove Beta page from history' })).toHaveFocus()
+  })
+
   it('does not restore removal focus into a reopened panel', async () => {
     let finish!: (entries: BrowserHistoryEntry[]) => void
     const view = renderPanel({ removeHistoryEntry: vi.fn(() => new Promise<BrowserHistoryEntry[]>(resolve => { finish = resolve })) })
@@ -786,5 +804,23 @@ describe('History keyboard focus while an action disables its control', () => {
 
       expect(change === 'moved' ? external : document.body).toHaveFocus()
     } finally { confirmSpy.mockRestore(); external.remove() }
+  })
+})
+
+describe('held Enter', () => {
+  it('keeps a held Enter from pressing Remove or Close again', () => {
+    renderPanel()
+    for (const name of ['Remove Alpha docs from history', 'Close browsing history']) {
+      const button = screen.getByRole('button', { name })
+      const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+      button.dispatchEvent(press)
+      button.dispatchEvent(repeat)
+
+      // Remove hands its focus to the next row's Remove, and the last row's to Close, so each repeat of a held Enter
+      // pressed one more of them.
+      expect(press.defaultPrevented).toBe(false)
+      expect(repeat.defaultPrevented).toBe(true)
+    }
   })
 })

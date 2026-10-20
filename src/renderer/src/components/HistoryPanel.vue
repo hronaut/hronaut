@@ -2,6 +2,7 @@
 import UiButton from "../ui/UiButton.vue"
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ignoreHeldEnter } from '../held-enter.js'
 import IconBookmark from '~icons/material-symbols/bookmark-add-outline-rounded'
 import IconBackground from '~icons/material-symbols/tab-unselected-rounded'
 import IconBookmarked from '~icons/material-symbols/bookmark-rounded'
@@ -34,6 +35,8 @@ const open = defineModel<boolean>('open', { required: true })
 const entries = defineModel<BrowserHistoryEntry[]>('entries', { required: true })
 const panelRoot = ref<HTMLElement | null>(null)
 let focusGeneration = 0
+// The row whose Remove is under way. remove() moves the focus on from it, so the live list leaves that row alone.
+let removalFocusRow: Element | null = null
 const stopFocusSessionTracking = watch(open, () => { focusGeneration += 1 }, { flush: 'sync' })
 const { t } = useI18n({ useScope: 'global' })
 const {
@@ -83,7 +86,7 @@ const stopVisibleTracking = watch(() => filteredEntries.value.map(entry => entry
   const panel = panelRoot.value
   const row = focused instanceof HTMLElement && panel?.contains(focused)
     ? focused.closest('.history-item') : null
-  if (!row || !panel || !(focused instanceof HTMLElement)) return
+  if (!row || !panel || !(focused instanceof HTMLElement) || row === removalFocusRow) return
   const generation = focusGeneration
   let superseded = false
   onCleanup(() => { superseded = true })
@@ -134,8 +137,15 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
   const panel = row?.closest('.history-panel')
   const next = row?.nextElementSibling?.querySelector<HTMLButtonElement>('.history-action.danger')
   const previous = row?.previousElementSibling?.querySelector<HTMLButtonElement>('.history-action.danger')
-  await removeEntry(entryId)
-  await nextTick()
+  // The live list can drop the row before the removal finishes, while the other rows' controls are still disabled,
+  // and its own recovery would then pass over the next row's Remove to Search.
+  if (row) removalFocusRow = row
+  try {
+    await removeEntry(entryId)
+    await nextTick()
+  } finally {
+    if (removalFocusRow === row) removalFocusRow = null
+  }
   if (generation !== focusGeneration || !open.value || !panel?.isConnected) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
   const target = [focused, next, previous,
@@ -198,7 +208,7 @@ async function clearOrigin(event: Event): Promise<void> {
       </div>
       <div class="history-header-actions">
         <UiButton appearance="application" type="button" :disabled="!entries.length || pendingAction !== null" @click="keepFocusThrough($event, clear)">{{ t('history.clearAll') }}</UiButton>
-        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('history.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('history.close')" @keydown="ignoreHeldEnter" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div v-if="entries.length" class="history-search-field">
@@ -268,7 +278,7 @@ async function clearOrigin(event: Event): Promise<void> {
           <IconBookmarked v-if="isBookmarked(entry)" aria-hidden="true" />
           <IconBookmark v-else aria-hidden="true" />
         </UiButton>
-        <UiButton appearance="application" variant="danger" class="history-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('history.removeAria', { title: entry.title })" v-tooltip="t('history.remove')" @click="remove(entry.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" variant="danger" class="history-action danger" type="button" :disabled="pendingAction !== null" @keydown="ignoreHeldEnter" :aria-label="t('history.removeAria', { title: entry.title })" v-tooltip="t('history.remove')" @click="remove(entry.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
       </article>
     </div>
     <p class="history-retention"><IconPrivacy aria-hidden="true" /> {{ t('history.retention') }}</p>
