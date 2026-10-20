@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconDownload from '~icons/material-symbols/download-rounded'
 import IconDownloadDone from '~icons/material-symbols/download-done-rounded'
 import IconHistory from '~icons/material-symbols/history-rounded'
+import IconKey from '~icons/material-symbols/key-rounded'
 import IconKeyboardCommandKey from '~icons/material-symbols/keyboard-command-key-rounded'
 import IconLock from '~icons/material-symbols/lock-rounded'
 import IconLockOpen from '~icons/material-symbols/lock-open-rounded'
@@ -20,7 +22,7 @@ import UpdateNotification from './UpdateNotification.vue'
 import { vTooltip } from '../ui/tooltip.js'
 import { ignoreHeldEnter } from '../held-enter.js'
 
-defineProps<{
+const props = defineProps<{
   interactionPending?: boolean
   audioPending?: boolean
   commandPaletteOpen: boolean
@@ -37,6 +39,8 @@ defineProps<{
   allInteractionLockLabel: string
   followAgentActivity: boolean
   showUpdateStatus: boolean
+  /** Agent access has ended and the license card under the toolbar was closed. */
+  licenseReminderShown?: boolean
   updateState: AppUpdateState
   mcpStatusController: McpStatusController
 }>()
@@ -50,10 +54,18 @@ const emit = defineEmits<{
   toggleAllInteraction: []
   toggleFollowAgentActivity: []
   openUpdateSettings: []
+  openLicenseSettings: []
   toggleSettings: []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
+
+const licenseReminder = ref<{ focus: () => void } | null>(null)
+// The reminder appears when Not now closes the license card, which takes the focused button with it. The reminder
+// takes the focus instead, so that the next Tab does not start from nowhere; it ignores a held Enter's repeats.
+watch(() => props.licenseReminderShown, (shown) => {
+  if (shown && document.activeElement === document.body && document.hasFocus()) licenseReminder.value?.focus()
+}, { flush: 'post' })
 </script>
 
 <template>
@@ -167,5 +179,17 @@ const { t } = useI18n({ useScope: 'global' })
       :state="updateState"
       @open="emit('openUpdateSettings')"
     />
+    <UiButton appearance="application"
+      v-if="licenseReminderShown"
+      ref="licenseReminder"
+      class="license-reminder-pill"
+      type="button"
+      v-tooltip="t('licenseNotice.reminderTitle')"
+      @keydown="ignoreHeldEnter"
+      @click="emit('openLicenseSettings')"
+    >
+      <IconKey aria-hidden="true" />
+      <span class="license-reminder-label">{{ t('licenseNotice.reminder') }}</span>
+    </UiButton>
   </div>
 </template>

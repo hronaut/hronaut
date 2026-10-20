@@ -52,6 +52,8 @@ export interface AppBrowserChromeLayerActions {
   openFind: () => unknown
   toggleZoom: () => unknown
   togglePageTools: () => unknown
+  /** Opens License settings, from the top bar's reminder once agent access has ended. */
+  openLicenseSettings: () => unknown
   prepareSplitViewMenu: () => void
   handleSplitViewError: (error: unknown, fallback: string) => void
 }
@@ -133,6 +135,7 @@ const {
   updateSettingsController,
   mcpStatusController,
   sitePermissionsController,
+  licenseAskController,
   showUpdateStatusPill,
   settings,
   toggleFollowAgentActivity,
@@ -416,6 +419,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         :audio-pending="isTogglePending('audio')"
         :follow-agent-activity="settings.followAgentActivity"
         :show-update-status="showUpdateStatusPill"
+        :license-reminder-shown="licenseAskController.reminderShown.value"
         :update-state="updateState"
         :mcp-status-controller="mcpStatusController"
         @toggle-command-palette="runAction(actions.toggleCommandPalette)"
@@ -426,6 +430,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         @toggle-all-interaction="runAction(toggleAllHumanInteraction)"
         @toggle-follow-agent-activity="runAction(toggleFollowAgentActivity)"
         @open-update-settings="runAction(openUpdateSettings)"
+        @open-license-settings="runAction(actions.openLicenseSettings)"
         @toggle-settings="runAction(toggleSettings)"
       />
       <PanelResizeHandle

@@ -160,10 +160,29 @@ describe('workspace shell wash tokens', () => {
   it('leaves the background image of the bars under the toolbar to the wash', () => {
     // A scoped component style is unlayered and beats the shell stylesheet, so a background shorthand there would
     // reset the wash to none and leave a flat band under the toolbar.
-    const notice = readFileSync(join(process.cwd(), 'src/renderer/src/components/LicenseExpiryNotice.vue'), 'utf8')
-    const rule = /\.license-expiry-notice\s*\{([^}]*)\}/u.exec(notice)?.[1] ?? ''
+    const notice = readFileSync(join(process.cwd(), 'src/renderer/src/components/LicenseAskCard.vue'), 'utf8')
+    const rule = /\.license-ask\s*\{([^}]*)\}/u.exec(notice)?.[1] ?? ''
     expect(rule).toMatch(/background-color:/u)
     expect(rule).not.toMatch(/(^|[\s;])background:/u)
+  })
+
+  it('keeps the license reminder\'s red text at 4.5:1 on its pill in every theme', () => {
+    const buttons = readFileSync(join(stylesRoot, 'shell', 'topbar-buttons.css'), 'utf8')
+    const rule = /\.license-reminder-pill\s*\{([^}]*)\}/u.exec(buttons)?.[1] ?? ''
+    expect(rule).toContain('[color:var(--danger-text)]')
+    expect(rule).toContain('[background:color-mix(in_srgb,_var(--danger)_9%,_var(--pill-bg))]')
+    // A hover background of 14% took the light theme to 4.42:1.
+    const hover = /\.license-reminder-pill:hover\s*\{([^}]*)\}/u.exec(buttons)?.[1] ?? ''
+    expect(hover).toContain('border-color')
+    expect(hover).not.toMatch(/\[(background|color):/u)
+    for (const theme of RESOLVED_THEME_NAMES) {
+      const danger = themeValue(theme, '--danger')
+      const pill = themeValue(theme, '--pill-bg')
+      expect(danger, theme).toMatch(/^#[0-9a-f]{6}$/u)
+      expect(pill, theme).toMatch(/^#[0-9a-f]{6}$/u)
+      const background = rgb(danger!).map((channel, index) => channel * 0.09 + rgb(pill!)[index] * 0.91)
+      expect(contrast(rgb(danger!), background), theme).toBeGreaterThanOrEqual(4.5)
+    }
   })
 
   it('keeps muted text at 4.5:1 on the strongest point of the wash in every theme and workspace color', () => {

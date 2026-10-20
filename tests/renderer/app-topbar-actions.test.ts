@@ -115,6 +115,47 @@ describe('AppTopbarActions', () => {
     rendered.mcpStatusController.dispose()
   })
 
+  it('shows the license reminder in red text only when asked, and opens License settings from it', async () => {
+    const rendered = renderActions()
+    expect(screen.queryByRole('button', { name: 'License needed' })).not.toBeInTheDocument()
+    await rendered.rerender({ licenseReminderShown: true })
+    const reminder = screen.getByRole('button', { name: 'License needed' })
+    expect(reminder).toHaveClass('license-reminder-pill')
+    expect(reminder).toHaveAttribute('aria-description', 'Agent automation is locked. Open License settings')
+    await userEvent.setup().click(reminder)
+    expect(rendered.emitted().openLicenseSettings).toEqual([[]])
+    rendered.mcpStatusController.dispose()
+  })
+
+  it('gives the focus to the license reminder when Not now took it with the card', async () => {
+    const rendered = renderActions()
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    // Not now closed the card with the focus on it, which leaves it on the page's body.
+    expect(document.activeElement).toBe(document.body)
+    await rendered.rerender({ licenseReminderShown: true })
+    await nextTick()
+    const reminder = screen.getByRole('button', { name: 'License needed' })
+    expect(reminder).toHaveFocus()
+    // The Enter still held from Not now repeats on the reminder, which ignores it.
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    reminder.dispatchEvent(repeat)
+    expect(repeat.defaultPrevented).toBe(true)
+    vi.restoreAllMocks()
+    rendered.mcpStatusController.dispose()
+  })
+
+  it('leaves the focus where it is when the license reminder appears', async () => {
+    const rendered = renderActions()
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const gear = screen.getByRole('button', { name: 'Settings' })
+    gear.focus()
+    await rendered.rerender({ licenseReminderShown: true })
+    await nextTick()
+    expect(gear).toHaveFocus()
+    vi.restoreAllMocks()
+    rendered.mcpStatusController.dispose()
+  })
+
   it('keeps the Settings gear available as a pressed toggle while open', async () => {
     const rendered = renderActions({ settingsOpen: true })
     const gear = screen.getByRole('button', { name: 'Settings' })

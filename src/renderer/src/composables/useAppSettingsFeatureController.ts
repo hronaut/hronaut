@@ -20,6 +20,7 @@ import { mcpPortProblem } from '../../../shared/mcp-port.js'
 import type { AppBootstrapTask } from './useAppBootstrapController.js'
 import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
 import { useCommercialLicenseController } from '../features/settings/support/useCommercialLicenseController.js'
+import { useLicenseAsk } from '../features/settings/support/useLicenseAsk.js'
 import { useCredentialsController } from './useCredentialsController.js'
 import { useDownloadSettingsController } from './useDownloadSettingsController.js'
 import { useMcpSettingsController } from './useMcpSettingsController.js'
@@ -181,6 +182,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     emptyKeyMessage: () => options.translate('runtime.license.enterKey'),
     formatError: (error) => friendlyUiError(error, options.translate('runtime.toast.actionFailed'))
   })
+  const licenseAskController = useLicenseAsk(commercialLicenseController.state)
   const mcpStatusController = useMcpStatusController({
     api: options.apis.mcp,
     endpoint: computed(() => options.browserState.value.mcpUrl),
@@ -404,6 +406,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     updateSettingsController,
     releaseHistoryController,
     commercialLicenseController,
+    licenseAskController,
     mcpStatusController,
     downloadSettingsController,
     performanceSettingsController,

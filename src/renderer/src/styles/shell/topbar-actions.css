@@ -25,6 +25,10 @@
 .vertical-tabs-shell .update-status-pill {
   @apply w-full [max-width:none] [height:32px] justify-center m-0 p-0 [grid-column:7] [grid-row:2];
 }
+/* The license reminder keeps its words in the rail, on a row of its own under the MCP controls. */
+.vertical-tabs-shell .license-reminder-pill {
+  @apply w-full [max-width:none] [height:32px] justify-center m-0 [grid-column:1_/_-1] [grid-row:3];
+}
 .vertical-tabs-shell .update-status-label,
 .vertical-tabs-shell .update-status-chevron { @apply hidden; }
 .vertical-tabs-shell .topbar.rail-collapsed .topbar-actions {
