@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { readFile, rename } from 'node:fs/promises'
 import type { BrowserBookmark, BrowserBookmarkCollection, BookmarkCollectionSnapshot } from '../shared/types.js'
 import { normalizeCollectionTitle } from './collection-title.js'
 import { writeTextFileAtomically } from './atomic-file.js'
@@ -95,6 +95,21 @@ export interface RemovedBookmark {
   collections: { id: string; index: number }[]
 }
 
+/**
+ * Moves a bookmarks file Hronaut cannot read, such as one cut short by a disk error or written by a newer version, to
+ * `bookmarks.json.unreadable-<time>` beside it, so the next bookmark saved starts a new file instead of replacing every
+ * bookmark in it. Bookmarks start empty either way; when the file cannot be moved, it is still replaced as before.
+ */
+async function keepUnreadableBookmarks(path: string): Promise<void> {
+  const aside = `${path}.unreadable-${new Date().toISOString().replace(/[:.]/g, '-')}`
+  try {
+    await rename(path, aside)
+    console.warn('[bookmarks] Kept an unreadable bookmarks file aside and started with no bookmarks.')
+  } catch {
+    console.warn('[bookmarks] Could not keep an unreadable bookmarks file aside; the next save replaces it.')
+  }
+}
+
 export class BookmarkStore {
   private readonly entries = new Map<string, BrowserBookmark>()
   private collections: BrowserBookmarkCollection[] = []
@@ -110,9 +125,12 @@ export class BookmarkStore {
     this.revision += 1
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
+      if (parsed === null) return []
       const value = parsed as Partial<PersistedBookmarks>
-      if (value.version !== 1 || !Array.isArray(value.bookmarks)) return []
+      if (typeof parsed !== 'object' || Array.isArray(parsed) || value.version !== 1 || !Array.isArray(value.bookmarks)) {
+        await keepUnreadableBookmarks(this.path)
+        return []
+      }
       const seenUrls = new Set<string>()
       const seenIds = new Set<string>()
       const validBookmarks = value.bookmarks.filter(validBookmark)
@@ -148,6 +166,7 @@ export class BookmarkStore {
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
+      if (error instanceof SyntaxError) await keepUnreadableBookmarks(this.path)
     }
     return this.list()
   }

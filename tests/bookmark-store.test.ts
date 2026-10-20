@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -141,6 +141,31 @@ describe('BookmarkStore', () => {
     await writeFile(path, 'null\n', 'utf8')
 
     await expect(store.load()).resolves.toEqual([])
+    // It holds no bookmarks, so nothing is kept aside.
+    expect(await readdir(dirname(path))).toEqual(['bookmarks.json'])
+  })
+
+  it.each([
+    ['cut short', (saved: string) => saved.slice(0, -3)],
+    ['from a newer version', (saved: string) => JSON.stringify({ ...JSON.parse(saved), version: 2 })]
+  ])('keeps a bookmarks file %s aside instead of replacing it on the next save', async (_case, damage) => {
+    const { path, store } = await createStore()
+    for (const index of [1, 2, 3]) await store.add({ url: `https://example.test/${index}`, title: `Saved ${index}` })
+    const unreadable = damage(await readFile(path, 'utf8'))
+    await writeFile(path, unreadable, 'utf8')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    const reopened = new BookmarkStore(path)
+    await expect(reopened.load()).resolves.toEqual([])
+    await reopened.add({ url: 'https://example.test/new', title: 'New' })
+
+    const files = await readdir(dirname(path))
+    const aside = files.find((name) => /^bookmarks\.json\.unreadable-\d{4}-\d{2}-\d{2}T[\d-]+Z$/.test(name))
+    expect(files.sort()).toEqual(['bookmarks.json', aside].sort())
+    expect(await readFile(join(dirname(path), aside!), 'utf8')).toBe(unreadable)
+    expect(JSON.parse(await readFile(path, 'utf8')).bookmarks).toEqual([expect.objectContaining({ title: 'New' })])
+    expect(warn).toHaveBeenCalledWith('[bookmarks] Kept an unreadable bookmarks file aside and started with no bookmarks.')
+    warn.mockRestore()
   })
 
   it('atomically persists, restores, renames, and removes bookmarks', async () => {
