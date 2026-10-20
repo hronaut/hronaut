@@ -42,6 +42,12 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   }
   // Each count takes the form its language uses for it: 1 клієнт, 2 клієнти, 5 клієнтів.
   const count = (message: string, value: number): string => pluralText(locale, message, value)
+  const node = (tag: string, className: string, value = ''): HTMLElement => {
+    const created = document.createElement(tag)
+    if (className) created.className = className
+    created.textContent = value
+    return created
+  }
   let selectedGuide = guides.find(guide => guide.id === remember('hronaut.home.guide'))?.id ?? guides[0]!.id
   // An agent found on this computer becomes the first guide until the person picks one.
   let guideChosen = guides.some(guide => guide.id === remember('hronaut.home.guide'))
@@ -178,12 +184,6 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     // Each check in words; its typed state stays in the copied diagnostic below. Built as nodes: the pasted tool list
     // feeds this report, so none of it is read as markup.
     const tone = (state: string): 'ok' | 'failed' | 'pending' => /_(?:ready|initialized|advertised|verified)$/u.test(state) ? 'ok' : state === 'blocked' || state.endsWith('_failed') ? 'failed' : 'pending'
-    const node = (tag: string, className: string, value = ''): HTMLElement => {
-      const created = document.createElement(tag)
-      if (className) created.className = className
-      created.textContent = value
-      return created
-    }
     element('readiness-checks').replaceChildren(...Object.entries(report.checks).map(([name, check]) => {
       const state = tone(check.state)
       const dot = node('span', `readiness-dot ${state}`)
@@ -323,7 +323,29 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     element('onboarding-client').dataset.complete = String(dashboard.readiness.checks.initialization.state === 'client_initialized')
     element('onboarding-connection').dataset.complete = String(dashboard.readiness.checks.initialization.state === 'client_initialized')
     element('onboarding-probe').dataset.complete = String(verified)
-    element('connections').innerHTML = dashboard.clients.length ? dashboard.clients.map(client => `<div class="connection"><span class="client-icon">${h(client.name.trim().charAt(0))}</span><div><div class="client-name">${h(client.name)}</div><div class="client-meta">${h(client.version ?? messages.connections.versionUnknown)} · ${h(relativeTime(client.lastSeenAt))} · ${h(count(messages.counts.requests, client.requestCount))}</div></div><span class="connection-state ${client.activeRequests ? 'active' : ''}">${h(client.activeRequests ? messages.connections.active : messages.connections.recent)}</span></div>`).join('') : `<div class="empty"><div><strong>${h(messages.connections.emptyHeading)}</strong><span>${h(messages.connections.emptyDescription)}</span></div></div>`
+    // Built as nodes, so nothing a client reports, such as its name or version, is read as markup.
+    const connection = (client: HomeDashboard['clients'][number]): HTMLElement => {
+      const words = node('div', '')
+      words.append(
+        node('div', 'client-name', client.name),
+        node('div', 'client-meta', `${client.version ?? messages.connections.versionUnknown} · ${relativeTime(client.lastSeenAt)} · ${count(messages.counts.requests, client.requestCount)}`)
+      )
+      const row = node('div', 'connection')
+      row.append(
+        node('span', 'client-icon', client.name.trim().charAt(0)),
+        words,
+        node('span', client.activeRequests ? 'connection-state active' : 'connection-state', client.activeRequests ? messages.connections.active : messages.connections.recent)
+      )
+      return row
+    }
+    const noConnections = (): HTMLElement => {
+      const words = node('div', '')
+      words.append(node('strong', '', messages.connections.emptyHeading), node('span', '', messages.connections.emptyDescription))
+      const empty = node('div', 'empty')
+      empty.append(words)
+      return empty
+    }
+    element('connections').replaceChildren(...(dashboard.clients.length ? dashboard.clients.map(connection) : [noConnections()]))
     renderTools()
   }
   /** A busy or refused port says so and offers the free port main found; anything else stays under Details. */

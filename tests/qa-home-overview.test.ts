@@ -151,4 +151,18 @@ describe('Overview setup checks in words (#873)', () => {
     expect(byId('home-overview').hidden).toBe(false)
     expect(document.activeElement).toBe(byId('home-tab-overview'))
   })
+
+  it('lists each connection as text, with its requests counted in the interface language', async () => {
+    // A client's request count read "1 requests", and "Запросов: 1" in Russian.
+    const client = (name: string, requestCount: number) => ({ name, version: '1.0.0', lastSeenAt: isoMinutesAgo(0), requestCount, activeRequests: 0 })
+    mountTestHome({ dashboard: { ...baseDashboard, clients: [client('<img src=x onerror=alert(1)>', 1), client('Codex', 3)] } })
+    await flush()
+    const rows = [...byId('connections').querySelectorAll('.connection')]
+    expect(rows.map(row => words(row.querySelector('.client-meta')).split(' · ').at(-1))).toEqual(['1 request', '3 requests'])
+    expect(words(rows[0]!.querySelector('.client-name'))).toBe('<img src=x onerror=alert(1)>')
+    expect(byId('connections').querySelector('img')).toBeNull()
+    mountTestHome({ locale: 'ru-RU', dashboard: { ...baseDashboard, clients: [client('Codex', 1), client('Cursor', 3), client('Zed', 5)] } })
+    await flush()
+    expect([...byId('connections').querySelectorAll('.client-meta')].map(meta => words(meta).split(' · ').at(-1))).toEqual(['1 запрос', '3 запроса', '5 запросов'])
+  })
 })
