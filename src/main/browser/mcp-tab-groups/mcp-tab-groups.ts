@@ -1,6 +1,7 @@
 import type { BrowserTabGroupState } from '../../../shared/types.js'
 import type { BrowserTabGroupColor } from '../../../shared/tab-groups.js'
 import { normalizeWorkspaceDescription } from '../../../shared/workspace-description.js'
+import { plainWorkspaceName } from '../../../shared/plain-workspace-name.js'
 import { LocalizedError } from '../../localized-error.js'
 import { retireNetworkPriorityObservations } from '../network-recording.js'
 import type { McpTabGroupsAccess, McpTabGroupsTab } from './mcp-tab-groups-access.js'
@@ -15,9 +16,9 @@ function unknownWorkspace(groupId: string): LocalizedError {
 /** The longest workspace name, in characters after trimming and normalization. */
 const MAX_WORKSPACE_NAME_LENGTH = 80
 
-/** Trims and NFC-normalizes a workspace name, and rejects an empty or overlong one. */
+/** A workspace name as `plainWorkspaceName` keeps it, one line without invisible formatting; refuses an empty or overlong one. */
 export function normalizedWorkspaceName(name: string): string {
-  const normalized = name.trim().normalize('NFC')
+  const normalized = plainWorkspaceName(name)
   if (!normalized) throw new LocalizedError('appErrors.workspace.nameEmpty')
   if (normalized.length > MAX_WORKSPACE_NAME_LENGTH) {
     throw new LocalizedError('appErrors.workspace.nameTooLong', { max: MAX_WORKSPACE_NAME_LENGTH })
@@ -70,7 +71,9 @@ export function updateMcpTabGroup<Tab extends McpTabGroupsTab>(
   const group = access.mcpTabGroups().get(groupId)
   if (!group) throw unknownWorkspace(groupId)
   access.assertWorkspaceIdle(groupId)
-  if (updates.name !== undefined) {
+  // The workspace editor sends the name with every change, so a name saved before names were kept plain stays as it is
+  // until the person changes it, instead of refusing the other changes when its plain form is another workspace's name.
+  if (updates.name !== undefined && updates.name !== group.name) {
     const name = normalizedWorkspaceName(updates.name)
     if (name !== group.name) {
       access.assertWorkspaceNameAvailable(name, group.id, undefined, allowDuplicateName)

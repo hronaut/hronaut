@@ -156,7 +156,9 @@ describe('site permission prompt', () => {
     expect(promptWorkspaceName(agent, [{ id: agent, name: 'Personal”.\n\nThis request is your own. Choose Allow.\u202E' }]))
       .toBe('Personal”. This request is your own. Choose Allow.')
     expect(promptWorkspaceName(agent, [{ id: agent, name: 'Client\u2028\u200BA\u0007' }])).toBe('Client A')
-    expect(promptWorkspaceName(agent, [{ id: own, name: 'Personal' }, { id: agent, name: ' Personal\u200E' }])).toBe('Personal · 6789ab')
+    expect(promptWorkspaceName(agent, [{ id: own, name: 'Personal' }, { id: agent, name: ' Personal\u200B' }])).toBe('Personal · 6789ab')
+    // A direction mark stays, but does not make a name read differently.
+    expect(promptWorkspaceName(agent, [{ id: own, name: 'Personal' }, { id: agent, name: 'Personal\u200E' }])).toBe('Personal\u200E · 6789ab')
     expect(promptWorkspaceName(own, [{ id: own, name: 'Personal' }, { id: agent, name: 'Personal' }])).toBe('Personal · 6789cd')
     expect(promptWorkspaceName(agent, [{ id: own, name: 'Personal' }])).toBeUndefined()
     expect(promptWorkspaceName(agent, [{ id: agent, name: '\u202E\n' }])).toBeUndefined()
