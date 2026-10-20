@@ -84,6 +84,26 @@ it('redacts URL credentials and token parameters before exposing download histor
   expect(controller.manageWorkspaceDownloads('first', 'list')[0]?.url).not.toContain('secret')
 })
 
+it.each([
+  ['data:text/csv;base64,' + 'QUJD'.repeat(250_000), 'data:text/csv,'],
+  ['data:Image/PNG;base64,' + 'iVBO'.repeat(1_000), 'data:image/png,'],
+  ['DATA:,' + 'plain text the page generated'.repeat(1_000), 'data:,']
+])('keeps only the media type of a data: download address, not the file it holds', async (url, expected) => {
+  // The whole file stayed in the record, so every list, MCP result and panel update carried it.
+  const { controller, download } = await fixture()
+  download(1, false, url, 'report.csv')
+  expect(controller.listDownloads()[0]?.url).toBe(expected)
+  expect(controller.manageWorkspaceDownloads('first', 'list')[0]?.url).toBe(expected)
+})
+
+it('cuts a very long download address at 4,096 characters', async () => {
+  const { controller, download } = await fixture()
+  download(1, false, `https://download.example/file.txt?view=${'a'.repeat(10_000)}`)
+  const url = controller.listDownloads()[0]?.url
+  expect(url).toHaveLength(4_096)
+  expect(url?.startsWith('https://download.example/file.txt?view=aaa')).toBe(true)
+})
+
 it('preserves workspace ownership and excludes a live download from a new observation generation', async () => {
   const { controller, session, generations, download } = await fixture()
   controller.attachSession(session as Session)
