@@ -2,6 +2,7 @@
 import UiIconButton from "../ui/UiIconButton.vue"
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ignoreHeldEnter } from '../held-enter.js'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
@@ -107,6 +108,7 @@ watch(() => filteredEntries.value.map(entry => entry.id).join('\n'), async (_cur
             :label="t('settings.passwords.removeAria', { username: credential.username || t('settings.passwords.unnamed'), origin: credential.origin })"
             :tooltip="t('settings.passwords.remove')"
             :aria-disabled="isPending(credential.id)"
+            @keydown="ignoreHeldEnter"
             @click="remove(credential.id)"
           >
             <IconDelete aria-hidden="true" />

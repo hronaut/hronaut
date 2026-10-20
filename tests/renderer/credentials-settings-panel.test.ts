@@ -331,3 +331,17 @@ it('preserves a newer search while a pending removal finishes', async () => {
   expect(screen.getByRole('button', { name: removeName(entries[2]) })).toBeVisible()
   controller.dispose()
 })
+
+it('keeps a held Enter from pressing Remove again', () => {
+  const { controller } = renderPanel()
+  const remove = screen.getByRole('button', { name: 'Remove saved password for Person on https://example.test' })
+  const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+  const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+  remove.dispatchEvent(press)
+  remove.dispatchEvent(repeat)
+
+  // Remove hands its focus to the next row's Remove, so each repeat of a held Enter removed one more row.
+  expect(press.defaultPrevented).toBe(false)
+  expect(repeat.defaultPrevented).toBe(true)
+  controller.dispose()
+})

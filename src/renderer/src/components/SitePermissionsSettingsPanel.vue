@@ -2,6 +2,7 @@
 import UiIconButton from "../ui/UiIconButton.vue"
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ignoreHeldEnter } from '../held-enter.js'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
@@ -153,6 +154,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             :label="controlLabel(permission, 'forget')"
             :tooltip="t('settings.permissions.forget')"
             :aria-disabled="clearing || isPending(permission)"
+            @keydown="ignoreHeldEnter"
             @click="remove(permission)"
           >
             <IconDelete aria-hidden="true" />

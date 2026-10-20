@@ -3,6 +3,7 @@ import { isActiveDownload } from '../../../shared/download-state.js'
 import UiButton from "../ui/UiButton.vue"
 import { nextTick, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ignoreHeldEnter } from '../held-enter.js'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconCopy from '~icons/material-symbols/content-copy-outline-rounded'
 import IconDownload from '~icons/material-symbols/download-rounded'
@@ -145,7 +146,7 @@ onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVi
       </div>
       <div class="downloads-header-actions">
         <UiButton appearance="application" type="button" :disabled="!finishedDownloads.length || pendingAction !== null" aria-describedby="downloads-clear-hint" @click="clearDownloads">{{ t('downloads.clearFinished') }}</UiButton>
-        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('downloads.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('downloads.close')" @keydown="ignoreHeldEnter" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div v-if="downloads.length" class="downloads-filters">
@@ -213,7 +214,7 @@ onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVi
             :aria-label="t('downloads.copyPathAria', { filename: download.filename })"
             v-tooltip="t('downloads.copyPath')"
             @click="copyPath(download.id)"><IconCopy aria-hidden="true" /></UiButton>
-          <UiButton appearance="application" class="download-action download-remove" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.removeAria', { filename: download.filename })" v-tooltip="t('downloads.removeHint')" @click="changeTransfer('remove', download.id, $event)"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="download-action download-remove" type="button" :disabled="pendingAction !== null" @keydown="ignoreHeldEnter" :aria-label="t('downloads.removeAria', { filename: download.filename })" v-tooltip="t('downloads.removeHint')" @click="changeTransfer('remove', download.id, $event)"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </article>
     </div>
