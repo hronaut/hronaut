@@ -5,9 +5,13 @@ import type { ActiveWorkspace, ArchivedWorkspace } from '../workspace-registry.j
 
 /** The tab fields the workspace navigation policy reads when the policy changes. */
 export interface WorkspaceNavigationTab {
+  id: string
   url: string
   mcpGroupId?: string
   webContents: WebContents
+  /** A sleeping tab shows a placeholder page; it wakes to its saved history, or to its address. */
+  sleeping: boolean
+  sleepNavigationHistory?: unknown
 }
 
 /** The workspace fields the navigation policy reads and writes: the policy itself and its audit of denials. */
@@ -34,6 +38,7 @@ export interface WorkspaceNavigationAccess<Tab extends WorkspaceNavigationTab> {
   tabs(): IterableIterator<Tab>
   options(): WorkspaceNavigationOptions
   prepareDiagnosticNavigation(tab: Tab): void
+  wakeTab(tabId: string): Promise<unknown>
   changed(persist?: boolean): void
   getState(): BrowserState
 }

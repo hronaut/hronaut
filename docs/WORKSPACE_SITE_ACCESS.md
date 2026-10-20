@@ -15,7 +15,7 @@ Rules cannot contain credentials, paths, queries, fragments, privileged schemes,
 
 ## What is enforced
 
-The main process applies the same parsed policy to direct toolbar and MCP navigation, new tabs, HTTP redirects, page links and forms, popups, and back/forward history. Changing a workspace to a restricted policy replaces any currently open disallowed top-level page with `about:blank`. The policy survives application restart and workspace archive/restore.
+The main process applies the same parsed policy to direct toolbar and MCP navigation, new tabs, HTTP redirects, page links and forms, popups, and back/forward history. Changing a workspace to a restricted policy replaces any currently open disallowed top-level page with `about:blank`: a page still loading is stopped first, a page that asks before leaving is replaced without asking, and a sleeping tab on a disallowed page wakes on `about:blank` instead of keeping that page to wake to. The policy survives application restart and workspace archive/restore.
 
 Blocked direct requests return an origin-only error. Page-driven attempts remain on the current page. Hronaut keeps at most 50 local audit entries per workspace with the target origin, decision reason, source, and time; it never stores the denied path, query, fragment, or embedded credential. The log is available only through trusted Hronaut chrome and follows the workspace through archive, restore, and restart.
 

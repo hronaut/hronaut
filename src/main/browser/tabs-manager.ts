@@ -1792,6 +1792,7 @@ export class BrowserTabsManager {
       tabs: () => this.tabs.values(),
       options: () => this.options,
       prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
+      wakeTab: (tabId) => this.wakeTab(tabId),
       changed: (persist) => this.changed(persist),
       getState: () => this.getState()
     }

@@ -29,6 +29,7 @@ function recordingAccess(workspace: WorkspaceNavigationWorkspace): WorkspaceNavi
     tabs: () => [][Symbol.iterator](),
     options: () => ({}),
     prepareDiagnosticNavigation: () => undefined,
+    wakeTab: async () => undefined,
     changed: () => undefined,
     getState: () => ({}) as BrowserState
   }
