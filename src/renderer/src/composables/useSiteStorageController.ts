@@ -545,6 +545,10 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
         action,
         ...(action === 'set' ? { key: key.value, value: value.value } : {}),
         ...(action === 'delete' ? { key: item!.key } : {}),
+        // A cookie row is one cookie of its name: its domain and path select it alone.
+        ...(action === 'delete' && kind.value === 'cookies' && item!.domain && item!.path
+          ? { cookieDomain: item!.domain, cookiePath: item!.path }
+          : {}),
         includeValues: true
       })
       if (sequence !== listSequence || !isCurrent(tab.id, expectedGeneration)) return
