@@ -93,7 +93,7 @@ All notable changes to Hronaut are documented in this file.
 - Right-clicking Hronaut Home no longer offers **Inspect**, which opened Developer Tools on Home's own page although F12 and the other Developer Tools keys refuse there. Home's page holds Hronaut's privileged Home controls, so it has no Developer Tools, whichever action asks.
 - Turning the mouse wheel with Ctrl held now zooms the website on Windows and Linux, one step per notch, as in Chrome. It did nothing: the page stayed at its size. A page that uses Ctrl with the wheel itself, such as a map or a design tool, keeps it, and Hronaut Home keeps its size.
 - **Save page as PDF** now uses the standard paper of your region: A4 in most of the world, and Letter in the US, Canada, Mexico and the other countries that use it. It always used Letter, so a page saved in Europe or Asia came out with cut edges or shrunk when printed on A4. Agents' `browser_pdf_save` still uses Letter unless it names a paper size.
-- Typing a number such as `3.14`, `2.0` or `1.2.3` in the address bar now searches for it, as Chrome does. Hronaut read it as a short IPv4 address and opened that server, so `3.14` went to `https://3.0.0.14` on the internet. A full address such as `8.8.8.8`, or one with a port or path such as `10.5:3000`, still opens.
+- Typing a number such as `3.14`, `2.0`, `1.2.3` or `22.5/7` in the address bar or a new tab, or giving one to `browser_navigate`, now searches for it, as Chrome does. Hronaut read it as a short IPv4 address and opened that server, so `3.14` went to `https://3.0.0.14` on the internet. A full address such as `8.8.8.8`, a number ending in a slash such as `1.2/`, and a local address with a port or path such as `10.5:3000` still open.
 
 ### Security
 

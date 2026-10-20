@@ -131,19 +131,24 @@ describe('normalizeAddress', () => {
     }
   )
 
-  it.each(['3.14', '1.5', '2.0', '0.5', '10.5', '1.2.3', '10.0.0', '3.14.'])(
+  it.each([
+    '3.14', '1.5', '2.0', '0.5', '10.5', '127.1', '1.2.3', '10.0.0', '3.14.',
+    '22.5/7', '3.14/2', '2.5?', '3.14#x', '1.2:45', '\uff13.\uff11\uff14', '\uff11.\uff12.\uff13'
+  ])(
     'searches the number %s instead of opening it as a short IPv4 address', (input) => {
-      // 3.14 opened https://3.0.0.14, a server on the internet, as Chrome does not.
+      // 3.14 opened https://3.0.0.14 and 22.5/7 opened https://22.0.0.5/7, servers on the internet, as Chrome does not.
       expect(normalizeAddress(input)).toBe(`https://www.google.com/search?q=${encodeURIComponent(input)}`)
     }
   )
 
   it.each([
+    ['1.2/', 'https://1.2/'],
     ['10.5/admin', 'http://10.5/admin'],
     ['127.1:8080', 'http://127.1:8080'],
+    ['192.168.1/router', 'http://192.168.1/router'],
     ['8.8.8.8', 'https://8.8.8.8'],
     ['1.2.3.4', 'https://1.2.3.4']
-  ])('still opens %s, which names a full address, a port or a path', (input, expected) => {
+  ])('still opens %s: a full address, a trailing slash, or a local address with a port or path', (input, expected) => {
     expect(normalizeAddress(input)).toBe(expected)
   })
 
