@@ -282,8 +282,8 @@ export async function performTabOverviewPreviewCapture<Tab extends TabOverviewPr
   const busy = access.nativePreviewCapture().settled(tab.webContents)
   if (busy) {
     // Another capture of the page is still running, such as the picture of an agent's step, and this one would get
-    // nothing, so the tab had no preview until something else refreshed it. The overview refreshes its own frames.
-    if (mode === 'visible') void busy.then(() => { if (isEligible()) access.scheduleTabOverviewPreview(tab) })
+    // nothing: try again once it is done. The overview refreshes its own frames while it is open.
+    if (mode === 'visible') void busy.then(() => { if (isEligible()) access.scheduleTabOverviewPreview(tab) }).catch(() => undefined)
     return
   }
   const navigationGeneration = tab.navigationGeneration

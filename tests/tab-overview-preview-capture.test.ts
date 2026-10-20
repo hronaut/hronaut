@@ -13,8 +13,8 @@ function deferred() {
   return { promise, resolve }
 }
 
-/** An active, loaded tab in view in a focused window, whose page another capture is still reading. */
-function busyTab() {
+/** An active, loaded tab in a focused window, in view or behind the overview, whose page another capture is still reading. */
+function busyTab(overviewOpen = false) {
   const capturePage = vi.fn(async () => ({ isEmpty: () => true }))
   const tab = {
     id: 'tab-1', url: 'https://example.test/', loading: false, sleeping: false, navigationGeneration: 1, overviewPreviewSequence: 1,
@@ -26,12 +26,12 @@ function busyTab() {
     isDestroyed: () => false,
     window: () => ({ isDestroyed: () => false, isVisible: () => true, isFocused: () => true }),
     findTab: (id: string) => id === tab.id ? tab : undefined,
-    browserContentOccluded: () => false,
+    browserContentOccluded: () => overviewOpen,
     activeTabId: () => tab.id,
     splitViewContains: () => false,
     nativePreviewCapture: () => nativePreviewCapture,
     scheduleTabOverviewPreview,
-    tabOverviewPreviewableTabs: () => new Set<string>()
+    tabOverviewPreviewableTabs: () => new Set<string>([tab.id])
   } as unknown as Access
   // Such as the picture of an agent's step, which shares the page's capture.
   const other = deferred()
@@ -49,6 +49,15 @@ describe('tab overview preview capture', () => {
     expect(scheduleTabOverviewPreview).not.toHaveBeenCalled()
     finishOther()
     await vi.waitFor(() => expect(scheduleTabOverviewPreview).toHaveBeenCalledWith(tab))
+  })
+
+  it('leaves the open overview to refresh its own frames', async () => {
+    const { tab, access, capturePage, scheduleTabOverviewPreview, finishOther } = busyTab(true)
+    await performTabOverviewPreviewCapture(access, tab, 1, 'overview')
+    finishOther()
+    await new Promise(resolve => setImmediate(resolve))
+    expect(capturePage).not.toHaveBeenCalled()
+    expect(scheduleTabOverviewPreview).not.toHaveBeenCalled()
   })
 
   it('leaves it to a newer capture that took over meanwhile', async () => {
