@@ -14,8 +14,8 @@ const emit = defineEmits<{
   removeAsset: [assetId: string]
 }>()
 const { t, locale } = useI18n({ useScope: 'global' })
-// Seconds use the interface language's decimal separator.
-const seconds = (milliseconds: number, digits: number): string => formatNumber(locale.value as SupportedLocale, milliseconds / 1000, { minimumFractionDigits: digits, maximumFractionDigits: digits })
+// Seconds use the interface language's decimal separator: a set number of digits for a length, up to milliseconds for a time.
+const seconds = (milliseconds: number, digits?: number): string => formatNumber(locale.value as SupportedLocale, milliseconds / 1000, digits === undefined ? { maximumFractionDigits: 3 } : { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const assetId = ref(''), start = ref(0), end = ref(1), offset = ref(0)
 const volume = ref(60), fadeIn = ref(0), fadeOut = ref(0), loop = ref(false)
 const provenance = ref(''), editing = ref<number | null>(null)
@@ -81,7 +81,7 @@ function name(id: string): string { return assets.value.find(item => item.id ===
       </div>
       <ol v-if="events.length" class="video-items">
         <li v-for="(event, index) in events" :key="index">
-          <span>{{ name(event.assetId) }} · {{ event.startMs / 1000 }} · {{ event.endMs / 1000 }} {{ t('video.seconds') }} · {{ Math.round(event.volume * 100) }}%</span>
+          <span>{{ name(event.assetId) }} · {{ seconds(event.startMs) }} · {{ seconds(event.endMs) }} {{ t('video.seconds') }} · {{ Math.round(event.volume * 100) }}%</span>
           <div class="video-actions">
             <UiButton :aria-label="t('video.audio.editEvent', { index: index + 1 })" @click="edit(index)">{{ t('video.audio.edit') }}</UiButton>
             <UiButton :aria-label="t('video.audio.removeEvent', { index: index + 1 })" @click="emit('edit', { audio: events.filter((_, i) => i !== index) })">{{ t('video.remove') }}</UiButton>

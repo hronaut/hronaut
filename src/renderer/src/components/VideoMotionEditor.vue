@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatNumber } from '../../../shared/format.js'
+import type { SupportedLocale } from '../../../shared/types.js'
 import UiButton from '../ui/UiButton.vue'
 import type { BrowserVideoOptions, BrowserVideoState } from '../../../shared/video.js'
 
 const props = defineProps<{ state: BrowserVideoState; busy: boolean }>()
 const emit = defineEmits<{ edit: [options: Partial<BrowserVideoOptions>] }>()
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
+// Times and zoom use the interface language's decimal separator.
+const localNumber = (value: number): string => formatNumber(locale.value as SupportedLocale, value, { maximumFractionDigits: 3 })
 const start = ref(0), end = ref(Math.min(2, props.state.durationMs / 1000)), x = ref(50), y = ref(50), zoom = ref(1.5)
 const pan = ref(false), endX = ref(50), endY = ref(50), endZoom = ref(1.5), ease = ref(300)
 const transition = ref(props.state.transition?.durationMs ?? 0)
@@ -43,7 +47,7 @@ watch(() => props.state.transition?.durationMs, value => { transition.value = va
       <UiButton @click="add">{{ t('video.motion.add') }}</UiButton>
       <ol v-if="cameras.length" class="video-items">
         <li v-for="(camera, index) in cameras" :key="index">
-          <span>{{ camera.startMs / 1000 }} · {{ camera.endMs / 1000 }} {{ t('video.seconds') }} · {{ camera.zoom }}× <template v-if="camera.endZoom !== undefined">→ {{ camera.endZoom }}×</template></span>
+          <span>{{ localNumber(camera.startMs / 1000) }} · {{ localNumber(camera.endMs / 1000) }} {{ t('video.seconds') }} · {{ localNumber(camera.zoom) }}× <template v-if="camera.endZoom !== undefined">→ {{ localNumber(camera.endZoom) }}×</template></span>
           <UiButton :aria-label="t('video.motion.remove', { index: index + 1 })" @click="emit('edit', { cameras: cameras.filter((_, i) => i !== index) })">{{ t('video.remove') }}</UiButton>
         </li>
       </ol>

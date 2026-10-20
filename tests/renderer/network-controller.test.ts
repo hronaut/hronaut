@@ -276,6 +276,7 @@ describe('Network request durations', () => {
     try {
       expect([1_250, 12.34, 12_345, 0.5].map(english.formatMilliseconds)).toEqual(['1.25 s', '12.3 ms', '12.3 s', '<1 ms'])
       expect([1_250, 12.34, 12_345, 40].map(german.formatMilliseconds)).toEqual(['1,25 s', '12,3 ms', '12,3 s', '40 ms'])
+      expect([999.95, -0].map(german.formatMilliseconds)).toEqual(['1000 ms', '0 ms'])
     } finally {
       english.dispose()
       german.dispose()

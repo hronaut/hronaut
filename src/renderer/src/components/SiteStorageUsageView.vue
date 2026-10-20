@@ -26,7 +26,7 @@ function bytes(value: number): string {
 }
 
 function usagePercent(percent: number): string {
-  // Written in the interface language, such as 12,5 % in German.
+  // Written in the interface language, such as 12,50 % in German.
   if (percent <= 0) return formatPercent(props.locale, 0)
   if (percent < 0.01) return `<${formatPercent(props.locale, 0.0001, { maximumFractionDigits: 2 })}`
   const rounded = Number(percent.toFixed(2))

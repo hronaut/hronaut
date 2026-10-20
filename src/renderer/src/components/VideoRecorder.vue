@@ -11,8 +11,8 @@ import { friendlyUiError } from '../composables/useAppToastController.js'
 
 const props = defineProps<{ tabId: string }>()
 const { t, locale } = useI18n({ useScope: 'global' })
-// Seconds use the interface language's decimal separator.
-const seconds = (milliseconds: number, digits: number): string => formatNumber(locale.value as SupportedLocale, milliseconds / 1000, { minimumFractionDigits: digits, maximumFractionDigits: digits })
+// Seconds use the interface language's decimal separator: a set number of digits for a length, up to milliseconds for a time.
+const seconds = (milliseconds: number, digits?: number): string => formatNumber(locale.value as SupportedLocale, milliseconds / 1000, digits === undefined ? { maximumFractionDigits: 3 } : { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const state = ref<BrowserVideoState | null>(null)
 const busy = ref(false)
 const pendingAction = ref<BrowserVideoOptions['action']>()
@@ -201,7 +201,7 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
       </fieldset>
       <ol v-if="state?.annotations.length">
         <li v-for="(annotation, index) in state.annotations" :key="index">
-          <span>{{ t(`video.kinds.${annotation.kind}`) }} · {{ annotation.startMs / 1000 }} · {{ annotation.endMs / 1000 }} · {{ annotation.text }}</span>
+          <span>{{ t(`video.kinds.${annotation.kind}`) }} · {{ seconds(annotation.startMs) }} · {{ seconds(annotation.endMs) }} · {{ annotation.text }}</span>
           <UiButton :disabled="busy" :aria-label="t('video.removeAnnotation', { index: index + 1 })" @click="manage('edit', { annotations: state.annotations.filter((_, i) => i !== index) })">{{ t('video.remove') }}</UiButton>
         </li>
       </ol>
@@ -214,7 +214,7 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
         </div>
         <UiButton @click="manage('edit', { clips: [...(state?.clips ?? []), { startMs: clipStart * 1000, endMs: clipEnd * 1000 }] })">{{ t('video.addClip') }}</UiButton>
         <UiButton v-if="state?.clips.length" @click="manage('edit', { clips: [{ startMs: 0, endMs: state.durationMs }] })">{{ t('video.wholeRecording') }}</UiButton>
-        <ol><li v-for="(clip, index) in state?.clips" :key="index">{{ clip.startMs / 1000 }} · {{ clip.endMs / 1000 }} {{ t('video.seconds') }}<UiButton v-if="state && state.clips.length > 1" @click="manage('edit', { clips: state.clips.filter((_, i) => i !== index) })">{{ t('video.remove') }}</UiButton></li></ol>
+        <ol><li v-for="(clip, index) in state?.clips" :key="index">{{ seconds(clip.startMs) }} · {{ seconds(clip.endMs) }} {{ t('video.seconds') }}<UiButton v-if="state && state.clips.length > 1" @click="manage('edit', { clips: state.clips.filter((_, i) => i !== index) })">{{ t('video.remove') }}</UiButton></li></ol>
       </fieldset>
       <VideoAudioEditor v-if="state" :key="`audio-${tabId}-${state.recordingId ?? ''}`" :state="state" :busy="busy" @edit="manage('edit', $event)" @import="importAudio" @remove-asset="manage('remove-audio', { assetId: $event })" />
       <VideoMotionEditor v-if="state" :key="`motion-${tabId}-${state.recordingId ?? ''}`" :state="state" :busy="busy" @edit="manage('edit', $event)" />

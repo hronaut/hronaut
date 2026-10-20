@@ -463,7 +463,8 @@ export function useNetworkController(options: NetworkControllerOptions) {
       const digits = value >= 10_000 ? 1 : 2
       return `${formatNumber(options.locale(), value / 1_000, { minimumFractionDigits: digits, maximumFractionDigits: digits })} s`
     }
-    return `${formatNumber(options.locale(), value, { maximumFractionDigits: 1 })} ms`
+    // A Server-Timing entry can carry -0, which is written as 0.
+    return `${formatNumber(options.locale(), value === 0 ? 0 : value, { maximumFractionDigits: 1, useGrouping: false })} ms`
   }
 
   function requestDuration(request: BrowserNetworkRequest): string {
