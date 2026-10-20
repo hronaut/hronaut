@@ -18,9 +18,9 @@ function isLoopbackAddress(value: string): boolean {
 
 /**
  * Whether a scheme-less address names a device on the local network rather than a public site: a private, shared
- * (100.64.0.0/10, as Tailscale uses), link-local or unspecified IP address, or a `.local`, `.internal` or `.home.arpa`
- * name. No public certificate can name these, so a development server reached at one, such as the Network address
- * Vite prints, or a router's setup page, serves plain HTTP.
+ * (100.64.0.0/10, as Tailscale uses), link-local or unspecified IP address, or a `.local`, `.internal`, `.home.arpa`
+ * or `.test` name. No public certificate can name these, so a development server's Network address or a router's setup
+ * page there serves plain HTTP. The address is classified as the URL parser reads it, so `10.5` counts as `10.0.0.5`.
  */
 function isLocalNetworkAddress(value: string): boolean {
   try {
@@ -41,6 +41,16 @@ function isLocalNetworkAddress(value: string): boolean {
       || hostname.endsWith('.local')
       || hostname.endsWith('.internal')
       || hostname.endsWith('.home.arpa')
+      || hostname.endsWith('.test')
+  } catch {
+    return false
+  }
+}
+
+/** Whether a scheme-less address names port 443, which asks for HTTPS wherever the address points. */
+function namesHttpsPort(value: string): boolean {
+  try {
+    return new URL(`http://${value}`).port === '443'
   } catch {
     return false
   }
@@ -80,7 +90,8 @@ export function webAddress(input: string): string | undefined {
   if (!value) return 'about:blank'
   if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value) || /^(about|data|file|view-source):/i.test(value)) return value
   if (!hasSchemeLessUserInfo(value) && HOST_LIKE_PATTERN.test(value)) {
-    const candidate = `${isLoopbackAddress(value) || isLocalNetworkAddress(value) ? 'http' : 'https'}://${value}`
+    const plainHttp = !namesHttpsPort(value) && (isLoopbackAddress(value) || isLocalNetworkAddress(value))
+    const candidate = `${plainHttp ? 'http' : 'https'}://${value}`
     try {
       new URL(candidate)
       return candidate

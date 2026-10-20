@@ -57,7 +57,11 @@ describe('normalizeAddress', () => {
     ['nas.local:5000', 'http://nas.local:5000'],
     ['Printer.LOCAL.', 'http://Printer.LOCAL.'],
     ['host.docker.internal:3000/health', 'http://host.docker.internal:3000/health'],
-    ['router.home.arpa', 'http://router.home.arpa']
+    ['router.home.arpa', 'http://router.home.arpa'],
+    ['shop.test', 'http://shop.test'],
+    ['10.0.0.1.', 'http://10.0.0.1.'],
+    ['10.5:3000', 'http://10.5:3000'],
+    ['0x0a.0.0.1', 'http://0x0a.0.0.1']
   ])('uses HTTP for a scheme-less local network address %s', (input, expected) => {
     // It opened over HTTPS, which a development server on the local network does not serve, so the page failed to load.
     expect(normalizeAddress(input)).toBe(expected)
@@ -72,8 +76,24 @@ describe('normalizeAddress', () => {
     ['[2001:db8::1]', 'https://[2001:db8::1]'],
     ['local.example.com', 'https://local.example.com'],
     ['internal.example.com/docs', 'https://internal.example.com/docs'],
-    ['example.localdomain.com', 'https://example.localdomain.com']
+    ['example.localdomain.com', 'https://example.localdomain.com'],
+    ['foo.local.example.com', 'https://foo.local.example.com'],
+    ['11.0.0.1', 'https://11.0.0.1'],
+    ['9.255.255.255', 'https://9.255.255.255'],
+    ['100.63.255.255', 'https://100.63.255.255'],
+    ['169.253.0.1', 'https://169.253.0.1'],
+    ['192.167.255.255', 'https://192.167.255.255'],
+    ['[fbff::1]', 'https://[fbff::1]'],
+    ['[fec0::1]', 'https://[fec0::1]']
   ])('keeps HTTPS for the public address %s', (input, expected) => {
+    expect(normalizeAddress(input)).toBe(expected)
+  })
+
+  it.each([
+    ['192.168.1.1:443', 'https://192.168.1.1:443'],
+    ['nas.local:443/admin', 'https://nas.local:443/admin'],
+    ['localhost:443', 'https://localhost:443']
+  ])('keeps HTTPS for a local address that names port 443: %s', (input, expected) => {
     expect(normalizeAddress(input)).toBe(expected)
   })
 
