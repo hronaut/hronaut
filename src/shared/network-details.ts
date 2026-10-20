@@ -1,3 +1,5 @@
+import { NETWORK_BODY_PLACEHOLDERS } from './network-body-notes.js'
+
 const REDACTED_VALUE = '[REDACTED]'
 const MAX_JSON_REDACTION_DEPTH = 100
 
@@ -161,11 +163,11 @@ export function sanitizeNetworkBody(
   const originalChars = body.length
   const normalizedType = contentType?.trim() ?? ''
   if (options.base64Encoded) {
-    return boundBody('[binary body omitted]', originalChars, maxChars, true)
+    return boundBody(NETWORK_BODY_PLACEHOLDERS.binary, originalChars, maxChars, true)
   }
   if (!body) return { text: '', originalChars: 0, truncated: false, redacted: false }
   if (MULTIPART_CONTENT_TYPE.test(normalizedType)) {
-    return boundBody('[multipart body omitted]', originalChars, maxChars, true)
+    return boundBody(NETWORK_BODY_PLACEHOLDERS.multipart, originalChars, maxChars, true)
   }
   if (JSON_CONTENT_TYPE.test(normalizedType) || /^[\s\r\n]*[\[{]/.test(body)) {
     try {
@@ -175,7 +177,7 @@ export function sanitizeNetworkBody(
         return boundBody(JSON.stringify(result.value, null, 2), originalChars, maxChars, result.redacted)
       } catch {
         // Valid JSON must never fall back to raw text if secret redaction fails.
-        return boundBody('[JSON body omitted: could not safely redact]', originalChars, maxChars, true)
+        return boundBody(NETWORK_BODY_PLACEHOLDERS.unsafeJson, originalChars, maxChars, true)
       }
     } catch {
       // A mislabeled or incomplete JSON response is still useful as bounded text.
@@ -187,7 +189,7 @@ export function sanitizeNetworkBody(
     return boundBody((redacted ?? form).toString(), originalChars, maxChars, Boolean(redacted))
   }
   if (normalizedType && !TEXT_CONTENT_TYPE.test(normalizedType)) {
-    return boundBody('[non-text body omitted]', originalChars, maxChars, true)
+    return boundBody(NETWORK_BODY_PLACEHOLDERS.nonText, originalChars, maxChars, true)
   }
   return boundBody(body, originalChars, maxChars, false)
 }

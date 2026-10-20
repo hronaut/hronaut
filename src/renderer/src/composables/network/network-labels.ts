@@ -1,6 +1,8 @@
+import { networkBodyPlaceholder, networkBodyUnavailableReason } from '../../../../shared/network-body-notes.js'
 import { networkResourceCategory } from '../../../../shared/network-har.js'
 import type {
   BrowserNetworkResponseSource,
+  BrowserNetworkSearchMatch,
   BrowserServiceWorkerResponseSource,
   BrowserWebSocketMessageDirection,
   BrowserWebSocketMessageKind
@@ -96,6 +98,38 @@ export function createNetworkLabels(translate: Translate) {
     return MESSAGE_KINDS.has(kind) ? translate(`networkLabels.messageKinds.${kind}`) : kind
   }
 
+  /** The note shown instead of a body Hronaut withheld, or undefined for a real body. */
+  function bodyPlaceholder(text: string | undefined): string | undefined {
+    const placeholder = networkBodyPlaceholder(text)
+    return placeholder ? translate(`networkLabels.bodyNotes.${placeholder}`) : undefined
+  }
+
+  function bodyReason(reason: string | undefined): string | undefined {
+    const known = networkBodyUnavailableReason(reason)
+    return known ? translate(`networkLabels.bodyReasons.${known}`) : reason
+  }
+
+  /** Where a content search match was found. URLs and header names keep their own text. */
+  function searchField(match: Pick<BrowserNetworkSearchMatch, 'field' | 'label'>): string {
+    if (match.field === 'error') return translate('networkLabels.searchFields.error')
+    if (match.field === 'request-body') return translate('network.details.requestBody')
+    if (match.field === 'response-body') return translate('network.details.responseBody')
+    if (match.field === 'websocket-message') {
+      const [, direction, kind] = /^(\S+) (\S+) message$/.exec(match.label) ?? []
+      if (MESSAGE_DIRECTIONS.has(direction) && MESSAGE_KINDS.has(kind)) {
+        return translate('networkLabels.searchFields.message', {
+          direction: messageDirection(direction as BrowserWebSocketMessageDirection),
+          kind: messageKind(kind as BrowserWebSocketMessageKind)
+        })
+      }
+    }
+    if (match.field === 'eventsource-message') {
+      const name = /^([\s\S]*) event$/.exec(match.label)?.[1]
+      if (name !== undefined) return translate('networkLabels.searchFields.event', { name })
+    }
+    return match.label
+  }
+
   return {
     categoryLabel,
     requestCategory,
@@ -104,7 +138,10 @@ export function createNetworkLabels(translate: Translate) {
     serviceWorkerSource,
     initiator,
     messageDirection,
-    messageKind
+    messageKind,
+    bodyPlaceholder,
+    bodyReason,
+    searchField
   }
 }
 

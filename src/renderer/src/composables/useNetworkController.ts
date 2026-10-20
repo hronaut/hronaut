@@ -672,6 +672,8 @@ export function useNetworkController(options: NetworkControllerOptions) {
     resourceTypeLabel: labels.resourceType,
     messageDirectionLabel: labels.messageDirection,
     messageKindLabel: labels.messageKind,
+    bodyPlaceholderLabel: labels.bodyPlaceholder,
+    bodyReasonLabel: labels.bodyReason,
     replayRequiresConfirmation: networkReplayRequiresConfirmation,
     dispose
   }
