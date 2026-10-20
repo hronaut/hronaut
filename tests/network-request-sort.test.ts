@@ -54,4 +54,27 @@ describe('network request sorting', () => {
     expect(sortNetworkRequests(tied, 'size', 'asc').map(({ id }) => id)).toEqual(['first', 'second', 'pending'])
     expect(sortNetworkRequests(requests, 'duration', 'asc').map(({ id }) => id)).toEqual(['second', 'first', 'pending'])
   })
+
+  it('sorts a request recorded without its duration by the time from its start to its end', () => {
+    // Such a request, as one that failed while the Network debugger was not attached, sorted after the measured ones in
+    // both directions, while its row showed how long it took.
+    const failed: BrowserNetworkRequest = {
+      id: 'failed',
+      url: 'https://example.test/failed',
+      method: 'GET',
+      resourceType: 'fetch',
+      startedAt: '2026-08-15T10:00:03.000Z',
+      completedAt: '2026-08-15T10:00:04.500Z',
+      error: 'net::ERR_EMPTY_RESPONSE',
+      detailsAvailable: true
+    }
+    const withFailure = [...requests, failed]
+    expect(sortNetworkRequests(withFailure, 'duration', 'desc').map(({ id }) => id)).toEqual(['failed', 'first', 'second', 'pending'])
+    expect(sortNetworkRequests(withFailure, 'duration', 'asc').map(({ id }) => id)).toEqual(['second', 'first', 'failed', 'pending'])
+    const quick = { ...failed, id: 'quick', completedAt: '2026-08-15T10:00:03.010Z' }
+    expect(sortNetworkRequests([...requests, quick], 'duration', 'desc').map(({ id }) => id)).toEqual(['first', 'second', 'quick', 'pending'])
+    // An end before the start, after the computer's clock went back, has no duration and stays last.
+    const clockBack = { ...failed, id: 'clock-back', completedAt: '2026-08-15T10:00:02.000Z' }
+    expect(sortNetworkRequests([clockBack, ...requests], 'duration', 'desc').map(({ id }) => id)).toEqual(['first', 'second', 'clock-back', 'pending'])
+  })
 })

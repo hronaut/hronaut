@@ -27,6 +27,7 @@ import {
 } from '../../../shared/network-response-source.js'
 import {
   buildNetworkWaterfallRange,
+  networkRequestDurationMs,
   networkWaterfallPosition
 } from '../../../shared/network-waterfall.js'
 import {
@@ -467,11 +468,10 @@ export function useNetworkController(options: NetworkControllerOptions) {
     return `${formatNumber(options.locale(), value === 0 ? 0 : value, { maximumFractionDigits: 1, useGrouping: false })} ms`
   }
 
+  // The same duration the waterfall and the Duration sort use.
   function requestDuration(request: BrowserNetworkRequest): string {
-    if (request.durationMs !== undefined) return formatMilliseconds(request.durationMs)
-    if (!request.completedAt) return '—'
-    const duration = Date.parse(request.completedAt) - Date.parse(request.startedAt)
-    return Number.isFinite(duration) ? formatMilliseconds(Math.max(0, duration)) : '—'
+    const duration = networkRequestDurationMs(request)
+    return duration === undefined ? '—' : formatMilliseconds(duration)
   }
 
   function waterfallStyle(request: BrowserNetworkRequest): Record<string, string> {
