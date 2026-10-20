@@ -1,6 +1,7 @@
-import { Menu, type ContextMenuParams, type MenuItemConstructorOptions } from 'electron'
+import { Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebFrameMain } from 'electron'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
+import { savedResourceReferrer } from './page-context-menu-referrer.js'
 
 /**
  * Shows the native context menu for a right-click in the page: link, image,
@@ -40,6 +41,17 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   const copyText = (text: string): void => {
     void access.options().copyText(text).catch((error) => reportCopyFailure('text', error))
   }
+  // Electron types the frame's referrer policy as a Referrer, but reports the policy name.
+  const referrerPolicy = params.referrerPolicy as unknown as string | Partial<Electron.Referrer> | undefined
+  const policy = typeof referrerPolicy === 'string' ? referrerPolicy : referrerPolicy?.policy ?? 'default'
+  // A sandboxed frame or page has an opaque origin and sends no referrer, as in Chrome. It is read now, since the frame
+  // can be gone by the time an item is chosen.
+  const sandboxedFrame = hasOpaqueOrigin(params.frame)
+  const download = (url: string): void => {
+    const referrer = sandboxedFrame ? undefined : savedResourceReferrer(params.frameURL, url, policy)
+    if (referrer) webContents.downloadURL(url, { headers: { Referer: referrer } })
+    else webContents.downloadURL(url)
+  }
   const copyImage = (): void => {
     void access.options().copyImageAt(webContents, params.x, params.y)
       .catch((error) => reportCopyFailure('image', error))
@@ -63,7 +75,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
         id: 'save-link',
         label: access.text('native.context.saveLink'),
         enabled: webLink,
-        click: withLiveContents('save link', () => webContents.downloadURL(params.linkURL))
+        click: withLiveContents('save link', () => download(params.linkURL))
       }
     ])
   }
@@ -91,7 +103,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
         id: 'save-image',
         label: access.text('native.context.saveImage'),
         enabled: isWebUrl(params.srcURL),
-        click: withLiveContents('save image', () => webContents.downloadURL(params.srcURL))
+        click: withLiveContents('save image', () => download(params.srcURL))
       }
     ])
   }
@@ -187,6 +199,16 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     window: access.window(),
     ...(params.frame ? { frame: params.frame } : {})
   })
+}
+
+function hasOpaqueOrigin(frame: WebFrameMain | null | undefined): boolean {
+  if (!frame) return false
+  try {
+    return frame.origin === 'null'
+  } catch {
+    // A frame that is already gone cannot show its origin, so it gets no referrer.
+    return true
+  }
 }
 
 async function inspectElement<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, x: number, y: number): Promise<void> {
