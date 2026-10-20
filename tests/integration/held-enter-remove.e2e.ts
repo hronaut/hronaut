@@ -15,12 +15,9 @@ async function holdEnterOnFirstRemove(page: Page, removes: Locator, rows: number
   await expect(removes.first()).toBeFocused()
   await page.keyboard.down('Enter')
   await expect(removes).toHaveCount(rows - 1)
-  await expect(removes.first()).toBeEnabled()
-  // Remove hands its focus to the next row's Remove. History's live list can take that focus elsewhere first, so it
-  // is given here rather than waited for.
-  await removes.first().focus()
   for (let repeat = 0; repeat < 6; repeat += 1) {
     await page.waitForTimeout(50)
+    // Remove hands its focus to the next row's Remove, and History's now does too.
     await expect(removes.first()).toBeEnabled()
     await expect(removes.first()).toBeFocused()
     await page.keyboard.down('Enter')
