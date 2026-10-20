@@ -71,7 +71,25 @@ test('a held Enter on the command palette button leaves the choice of command to
   const search = palette.getByRole('combobox', { name: 'Search commands' })
   await holdEnterIntoSearch(appWindow, search)
   await expect(palette).toBeVisible()
-
+  // A new press runs the selected command: with nothing typed, Switch workspace, which shows the switcher instead.
+  await expect(search).toHaveAttribute('aria-activedescendant', 'command-palette-switch-workspace')
+  await appWindow.keyboard.press('Enter')
+  const switcher = appWindow.getByRole('dialog', { name: 'Switch workspace' })
+  await expect(switcher).toBeVisible()
   await appWindow.keyboard.press('Escape')
+  await expect(switcher).toHaveCount(0)
+
+  // Closing the palette gives the focus back to its button, which each repeat used to press, opening it again.
+  await commandButton.click()
+  const close = palette.getByRole('button', { name: 'Close command palette' })
+  await close.focus()
+  await expect(close).toBeFocused()
+  await appWindow.keyboard.down('Enter')
+  for (let repeat = 0; repeat < 6; repeat += 1) {
+    await appWindow.waitForTimeout(50)
+    await expect(commandButton).toBeFocused()
+    await appWindow.keyboard.down('Enter')
+  }
+  await appWindow.keyboard.up('Enter')
   await expect(palette).toHaveCount(0)
 })

@@ -65,6 +65,7 @@ const { t } = useI18n({ useScope: 'global' })
       :aria-label="t('shell.actions.commands')"
       aria-keyshortcuts="Control+Shift+P Meta+Shift+P"
       :aria-expanded="commandPaletteOpen"
+      @keydown="ignoreHeldEnter"
       @click="emit('toggleCommandPalette')"
     >
       <IconKeyboardCommandKey aria-hidden="true" />
