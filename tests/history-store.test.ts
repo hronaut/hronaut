@@ -313,12 +313,18 @@ describe('HistoryStore', () => {
 
   it.each([
     // The first title is what Electron 44.9.0's webContents.getTitle() returned for an untitled page at that address,
-    // probed under Xvfb; the others follow Chromium's address formatting for such titles.
+    // probed under Xvfb; the others follow Chromium's address formatting for such titles. Chromium keeps the slash
+    // of a bare host when a fragment follows it, and wraps an address with right-to-left text in U+202A … U+202C.
     ['http://127.0.0.1:3000/callback#access_token=history-secret', '127.0.0.1:3000/callback#access_token=history-secret', 'http://127.0.0.1:3000/callback'],
     ['https://app.example/oauth/callback#access_token=history-secret', 'app.example/oauth/callback#access_token=history-secret', 'https://app.example/oauth/callback'],
-    ['https://www.app.example/cb?step=2#id_token=history-secret', 'app.example/cb?step=2#id_token=history-secret', 'https://www.app.example/cb?step=2'],
+    ['https://www.example.com/cb?step=2#id_token=history-secret', 'example.com/cb?step=2#id_token=history-secret', 'https://www.example.com/cb?step=2'],
     ['https://docs.example/a%20b#key=history-secret', 'docs.example/a b#key=history-secret', 'https://docs.example/a%20b'],
-    ['https://xn--e1afmkfd.example/#key=history-secret', 'пример.example#key=history-secret', 'https://xn--e1afmkfd.example/']
+    ['https://xn--e1afmkfd.example/#key=history-secret', 'пример.example/#key=history-secret', 'https://xn--e1afmkfd.example/'],
+    [
+      'https://app.example.co.il/cb#access_token=history-secret&state=%D7%A9%D7%9C%D7%95%D7%9D',
+      '\u202Aapp.example.co.il/cb#access_token=history-secret&state=שלום\u202C',
+      'https://app.example.co.il/cb'
+    ]
   ])('does not save the fragment of the address Chromium shows as an untitled page\'s title (%s)', async (url, title, saved) => {
     // An untitled sign-in callback was saved with its fragment as the title, such as
     // app.example/oauth/callback#access_token=…, since Chromium leaves out the scheme there.
@@ -329,10 +335,32 @@ describe('HistoryStore', () => {
     expect(await readFile(path, 'utf8')).not.toContain('history-secret')
   })
 
+  it.each([
+    // Chromium decodes escapes in the address it shows, and a tab's title composes Unicode and collapses whitespace.
+    ['lowercase escapes', 'https://docs.example/caf%c3%a9#key=history-secret', 'docs.example/café#key=history-secret'],
+    ['escaped unreserved characters in the query', 'https://docs.example/s?q=%7Euser%2Dx%41#key=history-secret', 'docs.example/s?q=~user-xA#key=history-secret'],
+    ['repeated escaped spaces', 'https://docs.example/a%20%20b#key=history-secret', 'docs.example/a b#key=history-secret'],
+    ['decomposed Unicode', 'https://docs.example/cafe%CC%81#key=history-secret', 'docs.example/caf\u00e9#key=history-secret'],
+    ['an escaped space before the fragment', 'https://docs.example/a%20#key=history-secret', 'docs.example/a #key=history-secret'],
+    ['the scheme kept', 'https://docs.example/caf%c3%a9#key=history-secret', 'https://docs.example/café#key=history-secret']
+  ])('does not save the fragment of an untitled page\'s address shown with %s', async (_case, url, title) => {
+    // These titles were the page's address too, but did not normalize to it exactly, so the token was saved.
+    const { path, store } = await storeAt()
+    const saved = normalizeHistoryUrl(url)
+    expect(await store.record({ url, title })).toMatchObject({ title: saved })
+    expect(await readFile(path, 'utf8')).not.toContain('history-secret')
+  })
+
   it('keeps a real title that only looks like an address', async () => {
     const { store } = await storeAt()
     expect(await store.record({ url: 'https://app.example/dashboard', title: 'app.example/status' })).toMatchObject({ title: 'app.example/status' })
     expect(await store.record({ url: 'https://news.example/', title: 'news.example — Today' })).toMatchObject({ title: 'news.example — Today' })
+    // A title without a fragment holds nothing the saved address leaves out, so a site named after its address keeps it.
+    expect(await store.record({ url: 'https://www.booking.com/', title: 'Booking.com' })).toMatchObject({ title: 'Booking.com' })
+    expect(await store.record({ url: 'http://localhost:3000/', title: 'localhost:3000' })).toMatchObject({ title: 'localhost:3000' })
+    expect(await store.record({ url: 'https://docs.example/guide', title: 'Guide #3 · docs.example/guide#intro' })).toMatchObject({
+      title: 'Guide #3 · docs.example/guide#intro'
+    })
   })
 
   it('repairs a saved untitled page\'s title that kept a fragment without its scheme', async () => {

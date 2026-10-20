@@ -172,6 +172,8 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     // A frame's hash or history change does not represent another visit to
     // the tab's top-level page.
     if (!isMainFrame) return
+    // No title update follows a change within the page, but Chromium names an untitled page by its new address.
+    tab.title = normalizeTabTitle(webContents.getTitle(), tab.title)
     tab.performanceDocumentRouted = true
     const previousUrl = tab.url
     syncNavigation()

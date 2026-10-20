@@ -31,21 +31,42 @@ export function normalizeHistoryUrl(value: string): string | null {
   }
 }
 
-// Chromium names an untitled page by its address without `http://` (and, in newer versions, `https://` or a leading
-// `www.`) and without the slash of a bare host, but with its fragment, which the history leaves out:
-// `app.example/callback#access_token=…`. These are the prefixes that address can have lost.
+// Chromium names an untitled page by its address as it shows it, with the fragment the history leaves out:
+// `app.example/callback#access_token=…`. It leaves out `http://` (and can leave out `https://` or a leading `www.`),
+// decodes escapes, and wraps an address with right-to-left text in U+202A … U+202C. These are the prefixes that
+// address can have lost.
 const SCHEME_LESS_TITLE_PREFIXES = ['http://', 'https://', 'http://www.', 'https://www.']
 
-/** Whether a title is the page's own address as Chromium shows it for an untitled page, scheme left out. */
-function isSchemeLessAddressTitle(value: string, url: string): boolean {
-  const title = value.trim()
-  if (!title || /^[a-z][a-z\d+.-]*:\/\//i.test(title)) return false
-  return SCHEME_LESS_TITLE_PREFIXES.some((prefix) => normalizeHistoryUrl(`${prefix}${title}`) === url)
+/** An address with its escapes decoded, Unicode composed and whitespace collapsed, as a tab's title shows it. */
+function shownAddress(href: string): string {
+  const decoded = href.replace(/(?:%[\da-f]{2})+/giu, (escapes) => {
+    try {
+      return decodeURIComponent(escapes)
+    } catch {
+      return escapes
+    }
+  })
+  return decoded.normalize('NFC').replace(/\s+/gu, ' ').trim()
+}
+
+/** Whether a title is the page's own address with a fragment, as Chromium shows it for an untitled page. */
+function isAddressTitleWithFragment(value: string, url: string): boolean {
+  // Only the fragment is private: the history keeps the address's path and query already.
+  if (!value.includes('#')) return false
+  const title = value.replace(/^\u202A/u, '').replace(/\u202C$/u, '').trim()
+  const scheme = /^[a-z][a-z\d+.-]*:\/\//iu.exec(title)?.[0] ?? ''
+  const host = title.slice(scheme.length).split(/[/?#]/u, 1)[0]
+  if (!host || /\s/u.test(host)) return false
+  const shown = shownAddress(url)
+  return (scheme ? [''] : SCHEME_LESS_TITLE_PREFIXES).some((prefix) => {
+    const address = normalizeHistoryUrl(`${prefix}${title}`)
+    return address !== null && shownAddress(address) === shown
+  })
 }
 
 function normalizeTitle(value: string, url: string, sourceUrl = url): string {
   // Such a title is replaced by the address the history keeps, so a fragment's sign-in token is not saved with it.
-  if (isSchemeLessAddressTitle(value, url)) value = sourceUrl
+  if (isAddressTitleWithFragment(value, url)) value = sourceUrl
   return normalizeCollectionTitle(value, url, sourceUrl, {
     maxLength: MAX_HISTORY_TITLE,
     normalizeUrl: normalizeHistoryUrl,
