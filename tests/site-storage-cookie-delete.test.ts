@@ -1,20 +1,21 @@
-import type { Cookie, WebContents } from 'electron'
+import type { Cookie, CookiesSetDetails, WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 import { manageCookies } from '../src/main/browser/site-storage/cookies.js'
 import type { SiteStorageAccess, SiteStorageTab } from '../src/main/browser/site-storage/site-storage-access.js'
 
-interface StoredCookie { name: string; value: string; domain: string; path: string; httpOnly: boolean; partitionKey?: unknown }
+interface StoredCookie { name: string; value: string; domain: string; path: string; httpOnly: boolean; partitioned?: true }
 
 const PAGE = new URL('https://app.example.test/checkout/page')
 
 /**
- * A tab whose cookie store behaves like Chromium's for the calls site storage makes: the listing holds the cookies the
- * page receives, Network.deleteCookies deletes exactly the unpartitioned cookies of a name, domain and path, and
+ * A tab whose cookie store behaves like Chromium's for the calls site storage makes: a listing holds the cookies the
+ * page receives, partitioned ones included without their partition key; setting an already expired cookie deletes the
+ * unpartitioned cookie of exactly that name, domain and path, and refuses to replace an HttpOnly one; and
  * cookies.remove(url, name) deletes every cookie of that name sent to the URL, HttpOnly ones included.
  */
 function cookieTab(stored: StoredCookie[]) {
-  const sentTo = (url: URL, cookie: StoredCookie): boolean => cookie.partitionKey === undefined
-    && (cookie.domain.startsWith('.') ? `.${url.hostname}`.endsWith(cookie.domain) : url.hostname === cookie.domain)
+  const sentTo = (url: URL, cookie: StoredCookie): boolean =>
+    (cookie.domain.startsWith('.') ? `.${url.hostname}`.endsWith(cookie.domain) : url.hostname === cookie.domain)
     && (url.pathname === cookie.path || url.pathname.startsWith(cookie.path.endsWith('/') ? cookie.path : `${cookie.path}/`))
   const listing = (url: URL): Cookie[] => stored.filter((cookie) => sentTo(url, cookie)).map((cookie) => ({
     name: cookie.name, value: cookie.value, domain: cookie.domain, path: cookie.path, httpOnly: cookie.httpOnly,
@@ -24,17 +25,19 @@ function cookieTab(stored: StoredCookie[]) {
     const target = new URL(url)
     for (const cookie of stored.filter((candidate) => candidate.name === name && sentTo(target, candidate))) stored.splice(stored.indexOf(cookie), 1)
   })
-  const sendCommand = vi.fn(async (method: string, params?: { name: string; domain: string; path: string }) => {
-    if (method === 'Network.getAllCookies') return { cookies: stored.map((cookie) => ({ ...cookie })) }
-    if (method !== 'Network.deleteCookies') throw new Error(`Unexpected ${method}`)
-    for (const cookie of stored.filter((candidate) => candidate.partitionKey === undefined && candidate.name === params!.name
-      && candidate.domain === params!.domain && candidate.path === params!.path)) stored.splice(stored.indexOf(cookie), 1)
-    return {}
+  const set = vi.fn(async (details: CookiesSetDetails) => {
+    if ((details.expirationDate ?? Infinity) > Date.now() / 1000) throw new Error('Only expiry is modeled')
+    const domain = details.domain ?? new URL(details.url).hostname
+    const existing = stored.find((cookie) => !cookie.partitioned && cookie.name === details.name && cookie.domain === domain && cookie.path === details.path)
+    if (existing?.httpOnly && !details.httpOnly) throw new Error('Failed to set cookie - The cookie would have overwritten an HttpOnly cookie')
+    if (existing) stored.splice(stored.indexOf(existing), 1)
   })
-  const session = { cookies: { get: vi.fn(async ({ url }: { url: string }) => listing(new URL(url))), remove, set: vi.fn() } }
-  const webContents = { session, isDestroyed: () => false, debugger: { sendCommand } } as unknown as WebContents
+  const session = { cookies: { get: vi.fn(async ({ url }: { url: string }) => listing(new URL(url))), remove, set } }
+  const webContents = { session, isDestroyed: () => false } as unknown as WebContents
   const tab: SiteStorageTab = { id: 'tab-1', url: PAGE.href, webContents, storageComparisonGeneration: 0 }
   const context = { tabId: 'tab-1', workspaceId: null, navigationGeneration: 0, observationGeneration: 0, humanInteractionGeneration: 0, snapshotFormatVersion: 1 }
+  // Developer Tools is open for the tab: nothing here may need the debugging connection.
+  const withDebugger = vi.fn(async () => { throw new Error('Close Developer Tools for this tab, then try again.') })
   const access: SiteStorageAccess<SiteStorageTab> = {
     getTab: () => tab,
     findTab: (id) => id === tab.id ? tab : undefined,
@@ -42,10 +45,10 @@ function cookieTab(stored: StoredCookie[]) {
     inspectionPermission: () => undefined,
     isDestroyed: () => false,
     snapshotDeltaContext: () => context,
-    withDebugger: async (_contents, operation) => operation()
+    withDebugger
   }
   const remaining = (): string[] => stored.map((cookie) => `${cookie.name}=${cookie.value}@${cookie.domain}${cookie.path}`).sort()
-  return { access, tab, remove, sendCommand, remaining }
+  return { access, tab, remove, set, withDebugger, remaining }
 }
 
 function storedCookies(): StoredCookie[] {
@@ -55,46 +58,73 @@ function storedCookies(): StoredCookie[] {
     { name: 'pref', value: 'shared', domain: '.example.test', path: '/', httpOnly: false },
     // The parent domain's own cookie, which the page at app.example.test never receives.
     { name: 'pref', value: 'apex-session', domain: 'example.test', path: '/', httpOnly: true },
-    { name: 'pref', value: 'partitioned', domain: '.example.test', path: '/', httpOnly: false, partitionKey: { topLevelSite: 'https://top.test' } }
+    { name: 'pref', value: 'partitioned', domain: '.example.test', path: '/', httpOnly: false, partitioned: true }
   ]
 }
 
 describe('site storage cookie deletion', () => {
-  it('deletes only the non-HttpOnly cookies of a name that the page receives', async () => {
-    const { access, tab, remove, remaining } = cookieTab(storedCookies())
+  it('deletes only the non-HttpOnly cookies of a name that the page receives, with Developer Tools open', async () => {
+    const { access, tab, remove, withDebugger, remaining } = cookieTab(storedCookies())
     const result = await manageCookies(access, tab, PAGE, 'delete', 'token', undefined, false)
     expect(result.changed).toBe(true)
     expect(remove).not.toHaveBeenCalled()
+    expect(withDebugger).not.toHaveBeenCalled()
     expect(remaining()).toEqual([
       'pref=apex-session@example.test/', 'pref=partitioned@.example.test/', 'pref=shared@.example.test/', 'token=session-secret@app.example.test/'
     ])
   })
 
   it('leaves the parent domain’s own cookie and partitioned cookies when deleting a parent-domain cookie', async () => {
-    const { access, tab, remaining } = cookieTab(storedCookies())
-    await manageCookies(access, tab, PAGE, 'delete', 'pref', undefined, false)
+    const { access, tab, set, remaining } = cookieTab(storedCookies())
+    const result = await manageCookies(access, tab, PAGE, 'delete', 'pref', undefined, false)
+    expect(result.changed).toBe(true)
+    // The listing holds the shared cookie and its partitioned twin; their one identity is expired once.
+    expect(set).toHaveBeenCalledOnce()
     expect(remaining()).toEqual([
       'pref=apex-session@example.test/', 'pref=partitioned@.example.test/', 'token=guest@app.example.test/checkout', 'token=session-secret@app.example.test/'
     ])
   })
 
   it('clears every non-HttpOnly cookie the page receives and nothing else', async () => {
-    const { access, tab, remove, remaining } = cookieTab(storedCookies())
+    const { access, tab, remove, withDebugger, remaining } = cookieTab(storedCookies())
     const result = await manageCookies(access, tab, PAGE, 'clear', undefined, undefined, false)
     expect(result.changed).toBe(true)
     expect(remove).not.toHaveBeenCalled()
+    expect(withDebugger).not.toHaveBeenCalled()
     expect(remaining()).toEqual(['pref=apex-session@example.test/', 'pref=partitioned@.example.test/', 'token=session-secret@app.example.test/'])
   })
 
-  it('leaves a cookie whose name, domain and path the store also holds as an HttpOnly cookie', async () => {
-    const stored = [
+  it('leaves a cookie whose name, domain and path the listing also holds as an HttpOnly cookie', async () => {
+    const stored = (): StoredCookie[] => [
       { name: 'token', value: 'guest', domain: 'app.example.test', path: '/checkout', httpOnly: false },
-      { name: 'token', value: 'session-secret', domain: 'app.example.test', path: '/checkout', httpOnly: true }
+      { name: 'token', value: 'session-secret', domain: 'app.example.test', path: '/checkout', httpOnly: true, partitioned: true }
     ]
-    const { access, tab, sendCommand, remaining } = cookieTab(stored)
-    const result = await manageCookies(access, tab, PAGE, 'clear', undefined, undefined, false)
-    expect(result.changed).toBe(false)
-    expect(sendCommand).not.toHaveBeenCalledWith('Network.deleteCookies', expect.anything())
-    expect(remaining()).toEqual(['token=guest@app.example.test/checkout', 'token=session-secret@app.example.test/checkout'])
+    const cleared = cookieTab(stored())
+    expect((await manageCookies(cleared.access, cleared.tab, PAGE, 'clear', undefined, undefined, false)).changed).toBe(false)
+    expect(cleared.set).not.toHaveBeenCalled()
+    expect(cleared.remaining()).toEqual(['token=guest@app.example.test/checkout', 'token=session-secret@app.example.test/checkout'])
+    const deleted = cookieTab(stored())
+    await expect(manageCookies(deleted.access, deleted.tab, PAGE, 'delete', 'token', undefined, false)).rejects.toThrow('HttpOnly cookies are protected')
+    expect(deleted.set).not.toHaveBeenCalled()
+  })
+
+  it('deletes one exact cookie with Developer Tools open', async () => {
+    const { access, tab, withDebugger, remaining } = cookieTab(storedCookies())
+    const result = await manageCookies(access, tab, PAGE, 'delete', 'token', undefined, false, undefined, { domain: 'app.example.test', path: '/checkout' })
+    expect(result.changed).toBe(true)
+    expect(withDebugger).not.toHaveBeenCalled()
+    expect(remaining()).not.toContain('token=guest@app.example.test/checkout')
+    expect(remaining()).toContain('token=session-secret@app.example.test/')
+  })
+
+  it('reports an exact partitioned cookie as still present, and rejects one with a partitioned twin before writing', async () => {
+    const partitionedOnly = cookieTab([{ name: 'pref', value: 'partitioned', domain: '.example.test', path: '/', httpOnly: false, partitioned: true }])
+    await expect(manageCookies(partitionedOnly.access, partitionedOnly.tab, PAGE, 'delete', 'pref', undefined, false, undefined, { domain: '.example.test', path: '/' }))
+      .rejects.toThrow('The selected cookie is still present')
+    expect(partitionedOnly.remaining()).toEqual(['pref=partitioned@.example.test/'])
+    const twin = cookieTab(storedCookies())
+    await expect(manageCookies(twin.access, twin.tab, PAGE, 'delete', 'pref', undefined, false, undefined, { domain: '.example.test', path: '/' }))
+      .rejects.toThrow('More than one cookie')
+    expect(twin.set).not.toHaveBeenCalled()
   })
 })

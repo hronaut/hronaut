@@ -1,4 +1,3 @@
-import type { WebContents } from 'electron'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
 import type { BrowserStorageItem, BrowserStorageResult } from '../../../shared/types.js'
@@ -45,6 +44,7 @@ export async function manageCookies<Tab extends SiteStorageTab>(
   const cookies = await cookieStore.get({ url })
   assertCurrent()
   let changed: boolean | undefined
+  let expired: string[] | undefined
   if (action === 'set') {
     const protectedMatch = cookies.some((cookie) => cookie.name === key && cookie.httpOnly)
     if (protectedMatch) throw new Error('HttpOnly cookies are protected and cannot be replaced by the storage manager.')
@@ -58,7 +58,8 @@ export async function manageCookies<Tab extends SiteStorageTab>(
     }))
     changed = true
   } else if (action === 'delete' && exact) {
-    await deleteExactCookie(access, contents, cookies, { name: key!, ...exact }, operation, assertCurrent)
+    const cookie = exactCookie(cookies, { name: key!, ...exact })
+    await operation.write(() => expireCookie(cookieStore, cookie))
     const remaining = await cookieStore.get({ url })
     assertCurrent()
     if (remaining.some((cookie) => cookie.name === key && cookie.domain === exact.domain && cookie.path === exact.path)) {
@@ -67,14 +68,16 @@ export async function manageCookies<Tab extends SiteStorageTab>(
     changed = true
   } else if (action === 'delete') {
     const matches = cookies.filter((cookie) => cookie.name === key)
-    const editable = matches.filter((cookie) => !cookie.httpOnly)
-    if (matches.length && !editable.length) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
-    changed = await deleteListedCookies(access, contents, editable, operation, assertCurrent)
+    if (matches.length && matches.every((cookie) => cookie.httpOnly)) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
+    expired = await expireListedCookies(cookieStore, cookies, matches, operation)
+    // Every match shares its name, domain and path with an HttpOnly cookie.
+    if (matches.length && !expired.length) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
   } else if (action === 'clear') {
-    changed = await deleteListedCookies(access, contents, cookies.filter((cookie) => !cookie.httpOnly), operation, assertCurrent)
+    expired = await expireListedCookies(cookieStore, cookies, cookies, operation)
   }
   const next = await cookieStore.get({ url })
   assertCurrent()
+  if (expired) changed = expired.some((identity) => countIdentity(next, identity) < countIdentity(cookies, identity))
   const selected = action === 'get' ? next.filter((cookie) => cookie.name === key) : next
   const rawItems: Array<[string, string, Omit<BrowserStorageItem, 'key' | 'value' | 'valueBytes'>]> = selected.map((cookie) => [
     cookie.name,
@@ -103,73 +106,67 @@ export async function manageCookies<Tab extends SiteStorageTab>(
   }
 }
 
-// Electron's cookies.remove(url, name) deletes every same-name cookie sent to
-// that URL, including parent-path variants. CDP Network.deleteCookies matches
-// name, domain and path exactly and, without a partition key, only
-// unpartitioned cookies. Electron listings omit partition keys, so the
-// complete store is checked for one unpartitioned identity before dispatch.
-async function deleteExactCookie<Tab extends SiteStorageTab>(
-  access: SiteStorageAccess<Tab>,
-  contents: WebContents,
-  applicable: Electron.Cookie[],
-  target: { name: string; domain: string; path: string },
-  operation: { write(write: () => Promise<void>): Promise<void> },
-  assertCurrent: () => void
-): Promise<void> {
-  const sameIdentity = (cookie: { name: string; domain?: string; path?: string }): boolean =>
-    cookie.name === target.name && cookie.domain === target.domain && cookie.path === target.path
-  const listed = applicable.filter(sameIdentity)
-  if (!listed.length) throw new Error('No cookie for this page matches that exact name, domain and path. List cookies again and use the reported domain and path.')
-  if (listed.some((cookie) => cookie.httpOnly)) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
-  if (listed.length > 1) throw new Error('More than one cookie has that name, domain and path, for example in another partition. It was not deleted.')
-  await access.withDebugger(contents, async () => {
-    assertCurrent()
-    const store = await contents.debugger.sendCommand('Network.getAllCookies') as {
-      cookies?: Array<{ name: string; domain: string; path: string; httpOnly?: boolean; partitionKey?: unknown }>
-    }
-    assertCurrent()
-    const stored = (store.cookies ?? []).filter(sameIdentity)
-    const [only] = stored
-    if (stored.length !== 1 || !only) throw new Error('The selected cookie identity is ambiguous or no longer present. It was not deleted.')
-    if (only.partitionKey !== undefined) throw new Error('Partitioned cookies are not supported by exact deletion. It was not deleted.')
-    if (only.httpOnly) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
-    await operation.write(async () => {
-      await contents.debugger.sendCommand('Network.deleteCookies', { name: target.name, domain: target.domain, path: target.path })
-    })
-  }, assertCurrent)
+/** A cookie's name, domain and path, which Chromium keeps one cookie of outside partitions. */
+function cookieIdentity(cookie: Electron.Cookie): string {
+  return `${cookie.name}\u0000${cookie.domain ?? ''}\u0000${cookie.path ?? ''}`
 }
 
-// Name-only deletion and clear delete each listed cookie by its exact name,
-// domain and path too. Electron's cookies.remove(url, name) would also delete
-// an HttpOnly cookie of that name sent to the URL, and a host-only cookie of
-// the parent domain that the tab never receives. An identity the complete store
-// also holds as an HttpOnly cookie is left as it is; partitioned cookies are
-// never matched without a partition key. Returns whether it deleted any.
-async function deleteListedCookies<Tab extends SiteStorageTab>(
-  access: SiteStorageAccess<Tab>,
-  contents: WebContents,
-  listed: Electron.Cookie[],
-  operation: { write(write: () => Promise<void>): Promise<void> },
-  assertCurrent: () => void
-): Promise<boolean> {
-  if (!listed.length) return false
-  return access.withDebugger(contents, async () => {
-    assertCurrent()
-    const store = await contents.debugger.sendCommand('Network.getAllCookies') as {
-      cookies?: Array<{ name: string; domain: string; path: string; httpOnly?: boolean; partitionKey?: unknown }>
-    }
-    assertCurrent()
-    let deleted = false
-    for (const cookie of listed) {
-      const target = { name: cookie.name, domain: cookie.domain ?? '', path: cookie.path ?? '/' }
-      const stored = (store.cookies ?? []).filter((candidate) => candidate.partitionKey === undefined
-        && candidate.name === target.name && candidate.domain === target.domain && candidate.path === target.path)
-      if (!target.domain || !stored.length || stored.some((candidate) => candidate.httpOnly)) continue
-      await operation.write(async () => {
-        await contents.debugger.sendCommand('Network.deleteCookies', target)
-      })
-      deleted = true
-    }
-    return deleted
-  }, assertCurrent)
+function countIdentity(cookies: Electron.Cookie[], identity: string): number {
+  return cookies.filter((cookie) => cookieIdentity(cookie) === identity).length
+}
+
+// Setting a cookie that has already expired makes Chromium delete the
+// unpartitioned cookie of exactly that name, domain and path and store
+// nothing. Chromium refuses to replace an HttpOnly cookie with a cookie that is
+// not HttpOnly, so this can never delete one. Unlike Chromium's debugging
+// connection, it also works while Developer Tools is open.
+function expireCookie(cookieStore: Electron.Cookies, cookie: Electron.Cookie): Promise<void> {
+  const domain = cookie.domain ?? ''
+  return cookieStore.set({
+    url: `${cookie.secure ? 'https' : 'http'}://${domain.replace(/^\./, '')}/`,
+    name: cookie.name,
+    value: '',
+    ...(cookie.hostOnly ? {} : { domain }),
+    path: cookie.path ?? '/',
+    secure: cookie.secure,
+    httpOnly: false,
+    sameSite: cookie.sameSite,
+    expirationDate: 1
+  })
+}
+
+// Electron's cookies.remove(url, name) deletes every same-name cookie sent to
+// that URL, including parent-path variants. Electron listings also include
+// partitioned cookies without their partition key, so a second listed cookie of
+// the selected identity makes the selection ambiguous. A partitioned cookie
+// alone survives expiry, and the caller's fresh read reports it still present.
+function exactCookie(listing: Electron.Cookie[], target: { name: string; domain: string; path: string }): Electron.Cookie {
+  const listed = listing.filter((cookie) => cookie.name === target.name && cookie.domain === target.domain && cookie.path === target.path)
+  const [only] = listed
+  if (!only) throw new Error('No cookie for this page matches that exact name, domain and path. List cookies again and use the reported domain and path.')
+  if (listed.some((cookie) => cookie.httpOnly)) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
+  if (listed.length > 1) throw new Error('More than one cookie has that name, domain and path, for example in another partition. It was not deleted.')
+  return only
+}
+
+// Name-only deletion and clear expire each selected cookie's exact name, domain
+// and path once. Electron's cookies.remove(url, name) would also delete an
+// HttpOnly cookie of that name sent to the URL, and a host-only cookie of the
+// parent domain that the tab never receives. An identity the listing also
+// holds as an HttpOnly cookie, such as a partitioned twin, is left as it is.
+// Returns the identities it expired.
+async function expireListedCookies(
+  cookieStore: Electron.Cookies,
+  listing: Electron.Cookie[],
+  selected: Electron.Cookie[],
+  operation: { write(write: () => Promise<void>): Promise<void> }
+): Promise<string[]> {
+  const protectedIdentities = new Set(listing.filter((cookie) => cookie.httpOnly).map(cookieIdentity))
+  const targets = new Map<string, Electron.Cookie>()
+  for (const cookie of selected) {
+    const identity = cookieIdentity(cookie)
+    if (cookie.domain && cookie.path && !protectedIdentities.has(identity) && !targets.has(identity)) targets.set(identity, cookie)
+  }
+  for (const cookie of targets.values()) await operation.write(() => expireCookie(cookieStore, cookie))
+  return [...targets.keys()]
 }

@@ -115,7 +115,17 @@ test('deletes exactly one cookie by observed domain and path without collateral 
     expect(await native<string[]>(index, 'return list()')).toEqual(['b=other@127.0.0.1/checkout', 'h=protected@127.0.0.1/checkout'])
 
     // Name-only deletion and clear never take an HttpOnly cookie along. Electron's URL-based removal of token=guest
-    // would also delete the HttpOnly token on the parent path, which /checkout receives.
+    // would also delete the HttpOnly token on the parent path, which /checkout receives. None of the deletions needs
+    // Chromium's debugging connection, so they all work while Developer Tools is open for the tab.
+    const devTools = (open: boolean) => electronApp.evaluate(({ webContents }, { pageUrl, index, open }) => {
+      const page = webContents.getAllWebContents().filter(candidate => candidate.getURL() === pageUrl)[index]!
+      if (open) page.openDevTools({ mode: 'detach', activate: false })
+      else page.closeDevTools()
+    }, { pageUrl, index, open })
+    const devToolsOpen = () => electronApp.evaluate(({ webContents }, { pageUrl, index }) =>
+      webContents.getAllWebContents().filter(candidate => candidate.getURL() === pageUrl)[index]!.isDevToolsOpened(), { pageUrl, index })
+    await devTools(true)
+    await expect.poll(devToolsOpen).toBe(true)
     await native(index, `
       await store.set({ url: origin, name: 'token', value: 'session', path: '/', httpOnly: true })
       await store.set({ url: origin, name: 'token', value: 'guest', path: '/checkout' })`)
@@ -127,6 +137,12 @@ test('deletes exactly one cookie by observed domain and path without collateral 
     const cleared = await call('browser_storage', { workspaceId, tabId, kind: 'cookies', action: 'clear' })
     expect(cleared.isError, text(cleared)).not.toBe(true)
     expect(await native<string[]>(index, 'return list()')).toEqual(['h=protected@127.0.0.1/checkout', 'token=session@127.0.0.1/'])
+    await native(index, `await store.set({ url: origin, name: 'b', value: 'other', path: '/checkout' })`)
+    const exactWithDevTools = await exact('b', '127.0.0.1', '/checkout')
+    expect(exactWithDevTools.isError, text(exactWithDevTools)).not.toBe(true)
+    expect(await native<string[]>(index, 'return list()')).toEqual(['h=protected@127.0.0.1/checkout', 'token=session@127.0.0.1/'])
+    expect(await devToolsOpen()).toBe(true)
+    await devTools(false)
   } finally {
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)
