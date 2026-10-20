@@ -264,6 +264,10 @@ describe('BrowserTabsBar', () => {
     expect(row.querySelector('.all-workspaces-needs-you')).toBeNull()
     await userEvent.click(row)
     expect(view.emitted('switchWorkspace')).toHaveLength(1)
+    // The switcher gives the focus back to the row when it closes, so a held Enter's repeats would open it again.
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    row.dispatchEvent(repeat)
+    expect(repeat.defaultPrevented).toBe(true)
     await view.rerender({ workspaceSwitcherOpen: true })
     expect(row).toHaveAttribute('aria-expanded', 'true')
 
@@ -653,6 +657,10 @@ describe('BrowserTabsBar', () => {
     await userEvent.click(find)
     await userEvent.click(create)
     expect(view.emitted('switchWorkspace')).toHaveLength(1)
+    // As for the All workspaces row, the switcher gives the focus back here when it closes.
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    find.dispatchEvent(repeat)
+    expect(repeat.defaultPrevented).toBe(true)
     expect(view.emitted('createWorkspace')).toHaveLength(1)
     await view.rerender({ workspaceSwitcherOpen: true })
     expect(find).toHaveAttribute('aria-expanded', 'true')

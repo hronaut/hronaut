@@ -73,6 +73,24 @@ describe('command palette controller', () => {
     controller.dispose()
   })
 
+  it('does not run a command for the repeats of a held Enter', async () => {
+    // The palette opens with the focus in its search field, so the repeats of the Enter that opened it ran a command.
+    const { open, runCommand, controller } = createController(true)
+    await controller.openPanel()
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, cancelable: true })
+
+    controller.handleKeydown(repeat)
+    await Promise.resolve()
+
+    expect(repeat.defaultPrevented).toBe(true)
+    expect(runCommand).not.toHaveBeenCalled()
+    expect(open.value).toBe(true)
+    controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await vi.waitFor(() => expect(runCommand).toHaveBeenCalledOnce())
+    expect(open.value).toBe(false)
+    controller.dispose()
+  })
+
   it('does not run or move commands while an IME composition owns the key', async () => {
     const { open, runCommand, controller } = createController(true)
     await controller.openPanel()

@@ -144,6 +144,26 @@ describe('WorkspaceSwitcher', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('does not switch workspace for the repeats of a held Enter', async () => {
+    // The switcher opens with the focus in its search field and another workspace selected, so the repeats of the
+    // Enter that opened it switched workspace.
+    const { wrapper, calls, openPanel } = await setup({ agents: { ops: [agent('Claude Code', 'working')] } })
+    await openPanel()
+    const search = screen.getByRole('combobox', { name: 'Search workspaces' })
+    await vi.waitFor(() => expect(search).toHaveFocus())
+
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    search.dispatchEvent(repeat)
+    await nextTick()
+    expect(repeat.defaultPrevented).toBe(true)
+    expect(calls.selectTab).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Switch workspace' })).toBeVisible()
+
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(calls.selectTab).toHaveBeenCalledWith('ops-1'))
+    expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false])
+  })
+
   it('keeps the workspace it opened on selected under a resting pointer, and follows a pointer that moves', async () => {
     const { calls, openPanel } = await setup({ agents: { ops: [agent('Claude Code', 'working')] } })
     await openPanel()
