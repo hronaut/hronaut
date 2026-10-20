@@ -38,7 +38,8 @@ test('rejects a consequential action when waking the admitted tab crosses origin
       response.writeHead(302, { location: `${replacementOrigin}/replace` }).end()
       return
     }
-    response.writeHead(200, { 'content-type': 'text/html' })
+    // Not kept in the cache, so waking the tab asks the server for the page again.
+    response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
     response.end('<!doctype html><title>Trusted page</title><button id="confirm">Original action</button>')
   })
   await new Promise<void>(resolve => trusted.listen(0, '127.0.0.1', resolve))

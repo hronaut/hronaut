@@ -34,7 +34,8 @@ test('does not publish attention when its sleeping target closes during wake', a
   let held: ServerResponse | undefined
   const fixture = createServer((_request, response) => {
     if (holdWake) { held = response; return }
-    response.writeHead(200, { 'content-type': 'text/html' })
+    // Not kept in the cache, so waking the tab asks the server for the page again.
+    response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
     response.end('<!doctype html><title>Attention wake fixture</title><main>Ready</main>')
   })
   await new Promise<void>(resolve => fixture.listen(0, '127.0.0.1', resolve))
