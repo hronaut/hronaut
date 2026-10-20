@@ -235,7 +235,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_new_tab', category: 'Session', description: 'Open a tab inside the selected agent workspace without taking the view: Follow agents may show it once you work in it, unless the person is busy; browser_show with its tabId makes it visible. Optional zoomIsolated gives the tab its own page zoom instead of sharing it with same-origin tabs. Optional defaultFontSize (9–72 CSS px, browser default 16) sets the tab\'s browser default standard font size for accessibility QA: text sized by the browser default and em/rem media queries follow it, unlike page zoom or OS text scale; monospace, minimum and authored pixel sizes do not change. Both are set only at creation.' },
   { name: 'browser_select_tab', category: 'Session', description: 'Select the active tab in the agent workspace without taking the view: Follow agents may show it once you work in it, unless the person is busy; browser_show makes it visible.' },
   { name: 'browser_close_tab', category: 'Session', description: 'Close a tab and keep the browser session alive.' },
-  { name: 'browser_bookmarks', category: 'Session', description: 'List, save, rename, remove, or open local browser bookmarks.' },
+  { name: 'browser_bookmarks', category: 'Session', description: 'List, save, rename, remove, or open local browser bookmarks. Saving an address that is already bookmarked leaves that bookmark unchanged.' },
   { name: 'browser_visit_history', category: 'Session', description: 'Search, remove, clear, or reopen locally recorded web visits.' },
   {
     name: 'browser_site_data',
