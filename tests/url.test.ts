@@ -43,6 +43,40 @@ describe('normalizeAddress', () => {
     expect(normalizeAddress(input)).toBe(expected)
   })
 
+  it.each([
+    ['192.168.1.20:5173', 'http://192.168.1.20:5173'],
+    ['10.0.0.8:3000/app', 'http://10.0.0.8:3000/app'],
+    ['172.16.4.2:8080', 'http://172.16.4.2:8080'],
+    ['172.31.255.1', 'http://172.31.255.1'],
+    ['169.254.10.1', 'http://169.254.10.1'],
+    ['100.101.102.103:4173', 'http://100.101.102.103:4173'],
+    ['0.0.0.0:3000', 'http://0.0.0.0:3000'],
+    ['[fe80::1]:3000', 'http://[fe80::1]:3000'],
+    ['[FD12:3456::1]:8080', 'http://[FD12:3456::1]:8080'],
+    ['[::]:8080', 'http://[::]:8080'],
+    ['nas.local:5000', 'http://nas.local:5000'],
+    ['Printer.LOCAL.', 'http://Printer.LOCAL.'],
+    ['host.docker.internal:3000/health', 'http://host.docker.internal:3000/health'],
+    ['router.home.arpa', 'http://router.home.arpa']
+  ])('uses HTTP for a scheme-less local network address %s', (input, expected) => {
+    // It opened over HTTPS, which a development server on the local network does not serve, so the page failed to load.
+    expect(normalizeAddress(input)).toBe(expected)
+  })
+
+  it.each([
+    ['172.32.0.1', 'https://172.32.0.1'],
+    ['172.15.0.1', 'https://172.15.0.1'],
+    ['100.128.0.1', 'https://100.128.0.1'],
+    ['192.169.1.1', 'https://192.169.1.1'],
+    ['8.8.8.8', 'https://8.8.8.8'],
+    ['[2001:db8::1]', 'https://[2001:db8::1]'],
+    ['local.example.com', 'https://local.example.com'],
+    ['internal.example.com/docs', 'https://internal.example.com/docs'],
+    ['example.localdomain.com', 'https://example.localdomain.com']
+  ])('keeps HTTPS for the public address %s', (input, expected) => {
+    expect(normalizeAddress(input)).toBe(expected)
+  })
+
   it('turns plain text into a search', () => {
     expect(normalizeAddress('persistent electron browser')).toBe(
       'https://www.google.com/search?q=persistent%20electron%20browser'
