@@ -3,9 +3,12 @@ const MAX_JSON_REDACTION_DEPTH = 100
 
 const SENSITIVE_NAME = /(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|secret|session|token)/i
 // A signed storage or download link carries its signature in one of these query parameters (Azure SAS, CloudFront,
-// S3 and Google Cloud Storage), and the link works for anyone until it expires. Matched whole, since `sig` is part of
-// many ordinary names.
-const SIGNED_URL_PARAMETER = /^(?:sig|signature|x-amz-signature|x-goog-signature|jwt)$/i
+// S3, Google Cloud Storage, Alibaba OSS, Tencent COS, Akamai tokens, GitHub release assets' `sig` and `jwt`), and the
+// link works for anyone until it expires. Matched whole, since `sig` is part of many ordinary names. The in-page
+// snapshot scripts repeat this pattern.
+const SIGNED_URL_PARAMETER = /^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-signature|hdnt[sla])$/i
+// Headers whose value is an address, such as a redirect's target, which can be a signed link.
+const URL_HEADER = /^(?:location|content-location|referer)$/i
 const JSON_CONTENT_TYPE = /(?:^|[+/])json(?:;|$)/i
 const FORM_CONTENT_TYPE = /^application\/x-www-form-urlencoded(?:;|$)/i
 const MULTIPART_CONTENT_TYPE = /^multipart\//i
@@ -67,11 +70,22 @@ export function redactNetworkHeaders(
   const safe = Object.create(null) as Record<string, string | string[]>
   for (const [name, value] of Object.entries(headers ?? {})) {
     if (value === undefined) continue
-    safe[name] = isSensitiveName(name)
-      ? REDACTED_VALUE
-      : Array.isArray(value) ? [...value] : value
+    if (isSensitiveName(name)) safe[name] = REDACTED_VALUE
+    else if (URL_HEADER.test(name)) safe[name] = Array.isArray(value) ? value.map(redactHeaderUrl) : redactHeaderUrl(value)
+    else safe[name] = Array.isArray(value) ? [...value] : value
   }
   return safe
+}
+
+/** An address header's value with its secrets redacted; a relative address, as `Location` allows, keeps its form. */
+function redactHeaderUrl(value: string): string {
+  if (URL.canParse(value)) return redactNetworkUrl(value)
+  const queryStart = value.indexOf('?')
+  if (queryStart < 0) return value
+  const fragmentStart = value.indexOf('#', queryStart)
+  const query = value.slice(queryStart + 1, fragmentStart < 0 ? undefined : fragmentStart)
+  const redacted = redactParameters(new URLSearchParams(query))
+  return redacted ? `${value.slice(0, queryStart)}?${redacted.toString()}` : value
 }
 
 function redactParameters(parameters: URLSearchParams): URLSearchParams | undefined {

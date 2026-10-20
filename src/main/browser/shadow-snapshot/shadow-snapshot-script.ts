@@ -80,7 +80,8 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number, omi
         url.password = '';
         url.hash = '';
         for (const key of [...url.searchParams.keys()]) {
-          if (/(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|secret|session|token)/i.test(key)) {
+          if (/(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|secret|session|token)/i.test(key)
+            || /^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-signature|hdnt[sla])$/i.test(key)) {
             url.searchParams.set(key, '[REDACTED]');
           }
         }
