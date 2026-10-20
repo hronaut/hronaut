@@ -242,6 +242,16 @@ test('replays retained XHRs for people and agents with explicit side-effect conf
     await expect(confirmButton).toBeFocused()
     await appWindow.keyboard.press('Enter')
     await expect.poll(() => postCount).toBe(5)
+
+    // The second click of a double-click confirmed it too.
+    await networkPanel.locator(`[data-request-id="${latestPost.id}"]`).click()
+    await expect(replayButton).toBeEnabled()
+    await replayButton.dblclick()
+    await expect(confirmButton).toBeVisible()
+    await appWindow.waitForTimeout(300)
+    expect(postCount).toBe(5)
+    await confirmButton.click()
+    await expect.poll(() => postCount).toBe(6)
   } finally {
     await client.close()
     await closeFixtureServer(server)

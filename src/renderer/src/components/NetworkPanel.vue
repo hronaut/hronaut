@@ -204,6 +204,13 @@ async function keepConditionFocus(action: () => Promise<unknown>): Promise<void>
   target.focus()
 }
 
+// The second click of a double-click is the same decision as the first, so it cannot confirm a replay the first one
+// asked to confirm.
+function replayClicked(event: MouseEvent): void {
+  if (event.detail > 1) return
+  void replaySelectedNetworkRequest()
+}
+
 function setNetworkSortBy(event: Event): void {
   setNetworkSortByValue((event.target as HTMLSelectElement).value as BrowserNetworkRequestSortBy)
 }
@@ -447,7 +454,7 @@ onBeforeUnmount(dispose)
                       ? t('network.details.replayRisk')
                       : t('network.details.replaySafe')"
                     @keydown="ignoreHeldEnter"
-                    @click="replaySelectedNetworkRequest"
+                    @click="replayClicked"
                   >
                     <IconProgress v-if="networkReplayState === 'replaying'" class="state-spinner" aria-hidden="true" />
                     <IconCheck v-else-if="networkReplayState === 'replayed'" aria-hidden="true" />

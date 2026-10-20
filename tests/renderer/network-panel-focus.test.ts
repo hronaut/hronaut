@@ -92,12 +92,9 @@ describe('Network panel focus after Clear', () => {
   })
 })
 
-describe('Network panel Replay XHR with a held Enter', () => {
-  // Replaying a POST takes a second press, since it can repeat a write; the first press turns the button into Confirm
-  // replay and leaves it focused, so a held Enter's repeats replayed it without one.
-  it('asks for a new press to confirm a replay, not a repeat of the first', async () => {
+describe('Network panel Replay XHR confirmation', () => {
+  async function showPostReplay(replayNetworkRequest: ReturnType<typeof vi.fn>) {
     const post: BrowserNetworkRequest = { ...request, id: 'post-1', method: 'POST', resourceType: 'xhr' }
-    const replayNetworkRequest = vi.fn(async () => { throw new Error('Replay is not expected') })
     vi.stubGlobal('hronaut', {
       listNetworkRequests: vi.fn(async () => [post]),
       listNetworkRoutes: vi.fn(async () => []),
@@ -112,22 +109,36 @@ describe('Network panel Replay XHR with a held Enter', () => {
         preservationBusy: false, updatePreservation: vi.fn(), keepsSeparatePanelOpen: () => false
       }
     })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Refresh network requests' }))
+    await user.click(await within(screen.getByRole('listbox', { name: 'Network requests' })).findByRole('option'))
+    return { view, user, replay: await screen.findByRole('button', { name: 'Replay XHR' }) }
+  }
+
+  // Replaying a POST takes a second press, since it can repeat a write; the first press turns the button into Confirm
+  // replay and leaves it focused, so a held Enter's repeats replayed it without one.
+  it('asks for a new press to confirm a replay, not a held Enter\'s repeats', async () => {
+    const replayNetworkRequest = vi.fn(async () => { throw new Error('Replay is not expected') })
+    const { view, user, replay } = await showPostReplay(replayNetworkRequest)
     try {
-      const user = userEvent.setup()
-      await user.click(screen.getByRole('button', { name: 'Refresh network requests' }))
-      await user.click(await within(screen.getByRole('listbox', { name: 'Network requests' })).findByRole('option'))
-      const replay = await screen.findByRole('button', { name: 'Replay XHR' })
       replay.focus()
-      await user.keyboard('{Enter}')
+      // Pressed once, then repeated three times while held.
+      await user.keyboard('{Enter>4/}')
       expect(replay).toHaveTextContent('Confirm replay POST')
       expect(replay).toHaveFocus()
-      const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
-      replay.dispatchEvent(repeat)
-      expect(repeat.defaultPrevented).toBe(true)
-      const first = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
-      replay.dispatchEvent(first)
-      expect(first.defaultPrevented).toBe(false)
       expect(replayNetworkRequest).not.toHaveBeenCalled()
+    } finally { view.unmount() }
+  })
+
+  it('takes a new click to confirm, not the second click of a double-click', async () => {
+    const replayNetworkRequest = vi.fn(async () => new Promise(() => undefined))
+    const { view, user, replay } = await showPostReplay(replayNetworkRequest)
+    try {
+      await user.dblClick(replay)
+      expect(replay).toHaveTextContent('Confirm replay POST')
+      expect(replayNetworkRequest).not.toHaveBeenCalled()
+      await user.click(replay)
+      expect(replayNetworkRequest).toHaveBeenCalledExactlyOnceWith('tab-1', 'post-1', true)
     } finally { view.unmount() }
   })
 })
