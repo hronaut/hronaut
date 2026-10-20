@@ -112,6 +112,7 @@ All notable changes to Hronaut are documented in this file.
 - **Site storage** now shows the site's storage as it is now when it docks back from its own window. It showed what it had before it left, including items deleted or changed meanwhile.
 - **Environment** and **Responsive preview** now show the tab's settings as they are when they dock back from their own window. They kept the draft from before they left, so **Apply** or **Apply preview** could undo what was applied in the window.
 - **Visual compare**, **Issues**, **Code coverage** and **JavaScript CPU profile** now read the tab again when they dock back from their own window. They showed what they had before they left, such as no baseline after one was set there, or a recording as stopped while it ran.
+- Audits and reports (**Quality audit**, **Accessibility**, **Performance**, **Design overview**, **Page metadata**, **Connection security**, **Memory** and **Debug report**) now run again for the page shown when they dock back from their own window after the tab navigated or another tab was selected. They showed only their header, with nothing to run, until closed and opened again.
 
 ### Security
 

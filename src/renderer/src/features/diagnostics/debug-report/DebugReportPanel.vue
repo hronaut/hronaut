@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../../../ui/UiButton.vue"
+import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconBugReport from '~icons/material-symbols/bug-report-rounded'
 import IconCheck from '~icons/material-symbols/check-rounded'
@@ -29,6 +30,7 @@ const props = defineProps<{
   controller: DiagnosticsController
   preservationBusy: boolean
   updatePreservation: (event: Event) => unknown
+  keepsSeparatePanelOpen: () => boolean
 }>()
 const dock = defineModel<PanelDock>('dock', { required: true })
 const { t } = useI18n({ useScope: 'global' })
@@ -41,6 +43,13 @@ const {
   runDebugReport,
   copyDebugReport
 } = props.controller
+
+// Docked back from its window after the page changed, the panel has nothing to show: the main window cleared its report
+// for the new page while it was away. It runs again for the page shown now, as its window did. The panel window itself
+// is closing then.
+watch(dock, (next, previous) => {
+  if (debugReportPanelOpen.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && debugReportState.value === 'idle' && !debugReport.value) void runDebugReport()
+})
 
 function localNumber(value: number): string {
   return formatNumber(props.locale, value)

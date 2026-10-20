@@ -24,7 +24,8 @@ import VisualComparePanel from './visual-compare/VisualComparePanel.vue'
 // Requests, race guards and open-state watchers stay in the shared controller,
 // which outlives these panels and also serves Page Tools. Visual compare,
 // Issues, Code coverage and CPU profile also watch their dock, to read the tab
-// again when they dock back from their own window.
+// again when they dock back from their own window; the audits and reports run
+// again then only when a page change cleared them meanwhile.
 defineProps<{
   activeTab?: BrowserTabState
   locale: SupportedLocale
@@ -38,15 +39,15 @@ const dock = defineModel<PanelDock>('dock', { required: true })
 </script>
 
 <template>
-  <QualityAuditPanel v-model:dock="dock" :controller="controller" :locale="locale" />
-  <AccessibilityAuditPanel v-model:dock="dock" :controller="controller" :locale="locale" :open-support="openSupport" />
-  <PerformanceReportPanel v-model:dock="dock" :controller="controller" :locale="locale" />
-  <DesignOverviewPanel v-model:dock="dock" :controller="controller" :locale="locale" />
-  <PageMetadataPanel v-model:dock="dock" :controller="controller.metadata" :locale="locale" />
-  <SecurityReportPanel v-model:dock="dock" :controller="controller" :locale="locale" />
+  <QualityAuditPanel v-model:dock="dock" :controller="controller" :locale="locale" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
+  <AccessibilityAuditPanel v-model:dock="dock" :controller="controller" :locale="locale" :open-support="openSupport" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
+  <PerformanceReportPanel v-model:dock="dock" :controller="controller" :locale="locale" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
+  <DesignOverviewPanel v-model:dock="dock" :controller="controller" :locale="locale" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
+  <PageMetadataPanel v-model:dock="dock" :controller="controller.metadata" :locale="locale" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
+  <SecurityReportPanel v-model:dock="dock" :controller="controller" :locale="locale" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
   <CodeCoveragePanel v-model:dock="dock" :controller="controller" :locale="locale" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
   <CpuProfilePanel v-model:dock="dock" :controller="controller" :locale="locale" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
-  <MemoryReportPanel v-model:dock="dock" :controller="controller" :locale="locale" />
+  <MemoryReportPanel v-model:dock="dock" :controller="controller" :locale="locale" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
   <InspectorIssuesPanel v-model:dock="dock" :controller="controller" :locale="locale" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
   <DebugReportPanel
     v-model:dock="dock"
@@ -55,6 +56,7 @@ const dock = defineModel<PanelDock>('dock', { required: true })
     :locale="locale"
     :preservation-busy="preservationBusy"
     :update-preservation="updatePreservation"
+    :keeps-separate-panel-open="keepsSeparatePanelOpen"
   />
   <ReproRecordingPanel v-model:dock="dock" :controller="controller" :locale="locale" />
   <DomChangesPanel v-model:dock="dock" :controller="controller" :locale="locale" />

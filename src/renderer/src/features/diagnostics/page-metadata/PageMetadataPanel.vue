@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../../../ui/UiButton.vue'
 import PanelDockPicker from '../../../components/PanelDockPicker.vue'
@@ -12,11 +13,19 @@ import { formatNumber, formatDateTime } from '../../../../../shared/format.js'
 import type { BrowserPageMetadataReport, PanelDock, SupportedLocale } from '../../../../../shared/types.js'
 import type { PageMetadataController } from './usePageMetadata.js'
 
-const props = defineProps<{ controller: PageMetadataController; locale: SupportedLocale }>()
+const props = defineProps<{ controller: PageMetadataController; locale: SupportedLocale; keepsSeparatePanelOpen: () => boolean }>()
 const dock = defineModel<PanelDock>('dock', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 const { pageMetadataPanelOpen: open, pageMetadataReport: report, pageMetadataState: state,
   pageMetadataError: error, runPageMetadata: inspect } = props.controller
+
+// Docked back from its window after the page changed, the panel has nothing to show: the main window cleared its report
+// for the new page while it was away. It runs again for the page shown now, as its window did. The panel window itself
+// is closing then.
+watch(dock, (next, previous) => {
+  if (open.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && state.value === 'idle' && !report.value) void inspect()
+})
+
 const number = (value: number): string => formatNumber(props.locale, value)
 const issueKeys = {
   'missing-title': 'missingTitle', 'multiple-titles': 'multipleTitles',
