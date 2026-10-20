@@ -151,7 +151,7 @@ function debugTimestamp(value: string): string {
         </ul>
       </details>
       <footer>
-        <span>{{ t('cpuProfile.startedOn', { url: cpuProfileResult.report.startedUrl }) }}<span v-if="cpuProfileResult.report.currentUrl !== cpuProfileResult.report.startedUrl"> {{ t('cpuProfile.pageChanged') }}</span></span>
+        <span>{{ t('cpuProfile.startedOn', { url: cpuProfileResult.report.startedUrl }) }}<span v-if="cpuProfileResult.report.currentUrl !== cpuProfileResult.report.startedUrl">{{ ' ' + t('cpuProfile.pageChanged') }}</span></span>
         <div>
           <UiButton appearance="application" type="button" @click="manageCpuProfile('clear')"><IconDelete aria-hidden="true" /> {{ t('cpuProfile.clear') }}</UiButton>
           <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageCpuProfile('start')"><IconRecord aria-hidden="true" /> {{ t('cpuProfile.recordAgain') }}</UiButton>
