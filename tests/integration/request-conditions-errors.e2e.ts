@@ -1,7 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 
-test('Request conditions say what to fix in the interface language while agents keep their English', async ({ capabilities, appWindow }) => {
+test('Request conditions say what to fix in the interface language and still refuse the same agent request', async ({ capabilities, appWindow }) => {
   // Request conditions showed the English agents read, such as "Network route URL pattern must include a scheme…",
   // in every interface language.
   const { client, tabId, fixtureOrigin, openPageTool } = capabilities
@@ -32,7 +32,8 @@ test('Request conditions say what to fix in the interface language while agents 
     arguments: { action: 'add', tabId, urlPattern: 'api.example.test/*', abort: 'Failed' }
   }) as CallToolResult
   expect(agent.isError).toBe(true)
-  expect(text(agent)).toContain('Network route URL pattern must include a scheme, for example https://api.example.com/*')
+  expect(agent.structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', effects: 'none' })
+  expect(text(agent)).not.toContain('Start the URL pattern')
   const routes = await client.callTool({ name: 'browser_network_routes', arguments: { action: 'list', tabId } }) as CallToolResult
   expect(JSON.parse(text(routes))).toEqual([])
 })

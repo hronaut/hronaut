@@ -15,7 +15,7 @@ import type { BrowserNetworkRouteRecord, NetworkConditionsAccess, NetworkConditi
 /** How many request-condition rules one tab can retain. */
 const MAX_NETWORK_ROUTES = 50
 
-/** A rule removed meanwhile, for example by an agent; agents keep the message that names the rule's ID. */
+/** A rule removed meanwhile, for example by an agent. The Network panel shows its key; its English message names the rule's ID. */
 function conditionGone(routeId: string): LocalizedError {
   return new LocalizedError('appErrors.networkConditions.conditionGone', undefined, { message: `Network route not found: ${routeId}` })
 }
@@ -70,7 +70,9 @@ export async function addNetworkRoute<Tab extends NetworkConditionsTab>(access: 
   const tab = access.getTab(tabId)
   const normalized = normalizeNetworkRouteInput(input)
   await applyNetworkRoutes(access, tab, validate, false, () => {
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before adding a network route')
+    if (isHronautHomeUrl(tab.url)) {
+      throw new LocalizedError('appErrors.networkConditions.websiteTab', undefined, { message: 'Open a website tab before adding a network route' })
+    }
     if (tab.networkRoutes.length >= MAX_NETWORK_ROUTES) {
       throw new LocalizedError('appErrors.networkConditions.limitReached', { max: MAX_NETWORK_ROUTES }, {
         message: `Network route limit reached (${MAX_NETWORK_ROUTES})`

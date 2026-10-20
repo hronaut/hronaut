@@ -406,7 +406,9 @@ export const enUSAppErrors = {
     "headerValue": "A response header value contains a character HTTP does not allow, such as a line break.",
     "tooManyHeaders": "A mock response can have at most {max} headers.",
     "headersTooLarge": "The response headers are too long; together they can have at most 32 KiB.",
+    "bodyTooLarge": "The response body is too long; it can have at most 512 KiB.",
     "limitReached": "A tab can have at most {max} request conditions. Remove one before adding another.",
+    "websiteTab": "Request conditions work only on website tabs. Open a website, then add the condition.",
     "conditionGone": "That request condition is no longer there; it may have been removed elsewhere, for example by an agent."
   },
   "startupScreen": {

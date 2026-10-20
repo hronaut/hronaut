@@ -1,5 +1,6 @@
 import { ref, watch, type Ref } from 'vue'
 import { isHronautHomeUrl } from '../../../../shared/home-url.js'
+import { MAX_NETWORK_ROUTE_BODY_BYTES } from '../../../../shared/network-routes.js'
 import type {
   BrowserNetworkAbortReason,
   BrowserNetworkRouteInput,
@@ -146,6 +147,15 @@ export function useNetworkRequestConditions(
     return parsed as Record<string, string>
   }
 
+  /** The typed body. One over the limit in characters would reach main only as a schema error, so the panel checks its size first. */
+  function routeBodyWithinLimit(): string {
+    const body = routeBody.value
+    if (new TextEncoder().encode(body).length > MAX_NETWORK_ROUTE_BODY_BYTES) {
+      throw new Error(options.translate('appErrors.networkConditions.bodyTooLarge'))
+    }
+    return body
+  }
+
   async function addRouteFromDraft(): Promise<void> {
     const tab = options.activeTab.value
     if (!tab) return
@@ -170,7 +180,7 @@ export function useNetworkRequestConditions(
               response: {
                 status: routeStatus.value,
                 headers: parsedRouteHeaders(),
-                body: routeBody.value
+                body: routeBodyWithinLimit()
               }
             } : {})
       }

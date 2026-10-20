@@ -353,6 +353,25 @@ describe('Network panel errors', () => {
       expect(browser.addNetworkRoute).not.toHaveBeenCalled()
     } finally { controller.dispose() }
   })
+
+  it('says a mock response body is too long before main sees it', async () => {
+    // A body over 524,288 characters showed the schema's raw issue list, and a shorter one over 512 KiB in UTF-8
+    // showed "Mock response body cannot exceed 524288 bytes".
+    const { controller, browser } = createController()
+    try {
+      controller.routeMode.value = 'fulfill'
+      controller.routePattern.value = 'https://example.test/api/*'
+      for (const body of ['a'.repeat(524_289), 'я'.repeat(262_145)]) {
+        controller.routeBody.value = body
+        await controller.addRouteFromDraft()
+        expect(controller.routeError.value).toBe('appErrors.networkConditions.bodyTooLarge')
+      }
+      expect(browser.addNetworkRoute).not.toHaveBeenCalled()
+      controller.routeBody.value = 'я'.repeat(262_144)
+      await controller.addRouteFromDraft()
+      expect(browser.addNetworkRoute).toHaveBeenCalledOnce()
+    } finally { controller.dispose() }
+  })
 })
 
 describe('Network request durations', () => {

@@ -49,8 +49,8 @@ async function failure(operation: Promise<unknown>): Promise<LocalizedError> {
   return error as LocalizedError
 }
 
-// Request conditions showed these in English in every interface language, in the words agents read.
-it('names a full tab for the Network panel and keeps the agent message', async () => {
+// Request conditions showed these in English in every interface language, in words written for agents.
+it('names a full tab for the Network panel and keeps its English message', async () => {
   const { access, tab } = conditions(50)
   const error = await failure(addNetworkRoute(access, 'tab-1', { urlPattern: 'https://app.test/over-limit', abort: 'Failed' }))
   expect(error.key).toBe('appErrors.networkConditions.limitReached')
@@ -60,7 +60,7 @@ it('names a full tab for the Network panel and keeps the agent message', async (
   expect(tab.networkRoutes).toHaveLength(50)
 })
 
-it('names a condition removed meanwhile for the Network panel and keeps the agent message', async () => {
+it('names a condition removed meanwhile for the Network panel and keeps its English message', async () => {
   const { access } = conditions(1)
   for (const change of [
     setNetworkRouteEnabled(access, 'tab-1', 'missing', false),
@@ -71,4 +71,13 @@ it('names a condition removed meanwhile for the Network panel and keeps the agen
     expect(error.key).toBe('appErrors.networkConditions.conditionGone')
     expect(error.message).toBe('Network route not found: missing')
   }
+})
+
+it('names Hronaut Home for the Network panel and keeps its English message', async () => {
+  const { access, tab } = conditions()
+  tab.url = 'hronaut://home/'
+  const error = await failure(addNetworkRoute(access, 'tab-1', { urlPattern: 'https://app.test/*', abort: 'Failed' }))
+  expect(error.key).toBe('appErrors.networkConditions.websiteTab')
+  expect(error.message).toBe('Open a website tab before adding a network route')
+  expect(tab.networkRoutes).toEqual([])
 })

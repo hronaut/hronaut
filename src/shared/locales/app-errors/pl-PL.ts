@@ -399,10 +399,12 @@ export const plPLAppErrors: AppErrorMessages = {
     "patternControl": "Wzorzec URL nie może zawierać znaków sterujących, takich jak tabulator.",
     "patternScheme": "Zacznij wzorzec URL od schematu lub od *, na przykład https://api.example.com/*.",
     "headerName": "Nazwa nagłówka odpowiedzi zawiera znak niedozwolony w HTTP, na przykład spację lub dwukropek.",
-    "headerValue": "Wartość nagłówka odpowiedzi zawiera znak niedozwolony w HTTP, na przykład podział wiersza.",
+    "headerValue": "Wartość nagłówka odpowiedzi zawiera znak niedozwolony w HTTP, na przykład znak nowego wiersza.",
     "tooManyHeaders": "Symulowana odpowiedź może mieć najwyżej {max} nagłówków.",
     "headersTooLarge": "Nagłówki odpowiedzi są za długie; razem mogą mieć najwyżej 32 KiB.",
+    "bodyTooLarge": "Treść odpowiedzi jest za długa; może mieć najwyżej 512 KiB.",
     "limitReached": "Karta może mieć najwyżej {max} warunków żądań. Usuń jeden, zanim dodasz kolejny.",
+    "websiteTab": "Warunki żądań działają tylko na kartach ze stronami internetowymi. Otwórz stronę, a potem dodaj warunek.",
     "conditionGone": "Tego warunku żądania już nie ma; mógł zostać usunięty gdzie indziej, na przykład przez agenta."
   },
   "startupScreen": {

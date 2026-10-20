@@ -402,7 +402,9 @@ export const deDEAppErrors: AppErrorMessages = {
     "headerValue": "Ein Antwortheader-Wert enthält ein Zeichen, das HTTP nicht zulässt, etwa einen Zeilenumbruch.",
     "tooManyHeaders": "Eine simulierte Antwort kann höchstens {max} Header haben.",
     "headersTooLarge": "Die Antwortheader sind zu lang; zusammen dürfen sie höchstens 32 KiB umfassen.",
+    "bodyTooLarge": "Der Antworttext ist zu lang; er darf höchstens 512 KiB umfassen.",
     "limitReached": "Ein Tab kann höchstens {max} Anfragebedingungen haben. Entfernen Sie eine, bevor Sie eine weitere hinzufügen.",
+    "websiteTab": "Anfragebedingungen gelten nur für Website-Tabs. Öffnen Sie eine Website und fügen Sie die Bedingung dann hinzu.",
     "conditionGone": "Diese Anfragebedingung gibt es nicht mehr; sie wurde vielleicht anderswo entfernt, etwa von einem Agenten."
   },
   "startupScreen": {

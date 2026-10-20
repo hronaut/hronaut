@@ -1,3 +1,4 @@
+import { validateHeaderName, validateHeaderValue } from 'node:http'
 import { expect, it } from 'vitest'
 import { z } from 'zod'
 import { networkRouteInputSchema, normalizeNetworkRouteInput, parseNetworkRouteInput } from '../src/main/browser/network-route-input.js'
@@ -5,6 +6,16 @@ import { LocalizedError } from '../src/main/localized-error.js'
 import { translate, type MessageKey } from '../src/shared/i18n.js'
 
 const urlPattern = 'https://example.test/*'
+
+/** Node's own wording for a header it refuses, which can change between Node versions. */
+function nodeHeaderMessage(check: () => void): string {
+  try {
+    check()
+  } catch (error) {
+    return (error as Error).message
+  }
+  throw new Error('Node accepted the header')
+}
 
 it('normalizes response defaults, HTTP methods, one-shot failures, and persistent throttles', () => {
   expect(normalizeNetworkRouteInput({ urlPattern, method: ' get ', response: {} })).toEqual({
@@ -97,15 +108,17 @@ it.each([
   [{ urlPattern: 'https://example.test/\t*', response: {} }, 'appErrors.networkConditions.patternControl',
     'Network route URL pattern cannot contain control characters'],
   [{ urlPattern, response: { headers: { 'content type': 'text/plain' } } }, 'appErrors.networkConditions.headerName',
-    'Header name must be a valid HTTP token ["content type"]'],
+    nodeHeaderMessage(() => validateHeaderName('content type'))],
   [{ urlPattern, response: { headers: { 'x-note': 'one\ntwo' } } }, 'appErrors.networkConditions.headerValue',
-    'Invalid character in header content ["x-note"]'],
+    nodeHeaderMessage(() => validateHeaderValue('x-note', 'one\ntwo'))],
   [{ urlPattern, response: { headers: Object.fromEntries(Array.from({ length: 51 }, (_, index) => [`header-${index}`, 'value'])) } },
     'appErrors.networkConditions.tooManyHeaders', 'Mock response cannot have more than 50 headers'],
   [{ urlPattern, response: { headers: { x: 'a'.repeat(32768) } } }, 'appErrors.networkConditions.headersTooLarge',
-    'Mock response headers cannot exceed 32768 bytes']
-] satisfies Array<[unknown, MessageKey, string]>)('names a Request conditions mistake for the Network panel and keeps the agent message (%#)', (input, key, message) => {
-  // The Network panel showed these in English in every interface language, in the words agents read.
+    'Mock response headers cannot exceed 32768 bytes'],
+  [{ urlPattern, response: { body: 'я'.repeat(262_145) } }, 'appErrors.networkConditions.bodyTooLarge',
+    'Mock response body cannot exceed 524288 bytes']
+] satisfies Array<[unknown, MessageKey, string]>)('names a Request conditions mistake for the Network panel and keeps its English message (%#)', (input, key, message) => {
+  // The Network panel showed these in English in every interface language, in words written for agents.
   let error: unknown
   try {
     normalizeNetworkRouteInput(input)

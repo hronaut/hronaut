@@ -44,9 +44,12 @@ export function networkRoutePatternMatches(pattern: string, url: string): boolea
   return tokenIndex === tokens.length
 }
 
+/** The largest mock response body, in UTF-8 bytes, that a request condition accepts. */
+export const MAX_NETWORK_ROUTE_BODY_BYTES = 512 * 1024
+
 /**
- * A URL pattern a person can fix in Request conditions. Its message stays the English text agents read; the main
- * process turns its key into the interface language for the Network panel.
+ * A URL pattern a person can fix in Request conditions. Its message stays the English text MCP results and logs
+ * carry; the main process turns its key into the interface language for the Network panel.
  */
 export class NetworkRoutePatternError extends Error {
   constructor(message: string, readonly key: MessageKey) {

@@ -402,8 +402,10 @@ export const esESAppErrors: AppErrorMessages = {
     "headerValue": "Un valor de encabezado de respuesta contiene un carácter que HTTP no permite, como un salto de línea.",
     "tooManyHeaders": "Una respuesta simulada puede tener como máximo {max} encabezados.",
     "headersTooLarge": "Los encabezados de respuesta son demasiado largos; juntos pueden ocupar como máximo 32 KiB.",
-    "limitReached": "Una pestaña puede tener como máximo {max} condiciones de solicitud. Quita una antes de añadir otra.",
-    "conditionGone": "Esa condición de solicitud ya no existe; puede que la haya quitado un agente u otra ventana."
+    "bodyTooLarge": "El cuerpo de la respuesta es demasiado largo; puede ocupar como máximo 512 KiB.",
+    "limitReached": "Una pestaña puede tener como máximo {max} condiciones de solicitud. Elimina una antes de añadir otra.",
+    "websiteTab": "Las condiciones de solicitud solo funcionan en pestañas de sitios web. Abre un sitio web y luego añade la condición.",
+    "conditionGone": "Esa condición de solicitud ya no existe; puede que se haya eliminado en otro lugar, por ejemplo, por un agente."
   },
   "startupScreen": {
     "title": "Hronaut no se pudo iniciar",
