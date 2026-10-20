@@ -87,8 +87,9 @@ it('redacts URL credentials and token parameters before exposing download histor
 it.each([
   ['data:text/csv;base64,' + 'QUJD'.repeat(250_000), 'data:text/csv,'],
   ['data:Image/PNG;base64,' + 'iVBO'.repeat(1_000), 'data:image/png,'],
-  ['DATA:,' + 'plain text the page generated'.repeat(1_000), 'data:,']
-])('keeps only the media type of a data: download address, not the file it holds', async (url, expected) => {
+  ['DATA:,' + 'plain text the page generated'.repeat(1_000), 'data:,'],
+  [' data:text/csv,' + 'name,amount%0A'.repeat(1_000), 'data:text/csv,']
+])('keeps only the media type of a data: download address, not the file it holds: %#', async (url, expected) => {
   // The whole file stayed in the record, so every list, MCP result and panel update carried it.
   const { controller, download } = await fixture()
   download(1, false, url, 'report.csv')

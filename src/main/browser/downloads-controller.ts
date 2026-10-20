@@ -17,11 +17,13 @@ const MAX_DOWNLOAD_URL_CHARS = 4_096
  * address is cut at 4,096 characters. Every list, MCP result and panel update carries this address.
  */
 function retainedDownloadUrl(downloadUrl: string): string {
-  if (/^data:/i.test(downloadUrl)) {
-    const mediaType = /^data:([a-z\d!#$&^_.+-]{1,127}\/[a-z\d!#$&^_.+-]{1,127})[;,]/i.exec(downloadUrl)?.[1]
+  // Checked after redaction, which parses the address, so leading spaces cannot hide a `data:` scheme.
+  const redacted = redactNetworkUrl(downloadUrl)
+  if (/^data:/i.test(redacted)) {
+    const mediaType = /^data:([a-z\d!#$&^_.+-]{1,127}\/[a-z\d!#$&^_.+-]{1,127})[;,]/i.exec(redacted)?.[1]
     return `data:${mediaType?.toLowerCase() ?? ''},`
   }
-  return redactNetworkUrl(downloadUrl).slice(0, MAX_DOWNLOAD_URL_CHARS)
+  return redacted.slice(0, MAX_DOWNLOAD_URL_CHARS)
 }
 
 /** A finished download's file, with its identity as Hronaut saw it when the download completed. */
