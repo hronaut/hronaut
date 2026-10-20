@@ -2,8 +2,8 @@ import type { BrowserWindow } from 'electron'
 
 /**
  * The physical keys held down in the shell. A shell control pressed with a key can hand the keyboard focus to a page,
- * such as Delete closing the active tab, and the held key's repeats then go to that page. A page that sees the key
- * pressed or released forgets it, and so does the window losing the focus, since the key's release then goes
+ * such as Delete closing the active tab, and the held key's repeats then go to that page. A page that sees a key
+ * pressed or released forgets them, and so does the window losing the focus, since a key's release then goes
  * elsewhere.
  */
 export function trackShellHeldKeys(window: BrowserWindow): Set<string> {

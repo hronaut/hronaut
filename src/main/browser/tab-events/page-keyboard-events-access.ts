@@ -47,7 +47,7 @@ export interface PageKeyboardEventsAccess<Tab extends PageKeyboardEventsTab> {
   pageShortcut(requested: BrowserShortcutAction | null, input: { available: boolean; expectedAgentInput: boolean }): BrowserShortcutAction | null
   /** Whether the person's input to the tab's page is locked. */
   isHumanInteractionLocked(tab: Tab): boolean
-  /** The physical keys held down in the shell, which a page forgets once it sees them pressed or released. */
+  /** The physical keys held down in the shell, which a page forgets once it sees a key pressed or released. */
   shellHeldKeys(): Set<string>
   /** The repro recorder, which notes the person's keys while it records. */
   reproRecorder(): { observeReproKeyboard(tab: Tab, input: Electron.Input): void }

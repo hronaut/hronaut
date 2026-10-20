@@ -16,8 +16,9 @@ const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
  */
 export function attachPageKeyboardEvents<Tab extends PageKeyboardEventsTab>(access: PageKeyboardEventsAccess<Tab>, tab: Tab, webContents: WebContents): void {
   webContents.on('before-input-event', (event, input) => {
-    // A key pressed or released here is no longer one held in the shell.
-    if (input.code && !input.isAutoRepeat) access.shellHeldKeys().delete(input.code)
+    // A key pressed or released here ends the keys held in the shell: the keyboard repeats only the newest key, and a
+    // held key whose repeats were dropped is let go without its release reaching any page.
+    if (!input.isAutoRepeat) access.shellHeldKeys().clear()
     if (access.browserContentOccluded() && !access.agentInputWebContents().has(webContents.id)) {
       // Trusted chrome is open; the page is only on screen until its snapshot is shown.
       event.preventDefault()
