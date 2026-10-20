@@ -214,6 +214,12 @@ describe('AppTopbarActions', () => {
     expect(lock).toHaveAttribute('aria-pressed', 'true')
     rendered.mcpStatusController.dispose()
   })
+
+  it('does not show the latest download as complete once its file was moved or deleted', () => {
+    const rendered = renderActions({ downloads: [{ ...download(1), fileRemoved: true }], activeDownloads: [], downloadButtonLabel: 'Downloads' })
+    expect(screen.getByRole('button', { name: 'Downloads' })).not.toHaveClass('complete')
+    rendered.mcpStatusController.dispose()
+  })
 })
 
 it.each([

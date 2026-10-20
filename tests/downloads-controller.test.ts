@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
-import { lstat, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { access, lstat, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { DownloadItem, Session } from 'electron'
@@ -13,6 +13,11 @@ import type { BrowserDownloadState } from '../src/shared/types.js'
 vi.mock('node:fs', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs')>()
   return { ...actual, existsSync: vi.fn(actual.existsSync) }
+})
+
+vi.mock('node:fs/promises', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return { ...actual, access: vi.fn(actual.access) }
 })
 
 vi.mock('electron', () => ({ shell: { showItemInFolder: vi.fn() } }))
@@ -496,30 +501,91 @@ function thrown(action: () => unknown): LocalizedError {
   throw new Error('Expected a LocalizedError')
 }
 
+/** Holds the next file check until `answer` settles it, as a slow network folder would. */
+function holdNextFileCheck() {
+  cleanups.push(() => { vi.mocked(access).mockReset() })
+  let answer!: (present: boolean) => void
+  vi.mocked(access).mockImplementationOnce(() => new Promise<void>((resolve, reject) => {
+    answer = present => present ? resolve() : reject(Object.assign(new Error('gone'), { code: 'ENOENT' }))
+  }))
+  return { answer: (present: boolean) => answer(present) }
+}
+
 it('marks a finished download whose file was moved or deleted, and clears the mark once it is back', async () => {
   const { controller, download, published } = await fixture()
   download().complete()
   const savePath = controller.listDownloads()[0]!.savePath!
   await writeFile(savePath, 'saved')
-  expect((await controller.listCheckedDownloads())[0]).not.toHaveProperty('fileRemoved')
+  controller.listDownloadsCheckingFiles()
+  await vi.waitFor(() => expect(access).toHaveBeenCalledWith(savePath))
   const before = published.length
   await rm(savePath)
   // The Downloads panel kept showing the file as complete and offering Show in folder, which then failed.
-  expect((await controller.listCheckedDownloads())[0]?.fileRemoved).toBe(true)
-  expect(published.slice(before).map(downloads => downloads[0]?.fileRemoved)).toEqual([true])
-  await controller.listCheckedDownloads()
-  expect(published).toHaveLength(before + 1)
+  expect(controller.listDownloadsCheckingFiles()[0]).not.toHaveProperty('fileRemoved')
+  await vi.waitFor(() => expect(controller.listDownloads()[0]?.fileRemoved).toBe(true))
+  await vi.waitFor(() => expect(published.slice(before).map(downloads => downloads[0]?.fileRemoved)).toEqual([true]))
   await writeFile(savePath, 'back')
-  expect((await controller.listCheckedDownloads())[0]).not.toHaveProperty('fileRemoved')
-  expect(published.at(-1)?.[0]).not.toHaveProperty('fileRemoved')
+  controller.listDownloadsCheckingFiles()
+  await vi.waitFor(() => expect(published.at(-1)?.[0]).not.toHaveProperty('fileRemoved'))
+  expect(published).toHaveLength(before + 2)
 })
 
-it('keeps a record removed while its file is checked out of the list', async () => {
+it('checks again after a check already running instead of beside it, one file at a time', async () => {
+  const { controller, download } = await fixture()
+  download(1, false, 'https://download.example/a.txt', 'a.txt').complete()
+  download(1, false, 'https://download.example/b.txt', 'b.txt').complete()
+  // The checks the downloads started have settled.
+  await new Promise(resolve => setTimeout(resolve, 20))
+  vi.mocked(access).mockClear()
+  const held = holdNextFileCheck()
+  controller.listDownloadsCheckingFiles()
+  controller.listDownloadsCheckingFiles()
+  controller.listDownloadsCheckingFiles()
+  // Opening the panel three times started 200 checks each, all at once, on Node's four file threads.
+  expect(access).toHaveBeenCalledOnce()
+  held.answer(true)
+  await vi.waitFor(() => expect(access).toHaveBeenCalledTimes(4))
+  await new Promise(resolve => setTimeout(resolve, 20))
+  expect(access).toHaveBeenCalledTimes(4)
+})
+
+it('keeps the newer answer when a slow check of the same file settles later', async () => {
   const { controller, download } = await fixture()
   download().complete()
-  const checking = controller.listCheckedDownloads()
+  const [entry] = controller.listDownloads()
+  await new Promise(resolve => setTimeout(resolve, 20))
+  const held = holdNextFileCheck()
+  controller.listDownloadsCheckingFiles()
+  // Show in folder found the file gone while the panel's check was still waiting on a slow folder.
+  await expect(controller.showDownloadInFolder(entry!.id)).rejects.toThrow('This file was moved or deleted')
+  expect(controller.listDownloads()[0]?.fileRemoved).toBe(true)
+  held.answer(true)
+  await new Promise(resolve => setTimeout(resolve, 20))
+  expect(controller.listDownloads()[0]?.fileRemoved).toBe(true)
+})
+
+it('keeps a record removed while its file is checked out of the list, with nothing more published', async () => {
+  const { controller, download, published } = await fixture()
+  download().complete()
+  await new Promise(resolve => setTimeout(resolve, 20))
+  const held = holdNextFileCheck()
+  controller.listDownloadsCheckingFiles()
   controller.removeFinishedDownload(controller.listDownloads()[0]!.id)
-  expect(await checking).toEqual([])
+  const removal = published.length
+  held.answer(false)
+  await new Promise(resolve => setTimeout(resolve, 200))
+  expect(controller.listDownloads()).toEqual([])
+  expect(published).toHaveLength(removal)
+})
+
+it('checks finished files when a new download opens the panel', async () => {
+  const { controller, download } = await fixture()
+  download(1, false, 'https://download.example/a.txt', 'a.txt').complete()
+  const savePath = controller.listDownloads()[0]!.savePath!
+  await writeFile(savePath, 'saved')
+  await rm(savePath)
+  download(1, false, 'https://download.example/b.txt', 'b.txt')
+  await vi.waitFor(() => expect(controller.listDownloads().find(item => item.filename === 'a.txt')?.fileRemoved).toBe(true))
 })
 
 it('opens the folder of a finished file and says when the file was moved or deleted', async () => {
@@ -554,5 +620,5 @@ it('names transfer failures for the panel while agents keep reading the same mes
   native.complete()
   const notActive = thrown(() => controller.manageWorkspaceDownloads('first', 'cancel', id))
   expect([notActive.key, notActive.message]).toEqual(['appErrors.downloads.notActive', `Active download not found: ${id}`])
-  expect(translate('de-DE', notActive.key)).toBe('Dieser Download ist bereits abgeschlossen oder angehalten.')
+  expect(translate('de-DE', notActive.key)).toBe('Dieser Download ist bereits beendet oder abgebrochen.')
 })

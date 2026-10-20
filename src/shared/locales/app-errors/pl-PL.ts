@@ -238,7 +238,7 @@ export const plPLAppErrors: AppErrorMessages = {
     "notActive": "To pobieranie już się zakończyło lub zatrzymało.",
     "notProgressing": "Wstrzymać można tylko trwające pobieranie.",
     "notResumable": "Tego pobierania nie można wznowić.",
-    "notCompleted": "W folderze można pokazać tylko zakończone pobieranie.",
+    "notCompleted": "W folderze można pokazać tylko ukończone pobieranie.",
     "fileRemoved": "Ten plik został przeniesiony lub usunięty, więc nie można go pokazać w folderze."
   },
   "bookmarks": {

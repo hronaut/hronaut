@@ -235,7 +235,7 @@ export const deDEAppErrors: AppErrorMessages = {
   "downloads": {
     "unavailable": "Dieser Download ist nicht mehr in der Liste.",
     "removeActive": "Brechen Sie diesen Download ab, bevor Sie ihn entfernen.",
-    "notActive": "Dieser Download ist bereits abgeschlossen oder angehalten.",
+    "notActive": "Dieser Download ist bereits beendet oder abgebrochen.",
     "notProgressing": "Nur ein laufender Download kann pausiert werden.",
     "notResumable": "Dieser Download kann nicht fortgesetzt werden.",
     "notCompleted": "Nur ein abgeschlossener Download kann im Ordner angezeigt werden.",

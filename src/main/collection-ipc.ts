@@ -15,14 +15,14 @@ interface CollectionIpcHost {
   historyCleared?(): void
   /** The person removed one page from their history, so anything else that names it goes too. */
   historyEntryRemoved?(url: string): void
-  downloads(): Pick<BrowserTabsManager, 'listCheckedDownloads' | 'removeFinishedDownload' | 'manageDownloads' | 'showDownloadInFolder'>
+  downloads(): Pick<BrowserTabsManager, 'listDownloadsCheckingFiles' | 'removeFinishedDownload' | 'manageDownloads' | 'showDownloadInFolder'>
   publishBookmarks(): BrowserBookmark[]
   publishVisitHistory(): BrowserHistoryEntry[]
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: CollectionIpcHost): void {
-  ipcMain.handle('downloads:list', (event) => host.runRead(event, () => host.downloads().listCheckedDownloads()))
+  ipcMain.handle('downloads:list', (event) => host.runRead(event, () => host.downloads().listDownloadsCheckingFiles()))
   for (const action of ['cancel', 'pause', 'resume'] as const) {
     ipcMain.handle(`downloads:${action}`, (event, downloadId: unknown) => {
       host.assertTrustedSender(event)

@@ -2966,7 +2966,7 @@ export const ruRU = {
     "complete": "{size} · Завершено",
     "cancelled": "Отменено",
     "interrupted": "Прервано",
-    "fileRemoved": "Перемещён или удалён"
+    "fileRemoved": "Перемещено или удалено"
   },
   "bookmarks": { sortOrder: "Порядок закладок", sortUpdated: "Недавно обновлённые", sortTitle: "Название", copyAddress: "Копировать адрес", copyAddressAria: "Копировать адрес «{title}»", addressCopied: "Адрес скопирован", copyFailed: "Не удалось скопировать адрес. Повторите попытку.",
     "collection": "Коллекция",

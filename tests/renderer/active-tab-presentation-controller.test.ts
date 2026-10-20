@@ -194,6 +194,10 @@ describe('active tab presentation controller', () => {
 
     downloads.value[0].state = 'completed'
     expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.complete:file.zip]')
+    // A finished file that was moved or deleted no longer reads as a completed download.
+    downloads.value[0].fileRemoved = true
+    expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.recent]')
+    delete downloads.value[0].fileRemoved
     downloads.value[0].state = 'interrupted'
     expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.progress:#1]')
     downloads.value[0].completedAt = '2026-08-22T00:01:00.000Z'

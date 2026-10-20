@@ -242,7 +242,7 @@ export const enUSAppErrors = {
     "notActive": "This download has already finished or stopped.",
     "notProgressing": "Only a download in progress can be paused.",
     "notResumable": "This download cannot be resumed.",
-    "notCompleted": "Only a finished download can be shown in its folder.",
+    "notCompleted": "Only a completed download can be shown in its folder.",
     "fileRemoved": "This file was moved or deleted, so it cannot be shown in its folder."
   },
   "bookmarks": {

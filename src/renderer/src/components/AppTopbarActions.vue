@@ -96,7 +96,7 @@ watch(() => props.licenseReminderShown, (shown) => {
     </UiButton>
     <UiButton appearance="application"
       class="topbar-icon-button downloads-button"
-      :class="{ active: activeDownloads.length, complete: !activeDownloads.length && downloads[0]?.state === 'completed' }"
+      :class="{ active: activeDownloads.length, complete: !activeDownloads.length && downloads[0]?.state === 'completed' && !downloads[0].fileRemoved }"
       type="button"
       v-tooltip="downloadButtonLabel"
       :aria-label="downloadButtonLabel"
@@ -104,7 +104,7 @@ watch(() => props.licenseReminderShown, (shown) => {
       @click="emit('toggleDownloads')"
     >
       <IconProgress v-if="activeDownloads.length" class="state-spinner" aria-hidden="true" />
-      <IconDownloadDone v-else-if="downloads[0]?.state === 'completed'" aria-hidden="true" />
+      <IconDownloadDone v-else-if="downloads[0]?.state === 'completed' && !downloads[0].fileRemoved" aria-hidden="true" />
       <IconDownload v-else aria-hidden="true" />
       <span v-if="downloads.length" class="downloads-badge" aria-hidden="true">{{ Math.min(downloads.length, 99) }}</span>
     </UiButton>
