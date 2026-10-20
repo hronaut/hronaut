@@ -1,3 +1,4 @@
+import type { WebFrameMain } from 'electron'
 import type { MessageKey } from '../../../shared/i18n.js'
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
@@ -210,48 +211,82 @@ export function sleepBlockReason<Tab extends TabSleepTab>(access: TabSleepAccess
 }
 
 /**
+ * Whether one document holds form input the person changed, including fields inside open shadow roots, or edited
+ * content its watcher recorded.
+ */
+const CHANGED_FORM_STATE_SCRIPT = `(() => {
+    const changed = (field) => {
+      if (field instanceof HTMLInputElement) {
+        const type = (field.getAttribute('type') || 'text').toLowerCase();
+        if (['button', 'submit', 'reset', 'image', 'hidden'].includes(type)) return false;
+        if (type === 'checkbox' || type === 'radio') return field.checked !== field.defaultChecked;
+        if (type === 'file') return (field.files?.length || 0) > 0;
+        return field.value !== field.defaultValue;
+      }
+      if (field instanceof HTMLTextAreaElement) return field.value !== field.defaultValue;
+      if (field instanceof HTMLSelectElement) {
+        if (field.multiple) return [...field.options].some((option) => option.selected !== option.defaultSelected);
+        const explicitDefault = [...field.options].findIndex((option) => option.defaultSelected);
+        const defaultIndex = explicitDefault >= 0 ? explicitDefault : field.options.length > 0 ? 0 : -1;
+        return field.selectedIndex !== defaultIndex;
+      }
+      return false;
+    };
+    const roots = [document];
+    for (let index = 0; index < roots.length; index += 1) {
+      for (const element of roots[index].querySelectorAll('*')) {
+        if (changed(element)) return true;
+        if (element.shadowRoot) roots.push(element.shadowRoot);
+      }
+    }
+    return window.__hronautContentEditableDirty === true;
+  })()`
+
+/**
  * Whether the page holds form input the person changed, including edited
- * content, so sleeping would lose it. A page that cannot answer counts as
- * changed, except one whose renderer exited, which holds no input.
+ * content, so sleeping would lose it. Every frame is checked, since a draft
+ * can be in an embedded form or editor. A page that cannot answer counts as
+ * changed, except one whose renderer exited, which holds no input; a frame
+ * that cannot answer counts as changed unless it is gone.
  */
 async function hasChangedFormState(tab: TabSleepTab): Promise<boolean> {
   try {
-    return await tab.webContents.executeJavaScript(`(() => {
-        const inputs = [...document.querySelectorAll('input')];
-        if (inputs.some((input) => {
-          const type = (input.getAttribute('type') || 'text').toLowerCase();
-          if (['button', 'submit', 'reset', 'image', 'hidden'].includes(type)) return false;
-          if (type === 'checkbox' || type === 'radio') return input.checked !== input.defaultChecked;
-          if (type === 'file') return (input.files?.length || 0) > 0;
-          return input.value !== input.defaultValue;
-        })) return true;
-        if ([...document.querySelectorAll('textarea')].some((field) => field.value !== field.defaultValue)) return true;
-        if ([...document.querySelectorAll('select')].some((field) => {
-          if (field.multiple) return [...field.options].some((option) => option.selected !== option.defaultSelected);
-          const explicitDefault = [...field.options].findIndex((option) => option.defaultSelected);
-          const defaultIndex = explicitDefault >= 0 ? explicitDefault : field.options.length > 0 ? 0 : -1;
-          return field.selectedIndex !== defaultIndex;
-        })) return true;
-        return window.__hronautContentEditableDirty === true;
-      })()`) === true
+    if (await tab.webContents.executeJavaScript(CHANGED_FORM_STATE_SCRIPT) === true) return true
   } catch (error) {
     return !(error instanceof RendererExitedError)
   }
+  if (tab.webContents.isDestroyed()) return false
+  for (const frame of tab.webContents.mainFrame.framesInSubtree) {
+    if (frame === tab.webContents.mainFrame) continue
+    try {
+      if (await frame.executeJavaScript(CHANGED_FORM_STATE_SCRIPT) === true) return true
+    } catch {
+      if (!frame.isDestroyed() && !frame.detached) return true
+    }
+  }
+  return false
 }
 
-/** Starts recording in the page whether the person edits editable content, which forms do not show. */
-export function watchUnsavedFormEdits(tab: TabSleepTab): void {
-  void tab.webContents.executeJavaScript(`(() => {
-      if (window.__hronautFormEditTrackingInstalled) return;
-      window.__hronautFormEditTrackingInstalled = true;
-      window.__hronautContentEditableDirty = false;
-      document.addEventListener('input', (event) => {
-        const target = event.target;
-        if (target instanceof HTMLElement && target.isContentEditable) {
-          window.__hronautContentEditableDirty = true;
-        }
-      }, true);
-    })()`, true).catch(() => undefined)
+/** Records in a document whether the person edits editable content, which forms do not show, inside shadow roots too. */
+const WATCH_FORM_EDITS_SCRIPT = `(() => {
+    if (window.__hronautFormEditTrackingInstalled) return;
+    window.__hronautFormEditTrackingInstalled = true;
+    window.__hronautContentEditableDirty = false;
+    document.addEventListener('input', (event) => {
+      const target = event.composedPath()[0];
+      if (target instanceof HTMLElement && target.isContentEditable) {
+        window.__hronautContentEditableDirty = true;
+      }
+    }, true);
+  })()`
+
+/**
+ * Starts recording in the page, or in one of its frames once it loads, whether the person edits editable content,
+ * which forms do not show.
+ */
+export function watchUnsavedFormEdits(tab: TabSleepTab, frame?: WebFrameMain): void {
+  const run = frame ? frame.executeJavaScript(WATCH_FORM_EDITS_SCRIPT, true) : tab.webContents.executeJavaScript(WATCH_FORM_EDITS_SCRIPT, true)
+  void run.catch(() => undefined)
 }
 
 /**
