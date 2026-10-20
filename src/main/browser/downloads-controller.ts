@@ -48,7 +48,6 @@ interface BrowserDownloadsHost {
   publish(downloads: BrowserDownloadState[]): void
 }
 
-/** Owns native downloads; the manager remains authoritative for tabs and workspaces. */
 /**
  * A download name's extension as Chrome reads it: a compressed archive's two extensions, such as `.tar.gz` or
  * `.sql.gz`, count as one, so a second `release.tar.gz` is saved as `release (1).tar.gz` rather than
@@ -61,6 +60,7 @@ function downloadExtension(filename: string): string {
   return /^\.[^.]{1,4}$/.test(inner) ? inner + final : final
 }
 
+/** Owns native downloads; the manager remains authoritative for tabs and workspaces. */
 export class BrowserDownloadsController {
   private readonly downloadHookSessions = new Map<Session, () => void>()
   private readonly downloadItemListeners = new Map<DownloadItem, () => void>()
