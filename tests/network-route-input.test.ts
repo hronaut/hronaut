@@ -1,7 +1,7 @@
 import { validateHeaderName, validateHeaderValue } from 'node:http'
 import { expect, it } from 'vitest'
 import { z } from 'zod'
-import { networkRouteInputSchema, normalizeNetworkRouteInput, parseNetworkRouteInput } from '../src/main/browser/network-route-input.js'
+import { isNetworkRouteRefusal, networkRouteInputSchema, normalizeNetworkRouteInput, parseNetworkRouteInput } from '../src/main/browser/network-route-input.js'
 import { LocalizedError } from '../src/main/localized-error.js'
 import { translate, type MessageKey } from '../src/shared/i18n.js'
 
@@ -128,4 +128,22 @@ it.each([
   expect(error).toBeInstanceOf(LocalizedError)
   expect(error).toMatchObject({ key, message })
   expect(translate('de-DE', key, { max: 50 })).not.toBe(translate('en-US', key, { max: 50 }))
+})
+
+it('marks its own refusals for agents but not a schema error', () => {
+  // browser_network_routes dropped every refusal's message, so agents never learned what to change.
+  const refusal = (input: unknown): unknown => {
+    try {
+      normalizeNetworkRouteInput(input)
+    } catch (error) {
+      return error
+    }
+    throw new Error('The input was accepted')
+  }
+  expect(isNetworkRouteRefusal(refusal({ urlPattern, abort: 'Failed', throttle: 'slow-3g' }))).toBe(true)
+  expect(isNetworkRouteRefusal(refusal({ urlPattern: 'api.example.test/*', response: {} }))).toBe(true)
+  const schema = refusal({ urlPattern: '', response: {} })
+  expect(schema).toBeInstanceOf(z.ZodError)
+  expect(isNetworkRouteRefusal(schema)).toBe(false)
+  expect(isNetworkRouteRefusal(Object.assign(new Error('Network route URL pattern must include a scheme'), { refusal: true }))).toBe(false)
 })

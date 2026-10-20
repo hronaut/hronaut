@@ -76,12 +76,8 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
         call.settlement.retainPublication(assert)
       }
       const markConditionsSubmitted = call.settlement.markSubmitted
-      // A change refused before anything was sent keeps its message for the agent; the call wrapper turns the error
-      // into a result before the settlement sees it, so the settlement is told here.
       function refuse(message: string): never {
-        const refusal = networkRouteRefusal(new Error(message))
-        call.rememberInputPolicy(refusal)
-        throw refusal
+        throw networkRouteRefusal(new Error(message))
       }
       validateConditions()
       const publish = (routes: import('../../../../shared/types.js').BrowserNetworkRouteSummary[]): CallToolResult => {
@@ -92,7 +88,12 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
       // Holds answer one captured request; their failures are not rule application failures.
       if (action === 'held') return textResult(manager.heldNetworkResponses(tabId))
       if (action === 'release' || action === 'cancel') {
-        if (!routeId) refuse(`routeId is required to ${action} a held request`)
+        if (!routeId) {
+          const refusal = networkRouteRefusal(new Error(`routeId is required to ${action} a held request`))
+          // The call wrapper turns the error into a result before the settlement sees it, so the settlement is told here.
+          call.rememberInputPolicy(refusal)
+          throw refusal
+        }
         try {
           if (action === 'release') await manager.releaseHeldNetworkResponse(tabId, routeId, validateConditions, markConditionsSubmitted)
           else await manager.cancelHeldNetworkResponse(tabId, routeId, validateConditions, markConditionsSubmitted)
@@ -125,6 +126,8 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
         validateConditions()
         const state = manager.networkConditionState(tabId)
         if (state.application === 'confirmed') {
+          // A change refused before anything was sent keeps its message for the agent. The call wrapper turns the
+          // error into a result before the settlement sees it, so the settlement is told here.
           if (isNetworkRouteRefusal(error)) call.rememberInputPolicy(error)
           throw error
         }

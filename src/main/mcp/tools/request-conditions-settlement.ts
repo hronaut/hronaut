@@ -5,6 +5,13 @@ import { McpCapabilityAuthorizationError } from '../capability-profile-store.js'
 import { errorResult, textResult } from '../tool-results.js'
 import type { ToolActivityClassification } from './tool-context.js'
 
+/** The longest refusal message an agent reads; a refusal can quote a header name or rule ID the agent sent. */
+const MAX_REFUSAL_MESSAGE = 500
+
+function boundedRefusal(message: string): string {
+  return message.length > MAX_REFUSAL_MESSAGE ? `${message.slice(0, MAX_REFUSAL_MESSAGE - 1)}…` : message
+}
+
 /**
  * How browser_emulate and browser_network_routes settle a call. Before the first configuration command a failure
  * reports that nothing was dispatched; after it, that application is unknown. A result is published only after the
@@ -15,20 +22,22 @@ export function requestConditionsSettlement(emulation: boolean, input: Record<st
   let attempted = false
   let policy: Record<string, unknown> | undefined
   let emulationInputError: keyof typeof EMULATION_INPUT_ERRORS | undefined
-  let routeRefusal: string | undefined
+  let routeRefusal: Error | undefined
   let reviewFinalizationFailed = false
   let publication: (() => void) | undefined
   let finishActivity: ((result: CallToolResult) => void) | undefined
   let finishing = false
   const rememberInputPolicy = (error: unknown): void => {
     if (!attempted && error instanceof EmulationInputError) emulationInputError = error.reason
-    if (!attempted && !emulation && isNetworkRouteRefusal(error)) routeRefusal = error.message
+    // The failure a call ends with explains it, so any later failure replaces an earlier refusal.
+    if (!emulation) routeRefusal = !attempted && isNetworkRouteRefusal(error) ? error : undefined
     if (error instanceof McpCapabilityAuthorizationError) policy = { permission: 'denied', policyDecision: error.decision }
   }
   const settle = (result: CallToolResult): CallToolResult => {
     let settled = result
     if (result.isError && !readOnly && (emulation || input.action !== undefined)) {
-      const refusal = !attempted && !policy && !reviewFinalizationFailed && result.structuredContent?.permission !== 'denied' ? routeRefusal : undefined
+      const refusal = routeRefusal && !attempted && !policy && !reviewFinalizationFailed && result.structuredContent?.permission !== 'denied'
+        ? boundedRefusal(routeRefusal.message) : undefined
       const outcome = { ...result.structuredContent, ...policy,
         ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
         ...(emulation && !attempted && !policy && !reviewFinalizationFailed && result.structuredContent?.permission !== 'denied' && emulationInputError
