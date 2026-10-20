@@ -34,7 +34,7 @@ const open = defineModel<boolean>('open', { required: true })
 const entries = defineModel<BrowserHistoryEntry[]>('entries', { required: true })
 const panelRoot = ref<HTMLElement | null>(null)
 let focusGeneration = 0
-// The row whose Remove is under way; that removal, not the live list, gives the focus on.
+// The row whose Remove is under way. remove() moves the focus on from it, so the live list leaves that row alone.
 let removalFocusRow: Element | null = null
 const stopFocusSessionTracking = watch(open, () => { focusGeneration += 1 }, { flush: 'sync' })
 const { t } = useI18n({ useScope: 'global' })
