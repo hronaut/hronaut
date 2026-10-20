@@ -5,6 +5,7 @@ import { closeFixtureServer, expect, test } from './fixtures.js'
 type TestWindow = { hronaut: HronautApi }
 
 test('zooms a website with Control and the mouse wheel', async ({ appWindow, electronApp }) => {
+  test.skip(process.platform === 'darwin', 'Chromium zooms with a pinch on macOS and never asks for a wheel zoom')
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' }).end('<!doctype html><title>Wheel zoom fixture</title><body style="height:3000px">Wheel zoom</body>')
   })
@@ -33,9 +34,13 @@ test('zooms a website with Control and the mouse wheel', async ({ appWindow, ele
     expect(await activeZoom()).toBe(100)
     // Electron reported the zoom Chromium asked for and left it to the app, so the page stayed at 100%.
     await wheel(site, 1)
-    await expect.poll(activeZoom).toBeGreaterThan(100)
+    // The synthetic notch reports twice, so wait until the zoom and the toolbar agree on where it settled.
+    const toolbarZoom = () => appWindow.getByRole('button', { name: /^Page zoom controls, \d+%$/ }).getAttribute('aria-label')
+    await expect.poll(async () => {
+      const percent = await activeZoom()
+      return percent! > 100 && await toolbarZoom() === `Page zoom controls, ${percent}%`
+    }).toBe(true)
     const zoomedIn = (await activeZoom())!
-    await expect(appWindow.getByRole('button', { name: `Page zoom controls, ${zoomedIn}%` })).toBeVisible()
     await wheel(site, -1)
     await expect.poll(activeZoom).toBeLessThan(zoomedIn)
   } finally {

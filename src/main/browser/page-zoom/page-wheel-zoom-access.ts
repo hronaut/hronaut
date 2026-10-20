@@ -10,7 +10,8 @@ export interface PageWheelZoomTab {
 /**
  * What zooming a page with Control and the mouse wheel needs from the tab
  * manager, which keeps its tabs, trusted chrome occlusion, the human input
- * lock, in-flight agent input and page zoom private.
+ * lock, in-flight agent input, native selection sessions and page zoom
+ * private.
  */
 export interface PageWheelZoomAccess<Tab extends PageWheelZoomTab> {
   /** The open tab with this id, if any. */
@@ -21,6 +22,8 @@ export interface PageWheelZoomAccess<Tab extends PageWheelZoomTab> {
   isHumanInteractionLocked(tab: Tab): boolean
   /** How many agent input operations are in flight for each page, by WebContents id. */
   agentInputWebContents(): ReadonlyMap<number, number>
+  /** Whether a screenshot area selection or element pick is in progress on the page, which measures it at its zoom. */
+  nativeSelectionUnderWay(webContentsId: number): boolean
   /** Zooms the tab's page to the next or previous step, as the zoom bar and Ctrl/Cmd with + or - do. */
   zoom(tabId: string, direction: 'in' | 'out'): void
 }

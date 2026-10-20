@@ -29,6 +29,7 @@ function attached(url: string, overrides: Partial<PageWheelZoomAccess<ZoomTab>> 
     browserContentOccluded: () => false,
     isHumanInteractionLocked: () => false,
     agentInputWebContents: () => new Map(),
+    nativeSelectionUnderWay: () => false,
     // The same step the zoom bar and Ctrl/Cmd with + or - take.
     zoom: (tabId, direction) => { setZoom({ getTab: () => tab, changed, getState: () => ({}) as BrowserState }, { tabId, action: direction }) },
     ...overrides
@@ -64,6 +65,7 @@ describe('Control with the mouse wheel', () => {
     ['behind trusted chrome', { browserContentOccluded: () => true }],
     ['while the tab is locked', { isHumanInteractionLocked: () => true }],
     ['while an agent sends input to the page', { agentInputWebContents: () => new Map([[41, 1]]) }],
+    ['during an area capture or element pick on the page', { nativeSelectionUnderWay: (id: number) => id === 41 }],
     ['after the tab closed', { findTab: () => undefined }]
   ])('leaves the zoom alone %s', (_case, overrides: Partial<PageWheelZoomAccess<ZoomTab>>) => {
     const { turn, percent } = attached('https://maps.example/', overrides)

@@ -3202,7 +3202,7 @@ export class BrowserTabsManager {
   /**
    * The narrow view zooming a page with Control and the mouse wheel gets of
    * this manager's private tabs, trusted chrome occlusion, human input lock,
-   * in-flight agent input and page zoom. It is a prototype method rather
+   * in-flight agent input, native selection sessions and page zoom. It is a prototype method rather
    * than a field, so managers created without the constructor (as unit tests
    * do) still provide it. Each member reads the manager when called.
    */
@@ -3212,6 +3212,7 @@ export class BrowserTabsManager {
       browserContentOccluded: () => this.browserContentOccluded,
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
       agentInputWebContents: () => this.agentInputWebContents,
+      nativeSelectionUnderWay: (webContentsId) => this.screenshotAreaSessions.has(webContentsId) || this.elementPickerSessions.has(webContentsId),
       zoom: (tabId, direction) => { setZoom(this.pageZoomAccess(), { tabId, action: direction }) }
     }
   }
