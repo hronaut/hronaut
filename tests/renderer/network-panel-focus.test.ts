@@ -91,3 +91,43 @@ describe('Network panel focus after Clear', () => {
     } finally { observer.disconnect(); view.unmount() }
   })
 })
+
+describe('Network panel Replay XHR with a held Enter', () => {
+  // Replaying a POST takes a second press, since it can repeat a write; the first press turns the button into Confirm
+  // replay and leaves it focused, so a held Enter's repeats replayed it without one.
+  it('asks for a new press to confirm a replay, not a repeat of the first', async () => {
+    const post: BrowserNetworkRequest = { ...request, id: 'post-1', method: 'POST', resourceType: 'xhr' }
+    const replayNetworkRequest = vi.fn(async () => { throw new Error('Replay is not expected') })
+    vi.stubGlobal('hronaut', {
+      listNetworkRequests: vi.fn(async () => [post]),
+      listNetworkRoutes: vi.fn(async () => []),
+      getNetworkRequestDetails: vi.fn(async () => ({ ...post, request: { headers: {} }, response: { headers: {}, body: { available: true, text: '{}' } } })),
+      replayNetworkRequest
+    })
+    const view = render(NetworkPanel, {
+      global,
+      props: {
+        open: true, dock: 'right', activeTab: activeTab(), locale: 'en-US', copyText: vi.fn(async () => true),
+        syncState: vi.fn(async (operation: Promise<unknown>) => { await operation }),
+        preservationBusy: false, updatePreservation: vi.fn(), keepsSeparatePanelOpen: () => false
+      }
+    })
+    try {
+      const user = userEvent.setup()
+      await user.click(screen.getByRole('button', { name: 'Refresh network requests' }))
+      await user.click(await within(screen.getByRole('listbox', { name: 'Network requests' })).findByRole('option'))
+      const replay = await screen.findByRole('button', { name: 'Replay XHR' })
+      replay.focus()
+      await user.keyboard('{Enter}')
+      expect(replay).toHaveTextContent('Confirm replay POST')
+      expect(replay).toHaveFocus()
+      const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+      replay.dispatchEvent(repeat)
+      expect(repeat.defaultPrevented).toBe(true)
+      const first = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      replay.dispatchEvent(first)
+      expect(first.defaultPrevented).toBe(false)
+      expect(replayNetworkRequest).not.toHaveBeenCalled()
+    } finally { view.unmount() }
+  })
+})

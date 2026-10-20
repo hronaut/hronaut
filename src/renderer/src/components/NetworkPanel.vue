@@ -33,6 +33,7 @@ import type {
   SupportedLocale
 } from '../../../shared/types'
 import { useNetworkController } from '../composables/useNetworkController'
+import { ignoreHeldEnter } from '../held-enter.js'
 import NetworkContentSearch from './NetworkContentSearch.vue'
 import NetworkRequestConditions from './NetworkRequestConditions.vue'
 import NetworkRequestPriority from './NetworkRequestPriority.vue'
@@ -445,6 +446,7 @@ onBeforeUnmount(dispose)
                     v-tooltip="networkReplayRequiresConfirmation(networkRequestDetails.method)
                       ? t('network.details.replayRisk')
                       : t('network.details.replaySafe')"
+                    @keydown="ignoreHeldEnter"
                     @click="replaySelectedNetworkRequest"
                   >
                     <IconProgress v-if="networkReplayState === 'replaying'" class="state-spinner" aria-hidden="true" />
