@@ -171,6 +171,10 @@ describe('workspace shell wash tokens', () => {
     const rule = /\.license-reminder-pill\s*\{([^}]*)\}/u.exec(buttons)?.[1] ?? ''
     expect(rule).toContain('[color:var(--danger-text)]')
     expect(rule).toContain('[background:color-mix(in_srgb,_var(--danger)_9%,_var(--pill-bg))]')
+    // A hover background of 14% took the light theme to 4.42:1.
+    const hover = /\.license-reminder-pill:hover\s*\{([^}]*)\}/u.exec(buttons)?.[1] ?? ''
+    expect(hover).toContain('border-color')
+    expect(hover).not.toMatch(/\[(background|color):/u)
     for (const theme of RESOLVED_THEME_NAMES) {
       const danger = themeValue(theme, '--danger')
       const pill = themeValue(theme, '--pill-bg')

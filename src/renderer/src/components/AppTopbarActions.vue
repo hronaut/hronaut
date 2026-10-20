@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconDownload from '~icons/material-symbols/download-rounded'
 import IconDownloadDone from '~icons/material-symbols/download-done-rounded'
@@ -21,7 +22,7 @@ import UpdateNotification from './UpdateNotification.vue'
 import { vTooltip } from '../ui/tooltip.js'
 import { ignoreHeldEnter } from '../held-enter.js'
 
-defineProps<{
+const props = defineProps<{
   interactionPending?: boolean
   audioPending?: boolean
   commandPaletteOpen: boolean
@@ -58,6 +59,13 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
+
+const licenseReminder = ref<{ focus: () => void } | null>(null)
+// The reminder appears when Not now closes the license card, which takes the focused button with it. The reminder
+// takes the focus instead, so that the next Tab does not start from nowhere; it ignores a held Enter's repeats.
+watch(() => props.licenseReminderShown, (shown) => {
+  if (shown && document.activeElement === document.body && document.hasFocus()) licenseReminder.value?.focus()
+}, { flush: 'post' })
 </script>
 
 <template>
@@ -165,21 +173,23 @@ const { t } = useI18n({ useScope: 'global' })
     >
       <IconSettings aria-hidden="true" />
     </UiButton>
-    <UiButton appearance="application"
-      v-if="licenseReminderShown"
-      class="license-reminder-pill"
-      type="button"
-      v-tooltip="t('licenseNotice.reminderTitle')"
-      @click="emit('openLicenseSettings')"
-    >
-      <IconKey aria-hidden="true" />
-      <span class="license-reminder-label">{{ t('licenseNotice.reminder') }}</span>
-    </UiButton>
     <UpdateNotification
       v-if="showUpdateStatus"
       mode="pill"
       :state="updateState"
       @open="emit('openUpdateSettings')"
     />
+    <UiButton appearance="application"
+      v-if="licenseReminderShown"
+      ref="licenseReminder"
+      class="license-reminder-pill"
+      type="button"
+      v-tooltip="t('licenseNotice.reminderTitle')"
+      @keydown="ignoreHeldEnter"
+      @click="emit('openLicenseSettings')"
+    >
+      <IconKey aria-hidden="true" />
+      <span class="license-reminder-label">{{ t('licenseNotice.reminder') }}</span>
+    </UiButton>
   </div>
 </template>

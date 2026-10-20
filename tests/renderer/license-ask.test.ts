@@ -59,4 +59,20 @@ describe('useLicenseAsk', () => {
     expect(ask.reminderShown.value).toBe(false)
     scope.stop()
   })
+
+  it('keeps the card closed when access stays ended for another reason', async () => {
+    const scope = effectScope()
+    const state = ref<CommercialLicenseState>({ ...licensed, status: 'expired', active: false, accessAllowed: false, trialStatus: 'expired' })
+    const ask = scope.run(() => useLicenseAsk(state))!
+    expect(ask.cardReason.value).toBe('license-ended')
+    ask.dismiss()
+
+    // Deactivating the lapsed license, which may finish after Not now, leaves the ended trial.
+    state.value = trialEnded
+    await nextTick()
+    // The card opened again over the newer Not now.
+    expect(ask.cardReason.value).toBeNull()
+    expect(ask.reminderShown.value).toBe(true)
+    scope.stop()
+  })
 })

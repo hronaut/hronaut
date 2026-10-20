@@ -86,6 +86,7 @@
 .license-reminder-pill {
   @apply flex min-w-0 [max-width:200px] [height:29px] items-center [gap:6px] [margin:0_2px_5px_6px] [padding:0_10px_0_8px] [border:1px_solid_color-mix(in_srgb,_var(--danger)_50%,_var(--pill-border))] [border-radius:var(--corner-pill)] [color:var(--danger-text)] [background:color-mix(in_srgb,_var(--danger)_9%,_var(--pill-bg))] cursor-pointer [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] whitespace-nowrap select-none;
 }
-.license-reminder-pill:hover { @apply [border-color:var(--danger)] [background:color-mix(in_srgb,_var(--danger)_14%,_var(--pill-bg))]; }
+/* Only the border changes on hover: a stronger red background would take the text below 4.5:1 in the light theme. */
+.license-reminder-pill:hover { @apply [border-color:var(--danger)]; }
 .license-reminder-pill svg { @apply flex-none [width:16px] [height:16px]; }
 .license-reminder-label { @apply min-w-0 overflow-hidden text-ellipsis; }

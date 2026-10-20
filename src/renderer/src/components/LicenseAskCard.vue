@@ -5,6 +5,7 @@ import IconCheck from '~icons/material-symbols/check-rounded'
 import IconKey from '~icons/material-symbols/key-rounded'
 import { UiButton } from '../ui/index.js'
 import type { LicenseAskReason } from '../features/settings/support/useLicenseAsk.js'
+import { ignoreHeldEnter } from '../held-enter.js'
 const { t } = useI18n({ useScope: 'global' })
 const props = defineProps<{ reason: LicenseAskReason | null }>()
 defineEmits<{ manage: []; purchase: []; dismiss: [] }>()
@@ -14,7 +15,9 @@ const benefits = computed(() => [t('licenseNotice.benefitWorkspaces'), t('licens
 </script>
 
 <template>
-  <aside v-if="reason" class="license-ask" role="status" aria-labelledby="license-ask-title">
+  <!-- Mounted all along, so that screen readers announce access ending; a live region that arrives filled is not. -->
+  <span class="sr-only" role="status">{{ reason ? description : '' }}</span>
+  <section v-if="reason" class="license-ask" aria-labelledby="license-ask-title">
     <div class="license-ask-panel">
       <span class="license-ask-mark" aria-hidden="true"><IconKey /></span>
       <div class="license-ask-copy">
@@ -26,19 +29,22 @@ const benefits = computed(() => [t('licenseNotice.benefitWorkspaces'), t('licens
       </div>
       <div class="license-ask-offer">
         <span class="license-ask-price">{{ t('licenseNotice.price') }}</span>
+        <!-- After a paid license, License settings comes first: it may only need checking again after time offline. -->
         <div class="license-ask-actions">
-          <UiButton variant="primary" @click="$emit('purchase')">{{ t('licenseNotice.buy') }}</UiButton>
-          <UiButton @click="$emit('manage')">{{ t(reason === 'license-ended' ? 'licenseNotice.manage' : 'licenseNotice.enterKey') }}</UiButton>
-          <UiButton variant="ghost" @click="$emit('dismiss')">{{ t('licenseNotice.dismiss') }}</UiButton>
+          <UiButton v-if="reason === 'license-ended'" variant="primary" @keydown="ignoreHeldEnter" @click="$emit('manage')">{{ t('licenseNotice.manage') }}</UiButton>
+          <UiButton :variant="reason === 'license-ended' ? 'secondary' : 'primary'" @keydown="ignoreHeldEnter" @click="$emit('purchase')">{{ t('licenseNotice.buy') }}</UiButton>
+          <UiButton v-if="reason === 'trial-ended'" @keydown="ignoreHeldEnter" @click="$emit('manage')">{{ t('licenseNotice.enterKey') }}</UiButton>
+          <UiButton variant="ghost" @keydown="ignoreHeldEnter" @click="$emit('dismiss')">{{ t('licenseNotice.dismiss') }}</UiButton>
         </div>
       </div>
     </div>
-  </aside>
+  </section>
 </template>
 
 <style scoped>
 .license-ask {
   position: relative;
+  container-type: inline-size;
   padding: 8px 12px;
   /* Only the color: the shell stylesheet adds the workspace wash as an image. */
   background-color: var(--shell-bar, var(--toolbar));
@@ -76,7 +82,7 @@ const benefits = computed(() => [t('licenseNotice.benefitWorkspaces'), t('licens
 .license-ask-offer { display: grid; flex: 0 1 auto; justify-items: end; gap: 7px; }
 .license-ask-price { color: var(--text); font-size: var(--type-small-size); font-weight: var(--weight-strong); }
 .license-ask-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-@media (max-width: 720px) {
+@container (max-width: 720px) {
   .license-ask-offer { justify-items: start; }
   .license-ask-actions { justify-content: flex-start; }
 }

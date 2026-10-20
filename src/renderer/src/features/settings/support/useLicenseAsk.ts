@@ -12,15 +12,17 @@ export function licenseAskReason(state: CommercialLicenseState): LicenseAskReaso
 }
 
 /**
- * The license ask once agent access has ended: a card under the toolbar at launch, and after "Not now" a red
- * "License needed" reminder in the top bar instead. The card comes back when the app starts again or the reason
- * changes, such as a renewed license that later ends.
+ * The license ask once agent access has ended: a card under the toolbar, at launch or as soon as access ends, and
+ * after "Not now" a red "License needed" reminder in the top bar instead. The card comes back when the app starts
+ * again, or when access returns and later ends again, such as a renewed license that lapses.
  */
 export function useLicenseAsk(state: Readonly<Ref<CommercialLicenseState>>) {
   const reason = computed(() => licenseAskReason(state.value))
   const dismissed = ref(false)
-  // Synchronous, so a Not now that lands before the next render is not undone by the change that showed the card.
-  watch(reason, () => { dismissed.value = false }, { flush: 'sync' })
+  // Only access coming back ends the Not now: a change from one ended reason to another, such as deactivating a
+  // lapsed license after the trial ended, does not reopen the card. Synchronous, so a Not now that lands before the
+  // next render is not undone by the change that showed the card.
+  watch(reason, (next) => { if (next === null) dismissed.value = false }, { flush: 'sync' })
   const cardReason = computed(() => dismissed.value ? null : reason.value)
   const reminderShown = computed(() => reason.value !== null && cardReason.value === null)
 
@@ -30,5 +32,3 @@ export function useLicenseAsk(state: Readonly<Ref<CommercialLicenseState>>) {
     dismiss: () => { dismissed.value = true }
   }
 }
-
-export type LicenseAskController = ReturnType<typeof useLicenseAsk>
