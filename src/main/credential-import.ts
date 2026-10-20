@@ -85,12 +85,29 @@ function parseCsvRows(source: string): string[][] {
 }
 
 function normalizedHeader(value: string): string {
-  return value.replace(/^\uFEFF/, '').trim().toLocaleLowerCase().replace(/[\s_-]+/g, '')
+  // Not the locale's lower case: under Turkish rules `LOGIN_URI` would become `logın_urı`.
+  return value.replace(/^\uFEFF/, '').trim().toLowerCase().replace(/[\s_-]+/g, '')
 }
 
-function columnIndex(headers: string[], candidates: readonly string[]): number {
-  return headers.findIndex((header) => candidates.includes(header))
+/**
+ * The first column with one of the names. The further names count only when no column has one of them, in the order
+ * they are listed, so a file that imported before reads the same column and a more specific name wins over `account`.
+ */
+function columnIndex(headers: string[], candidates: readonly string[], further: readonly string[]): number {
+  const index = headers.findIndex((header) => candidates.includes(header))
+  if (index >= 0) return index
+  for (const name of further) {
+    const furtherIndex = headers.indexOf(name)
+    if (furtherIndex >= 0) return furtherIndex
+  }
+  return -1
 }
+
+// Bitwarden writes every address of a login into its one `login_uri` cell, separated by commas, as its own importer
+// reads them. Addresses without a scheme, which Bitwarden also keeps, are left out. An address with a query or
+// fragment ends the list, since a comma after it may be part of that address rather than start another website. At
+// most ten websites are saved, so one row cannot turn into an unbounded number of saved passwords.
+const MAX_ORIGINS_PER_ROW = 10
 
 function normalizedOrigin(value: string): string | null {
   try {
@@ -102,15 +119,34 @@ function normalizedOrigin(value: string): string | null {
   }
 }
 
+/** The distinct website origins a cell names: one address, or the addresses of a Bitwarden `login_uri` list. */
+function normalizedOrigins(value: string, list: boolean): string[] {
+  if (!list) {
+    const origin = normalizedOrigin(value)
+    return origin ? [origin] : []
+  }
+  const origins = new Set<string>()
+  for (const address of value.split(',')) {
+    const origin = normalizedOrigin(address)
+    if (origin) origins.add(origin)
+    if (origins.size === MAX_ORIGINS_PER_ROW || /[?#]/.test(address)) break
+  }
+  return [...origins]
+}
+
 export function parseCredentialImportCsv(source: string): ParsedCredentialImport {
   if (source.includes('\u0000')) throw new CredentialImportError('invalid_csv')
   const rows = parseCsvRows(source)
   const header = rows.shift()
   if (!header) throw new CredentialImportError('missing_columns')
   const headers = header.map(normalizedHeader)
-  const urlIndex = columnIndex(headers, ['url', 'website', 'origin'])
-  const usernameIndex = columnIndex(headers, ['username', 'user', 'login'])
-  const passwordIndex = columnIndex(headers, ['password', 'pass'])
+  // Together these are the names Chrome's import reads; `login_uri`, `login_username` and `login_password` are
+  // Bitwarden's. A file with one of the first names reads the column it always did, even beside an `account` column.
+  // KeePass's CSV export puts the user name under `Login Name` and the entry's title under `Account`.
+  const urlIndex = columnIndex(headers, ['url', 'website', 'origin'], ['loginuri', 'hostname'])
+  const usernameIndex = columnIndex(headers, ['username', 'user', 'login'], ['loginusername', 'loginname', 'account'])
+  const passwordIndex = columnIndex(headers, ['password', 'pass'], ['loginpassword'])
+  const urlList = headers[urlIndex] === 'loginuri'
   if (urlIndex < 0 || usernameIndex < 0 || passwordIndex < 0) {
     throw new CredentialImportError('missing_columns')
   }
@@ -119,10 +155,10 @@ export function parseCredentialImportCsv(source: string): ParsedCredentialImport
   let skippedRows = 0
   for (const row of rows) {
     if (row.every((value) => value === '')) continue
-    const origin = normalizedOrigin(row[urlIndex] ?? '')
+    const origins = normalizedOrigins(row[urlIndex] ?? '', urlList)
     const username = row[usernameIndex] ?? ''
     const password = row[passwordIndex] ?? ''
-    if (!origin
+    if (!origins.length
       || username.length > 512
       || !password
       || password.length > 16_384
@@ -131,7 +167,7 @@ export function parseCredentialImportCsv(source: string): ParsedCredentialImport
       skippedRows += 1
       continue
     }
-    credentials.push({ origin, username, password })
+    for (const origin of origins) credentials.push({ origin, username, password })
   }
   if (!credentials.length) throw new CredentialImportError('no_credentials')
   return { credentials, skippedRows }
