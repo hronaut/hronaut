@@ -727,7 +727,6 @@ function registerIpc(): void {
     assertTrustedShellSender,
     senderWindow: (event) => BrowserWindow.fromWebContents(event.sender),
     mainWindow: () => mainWindowRefs.window,
-    appName: () => app.getName(),
     showMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options),
     text
   })

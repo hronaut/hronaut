@@ -19,7 +19,9 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
   let undoId: string | null = null
   const messages = data.messages.workspaceLibrary
   const labels = data.messages.settings.privacy
-  // Main asks natively with Cancel as the button Enter presses; `window.confirm` presses OK, in English.
+  // Main asks with Cancel as the default button; `window.confirm` presses OK on Enter, in English. Component tests
+  // mount Home without the bridge.
+  // eslint-disable-next-line no-restricted-properties -- only without Home's bridge, as in component tests
   const confirm = (message: string): boolean => api.confirm ? api.confirm(message) : window.confirm(message)
   const mission = data.messages.home.mission
   const root = element('home-workspaces')

@@ -85,7 +85,7 @@ export interface HronautHomeApi {
   getWorkspaces(): Promise<HomeWorkspaceState>
   workspaceAction(request: HomeWorkspaceAction): Promise<HomeWorkspaceState>
   copyText(text: string): Promise<void>
-  /** Asks natively with Cancel as the button Enter presses, and waits like `window.confirm`; true only for OK. */
+  /** Asks natively with Cancel as the default button, and waits like `window.confirm`; true only for OK. */
   confirm?(message: string): boolean
   openAgentGuide(id: AgentGuide['id']): Promise<void>
   openVsCodeInstall(): Promise<void>

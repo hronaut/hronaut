@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import type { BaseWindow, IpcMainEvent, MessageBoxOptions } from 'electron'
 import { MAX_CONFIRMATION_MESSAGE_LENGTH, registerConfirmDialogIpc } from '../src/main/confirm-dialog-ipc.js'
@@ -22,13 +23,14 @@ function harness(options: { trustedShell?: boolean } = {}) {
     assertTrustedShellSender: () => { if (options.trustedShell === false) throw new Error('Rejected IPC from an untrusted renderer') },
     senderWindow: () => shellWindow,
     mainWindow: () => mainWindow,
-    appName: () => 'Hronaut',
     showMessageBox,
     text: (key) => ({ 'native.dialog.cancel': 'Abbrechen', 'native.dialog.confirmOk': 'OK' } as Record<string, string>)[key] ?? key
   })
+  let sender = new EventEmitter()
   function send(channel: string, value: unknown, url = 'hronaut://home/', subframe = false): IpcMainEvent & { returnValue?: unknown } {
     const mainFrame = { url }
-    const event = { sender: { mainFrame }, senderFrame: subframe ? { url } : mainFrame } as unknown as IpcMainEvent
+    sender = Object.assign(new EventEmitter(), { mainFrame })
+    const event = { sender, senderFrame: subframe ? { url } : mainFrame } as unknown as IpcMainEvent
     listeners.get(channel)!(event, value)
     return event
   }
@@ -39,12 +41,15 @@ function harness(options: { trustedShell?: boolean } = {}) {
     mainWindow,
     answer: (response: number) => answer.resolve({ response, checkboxChecked: false }),
     fail: () => answer.reject(new Error('dialog failed')),
+    /** The asking page goes away, as Electron reports with the sender's `destroyed`. */
+    destroySender: () => sender.emit('destroyed'),
+    senderListeners: () => sender.listenerCount('destroyed'),
     reset: () => { answer = deferred() }
   }
 }
 
 describe('native confirmations', () => {
-  it('asks on the shell\'s own window with Cancel as the button Enter and Escape press, in the interface language', async () => {
+  it('asks on the shell\'s own window with Cancel as the default button, in the interface language', async () => {
     const confirmations = harness()
     const event = confirmations.send('shell:confirm', 'Remove wallet “Main”?')
 
@@ -55,7 +60,8 @@ describe('native confirmations', () => {
       buttons: ['Abbrechen', 'OK'],
       defaultId: 0,
       cancelId: 0,
-      noLink: true
+      noLink: true,
+      signal: expect.any(AbortSignal)
     })
     expect(event.returnValue).toBeUndefined()
     confirmations.answer(1)
@@ -86,12 +92,29 @@ describe('native confirmations', () => {
     expect(confirmations.showMessageBox).not.toHaveBeenCalled()
   })
 
-  it('cuts an overlong message instead of refusing it', () => {
+  it('cuts an overlong message instead of refusing it, never through the middle of a character', () => {
     const confirmations = harness()
     confirmations.send('shell:confirm', 'x'.repeat(MAX_CONFIRMATION_MESSAGE_LENGTH + 50))
     const message = confirmations.showMessageBox.mock.calls[0]![1].message
     expect(message).toHaveLength(MAX_CONFIRMATION_MESSAGE_LENGTH)
     expect(message.endsWith('…')).toBe(true)
+
+    // The emoji's two halves straddle the cut, so it goes whole.
+    confirmations.send('shell:confirm', `${'x'.repeat(MAX_CONFIRMATION_MESSAGE_LENGTH - 2)}🙂 and more`)
+    expect(confirmations.showMessageBox.mock.calls[1]![1].message).toBe(`${'x'.repeat(MAX_CONFIRMATION_MESSAGE_LENGTH - 2)}…`)
+  })
+
+  it('closes the question and answers false when the asking page goes away, even if OK arrives after', async () => {
+    const confirmations = harness()
+    const event = confirmations.send('shell:confirm', 'Clear history?')
+    const signal = confirmations.showMessageBox.mock.calls[0]![1].signal!
+    expect(signal.aborted).toBe(false)
+
+    confirmations.destroySender()
+    expect(signal.aborted).toBe(true)
+    confirmations.answer(1)
+    await vi.waitFor(() => expect(event.returnValue).toBe(false))
+    expect(confirmations.senderListeners()).toBe(0)
   })
 
   it('asks for Home on the main window and refuses any other page or a frame inside Home', async () => {
