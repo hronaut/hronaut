@@ -15,9 +15,17 @@ function unknownWorkspace(groupId: string): LocalizedError {
 /** The longest workspace name, in characters after trimming and normalization. */
 const MAX_WORKSPACE_NAME_LENGTH = 80
 
-/** Trims and NFC-normalizes a workspace name, and rejects an empty or overlong one. */
+/**
+ * Trims and NFC-normalizes a workspace name, and rejects an empty or overlong one. A name is one line: control
+ * characters, line and paragraph separators and invisible formatting characters become a space, since an agent can
+ * name a workspace and they could break a native prompt into paragraphs, reverse the words after them, or make a name
+ * read like another one. Joiners stay, since emoji are made with them.
+ */
 export function normalizedWorkspaceName(name: string): string {
-  const normalized = name.trim().normalize('NFC')
+  const normalized = name.normalize('NFC')
+    .replace(/[\p{Cc}\p{Zl}\p{Zp}]|(?![\u200C\u200D])\p{Cf}/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
   if (!normalized) throw new LocalizedError('appErrors.workspace.nameEmpty')
   if (normalized.length > MAX_WORKSPACE_NAME_LENGTH) {
     throw new LocalizedError('appErrors.workspace.nameTooLong', { max: MAX_WORKSPACE_NAME_LENGTH })
