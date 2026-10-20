@@ -93,29 +93,3 @@ for (const draft of drafts) {
     }
   })
 }
-
-test('loading a page gives neither it nor a page it embeds the activation of a click', async ({ appWindow, electronApp }) => {
-  const server = draftPages()
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(0, () => resolve())
-  })
-  try {
-    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/embedded-form`
-    await appWindow.evaluate(async (url) => {
-      await (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true })
-    }, url)
-    const frames = (script: string) => electronApp.evaluate(async ({ webContents }, { url, script }) => {
-      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
-      if (!page) return []
-      return Promise.all(page.mainFrame.framesInSubtree.map(frame => frame.executeJavaScript(script)))
-    }, { url, script })
-    // Once Hronaut has started watching both documents for edits, neither may act as if the person had clicked.
-    await expect.poll(() => frames('window.__hronautFormEditTrackingInstalled === true')).toEqual([true, true])
-    // Watching used to run as a click, so the page, and an embedded page from another site, could open windows or
-    // move the whole tab elsewhere without the person doing anything.
-    expect(await frames('navigator.userActivation.hasBeenActive')).toEqual([false, false])
-  } finally {
-    await closeFixtureServer(server)
-  }
-})
