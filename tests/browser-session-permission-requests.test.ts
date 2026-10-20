@@ -63,7 +63,9 @@ async function createHarness(locale: SupportedLocale = 'en-US') {
     effectiveDownloadDirectory: () => '',
     showMessageBox: async (options) => {
       shown.push(options)
-      return { response: await harness.decide(options) === 'allow' ? 1 : 0, checkboxChecked: false }
+      // Electron closes the box as if it were cancelled once its signal aborts.
+      const closed = new Promise<Answer>((resolve) => { options.signal?.addEventListener('abort', () => resolve('deny')) })
+      return { response: await Promise.race([harness.decide(options), closed]) === 'allow' ? 1 : 0, checkboxChecked: false }
     },
     state: { persistentSession: null, sitePermissionStore: store },
     sendToShellWindows: (...args) => { sent.push(args) },
@@ -384,6 +386,68 @@ describe('camera and microphone prompts', () => {
     page.destroy()
     answers[0]!('allow')
     expect(await pending).toBe(false)
+  })
+
+  it('closes a prompt once its frame loads another document, so the prompts after it show', async () => {
+    // The prompt stayed open after the page that asked had moved on, and every prompt after it, from any tab and from
+    // the same page asking again, waited for someone to answer a question whose answer no longer counted.
+    const harness = await createHarness()
+    const answers = answerLater(harness)
+    const page = createPage(site)
+    const other = createPage(meet)
+    const stale = ask(harness, page, 'media', camera)
+    await vi.waitFor(() => expect(harness.shown).toHaveLength(1))
+    const fromOtherTab = ask(harness, other, 'geolocation', fromMeet)
+
+    page.navigate(page.frames[0]!, 'https://call.example/lobby')
+    expect(await stale).toBe(false)
+    expect(harness.shown[0]!.signal?.aborted).toBe(true)
+    await vi.waitFor(() => expect(harness.shown).toHaveLength(2))
+    expect(harness.shown[1]!.message).toContain(meet.origin)
+    expect(harness.shown[1]!.signal?.aborted).toBe(false)
+    expect(harness.store.list()).toEqual([])
+    expect([page.contents.listenerCount('did-frame-navigate'), page.contents.listenerCount('destroyed')]).toEqual([1, 1])
+
+    // The closed prompt was no Deny: the page's next document is asked, once the other tab's prompt is answered.
+    answers[1]!('deny')
+    expect(await fromOtherTab).toBe(false)
+    harness.decide = () => 'allow'
+    expect(await ask(harness, page, 'media', { ...camera, requestingUrl: 'https://call.example/lobby' })).toBe(true)
+    expect(harness.shown).toHaveLength(3)
+  })
+
+  it('closes a prompt once its tab closes, so the prompts after it show', async () => {
+    const harness = await createHarness()
+    const answers = answerLater(harness)
+    const page = createPage(site)
+    const other = createPage(meet)
+    const closed = ask(harness, page, 'media', camera)
+    await vi.waitFor(() => expect(harness.shown).toHaveLength(1))
+    const fromOtherTab = ask(harness, other, 'geolocation', fromMeet)
+
+    page.destroy()
+    expect(await closed).toBe(false)
+    expect(harness.shown[0]!.signal?.aborted).toBe(true)
+    await vi.waitFor(() => expect(harness.shown).toHaveLength(2))
+    answers[1]!('allow')
+    expect(await fromOtherTab).toBe(true)
+    expect(harness.store.list()).toEqual([
+      expect.objectContaining({ origin: meet.origin, permission: 'geolocation', decision: 'allow' })
+    ])
+  })
+
+  it('keeps a prompt open while another frame of its page loads another document', async () => {
+    const harness = await createHarness()
+    const answers = answerLater(harness)
+    const page = createPage(site, [{ url: 'https://ads.example/slot', origin: 'https://ads.example' }])
+    const pending = ask(harness, page, 'media', camera)
+    await vi.waitFor(() => expect(harness.shown).toHaveLength(1))
+
+    page.navigate(page.frames[1]!, 'https://ads.example/next')
+    expect(harness.shown[0]!.signal?.aborted).toBe(false)
+    answers[0]!('allow')
+    expect(await pending).toBe(true)
+    expect([page.contents.listenerCount('did-frame-navigate'), page.contents.listenerCount('destroyed')]).toEqual([1, 1])
   })
 })
 

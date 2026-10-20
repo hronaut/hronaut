@@ -355,20 +355,35 @@ export function createBrowserSession(host: BrowserSessionHost): {
           : mediaTypes.length > 0 && mediaTypes.every((type) => type === 'audio')
             ? host.text('runtime.permissions.microphone')
             : sitePermissionName(permission, (key) => host.text(key))
-        const { response } = await host.showMessageBox({
-          type: 'question',
-          title: host.text('native.dialog.sitePermission'),
-          message: embeddedIn
-            ? host.text('native.dialog.permissionRequestEmbedded', { origin, site: embeddedIn, permission: permissionName })
-            : host.text('native.dialog.permissionRequest', { origin, permission: permissionName }),
-          detail: requiresFreshConsent
-            ? host.text('native.dialog.permissionAskAgain', { detail: permissionDetail })
-            : host.text('native.dialog.permissionSettings', { detail: permissionDetail }),
-          buttons: [host.text('native.dialog.deny'), host.text('native.dialog.allow')],
-          defaultId: 0,
-          cancelId: 0
-        })
-        if (!requestIsCurrent()) return false
+        // The prompt closes, as Deny would, once its tab closes or the frame that asked loads another document: its answer
+        // would no longer count, and every prompt after it waited for it, as did the same page asking again.
+        const promptClosing = new AbortController()
+        const closeWhenStale = (): void => {
+          if (!requestIsCurrent()) promptClosing.abort()
+        }
+        webContents.on('did-frame-navigate', closeWhenStale)
+        webContents.on('destroyed', closeWhenStale)
+        let response: number
+        try {
+          ({ response } = await host.showMessageBox({
+            signal: promptClosing.signal,
+            type: 'question',
+            title: host.text('native.dialog.sitePermission'),
+            message: embeddedIn
+              ? host.text('native.dialog.permissionRequestEmbedded', { origin, site: embeddedIn, permission: permissionName })
+              : host.text('native.dialog.permissionRequest', { origin, permission: permissionName }),
+            detail: requiresFreshConsent
+              ? host.text('native.dialog.permissionAskAgain', { detail: permissionDetail })
+              : host.text('native.dialog.permissionSettings', { detail: permissionDetail }),
+            buttons: [host.text('native.dialog.deny'), host.text('native.dialog.allow')],
+            defaultId: 0,
+            cancelId: 0
+          }))
+        } finally {
+          webContents.removeListener('did-frame-navigate', closeWhenStale)
+          webContents.removeListener('destroyed', closeWhenStale)
+        }
+        if (promptClosing.signal.aborted || !requestIsCurrent()) return false
         const decision: SitePermissionDecision = response === 1 ? 'allow' : 'deny'
         if (requiresFreshConsent) {
           // Allow is never reused, but Deny holds for the page's document: a page that asks again at once, or many
