@@ -686,15 +686,22 @@ describe('workspace editor controller', () => {
     const { browser, controller, state } = createController()
     state.value.mcpTabGroups[0].agentAccess = false
     await controller.openExisting('default')
+    controller.name.value = 'Checkout'
     controller.agentAccess.value = true
     controller.navigationMode.value = 'restricted'
     controller.navigationRulesText.value = 'https://agent.example'
 
     await controller.save()
 
+    expect(browser.updateTabGroup.mock.calls).toEqual([
+      ['default', expect.objectContaining({ name: 'Checkout', agentAccess: false })],
+      ['default', { agentAccess: true }]
+    ])
     expect(browser.updateWorkspaceNavigationPolicy).toHaveBeenCalledWith('default', { mode: 'restricted', rules: ['https://agent.example'] })
-    expect(browser.updateWorkspaceNavigationPolicy.mock.invocationCallOrder[0])
-      .toBeLessThan(browser.updateTabGroup.mock.invocationCallOrder[0])
+    const [detailsSaved, accessSaved] = browser.updateTabGroup.mock.invocationCallOrder
+    const rulesSaved = browser.updateWorkspaceNavigationPolicy.mock.invocationCallOrder[0]
+    expect(detailsSaved).toBeLessThan(rulesSaved)
+    expect(rulesSaved).toBeLessThan(accessSaved)
     controller.dispose()
   })
 
@@ -710,9 +717,26 @@ describe('workspace editor controller', () => {
     await controller.save()
 
     // Agent access was saved first, so agents could open every site while the refused rules were shown as an error.
-    expect(browser.updateTabGroup).not.toHaveBeenCalled()
+    expect(browser.updateTabGroup.mock.calls).toEqual([['default', expect.objectContaining({ agentAccess: false })]])
     expect(controller.error.value).toBe('Navigation rules must be origins without paths, queries, or fragments.')
     expect(controller.actionState.value).toBe('idle')
+    controller.dispose()
+  })
+
+  it('saves neither rules nor agent access when the name is refused first', async () => {
+    const { browser, controller, state } = createController()
+    state.value.mcpTabGroups[0].agentAccess = false
+    await controller.openExisting('default')
+    controller.agentAccess.value = true
+    controller.navigationMode.value = 'restricted'
+    controller.navigationRulesText.value = 'https://agent.example'
+    browser.updateTabGroup.mockRejectedValueOnce(new Error('A workspace named "Agent workspace" already exists.'))
+
+    await controller.save()
+
+    expect(browser.updateWorkspaceNavigationPolicy).not.toHaveBeenCalled()
+    expect(browser.updateTabGroup).toHaveBeenCalledOnce()
+    expect(controller.error.value).toBe('A workspace named "Agent workspace" already exists.')
     controller.dispose()
   })
 

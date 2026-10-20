@@ -316,22 +316,24 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
         const current = workspace.value
         const nextPolicy = navigationPolicy()
         const policyChanged = !current || JSON.stringify(current.navigationPolicy) !== JSON.stringify(nextPolicy)
-        const saveDetails = () => options.browser.updateTabGroup(currentWorkspaceId, {
+        // Agents get access only once the rules chosen with it are saved, so rules the main process refuses, such as
+        // one with a path, leave access off; the other details are saved first, so a refused name changes nothing.
+        // Otherwise the details go first, so agents lose access before looser rules apply.
+        const enablesAgentsWithNewRules = policyChanged && agentAccess.value && current?.agentAccess === false
+        let state = await options.browser.updateTabGroup(currentWorkspaceId, {
           name: name.value,
           description: description.value,
           color: color.value,
           hiddenFromSidebar: hiddenFromSidebar.value,
           deletionProtected: deletionProtected.value,
-          agentAccess: agentAccess.value
+          agentAccess: enablesAgentsWithNewRules ? false : agentAccess.value
         })
-        const saveRules = () => options.browser.updateWorkspaceNavigationPolicy(currentWorkspaceId, nextPolicy)
-        // Agents get access only once the rules chosen with it are saved, and they lose it before looser rules
-        // apply, so a step that fails, such as rules the main process refuses, never leaves them more reach than chosen.
-        const rulesFirst = policyChanged && agentAccess.value && current?.agentAccess === false
-        let state = await (rulesFirst ? saveRules() : saveDetails())
         if (!isPresentationCurrent(presentation)) return
-        if (rulesFirst) state = await saveDetails()
-        else if (policyChanged) state = await saveRules()
+        if (policyChanged) state = await options.browser.updateWorkspaceNavigationPolicy(currentWorkspaceId, nextPolicy)
+        if (enablesAgentsWithNewRules) {
+          if (!isPresentationCurrent(presentation)) return
+          state = await options.browser.updateTabGroup(currentWorkspaceId, { agentAccess: true })
+        }
         await options.syncState(state)
       }
       if (!isPresentationCurrent(presentation)) return
