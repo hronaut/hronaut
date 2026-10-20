@@ -17,6 +17,7 @@ import { agentStepText } from '../../../shared/agent-step-text.js'
 import { agentCardModel, useAgentCard } from '../composables/useAgentCard.js'
 import { useAgentDecisionAnswers, type AgentDecisionBrowser } from '../composables/useAgentDecisionAnswers.js'
 import { useAgentPresence } from '../composables/useAgentPresence.js'
+import { ignoreHeldEnter } from '../held-enter.js'
 import UiButton from '../ui/UiButton.vue'
 import { vTooltip } from '../ui/tooltip.js'
 
@@ -353,6 +354,8 @@ defineExpose({ openCard, focus, cardOpen })
     data-testid="agent-presence"
     :aria-label="t('shell.agents.group')"
   >
+    <!-- Closing the card and unpinning the live status hand the focus to an avatar, so it ignores a held Enter's
+         repeats, which would open the card again. -->
     <UiButton
       v-for="agent in shown"
       :key="agent.clientKey"
@@ -367,6 +370,7 @@ defineExpose({ openCard, focus, cardOpen })
       :aria-expanded="card.openKey.value === agent.clientKey"
       v-tooltip="tooltip(agent)"
       @pointerdown="press(agent, $event)"
+      @keydown="ignoreHeldEnter"
       @keydown.enter="press(agent)"
       @keydown.space="press(agent)"
       @pointerleave="release"

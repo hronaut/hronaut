@@ -440,6 +440,20 @@ describe('agent avatars in the toolbar', () => {
     expect(document.activeElement).toBe(button)
   })
 
+  it('keeps a held Enter from opening the card again', async () => {
+    // Closing the card or unpinning the live status hands the focus to the avatar, so a held Enter reopened the card.
+    renderAvatars([agent('Claude Code')])
+    const button = await screen.findByRole('button', { name: 'Claude Code, working' })
+    button.focus()
+    const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    button.dispatchEvent(press)
+    button.dispatchEvent(repeat)
+
+    expect(press.defaultPrevented).toBe(false)
+    expect(repeat.defaultPrevented).toBe(true)
+  })
+
   it('keeps the avatar of an agent that disconnects while its card is open, until the card closes', async () => {
     const card = fakeCardApi()
     const { change } = renderAvatars([agent('Windsurf', { state: 'needs-you', attentionTabId: 'tab-3' }), agent('Claude Code')], { cardApi: card.api })

@@ -79,6 +79,21 @@ describe('agent card view', () => {
     expect(view.control('[data-action="follow-off"]').getAttribute('aria-checked')).toBe('true')
   })
 
+  it('keeps a held Enter from pressing a control again', async () => {
+    const view = await loadView()
+    view.render({ cardId: 1, revision: 1, theme: 'light', model: model() })
+    const pause = view.control('[data-action="pause"]')
+    pause.focus()
+    const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    pause.dispatchEvent(press)
+    pause.dispatchEvent(repeat)
+
+    // Pause becomes Resume and keeps the focus, so each repeat of a held Enter flipped it.
+    expect(press.defaultPrevented).toBe(false)
+    expect(repeat.defaultPrevented).toBe(true)
+  })
+
   it('turns agent cursors off and on from their switch, keeping focus on it', async () => {
     const view = await loadView()
     view.render({ cardId: 2, revision: 1, theme: 'light', model: model() })
@@ -334,6 +349,9 @@ describe('agent card view: answering a decision', () => {
     expect(press({ key: 'Enter' }).defaultPrevented).toBe(false)
     expect(press({ key: 'Escape', isComposing: true }).defaultPrevented).toBe(false)
     expect(press({ key: 'Enter', ctrlKey: true, isComposing: true }).defaultPrevented).toBe(false)
+    expect(view.sent).toEqual([])
+    // A held Ctrl+Enter sends once: after a send that failed, its repeats would send again.
+    expect(press({ key: 'Enter', ctrlKey: true, repeat: true }).defaultPrevented).toBe(true)
     expect(view.sent).toEqual([])
     press({ key: 'Enter', metaKey: true })
     expect(view.sent).toEqual([{ cardId: 8, kind: 'action', action: 'answer-resolve', key: 'decision-2_r1', note: 'Blue' }])
