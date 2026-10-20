@@ -49,6 +49,18 @@ interface BrowserDownloadsHost {
 }
 
 /** Owns native downloads; the manager remains authoritative for tabs and workspaces. */
+/**
+ * A download name's extension as Chrome reads it: a compressed archive's two extensions, such as `.tar.gz` or
+ * `.sql.gz`, count as one, so a second `release.tar.gz` is saved as `release (1).tar.gz` rather than
+ * `release.tar (1).gz`, and a shortened name keeps both.
+ */
+function downloadExtension(filename: string): string {
+  const final = extname(filename)
+  if (!/^\.(?:gz|xz|bz2|bz|z)$/i.test(final)) return final
+  const inner = extname(filename.slice(0, -final.length))
+  return /^\.[^.]{1,4}$/.test(inner) ? inner + final : final
+}
+
 export class BrowserDownloadsController {
   private readonly downloadHookSessions = new Map<Session, () => void>()
   private readonly downloadItemListeners = new Map<DownloadItem, () => void>()
@@ -318,7 +330,7 @@ export class BrowserDownloadsController {
     const safeFilename = isWindowsReservedFilename(sourceFilename)
       ? `download-${sourceFilename}`
       : sourceFilename
-    const sourceExtension = extname(safeFilename)
+    const sourceExtension = downloadExtension(safeFilename)
     // An extension too long to keep with any of the name is cut along with it.
     const extension = Buffer.byteLength(sourceExtension) <= 200 ? sourceExtension : ''
     const stem = safeFilename.slice(0, safeFilename.length - extension.length)

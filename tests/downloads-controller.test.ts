@@ -397,6 +397,30 @@ it.each(['a'.repeat(251) + '.txt', '界'.repeat(83) + 'ab.txt', '😀'.repeat(62
 )
 
 it.each([
+  ['release.tar.gz', 'release (1).tar.gz'],
+  ['backup.sql.GZ', 'backup (1).sql.GZ'],
+  ['logs.tar.bz2', 'logs (1).tar.bz2'],
+  ['disk.img.xz', 'disk (1).img.xz'],
+  ['notes.gz', 'notes (1).gz'],
+  ['dump.archive.gz', 'dump.archive (1).gz'],
+  ['my.photos.zip', 'my.photos (1).zip']
+])('names a second %s download before its compressed archive extension', async (filename, secondName) => {
+  // A second `release.tar.gz` was saved as `release.tar (1).gz`, which unpacks to a file that has lost its `.tar`.
+  const { controller, download } = await fixture()
+  download(1, false, undefined, filename)
+  download(1, false, undefined, filename)
+  expect(controller.listDownloads().map(entry => entry.filename).sort()).toEqual([filename, secondName].sort())
+})
+
+it('keeps both extensions of a compressed archive whose name is shortened', async () => {
+  const { controller, download } = await fixture()
+  download(1, false, undefined, 'a'.repeat(300) + '.tar.gz')
+  download(1, false, undefined, 'a'.repeat(300) + '.tar.gz')
+  expect(controller.listDownloads().map(entry => entry.filename).sort())
+    .toEqual(['a'.repeat(248) + '.tar.gz', 'a'.repeat(244) + ' (1).tar.gz'].sort())
+})
+
+it.each([
   ['darwin', 'report (1).pdf'],
   ['win32', 'report (1).pdf'],
   ['linux', 'report.pdf']
