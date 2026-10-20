@@ -54,4 +54,22 @@ describe('network request sorting', () => {
     expect(sortNetworkRequests(tied, 'size', 'asc').map(({ id }) => id)).toEqual(['first', 'second', 'pending'])
     expect(sortNetworkRequests(requests, 'duration', 'asc').map(({ id }) => id)).toEqual(['second', 'first', 'pending'])
   })
+
+  it('sorts a failed request by the time from its start to its end', () => {
+    // A request that failed has no resource timing, so it sorted after every other request in both directions, while
+    // its row showed how long it took: a request that timed out after 30 seconds was last when sorting by longest.
+    const failed: BrowserNetworkRequest = {
+      id: 'failed',
+      url: 'https://example.test/failed',
+      method: 'GET',
+      resourceType: 'fetch',
+      startedAt: '2026-08-15T10:00:03.000Z',
+      completedAt: '2026-08-15T10:00:04.500Z',
+      error: 'net::ERR_EMPTY_RESPONSE',
+      detailsAvailable: true
+    }
+    const withFailure = [...requests, failed]
+    expect(sortNetworkRequests(withFailure, 'duration', 'desc').map(({ id }) => id)).toEqual(['failed', 'first', 'second', 'pending'])
+    expect(sortNetworkRequests(withFailure, 'duration', 'asc').map(({ id }) => id)).toEqual(['second', 'first', 'failed', 'pending'])
+  })
 })
