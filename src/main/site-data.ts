@@ -44,6 +44,17 @@ export function createSiteData(host: SiteDataHost): {
     }
   }
 
+  /**
+   * Removes the cookies the origin receives, the ones its summary counts. Chromium clears cookies by origin for the whole
+   * registrable domain, such as every subdomain of example.com, and with them cached HTTP sign-ins, so they are removed
+   * one name at a time, through the origin's own address at the cookie's path, which only cookies the origin receives
+   * are sent to.
+   */
+  async function removeOriginCookies(browserSession: Session, origin: string): Promise<void> {
+    const cookies = (await browserSession.cookies.get({})).filter((cookie) => cookieAvailableToOrigin(cookie, origin))
+    for (const cookie of cookies) await browserSession.cookies.remove(`${origin}${cookie.path || '/'}`, cookie.name)
+  }
+
   async function clearWorkspaceSiteData(
     workspaceId: string,
     value: string,
@@ -61,15 +72,17 @@ export function createSiteData(host: SiteDataHost): {
       }
       if (selected.has('cookies-and-storage') && selected.has('cache')) {
         await browserSession.clearData({
-          dataTypes: ['backgroundFetch', 'cache', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
+          dataTypes: ['backgroundFetch', 'cache', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
           ...originScope
         })
+        await removeOriginCookies(browserSession, site.origin)
       } else if (selected.has('cookies-and-storage')) {
         await browserSession.clearData({
-          dataTypes: ['backgroundFetch', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
+          dataTypes: ['backgroundFetch', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
           ...originScope
         })
         await browserSession.clearStorageData({ storages: ['cachestorage'], origin: site.origin })
+        await removeOriginCookies(browserSession, site.origin)
       } else if (selected.has('cache')) {
         await browserSession.clearData({ dataTypes: ['cache'], ...originScope })
       }
