@@ -3,7 +3,7 @@ import { expect, it } from 'vitest'
 import type { WebContents } from 'electron'
 import { addNetworkRoute, moveNetworkRoute, removeNetworkRoute, setNetworkRouteEnabled } from '../src/main/browser/network-conditions/network-conditions.js'
 import type { NetworkConditionsAccess, NetworkConditionsTab } from '../src/main/browser/network-conditions/network-conditions-access.js'
-import { normalizeNetworkRouteInput } from '../src/main/browser/network-route-input.js'
+import { isNetworkRouteRefusal, normalizeNetworkRouteInput } from '../src/main/browser/network-route-input.js'
 import { LocalizedError } from '../src/main/localized-error.js'
 import { translate } from '../src/shared/i18n.js'
 
@@ -46,6 +46,8 @@ function conditions(routeCount = 0) {
 async function failure(operation: Promise<unknown>): Promise<LocalizedError> {
   const error = await operation.then(() => undefined, (cause: unknown) => cause)
   expect(error).toBeInstanceOf(LocalizedError)
+  // browser_network_routes gives agents a refusal's message; it was dropped for every one of these.
+  expect(isNetworkRouteRefusal(error)).toBe(true)
   return error as LocalizedError
 }
 
@@ -80,4 +82,18 @@ it('names Hronaut Home for the Network panel and keeps its English message', asy
   expect(error.key).toBe('appErrors.networkConditions.websiteTab')
   expect(error.message).toBe('Open a website tab before adding a network route')
   expect(tab.networkRoutes).toEqual([])
+})
+
+it('refuses a fifth held request with a message agents read', async () => {
+  const { access, tab } = conditions()
+  tab.networkRoutes = Array.from({ length: 4 }, (_, index) => ({
+    ...normalizeNetworkRouteInput({ urlPattern: `https://app.test/held/${index}`, response: {}, holdUntilReleased: true }),
+    id: `held-${index}`,
+    createdAt: '2026-10-20T12:00:00.000Z'
+  }))
+  const error = await addNetworkRoute(access, 'tab-1', { urlPattern: 'https://app.test/held/more', response: {}, holdUntilReleased: true })
+    .then(() => undefined, (cause: unknown) => cause)
+  expect(isNetworkRouteRefusal(error)).toBe(true)
+  expect((error as Error).message).toBe('A tab can hold at most 4 requests, counting hold rules not matched yet. Release or cancel one first.')
+  expect(tab.networkRoutes).toHaveLength(4)
 })
