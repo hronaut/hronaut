@@ -105,7 +105,8 @@ describe('split diagnostic panels', () => {
       global,
       props: {
         dock: 'right', activeTab: undefined, locale: 'en-US', controller,
-        openSupport: vi.fn(async () => undefined), preservationBusy: false, updatePreservation: vi.fn()
+        openSupport: vi.fn(async () => undefined), preservationBusy: false, updatePreservation: vi.fn(),
+        keepsSeparatePanelOpen: () => false
       }
     })
     const dockedPanels = (): Array<string | null> => [...view.container.querySelectorAll('[data-shell-docked-panel]')]

@@ -183,6 +183,7 @@ function setSiteStoragePanel(value: unknown): void {
     :open-support="openSupport"
     :preservation-busy="preservationBusy"
     :update-preservation="updatePreservation"
+    :keeps-separate-panel-open="keepsSeparatePanelOpen"
   />
   <ConsolePanelContainer
     :ref="setConsolePanel"

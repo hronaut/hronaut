@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../../../ui/UiButton.vue"
+import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconCode from '~icons/material-symbols/code-rounded'
@@ -23,6 +24,7 @@ import { vTooltip } from '../../../ui/tooltip.js'
 const props = defineProps<{
   locale: SupportedLocale
   controller: DiagnosticsController
+  keepsSeparatePanelOpen: () => boolean
 }>()
 const dock = defineModel<PanelDock>('dock', { required: true })
 const { t } = useI18n({ useScope: 'global' })
@@ -34,6 +36,12 @@ const {
   coverageMode,
   manageCodeCoverage
 } = props.controller
+
+// Docked back from its window, the panel was open all along, so it reads the tab's coverage again instead of showing what it
+// had before it left. The panel window itself is closing then, and a request still running answers for itself.
+watch(dock, (next, previous) => {
+  if (coveragePanelOpen.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && coverageState.value !== 'loading') void manageCodeCoverage('get')
+})
 
 function localNumber(value: number): string {
   return formatNumber(props.locale, value)
