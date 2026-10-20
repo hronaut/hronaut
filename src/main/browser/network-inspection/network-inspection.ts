@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import { basename } from 'node:path'
+import { NETWORK_BODY_UNAVAILABLE_REASONS } from '../../../shared/network-body-notes.js'
 import { redactNetworkHeaders, redactNetworkUrl, sanitizeNetworkBody } from '../../../shared/network-details.js'
 import { deriveNetworkTiming } from '../../../shared/network-timing.js'
 import { parseServerTimingHeaders, serializeServerTimingMetrics } from '../../../shared/server-timing.js'
@@ -179,16 +180,16 @@ export async function networkRequestDetails<Tab extends NetworkInspectionTab>(
   let responseBody: BrowserNetworkBody = {
     available: false,
     reason: request.eventSourceMessages
-      ? 'Server-sent events are available in the bounded Event stream section.'
+      ? NETWORK_BODY_UNAVAILABLE_REASONS.eventStream
       : request.webSocketMessages
-      ? 'WebSocket messages are available in the bounded messages section.'
+      ? NETWORK_BODY_UNAVAILABLE_REASONS.webSocket
       : request.detailsAvailable
-        ? request.bodyAvailable ? 'Response body is no longer available from Chromium.' : 'The response body has not completed.'
-        : 'Detailed capture was unavailable while Developer Tools owned this tab.'
+        ? request.bodyAvailable ? NETWORK_BODY_UNAVAILABLE_REASONS.expired : NETWORK_BODY_UNAVAILABLE_REASONS.incomplete
+        : NETWORK_BODY_UNAVAILABLE_REASONS.devToolsCapture
   }
 
   if (!includeBody) {
-    responseBody = { available: false, reason: 'Response body was omitted from this sanitized export.' }
+    responseBody = { available: false, reason: NETWORK_BODY_UNAVAILABLE_REASONS.omittedFromExport }
   } else if (request.cdpRequestId && request.bodyAvailable && !request.eventSourceMessages) {
     try {
       const captured = await access.withDebugger(tab.webContents, () =>
@@ -204,8 +205,8 @@ export async function networkRequestDetails<Tab extends NetworkInspectionTab>(
       responseBody = {
         available: false,
         reason: /Close Developer Tools/.test(String(error))
-          ? 'Close Developer Tools for this tab, then request these details again.'
-          : 'Chromium no longer has this response body in its bounded diagnostic buffer.'
+          ? NETWORK_BODY_UNAVAILABLE_REASONS.closeDevTools
+          : NETWORK_BODY_UNAVAILABLE_REASONS.evicted
       }
     }
   }

@@ -138,6 +138,8 @@ const {
   resourceTypeLabel: networkResourceTypeLabel,
   messageDirectionLabel: networkMessageDirectionLabel,
   messageKindLabel: networkMessageKindLabel,
+  bodyPlaceholderLabel: networkBodyPlaceholderLabel,
+  bodyReasonLabel: networkBodyReasonLabel,
   replayRequiresConfirmation: networkReplayRequiresConfirmation,
   dispose
 } = useNetworkController({
@@ -709,7 +711,8 @@ onBeforeUnmount(dispose)
               </details>
               <details v-if="networkRequestDetails.request.body">
                 <summary>{{ t('network.details.requestBody') }} <span v-if="networkRequestDetails.request.body.redacted">{{ t('network.details.sanitized') }}</span></summary>
-                <pre>{{ networkRequestDetails.request.body.text }}</pre>
+                <p v-if="networkBodyPlaceholderLabel(networkRequestDetails.request.body)">{{ networkBodyPlaceholderLabel(networkRequestDetails.request.body) }}</p>
+                <pre v-else>{{ networkRequestDetails.request.body.text }}</pre>
               </details>
               <details open>
                 <summary>{{ t('network.details.responseHeaders') }} <span>{{ localNumber(Object.keys(networkRequestDetails.response.headers).length) }}</span></summary>
@@ -727,8 +730,11 @@ onBeforeUnmount(dispose)
                   <IconCopy v-else aria-hidden="true" />
                   {{ networkDetailsCopied === 'response' ? t('network.details.copiedResponseBody') : t('network.details.copyResponseBody') }}
                 </UiButton>
-                <pre v-if="networkRequestDetails.response.body.available">{{ networkRequestDetails.response.body.text }}</pre>
-                <p v-else>{{ networkRequestDetails.response.body.reason }}</p>
+                <template v-if="networkRequestDetails.response.body.available">
+                  <p v-if="networkBodyPlaceholderLabel(networkRequestDetails.response.body)">{{ networkBodyPlaceholderLabel(networkRequestDetails.response.body) }}</p>
+                  <pre v-else>{{ networkRequestDetails.response.body.text }}</pre>
+                </template>
+                <p v-else>{{ networkBodyReasonLabel(networkRequestDetails.response.body.reason) }}</p>
               </details>
               <p class="network-detail-safety"><IconInfo aria-hidden="true" /> {{ t('network.details.safety') }}</p>
             </template>

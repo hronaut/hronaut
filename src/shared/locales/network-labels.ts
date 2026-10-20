@@ -1,5 +1,6 @@
-// Names for the Chromium codes the Network panel shows. Filters, HAR files and
-// MCP results keep the codes and the English text from src/shared.
+// Names for the Chromium codes and Hronaut's English notes the Network panel
+// shows. Filters, HAR files and MCP results keep the codes and the English text
+// from src/shared.
 export const networkLabelMessages = {
   "en-US": {
     "resourceTypes": {
@@ -60,6 +61,27 @@ export const networkLabelMessages = {
       "pong": "pong",
       "error": "error",
       "unknown": "unknown"
+    },
+    "bodyNotes": {
+      "binary": "Binary body omitted.",
+      "multipart": "Multipart body omitted.",
+      "unsafeJson": "JSON body omitted because it could not be safely redacted.",
+      "nonText": "Non-text body omitted."
+    },
+    "bodyReasons": {
+      "eventStream": "Server-sent events are available in the bounded Event stream section.",
+      "webSocket": "WebSocket messages are available in the bounded messages section.",
+      "expired": "Response body is no longer available from Chromium.",
+      "incomplete": "The response body has not completed.",
+      "devToolsCapture": "Detailed capture was unavailable while Developer Tools owned this tab.",
+      "omittedFromExport": "Response body was omitted from this sanitized export.",
+      "closeDevTools": "Close Developer Tools for this tab, then request these details again.",
+      "evicted": "Chromium no longer has this response body in its bounded diagnostic buffer."
+    },
+    "searchFields": {
+      "error": "Request error",
+      "message": "{direction} {kind} message",
+      "event": "{name} event"
     }
   },
   "de-DE": {
@@ -121,6 +143,27 @@ export const networkLabelMessages = {
       "pong": "Pong",
       "error": "Fehler",
       "unknown": "unbekannt"
+    },
+    "bodyNotes": {
+      "binary": "Binärer Inhalt ausgelassen.",
+      "multipart": "Multipart-Inhalt ausgelassen.",
+      "unsafeJson": "JSON-Inhalt ausgelassen, weil er sich nicht sicher bereinigen ließ.",
+      "nonText": "Nicht-Text-Inhalt ausgelassen."
+    },
+    "bodyReasons": {
+      "eventStream": "Server-Sent Events stehen im begrenzten Abschnitt „Ereignisstrom“.",
+      "webSocket": "WebSocket-Nachrichten stehen im begrenzten Abschnitt „Nachrichten“.",
+      "expired": "Chromium stellt den Antworttext nicht mehr bereit.",
+      "incomplete": "Der Antworttext ist noch nicht vollständig.",
+      "devToolsCapture": "Die detaillierte Erfassung war nicht verfügbar, während die Entwicklertools diesen Tab belegten.",
+      "omittedFromExport": "Der Antworttext wurde in diesem bereinigten Export ausgelassen.",
+      "closeDevTools": "Schließe die Entwicklertools für diesen Tab und fordere diese Details dann erneut an.",
+      "evicted": "Chromium hat diesen Antworttext nicht mehr in seinem begrenzten Diagnosepuffer."
+    },
+    "searchFields": {
+      "error": "Anfragefehler",
+      "message": "Nachricht ({direction}, {kind})",
+      "event": "Ereignis {name}"
     }
   },
   "es-ES": {
@@ -182,6 +225,27 @@ export const networkLabelMessages = {
       "pong": "pong",
       "error": "error",
       "unknown": "desconocido"
+    },
+    "bodyNotes": {
+      "binary": "Cuerpo binario omitido.",
+      "multipart": "Cuerpo multipart omitido.",
+      "unsafeJson": "Cuerpo JSON omitido porque no se pudo depurar de forma segura.",
+      "nonText": "Cuerpo no textual omitido."
+    },
+    "bodyReasons": {
+      "eventStream": "Los eventos enviados por el servidor están en la sección limitada «Flujo de eventos».",
+      "webSocket": "Los mensajes de WebSocket están en la sección limitada «Mensajes».",
+      "expired": "Chromium ya no ofrece el cuerpo de la respuesta.",
+      "incomplete": "El cuerpo de la respuesta aún no se ha completado.",
+      "devToolsCapture": "La captura detallada no estaba disponible mientras las herramientas de desarrollo controlaban esta pestaña.",
+      "omittedFromExport": "El cuerpo de la respuesta se omitió de esta exportación depurada.",
+      "closeDevTools": "Cierra las herramientas de desarrollo de esta pestaña y vuelve a solicitar estos detalles.",
+      "evicted": "Chromium ya no conserva este cuerpo de respuesta en su búfer de diagnóstico limitado."
+    },
+    "searchFields": {
+      "error": "Error de la solicitud",
+      "message": "Mensaje ({direction}, {kind})",
+      "event": "Evento {name}"
     }
   },
   "fr-FR": {
@@ -243,6 +307,27 @@ export const networkLabelMessages = {
       "pong": "pong",
       "error": "erreur",
       "unknown": "inconnu"
+    },
+    "bodyNotes": {
+      "binary": "Corps binaire omis.",
+      "multipart": "Corps multipart omis.",
+      "unsafeJson": "Corps JSON omis, car il n’a pas pu être nettoyé en toute sécurité.",
+      "nonText": "Corps non textuel omis."
+    },
+    "bodyReasons": {
+      "eventStream": "Les événements envoyés par le serveur figurent dans la section limitée « Flux d’événements ».",
+      "webSocket": "Les messages WebSocket figurent dans la section limitée « Messages ».",
+      "expired": "Chromium ne fournit plus le corps de la réponse.",
+      "incomplete": "Le corps de la réponse n’est pas encore complet.",
+      "devToolsCapture": "La capture détaillée était indisponible pendant que les outils de développement contrôlaient cet onglet.",
+      "omittedFromExport": "Le corps de la réponse a été omis de cet export nettoyé.",
+      "closeDevTools": "Fermez les outils de développement de cet onglet, puis demandez de nouveau ces détails.",
+      "evicted": "Chromium ne conserve plus ce corps de réponse dans son tampon de diagnostic limité."
+    },
+    "searchFields": {
+      "error": "Erreur de la requête",
+      "message": "Message ({direction}, {kind})",
+      "event": "Événement {name}"
     }
   },
   "pl-PL": {
@@ -304,6 +389,27 @@ export const networkLabelMessages = {
       "pong": "pong",
       "error": "błąd",
       "unknown": "nieznany"
+    },
+    "bodyNotes": {
+      "binary": "Pominięto treść binarną.",
+      "multipart": "Pominięto treść multipart.",
+      "unsafeJson": "Pominięto treść JSON, bo nie dało się jej bezpiecznie oczyścić.",
+      "nonText": "Pominięto treść, która nie jest tekstem."
+    },
+    "bodyReasons": {
+      "eventStream": "Zdarzenia wysyłane przez serwer są w ograniczonej sekcji „Strumień zdarzeń”.",
+      "webSocket": "Wiadomości WebSocket są w ograniczonej sekcji „Wiadomości”.",
+      "expired": "Chromium nie udostępnia już treści odpowiedzi.",
+      "incomplete": "Treść odpowiedzi nie jest jeszcze kompletna.",
+      "devToolsCapture": "Szczegółowe przechwytywanie było niedostępne, gdy narzędzia deweloperskie zajmowały tę kartę.",
+      "omittedFromExport": "Treść odpowiedzi pominięto w tym oczyszczonym eksporcie.",
+      "closeDevTools": "Zamknij narzędzia deweloperskie tej karty, a potem ponownie poproś o te szczegóły.",
+      "evicted": "Chromium nie ma już tej treści odpowiedzi w swoim ograniczonym buforze diagnostycznym."
+    },
+    "searchFields": {
+      "error": "Błąd żądania",
+      "message": "Wiadomość ({direction}, {kind})",
+      "event": "Zdarzenie {name}"
     }
   },
   "uk-UA": {
@@ -365,6 +471,27 @@ export const networkLabelMessages = {
       "pong": "pong",
       "error": "помилка",
       "unknown": "невідомий"
+    },
+    "bodyNotes": {
+      "binary": "Бінарне тіло виключено.",
+      "multipart": "Тіло multipart виключено.",
+      "unsafeJson": "Тіло JSON виключено, бо його не вдалося безпечно очистити.",
+      "nonText": "Нетекстове тіло виключено."
+    },
+    "bodyReasons": {
+      "eventStream": "Події, надіслані сервером, доступні в обмеженому розділі «Потік подій».",
+      "webSocket": "Повідомлення WebSocket доступні в обмеженому розділі «Повідомлення».",
+      "expired": "Chromium більше не надає тіло відповіді.",
+      "incomplete": "Тіло відповіді ще не отримано повністю.",
+      "devToolsCapture": "Докладне захоплення було недоступне, поки інструменти розробника займали цю вкладку.",
+      "omittedFromExport": "Тіло відповіді виключено з цього очищеного експорту.",
+      "closeDevTools": "Закрийте інструменти розробника для цієї вкладки, а потім знову запросіть ці відомості.",
+      "evicted": "Chromium більше не зберігає це тіло відповіді у своєму обмеженому діагностичному буфері."
+    },
+    "searchFields": {
+      "error": "Помилка запиту",
+      "message": "Повідомлення ({direction}, {kind})",
+      "event": "Подія {name}"
     }
   },
   "ru-RU": {
@@ -426,6 +553,27 @@ export const networkLabelMessages = {
       "pong": "pong",
       "error": "ошибка",
       "unknown": "неизвестный"
+    },
+    "bodyNotes": {
+      "binary": "Двоичное тело исключено.",
+      "multipart": "Тело multipart исключено.",
+      "unsafeJson": "Тело JSON исключено, так как его не удалось безопасно очистить.",
+      "nonText": "Нетекстовое тело исключено."
+    },
+    "bodyReasons": {
+      "eventStream": "События, отправленные сервером, находятся в ограниченном разделе «Поток событий».",
+      "webSocket": "Сообщения WebSocket находятся в ограниченном разделе «Сообщения».",
+      "expired": "Chromium больше не предоставляет тело ответа.",
+      "incomplete": "Тело ответа ещё не получено полностью.",
+      "devToolsCapture": "Подробный захват был недоступен, пока инструменты разработчика занимали эту вкладку.",
+      "omittedFromExport": "Тело ответа исключено из этого очищенного экспорта.",
+      "closeDevTools": "Закройте инструменты разработчика для этой вкладки, а затем снова запросите эти сведения.",
+      "evicted": "Chromium больше не хранит это тело ответа в своём ограниченном диагностическом буфере."
+    },
+    "searchFields": {
+      "error": "Ошибка запроса",
+      "message": "Сообщение ({direction}, {kind})",
+      "event": "Событие {name}"
     }
   }
 }
