@@ -125,7 +125,8 @@ describe('CredentialStore', () => {
     await expect(store.password(saved.id)).resolves.toBe('private password')
     expect(await readFile(path, 'utf8')).toBe(before)
     expect(warn).toHaveBeenCalledOnce()
-    expect(String(warn.mock.calls[0]?.[0])).not.toContain('private password')
+    expect(warn).toHaveBeenCalledWith('[credentials] Could not re-encrypt a saved password; it keeps its previous encryption.')
+    warn.mockRestore()
     refuseEncryption = false
     await expect(store.password(saved.id)).resolves.toBe('private password')
   })
