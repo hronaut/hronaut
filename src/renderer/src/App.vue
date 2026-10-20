@@ -546,7 +546,8 @@ const {
       open: responsivePanelOpen,
       close: () => responsivePanel.value?.handleEscape()
     },
-    environment: environmentPanelOpen
+    environment: environmentPanelOpen,
+    panelsInOwnWindow: () => !isDetachedPanelWindow && panelDock.value === 'window'
   },
   features: {
     collections: browserCollectionsFeatureController,

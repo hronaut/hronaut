@@ -43,7 +43,8 @@ function createHarness() {
     responsivePreview: ref(false),
     environment: ref(false),
     areaCaptureState: ref<'idle' | 'picking'>('idle'),
-    elementPickerState: ref<'idle' | 'picking'>('idle')
+    elementPickerState: ref<'idle' | 'picking'>('idle'),
+    panelsInOwnWindow: ref(false)
   }
   const actions = {
     closeWorkspaceEditor: vi.fn(() => { surfaces.workspaceEditor.value = false }),
@@ -117,6 +118,7 @@ function createHarness() {
       close: actions.closeResponsivePreview
     },
     environmentPanel: surfaces.environment,
+    panelsInOwnWindow: () => surfaces.panelsInOwnWindow.value,
     runShortcut: actions.runShortcut
   })
   return { controller, surfaces, actions }
@@ -157,6 +159,45 @@ describe('useAppShellKeyboardFeatureController', () => {
     expect(surfaces.siteStorage.value).toBe(true)
     expect(surfaces.find.value).toBe(true)
     expect(actions.closeFind).not.toHaveBeenCalled()
+  })
+
+  it('closes what is open in this window before a panel in its own window', () => {
+    const { controller, surfaces, actions } = createHarness()
+    surfaces.panelsInOwnWindow.value = true
+    surfaces.siteStorage.value = true
+    surfaces.downloads.value = true
+    surfaces.history.value = true
+
+    // Site storage comes first in the Escape order, but in its own window it waits for Downloads and History here.
+    controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(surfaces.downloads.value).toBe(false)
+    expect(surfaces.siteStorage.value).toBe(true)
+
+    controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(surfaces.history.value).toBe(false)
+    expect(surfaces.siteStorage.value).toBe(true)
+
+    // With nothing else open here, Escape closes the panel in its own window.
+    controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(surfaces.siteStorage.value).toBe(false)
+
+    // Bookmarks in its own window waits for History, which comes after it in the Escape order.
+    surfaces.bookmarks.value = true
+    surfaces.history.value = true
+    controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(surfaces.history.value).toBe(false)
+    expect(actions.closeBookmarks).not.toHaveBeenCalled()
+  })
+
+  it('keeps the Escape order for panels docked in this window', () => {
+    const { controller, surfaces } = createHarness()
+    surfaces.siteStorage.value = true
+    surfaces.downloads.value = true
+
+    controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape' }))
+
+    expect(surfaces.siteStorage.value).toBe(false)
+    expect(surfaces.downloads.value).toBe(true)
   })
 
   it('routes capture cancellation, command-palette dismissal, and browser shortcuts', () => {
