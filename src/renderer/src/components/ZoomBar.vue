@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import UiButton from "../ui/UiButton.vue"
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconRemove from '~icons/material-symbols/remove-rounded'
@@ -64,6 +64,25 @@ async function setZoom(action: ZoomAction): Promise<void> {
   }
 }
 
+const bar = ref<HTMLElement | null>(null)
+
+/**
+ * Every zoom control is disabled while a change applies, so Chromium moves the focus of the one you used to the
+ * document body. Give it back once that control is enabled again, or to the bar itself when it stays disabled, such as
+ * Reset at 100%, unless you moved it meanwhile or the bar closed. Not to another control: a held Enter would run it.
+ */
+async function zoomFromControl(action: ZoomAction): Promise<void> {
+  const group = bar.value
+  const active = document.activeElement
+  const focused = active instanceof HTMLElement && group?.contains(active) ? active : null
+  await setZoom(action)
+  await nextTick()
+  if (!focused || !group || !open.value || group !== bar.value || !group.isConnected || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  const target = focused.isConnected && !focused.matches(':disabled') ? focused : group
+  target.focus()
+}
+
 watch(open, (isOpen) => {
   if (!isOpen) {
     targetTabId = undefined
@@ -91,7 +110,7 @@ defineExpose({ close, openForTab, setZoom })
 </script>
 
 <template>
-  <div v-if="open" class="zoom-bar" role="group" :aria-label="t('zoom.controls')" :aria-busy="busy">
+  <div v-if="open" ref="bar" class="zoom-bar" tabindex="-1" role="group" :aria-label="t('zoom.controls')" :aria-busy="busy">
     <span>{{ t('zoom.heading') }}</span>
     <span v-if="activeTab?.zoomIsolated" class="zoom-isolated" data-testid="zoom-isolated">{{ t('zoom.isolated') }}</span>
     <span v-if="activeTab?.defaultFontSize" class="zoom-isolated" data-testid="zoom-default-font-size">{{ t('zoom.defaultFontSize', { size: activeTab.defaultFontSize }) }}</span>
@@ -100,7 +119,7 @@ defineExpose({ close, openForTab, setZoom })
       v-tooltip="t('zoom.outTitle')"
       :aria-label="t('zoom.out')"
       :disabled="busy || (activeTab?.zoomPercent ?? 100) <= 50"
-      @click="setZoom('out')"
+      @click="zoomFromControl('out')"
     ><IconRemove aria-hidden="true" /></UiButton>
     <output aria-live="polite">{{ formatPercent(activeTab?.zoomPercent ?? 100) }}</output>
     <UiButton appearance="application"
@@ -108,13 +127,13 @@ defineExpose({ close, openForTab, setZoom })
       v-tooltip="t('zoom.inTitle')"
       :aria-label="t('zoom.in')"
       :disabled="busy || (activeTab?.zoomPercent ?? 100) >= 400"
-      @click="setZoom('in')"
+      @click="zoomFromControl('in')"
     ><IconZoomIn aria-hidden="true" /></UiButton>
     <UiButton appearance="application"
       class="zoom-reset"
       type="button"
       :disabled="busy || (activeTab?.zoomPercent ?? 100) === 100"
-      @click="setZoom('reset')"
+      @click="zoomFromControl('reset')"
     >{{ t('zoom.reset') }}</UiButton>
     <UiButton appearance="application" type="button" v-tooltip="t('zoom.closeTitle')" :aria-label="t('zoom.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
   </div>

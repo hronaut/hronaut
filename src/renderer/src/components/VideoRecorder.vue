@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import VideoAudioEditor from './VideoAudioEditor.vue'
@@ -65,8 +65,24 @@ async function refresh(): Promise<void> {
   } catch { /* Explicit operations report errors; polling never replaces an in-flight result. */ }
   finally { if (!disposed && expected === revision) poll = setTimeout(() => { void refresh() }, 1000) }
 }
+const recorder = ref<HTMLElement | null>(null)
+/**
+ * Every recorder control is disabled while Hronaut answers, and Start, Pause or Resume give way to the next step, so
+ * Chromium moves the focus of the one you used to the document body. Give it back once that control is enabled again,
+ * or else to the recorder itself, unless you moved it meanwhile, a newer action started or the recorder closed. Not to
+ * the next step's button: a held Enter would pause or stop the recording at once.
+ */
+async function keepFocus(focused: HTMLElement | null, section: HTMLElement | null, expected: number): Promise<void> {
+  await nextTick()
+  if (!focused || !section || disposed || expected !== revision || section !== recorder.value || !section.isConnected || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  const target = focused.isConnected && !focused.matches(':disabled') ? focused : section
+  target.focus()
+}
 async function perform(action: BrowserVideoOptions['action'], operation: (tabId: string) => Promise<BrowserVideoState>): Promise<void> {
   if (busy.value && !(action === 'clear' && rendering.value)) return
+  const section = recorder.value, active = document.activeElement
+  const focused = active instanceof HTMLElement && section?.contains(active) ? active : null
   const expected = ++revision, tabId = props.tabId
   if (poll) clearTimeout(poll)
   busy.value = true; pendingAction.value = action; error.value = ''
@@ -92,7 +108,7 @@ async function perform(action: BrowserVideoOptions['action'], operation: (tabId:
   } catch (cause) {
     if (!disposed && expected === revision) error.value = friendlyUiError(cause, t('runtime.toast.actionFailed'))
   } finally {
-    if (!disposed && expected === revision) { busy.value = false; pendingAction.value = undefined; void refresh() }
+    if (!disposed && expected === revision) { busy.value = false; pendingAction.value = undefined; void refresh(); void keepFocus(focused, section, expected) }
   }
 }
 async function manage(action: BrowserVideoOptions['action'], extra: Partial<BrowserVideoOptions> = {}): Promise<void> {
@@ -128,7 +144,7 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
 </script>
 
 <template>
-  <section class="video-recorder" :aria-label="t('video.title')" :aria-busy="busy">
+  <section ref="recorder" class="video-recorder" tabindex="-1" :aria-label="t('video.title')" :aria-busy="busy">
     <p>{{ t('video.privacy') }}</p>
     <p v-if="state" role="status">{{ t(`video.status.${state.status}`) }} · {{ (state.durationMs / 1000).toFixed(1) }} {{ t('video.seconds') }}</p>
     <p v-if="state?.notice">{{ state.notice }}</p>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
-import { computed, onBeforeUnmount, toRef } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDevices from '~icons/material-symbols/devices-rounded'
@@ -77,6 +77,26 @@ const summary = computed(() => {
   })
 })
 
+const panelRoot = ref<HTMLElement | null>(null)
+
+/**
+ * Apply preview and Reset viewport are disabled while the viewport changes, so Chromium moves the focus of the one you
+ * used to the document body. Give it back once that control is enabled again, or to the panel itself once Reset stays
+ * disabled with nothing left to reset, unless you moved it meanwhile or the panel closed. Not to a preset or a field:
+ * Enter on a field submits the form, so a held Enter would apply the draft again right after you reset it.
+ */
+async function keepFocusThrough(action: () => Promise<unknown>): Promise<void> {
+  const panel = panelRoot.value
+  const active = document.activeElement
+  const focused = active instanceof HTMLElement && panel?.contains(active) ? active : null
+  await action()
+  await nextTick()
+  if (!focused || !panel || !open.value || panel !== panelRoot.value || !panel.isConnected || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  const target = focused.isConnected && !focused.matches(':disabled') ? focused : panel
+  target.focus()
+}
+
 defineExpose({ toggle, loadDraft, resetFeedback, handleEscape })
 onBeforeUnmount(dispose)
 </script>
@@ -84,7 +104,9 @@ onBeforeUnmount(dispose)
 <template>
   <section
     v-if="open"
+    ref="panelRoot"
     class="accessibility-panel responsive-preview-panel"
+    tabindex="-1"
     data-shell-docked-panel
     role="dialog"
     aria-modal="false"
@@ -101,7 +123,7 @@ onBeforeUnmount(dispose)
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('responsive.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
-    <form class="responsive-preview-content" @submit.prevent="apply">
+    <form class="responsive-preview-content" @submit.prevent="keepFocusThrough(apply)">
       <section aria-labelledby="responsive-presets-title">
         <div class="responsive-section-heading">
           <div><h3 id="responsive-presets-title">{{ t('responsive.preset') }}</h3><p>{{ t('responsive.presetHelp') }}</p></div>
@@ -157,7 +179,7 @@ onBeforeUnmount(dispose)
       </output>
       <p class="responsive-preview-caveat"><IconInfo aria-hidden="true" /> {{ t('responsive.limitation') }}</p>
       <footer>
-        <UiButton appearance="application" type="button" :disabled="!activeTab?.emulation?.viewport || pendingAction !== null" @click="reset">{{ t('responsive.reset') }}</UiButton>
+        <UiButton appearance="application" type="button" :disabled="!activeTab?.emulation?.viewport || pendingAction !== null" @click="keepFocusThrough(reset)">{{ t('responsive.reset') }}</UiButton>
         <UiButton appearance="application" variant="primary" class="primary" type="submit" :disabled="!viewport || pendingAction !== null">
           <IconProgress v-if="pendingAction !== null" class="state-spinner" aria-hidden="true" />
           <IconDevices v-else aria-hidden="true" />
