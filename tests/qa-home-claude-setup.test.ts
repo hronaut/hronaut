@@ -154,6 +154,8 @@ describe('The first-run offer (#874)', () => {
     await mountSetup(bridge)
     expect(words(byId('guide-name'))).toBe('Codex')
     expect(words(query('#onboarding-claude span'))).toBe('Claude Code is on this computer. Hronaut can add itself to Claude Code for you.')
+    // Pressing the button focuses it, and it keeps the focus while it hides with the first-run panel.
+    byId<HTMLButtonElement>('onboarding-claude-setup').focus()
     byId<HTMLButtonElement>('onboarding-claude-setup').click()
     expect(byId('home-connect').hidden).toBe(false)
     expect(words(byId('guide-name'))).toBe('Claude Code')
