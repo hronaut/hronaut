@@ -84,6 +84,7 @@ import { createMainWindow, type MainWindowRefs } from './windows/main-window.js'
 import { createShellWindows } from './windows/shell-windows.js'
 import { registerTabsIpc } from './tabs-ipc.js'
 import { registerNavigationIpc } from './navigation-ipc.js'
+import { regionalPdfPageSize } from './browser/pdf-export/pdf-paper-size.js'
 import { createWindowAppearance, resolvedTheme, THEME_BACKGROUND } from './windows/appearance.js'
 import { createInterfaceLanguage } from './interface-language.js'
 import { registerEmulationIpc } from './emulation-ipc.js'
@@ -822,7 +823,8 @@ function registerIpc(): void {
   registerNavigationIpc({
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
-    tabs: () => tabRuntime.tabs
+    tabs: () => tabRuntime.tabs,
+    defaultPdfPageSize: () => regionalPdfPageSize(app.getLocaleCountryCode(), app.getSystemLocale())
   })
   registerNetworkRoutesIpc({
     assertTrustedSender: assertTrustedShellSender,

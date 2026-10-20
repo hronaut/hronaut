@@ -1,4 +1,5 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { BrowserPdfPageSize } from '../shared/types.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 
 type NavigationIpcTabs = Pick<BrowserTabsManager,
@@ -10,6 +11,8 @@ interface NavigationIpcHost {
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
   tabs(): NavigationIpcTabs | null
+  /** The paper a PDF saved from Hronaut's controls uses when they name none: the standard paper of the person's region. */
+  defaultPdfPageSize(): BrowserPdfPageSize
 }
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
@@ -66,6 +69,6 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
       || (outline !== undefined && typeof outline !== 'boolean')
       || (preferCSSPageSize !== undefined && typeof preferCSSPageSize !== 'boolean')
     ) throw new TypeError('Invalid PDF options')
-    return host.tabs()!.savePdf({ tabId, filename, landscape, pageSize, outline, preferCSSPageSize })
+    return host.tabs()!.savePdf({ tabId, filename, landscape, pageSize: pageSize ?? host.defaultPdfPageSize(), outline, preferCSSPageSize })
   })
 }
