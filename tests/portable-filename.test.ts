@@ -53,10 +53,14 @@ describe.each(['pdf', 'har', 'png'] as const)('%s export filenames', (format) =>
   it('preserves ordinary names and rejects unsafe requested names', () => {
     expect(portableExportFilename('report', '', format)).toBe(`report.${format}`)
     expect(portableExportFilename(`report.${format.toUpperCase()}`, '', format)).toBe(`report.${format.toUpperCase()}`)
-    for (const name of ['', '.', '..', '../file', 'folder\\file', 'CON', 'NUL.report', 'bad?', 'trailing.']) {
+    for (const name of ['', '.', '..', '../file', 'folder\\file', 'CON', 'NUL.report', 'bad?', 'trailing.', `.${format}`, '.hidden', ` .${format}`]) {
       expect(() => portableExportFilename(name, '', format)).toThrow('portable file name')
     }
     expect(portableExportFilename(undefined, '...', format)).toBe(format === 'har' ? 'network.sanitized.har' : `page.${format}`)
     expect(portableExportFilename(undefined, 'CON', format)).toBe(format === 'har' ? 'network-CON.sanitized.har' : `page-CON.${format}`)
+    // A title starting with a dot made a hidden file, and a requested `.pdf` saved a second copy as `.pdf (1)`.
+    expect(portableExportFilename(undefined, '.NET documentation | Microsoft Learn', format))
+      .toBe(format === 'har' ? 'NET documentation - Microsoft Learn.sanitized.har' : `NET documentation - Microsoft Learn.${format}`)
+    expect(portableExportFilename(undefined, ' . .env', format)).toBe(format === 'har' ? 'env.sanitized.har' : `env.${format}`)
   })
 })
