@@ -139,6 +139,34 @@ describe('pinned live strip', () => {
     expect(document.activeElement).toBe(within(group).getByRole('button', { name: 'Pause' }))
   })
 
+  it('keeps a held Enter from pressing a control again', async () => {
+    const { change } = renderStrip(
+      [agent('Windsurf', { state: 'needs-you', step: 'askYou', attentionTabId: 'tab-3' })],
+      { attentionReason: 'Log in.', attentionId: 'attention-1', attentionWorkspaceId: 'workspace-a' }
+    )
+    const group = await strip()
+    await within(group).findByRole('button', { name: 'Hand back' })
+    const pressed: string[] = []
+    const holdEnterOnEach = () => {
+      for (const button of within(group).getAllByRole('button')) {
+        const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+        const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+        button.dispatchEvent(press)
+        button.dispatchEvent(repeat)
+        expect(press.defaultPrevented).toBe(false)
+        if (!repeat.defaultPrevented) pressed.push(button.textContent || button.getAttribute('aria-label') || '')
+      }
+    }
+    holdEnterOnEach()
+    change({ revision: 2, workspaces: { 'workspace-a': [agent('Windsurf', { attentionTabId: 'tab-3' })] } })
+    await within(group).findByRole('button', { name: 'Pause' })
+    holdEnterOnEach()
+
+    // Hand back hands its focus to Pause or Take over, so the repeats of a held Enter pressed it, and Pause flipped
+    // on every repeat.
+    expect(pressed).toEqual([])
+  })
+
   it('holds its place without claiming no one works until main\'s presence arrives', async () => {
     let resolve!: (snapshot: AgentPresenceSnapshot) => void
     renderStrip([], {}, new Promise((done) => { resolve = done }))

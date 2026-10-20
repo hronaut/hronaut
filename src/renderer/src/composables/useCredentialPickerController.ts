@@ -118,7 +118,9 @@ export function useCredentialPickerController(options: CredentialPickerControlle
     }
     if (event.key === 'Enter') {
       event.preventDefault()
-      void fillSelectedCredential()
+      // The picker opens with the focus here, often from a button pressed with Enter, so a held Enter would fill the
+      // first account without a choice.
+      if (!event.repeat) void fillSelectedCredential()
     }
   }
 

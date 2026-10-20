@@ -57,6 +57,24 @@ describe('credential picker controller', () => {
     controller.dispose()
   })
 
+  it('does not fill a credential for the repeats of a held Enter', async () => {
+    const { open, fillCredential, controller } = createController()
+    await controller.openPanel()
+
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, cancelable: true })
+    controller.handleKeydown(repeat)
+    await Promise.resolve()
+
+    // The picker opens with the focus in its search field, often from a button pressed with Enter, and the key's
+    // repeats filled the first account without a choice.
+    expect(repeat.defaultPrevented).toBe(true)
+    expect(fillCredential).not.toHaveBeenCalled()
+    expect(open.value).toBe(true)
+    controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await vi.waitFor(() => expect(fillCredential).toHaveBeenCalledWith(expect.objectContaining({ id: 'alice' })))
+    controller.dispose()
+  })
+
   it('does not fill, move, or close while an IME composition owns the key', async () => {
     const { open, fillCredential, controller } = createController()
     await controller.openPanel()
