@@ -69,7 +69,8 @@ export function registerHomeIpc(host: HomeIpcHost): void {
             backup: preview.backupName
           }),
           buttons: [host.text('native.dialog.cancel'), host.text('native.dialog.claudeSetupConfirm')],
-          defaultId: 1,
+          // Enter, or a key still held from Home, keeps the file as it is; the change takes a deliberate choice.
+          defaultId: 0,
           cancelId: 0,
           noLink: true
         })

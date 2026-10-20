@@ -87,7 +87,7 @@ test('sets up Claude Code from Home after a native confirmation, keeping its oth
     await preview.getByRole('button', { name: 'Apply change…', exact: true }).click()
     await expect(status).toHaveText('Nothing was changed.')
     const [asked] = await messageBoxes(app)
-    expect(asked).toMatchObject({ title: 'Set up Claude Code', message: 'Add Hronaut to Claude Code?', buttons: ['Cancel', 'Add to Claude Code'], defaultId: 1, cancelId: 0 })
+    expect(asked).toMatchObject({ title: 'Set up Claude Code', message: 'Add Hronaut to Claude Code?', buttons: ['Cancel', 'Add to Claude Code'], defaultId: 0, cancelId: 0 })
     expect(asked!.detail).toContain(`File: ${configPath}`)
     expect(asked!.detail).toContain(entry)
     expect(asked!.detail).toContain(`A copy of the file is saved first as ${cancelledBackup}.`)

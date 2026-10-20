@@ -94,9 +94,12 @@ export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signa
       element('claude-setup-before').textContent = next.before === null ? '' : `"hronaut": ${next.before}`
       element('claude-setup-backup').textContent = interpolate(messages.previewBackup, { name: next.backupName })
       render()
-      // The change itself, for the person to read before choosing Apply. Apply opens a confirmation whose default is to
-      // make the change, so a held Enter on Set up Claude Code must not reach it.
-      element('claude-setup-after').closest('pre')!.focus({ preventScroll: true })
+      // The change itself, for the person to read before choosing Apply, unless they moved on while it was read. Not
+      // Apply, which a held Enter on Set up Claude Code would press.
+      const active = document.activeElement
+      if (!active || active === document.body || root!.contains(active)) {
+        element('claude-setup-after').closest('pre')!.focus({ preventScroll: true })
+      }
     } catch (error) {
       if (current !== sequence || signal.aborted) return
       const settled = settle(failure(error))
@@ -138,7 +141,9 @@ export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signa
     }
   }, { signal })
 
-  cancel.addEventListener('click', () => { void settle(messages.cancelled); start.focus({ preventScroll: true }) }, { signal })
+  // The command, where Apply also leaves the focus: Set up Claude Code, back in Cancel's place, would show the change
+  // again on a held Enter.
+  cancel.addEventListener('click', () => { void settle(messages.cancelled); element('guide-code').closest('pre')!.focus({ preventScroll: true }) }, { signal })
 
   return {
     /** Shown with the Claude Code guide only; leaving it drops a change that was not applied. */
