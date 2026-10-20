@@ -103,7 +103,7 @@ export async function forward<Tab extends PageNavigationTab>(access: PageNavigat
   return access.getState()
 }
 
-/** Reloads the tab's page, waking a sleeping tab instead. */
+/** Reloads the tab's page, waking a sleeping tab first. */
 export async function reload<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tabId?: string): Promise<BrowserState> {
   return reloadPage(access, tabId, false)
 }
@@ -122,10 +122,8 @@ async function reloadPage<Tab extends PageNavigationTab>(access: PageNavigationA
   const tab = access.getTab(tabId)
   if (access.isRendererRecovering(tab.webContents)) throw new LocalizedError('appErrors.navigation.recoveryRunning')
   access.prepareDiagnosticNavigation(tab)
-  if (tab.sleeping || tab.wakePromise) {
-    await access.wakeTab(tab.id)
-    if (!ignoreCache) return access.getState()
-  }
+  // Waking can show the page from the cache, as Back does, so the woken page is reloaded too.
+  if (tab.sleeping || tab.wakePromise) await access.wakeTab(tab.id)
   const pageProblem = tab.pageProblem
   tab.pageProblem = undefined
   access.changed(false)

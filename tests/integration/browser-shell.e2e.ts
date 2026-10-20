@@ -4679,15 +4679,16 @@ test('puts an active website tab to sleep from its native context menu and wakes
     await electronApp.evaluate(({ webContents }, pageId) => {
       const page = webContents.fromId(pageId)
       if (!page) throw new Error('Sleeping manual fixture WebContents disappeared')
-      const originalRestore = page.navigationHistory.restore.bind(page.navigationHistory)
+      const originalGoToIndex = page.navigationHistory.goToIndex.bind(page.navigationHistory)
       const control = { started: false, release: undefined as (() => void) | undefined }
       ;(globalThis as typeof globalThis & { __hronautDelayedWake?: typeof control }).__hronautDelayedWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async (...args: Parameters<typeof originalRestore>) => {
+        value: (...args: Parameters<typeof originalGoToIndex>) => {
           control.started = true
-          await new Promise<void>((resolve) => { control.release = resolve })
-          return originalRestore(...args)
+          void new Promise<void>((resolve) => { control.release = resolve }).then(() => {
+            if (!page.isDestroyed()) originalGoToIndex(...args)
+          })
         }
       })
     }, wakingPageId)
@@ -4994,13 +4995,13 @@ test('rolls back pinning when a sleeping tab cannot wake and permits a retry', a
       if (!page) throw new Error('Sleeping pin fixture WebContents was not found')
       const control = {
         pageId: page.id,
-        restore: page.navigationHistory.restore.bind(page.navigationHistory),
+        goToIndex: page.navigationHistory.goToIndex.bind(page.navigationHistory),
         loadUrl: page.loadURL.bind(page)
       }
       ;(globalThis as typeof globalThis & { __hronautRejectedWake?: typeof control }).__hronautRejectedWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async () => { throw new Error('simulated sleeping tab wake failure') }
+        value: () => { throw new Error('simulated sleeping tab wake failure') }
       })
       Object.defineProperty(page, 'loadURL', {
         configurable: true,
@@ -5028,12 +5029,12 @@ test('rolls back pinning when a sleeping tab cannot wake and permits a retry', a
 
     await electronApp.evaluate(({ webContents }) => {
       const control = (globalThis as typeof globalThis & {
-        __hronautRejectedWake?: { pageId: number; restore: Electron.NavigationHistory['restore']; loadUrl: Electron.WebContents['loadURL'] }
+        __hronautRejectedWake?: { pageId: number; goToIndex: Electron.NavigationHistory['goToIndex']; loadUrl: Electron.WebContents['loadURL'] }
       }).__hronautRejectedWake
       if (!control) throw new Error('Rejected wake control was not found')
       const page = webContents.fromId(control.pageId)
       if (!page) throw new Error('Sleeping pin fixture WebContents disappeared')
-      Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
+      Object.defineProperty(page.navigationHistory, 'goToIndex', { configurable: true, value: control.goToIndex })
       Object.defineProperty(page, 'loadURL', { configurable: true, value: control.loadUrl })
       delete (globalThis as typeof globalThis & { __hronautRejectedWake?: unknown }).__hronautRejectedWake
     })
@@ -5087,13 +5088,13 @@ test('rolls back selection when a sleeping tab cannot wake and permits a retry',
       if (!page) throw new Error('Sleeping selection fixture WebContents was not found')
       const control = {
         pageId: page.id,
-        restore: page.navigationHistory.restore.bind(page.navigationHistory),
+        goToIndex: page.navigationHistory.goToIndex.bind(page.navigationHistory),
         loadUrl: page.loadURL.bind(page)
       }
       ;(globalThis as typeof globalThis & { __hronautRejectedSelectionWake?: typeof control }).__hronautRejectedSelectionWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async () => { throw new Error('simulated sleeping selection wake failure') }
+        value: () => { throw new Error('simulated sleeping selection wake failure') }
       })
       Object.defineProperty(page, 'loadURL', {
         configurable: true,
@@ -5110,12 +5111,12 @@ test('rolls back selection when a sleeping tab cannot wake and permits a retry',
 
     await electronApp.evaluate(({ webContents }) => {
       const control = (globalThis as typeof globalThis & {
-        __hronautRejectedSelectionWake?: { pageId: number; restore: Electron.NavigationHistory['restore']; loadUrl: Electron.WebContents['loadURL'] }
+        __hronautRejectedSelectionWake?: { pageId: number; goToIndex: Electron.NavigationHistory['goToIndex']; loadUrl: Electron.WebContents['loadURL'] }
       }).__hronautRejectedSelectionWake
       if (!control) throw new Error('Rejected selection wake control was not found')
       const page = webContents.fromId(control.pageId)
       if (!page) throw new Error('Sleeping selection fixture WebContents disappeared')
-      Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
+      Object.defineProperty(page.navigationHistory, 'goToIndex', { configurable: true, value: control.goToIndex })
       Object.defineProperty(page, 'loadURL', { configurable: true, value: control.loadUrl })
       delete (globalThis as typeof globalThis & { __hronautRejectedSelectionWake?: unknown }).__hronautRejectedSelectionWake
     })
@@ -5179,13 +5180,13 @@ test('keeps the active tab when a sleeping close replacement cannot wake', async
       if (!page) throw new Error('Sleeping close-replacement WebContents was not found')
       const control = {
         pageId: page.id,
-        restore: page.navigationHistory.restore.bind(page.navigationHistory),
+        goToIndex: page.navigationHistory.goToIndex.bind(page.navigationHistory),
         loadUrl: page.loadURL.bind(page)
       }
       ;(globalThis as typeof globalThis & { __hronautRejectedCloseWake?: typeof control }).__hronautRejectedCloseWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async () => { throw new Error('simulated close replacement wake failure') }
+        value: () => { throw new Error('simulated close replacement wake failure') }
       })
       Object.defineProperty(page, 'loadURL', {
         configurable: true,
@@ -5212,12 +5213,12 @@ test('keeps the active tab when a sleeping close replacement cannot wake', async
 
     await electronApp.evaluate(({ webContents }) => {
       const control = (globalThis as typeof globalThis & {
-        __hronautRejectedCloseWake?: { pageId: number; restore: Electron.NavigationHistory['restore']; loadUrl: Electron.WebContents['loadURL'] }
+        __hronautRejectedCloseWake?: { pageId: number; goToIndex: Electron.NavigationHistory['goToIndex']; loadUrl: Electron.WebContents['loadURL'] }
       }).__hronautRejectedCloseWake
       if (!control) throw new Error('Rejected close wake control was not found')
       const page = webContents.fromId(control.pageId)
       if (!page) throw new Error('Sleeping close-replacement WebContents disappeared')
-      Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
+      Object.defineProperty(page.navigationHistory, 'goToIndex', { configurable: true, value: control.goToIndex })
       Object.defineProperty(page, 'loadURL', { configurable: true, value: control.loadUrl })
       delete (globalThis as typeof globalThis & { __hronautRejectedCloseWake?: unknown }).__hronautRejectedCloseWake
     })
@@ -5287,15 +5288,16 @@ test('finishes a pending tab close after the website interaction lock engages', 
   await electronApp.evaluate(({ webContents }, pageId) => {
     const page = webContents.fromId(pageId)
     if (!page) throw new Error('Locked close replacement WebContents was not found')
-    const originalRestore = page.navigationHistory.restore.bind(page.navigationHistory)
+    const originalGoToIndex = page.navigationHistory.goToIndex.bind(page.navigationHistory)
     const control = { started: false, release: undefined as (() => void) | undefined }
     ;(globalThis as typeof globalThis & { __hronautLockedCloseWake?: typeof control }).__hronautLockedCloseWake = control
-    Object.defineProperty(page.navigationHistory, 'restore', {
+    Object.defineProperty(page.navigationHistory, 'goToIndex', {
       configurable: true,
-      value: async (...args: Parameters<typeof originalRestore>) => {
+      value: (...args: Parameters<typeof originalGoToIndex>) => {
         control.started = true
-        await new Promise<void>((resolve) => { control.release = resolve })
-        return originalRestore(...args)
+        void new Promise<void>((resolve) => { control.release = resolve }).then(() => {
+          if (!page.isDestroyed()) originalGoToIndex(...args)
+        })
       }
     })
   }, replacementPageId!)
@@ -5402,15 +5404,16 @@ test('keeps a newer selection authoritative while an active close wakes its repl
     await electronApp.evaluate(({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))
       if (!page) throw new Error('Delayed close-replacement WebContents was not found')
-      const originalRestore = page.navigationHistory.restore.bind(page.navigationHistory)
+      const originalGoToIndex = page.navigationHistory.goToIndex.bind(page.navigationHistory)
       const control = { started: false, release: undefined as (() => void) | undefined }
       ;(globalThis as typeof globalThis & { __hronautDelayedCloseWake?: typeof control }).__hronautDelayedCloseWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async (...args: Parameters<typeof originalRestore>) => {
+        value: (...args: Parameters<typeof originalGoToIndex>) => {
           control.started = true
-          await new Promise<void>((resolve) => { control.release = resolve })
-          return originalRestore(...args)
+          void new Promise<void>((resolve) => { control.release = resolve }).then(() => {
+            if (!page.isDestroyed()) originalGoToIndex(...args)
+          })
         }
       })
     })
@@ -5522,12 +5525,12 @@ test('uses the next close replacement when the pending sleeping replacement clos
       if (!page) throw new Error('Removed close-replacement WebContents was not found')
       const control = { started: false, release: undefined as (() => void) | undefined }
       ;(globalThis as typeof globalThis & { __hronautRemovedCloseWake?: typeof control }).__hronautRemovedCloseWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async () => {
+        // The page never starts going back, so the later release does nothing; the test closes the tab meanwhile, which ends the wake.
+        value: () => {
           control.started = true
-          await new Promise<void>((resolve) => { control.release = resolve })
-          throw new Error('simulated removed replacement wake failure')
+          void new Promise<void>((resolve) => { control.release = resolve })
         }
       })
     }, replacementPageId!)
@@ -5622,15 +5625,16 @@ test('commits one close when duplicate requests wait on the same sleeping replac
     await electronApp.evaluate(({ webContents }, pageId) => {
       const page = webContents.fromId(pageId)
       if (!page) throw new Error('Shared close-replacement WebContents was not found')
-      const originalRestore = page.navigationHistory.restore.bind(page.navigationHistory)
+      const originalGoToIndex = page.navigationHistory.goToIndex.bind(page.navigationHistory)
       const control = { started: false, release: undefined as (() => void) | undefined }
       ;(globalThis as typeof globalThis & { __hronautSharedCloseWake?: typeof control }).__hronautSharedCloseWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async (...args: Parameters<typeof originalRestore>) => {
+        value: (...args: Parameters<typeof originalGoToIndex>) => {
           control.started = true
-          await new Promise<void>((resolve) => { control.release = resolve })
-          return originalRestore(...args)
+          void new Promise<void>((resolve) => { control.release = resolve }).then(() => {
+            if (!page.isDestroyed()) originalGoToIndex(...args)
+          })
         }
       })
     }, replacementPageId!)
@@ -5746,20 +5750,21 @@ test('rechecks a reordered sleeping close replacement before committing the clos
       const delayedPage = webContents.fromId(ids.delayed)
       const rejectedPage = webContents.fromId(ids.rejected)
       if (!delayedPage || !rejectedPage) throw new Error('Reordered close-replacement WebContents were not found')
-      const originalDelayedRestore = delayedPage.navigationHistory.restore.bind(delayedPage.navigationHistory)
+      const originalDelayedGoToIndex = delayedPage.navigationHistory.goToIndex.bind(delayedPage.navigationHistory)
       const control = { started: false, release: undefined as (() => void) | undefined }
       ;(globalThis as typeof globalThis & { __hronautReorderedCloseWake?: typeof control }).__hronautReorderedCloseWake = control
-      Object.defineProperty(delayedPage.navigationHistory, 'restore', {
+      Object.defineProperty(delayedPage.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async (...args: Parameters<typeof originalDelayedRestore>) => {
+        value: (...args: Parameters<typeof originalDelayedGoToIndex>) => {
           control.started = true
-          await new Promise<void>((resolve) => { control.release = resolve })
-          return originalDelayedRestore(...args)
+          void new Promise<void>((resolve) => { control.release = resolve }).then(() => {
+            if (!delayedPage.isDestroyed()) originalDelayedGoToIndex(...args)
+          })
         }
       })
-      Object.defineProperty(rejectedPage.navigationHistory, 'restore', {
+      Object.defineProperty(rejectedPage.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async () => { throw new Error('simulated reordered replacement wake failure') }
+        value: () => { throw new Error('simulated reordered replacement wake failure') }
       })
       Object.defineProperty(rejectedPage, 'loadURL', {
         configurable: true,
@@ -5857,15 +5862,16 @@ test('does not override a newer tab selection when a sleeping tab finishes wakin
     await electronApp.evaluate(({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))
       if (!page) throw new Error('Delayed sleeping selection WebContents was not found')
-      const originalRestore = page.navigationHistory.restore.bind(page.navigationHistory)
+      const originalGoToIndex = page.navigationHistory.goToIndex.bind(page.navigationHistory)
       const control = { started: false, release: undefined as (() => void) | undefined }
       ;(globalThis as typeof globalThis & { __hronautDelayedSelectionWake?: typeof control }).__hronautDelayedSelectionWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async (...args: Parameters<typeof originalRestore>) => {
+        value: (...args: Parameters<typeof originalGoToIndex>) => {
           control.started = true
-          await new Promise<void>((resolve) => { control.release = resolve })
-          return originalRestore(...args)
+          void new Promise<void>((resolve) => { control.release = resolve }).then(() => {
+            if (!page.isDestroyed()) originalGoToIndex(...args)
+          })
         }
       })
     })
@@ -5938,12 +5944,12 @@ test('treats tab closure as cancellation while a sleeping selection is waking', 
       if (!page) throw new Error('Closing sleeping selection WebContents was not found')
       const control = { started: false, release: undefined as (() => void) | undefined }
       ;(globalThis as typeof globalThis & { __hronautClosingSelectionWake?: typeof control }).__hronautClosingSelectionWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async () => {
+        // The page never starts going back, so the later release does nothing; the test closes the tab meanwhile, which ends the wake.
+        value: () => {
           control.started = true
-          await new Promise<void>((resolve) => { control.release = resolve })
-          throw new TypeError('Object has been destroyed')
+          void new Promise<void>((resolve) => { control.release = resolve })
         }
       })
       Object.defineProperty(page, 'loadURL', {

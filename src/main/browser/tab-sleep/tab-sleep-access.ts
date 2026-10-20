@@ -11,7 +11,6 @@ import type { BrowserDomRecordingState } from '../dom-recorder.js'
 import type { BrowserLiveRegionRecordingState } from '../live-region-recorder.js'
 import type { BrowserProfilingState } from '../profiling-controller.js'
 import type { BrowserReproRecordingInternal } from '../repro-recorder.js'
-import type { TabDiscoveryTitle } from '../tab-discovery-title.js'
 
 /**
  * The tab fields putting a tab to sleep and waking it read and write: its
@@ -35,7 +34,6 @@ export interface TabSleepTab extends Pick<BrowserProfilingState, 'codeCoverage' 
   walletPageUnloading?: boolean
   wakePromise?: Promise<void>
   sleepNavigationHistory?: { entries: NavigationEntry[]; index: number }
-  discoveryTitle: TabDiscoveryTitle
   pageLifecycleState: BrowserPageLifecycleState
   pageLifecycleOperation?: {
     requestedState: Exclude<BrowserPageLifecycleState, 'unknown'>

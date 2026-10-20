@@ -323,15 +323,15 @@ test('keeps a tab recoverably sleeping when Memory Saver rollback cannot restore
       if (!page) throw new Error('Memory Saver rollback WebContents was not found')
       const control = {
         pageId: page.id,
-        restore: page.navigationHistory.restore.bind(page.navigationHistory),
+        goToIndex: page.navigationHistory.goToIndex.bind(page.navigationHistory),
         loadUrl: page.loadURL.bind(page),
         sendCommand: page.debugger.sendCommand.bind(page.debugger)
       }
       ;(globalThis as typeof globalThis & { __hronautFailedSleepRollback?: typeof control })
         .__hronautFailedSleepRollback = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async () => { throw new Error('simulated sleep rollback restore failure') }
+        value: () => { throw new Error('simulated sleep rollback history navigation failure') }
       })
       Object.defineProperty(page, 'loadURL', {
         configurable: true,
@@ -367,7 +367,7 @@ test('keeps a tab recoverably sleeping when Memory Saver rollback cannot restore
       const mainGlobal = globalThis as typeof globalThis & {
         __hronautFailedSleepRollback?: {
           pageId: number
-          restore: Electron.NavigationHistory['restore']
+          goToIndex: Electron.NavigationHistory['goToIndex']
           loadUrl: Electron.WebContents['loadURL']
           sendCommand: Electron.Debugger['sendCommand']
         }
@@ -376,7 +376,7 @@ test('keeps a tab recoverably sleeping when Memory Saver rollback cannot restore
       if (!control) throw new Error('Memory Saver rollback control was not installed')
       const page = webContents.fromId(control.pageId)
       if (!page) throw new Error('Memory Saver rollback WebContents disappeared')
-      Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
+      Object.defineProperty(page.navigationHistory, 'goToIndex', { configurable: true, value: control.goToIndex })
       Object.defineProperty(page, 'loadURL', { configurable: true, value: control.loadUrl })
       Object.defineProperty(page.debugger, 'sendCommand', { configurable: true, value: control.sendCommand })
       delete mainGlobal.__hronautFailedSleepRollback
@@ -393,7 +393,7 @@ test('keeps a tab recoverably sleeping when Memory Saver rollback cannot restore
   }
 })
 
-test('retries a sleeping tab wake when history restoration aborts without a replacement navigation', async ({
+test('retries a sleeping tab wake when going back to its page aborts without a replacement navigation', async ({
   appWindow,
   electronApp
 }) => {
@@ -430,12 +430,12 @@ test('retries a sleeping tab wake when history restoration aborts without a repl
     await electronApp.evaluate(({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))
       if (!page) throw new Error('Memory Saver aborted wake WebContents was not found')
-      const control = { pageId: page.id, restore: page.navigationHistory.restore.bind(page.navigationHistory) }
+      const control = { pageId: page.id, goToIndex: page.navigationHistory.goToIndex.bind(page.navigationHistory) }
       ;(globalThis as typeof globalThis & { __hronautAbortedWake?: typeof control }).__hronautAbortedWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async () => {
-          const error = new Error('simulated isolated aborted history restore') as Error & { code: string }
+        value: () => {
+          const error = new Error('simulated isolated aborted history navigation') as Error & { code: string }
           error.code = 'ERR_ABORTED'
           throw error
         }
@@ -452,12 +452,12 @@ test('retries a sleeping tab wake when history restoration aborts without a repl
 
     await electronApp.evaluate(({ webContents }) => {
       const mainGlobal = globalThis as typeof globalThis & {
-        __hronautAbortedWake?: { pageId: number; restore: Electron.NavigationHistory['restore'] }
+        __hronautAbortedWake?: { pageId: number; goToIndex: Electron.NavigationHistory['goToIndex'] }
       }
       const control = mainGlobal.__hronautAbortedWake
       if (!control) throw new Error('Memory Saver aborted wake control was not installed')
       const page = webContents.fromId(control.pageId)
-      if (page) Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
+      if (page) Object.defineProperty(page.navigationHistory, 'goToIndex', { configurable: true, value: control.goToIndex })
       delete mainGlobal.__hronautAbortedWake
     })
   } finally {

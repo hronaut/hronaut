@@ -168,13 +168,13 @@ test('keeps the current pane when a sleeping split target cannot wake and permit
       if (!page) throw new Error('Sleeping split fixture WebContents was not found')
       const control = {
         pageId: page.id,
-        restore: page.navigationHistory.restore.bind(page.navigationHistory),
+        goToIndex: page.navigationHistory.goToIndex.bind(page.navigationHistory),
         loadUrl: page.loadURL.bind(page)
       }
       ;(globalThis as typeof globalThis & { __hronautRejectedSplitWake?: typeof control }).__hronautRejectedSplitWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async () => { throw new Error('simulated sleeping split wake failure') }
+        value: () => { throw new Error('simulated sleeping split wake failure') }
       })
       Object.defineProperty(page, 'loadURL', {
         configurable: true,
@@ -198,12 +198,12 @@ test('keeps the current pane when a sleeping split target cannot wake and permit
 
     await electronApp.evaluate(({ webContents }) => {
       const control = (globalThis as typeof globalThis & {
-        __hronautRejectedSplitWake?: { pageId: number; restore: Electron.NavigationHistory['restore']; loadUrl: Electron.WebContents['loadURL'] }
+        __hronautRejectedSplitWake?: { pageId: number; goToIndex: Electron.NavigationHistory['goToIndex']; loadUrl: Electron.WebContents['loadURL'] }
       }).__hronautRejectedSplitWake
       if (!control) throw new Error('Rejected split wake control was not found')
       const page = webContents.fromId(control.pageId)
       if (!page) throw new Error('Sleeping split fixture WebContents disappeared')
-      Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
+      Object.defineProperty(page.navigationHistory, 'goToIndex', { configurable: true, value: control.goToIndex })
       Object.defineProperty(page, 'loadURL', { configurable: true, value: control.loadUrl })
       delete (globalThis as typeof globalThis & { __hronautRejectedSplitWake?: unknown }).__hronautRejectedSplitWake
     })
@@ -258,15 +258,16 @@ test('does not open a delayed sleeping split target after a newer tab selection'
     await electronApp.evaluate(({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))
       if (!page) throw new Error('Delayed split fixture WebContents was not found')
-      const originalRestore = page.navigationHistory.restore.bind(page.navigationHistory)
+      const originalGoToIndex = page.navigationHistory.goToIndex.bind(page.navigationHistory)
       const control = { started: false, release: undefined as (() => void) | undefined }
       ;(globalThis as typeof globalThis & { __hronautDelayedSplitWake?: typeof control }).__hronautDelayedSplitWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async (...args: Parameters<typeof originalRestore>) => {
+        value: (...args: Parameters<typeof originalGoToIndex>) => {
           control.started = true
-          await new Promise<void>((resolve) => { control.release = resolve })
-          return originalRestore(...args)
+          void new Promise<void>((resolve) => { control.release = resolve }).then(() => {
+            if (!page.isDestroyed()) originalGoToIndex(...args)
+          })
         }
       })
     })

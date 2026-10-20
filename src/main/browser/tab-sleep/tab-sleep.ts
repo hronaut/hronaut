@@ -1,4 +1,4 @@
-import type { WebFrameMain } from 'electron'
+import type { Event, WebContents, WebFrameMain } from 'electron'
 import type { MessageKey } from '../../../shared/i18n.js'
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
@@ -24,11 +24,85 @@ function isAbortedLoad(error: unknown): boolean {
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 
 /**
- * Wakes a sleeping tab by restoring the history it slept with, or loading
- * its address, and marks it active now. A wake already running is joined.
- * When restoring fails and no newer navigation took over, the address is
- * loaded again; when that fails too, the tab, if still open, goes back to
- * sleep and the failure is thrown.
+ * Goes back from the sleeping page to the page the tab slept on, so the tab keeps the pages before it in its history:
+ * Electron restores saved history only into a page that never loaded one, and the sleeping page is one. When the
+ * sleeping page is not the current entry right after the tab's address, the address is loaded instead. It settles as
+ * Electron's `loadURL` does: once the page, or the error page of a failed load, finishes loading, with the load's error
+ * when it failed; as aborted when another navigation replaces it; and as failed when loading stops without either.
+ */
+function returnFromSleepingPage(webContents: WebContents, url: string): Promise<void> {
+  const history = webContents.navigationHistory
+  const sleepingIndex = history.getActiveIndex()
+  if (history.getEntryAtIndex(sleepingIndex)?.url !== SLEEPING_PAGE_URL || history.getEntryAtIndex(sleepingIndex - 1)?.url !== url) {
+    return webContents.loadURL(url)
+  }
+  return new Promise<void>((resolve, reject) => {
+    let navigationStarted = false
+    let failure: Error | undefined
+    const loadError = (code: number, description: string) =>
+      Object.assign(new Error(`${description} (${code}) loading '${url}'`), { errno: code, code: description, url })
+    const finished = () => settle(failure)
+    // A failed load goes on to show its error page; settling only once that page loads keeps its load events from
+    // settling the next one, such as the wake's fallback.
+    const failed = (_event: Event, code: number, description: string, _validatedUrl: string, isMainFrame: boolean) => {
+      if (!isMainFrame) return
+      failure ??= loadError(code, description)
+      if (!navigationStarted) settle(failure)
+    }
+    const started = (_event: Event, _navigationUrl: string, isSameDocument: boolean, isMainFrame: boolean) => {
+      if (!isMainFrame || isSameDocument) return
+      if (navigationStarted) settle(loadError(-3, 'ERR_ABORTED'))
+      navigationStarted = true
+    }
+    const stopped = () => settle(failure ?? loadError(-2, 'ERR_FAILED'))
+    function settle(error?: Error): void {
+      webContents.removeListener('did-finish-load', finished)
+      webContents.removeListener('did-fail-load', failed)
+      webContents.removeListener('did-start-navigation', started)
+      webContents.removeListener('did-stop-loading', stopped)
+      webContents.removeListener('destroyed', stopped)
+      if (error) reject(error)
+      else resolve()
+    }
+    webContents.on('did-finish-load', finished)
+    webContents.on('did-fail-load', failed)
+    webContents.on('did-start-navigation', started)
+    webContents.on('did-stop-loading', stopped)
+    webContents.on('destroyed', stopped)
+    try {
+      history.goToIndex(sleepingIndex - 1)
+    } catch (error) {
+      settle(error instanceof Error ? error : new Error(String(error)))
+    }
+  })
+}
+
+/** Removes the sleeping page from the tab's history once the tab shows another page, so Back never opens it. */
+function forgetSleepingPage(webContents: WebContents): void {
+  const history = webContents.navigationHistory
+  for (let index = history.length() - 1; index >= 0; index -= 1) {
+    if (index !== history.getActiveIndex() && history.getEntryAtIndex(index)?.url === SLEEPING_PAGE_URL) history.removeEntryAtIndex(index)
+  }
+}
+
+/**
+ * Removes the sleeping page from the history once the navigation that replaced a wake opens its page; until then the
+ * sleeping page is still the last page the tab committed and cannot be removed.
+ */
+function forgetSleepingPageOnNextPage<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tab: Tab): void {
+  const contents = tab.webContents
+  if (access.findTab(tab.id) !== tab || contents.isDestroyed()) return
+  contents.once('did-navigate', () => {
+    if (access.findTab(tab.id) === tab && tab.webContents === contents && !contents.isDestroyed()) forgetSleepingPage(contents)
+  })
+}
+
+/**
+ * Wakes a sleeping tab by going back to the page it slept on, or loading its
+ * address, and marks it active now. A wake already running is joined. When
+ * that fails and no newer navigation took over, the address is loaded again;
+ * when that fails too, the tab, if still open, goes back to sleep and the
+ * failure is thrown. Once awake, the sleeping page leaves its history.
  */
 export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tabId: string): Promise<BrowserState> {
   const tab = access.getTab(tabId)
@@ -51,28 +125,30 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
     tab.suppressInitialHistory = true
     access.changed(false)
     try {
-      if (navigationHistory?.entries.length) {
-        tab.discoveryTitle.restoring(navigationHistory.entries)
-        await tab.webContents.navigationHistory.restore(navigationHistory)
-      } else {
-        await tab.webContents.loadURL(restoreUrl)
-      }
+      await returnFromSleepingPage(tab.webContents, restoreUrl)
     } catch (error) {
       const wakeWasSuperseded = () => access.findTab(tab.id) !== tab
         || tab.webContents.isDestroyed()
         || (tab.navigationGeneration !== navigationGeneration
           && (tab.webContents.isLoading() || tab.webContents.getURL() !== SLEEPING_PAGE_URL))
-      // Electron also uses ERR_ABORTED when history restoration fails before
-      // starting any replacement navigation. Retry the durable URL in that
-      // case; otherwise the tab is marked awake while still showing the
-      // internal sleeping page. A real newer navigation remains authoritative.
-      if (isAbortedLoad(error) && wakeWasSuperseded()) return
+      // A wake that ended as aborted without a newer navigation retries the
+      // durable URL; otherwise the tab is marked awake while still showing
+      // the internal sleeping page. A real newer navigation remains
+      // authoritative, and the sleeping page leaves the history once that
+      // navigation's page opens.
+      if (isAbortedLoad(error) && wakeWasSuperseded()) {
+        forgetSleepingPageOnNextPage(access, tab)
+        return
+      }
       try {
         await tab.webContents.loadURL(restoreUrl)
       } catch (fallbackError) {
         // A newer navigation can also interrupt the fallback. Preserve its
         // live document instead of restoring the obsolete sleeping state.
-        if (isAbortedLoad(fallbackError) && wakeWasSuperseded()) return
+        if (isAbortedLoad(fallbackError) && wakeWasSuperseded()) {
+          forgetSleepingPageOnNextPage(access, tab)
+          return
+        }
         if (access.findTab(tab.id) === tab) {
           tab.sleeping = true
           tab.sleepNavigationHistory = navigationHistory
@@ -83,6 +159,7 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
         throw localizedLoadFailure(fallbackError)
       }
     }
+    if (access.findTab(tab.id) === tab && !tab.webContents.isDestroyed()) forgetSleepingPage(tab.webContents)
   })()
   tab.wakePromise = wake
   try {
@@ -363,16 +440,12 @@ export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAcc
     }
     let restoreError: unknown
     try {
-      if (navigationHistory?.entries.length) {
-        try {
-          tab.discoveryTitle.restoring(navigationHistory.entries)
-          await tab.webContents.navigationHistory.restore(navigationHistory)
-        } catch {
-          await tab.webContents.loadURL(tab.url)
-        }
-      } else {
+      try {
+        await returnFromSleepingPage(tab.webContents, tab.url)
+      } catch {
         await tab.webContents.loadURL(tab.url)
       }
+      forgetSleepingPage(tab.webContents)
     } catch (rollbackError) {
       restoreError = rollbackError
     }

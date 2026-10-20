@@ -26,19 +26,20 @@ for (const replacement of [false, true]) {
       await appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(tabId)}, true)`)
       await electronApp.evaluate(({ webContents }, id) => {
         const page = webContents.fromId(id)!
-        const originalRestore = page.navigationHistory.restore
+        const originalGoToIndex = page.navigationHistory.goToIndex
         const originalLoad = page.loadURL
         const control = {
           started: false,
           reject: () => {},
           restore: () => {
-            Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: originalRestore })
+            Object.defineProperty(page.navigationHistory, 'goToIndex', { configurable: true, value: originalGoToIndex })
             page.loadURL = originalLoad
           }
         }
-        Object.defineProperty(page.navigationHistory, 'restore', {
+        // Going back from the sleeping page fails, so waking falls back to loading the address.
+        Object.defineProperty(page.navigationHistory, 'goToIndex', {
           configurable: true,
-          value: async () => { throw new Error('Synthetic history restore failure') }
+          value: () => { throw new Error('Synthetic history navigation failure') }
         })
         page.loadURL = (...args) => {
           if (control.started) return originalLoad.apply(page, args)
