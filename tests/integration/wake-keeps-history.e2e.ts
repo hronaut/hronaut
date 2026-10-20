@@ -41,12 +41,17 @@ function tabState(appWindow: Page, tabId: string) {
     .then(state => state.tabs.find(tab => tab.id === tabId)), tabId)
 }
 
-/** Opens a tab on the first path and goes on to the others, then shows another tab so this one may sleep. */
+/**
+ * Opens a tab on the first path and goes on to the others, each once the page before it has loaded, then shows another
+ * tab so this one may sleep. Going on while a page still loads replaces it, so it would not be in the history.
+ */
 async function tabThrough(appWindow: Page, electronApp: ElectronApplication, origin: string, paths: string[]) {
   const tabId = await appWindow.evaluate((url) => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true })
     .then(state => state.activeTabId!), `${origin}${paths[0]}`)
+  await expect.poll(() => tabState(appWindow, tabId)).toMatchObject({ url: `${origin}${paths[0]}`, title: `Page ${paths[0]!.slice(1)}`, loading: false })
   for (const path of paths.slice(1)) {
     await appWindow.evaluate(({ url, tabId }) => (window as unknown as { hronaut: HronautApi }).hronaut.navigate({ url, tabId }), { url: `${origin}${path}`, tabId })
+    await expect.poll(() => tabState(appWindow, tabId)).toMatchObject({ url: `${origin}${path}`, title: `Page ${path.slice(1)}`, loading: false })
   }
   const pageId = await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)?.id, `${origin}${paths.at(-1)}`)
   if (!pageId) throw new Error('Missing the tab page')
