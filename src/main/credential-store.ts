@@ -89,7 +89,7 @@ async function keepUnreadableCredentials(path: string): Promise<void> {
   } catch (error) {
     // An earlier save that moved the file aside and then failed to write left nothing here to keep.
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
-    console.warn('[credentials] Could not keep an unreadable saved-passwords file aside; saving a new one replaces it.')
+    console.warn('[credentials] Could not keep an unreadable saved-passwords file aside; a save that succeeds replaces it.')
     return
   }
   await chmod(aside, 0o600).catch(() => undefined)
@@ -100,7 +100,8 @@ async function keepUnreadableCredentials(path: string): Promise<void> {
 async function removeKeptCredentials(path: string): Promise<void> {
   const prefix = `${basename(path)}.unreadable-`
   const names = await readdir(dirname(path)).catch(() => [])
-  await Promise.allSettled(names.filter((name) => name.startsWith(prefix)).map((name) => rm(join(dirname(path), name), { force: true })))
+  const removals = await Promise.allSettled(names.filter((name) => name.startsWith(prefix)).map((name) => rm(join(dirname(path), name), { force: true })))
+  if (removals.some((removal) => removal.status === 'rejected')) console.warn('[credentials] Could not delete a saved-passwords file kept aside.')
 }
 
 export class CredentialStore {
@@ -329,10 +330,12 @@ export class CredentialStore {
       credentials: [...entries].map((entry) => ({ ...entry }))
     }
     const operation = this.saveQueue.then(async () => {
-      // The file counts as kept only once the new one is written, so a save that fails tries to keep it aside again.
+      // The file counts as kept only once the new one replaces it, so a save that fails before then tries to keep it aside
+      // again, and one that fails after (flushing the folder) does not move the new file aside as well.
       if (this.unreadableFile) await keepUnreadableCredentials(this.path)
-      await writeTextFileAtomically(this.path, `${JSON.stringify(value, null, 2)}\n`)
-      this.unreadableFile = false
+      await writeTextFileAtomically(this.path, `${JSON.stringify(value, null, 2)}\n`, 0o600, undefined, () => {
+        this.unreadableFile = false
+      })
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation

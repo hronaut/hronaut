@@ -109,7 +109,7 @@ async function keepUnreadableBookmarks(path: string): Promise<void> {
   } catch (error) {
     // An earlier save that moved the file aside and then failed to write left nothing here to keep.
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
-    console.warn('[bookmarks] Could not keep an unreadable bookmarks file aside; saving a new one replaces it.')
+    console.warn('[bookmarks] Could not keep an unreadable bookmarks file aside; a save that succeeds replaces it.')
     return
   }
   await chmod(aside, 0o600).catch(() => undefined)
@@ -391,10 +391,12 @@ export class BookmarkStore {
       collections: normalizeCollections(collections, new Set(bookmarks.map(bookmark => bookmark.id)))
     }
     const operation = this.saveQueue.then(async () => {
-      // The file counts as kept only once the new one is written, so a save that fails tries to keep it aside again.
+      // The file counts as kept only once the new one replaces it, so a save that fails before then tries to keep it aside
+      // again, and one that fails after (flushing the folder) does not move the new file aside as well.
       if (this.unreadableFile) await keepUnreadableBookmarks(this.path)
-      await writeTextFileAtomically(this.path, `${JSON.stringify(value, null, 2)}\n`)
-      this.unreadableFile = false
+      await writeTextFileAtomically(this.path, `${JSON.stringify(value, null, 2)}\n`, 0o600, undefined, () => {
+        this.unreadableFile = false
+      })
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation

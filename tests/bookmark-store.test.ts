@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, open, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -6,7 +6,7 @@ import { BookmarkStore, normalizeBookmarkUrl } from '../src/main/bookmark-store.
 
 vi.mock('node:fs/promises', async importOriginal => {
   const fs = await importOriginal<typeof import('node:fs/promises')>()
-  return { ...fs, rename: vi.fn(fs.rename) }
+  return { ...fs, open: vi.fn(fs.open), rename: vi.fn(fs.rename) }
 })
 const actualFs = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
 
@@ -14,6 +14,7 @@ const temporaryDirectories: string[] = []
 
 afterEach(async () => {
   vi.useRealTimers()
+  vi.mocked(open).mockReset().mockImplementation(actualFs.open)
   vi.mocked(rename).mockReset().mockImplementation(actualFs.rename)
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
@@ -211,6 +212,31 @@ describe('BookmarkStore', () => {
       expect(await readFile(join(dirname(path), aside!), 'utf8')).toBe('{"version":')
       expect(JSON.parse(await readFile(path, 'utf8')).bookmarks.map((bookmark: { title: string }) => bookmark.title)).toEqual(['New'])
       expect(warn).toHaveBeenLastCalledWith('[bookmarks] Kept an unreadable bookmarks file aside before saving a new one.')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('keeps only the unreadable bookmarks file aside when a save fails after writing the new one', async () => {
+    // The new file was in place, but the save still counted the unreadable one as waiting, so the next save moved the new
+    // file aside as well.
+    const { path, store } = await createStore()
+    await store.add({ url: 'https://example.test/saved', title: 'Saved' })
+    await writeFile(path, '{"version":', 'utf8')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      const reopened = new BookmarkStore(path)
+      await reopened.load()
+      // Flushing the folder, after the new file replaced the old one, fails.
+      vi.mocked(open).mockRejectedValueOnce(Object.assign(new Error('i/o error'), { code: 'EIO' }))
+      await expect(reopened.add({ url: 'https://example.test/new', title: 'New' })).rejects.toThrow('i/o error')
+
+      await reopened.add({ url: 'https://example.test/new', title: 'New' })
+      const files = await readdir(dirname(path))
+      const aside = files.find((name) => name.startsWith('bookmarks.json.unreadable-'))
+      expect(files.sort()).toEqual(['bookmarks.json', aside].sort())
+      expect(await readFile(join(dirname(path), aside!), 'utf8')).toBe('{"version":')
+      expect(warn).toHaveBeenCalledExactlyOnceWith('[bookmarks] Kept an unreadable bookmarks file aside before saving a new one.')
     } finally {
       warn.mockRestore()
     }

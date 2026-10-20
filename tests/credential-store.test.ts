@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, open, readdir, readFile, rename, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -6,7 +6,7 @@ import { CredentialStore, type CredentialEncryption } from '../src/main/credenti
 
 vi.mock('node:fs/promises', async importOriginal => {
   const fs = await importOriginal<typeof import('node:fs/promises')>()
-  return { ...fs, rename: vi.fn(fs.rename) }
+  return { ...fs, open: vi.fn(fs.open), rename: vi.fn(fs.rename) }
 })
 const actualFs = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
 
@@ -18,6 +18,7 @@ const encryption: CredentialEncryption = {
 
 afterEach(async () => {
   vi.useRealTimers()
+  vi.mocked(open).mockReset().mockImplementation(actualFs.open)
   vi.mocked(rename).mockReset().mockImplementation(actualFs.rename)
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
@@ -158,6 +159,31 @@ describe('CredentialStore', () => {
       expect(await readFile(join(dirname(path), aside!), 'utf8')).toBe('{"version":')
       expect(reopened.list().map((credential) => credential.origin)).toEqual(['https://new.example'])
       expect(warn).toHaveBeenLastCalledWith('[credentials] Kept an unreadable saved-passwords file aside before saving a new one.')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('keeps only the unreadable saved-passwords file aside when a save fails after writing the new one', async () => {
+    // The new file was in place, but the save still counted the unreadable one as waiting, so the next save moved the new
+    // file aside as well.
+    const { path, store } = await createStore()
+    await store.save('https://site.example', 'user', 'secret')
+    await writeFile(path, '{"version":', 'utf8')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      const reopened = new CredentialStore(path, encryption)
+      await reopened.load()
+      // Flushing the folder, after the new file replaced the old one, fails.
+      vi.mocked(open).mockRejectedValueOnce(Object.assign(new Error('i/o error'), { code: 'EIO' }))
+      await expect(reopened.save('https://new.example', 'new', 'new secret')).rejects.toThrow('i/o error')
+
+      await reopened.save('https://new.example', 'new', 'new secret')
+      const files = await readdir(dirname(path))
+      const aside = files.find((name) => name.startsWith('credentials.json.unreadable-'))
+      expect(files.sort()).toEqual(['credentials.json', aside].sort())
+      expect(await readFile(join(dirname(path), aside!), 'utf8')).toBe('{"version":')
+      expect(warn).toHaveBeenCalledExactlyOnceWith('[credentials] Kept an unreadable saved-passwords file aside before saving a new one.')
     } finally {
       warn.mockRestore()
     }
