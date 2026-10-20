@@ -124,7 +124,7 @@ export const esESAppErrors: AppErrorMessages = {
     "restoreRollbackFailed": "No se pudo restaurar el espacio de trabajo archivado «{name}» ni volver a su estado anterior. Su espacio de trabajo activo recuperable sigue abierto; ciérralo o archívalo antes de volver a intentarlo.",
     "sourceUnavailable": "El espacio de trabajo de origen no está disponible.",
     "sourceJustClosed": "«{name}» se acaba de cerrar. Deshaz el cierre para copiarlo.",
-    "forkSiteAccess": "Una copia de \"{name}\" no puede permitir sitios que \"{name}\" no incluye. Elige solo reglas que incluya, o crea la copia y luego cambia su acceso a sitios.",
+    "forkSiteAccess": "Una copia de «{name}» solo puede usar reglas de acceso a sitios que «{name}» incluya. Elige entre sus reglas, o crea la copia y luego cambia su acceso a sitios.",
     "observerRequirements": "Un observador público necesita un almacenamiento temporal limpio y un único origen HTTP(S) restringido.",
     "templateCollisions": "Resuelve los conflictos de nombres de espacios de trabajo antes de importar.",
     "templateRoom": "No hay espacio suficiente para esta plantilla. Pestañas necesarias: {tabs}, libres: {freeTabs}. Espacios de trabajo abiertos necesarios: {workspaces}, libres: {freeWorkspaces}. Cierra algunas pestañas o espacios de trabajo, o elimina espacios de trabajo o páginas iniciales de esta plantilla."

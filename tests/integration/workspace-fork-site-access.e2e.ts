@@ -17,14 +17,18 @@ test('a copy of a workspace keeps the Site access the person chose, never looser
         return { refused: String(error), stillAbsent: !(await hronaut.getState()).mcpTabGroups.some(group => group.name === name) }
       }
     }
+    const sourceId = (created: Awaited<ReturnType<typeof create>>) => {
+      if (!('id' in created)) throw new Error(`Could not create a source workspace: ${created.refused}`)
+      return created.id
+    }
     const app = { mode: 'restricted' as const, rules: ['https://app.example'] }
-    const open = await create('Open source', {})
-    const listed = await create('Listed source', { navigationPolicy: { mode: 'restricted', rules: ['https://app.example', 'https://docs.example'] } })
+    const open = sourceId(await create('Open source', {}))
+    const listed = sourceId(await create('Listed source', { navigationPolicy: { mode: 'restricted', rules: ['https://app.example', 'https://docs.example'] } }))
     return {
-      fromOpen: await create('Copy of open', { source: 'id' in open ? open.id : '', navigationPolicy: app }),
-      narrower: await create('Narrower copy', { source: 'id' in listed ? listed.id : '', navigationPolicy: app }),
-      anySite: await create('Any site copy', { source: 'id' in listed ? listed.id : '', navigationPolicy: { mode: 'unrestricted', rules: [] } }),
-      wider: await create('Wider copy', { source: 'id' in listed ? listed.id : '', navigationPolicy: { mode: 'restricted', rules: ['https://other.example'] } })
+      fromOpen: await create('Copy of open', { source: open, navigationPolicy: app }),
+      narrower: await create('Narrower copy', { source: listed, navigationPolicy: app }),
+      anySite: await create('Any site copy', { source: listed, navigationPolicy: { mode: 'unrestricted', rules: [] } }),
+      wider: await create('Wider copy', { source: listed, navigationPolicy: { mode: 'restricted', rules: ['https://other.example'] } })
     }
   })
 
@@ -33,7 +37,7 @@ test('a copy of a workspace keeps the Site access the person chose, never looser
   expect(outcome.narrower).toMatchObject({ policy: { mode: 'restricted', rules: ['https://app.example'] } })
   expect(outcome.anySite).toMatchObject({ policy: { mode: 'restricted', rules: ['https://app.example', 'https://docs.example'] } })
   expect(outcome.wider).toEqual({
-    refused: expect.stringContaining('A copy of "Listed source" cannot allow sites that "Listed source" does not list.'),
+    refused: expect.stringContaining('A copy of "Listed source" can use only Site access rules that "Listed source" lists.'),
     stillAbsent: true
   })
 })

@@ -128,7 +128,7 @@ export const enUSAppErrors = {
     "restoreRollbackFailed": "Archived workspace \"{name}\" could not be restored or rolled back. Its recoverable active workspace remains open; close or archive it before retrying.",
     "sourceUnavailable": "Source workspace is unavailable.",
     "sourceJustClosed": "\"{name}\" was just closed. Undo the close to copy it.",
-    "forkSiteAccess": "A copy of \"{name}\" cannot allow sites that \"{name}\" does not list. Choose only rules it lists, or create the copy and then change its Site access.",
+    "forkSiteAccess": "A copy of \"{name}\" can use only Site access rules that \"{name}\" lists. Choose from its rules, or create the copy and then change its Site access.",
     "observerRequirements": "A public observer requires clean scratch storage and one restricted HTTP(S) origin.",
     "templateCollisions": "Resolve workspace name collisions before importing.",
     "templateRoom": "There is not enough room for this template. Tabs needed: {tabs}, free: {freeTabs}. Open workspaces needed: {workspaces}, free: {freeWorkspaces}. Close some tabs or workspaces, or remove workspaces or start pages from this template."
