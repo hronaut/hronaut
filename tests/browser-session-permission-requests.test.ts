@@ -67,6 +67,7 @@ async function createHarness(locale: SupportedLocale = 'en-US') {
       const closed = new Promise<Answer>((resolve) => { options.signal?.addEventListener('abort', () => resolve('deny')) })
       return { response: await Promise.race([harness.decide(options), closed]) === 'allow' ? 1 : 0, checkboxChecked: false }
     },
+    workspaceName: () => undefined,
     state: { persistentSession: null, sitePermissionStore: store },
     sendToShellWindows: (...args) => { sent.push(args) },
     partition: 'persist:test'

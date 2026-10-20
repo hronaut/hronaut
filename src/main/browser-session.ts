@@ -26,6 +26,8 @@ interface BrowserSessionHost {
   effectiveDownloadDirectory(): string
   /** Asks on the main window, or on its own while there is none. */
   showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>
+  /** The name of an open workspace, read when a permission prompt shows; undefined for one Hronaut does not know. */
+  workspaceName(workspaceId: string): string | undefined
   /** The persistent session and the site permissions; index.ts creates the record, and other features read it too. */
   state: BrowserSessionState
   sendToShellWindows(channel: string, ...args: unknown[]): void
@@ -324,7 +326,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
         return Boolean(frame && documentPermissionOrigin(frame.url, frame.origin) === origin
           && embeddingSiteOf(webContents, origin, details.isMainFrame) === embeddedIn)
       }
-      const permissionDetail = (() => {
+      // What a request Hronaut never remembers asks for, or null when its permission says it all.
+      const requestedDetail = (() => {
         if (permission === 'media') {
           const types = mediaTypes.map((type) => host.text(type === 'video' ? 'native.dialog.camera' : 'native.dialog.microphone'))
           return host.text('native.dialog.requestedDevices', { devices: types.join(host.text('native.dialog.and')) })
@@ -340,9 +343,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
           const shown = scheme.length > SHOWN_SCHEME_LENGTH ? `${scheme.slice(0, SHOWN_SCHEME_LENGTH - 1)}…` : scheme
           return host.text('native.dialog.requestedExternalApp', { scheme: shown })
         }
-        return embeddedIn
-          ? host.text('native.dialog.permissionRememberEmbedded', { site: embeddedIn })
-          : host.text('native.dialog.permissionRemember')
+        return null
       })()
       const askPerson = async (): Promise<boolean> => {
         // A Deny the person chose while this request waited holds for it too.
@@ -357,6 +358,17 @@ export function createBrowserSession(host: BrowserSessionHost): {
           : mediaTypes.length > 0 && mediaTypes.every((type) => type === 'audio')
             ? host.text('runtime.permissions.microphone')
             : sitePermissionName(permission, (key) => host.text(key))
+        // The decision belongs to the tab's workspace, and that tab may be in a workspace that is not shown, such as one
+        // an agent works in, so the prompt names it. The name is read now, since the person can rename it meanwhile.
+        const workspace = host.workspaceName(workspaceId)
+        // A request Hronaut never remembers does not say it remembers the choice, even with nothing else to say.
+        const permissionDetail = requiresFreshConsent
+          ? (workspace ? host.text('native.dialog.permissionAskedIn', { detail: requestedDetail ?? '', workspace }) : requestedDetail ?? '').trim()
+          : embeddedIn
+            ? workspace
+              ? host.text('native.dialog.permissionRememberEmbeddedIn', { site: embeddedIn, workspace })
+              : host.text('native.dialog.permissionRememberEmbedded', { site: embeddedIn })
+            : workspace ? host.text('native.dialog.permissionRememberIn', { workspace }) : host.text('native.dialog.permissionRemember')
         // The prompt closes, as Deny would, once its tab closes, or the page or frame that asked loads another document,
         // an error page included, or is removed: its answer would no longer count, and every prompt after it waited for it,
         // as did the same page asking again. Electron reports no removed frame, so the prompt also checks while it shows.
@@ -379,7 +391,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
               ? host.text('native.dialog.permissionRequestEmbedded', { origin, site: embeddedIn, permission: permissionName })
               : host.text('native.dialog.permissionRequest', { origin, permission: permissionName }),
             detail: requiresFreshConsent
-              ? host.text('native.dialog.permissionAskAgain', { detail: permissionDetail })
+              ? host.text('native.dialog.permissionAskAgain', { detail: permissionDetail }).trim()
               : host.text('native.dialog.permissionSettings', { detail: permissionDetail }),
             buttons: [host.text('native.dialog.deny'), host.text('native.dialog.allow')],
             defaultId: 0,

@@ -10,9 +10,16 @@ const { createBrowserSession } = await import('../src/main/browser-session.js')
 
 type RequestHandler = Parameters<Session['setPermissionRequestHandler']>[0] & {}
 
+const WORKSPACE = '01912345-6789-7abc-8def-0123456789ab'
+
 /** Asks for one permission from a page at https://files.example and returns the prompt Hronaut showed. */
-async function prompt(locale: SupportedLocale, permission: string, details: Record<string, unknown> = {}): Promise<MessageBoxOptions> {
-  const { allowed, shown } = await request(locale, permission, details)
+async function prompt(
+  locale: SupportedLocale,
+  permission: string,
+  details: Record<string, unknown> = {},
+  workspaceName?: string
+): Promise<MessageBoxOptions> {
+  const { allowed, shown } = await request(locale, permission, details, 'deny', workspaceName)
   expect(allowed).toBe(false)
   expect(shown).toHaveLength(1)
   return shown[0]!
@@ -23,7 +30,8 @@ async function request(
   locale: SupportedLocale,
   permission: string,
   details: Record<string, unknown> = {},
-  answer: 'deny' | 'allow' = 'deny'
+  answer: 'deny' | 'allow' = 'deny',
+  workspaceName?: string
 ): Promise<{ allowed: boolean, shown: MessageBoxOptions[] }> {
   let handler: RequestHandler | undefined
   const shown: MessageBoxOptions[] = []
@@ -34,6 +42,7 @@ async function request(
       shown.push(options)
       return { response: answer === 'allow' ? 1 : 0, checkboxChecked: false }
     },
+    workspaceName: (workspaceId) => workspaceId === WORKSPACE ? workspaceName : undefined,
     state: { persistentSession: null, sitePermissionStore: null },
     sendToShellWindows: () => undefined,
     partition: 'persist:test'
@@ -42,7 +51,7 @@ async function request(
     setDownloadPath: () => undefined,
     setPermissionCheckHandler: () => undefined,
     setPermissionRequestHandler: (next: RequestHandler) => { handler = next }
-  } as unknown as Session, '01912345-6789-7abc-8def-0123456789ab')
+  } as unknown as Session, WORKSPACE)
   const url = 'https://files.example/'
   const frame = { frameTreeNodeId: 1, url, origin: 'https://files.example', detached: false }
   const webContents = Object.assign(new EventEmitter(), {
@@ -107,5 +116,32 @@ describe('site permission prompt', () => {
       .toContain('Запрошен доступ (запись): /home/notes.txt.')
     expect((await prompt('es-ES', 'fileSystem', { filePath: '/home/notes.txt' })).detail).toContain('Acceso solicitado (no especificado): /home/notes.txt.')
     expect((await prompt('pl-PL', 'fileSystem', { filePath: '/home/notes.txt' })).detail).toContain('Żądany dostęp (nieokreślony): /home/notes.txt.')
+  })
+
+  it('names the workspace the tab asks in, which may not be the one shown', async () => {
+    // An agent's tab in another workspace could ask while the person looked at their own, and the prompt said only
+    // "this workspace" about where the choice was remembered.
+    expect((await prompt('en-US', 'geolocation', {}, 'Client A')).detail)
+      .toBe('Hronaut remembers this choice for this website in the “Client A” workspace. You can change it later in Settings → Site permissions.')
+    expect((await prompt('uk-UA', 'geolocation', {}, 'Клієнт А')).detail)
+      .toContain('Hronaut запам’ятає цей вибір для цього сайту в робочому просторі «Клієнт А».')
+    expect((await prompt('en-US', 'media', { mediaTypes: ['video'] }, 'Client A')).detail)
+      .toBe('Requested devices: camera. Asked in the “Client A” workspace. '
+        + "Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads.")
+    for (const locale of ['de-DE', 'fr-FR', 'es-ES', 'pl-PL', 'ru-RU'] as const) {
+      expect((await prompt(locale, 'geolocation', {}, 'Client A')).detail, locale).toContain('Client A')
+      expect((await prompt(locale, 'media', { mediaTypes: ['audio'] }, 'Client A')).detail, locale).toContain('Client A')
+    }
+    // A workspace Hronaut does not know keeps the words it had.
+    expect((await prompt('en-US', 'geolocation')).detail)
+      .toBe('Hronaut remembers this choice for this website in this workspace. You can change it later in Settings → Site permissions.')
+  })
+
+  it('does not say it remembers a file request that names no file', async () => {
+    // A file system request without a path said both that Hronaut remembers the choice and that it does not.
+    expect((await prompt('en-US', 'fileSystem')).detail)
+      .toBe("Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads.")
+    expect((await prompt('en-US', 'fileSystem', {}, 'Client A')).detail)
+      .toBe("Asked in the “Client A” workspace. Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads.")
   })
 })

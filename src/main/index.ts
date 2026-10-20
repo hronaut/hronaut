@@ -325,6 +325,13 @@ const {
   text,
   effectiveDownloadDirectory,
   showMessageBox,
+  workspaceName: (workspaceId) => {
+    try {
+      return tabRuntime.tabs?.requireMcpTabGroup(workspaceId).name
+    } catch {
+      return undefined
+    }
+  },
   state: browserSessionState,
   sendToShellWindows,
   partition: PARTITION
