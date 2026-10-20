@@ -29,6 +29,7 @@ import { useTabSearchController } from '../composables/useTabSearchController.js
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 import { vTooltip } from '../ui/tooltip.js'
 import { confirmAction } from '../confirm-action.js'
+import { ignoreHeldEnter } from '../held-enter.js'
 
 const props = defineProps<{
   state: BrowserState
@@ -188,8 +189,9 @@ function handleSearchKeydown(event: KeyboardEvent): void {
   if (event.isComposing || event.keyCode === 229) return
   if (event.altKey && event.key === 'Enter' && selectedResult.value?.kind === 'open') {
     event.preventDefault()
-    // Alt+Enter opens it from the search field, so Back to tabs returns there.
-    void showPagePreview(selectedResult.value.tab, null)
+    // Alt+Enter opens it from the search field, so Back to tabs returns there. A held Alt+Enter would open and close
+    // the preview on every repeat.
+    if (!event.repeat) void showPagePreview(selectedResult.value.tab, null)
     return
   }
   handleKeydown(event)
@@ -268,7 +270,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
         </header>
         <section v-if="previewTabId" class="tab-page-preview" role="region" :aria-label="t('tabSearch.pagePreview')">
           <div class="tab-page-preview-toolbar">
-            <UiButton ref="previewBack" @click="backToTabs">{{ t('tabSearch.backToTabs') }}</UiButton>
+            <UiButton ref="previewBack" @keydown="ignoreHeldEnter" @click="backToTabs">{{ t('tabSearch.backToTabs') }}</UiButton>
             <div class="tab-page-preview-heading">
               <strong>{{ previewTab ? tabTitleForDisplay(previewTab, t('tabSearch.newTabTitle')) : t('tabSearch.newTabTitle') }}</strong>
               <span>{{ previewTab ? tabDisplayUrl(previewTab) : t('tabSearch.previewClosed') }}</span>

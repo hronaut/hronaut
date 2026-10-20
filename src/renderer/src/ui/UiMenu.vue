@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { beginSurfaceLeave } from '../composables/overlay-motion.js'
+import { ignoreHeldEnter } from '../held-enter.js'
 import UiButton from './UiButton.vue'
 import { vTooltip } from './tooltip.js'
 
@@ -82,7 +83,9 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
 </script>
 
 <template>
-  <span ref="root" :class="['ui-menu', `ui-menu--${align}`]" @focusout="onFocusOut" @keydown.esc="onEscape">
+  <!-- The trigger hands the focus to the first item and an item hands it back, so a held Enter's repeats are ignored:
+       they would choose that item, or open the menu again. -->
+  <span ref="root" :class="['ui-menu', `ui-menu--${align}`]" @focusout="onFocusOut" @keydown="ignoreHeldEnter" @keydown.esc="onEscape">
     <UiButton
       :id="triggerId"
       ref="trigger"

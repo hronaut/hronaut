@@ -304,6 +304,23 @@ describe('tab search controller', () => {
     }
   })
 
+  it('does not activate a result for the repeats of a held Enter', async () => {
+    const { controller, selectTab } = createController()
+    try {
+      await controller.openPanel()
+      const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, cancelable: true })
+      controller.handleKeydown(repeat)
+      // Closing a tab with its × button puts the focus in the search field, and the repeats of the held Enter went on
+      // to open the selected result, close Tab search and open it again from the toolbar.
+      expect(repeat.defaultPrevented).toBe(true)
+      expect(selectTab).not.toHaveBeenCalled()
+      controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }))
+      expect(selectTab).toHaveBeenCalledWith('beta')
+    } finally {
+      controller.dispose()
+    }
+  })
+
   it('contains a rejected tab selection and reports it through the shell', async () => {
     const { open, selectTab, showError, controller } = createController()
     await controller.openPanel()
