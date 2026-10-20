@@ -12,6 +12,7 @@ export const deDEWallets = {
   "activityDescription": "Hier erscheinen die letzten Wallet-Ereignisse.",
   "kinds": {
     "managed": "Signierende Wallet",
+    "imported": "Importierte Wallet",
     "agent": "Agenten-Wallet",
     "watch-only": "Nur beobachten"
   },

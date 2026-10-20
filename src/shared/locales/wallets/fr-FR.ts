@@ -12,6 +12,7 @@ export const frFRWallets = {
   "activityDescription": "Les événements récents des portefeuilles apparaîtront ici.",
   "kinds": {
     "managed": "Portefeuille de signature",
+    "imported": "Portefeuille importé",
     "agent": "Portefeuille d’agent",
     "watch-only": "Lecture seule"
   },
