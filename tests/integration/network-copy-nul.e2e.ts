@@ -6,6 +6,8 @@ import { expect, test, text } from './capability-fixtures.js'
 import { closeFixtureServer } from './fixtures.js'
 
 const unsupported = 'Copy cURL cannot represent literal NUL characters. Use Copy fetch instead.'
+// The panel says it in the interface language, and in words for a person; agents keep the message above.
+const unsupportedInPanel = 'This request contains a NUL character, which cURL cannot send. Copy it as fetch instead.'
 
 for (const [label, body] of [
   ['NUL', 'before\u0000after'],
@@ -70,7 +72,7 @@ for (const [label, body] of [
     await electronApp.evaluate(({ clipboard }) => clipboard.writeText('NUL copy clipboard sentinel'))
     await panel.getByRole('button', { name: 'Copy sanitized cURL (POSIX shell)', exact: true }).click()
     if (label === 'NUL') {
-      await expect(panel.getByRole('alert')).toHaveText(unsupported)
+      await expect(panel.getByRole('alert')).toHaveText(unsupportedInPanel)
       await expect(panel.getByRole('button', { name: 'Copied cURL (POSIX shell)', exact: true })).toHaveCount(0)
       expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe('NUL copy clipboard sentinel')
     } else {

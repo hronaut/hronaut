@@ -1,5 +1,6 @@
 import type { BrowserNetworkRequestDetails } from './types.js'
 import { redactNetworkUrl } from './network-details.js'
+import type { MessageKey } from './i18n.js'
 
 export type BrowserNetworkRequestCopyFormat = 'curl' | 'fetch' | 'powershell'
 
@@ -23,6 +24,16 @@ const HTTP_METHOD = /^[A-Z][A-Z0-9!#$%&'*+.^_`|~-]{0,31}$/
 /** Methods Windows PowerShell 5.1's `Invoke-WebRequest -Method` accepts; PowerShell 7 accepts them too. */
 const POWERSHELL_METHODS = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'TRACE', 'MERGE'])
 
+/**
+ * A request this format cannot copy. Its message stays the English text agents read from browser_network_request; the
+ * Network panel shows its key in the interface language.
+ */
+export class NetworkRequestCopyRefusal extends Error {
+  constructor(message: string, readonly key: MessageKey) {
+    super(message)
+  }
+}
+
 interface CopyHeader {
   name: string
   value: string
@@ -37,6 +48,8 @@ interface CopyPayload {
   omittedHeaders: number
 }
 
+// The Network panel offers no command copy for an address or method these refuse (canFormatNetworkRequestCopy), so
+// only agents read their messages.
 function normalizedRequestUrl(input: string): string {
   const sanitized = redactNetworkUrl(input)
   let url: URL
@@ -113,7 +126,7 @@ function copyPayload(details: BrowserNetworkRequestDetails): CopyPayload {
 function shellQuote(value: string): string {
   // POSIX process arguments cannot contain NUL; quoting cannot preserve it.
   if (value.includes('\u0000')) {
-    throw new Error('Copy cURL cannot represent literal NUL characters. Use Copy fetch instead.')
+    throw new NetworkRequestCopyRefusal('Copy cURL cannot represent literal NUL characters. Use Copy fetch instead.', 'appErrors.network.copyCurlNul')
   }
   return `'${value.replace(/'/g, `'"'"'`)}'`
 }
@@ -178,11 +191,17 @@ function powerShellText(value: string): string {
 
 function formatPowerShell(payload: CopyPayload): string {
   if (!POWERSHELL_METHODS.has(payload.method)) {
-    throw new Error('Copy PowerShell supports GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE and MERGE requests. Use Copy cURL or Copy fetch instead.')
+    throw new NetworkRequestCopyRefusal(
+      'Copy PowerShell supports GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE and MERGE requests. Use Copy cURL or Copy fetch instead.',
+      'appErrors.network.copyPowerShellMethod'
+    )
   }
   const body = payload.body === '' && (payload.method === 'GET' || payload.method === 'HEAD') ? undefined : payload.body
   if (body !== undefined && (payload.method === 'GET' || payload.method === 'HEAD')) {
-    throw new Error('Copy PowerShell cannot send a request body with GET or HEAD. Use Copy cURL or Copy fetch instead.')
+    throw new NetworkRequestCopyRefusal(
+      'Copy PowerShell cannot send a request body with GET or HEAD. Use Copy cURL or Copy fetch instead.',
+      'appErrors.network.copyPowerShellBody'
+    )
   }
   const seen = new Set<string>()
   const headers: CopyHeader[] = []
@@ -190,9 +209,19 @@ function formatPowerShell(payload: CopyPayload): string {
   let userAgent: string | undefined
   for (const header of payload.headers) {
     const name = header.name.toLowerCase()
-    if (seen.has(name)) throw new Error('Copy PowerShell cannot send the same header more than once. Use Copy cURL or Copy fetch instead.')
+    if (seen.has(name)) {
+      throw new NetworkRequestCopyRefusal(
+        'Copy PowerShell cannot send the same header more than once. Use Copy cURL or Copy fetch instead.',
+        'appErrors.network.copyPowerShellDuplicateHeader'
+      )
+    }
     seen.add(name)
-    if (header.value.includes('\u0000')) throw new Error('Copy PowerShell cannot send literal NUL characters in a header. Use Copy fetch instead.')
+    if (header.value.includes('\u0000')) {
+      throw new NetworkRequestCopyRefusal(
+        'Copy PowerShell cannot send literal NUL characters in a header. Use Copy fetch instead.',
+        'appErrors.network.copyPowerShellNul'
+      )
+    }
     // Windows PowerShell 5.1 takes these two through their own parameters.
     if (name === 'content-type') contentType = header.value
     else if (name === 'user-agent') userAgent = header.value

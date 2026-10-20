@@ -2,6 +2,7 @@ import { nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useNetworkController } from '../../src/renderer/src/composables/useNetworkController.js'
 import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
+import { translate, type MessageKey } from '../../src/shared/i18n.js'
 import type {
   BrowserNetworkHarExport,
   BrowserNetworkRequest,
@@ -194,7 +195,11 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController(copyTextOverride?: CopyTextWithFeedback, locale: SupportedLocale = 'en-US') {
+function createController(
+  copyTextOverride?: CopyTextWithFeedback,
+  locale: SupportedLocale = 'en-US',
+  translateText: (key: string, parameters?: Record<string, string | number>) => string = (key) => key
+) {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const open = ref(true)
   const synced: BrowserState[] = []
@@ -255,7 +260,7 @@ function createController(copyTextOverride?: CopyTextWithFeedback, locale: Suppo
     activeTab,
     open,
     browser,
-    translate: (key) => key,
+    translate: translateText,
     locale: () => locale,
     copyText,
     syncState,
@@ -318,6 +323,34 @@ describe('Network panel opening', () => {
       expect(browser.listNetworkRequests).not.toHaveBeenCalledWith('tab-1', false)
       expect(browser.listNetworkRequests).toHaveBeenCalledWith('tab-2', false)
       expect(controller.requests.value.map(({ id }) => id)).toEqual(['other'])
+    } finally { controller.dispose() }
+  })
+})
+
+describe('Network panel errors', () => {
+  it('says in the interface language why a request cannot be copied as PowerShell', async () => {
+    // The panel said why in English in every interface language, in the words agents read.
+    const german = (key: string, parameters?: Record<string, string | number>) => translate('de-DE', key as MessageKey, parameters)
+    const { controller, browser, copyText } = createController(undefined, 'de-DE', german)
+    try {
+      browser.getNetworkRequestDetails.mockResolvedValueOnce({ ...details('trace'), request: { headers: { 'X-Trace': 'a', 'x-trace': 'b' } } })
+      await controller.selectRequest(request('trace'))
+      await controller.copyDetails('powershell')
+      expect(controller.monitorError.value).toBe('PowerShell kann denselben Header nicht zweimal senden. Kopieren Sie die Anfrage stattdessen als cURL oder fetch.')
+      expect(copyText).not.toHaveBeenCalled()
+    } finally { controller.dispose() }
+  })
+
+  it('says what response headers need when a request condition\'s headers are not JSON', async () => {
+    // The panel showed the JSON parser's English message, which names a character position.
+    const { controller, browser } = createController()
+    try {
+      controller.routeMode.value = 'fulfill'
+      controller.routePattern.value = 'https://example.test/api/*'
+      controller.routeHeaders.value = '{content-type: text/plain}'
+      await controller.addRouteFromDraft()
+      expect(controller.routeError.value).toBe('runtimeDetails.networkHeadersError')
+      expect(browser.addNetworkRoute).not.toHaveBeenCalled()
     } finally { controller.dispose() }
   })
 })

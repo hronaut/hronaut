@@ -130,7 +130,13 @@ export function useNetworkRequestConditions(
   function parsedRouteHeaders(): Record<string, string> {
     const source = routeHeaders.value.trim()
     if (!source) return {}
-    const parsed: unknown = JSON.parse(source)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(source)
+    } catch {
+      // The parser's own message is in English and names a character position, not what the field needs.
+      throw new Error(options.translate('runtimeDetails.networkHeadersError'))
+    }
     if (
       typeof parsed !== 'object'
       || parsed === null

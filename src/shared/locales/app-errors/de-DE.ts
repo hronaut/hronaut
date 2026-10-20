@@ -232,6 +232,17 @@ export const deDEAppErrors: AppErrorMessages = {
     "conditionsPending": "Anfragebedingungen werden noch angewendet. Warten Sie, bis dies abgeschlossen ist, bevor Sie die Entwicklertools öffnen.",
     "conditionsChanged": "Die Anfragebedingungen haben sich geändert, bevor die Entwicklertools geöffnet wurden."
   },
+  "network": {
+    "requestGone": "Diese Anfrage ist nicht mehr im Netzwerkprotokoll. Aktualisieren Sie die Liste und wählen Sie sie erneut aus.",
+    "requestChanged": "Die Seite hat sich geändert, während Hronaut diese Anfrage gelesen hat. Aktualisieren Sie die Liste und wählen Sie sie erneut aus.",
+    "replayNeedsReload": "Chromium hat nicht behalten, was zum Wiederholen dieser Anfrage nötig ist, wie es bei geöffneten Entwicklertools geschieht. Schließen Sie die Entwicklertools, laden Sie die Seite neu und wiederholen Sie die neue Anfrage.",
+    "replayUnsupported": "Diese Chromium-Version kann keine Anfragen wiederholen.",
+    "copyCurlNul": "Diese Anfrage enthält ein NUL-Zeichen, das cURL nicht senden kann. Kopieren Sie sie stattdessen als fetch.",
+    "copyPowerShellMethod": "PowerShell kann die Methode dieser Anfrage nicht senden. Kopieren Sie sie stattdessen als cURL oder fetch.",
+    "copyPowerShellBody": "PowerShell kann mit einer GET- oder HEAD-Anfrage keinen Anfragetext senden. Kopieren Sie sie stattdessen als cURL oder fetch.",
+    "copyPowerShellDuplicateHeader": "PowerShell kann denselben Header nicht zweimal senden. Kopieren Sie die Anfrage stattdessen als cURL oder fetch.",
+    "copyPowerShellNul": "Ein Header dieser Anfrage enthält ein NUL-Zeichen, das PowerShell nicht senden kann. Kopieren Sie die Anfrage stattdessen als fetch."
+  },
   "downloads": {
     "unavailable": "Dieser Download ist nicht mehr in der Liste.",
     "removeActive": "Brechen Sie diesen Download ab, bevor Sie ihn entfernen.",
