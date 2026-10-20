@@ -608,6 +608,9 @@ test('offers troubleshooting until an agent action succeeds, then enables referr
         message: document.getElementById('support-message')?.textContent,
         privacy: document.getElementById('support-feedback-privacy')?.textContent
       };
+      // Troubleshoot connection stays while it opens the guide, so the success is shown once the guide has opened.
+      const help = document.getElementById('support-troubleshoot');
+      for (let wait = 0; help?.disabled && wait < 500; wait++) await new Promise(resolve => setTimeout(resolve, 10));
       dashboard = {
         ...dashboard,
         completedToolCalls: 2,
