@@ -262,6 +262,19 @@ describe('FindInPageBar', () => {
     await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledWith('first'))
   })
 
+  it('leaves Find open on an Escape that a control in the bar already handled', async () => {
+    const { view } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await vi.waitFor(() => expect(search).toHaveFocus())
+
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    escape.preventDefault()
+    search.dispatchEvent(escape)
+    await nextTick()
+
+    expect(view.emitted()['update:open']).toBeUndefined()
+  })
+
   it('leaves Find open on an Escape that ends an IME composition', async () => {
     const { view } = renderBar()
     const search = screen.getByRole('searchbox', { name: 'Find text' })
