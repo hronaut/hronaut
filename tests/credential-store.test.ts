@@ -105,6 +105,31 @@ describe('CredentialStore', () => {
     expect(persisted).not.toContain('private password')
   })
 
+  // The secure storage asks for a password to be re-encrypted after its key changes. When that re-encryption failed,
+  // the fill failed with the storage's own untranslated error although the password had already decrypted.
+  it('still returns a decrypted password when re-encrypting it fails, and keeps the saved entry', async () => {
+    let refuseEncryption = false
+    const refusingEncryption: CredentialEncryption = {
+      encrypt: async (value) => {
+        if (refuseEncryption) throw new Error('Secure storage backend refused the operation')
+        return Buffer.from(`encrypted:${value}`, 'utf8')
+      },
+      decrypt: async (value) => ({ result: value.toString('utf8').replace(/^encrypted:/, ''), shouldReEncrypt: true })
+    }
+    const { path, store } = await createStore(refusingEncryption)
+    const saved = await store.save('https://example.com', 'person', 'private password')
+    const before = await readFile(path, 'utf8')
+    refuseEncryption = true
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    await expect(store.password(saved.id)).resolves.toBe('private password')
+    expect(await readFile(path, 'utf8')).toBe(before)
+    expect(warn).toHaveBeenCalledOnce()
+    expect(String(warn.mock.calls[0]?.[0])).not.toContain('private password')
+    refuseEncryption = false
+    await expect(store.password(saved.id)).resolves.toBe('private password')
+  })
+
   it.skipIf(process.platform === 'win32')('does not follow a pre-existing temporary-file symlink while saving the vault', async () => {
     const { path, store } = await createStore()
     const unrelatedPath = join(dirname(path), 'unrelated.txt')

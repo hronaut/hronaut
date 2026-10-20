@@ -224,16 +224,23 @@ export class CredentialStore {
     if (decrypted.shouldReEncrypt) {
       await this.queueMutation(async () => {
         if (this.entries.get(id) !== expectedEntry) return
-        const nextEntries = new Map(this.entries)
-        const reEncryptedEntry = {
-          ...expectedEntry,
-          encryptedPassword: (await this.encryption.encrypt(decrypted.result)).toString('base64'),
-          updatedAt: new Date().toISOString()
+        // Re-encrypting with the secure storage's newer key only upgrades a password that already decrypted. If the
+        // storage or the disk refuses it, the saved entry keeps its previous encryption and is tried again next time,
+        // so the password is still filled instead of failing with the storage's own error.
+        try {
+          const nextEntries = new Map(this.entries)
+          const reEncryptedEntry = {
+            ...expectedEntry,
+            encryptedPassword: (await this.encryption.encrypt(decrypted.result)).toString('base64'),
+            updatedAt: new Date().toISOString()
+          }
+          nextEntries.set(id, reEncryptedEntry)
+          await this.persist(nextEntries.values())
+          this.replaceEntries(nextEntries)
+          expectedEntry = reEncryptedEntry
+        } catch {
+          console.warn('[credentials] Could not re-encrypt a saved password; it keeps its previous encryption.')
         }
-        nextEntries.set(id, reEncryptedEntry)
-        await this.persist(nextEntries.values())
-        this.replaceEntries(nextEntries)
-        expectedEntry = reEncryptedEntry
       })
     }
     if (this.entries.get(id) !== expectedEntry) {
