@@ -5,6 +5,7 @@ import { loadFailureProblem } from '../page-load-problem.js'
 import { normalizeTabTitle } from '../tab-metadata.js'
 import { isWebUrl } from '../url.js'
 import type { NavigationEventsAccess, NavigationEventsTab } from './navigation-events-access.js'
+import { isStaleAddressTitle, untitledPageTitle } from './untitled-page-title.js'
 
 /** Chromium's error code for a load that was aborted, which shows no load failure. */
 const ABORTED_LOAD_ERROR = -3
@@ -172,10 +173,14 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     // A frame's hash or history change does not represent another visit to
     // the tab's top-level page.
     if (!isMainFrame) return
-    // No title update follows a change within the page, but Chromium names an untitled page by its new address.
-    tab.title = normalizeTabTitle(webContents.getTitle(), tab.title)
-    tab.performanceDocumentRouted = true
+    // No title update follows a change within the page. Chromium names an untitled page by its new address after
+    // `history.pushState`, but after `history.replaceState` it keeps the old address, whose fragment can hold a
+    // sign-in token, so the tab takes the new one. A title the page set itself stays.
     const previousUrl = tab.url
+    const title = webContents.getTitle()
+    const pageTitle = title.trim() !== '' && normalizeTabTitle(title) === tab.discoveryTitle.value
+    tab.title = normalizeTabTitle(!pageTitle && isStaleAddressTitle(title, previousUrl, url) ? untitledPageTitle(url) : title, tab.title)
+    tab.performanceDocumentRouted = true
     syncNavigation()
     access.reproRecorder().navigated(tab, url, true)
     // A change within the page that keeps its address, such as `history.replaceState(state, '')` saving a router's
