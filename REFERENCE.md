@@ -218,6 +218,8 @@ MCP tools. Imported sign-ins can subsequently be used according to the existing
 workspace and fork permissions. Agents remain paused until the human resumes them.
 
 The importer copies supported cookies, preserving their scope and attributes.
+A cookie that would expire more than 400 days after the import, longer than
+Chromium keeps one, imports to expire after 400 days.
 It skips entire selected cookie domains that overlap existing destination
 cookies or known site storage, or are outside the destination's site rules.
 Existing cookies are rechecked before each site's import. Live pages and workers

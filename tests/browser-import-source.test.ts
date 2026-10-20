@@ -136,6 +136,52 @@ describe('external cookie sources', () => {
     expect(await readImportCookies(profile(file), readKey)).toMatchObject({ skipped: 2, cookies: [{ value: 'usable' }] })
     expect(readKey).not.toHaveBeenCalled()
   })
+  it('reads a Chromium expiry with a fraction of a second as the value Electron gives back for the imported cookie', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.parse('2026-10-20T00:00:00Z') })
+    try {
+      const file = join(await directory(), 'Cookies'); const db = chromiumDatabase(file)
+      const insert = db.prepare('INSERT INTO cookies VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+      // Max-Age cookies expire a whole number of microseconds after the moment they were set. Electron keeps whole
+      // microseconds, so an imported cookie reads back as microseconds from 1970 divided by a million.
+      const expiries = [13439494988416931n, ...Array.from({ length: 50 }, (_, index) => (
+        BigInt(Date.now()) * 1000n + 11_644_473_600_000_000n + 3_600_000_000n + BigInt(index) * 86_400_123_457n + 416_931n
+      ))]
+      expiries.forEach((expires, index) => insert.run('.example.test', `cookie-${index}`, '', encrypted('signed-in', '.example.test'), '/', 1, 1, expires, 1, 1, 1, ''))
+      db.close()
+      const { cookies } = await readImportCookies(profile(file))
+      const byName = new Map(cookies.map(cookie => [cookie.name, cookie.expirationDate]))
+      expect(byName.get('cookie-0')).toBe(1795021388.416931)
+      for (const [index, expires] of expiries.entries()) {
+        expect(byName.get(`cookie-${index}`)).toBe(Number(expires - 11_644_473_600_000_000n) / 1_000_000)
+      }
+    } finally { vi.useRealTimers() }
+  })
+  it.each(['chromium', 'firefox'] as const)('shortens a %s expiry past 400 days to whole seconds within them, as Chromium keeps it', async kind => {
+    const now = Date.parse('2026-10-20T00:00:00.750Z')
+    vi.useFakeTimers({ toFake: ['Date'], now })
+    try {
+      const file = join(await directory(), kind === 'chromium' ? 'Cookies' : 'cookies.sqlite')
+      const longest = Math.floor(now / 1000) + 400 * 24 * 60 * 60
+      if (kind === 'chromium') {
+        const db = chromiumDatabase(file)
+        const insert = db.prepare('INSERT INTO cookies VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+        insert.run('.example.test', 'long', '', encrypted('signed-in', '.example.test'), '/', 1, 1, (BigInt(longest) + 100n * 86_400n) * 1_000_000n + 11_644_473_600_000_000n + 250_000n, 1, 1, 1, '')
+        insert.run('.example.test', 'within', '', encrypted('signed-in', '.example.test'), '/', 1, 1, (BigInt(longest) - 1n) * 1_000_000n + 11_644_473_600_000_000n, 1, 1, 1, '')
+        db.close()
+      } else {
+        const db = new DatabaseSync(file)
+        db.exec('PRAGMA user_version=16; CREATE TABLE moz_cookies(host TEXT, name TEXT, value TEXT, path TEXT, expiry INTEGER, isSecure INTEGER, isHttpOnly INTEGER, originAttributes TEXT, sameSite INTEGER, isPartitionedAttributeSet INTEGER)')
+        const insert = db.prepare('INSERT INTO moz_cookies VALUES(?,?,?,?,?,?,?,?,?,?)')
+        insert.run('example.test', 'long', 'firefox', '/', now + 500 * 24 * 60 * 60 * 1000, 1, 1, '', 1, 0)
+        insert.run('example.test', 'within', 'firefox', '/', (longest - 1) * 1000, 1, 1, '', 1, 0)
+        // A malformed expiry stays invalid instead of becoming 400 days.
+        insert.run('example.test', 'infinite', 'firefox', '/', Number.POSITIVE_INFINITY, 1, 1, '', 1, 0)
+        db.close()
+      }
+      const { cookies } = await readImportCookies(profile(file, kind))
+      expect(Object.fromEntries(cookies.map(cookie => [cookie.name, cookie.expirationDate]))).toEqual({ long: longest, within: longest - 1 })
+    } finally { vi.useRealTimers() }
+  })
   it('maps Firefox cookies and excludes container or partition identities', async () => {
     const file = join(await directory(), 'cookies.sqlite'); const db = new DatabaseSync(file)
     db.exec('PRAGMA user_version=16; CREATE TABLE moz_cookies(host TEXT, name TEXT, value TEXT, path TEXT, expiry INTEGER, isSecure INTEGER, isHttpOnly INTEGER, originAttributes TEXT, sameSite INTEGER, isPartitionedAttributeSet INTEGER)')
