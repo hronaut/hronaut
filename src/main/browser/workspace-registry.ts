@@ -49,6 +49,10 @@ interface WorkspaceRuntimePorts {
 export class WorkspaceRegistry {
   readonly active = new Map<string, ActiveWorkspace>()
   readonly archived = new Map<string, ArchivedWorkspace>()
+  // Archive places held by workspaces still being archived or restored. Closing or reopening tabs takes a while and
+  // other workspaces' operations run meanwhile, so counting only finished archives would let two archives started
+  // together both take the last place, and a saved state over the limit stops the next start.
+  private reservedArchivePlaces = 0
   constructor(private readonly runtime: WorkspaceRuntimePorts) {}
 
   publicArchive(group: ArchivedWorkspace): BrowserSavedTabGroupState {
@@ -67,12 +71,13 @@ export class WorkspaceRegistry {
     return host.withActiveOperation(id, 'archiving the workspace', async () => {
       host.requireActive(id)
       const tabs = host.tabs().filter(tab => tab.mcpGroupId === id)
-      if (this.archived.size >= host.maxArchived) throw new LocalizedError('appErrors.workspace.archiveLimit', { max: host.maxArchived })
+      if (this.archived.size + this.reservedArchivePlaces >= host.maxArchived) throw new LocalizedError('appErrors.workspace.archiveLimit', { max: host.maxArchived })
       const internal = this.active.get(id)!
       const saved: ArchivedWorkspace = { ...this.publicFields(internal), savedAt: new Date().toISOString(),
         storageId: internal.storageId, origins: [...internal.origins], navigationAudit: [...internal.navigationAudit],
         storageOriginCount: internal.origins.length, tabs: tabs.map(tab => ({ title: tab.title, url: tab.url, pinned: tab.pinned, ...(tab.label ? { label: tab.label } : {}) })) }
-      await host.closeActive(id, true)
+      this.reservedArchivePlaces++
+      try { await host.closeActive(id, true) } finally { this.reservedArchivePlaces-- }
       this.archived.set(id, saved)
       host.remapDownloads(id, id); host.changed()
       return this.publicArchive(saved)
@@ -88,7 +93,8 @@ export class WorkspaceRegistry {
       const now = new Date().toISOString()
       const restored: ActiveWorkspace = { ...this.publicFields(saved), createdAt: now, lastUsedAt: now, activeTabId: null,
         storageId: saved.storageId, origins: [...saved.origins], navigationAudit: [...saved.navigationAudit] }
-      this.archived.delete(id); this.active.set(id, restored)
+      // Until its tabs are open, the archive keeps its place for a rollback.
+      this.archived.delete(id); this.active.set(id, restored); this.reservedArchivePlaces++
       return host.withActiveOperation(id, 'restoring the archived workspace', async () => {
         try {
           for (const tab of saved.tabs) await host.createTab({ label: tab.label, title: tab.title, url: tab.url, pinned: tab.pinned, mcpGroupId: id, allowBusyWorkspace: true, active: false })
@@ -107,7 +113,7 @@ export class WorkspaceRegistry {
           }
           this.archived.set(id, saved); host.changed(); throw error
         }
-      })
+      }).finally(() => { this.reservedArchivePlaces-- })
     })
   }
   private publicFields(group: ActiveWorkspace | ArchivedWorkspace) {
