@@ -30,7 +30,7 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'H', meta: true }))).toBeNull()
   })
 
-  it.each(['f', 'w', 'r', 't', 'd', 'l', 'h', 'k', '=', '-', '.', 'R', 'T', 'A', 'P'])(
+  it.each(['f', 'w', 'r', 't', 'd', 'l', 'h', 'k', 'y', 'o', 'i', 'c', '=', '+', '-', '0', '.', 'Delete', 'Backspace', 'R', 'T', 'A', 'P', 'O', 'I', 'C'])(
     'leaves Control+%s to the page on macOS, where Command is the browser key', key => {
       // Control+F opened Find instead of moving the caret, and Control+W in a web terminal closed the tab.
       for (const shift of [false, true]) {
@@ -52,6 +52,23 @@ describe('browserShortcutAction', () => {
     expect(mac({ key: 'Tab', control: true, shift: true })).toBe('previous-tab')
     expect(mac({ key: 'I', meta: true, alt: true })).toBe('toggle-devtools')
     expect(mac({ key: '2', code: 'Digit2', control: true })).toBe('select-workspace-2')
+    expect(mac({ key: 'C', meta: true, alt: true })).toBe('pick-element')
+    expect(mac({ key: 'F12' })).toBe('toggle-devtools')
+    expect(mac({ key: 'Backspace', meta: true, shift: true })).toBe('clear-browsing-data')
+    expect(mac({ key: 'O', meta: true, shift: true })).toBe('take-over')
+  })
+
+  it('leaves Control with a keypad digit to the page on macOS', () => {
+    // Control+keypad 1 selected the first tab and Control+keypad 0 reset the zoom.
+    expect(browserShortcutAction(input({ key: '1', code: 'Numpad1', control: true, mac: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: '0', code: 'Numpad0', control: true, mac: true }))).toBeNull()
+  })
+
+  it('keeps Control+Shift+I and Control+Shift+C for Developer Tools on Linux and Windows only', () => {
+    expect(browserShortcutAction(input({ key: 'I', control: true, shift: true }))).toBe('toggle-devtools')
+    expect(browserShortcutAction(input({ key: 'C', control: true, shift: true }))).toBe('pick-element')
+    expect(browserShortcutAction(input({ key: 'I', control: true, shift: true, mac: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'C', control: true, shift: true, mac: true }))).toBeNull()
   })
 
   it('maps reopen and tab-cycling shortcuts', () => {

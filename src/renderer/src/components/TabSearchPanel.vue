@@ -23,6 +23,7 @@ import type {
   BrowserTabState,
   McpTabActivity
 } from '../../../shared/types.js'
+import { commandShortcutKeys } from '../../../shared/command-palette.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX } from '../../../shared/tab-groups.js'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { useTabSearchController } from '../composables/useTabSearchController.js'
@@ -47,6 +48,9 @@ const props = defineProps<{
 const emit = defineEmits<{ newTab: []; transferWorkspaceData: [] }>()
 const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n({ useScope: 'global' })
+// The key that opens tab search on this platform: Control+Shift+A on macOS stays with the page.
+const searchKeysMac = window.hronautShell?.windowChrome?.platform === 'darwin'
+const searchKeys = commandShortcutKeys('Ctrl/Cmd+Shift+A', searchKeysMac).join(searchKeysMac ? ' ' : '+')
 const panel = ref<HTMLElement | null>(null)
 const {
   input,
@@ -311,7 +315,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
             :placeholder="t('tabSearch.placeholder')"
             @keydown="handleSearchKeydown"
           />
-          <kbd>⌃/⌘ ⇧ A</kbd>
+          <kbd data-testid="tab-search-keys">{{ searchKeys }}</kbd>
         </div>
         <label v-if="regularTabs.length || state.closedTabs.length || state.savedTabGroups.length" class="tab-search-kind-filter">
           <span>{{ t('tabSearch.resultType') }}</span>
