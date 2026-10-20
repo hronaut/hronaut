@@ -15,6 +15,7 @@ it('redacts keys, session ids and signatures in the links of a shadow root', () 
     <a href="https://shop.example/cart;jsessionid=SECRET?PHPSESSID=SECRET&step=2">Cart</a>
     <a href="https://store.blob.core.windows.net/invoice.pdf?sv=1&sig=SECRET">Invoice</a>
     <a href="https://forum.example/login.php?id=ada&pw=SECRET&pass=SECRET">Forum</a>
+    <a href="https://cms.example/user?id=ada&user%5Bpass%5D=SECRET&pass1=SECRET&current_pass=SECRET&passwrd=SECRET&pass_rate=high">Account</a>
   `
   const page = window.eval(shadowSnapshotScript('x-card', 5_000)) as { text?: string }
   // A map's API key and a shop's session stayed in the links an agent was given.
@@ -22,4 +23,6 @@ it('redacts keys, session ids and signatures in the links of a shadow root', () 
   expect(page.text).not.toContain('SECRET')
   expect(page.text).toContain('q=Paris')
   expect(page.text).toContain('step=2')
+  expect(page.text).toContain('id=ada')
+  expect(page.text).toContain('pass_rate=high')
 })

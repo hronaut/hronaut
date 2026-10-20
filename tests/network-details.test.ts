@@ -88,22 +88,34 @@ describe('network detail redaction', () => {
     expect(json.text).toContain('admin')
   })
 
-  it('redacts the password of a Drupal sign-in, password change and REST sign-in, and a pw field', () => {
-    // Drupal posts its password as `pass`, which no pattern matched, so it stayed readable in the panel, its copies and
-    // agents' browser_network_request.
+  it('redacts the password of Drupal, WordPress, Roundcube and Simple Machines Forum forms, and a pw field', () => {
+    // Drupal posts its password as `pass`, WordPress a new one as `pass1` and `pass2`, Roundcube as `_pass` and Simple
+    // Machines Forum as `passwrd`, which no pattern matched, so it stayed readable in the panel, its copies and agents'
+    // browser_network_request.
     const signIn = sanitizeNetworkBody('name=admin&pass=SECRET&form_id=user_login_form&op=Log+in', 'application/x-www-form-urlencoded', 1_000)
     expect(signIn.text).toBe('name=admin&form_id=user_login_form&op=Log+in&pass=%5BREDACTED%5D')
     expect(signIn.redacted).toBe(true)
-    const change = new URLSearchParams(sanitizeNetworkBody('pass%5Bpass1%5D=SECRET&pass%5Bpass2%5D=SECRET&user%5Bpass%5D=SECRET&mail=a%40b.example', 'application/x-www-form-urlencoded', 1_000).text)
-    expect(change.get('pass[pass1]')).toBe('[REDACTED]')
-    expect(change.get('pass[pass2]')).toBe('[REDACTED]')
-    expect(change.get('user[pass]')).toBe('[REDACTED]')
-    expect(change.get('mail')).toBe('a@b.example')
+    const form = (body: string) => new URLSearchParams(sanitizeNetworkBody(body, 'application/x-www-form-urlencoded', 1_000).text)
+    const drupalChange = form('current_pass=OLDSECRET&pass%5Bpass1%5D=SECRET&pass%5Bpass2%5D=SECRET&user%5Bpass%5D=SECRET&mail=a%40b.example')
+    for (const name of ['current_pass', 'pass[pass1]', 'pass[pass2]', 'user[pass]']) expect(drupalChange.get(name)).toBe('[REDACTED]')
+    expect(drupalChange.get('mail')).toBe('a@b.example')
+    const wordPressReset = form('pass1=SECRET&pass2=SECRET&pw_weak=on&wp-submit=Save+Password')
+    expect([wordPressReset.get('pass1'), wordPressReset.get('pass2')]).toEqual(['[REDACTED]', '[REDACTED]'])
+    expect(wordPressReset.get('pw_weak')).toBe('on')
+    expect(form('_user=ada&_pass=SECRET').get('_pass')).toBe('[REDACTED]')
+    expect(form('user=ada&passwrd=SECRET').get('passwrd')).toBe('[REDACTED]')
     expect(sanitizeNetworkBody('{"name":"admin","pass":"SECRET"}', 'application/json', 1_000).text).not.toContain('SECRET')
+    expect(JSON.parse(sanitizeNetworkBody('{"pass":[{"existing":"OLDSECRET","value":"SECRET"}],"pin":{"pw":1234}}', 'application/json', 1_000).text))
+      .toEqual({ pass: '[REDACTED]', pin: { pw: '[REDACTED]' } })
     expect(redactNetworkUrl('https://forum.example/login.php?id=ada&pw=SECRET')).not.toContain('SECRET')
-    // Names that only contain pass or pw stay readable.
-    const kept = 'passenger=2&compass=north&bypass=1&pass1=one&pwa=installed&passes=3'
+    // Names that only contain pass or pw stay readable, and so does a JSON true, false or null under pass or pw, as in a
+    // test report.
+    const kept = 'passenger=2&compass=north&bypass=1&pwa=installed&passes=3&pass_rate=0.9&pass_through=1&pw_weak=on'
     expect(sanitizeNetworkBody(kept, 'application/x-www-form-urlencoded', 1_000)).toEqual({ text: kept, originalChars: kept.length, truncated: false, redacted: false })
+    const report = '{"checks":[{"name":"build","pass":true},{"name":"lint","pass":false}],"pw":null}'
+    const sanitizedReport = sanitizeNetworkBody(report, 'application/json', 1_000)
+    expect(JSON.parse(sanitizedReport.text)).toEqual(JSON.parse(report))
+    expect(sanitizedReport.redacted).toBe(false)
   })
 
   it('keeps ordinary query parameters whose names contain key, auth or sid', () => {

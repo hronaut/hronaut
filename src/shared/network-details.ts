@@ -1,7 +1,7 @@
 const REDACTED_VALUE = '[REDACTED]'
 const MAX_JSON_REDACTION_DEPTH = 100
 
-const SENSITIVE_NAME = /(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|passphrase|pwd|secret|session|token)/i
+const SENSITIVE_NAME = /(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passwrd|passcode|passphrase|pwd|secret|session|token)/i
 // A signed storage or download link carries its signature in one of these query parameters (Azure SAS, CloudFront,
 // S3, Google Cloud Storage, Alibaba OSS, Tencent COS, Akamai tokens, GitHub release assets' `sig` and `jwt`), and the
 // link works for anyone until it expires. Matched whole, since `sig` is part of many ordinary names. The in-page
@@ -11,10 +11,12 @@ const SIGNED_URL_PARAMETER = /^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-sign
 // an Azure API Management `subscription-key`, `auth`, a PHP session's `PHPSESSID` or `sid`). Matched whole, since `key`, `auth` and `sid` are parts of many
 // ordinary names. The in-page snapshot scripts repeat this pattern.
 const KEY_URL_PARAMETER = /^(?:key|access[-_]?key|subscription[-_]?key|auth|sid|phpsessid)$/i
-// A sign-in form's password field in Drupal (`pass`, and `pass[pass1]` when the password is set) and on many other sites
-// (`pw`). Matched whole, or as one part of a bracketed form name, since `pass` is part of many ordinary names, such as
-// `passenger` or `compass`. The in-page snapshot scripts match `pass` and `pw` whole, with the parameters above.
-const PASSWORD_FIELD = /(?:^|\[)(?:pass|pw)(?:[\][]|$)/i
+// A password field named `pass` or `pw`, with a digit for a new password's two fields, whole, as the last word of a
+// name or as one part of a bracketed form name: Drupal's `pass`, `pass[pass1]` and `current_pass`, WordPress's `pass1`
+// and `pass2` when a password is set, Roundcube's `_pass`, Horde's `horde_pass`, and `pw` on many other sites. Names
+// that only contain them stay readable, such as `passenger`, `compass`, `pwa` or `pass_rate`; a name that ends in one,
+// such as `boarding_pass`, is redacted too. The in-page snapshot scripts repeat this pattern.
+const PASSWORD_FIELD = /(?:^|[[_-])(?:pass|pw)\d?(?:[\][]|$)/i
 // A Java server that keeps its session in the address puts it in the path: `/cart;jsessionid=…`. Replaced with
 // `PATH_SESSION_REDACTED`, which keeps the name as the server spelled it.
 const PATH_SESSION = /;(jsessionid)=[^;/]*/giu
@@ -37,6 +39,12 @@ function isSensitiveName(name: string): boolean {
   return SENSITIVE_NAME.test(name) || PASSWORD_FIELD.test(name)
 }
 
+// A test report's `"pass": true` or a form's `"pw": null` holds no password, so a JSON true, false or null stays readable
+// under a name only PASSWORD_FIELD matches. A number does not, since a PIN can be one.
+function isPasswordFieldFlag(name: string, value: unknown): boolean {
+  return (value === null || typeof value === 'boolean') && !SENSITIVE_NAME.test(name)
+}
+
 function redactJsonValue(value: unknown, depth = 0): { value: unknown; redacted: boolean } {
   if (value && typeof value === 'object' && depth > MAX_JSON_REDACTION_DEPTH) {
     throw new Error('JSON nesting exceeds the safe redaction limit')
@@ -54,7 +62,7 @@ function redactJsonValue(value: unknown, depth = 0): { value: unknown; redacted:
   let redacted = false
   const next = Object.create(null) as Record<string, unknown>
   for (const [key, item] of Object.entries(value)) {
-    if (isSensitiveName(key)) {
+    if (isSensitiveName(key) && !isPasswordFieldFlag(key, item)) {
       next[key] = REDACTED_VALUE
       redacted = true
       continue
