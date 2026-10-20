@@ -8,6 +8,7 @@ import { agentStepText } from '../../../shared/agent-step-text.js'
 import { useAgentPresence } from '../composables/useAgentPresence.js'
 import UiButton from '../ui/UiButton.vue'
 import { vTooltip } from '../ui/tooltip.js'
+import { ignoreHeldEnter } from '../held-enter.js'
 
 const props = defineProps<{
   /** The workspace of the page in view. */
@@ -88,7 +89,8 @@ function takeOver(): void {
 }
 
 // A control that leaves while it has focus, such as Hand back once the request is answered, hands
-// focus to the strip's next control instead of dropping it.
+// focus to the strip's next control instead of dropping it. Every control ignores a held Enter's repeats, which would
+// otherwise press that next control, such as Take over, or flip Pause on every repeat.
 const pill = ref<HTMLElement | null>(null)
 let focusInside = false
 onBeforeUpdate(() => {
@@ -128,6 +130,7 @@ onUpdated(() => {
             class="agent-live-strip-button primary"
             type="button"
             v-tooltip="t('shell.agentStrip.handBackDescription')"
+            @keydown="ignoreHeldEnter"
             @click="handBack"
           >{{ t('shell.agentStrip.handBack') }}</UiButton>
           <UiButton
@@ -136,6 +139,7 @@ onUpdated(() => {
             class="agent-live-strip-button primary"
             type="button"
             v-tooltip="t('shell.agentStrip.answerDescription')"
+            @keydown="ignoreHeldEnter"
             @click="emit('openCard')"
           >{{ t('shell.agentStrip.answer') }}</UiButton>
           <UiButton
@@ -145,6 +149,7 @@ onUpdated(() => {
             type="button"
             :disabled="agentControlLocked"
             v-tooltip="t(tab.agentPaused ? 'shell.agentCard.resume' : 'shell.agentCard.pause')"
+            @keydown="ignoreHeldEnter"
             @click="togglePause"
           >{{ t(tab.agentPaused ? 'shell.agentStrip.resume' : 'shell.agentStrip.pause') }}</UiButton>
           <UiButton
@@ -153,6 +158,7 @@ onUpdated(() => {
             class="agent-live-strip-button"
             type="button"
             :disabled="agentControlLocked"
+            @keydown="ignoreHeldEnter"
             @click="takeOver"
           >{{ t('shell.agentCard.takeOver') }}</UiButton>
         </div>
@@ -165,6 +171,7 @@ onUpdated(() => {
         type="button"
         :aria-label="t('shell.agentStrip.unpin')"
         v-tooltip="t('shell.agentStrip.unpin')"
+        @keydown="ignoreHeldEnter"
         @click="emit('unpin')"
       ><IconKeyboardArrowUp aria-hidden="true" /></UiButton>
     </div>

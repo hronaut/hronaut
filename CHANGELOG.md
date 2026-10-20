@@ -69,6 +69,7 @@ All notable changes to Hronaut are documented in this file.
 - Holding Enter to validate a wallet import no longer adds the wallet before you see its review. **Validate and review** hands the keyboard focus to **Add encrypted wallet**, so the held key's repeats added the wallet before its address could be checked; adding it now takes a new press.
 - Holding Enter to fill a saved password on a site with more than one saved account now leaves the choice of account to you. The account picker opens with the keyboard focus in its search field, so the held key's repeats filled the first account into the page.
 - Imported wallets in **Settings > Wallets** now show **Imported wallet** as their kind, in every language. The list showed the untranslated text `wallets.kinds.imported` instead.
+- Holding Enter on **Hand back** in the pinned live status no longer pauses or takes over from the agent you handed back to. Hand back hands the keyboard focus to **Take over** or **Pause**, so the held key's repeats pressed it, and **Take over** paused the agent and took its tab. Holding Enter on **Pause**, there or in an agent's card, or on one of the card's switches, now changes it once instead of on every repeat, and holding Enter on the card's close button or on **Unpin** no longer opens the card again from the agent's avatar.
 
 ### Security
 
