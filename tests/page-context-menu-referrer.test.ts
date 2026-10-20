@@ -5,24 +5,29 @@ const page = 'https://user:secret@shop.example/catalog/item?id=7#reviews'
 
 describe('the referrer of a link or image saved from the page menu', () => {
   it.each([
-    ['default', 'https://shop.example/images/a.png', 'https://shop.example/catalog/item?id=7'],
+    ['default', 'https://shop.example/images/a.png', 'https://shop.example/'],
     ['default', 'https://cdn.example/a.png', 'https://shop.example/'],
     ['default', 'http://cdn.example/a.png', undefined],
     ['strict-origin-when-cross-origin', 'https://cdn.example/a.png', 'https://shop.example/'],
     ['no-referrer', 'https://shop.example/a.png', undefined],
-    ['unsafe-url', 'http://cdn.example/a.png', 'https://shop.example/catalog/item?id=7'],
-    ['origin', 'https://shop.example/a.png', 'https://shop.example/'],
-    ['same-origin', 'https://shop.example/a.png', 'https://shop.example/catalog/item?id=7'],
+    ['unsafe-url', 'https://cdn.example/a.png', 'https://shop.example/catalog/item?id=7'],
+    ['origin', 'https://cdn.example/a.png', 'https://shop.example/'],
+    ['same-origin', 'https://shop.example/a.png', 'https://shop.example/'],
     ['same-origin', 'https://cdn.example/a.png', undefined],
     ['origin-when-cross-origin', 'https://cdn.example/a.png', 'https://shop.example/'],
     ['strict-origin', 'https://shop.example/a.png', 'https://shop.example/'],
-    ['strict-origin', 'http://shop.example/a.png', undefined],
-    ['no-referrer-when-downgrade', 'https://cdn.example/a.png', 'https://shop.example/catalog/item?id=7'],
-    ['no-referrer-when-downgrade', 'http://cdn.example/a.png', undefined]
-  ])('under %s sends what the page itself would for %s', (policy, target, referrer) => {
+    ['no-referrer-when-downgrade', 'https://cdn.example/a.png', 'https://shop.example/catalog/item?id=7']
+  ])('under %s sends the page\'s origin or less for %s', (policy, target, referrer) => {
     // Save Link and Save Image sent no referrer, so an image host that serves only its own pages refused the save.
     expect(savedResourceReferrer(page, target, policy)).toBe(referrer)
   })
+
+  it.each(['default', 'unsafe-url', 'origin', 'no-referrer-when-downgrade', 'strict-origin', 'same-origin'])(
+    'sends nothing under %s from an HTTPS page to a plain HTTP address', (policy) => {
+      // Electron's download request keeps no-referrer-when-downgrade, so Chromium cancels a save that carries one.
+      expect(savedResourceReferrer(page, 'http://shop.example/a.png', policy)).toBeUndefined()
+    }
+  )
 
   it('never sends a sign-in or a fragment from the page address', () => {
     expect(savedResourceReferrer(page, 'https://shop.example/a.png', 'unsafe-url')).not.toMatch(/secret|user@|#/)
@@ -31,12 +36,13 @@ describe('the referrer of a link or image saved from the page menu', () => {
   it('counts only HTTPS as secure, as Chromium does for the page\'s own requests', () => {
     expect(savedResourceReferrer('https://shop.example/p', 'http://127.0.0.1:8080/a.png', 'default')).toBeUndefined()
     expect(savedResourceReferrer('http://localhost:3000/p', 'http://cdn.example/a.png', 'default')).toBe('http://localhost:3000/')
-    expect(savedResourceReferrer('http://localhost:3000/p', 'http://localhost:3000/a.png', 'default')).toBe('http://localhost:3000/p')
+    expect(savedResourceReferrer('http://localhost:3000/p', 'http://localhost:3000/a.png', 'unsafe-url')).toBe('http://localhost:3000/p')
   })
 
   it('sends only the origin for an address too long to be a referrer', () => {
-    const long = `https://shop.example/search?q=${'a'.repeat(5000)}`
-    expect(savedResourceReferrer(long, 'https://shop.example/a.png', 'unsafe-url')).toBe('https://shop.example/')
+    const fits = `https://shop.example/search?q=${'a'.repeat(4096 - 'https://shop.example/search?q='.length)}`
+    expect(savedResourceReferrer(fits, 'https://shop.example/a.png', 'unsafe-url')).toBe(fits)
+    expect(savedResourceReferrer(`${fits}a`, 'https://shop.example/a.png', 'unsafe-url')).toBe('https://shop.example/')
   })
 
   it('sends nothing from a page that is not a website, or for a target that is not one', () => {

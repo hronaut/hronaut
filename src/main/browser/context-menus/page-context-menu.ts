@@ -1,4 +1,4 @@
-import { Menu, type ContextMenuParams, type MenuItemConstructorOptions } from 'electron'
+import { Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebFrameMain } from 'electron'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
 import { savedResourceReferrer } from './page-context-menu-referrer.js'
@@ -44,8 +44,11 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   // Electron types the frame's referrer policy as a Referrer, but reports the policy name.
   const referrerPolicy = params.referrerPolicy as unknown as string | Partial<Electron.Referrer> | undefined
   const policy = typeof referrerPolicy === 'string' ? referrerPolicy : referrerPolicy?.policy ?? 'default'
+  // A sandboxed frame or page has an opaque origin and sends no referrer, as in Chrome. It is read now, since the frame
+  // can be gone by the time an item is chosen.
+  const sandboxedFrame = hasOpaqueOrigin(params.frame)
   const download = (url: string): void => {
-    const referrer = savedResourceReferrer(params.frameURL || params.pageURL, url, policy)
+    const referrer = sandboxedFrame ? undefined : savedResourceReferrer(params.frameURL, url, policy)
     if (referrer) webContents.downloadURL(url, { headers: { Referer: referrer } })
     else webContents.downloadURL(url)
   }
@@ -196,6 +199,16 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     window: access.window(),
     ...(params.frame ? { frame: params.frame } : {})
   })
+}
+
+function hasOpaqueOrigin(frame: WebFrameMain | null | undefined): boolean {
+  if (!frame) return false
+  try {
+    return frame.origin === 'null'
+  } catch {
+    // A frame that is already gone cannot show its origin, so it gets no referrer.
+    return true
+  }
 }
 
 async function inspectElement<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, x: number, y: number): Promise<void> {
