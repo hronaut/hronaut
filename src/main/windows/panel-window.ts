@@ -75,13 +75,16 @@ interface PanelWindowHost {
 /**
  * The detached panel window: one window beside the main window that shows a single panel at a time in its own copy
  * of the trusted shell. Opening it again shows the requested panel in the window already open, including while it
- * is still loading.
+ * is still loading. Closing it before the window exists keeps it from opening, unless it is opened again meanwhile.
  */
 export function createPanelWindow(host: PanelWindowHost): {
   detachedPanelTitle(panel: DetachablePanelId): string
   openPanelWindow(panel: DetachablePanelId): Promise<void>
+  closePanelWindow(): void
 } {
   let panelWindowOpening: Promise<void> | null = null
+  // Set when the panel is closed before its window exists; the newest open or close request wins.
+  let closedWhileOpening = false
 
   function detachedPanelTitle(panel: DetachablePanelId): string {
     const keys: Record<DetachablePanelId, MessageKey> = {
@@ -135,6 +138,7 @@ export function createPanelWindow(host: PanelWindowHost): {
     if (!host.mainWindow() || host.mainWindow()!.isDestroyed()) throw new LocalizedError('appErrors.settings.windowUnavailable')
     const ownerWindow = host.mainWindow()!
     host.refs.panel = panel
+    closedWhileOpening = false
     if (panelWindowOpening) {
       await panelWindowOpening
       const requestedPanel = host.refs.panel
@@ -165,6 +169,11 @@ export function createPanelWindow(host: PanelWindowHost): {
       const orderedDisplays = [primaryDisplay, ...displays.filter((display) => display.id !== primaryDisplay.id)]
       const savedPanelState = host.refs.lastState ?? await host.refs.stateStore?.load() ?? null
       if (!host.mainWindow() || host.mainWindow()!.isDestroyed()) throw new LocalizedError('appErrors.settings.windowUnavailable')
+      // The panel was closed while its saved bounds were read.
+      if (closedWhileOpening) {
+        host.refs.panel = null
+        return
+      }
       const panelBounds = savedPanelState
         ? restoreWindowBounds(savedPanelState, orderedDisplays, { width, height })
         : {
@@ -247,5 +256,14 @@ export function createPanelWindow(host: PanelWindowHost): {
     }
   }
 
-  return { detachedPanelTitle, openPanelWindow }
+  /** Closes the panel window, or keeps one that is still being opened from opening. */
+  function closePanelWindow(): void {
+    if (host.refs.window) {
+      host.refs.window.close()
+      return
+    }
+    if (panelWindowOpening) closedWhileOpening = true
+  }
+
+  return { detachedPanelTitle, openPanelWindow, closePanelWindow }
 }
