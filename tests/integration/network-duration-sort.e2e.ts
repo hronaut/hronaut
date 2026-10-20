@@ -16,8 +16,8 @@ test('sorts a request that failed after a while by how long it took, for agents 
   mcpPort,
   mcpToken
 }) => {
-  // A request that failed has no resource timing, so sorting by duration put it after every other request, while its
-  // row showed how long it took.
+  // A request that failed before its response has no resource timing, so it had no duration for agents and sorting by
+  // duration put it after the measured requests, while its row showed how long it took.
   const server = createServer((request, response) => {
     if (request.url === '/slow-failure') {
       setTimeout(() => request.socket.destroy(), 1_200)
@@ -62,7 +62,7 @@ test('sorts a request that failed after a while by how long it took, for agents 
     await call('browser_evaluate', {
       workspaceId,
       tabId,
-      script: "Promise.allSettled(['/slow-failure', '/slow', '/fast'].map((path) => fetch(path).then((response) => response.text()))).then(() => true)"
+      script: "Promise.allSettled(['/fast', '/slow', '/slow-failure'].map((path) => fetch(path).then((response) => response.text()))).then(() => true)"
     })
     const byDuration = async (): Promise<BrowserNetworkRequest[]> => (await call('browser_network', {
       workspaceId, tabId, query: 'resource-type:fetch', sortBy: 'duration', sortDirection: 'desc'
@@ -71,7 +71,7 @@ test('sorts a request that failed after a while by how long it took, for agents 
     const sorted = await byDuration()
     const failure = sorted.find((request) => request.url.endsWith('/slow-failure'))
     expect(failure?.error).toBeTruthy()
-    expect(failure?.durationMs).toBeUndefined()
+    expect(failure?.durationMs).toBeGreaterThan(1_000)
     expect(sorted.map((request) => new URL(request.url).pathname)).toEqual(['/slow-failure', '/slow', '/fast'])
 
     await appWindow.getByRole('button', { name: 'Page tools' }).click()

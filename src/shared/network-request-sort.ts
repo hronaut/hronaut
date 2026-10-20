@@ -14,7 +14,8 @@ function timestamp(value: string | undefined): number | undefined {
 function sortValue(request: BrowserNetworkRequest, sortBy: BrowserNetworkRequestSortBy): number | undefined {
   if (sortBy === 'start-time') return timestamp(request.startedAt)
   if (sortBy === 'end-time') return timestamp(request.completedAt)
-  // A request that failed has no resource timing, so its duration runs from its start to its end, as its row shows it.
+  // A request recorded without its duration, as when the Network debugger is not attached, runs from its start to its end,
+  // as its row shows it.
   if (sortBy === 'duration') return networkRequestDurationMs(request)
   if (sortBy === 'waiting') return request.waitingForResponseMs
   if (sortBy === 'size') return request.responseSizeBytes
