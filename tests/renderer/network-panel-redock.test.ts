@@ -42,3 +42,21 @@ it('reads the page’s requests when the panel docks back from its window', asyn
     expect(listNetworkRequests).toHaveBeenCalledOnce()
   } finally { view.unmount() }
 })
+
+it('reads nothing in the panel window as it docks back and closes', async () => {
+  const listNetworkRequests = vi.fn(async () => [request])
+  const listNetworkRoutes = vi.fn(async () => [])
+  vi.stubGlobal('hronaut', { listNetworkRequests, listNetworkRoutes })
+  const props = (dock: PanelDock) => ({
+    open: true, dock, activeTab, locale: 'en-US' as const, copyText: vi.fn(async () => true),
+    syncState: vi.fn(async (operation: Promise<unknown>) => { await operation }),
+    preservationBusy: false, updatePreservation: vi.fn(), keepsSeparatePanelOpen: () => true
+  })
+  const view = render(NetworkPanel, { global, props: props('window') })
+  try {
+    await view.rerender(props('right'))
+    await Promise.resolve()
+    expect(listNetworkRequests).not.toHaveBeenCalled()
+    expect(listNetworkRoutes).not.toHaveBeenCalled()
+  } finally { view.unmount() }
+})

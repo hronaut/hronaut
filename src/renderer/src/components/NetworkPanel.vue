@@ -223,9 +223,9 @@ watch(
 )
 
 // Docked back from its window, the panel was open all along, so it reads the page's requests as they are now instead of
-// showing the ones it had before it left.
+// showing the ones it had before it left. The panel window itself is closing then, so it reads nothing.
 watch(dock, (next, previous) => {
-  if (open.value && previous === 'window' && next !== 'window') void refreshNetwork()
+  if (open.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen()) void refreshNetwork()
 })
 
 defineExpose({
