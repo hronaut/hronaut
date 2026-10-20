@@ -90,6 +90,24 @@ describe('normalizeAddress', () => {
   })
 
   it.each([
+    ['devbox:3000', 'http://devbox:3000'],
+    ['nas:5000/webman/index.cgi', 'http://nas:5000/webman/index.cgi'],
+    ['My-PC:8080?tab=logs', 'http://My-PC:8080?tab=logs'],
+    ['web_1:3000#health', 'http://web_1:3000#health'],
+    ['3dprinter:80', 'http://3dprinter:80'],
+    ['router:443/admin', 'https://router:443/admin']
+  ])('opens a one-word host name with a port as a website: %s', (input, expected) => {
+    // It loaded `devbox:` as a link to another app, so the development server on that machine never opened.
+    expect(normalizeAddress(input)).toBe(expected)
+  })
+
+  it.each(['tel:911', 'SMS:12345', 'sip:1001', 'facetime-audio:5551', 'web+demo:12'])(
+    'keeps %s a link to another app', (input) => {
+      expect(normalizeAddress(input)).toBe(input)
+    }
+  )
+
+  it.each([
     ['192.168.1.1:443', 'https://192.168.1.1:443'],
     ['nas.local:443/admin', 'https://nas.local:443/admin'],
     ['localhost:443', 'https://localhost:443']
@@ -103,7 +121,7 @@ describe('normalizeAddress', () => {
     )
   })
 
-  it.each(['999.999.999.999', 'localhost:65536', 'example.com:65536'])(
+  it.each(['999.999.999.999', 'localhost:65536', 'example.com:65536', 'devbox:65536'])(
     'searches an invalid scheme-less host instead of navigating to %s', (input) => {
       expect(normalizeAddress(input)).toBe(`https://www.google.com/search?q=${encodeURIComponent(input)}`)
     }

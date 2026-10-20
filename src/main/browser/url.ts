@@ -3,6 +3,11 @@ export { isHronautHomeUrl } from '../../shared/home-url.js'
 
 const SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/
 const HOST_LIKE_PATTERN = /^(localhost\.?|\d{1,3}(?:\.\d{1,3}){3}|\[[0-9a-f:]+\]|[^\s/:?#]+\.[^\s/:?#]+)(?::\d+)?(?:[/?#].*)?$/i
+// A one-word host name with a port, such as a Tailscale MagicDNS name or a LAN machine (`devbox:3000`), reads like a
+// scheme followed by a value. As in Chrome, a colon followed only by digits names a port.
+const SINGLE_LABEL_HOST_WITH_PORT = /^([a-z\d](?:[a-z\d_-]*[a-z\d])?):\d{1,5}(?:[/?#].*)?$/i
+// Schemes whose whole value can be a short number, such as `tel:911` or a SIP extension, stay links to another app.
+const NUMBER_VALUE_SCHEMES: ReadonlySet<string> = new Set(['callto', 'facetime', 'facetime-audio', 'fax', 'mms', 'sip', 'sips', 'sms', 'tel'])
 
 function isLoopbackAddress(value: string): boolean {
   try {
@@ -98,6 +103,12 @@ export function webAddress(input: string): string | undefined {
     } catch {
       return undefined
     }
+  }
+  const singleLabelHost = SINGLE_LABEL_HOST_WITH_PORT.exec(value)?.[1]
+  if (singleLabelHost && !NUMBER_VALUE_SCHEMES.has(singleLabelHost.toLowerCase())) {
+    // A one-word name is never a public site, so it opens over HTTP unless it names port 443.
+    const candidate = `${namesHttpsPort(value) ? 'https' : 'http'}://${value}`
+    return URL.canParse(candidate) ? candidate : undefined
   }
   if (SCHEME_PATTERN.test(value)) return value
   return undefined
