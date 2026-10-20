@@ -17,8 +17,15 @@ import type {
   BrowserNetworkSearchResult,
   BrowserServiceWorkerResponseSource,
   BrowserTabState,
+  BrowserWebSocketMessageDirection,
+  BrowserWebSocketMessageKind,
   SupportedLocale
 } from '../../src/shared/types.js'
+
+const RESPONSE_SOURCES: BrowserNetworkResponseSource[] = ['network', 'service-worker', 'prefetch-cache', 'disk-cache', 'other-cache']
+const WORKER_SOURCES: BrowserServiceWorkerResponseSource[] = ['cache-storage', 'http-cache', 'fallback-code', 'network']
+const MESSAGE_DIRECTIONS: BrowserWebSocketMessageDirection[] = ['sent', 'received', 'error']
+const MESSAGE_KINDS: BrowserWebSocketMessageKind[] = ['text', 'binary', 'continuation', 'close', 'ping', 'pong', 'error', 'unknown']
 
 const activeTab: BrowserTabState = {
   id: 'tab-1', title: 'Example', url: 'https://example.test/app', loading: false, navigationGeneration: 0,
@@ -46,7 +53,7 @@ const socketDetails = {
   ...requests[1],
   request: { headers: {} },
   response: { headers: {}, protocol: '', body: { available: false } },
-  initiator: { type: 'parser', url: 'https://example.test/app', lineNumber: 3, columnNumber: 7 },
+  initiator: { type: 'script', url: 'https://example.test/app.js', lineNumber: 3, columnNumber: 7 },
   relationships: {
     triggeredBy: { ...requests[2], id: 'script', url: 'https://example.test/app.js', resourceType: 'script' },
     redirectChain: [],
@@ -103,13 +110,15 @@ it('names request types, sources, initiators and messages in the interface langu
 
     await user.click(socket)
     const initiator = await screen.findByText('Initiator', { selector: 'summary', exact: false })
-    expect(initiator.textContent).toContain('Parser')
+    expect(initiator.textContent).toContain('Skript')
     const trigger = screen.getByRole('button', { name: /app\.js/ })
     expect(trigger.textContent).toContain('GET · Skript')
     const [sent, received] = document.querySelectorAll('.network-websocket-messages article')
-    expect(sent.querySelector('header')?.textContent).toMatch(/^gesendetText/)
-    expect(received.querySelector('header')?.textContent).toMatch(/^empfangenBinär/)
-    expect(received.querySelector('p')?.textContent).toMatch(/^Nutzdaten ausgelassen: Binär/)
+    expect(sent.querySelector('header > span')?.textContent).toBe('gesendet')
+    expect(sent.querySelector('header > strong')?.textContent).toBe('Text')
+    expect(received.querySelector('header > span')?.textContent).toBe('empfangen')
+    expect(received.querySelector('header > strong')?.textContent).toBe('binär')
+    expect(received.querySelector('p')?.textContent).toMatch(/^Nutzdaten ausgelassen: binär/)
 
     await user.click(font)
     expect((await screen.findByText('Schriftart', { selector: '.network-detail-heading small' })).textContent).toBe('Schriftart')
@@ -138,16 +147,16 @@ it('names a content search match’s request type in the interface language', ()
 })
 
 describe('network labels', () => {
-  it('keeps the English names the panel showed before', () => {
+  it('keeps the English source names the panel showed before', () => {
     const i18n = createHronautI18n('en-US')
     const labels = createNetworkLabels((key, parameters) => i18n.global.t(key, parameters ?? {}))
-    const sources: BrowserNetworkResponseSource[] = ['network', 'service-worker', 'prefetch-cache', 'disk-cache', 'other-cache']
-    for (const source of sources) expect(labels.responseSource(source)).toBe(networkResponseSourceLabel(source))
-    const workerSources: BrowserServiceWorkerResponseSource[] = ['cache-storage', 'http-cache', 'fallback-code', 'network']
-    for (const source of workerSources) expect(labels.serviceWorkerSource(source)).toBe(serviceWorkerResponseSourceLabel(source))
+    for (const source of RESPONSE_SOURCES) expect(labels.responseSource(source)).toBe(networkResponseSourceLabel(source))
+    for (const source of WORKER_SOURCES) expect(labels.serviceWorkerSource(source)).toBe(serviceWorkerResponseSourceLabel(source))
+    // Chromium's lowercased codes now read as names in English too.
     expect(labels.initiator('signedexchange')).toBe('Signed exchange')
-    expect(labels.messageDirection('received')).toBe('received')
-    expect(labels.messageKind('binary')).toBe('binary')
+    expect(labels.requestCategory('Fetch')).toBe('Fetch/XHR')
+    for (const direction of MESSAGE_DIRECTIONS) expect(labels.messageDirection(direction)).toBe(direction)
+    for (const kind of MESSAGE_KINDS) expect(labels.messageKind(kind)).toBe(kind)
   })
 
   it('has a name for every known code in every language', () => {
@@ -159,7 +168,11 @@ describe('network labels', () => {
       for (const type of ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Script', 'TextTrack', 'XHR', 'Fetch', 'Prefetch',
         'EventSource', 'WebSocket', 'Manifest', 'SignedExchange', 'Ping', 'CSPViolationReport', 'Preflight', 'FedCM', 'Other']) labels.resourceType(type)
       for (const type of ['parser', 'script', 'preload', 'signedexchange', 'preflight', 'fedcm', 'redirect', 'other']) labels.initiator(type)
-      for (const category of ['fetch/xhr', 'document', 'image', 'other']) labels.resourceCategoryLabel(category)
+      for (const category of ['fetch/xhr', 'document', 'image', 'other']) labels.categoryLabel(category)
+      for (const source of RESPONSE_SOURCES) labels.responseSource(source)
+      for (const source of WORKER_SOURCES) labels.serviceWorkerSource(source)
+      for (const direction of MESSAGE_DIRECTIONS) labels.messageDirection(direction)
+      for (const kind of MESSAGE_KINDS) labels.messageKind(kind)
       expect(missing, locale).toEqual([])
     }
   })
@@ -167,7 +180,7 @@ describe('network labels', () => {
   it('shows a code Hronaut does not know as Chromium reported it', () => {
     const labels = createNetworkLabels(() => 'translated')
     expect(labels.resourceType('Beacon')).toBe('Beacon')
-    expect(labels.resourceCategoryLabel('toString')).toBe('toString')
+    expect(labels.categoryLabel('toString')).toBe('toString')
     expect(labels.initiator('speculation_rules')).toBe('Speculation rules')
     expect(labels.responseSource('__proto__' as BrowserNetworkResponseSource)).toBe('__proto__')
     expect(labels.messageKind('constructor' as never)).toBe('constructor')

@@ -134,7 +134,7 @@ const {
   isRequestFailure: isNetworkRequestFailure,
   responseSourceLabel: networkResponseSourceLabel,
   serviceWorkerSourceLabel: serviceWorkerResponseSourceLabel,
-  resourceCategoryLabel: networkResourceCategory,
+  requestCategoryLabel: networkRequestCategoryLabel,
   resourceTypeLabel: networkResourceTypeLabel,
   messageDirectionLabel: networkMessageDirectionLabel,
   messageKindLabel: networkMessageKindLabel,
@@ -385,7 +385,7 @@ onBeforeUnmount(dispose)
               </span>
               <span class="network-request-meta">
                 <span>{{ request.method }}</span>
-                <span>{{ networkResourceCategory(request.resourceType) }}</span>
+                <span>{{ networkRequestCategoryLabel(request.resourceType) }}</span>
                 <span>{{ request.responseSizeBytes !== undefined ? formatBytes(request.responseSizeBytes) : '—' }}</span>
                 <span>{{ networkRequestDuration(request) }}</span>
               </span>

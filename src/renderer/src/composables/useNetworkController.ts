@@ -136,7 +136,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
   const resourceFilters = computed(() => [
     { value: '', label: options.translate('network.filters.all') },
     ...['fetch/xhr', 'document', 'script', 'stylesheet', 'image', 'eventsource', 'websocket', 'other']
-      .map((value) => ({ value, label: labels.resourceCategoryLabel(value) }))
+      .map((value) => ({ value, label: labels.categoryLabel(value) }))
   ])
 
   const sortOptions = computed<Array<{ value: BrowserNetworkRequestSortBy; label: string }>>(() => [
@@ -668,7 +668,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     isRequestFailure: isNetworkRequestFailure,
     responseSourceLabel: labels.responseSource,
     serviceWorkerSourceLabel: labels.serviceWorkerSource,
-    resourceCategoryLabel: labels.resourceCategory,
+    requestCategoryLabel: labels.requestCategory,
     resourceTypeLabel: labels.resourceType,
     messageDirectionLabel: labels.messageDirection,
     messageKindLabel: labels.messageKind,

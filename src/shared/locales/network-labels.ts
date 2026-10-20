@@ -104,7 +104,7 @@ export const networkLabelMessages = {
       "signedexchange": "Signed Exchange",
       "preflight": "Preflight",
       "fedcm": "FedCM",
-      "redirect": "Weiterleitung",
+      "redirect": "Umleitung",
       "other": "Andere"
     },
     "messageDirections": {
@@ -114,13 +114,13 @@ export const networkLabelMessages = {
     },
     "messageKinds": {
       "text": "Text",
-      "binary": "Binär",
+      "binary": "binär",
       "continuation": "Fortsetzung",
       "close": "Schließen",
       "ping": "Ping",
       "pong": "Pong",
       "error": "Fehler",
-      "unknown": "Unbekannt"
+      "unknown": "unbekannt"
     }
   },
   "es-ES": {
@@ -134,7 +134,7 @@ export const networkLabelMessages = {
       "texttrack": "Pista de texto",
       "xhr": "XHR",
       "fetch": "Fetch",
-      "prefetch": "Precarga",
+      "prefetch": "Prefetch",
       "eventsource": "EventSource",
       "websocket": "WebSocket",
       "manifest": "Manifiesto",
@@ -148,7 +148,7 @@ export const networkLabelMessages = {
     "responseSources": {
       "network": "Red",
       "serviceWorker": "Service worker",
-      "prefetchCache": "Caché de precarga",
+      "prefetchCache": "Caché de prefetch",
       "diskCache": "Caché de disco",
       "otherCache": "Caché del navegador"
     },
@@ -195,7 +195,7 @@ export const networkLabelMessages = {
       "texttrack": "Piste de texte",
       "xhr": "XHR",
       "fetch": "Fetch",
-      "prefetch": "Préchargement",
+      "prefetch": "Prélecture",
       "eventsource": "EventSource",
       "websocket": "WebSocket",
       "manifest": "Manifeste",
@@ -209,7 +209,7 @@ export const networkLabelMessages = {
     "responseSources": {
       "network": "Réseau",
       "serviceWorker": "Service worker",
-      "prefetchCache": "Cache de préchargement",
+      "prefetchCache": "Cache de prélecture",
       "diskCache": "Cache disque",
       "otherCache": "Cache du navigateur"
     },
@@ -358,7 +358,7 @@ export const networkLabelMessages = {
     },
     "messageKinds": {
       "text": "текст",
-      "binary": "двійковий",
+      "binary": "бінарний",
       "continuation": "продовження",
       "close": "закриття",
       "ping": "ping",
@@ -399,8 +399,8 @@ export const networkLabelMessages = {
     "workerSources": {
       "cacheStorage": "Cache Storage",
       "httpCache": "HTTP-кеш",
-      "fallbackCode": "Резервный код воркера",
-      "network": "Сеть через воркер"
+      "fallbackCode": "Резервный код worker",
+      "network": "Сеть через worker"
     },
     "initiatorTypes": {
       "parser": "Парсер",

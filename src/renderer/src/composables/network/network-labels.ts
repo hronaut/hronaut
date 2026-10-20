@@ -54,14 +54,15 @@ const MESSAGE_KINDS = new Set<string>([
 ] satisfies BrowserWebSocketMessageKind[])
 
 export function createNetworkLabels(translate: Translate) {
-  /** The filter chip's name for the group a request belongs to. */
-  function resourceCategoryLabel(category: string): string {
+  /** The filter chip's name for a group of requests, such as fetch/xhr. */
+  function categoryLabel(category: string): string {
     if (Object.hasOwn(RESOURCE_CATEGORY_KEYS, category)) return translate(RESOURCE_CATEGORY_KEYS[category])
     return Object.hasOwn(RESOURCE_CATEGORY_ACRONYMS, category) ? RESOURCE_CATEGORY_ACRONYMS[category] : category
   }
 
-  function resourceCategory(resourceType: string): string {
-    return resourceCategoryLabel(networkResourceCategory(resourceType))
+  /** The filter chip's name for the group a request of this type belongs to. */
+  function requestCategory(resourceType: string): string {
+    return categoryLabel(networkResourceCategory(resourceType))
   }
 
   function resourceType(type: string): string {
@@ -96,8 +97,8 @@ export function createNetworkLabels(translate: Translate) {
   }
 
   return {
-    resourceCategoryLabel,
-    resourceCategory,
+    categoryLabel,
+    requestCategory,
     resourceType,
     responseSource,
     serviceWorkerSource,
