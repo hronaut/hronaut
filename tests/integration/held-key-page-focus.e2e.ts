@@ -3,7 +3,7 @@ import type { ElectronApplication } from '@playwright/test'
 import type { HronautApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-/** A key event as the keyboard sends it to whichever page has the focus, which is where a held key's repeats go. */
+/** A Delete key event as the keyboard sends it to whichever page has the focus, which is where a held key's repeats go. */
 async function sendToFocusedPage(electronApp: ElectronApplication, type: 'keyDown' | 'keyUp', repeat = false): Promise<string> {
   return electronApp.evaluate(({ webContents }, { type, repeat }) => {
     const focused = webContents.getFocusedWebContents()
@@ -37,11 +37,17 @@ test('a key held on the shell does not repeat into the page it hands the focus t
       await expect.poll(activeTitle).toBe(title)
     }
 
-    // Delete on the active tab closes it, and the tab that takes its place gets the focus in its page.
+    // Delete on the active tab closes it, and the tab that takes its place gets the focus in its page. The key goes
+    // through the shell's own input, as the keyboard's does.
+    const shellFocused = () => electronApp.evaluate(({ BrowserWindow, webContents }) => (
+      webContents.getFocusedWebContents()?.id === BrowserWindow.getAllWindows()[0]!.webContents.id
+    ))
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.focus())
+    await expect.poll(shellFocused).toBe(true)
     const closing = appWindow.getByRole('tab', { name: /^Held key closed/ })
     await closing.focus()
     await expect(closing).toBeFocused()
-    await appWindow.keyboard.down('Delete')
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Delete' }))
     await expect(closing).toHaveCount(0)
     await expect.poll(activeTitle).toBe('Held key field')
     await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.getURL())).toBe(fieldUrl)
@@ -53,7 +59,6 @@ test('a key held on the shell does not repeat into the page it hands the focus t
       expect(await sendToFocusedPage(electronApp, 'keyDown', true)).toBe(fieldUrl)
     }
     await sendToFocusedPage(electronApp, 'keyUp')
-    await appWindow.keyboard.up('Delete')
     expect(await pageKeys()).toEqual([])
     expect(await fieldValue()).toBe('abcdef')
 
@@ -64,6 +69,12 @@ test('a key held on the shell does not repeat into the page it hands the focus t
     await sendToFocusedPage(electronApp, 'keyUp')
     await expect.poll(pageKeys).toEqual(['Delete', 'Delete repeat', 'Delete repeat'])
     expect(await fieldValue()).toBe('def')
+
+    // So does a repeat whose press the page never saw, as when an input method took the press.
+    await sendToFocusedPage(electronApp, 'keyDown', true)
+    await sendToFocusedPage(electronApp, 'keyUp')
+    await expect.poll(pageKeys).toEqual(['Delete', 'Delete repeat', 'Delete repeat', 'Delete repeat'])
+    expect(await fieldValue()).toBe('ef')
   } finally {
     await closeFixtureServer(server)
   }

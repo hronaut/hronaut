@@ -12,15 +12,12 @@ const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
  * it. Otherwise a browser shortcut the page does not keep goes to the shell,
  * the human input lock may hold the key back, and the key is recorded,
  * refreshes the tab's overview preview and makes following wait. A key held
- * since before the page had the focus does not repeat into it.
+ * down in the shell when it hands the focus to the page does not repeat into it.
  */
 export function attachPageKeyboardEvents<Tab extends PageKeyboardEventsTab>(access: PageKeyboardEventsAccess<Tab>, tab: Tab, webContents: WebContents): void {
-  // The keys pressed while the page has had the focus. A shell control pressed with a key can hand the focus to the
-  // page, such as Delete closing the active tab, and the key's repeats then came here: a held Delete went on to delete
-  // the text in the next page's focused field.
-  const pressedHere = new Set<string>()
-  webContents.on('blur', () => pressedHere.clear())
   webContents.on('before-input-event', (event, input) => {
+    // A key pressed or released here is no longer one held in the shell.
+    if (input.code && !input.isAutoRepeat) access.shellHeldKeys().delete(input.code)
     if (access.browserContentOccluded() && !access.agentInputWebContents().has(webContents.id)) {
       // Trusted chrome is open; the page is only on screen until its snapshot is shown.
       event.preventDefault()
@@ -111,14 +108,11 @@ export function attachPageKeyboardEvents<Tab extends PageKeyboardEventsTab>(acce
       access.options().onShortcutRequested?.(shortcut, page)
       return
     }
-    const physicalKey = input.code || input.key
-    if (input.type === 'keyUp') pressedHere.delete(physicalKey)
-    else if (!expectedAgentInput && (input.type === 'keyDown' || input.type === 'rawKeyDown')) {
-      if (!input.isAutoRepeat) pressedHere.add(physicalKey)
-      else if (!pressedHere.has(physicalKey)) {
-        event.preventDefault()
-        return
-      }
+    if (input.isAutoRepeat && !expectedAgentInput && input.code && access.shellHeldKeys().has(input.code)) {
+      // The repeats of a key the shell took, such as Delete closing the active tab, which gave this page the focus:
+      // a held Delete went on to delete the text in this page's focused field.
+      event.preventDefault()
+      return
     }
     access.reproRecorder().observeReproKeyboard(tab, input)
     // The overview shows the page as it was last seen, after the latest typing settles.
