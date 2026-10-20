@@ -83,8 +83,8 @@ export function frameObservationScript(selector: string, maxChars: number, expec
         if(!value)return '';
         if(value.length>2048){omissions.add('semantic-limit');return '';}
         try{const u=new URL(value,child.baseURI);if(!['http:','https:'].includes(u.protocol))return u.protocol+'//';
-          u.username='';u.password='';u.hash='';
-          for(const key of [...u.searchParams.keys()])if(/(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|secret|session|token)/i.test(key)||/^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-signature|hdnt[sla])$/i.test(key))u.searchParams.set(key,'[REDACTED]');
+          u.username='';u.password='';u.hash='';u.pathname=u.pathname.replace(/;jsessionid=[^;/]*/gi,';jsessionid=[REDACTED]');
+          for(const key of [...u.searchParams.keys()])if(/(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|passphrase|pwd|secret|session|token)/i.test(key)||/^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-signature|hdnt[sla]|key|access_?key|auth|sid|phpsessid)$/i.test(key))u.searchParams.set(key,'[REDACTED]');
           return u.href;
         }catch{return '';}
       };

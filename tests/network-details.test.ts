@@ -50,6 +50,40 @@ describe('network detail redaction', () => {
     expect(body.redacted).toBe(true)
   })
 
+  it.each([
+    ['a Google API key', 'https://maps.example/api/js?key=AIzaSECRET&libraries=places', ['libraries']],
+    ['an access key', 'https://tiles.example/v1/map.png?access_key=SECRET&accessKey=SECRET&zoom=4', ['zoom']],
+    ['a sign-in', 'https://feed.example/export.ics?auth=SECRET&format=ics', ['format']],
+    ['a session id', 'https://shop.example/cart?sid=SECRET&PHPSESSID=SECRET&step=2', ['step']],
+    ['a password', 'https://router.example/login.cgi?user=admin&pwd=SECRET', ['user']]
+  ])('redacts %s in a link', (_label, url, kept) => {
+    // The value stayed in download records, network results and snapshots, so whoever read them could reuse it.
+    const redacted = redactNetworkUrl(url)
+    expect(redacted).not.toContain('SECRET')
+    const parameters = new URL(redacted).searchParams
+    for (const name of kept) expect(parameters.get(name)).toBe(new URL(url).searchParams.get(name))
+  })
+
+  it('redacts a session id that a Java server keeps in the path', () => {
+    expect(redactNetworkUrl('https://shop.example/cart;jsessionid=SECRET?step=2')).toBe('https://shop.example/cart;jsessionid=[REDACTED]?step=2')
+    expect(redactNetworkUrl('https://shop.example/a;JSESSIONID=SECRET/b;jsessionid=SECRET')).not.toContain('SECRET')
+  })
+
+  it('redacts the password of a WordPress sign-in form and a JSON body', () => {
+    // WordPress posts `log` and `pwd`, so the password stayed in the request's details.
+    const form = sanitizeNetworkBody('log=admin&pwd=SECRET&rememberme=forever', 'application/x-www-form-urlencoded', 1_000)
+    expect(form.text).not.toContain('SECRET')
+    expect(form.text).toContain('log=admin')
+    const json = sanitizeNetworkBody('{"user":"admin","pwd":"SECRET","passphrase":"SECRET"}', 'application/json', 1_000)
+    expect(json.text).not.toContain('SECRET')
+    expect(json.text).toContain('admin')
+  })
+
+  it('keeps ordinary query parameters whose names contain key, auth or sid', () => {
+    expect(redactNetworkUrl('https://example.test/?keyword=shoes&monkey=1&author=me&side=left&inside=1'))
+      .toBe('https://example.test/?keyword=shoes&monkey=1&author=me&side=left&inside=1')
+  })
+
   it('keeps ordinary query parameters whose names contain sig', () => {
     expect(redactNetworkUrl('https://example.test/?design=dark&signal=on&signup=1&assign=me'))
       .toBe('https://example.test/?design=dark&signal=on&signup=1&assign=me')

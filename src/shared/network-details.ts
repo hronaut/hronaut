@@ -1,12 +1,18 @@
 const REDACTED_VALUE = '[REDACTED]'
 const MAX_JSON_REDACTION_DEPTH = 100
 
-const SENSITIVE_NAME = /(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|secret|session|token)/i
+const SENSITIVE_NAME = /(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|passphrase|pwd|secret|session|token)/i
 // A signed storage or download link carries its signature in one of these query parameters (Azure SAS, CloudFront,
 // S3, Google Cloud Storage, Alibaba OSS, Tencent COS, Akamai tokens, GitHub release assets' `sig` and `jwt`), and the
 // link works for anyone until it expires. Matched whole, since `sig` is part of many ordinary names. The in-page
 // snapshot scripts repeat this pattern.
 const SIGNED_URL_PARAMETER = /^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-signature|hdnt[sla])$/i
+// A link or form can carry a key, a sign-in or a session in one of these parameters (a Google API `key`, `access_key`,
+// `auth`, a PHP session's `PHPSESSID` or `sid`). Matched whole, since `key`, `auth` and `sid` are parts of many
+// ordinary names. The in-page snapshot scripts repeat this pattern.
+const KEY_URL_PARAMETER = /^(?:key|access_?key|auth|sid|phpsessid)$/i
+// A Java server that keeps its session in the address puts it in the path: `/cart;jsessionid=…`.
+const PATH_SESSION = /;jsessionid=[^;/]*/giu
 // Headers whose value is an address, such as a redirect's target, which can be a signed link.
 const URL_HEADER = /^(?:location|content-location|referer)$/i
 const JSON_CONTENT_TYPE = /(?:^|[+/])json(?:;|$)/i
@@ -92,7 +98,7 @@ function redactParameters(parameters: URLSearchParams): URLSearchParams | undefi
   const visible: Array<[string, string]> = []
   const sensitive = new Map<string, number>()
   for (const [name, value] of parameters) {
-    if (!isSensitiveName(name) && !SIGNED_URL_PARAMETER.test(name)) {
+    if (!isSensitiveName(name) && !SIGNED_URL_PARAMETER.test(name) && !KEY_URL_PARAMETER.test(name)) {
       visible.push([name, value])
       continue
     }
@@ -117,6 +123,8 @@ export function redactNetworkUrl(input: string): string {
     if (url.password) url.password = REDACTED_VALUE
     const redacted = redactParameters(url.searchParams)
     if (redacted) url.search = redacted.toString()
+    const path = url.pathname.replace(PATH_SESSION, `;jsessionid=${REDACTED_VALUE}`)
+    if (path !== url.pathname) url.pathname = path
     url.hash = ''
     return url.href
   } catch {

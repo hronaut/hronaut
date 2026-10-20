@@ -34,9 +34,10 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
         url.username = '';
         url.password = '';
         url.hash = '';
+        url.pathname = url.pathname.replace(/;jsessionid=[^;/]*/gi, ';jsessionid=[REDACTED]');
         for (const key of [...url.searchParams.keys()]) {
-          if (/(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|secret|session|token)/i.test(key)
-            || /^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-signature|hdnt[sla])$/i.test(key)) {
+          if (/(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|passphrase|pwd|secret|session|token)/i.test(key)
+            || /^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-signature|hdnt[sla]|key|access_?key|auth|sid|phpsessid)$/i.test(key)) {
             url.searchParams.set(key, '[REDACTED]');
           }
         }

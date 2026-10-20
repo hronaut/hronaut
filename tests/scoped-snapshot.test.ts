@@ -178,9 +178,13 @@ it('redacts the signature of a signed link in the snapshot', () => {
     <a href="https://store.blob.core.windows.net/invoice.pdf?sv=2024-11-04&sp=r&sig=SECRET">Download invoice</a>
     <a href="https://release-assets.example/asset?sp=r&jwt=SECRET&q-signature=SECRET&hdnts=SECRET">Release asset</a>
     <a href="https://example.test/?design=dark&signal=on">Ordinary link</a>
+    <a href="https://maps.example/embed?key=AIzaSECRET&q=Paris">Map</a>
+    <a href="https://shop.example/cart;jsessionid=SECRET?sid=SECRET&step=2">Cart</a>
   `
   const text = capture('#target').text
   expect(text).not.toContain('SECRET')
   expect(text).toContain('sv=2024-11-04')
   expect(text).toContain('design=dark&signal=on')
+  expect(text).toContain('q=Paris')
+  expect(text).toContain('step=2')
 })
