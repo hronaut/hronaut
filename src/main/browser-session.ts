@@ -49,6 +49,8 @@ export function rememberedSitePermissions(entries: readonly SitePermissionEntry[
 
 /** The most characters of a link's scheme a prompt shows; a page chooses the scheme, so it can be very long. */
 const SHOWN_SCHEME_LENGTH = 64
+/** How often a permission prompt checks that the frame that asked is still there, since Electron reports no removed frame. */
+const STALE_PROMPT_CHECK_MS = 500
 
 /**
  * The website a document's permissions belong to: the HTTP or HTTPS origin the document runs as, which `documentOrigin`
@@ -355,20 +357,41 @@ export function createBrowserSession(host: BrowserSessionHost): {
           : mediaTypes.length > 0 && mediaTypes.every((type) => type === 'audio')
             ? host.text('runtime.permissions.microphone')
             : sitePermissionName(permission, (key) => host.text(key))
-        const { response } = await host.showMessageBox({
-          type: 'question',
-          title: host.text('native.dialog.sitePermission'),
-          message: embeddedIn
-            ? host.text('native.dialog.permissionRequestEmbedded', { origin, site: embeddedIn, permission: permissionName })
-            : host.text('native.dialog.permissionRequest', { origin, permission: permissionName }),
-          detail: requiresFreshConsent
-            ? host.text('native.dialog.permissionAskAgain', { detail: permissionDetail })
-            : host.text('native.dialog.permissionSettings', { detail: permissionDetail }),
-          buttons: [host.text('native.dialog.deny'), host.text('native.dialog.allow')],
-          defaultId: 0,
-          cancelId: 0
-        })
-        if (!requestIsCurrent()) return false
+        // The prompt closes, as Deny would, once its tab closes, or the page or frame that asked loads another document,
+        // an error page included, or is removed: its answer would no longer count, and every prompt after it waited for it,
+        // as did the same page asking again. Electron reports no removed frame, so the prompt also checks while it shows.
+        const promptClosing = new AbortController()
+        const closeWhenStale = (): void => {
+          if (!requestIsCurrent()) promptClosing.abort()
+        }
+        webContents.on('did-frame-navigate', closeWhenStale)
+        webContents.on('did-fail-load', closeWhenStale)
+        webContents.on('destroyed', closeWhenStale)
+        const staleCheck = setInterval(closeWhenStale, STALE_PROMPT_CHECK_MS)
+        staleCheck.unref()
+        let response: number
+        try {
+          ({ response } = await host.showMessageBox({
+            signal: promptClosing.signal,
+            type: 'question',
+            title: host.text('native.dialog.sitePermission'),
+            message: embeddedIn
+              ? host.text('native.dialog.permissionRequestEmbedded', { origin, site: embeddedIn, permission: permissionName })
+              : host.text('native.dialog.permissionRequest', { origin, permission: permissionName }),
+            detail: requiresFreshConsent
+              ? host.text('native.dialog.permissionAskAgain', { detail: permissionDetail })
+              : host.text('native.dialog.permissionSettings', { detail: permissionDetail }),
+            buttons: [host.text('native.dialog.deny'), host.text('native.dialog.allow')],
+            defaultId: 0,
+            cancelId: 0
+          }))
+        } finally {
+          clearInterval(staleCheck)
+          webContents.removeListener('did-frame-navigate', closeWhenStale)
+          webContents.removeListener('did-fail-load', closeWhenStale)
+          webContents.removeListener('destroyed', closeWhenStale)
+        }
+        if (promptClosing.signal.aborted || !requestIsCurrent()) return false
         const decision: SitePermissionDecision = response === 1 ? 'allow' : 'deny'
         if (requiresFreshConsent) {
           // Allow is never reused, but Deny holds for the page's document: a page that asks again at once, or many
