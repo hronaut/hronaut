@@ -11,6 +11,10 @@ const SIGNED_URL_PARAMETER = /^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-sign
 // an Azure API Management `subscription-key`, `auth`, a PHP session's `PHPSESSID` or `sid`). Matched whole, since `key`, `auth` and `sid` are parts of many
 // ordinary names. The in-page snapshot scripts repeat this pattern.
 const KEY_URL_PARAMETER = /^(?:key|access[-_]?key|subscription[-_]?key|auth|sid|phpsessid)$/i
+// A sign-in form's password field in Drupal (`pass`, and `pass[pass1]` when the password is set) and on many other sites
+// (`pw`). Matched whole, or as one part of a bracketed form name, since `pass` is part of many ordinary names, such as
+// `passenger` or `compass`. The in-page snapshot scripts match `pass` and `pw` whole, with the parameters above.
+const PASSWORD_FIELD = /(?:^|\[)(?:pass|pw)(?:[\][]|$)/i
 // A Java server that keeps its session in the address puts it in the path: `/cart;jsessionid=…`. Replaced with
 // `PATH_SESSION_REDACTED`, which keeps the name as the server spelled it.
 const PATH_SESSION = /;(jsessionid)=[^;/]*/giu
@@ -30,7 +34,7 @@ export interface SanitizedNetworkBody {
 }
 
 function isSensitiveName(name: string): boolean {
-  return SENSITIVE_NAME.test(name)
+  return SENSITIVE_NAME.test(name) || PASSWORD_FIELD.test(name)
 }
 
 function redactJsonValue(value: unknown, depth = 0): { value: unknown; redacted: boolean } {

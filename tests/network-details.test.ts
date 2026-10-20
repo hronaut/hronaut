@@ -88,6 +88,24 @@ describe('network detail redaction', () => {
     expect(json.text).toContain('admin')
   })
 
+  it('redacts the password of a Drupal sign-in, password change and REST sign-in, and a pw field', () => {
+    // Drupal posts its password as `pass`, which no pattern matched, so it stayed readable in the panel, its copies and
+    // agents' browser_network_request.
+    const signIn = sanitizeNetworkBody('name=admin&pass=SECRET&form_id=user_login_form&op=Log+in', 'application/x-www-form-urlencoded', 1_000)
+    expect(signIn.text).toBe('name=admin&form_id=user_login_form&op=Log+in&pass=%5BREDACTED%5D')
+    expect(signIn.redacted).toBe(true)
+    const change = new URLSearchParams(sanitizeNetworkBody('pass%5Bpass1%5D=SECRET&pass%5Bpass2%5D=SECRET&user%5Bpass%5D=SECRET&mail=a%40b.example', 'application/x-www-form-urlencoded', 1_000).text)
+    expect(change.get('pass[pass1]')).toBe('[REDACTED]')
+    expect(change.get('pass[pass2]')).toBe('[REDACTED]')
+    expect(change.get('user[pass]')).toBe('[REDACTED]')
+    expect(change.get('mail')).toBe('a@b.example')
+    expect(sanitizeNetworkBody('{"name":"admin","pass":"SECRET"}', 'application/json', 1_000).text).not.toContain('SECRET')
+    expect(redactNetworkUrl('https://forum.example/login.php?id=ada&pw=SECRET')).not.toContain('SECRET')
+    // Names that only contain pass or pw stay readable.
+    const kept = 'passenger=2&compass=north&bypass=1&pass1=one&pwa=installed&passes=3'
+    expect(sanitizeNetworkBody(kept, 'application/x-www-form-urlencoded', 1_000)).toEqual({ text: kept, originalChars: kept.length, truncated: false, redacted: false })
+  })
+
   it('keeps ordinary query parameters whose names contain key, auth or sid', () => {
     expect(redactNetworkUrl('https://example.test/?keyword=shoes&monkey=1&author=me&side=left&inside=1'))
       .toBe('https://example.test/?keyword=shoes&monkey=1&author=me&side=left&inside=1')

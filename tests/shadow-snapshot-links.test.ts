@@ -14,6 +14,7 @@ it('redacts keys, session ids and signatures in the links of a shadow root', () 
     <a href="https://maps.example/embed?key=AIzaSECRET&q=Paris">Map</a>
     <a href="https://shop.example/cart;jsessionid=SECRET?PHPSESSID=SECRET&step=2">Cart</a>
     <a href="https://store.blob.core.windows.net/invoice.pdf?sv=1&sig=SECRET">Invoice</a>
+    <a href="https://forum.example/login.php?id=ada&pw=SECRET&pass=SECRET">Forum</a>
   `
   const page = window.eval(shadowSnapshotScript('x-card', 5_000)) as { text?: string }
   // A map's API key and a shop's session stayed in the links an agent was given.
