@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildBrowsingDataWebsiteInventory } from '../../src/main/browsing-data-websites.js'
+import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from '../../src/main/browsing-data-websites.js'
 
 describe('buildBrowsingDataWebsiteInventory', () => {
   it('merges global profile sources into independently sorted website rows', () => {
@@ -67,5 +67,31 @@ describe('buildBrowsingDataWebsiteInventory', () => {
         cookieCount: 1
       })
     ])
+  })
+})
+
+describe('cookieAvailableToOrigin', () => {
+  it.each(['http://localhost:3000', 'http://app.localhost', 'http://localhost.:3000', 'http://127.0.0.1:5173', 'http://127.10.0.1', 'http://[::1]:8080'])('counts a Secure cookie for the local address %s, which Chromium sends it to', (origin) => {
+    const domain = new URL(origin).hostname
+    expect(cookieAvailableToOrigin({ domain, hostOnly: true, secure: true, path: '/' }, origin)).toBe(true)
+  })
+
+  it.each(['http://example.test', 'http://localhost.example.test', 'http://128.0.0.1'])('keeps a Secure cookie away from the plain HTTP address %s', (origin) => {
+    expect(cookieAvailableToOrigin({ domain: new URL(origin).hostname, hostOnly: true, secure: true, path: '/' }, origin)).toBe(false)
+  })
+
+  it.each([
+    ['/', true], ['/app', true], ['/100%', true], ['/a%2fb', true], ['//', true], ['//[', true], ['//x', true],
+    ['/a b', false], ['/x?y', false], ['/a/../b', false], ['/a|b', false]
+  ] as const)(
+    'counts a cookie on the path %s only when a request can match it: %s', (path, received) => {
+      expect(cookieAvailableToOrigin({ domain: 'example.test', hostOnly: true, secure: false, path }, 'http://example.test')).toBe(received)
+    })
+})
+
+describe('cookieAvailableToOrigin with a path a page can choose', () => {
+  it('still matches other cookies when one cookie\'s path reads as an address', () => {
+    expect(cookieAvailableToOrigin({ domain: 'evil.test', hostOnly: true, secure: true, path: '//[' }, 'https://app.example.test')).toBe(false)
+    expect(cookieAvailableToOrigin({ domain: 'app.example.test', hostOnly: true, secure: true, path: '/' }, 'https://app.example.test')).toBe(true)
   })
 })

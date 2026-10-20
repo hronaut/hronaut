@@ -11,8 +11,9 @@ export function registerBrowserResize(context: McpToolContext): void {
       description: toolDescription('browser_resize'),
       inputSchema: {
         tabId: tabIdSchema.optional(),
-        width: z.number().int().min(320).max(7680).optional(),
-        height: z.number().int().min(240).max(4320).optional(),
+        // Viewport emulation accepts at most 3840 CSS pixels each way, so the schema offers no larger size.
+        width: z.number().int().min(320).max(3840).optional(),
+        height: z.number().int().min(240).max(3840).optional(),
         reset: z.boolean().optional()
       }
     },

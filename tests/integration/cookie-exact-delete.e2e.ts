@@ -44,6 +44,7 @@ test('deletes exactly one cookie by observed domain and path without collateral 
     await store.set({ url: origin, name: 'b', value: 'other', path: '/checkout' })
     await store.set({ url: origin, name: 'h', value: 'protected', path: '/checkout', httpOnly: true })
     return list()`
+  let closeDevTools = async (): Promise<void> => undefined
   try {
     await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
@@ -113,7 +114,41 @@ test('deletes exactly one cookie by observed domain and path without collateral 
     await native(index, `await cdp('Network.deleteCookies', { name: 'a', domain: '127.0.0.1', path: '/checkout', partitionKey: { topLevelSite: 'https://example.com', hasCrossSiteAncestor: true } }); await cdp('Network.deleteCookies', { name: 'a', domain: '127.0.0.1', path: '/partitioned-only', partitionKey: { topLevelSite: 'https://example.com', hasCrossSiteAncestor: true } })`)
     expect((await call('browser_storage', { workspaceId, tabId, kind: 'cookies', action: 'delete', key: 'a' })).isError).not.toBe(true)
     expect(await native<string[]>(index, 'return list()')).toEqual(['b=other@127.0.0.1/checkout', 'h=protected@127.0.0.1/checkout'])
+
+    // Name-only deletion and clear never take an HttpOnly cookie along. Electron's URL-based removal of token=guest
+    // would also delete the HttpOnly token on the parent path, which /checkout receives. None of the deletions needs
+    // Chromium's debugging connection, so they all work while Developer Tools is open for the tab.
+    const devTools = (open: boolean) => electronApp.evaluate(({ webContents }, { pageUrl, index, open }) => {
+      const page = webContents.getAllWebContents().filter(candidate => candidate.getURL() === pageUrl)[index]!
+      if (open) page.openDevTools({ mode: 'detach', activate: false })
+      else page.closeDevTools()
+    }, { pageUrl, index, open })
+    const devToolsOpen = () => electronApp.evaluate(({ webContents }, { pageUrl, index }) =>
+      webContents.getAllWebContents().filter(candidate => candidate.getURL() === pageUrl)[index]!.isDevToolsOpened(), { pageUrl, index })
+    closeDevTools = () => devTools(false)
+    await devTools(true)
+    await expect.poll(devToolsOpen).toBe(true)
+    await native(index, `
+      await store.set({ url: origin, name: 'token', value: 'session', path: '/', httpOnly: true })
+      await store.set({ url: origin, name: 'token', value: 'guest', path: '/checkout' })`)
+    const deletedByName = await call('browser_storage', { workspaceId, tabId, kind: 'cookies', action: 'delete', key: 'token' })
+    expect(deletedByName.isError, text(deletedByName)).not.toBe(true)
+    expect(JSON.parse(text(deletedByName))).toMatchObject({ action: 'delete', changed: true })
+    expect(await native<string[]>(index, 'return list()')).toEqual(['b=other@127.0.0.1/checkout', 'h=protected@127.0.0.1/checkout', 'token=session@127.0.0.1/'])
+    // A cookie set without a name, as document.cookie = 'nameless' does, is cleared too.
+    await native(index, `
+      await store.set({ url: origin, name: 'token', value: 'guest', path: '/checkout' })
+      await store.set({ url: origin, name: '', value: 'nameless', path: '/checkout' })`)
+    const cleared = await call('browser_storage', { workspaceId, tabId, kind: 'cookies', action: 'clear' })
+    expect(cleared.isError, text(cleared)).not.toBe(true)
+    expect(await native<string[]>(index, 'return list()')).toEqual(['h=protected@127.0.0.1/checkout', 'token=session@127.0.0.1/'])
+    await native(index, `await store.set({ url: origin, name: 'b', value: 'other', path: '/checkout' })`)
+    const exactWithDevTools = await exact('b', '127.0.0.1', '/checkout')
+    expect(exactWithDevTools.isError, text(exactWithDevTools)).not.toBe(true)
+    expect(await native<string[]>(index, 'return list()')).toEqual(['h=protected@127.0.0.1/checkout', 'token=session@127.0.0.1/'])
+    expect(await devToolsOpen()).toBe(true)
   } finally {
+    await closeDevTools().catch(() => undefined)
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)
   }
