@@ -1,9 +1,10 @@
 import { validateHeaderName, validateHeaderValue } from 'node:http'
 import { z } from 'zod'
-import { validateNetworkRoutePattern } from '../../shared/network-routes.js'
+import { MAX_NETWORK_ROUTE_BODY_BYTES, NetworkRoutePatternError, validateNetworkRoutePattern } from '../../shared/network-routes.js'
 import { BROWSER_NETWORK_ABORT_REASONS, type BrowserNetworkRouteInput, type BrowserNetworkRouteSummary } from '../../shared/types.js'
+import { LocalizedError } from '../localized-error.js'
 
-const MAX_BODY_BYTES = 512 * 1024
+const MAX_BODY_BYTES = MAX_NETWORK_ROUTE_BODY_BYTES
 /** How long a held request waits for release by default, and at most. */
 export const DEFAULT_HOLD_SECONDS = 30
 export const MAX_HOLD_SECONDS = 120
@@ -41,6 +42,30 @@ export function parseNetworkRouteInput(value: unknown): BrowserNetworkRouteInput
   return networkRouteInputSchema.parse(value)
 }
 
+/** The pattern as validated; a mistake a person can fix in the Network panel keeps its English message for MCP and logs. */
+function routeUrlPattern(pattern: string): string {
+  try {
+    return validateNetworkRoutePattern(pattern)
+  } catch (error) {
+    if (error instanceof NetworkRoutePatternError) throw new LocalizedError(error.key, undefined, { message: error.message })
+    throw error
+  }
+}
+
+/** Node's own header checks, whose English message MCP and logs keep; the Network panel names the mistake instead. */
+function validateResponseHeader(name: string, value: string): void {
+  try {
+    validateHeaderName(name)
+  } catch (error) {
+    throw new LocalizedError('appErrors.networkConditions.headerName', undefined, { message: (error as Error).message, cause: error })
+  }
+  try {
+    validateHeaderValue(name, value)
+  } catch (error) {
+    throw new LocalizedError('appErrors.networkConditions.headerValue', undefined, { message: (error as Error).message, cause: error })
+  }
+}
+
 export interface NormalizedNetworkRoute extends Omit<BrowserNetworkRouteSummary, 'id' | 'createdAt'> {
   responseHeaders?: Record<string, string>
   responseBody?: string
@@ -58,9 +83,10 @@ export function normalizeNetworkRouteInput(value: unknown): NormalizedNetworkRou
     if (input.times !== undefined && input.times !== 1) throw new Error('A held mock response captures exactly one request; omit times or use 1')
     if (input.method !== undefined && input.method.trim().toUpperCase() !== 'GET') throw new Error('A held mock response matches only GET requests')
   }
-  const urlPattern = validateNetworkRoutePattern(input.urlPattern)
+  const urlPattern = routeUrlPattern(input.urlPattern)
   const method = input.holdUntilReleased ? 'GET' : input.method?.trim().toUpperCase()
   if (method && !/^[A-Z][A-Z0-9!#$%&'*+.^_`|~-]{0,31}$/.test(method)) {
+    // The Network panel offers only a list of methods, so no person reaches this.
     throw new Error('Network route method must be a valid HTTP method with at most 32 characters')
   }
   if (input.throttle !== undefined) {
@@ -73,15 +99,26 @@ export function normalizeNetworkRouteInput(value: unknown): NormalizedNetworkRou
   const response = input.response!
   const body = response.body ?? ''
   const bodyBytes = Buffer.byteLength(body)
-  if (bodyBytes > MAX_BODY_BYTES) throw new Error(`Mock response body cannot exceed ${MAX_BODY_BYTES} bytes`)
+  if (bodyBytes > MAX_BODY_BYTES) {
+    throw new LocalizedError('appErrors.networkConditions.bodyTooLarge', undefined, {
+      message: `Mock response body cannot exceed ${MAX_BODY_BYTES} bytes`
+    })
+  }
   const entries = Object.entries(response.headers ?? {})
-  if (entries.length > MAX_HEADERS) throw new Error(`Mock response cannot have more than ${MAX_HEADERS} headers`)
+  if (entries.length > MAX_HEADERS) {
+    throw new LocalizedError('appErrors.networkConditions.tooManyHeaders', { max: MAX_HEADERS }, {
+      message: `Mock response cannot have more than ${MAX_HEADERS} headers`
+    })
+  }
   let headerBytes = 0
   for (const [name, value] of entries) {
-    validateHeaderName(name)
-    validateHeaderValue(name, value)
+    validateResponseHeader(name, value)
     headerBytes += Buffer.byteLength(name) + Buffer.byteLength(value)
-    if (headerBytes > MAX_HEADER_BYTES) throw new Error(`Mock response headers cannot exceed ${MAX_HEADER_BYTES} bytes`)
+    if (headerBytes > MAX_HEADER_BYTES) {
+      throw new LocalizedError('appErrors.networkConditions.headersTooLarge', undefined, {
+        message: `Mock response headers cannot exceed ${MAX_HEADER_BYTES} bytes`
+      })
+    }
   }
   return {
     ...base,

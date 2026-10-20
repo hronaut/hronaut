@@ -1,3 +1,5 @@
+import type { MessageKey } from './i18n.js'
+
 export function networkRoutePatternMatches(pattern: string, url: string): boolean {
   const tokens: Array<'*' | '?' | { literal: string }> = []
   let escaped = false
@@ -42,15 +44,32 @@ export function networkRoutePatternMatches(pattern: string, url: string): boolea
   return tokenIndex === tokens.length
 }
 
+/** The largest mock response body, in UTF-8 bytes, that a request condition accepts. */
+export const MAX_NETWORK_ROUTE_BODY_BYTES = 512 * 1024
+
+/**
+ * A URL pattern a person can fix in Request conditions. Its message stays the English text MCP results and logs
+ * carry; the main process turns its key into the interface language for the Network panel.
+ */
+export class NetworkRoutePatternError extends Error {
+  constructor(message: string, readonly key: MessageKey) {
+    super(message)
+  }
+}
+
 export function validateNetworkRoutePattern(pattern: string): string {
+  // The Network panel sends no empty pattern and its field holds at most 2,048 characters.
   if (!pattern || pattern.length > 2_048) {
     throw new Error('Network route URL pattern must contain between 1 and 2,048 characters')
   }
   if (/[\u0000-\u001f\u007f]/.test(pattern)) {
-    throw new Error('Network route URL pattern cannot contain control characters')
+    throw new NetworkRoutePatternError('Network route URL pattern cannot contain control characters', 'appErrors.networkConditions.patternControl')
   }
   if (!pattern.includes('://') && !pattern.startsWith('*')) {
-    throw new Error('Network route URL pattern must include a scheme, for example https://api.example.com/*')
+    throw new NetworkRoutePatternError(
+      'Network route URL pattern must include a scheme, for example https://api.example.com/*',
+      'appErrors.networkConditions.patternScheme'
+    )
   }
   return pattern
 }

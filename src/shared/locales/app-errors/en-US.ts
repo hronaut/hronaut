@@ -399,6 +399,18 @@ export const enUSAppErrors = {
     "saveRollbackFailed": "Wallet policy descriptor update failed and its rollback was incomplete",
     "removeRollbackFailed": "Wallet policy removal failed and its rollback was incomplete"
   },
+  "networkConditions": {
+    "patternControl": "The URL pattern cannot contain control characters, such as a tab.",
+    "patternScheme": "Start the URL pattern with a scheme or with *, for example https://api.example.com/*.",
+    "headerName": "A response header name contains a character HTTP does not allow, such as a space or a colon.",
+    "headerValue": "A response header value contains a character HTTP does not allow, such as a line break.",
+    "tooManyHeaders": "A mock response can have at most {max} headers.",
+    "headersTooLarge": "The response headers are too long; together they can have at most 32 KiB.",
+    "bodyTooLarge": "The response body is too long; it can have at most 512 KiB.",
+    "limitReached": "A tab can have at most {max} request conditions. Remove one before adding another.",
+    "websiteTab": "Request conditions work only on website tabs. Open a website, then add the condition.",
+    "conditionGone": "That request condition is no longer there; it may have been removed elsewhere, for example by an agent."
+  },
   "startupScreen": {
     "title": "Hronaut could not start",
     "description": "The application shell could not load its initial settings.",

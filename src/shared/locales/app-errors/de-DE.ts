@@ -395,6 +395,18 @@ export const deDEAppErrors: AppErrorMessages = {
     "saveRollbackFailed": "Die Richtlinie konnte nicht in der Wallet gespeichert werden, und die Änderung wurde nicht vollständig zurückgesetzt.",
     "removeRollbackFailed": "Die Wallet-Richtlinie konnte nicht entfernt werden, und die Änderung wurde nicht vollständig zurückgesetzt."
   },
+  "networkConditions": {
+    "patternControl": "Das URL-Muster darf keine Steuerzeichen wie einen Tabulator enthalten.",
+    "patternScheme": "Beginnen Sie das URL-Muster mit einem Schema oder mit *, zum Beispiel https://api.example.com/*.",
+    "headerName": "Ein Antwortheader-Name enthält ein Zeichen, das HTTP nicht zulässt, etwa ein Leerzeichen oder einen Doppelpunkt.",
+    "headerValue": "Ein Antwortheader-Wert enthält ein Zeichen, das HTTP nicht zulässt, etwa einen Zeilenumbruch.",
+    "tooManyHeaders": "Eine simulierte Antwort kann höchstens {max} Header haben.",
+    "headersTooLarge": "Die Antwortheader sind zu lang; zusammen dürfen sie höchstens 32 KiB umfassen.",
+    "bodyTooLarge": "Der Antworttext ist zu lang; er darf höchstens 512 KiB umfassen.",
+    "limitReached": "Ein Tab kann höchstens {max} Anfragebedingungen haben. Entfernen Sie eine, bevor Sie eine weitere hinzufügen.",
+    "websiteTab": "Anfragebedingungen gelten nur für Website-Tabs. Öffnen Sie eine Website und fügen Sie die Bedingung dann hinzu.",
+    "conditionGone": "Diese Anfragebedingung gibt es nicht mehr; sie wurde vielleicht anderswo entfernt, etwa von einem Agenten."
+  },
   "startupScreen": {
     "title": "Hronaut konnte nicht starten",
     "description": "Die Anwendungsoberfläche konnte ihre anfänglichen Einstellungen nicht laden.",
