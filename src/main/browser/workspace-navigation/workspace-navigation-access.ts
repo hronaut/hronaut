@@ -14,8 +14,6 @@ export interface WorkspaceNavigationTab {
   /** A sleeping tab shows a placeholder page; it wakes to its saved history, or to its address. */
   sleeping: boolean
   sleepNavigationHistory?: unknown
-  /** Set while the tab wakes; the tab is no longer sleeping but still shows the placeholder page. */
-  wakePromise?: Promise<void>
   /** Where the main frame's document navigation under way is headed, after redirects, until it commits or ends. */
   pendingMainFrameUrl?: string
 }

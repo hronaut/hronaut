@@ -90,10 +90,11 @@ export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavig
 
 /**
  * Checks one tab against its workspace's new policy and replaces a denied page with a blank one, clearing the denied
- * page's title and icon. A wake under way finishes first, so the page it opens is the one checked. A navigation still
- * under way when the policy changed is checked by where it is headed: when only that is denied, it is stopped and the
- * allowed page it would replace stays. A page that asks before leaving is replaced without asking, and a sleeping
- * tab, which would otherwise wake to the denied page, wakes on the blank page instead.
+ * page's title and icon. The tab's address is checked, never the page it shows, which for a waking tab is still the
+ * sleeping placeholder; the address is where it wakes to, so a tab waking to a denied page is blanked without waiting
+ * for that page. A navigation still under way when the policy changed is checked by where it is headed: when only that
+ * is denied, it is stopped and the allowed page it would replace stays. A page that asks before leaving is replaced
+ * without asking, and a sleeping tab, which would otherwise wake to the denied page, wakes on the blank page instead.
  */
 async function applyPolicyToTab<Tab extends WorkspaceNavigationTab>(
   access: WorkspaceNavigationAccess<Tab>,
@@ -101,10 +102,10 @@ async function applyPolicyToTab<Tab extends WorkspaceNavigationTab>(
   tab: Tab,
   policyChanged: boolean
 ): Promise<void> {
-  if (tab.wakePromise) await tab.wakePromise.catch(() => undefined)
   if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed()) return
   const shown = workspaceNavigationDecision(access, groupId, tab.url)
-  // A navigation that started before the change was checked against the old policy.
+  // A navigation that started before the change was checked against the old policy. A download or an empty response
+  // started while the page still loads keeps its target until loading stops, so it too can be stopped here.
   const headedTo = policyChanged && !tab.sleeping && tab.pendingMainFrameUrl && tab.webContents.isLoadingMainFrame()
     ? workspaceNavigationDecision(access, groupId, tab.pendingMainFrameUrl)
     : undefined

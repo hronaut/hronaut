@@ -13,7 +13,7 @@ async function listen(server: Server): Promise<string> {
 
 /**
  * Two sites: the workspace keeps the first allowed and drops the second. The second can hold a page's response, and
- * the first holds the responses for the paths a test lists until it releases them.
+ * both hold the responses for the paths a test lists until it releases them.
  */
 async function sites() {
   const blockedRequests: string[] = []
@@ -36,7 +36,11 @@ async function sites() {
   })
   const blocked = createServer((request, response) => {
     blockedRequests.push(request.url ?? '')
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+    if (heldPaths.has(request.url ?? '')) {
+      heldResponses.push(() => response.end(page(`Blocked ${request.url}`)))
+      return
+    }
     if (request.url === '/slow-page') {
       releaseSlowPage = () => response.end(page('Slow page'))
       slowPageRequested()
@@ -193,6 +197,32 @@ test('restricting a workspace lets allowed pages that are still opening or wakin
       .tabs.filter(tab => tab.id === opening || tab.id === waking).map(tab => tab.url).sort())
       .toEqual([`${site.allowedOrigin}/held-open`, `${site.allowedOrigin}/sleeper`])
     expect(await appWindow.evaluate((id) => (window as unknown as { hronaut: HronautApi }).hronaut.listWorkspaceNavigationAudit(id), workspace)).toEqual([])
+  } finally {
+    await site.close()
+  }
+})
+
+test('restricting a workspace blanks a tab waking to a dropped site without waiting for that page', async ({ appWindow, electronApp }) => {
+  const site = await sites()
+  try {
+    const { workspace, blocked } = await workspaceWithPages(appWindow, `${site.allowedOrigin}/start`, `${site.blockedOrigin}/wake-page`)
+    await appWindow.evaluate((tabId) => (window as unknown as { hronaut: HronautApi }).hronaut.setTabSleeping(tabId, true), blocked)
+    site.hold('/wake-page')
+    // Selecting the sleeping tab wakes it, which waits for the held page.
+    await appWindow.evaluate((tabId) => { void (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(tabId) }, blocked)
+    await expect.poll(() => site.blockedRequests.filter(path => path === '/wake-page').length).toBe(2)
+
+    // Saving the rules used to wait for the waking page, so it waited as long as the dropped site held its answer.
+    const state = await restrict(appWindow, workspace, site.allowedOrigin)
+    expect(state.tabs.find(tab => tab.id === blocked)).toMatchObject({ url: 'about:blank', sleeping: false })
+
+    site.releaseHeld()
+    await expect.poll(() => appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState()
+      .then(state => state.tabs.every(tab => !tab.loading)))).toBe(true)
+    expect((await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState()))
+      .tabs.find(tab => tab.id === blocked)).toMatchObject({ url: 'about:blank', sleeping: false })
+    expect(await pagesShowing(electronApp, `${site.blockedOrigin}/wake-page`)).toBe(0)
+    expect(site.blockedRequests.filter(path => path === '/wake-page')).toHaveLength(2)
   } finally {
     await site.close()
   }

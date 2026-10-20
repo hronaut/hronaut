@@ -108,18 +108,25 @@ describe('restricting a workspace', () => {
     expect(sleeping.sleepNavigationHistory).toBeDefined()
   })
 
-  it('waits for a tab that is waking and checks the page it opens, not its sleeping placeholder', async () => {
-    const waking = tab('waking', `${ALLOWED}/docs`)
-    waking.page.shown = 'data:text/html,sleeping'
-    waking.wakePromise = Promise.resolve().then(() => { waking.page.shown = `${ALLOWED}/docs` })
-    const { port, workspace } = access([waking])
+  it('checks a waking tab by the page it wakes to, not its sleeping placeholder, without waiting for it', async () => {
+    // The wake is still waiting for its page, and never finishes here.
+    const toAllowed = tab('to-allowed', `${ALLOWED}/docs`)
+    const toBlocked = tab('to-blocked', `${BLOCKED}/draft`)
+    for (const waking of [toAllowed, toBlocked]) {
+      waking.page.shown = 'data:text/html,sleeping'
+      waking.page.loadingMainFrame = true
+      waking.pendingMainFrameUrl = waking.url
+    }
+    const { port, workspace } = access([toAllowed, toBlocked])
 
     await updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)
 
-    // The placeholder used to be checked and denied, so the waking tab was blanked and went back to sleep.
-    expect(waking.page.loadURL).not.toHaveBeenCalled()
-    expect(waking.page.getURL()).toBe(`${ALLOWED}/docs`)
-    expect(workspace.navigationAudit).toEqual([])
+    // The placeholder used to be checked and denied, so a tab waking to an allowed page was blanked and slept again.
+    expect(toAllowed.page.loadURL).not.toHaveBeenCalled()
+    expect(toAllowed.page.stop).not.toHaveBeenCalled()
+    expect(toBlocked.page.loadURL.mock.calls.map(([url]) => url)).toEqual(['about:blank'])
+    expect(toBlocked).toMatchObject({ title: 'New tab', faviconDataUrl: undefined })
+    expect(workspace.navigationAudit).toEqual([expect.objectContaining({ targetOrigin: BLOCKED, source: 'policy-change' })])
   })
 
   it('blanks a denied page and clears its title and icon', async () => {
