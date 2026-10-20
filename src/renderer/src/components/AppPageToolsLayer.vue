@@ -164,6 +164,7 @@ function setSiteStoragePanel(value: unknown): void {
     :begin-mutation="beginEmulationMutation"
     :is-mutation-current="isEmulationMutationCurrent"
     :close-transient-panels="closeTransientPanels"
+    :keeps-separate-panel-open="keepsSeparatePanelOpen"
   />
   <EnvironmentPanel
     v-model:open="environmentPanelOpen"
@@ -172,6 +173,7 @@ function setSiteStoragePanel(value: unknown): void {
     :locale="locale"
     :controller="emulationController.environmentController"
     :open-responsive-preview="toggleResponsivePreview"
+    :keeps-separate-panel-open="keepsSeparatePanelOpen"
   />
   <DiagnosticsPanels
     v-model:dock="dock"

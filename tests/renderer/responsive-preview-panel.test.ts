@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import ResponsivePreviewPanel from '../../src/renderer/src/components/ResponsivePreviewPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
+import { resolveViewportPreset } from '../../src/shared/viewport-presets.js'
 
 function browserState(): BrowserState {
   return {} as BrowserState
@@ -39,6 +40,7 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
       beginMutation: () => ++mutation,
       isMutationCurrent: (sequence: number) => sequence === mutation,
       closeTransientPanels: vi.fn(),
+      keepsSeparatePanelOpen: () => false,
       ...overrides
     }
   })
@@ -109,5 +111,28 @@ describe('ResponsivePreviewPanel', () => {
 
     expect(view.emitted()['update:dock']?.at(-1)).toEqual(['bottom'])
     expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
+  })
+})
+
+describe('Responsive preview docked back from its window', () => {
+  // The panel stayed open while it was in its own window, so docked back it kept the draft it had before it left, and
+  // Apply preview put that viewport back over the one applied in the window.
+  const tablet = { ...browserTab(), emulation: { viewport: resolveViewportPreset('tablet') } } as BrowserTabState
+
+  const tabletPreset = () => screen.getByRole('button', { name: /^Tablet/ })
+
+  it('shows the tab’s viewport as it is now', async () => {
+    const view = renderPanel({ dock: 'window' })
+    expect(tabletPreset().getAttribute('aria-pressed')).toBe('false')
+    await view.rerender({ dock: 'window', activeTab: tablet })
+    expect(tabletPreset().getAttribute('aria-pressed')).toBe('false')
+    await view.rerender({ dock: 'right', activeTab: tablet })
+    expect(tabletPreset().getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('keeps the draft in the panel window as it docks back and closes', async () => {
+    const view = renderPanel({ dock: 'window', keepsSeparatePanelOpen: () => true })
+    await view.rerender({ dock: 'right', activeTab: tablet })
+    expect(tabletPreset().getAttribute('aria-pressed')).toBe('false')
   })
 })

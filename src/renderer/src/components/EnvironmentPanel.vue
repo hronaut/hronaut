@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
-import { nextTick, onBeforeUnmount, ref } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -23,6 +23,7 @@ const props = defineProps<{
   locale: SupportedLocale
   controller: ReturnType<typeof useEnvironmentPanelController>
   openResponsivePreview: () => void
+  keepsSeparatePanelOpen: () => boolean
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -43,6 +44,7 @@ const {
   networkUnconfirmed,
   recover,
   markDraftChanged,
+  loadDraft,
   apply,
   reset,
   handleEscape,
@@ -69,6 +71,13 @@ async function keepFocusThrough(action: () => Promise<unknown>): Promise<void> {
   const target = focused.isConnected && !focused.matches(':disabled') ? focused : panel
   target.focus()
 }
+
+// Docked back from its window, the panel was open all along, so it shows the tab's environment as it is now instead of
+// the draft it had before it left, which Apply would put back. The panel window itself is closing then, and keeps its
+// draft in case it stays open.
+watch(dock, (next, previous) => {
+  if (open.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && !pendingAction.value) loadDraft()
+})
 
 defineExpose({ handleEscape })
 onBeforeUnmount(dispose)
