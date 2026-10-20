@@ -185,6 +185,29 @@ describe('site-storage controller', () => {
     expect(browser.manageStorage).not.toHaveBeenCalled()
   })
 
+  it('deletes only the cookie of the row, by its domain and path, not every cookie of its name', async () => {
+    const { browser, controller } = createController()
+    controller.kind.value = 'cookies'
+    const rows = [
+      { key: 'pref', value: 'root', valueBytes: 4, domain: 'example.test', path: '/' },
+      { key: 'pref', value: 'app', valueBytes: 3, domain: 'example.test', path: '/app' }
+    ]
+    controller.result.value = { ...storageResult(), kind: 'cookies', itemCount: 2, items: rows }
+    await controller.deleteItem(rows[1])
+    expect(browser.manageStorage).toHaveBeenCalledExactlyOnceWith({
+      tabId: 'tab-1', kind: 'cookies', action: 'delete', key: 'pref', cookieDomain: 'example.test', cookiePath: '/app', includeValues: true
+    })
+  })
+
+  it('deletes a local storage entry by its key alone', async () => {
+    const { browser, controller } = createController()
+    controller.result.value = storageResult()
+    await controller.deleteItem({ key: 'theme', value: 'dark', valueBytes: 4 })
+    expect(browser.manageStorage).toHaveBeenCalledExactlyOnceWith({
+      tabId: 'tab-1', kind: 'local-storage', action: 'delete', key: 'theme', includeValues: true
+    })
+  })
+
   it('does not start another storage mutation while persistence is pending', async () => {
     const pending = deferred<BrowserStorageResult>()
     const manageStorage = vi.fn(() => pending.promise)

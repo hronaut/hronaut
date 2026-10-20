@@ -2,7 +2,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi, McpTabActivity } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 
-type Gate = { ready: boolean; calls: number; remainingAtHold?: number; release(): void; restore(): void; remaining(): Promise<number> }
+type Gate = { ready: boolean; calls: number; release(): void; restore(): void; remaining(): Promise<number> }
 type Scope = typeof globalThis & { __cookieWriteGate?: Gate }
 type Change = 'none' | 'pause' | 'pause ABA' | 'navigation' | 'navigation ABA' | 'access ABA' | 'close' | 'cancel' | 'ownership release'
 const cases: { action: 'set' | 'delete' | 'clear'; phase: 'read' | 'write' | 'readback' | 'lost-ack'; change: Change }[] = [
@@ -41,15 +41,16 @@ for (const { action, phase, change } of cases) {
         if (args[0].url === url && ++reads === (phase === 'readback' ? 2 : 1) && (phase === 'read' || phase === 'readback')) await hold()
         return result
       }
+      // Delete and clear expire each cookie through set, one exact cookie per call.
       store.set = async details => {
         gate.calls++
         await set.call(store, details)
         if (phase === 'lost-ack') { await hold(); throw new Error('synthetic-cookie-canary') }
+        if (phase === 'write' && gate.calls === 1) await hold()
       }
       store.remove = async (...args) => {
         gate.calls++
         await remove.apply(store, args)
-        if (phase === 'write' && gate.calls === 1) { gate.remainingAtHold = await gate.remaining(); await hold() }
       }
     }, { url, action, phase })
     await appWindow.evaluate(() => {
@@ -97,11 +98,7 @@ for (const { action, phase, change } of cases) {
       const calls = failed ? (phase === 'read' ? 0 : 1) : action === 'set' ? 1 : 2
       expect(await electronApp.evaluate(() => (globalThis as Scope).__cookieWriteGate!.calls)).toBe(calls)
       const remaining = await electronApp.evaluate(() => (globalThis as Scope).__cookieWriteGate!.remaining())
-      if (action === 'delete' && failed) {
-        // Legacy remove(url, name) may remove both path variants in one call.
-        // This test fences the next native dispatch, not exact-cookie identity.
-        expect(remaining).toBe(await electronApp.evaluate(() => (globalThis as Scope).__cookieWriteGate!.remainingAtHold))
-      } else expect(remaining).toBe(action === 'set' ? calls : 2 - calls)
+      expect(remaining).toBe(action === 'set' ? calls : 2 - calls)
       if (change !== 'cancel') {
         expect(result.isError === true).toBe(failed)
         if (failed) {
