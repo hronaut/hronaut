@@ -85,18 +85,28 @@ function parseCsvRows(source: string): string[][] {
 }
 
 function normalizedHeader(value: string): string {
-  return value.replace(/^\uFEFF/, '').trim().toLocaleLowerCase().replace(/[\s_-]+/g, '')
+  // Not the locale's lower case: under Turkish rules `LOGIN_URI` would become `logın_urı`.
+  return value.replace(/^\uFEFF/, '').trim().toLowerCase().replace(/[\s_-]+/g, '')
 }
 
-/** The first column with one of the names; the further names count only when no column has one of them. */
-function columnIndex(headers: string[], candidates: readonly string[], further: readonly string[] = []): number {
+/**
+ * The first column with one of the names. The further names count only when no column has one of them, in the order
+ * they are listed, so a file that imported before reads the same column and a more specific name wins over `account`.
+ */
+function columnIndex(headers: string[], candidates: readonly string[], further: readonly string[]): number {
   const index = headers.findIndex((header) => candidates.includes(header))
-  return index < 0 ? headers.findIndex((header) => further.includes(header)) : index
+  if (index >= 0) return index
+  for (const name of further) {
+    const furtherIndex = headers.indexOf(name)
+    if (furtherIndex >= 0) return furtherIndex
+  }
+  return -1
 }
 
-// Bitwarden writes every address of a login into its one `login_uri` cell, separated by commas. The first ten distinct
-// websites are imported, so one row cannot turn into an unbounded number of saved passwords.
-const URI_LIST_SEPARATOR = /,(?=\s*[a-z][a-z\d+.-]*:)/i
+// Bitwarden writes every address of a login into its one `login_uri` cell, separated by commas, as its own importer
+// reads them. Addresses without a scheme, which Bitwarden also keeps, are left out. An address with a query or
+// fragment ends the list, since a comma after it may be part of that address rather than start another website. At
+// most ten websites are saved, so one row cannot turn into an unbounded number of saved passwords.
 const MAX_ORIGINS_PER_ROW = 10
 
 function normalizedOrigin(value: string): string | null {
@@ -109,13 +119,17 @@ function normalizedOrigin(value: string): string | null {
   }
 }
 
-/** The distinct website origins a cell names: one address, or each address of a Bitwarden `login_uri` list. */
+/** The distinct website origins a cell names: one address, or the addresses of a Bitwarden `login_uri` list. */
 function normalizedOrigins(value: string, list: boolean): string[] {
+  if (!list) {
+    const origin = normalizedOrigin(value)
+    return origin ? [origin] : []
+  }
   const origins = new Set<string>()
-  for (const address of list ? value.split(URI_LIST_SEPARATOR) : [value]) {
+  for (const address of value.split(',')) {
     const origin = normalizedOrigin(address)
     if (origin) origins.add(origin)
-    if (origins.size === MAX_ORIGINS_PER_ROW) break
+    if (origins.size === MAX_ORIGINS_PER_ROW || /[?#]/.test(address)) break
   }
   return [...origins]
 }
@@ -128,8 +142,9 @@ export function parseCredentialImportCsv(source: string): ParsedCredentialImport
   const headers = header.map(normalizedHeader)
   // Together these are the names Chrome's import reads; `login_uri`, `login_username` and `login_password` are
   // Bitwarden's. A file with one of the first names reads the column it always did, even beside an `account` column.
-  const urlIndex = columnIndex(headers, ['url', 'website', 'origin'], ['hostname', 'loginuri'])
-  const usernameIndex = columnIndex(headers, ['username', 'user', 'login'], ['account', 'loginusername'])
+  // KeePass's CSV export puts the user name under `Login Name` and the entry's title under `Account`.
+  const urlIndex = columnIndex(headers, ['url', 'website', 'origin'], ['loginuri', 'hostname'])
+  const usernameIndex = columnIndex(headers, ['username', 'user', 'login'], ['loginusername', 'loginname', 'account'])
   const passwordIndex = columnIndex(headers, ['password', 'pass'], ['loginpassword'])
   const urlList = headers[urlIndex] === 'loginuri'
   if (urlIndex < 0 || usernameIndex < 0 || passwordIndex < 0) {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CredentialImportError,
   MAX_CREDENTIAL_IMPORT_ROWS,
@@ -6,6 +6,10 @@ import {
 } from '../src/main/credential-import.js'
 
 describe('browser password CSV import', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('parses Chrome-style exports, quoted values, and a UTF-8 BOM', () => {
     const parsed = parseCredentialImportCsv([
       '\uFEFFname,url,username,password,note',
@@ -77,8 +81,25 @@ describe('browser password CSV import', () => {
     expect(parsed.skippedRows).toBe(1)
   })
 
+  it('leaves addresses without a scheme out of a Bitwarden list and keeps the rest', () => {
+    // A list was split only before an address with a scheme, so `example.com` stayed inside the first address and made
+    // an origin no page has, and an IP address made the whole row unreadable.
+    const parsed = parseCredentialImportCsv('login_uri,login_username,login_password\n"https://a.test,example.com,192.168.1.1,https://b.test",person,secret')
+    expect(parsed.credentials.map(entry => entry.origin)).toEqual(['https://a.test', 'https://b.test'])
+  })
+
+  it('ends a Bitwarden list at an address with a query, whose commas may be its own', () => {
+    // A sign-in page's address whose query names another site must not save the password for that site too.
+    const parsed = parseCredentialImportCsv([
+      'login_uri,login_username,login_password',
+      '"https://bank.test/login?next=,https://evil.test/",person,secret',
+      '"https://shop.test/#a,https://other.test",buyer,secret'
+    ].join('\n'))
+    expect(parsed.credentials.map(entry => entry.origin)).toEqual(['https://bank.test', 'https://shop.test'])
+  })
+
   it('saves a login for at most ten websites from one Bitwarden row', () => {
-    const addresses = Array.from({ length: 12 }, (_, index) => `https://site${index}.test`).join(',')
+    const addresses = ['https://site0.test/a', ...Array.from({ length: 12 }, (_, index) => `https://site${index}.test`)].join(',')
     const parsed = parseCredentialImportCsv(`login_uri,login_username,login_password\n"${addresses}",person,secret`)
     expect(parsed.credentials.map(entry => entry.origin)).toEqual(
       Array.from({ length: 10 }, (_, index) => `https://site${index}.test`)
@@ -88,6 +109,33 @@ describe('browser password CSV import', () => {
   it('reads one address per cell in other exports, even when it contains a comma and another address', () => {
     const parsed = parseCredentialImportCsv('url,username,password\n"https://a.test/login?next=x,https://b.test",person,secret')
     expect(parsed.credentials).toEqual([{ origin: 'https://a.test', username: 'person', password: 'secret' }])
+  })
+
+  it('reads the user name column of a KeePass CSV export, not the entry title in Account', () => {
+    const parsed = parseCredentialImportCsv([
+      '"Account","Login Name","Password","Web Site","Comments"',
+      '"My Bank","person","secret","https://bank.test/",""'
+    ].join('\r\n'))
+    expect(parsed.credentials).toEqual([{ origin: 'https://bank.test', username: 'person', password: 'secret' }])
+  })
+
+  it('prefers the more specific of the further header names, wherever their columns are', () => {
+    expect(parseCredentialImportCsv('hostname,account,login_uri,login_username,login_password\nhttps://other.test,Title,"https://a.test,https://b.test",person,secret')
+      .credentials).toEqual([
+      { origin: 'https://a.test', username: 'person', password: 'secret' },
+      { origin: 'https://b.test', username: 'person', password: 'secret' }
+    ])
+    expect(parseCredentialImportCsv('login_username,username,url,password\nother,person,https://a.test,secret').credentials)
+      .toEqual([{ origin: 'https://a.test', username: 'person', password: 'secret' }])
+  })
+
+  it('matches header names in any letter case, with a byte order mark, under Turkish case rules too', () => {
+    // The locale's lower case turns `LOGIN_URI` into `logın_urı` under Turkish rules, so the column was not found.
+    vi.spyOn(String.prototype, 'toLocaleLowerCase').mockImplementation(function (this: string) {
+      return this.replace(/I/g, '\u0131').toLowerCase()
+    })
+    expect(parseCredentialImportCsv('\uFEFFName,LOGIN URI,LOGIN_USERNAME,Login Password\nX,"https://a.test,https://b.test",person,secret')
+      .credentials.map(entry => entry.origin)).toEqual(['https://a.test', 'https://b.test'])
   })
 
   it('accepts the hostname and account header names Chrome reads', () => {
