@@ -251,7 +251,10 @@ export function scheduleTabOverviewPreview<Tab extends TabOverviewPreviewsTab>(a
   access.tabOverviewPreviewTimers().set(tab.id, timer)
 }
 
-/** Captures the tab's current frame for the overview when it is still eligible, and keeps it as the tab's preview. */
+/**
+ * Captures the tab's current frame for the overview when it is still eligible, and keeps it as the tab's preview.
+ * While another capture of the page runs, a capture of the page in view is scheduled again once that one is done.
+ */
 export async function performTabOverviewPreviewCapture<Tab extends TabOverviewPreviewsTab>(
   access: TabOverviewPreviewsAccess<Tab>,
   tab: Tab,
@@ -276,6 +279,13 @@ export async function performTabOverviewPreviewCapture<Tab extends TabOverviewPr
     && tab.overviewPreviewSequence === sequence
   )
   if (!isEligible()) return
+  const busy = access.nativePreviewCapture().settled(tab.webContents)
+  if (busy) {
+    // Another capture of the page is still running, such as the picture of an agent's step, and this one would get
+    // nothing, so the tab had no preview until something else refreshed it. The overview refreshes its own frames.
+    if (mode === 'visible') void busy.then(() => { if (isEligible()) access.scheduleTabOverviewPreview(tab) })
+    return
+  }
   const navigationGeneration = tab.navigationGeneration
   const captured = await access.nativePreviewCapture().run(
     tab.webContents,
