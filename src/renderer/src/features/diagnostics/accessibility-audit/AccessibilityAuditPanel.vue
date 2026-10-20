@@ -74,7 +74,7 @@ function accessibilityImpactCount(impact: BrowserAccessibilityImpact): number {
       <div class="accessibility-audit-summary">
         <article>
           <strong>{{ accessibilityAudit.violationCount }}</strong>
-          <span>{{ accessibilityAudit.violationCount === 1 ? t('accessibilityAudit.violation') : t('accessibilityAudit.violations') }}</span>
+          <span>{{ t('accessibilityAudit.violations', accessibilityAudit.violationCount) }}</span>
         </article>
         <article class="critical">
           <strong>{{ accessibilityImpactCount('critical') }}</strong>
@@ -142,7 +142,7 @@ function accessibilityImpactCount(impact: BrowserAccessibilityImpact): number {
           <header>
             <span class="accessibility-impact" :class="violation.impact">{{ violation.impact }}</span>
             <strong>{{ violation.help }}</strong>
-            <small>{{ violation.id }} · {{ violation.nodeCount }} {{ violation.nodeCount === 1 ? t('accessibilityAudit.element') : t('accessibilityAudit.elements') }}</small>
+            <small>{{ violation.id }} · {{ violation.nodeCount }} {{ t('accessibilityAudit.elements', violation.nodeCount) }}</small>
           </header>
           <p>{{ violation.description }}</p>
           <ul>

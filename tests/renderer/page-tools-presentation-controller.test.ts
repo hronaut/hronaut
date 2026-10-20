@@ -4,7 +4,8 @@ import {
   usePageToolsPresentationController,
   type PageToolsPresentationControllerOptions
 } from '../../src/renderer/src/composables/usePageToolsPresentationController.js'
-import type { BrowserTabState } from '../../src/shared/types.js'
+import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import type { BrowserTabState, SupportedLocale } from '../../src/shared/types.js'
 
 function tab(overrides: Partial<BrowserTabState> = {}): BrowserTabState {
   return {
@@ -28,7 +29,7 @@ function tab(overrides: Partial<BrowserTabState> = {}): BrowserTabState {
   }
 }
 
-function create() {
+function create(locale?: SupportedLocale) {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const activeEmulation = ref<unknown>(undefined)
   const environmentState = ref<'idle' | 'applying' | 'applied' | 'error'>('idle')
@@ -70,10 +71,12 @@ function create() {
     pdfState: ref('idle'),
     pdfExport: ref<unknown>(null)
   }
-  const translate = (key: string, parameters?: Record<string, unknown>): string => {
-    const suffix = parameters ? `:${Object.values(parameters).join(',')}` : ''
-    return `[${key}${suffix}]`
-  }
+  const translate = locale
+    ? createHronautI18n(locale).global.t as PageToolsPresentationControllerOptions['translate']
+    : (key: string, parameters?: Record<string, unknown>): string => {
+      const suffix = parameters ? `:${Object.values(parameters).join(',')}` : ''
+      return `[${key}${suffix}]`
+    }
   const controller = usePageToolsPresentationController({
     activeTab,
     emulation: { activeEmulation } as unknown as PageToolsPresentationControllerOptions['emulation'],
@@ -83,7 +86,7 @@ function create() {
     capture: capture as unknown as PageToolsPresentationControllerOptions['capture'],
     pageExport: pageExport as unknown as PageToolsPresentationControllerOptions['pageExport'],
     translate,
-    formatNumber: (value) => `#${value}`,
+    formatNumber: locale ? (value) => String(value) : (value) => `#${value}`,
     formatPercent: (value, digits = 0) => `${value.toFixed(digits)}%`,
     formatBytes: (value) => `${value} B`
   })
@@ -177,7 +180,7 @@ describe('page tools presentation controller', () => {
 
     expect(state.controller.labels.value).toMatchObject({
       accessibilityAudit: '[runtime.tool.accessibilityResult:#2]',
-      qualityAudit: '[runtime.tool.qualityResult:#1,#3]',
+      qualityAudit: '[runtime.tool.qualityResult:[runtime.tool.qualityErrors:#1],[runtime.tool.qualityWarnings:#3]]',
       designOverview: '[designOverview.toolIssueCount:#2]',
       pageMetadata: '[pageMetadata.toolWarningCount:#1]',
       security: '[securityReport.toolSecure]',
@@ -212,5 +215,23 @@ describe('page tools presentation controller', () => {
     state.pageExport.pdfExport.value = null
     expect(state.controller.areaCaptureLabel.value).toBe('Selection disappeared')
     expect(state.controller.labels.value.pdfExport).toBe('[runtime.pdf.saved:[runtime.pdf.directory]]')
+  })
+
+  it('gives each count the word form its own number takes', () => {
+    // One plural form was picked for both counts, by the larger one ("1 errors · 3 warnings"), and the active
+    // conditions took English's one-or-many choice ("2 активных условий").
+    const english = create('en-US')
+    english.diagnostics.qualityAuditReport.value = { status: 'warning', totals: { errors: 1, warnings: 3 } }
+    expect(english.controller.labels.value.qualityAudit).toBe('1 error · 3 warnings')
+
+    const ukrainian = create('uk-UA')
+    ukrainian.diagnostics.qualityAuditReport.value = { status: 'warning', totals: { errors: 2, warnings: 5 } }
+    expect(ukrainian.controller.labels.value.qualityAudit).toBe('2 помилки · 5 попереджень')
+
+    const russian = create('ru-RU')
+    russian.environmentOverrideCount.value = 2
+    expect(russian.controller.labels.value.environment).toBe('2 активных условия')
+    russian.environmentOverrideCount.value = 21
+    expect(russian.controller.labels.value.environment).toBe('21 активное условие')
   })
 })

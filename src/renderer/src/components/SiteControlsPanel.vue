@@ -105,11 +105,11 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
     <div class="site-data-summary" :aria-busy="state === 'loading'">
       <article :aria-label="summary ? t('runtime.tabs.cookieAvailable', { count: localNumber(summary.cookieCount) }, summary.cookieCount) : t('runtime.tabs.loadingCookies')">
         <IconPrivacy aria-hidden="true" />
-        <span><strong>{{ summary?.cookieCount ?? '…' }}</strong><small>{{ summary?.cookieCount === 1 ? t('shell.siteControls.cookie') : t('shell.siteControls.cookies') }}</small></span>
+        <span><strong>{{ summary?.cookieCount ?? '…' }}</strong><small>{{ t('shell.siteControls.cookies', summary?.cookieCount ?? 0) }}</small></span>
       </article>
-      <article :aria-label="summary ? t('runtime.tabs.historyAvailable', { pages: localNumber(summary.historyEntries), visits: localNumber(summary.historyVisits) }, summary.historyEntries) : t('runtime.tabs.loadingHistory')">
+      <article :aria-label="summary ? t('runtime.tabs.historyAvailable', { pages: t('runtime.tabs.historyPages', { count: localNumber(summary.historyEntries) }, summary.historyEntries), visits: t('runtime.tabs.historyVisits', { count: localNumber(summary.historyVisits) }, summary.historyVisits) }) : t('runtime.tabs.loadingHistory')">
         <IconHistory aria-hidden="true" />
-        <span><strong>{{ summary?.historyEntries ?? '…' }}</strong><small>{{ summary?.historyEntries === 1 ? t('shell.siteControls.historyPage') : t('shell.siteControls.historyPages') }}<template v-if="summary"> · {{ summary.historyVisits }} {{ summary.historyVisits === 1 ? t('shell.siteControls.visit') : t('shell.siteControls.visits') }}</template></small></span>
+        <span><strong>{{ summary?.historyEntries ?? '…' }}</strong><small>{{ t('shell.siteControls.historyPages', summary?.historyEntries ?? 0) }}<template v-if="summary"> · {{ summary.historyVisits }} {{ t('shell.siteControls.visits', summary.historyVisits) }}</template></small></span>
       </article>
     </div>
     <output v-if="state === 'error'" class="site-controls-error" aria-live="polite">{{ message }}</output>

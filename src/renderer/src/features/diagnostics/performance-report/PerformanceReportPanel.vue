@@ -235,7 +235,7 @@ function performanceContributorSource(contributor: BrowserPerformanceScriptContr
             <h4>{{ t('performance.contributors') }}</h4>
             <ol>
               <li v-for="(contributor, index) in performanceReport.longAnimationFrames.contributors" :key="`${performanceContributorSource(contributor)}-${index}`">
-                <span><strong>{{ performanceContributorTitle(contributor) }}</strong><small>{{ performanceContributorSource(contributor) }} · {{ localNumber(contributor.count) }} {{ contributor.count === 1 ? t('performance.frame') : t('performance.frames') }}</small></span>
+                <span><strong>{{ performanceContributorTitle(contributor) }}</strong><small>{{ performanceContributorSource(contributor) }} · {{ localNumber(contributor.count) }} {{ t('performance.frames', contributor.count) }}</small></span>
                 <output>{{ localDuration(contributor.totalDurationMs) }}<small v-if="contributor.forcedStyleAndLayoutDurationMs">{{ localNumber(Math.round(contributor.forcedStyleAndLayoutDurationMs)) }} {{ t('performance.forcedLayout') }}</small></output>
               </li>
             </ol>

@@ -87,10 +87,7 @@ export function usePageToolsPresentationController(options: PageToolsPresentatio
     if (options.environmentState.value === 'error') return options.translate('runtime.tool.environmentAttention')
     const count = options.environmentOverrideCount.value
     if (count) {
-      return options.translate(
-        count === 1 ? 'environment.activeCondition' : 'environment.activeConditions',
-        { count: options.formatNumber(count) }
-      )
+      return options.translate('environment.activeConditions', { count: options.formatNumber(count) }, count)
     }
     return options.translate('runtime.tool.environmentDescription')
   })
@@ -112,11 +109,11 @@ export function usePageToolsPresentationController(options: PageToolsPresentatio
     if (report) {
       if (report.status === 'pass') return options.translate('runtime.tool.qualityClear')
       const { errors, warnings } = report.totals
-      return options.translate(
-        'runtime.tool.qualityResult',
-        { errors: options.formatNumber(errors), warnings: options.formatNumber(warnings) },
-        Math.max(errors, warnings)
-      )
+      // Each count takes its own word form: 1 error · 3 warnings.
+      return options.translate('runtime.tool.qualityResult', {
+        errors: options.translate('runtime.tool.qualityErrors', { count: options.formatNumber(errors) }, errors),
+        warnings: options.translate('runtime.tool.qualityWarnings', { count: options.formatNumber(warnings) }, warnings)
+      })
     }
     return options.translate('runtime.tool.qualityDescription')
   })

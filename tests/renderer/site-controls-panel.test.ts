@@ -19,6 +19,7 @@ function renderPanel(options: {
   permissionPending?: () => boolean
   permissions?: SitePermissionEntry[]
   locale?: SupportedLocale
+  summary?: { cookieCount: number; historyEntries: number; historyVisits: number }
 } = {}) {
   const setPermission = options.setPermission ?? vi.fn(() => true)
   const resetPermission = vi.fn(() => true)
@@ -32,7 +33,7 @@ function renderPanel(options: {
       hostname: 'example.test',
       addressKind: 'Secure',
       origin: 'https://example.test',
-      summary: { origin: 'https://example.test', cookieCount: 2, historyEntries: 3, historyVisits: 5 },
+      summary: { origin: 'https://example.test', ...(options.summary ?? { cookieCount: 2, historyEntries: 3, historyVisits: 5 }) },
       state: 'idle',
       message: '',
       permissions: options.permissions ?? [cameraPermission],
@@ -127,5 +128,26 @@ describe('SiteControlsPanel', () => {
     english.view.unmount()
     renderPanel({ permissions, locale: 'uk-UA' })
     expect(screen.getByText('Налаштовано: 2')).toBeVisible()
+  })
+
+  it('names cookies, history pages and visits in the form each count takes', () => {
+    // The words followed English's one-or-many choice, and the history's spoken summary took one form for both
+    // counts: "5 файлы cookie", "5 посещения", "1 history page and 4 visit".
+    const english = renderPanel({ summary: { cookieCount: 1, historyEntries: 1, historyVisits: 4 } })
+    expect(screen.getByRole('article', { name: '1 history page and 4 visits' })).toBeVisible()
+    expect(screen.getByText('cookie')).toBeVisible()
+    expect(screen.getByText('history page · 4 visits')).toBeVisible()
+    english.view.unmount()
+
+    const russian = renderPanel({ locale: 'ru-RU', summary: { cookieCount: 5, historyEntries: 1, historyVisits: 5 } })
+    expect(screen.getByRole('article', { name: '1 страница истории и 5 посещений' })).toBeVisible()
+    expect(screen.getByText('файлов cookie')).toBeVisible()
+    expect(screen.getByText('страница истории · 5 посещений')).toBeVisible()
+    russian.view.unmount()
+
+    renderPanel({ locale: 'uk-UA', summary: { cookieCount: 2, historyEntries: 3, historyVisits: 22 } })
+    expect(screen.getByRole('article', { name: '3 сторінки історії та 22 відвідування' })).toBeVisible()
+    expect(screen.getByText('файли cookie')).toBeVisible()
+    expect(screen.getByText('сторінки історії · 22 відвідування')).toBeVisible()
   })
 })

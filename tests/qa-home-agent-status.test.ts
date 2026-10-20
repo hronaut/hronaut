@@ -135,4 +135,17 @@ describe('Home status Details facts (#870)', () => {
     expect(statusDot()).toBe('dot error')
     expect(facts()).toEqual({ detail: 'Reconnecting to local status', active: 'Unavailable', requests: 'Reconnecting to local status' })
   })
+
+  it('counts requests and actions in the form each number takes', async () => {
+    // Home chose between one and many as English does: "Obsłużono 2 żądań MCP", "Hronaut успішно виконав 3 дій із
+    // вкладками."
+    mountTestHome({ locale: 'pl-PL', dashboard: { ...baseDashboard, activeRequests: 2, totalRequests: 2 } })
+    await flush()
+    expect(facts().requests).toBe('Obsłużono 2 żądania MCP')
+    mountTestHome({ locale: 'uk-UA', dashboard: { ...baseDashboard, activeRequests: 21, totalRequests: 21, completedToolCalls: 3 } })
+    await flush()
+    expect(facts()).toMatchObject({ active: '21 активний', requests: 'Оброблено 21 MCP-запит' })
+    expect(words(byId('activity-count'))).toBe('3 дії')
+    expect(words(byId('support-heading'))).toBe('Hronaut успішно виконав 3 дії з вкладками.')
+  })
 })
