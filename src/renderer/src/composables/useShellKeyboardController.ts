@@ -51,9 +51,12 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
     })
     guardInteraction(event)
     if (event.defaultPrevented || composing) return
+    // A held Escape repeats. Only its first press closes anything, so holding it after closing one surface, such as
+    // Find, does not close the next one too, such as a panel in its own window.
+    const escape = event.key === 'Escape' && !event.repeat
     // Its own two shortcuts reach the open palette: each closes its list or turns to the other one.
     if (options.commandPalette.isOpen() && shortcut !== 'command-palette' && shortcut !== 'switch-workspace') {
-      if (event.key === 'Escape') options.commandPalette.close()
+      if (escape) options.commandPalette.close()
       return
     }
     const activeModal = options.modalSurfaces.find((surface) => surface.isOpen())
@@ -63,7 +66,7 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
         activeModal.close()
         return
       }
-      if (event.key === 'Escape') {
+      if (escape) {
         event.preventDefault()
         closeFirst(options.modalSurfaces)
       }
@@ -74,7 +77,7 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
       options.runShortcut(shortcut)
       return
     }
-    if (event.key === 'Escape') closeFirst(options.escapeSurfaces)
+    if (escape) closeFirst(options.escapeSurfaces)
   }
 
   return { guardInteraction, handleKeyDown }

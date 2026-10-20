@@ -45,6 +45,36 @@ describe('useShellKeyboardController', () => {
     expect(panel.close).not.toHaveBeenCalled()
   })
 
+  it('closes one surface for a held Escape, not one for each repeat', () => {
+    const commandPalette = surface(true)
+    const modal = surface(true)
+    const nextModal = surface(true)
+    const panel = surface(true)
+    const nextPanel = surface(true)
+    const { controller } = setup({ commandPalette, modalSurfaces: [modal, nextModal], escapeSurfaces: [panel, nextPanel] })
+    const press = () => controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }))
+    const repeat = () => controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape', repeat: true, cancelable: true }))
+
+    press()
+    repeat()
+    repeat()
+    expect(commandPalette.close).toHaveBeenCalledTimes(1)
+    expect(modal.close).not.toHaveBeenCalled()
+
+    press()
+    repeat()
+    expect(modal.close).toHaveBeenCalledTimes(1)
+    expect(nextModal.close).not.toHaveBeenCalled()
+
+    press()
+    press()
+    repeat()
+    repeat()
+    expect(nextModal.close).toHaveBeenCalledTimes(1)
+    expect(panel.close).toHaveBeenCalledTimes(1)
+    expect(nextPanel.close).not.toHaveBeenCalled()
+  })
+
   it('recognizes Chromium process-key fallback events as IME composition', () => {
     const commandPalette = surface(true)
     const { controller } = setup({ commandPalette })
