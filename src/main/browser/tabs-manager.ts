@@ -704,6 +704,8 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   lastHumanInteractionAt: number
   suppressInitialHistory: boolean
   pendingHistoryUrl: string | null
+  /** Where the main frame's document navigation under way is headed, after redirects, until it commits or ends. */
+  pendingMainFrameUrl?: string
   pageProblem?: BrowserPageProblem
   dialog?: BrowserJavaScriptDialog
   emulation: BrowserEmulationState
@@ -1790,6 +1792,7 @@ export class BrowserTabsManager {
       inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
       setInspectionPermission: (workspace, generation) => { this.inspectionPermissions.set(workspace, generation) },
       tabs: () => this.tabs.values(),
+      findTab: (tabId) => this.tabs.get(tabId),
       options: () => this.options,
       prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
       wakeTab: (tabId) => this.wakeTab(tabId),

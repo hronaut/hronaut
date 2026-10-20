@@ -4,6 +4,7 @@ import type {
   BrowserWorkspaceNavigationAuditSource,
   BrowserWorkspaceNavigationPolicy
 } from '../../../shared/types.js'
+import { UNTITLED_TAB_TITLE } from '../../../shared/tab-title.js'
 import { LocalizedError } from '../../localized-error.js'
 import { uuidV7 } from '../../uuid-v7.js'
 import { isAgentWorkspaceNavigationUrl } from '../url.js'
@@ -52,9 +53,8 @@ export function listWorkspaceNavigationAudit<Tab extends WorkspaceNavigationTab>
  * origin cannot change. A changed policy also advances the workspace's
  * inspection permission. Each of the workspace's tabs is then checked against
  * the new policy: the decision is reported, and a denied page is recorded and
- * replaced with a blank page. That includes a page still loading, which is
- * stopped first so it cannot open after the check, a page that asks before
- * leaving, and a sleeping tab, which would otherwise wake to the denied page.
+ * replaced with a blank page (see applyPolicyToTab). A tab that fails is
+ * reported after the others are checked.
  */
 export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavigationTab>(
   access: WorkspaceNavigationAccess<Tab>,
@@ -73,44 +73,71 @@ export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavig
   if (policyChanged) access.setInspectionPermission(group, (access.inspectionPermission(group) ?? 0) + 1)
   group.navigationPolicy = policy
   group.lastUsedAt = new Date().toISOString()
-  for (const tab of [...access.tabs()]) {
+  const failures: unknown[] = []
+  // The live iterator skips a tab closed while an earlier one is replaced.
+  for (const tab of access.tabs()) {
     if (tab.mcpGroupId !== groupId) continue
-    // The tab's address changes only once a page opens, so under a new policy a page still loading is stopped before
-    // it is checked, and the page the tab shows is checked too when it opened just before.
-    if (policyChanged && !tab.sleeping && tab.webContents.isLoadingMainFrame()) tab.webContents.stop()
-    const shown = tab.sleeping ? '' : tab.webContents.getURL()
-    const decision = deniedFirst([tab.url, ...(shown && isAgentWorkspaceNavigationUrl(shown) ? [shown] : [])]
-      .map((url) => workspaceNavigationDecision(access, groupId, url)))
-    access.options().onWorkspaceNavigationDecision?.(groupId, decision, 'policy-change')
-    if (decision.allowed) continue
-    recordWorkspaceNavigationDenied(access, groupId, decision, 'policy-change')
-    if (tab.sleeping) {
-      // A sleeping tab holds no page, only the history and address it wakes to. Replace them and wake it on a blank
-      // page, so neither waking it nor archiving the workspace brings the denied page back.
-      tab.url = 'about:blank'
-      tab.sleepNavigationHistory = undefined
-      await access.wakeTab(tab.id)
-      continue
+    try {
+      await applyPolicyToTab(access, groupId, tab, policyChanged)
+    } catch (error) {
+      if (access.findTab(tab.id) === tab) failures.push(error)
     }
-    access.prepareDiagnosticNavigation(tab)
-    await loadBlankPageWithoutUnloadPrompt(tab)
   }
   access.changed()
+  if (failures.length) throw failures[0]
   return access.getState()
 }
 
-/** The first denial among the decisions, or the first decision when all allow. */
-function deniedFirst(decisions: WorkspaceNavigationDecision[]): WorkspaceNavigationDecision {
-  return decisions.find((decision) => !decision.allowed) ?? decisions[0]!
+/**
+ * Checks one tab against its workspace's new policy and replaces a denied page with a blank one, clearing the denied
+ * page's title and icon. A wake under way finishes first, so the page it opens is the one checked. A navigation still
+ * under way when the policy changed is checked by where it is headed: when only that is denied, it is stopped and the
+ * allowed page it would replace stays. A page that asks before leaving is replaced without asking, and a sleeping
+ * tab, which would otherwise wake to the denied page, wakes on the blank page instead.
+ */
+async function applyPolicyToTab<Tab extends WorkspaceNavigationTab>(
+  access: WorkspaceNavigationAccess<Tab>,
+  groupId: string,
+  tab: Tab,
+  policyChanged: boolean
+): Promise<void> {
+  if (tab.wakePromise) await tab.wakePromise.catch(() => undefined)
+  if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed()) return
+  const shown = workspaceNavigationDecision(access, groupId, tab.url)
+  // A navigation that started before the change was checked against the old policy.
+  const headedTo = policyChanged && !tab.sleeping && tab.pendingMainFrameUrl && tab.webContents.isLoadingMainFrame()
+    ? workspaceNavigationDecision(access, groupId, tab.pendingMainFrameUrl)
+    : undefined
+  const decision = shown.allowed && headedTo ? headedTo : shown
+  access.options().onWorkspaceNavigationDecision?.(groupId, decision, 'policy-change')
+  if (decision.allowed) return
+  recordWorkspaceNavigationDenied(access, groupId, decision, 'policy-change')
+  if (shown.allowed) {
+    tab.webContents.stop()
+    return
+  }
+  tab.title = UNTITLED_TAB_TITLE
+  tab.faviconDataUrl = undefined
+  if (tab.sleeping) {
+    // A sleeping tab holds no page, only the history and address it wakes to. Replace them and wake it on a blank
+    // page, so neither waking it nor archiving the workspace brings the denied page back.
+    tab.url = 'about:blank'
+    tab.sleepNavigationHistory = undefined
+    await access.wakeTab(tab.id)
+    return
+  }
+  access.prepareDiagnosticNavigation(tab)
+  await loadBlankPageWithoutUnloadPrompt(tab)
 }
 
 /**
  * Replaces the tab's page with a blank one. A page that asks before leaving, such as an editor with unsaved text,
- * would otherwise cancel the load and stay open on a site the policy no longer allows, so its question is skipped.
+ * would otherwise cancel the load and stay open on a site the policy no longer allows, so its question is skipped,
+ * once: a later question, such as one the person's own close of the tab raises, is asked as usual.
  */
 async function loadBlankPageWithoutUnloadPrompt(tab: WorkspaceNavigationTab): Promise<void> {
   const skipUnloadPrompt = (event: Electron.Event): void => event.preventDefault()
-  tab.webContents.on('will-prevent-unload', skipUnloadPrompt)
+  tab.webContents.once('will-prevent-unload', skipUnloadPrompt)
   try {
     await tab.webContents.loadURL('about:blank')
   } catch (error) {

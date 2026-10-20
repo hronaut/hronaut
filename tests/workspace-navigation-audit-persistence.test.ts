@@ -27,6 +27,7 @@ function recordingAccess(workspace: WorkspaceNavigationWorkspace): WorkspaceNavi
     inspectionPermission: () => undefined,
     setInspectionPermission: () => undefined,
     tabs: () => [][Symbol.iterator](),
+    findTab: () => undefined,
     options: () => ({}),
     prepareDiagnosticNavigation: () => undefined,
     wakeTab: async () => undefined,

@@ -7,11 +7,17 @@ import type { ActiveWorkspace, ArchivedWorkspace } from '../workspace-registry.j
 export interface WorkspaceNavigationTab {
   id: string
   url: string
+  title: string
+  faviconDataUrl?: string
   mcpGroupId?: string
   webContents: WebContents
   /** A sleeping tab shows a placeholder page; it wakes to its saved history, or to its address. */
   sleeping: boolean
   sleepNavigationHistory?: unknown
+  /** Set while the tab wakes; the tab is no longer sleeping but still shows the placeholder page. */
+  wakePromise?: Promise<void>
+  /** Where the main frame's document navigation under way is headed, after redirects, until it commits or ends. */
+  pendingMainFrameUrl?: string
 }
 
 /** The workspace fields the navigation policy reads and writes: the policy itself and its audit of denials. */
@@ -36,6 +42,7 @@ export interface WorkspaceNavigationAccess<Tab extends WorkspaceNavigationTab> {
   inspectionPermission(workspace: object): number | undefined
   setInspectionPermission(workspace: object, generation: number): void
   tabs(): IterableIterator<Tab>
+  findTab(tabId: string): Tab | undefined
   options(): WorkspaceNavigationOptions
   prepareDiagnosticNavigation(tab: Tab): void
   wakeTab(tabId: string): Promise<unknown>

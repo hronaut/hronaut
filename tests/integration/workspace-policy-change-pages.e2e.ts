@@ -11,15 +11,27 @@ async function listen(server: Server): Promise<string> {
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 }
 
-/** Two sites: the workspace keeps the first allowed and drops the second. The second can hold a page's response. */
+/**
+ * Two sites: the workspace keeps the first allowed and drops the second. The second can hold a page's response, and
+ * the first holds the responses for the paths a test lists until it releases them.
+ */
 async function sites() {
   const blockedRequests: string[] = []
   let releaseSlowPage: (() => void) | undefined
   let slowPageRequested!: () => void
   const slowPageReached = new Promise<void>((resolve) => { slowPageRequested = resolve })
   const page = (title: string, script = '') => `<!doctype html><title>${title}</title><input id="draft"><script>${script}</script>`
-  const allowed = createServer((_request, response) => {
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+  const heldPaths = new Set<string>()
+  const heldResponses: (() => void)[] = []
+  const allowedRequests: string[] = []
+  const allowed = createServer((request, response) => {
+    allowedRequests.push(request.url ?? '')
+    // No copy is kept, so waking a tab asks the site again.
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+    if (heldPaths.has(request.url ?? '')) {
+      heldResponses.push(() => response.end(page(`Allowed ${request.url}`)))
+      return
+    }
     response.end(page('Allowed page'))
   })
   const blocked = createServer((request, response) => {
@@ -40,8 +52,15 @@ async function sites() {
     blockedRequests,
     slowPageReached,
     releaseSlowPage: () => releaseSlowPage?.(),
+    allowedRequests,
+    hold: (...paths: string[]) => { for (const path of paths) heldPaths.add(path) },
+    releaseHeld: () => {
+      heldPaths.clear()
+      for (const release of heldResponses.splice(0)) release()
+    },
     close: async () => {
       releaseSlowPage?.()
+      for (const release of heldResponses.splice(0)) release()
       await Promise.all([closeFixtureServer(allowed), closeFixtureServer(blocked)])
     }
   }
@@ -141,6 +160,39 @@ test('restricting a workspace replaces a page of a dropped site even when it ask
 
     expect(state.tabs.find(tab => tab.id === blocked)?.url).toBe('about:blank')
     expect(await pagesShowing(electronApp, draftUrl)).toBe(0)
+  } finally {
+    await site.close()
+  }
+})
+
+test('restricting a workspace lets allowed pages that are still opening or waking finish', async ({ appWindow, electronApp }) => {
+  const site = await sites()
+  try {
+    const { workspace, allowed: opening, blocked: waking } = await workspaceWithPages(appWindow, `${site.allowedOrigin}/start`, `${site.allowedOrigin}/sleeper`)
+    await appWindow.evaluate((tabId) => (window as unknown as { hronaut: HronautApi }).hronaut.setTabSleeping(tabId, true), waking)
+    site.hold('/held-open', '/sleeper')
+    await electronApp.evaluate(({ webContents }, { from, to }) => {
+      void webContents.getAllWebContents().find(contents => contents.getURL() === from)!.executeJavaScript(`location.href = ${JSON.stringify(to)}`)
+    }, { from: `${site.allowedOrigin}/start`, to: `${site.allowedOrigin}/held-open` })
+    // Selecting the sleeping tab wakes it, which waits for the held page.
+    await appWindow.evaluate((tabId) => { void (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(tabId) }, waking)
+    await expect.poll(() => ['/held-open', '/sleeper'].every(path => site.allowedRequests.includes(path))).toBe(true)
+
+    const restricting = restrict(appWindow, workspace, site.allowedOrigin)
+    await expect.poll(() => appWindow.evaluate((id) => (window as unknown as { hronaut: HronautApi }).hronaut.getState()
+      .then(state => state.mcpTabGroups.find(group => group.id === id)?.navigationPolicy.mode), workspace)).toBe('restricted')
+    site.releaseHeld()
+    const state = await restricting
+
+    // The page still opening used to be stopped, and the waking tab was checked on its sleeping placeholder,
+    // blanked, and put back to sleep.
+    expect(state.tabs.find(tab => tab.id === waking)).toMatchObject({ sleeping: false })
+    await expect.poll(() => pagesShowing(electronApp, `${site.allowedOrigin}/held-open`)).toBe(1)
+    await expect.poll(() => pagesShowing(electronApp, `${site.allowedOrigin}/sleeper`)).toBe(1)
+    expect((await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState()))
+      .tabs.filter(tab => tab.id === opening || tab.id === waking).map(tab => tab.url).sort())
+      .toEqual([`${site.allowedOrigin}/held-open`, `${site.allowedOrigin}/sleeper`])
+    expect(await appWindow.evaluate((id) => (window as unknown as { hronaut: HronautApi }).hronaut.listWorkspaceNavigationAudit(id), workspace)).toEqual([])
   } finally {
     await site.close()
   }
