@@ -46,8 +46,9 @@ export function createSiteData(host: SiteDataHost): {
 
   /**
    * Removes the cookies the origin receives, the ones its summary counts. Chromium clears cookies by origin for the whole
-   * registrable domain, such as every subdomain of example.com, so they are removed one name at a time, through the
-   * origin's own address at the cookie's path, which only cookies the origin receives are sent to.
+   * registrable domain, such as every subdomain of example.com, and with them cached HTTP sign-ins, so they are removed
+   * one name at a time, through the origin's own address at the cookie's path, which only cookies the origin receives
+   * are sent to.
    */
   async function removeOriginCookies(browserSession: Session, origin: string): Promise<void> {
     const cookies = (await browserSession.cookies.get({})).filter((cookie) => cookieAvailableToOrigin(cookie, origin))
