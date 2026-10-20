@@ -56,6 +56,7 @@ All notable changes to Hronaut are documented in this file.
 - Archiving two workspaces at the same time, such as one you archive while an agent saves another, can no longer leave more than 50 archived workspaces, which stopped Hronaut's next start with a recovery notice. When both needed the last archive place, both were archived; now the second is refused with the archive limit and stays open.
 - A bookmarks file Hronaut cannot read, such as one cut short by a disk error or a sync tool, or one written by a newer Hronaut, is now kept: it stays in place until you save a bookmark, which first renames it to `bookmarks.json.unreadable-<UTC time>` in the profile folder. Hronaut started with no bookmarks either way, but the next bookmark you saved replaced the file and every bookmark in it was gone.
 - Importing a workspace template that needs more tabs or open workspaces than Hronaut has room for now stops before anything is created and says how many tabs and workspaces it needs and how many are free. It used to create workspaces and open start pages until it hit one of these limits, then remove them all again and show only that the import did not finish.
+- **Close other tabs** and **Close tabs to the right** no longer wake sleeping tabs only to close them. When the tab you were looking at was among those closing, it closed first and each sleeping tab after it was shown in turn, loading its site again, before it closed too; the shown tab now closes last and hands over to a tab that stays open.
 
 ### Security
 

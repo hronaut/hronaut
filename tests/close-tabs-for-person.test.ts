@@ -16,6 +16,7 @@ function manager(tabs: Tab[]) {
     getTab: (tabId?: string) => open.get(tabId ?? '')!,
     findTab: (tabId: string) => open.get(tabId),
     orderedTabs: () => [...open.values()],
+    activeTabId: () => null,
     closedTabs: () => closed,
     closeTabInternal: vi.fn(async (tabId: string) => {
       const tab = open.get(tabId)!
@@ -42,6 +43,36 @@ describe('closing tabs for the person', () => {
     // A website that calls itself "New tab" keeps its own title.
     await closeTabsForPerson(access, ['site'])
     expect(offers.map(offer => offer.name)).toEqual(['Нова вкладка', 'New tab'])
+  })
+
+  it('closes the shown tab last, so no sleeping tab wakes only to be closed next', async () => {
+    const tabs = ['shown', 'asleep-1', 'asleep-2', 'kept'].map(id => ({ id, title: id, url: `https://example.test/${id}`, pinned: false, sleeping: id.startsWith('asleep') }))
+    const { access, offers } = manager(tabs)
+    // Closing the shown tab shows the next one, waking it when it sleeps, as the tab manager does.
+    let active: string | null = 'shown'
+    const woken: string[] = []
+    const close = access.closeTabInternal as ReturnType<typeof vi.fn>
+    const closeTab = close.getMockImplementation() as (tabId: string, ...rest: unknown[]) => Promise<BrowserState>
+    Object.assign(access, { activeTabId: () => active })
+    close.mockImplementation(async (tabId: string, ...rest: unknown[]) => {
+      const order = access.orderedTabs()
+      const next = order[order.findIndex(tab => tab.id === tabId) + 1] ?? order.at(-2)
+      const result = await closeTab(tabId, ...rest)
+      if (tabId === active) {
+        active = next?.id ?? null
+        const replacement = tabs.find(tab => tab.id === active)
+        if (replacement?.sleeping) { woken.push(replacement.id); replacement.sleeping = false }
+      }
+      return result
+    })
+
+    // Close other tabs on the last tab passes the others in order, the shown one first.
+    await closeTabsForPerson(access, ['shown', 'asleep-1', 'asleep-2'])
+
+    expect(access.orderedTabs().map(tab => tab.id)).toEqual(['kept'])
+    expect(active).toBe('kept')
+    expect(woken).toEqual([])
+    expect(offers).toMatchObject([{ kind: 'tabs-closed', count: 3 }])
   })
 
   it('names a closed tab by its label first', async () => {
