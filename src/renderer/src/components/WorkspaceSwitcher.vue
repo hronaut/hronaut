@@ -210,7 +210,9 @@ function handleKeydown(event: KeyboardEvent): void {
     move(event.key === 'ArrowDown' ? 1 : -1)
   } else if (event.key === 'Enter' && selected.value) {
     event.preventDefault()
-    void choose(selected.value)
+    // The switcher opens with the focus here and another workspace selected, often from Switch workspace pressed with
+    // Enter, so a held Enter would switch without a choice.
+    if (!event.repeat) void choose(selected.value)
   }
 }
 

@@ -43,6 +43,7 @@ import { useCollapsedTabGroups } from '../composables/useCollapsedTabGroups.js'
 import { useTabDragReorder } from '../composables/useTabDragReorder.js'
 import { useTabStripScroll } from '../composables/useTabStripScroll.js'
 import { vTooltip } from '../ui/tooltip.js'
+import { ignoreHeldEnter } from '../held-enter.js'
 
 const props = defineProps<{
   state: BrowserState
@@ -479,6 +480,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
       aria-keyshortcuts="Control+K Meta+K"
       aria-haspopup="dialog"
       :aria-expanded="workspaceSwitcherOpen === true"
+      @keydown="ignoreHeldEnter"
       @click="emit('switchWorkspace')"
     ><IconSearch aria-hidden="true" /></UiButton>
     <UiButton appearance="application"
@@ -674,6 +676,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
       aria-haspopup="dialog"
       :aria-expanded="workspaceSwitcherOpen === true"
       data-testid="all-workspaces"
+      @keydown="ignoreHeldEnter"
       @click="emit('switchWorkspace')"
     ><IconStacks aria-hidden="true" /><span class="all-workspaces-label">{{ allWorkspacesLabel }}</span><span v-if="unlistedWorkspaceNeedsYou" class="all-workspaces-needs-you" aria-hidden="true" /></UiButton>
     <UiButton v-if="!state.mcpTabGroups.length" appearance="application"
