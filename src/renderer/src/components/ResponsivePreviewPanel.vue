@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
-import { computed, nextTick, onBeforeUnmount, ref, toRef } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDevices from '~icons/material-symbols/devices-rounded'
@@ -28,6 +28,7 @@ const props = defineProps<{
   beginMutation: () => number
   isMutationCurrent: (sequence: number, tabId: string) => boolean
   closeTransientPanels: () => void
+  keepsSeparatePanelOpen: () => boolean
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -96,6 +97,16 @@ async function keepFocusThrough(action: () => Promise<unknown>): Promise<void> {
   const target = focused.isConnected && !focused.matches(':disabled') ? focused : panel
   target.focus()
 }
+
+// Docked back from its window, the panel was open all along, so when the tab's viewport changed meanwhile it shows it as
+// it is now instead of the draft it had before it left, which Apply preview would put back. A window that failed to open
+// changed nothing, so the panel keeps its draft; so does the closing panel window itself, in case it stays open.
+const appliedViewport = (): string => JSON.stringify([props.activeTab?.id, props.activeTab?.emulation?.viewport ?? null])
+let viewportWhenDetached = ''
+watch(dock, (next, previous) => {
+  if (next === 'window') viewportWhenDetached = appliedViewport()
+  else if (open.value && previous === 'window' && !props.keepsSeparatePanelOpen() && !pendingAction.value && appliedViewport() !== viewportWhenDetached) loadDraft()
+})
 
 defineExpose({ toggle, loadDraft, resetFeedback, handleEscape })
 onBeforeUnmount(dispose)

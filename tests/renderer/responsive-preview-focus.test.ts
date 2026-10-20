@@ -38,7 +38,8 @@ function renderPanel(pending: Promise<BrowserState>, emulated = false) {
       syncState: async (operation: Promise<BrowserState>) => { await operation },
       beginMutation: () => ++mutation,
       isMutationCurrent: (sequence: number) => sequence === mutation,
-      closeTransientPanels: vi.fn()
+      closeTransientPanels: vi.fn(),
+      keepsSeparatePanelOpen: () => false
     }
   })
 }

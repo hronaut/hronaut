@@ -6,7 +6,7 @@ import EnvironmentPanel from '../../src/renderer/src/components/EnvironmentPanel
 import { useEnvironmentPanelController } from '../../src/renderer/src/composables/useEnvironmentPanelController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { browserEnvironmentFromEmulation } from '../../src/shared/browser-environment.js'
-import type { BrowserEnvironmentSettings, BrowserState, BrowserTabState } from '../../src/shared/types.js'
+import type { BrowserEnvironmentSettings, BrowserState, BrowserTabState, PanelDock } from '../../src/shared/types.js'
 
 function browserState(): BrowserState {
   return {} as BrowserState
@@ -30,6 +30,8 @@ function deferred<T>() {
 function renderPanel(overrides: {
   setTabEnvironment?: (tabId: string, environment: BrowserEnvironmentSettings) => Promise<BrowserState>
   recoverTabEmulation?: (tabId: string) => Promise<BrowserState>
+  dock?: PanelDock
+  keepsSeparatePanelOpen?: () => boolean
 } = {}) {
   const open = ref(true)
   const activeTab = ref<BrowserTabState | undefined>(browserTab())
@@ -50,11 +52,12 @@ function renderPanel(overrides: {
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
       open: true,
-      dock: 'right',
+      dock: overrides.dock ?? 'right',
       activeTab: activeTab.value,
       locale: 'en-US',
       controller,
-      openResponsivePreview: vi.fn()
+      openResponsivePreview: vi.fn(),
+      keepsSeparatePanelOpen: overrides.keepsSeparatePanelOpen ?? (() => false)
     }
   })
   return { view, controller, activeTab }
@@ -189,4 +192,51 @@ it('moves the focus to the panel once Restore retained settings succeeds and dis
     view.unmount()
     vi.restoreAllMocks()
   }
+})
+
+describe('Environment docked back from its window', () => {
+  // The panel stayed open while it was in its own window, so docked back it kept the draft it had before it left, and
+  // Apply put those settings back over the ones applied in the window.
+  const fast = (): BrowserTabState => ({ ...browserTab(), emulation: { ...browserEnvironmentFromEmulation(), network: 'fast-4g' } } as BrowserTabState)
+  const network = () => screen.getByRole<HTMLSelectElement>('combobox', { name: 'Network' })
+
+  it('shows the tab’s environment as it is now', async () => {
+    const { view, activeTab } = renderPanel()
+    expect(network().value).toBe('slow-3g')
+    await view.rerender({ dock: 'window' })
+    activeTab.value = fast()
+    await view.rerender({ dock: 'window', activeTab: activeTab.value })
+    expect(network().value).toBe('slow-3g')
+    await view.rerender({ dock: 'right', activeTab: activeTab.value })
+    expect(network().value).toBe('fast-4g')
+  })
+
+  it('keeps a draft not yet applied when its window did not open', async () => {
+    const { view } = renderPanel()
+    await userEvent.setup().selectOptions(network(), 'offline')
+    await view.rerender({ dock: 'window' })
+    await view.rerender({ dock: 'right' })
+    expect(network().value).toBe('offline')
+  })
+
+  it('lets a running Apply finish before it shows the tab again', async () => {
+    const pending = deferred<BrowserState>()
+    const { view, activeTab } = renderPanel({ setTabEnvironment: vi.fn(() => pending.promise) })
+    const user = userEvent.setup()
+    await user.selectOptions(network(), 'offline')
+    await user.click(screen.getByRole('button', { name: /^Apply$/ }))
+    await view.rerender({ dock: 'window' })
+    activeTab.value = fast()
+    await view.rerender({ dock: 'right', activeTab: activeTab.value })
+    expect(screen.getByRole('dialog', { name: 'Environment' })).toHaveAttribute('aria-busy', 'true')
+    expect(network().value).toBe('offline')
+    pending.resolve(browserState())
+  })
+
+  it('keeps the draft in the panel window as it docks back and closes', async () => {
+    const { view, activeTab } = renderPanel({ dock: 'window', keepsSeparatePanelOpen: () => true })
+    activeTab.value = fast()
+    await view.rerender({ dock: 'right', activeTab: activeTab.value })
+    expect(network().value).toBe('slow-3g')
+  })
 })
