@@ -50,6 +50,7 @@ All notable changes to Hronaut are documented in this file.
 ### Security
 
 - With **Follow agents** on, an agent no longer learns which tab Follow shows, or the name of the agent it follows, when that tab belongs to another workspace. `browser_status` and the other tools that return a workspace's state included both, and tools that return the browser state after an action, such as `browser_navigate`, `browser_select_tab` or `browser_close_tab`, also included another workspace's split view, so an agent could read the IDs of another workspace's tabs and which agent was working there. An agent still sees Follow and split view when they show its own workspace's tabs.
+- `browser_site_data` clearing an origin's cookies no longer signs the workspace out of its sibling subdomains. Clearing `https://app.example.com` removed the cookies of every `example.com` address, such as an HttpOnly sign-in on `admin.example.com`, because Chromium clears cookies for a whole site; an agent allowed only that origin could do it, and the result, which counts only that origin's cookies, did not show it. Now only the cookies that origin receives are removed.
 
 ## [3.3.1] - 2026-10-19
 
