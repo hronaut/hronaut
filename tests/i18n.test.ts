@@ -153,6 +153,16 @@ describe('locale catalogs', () => {
     expect(translate('uk-UA', 'updates.status.available', { version: '2.0.0' })).toBe('Доступний Hronaut 2.0.0')
   })
 
+  it('picks the plural form each language uses for a numeric count', () => {
+    // Each message had one form, so one account read "Import 1 saved accounts" and Polish took the form for 5 for 2.
+    expect(translate('en-US', 'native.dialog.importPasswordsMessage', { count: 1 })).toBe('Import 1 saved account into Hronaut?')
+    expect(translate('en-US', 'native.dialog.importPasswordsMessage', { count: 3 })).toBe('Import 3 saved accounts into Hronaut?')
+    expect(translate('pl-PL', 'native.dialog.importPasswordsMessage', { count: 2 })).toBe('Importować 2 zapisane konta do Hronaut?')
+    expect(translate('pl-PL', 'native.dialog.importPasswordsMessage', { count: 5 })).toBe('Importować 5 zapisanych kont do Hronaut?')
+    expect(translate('uk-UA', 'addressOverlay.historyVisits', { count: 2 })).toBe('Історія · 2 відвідування')
+    expect(translate('uk-UA', 'addressOverlay.historyVisits', { count: 11 })).toBe('Історія · 11 відвідувань')
+  })
+
   it('distinguishes the human page-input lock from automatic app focus protection', () => {
     expect(translate('en-US', 'shell.tabs.lock')).toBe('Block input')
     expect(translate('en-US', 'shell.tabs.locked')).toBe('Input blocked')

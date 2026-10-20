@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { usePrivacySettingsController } from '../../src/renderer/src/composables/usePrivacySettingsController.js'
-import type { BrowsingDataSummary, BrowsingDataWebsiteSummary } from '../../src/shared/types.js'
+import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import type { BrowsingDataSummary, BrowsingDataWebsiteSummary, SupportedLocale } from '../../src/shared/types.js'
 
 function summary(historyEntries: number): BrowsingDataSummary {
   return {
@@ -37,7 +38,7 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController() {
+function createController(locale?: SupportedLocale) {
   const api = {
     summary: vi.fn(async () => summary(1)),
     websites: vi.fn(async () => [website('current.test')]),
@@ -48,12 +49,22 @@ function createController() {
     api,
     confirm,
     formatNumber: String,
-    translate: (key, parameters) => parameters ? `${key}:${JSON.stringify(parameters)}` : key
+    translate: locale
+      ? createHronautI18n(locale).global.t
+      : (key, parameters) => parameters ? `${key}:${JSON.stringify(parameters)}` : key
   })
   return { api, confirm, controller }
 }
 
 describe('privacy settings controller', () => {
+  it('counts a website’s history pages and visits each in its own form', () => {
+    // One form was picked for both counts, by the pages: "1 history page · 4 visit", "5 stron historii · 2 wizyt".
+    const english = createController('en-US')
+    expect(english.controller.websiteMeta({ ...website('example.test'), historyEntries: 1, historyVisits: 4 })).toEqual(['1 history page · 4 visits'])
+    const polish = createController('pl-PL')
+    expect(polish.controller.websiteMeta({ ...website('example.test'), historyEntries: 5, historyVisits: 2 })).toEqual(['5 stron historii · 2 wizyty'])
+  })
+
   it.each([
     ['example.test report', ['https://example.test']],
     [' REPORT   EXAMPLE.TEST ', ['https://example.test']],

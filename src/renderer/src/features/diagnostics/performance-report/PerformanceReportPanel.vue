@@ -235,7 +235,7 @@ function performanceContributorSource(contributor: BrowserPerformanceScriptContr
             <h4>{{ t('performance.contributors') }}</h4>
             <ol>
               <li v-for="(contributor, index) in performanceReport.longAnimationFrames.contributors" :key="`${performanceContributorSource(contributor)}-${index}`">
-                <span><strong>{{ performanceContributorTitle(contributor) }}</strong><small>{{ performanceContributorSource(contributor) }} · {{ localNumber(contributor.count) }} {{ contributor.count === 1 ? t('performance.frame') : t('performance.frames') }}</small></span>
+                <span><strong>{{ performanceContributorTitle(contributor) }}</strong><small>{{ performanceContributorSource(contributor) }} · {{ localNumber(contributor.count) }} {{ t('performance.frames', contributor.count) }}</small></span>
                 <output>{{ localDuration(contributor.totalDurationMs) }}<small v-if="contributor.forcedStyleAndLayoutDurationMs">{{ localNumber(Math.round(contributor.forcedStyleAndLayoutDurationMs)) }} {{ t('performance.forcedLayout') }}</small></output>
               </li>
             </ol>
@@ -254,7 +254,7 @@ function performanceContributorSource(contributor: BrowserPerformanceScriptContr
             <h4>{{ t('performance.largestShifts') }}</h4>
             <ol>
               <li v-for="(entry, index) in performanceReport.layoutShifts.entries" :key="`${entry.startTimeMs}-${index}`">
-                <span><strong>{{ entry.sources[0] || t('performance.affectedUnavailable') }}</strong><small>{{ localNumber(Math.round(entry.startTimeMs)) }} {{ t('performance.afterNavigation') }}<span v-if="entry.sources.length > 1"> · {{ localNumber(entry.sources.length) }} {{ t('performance.affectedElements') }}</span></small></span>
+                <span><strong>{{ entry.sources[0] || t('performance.affectedUnavailable') }}</strong><small>{{ localNumber(Math.round(entry.startTimeMs)) }} {{ t('performance.afterNavigation') }}<span v-if="entry.sources.length > 1"> · {{ localNumber(entry.sources.length) }} {{ t('performance.affectedElements', entry.sources.length) }}</span></small></span>
                 <output>{{ entry.value.toFixed(3) }}</output>
               </li>
             </ol>

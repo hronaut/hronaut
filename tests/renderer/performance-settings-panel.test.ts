@@ -6,7 +6,7 @@ import PerformanceSettingsPanel from '../../src/renderer/src/components/Performa
 import { usePerformanceSettingsController } from '../../src/renderer/src/composables/usePerformanceSettingsController.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import type { AppSettings, BrowserState, MemorySaverTimeoutMinutes } from '../../src/shared/types.js'
+import type { AppSettings, BrowserState, MemorySaverTimeoutMinutes, SupportedLocale } from '../../src/shared/types.js'
 
 function browserState(): BrowserState {
   const tab = (id: string, sleeping: boolean) => ({
@@ -27,7 +27,7 @@ function deferred<Value>() {
   return { promise, reject }
 }
 
-function renderPanel() {
+function renderPanel(locale: SupportedLocale = 'en-US') {
   const settings = ref<AppSettings>({ ...DEFAULT_RENDERER_SETTINGS })
   const state = ref(browserState())
   const setEnabled = vi.fn(async () => settings.value)
@@ -45,10 +45,10 @@ function renderPanel() {
     onError: vi.fn()
   })
   render(PerformanceSettingsPanel, {
-    global: { plugins: [createHronautI18n('en-US')] },
+    global: { plugins: [createHronautI18n(locale)] },
     props: { controller, formatNumber: (value: number) => String(value) }
   })
-  return { controller, setEnabled, setTimeout, sleepInactiveTabs }
+  return { controller, state, setEnabled, setTimeout, sleepInactiveTabs }
 }
 
 describe('PerformanceSettingsPanel', () => {
@@ -61,6 +61,21 @@ describe('PerformanceSettingsPanel', () => {
     expect(screen.getByRole('combobox', { name: /^Sleep after/ })).toHaveValue('60')
     expect(screen.getByRole('option', { name: '2 hours' })).toBeVisible()
     controller.dispose()
+  })
+
+  it('counts sleeping and website tabs in the form each number takes', async () => {
+    // Each count had one word for every number: "1 сплять" and "of 1 website tabs".
+    const ukrainian = renderPanel('uk-UA')
+    expect(screen.getByText('1 спить')).toBeVisible()
+    expect(screen.getByText('із 2 вкладок сайтів')).toBeVisible()
+    ukrainian.controller.dispose()
+    document.body.replaceChildren()
+
+    const english = renderPanel()
+    english.state.value = { ...english.state.value, tabs: english.state.value.tabs.slice(0, 1) }
+    expect(await screen.findByText('of 1 website tab')).toBeVisible()
+    expect(screen.getByText('1 sleeping')).toBeVisible()
+    english.controller.dispose()
   })
 
   it('disables all actions while saving and restores the timeout after failure', async () => {

@@ -300,14 +300,14 @@ onBeforeUnmount(dispose)
         </UiButton>
         <div v-if="activeTab?.emulation?.extraHttpHeaderNames?.length" class="environment-header-names">
           <IconRoute aria-hidden="true" />
-          <span><strong>{{ activeTab.emulation.extraHttpHeaderNames.length }} {{ t('environment.other.agentRequest') }} {{ activeTab.emulation.extraHttpHeaderNames.length === 1 ? t('environment.other.header') : t('environment.other.headers') }}</strong><small>{{ activeTab.emulation.extraHttpHeaderNames.join(', ') }} {{ t('environment.other.hidden') }}</small></span>
+          <span><strong>{{ t('environment.other.agentHeaders', { count: localNumber(activeTab.emulation.extraHttpHeaderNames.length) }, activeTab.emulation.extraHttpHeaderNames.length) }}</strong><small>{{ activeTab.emulation.extraHttpHeaderNames.join(', ') }} {{ t('environment.other.hidden') }}</small></span>
         </div>
       </section>
       <output class="environment-status" :class="{ error: state === 'error' || !settings, applied: state === 'applied' }" aria-live="polite">
         <IconError v-if="state === 'error' || !settings" aria-hidden="true" />
         <IconCheck v-else-if="state === 'applied'" aria-hidden="true" />
         <IconSpeed v-else aria-hidden="true" />
-        <span><strong>{{ application !== 'confirmed' ? t('emulationApplication.' + application) : pendingAction !== null ? t('environment.applyingConditions') : state === 'applied' ? t('environment.applied') : !settings ? t('environment.checkValues') : t(activeOverrideCount === 1 ? 'environment.activeCondition' : 'environment.activeConditions', { count: localNumber(activeOverrideCount) }) }}</strong><small>{{ error || t(application !== 'confirmed' ? 'emulationApplication.help' : 'environment.applyHelp') }}</small></span>
+        <span><strong>{{ application !== 'confirmed' ? t('emulationApplication.' + application) : pendingAction !== null ? t('environment.applyingConditions') : state === 'applied' ? t('environment.applied') : !settings ? t('environment.checkValues') : t('environment.activeConditions', { count: localNumber(activeOverrideCount) }, activeOverrideCount) }}</strong><small>{{ error || t(application !== 'confirmed' ? 'emulationApplication.help' : 'environment.applyHelp') }}</small></span>
       </output>
       <p class="responsive-preview-caveat"><IconInfo aria-hidden="true" /> {{ t('environment.limitation') }}</p>
       <footer>

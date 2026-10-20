@@ -40,7 +40,14 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     if (document.hasFocus()) restore()
     else window.addEventListener('focus', restore, { once: true, signal })
   }
-  const count = (one: string, other: string, value: number): string => interpolate(value === 1 ? one : other, { count: new Intl.NumberFormat(locale).format(value) })
+  // Each count takes the form its language uses for it: 1 клієнт, 2 клієнти, 5 клієнтів.
+  const count = (message: string, value: number): string => pluralText(locale, message, value)
+  const node = (tag: string, className: string, value = ''): HTMLElement => {
+    const created = document.createElement(tag)
+    if (className) created.className = className
+    created.textContent = value
+    return created
+  }
   let selectedGuide = guides.find(guide => guide.id === remember('hronaut.home.guide'))?.id ?? guides[0]!.id
   // An agent found on this computer becomes the first guide until the person picks one.
   let guideChosen = guides.some(guide => guide.id === remember('hronaut.home.guide'))
@@ -177,12 +184,6 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     // Each check in words; its typed state stays in the copied diagnostic below. Built as nodes: the pasted tool list
     // feeds this report, so none of it is read as markup.
     const tone = (state: string): 'ok' | 'failed' | 'pending' => /_(?:ready|initialized|advertised|verified)$/u.test(state) ? 'ok' : state === 'blocked' || state.endsWith('_failed') ? 'failed' : 'pending'
-    const node = (tag: string, className: string, value = ''): HTMLElement => {
-      const created = document.createElement(tag)
-      if (className) created.className = className
-      created.textContent = value
-      return created
-    }
     element('readiness-checks').replaceChildren(...Object.entries(report.checks).map(([name, check]) => {
       const state = tone(check.state)
       const dot = node('span', `readiness-dot ${state}`)
@@ -286,19 +287,19 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     renderSetupOffer()
     renderPortProblem()
     text('server-detail', status === 'error' ? `${statusLabels.error}: ${dashboard.error ?? messages.status.unknownError}` : statusLabels[status])
-    text('active-count', status === 'paused' ? messages.status.pausedValue : status === 'error' ? messages.status.unavailable : status === 'starting' ? messages.status.startingValue : count(messages.status.activeOne, messages.status.activeOther, dashboard.activeRequests))
-    text('request-count', dashboard.totalRequests ? count(messages.counts.requestsOne, messages.counts.requestsOther, dashboard.totalRequests) : messages.status.waiting)
-    text('client-count', count(messages.counts.clientsOne, messages.counts.clientsOther, dashboard.clients.length))
-    text('tool-count', interpolate(messages.counts.tools, { count: new Intl.NumberFormat(locale).format(dashboard.tools.length) }))
+    text('active-count', status === 'paused' ? messages.status.pausedValue : status === 'error' ? messages.status.unavailable : status === 'starting' ? messages.status.startingValue : count(messages.status.active, dashboard.activeRequests))
+    text('request-count', dashboard.totalRequests ? count(messages.counts.requestsHandled, dashboard.totalRequests) : messages.status.waiting)
+    text('client-count', count(messages.counts.clients, dashboard.clients.length))
+    text('tool-count', count(messages.counts.tools, dashboard.tools.length))
     text('server-version', `Hronaut ${dashboard.version}`)
     const completed = dashboard.completedToolCalls || 0
     const successful = Math.max(0, completed - dashboard.toolMetrics.reduce((total, metric) => total + metric.failures, 0))
-    text('activity-count', count(messages.counts.actionsOne, messages.counts.actionsOther, completed))
+    text('activity-count', count(messages.counts.actions, completed))
     text('completed-count', new Intl.NumberFormat(locale).format(completed)); text('tool-types-count', dashboard.toolMetrics.length)
     text('success-rate', completed ? new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 }).format(successful / completed) : '—')
     renderReadiness()
     text('support-kicker', successful ? messages.support.activeKicker : messages.support.kicker)
-    text('support-heading', successful ? count(messages.support.activeHeadingOne, messages.support.activeHeadingOther, successful) : completed ? messages.support.failedHeading : messages.support.heading)
+    text('support-heading', successful ? count(messages.support.activeHeading, successful) : completed ? messages.support.failedHeading : messages.support.heading)
     text('support-message', successful ? messages.support.activeMessage : completed ? messages.support.failedMessage : messages.support.message)
     const help = element<HTMLButtonElement>('support-troubleshoot')
     // It stays while the person is on it, or waits for it, which takes its focus.
@@ -322,7 +323,29 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     element('onboarding-client').dataset.complete = String(dashboard.readiness.checks.initialization.state === 'client_initialized')
     element('onboarding-connection').dataset.complete = String(dashboard.readiness.checks.initialization.state === 'client_initialized')
     element('onboarding-probe').dataset.complete = String(verified)
-    element('connections').innerHTML = dashboard.clients.length ? dashboard.clients.map(client => `<div class="connection"><span class="client-icon">${h(client.name.trim().charAt(0))}</span><div><div class="client-name">${h(client.name)}</div><div class="client-meta">${h(client.version ?? messages.connections.versionUnknown)} · ${h(relativeTime(client.lastSeenAt))} · ${h(interpolate(messages.counts.requests, { count: client.requestCount }))}</div></div><span class="connection-state ${client.activeRequests ? 'active' : ''}">${h(client.activeRequests ? messages.connections.active : messages.connections.recent)}</span></div>`).join('') : `<div class="empty"><div><strong>${h(messages.connections.emptyHeading)}</strong><span>${h(messages.connections.emptyDescription)}</span></div></div>`
+    // Built as nodes, so nothing a client reports, such as its name or version, is read as markup.
+    const connection = (client: HomeDashboard['clients'][number]): HTMLElement => {
+      const words = node('div', '')
+      words.append(
+        node('div', 'client-name', client.name),
+        node('div', 'client-meta', `${client.version ?? messages.connections.versionUnknown} · ${relativeTime(client.lastSeenAt)} · ${count(messages.counts.requests, client.requestCount)}`)
+      )
+      const row = node('div', 'connection')
+      row.append(
+        node('span', 'client-icon', client.name.trim().charAt(0)),
+        words,
+        node('span', client.activeRequests ? 'connection-state active' : 'connection-state', client.activeRequests ? messages.connections.active : messages.connections.recent)
+      )
+      return row
+    }
+    const noConnections = (): HTMLElement => {
+      const words = node('div', '')
+      words.append(node('strong', '', messages.connections.emptyHeading), node('span', '', messages.connections.emptyDescription))
+      const empty = node('div', 'empty')
+      empty.append(words)
+      return empty
+    }
+    element('connections').replaceChildren(...(dashboard.clients.length ? dashboard.clients.map(connection) : [noConnections()]))
     renderTools()
   }
   /** A busy or refused port says so and offers the free port main found; anything else stays under Details. */

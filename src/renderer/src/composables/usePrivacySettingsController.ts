@@ -190,7 +190,12 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
   function websiteMeta(site: BrowsingDataWebsiteSummary): string[] {
     const items: string[] = []
     if (site.cookieCount) items.push(options.translate('runtimeActions.browsingData.cookieMeta', { count: options.formatNumber(site.cookieCount) }, site.cookieCount))
-    if (site.historyEntries) items.push(options.translate('privacyActions.historyWithVisits', { pages: options.formatNumber(site.historyEntries), visits: options.formatNumber(site.historyVisits) }, site.historyEntries))
+    if (site.historyEntries) {
+      items.push(options.translate('privacyActions.historyWithVisits', {
+        pages: options.translate('privacyActions.historyPages', { count: options.formatNumber(site.historyEntries) }, site.historyEntries),
+        visits: options.translate('privacyActions.historyVisits', { count: options.formatNumber(site.historyVisits) }, site.historyVisits)
+      }))
+    }
     if (site.openTabCount) items.push(options.translate('privacyActions.openTabs', { count: options.formatNumber(site.openTabCount) }, site.openTabCount))
     if (site.bookmarkCount) items.push(options.translate('privacyActions.bookmarksKept', { count: options.formatNumber(site.bookmarkCount) }, site.bookmarkCount))
     if (site.savedPasswordCount) items.push(options.translate('privacyActions.accountsKept', { count: options.formatNumber(site.savedPasswordCount) }, site.savedPasswordCount))
