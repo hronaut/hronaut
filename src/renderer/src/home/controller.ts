@@ -27,6 +27,14 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     const next = String(value)
     if (target.textContent !== next) target.textContent = next
   }
+  // Disabling the focused button while its action runs sends Chromium's focus to the page body, so the next Tab would
+  // start at the top of Home. The button gets it back once it works again, unless the person moved the focus or left.
+  const giveFocusBack = (button: HTMLButtonElement, hadFocus: boolean): void => {
+    const active = document.activeElement
+    if (!hadFocus || button.disabled || !button.isConnected || button.closest('[hidden]')) return
+    if ((active && active !== document.body) || !document.hasFocus()) return
+    button.focus({ preventScroll: true })
+  }
   const count = (one: string, other: string, value: number): string => interpolate(value === 1 ? one : other, { count: new Intl.NumberFormat(locale).format(value) })
   let selectedGuide = guides.find(guide => guide.id === remember('hronaut.home.guide'))?.id ?? guides[0]!.id
   // An agent found on this computer becomes the first guide until the person picks one.
@@ -77,6 +85,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   guideButton.addEventListener('click', async () => {
     if (guideButton.disabled) return
     const sequence = ++guideSequence
+    const hadFocus = document.activeElement === guideButton
     guideButton.disabled = true; guideButton.title = ''; text('guide-open-status', ''); guideButton.textContent = guideLabel()
     try {
       if (!api?.openAgentGuide) throw new Error(messages.connect.guideUnavailable)
@@ -85,11 +94,14 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       if (sequence !== guideSequence || signal.aborted) return
       guideButton.title = errorText(error, messages.connect.guideUnavailable)
       text('guide-open-status', guideButton.title); guideButton.textContent = `${messages.journey.retry} · ${guideLabel()}`
-    } finally { if (sequence === guideSequence && !signal.aborted) guideButton.disabled = false }
+    } finally {
+      if (sequence === guideSequence && !signal.aborted) { guideButton.disabled = false; giveFocusBack(guideButton, hadFocus) }
+    }
   }, { signal })
   vscodeButton?.addEventListener('click', async () => {
     if (vscodeButton.disabled) return
     const sequence = ++vscodeSequence
+    const hadFocus = document.activeElement === vscodeButton
     vscodeButton.disabled = true; text('guide-primary-status', messages.connect.openingVsCode)
     try {
       if (!api?.openVsCodeInstall) throw new Error(messages.connect.vscodeUnavailable)
@@ -100,7 +112,9 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
         text('guide-primary-status', messages.connect.vscodeFailed)
         vscodeButton.title = errorText(error, messages.connect.vscodeUnavailable)
       }
-    } finally { if (sequence === vscodeSequence && !signal.aborted) vscodeButton.disabled = false }
+    } finally {
+      if (sequence === vscodeSequence && !signal.aborted) { vscodeButton.disabled = false; giveFocusBack(vscodeButton, hadFocus) }
+    }
   }, { signal })
   for (const [id, method, status, unavailable, label] of [
     ['support-feedback', 'openSetupFeedback', 'support-feedback-status', messages.support.feedbackUnavailable, messages.support.reportTrouble],
@@ -109,13 +123,14 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     const button = element<HTMLButtonElement>(id)
     button.addEventListener('click', async () => {
       if (button.disabled) return
+      const hadFocus = document.activeElement === button
       button.disabled = true; button.title = ''; button.textContent = label; text(status, '')
       try { if (!api?.[method]) throw new Error(unavailable); await api[method]() }
       catch (error) {
         if (signal.aborted) return
         button.title = errorText(error, unavailable)
         text(status, button.title); button.hidden = false; button.textContent = `${messages.journey.retry} · ${label}`
-      } finally { if (!signal.aborted) button.disabled = false }
+      } finally { if (!signal.aborted) { button.disabled = false; giveFocusBack(button, hadFocus) } }
     }, { signal })
   }
   document.querySelectorAll<HTMLButtonElement>('[data-copy-target]').forEach(button => {
@@ -324,6 +339,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     const port = dashboard.suggestedPort
     if (!port || button.disabled || !api?.useMcpPort) return
     const current = ++portSequence
+    const hadFocus = document.activeElement === button
     button.disabled = true
     portFailure = null
     text('mcp-port-status', '')
@@ -337,7 +353,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     } catch {
       if (current === portSequence && !signal.aborted) { portFailure = { outcome: 'failed', port }; renderPortProblem() }
     } finally {
-      if (current === portSequence && !signal.aborted) button.disabled = false
+      if (current === portSequence && !signal.aborted) { button.disabled = false; giveFocusBack(button, hadFocus) }
     }
   }, { signal })
   /** First run: offer to add Hronaut to Claude Code when it is installed and not set up for this address. */
