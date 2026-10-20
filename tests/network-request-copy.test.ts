@@ -6,7 +6,8 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
-import { canFormatNetworkRequestCopy, formatNetworkRequestCopy } from '../src/shared/network-request-copy.js'
+import { canFormatNetworkRequestCopy, formatNetworkRequestCopy, NetworkRequestCopyRefusal } from '../src/shared/network-request-copy.js'
+import type { MessageKey } from '../src/shared/i18n.js'
 import type { BrowserNetworkRequestDetails } from '../src/shared/types.js'
 
 function requestDetails(overrides: Partial<BrowserNetworkRequestDetails> = {}): BrowserNetworkRequestDetails {
@@ -93,7 +94,10 @@ describe('formatNetworkRequestCopy', () => {
 
   it('rejects NUL in retained cURL headers without exposing their value', () => {
     const details = requestDetails({ request: { headers: { 'X-Allowed': 'private-before\u0000private-after' } } })
-    expect(() => formatNetworkRequestCopy(details, 'curl')).toThrow(new Error('Copy cURL cannot represent literal NUL characters. Use Copy fetch instead.'))
+    // The Network panel shows the refusal by its key in the interface language; agents keep the English message.
+    expect(() => formatNetworkRequestCopy(details, 'curl')).toThrow(new NetworkRequestCopyRefusal(
+      'Copy cURL cannot represent literal NUL characters. Use Copy fetch instead.', 'appErrors.network.copyCurlNul'
+    ))
   })
 
   it('filters omitted NUL headers before checking cURL representability', () => {
@@ -422,13 +426,13 @@ describe('formatNetworkRequestCopy', () => {
   })
 
   it.each([
-    [{ method: 'PROPFIND' }, 'Copy PowerShell supports GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE and MERGE requests. Use Copy cURL or Copy fetch instead.'],
-    [{ method: 'GET', request: { headers: {}, body: { text: 'q=1', originalChars: 3, truncated: false, redacted: false } } }, 'Copy PowerShell cannot send a request body with GET or HEAD. Use Copy cURL or Copy fetch instead.'],
-    [{ request: { headers: { Accept: ['application/json', 'text/plain'] } } }, 'Copy PowerShell cannot send the same header more than once. Use Copy cURL or Copy fetch instead.'],
-    [{ request: { headers: { 'X-Trace': 'a', 'x-trace': 'b' } } }, 'Copy PowerShell cannot send the same header more than once. Use Copy cURL or Copy fetch instead.'],
-    [{ request: { headers: { 'X-Allowed': 'private-before\u0000private-after' } } }, 'Copy PowerShell cannot send literal NUL characters in a header. Use Copy fetch instead.']
-  ] satisfies Array<[Partial<BrowserNetworkRequestDetails>, string]>)('refuses a PowerShell copy it cannot send faithfully (%#)', (overrides, message) => {
-    expect(() => formatNetworkRequestCopy(requestDetails(overrides), 'powershell')).toThrow(new Error(message))
+    [{ method: 'PROPFIND' }, 'Copy PowerShell supports GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE and MERGE requests. Use Copy cURL or Copy fetch instead.', 'appErrors.network.copyPowerShellMethod'],
+    [{ method: 'GET', request: { headers: {}, body: { text: 'q=1', originalChars: 3, truncated: false, redacted: false } } }, 'Copy PowerShell cannot send a request body with GET or HEAD. Use Copy cURL or Copy fetch instead.', 'appErrors.network.copyPowerShellBody'],
+    [{ request: { headers: { Accept: ['application/json', 'text/plain'] } } }, 'Copy PowerShell cannot send the same header more than once. Use Copy cURL or Copy fetch instead.', 'appErrors.network.copyPowerShellDuplicateHeader'],
+    [{ request: { headers: { 'X-Trace': 'a', 'x-trace': 'b' } } }, 'Copy PowerShell cannot send the same header more than once. Use Copy cURL or Copy fetch instead.', 'appErrors.network.copyPowerShellDuplicateHeader'],
+    [{ request: { headers: { 'X-Allowed': 'private-before\u0000private-after' } } }, 'Copy PowerShell cannot send literal NUL characters in a header. Use Copy fetch instead.', 'appErrors.network.copyPowerShellNul']
+  ] satisfies Array<[Partial<BrowserNetworkRequestDetails>, string, MessageKey]>)('refuses a PowerShell copy it cannot send faithfully (%#)', (overrides, message, key) => {
+    expect(() => formatNetworkRequestCopy(requestDetails(overrides), 'powershell')).toThrow(new NetworkRequestCopyRefusal(message, key))
   })
 
   it('leaves out an empty GET body and keeps the request copyable as PowerShell', () => {

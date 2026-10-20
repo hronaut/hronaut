@@ -236,6 +236,18 @@ export const enUSAppErrors = {
     "conditionsPending": "Request-condition application is pending. Wait for it to settle before opening Developer Tools.",
     "conditionsChanged": "Request conditions changed before Developer Tools handoff"
   },
+  "network": {
+    "requestGone": "That request is no longer in the Network log. Refresh the list to see the current requests.",
+    "requestChanged": "The page changed while Hronaut read this request. Refresh the list and select it again.",
+    "replayNeedsReload": "Chromium did not keep what it needs to replay this request, which happens when Developer Tools is open. Close Developer Tools, reload the page and replay the new request.",
+    "replayUnsupported": "This version of Chromium cannot replay requests.",
+    "replayUnconfirmed": "Chromium replayed the request, but Hronaut could not see the new request finish, for example because it took longer than 10 seconds or the page changed. Refresh the list to find it.",
+    "copyCurlNul": "This request contains a NUL character, which cURL cannot send. Copy it as fetch instead.",
+    "copyPowerShellMethod": "PowerShell cannot send this request’s method. Copy the request as cURL or fetch instead.",
+    "copyPowerShellBody": "PowerShell cannot send a body with a GET or HEAD request. Copy the request as cURL or fetch instead.",
+    "copyPowerShellDuplicateHeader": "PowerShell cannot send the same header twice. Copy the request as cURL or fetch instead.",
+    "copyPowerShellNul": "A header of this request contains a NUL character, which PowerShell cannot send. Copy the request as fetch instead."
+  },
   "downloads": {
     "unavailable": "This download is no longer in the list.",
     "removeActive": "Cancel this download before removing it.",

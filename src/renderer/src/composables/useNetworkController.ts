@@ -16,6 +16,7 @@ import { formatNumber } from '../../../shared/format.js'
 import {
   canFormatNetworkRequestCopy,
   formatNetworkRequestCopy,
+  NetworkRequestCopyRefusal,
   type BrowserNetworkRequestCopyFormat
 } from '../../../shared/network-request-copy.js'
 import { sortNetworkRequests } from '../../../shared/network-request-sort.js'
@@ -396,7 +397,10 @@ export function useNetworkController(options: NetworkControllerOptions) {
       })
     } catch (cause) {
       if (sequence !== detailsCopySequence || !isCurrent(tab.id, expectedGeneration)) return
-      monitorError.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
+      // A request this format cannot copy says why in the interface language; agents keep the English message.
+      monitorError.value = cause instanceof NetworkRequestCopyRefusal
+        ? options.translate(cause.key)
+        : friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
     }
   }
 

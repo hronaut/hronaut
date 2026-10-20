@@ -30,12 +30,20 @@ import type {
 } from '../../../shared/types.js'
 import type { BrowserNetworkRequestRecord } from '../network-recording.js'
 import { isHronautHomeUrl } from '../url.js'
+import { LocalizedError } from '../../localized-error.js'
 import type { NetworkInspectionAccess, NetworkInspectionTab } from './network-inspection-access.js'
 
 /** A header's value by case-insensitive name, with repeated values joined. */
 function headerValue(headers: Record<string, string | string[] | undefined> | undefined, name: string): string | undefined {
   const match = Object.entries(headers ?? {}).find(([candidate]) => candidate.toLowerCase() === name.toLowerCase())?.[1]
   return Array.isArray(match) ? match.join(', ') : match
+}
+
+/** A request that left the tab's Network log; agents keep the message that names their tool and the request ID. */
+function requestGone(requestId: string): LocalizedError {
+  return new LocalizedError('appErrors.network.requestGone', undefined, {
+    message: `Network request not found: ${requestId}. Call browser_network again for current request IDs.`
+  })
 }
 
 /**
@@ -160,7 +168,7 @@ export async function networkRequestDetails<Tab extends NetworkInspectionTab>(
 ): Promise<BrowserNetworkRequestDetails> {
   const tab = access.getTab(tabId)
   const request = access.currentNetworkRequests(tab).find((candidate) => candidate.id === requestId)
-  if (!request) throw new Error(`Network request not found: ${requestId}. Call browser_network again for current request IDs.`)
+  if (!request) throw requestGone(requestId)
   const navigationGeneration = tab.navigationGeneration
   const priorityGeneration = tab.networkPriorityGeneration ?? 0
   const workspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
@@ -209,7 +217,9 @@ export async function networkRequestDetails<Tab extends NetworkInspectionTab>(
       || tab.navigationGeneration !== navigationGeneration
       || (tab.networkPriorityGeneration ?? 0) !== priorityGeneration
       || !access.currentNetworkRequests(tab).includes(request)) {
-      throw new Error('Network request observation changed while reading details. Call browser_network for current request IDs.')
+      throw new LocalizedError('appErrors.network.requestChanged', undefined, {
+        message: 'Network request observation changed while reading details. Call browser_network for current request IDs.'
+      })
     }
   }
   assertCurrent()
@@ -282,14 +292,14 @@ export async function replayNetworkRequest<Tab extends NetworkInspectionTab>(
   const tab = access.getTab(tabId)
   if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before replaying a network request')
   const request = access.currentNetworkRequests(tab).find((candidate) => candidate.id === requestId)
-  if (!request) {
-    throw new Error(`Network request not found: ${requestId}. Call browser_network again for current request IDs.`)
-  }
+  if (!request) throw requestGone(requestId)
   if (request.resourceType.toLowerCase() !== 'xhr') {
     throw new Error('Only captured XMLHttpRequest (XHR) requests can be replayed by Chromium. Fetch, document, and other request types are not supported.')
   }
   if (!request.detailsAvailable || !request.cdpRequestId) {
-    throw new Error('This XHR cannot be replayed because Chromium did not retain its diagnostic request ID. Close Developer Tools, reload, and capture it again.')
+    throw new LocalizedError('appErrors.network.replayNeedsReload', undefined, {
+      message: 'This XHR cannot be replayed because Chromium did not retain its diagnostic request ID. Close Developer Tools, reload, and capture it again.'
+    })
   }
 
   const method = request.method.trim().toUpperCase()
@@ -299,27 +309,40 @@ export async function replayNetworkRequest<Tab extends NetworkInspectionTab>(
   }
 
   const cursor = access.currentNetworkRequests(tab).at(-1)
-  if (!cursor) throw new Error('The captured request is no longer retained. Call browser_network again for a current request ID.')
+  if (!cursor) {
+    throw new LocalizedError('appErrors.network.requestGone', undefined, {
+      message: 'The captured request is no longer retained. Call browser_network again for a current request ID.'
+    })
+  }
   try {
     await access.withDebugger(tab.webContents, () =>
       tab.webContents.debugger.sendCommand('Network.replayXHR', { requestId: request.cdpRequestId })
     )
   } catch (error) {
     if (access.isUnavailableCdpMethod(error)) {
-      throw new Error('XHR replay is unavailable in this Chromium build')
+      throw new LocalizedError('appErrors.network.replayUnsupported', undefined, { message: 'XHR replay is unavailable in this Chromium build' })
     }
     throw error
   }
 
-  const replayed = await waitForNetworkRequest(access, {
-    tabId: tab.id,
-    urlPattern: networkReplayUrlPattern(request.url),
-    method,
-    resourceType: 'xhr',
-    phase: 'complete',
-    afterRequestId: cursor.id,
-    timeoutMs: 10_000
-  })
+  let replayed: BrowserNetworkWaitResult
+  try {
+    replayed = await waitForNetworkRequest(access, {
+      tabId: tab.id,
+      urlPattern: networkReplayUrlPattern(request.url),
+      method,
+      resourceType: 'xhr',
+      phase: 'complete',
+      afterRequestId: cursor.id,
+      timeoutMs: 10_000
+    })
+  } catch (error) {
+    // Chromium has replayed it; only its completion went unseen, such as after a timeout or a navigation.
+    throw new LocalizedError('appErrors.network.replayUnconfirmed', undefined, {
+      message: error instanceof Error ? error.message : String(error),
+      cause: error
+    })
+  }
   return {
     tabId: tab.id,
     originalRequestId: request.id,

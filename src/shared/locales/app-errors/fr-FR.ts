@@ -232,6 +232,18 @@ export const frFRAppErrors: AppErrorMessages = {
     "conditionsPending": "Les conditions de requête sont encore en cours d’application. Attendez la fin avant d’ouvrir les outils de développement.",
     "conditionsChanged": "Les conditions de requête ont changé avant l’ouverture des outils de développement."
   },
+  "network": {
+    "requestGone": "Cette requête ne figure plus dans le journal réseau. Actualisez la liste pour voir les requêtes actuelles.",
+    "requestChanged": "La page a changé pendant que Hronaut lisait cette requête. Actualisez la liste et sélectionnez-la de nouveau.",
+    "replayNeedsReload": "Chromium n’a pas conservé ce qu’il faut pour rejouer cette requête, ce qui arrive lorsque les outils de développement sont ouverts. Fermez les outils de développement, rechargez la page et rejouez la nouvelle requête.",
+    "replayUnsupported": "Cette version de Chromium ne peut pas rejouer de requêtes.",
+    "replayUnconfirmed": "Chromium a rejoué la requête, mais Hronaut n’a pas pu voir la nouvelle requête se terminer, par exemple parce qu’elle a pris plus de 10 secondes ou que la page a changé. Actualisez la liste pour la retrouver.",
+    "copyCurlNul": "Cette requête contient un caractère NUL, que cURL ne peut pas envoyer. Copiez-la plutôt en fetch.",
+    "copyPowerShellMethod": "PowerShell ne peut pas envoyer la méthode de cette requête. Copiez plutôt la requête en cURL ou en fetch.",
+    "copyPowerShellBody": "PowerShell ne peut pas envoyer de corps avec une requête GET ou HEAD. Copiez plutôt la requête en cURL ou en fetch.",
+    "copyPowerShellDuplicateHeader": "PowerShell ne peut pas envoyer deux fois le même en-tête. Copiez plutôt la requête en cURL ou en fetch.",
+    "copyPowerShellNul": "Un en-tête de cette requête contient un caractère NUL, que PowerShell ne peut pas envoyer. Copiez plutôt la requête en fetch."
+  },
   "downloads": {
     "unavailable": "Ce téléchargement n’est plus dans la liste.",
     "removeActive": "Annulez ce téléchargement avant de le retirer.",
