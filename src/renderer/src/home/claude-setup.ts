@@ -78,6 +78,7 @@ export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signa
   start.addEventListener('click', async () => {
     if (start.disabled) return
     const current = ++sequence
+    const hadFocus = document.activeElement === start
     start.disabled = true
     notice = messages.preparing
     render()
@@ -95,7 +96,16 @@ export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signa
       render()
       apply.focus({ preventScroll: true })
     } catch (error) {
-      if (current === sequence && !signal.aborted) void settle(failure(error))
+      if (current !== sequence || signal.aborted) return
+      const settled = settle(failure(error))
+      const after = sequence
+      // Disabling Start sent Chromium's focus to the page body. It comes back once the file's state is shown: to Start,
+      // or else the command, unless the person moved it or left Home meanwhile.
+      await settled
+      const active = document.activeElement
+      if (after === sequence && !signal.aborted && hadFocus && (!active || active === document.body) && document.hasFocus()) {
+        (start.closest('[hidden]') ? element('guide-code').closest('pre')! : start).focus({ preventScroll: true })
+      }
     }
   }, { signal })
 
