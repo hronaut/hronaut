@@ -95,6 +95,7 @@ const AppTopbarActionsStub = defineComponent({
     allInteractionLockLabel: String,
     followAgentActivity: Boolean,
     showUpdateStatus: Boolean,
+    licenseReminderShown: Boolean,
     updateState: Object,
     mcpStatusController: Object
   },
@@ -107,6 +108,7 @@ const AppTopbarActionsStub = defineComponent({
     'toggleAllInteraction',
     'toggleFollowAgentActivity',
     'openUpdateSettings',
+    'openLicenseSettings',
     'toggleSettings'
   ],
   setup() {
@@ -298,6 +300,7 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
     openFind: vi.fn(),
     toggleZoom: vi.fn(),
     togglePageTools: vi.fn(),
+    openLicenseSettings: vi.fn(),
     prepareSplitViewMenu: vi.fn(),
     handleSplitViewError: vi.fn()
   }
@@ -349,6 +352,7 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
   const settings = ref({ followAgentActivity: false, pinAgentLiveStatus: false })
   const setPinAgentLiveStatus = vi.fn(async (pin: boolean) => { settings.value = { ...settings.value, pinAgentLiveStatus: pin } })
   const settingsOpen = ref(false)
+  const licenseReminderShown = ref(false)
   const addressActions = {
     resetActiveTabEmulation: vi.fn(),
     openRequestConditions: vi.fn(),
@@ -400,6 +404,7 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
         remove: addressActions.removeSitePermission
       },
       showUpdateStatusPill: ref(false),
+      licenseAskController: { reminderShown: licenseReminderShown },
       toggleFollowAgentActivity: settingsActions.toggleFollowAgentActivity
     } as never,
     collectionsController: {
@@ -461,6 +466,7 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
   return {
     wrapper,
     props,
+    licenseReminderShown,
     customTitleBar,
     orientation,
     compact,
@@ -940,6 +946,15 @@ describe('AppBrowserChromeLayer', () => {
     expect(harness.runAction).toHaveBeenCalledTimes(2)
   })
 
+  it('shows the top bar\'s license reminder only while the license ask has one', async () => {
+    const harness = createHarness()
+    const topbar = harness.wrapper.getComponent(AppTopbarActionsStub)
+    expect(topbar.props('licenseReminderShown')).toBe(false)
+    harness.licenseReminderShown.value = true
+    await nextTick()
+    expect(topbar.props('licenseReminderShown')).toBe(true)
+  })
+
   it('forwards every child event through the existing action boundary and closes tab search on select or drag', async () => {
     const harness = createHarness()
     const tabs = harness.wrapper.getComponent(BrowserTabsBarStub)
@@ -969,6 +984,7 @@ describe('AppBrowserChromeLayer', () => {
     topbar.vm.$emit('toggleAllInteraction')
     topbar.vm.$emit('toggleFollowAgentActivity')
     topbar.vm.$emit('openUpdateSettings')
+    topbar.vm.$emit('openLicenseSettings')
     topbar.vm.$emit('toggleSettings')
 
     for (const event of ['back', 'forward', 'reload', 'stop'] as const) navigation.vm.$emit(event)
@@ -1002,6 +1018,7 @@ describe('AppBrowserChromeLayer', () => {
     expect(harness.tabActions.toggleAllHumanInteraction).toHaveBeenCalledOnce()
     expect(harness.settingsActions.toggleFollowAgentActivity).toHaveBeenCalledOnce()
     expect(harness.siteActions.openUpdateSettings).toHaveBeenCalledOnce()
+    expect(harness.actions.openLicenseSettings).toHaveBeenCalledOnce()
     expect(harness.settingsActions.toggle).toHaveBeenCalledOnce()
     expect(harness.browser.back).toHaveBeenCalledOnce()
     expect(harness.browser.forward).toHaveBeenCalledOnce()

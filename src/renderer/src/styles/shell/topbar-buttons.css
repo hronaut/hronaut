@@ -82,3 +82,10 @@
 .mcp-controls.error .status-dot { @apply [background:#df4b5f] [box-shadow:0_0_0_3px_color-mix(in_srgb,_#df4b5f_18%,_transparent)]; }
 .status-dot { @apply [width:7px] [height:7px] rounded-full [background:var(--success)] [box-shadow:0_0_0_3px_color-mix(in_srgb,_var(--success)_14%,_transparent)]; }
 @keyframes mcp-status-pulse { 50% { opacity: .45; } }
+/* Once agent access has ended and its card is closed, the reminder that a license is needed, in red text. */
+.license-reminder-pill {
+  @apply flex min-w-0 [max-width:200px] [height:29px] items-center [gap:6px] [margin:0_2px_5px_6px] [padding:0_10px_0_8px] [border:1px_solid_color-mix(in_srgb,_var(--danger)_50%,_var(--pill-border))] [border-radius:var(--corner-pill)] [color:var(--danger-text)] [background:color-mix(in_srgb,_var(--danger)_9%,_var(--pill-bg))] cursor-pointer [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] whitespace-nowrap select-none;
+}
+.license-reminder-pill:hover { @apply [border-color:var(--danger)] [background:color-mix(in_srgb,_var(--danger)_14%,_var(--pill-bg))]; }
+.license-reminder-pill svg { @apply flex-none [width:16px] [height:16px]; }
+.license-reminder-label { @apply min-w-0 overflow-hidden text-ellipsis; }

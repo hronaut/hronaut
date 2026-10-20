@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import IconDownload from '~icons/material-symbols/download-rounded'
 import IconDownloadDone from '~icons/material-symbols/download-done-rounded'
 import IconHistory from '~icons/material-symbols/history-rounded'
+import IconKey from '~icons/material-symbols/key-rounded'
 import IconKeyboardCommandKey from '~icons/material-symbols/keyboard-command-key-rounded'
 import IconLock from '~icons/material-symbols/lock-rounded'
 import IconLockOpen from '~icons/material-symbols/lock-open-rounded'
@@ -37,6 +38,8 @@ defineProps<{
   allInteractionLockLabel: string
   followAgentActivity: boolean
   showUpdateStatus: boolean
+  /** Agent access has ended and the license card under the toolbar was closed. */
+  licenseReminderShown?: boolean
   updateState: AppUpdateState
   mcpStatusController: McpStatusController
 }>()
@@ -50,6 +53,7 @@ const emit = defineEmits<{
   toggleAllInteraction: []
   toggleFollowAgentActivity: []
   openUpdateSettings: []
+  openLicenseSettings: []
   toggleSettings: []
 }>()
 
@@ -160,6 +164,16 @@ const { t } = useI18n({ useScope: 'global' })
       @click="emit('toggleSettings')"
     >
       <IconSettings aria-hidden="true" />
+    </UiButton>
+    <UiButton appearance="application"
+      v-if="licenseReminderShown"
+      class="license-reminder-pill"
+      type="button"
+      v-tooltip="t('licenseNotice.reminderTitle')"
+      @click="emit('openLicenseSettings')"
+    >
+      <IconKey aria-hidden="true" />
+      <span class="license-reminder-label">{{ t('licenseNotice.reminder') }}</span>
     </UiButton>
     <UpdateNotification
       v-if="showUpdateStatus"

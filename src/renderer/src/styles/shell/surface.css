@@ -14,7 +14,7 @@
 /* With the rail, the workspace in view washes that one surface with its color. The gradient is fixed to the window,
    so it runs on unbroken under the rail, the toolbar, the bars under it and the space around the page. */
 .shell.vertical-tabs-shell:not(.detached-panel-window),
-.shell.vertical-tabs-shell:not(.detached-panel-window) :is(.topbar, .toolbar, .agent-live-strip, .find-bar, .zoom-bar, .license-expiry-notice, .shell-title-bar-surface) {
+.shell.vertical-tabs-shell:not(.detached-panel-window) :is(.topbar, .toolbar, .agent-live-strip, .find-bar, .zoom-bar, .license-ask, .shell-title-bar-surface) {
   background-image: var(--shell-wash);
   background-attachment: fixed;
 }

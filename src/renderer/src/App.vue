@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import LicenseExpiryNotice from './components/LicenseExpiryNotice.vue'
+import LicenseAskCard from './components/LicenseAskCard.vue'
 import { isHronautHomeUrl } from '../../shared/home-url.js'
 import { bind as bindFoley } from '@foleyjs/core'
 import { computed, nextTick, ref } from 'vue'
@@ -49,7 +49,6 @@ import type { TransientPanelsCloseOptions } from './composables/useTransientPane
 import { useShellTooltips } from './composables/shell-tooltips'
 import { useWorkspaceShellTint } from './composables/useWorkspaceShellTint'
 import { useFullPageView } from './composables/useFullPageView'
-import { licenseExpiryNoticeShown } from './composables/license-expiry-notice'
 import { useUserAttention } from './composables/useUserAttention'
 import { useSettingsWorkspaceLists } from './composables/useSettingsWorkspaceLists'
 import { confirmAction } from './confirm-action.js'
@@ -669,12 +668,12 @@ const {
   closeAddressSuggestions
 })
 // What opens from the tabs and the toolbar keeps them in view while it is open, and so does a bar shown
-// under the toolbar (Find, Zoom, a page that failed or the renewal notice), so it does not move under the pointer.
+// under the toolbar (Find, Zoom, a page that failed or the license card), so it does not move under the pointer.
 fullPageView.holdWhile(() => [
   mcpStatusController.summaryOpen, updateNoticeOpen, addressSuggestionsOpen, tabSearchOpen,
   downloadsOpen, historyOpen, splitMenuOpen, siteControlsOpen, findOpen, zoomOpen
 ].some((open) => open.value === true) || Boolean(activeTab.value?.pageProblem)
-  || licenseExpiryNoticeShown(appSettingsFeatureController.commercialLicenseController.state.value))
+  || appSettingsFeatureController.licenseAskController.cardReason.value !== null)
 const appActiveTabFeatureController = useAppActiveTabFeatureController({
   presentation: {
     state,
@@ -757,6 +756,7 @@ const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
     toggleTabSearch,
     openFind,
     toggleZoom,
+    openLicenseSettings: openSupportSettings,
     prepareSplitViewMenu,
     handleSplitViewError
   }
@@ -890,11 +890,12 @@ useAppLifecycleController({
       :sync-state="syncState"
       :actions="browserChromeActions"
     />
-    <LicenseExpiryNotice
+    <LicenseAskCard
       v-if="!isDetachedPanelWindow"
-      :state="appSettingsFeatureController.commercialLicenseController.state.value"
+      :reason="appSettingsFeatureController.licenseAskController.cardReason.value"
       @manage="openSupportSettings"
       @purchase="purchaseCommercialLicense"
+      @dismiss="appSettingsFeatureController.licenseAskController.dismiss"
     />
     <AppPageToolsLayer
       v-model:dock="panelDock"
