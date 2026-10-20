@@ -33,6 +33,22 @@ function publicObserverOrigin(policy: BrowserWorkspaceNavigationPolicy): string 
 }
 
 /**
+ * The Site access rules of a copy of a workspace when it is created: never looser than the source's. "Any safe website",
+ * or no choice at all as from an agent's fork, keeps the source's rules. Listed rules apply when the source allows every
+ * site, or when the source lists each of them too, compared in their normalized form. Any other rule is refused rather
+ * than dropped, so the copy never allows less than the person listed for it, nor more than its source.
+ */
+function forkNavigationPolicy(
+  source: { name: string; navigationPolicy: BrowserWorkspaceNavigationPolicy },
+  requested: BrowserWorkspaceNavigationPolicy
+): BrowserWorkspaceNavigationPolicy {
+  const inherited = normalizeWorkspaceNavigationPolicy(source.navigationPolicy)
+  if (requested.mode === 'unrestricted') return inherited
+  if (inherited.mode === 'unrestricted' || requested.rules.every((rule) => inherited.rules.includes(rule))) return requested
+  throw new LocalizedError('appErrors.workspace.forkSiteAccess', { name: source.name })
+}
+
+/**
  * Creates an open workspace with clean scratch storage, or one that copies
  * another workspace's storage and opens a blank tab. A failed copy deletes the
  * new storage, or keeps the workspace listed when that cleanup fails too, so
@@ -79,7 +95,7 @@ export async function createMcpTabGroup<Tab extends McpTabGroupsTab>(
     const source = sourceId ? access.mcpTabGroups().get(sourceId) ?? access.savedTabGroups().get(sourceId) : undefined
     if (!source) throw new LocalizedError('appErrors.workspace.sourceUnavailable')
     if (access.isClosingWorkspace(sourceId!)) throw new LocalizedError('appErrors.workspace.sourceJustClosed', { name: source.name })
-    group.navigationPolicy = normalizeWorkspaceNavigationPolicy(source.navigationPolicy)
+    group.navigationPolicy = forkNavigationPolicy(source, normalizedPolicy)
     const fork = async () => {
       access.mcpTabGroups().set(group.id, group)
       // Home can already read this workspace while its storage is copying.
