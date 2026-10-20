@@ -10,6 +10,8 @@ interface PanelWindowIpcHost {
   assertPanelShellSender(event: IpcMainInvokeEvent): void
   /** Opens the panel in its own window, or shows it in the one already open. */
   openPanelWindow(panel: DetachablePanelId): Promise<void>
+  /** Closes the panel window, or keeps one that is still being opened from opening. */
+  closePanelWindow(): void
   /**
    * The detached window, the panel it shows and whether it is closing to dock its panel again, so the shell is not
    * told it simply closed; index.ts creates the record, and the panel window's own module opens and resets it.
@@ -39,7 +41,7 @@ export function registerPanelWindowIpc(ipcMain: Pick<IpcMain, 'handle'>, host: P
   })
   ipcMain.handle('panel-window:close', (event) => {
     host.assertTrustedSender(event)
-    host.panelWindowRefs.window?.close()
+    host.closePanelWindow()
   })
   ipcMain.handle('panel-window:set-active', (event, panel: unknown) => {
     host.assertPanelShellSender(event)
