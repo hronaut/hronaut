@@ -60,7 +60,7 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
 </script>
 
 <template>
-  <section class="request-conditions" aria-labelledby="request-conditions-title">
+  <section class="request-conditions" tabindex="-1" aria-labelledby="request-conditions-title">
     <UiButton appearance="application"
       class="request-conditions-toggle"
       type="button"
