@@ -16,6 +16,11 @@ import type { WorkspaceNavigationAccess, WorkspaceNavigationTab } from './worksp
 
 /** How many navigation denials one workspace's audit keeps; the oldest is dropped first. */
 const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
+/**
+ * The longest denied origin the saved session accepts, a copy of the tab store's limit. An address with an over-long
+ * scheme or host names a longer one; it is recorded as unreadable so the session can still be saved.
+ */
+const MAX_WORKSPACE_NAVIGATION_AUDIT_ORIGIN_LENGTH = 500
 /** Chromium's net::ERR_ABORTED error code. */
 const ABORTED_LOAD_ERROR = -3
 
@@ -112,10 +117,13 @@ function recordWorkspaceNavigationDenied<Tab extends WorkspaceNavigationTab>(
   )) return
   const group = access.findWorkspace(groupId)
   if (!group) return
+  const targetOrigin = decision.targetOrigin.length <= MAX_WORKSPACE_NAVIGATION_AUDIT_ORIGIN_LENGTH
+    ? decision.targetOrigin
+    : 'invalid URL'
   const previous = group.navigationAudit.at(-1)
   if (
     previous
-    && previous.targetOrigin === decision.targetOrigin
+    && previous.targetOrigin === targetOrigin
     && previous.reason === decision.reason
     && previous.source === source
     && Date.now() - Date.parse(previous.timestamp) < 1_000
@@ -123,7 +131,7 @@ function recordWorkspaceNavigationDenied<Tab extends WorkspaceNavigationTab>(
   group.navigationAudit.push({
     id: uuidV7(),
     timestamp: new Date().toISOString(),
-    targetOrigin: decision.targetOrigin,
+    targetOrigin,
     reason: decision.reason,
     source
   })
