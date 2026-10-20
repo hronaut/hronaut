@@ -103,7 +103,12 @@ export function useNetworkController(options: NetworkControllerOptions) {
   let replayConfirmTimer: number | undefined
   const feedbackTimers = createFeedbackTimerRegistry<'details' | 'har' | 'har-save'>()
   const stopPanelOpenTracking = watch(options.open, (open) => {
-    if (open) return
+    if (open) {
+      // However the panel opens, from Page tools, Request conditions or a panel window docked back, it reads the page's
+      // requests and request conditions as they are now.
+      void refreshAll()
+      return
+    }
     // Closing retires copy ownership; an already-dispatched write cannot be undone.
     detailsCopySequence += 1
     harCopySequence += 1

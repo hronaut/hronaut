@@ -222,6 +222,12 @@ watch(
   }
 )
 
+// Docked back from its window, the panel was open all along, so it reads the page's requests as they are now instead of
+// showing the ones it had before it left.
+watch(dock, (next, previous) => {
+  if (open.value && previous === 'window' && next !== 'window') void refreshNetwork()
+})
+
 defineExpose({
   reset: resetNetworkMonitorView,
   refresh: refreshNetworkMonitor,

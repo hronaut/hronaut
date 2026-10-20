@@ -268,6 +268,40 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+describe('Network panel opening', () => {
+  it('reads the page\'s requests and request conditions whenever the panel opens', async () => {
+    // Opening the panel from Request conditions, or docking its window back, showed no requests or the ones of an
+    // earlier read, since only the Page tools button read them.
+    const { controller, browser, open } = createController()
+    try {
+      open.value = false
+      browser.listNetworkRequests.mockResolvedValueOnce([request('page'), request('data')])
+      open.value = true
+      await vi.waitFor(() => expect(controller.requests.value.map(({ id }) => id)).toEqual(['page', 'data']))
+      expect(browser.listNetworkRequests).toHaveBeenCalledWith('tab-1', false)
+      expect(browser.listNetworkRoutes).toHaveBeenCalledWith('tab-1')
+    } finally { controller.dispose() }
+  })
+
+  it('keeps the newest read when the panel closes and opens again before an older one finishes', async () => {
+    const { controller, browser, open } = createController()
+    try {
+      open.value = false
+      const older = deferred<BrowserNetworkRequest[]>()
+      browser.listNetworkRequests.mockReturnValueOnce(older.promise)
+      open.value = true
+      open.value = false
+      browser.listNetworkRequests.mockResolvedValueOnce([request('newer')])
+      open.value = true
+      await vi.waitFor(() => expect(controller.requests.value.map(({ id }) => id)).toEqual(['newer']))
+      older.resolve([request('older')])
+      await older.promise
+      await Promise.resolve()
+      expect(controller.requests.value.map(({ id }) => id)).toEqual(['newer'])
+    } finally { controller.dispose() }
+  })
+})
+
 describe('Network request durations', () => {
   it('writes durations with the interface language\'s decimal separator', () => {
     // Durations used a decimal point in every language, so German read "1.25 s".
