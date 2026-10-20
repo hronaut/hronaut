@@ -672,3 +672,16 @@ describe('Downloads keyboard focus after a row changes', () => {
     expect(cancel).toHaveFocus()
   })
 })
+
+it('keeps a held Enter from pressing Remove again', () => {
+  renderPanel()
+  const remove = screen.getByRole('button', { name: 'Remove complete.bin from list' })
+  const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+  const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+  remove.dispatchEvent(press)
+  remove.dispatchEvent(repeat)
+
+  // Remove hands its focus to the next row's Remove, so each repeat of a held Enter removed one more row.
+  expect(press.defaultPrevented).toBe(false)
+  expect(repeat.defaultPrevented).toBe(true)
+})
