@@ -93,7 +93,8 @@ describe('extracted shell components', () => {
     const siteDataController = {
       summary: ref({ origin: 'https://example.test', cookieCount: 2, historyEntries: 3, historyVisits: 5 }),
       state: ref('idle'),
-      message: ref('')
+      message: ref(''),
+      refresh: vi.fn()
     } as unknown as SiteDataSummaryController
     const sitePermissionsController = {
       permissionLabel: (value: string) => value === 'camera' ? 'Camera' : value,
@@ -114,6 +115,7 @@ describe('extracted shell components', () => {
         locale: 'en-US',
         formatNumber: (value: number) => String(value),
         runAction: (action: () => unknown) => action(),
+        keepsSeparatePanelOpen: () => false,
         actions: {
           toggleSiteControls: vi.fn(),
           resetActiveTabEmulation: vi.fn(),
@@ -197,7 +199,8 @@ describe('extracted shell components', () => {
         siteDataController: {
           summary: ref(null),
           state: ref('idle'),
-          message: ref('')
+          message: ref(''),
+          refresh: vi.fn()
         } as unknown as SiteDataSummaryController,
         sitePermissionsController: {
           permissionLabel: (value: string) => value === 'camera' ? 'Camera' : value,
@@ -206,6 +209,7 @@ describe('extracted shell components', () => {
         locale: 'en-US',
         formatNumber: (value: number) => String(value),
         runAction: (action: () => unknown) => action(),
+        keepsSeparatePanelOpen: () => false,
         actions: {
           toggleSiteControls: vi.fn(),
           resetActiveTabEmulation: vi.fn(),
@@ -297,11 +301,12 @@ describe('extracted shell components', () => {
         activeTabPresentation,
         emulationController: { activeEmulation: ref(undefined), resetPending: ref(false), label: vi.fn(), describe: vi.fn() } as unknown as EmulationController,
         pageToolsPresentation: { activeNetworkRouteCount: ref(0) } as unknown as PageToolsPresentationController,
-        siteDataController: { summary: ref(null), state: ref('idle'), message: ref('') } as unknown as SiteDataSummaryController,
+        siteDataController: { summary: ref(null), state: ref('idle'), message: ref(''), refresh: vi.fn() } as unknown as SiteDataSummaryController,
         sitePermissionsController,
         locale: 'en-US',
         formatNumber: (value: number) => String(value),
         runAction: (action: () => unknown) => action(),
+        keepsSeparatePanelOpen: () => false,
         actions: {
           toggleSiteControls: vi.fn(),
           resetActiveTabEmulation: vi.fn(),
@@ -378,11 +383,12 @@ describe('extracted shell components', () => {
         describe: vi.fn()
       } as unknown as EmulationController,
       pageToolsPresentation: { activeNetworkRouteCount: ref(0) } as unknown as PageToolsPresentationController,
-      siteDataController: { summary: ref(null), state: ref('idle'), message: ref('') } as unknown as SiteDataSummaryController,
+      siteDataController: { summary: ref(null), state: ref('idle'), message: ref(''), refresh: vi.fn() } as unknown as SiteDataSummaryController,
       sitePermissionsController: { permissionLabel: (value: string) => value, isPending: () => false } as unknown as SitePermissionsController,
       locale: 'en-US' as const,
       formatNumber: (value: number) => String(value),
       runAction: (action: () => unknown) => action(),
+      keepsSeparatePanelOpen: () => false,
       actions: {
         toggleSiteControls: vi.fn(),
         resetActiveTabEmulation: vi.fn(),

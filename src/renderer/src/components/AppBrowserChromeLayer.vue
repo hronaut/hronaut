@@ -114,7 +114,8 @@ const {
   concealVerticalTabRail,
   handleVerticalTabRailFocusOut,
   toggleVerticalTabRailPinned,
-  panelDock
+  panelDock,
+  keepsSeparatePanelOpen
 } = props.shellController
 const { activeTab, mcpActivityByTab } = props.runtimeController
 const {
@@ -492,6 +493,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
             openSitePermissionSettings,
             openSitePrivacySettings
           }"
+          :keeps-separate-panel-open="keepsSeparatePanelOpen"
         />
         <AgentPresenceAvatars
           ref="agentPresenceAvatars"

@@ -51,6 +51,7 @@ const props = defineProps<{
   formatNumber: (value: number) => string
   runAction: (action: () => unknown) => unknown
   actions: BrowserAddressBarActions
+  keepsSeparatePanelOpen: () => boolean
 }>()
 
 const siteControlsOpen = defineModel<boolean>('siteControlsOpen', { required: true })
@@ -267,6 +268,8 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       :reset-permission="resetSitePermission"
       :open-permission-settings="actions.openSitePermissionSettings"
       :open-privacy-settings="actions.openSitePrivacySettings"
+      :refresh="siteDataController.refresh"
+      :keeps-separate-panel-open="keepsSeparatePanelOpen"
     />
     <section
       v-if="visible"
