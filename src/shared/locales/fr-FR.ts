@@ -1,4 +1,5 @@
 import { networkPriorityMessages } from './network-priority.js'
+import { networkLabelMessages } from './network-labels.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -22,6 +23,7 @@ export const frFR = {
   softNavigation: softNavigationMessages['fr-FR'],
   emulationApplication: {"pending": "Application de l’émulation", "unknown": "Émulation non confirmée", "help": "Ouvrez Environnement pour vérifier les réglages conservés et les restaurer explicitement. La requête échouée ne sera pas répétée.", "restore": "Restaurer les réglages conservés", "networkFirst": "Rétablissez d’abord les conditions réseau dans Conditions de requête. L’émulation restera non confirmée jusqu’à sa restauration séparée."},
   networkPriority: networkPriorityMessages['fr-FR'],
+  networkLabels: networkLabelMessages['fr-FR'],
   lcpAttribution: lcpAttributionMessages['fr-FR'],
   browserImport: browserImportMessages['fr-FR'],
   video: videoRecorderMessages['fr-FR'],
@@ -2550,7 +2552,7 @@ export const frFR = {
       "connectionOpen": "Connexion ouverte",
       "connectionClosed": "Connexion fermée",
       "socketSafety": "Le texte est nettoyé ; les charges utiles binaires sont omises.",
-      "payloadOmitted": "Charge utile omise pour {kind}",
+      "payloadOmitted": "Charge utile omise : {kind}",
       "opcode": "(opcode {opcode})",
       "noMessages": "Aucun message capturé pour le moment.",
       "olderMessages": "{count} ancien message a été supprimé du tampon de diagnostic limité. | {count} anciens messages ont été supprimés du tampon de diagnostic limité.",

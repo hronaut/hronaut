@@ -1,4 +1,5 @@
 import { networkPriorityMessages } from './network-priority.js'
+import { networkLabelMessages } from './network-labels.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -22,6 +23,7 @@ export const deDE = {
   softNavigation: softNavigationMessages['de-DE'],
   emulationApplication: {"pending": "Emulation wird angewendet", "unknown": "Emulation unbestätigt", "help": "Öffnen Sie Umgebung, um gespeicherte Einstellungen zu prüfen und ausdrücklich wiederherzustellen. Die fehlgeschlagene Anfrage wird nicht wiederholt.", "restore": "Gespeicherte Einstellungen wiederherstellen", "networkFirst": "Stellen Sie zuerst die Netzwerkbedingungen unter Anfragebedingungen wieder her. Die Emulation bleibt bis zur separaten Wiederherstellung unbestätigt."},
   networkPriority: networkPriorityMessages['de-DE'],
+  networkLabels: networkLabelMessages['de-DE'],
   lcpAttribution: lcpAttributionMessages['de-DE'],
   browserImport: browserImportMessages['de-DE'],
   video: videoRecorderMessages['de-DE'],
@@ -2550,7 +2552,7 @@ export const deDE = {
       "connectionOpen": "Verbindung geöffnet",
       "connectionClosed": "Verbindung geschlossen",
       "socketSafety": "Text wird bereinigt; binäre Nutzdaten werden ausgelassen.",
-      "payloadOmitted": "Nutzdaten für {kind} ausgelassen",
+      "payloadOmitted": "Nutzdaten ausgelassen: {kind}",
       "opcode": "(Opcode {opcode})",
       "noMessages": "Noch keine Nachrichten erfasst.",
       "olderMessages": "{count} ältere Nachricht wurde aus dem begrenzten Diagnosepuffer entfernt. | {count} ältere Nachrichten wurden aus dem begrenzten Diagnosepuffer entfernt.",

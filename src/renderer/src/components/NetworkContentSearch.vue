@@ -7,7 +7,7 @@ import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import { formatNumber } from '../../../shared/format'
 import type { SupportedLocale } from '../../../shared/locale'
-import { networkResourceCategory } from '../../../shared/network-har'
+import { createNetworkLabels } from '../composables/network/network-labels'
 import type { BrowserNetworkSearchMatch, BrowserNetworkSearchResult } from '../../../shared/types'
 
 const props = defineProps<{
@@ -22,6 +22,7 @@ const query = defineModel<string>('query', { required: true })
 const caseSensitive = defineModel<boolean>('caseSensitive', { required: true })
 const input = ref<HTMLInputElement | null>(null)
 const { t } = useI18n({ useScope: 'global' })
+const labels = createNetworkLabels((message, parameters) => t(message, parameters ?? {}))
 
 watch(open, (visible) => { if (visible) void nextTick(() => input.value?.focus()) })
 function localNumber(value: number): string { return formatNumber(props.locale, value) }
@@ -46,7 +47,7 @@ function requestName(request: Pick<BrowserNetworkSearchMatch, 'url'>): string {
       <header><strong>{{ t('network.contentSearch.result', { fields: t('network.contentSearch.fieldCount', { count: localNumber(result.resultCount) }, result.resultCount), requests: t('network.contentSearch.requestCount', { count: localNumber(result.matchingRequestCount) }, result.matchingRequestCount) }) }}</strong><span>{{ t('network.contentSearch.searched', { searched: localNumber(result.searchedRequestCount), available: localNumber(result.availableRequestCount) }) }}<template v-if="result.truncated"> {{ t('network.contentSearch.bounded') }}</template></span></header>
       <div v-if="result.matches.length" class="network-content-search-results">
         <UiButton appearance="application" v-for="(match, index) in result.matches" :key="`${match.requestId}:${match.field}:${match.label}:${index}`" type="button" :aria-label="t('network.contentSearch.inspect', { number: localNumber(index + 1), label: match.label })" @click="emit('select', match)">
-          <span><strong>{{ match.label }}</strong><small>{{ match.method }} · {{ match.status ?? t('network.noStatus') }} · {{ networkResourceCategory(match.resourceType) }} · {{ requestName(match) }}<template v-if="match.occurrenceCount > 1"> · {{ t('network.contentSearch.occurrenceCount', { count: localNumber(match.occurrenceCount) }, match.occurrenceCount) }}</template></small></span><code>{{ match.snippet }}</code>
+          <span><strong>{{ match.label }}</strong><small>{{ match.method }} · {{ match.status ?? t('network.noStatus') }} · {{ labels.resourceCategory(match.resourceType) }} · {{ requestName(match) }}<template v-if="match.occurrenceCount > 1"> · {{ t('network.contentSearch.occurrenceCount', { count: localNumber(match.occurrenceCount) }, match.occurrenceCount) }}</template></small></span><code>{{ match.snippet }}</code>
         </UiButton>
       </div>
       <div v-else class="network-content-search-empty">{{ t('network.contentSearch.empty', { query: result.query }) }}</div>

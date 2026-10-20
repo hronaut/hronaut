@@ -41,6 +41,8 @@ const SAME_IN_EVERY_LANGUAGE = new Set([
   'appearance.themes.cyberpunk-turbo.label',
   'home.endpoint',
   'network.filters.fetchXhr',
+  'networkLabels.responseSources.serviceWorker',
+  'networkLabels.workerSources.cacheStorage',
   'pageMetadata.issues.robotsNoindex.label',
   'pageMetadata.openGraph',
   'runtime.storage.cacheStorage',

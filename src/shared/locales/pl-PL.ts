@@ -1,4 +1,5 @@
 import { networkPriorityMessages } from './network-priority.js'
+import { networkLabelMessages } from './network-labels.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -22,6 +23,7 @@ export const plPL = {
   softNavigation: softNavigationMessages['pl-PL'],
   emulationApplication: {"pending": "Stosowanie emulacji", "unknown": "Emulacja niepotwierdzona", "help": "Otwórz Środowisko, aby sprawdzić i jawnie przywrócić zachowane ustawienia. Nieudane żądanie nie zostanie powtórzone.", "restore": "Przywróć zachowane ustawienia", "networkFirst": "Najpierw przywróć warunki sieciowe w Warunkach żądań. Emulacja pozostaje niepotwierdzona do czasu osobnego przywrócenia."},
   networkPriority: networkPriorityMessages['pl-PL'],
+  networkLabels: networkLabelMessages['pl-PL'],
   lcpAttribution: lcpAttributionMessages['pl-PL'],
   browserImport: browserImportMessages['pl-PL'],
   video: videoRecorderMessages['pl-PL'],
@@ -2550,7 +2552,7 @@ export const plPL = {
       "connectionOpen": "Połączenie otwarte",
       "connectionClosed": "Połączenie zamknięte",
       "socketSafety": "Tekst jest oczyszczany; dane binarne są pomijane.",
-      "payloadOmitted": "Pominięto dane dla {kind}",
+      "payloadOmitted": "Pominięto dane: {kind}",
       "opcode": "(kod operacji {opcode})",
       "noMessages": "Nie przechwycono jeszcze wiadomości.",
       "olderMessages": "Usunięto {count} starszą wiadomość z ograniczonego bufora diagnostycznego. | Usunięto {count} starsze wiadomości z ograniczonego bufora diagnostycznego. | Usunięto {count} starszych wiadomości z ograniczonego bufora diagnostycznego.",
