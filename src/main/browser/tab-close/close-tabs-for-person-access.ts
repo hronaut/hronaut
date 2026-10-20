@@ -40,6 +40,8 @@ export interface PersonTabCloseAccess<Tab extends PersonTabCloseTab> {
   findTab(tabId: string): Tab | undefined
   /** Every open tab in the order the rail and strip show them. */
   orderedTabs(): Tab[]
+  /** The tab shown in the window, if any. */
+  activeTabId(): string | null
   /** The recently closed tabs, oldest first. */
   closedTabs(): readonly BrowserClosedTabState[]
   /**
