@@ -143,6 +143,27 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
   ].find(element => element?.isConnected && !element.matches(':disabled'))
   target?.focus()
 }
+// Opening an entry and Clear all disable the control you used until they finish, and Chromium then drops its focus.
+// When the panel is still open afterwards, as after a failure or once Clear all has emptied History, that control gets
+// the focus back, or Search or Close when it can no longer be used, unless you have moved the focus, gone to the
+// website or another app, or closed the panel meanwhile.
+async function keepFocusThrough(event: Event, action: () => Promise<unknown>): Promise<void> {
+  const generation = focusGeneration
+  const panel = panelRoot.value
+  const focused = event.currentTarget instanceof HTMLElement && document.activeElement === event.currentTarget
+    ? event.currentTarget : null
+  await action()
+  await nextTick()
+  if (!focused || !panel || generation !== focusGeneration || !open.value || panel !== panelRoot.value
+    || !panel.isConnected) return
+  if (!document.hasFocus() || (document.activeElement !== document.body && document.activeElement !== focused)) return
+  const target = [focused,
+    panel.querySelector<HTMLInputElement>('.history-search-field input'),
+    panel.querySelector<HTMLButtonElement>('.panel-close')
+  ].find(element => element?.isConnected && !element.matches(':disabled'))
+  target?.focus()
+}
+
 async function clearOrigin(event: Event): Promise<void> {
   const button = event.currentTarget
   const panel = panelRoot.value
@@ -175,7 +196,7 @@ async function clearOrigin(event: Event): Promise<void> {
         <h2 id="history-title">{{ t('history.heading') }}</h2>
       </div>
       <div class="history-header-actions">
-        <UiButton appearance="application" type="button" :disabled="!entries.length || pendingAction !== null" @click="clear">{{ t('history.clearAll') }}</UiButton>
+        <UiButton appearance="application" type="button" :disabled="!entries.length || pendingAction !== null" @click="keepFocusThrough($event, clear)">{{ t('history.clearAll') }}</UiButton>
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('history.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
@@ -214,7 +235,7 @@ async function clearOrigin(event: Event): Promise<void> {
     </div>
     <div v-else class="history-list">
       <article v-for="entry in filteredEntries" :key="entry.id" class="history-item">
-        <UiButton appearance="application" class="history-open" type="button" v-tooltip="entry.url" :disabled="pendingAction !== null" @click="openEntry(entry)">
+        <UiButton appearance="application" class="history-open" type="button" v-tooltip="entry.url" :disabled="pendingAction !== null" @click="keepFocusThrough($event, () => openEntry(entry))">
           <span class="history-site-icon" aria-hidden="true"><IconLanguage /></span>
           <span class="history-copy">
             <strong>{{ entry.title }}</strong>

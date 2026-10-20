@@ -299,6 +299,25 @@ function handleTabAuxClick(event: MouseEvent, tab: BrowserTabState): void {
   emit('closeTab', tab.id)
 }
 
+// Closing the focused tab, as with Delete, takes its control out of the strip, and moving it, as with Move left or Pin,
+// moves its control; either way Chromium leaves the focus on the page body. A closed tab hands the focus to the tab
+// after it, or the one before it when it was the last, as the tabs pattern asks, and a tab still in the strip keeps it.
+// A tab that is only hidden, as in a folded workspace, hands it to no other workspace's tab. Not when the focus has
+// moved on meanwhile, or the window no longer has it, as when the page that replaces a closed active tab took it.
+watch(() => visibleTabs.value.map((tab) => tab.id), async (ids, previousIds) => {
+  const focused = document.activeElement
+  const tabId = focused instanceof HTMLElement && tabsStrip.value?.contains(focused) ? focused.dataset.tabId : undefined
+  if (!tabId) return
+  const remaining = new Set(ids)
+  const index = previousIds.indexOf(tabId)
+  const closed = !props.state.tabs.some((tab) => tab.id === tabId)
+  const target = remaining.has(tabId) ? tabId : !closed || index < 0 ? undefined
+    : previousIds.slice(index + 1).find((id) => remaining.has(id)) ?? previousIds.slice(0, index).reverse().find((id) => remaining.has(id))
+  await nextTick()
+  if (!target || document.activeElement !== document.body || !document.hasFocus()) return
+  focusTab(target)
+}, { flush: 'pre' })
+
 // In the rail, a group shows its agents in its header and opens by itself when an agent starts working there or it
 // starts waiting for you. The top strip has room for neither; the toolbar shows the agents of the workspace in view.
 const groupAgents = useWorkspaceGroupAgents({

@@ -44,7 +44,12 @@ export function useTabDragReorder(options: TabDragReorderOptions) {
   }
 
   function updateTabDrop(event: DragEvent, tab: BrowserTabState): void {
-    if (!canDropTab(tab)) return
+    if (!canDropTab(tab)) {
+      // Over a tab it cannot land beside, such as itself, the marker beside the last tab it could leaves too.
+      tabDropTargetId.value = null
+      tabDropPlacement.value = null
+      return
+    }
     event.preventDefault()
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
     const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect()
