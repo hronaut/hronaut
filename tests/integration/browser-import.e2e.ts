@@ -29,7 +29,8 @@ for (const sourceBrowser of ['chromium', 'firefox'] as const) {
     let previousHome = ''
     try {
       await source.addCookies([{ name: 'fixture-auth', value: 'fixture-token', domain: '127.0.0.1', path: '/', secure: false, httpOnly: true, sameSite: 'Lax', expires: Math.floor(Date.now() / 1000) + 3600 }])
-      if (sourceBrowser === 'chromium') await source.addCookies(Array.from({ length: 775 }, (_, index) => ({ name: 'layout-fixture', value: 'test', domain: `site-${String(index).padStart(3, '0')}.test`, path: '/', expires: Math.floor(Date.now() / 1000) + 3600 })))
+      // Like cookies set with Max-Age, these expire at a fraction of a second, which Chromium saves in microseconds.
+      if (sourceBrowser === 'chromium') await source.addCookies(Array.from({ length: 775 }, (_, index) => ({ name: 'layout-fixture', value: 'test', domain: `site-${String(index).padStart(3, '0')}.test`, path: '/', expires: Math.floor(Date.now() / 1000) + 3600 + (index + 1) / 1031 })))
       const page = source.pages()[0] ?? await source.newPage()
       await page.goto(origin); await expect(page.getByRole('main')).toHaveText('Signed in')
       await source.close()

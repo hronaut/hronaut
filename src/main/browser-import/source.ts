@@ -11,6 +11,10 @@ const MAX_ROWS = 20_000
 const MAX_BYTES = 128 * 1024 * 1024
 const MAX_VALUES = 16 * 1024 * 1024
 const UTF8 = new TextDecoder('utf-8', { fatal: true })
+/** Microseconds from 1601, where Chromium counts cookie expiry from, to 1970. */
+const CHROMIUM_EPOCH_OFFSET_MICROSECONDS = 11_644_473_600_000_000n
+/** Chromium keeps a cookie for at most 400 days from when it is set, and shortens a longer expiry to that. */
+const MAX_COOKIE_LIFETIME_SECONDS = 400 * 24 * 60 * 60
 
 async function exists(file: string): Promise<boolean> {
   try { const s = await lstat(file); return s.isFile() && !s.isSymbolicLink() } catch { return false }
@@ -140,6 +144,25 @@ function validCookie(cookie: Cookie): boolean {
     && (cookie.session || (Number.isFinite(cookie.expirationDate) && cookie.expirationDate! > Date.now() / 1000))
 }
 
+/**
+ * Chromium's expiry, microseconds from 1601, as the seconds from 1970 that Electron gives back for it. Subtracting in
+ * whole microseconds keeps it exact: dividing first rounds most expiries with a fraction of a second, which login
+ * cookies set with Max-Age have, to a value the imported cookie never reads back as.
+ */
+function chromiumExpiry(value: unknown): number {
+  const microseconds = String(value)
+  if (!/^\d{1,20}$/.test(microseconds)) return Number(value) / 1_000_000 - 11_644_473_600
+  return Number(BigInt(microseconds) - CHROMIUM_EPOCH_OFFSET_MICROSECONDS) / 1_000_000
+}
+
+/**
+ * The expiry the imported cookie keeps: one past the 400 days Chromium allows, which another browser can save, is
+ * shortened to whole seconds within them, so the cookie reads back as written.
+ */
+function cookieExpiry(seconds: number): number {
+  return Math.min(seconds, Math.floor(Date.now() / 1000) + MAX_COOKIE_LIFETIME_SECONDS)
+}
+
 function cookieMetadata(row: Record<string, unknown>, kind: ImportProfile['kind'], version: number): Cookie | null {
   const chrome = kind === 'chromium'
   if (chrome ? row.top_frame_site_key !== '' : row.originAttributes !== '' || row.isPartitionedAttributeSet === 1) return null
@@ -149,7 +172,7 @@ function cookieMetadata(row: Record<string, unknown>, kind: ImportProfile['kind'
     || ![0, 1].includes(chrome ? row.is_httponly as number : row.isHttpOnly as number)) return null
   if (chrome && row.encrypted_value instanceof Uint8Array && row.encrypted_value.length && row.value !== '') return null
   const domain = String(chrome ? row.host_key : row.host)
-  const expirationDate = chrome ? Number(row.expires_utc) / 1_000_000 - 11_644_473_600 : Number(row.expiry) / (version >= 16 ? 1000 : 1)
+  const expirationDate = cookieExpiry(chrome ? chromiumExpiry(row.expires_utc) : Number(row.expiry) / (version >= 16 ? 1000 : 1))
   const session = chrome ? row.is_persistent === 0 && row.has_expires === 0 : false
   const sameSiteValue = chrome ? Number(row.samesite)
     : version >= 15 ? Number(row.sameSite)
