@@ -22,9 +22,9 @@ import VisualComparePanel from './visual-compare/VisualComparePanel.vue'
 
 // Each panel renders its own docked section behind the controller's open state.
 // Requests, race guards and open-state watchers stay in the shared controller,
-// which outlives these panels and also serves Page Tools. A panel that shows a
-// recording, comparison or issue list reads it again when it docks back from
-// its own window.
+// which outlives these panels and also serves Page Tools. Visual compare,
+// Issues, Code coverage and CPU profile also watch their dock, to read the tab
+// again when they dock back from their own window.
 defineProps<{
   activeTab?: BrowserTabState
   locale: SupportedLocale

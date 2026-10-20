@@ -61,6 +61,19 @@ describe.each(panels)('$name docked back from its window', ({ open, state, reque
     controller.dispose()
   })
 
+  it('does not read the tab when it moves between docked places or is closed', async () => {
+    const { view, controller, browser } = renderPanels()
+    await view.rerender({ dock: 'right' })
+    open(controller).value = true
+    await view.rerender({ dock: 'left' })
+    open(controller).value = false
+    await view.rerender({ dock: 'window' })
+    await view.rerender({ dock: 'right' })
+    expect(request(browser)).not.toHaveBeenCalled()
+    view.unmount()
+    controller.dispose()
+  })
+
   it('leaves a request still running to answer', async () => {
     const { view, controller, browser } = renderPanels()
     open(controller).value = true
