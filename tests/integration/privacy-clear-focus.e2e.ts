@@ -1,7 +1,8 @@
 import { createServer } from 'node:http'
 import { closeFixtureServer, expect, test } from './fixtures.js'
+import { answerConfirmations } from './confirmation-fixture.js'
 
-test('keeps keyboard position when clearing retained website history', async ({ appWindow }) => {
+test('keeps keyboard position when clearing retained website history', async ({ appWindow, electronApp }) => {
   const servers = Array.from({ length: 3 }, () => createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end('<title>History focus fixture</title>')
@@ -31,8 +32,8 @@ test('keeps keyboard position when clearing retained website history', async ({ 
       { origin: last, nextOrigin: first, remaining: 1 },
       { origin: first, nextOrigin: null, remaining: 0 }
     ]
+    await answerConfirmations(electronApp, 'ok')
     for (const { origin, nextOrigin, remaining } of steps) {
-      appWindow.once('dialog', confirmation => { void confirmation.accept() })
       await appWindow.keyboard.press('Enter')
       await expect(clear(origin)).toHaveCount(0)
       await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toHaveLength(remaining)

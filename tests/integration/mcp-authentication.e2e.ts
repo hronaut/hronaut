@@ -7,6 +7,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { DEFAULT_MCP_PORT } from '../../src/shared/mcp-port.js'
 import type { HronautSettingsApi } from '../../src/shared/types.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { answerConfirmations } from './confirmation-fixture.js'
 
 test('creates a digest-only restricted credential and revokes its active MCP session', async ({
   appWindow,
@@ -164,6 +165,7 @@ test('repairs a malformed profile token before starting the browser and MCP list
 
 test('starts without MCP authentication and can enable or disable it in Settings', async ({
   appWindow,
+  electronApp,
   mcpPort,
   mcpToken,
   profileDirectory
@@ -195,7 +197,7 @@ test('starts without MCP authentication and can enable or disable it in Settings
     .poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).mcpAuthentication)
     .toBe(true)
 
-  appWindow.once('dialog', (dialog) => dialog.accept())
+  await answerConfirmations(electronApp, 'ok')
   await authentication.uncheck()
   await expect.poll(() => healthStatus()).toBe(200)
   await expect

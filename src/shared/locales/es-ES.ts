@@ -3645,7 +3645,7 @@ export const esES = {
       "workspaceRecoveryMessage": "Se detuvo el inicio para evitar reemplazar los espacios guardados.",
       "workspaceRecoveryDetail": "Cierra Hronaut. Usa una versión compatible con el perfil o restaura una copia válida de tabs.json en el perfil de Hronaut con la aplicación cerrada. Conserva los archivos existentes; no restablezcas el perfil.",
       "mcpFailedTitle": "No se pudo iniciar el servidor MCP",
-      "mcpFailedMessage": "No se pudo escuchar en {host}:{port}", "claudeSetupTitle": "Configurar Claude Code", "claudeSetupMessage": "¿Añadir Hronaut a Claude Code?", "claudeSetupDetail": "Archivo: {path}\n\nNueva entrada en \"mcpServers\":\n\"hronaut\": {after}\n\n{replaces}Antes se guarda una copia del archivo como {backup}.", "claudeSetupReplaces": "Sustituye:\n\"hronaut\": {before}\n\n", "claudeSetupConfirm": "Añadir a Claude Code",
+      "mcpFailedMessage": "No se pudo escuchar en {host}:{port}", "claudeSetupTitle": "Configurar Claude Code", "claudeSetupMessage": "¿Añadir Hronaut a Claude Code?", "claudeSetupDetail": "Archivo: {path}\n\nNueva entrada en \"mcpServers\":\n\"hronaut\": {after}\n\n{replaces}Antes se guarda una copia del archivo como {backup}.", "claudeSetupReplaces": "Sustituye:\n\"hronaut\": {before}\n\n", "claudeSetupConfirm": "Añadir a Claude Code", "confirmOk": "Aceptar",
       "savePasswordTitle": "¿Guardar contraseña?",
       "updatePasswordTitle": "¿Actualizar contraseña guardada?",
       "savePasswordMessage": "¿Guardar la contraseña de {account}?",

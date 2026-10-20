@@ -3645,7 +3645,7 @@ export const plPL = {
       "workspaceRecoveryMessage": "Uruchamianie zatrzymano, aby nie zastąpić zapisanych przestrzeni.",
       "workspaceRecoveryDetail": "Zamknij Hronaut. Użyj wersji zgodnej z profilem lub przy zamkniętej aplikacji przywróć poprawną kopię tabs.json w profilu Hronaut. Zachowaj istniejące pliki; nie resetuj profilu.",
       "mcpFailedTitle": "Nie udało się uruchomić serwera MCP",
-      "mcpFailedMessage": "Nie udało się nasłuchiwać na {host}:{port}", "claudeSetupTitle": "Skonfiguruj Claude Code", "claudeSetupMessage": "Dodać Hronaut do Claude Code?", "claudeSetupDetail": "Plik: {path}\n\nNowy wpis w \"mcpServers\":\n\"hronaut\": {after}\n\n{replaces}Najpierw kopia pliku zostanie zapisana jako {backup}.", "claudeSetupReplaces": "Zastąpi:\n\"hronaut\": {before}\n\n", "claudeSetupConfirm": "Dodaj do Claude Code",
+      "mcpFailedMessage": "Nie udało się nasłuchiwać na {host}:{port}", "claudeSetupTitle": "Skonfiguruj Claude Code", "claudeSetupMessage": "Dodać Hronaut do Claude Code?", "claudeSetupDetail": "Plik: {path}\n\nNowy wpis w \"mcpServers\":\n\"hronaut\": {after}\n\n{replaces}Najpierw kopia pliku zostanie zapisana jako {backup}.", "claudeSetupReplaces": "Zastąpi:\n\"hronaut\": {before}\n\n", "claudeSetupConfirm": "Dodaj do Claude Code", "confirmOk": "OK",
       "savePasswordTitle": "Zapisać hasło?",
       "updatePasswordTitle": "Zaktualizować zapisane hasło?",
       "savePasswordMessage": "Zapisać hasło dla {account}?",

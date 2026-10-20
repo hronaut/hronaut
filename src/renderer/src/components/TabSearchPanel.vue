@@ -28,6 +28,7 @@ import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { useTabSearchController } from '../composables/useTabSearchController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 import { vTooltip } from '../ui/tooltip.js'
+import { confirmAction } from '../confirm-action.js'
 
 const props = defineProps<{
   state: BrowserState
@@ -91,7 +92,7 @@ const {
   formatNumber: props.formatNumber,
   formatTime: props.formatTime,
   describeEmulation: props.describeEmulation,
-  confirm: (message) => window.confirm(message),
+  confirm: confirmAction,
   formatError: props.formatError,
   showError: props.showError
 })

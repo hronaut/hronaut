@@ -11,6 +11,7 @@ import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import type { BrowserEnvironmentSettings, BrowserState, BrowserStorageResult, BrowserViewportEmulation, HronautApi, RendererSettingsState } from '../../src/shared/types.js'
 import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, settleShellMotion, test } from './fixtures.js'
+import { answerConfirmations } from './confirmation-fixture.js'
 
 const execFileAsync = promisify(execFile)
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -6593,7 +6594,7 @@ test('records, searches, removes, and clears local browsing history', async ({ a
     await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toEqual([
       expect.objectContaining({ url: betaUrl, title: 'History beta' })
     ])
-    appWindow.once('dialog', (dialog) => void dialog.accept())
+    await answerConfirmations(electronApp, 'ok')
     await panel.getByRole('button', { name: 'Clear all' }).click()
     await expect(panel).toContainText('No browsing history yet')
     await expect.poll(async () => {

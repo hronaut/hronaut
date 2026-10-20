@@ -100,6 +100,18 @@ export default defineConfig(
     languageOptions: { globals: globals.browser }
   },
   {
+    // Electron's own dialogs press OK on Enter and are labeled in English. Hronaut's pages ask through main instead.
+    files: ['src/renderer/**/*.{ts,vue}'],
+    rules: {
+      'no-restricted-properties': ['error', ...['window', 'globalThis'].flatMap(object => ['confirm', 'alert', 'prompt'].map(property => ({
+        object, property, message: 'Use confirmAction (or Home\'s bridge), which asks natively with Cancel as the default.'
+      })))],
+      'no-restricted-globals': ['error', ...['confirm', 'alert', 'prompt'].map(name => ({
+        name, message: 'Use confirmAction (or Home\'s bridge), which asks natively with Cancel as the default.'
+      }))]
+    }
+  },
+  {
     files: ['src/main/**/*.ts', 'src/preload/**/*.ts', 'scripts/**/*.ts', 'tests/**/*.ts', '*.config.ts'],
     languageOptions: { globals: globals.node }
   },

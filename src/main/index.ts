@@ -92,6 +92,7 @@ import { registerLogpointIpc } from './logpoint-ipc.js'
 import { registerPageGeometryIpc } from './page-geometry-ipc.js'
 import { DEFAULT_MCP_PORT } from '../shared/mcp-port.js'
 import { registerShellIpc } from './shell-ipc.js'
+import { registerConfirmDialogIpc } from './confirm-dialog-ipc.js'
 import { createClipboardOperations } from './clipboard-operations.js'
 import { createPanelWindow, type PanelWindowRefs } from './windows/panel-window.js'
 import { createApplicationMenu } from './windows/application-menu.js'
@@ -720,6 +721,14 @@ function registerIpc(): void {
     assertMainShellSender,
     agentPresenceSnapshot,
     mcpServer: () => mcpRuntime.server
+  })
+  registerConfirmDialogIpc({
+    ipcMain: hronautIpcMain,
+    assertTrustedShellSender,
+    senderWindow: (event) => BrowserWindow.fromWebContents(event.sender),
+    mainWindow: () => mainWindowRefs.window,
+    showMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options),
+    text
   })
   registerShellIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
