@@ -79,6 +79,21 @@ describe('agent card view', () => {
     expect(view.control('[data-action="follow-off"]').getAttribute('aria-checked')).toBe('true')
   })
 
+  it('keeps a held Enter from pressing a control again', async () => {
+    const view = await loadView()
+    view.render({ cardId: 1, revision: 1, theme: 'light', model: model() })
+    const pause = view.control('[data-action="pause"]')
+    pause.focus()
+    const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    pause.dispatchEvent(press)
+    pause.dispatchEvent(repeat)
+
+    // Pause becomes Resume and keeps the focus, so each repeat of a held Enter flipped it.
+    expect(press.defaultPrevented).toBe(false)
+    expect(repeat.defaultPrevented).toBe(true)
+  })
+
   it('turns agent cursors off and on from their switch, keeping focus on it', async () => {
     const view = await loadView()
     view.render({ cardId: 2, revision: 1, theme: 'light', model: model() })

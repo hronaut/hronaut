@@ -408,6 +408,12 @@ document.addEventListener('keydown', (event) => {
   // Keys that compose text with an input method belong to it.
   if (event.isComposing) return
   const target = event.target
+  if (event.key === 'Enter' && event.repeat && target instanceof HTMLButtonElement && cardRoot.contains(target)) {
+    // A held Enter presses a button once. Pause becomes Resume and keeps the focus, so its repeats flipped it back
+    // and forth.
+    event.preventDefault()
+    return
+  }
   if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && target instanceof HTMLTextAreaElement && cardRoot.contains(target)) {
     // Ctrl or Cmd with Enter sends what you typed; Enter alone starts a new line.
     event.preventDefault()
