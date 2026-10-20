@@ -119,7 +119,8 @@ describe('extracted diagnostic panels', () => {
       global,
       props: {
         dock: 'right', activeTab: tab.value, locale: 'en-US', controller,
-        openSupport: vi.fn(async () => undefined), preservationBusy: false, updatePreservation: vi.fn()
+        openSupport: vi.fn(async () => undefined), preservationBusy: false, updatePreservation: vi.fn(),
+        keepsSeparatePanelOpen: () => false
       }
     })
     const panel = screen.getByRole('dialog', { name: 'Accessibility' })
@@ -174,7 +175,8 @@ describe('extracted diagnostic panels', () => {
         controller,
         openSupport: vi.fn(async () => undefined),
         preservationBusy: false,
-        updatePreservation: vi.fn()
+        updatePreservation: vi.fn(),
+        keepsSeparatePanelOpen: () => false
       }
     })
 

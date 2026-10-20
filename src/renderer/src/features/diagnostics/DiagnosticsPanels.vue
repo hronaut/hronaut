@@ -22,7 +22,9 @@ import VisualComparePanel from './visual-compare/VisualComparePanel.vue'
 
 // Each panel renders its own docked section behind the controller's open state.
 // Requests, race guards and open-state watchers stay in the shared controller,
-// which outlives these panels and also serves Page Tools.
+// which outlives these panels and also serves Page Tools. A panel that shows a
+// recording, comparison or issue list reads it again when it docks back from
+// its own window.
 defineProps<{
   activeTab?: BrowserTabState
   locale: SupportedLocale
@@ -30,6 +32,7 @@ defineProps<{
   openSupport: (url: string) => Promise<void>
   preservationBusy: boolean
   updatePreservation: (event: Event) => unknown
+  keepsSeparatePanelOpen: () => boolean
 }>()
 const dock = defineModel<PanelDock>('dock', { required: true })
 </script>
@@ -41,10 +44,10 @@ const dock = defineModel<PanelDock>('dock', { required: true })
   <DesignOverviewPanel v-model:dock="dock" :controller="controller" :locale="locale" />
   <PageMetadataPanel v-model:dock="dock" :controller="controller.metadata" :locale="locale" />
   <SecurityReportPanel v-model:dock="dock" :controller="controller" :locale="locale" />
-  <CodeCoveragePanel v-model:dock="dock" :controller="controller" :locale="locale" />
-  <CpuProfilePanel v-model:dock="dock" :controller="controller" :locale="locale" />
+  <CodeCoveragePanel v-model:dock="dock" :controller="controller" :locale="locale" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
+  <CpuProfilePanel v-model:dock="dock" :controller="controller" :locale="locale" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
   <MemoryReportPanel v-model:dock="dock" :controller="controller" :locale="locale" />
-  <InspectorIssuesPanel v-model:dock="dock" :controller="controller" :locale="locale" />
+  <InspectorIssuesPanel v-model:dock="dock" :controller="controller" :locale="locale" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
   <DebugReportPanel
     v-model:dock="dock"
     :active-tab="activeTab"
@@ -55,5 +58,5 @@ const dock = defineModel<PanelDock>('dock', { required: true })
   />
   <ReproRecordingPanel v-model:dock="dock" :controller="controller" :locale="locale" />
   <DomChangesPanel v-model:dock="dock" :controller="controller" :locale="locale" />
-  <VisualComparePanel v-model:dock="dock" :controller="controller" :locale="locale" />
+  <VisualComparePanel v-model:dock="dock" :controller="controller" :locale="locale" :keeps-separate-panel-open="keepsSeparatePanelOpen" />
 </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../../../ui/UiButton.vue"
+import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -16,6 +17,7 @@ import PanelDockPicker from '../../../components/PanelDockPicker.vue'
 const props = defineProps<{
   locale: SupportedLocale
   controller: DiagnosticsController
+  keepsSeparatePanelOpen: () => boolean
 }>()
 const dock = defineModel<PanelDock>('dock', { required: true })
 const { t } = useI18n({ useScope: 'global' })
@@ -28,6 +30,12 @@ const {
   manageVisualCompare,
   copyVisualDiff
 } = props.controller
+
+// Docked back from its window, the panel was open all along, so it reads the tab's comparison again instead of showing what it
+// had before it left. The panel window itself is closing then, and a request still running answers for itself.
+watch(dock, (next, previous) => {
+  if (visualComparePanelOpen.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && visualCompareState.value !== 'loading') void manageVisualCompare('get')
+})
 
 function localNumber(value: number): string {
   return formatNumber(props.locale, value)
