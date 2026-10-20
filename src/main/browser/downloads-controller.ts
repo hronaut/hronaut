@@ -323,27 +323,30 @@ export class BrowserDownloadsController {
     const extension = Buffer.byteLength(sourceExtension) <= 200 ? sourceExtension : ''
     const stem = safeFilename.slice(0, safeFilename.length - extension.length)
     // Chromium's suggested name may be longer than file systems allow (255 bytes), which Chrome shortens only when it
-    // picks the path itself, and a collision suffix needs room too. Shorten the name before its extension without
-    // splitting a Unicode character; a shortened name loses trailing spaces and dots, which Windows would drop itself.
-    const fitted = (suffix: string): string | undefined => {
-      const characters = Array.from(stem)
-      if (Buffer.byteLength(stem + suffix) <= 255) return stem + suffix
-      while (characters.length && Buffer.byteLength(characters.join('') + suffix) > 255) characters.pop()
-      while (characters.length && /[ .]$/.test(characters.at(-1)!)) characters.pop()
-      return characters.length && Buffer.byteLength(characters.join('') + suffix) <= 255 ? characters.join('') + suffix : undefined
+    // picks the path itself, and a collision suffix needs room too. Shorten the name before its extension in one pass,
+    // as a page can suggest a very long name, without splitting a Unicode character. A shortened name loses trailing
+    // spaces and dots, which Windows would drop itself, and is named `download` when nothing else is left or prefixed
+    // with it when it became a Windows device name.
+    const fitted = (suffix: string): string => {
+      if (Buffer.byteLength(stem) + Buffer.byteLength(suffix) <= 255) return stem + suffix
+      let room = 255 - Buffer.byteLength(suffix)
+      let kept = ''
+      for (const character of stem) {
+        room -= Buffer.byteLength(character)
+        if (room < 0) break
+        kept += character
+      }
+      const name = (kept.replace(/[ .]+$/, '') || 'download') + suffix
+      return isWindowsReservedFilename(name) ? `download-${name}` : name
     }
-    const directName = fitted(extension)
-    if (!directName) throw new Error(`Could not allocate a download path for ${safeFilename}`)
-    const direct = join(directory, directName)
+    const direct = join(directory, fitted(extension))
     const directKey = this.reservationKey(direct)
     if (!existsSync(direct) && !this.reservedDownloadPaths.has(directKey)) {
       this.reservedDownloadPaths.add(directKey)
       return direct
     }
     for (let index = 1; index <= 9_999; index += 1) {
-      const name = fitted(` (${index})${extension}`)
-      if (!name) break
-      const candidate = join(directory, name)
+      const candidate = join(directory, fitted(` (${index})${extension}`))
       const candidateKey = this.reservationKey(candidate)
       if (existsSync(candidate) || this.reservedDownloadPaths.has(candidateKey)) continue
       this.reservedDownloadPaths.add(candidateKey)

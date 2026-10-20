@@ -1,8 +1,12 @@
 const WINDOWS_RESERVED_DEVICE_NAME = /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])$/i
 
 export function isWindowsReservedFilename(value: string): boolean {
-  const stem = value.split('.', 1)[0]?.replace(/[ .]+$/g, '') ?? ''
-  return WINDOWS_RESERVED_DEVICE_NAME.test(stem)
+  const stem = value.split('.', 1)[0] ?? ''
+  // Windows ignores trailing spaces after a device name. Counting them back one at a time, rather than with a pattern,
+  // keeps a download name of many spaces fast.
+  let end = stem.length
+  while (end > 0 && stem[end - 1] === ' ') end -= 1
+  return WINDOWS_RESERVED_DEVICE_NAME.test(stem.slice(0, end))
 }
 
 // writeUniqueDownload can append " (9999)" before the extension. Keep that
