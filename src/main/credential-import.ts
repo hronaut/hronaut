@@ -92,6 +92,11 @@ function columnIndex(headers: string[], candidates: readonly string[]): number {
   return headers.findIndex((header) => candidates.includes(header))
 }
 
+// Bitwarden writes every address of a login into its one `login_uri` cell, separated by commas. The first ten distinct
+// websites are imported, so one row cannot turn into an unbounded number of saved passwords.
+const URI_LIST_SEPARATOR = /,(?=\s*[a-z][a-z\d+.-]*:)/i
+const MAX_ORIGINS_PER_ROW = 10
+
 function normalizedOrigin(value: string): string | null {
   try {
     const url = new URL(value.trim())
@@ -102,15 +107,28 @@ function normalizedOrigin(value: string): string | null {
   }
 }
 
+/** The distinct website origins a cell names: one address, or each address of a Bitwarden `login_uri` list. */
+function normalizedOrigins(value: string, list: boolean): string[] {
+  const origins = new Set<string>()
+  for (const address of list ? value.split(URI_LIST_SEPARATOR) : [value]) {
+    const origin = normalizedOrigin(address)
+    if (origin) origins.add(origin)
+    if (origins.size === MAX_ORIGINS_PER_ROW) break
+  }
+  return [...origins]
+}
+
 export function parseCredentialImportCsv(source: string): ParsedCredentialImport {
   if (source.includes('\u0000')) throw new CredentialImportError('invalid_csv')
   const rows = parseCsvRows(source)
   const header = rows.shift()
   if (!header) throw new CredentialImportError('missing_columns')
   const headers = header.map(normalizedHeader)
-  const urlIndex = columnIndex(headers, ['url', 'website', 'origin'])
-  const usernameIndex = columnIndex(headers, ['username', 'user', 'login'])
-  const passwordIndex = columnIndex(headers, ['password', 'pass'])
+  // Chrome's import accepts the same names; `login_uri`, `login_username` and `login_password` are Bitwarden's.
+  const urlIndex = columnIndex(headers, ['url', 'website', 'origin', 'hostname', 'loginuri'])
+  const usernameIndex = columnIndex(headers, ['username', 'user', 'login', 'account', 'loginusername'])
+  const passwordIndex = columnIndex(headers, ['password', 'pass', 'loginpassword'])
+  const urlList = headers[urlIndex] === 'loginuri'
   if (urlIndex < 0 || usernameIndex < 0 || passwordIndex < 0) {
     throw new CredentialImportError('missing_columns')
   }
@@ -119,10 +137,10 @@ export function parseCredentialImportCsv(source: string): ParsedCredentialImport
   let skippedRows = 0
   for (const row of rows) {
     if (row.every((value) => value === '')) continue
-    const origin = normalizedOrigin(row[urlIndex] ?? '')
+    const origins = normalizedOrigins(row[urlIndex] ?? '', urlList)
     const username = row[usernameIndex] ?? ''
     const password = row[passwordIndex] ?? ''
-    if (!origin
+    if (!origins.length
       || username.length > 512
       || !password
       || password.length > 16_384
@@ -131,7 +149,7 @@ export function parseCredentialImportCsv(source: string): ParsedCredentialImport
       skippedRows += 1
       continue
     }
-    credentials.push({ origin, username, password })
+    for (const origin of origins) credentials.push({ origin, username, password })
   }
   if (!credentials.length) throw new CredentialImportError('no_credentials')
   return { credentials, skippedRows }

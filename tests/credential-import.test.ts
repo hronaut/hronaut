@@ -57,6 +57,44 @@ describe('browser password CSV import', () => {
       .toThrowError(expect.objectContaining({ code: 'missing_columns' }))
   })
 
+  it('imports a Bitwarden export, saving a login for each website it lists', () => {
+    // Bitwarden names its columns login_uri, login_username and login_password, so its export failed with
+    // missing_columns, and a login with two addresses would have been saved for neither site.
+    const parsed = parseCredentialImportCsv([
+      'folder,favorite,type,name,notes,fields,reprompt,login_uri,login_username,login_password,login_totp',
+      ',,login,Example,,,0,"https://example.test/login,https://www.example.test/,androidapp://com.example",person,secret,',
+      'Work,1,login,Same site,,,0,"https://same.test/a, https://same.test/b",worker,other,',
+      ',,note,Secure note,text,,0,,,,',
+      ',,login,Search,,,0,"https://search.test/find?q=a,b",searcher,third,'
+    ].join('\n'))
+
+    expect(parsed.credentials).toEqual([
+      { origin: 'https://example.test', username: 'person', password: 'secret' },
+      { origin: 'https://www.example.test', username: 'person', password: 'secret' },
+      { origin: 'https://same.test', username: 'worker', password: 'other' },
+      { origin: 'https://search.test', username: 'searcher', password: 'third' }
+    ])
+    expect(parsed.skippedRows).toBe(1)
+  })
+
+  it('saves a login for at most ten websites from one Bitwarden row', () => {
+    const addresses = Array.from({ length: 12 }, (_, index) => `https://site${index}.test`).join(',')
+    const parsed = parseCredentialImportCsv(`login_uri,login_username,login_password\n"${addresses}",person,secret`)
+    expect(parsed.credentials.map(entry => entry.origin)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `https://site${index}.test`)
+    )
+  })
+
+  it('reads one address per cell in other exports, even when it contains a comma and another address', () => {
+    const parsed = parseCredentialImportCsv('url,username,password\n"https://a.test/login?next=x,https://b.test",person,secret')
+    expect(parsed.credentials).toEqual([{ origin: 'https://a.test', username: 'person', password: 'secret' }])
+  })
+
+  it('accepts the hostname and account header names Chrome reads', () => {
+    expect(parseCredentialImportCsv('hostname,account,password\nhttps://example.test,person,secret').credentials)
+      .toEqual([{ origin: 'https://example.test', username: 'person', password: 'secret' }])
+  })
+
   it('rejects malformed, binary, empty, and oversized exports without echoing their contents', () => {
     const cases: Array<[string, CredentialImportError['code']]> = [
       ['url,username,password\nhttps://example.test,user,"private-secret', 'invalid_csv'],
