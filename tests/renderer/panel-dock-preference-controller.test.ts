@@ -36,7 +36,17 @@ describe('panel dock preference controller', () => {
 
     expect(controller.panelDock.value).toBe('window')
     expect(controller.keepsSeparatePanelOpen()).toBe(true)
+    // Its panel is in this window, the one that has the keyboard.
+    expect(controller.panelsInOwnWindow()).toBe(false)
     expect(getItem).not.toHaveBeenCalled()
+  })
+
+  it('reports panels in their own window only from the main window with the window dock', () => {
+    const controller = usePanelDockPreferenceController({ detachedWindow: false, storage: () => storage() })
+
+    expect(controller.panelsInOwnWindow()).toBe(false)
+    controller.panelDock.value = 'window'
+    expect(controller.panelsInOwnWindow()).toBe(true)
   })
 
   it('keeps dock changes usable when persistence fails', () => {

@@ -29,6 +29,11 @@ export function usePanelDockPreferenceController(options: PanelDockPreferenceCon
     return options.detachedWindow || panelDock.value === 'window'
   }
 
+  /** True in the main window while the panels that can move to their own window are shown there. */
+  function panelsInOwnWindow(): boolean {
+    return !options.detachedWindow && panelDock.value === 'window'
+  }
+
   function persistDock(dock: PanelDock): void {
     writeLocalPreference(PANEL_DOCK_KEY, dock, options.storage)
   }
@@ -36,6 +41,7 @@ export function usePanelDockPreferenceController(options: PanelDockPreferenceCon
   return {
     panelDock,
     keepsSeparatePanelOpen,
+    panelsInOwnWindow,
     persistDock
   }
 }

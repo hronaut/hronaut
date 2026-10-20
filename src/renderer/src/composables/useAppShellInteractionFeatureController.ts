@@ -166,6 +166,8 @@ export interface AppShellInteractionFeatureControllerOptions {
     network: Ref<boolean>
     responsive: ToggleSurface
     environment: Ref<boolean>
+    /** True while the panels that can move to their own window, such as Site storage, are shown there. */
+    panelsInOwnWindow: () => boolean
   }
   features: {
     collections: CollectionsFeature
@@ -383,6 +385,7 @@ export function useAppShellInteractionFeatureController(
     developerPanels: { console: surfaces.console, network: surfaces.network },
     responsivePreview: surfaces.responsive,
     environmentPanel: surfaces.environment,
+    panelsInOwnWindow: surfaces.panelsInOwnWindow,
     runShortcut: (shortcut) => { void browserShortcuts.run(shortcut) }
   })
   let disposed = false

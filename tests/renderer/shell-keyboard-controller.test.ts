@@ -80,6 +80,36 @@ describe('useShellKeyboardController', () => {
     expect(nextPanel.close).not.toHaveBeenCalled()
   })
 
+  it('closes a surface in its own window only after every open surface of this window', () => {
+    let ownWindow = true
+    const separate = Object.assign(surface(true), { inOwnWindow: () => ownWindow })
+    const first = surface(true)
+    const second = surface(true)
+    const { controller } = setup({ escapeSurfaces: [separate, first, second] })
+    const escape = (repeat = false) => controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape', repeat }))
+
+    escape()
+    expect(first.close).toHaveBeenCalledOnce()
+    expect(separate.close).not.toHaveBeenCalled()
+    escape(true)
+    expect(second.close).not.toHaveBeenCalled()
+    escape()
+    expect(second.close).toHaveBeenCalledOnce()
+    // A repeat reaches nothing, here or in the other window.
+    escape(true)
+    expect(separate.close).not.toHaveBeenCalled()
+    escape()
+    expect(separate.close).toHaveBeenCalledOnce()
+
+    // Back in this window, the surface keeps its place in the order.
+    separate.open = true
+    first.open = true
+    ownWindow = false
+    escape()
+    expect(separate.close).toHaveBeenCalledTimes(2)
+    expect(first.open).toBe(true)
+  })
+
   it('recognizes Chromium process-key fallback events as IME composition', () => {
     const commandPalette = surface(true)
     const { controller } = setup({ commandPalette })
