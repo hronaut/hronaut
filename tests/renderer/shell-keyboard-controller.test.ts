@@ -65,6 +65,11 @@ describe('useShellKeyboardController', () => {
     repeat()
     expect(modal.close).toHaveBeenCalledTimes(1)
     expect(nextModal.close).not.toHaveBeenCalled()
+    // An open modal still takes the repeats, so a search field under it does not clear itself.
+    const repeatInModal = new KeyboardEvent('keydown', { key: 'Escape', repeat: true, cancelable: true })
+    controller.handleKeyDown(repeatInModal)
+    expect(repeatInModal.defaultPrevented).toBe(true)
+    expect(nextModal.close).not.toHaveBeenCalled()
 
     press()
     press()

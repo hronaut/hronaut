@@ -66,9 +66,10 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
         activeModal.close()
         return
       }
-      if (escape) {
+      // The open modal takes every Escape, so a repeat cannot reach a field under it, such as Tab search's query.
+      if (event.key === 'Escape') {
         event.preventDefault()
-        closeFirst(options.modalSurfaces)
+        if (escape) closeFirst(options.modalSurfaces)
       }
       return
     }
