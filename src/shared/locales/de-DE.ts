@@ -3595,7 +3595,8 @@ export const deDE = {
     "dialog": {
       "quitDownloadsTitle": "Hronaut beenden?",
       "quitDownloadsMessage": "Ein Download läuft noch. | {count} Downloads laufen noch.",
-      "quitDownloadsDetail": "Wenn Sie jetzt beenden, wird er abgebrochen und die unvollständige Datei gelöscht. | Wenn Sie jetzt beenden, werden sie abgebrochen und die unvollständigen Dateien gelöscht.",
+      "quitDownloadDetail": "Wenn Sie jetzt beenden, wird er abgebrochen und die unvollständige Datei gelöscht.",
+      "quitDownloadsDetail": "Wenn Sie jetzt beenden, werden sie abgebrochen und die unvollständigen Dateien gelöscht.",
       "quitDownloadsQuit": "Beenden",
       "quitDownloadsKeep": "Weiter herunterladen",
       "closeTabTitle": "Diesen Tab schließen?",

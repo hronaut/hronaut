@@ -3595,7 +3595,8 @@ export const esES = {
     "dialog": {
       "quitDownloadsTitle": "¿Salir de Hronaut?",
       "quitDownloadsMessage": "Hay una descarga en curso. | Hay {count} descargas en curso.",
-      "quitDownloadsDetail": "Si sales ahora, se cancelará y se eliminará el archivo sin terminar. | Si sales ahora, se cancelarán y se eliminarán los archivos sin terminar.",
+      "quitDownloadDetail": "Si sales ahora, se cancelará y se eliminará el archivo sin terminar.",
+      "quitDownloadsDetail": "Si sales ahora, se cancelarán y se eliminarán los archivos sin terminar.",
       "quitDownloadsQuit": "Salir",
       "quitDownloadsKeep": "Seguir descargando",
       "closeTabTitle": "¿Cerrar esta pestaña?",

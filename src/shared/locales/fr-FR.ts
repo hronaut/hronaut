@@ -3595,7 +3595,8 @@ export const frFR = {
     "dialog": {
       "quitDownloadsTitle": "Quitter Hronaut ?",
       "quitDownloadsMessage": "Un téléchargement est en cours. | {count} téléchargements sont en cours.",
-      "quitDownloadsDetail": "Si vous quittez maintenant, il sera annulé et le fichier incomplet supprimé. | Si vous quittez maintenant, ils seront annulés et les fichiers incomplets supprimés.",
+      "quitDownloadDetail": "Si vous quittez maintenant, il sera annulé et le fichier incomplet supprimé.",
+      "quitDownloadsDetail": "Si vous quittez maintenant, ils seront annulés et les fichiers incomplets supprimés.",
       "quitDownloadsQuit": "Quitter",
       "quitDownloadsKeep": "Continuer le téléchargement",
       "closeTabTitle": "Fermer cet onglet ?",

@@ -3595,7 +3595,8 @@ export const plPL = {
     "dialog": {
       "quitDownloadsTitle": "Zakończyć Hronaut?",
       "quitDownloadsMessage": "Trwa {count} pobieranie. | Trwają {count} pobierania. | Trwa {count} pobierań.",
-      "quitDownloadsDetail": "Jeśli zakończysz teraz, pobieranie zostanie anulowane, a niedokończony plik usunięty. | Jeśli zakończysz teraz, pobierania zostaną anulowane, a niedokończone pliki usunięte. | Jeśli zakończysz teraz, pobierania zostaną anulowane, a niedokończone pliki usunięte.",
+      "quitDownloadDetail": "Jeśli zakończysz teraz, pobieranie zostanie anulowane, a niedokończony plik usunięty.",
+      "quitDownloadsDetail": "Jeśli zakończysz teraz, pobierania zostaną anulowane, a niedokończone pliki usunięte.",
       "quitDownloadsQuit": "Zakończ",
       "quitDownloadsKeep": "Kontynuuj pobieranie",
       "closeTabTitle": "Zamknąć tę kartę?",

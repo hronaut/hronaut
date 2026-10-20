@@ -15,7 +15,7 @@ import type { AppSettings } from '../shared/types.js'
 export interface AppQuitState {
   /**
    * Set by a second launch with --quit and by before-quit, by the tray's, the application menu's and the shell's
-   * Quit, and by closing the main window while it does not hide in the tray.
+   * Quit, by closing the main window while it does not hide in the tray, and as macOS installs an update.
    */
   quitting: boolean
 }
