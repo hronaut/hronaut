@@ -125,7 +125,8 @@ export const plPLAppErrors: AppErrorMessages = {
     "sourceUnavailable": "Źródłowy obszar roboczy jest niedostępny.",
     "sourceJustClosed": "Obszar „{name}” został właśnie zamknięty. Cofnij zamknięcie, aby go skopiować.",
     "observerRequirements": "Publiczny obserwator wymaga czystej pamięci tymczasowej i jednego ograniczonego źródła HTTP(S).",
-    "templateCollisions": "Przed importem rozwiąż konflikty nazw obszarów roboczych."
+    "templateCollisions": "Przed importem rozwiąż konflikty nazw obszarów roboczych.",
+    "templateRoom": "Za mało miejsca na ten szablon. Potrzebne karty: {tabs}, wolne: {freeTabs}. Potrzebne otwarte obszary robocze: {workspaces}, wolne: {freeWorkspaces}. Zamknij część kart lub obszarów roboczych albo zaimportuj mniej stron startowych."
   },
   "workspaceStorage": {
     "busyArchiving": "Pamięć obszarów roboczych jest zajęta: trwa archiwizowanie obszaru roboczego. Spróbuj ponownie po zakończeniu tej operacji.",

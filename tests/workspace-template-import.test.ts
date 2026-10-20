@@ -10,6 +10,7 @@ function setup() {
   let next = 0
   const port = {
     existingWorkspaces: vi.fn(() => [...existing]),
+    room: vi.fn<WorkspaceTemplateImportPort['room']>(() => ({ tabs: 49, workspaces: 49 })),
     create: vi.fn<WorkspaceTemplateImportPort['create']>(async entry => {
       const id = `new-${++next}`
       existing.push({ id, name: entry.name })
@@ -25,6 +26,21 @@ function setup() {
 }
 
 describe('workspace template import recovery', () => {
+  it('refuses a template that needs more tabs or open workspaces than Hronaut has room for, before creating anything', async () => {
+    const { importer, port } = setup()
+    // Twenty workspaces without start pages open twenty blank tabs, which do not fit beside 35 open tabs.
+    const blank = JSON.stringify({ format: 'hronaut-workspace-template', version: 1, sourcePlatform: 'linux',
+      workspaces: Array.from({ length: 20 }, (_, index) => ({ name: `Client ${index}`, color: 'blue', startPages: [] })) })
+    port.room.mockReturnValue({ tabs: 15, workspaces: 49 })
+    await expect(importer.import(blank)).rejects.toThrow('There is not enough room for this template. Tabs needed: 20, free: 15. Open workspaces needed: 20, free: 49.')
+
+    port.room.mockReturnValue({ tabs: 49, workspaces: 1 })
+    await expect(importer.import(template())).rejects.toThrow('Open workspaces needed: 2, free: 1.')
+    expect(port.create).not.toHaveBeenCalled()
+
+    port.room.mockReturnValue({ tabs: 2, workspaces: 2 })
+    expect(await importer.import(template())).toEqual({ status: 'completed', workspaceIds: ['new-1', 'new-2'] })
+  })
   it('allocates the whole batch before opening approved start pages', async () => {
     const { importer, port, existing } = setup()
     port.openStartPages.mockImplementation(async () => { expect(existing).toHaveLength(3) })

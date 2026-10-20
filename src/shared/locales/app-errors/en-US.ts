@@ -129,7 +129,8 @@ export const enUSAppErrors = {
     "sourceUnavailable": "Source workspace is unavailable.",
     "sourceJustClosed": "\"{name}\" was just closed. Undo the close to copy it.",
     "observerRequirements": "A public observer requires clean scratch storage and one restricted HTTP(S) origin.",
-    "templateCollisions": "Resolve workspace name collisions before importing."
+    "templateCollisions": "Resolve workspace name collisions before importing.",
+    "templateRoom": "There is not enough room for this template. Tabs needed: {tabs}, free: {freeTabs}. Open workspaces needed: {workspaces}, free: {freeWorkspaces}. Close some tabs or workspaces, or import fewer start pages."
   },
   "workspaceStorage": {
     "busyArchiving": "Workspace storage is busy archiving the workspace. Try again after that operation finishes.",
