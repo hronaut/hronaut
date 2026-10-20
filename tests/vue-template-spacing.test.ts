@@ -43,9 +43,9 @@ function edgeText(node: TemplateNode | undefined, edge: 'start' | 'end'): string
 }
 
 /** The content Vue renders beside a node: comments and the other branches of its v-if chain are skipped. */
-function neighbour(siblings: TemplateNode[], index: number, step: -1 | 1): TemplateNode | undefined {
+function neighbour(siblings: TemplateNode[], element: TemplateNode, index: number, step: -1 | 1): TemplateNode | undefined {
   let position = index
-  let node = siblings[index]
+  let node = element
   for (;;) {
     const next = siblings[position + step]
     if (!next) return undefined
@@ -72,8 +72,8 @@ function droppedSpaces(source: string, parent: TemplateNode, file: string, found
       const place = `${relative(RENDERER, file)}:${element.loc.start.line}:${element.loc.start.column}`
       const before = /[ \t]+$/.exec(source.slice(element.loc.start.offset, first.loc.start.offset))
       const after = /^[ \t]+/.exec(source.slice(last.loc.end.offset, element.loc.end.offset))
-      const previous = neighbour(siblings, index, -1)
-      const following = neighbour(siblings, index, 1)
+      const previous = neighbour(siblings, element, index, -1)
+      const following = neighbour(siblings, element, index, 1)
       if (before && source[element.loc.start.offset + before.index - 1] === '>' && previous && !/\s$/.test(edgeText(previous, 'end') ?? '')) {
         found.push(`${place} starts with a dropped space`)
       }
