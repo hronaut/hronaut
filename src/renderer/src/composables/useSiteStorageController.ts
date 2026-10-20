@@ -44,6 +44,9 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   const search = ref('')
   const key = ref('')
   const value = ref('')
+  // The cookie row opened in the editor. Saving it under the same name updates that cookie, on its own domain and path,
+  // instead of writing a second cookie of that name at "/".
+  let editedCookie: { key: string; domain: string; path: string } | null = null
   const changesOpen = ref(false)
   const changesReport = ref<BrowserStorageChangesReport | null>(null)
   const changesState = ref<'idle' | 'loading' | 'error'>('idle')
@@ -200,6 +203,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     search.value = ''
     key.value = ''
     value.value = ''
+    editedCookie = null
     changesOpen.value = false
     changesReport.value = null
     changesState.value = 'idle'
@@ -283,6 +287,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     error.value = ''
     key.value = ''
     value.value = ''
+    editedCookie = null
     await manageChanges('get')
   }
 
@@ -517,6 +522,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     kind.value = nextKind
     key.value = ''
     value.value = ''
+    editedCookie = null
     await refresh()
   }
 
@@ -524,6 +530,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     if (item.protected || item.valueTruncated || state.value === 'saving') return
     key.value = item.key
     value.value = item.value ?? ''
+    editedCookie = kind.value === 'cookies' && item.domain && item.path ? { key: item.key, domain: item.domain, path: item.path } : null
   }
 
   async function mutateItem(action: 'set' | 'delete' | 'clear', item?: BrowserStorageItem): Promise<void> {
@@ -534,6 +541,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
       || (action === 'set' && kind.value === 'cookies' && !key.value.trim())
       || (action === 'delete' && (!item || item.protected))
     ) return
+    const updatedCookie = action === 'set' && kind.value === 'cookies' && editedCookie?.key === key.value ? editedCookie : null
     const expectedGeneration = generation
     const sequence = ++listSequence
     state.value = 'saving'
@@ -549,6 +557,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
         ...(action === 'delete' && kind.value === 'cookies' && item!.domain && item!.path
           ? { cookieDomain: item!.domain, cookiePath: item!.path }
           : {}),
+        ...(updatedCookie ? { cookieDomain: updatedCookie.domain, cookiePath: updatedCookie.path } : {}),
         includeValues: true
       })
       if (sequence !== listSequence || !isCurrent(tab.id, expectedGeneration)) return
@@ -556,6 +565,11 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
       if (action === 'set') {
         key.value = ''
         value.value = ''
+        editedCookie = null
+      }
+      // The cookie row in the editor is gone, so saving the editor writes a new cookie, as for a name typed afresh.
+      if (action === 'clear' || (action === 'delete' && editedCookie?.key === item!.key && editedCookie.domain === item!.domain && editedCookie.path === item!.path)) {
+        editedCookie = null
       }
       state.value = 'idle'
     } catch (cause) {

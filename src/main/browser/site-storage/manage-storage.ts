@@ -40,12 +40,12 @@ export async function manageStorage<Tab extends SiteStorageTab>(access: SiteStor
 
   const exactCookie = options.cookieDomain !== undefined || options.cookiePath !== undefined
   if (exactCookie) {
-    if (options.kind !== 'cookies' || action !== 'delete') {
+    if (options.kind !== 'cookies' || (action !== 'delete' && action !== 'set')) {
       if (options.kind !== 'cookies') throw new WebStorageInputError('COOKIE_SELECTOR_UNSUPPORTED')
-      throw new TypeError('cookieDomain and cookiePath are supported only when deleting one cookie')
+      throw new TypeError('cookieDomain and cookiePath are supported only when deleting or setting one cookie')
     }
     if (!options.cookieDomain || !options.cookiePath?.startsWith('/')) {
-      throw new TypeError('Exact cookie deletion requires both cookieDomain and a cookiePath starting with /')
+      throw new TypeError('Selecting one cookie requires both cookieDomain and a cookiePath starting with /')
     }
   }
 

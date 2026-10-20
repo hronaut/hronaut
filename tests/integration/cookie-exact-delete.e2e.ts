@@ -108,6 +108,15 @@ test('deletes exactly one cookie by observed domain and path without collateral 
     expect((await exact('a', '127.0.0.1', '/partitioned-only')).isError).toBe(true)
     const stored = await native<string[]>(index, `return ((await cdp('Network.getAllCookies')).cookies).filter(cookie => cookie.name === 'a').map(cookie => cookie.value + cookie.path).sort()`)
     expect(stored).toEqual(['checkout/checkout', 'partitioned/checkout', 'partitioned/partitioned-only', 'root/'])
+    // An exact set cannot change a cookie that exists only in a partition: it is refused, and the unpartitioned copy
+    // the write made is expired again, so the page still receives only the partitioned cookie.
+    const partitionKey = "partitionKey: { topLevelSite: 'https://example.com', hasCrossSiteAncestor: true }"
+    await native(index, `await cdp('Network.setCookie', { name: 'p', value: 'partitioned', domain: '127.0.0.1', path: '/checkout', secure: true, sameSite: 'None', ${partitionKey} })`)
+    const replaced = await call('browser_storage', { workspaceId, tabId, kind: 'cookies', action: 'set', key: 'p', value: 'changed', cookieDomain: '127.0.0.1', cookiePath: '/checkout' })
+    expect(replaced.isError, text(replaced)).toBe(true)
+    expect(await native<string[]>(index, `return ((await cdp('Network.getAllCookies')).cookies).filter(cookie => cookie.name === 'p').map(cookie => cookie.value + cookie.path + (cookie.partitionKey ? ' partitioned' : ''))`))
+      .toEqual(['partitioned/checkout partitioned'])
+    await native(index, `await cdp('Network.deleteCookies', { name: 'p', domain: '127.0.0.1', path: '/checkout', ${partitionKey} })`)
 
     // Other workspaces are untouched, and legacy name-only deletion keeps its contract.
     expect(await native<string[]>(otherIndex, 'return list()')).toEqual(['a=other-workspace@127.0.0.1/checkout', 'marker=other@127.0.0.1/'])

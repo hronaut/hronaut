@@ -208,6 +208,74 @@ describe('site-storage controller', () => {
     })
   })
 
+  it('updates the edited cookie row on its own domain and path instead of adding a cookie at "/"', async () => {
+    const { browser, controller } = createController()
+    controller.kind.value = 'cookies'
+    controller.editItem({ key: 'pref', value: 'app', valueBytes: 3, domain: '.example.test', path: '/app' })
+    controller.value.value = 'updated'
+    await controller.saveItem()
+    expect(browser.manageStorage).toHaveBeenLastCalledWith({
+      tabId: 'tab-1', kind: 'cookies', action: 'set', key: 'pref', value: 'updated', cookieDomain: '.example.test', cookiePath: '/app', includeValues: true
+    })
+
+    // The saved editor is empty again, so the same name typed afresh is a new cookie, not that row.
+    controller.key.value = 'pref'
+    controller.value.value = 'new'
+    await controller.saveItem()
+    expect(browser.manageStorage).toHaveBeenLastCalledWith({
+      tabId: 'tab-1', kind: 'cookies', action: 'set', key: 'pref', value: 'new', includeValues: true
+    })
+  })
+
+  it('saves an edited cookie row under a new name as a new cookie', async () => {
+    const { browser, controller } = createController()
+    controller.kind.value = 'cookies'
+    controller.editItem({ key: 'pref', value: 'app', valueBytes: 3, domain: '.example.test', path: '/app' })
+    controller.key.value = 'pref-copy'
+    await controller.saveItem()
+    expect(browser.manageStorage).toHaveBeenCalledExactlyOnceWith({
+      tabId: 'tab-1', kind: 'cookies', action: 'set', key: 'pref-copy', value: 'app', includeValues: true
+    })
+  })
+
+  it('forgets the edited cookie row when the view changes to another kind and back', async () => {
+    const { browser, controller } = createController()
+    controller.kind.value = 'cookies'
+    controller.editItem({ key: 'pref', value: 'app', valueBytes: 3, domain: '.example.test', path: '/app' })
+    await controller.selectKind('local-storage')
+    await controller.selectKind('cookies')
+    controller.key.value = 'pref'
+    controller.value.value = 'typed'
+    browser.manageStorage.mockClear()
+    await controller.saveItem()
+    expect(browser.manageStorage).toHaveBeenCalledExactlyOnceWith({
+      tabId: 'tab-1', kind: 'cookies', action: 'set', key: 'pref', value: 'typed', includeValues: true
+    })
+  })
+
+  it('saves the editor as a new cookie once the edited row is deleted or the view resets', async () => {
+    const row = { key: 'pref', value: 'app', valueBytes: 3, domain: '.example.test', path: '/app' }
+    const { browser, controller } = createController()
+    controller.kind.value = 'cookies'
+    controller.result.value = { ...storageResult(), kind: 'cookies', itemCount: 1, items: [row] }
+    controller.editItem(row)
+    await controller.deleteItem(row)
+    await controller.saveItem()
+    expect(browser.manageStorage).toHaveBeenLastCalledWith({
+      tabId: 'tab-1', kind: 'cookies', action: 'set', key: 'pref', value: 'app', includeValues: true
+    })
+
+    controller.editItem(row)
+    controller.reset()
+    controller.kind.value = 'cookies'
+    controller.key.value = 'pref'
+    controller.value.value = 'typed'
+    await controller.saveItem()
+    expect(browser.manageStorage).toHaveBeenLastCalledWith({
+      tabId: 'tab-1', kind: 'cookies', action: 'set', key: 'pref', value: 'typed', includeValues: true
+    })
+  })
+
   it('does not start another storage mutation while persistence is pending', async () => {
     const pending = deferred<BrowserStorageResult>()
     const manageStorage = vi.fn(() => pending.promise)
