@@ -180,6 +180,8 @@ describe('SitePermissionStore', () => {
     expect(store.decisionFor(widget, 'geolocation', WORK, secondSite)).toBe('allow')
     expect(store.decisionFor(widget, 'geolocation', CLIENT)).toBe('deny')
     expect(store.decisionFor(widget, 'geolocation', 'not-a-workspace')).toBeUndefined()
+    // The client's decision for the site's own page replaced it in the client, so the site embedded there asks.
+    expect(store.decisionFor(widget, 'geolocation', CLIENT, secondSite)).toBeUndefined()
 
     // Only origins are kept, never a page's path or query.
     expect(store.list()).toEqual([
