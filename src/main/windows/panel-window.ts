@@ -224,7 +224,9 @@ export function createPanelWindow(host: PanelWindowHost): {
       created.on('unmaximize', host.schedulePanelWindowStateSave)
       created.on('enter-full-screen', host.schedulePanelWindowStateSave)
       created.on('leave-full-screen', host.schedulePanelWindowStateSave)
+      let closing = false
       created.on('close', () => {
+        closing = true
         host.refs.lastState = host.currentPanelWindowState() ?? host.refs.lastState
       })
       created.on('closed', () => {
@@ -240,13 +242,21 @@ export function createPanelWindow(host: PanelWindowHost): {
         }
       })
 
-      await loadNativeWindowWithRollback(created, expectedUrl, () => {
-        if (host.refs.window !== created) return
-        host.refs.window = null
-        host.refs.url = null
-        host.refs.panel = null
-        host.refs.redocking = false
-      })
+      try {
+        await loadNativeWindowWithRollback(created, expectedUrl, () => {
+          // A window closed while it loads, from either window, ends its load as failed. Its closed listener lets
+          // go of it and tells the main window, as for a loaded window, once the rollback has destroyed it.
+          if (closing || host.refs.window !== created) return
+          host.refs.window = null
+          host.refs.url = null
+          host.refs.panel = null
+          host.refs.redocking = false
+        })
+      } catch (error) {
+        // Closing it was asked for, so that is not an error to show.
+        if (closing) return
+        throw error
+      }
     })()
     panelWindowOpening = opening
     try {
