@@ -537,7 +537,7 @@ import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
 import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import type { TabReopeningAccess } from './tab-reopening/tab-reopening-access.js'
-import { duplicateTabAfterLabelSave, rememberClosedTab, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
+import { duplicateTabAfterLabelSave, forgetClosedTabs, rememberClosedTab, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
 import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
 import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import type { BrowserWalletPageContext, WalletPagesAccess } from './wallet-pages/wallet-pages-access.js'
@@ -2275,6 +2275,12 @@ export class BrowserTabsManager {
 
   reopenClosedTab(closedTabId?: string): Promise<BrowserState> {
     return this.withTabLabelLifecycle(() => reopenClosedTabAfterLabelSave(this.tabReopeningAccess(), closedTabId))
+  }
+
+  /** Forgets the recently closed tabs whose address matches, when the history that names them is cleared. */
+  forgetClosedTabs(matches: (url: string) => boolean): void {
+    // Recently closed tabs are not saved with the tabs, so only the state is published.
+    if (forgetClosedTabs(this.tabReopeningAccess(), matches)) this.changed(false)
   }
 
   /**

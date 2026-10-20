@@ -55,6 +55,19 @@ export async function duplicateTabAfterLabelSave<Tab extends TabReopeningTab>(ac
   return access.getState()
 }
 
+/**
+ * Forgets the remembered closed tabs whose address matches, as Chrome does when history is cleared: Recently closed
+ * names the pages, and Reopen closed tab would bring them back. True when any was forgotten.
+ */
+export function forgetClosedTabs<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, matches: (url: string) => boolean): boolean {
+  const closedTabs = access.closedTabs()
+  const count = closedTabs.length
+  for (let index = closedTabs.length - 1; index >= 0; index -= 1) {
+    if (matches(closedTabs[index]!.url)) closedTabs.splice(index, 1)
+  }
+  return closedTabs.length !== count
+}
+
 /** Remembers a closed tab so it can be reopened, keeping only the newest; Hronaut Home is not remembered. */
 export function rememberClosedTab<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, tab: Tab): void {
   if (isHronautHomeUrl(tab.url)) return

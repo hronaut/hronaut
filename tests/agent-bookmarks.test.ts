@@ -23,6 +23,7 @@ async function agentBookmarks() {
     state: { bookmarks: store, history: null },
     sendToShellWindows,
     mcpServer: () => null,
+    tabs: () => null,
     offerUndo: vi.fn()
   })
   return { store, operations: runtime.agentBookmarks, sendToShellWindows }

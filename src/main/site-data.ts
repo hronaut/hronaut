@@ -5,9 +5,17 @@ import type { HistoryStore } from './history-store.js'
 import type { SiteDataOperations, SiteDataType } from './mcp/server.js'
 import type { BrowsingDataSiteSummary } from '../shared/types.js'
 
+function closedTabOrigin(url: string): string | undefined {
+  try {
+    return new URL(url).origin
+  } catch {
+    return undefined
+  }
+}
+
 interface SiteDataHost {
   /** The tab runtime, which clears a workspace's site data between its storage operations; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'withWorkspaceSiteDataCleanup' | 'workspaceSession'> | null
+  tabs(): Pick<BrowserTabsManager, 'withWorkspaceSiteDataCleanup' | 'workspaceSession' | 'forgetClosedTabs'> | null
   /** The visit history, once loaded; the collection and browsing data IPC, the MCP server and shutdown read it too. */
   historyStore(): Pick<HistoryStore, 'list' | 'clearOrigin'> | null
   publishVisitHistory(): void
@@ -68,6 +76,8 @@ export function createSiteData(host: SiteDataHost): {
       const originScope = { origins: [site.origin], originMatchingMode: 'origin-in-all-contexts' as const }
       if (selected.has('history')) {
         await store.clearOrigin(site.origin)
+        // Recently closed tabs of the website go with its history, as in Chrome.
+        host.tabs()?.forgetClosedTabs((url) => closedTabOrigin(url) === site.origin)
         host.publishVisitHistory()
       }
       if (selected.has('cookies-and-storage') && selected.has('cache')) {

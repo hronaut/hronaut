@@ -1,8 +1,9 @@
 import { app } from 'electron'
 import { join } from 'node:path'
 import { BookmarkStore, type RemovedBookmark } from './bookmark-store.js'
-import { HistoryStore } from './history-store.js'
+import { HistoryStore, normalizeHistoryUrl } from './history-store.js'
 import { LocalizedError } from './localized-error.js'
+import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { BookmarkOperations, HistoryOperations, McpHttpServer } from './mcp/server.js'
 import type { UndoableAction } from './undo-offers.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
@@ -25,6 +26,8 @@ interface BookmarksAndHistoryHost {
   sendToShellWindows(channel: string, ...args: unknown[]): void
   /** The MCP listener while it runs, whose Home feed goes when the person or an agent clears the history. */
   mcpServer(): Pick<McpHttpServer, 'forgetHomeFeed'> | null
+  /** The tabs once the window opens, whose Recently closed tabs go with the history that names them. */
+  tabs(): Pick<BrowserTabsManager, 'forgetClosedTabs'> | null
   /** Offers the person's latest reversible action for Undo, replacing the previous offer. */
   offerUndo(action: UndoableAction): void
 }
@@ -43,6 +46,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   updatePageTitle(page: { url: string; title: string }): void
   offerBookmarkRestore(removed: RemovedBookmark): void
   historyCleared(): void
+  historyEntryRemoved(url: string): void
   agentBookmarks: BookmarkOperations
   agentHistory: HistoryOperations
 } {
@@ -100,9 +104,18 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     })
   }
 
-  /** The history was cleared, by the person or an agent; Home's feed names pages agents acted on, so it goes too. */
+  /**
+   * The history was cleared, by the person or an agent. Home's feed names pages agents acted on, and Recently closed
+   * names pages tabs showed, so both go too, as Chrome forgets recently closed tabs with the history.
+   */
   function historyCleared(): void {
     host.mcpServer()?.forgetHomeFeed()
+    host.tabs()?.forgetClosedTabs(() => true)
+  }
+
+  /** One page was removed from the history, so Recently closed forgets the tabs that showed it, as in Chrome. */
+  function historyEntryRemoved(url: string): void {
+    host.tabs()?.forgetClosedTabs((closedUrl) => normalizeHistoryUrl(closedUrl) === url)
   }
 
   /**
@@ -133,7 +146,8 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     list: () => host.state.history?.list() ?? [],
     remove: async (id) => {
       if (!host.state.history) throw new LocalizedError('appErrors.bookmarks.historyUnavailable')
-      await host.state.history.remove(id)
+      const url = host.state.history.list().find((entry) => entry.id === id)?.url
+      if (await host.state.history.remove(id) && url) historyEntryRemoved(url)
       return publishVisitHistory()
     },
     clear: async () => {
@@ -153,6 +167,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     updatePageTitle,
     offerBookmarkRestore,
     historyCleared,
+    historyEntryRemoved,
     agentBookmarks,
     agentHistory
   }
