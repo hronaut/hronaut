@@ -8,7 +8,8 @@ import IconWarning from '~icons/material-symbols/warning-rounded'
 import WalletsSettingsPanel from '../../src/renderer/src/components/WalletsSettingsPanel.vue'
 import type { WalletsController } from '../../src/renderer/src/composables/useWalletsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import type { WalletDescriptor, WalletPolicy } from '../../src/shared/wallet.js'
+import { localeMessages } from '../../src/shared/i18n.js'
+import { WalletKindSchema, type WalletDescriptor, type WalletPolicy } from '../../src/shared/wallet.js'
 
 afterEach(() => vi.useRealTimers())
 
@@ -136,6 +137,22 @@ describe('WalletsSettingsPanel', () => {
     wallets.wallets.value = []
     await waitFor(() => expect(screen.getByText('No wallets configured yet')).toBeVisible())
     expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+  })
+
+  it('names every kind of wallet in the list, in every language', () => {
+    // An imported wallet showed the message key "wallets.kinds.imported" as its kind, since no language named it.
+    const kinds = WalletKindSchema.options
+    for (const [locale, catalog] of Object.entries(localeMessages)) {
+      const names = (catalog as { wallets: { kinds: Record<string, string> } }).wallets.kinds
+      expect(Object.keys(names).sort(), locale).toEqual([...kinds].sort())
+    }
+    const wallets = controller({ wallets: ref(kinds.map((kind) => ({ ...wallet(kind, `Wallet ${kind}`, []), kind }))) })
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const items = within(screen.getByRole('list', { name: 'Your wallets' })).getAllByRole('listitem')
+    expect(items.map((item) => item.querySelector('small')?.textContent)).toEqual([
+      'Sepolia · Signing wallet', 'Sepolia · Imported wallet', 'Sepolia · Watch only', 'Sepolia · Agent wallet'
+    ])
+    expect(screen.getByRole('button', { name: 'Wallet imported · Sepolia · Imported wallet' })).toBeVisible()
   })
 
   it('clears unsubmitted secrets when leaving Add wallet while retaining non-secret choices', async () => {

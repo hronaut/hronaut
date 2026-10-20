@@ -12,6 +12,7 @@ export const enUSWallets = {
   "activityDescription": "Recent wallet events will appear here.",
   "kinds": {
     "managed": "Signing wallet",
+    "imported": "Imported wallet",
     "agent": "Agent wallet",
     "watch-only": "Watch only"
   },

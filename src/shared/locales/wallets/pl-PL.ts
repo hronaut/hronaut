@@ -12,6 +12,7 @@ export const plPLWallets = {
   "activityDescription": "Tutaj pojawią się ostatnie zdarzenia portfeli.",
   "kinds": {
     "managed": "Portfel do podpisywania",
+    "imported": "Zaimportowany portfel",
     "agent": "Portfel agenta",
     "watch-only": "Tylko podgląd"
   },

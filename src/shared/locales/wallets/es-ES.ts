@@ -12,6 +12,7 @@ export const esESWallets = {
   "activityDescription": "Aquí aparecerán los eventos recientes de los monederos.",
   "kinds": {
     "managed": "Monedero de firma",
+    "imported": "Monedero importado",
     "agent": "Monedero de agente",
     "watch-only": "Solo lectura"
   },
