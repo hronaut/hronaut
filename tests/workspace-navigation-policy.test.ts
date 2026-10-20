@@ -48,7 +48,9 @@ describe('workspace navigation policies', () => {
     'https://*example.com',
     'http://local*host:8080',
     '*.*.example.com',
-    'https://*.*.example.com:8443'
+    'https://*.*.example.com:8443',
+    'https://*.example.com:*',
+    'https://a.%2A.example.com'
   ])('refuses %s, whose * could never match a site', (rule) => {
     // These were kept as written, so a workspace limited to them allowed no site at all.
     expect(ruleError(rule)).toBe('appErrors.siteAccess.wildcardPlacement')

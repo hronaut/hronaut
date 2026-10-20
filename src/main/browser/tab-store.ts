@@ -125,7 +125,12 @@ function persistedWorkspaceStorageId(value: unknown): string | undefined {
   return typeof value === 'string' && WORKSPACE_STORAGE_ID_PATTERN.test(value) ? value : undefined
 }
 
+/**
+ * A public observer is limited to one HTTP(S) origin. An origin with a misplaced `*`, which earlier versions accepted
+ * and which never matched a site, is dropped when it loads, so that observer is kept limited to no site at all.
+ */
 function isPublicObserverPolicy(policy: BrowserWorkspaceNavigationPolicy): boolean {
+  if (policy.mode === 'restricted' && policy.rules.length === 0) return true
   if (policy.mode !== 'restricted' || policy.rules.length !== 1) return false
   try {
     const parsed = new URL(policy.rules[0]!)

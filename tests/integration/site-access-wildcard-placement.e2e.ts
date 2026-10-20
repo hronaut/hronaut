@@ -12,7 +12,7 @@ test('refuses a Site access rule whose * could never match a site', async ({ app
   await editor.getByRole('button', { name: 'Create workspace' }).click()
 
   await expect(editor.getByText(
-    'Use one * per rule: at the start of the hostname, such as *.example.com, or as the port of a loopback host, such as http://localhost:*.'
+    'A * can only start a subdomain rule, such as *.example.com, or stand for the port of a loopback host, such as http://localhost:*.'
   )).toBeVisible()
   await expect(editor).toBeVisible()
   const state = await appWindow.evaluate('window.hronaut.getState()') as BrowserState

@@ -174,7 +174,7 @@ export const frFRAppErrors: AppErrorMessages = {
     "invalidHostname": "La règle d’accès aux sites contient un nom d’hôte non valide.",
     "hostnameOnly": "La règle d’accès aux sites doit contenir uniquement un nom d’hôte.",
     "wildcardHostname": "Les règles génériques de sous-domaines nécessitent un nom d’hôte DNS.",
-    "wildcardPlacement": "Utilisez un seul * par règle : au début du nom d’hôte, comme *.example.com, ou comme port d’un hôte local, comme http://localhost:*.",
+    "wildcardPlacement": "Un * ne peut que commencer une règle de sous-domaines, par exemple *.example.com, ou remplacer le port d’un hôte local, par exemple http://localhost:*.",
     "credentials": "Les règles d’accès aux sites ne peuvent pas contenir d’identifiants.",
     "originOnly": "Les règles d’accès aux sites doivent être des origines sans chemin, requête ni fragment.",
     "length": "La règle d’accès aux sites est vide ou trop longue.",
