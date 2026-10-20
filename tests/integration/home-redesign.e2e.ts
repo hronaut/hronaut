@@ -69,7 +69,8 @@ test('sets up Claude Code from Home after a native confirmation, keeping its oth
     await expect(page.locator('#claude-setup-after')).toHaveText(entry)
     await expect(page.locator('#claude-setup-before-wrap')).toBeHidden()
     await expect(page.locator('#claude-setup-backup')).toHaveText(/^A copy of the file is saved first as \.claude\.json\.hronaut-backup-\d{8}T\d{6}Z(?:-\d+)?\.$/u)
-    await expect(preview.getByRole('button', { name: 'Apply change…', exact: true })).toBeFocused()
+    // The focus is on the change, not on Apply, whose confirmation a held Enter would otherwise reach.
+    await expect(page.locator('pre:has(#claude-setup-after)')).toBeFocused()
 
     // Cancel on Home writes nothing.
     await preview.getByRole('button', { name: 'Cancel', exact: true }).click()

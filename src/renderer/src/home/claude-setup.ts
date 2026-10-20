@@ -94,7 +94,9 @@ export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signa
       element('claude-setup-before').textContent = next.before === null ? '' : `"hronaut": ${next.before}`
       element('claude-setup-backup').textContent = interpolate(messages.previewBackup, { name: next.backupName })
       render()
-      apply.focus({ preventScroll: true })
+      // The change itself, for the person to read before choosing Apply. Apply opens a confirmation whose default is to
+      // make the change, so a held Enter on Set up Claude Code must not reach it.
+      element('claude-setup-after').closest('pre')!.focus({ preventScroll: true })
     } catch (error) {
       if (current !== sequence || signal.aborted) return
       const settled = settle(failure(error))
