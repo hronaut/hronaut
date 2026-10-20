@@ -18,6 +18,11 @@ describe('portable filenames', () => {
   ])('keeps the ordinary filename %s available', (filename) => {
     expect(isWindowsReservedFilename(filename)).toBe(false)
   })
+
+  it('checks a name with a very long run of spaces', () => {
+    expect(isWindowsReservedFilename('CON' + ' '.repeat(100_000))).toBe(true)
+    expect(isWindowsReservedFilename('a' + ' '.repeat(100_000) + 'b.txt')).toBe(false)
+  })
 })
 
 describe.each(['pdf', 'har', 'png'] as const)('%s export filenames', (format) => {

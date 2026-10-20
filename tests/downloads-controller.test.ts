@@ -325,6 +325,51 @@ it('does not reassign a non-resumable interrupted transfer to a new observation 
   ])
 })
 
+it.each([
+  ['я'.repeat(130) + '.pdf', '.pdf'],
+  ['a'.repeat(300) + '.tar', '.tar'],
+  ['界'.repeat(100) + '.txt', '.txt'],
+  ['b'.repeat(400), ''],
+  ['report ' + ' '.repeat(260) + 'end.txt', '.txt']
+])('shortens a download name longer than 255 bytes so it can be saved: %#', async (filename, ending) => {
+  // The name was kept whole, so creating the file failed with ENAMETOOLONG and the download was interrupted.
+  const { controller, download } = await fixture()
+  download(1, false, undefined, filename)
+  download(1, false, undefined, filename)
+  const entries = controller.listDownloads()
+  expect(new Set(entries.map(entry => entry.savePath)).size).toBe(2)
+  for (const [index, entry] of entries.entries()) {
+    expect(Buffer.byteLength(entry.filename)).toBeLessThanOrEqual(255)
+    expect(entry.filename.endsWith(ending)).toBe(true)
+    expect(entry.filename).not.toMatch(/[ .]\.[a-z]+$|[ .]$/)
+    await writeFile(entry.savePath!, String(index), { flag: 'wx' })
+  }
+  expect(entries.some(entry => / \(1\)(?:\.[a-z]+)?$/.test(entry.filename))).toBe(true)
+})
+
+it.each([
+  ['CON' + ' '.repeat(300) + 'x.txt', 'download-CON.txt'],
+  ['nul' + ' '.repeat(260) + 'report.pdf', 'download-nul.pdf'],
+  [' '.repeat(300) + 'x.txt', 'download.txt'],
+  ['.'.repeat(300) + 'x', 'download.x']
+])('names a shortened download that would be a Windows device or empty: %#', async (filename, expected) => {
+  const { controller, download } = await fixture()
+  download(1, false, undefined, filename)
+  expect(controller.listDownloads()[0]).toMatchObject({ filename: expected, state: 'progressing' })
+})
+
+it('shortens a download name of 20,000 characters in one pass', async () => {
+  // Shortening dropped one character at a time and measured the whole name again: seconds for a name this long, and
+  // minutes for the longest a page can suggest, with the main process blocked. One pass takes about a millisecond.
+  const { controller, download } = await fixture()
+  const started = performance.now()
+  download(1, false, undefined, 'a'.repeat(10_000) + ' '.repeat(10_000) + 'b.pdf')
+  download(1, false, undefined, 'a'.repeat(10_000) + ' '.repeat(10_000) + 'b.pdf')
+  expect(performance.now() - started).toBeLessThan(1_000)
+  const names = controller.listDownloads().map(entry => entry.filename).sort()
+  expect(names).toEqual(['a'.repeat(251) + '.pdf', 'a'.repeat(247) + ' (1).pdf'].sort())
+})
+
 it.each(['a'.repeat(251) + '.txt', '界'.repeat(83) + 'ab.txt', '😀'.repeat(62) + 'abc.txt'])(
   'saves duplicate maximum-length download names without overwriting or splitting Unicode: %s',
   async filename => {

@@ -318,22 +318,35 @@ export class BrowserDownloadsController {
     const safeFilename = isWindowsReservedFilename(sourceFilename)
       ? `download-${sourceFilename}`
       : sourceFilename
-    const direct = join(directory, safeFilename)
+    const sourceExtension = extname(safeFilename)
+    // An extension too long to keep with any of the name is cut along with it.
+    const extension = Buffer.byteLength(sourceExtension) <= 200 ? sourceExtension : ''
+    const stem = safeFilename.slice(0, safeFilename.length - extension.length)
+    // Chromium's suggested name may be longer than file systems allow (255 bytes), which Chrome shortens only when it
+    // picks the path itself, and a collision suffix needs room too. Shorten the name before its extension in one pass,
+    // as a page can suggest a very long name, without splitting a Unicode character. A shortened name loses trailing
+    // spaces and dots, which Windows would drop itself, and is named `download` when nothing else is left or prefixed
+    // with it when it became a Windows device name.
+    const fitted = (suffix: string): string => {
+      if (Buffer.byteLength(stem) + Buffer.byteLength(suffix) <= 255) return stem + suffix
+      let room = 255 - Buffer.byteLength(suffix)
+      let kept = ''
+      for (const character of stem) {
+        room -= Buffer.byteLength(character)
+        if (room < 0) break
+        kept += character
+      }
+      const name = (kept.replace(/[ .]+$/, '') || 'download') + suffix
+      return isWindowsReservedFilename(name) ? `download-${name}` : name
+    }
+    const direct = join(directory, fitted(extension))
     const directKey = this.reservationKey(direct)
     if (!existsSync(direct) && !this.reservedDownloadPaths.has(directKey)) {
       this.reservedDownloadPaths.add(directKey)
       return direct
     }
-    const extension = extname(safeFilename)
-    const stem = safeFilename.slice(0, safeFilename.length - extension.length)
     for (let index = 1; index <= 9_999; index += 1) {
-      const suffix = ` (${index})${extension}`
-      const characters = Array.from(stem)
-      // Chromium's suggested name may already use the full filesystem limit.
-      // Make room for the collision suffix without splitting a Unicode character.
-      while (characters.length && Buffer.byteLength(characters.join('') + suffix) > 255) characters.pop()
-      if (Buffer.byteLength(characters.join('') + suffix) > 255) break
-      const candidate = join(directory, characters.join('') + suffix)
+      const candidate = join(directory, fitted(` (${index})${extension}`))
       const candidateKey = this.reservationKey(candidate)
       if (existsSync(candidate) || this.reservedDownloadPaths.has(candidateKey)) continue
       this.reservedDownloadPaths.add(candidateKey)
