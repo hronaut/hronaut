@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import type { HronautApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-test('Escape typed in Find or Zoom closes that bar, not Site storage in its own window', async ({ appWindow, electronApp }) => {
+test('Escape typed in Find or Zoom, even held down, closes that bar, not Site storage in its own window', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' }).end('<title>Escape order fixture</title><p>needle needle</p>')
   })
@@ -45,6 +45,15 @@ test('Escape typed in Find or Zoom closes that bar, not Site storage in its own 
     await expect(zoom).toBeVisible()
     await zoom.getByRole('button', { name: 'Zoom out', exact: true }).press('Escape')
     await expect(zoom).toBeHidden()
+
+    // Held down, Escape repeats. Its repeats used to reach the shell once Find had closed and close Site storage.
+    await appWindow.getByRole('button', { name: 'Find in page', exact: true }).click()
+    await findText.focus()
+    await appWindow.keyboard.down('Escape')
+    await appWindow.keyboard.down('Escape')
+    await appWindow.keyboard.down('Escape')
+    await appWindow.keyboard.up('Escape')
+    await expect(bar).toBeHidden()
 
     // The panel window closes over IPC after the renderer lets go of it, so check it after both bars and a round trip.
     await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
