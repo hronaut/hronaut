@@ -131,6 +131,22 @@ describe('normalizeAddress', () => {
     }
   )
 
+  it.each(['3.14', '1.5', '2.0', '0.5', '10.5', '1.2.3', '10.0.0', '3.14.'])(
+    'searches the number %s instead of opening it as a short IPv4 address', (input) => {
+      // 3.14 opened https://3.0.0.14, a server on the internet, as Chrome does not.
+      expect(normalizeAddress(input)).toBe(`https://www.google.com/search?q=${encodeURIComponent(input)}`)
+    }
+  )
+
+  it.each([
+    ['10.5/admin', 'http://10.5/admin'],
+    ['127.1:8080', 'http://127.1:8080'],
+    ['8.8.8.8', 'https://8.8.8.8'],
+    ['1.2.3.4', 'https://1.2.3.4']
+  ])('still opens %s, which names a full address, a port or a path', (input, expected) => {
+    expect(normalizeAddress(input)).toBe(expected)
+  })
+
   it('searches email-shaped input instead of treating it as URL credentials', () => {
     expect(normalizeAddress('person@example.com')).toBe(
       'https://www.google.com/search?q=person%40example.com'

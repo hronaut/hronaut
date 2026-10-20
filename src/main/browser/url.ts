@@ -3,6 +3,9 @@ export { isHronautHomeUrl } from '../../shared/home-url.js'
 
 const SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/
 const HOST_LIKE_PATTERN = /^(localhost\.?|\d{1,3}(?:\.\d{1,3}){3}|\[[0-9a-f:]+\]|[^\s/:?#]+\.[^\s/:?#]+)(?::\d+)?(?:[/?#].*)?$/i
+// A number with two or three parts, such as `3.14` or `1.2.3`, is a search, as in Chrome, rather than a short IPv4
+// address the URL parser reads as `3.0.0.14`. A port or a path still makes it an address, such as `10.5:3000`.
+const SHORT_DOTTED_NUMBER = /^\d+(?:\.\d+){1,2}\.?$/
 // A one-word host name with a port, such as a Tailscale MagicDNS name or a LAN machine (`devbox:3000`), reads like a
 // scheme followed by a value. As in Chrome, a colon followed only by digits names a port. The name starts with a
 // letter, as a scheme does: `16:9` or `10:30` stays a search rather than an address the URL parser reads as a number.
@@ -99,7 +102,7 @@ export function webAddress(input: string): string | undefined {
   const value = input.trim()
   if (!value) return 'about:blank'
   if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value) || /^(about|data|file|view-source):/i.test(value)) return value
-  if (!hasSchemeLessUserInfo(value) && HOST_LIKE_PATTERN.test(value)) {
+  if (!hasSchemeLessUserInfo(value) && !SHORT_DOTTED_NUMBER.test(value) && HOST_LIKE_PATTERN.test(value)) {
     const plainHttp = !namesHttpsPort(value) && (isLoopbackAddress(value) || isLocalNetworkAddress(value))
     const candidate = `${plainHttp ? 'http' : 'https'}://${value}`
     try {
