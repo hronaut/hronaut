@@ -70,19 +70,23 @@ const recorder = ref<HTMLElement | null>(null)
  * Every recorder control is disabled while Hronaut answers, and Start, Pause or Resume give way to the next step, so
  * Chromium moves the focus of the one you used to the document body. Give it back once that control is enabled again,
  * or else to the recorder itself, unless you moved it meanwhile, a newer action started or the recorder closed. Not to
- * the next step's button: a held Enter would pause or stop the recording at once.
+ * the next step's button: a held Enter would pause or stop the recording at once. Not to a Remove button either
+ * (`giveBack` false): it can stand for the next item once its own is gone, so a held Enter would remove that one too.
  */
-async function keepFocus(focused: HTMLElement | null, section: HTMLElement | null, expected: number): Promise<void> {
+async function keepFocus(focused: HTMLElement | null, section: HTMLElement | null, expected: number, giveBack: boolean): Promise<void> {
   await nextTick()
   if (!focused || !section || disposed || expected !== revision || section !== recorder.value || !section.isConnected || !document.hasFocus()) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
-  const target = focused.isConnected && !focused.matches(':disabled') ? focused : section
+  const target = giveBack && focused.isConnected && !focused.matches(':disabled') ? focused : section
   target.focus()
 }
 async function perform(action: BrowserVideoOptions['action'], operation: (tabId: string) => Promise<BrowserVideoState>): Promise<void> {
   if (busy.value && !(action === 'clear' && rendering.value)) return
   const section = recorder.value, active = document.activeElement
   const focused = active instanceof HTMLElement && section?.contains(active) ? active : null
+  // List rows are keyed by position, and removing imported audio selects the next file, so after a removal the same
+  // button names another item.
+  const giveBack = action !== 'remove-audio' && !focused?.closest('li')
   const expected = ++revision, tabId = props.tabId
   if (poll) clearTimeout(poll)
   busy.value = true; pendingAction.value = action; error.value = ''
@@ -108,7 +112,7 @@ async function perform(action: BrowserVideoOptions['action'], operation: (tabId:
   } catch (cause) {
     if (!disposed && expected === revision) error.value = friendlyUiError(cause, t('runtime.toast.actionFailed'))
   } finally {
-    if (!disposed && expected === revision) { busy.value = false; pendingAction.value = undefined; void refresh(); void keepFocus(focused, section, expected) }
+    if (!disposed && expected === revision) { busy.value = false; pendingAction.value = undefined; void refresh(); void keepFocus(focused, section, expected, giveBack) }
   }
 }
 async function manage(action: BrowserVideoOptions['action'], extra: Partial<BrowserVideoOptions> = {}): Promise<void> {

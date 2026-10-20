@@ -153,6 +153,38 @@ describe('WalletsSettingsPanel drafts across a refreshed wallet list', () => {
     view.unmount()
   })
 
+  // A refresh now keeps the drafts, so choosing another wallet must still start them over: one wallet's unsaved name,
+  // RPC endpoint or workspace access must never be saved onto another.
+  it('starts the name, RPC and access drafts over when another wallet is chosen', async () => {
+    const { api } = walletsApi(['workspace-a'])
+    const treasury: WalletDescriptor = {
+      ...signingWallet(['workspace-b']), id: 'treasury', name: 'Treasury wallet',
+      publicAddress: '0x2222222222222222222222222222222222222222'
+    }
+    api.list.mockImplementation(async () => [signingWallet(['workspace-a']), structuredClone(treasury)])
+    const { view } = await renderPanel(api)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Rename' }))
+    await user.clear(screen.getByLabelText('Wallet name'))
+    await user.type(screen.getByLabelText('Wallet name'), 'Unsaved name')
+    await user.click(screen.getByRole('button', { name: 'Change RPC endpoint' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Workspace B' }))
+    await user.click(screen.getByRole('button', { name: /^Treasury wallet/ }))
+
+    await waitFor(() => expect(screen.queryByLabelText('Wallet name')).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Change RPC endpoint' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Workspace A' })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Workspace B' })).toBeChecked()
+
+    await user.click(screen.getByRole('button', { name: /^Signing wallet/ }))
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Workspace B' })).not.toBeChecked())
+    expect(screen.getByRole('checkbox', { name: 'Workspace A' })).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Rename' }))
+    expect(screen.getByLabelText('Wallet name')).toHaveValue('Signing wallet')
+    view.unmount()
+  })
+
   // Without the old reset on every refresh, a workspace attached to a wallet that had none still becomes the policy's.
   it('offers a newly attached workspace for the policy of a wallet that had none', async () => {
     const { api } = walletsApi([])

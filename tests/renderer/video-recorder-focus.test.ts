@@ -91,6 +91,46 @@ describe('VideoRecorder focus after an action', () => {
     } finally { observer.disconnect(); view.unmount() }
   })
 
+  // Annotation rows are keyed by position, so once the first is removed its Remove button stands for the second. Giving
+  // it the focus back let a held Enter remove every annotation after the one you meant.
+  it('keeps the focus off the Remove button that now stands for the next annotation', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const annotation = (text: string) => ({ kind: 'text' as const, startMs: 0, endMs: 1000, text, color: '#7c3aed' })
+    const removed = deferred<BrowserVideoState>()
+    const view = renderRecorder({ ...state('stopped'), annotations: [annotation('One'), annotation('Two'), annotation('Three')] }, removed.promise)
+    const observer = emulateChromiumFocusFixup()
+    try {
+      const remove = await screen.findByRole('button', { name: 'Remove annotation 1' })
+      await userEvent.setup().click(remove)
+      await vi.waitFor(() => expect(remove).toBeDisabled())
+      removed.resolve({ ...state('stopped'), annotations: [annotation('Two'), annotation('Three')] })
+      await vi.waitFor(() => expect(remove).toBeEnabled())
+      expect(remove.isConnected).toBe(true)
+      const recorder = screen.getByRole('region', { name: 'Video recorder' })
+      await vi.waitFor(() => expect(recorder).toHaveFocus())
+    } finally { observer.disconnect(); view.unmount() }
+  })
+
+  // Removing imported audio selects the next imported file, and the same button then removes that one.
+  it('keeps the focus off Remove selected imported asset once the next file is selected', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const asset = (id: string) => ({ id, name: `${id}.mp3`, durationMs: 1000, provenance: 'Recorded by the team', builtin: false })
+    const removed = deferred<BrowserVideoState>()
+    const view = renderRecorder({ ...state('stopped'), audioAssets: [asset('first'), asset('second')] }, removed.promise)
+    const observer = emulateChromiumFocusFixup()
+    try {
+      const remove = await screen.findByRole('button', { name: 'Remove selected imported asset', hidden: true })
+      remove.focus()
+      remove.click()
+      await vi.waitFor(() => expect(remove).toBeDisabled())
+      removed.resolve({ ...state('stopped'), audioAssets: [asset('second')] })
+      await vi.waitFor(() => expect(remove).toBeEnabled())
+      expect(remove.isConnected).toBe(true)
+      const recorder = screen.getByRole('region', { name: 'Video recorder' })
+      await vi.waitFor(() => expect(recorder).toHaveFocus())
+    } finally { observer.disconnect(); view.unmount() }
+  })
+
   it('leaves newer focus alone when the action finishes', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     const saved = deferred<BrowserVideoState>()
