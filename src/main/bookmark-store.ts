@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { readFile, rename } from 'node:fs/promises'
 import type { BrowserBookmark, BrowserBookmarkCollection, BookmarkCollectionSnapshot } from '../shared/types.js'
 import { normalizeCollectionTitle } from './collection-title.js'
 import { writeTextFileAtomically } from './atomic-file.js'
@@ -95,12 +95,30 @@ export interface RemovedBookmark {
   collections: { id: string; index: number }[]
 }
 
+/**
+ * Moves a bookmarks file Hronaut cannot read, such as one cut short by a disk error or written by a newer version, to
+ * `bookmarks.json.unreadable-<UTC time>` beside it, just before the first save writes a new file, so that save does not
+ * replace every bookmark in it. Until then the file stays where it is, so a newer Hronaut opened again before anything
+ * is saved still finds it. When the file cannot be moved, the save replaces it as before.
+ */
+async function keepUnreadableBookmarks(path: string): Promise<void> {
+  const aside = `${path}.unreadable-${new Date().toISOString().replace(/[:.]/g, '-')}`
+  try {
+    await rename(path, aside)
+    console.warn('[bookmarks] Kept an unreadable bookmarks file aside before saving a new one.')
+  } catch {
+    console.warn('[bookmarks] Could not keep an unreadable bookmarks file aside; saving a new one replaces it.')
+  }
+}
+
 export class BookmarkStore {
   private readonly entries = new Map<string, BrowserBookmark>()
   private collections: BrowserBookmarkCollection[] = []
   private revision = 0
   private mutationQueue: Promise<void> = Promise.resolve()
   private saveQueue: Promise<void> = Promise.resolve()
+  /** Set when loading found a file it cannot read, which the next save moves aside first. */
+  private unreadableFile = false
 
   constructor(private readonly path: string) {}
 
@@ -108,11 +126,15 @@ export class BookmarkStore {
     this.entries.clear()
     this.collections = []
     this.revision += 1
+    this.unreadableFile = false
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
+      if (parsed === null) return []
       const value = parsed as Partial<PersistedBookmarks>
-      if (value.version !== 1 || !Array.isArray(value.bookmarks)) return []
+      if (typeof parsed !== 'object' || Array.isArray(parsed) || value.version !== 1 || !Array.isArray(value.bookmarks)) {
+        this.unreadableFile = true
+        return []
+      }
       const seenUrls = new Set<string>()
       const seenIds = new Set<string>()
       const validBookmarks = value.bookmarks.filter(validBookmark)
@@ -148,6 +170,7 @@ export class BookmarkStore {
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
+      if (error instanceof SyntaxError) this.unreadableFile = true
     }
     return this.list()
   }
@@ -363,6 +386,10 @@ export class BookmarkStore {
       collections: normalizeCollections(collections, new Set(bookmarks.map(bookmark => bookmark.id)))
     }
     const operation = this.saveQueue.then(async () => {
+      if (this.unreadableFile) {
+        this.unreadableFile = false
+        await keepUnreadableBookmarks(this.path)
+      }
       await writeTextFileAtomically(this.path, `${JSON.stringify(value, null, 2)}\n`)
     })
     this.saveQueue = operation.catch(() => undefined)
