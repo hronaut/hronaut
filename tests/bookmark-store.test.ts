@@ -1,13 +1,20 @@
-import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BookmarkStore, normalizeBookmarkUrl } from '../src/main/bookmark-store.js'
 
+vi.mock('node:fs/promises', async importOriginal => {
+  const fs = await importOriginal<typeof import('node:fs/promises')>()
+  return { ...fs, rename: vi.fn(fs.rename) }
+})
+const actualFs = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+
 const temporaryDirectories: string[] = []
 
 afterEach(async () => {
   vi.useRealTimers()
+  vi.mocked(rename).mockReset().mockImplementation(actualFs.rename)
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
@@ -153,6 +160,8 @@ describe('BookmarkStore', () => {
     for (const index of [1, 2, 3]) await store.add({ url: `https://example.test/${index}`, title: `Saved ${index}` })
     const unreadable = damage(await readFile(path, 'utf8'))
     await writeFile(path, unreadable, 'utf8')
+    // A copied or restored file can be readable by others; the kept one is not.
+    await chmod(path, 0o644)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     try {
       const reopened = new BookmarkStore(path)
@@ -168,8 +177,40 @@ describe('BookmarkStore', () => {
       const aside = files.find((name) => /^bookmarks\.json\.unreadable-\d{4}-\d{2}-\d{2}T[\d-]+Z$/.test(name))
       expect(files.sort()).toEqual(['bookmarks.json', aside].sort())
       expect(await readFile(join(dirname(path), aside!), 'utf8')).toBe(unreadable)
+      if (process.platform !== 'win32') expect((await stat(join(dirname(path), aside!))).mode & 0o777).toBe(0o600)
       expect(JSON.parse(await readFile(path, 'utf8')).bookmarks.map((bookmark: { title: string }) => bookmark.title).sort()).toEqual(['New', 'Second'])
       expect(warn).toHaveBeenCalledExactlyOnceWith('[bookmarks] Kept an unreadable bookmarks file aside before saving a new one.')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it.each([
+    ['could not move it or write', ['busy', 'busy']],
+    ['moved it but could not write', ['actual', 'busy']]
+  ] as const)('still keeps an unreadable bookmarks file aside after a save that %s', async (_case, renames) => {
+    // A save that failed, as on Windows while a sync tool holds the file, gave up keeping it, and the next save replaced it.
+    const { path, store } = await createStore()
+    await store.add({ url: 'https://example.test/saved', title: 'Saved' })
+    await writeFile(path, '{"version":', 'utf8')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      const reopened = new BookmarkStore(path)
+      await reopened.load()
+      const busy = Object.assign(new Error('resource busy or locked'), { code: 'EBUSY' })
+      for (const outcome of renames) {
+        if (outcome === 'busy') vi.mocked(rename).mockRejectedValueOnce(busy)
+        else vi.mocked(rename).mockImplementationOnce(actualFs.rename)
+      }
+      await expect(reopened.add({ url: 'https://example.test/new', title: 'New' })).rejects.toThrow('resource busy or locked')
+
+      await reopened.add({ url: 'https://example.test/new', title: 'New' })
+      const files = await readdir(dirname(path))
+      const aside = files.find((name) => name.startsWith('bookmarks.json.unreadable-'))
+      expect(files.sort()).toEqual(['bookmarks.json', aside].sort())
+      expect(await readFile(join(dirname(path), aside!), 'utf8')).toBe('{"version":')
+      expect(JSON.parse(await readFile(path, 'utf8')).bookmarks.map((bookmark: { title: string }) => bookmark.title)).toEqual(['New'])
+      expect(warn).toHaveBeenLastCalledWith('[bookmarks] Kept an unreadable bookmarks file aside before saving a new one.')
     } finally {
       warn.mockRestore()
     }
