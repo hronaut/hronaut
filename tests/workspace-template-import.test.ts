@@ -41,6 +41,13 @@ describe('workspace template import recovery', () => {
     port.room.mockReturnValue({ tabs: 2, workspaces: 2 })
     expect(await importer.import(template())).toEqual({ status: 'completed', workspaceIds: ['new-1', 'new-2'] })
   })
+  it('opens one blank tab for a workspace without start pages, as the room check counts it', async () => {
+    const { importer, port } = setup()
+    const blank = JSON.stringify({ format: 'hronaut-workspace-template', version: 1, sourcePlatform: 'linux',
+      workspaces: [{ name: 'Blank', color: 'blue', startPages: [] }] })
+    expect(await importer.import(blank)).toEqual({ status: 'completed', workspaceIds: ['new-1'] })
+    expect(port.openStartPages).toHaveBeenCalledExactlyOnceWith('new-1', ['about:blank'])
+  })
   it('allocates the whole batch before opening approved start pages', async () => {
     const { importer, port, existing } = setup()
     port.openStartPages.mockImplementation(async () => { expect(existing).toHaveLength(3) })

@@ -7,6 +7,7 @@ export interface WorkspaceTemplateImportPort {
   /** How many more tabs and open workspaces Hronaut can open now. */
   room(): { tabs: number; workspaces: number }
   create(entry: WorkspaceTemplateEntry): Promise<string>
+  /** Opens each address as a background tab of the workspace. */
   openStartPages(workspaceId: string, urls: string[]): Promise<void>
   remove(workspaceId: string): Promise<void>
 }
@@ -31,10 +32,8 @@ export class WorkspaceTemplateImporter {
     if (!preview.canImport) throw new LocalizedError('appErrors.workspace.templateCollisions')
     // Each workspace opens its start pages, or one blank tab, under the browser's tab and open workspace limits. A
     // template that cannot fit is refused before anything is created, instead of being rolled back part way.
-    const needed = {
-      tabs: preview.template.workspaces.reduce((total, entry) => total + Math.max(1, entry.startPages.length), 0),
-      workspaces: preview.template.workspaces.length
-    }
+    const pages = preview.template.workspaces.map(entry => entry.startPages.length ? entry.startPages : ['about:blank'])
+    const needed = { tabs: pages.reduce((total, urls) => total + urls.length, 0), workspaces: pages.length }
     const room = this.port.room()
     if (needed.tabs > room.tabs || needed.workspaces > room.workspaces) {
       throw new LocalizedError('appErrors.workspace.templateRoom', {
@@ -59,8 +58,8 @@ export class WorkspaceTemplateImporter {
         if (!id || existingIds.has(id) || created.includes(id)) throw new Error('Workspace allocation did not return a fresh identity.')
         created.push(id)
       }
-      for (const [index, entry] of preview.template.workspaces.entries()) {
-        await this.port.openStartPages(created[index]!, entry.startPages)
+      for (const [index, urls] of pages.entries()) {
+        await this.port.openStartPages(created[index]!, urls)
       }
       return { status: 'completed', workspaceIds: created }
     } catch {

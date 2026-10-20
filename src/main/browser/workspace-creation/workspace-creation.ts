@@ -21,7 +21,7 @@ export async function importWorkspaceTemplate(access: WorkspaceCreationAccess, t
       return workspace.id
     },
     openStartPages: async (workspaceId, urls) => {
-      for (const url of urls.length ? urls : ['about:blank']) {
+      for (const url of urls) {
         await access.createTab({ url, active: false, focus: false, mcpGroupId: workspaceId })
       }
     },

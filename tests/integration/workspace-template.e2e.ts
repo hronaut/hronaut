@@ -214,7 +214,7 @@ test('refuses a template that needs more tabs than Hronaut can open, before crea
     return { refusal, workspaces: [before.mcpTabGroups.length, after.mcpTabGroups.length], tabs: [before.tabs.length, after.tabs.length] }
   }, template(Array.from({ length: 20 }, (_, index) => `Client ${index}`)))
 
-  expect(outcome.refusal).toContain('There is not enough room for this template. Tabs needed: 20, free: 15.')
+  expect(outcome.refusal).toContain(`There is not enough room for this template. Tabs needed: 20, free: 15. Open workspaces needed: 20, free: ${50 - outcome.workspaces[0]!}.`)
   expect(outcome.workspaces[1]).toBe(outcome.workspaces[0])
   expect(outcome.tabs).toEqual([35, 35])
 })

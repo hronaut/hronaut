@@ -126,7 +126,7 @@ export const frFRAppErrors: AppErrorMessages = {
     "sourceJustClosed": "« {name} » vient d’être fermé. Annulez la fermeture pour le copier.",
     "observerRequirements": "Un observateur public nécessite un stockage temporaire vierge et une seule origine HTTP(S) restreinte.",
     "templateCollisions": "Résolvez les conflits de noms d’espaces de travail avant l’importation.",
-    "templateRoom": "Il n’y a pas assez de place pour ce modèle. Onglets nécessaires : {tabs}, libres : {freeTabs}. Espaces de travail ouverts nécessaires : {workspaces}, libres : {freeWorkspaces}. Fermez des onglets ou des espaces de travail, ou importez moins de pages de démarrage."
+    "templateRoom": "Il n’y a pas assez de place pour ce modèle. Onglets nécessaires : {tabs}, libres : {freeTabs}. Espaces de travail ouverts nécessaires : {workspaces}, libres : {freeWorkspaces}. Fermez des onglets ou des espaces de travail, ou retirez des espaces de travail ou des pages de démarrage de ce modèle."
   },
   "workspaceStorage": {
     "busyArchiving": "Le stockage des espaces de travail est occupé : un espace de travail est en cours d’archivage. Réessayez une fois l’opération terminée.",
