@@ -496,6 +496,28 @@ describe('TabStateStore', () => {
     await expect(store.load()).rejects.toBeInstanceOf(WorkspaceMetadataError)
   })
 
+  it('drops saved Site access rules with a misplaced wildcard instead of refusing the saved workspaces', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    // Rules like these were accepted as written before they were refused, and never matched a site.
+    state.mcpTabGroups![1]!.navigationPolicy = {
+      mode: 'restricted',
+      rules: ['https://shop.example', 'http://*.localhost:*']
+    }
+    state.savedTabGroups![0]!.navigationPolicy = {
+      mode: 'restricted',
+      rules: ['https://a.*.example.com', 'https://docs.example']
+    }
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    const loaded = await store.load()
+    expect(loaded?.mcpTabGroups?.[1]?.navigationPolicy).toEqual({ mode: 'restricted', rules: ['https://shop.example'] })
+    expect(loaded?.savedTabGroups?.[0]?.navigationPolicy).toEqual({ mode: 'restricted', rules: ['https://docs.example'] })
+    expect(loaded?.savedTabGroups?.[0]?.tabs).toEqual([{ title: 'Orders', url: 'https://docs.example/orders', pinned: true }])
+    expect(loaded?.tabs.find((tab) => tab.id === ACTIVE_TAB_ID)?.url).toBe('https://shop.example/checkout')
+  })
+
   it('persists only bounded origin-level denied-navigation audit entries', async () => {
     const { store } = await createStore()
     const state = currentState()

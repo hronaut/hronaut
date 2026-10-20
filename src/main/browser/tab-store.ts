@@ -16,6 +16,7 @@ import { normalizeWorkspaceDescription } from '../../shared/workspace-descriptio
 import { UNTITLED_TAB_TITLE } from '../../shared/tab-title.js'
 import {
   evaluateWorkspaceNavigation,
+  normalizeSavedWorkspaceNavigationPolicy,
   normalizeWorkspaceNavigationPolicy
 } from './workspace-navigation-policy.js'
 import type {
@@ -368,7 +369,7 @@ export class TabStateStore {
         let navigationPolicy: BrowserWorkspaceNavigationPolicy
         let navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
         try {
-          navigationPolicy = normalizeWorkspaceNavigationPolicy(candidate.navigationPolicy)
+          navigationPolicy = normalizeSavedWorkspaceNavigationPolicy(candidate.navigationPolicy)
           navigationAudit = persistedWorkspaceNavigationAudit(candidate.navigationAudit)
         } catch {
           throw this.reject('invalid-schema')
@@ -449,7 +450,7 @@ export class TabStateStore {
         let navigationPolicy: BrowserWorkspaceNavigationPolicy
         let navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
         try {
-          navigationPolicy = normalizeWorkspaceNavigationPolicy(candidate.navigationPolicy)
+          navigationPolicy = normalizeSavedWorkspaceNavigationPolicy(candidate.navigationPolicy)
           navigationAudit = persistedWorkspaceNavigationAudit(candidate.navigationAudit)
         } catch {
           throw this.reject('invalid-schema')

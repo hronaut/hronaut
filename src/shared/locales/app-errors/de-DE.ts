@@ -174,6 +174,7 @@ export const deDEAppErrors: AppErrorMessages = {
     "invalidHostname": "Die Website-Zugriffsregel enthält einen ungültigen Hostnamen.",
     "hostnameOnly": "Die Website-Zugriffsregel darf nur einen Hostnamen enthalten.",
     "wildcardHostname": "Platzhalterregeln für Subdomains erfordern einen DNS-Hostnamen.",
+    "wildcardPlacement": "Verwenden Sie ein * pro Regel: am Anfang des Hostnamens, etwa *.example.com, oder als Port eines lokalen Hosts, etwa http://localhost:*.",
     "credentials": "Website-Zugriffsregeln dürfen keine Zugangsdaten enthalten.",
     "originOnly": "Website-Zugriffsregeln müssen Ursprünge ohne Pfade, Abfragen oder Fragmente sein.",
     "length": "Die Website-Zugriffsregel ist leer oder zu lang.",
