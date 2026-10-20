@@ -21,7 +21,7 @@ const PAGE = new URL('https://app.example.test/app/page')
 /**
  * A tab whose cookie store behaves like Chromium's for a set: it replaces the unpartitioned cookie of exactly that
  * name, domain (host-only when no domain is given) and path, refuses to replace an HttpOnly one, and otherwise adds a
- * cookie. A listing holds the cookies the page receives, partitioned ones without their partition key.
+ * cookie unless it has already expired. A listing holds the cookies the page receives, partitioned ones without their partition key.
  */
 function cookieTab(stored: StoredCookie[]) {
   const sentTo = (url: URL, cookie: StoredCookie): boolean =>
@@ -38,6 +38,7 @@ function cookieTab(stored: StoredCookie[]) {
     const existing = stored.find((cookie) => !cookie.partitioned && cookie.name === details.name && cookie.domain === domain && cookie.path === details.path)
     if (existing?.httpOnly && !details.httpOnly) throw new Error('Failed to set cookie - The cookie would have overwritten an HttpOnly cookie')
     if (existing) stored.splice(stored.indexOf(existing), 1)
+    if (details.expirationDate !== undefined && details.expirationDate * 1000 < Date.now()) return
     stored.push({
       name: details.name!, value: details.value!, domain, path: details.path!, httpOnly: details.httpOnly ?? false,
       secure: details.secure, sameSite: details.sameSite, expirationDate: details.expirationDate
@@ -116,6 +117,17 @@ describe('site storage cookie update', () => {
     await expect(manageCookies(ambiguous.access, ambiguous.tab, PAGE, 'set', 'pref', 'x', true, undefined, { domain: '.example.test', path: '/app' }))
       .rejects.toThrow('More than one cookie has that name, domain and path, for example in another partition. It was not replaced.')
     expect(ambiguous.set).not.toHaveBeenCalled()
+  })
+
+  it('refuses a cookie that exists only in a partition and leaves no unpartitioned copy behind', async () => {
+    const partitioned: StoredCookie = { name: 'chips', value: 'embedded', domain: '.example.test', path: '/app', httpOnly: false, secure: true, sameSite: 'no_restriction', partitioned: true }
+    const { access, tab, set, stored } = cookieTab([...storedCookies(), partitioned])
+    await expect(manageCookies(access, tab, PAGE, 'set', 'chips', 'changed', true, undefined, { domain: '.example.test', path: '/app' }))
+      .rejects.toThrow('The selected cookie belongs to a partition, which the storage manager cannot change. It was not replaced.')
+
+    expect(set).toHaveBeenCalledTimes(2)
+    expect(set.mock.calls[1]![0]).toMatchObject({ name: 'chips', domain: '.example.test', path: '/app', expirationDate: 1 })
+    expect(stored.filter((cookie) => cookie.name === 'chips')).toEqual([partitioned])
   })
 
   it('accepts a cookie selector for set and still refuses it for other actions', async () => {

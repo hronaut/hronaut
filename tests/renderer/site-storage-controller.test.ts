@@ -253,6 +253,29 @@ describe('site-storage controller', () => {
     })
   })
 
+  it('saves the editor as a new cookie once the edited row is deleted or the view resets', async () => {
+    const row = { key: 'pref', value: 'app', valueBytes: 3, domain: '.example.test', path: '/app' }
+    const { browser, controller } = createController()
+    controller.kind.value = 'cookies'
+    controller.result.value = { ...storageResult(), kind: 'cookies', itemCount: 1, items: [row] }
+    controller.editItem(row)
+    await controller.deleteItem(row)
+    await controller.saveItem()
+    expect(browser.manageStorage).toHaveBeenLastCalledWith({
+      tabId: 'tab-1', kind: 'cookies', action: 'set', key: 'pref', value: 'app', includeValues: true
+    })
+
+    controller.editItem(row)
+    controller.reset()
+    controller.kind.value = 'cookies'
+    controller.key.value = 'pref'
+    controller.value.value = 'typed'
+    await controller.saveItem()
+    expect(browser.manageStorage).toHaveBeenLastCalledWith({
+      tabId: 'tab-1', kind: 'cookies', action: 'set', key: 'pref', value: 'typed', includeValues: true
+    })
+  })
+
   it('does not start another storage mutation while persistence is pending', async () => {
     const pending = deferred<BrowserStorageResult>()
     const manageStorage = vi.fn(() => pending.promise)

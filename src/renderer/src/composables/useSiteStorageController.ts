@@ -567,6 +567,10 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
         value.value = ''
         editedCookie = null
       }
+      // The cookie row in the editor is gone, so saving the editor writes a new cookie, as for a name typed afresh.
+      if (action === 'clear' || (action === 'delete' && editedCookie?.key === item!.key && editedCookie.domain === item!.domain && editedCookie.path === item!.path)) {
+        editedCookie = null
+      }
       state.value = 'idle'
     } catch (cause) {
       if (sequence !== listSequence || !isCurrent(tab.id, expectedGeneration)) return

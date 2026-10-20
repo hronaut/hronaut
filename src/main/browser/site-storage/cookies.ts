@@ -48,6 +48,19 @@ export async function manageCookies<Tab extends SiteStorageTab>(
   if (action === 'set' && exact) {
     const cookie = exactCookie(cookies, { name: key!, ...exact }, 'replaced')
     await operation.write(() => replaceCookieValue(cookieStore, cookie, value!))
+    const written = await cookieStore.get({ url })
+    assertCurrent()
+    const selection = written.filter((candidate) => candidate.name === key && candidate.domain === exact.domain && candidate.path === exact.path)
+    // A listing cannot tell a partitioned cookie from an unpartitioned one, and
+    // the write lands outside every partition. A selected partitioned cookie so
+    // stays as it was beside a new unpartitioned copy, which is expired again.
+    if (selection.length > 1) {
+      await operation.write(() => expireCookie(cookieStore, cookie))
+      throw new Error('The selected cookie belongs to a partition, which the storage manager cannot change. It was not replaced.')
+    }
+    if (selection[0]?.value !== value) {
+      throw new Error('The selected cookie does not hold the new value. Inspect current storage before deciding what to do next; do not automatically repeat the operation.')
+    }
     changed = true
   } else if (action === 'set') {
     const protectedMatch = cookies.some((cookie) => cookie.name === key && cookie.httpOnly)
