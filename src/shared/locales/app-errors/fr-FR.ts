@@ -124,6 +124,7 @@ export const frFRAppErrors: AppErrorMessages = {
     "restoreRollbackFailed": "L’espace de travail archivé « {name} » n’a pu être ni restauré ni rétabli dans son état précédent. Son espace de travail actif récupérable reste ouvert ; fermez-le ou archivez-le avant de réessayer.",
     "sourceUnavailable": "L’espace de travail source est indisponible.",
     "sourceJustClosed": "« {name} » vient d’être fermé. Annulez la fermeture pour le copier.",
+    "forkSiteAccess": "Une copie de \"{name}\" ne peut pas autoriser des sites que \"{name}\" ne liste pas. Choisissez uniquement des règles qu’il liste, ou créez la copie puis modifiez son accès aux sites.",
     "observerRequirements": "Un observateur public nécessite un stockage temporaire vierge et une seule origine HTTP(S) restreinte.",
     "templateCollisions": "Résolvez les conflits de noms d’espaces de travail avant l’importation.",
     "templateRoom": "Il n’y a pas assez de place pour ce modèle. Onglets nécessaires : {tabs}, libres : {freeTabs}. Espaces de travail ouverts nécessaires : {workspaces}, libres : {freeWorkspaces}. Fermez des onglets ou des espaces de travail, ou retirez des espaces de travail ou des pages de démarrage de ce modèle."

@@ -124,6 +124,7 @@ export const plPLAppErrors: AppErrorMessages = {
     "restoreRollbackFailed": "Nie udało się przywrócić zarchiwizowanego obszaru roboczego „{name}” ani cofnąć zmian. Jego aktywna kopia do odzyskania pozostaje otwarta; zamknij ją lub zarchiwizuj przed ponowną próbą.",
     "sourceUnavailable": "Źródłowy obszar roboczy jest niedostępny.",
     "sourceJustClosed": "Obszar „{name}” został właśnie zamknięty. Cofnij zamknięcie, aby go skopiować.",
+    "forkSiteAccess": "Kopia obszaru \"{name}\" nie może zezwalać na witryny, których \"{name}\" nie wymienia. Wybierz tylko reguły, które wymienia, albo utwórz kopię, a potem zmień jej dostęp do witryn.",
     "observerRequirements": "Publiczny obserwator wymaga czystej pamięci tymczasowej i jednego ograniczonego źródła HTTP(S).",
     "templateCollisions": "Przed importem rozwiąż konflikty nazw obszarów roboczych.",
     "templateRoom": "Za mało miejsca na ten szablon. Potrzebne karty: {tabs}, wolne: {freeTabs}. Potrzebne otwarte obszary robocze: {workspaces}, wolne: {freeWorkspaces}. Zamknij część kart lub obszarów roboczych albo usuń z tego szablonu obszary robocze lub strony startowe."

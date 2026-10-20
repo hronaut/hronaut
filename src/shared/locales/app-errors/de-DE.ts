@@ -124,6 +124,7 @@ export const deDEAppErrors: AppErrorMessages = {
     "restoreRollbackFailed": "Der archivierte Arbeitsbereich „{name}“ konnte weder wiederhergestellt noch zurückgesetzt werden. Sein wiederherstellbarer aktiver Arbeitsbereich bleibt geöffnet; schließen oder archivieren Sie ihn, bevor Sie es erneut versuchen.",
     "sourceUnavailable": "Der Quellarbeitsbereich ist nicht verfügbar.",
     "sourceJustClosed": "„{name}“ wurde gerade geschlossen. Machen Sie das Schließen rückgängig, um ihn zu kopieren.",
+    "forkSiteAccess": "Eine Kopie von \"{name}\" kann keine Websites erlauben, die \"{name}\" nicht auflistet. Wählen Sie nur Regeln, die dort aufgelistet sind, oder erstellen Sie die Kopie und ändern Sie danach ihren Website-Zugriff.",
     "observerRequirements": "Ein öffentlicher Beobachter benötigt einen sauberen temporären Speicher und genau einen eingeschränkten HTTP(S)-Ursprung.",
     "templateCollisions": "Lösen Sie vor dem Import die Namenskonflikte der Arbeitsbereiche.",
     "templateRoom": "Für diese Vorlage ist nicht genug Platz. Benötigte Tabs: {tabs}, frei: {freeTabs}. Benötigte offene Arbeitsbereiche: {workspaces}, frei: {freeWorkspaces}. Schließen Sie einige Tabs oder Arbeitsbereiche, oder entfernen Sie Arbeitsbereiche oder Startseiten aus dieser Vorlage."
