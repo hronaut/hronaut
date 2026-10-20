@@ -273,3 +273,45 @@ describe('a workspace that is gone for good', () => {
     expect(forgotten).not.toHaveBeenCalled()
   })
 })
+
+describe('recently closed tabs of other workspaces', () => {
+  /** A full recently closed list, oldest first, of tabs the person closed in the workspace that stays open. */
+  function closedElsewhere() {
+    return Array.from({ length: 50 }, (_unused, index) => ({
+      id: `closed-${index}`, title: `Closed ${index}`, url: `https://other.test/${index}`, pinned: false,
+      closedAt: '2026-10-19T10:30:00.000Z', mcpGroupId: OTHER
+    }))
+  }
+
+  it('stay recoverable when the person archives another workspace', async () => {
+    const { manager, internals, release } = await browser()
+    release()
+    const closedTabs = (internals as unknown as { closedTabs: Array<{ id: string; mcpGroupId?: string }> }).closedTabs
+    closedTabs.push(...closedElsewhere())
+    await manager.closeMcpTabGroup(CLOSING, true)
+    // Closing the archived workspace's two tabs pushed the two oldest tabs closed in the other workspace out of the
+    // bounded list, although the archived workspace's own entries are removed again straight after.
+    expect(closedTabs.map((entry) => entry.id)).toEqual(closedElsewhere().map((entry) => entry.id))
+  })
+
+  it('stay recoverable when the person closes another workspace', async () => {
+    const { manager, internals, release } = await browser()
+    release()
+    Object.assign(internals, { options: { partition: 'persist:hronaut' } })
+    const closedTabs = (internals as unknown as { closedTabs: Array<{ id: string; mcpGroupId?: string }> }).closedTabs
+    closedTabs.push(...closedElsewhere())
+    await manager.closeMcpTabGroup(CLOSING)
+    expect(closedTabs.map((entry) => entry.id)).toEqual(closedElsewhere().map((entry) => entry.id))
+  })
+
+  it('stay recoverable when closing another workspace fails and its tabs come back', async () => {
+    const { manager, internals, release, workspaceTabs } = await browser()
+    release()
+    const closedTabs = (internals as unknown as { closedTabs: Array<{ id: string; mcpGroupId?: string }> }).closedTabs
+    closedTabs.push(...closedElsewhere())
+    internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
+    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
+    expect(workspaceTabs(CLOSING)).toEqual([SHOWN, ASLEEP])
+    expect(closedTabs.map((entry) => entry.id)).toEqual(closedElsewhere().map((entry) => entry.id))
+  })
+})

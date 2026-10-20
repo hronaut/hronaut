@@ -63,6 +63,8 @@ export function openSplitView<Tab extends SplitViewTab>(access: SplitViewAccess<
     for (const visibleTabId of [access.splitView()!.firstTabId, access.splitView()!.secondTabId]) {
       const visibleTab = access.findTab(visibleTabId)
       if (visibleTab && visibleTab.id !== current.id && visibleTab.id !== target.id) {
+        // It was in view until now, so Memory Saver counts its inactivity from here.
+        visibleTab.lastActiveAt = Date.now()
         access.removeChildView(visibleTab.view)
       }
     }
@@ -110,7 +112,11 @@ export function closeSplitView<Tab extends SplitViewTab>(access: SplitViewAccess
     ? access.splitView()!.secondTabId
     : access.splitView()!.firstTabId
   const otherTab = access.findTab(otherTabId)
-  if (otherTab) access.removeChildView(otherTab.view)
+  if (otherTab) {
+    // It was in view until now, so Memory Saver counts its inactivity from here.
+    otherTab.lastActiveAt = Date.now()
+    access.removeChildView(otherTab.view)
+  }
   access.writeSplitView(null)
   access.layout()
   access.focusTabOrTrustedChrome(activeTab)
