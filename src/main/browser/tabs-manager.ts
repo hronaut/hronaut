@@ -1851,6 +1851,7 @@ export class BrowserTabsManager {
       mcpTabGroups: () => this.mcpTabGroups,
       savedTabGroups: () => this.savedTabGroups,
       assertActiveWorkspaceCapacity: () => this.assertActiveWorkspaceCapacity(),
+      openWorkspaceRoom: () => MAX_ACTIVE_WORKSPACES - this.mcpTabGroups.size,
       createMcpTabGroup: (name, color, storage, origins, allowDuplicateName, navigationPolicy, sourceWorkspaceId, description, contextClass) => (
         this.createMcpTabGroup(name, color, storage, origins, allowDuplicateName, navigationPolicy, sourceWorkspaceId, description, contextClass)
       ),

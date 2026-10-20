@@ -202,3 +202,19 @@ test('keeps a maximum-size template preview usable in dark mode without creating
   const after = await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
   expect(after.mcpTabGroups).toEqual(before.mcpTabGroups)
 })
+
+test('refuses a template that needs more tabs than Hronaut can open, before creating any workspace', async ({ appWindow }) => {
+  const outcome = await appWindow.evaluate(async (text) => {
+    const hronaut = (window as unknown as { hronaut: HronautApi }).hronaut
+    // Leave fewer free tabs than the template's twenty workspaces open blank tabs.
+    while ((await hronaut.getState()).tabs.length < 35) await hronaut.newTab({ url: 'about:blank', active: false })
+    const before = await hronaut.getState()
+    const refusal = await hronaut.importWorkspaceTemplate(text).then(() => '', (error: unknown) => String(error))
+    const after = await hronaut.getState()
+    return { refusal, workspaces: [before.mcpTabGroups.length, after.mcpTabGroups.length], tabs: [before.tabs.length, after.tabs.length] }
+  }, template(Array.from({ length: 20 }, (_, index) => `Client ${index}`)))
+
+  expect(outcome.refusal).toContain(`There is not enough room for this template. Tabs needed: 20, free: 15. Open workspaces needed: 20, free: ${50 - outcome.workspaces[0]!}.`)
+  expect(outcome.workspaces[1]).toBe(outcome.workspaces[0])
+  expect(outcome.tabs).toEqual([35, 35])
+})

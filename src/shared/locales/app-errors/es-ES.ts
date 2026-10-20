@@ -125,7 +125,8 @@ export const esESAppErrors: AppErrorMessages = {
     "sourceUnavailable": "El espacio de trabajo de origen no está disponible.",
     "sourceJustClosed": "«{name}» se acaba de cerrar. Deshaz el cierre para copiarlo.",
     "observerRequirements": "Un observador público necesita un almacenamiento temporal limpio y un único origen HTTP(S) restringido.",
-    "templateCollisions": "Resuelve los conflictos de nombres de espacios de trabajo antes de importar."
+    "templateCollisions": "Resuelve los conflictos de nombres de espacios de trabajo antes de importar.",
+    "templateRoom": "No hay espacio suficiente para esta plantilla. Pestañas necesarias: {tabs}, libres: {freeTabs}. Espacios de trabajo abiertos necesarios: {workspaces}, libres: {freeWorkspaces}. Cierra algunas pestañas o espacios de trabajo, o elimina espacios de trabajo o páginas iniciales de esta plantilla."
   },
   "workspaceStorage": {
     "busyArchiving": "El almacenamiento de los espacios de trabajo está ocupado: se está archivando un espacio de trabajo. Vuelve a intentarlo cuando termine la operación.",

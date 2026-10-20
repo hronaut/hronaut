@@ -1,4 +1,4 @@
-import type { BrowserState, BrowserWorkspaceCreateOptions } from '../../../shared/types.js'
+import { MAX_BROWSER_TABS, type BrowserState, type BrowserWorkspaceCreateOptions } from '../../../shared/types.js'
 import type { WorkspaceTemplateImportResult } from '../../../shared/workspace-template.js'
 import { LocalizedError } from '../../localized-error.js'
 import { RetainedBrowserWorkspaceError } from '../workspace-errors.js'
@@ -14,13 +14,14 @@ export async function importWorkspaceTemplate(access: WorkspaceCreationAccess, t
   access.setWorkspaceTemplateImporter(access.workspaceTemplateImporter() ?? new WorkspaceTemplateImporter({
     existingWorkspaces: () => [...access.mcpTabGroups().values(), ...access.savedTabGroups().values()]
       .map(({ id, name }) => ({ id, name })),
+    room: () => ({ tabs: MAX_BROWSER_TABS - access.tabs().size, workspaces: access.openWorkspaceRoom() }),
     create: async (entry) => {
       const workspace = await access.createMcpTabGroup(entry.name, entry.color, 'scratch', undefined, false, undefined, undefined, entry.description)
       access.updateMcpTabGroup(workspace.id, { agentAccess: false })
       return workspace.id
     },
     openStartPages: async (workspaceId, urls) => {
-      for (const url of urls.length ? urls : ['about:blank']) {
+      for (const url of urls) {
         await access.createTab({ url, active: false, focus: false, mcpGroupId: workspaceId })
       }
     },
