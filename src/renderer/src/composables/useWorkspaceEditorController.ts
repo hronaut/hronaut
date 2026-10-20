@@ -313,21 +313,27 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
           navigationPolicy: navigationPolicy()
         }))
       } else if (currentWorkspaceId) {
-        const updated = await options.browser.updateTabGroup(currentWorkspaceId, {
+        const current = workspace.value
+        const nextPolicy = navigationPolicy()
+        const policyChanged = !current || JSON.stringify(current.navigationPolicy) !== JSON.stringify(nextPolicy)
+        // Agents get access only once the rules chosen with it are saved, so rules the main process refuses, such as
+        // one with a path, leave access off; the other details are saved first, so a refused name changes nothing.
+        // Otherwise the details go first, so agents lose access before looser rules apply.
+        const enablesAgentsWithNewRules = policyChanged && agentAccess.value && current?.agentAccess === false
+        let state = await options.browser.updateTabGroup(currentWorkspaceId, {
           name: name.value,
           description: description.value,
           color: color.value,
           hiddenFromSidebar: hiddenFromSidebar.value,
           deletionProtected: deletionProtected.value,
-          agentAccess: agentAccess.value
+          agentAccess: enablesAgentsWithNewRules ? false : agentAccess.value
         })
         if (!isPresentationCurrent(presentation)) return
-        const currentPolicy = workspace.value?.navigationPolicy
-        const nextPolicy = navigationPolicy()
-        const state = currentPolicy
-          && JSON.stringify(currentPolicy) === JSON.stringify(nextPolicy)
-          ? updated
-          : await options.browser.updateWorkspaceNavigationPolicy(currentWorkspaceId, nextPolicy)
+        if (policyChanged) state = await options.browser.updateWorkspaceNavigationPolicy(currentWorkspaceId, nextPolicy)
+        if (enablesAgentsWithNewRules) {
+          if (!isPresentationCurrent(presentation)) return
+          state = await options.browser.updateTabGroup(currentWorkspaceId, { agentAccess: true })
+        }
         await options.syncState(state)
       }
       if (!isPresentationCurrent(presentation)) return
