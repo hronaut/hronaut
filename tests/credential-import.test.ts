@@ -93,6 +93,9 @@ describe('browser password CSV import', () => {
   it('accepts the hostname and account header names Chrome reads', () => {
     expect(parseCredentialImportCsv('hostname,account,password\nhttps://example.test,person,secret').credentials)
       .toEqual([{ origin: 'https://example.test', username: 'person', password: 'secret' }])
+    // A file that imported before still reads the same columns when it also has one of the further names.
+    expect(parseCredentialImportCsv('account,hostname,url,username,password\nWork,https://other.test,https://example.test,person,secret')
+      .credentials).toEqual([{ origin: 'https://example.test', username: 'person', password: 'secret' }])
   })
 
   it('rejects malformed, binary, empty, and oversized exports without echoing their contents', () => {

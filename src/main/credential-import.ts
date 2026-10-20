@@ -88,8 +88,10 @@ function normalizedHeader(value: string): string {
   return value.replace(/^\uFEFF/, '').trim().toLocaleLowerCase().replace(/[\s_-]+/g, '')
 }
 
-function columnIndex(headers: string[], candidates: readonly string[]): number {
-  return headers.findIndex((header) => candidates.includes(header))
+/** The first column with one of the names; the further names count only when no column has one of them. */
+function columnIndex(headers: string[], candidates: readonly string[], further: readonly string[] = []): number {
+  const index = headers.findIndex((header) => candidates.includes(header))
+  return index < 0 ? headers.findIndex((header) => further.includes(header)) : index
 }
 
 // Bitwarden writes every address of a login into its one `login_uri` cell, separated by commas. The first ten distinct
@@ -124,10 +126,11 @@ export function parseCredentialImportCsv(source: string): ParsedCredentialImport
   const header = rows.shift()
   if (!header) throw new CredentialImportError('missing_columns')
   const headers = header.map(normalizedHeader)
-  // Chrome's import accepts the same names; `login_uri`, `login_username` and `login_password` are Bitwarden's.
-  const urlIndex = columnIndex(headers, ['url', 'website', 'origin', 'hostname', 'loginuri'])
-  const usernameIndex = columnIndex(headers, ['username', 'user', 'login', 'account', 'loginusername'])
-  const passwordIndex = columnIndex(headers, ['password', 'pass', 'loginpassword'])
+  // Together these are the names Chrome's import reads; `login_uri`, `login_username` and `login_password` are
+  // Bitwarden's. A file with one of the first names reads the column it always did, even beside an `account` column.
+  const urlIndex = columnIndex(headers, ['url', 'website', 'origin'], ['hostname', 'loginuri'])
+  const usernameIndex = columnIndex(headers, ['username', 'user', 'login'], ['account', 'loginusername'])
+  const passwordIndex = columnIndex(headers, ['password', 'pass'], ['loginpassword'])
   const urlList = headers[urlIndex] === 'loginuri'
   if (urlIndex < 0 || usernameIndex < 0 || passwordIndex < 0) {
     throw new CredentialImportError('missing_columns')
