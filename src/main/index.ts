@@ -592,7 +592,7 @@ const {
   tooltipView
 })
 
-const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
+const { detachedPanelTitle, openPanelWindow, closePanelWindow } = createPanelWindow({
   text,
   trustedShellUrl,
   mainWindow: () => mainWindowRefs.window,
@@ -675,6 +675,7 @@ function registerIpc(): void {
     assertTrustedSender: assertTrustedShellSender,
     assertPanelShellSender,
     openPanelWindow,
+    closePanelWindow,
     panelWindowRefs,
     detachedPanelTitle,
     mainWindow: () => mainWindowRefs.window
