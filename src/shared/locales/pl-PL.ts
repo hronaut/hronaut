@@ -3593,6 +3593,11 @@ export const plPL = {
       "wrongProduct": "Ta licencja komercyjna nie jest przeznaczona dla Hronaut."
     },
     "dialog": {
+      "quitDownloadsTitle": "Zakończyć Hronaut?",
+      "quitDownloadsMessage": "Trwa {count} pobieranie. | Trwają {count} pobierania. | Trwa {count} pobierań.",
+      "quitDownloadsDetail": "Jeśli zakończysz teraz, pobieranie zostanie anulowane, a niedokończony plik usunięty. | Jeśli zakończysz teraz, pobierania zostaną anulowane, a niedokończone pliki usunięte. | Jeśli zakończysz teraz, pobierania zostaną anulowane, a niedokończone pliki usunięte.",
+      "quitDownloadsQuit": "Zakończ",
+      "quitDownloadsKeep": "Kontynuuj pobieranie",
       "closeTabTitle": "Zamknąć tę kartę?",
       "closeTabMessage": "Ta strona prosi Hronaut o potwierdzenie przed zamknięciem.",
       "closeTabDetail": "Zamknięcie karty może spowodować utratę niezapisanych zmian.",

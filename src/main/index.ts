@@ -102,6 +102,7 @@ import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 import { createMcpControlState } from './mcp-control-state.js'
 import { registerAddressOverlayIpc } from './address-overlay-ipc.js'
 import { registerAppLifecycle, type AppQuitState } from './app-lifecycle.js'
+import { createQuitWithDownloadsConfirmation } from './quit-with-downloads.js'
 import { createRuntimeShutdown } from './runtime-shutdown.js'
 
 const mcpRuntime: McpRuntimeState = {
@@ -244,6 +245,21 @@ const mcpPortRecovery = new McpPortRecovery({
   changed: () => publishMcpControlState({ refreshHome: false })
 })
 const appQuitState: AppQuitState = { quitting: false }
+const confirmQuitWithDownloads = createQuitWithDownloadsConfirmation({
+  downloads: () => tabRuntime.tabs?.listDownloads() ?? [],
+  window: () => mainWindowRefs.window ?? undefined,
+  showMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options),
+  text: (key, parameters) => text(key, parameters)
+})
+/** Quits from the menu, the tray or the window's Close, unless downloads are in progress and the person keeps them. */
+function requestQuit(): void {
+  void confirmQuitWithDownloads().then((confirmed) => {
+    if (!confirmed || appQuitState.quitting) return
+    appQuitState.quitting = true
+    // Not inside the window's close event, which quitting closes again.
+    setImmediate(() => app.quit())
+  })
+}
 const {
   currentState: currentWindowState,
   scheduleSave: scheduleWindowStateSave,
@@ -409,7 +425,7 @@ const {
   mcpServer: () => mcpRuntime.server,
   runNativeBrowserAction,
   checkForUpdates,
-  quit: appQuitState,
+  requestQuit,
   userAttentionLifecycle,
   state: userAttentionState,
   agentPresenceSnapshot: () => agentPresenceSnapshot(),
@@ -574,7 +590,7 @@ const { installApplicationMenu } = createApplicationMenu({
   showWindow,
   mainWindow: () => mainWindowRefs.window,
   checkForUpdates,
-  quit: appQuitState,
+  requestQuit,
   runNativeBrowserAction,
   tabs: () => tabRuntime.tabs
 })
@@ -964,7 +980,8 @@ function registerIpc(): void {
     updateState: () => appUpdates.current,
     checkForUpdates,
     downloadUpdate,
-    installDownloadedUpdate
+    // Restarting to update quits too, so it asks first about downloads in progress.
+    installDownloadedUpdate: async () => await confirmQuitWithDownloads() && installDownloadedUpdate()
   })
 }
 
@@ -1113,8 +1130,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     }
     if (!appQuitState.quitting) {
       event.preventDefault()
-      appQuitState.quitting = true
-      setImmediate(() => app.quit())
+      requestQuit()
     }
   })
   mainWindowRefs.window.on('closed', () => {
