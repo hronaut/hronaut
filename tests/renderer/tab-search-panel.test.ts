@@ -104,8 +104,18 @@ describe('TabSearchPanel', () => {
       expect(view.emitted()['update:open']).toBeUndefined()
       const restoredSearch = screen.getByRole('searchbox', { name: 'Search tabs' })
       await userEvent.setup().click(restoredSearch)
+      // A held Alt+Enter opens the preview once, and a held Enter on Back to tabs goes back once.
+      const heldRepeat = (target: HTMLElement, init: KeyboardEventInit = {}) => {
+        const event = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true, ...init })
+        target.dispatchEvent(event)
+        return event.defaultPrevented
+      }
+      expect(heldRepeat(restoredSearch, { altKey: true })).toBe(true)
+      expect(browser.getTabOverviewPagePreview).toHaveBeenCalledTimes(1)
+      expect(screen.queryByRole('button', { name: 'Back to tabs' })).not.toBeInTheDocument()
       await userEvent.setup().keyboard('{Alt>}{Enter}{/Alt}')
       expect(browser.getTabOverviewPagePreview).toHaveBeenCalledTimes(2)
+      expect(heldRepeat(await screen.findByRole('button', { name: 'Back to tabs' }))).toBe(true)
       await userEvent.setup().click(screen.getByRole('button', { name: 'Back to tabs' }))
       const kind = screen.getByRole('combobox', { name: 'Result type' })
       await userEvent.setup().selectOptions(kind, 'closed')

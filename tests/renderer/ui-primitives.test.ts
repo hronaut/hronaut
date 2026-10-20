@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { h, nextTick, ref } from 'vue'
 import UiButton from '../../src/renderer/src/ui/UiButton.vue'
 import UiDialog from '../../src/renderer/src/ui/UiDialog.vue'
@@ -140,6 +140,35 @@ describe('UI primitives', () => {
     await fireEvent.click(rename)
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
+  })
+
+  it('keeps a held Enter from choosing a menu item or opening the menu again', async () => {
+    // The trigger hands the focus to the first item and an item hands it back, so each repeat chose or reopened.
+    const selected = vi.fn()
+    const menu = render(UiMenu, {
+      props: {
+        open: false,
+        label: 'Workspace actions',
+        items: [{ id: 'rename', label: 'Rename' }],
+        onSelect: selected,
+        'onUpdate:open': (open: boolean) => menu.rerender({ open })
+      }
+    })
+    const repeat = (target: HTMLElement) => {
+      const event = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+      target.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    const trigger = screen.getByRole('button', { name: 'Workspace actions' })
+    expect(repeat(trigger)).toBe(true)
+    await fireEvent.click(trigger)
+    const rename = await screen.findByRole('menuitem', { name: 'Rename' })
+    expect(rename).toHaveFocus()
+    expect(repeat(rename)).toBe(true)
+    expect(selected).not.toHaveBeenCalled()
+    const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    rename.dispatchEvent(press)
+    expect(press.defaultPrevented).toBe(false)
   })
 
   it('labels dialogs and restores focus after dismissal', async () => {

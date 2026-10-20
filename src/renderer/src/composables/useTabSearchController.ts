@@ -424,7 +424,8 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     }
     if (event.key === 'Enter' && selectedResult.value) {
       event.preventDefault()
-      if (!actionPending.value) void runSelectedResult()
+      // Closing a tab with its × button puts the focus here, so a held Enter would go on to run the selected result.
+      if (!actionPending.value && !event.repeat) void runSelectedResult()
     }
   }
 
