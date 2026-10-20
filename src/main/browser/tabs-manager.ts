@@ -5518,7 +5518,7 @@ export class BrowserTabsManager {
       trackWorkspaceOrigin: (tab, url) => this.trackWorkspaceOrigin(tab, url),
       appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source),
       watchCredentialSubmission: (tab) => this.watchCredentialSubmission(tab),
-      watchUnsavedFormEdits: (tab) => watchUnsavedFormEdits(tab),
+      watchUnsavedFormEdits: (tab, frame) => watchUnsavedFormEdits(tab, frame),
       syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab)
     }

@@ -1,4 +1,4 @@
-import type { AuthenticationResponseDetails, AuthInfo } from 'electron'
+import type { AuthenticationResponseDetails, AuthInfo, WebFrameMain } from 'electron'
 import type { CssStatePreviewEndReason } from '../../../shared/css-state-preview.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
 import type {
@@ -106,8 +106,8 @@ export interface NavigationEventsAccess<Tab extends NavigationEventsTab> {
   appendConsoleMessage(tab: Tab, message: BrowserConsoleMessage, source: 'lifecycle'): void
   /** Watches the page for submitted credentials. */
   watchCredentialSubmission(tab: Tab): void
-  /** Watches the page for unsaved form edits. */
-  watchUnsavedFormEdits(tab: Tab): void
+  /** Watches the page, or one of its frames, for unsaved form edits. */
+  watchUnsavedFormEdits(tab: Tab, frame?: WebFrameMain): void
   /** Brings the page's native input guard in line with the tab's lock. */
   syncHumanInteractionInputGuard(tab: Tab): Promise<void>
   /** Whether human input to the tab is locked. */
