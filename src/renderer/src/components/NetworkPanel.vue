@@ -184,6 +184,24 @@ async function clearRequests(event: Event): Promise<void> {
   target?.focus()
 }
 
+/**
+ * Every request condition control is disabled while a change applies, and a removed rule, or one moved to the end, takes
+ * its button away, so Chromium moves the focus to the document body. Give it back to the control you used once it is
+ * enabled again, or else to the Request conditions section, unless you moved it meanwhile or the panel closed. Not to
+ * another rule's button or the form: a held Enter would change that rule or add the draft.
+ */
+async function keepConditionFocus(action: () => Promise<unknown>): Promise<void> {
+  const active = document.activeElement
+  const section = active instanceof HTMLElement ? active.closest<HTMLElement>('.request-conditions') : null
+  const focused = section ? active as HTMLElement : null
+  await action()
+  await nextTick()
+  if (!focused || !section?.isConnected || !open.value || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  const target = focused.isConnected && !focused.matches(':disabled') ? focused : section
+  target.focus()
+}
+
 function setNetworkSortBy(event: Event): void {
   setNetworkSortByValue((event.target as HTMLSelectElement).value as BrowserNetworkRequestSortBy)
 }
@@ -251,11 +269,11 @@ onBeforeUnmount(dispose)
           :state="networkRouteState"
           :error="networkRouteError"
           :locale="locale"
-          @move="moveNetworkRoute"
-          @remove="removeNetworkRoute"
-          @set-enabled="setNetworkRouteEnabled"
-          @add="addNetworkRouteFromDraft"
-          @clear="clearActiveNetworkRoutes"
+          @move="(routeId, direction) => keepConditionFocus(() => moveNetworkRoute(routeId, direction))"
+          @remove="(routeId) => keepConditionFocus(() => removeNetworkRoute(routeId))"
+          @set-enabled="(routeId, enabled) => keepConditionFocus(() => setNetworkRouteEnabled(routeId, enabled))"
+          @add="keepConditionFocus(addNetworkRouteFromDraft)"
+          @clear="keepConditionFocus(clearActiveNetworkRoutes)"
         />
         <div class="network-monitor-tools">
           <label class="network-monitor-search">

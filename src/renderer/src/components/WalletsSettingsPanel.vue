@@ -275,12 +275,26 @@ watch(() => props.controller.wallets.value, (wallets) => {
   if (!wallets.some((wallet) => wallet.id === selectedWalletId.value)) selectedWalletId.value = wallets[0]?.id ?? ''
 }, { immediate: true })
 
-watch(selectedWallet, (wallet) => {
-  configuredWorkspaceIds.value = wallet ? [...wallet.workspaceIds] : []
-  configuredWorkspaceScope.value = wallet?.availableInAllWorkspaces ? 'all' : 'selected'
-  policyWorkspaceId.value = wallet?.availableInAllWorkspaces
-    ? (props.workspaces[0]?.id ?? '')
-    : (wallet?.workspaceIds[0] ?? '')
+/**
+ * Every change, Settings' own included, refreshes the wallet list with new copies of the same wallets. Only choosing
+ * another wallet starts its drafts over; a refresh keeps the policy, name and RPC being written. The access choices
+ * follow what is saved for the wallet when that changes, and a policy workspace that is no longer attached gives way.
+ */
+watch(() => [selectedWallet.value?.id, JSON.stringify([
+  selectedWallet.value?.availableInAllWorkspaces === true, selectedWallet.value?.workspaceIds ?? []
+])] as const, ([walletId, access], previous) => {
+  const wallet = selectedWallet.value
+  const switched = !previous || previous[0] !== walletId
+  if (switched || previous[1] !== access) {
+    configuredWorkspaceIds.value = wallet ? [...wallet.workspaceIds] : []
+    configuredWorkspaceScope.value = wallet?.availableInAllWorkspaces ? 'all' : 'selected'
+  }
+  if (switched || !policyWorkspaceOptions.value.some((workspace) => workspace.id === policyWorkspaceId.value)) {
+    policyWorkspaceId.value = wallet?.availableInAllWorkspaces
+      ? (props.workspaces[0]?.id ?? '')
+      : (wallet?.workspaceIds[0] ?? '')
+  }
+  if (!switched) return
   renamingWallet.value = false
   renameDraft.value = wallet?.name ?? ''
   editingRpc.value = false

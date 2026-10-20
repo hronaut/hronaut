@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
 import UiEmptyState from "../ui/UiEmptyState.vue"
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, nextTick, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconAccessibility from '~icons/material-symbols/accessibility-new-rounded'
 import IconAccountTree from '~icons/material-symbols/account-tree-rounded'
@@ -194,6 +194,25 @@ function handleSearchKeydown(event: KeyboardEvent): void {
 watch(open, () => { query.value = '' })
 watch(query, () => { if (scrollBody.value) scrollBody.value.scrollTop = 0 })
 
+const panelRoot = ref<HTMLElement | null>(null)
+
+/**
+ * Page tools stays open while the page snapshot copies, with Copy page snapshot disabled, so Chromium moves its focus to
+ * the document body. Give it back once the button is enabled again, or to the panel itself, unless you moved it
+ * meanwhile or the panel closed. Not to the search field or another tool: a held Enter would run a tool.
+ */
+async function keepFocusThrough(action: () => void | Promise<void>): Promise<void> {
+  const panel = panelRoot.value
+  const active = document.activeElement
+  const focused = active instanceof HTMLElement && panel?.contains(active) ? active : null
+  await action()
+  await nextTick()
+  if (!focused || !panel || !open.value || panel !== panelRoot.value || !panel.isConnected || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  const target = focused.isConnected && !focused.matches(':disabled') ? focused : panel
+  target.focus()
+}
+
 function closeAndRun(action: () => void | Promise<void>): void {
   open.value = false
   void action()
@@ -204,7 +223,9 @@ function closeAndRun(action: () => void | Promise<void>): void {
   <section
     v-if="open"
     id="page-tools-panel"
+    ref="panelRoot"
     class="page-tools-panel"
+    tabindex="-1"
     data-shell-docked-panel
     role="dialog"
     aria-modal="false"
@@ -313,7 +334,7 @@ function closeAndRun(action: () => void | Promise<void>): void {
             <VideoRecorder v-if="videoOpen && activeTab" :tab-id="activeTab.id" />
           </div>
           <div class="page-tools-grid">
-            <UiButton v-if="visibleIds.has('copy-snapshot')" appearance="application" :class="{ copied: snapshotState === 'copied', error: snapshotState === 'error', running: snapshotState === 'copying' }" type="button" :aria-label="t('shell.pageTools.copySnapshotAria')" :disabled="snapshotState === 'copying'" @click="actions.copyPageSnapshot">
+            <UiButton v-if="visibleIds.has('copy-snapshot')" appearance="application" :class="{ copied: snapshotState === 'copied', error: snapshotState === 'error', running: snapshotState === 'copying' }" type="button" :aria-label="t('shell.pageTools.copySnapshotAria')" :disabled="snapshotState === 'copying'" @click="keepFocusThrough(actions.copyPageSnapshot)">
               <IconProgress v-if="snapshotState === 'copying'" class="state-spinner" aria-hidden="true" /><IconCheck v-else-if="snapshotState === 'copied'" aria-hidden="true" /><IconError v-else-if="snapshotState === 'error'" aria-hidden="true" /><IconAccountTree v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.copySnapshot') }}</strong><small>{{ t('shell.pageTools.copySnapshotDescription') }}</small></span>
             </UiButton>
             <UiButton v-if="visibleIds.has('save-pdf')" appearance="application" type="button" :aria-label="labels.pdfExport" :disabled="pdfState === 'saving'" @click="closeAndRun(actions.savePdf)">
