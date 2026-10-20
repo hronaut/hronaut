@@ -145,6 +145,18 @@ describe('useAppShellKeyboardFeatureController', () => {
     expect(surfaces.history.value).toBe(false)
   })
 
+  it('leaves every panel open for an Escape that Find already handled', () => {
+    const { controller, surfaces } = createHarness()
+    surfaces.siteStorage.value = true
+    surfaces.find.value = true
+    const handled = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+    handled.preventDefault()
+
+    controller.handleKeyDown(handled)
+
+    expect(surfaces.siteStorage.value).toBe(true)
+  })
+
   it('routes capture cancellation, command-palette dismissal, and browser shortcuts', () => {
     const { controller, surfaces, actions } = createHarness()
     surfaces.areaCaptureState.value = 'picking'

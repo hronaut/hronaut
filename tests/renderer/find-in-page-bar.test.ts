@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 import FindInPageBar from '../../src/renderer/src/components/FindInPageBar.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { MAX_FIND_QUERY_LENGTH, type BrowserFindResult, type BrowserTabState, type HronautApi } from '../../src/shared/types.js'
@@ -243,6 +244,35 @@ describe('FindInPageBar', () => {
 
     await vi.waitFor(() => expect(screen.getByText('2 / 4')).toBeVisible())
     expect(screen.queryByText('1 / 9')).not.toBeInTheDocument()
+  })
+
+  it.each(['Find text', 'Match case'])('closes Find itself on Escape typed in %s, before the shell\'s Escape order sees it', async (name) => {
+    const { view, browser } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await vi.waitFor(() => expect(search).toHaveFocus())
+    await fireEvent.update(search, 'needle')
+    await vi.waitFor(() => expect(browser.findInPage).toHaveBeenCalled())
+    const target = name === 'Find text' ? search : screen.getByRole('button', { name })
+
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    target.dispatchEvent(escape)
+    expect(escape.defaultPrevented).toBe(true)
+
+    expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
+    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledWith('first'))
+  })
+
+  it('leaves Find open on an Escape that ends an IME composition', async () => {
+    const { view } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await vi.waitFor(() => expect(search).toHaveFocus())
+
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', isComposing: true, bubbles: true, cancelable: true })
+    search.dispatchEvent(escape)
+    await nextTick()
+
+    expect(escape.defaultPrevented).toBe(false)
+    expect(view.emitted()['update:open']).toBeUndefined()
   })
 
   it('closes and clears the original page search when the active tab changes', async () => {

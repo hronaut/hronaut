@@ -82,6 +82,14 @@ function handleSearchKeydown(event: KeyboardEvent): void {
   void search(!event.shiftKey, false)
 }
 
+// Escape typed anywhere in the bar closes Find itself, not the first panel in the shell's Escape order, such as Site
+// storage, even in its own window.
+function handleBarKeydown(event: KeyboardEvent): void {
+  if (isImeCompositionEvent(event) || event.key !== 'Escape' || event.defaultPrevented) return
+  event.preventDefault()
+  void close()
+}
+
 function retrySearch(): void {
   input.value?.focus()
   void search(true, true)
@@ -148,7 +156,7 @@ defineExpose({ close, openForTab })
 </script>
 
 <template>
-  <div v-if="open" class="find-bar" role="search" :aria-label="t('find.region')">
+  <div v-if="open" class="find-bar" role="search" :aria-label="t('find.region')" @keydown="handleBarKeydown">
     <div class="find-field">
       <IconSearch aria-hidden="true" />
       <input
