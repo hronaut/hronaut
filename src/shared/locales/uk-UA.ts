@@ -1,5 +1,7 @@
 import { networkPriorityMessages } from './network-priority.js'
 import { networkLabelMessages } from './network-labels.js'
+import { viewportPresetMessages } from './viewport-presets.js'
+import { searchEngineMessages } from './search-engines.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -24,6 +26,8 @@ export const ukUA = {
   emulationApplication: {"pending": "Застосування емуляції", "unknown": "Емуляцію не підтверджено", "help": "Відкрийте Середовище, перевірте збережені налаштування та явно відновіть їх. Невдалий запит не повторюватиметься.", "restore": "Відновити збережені налаштування", "networkFirst": "Спочатку відновіть мережеві умови в Умовах запитів. Емуляція залишиться непідтвердженою до окремого відновлення."},
   networkPriority: networkPriorityMessages['uk-UA'],
   networkLabels: networkLabelMessages['uk-UA'],
+  viewportPresets: viewportPresetMessages['uk-UA'],
+  searchEngines: searchEngineMessages['uk-UA'],
   lcpAttribution: lcpAttributionMessages['uk-UA'],
   browserImport: browserImportMessages['uk-UA'],
   video: videoRecorderMessages['uk-UA'],

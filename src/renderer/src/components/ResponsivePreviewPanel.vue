@@ -149,9 +149,9 @@ onBeforeUnmount(dispose)
             :aria-pressed="presetId === preset.id"
             @click="selectPreset(preset.id)"
           >
-            <strong>{{ preset.label }}</strong>
+            <strong>{{ t(`viewportPresets.${preset.id}.label`) }}</strong>
             <span>{{ preset.width }}×{{ preset.height }} · {{ preset.deviceScaleFactor }}×</span>
-            <small>{{ preset.description }}</small>
+            <small>{{ t(`viewportPresets.${preset.id}.description`) }}</small>
           </UiButton>
           <UiButton appearance="application"
             type="button"

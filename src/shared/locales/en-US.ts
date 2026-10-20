@@ -1,5 +1,7 @@
 import { networkPriorityMessages } from './network-priority.js'
 import { networkLabelMessages } from './network-labels.js'
+import { viewportPresetMessages } from './viewport-presets.js'
+import { searchEngineMessages } from './search-engines.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -22,6 +24,8 @@ export const enUS = {
   emulationApplication: {"pending": "Applying emulation", "unknown": "Emulation unconfirmed", "help": "Open Environment to inspect retained settings and explicitly restore them. The failed request will not be replayed.", "restore": "Restore retained settings", "networkFirst": "First recover Network conditions in Request conditions. Emulation remains unconfirmed until separately restored."},
   networkPriority: networkPriorityMessages['en-US'],
   networkLabels: networkLabelMessages['en-US'],
+  viewportPresets: viewportPresetMessages['en-US'],
+  searchEngines: searchEngineMessages['en-US'],
   lcpAttribution: lcpAttributionMessages['en-US'],
   browserImport: browserImportMessages['en-US'],
   video: videoRecorderMessages['en-US'],

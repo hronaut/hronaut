@@ -1,5 +1,7 @@
 import { networkPriorityMessages } from './network-priority.js'
 import { networkLabelMessages } from './network-labels.js'
+import { viewportPresetMessages } from './viewport-presets.js'
+import { searchEngineMessages } from './search-engines.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -24,6 +26,8 @@ export const ruRU = {
   emulationApplication: {"pending": "Применение эмуляции", "unknown": "Эмуляция не подтверждена", "help": "Откройте Среду, проверьте сохранённые настройки и явно восстановите их. Неудачный запрос не будет повторён.", "restore": "Восстановить сохранённые настройки", "networkFirst": "Сначала восстановите сетевые условия в Условиях запросов. Эмуляция останется неподтверждённой до отдельного восстановления."},
   networkPriority: networkPriorityMessages['ru-RU'],
   networkLabels: networkLabelMessages['ru-RU'],
+  viewportPresets: viewportPresetMessages['ru-RU'],
+  searchEngines: searchEngineMessages['ru-RU'],
   lcpAttribution: lcpAttributionMessages['ru-RU'],
   browserImport: browserImportMessages['ru-RU'],
   video: videoRecorderMessages['ru-RU'],
