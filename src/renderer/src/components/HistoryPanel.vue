@@ -2,6 +2,7 @@
 import UiButton from "../ui/UiButton.vue"
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ignoreHeldEnter } from '../held-enter.js'
 import IconBookmark from '~icons/material-symbols/bookmark-add-outline-rounded'
 import IconBackground from '~icons/material-symbols/tab-unselected-rounded'
 import IconBookmarked from '~icons/material-symbols/bookmark-rounded'
@@ -207,7 +208,7 @@ async function clearOrigin(event: Event): Promise<void> {
       </div>
       <div class="history-header-actions">
         <UiButton appearance="application" type="button" :disabled="!entries.length || pendingAction !== null" @click="keepFocusThrough($event, clear)">{{ t('history.clearAll') }}</UiButton>
-        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('history.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('history.close')" @keydown="ignoreHeldEnter" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div v-if="entries.length" class="history-search-field">
@@ -277,7 +278,7 @@ async function clearOrigin(event: Event): Promise<void> {
           <IconBookmarked v-if="isBookmarked(entry)" aria-hidden="true" />
           <IconBookmark v-else aria-hidden="true" />
         </UiButton>
-        <UiButton appearance="application" variant="danger" class="history-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('history.removeAria', { title: entry.title })" v-tooltip="t('history.remove')" @click="remove(entry.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" variant="danger" class="history-action danger" type="button" :disabled="pendingAction !== null" @keydown="ignoreHeldEnter" :aria-label="t('history.removeAria', { title: entry.title })" v-tooltip="t('history.remove')" @click="remove(entry.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
       </article>
     </div>
     <p class="history-retention"><IconPrivacy aria-hidden="true" /> {{ t('history.retention') }}</p>

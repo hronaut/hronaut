@@ -2,6 +2,7 @@
 import UiButton from "../ui/UiButton.vue"
 import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ignoreHeldEnter } from '../held-enter.js'
 import IconBackground from '~icons/material-symbols/tab-unselected-rounded'
 import IconCopy from '~icons/material-symbols/content-copy-outline-rounded'
 import IconCheck from '~icons/material-symbols/check-rounded'
@@ -289,7 +290,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
           :disabled="!activeUrl || anyPending"
           @click="toggleCurrentPage"
         >{{ currentBookmark ? t('bookmarks.removeCurrent') : t('bookmarks.addCurrent') }}</UiButton>
-        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('bookmarks.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('bookmarks.close')" @keydown="ignoreHeldEnter" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <BookmarkCollectionsToolbar v-if="collectionsApi" ref="collectionsToolbar" :controller="collectionController" :blocked="pendingAction !== null" />
@@ -363,7 +364,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
           :aria-label="t('bookmarks.copyAddressAria', { title: bookmark.title })"
           v-tooltip="t('bookmarks.copyAddress')"
           @click="!anyPending && copyAddress(bookmark)"><IconCopy aria-hidden="true" /></UiButton>
-        <UiButton appearance="application" variant="danger" class="bookmark-action danger" type="button" :disabled="anyPending" :aria-label="t('bookmarks.removeAria', { title: bookmark.title })" v-tooltip="t('bookmarks.remove')" @click="remove(bookmark.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" variant="danger" class="bookmark-action danger" type="button" :disabled="anyPending" @keydown="ignoreHeldEnter" :aria-label="t('bookmarks.removeAria', { title: bookmark.title })" v-tooltip="t('bookmarks.remove')" @click="remove(bookmark.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
         <label v-if="collectionsApi && collections.length && editingBookmarkId !== bookmark.id" class="bookmark-collection-assignment">
           <span>{{ t('bookmarks.collection') }}</span>
           <select :value="collectionController.assignment(bookmark.id)" :disabled="anyPending" :aria-label="t('bookmarks.assignCollection', { title: bookmark.title })" @change="assignCollection(bookmark.id, $event)">
