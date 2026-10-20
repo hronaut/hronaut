@@ -1,8 +1,14 @@
-import { mkdir, mkdtemp, readdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CredentialStore, type CredentialEncryption } from '../src/main/credential-store.js'
+
+vi.mock('node:fs/promises', async importOriginal => {
+  const fs = await importOriginal<typeof import('node:fs/promises')>()
+  return { ...fs, rename: vi.fn(fs.rename) }
+})
+const actualFs = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
 
 const temporaryDirectories: string[] = []
 const encryption: CredentialEncryption = {
@@ -12,6 +18,7 @@ const encryption: CredentialEncryption = {
 
 afterEach(async () => {
   vi.useRealTimers()
+  vi.mocked(rename).mockReset().mockImplementation(actualFs.rename)
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
@@ -82,6 +89,8 @@ describe('CredentialStore', () => {
     for (const index of [1, 2, 3]) await store.save(`https://site${index}.example`, `user${index}`, `secret ${index}`)
     const unreadable = damage(await readFile(path, 'utf8'))
     await writeFile(path, unreadable, 'utf8')
+    // A copied or restored file can be readable by others; the kept one is not.
+    await chmod(path, 0o644)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     try {
       const reopened = new CredentialStore(path, encryption)
@@ -96,6 +105,7 @@ describe('CredentialStore', () => {
       const aside = files.find((name) => /^credentials\.json\.unreadable-\d{4}-\d{2}-\d{2}T[\d-]+Z$/.test(name))
       expect(files.sort()).toEqual(['credentials.json', aside].sort())
       expect(await readFile(join(dirname(path), aside!), 'utf8')).toBe(unreadable)
+      if (process.platform !== 'win32') expect((await stat(join(dirname(path), aside!))).mode & 0o777).toBe(0o600)
       expect(reopened.list().map((credential) => credential.origin)).toEqual(['https://new.example', 'https://second.example'])
       expect(warn).toHaveBeenCalledExactlyOnceWith('[credentials] Kept an unreadable saved-passwords file aside before saving a new one.')
     } finally {
@@ -103,17 +113,75 @@ describe('CredentialStore', () => {
     }
   })
 
-  it('removes an unreadable saved-passwords file and the ones kept aside when every password is removed', async () => {
+  it('keeps an unreadable saved-passwords file aside when passwords are imported', async () => {
+    const { path, store } = await createStore()
+    await store.save('https://site.example', 'user', 'secret')
+    await writeFile(path, '{"version":', 'utf8')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      const reopened = new CredentialStore(path, encryption)
+      await reopened.load()
+      await reopened.importMany([{ origin: 'https://imported.example', username: 'imported', password: 'imported secret' }])
+
+      const files = await readdir(dirname(path))
+      const aside = files.find((name) => name.startsWith('credentials.json.unreadable-'))
+      expect(files.sort()).toEqual(['credentials.json', aside].sort())
+      expect(await readFile(join(dirname(path), aside!), 'utf8')).toBe('{"version":')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it.each([
+    ['could not move it or write', ['busy', 'busy']],
+    ['moved it but could not write', ['actual', 'busy']]
+  ] as const)('still keeps an unreadable saved-passwords file aside after a save that %s', async (_case, renames) => {
+    // A save that failed, as on Windows while a sync tool holds the file, gave up keeping it, and the next save replaced it.
+    const { path, store } = await createStore()
+    await store.save('https://site.example', 'user', 'secret')
+    await writeFile(path, '{"version":', 'utf8')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      const reopened = new CredentialStore(path, encryption)
+      await reopened.load()
+      const busy = Object.assign(new Error('resource busy or locked'), { code: 'EBUSY' })
+      for (const outcome of renames) {
+        if (outcome === 'busy') vi.mocked(rename).mockRejectedValueOnce(busy)
+        else vi.mocked(rename).mockImplementationOnce(actualFs.rename)
+      }
+      await expect(reopened.save('https://new.example', 'new', 'new secret')).rejects.toThrow('resource busy or locked')
+
+      await reopened.save('https://new.example', 'new', 'new secret')
+      const files = await readdir(dirname(path))
+      const aside = files.find((name) => name.startsWith('credentials.json.unreadable-'))
+      expect(files.sort()).toEqual(['credentials.json', aside].sort())
+      expect(await readFile(join(dirname(path), aside!), 'utf8')).toBe('{"version":')
+      expect(reopened.list().map((credential) => credential.origin)).toEqual(['https://new.example'])
+      expect(warn).toHaveBeenLastCalledWith('[credentials] Kept an unreadable saved-passwords file aside before saving a new one.')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it.each([
+    ['an unreadable file', '{"version":'],
+    ['saved passwords', null]
+  ])('removes the saved-passwords files kept aside when every password is removed from %s', async (_case, damaged) => {
     const { path, store } = await createStore()
     await store.save('https://site.example', 'user', 'secret')
     await writeFile(`${path}.unreadable-2026-10-01T00-00-00-000Z`, '{"version":2}', 'utf8')
-    await writeFile(path, '{"version":', 'utf8')
-    const reopened = new CredentialStore(path, encryption)
-    await expect(reopened.load()).resolves.toEqual([])
+    if (damaged) await writeFile(path, damaged, 'utf8')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      const reopened = new CredentialStore(path, encryption)
+      await reopened.load()
 
-    await reopened.clear()
-    expect(await readdir(dirname(path))).toEqual(['credentials.json'])
-    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ version: 1, credentials: [] })
+      await reopened.clear()
+      expect(await readdir(dirname(path))).toEqual(['credentials.json'])
+      expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ version: 1, credentials: [] })
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   it('persists encrypted passwords and exposes metadata only', async () => {
