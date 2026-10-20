@@ -16,6 +16,10 @@ for (const locked of [false, true]) {
     test(`keyboard event ${scenario} with lock ${locked}`, async ({ capabilities, electronApp, appWindow }) => {
       const { client, tabId, fixtureUrl } = capabilities
       const positive = ['character', 'raw', 'modified'].includes(scenario)
+      // A repeat with no press of its key in the page is a key held since before the page had the focus, which does
+      // not repeat into it.
+      const heldFromElsewhere = scenario === 'repeat'
+      const interrupted = !locked && !positive && !heldFromElsewhere
       let pending: Promise<CallToolResult> | undefined
       const generation = (): Promise<number> => appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === id)!.humanInteractionGeneration ?? 0, tabId)
       try {
@@ -65,14 +69,13 @@ for (const locked of [false, true]) {
           if (scenario === 'duplicate') gate.inject(keyCode, modifiers)
         }, scenario)
         await expect.poll(() => electronApp.evaluate(() => (globalThis as KeyScope).__keyAdmission!.events.length)).toBe(scenario === 'duplicate' ? 2 : 1)
-        expect(await generation() - before).toBe(!locked && !positive ? 1 : 0)
+        expect(await generation() - before).toBe(interrupted ? 1 : 0)
         const events = await electronApp.evaluate(() => (globalThis as KeyScope).__keyAdmission!.events)
-        expect(events[0]?.prevented).toBe(locked && !positive && scenario !== 'duplicate')
+        expect(events[0]?.prevented).toBe((locked || heldFromElsewhere) && !positive && scenario !== 'duplicate')
         if (scenario === 'duplicate') expect(events[1]?.prevented).toBe(locked)
         if (scenario === 'repeat') expect(events[0]?.repeat).toBe(true)
         await electronApp.evaluate(() => (globalThis as KeyScope).__keyAdmission!.release())
         const result = await pending
-        const interrupted = !locked && !positive
         expect(result.isError === true, text(result)).toBe(interrupted)
         if (interrupted) expect(result.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', retrySafe: false })
         expect(await generation() - before).toBe(interrupted ? 1 : 0)
@@ -80,7 +83,7 @@ for (const locked of [false, true]) {
           events: (globalThis as KeyScope).__keyAdmission!.events,
           keys: await webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('window.keys')
         }), fixtureUrl)
-        const nativeEffects = positive ? 1 : scenario === 'duplicate' ? (locked ? 1 : 2) : locked ? 0 : 1
+        const nativeEffects = positive ? 1 : scenario === 'duplicate' ? (locked ? 1 : 2) : locked || heldFromElsewhere ? 0 : 1
         expect(observed.keys).toHaveLength(1 + nativeEffects)
         expect(observed.events.filter(event => !event.prevented)).toHaveLength(nativeEffects)
         const expectedKey = scenario === 'character' ? 'a' : scenario === 'modified' ? 'A' : 'ArrowDown'
