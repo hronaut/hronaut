@@ -64,13 +64,15 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     access.prepareDiagnosticNavigation(tab)
   })
   webContents.on('will-redirect', (details) => {
-    if (!tab.mcpGroupId || !details.isMainFrame) return
-    if (!access.workspaceNavigationAllowed(tab.mcpGroupId, details.url, 'redirect')) {
+    if (!details.isMainFrame) return
+    if (tab.mcpGroupId && !access.workspaceNavigationAllowed(tab.mcpGroupId, details.url, 'redirect')) {
       tab.navigationPolicyDenialSequence += 1
       details.preventDefault()
+      return
     }
+    tab.pendingMainFrameUrl = details.url
   })
-  webContents.on('did-start-navigation', (_event, _navigationUrl, isSameDocument, isMainFrame) => {
+  webContents.on('did-start-navigation', (_event, navigationUrl, isSameDocument, isMainFrame) => {
     if (tab.sleeping || !isMainFrame) return
     // Chromium applies lifecycle state to a document, not to the durable tab.
     // Any main-frame navigation establishes a fresh active document. The
@@ -91,6 +93,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       tab.performanceDocumentRouted = true
       return
     }
+    tab.pendingMainFrameUrl = navigationUrl
     // Remove it now, not at commit: a navigation that never commits (a download or a 204) keeps the old document.
     void access.cssStatePreview().clear(tab, 'navigation').catch(() => undefined)
     tab.discoveryTitle.clear()
@@ -122,7 +125,10 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
   })
   webContents.on('did-stop-loading', () => {
     // An aborted provisional load still stops loading without a commit.
-    if (!webContents.isLoadingMainFrame()) tab.authNavigationPending = false
+    if (!webContents.isLoadingMainFrame()) {
+      tab.authNavigationPending = false
+      tab.pendingMainFrameUrl = undefined
+    }
     if (tab.sleeping) return
     access.reconcileTabPresentation(tab)
     syncNavigation()
@@ -138,6 +144,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
   })
   webContents.on('did-navigate', (_event, url) => {
     tab.authNavigationPending = false
+    tab.pendingMainFrameUrl = undefined
     // A navigation may already have started before emulation admission.
     tab.emulationContextGeneration++
     if (tab.sleeping) return
@@ -173,6 +180,8 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     access.scheduleTabOverviewPreview(tab)
   })
   webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    // A newer navigation can start before the one it replaced reports its failure.
+    if (isMainFrame && validatedURL === tab.pendingMainFrameUrl) tab.pendingMainFrameUrl = undefined
     if (tab.sleeping) return
     const previousUrl = tab.url
     syncNavigation()
