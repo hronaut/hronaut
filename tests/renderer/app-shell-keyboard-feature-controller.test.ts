@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useAppShellKeyboardFeatureController } from '../../src/renderer/src/composables/useAppShellKeyboardFeatureController.js'
+import { DETACHABLE_PANEL_IDS, type DetachablePanelId } from '../../src/shared/types.js'
 
 function createHarness() {
   const surfaces = {
@@ -187,6 +188,61 @@ describe('useAppShellKeyboardFeatureController', () => {
     controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape' }))
     expect(surfaces.history.value).toBe(false)
     expect(actions.closeBookmarks).not.toHaveBeenCalled()
+  })
+
+  it('closes every surface of this window before each panel that can move to its own window', () => {
+    // A panel added to the shell's Escape order is added here too, or the test does not compile.
+    const panels: Record<DetachablePanelId, keyof ReturnType<typeof createHarness>['surfaces']> = {
+      'site-controls': 'siteControls',
+      'site-storage': 'siteStorage',
+      'page-tools': 'pageTools',
+      'responsive-preview': 'responsivePreview',
+      environment: 'environment',
+      accessibility: 'accessibility',
+      'quality-audit': 'qualityAudit',
+      performance: 'performance',
+      'design-overview': 'designOverview',
+      'page-metadata': 'pageMetadata',
+      security: 'security',
+      coverage: 'coverage',
+      'cpu-profile': 'cpuProfile',
+      memory: 'memory',
+      console: 'console',
+      network: 'network',
+      'debug-report': 'debugReport',
+      'repro-recorder': 'repro',
+      'dom-changes': 'domChanges',
+      'visual-compare': 'visualCompare',
+      issues: 'inspectorIssues',
+      bookmarks: 'bookmarks'
+    }
+    type Surfaces = ReturnType<typeof createHarness>['surfaces']
+    const inThisWindow: Array<{ name: string, open: (surfaces: Surfaces) => void, isOpen: (surfaces: Surfaces) => boolean }> = [
+      ...(['addressSuggestions', 'find', 'splitMenu', 'zoom', 'downloads', 'history', 'updateNotice'] as const).map(name => ({
+        name,
+        open: (surfaces: Surfaces) => { surfaces[name].value = true },
+        isOpen: (surfaces: Surfaces) => surfaces[name].value
+      })),
+      ...(['areaCaptureState', 'elementPickerState'] as const).map(name => ({
+        name,
+        open: (surfaces: Surfaces) => { surfaces[name].value = 'picking' },
+        isOpen: (surfaces: Surfaces) => surfaces[name].value === 'picking'
+      }))
+    ]
+    expect(Object.keys(panels).sort()).toEqual([...DETACHABLE_PANEL_IDS].sort())
+    for (const panel of DETACHABLE_PANEL_IDS) {
+      for (const surface of inThisWindow) {
+        const { controller, surfaces } = createHarness()
+        surfaces.panelsInOwnWindow.value = true
+        surfaces[panels[panel]].value = true
+        surface.open(surfaces)
+
+        controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape' }))
+
+        expect({ panel, surface: surface.name, closed: !surface.isOpen(surfaces), panelOpen: surfaces[panels[panel]].value })
+          .toEqual({ panel, surface: surface.name, closed: true, panelOpen: true })
+      }
+    }
   })
 
   it('keeps the Escape order for panels docked in this window', () => {

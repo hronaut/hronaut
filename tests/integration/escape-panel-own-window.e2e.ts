@@ -27,6 +27,9 @@ test('Escape in this window closes Downloads or History before a panel in its ow
     const detachedStorage = storageWindow.getByRole('dialog', { name: /^Site storage/ })
     await expect(detachedStorage).toBeVisible()
     await expect.poll(windowCount).toBe(2)
+    // The main window keeps the panel, hidden, while it shows in its own window, and lets go of it when it closes.
+    const storageHere = appWindow.getByRole('dialog', { name: 'Site storage · 127.0.0.1', exact: true, includeHidden: true })
+    await expect(storageHere).toHaveCount(1)
 
     // Site storage comes first in the shell's Escape order and stays open in its own window beside these panels.
     const downloads = appWindow.getByRole('dialog', { name: 'Downloads' })
@@ -35,12 +38,14 @@ test('Escape in this window closes Downloads or History before a panel in its ow
     // With no downloads yet, the panel has no search field, so Escape is typed on its Close button.
     await downloads.getByRole('button', { name: 'Close downloads' }).press('Escape')
     await expect(downloads).toBeHidden()
+    await expect(storageHere).toHaveCount(1)
 
     const history = appWindow.getByRole('dialog', { name: 'Browsing history' })
     await appWindow.getByRole('button', { name: 'Browsing history' }).click()
     await expect(history).toBeVisible()
     await history.getByRole('searchbox', { name: 'Search browsing history' }).press('Escape')
     await expect(history).toBeHidden()
+    await expect(storageHere).toHaveCount(1)
 
     // The panel window closes over IPC after the renderer lets go of it, so check it after both panels and a round trip.
     await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
@@ -51,6 +56,7 @@ test('Escape in this window closes Downloads or History before a panel in its ow
     // With nothing else open in this window, Escape closes the panel in its own window, as before.
     await appWindow.getByRole('button', { name: 'Downloads', exact: true }).focus()
     await appWindow.keyboard.press('Escape')
+    await expect(storageHere).toHaveCount(0)
     await expect.poll(windowCount).toBe(1)
   } finally {
     await electronApp.evaluate(({ BrowserWindow }) => {
