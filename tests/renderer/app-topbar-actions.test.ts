@@ -100,16 +100,16 @@ describe('AppTopbarActions', () => {
     rendered.mcpStatusController.dispose()
   })
 
-  it('keeps a held Enter from pressing Search tabs again', () => {
+  it.each(['Search tabs', 'Open command palette'])('keeps a held Enter from pressing %s again', (name) => {
     const rendered = renderActions()
-    const searchTabs = screen.getByRole('button', { name: 'Search tabs' })
+    const button = screen.getByRole('button', { name })
     const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
     const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
-    searchTabs.dispatchEvent(press)
-    searchTabs.dispatchEvent(repeat)
+    button.dispatchEvent(press)
+    button.dispatchEvent(repeat)
 
-    // Opening a result from Tab search gives the focus back to this button, which the held key's repeats pressed,
-    // opening Tab search again.
+    // Tab search and the palette give the focus back to their button when they close, and the held key's repeats
+    // pressed it, opening them again.
     expect(press.defaultPrevented).toBe(false)
     expect(repeat.defaultPrevented).toBe(true)
     rendered.mcpStatusController.dispose()
