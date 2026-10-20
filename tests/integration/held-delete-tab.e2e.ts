@@ -29,6 +29,7 @@ test('a held Delete on a tab closes only that tab', async ({ appWindow }) => {
     await expect(tabs).toHaveCount(4)
     // The closed tab hands the focus to the tab after it, and each repeat of the held key used to close that one too.
     for (let repeat = 0; repeat < 6; repeat += 1) {
+      // Repeats at about a keyboard's pace.
       await appWindow.waitForTimeout(50)
       await expect(third).toBeFocused()
       await appWindow.keyboard.down('Delete')
@@ -41,6 +42,12 @@ test('a held Delete on a tab closes only that tab', async ({ appWindow }) => {
     await appWindow.keyboard.press('Delete')
     await expect(tabs).toHaveCount(3)
     await expect.poll(openTitles).toEqual(['Held Delete page 1', 'Held Delete page 4', 'Held Delete page 5'])
+
+    // With Ctrl and Shift, Delete opens Workspaces & data and leaves the focused tab open; it closed the tab.
+    await expect(appWindow.getByRole('tab', { name: /^Held Delete page 4/ })).toBeFocused()
+    await appWindow.keyboard.press('Control+Shift+Delete')
+    await expect(appWindow.getByRole('tabpanel', { name: 'Settings' }).getByRole('heading', { name: 'Workspaces & data' })).toBeVisible()
+    expect(await openTitles()).toEqual(['Held Delete page 1', 'Held Delete page 4', 'Held Delete page 5'])
   } finally {
     await closeFixtureServer(server)
   }

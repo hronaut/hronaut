@@ -256,7 +256,8 @@ function activateTab(tabId: string): void {
 }
 
 function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
-  if (event.key === 'Delete') {
+  // With a modifier, Delete is another shortcut, such as Ctrl or Cmd with Shift and Delete for Workspaces & data.
+  if (event.key === 'Delete' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
     event.preventDefault()
     // A closed tab hands the focus to the next tab, so a held Delete would close one tab after another.
     if (!event.repeat) emit('closeTab', tab.id)
