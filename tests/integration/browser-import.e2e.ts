@@ -29,7 +29,9 @@ for (const sourceBrowser of ['chromium', 'firefox'] as const) {
     let previousHome = ''
     try {
       await source.addCookies([{ name: 'fixture-auth', value: 'fixture-token', domain: '127.0.0.1', path: '/', secure: false, httpOnly: true, sameSite: 'Lax', expires: Math.floor(Date.now() / 1000) + 3600 }])
-      if (sourceBrowser === 'chromium') await source.addCookies(Array.from({ length: 775 }, (_, index) => ({ name: 'layout-fixture', value: 'test', domain: `site-${String(index).padStart(3, '0')}.test`, path: '/', expires: Math.floor(Date.now() / 1000) + 3600 })))
+      // Like cookies set with Max-Age, these expire at a fraction of a second, which Chromium saves in microseconds.
+      // A subdomain of one of them is imported beside it, not skipped as data a page set.
+      if (sourceBrowser === 'chromium') await source.addCookies([...Array.from({ length: 775 }, (_, index) => `site-${String(index).padStart(3, '0')}.test`), 'accounts.site-000.test'].map((domain, index) => ({ name: 'layout-fixture', value: 'test', domain, path: '/', expires: Math.floor(Date.now() / 1000) + 3600 + (index + 1) / 1031 })))
       const page = source.pages()[0] ?? await source.newPage()
       await page.goto(origin); await expect(page.getByRole('main')).toHaveText('Signed in')
       await source.close()
@@ -76,7 +78,7 @@ for (const sourceBrowser of ['chromium', 'firefox'] as const) {
       await panel.getByRole('button', { name: 'Continue', exact: true }).click()
       await expect(panel.getByText('Choose sites', { exact: true })).toBeVisible()
       if (sourceBrowser === 'chromium') {
-        await expect(panel.getByText('0 of 776 sites selected', { exact: true })).toBeVisible()
+        await expect(panel.getByText('0 of 777 sites selected', { exact: true })).toBeVisible()
         for (const [width, height, scale] of [[1860, 1030, 1], [1200, 800, 1], [600, 600, 1.25]] as const) {
           await electronApp.evaluate(({ BrowserWindow }, { width, height }) => {
             const window = BrowserWindow.getAllWindows()[0]!
@@ -108,7 +110,7 @@ for (const sourceBrowser of ['chromium', 'firefox'] as const) {
       await appWindow.screenshot({ path: testInfo.outputPath('picker.png') })
       await expect(panel.getByRole('button', { name: 'Import into “Import destination”' })).toBeEnabled()
       await panel.getByRole('button', { name: 'Import into “Import destination”' }).click()
-      await expect(panel.locator('output')).toContainText(`Cookies imported: ${sourceBrowser === 'chromium' ? 776 : 1}. Skipped: 0. Failed: 0.`, { timeout: 30_000 })
+      await expect(panel.locator('output')).toContainText(`Cookies imported: ${sourceBrowser === 'chromium' ? 777 : 1}. Skipped: 0. Failed: 0.`, { timeout: 30_000 })
       if (sourceBrowser === 'firefox') await panel.getByRole('button', { name: 'Restore workspace', exact: true }).click()
       else {
         expect(await electronApp.evaluate(async ({ webContents }, id) => webContents.fromId(id)?.executeJavaScript("document.querySelector('#draft').value"), liveContentsId)).toBe('Keep my unsaved draft')
