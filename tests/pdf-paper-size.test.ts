@@ -29,6 +29,12 @@ describe('the paper of a PDF saved from Hronaut', () => {
     expect(regionalPdfPageSize('', 'en')).toBe('Letter')
   })
 
+  it('reads the region of a system locale with a variant or underscores', () => {
+    expect(regionalPdfPageSize('', 'ca-ES@valencia')).toBe('A4')
+    expect(regionalPdfPageSize('', 'sr_RS@latin')).toBe('A4')
+    expect(regionalPdfPageSize('', 'en-US@posix')).toBe('Letter')
+  })
+
   it('keeps Letter, as before, when nothing names a region', () => {
     expect(regionalPdfPageSize('', '')).toBe('Letter')
     expect(regionalPdfPageSize('001', 'not a locale!')).toBe('Letter')

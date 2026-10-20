@@ -6,7 +6,8 @@ const LETTER_REGIONS: ReadonlySet<string> = new Set(['BZ', 'CA', 'CL', 'CO', 'CR
 
 function localeRegion(locale: string): string | undefined {
   try {
-    return new Intl.Locale(locale).maximize().region
+    // Chromium appends an ICU variant on Windows and Linux, such as `ca-ES@valencia`, which Intl.Locale refuses.
+    return new Intl.Locale(locale.split('@')[0]!.replaceAll('_', '-')).maximize().region
   } catch {
     return undefined
   }
