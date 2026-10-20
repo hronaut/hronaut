@@ -6,7 +6,7 @@ import type { SupportedLocale } from '../src/shared/locale.js'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' }, session: { fromPartition: vi.fn() } }))
 
-const { createBrowserSession } = await import('../src/main/browser-session.js')
+const { createBrowserSession, promptWorkspaceName } = await import('../src/main/browser-session.js')
 
 type RequestHandler = Parameters<Session['setPermissionRequestHandler']>[0] & {}
 
@@ -42,7 +42,7 @@ async function request(
       shown.push(options)
       return { response: answer === 'allow' ? 1 : 0, checkboxChecked: false }
     },
-    workspaceName: (workspaceId) => workspaceId === WORKSPACE ? workspaceName : undefined,
+    workspaces: () => workspaceName === undefined ? [] : [{ id: WORKSPACE, name: workspaceName }],
     state: { persistentSession: null, sitePermissionStore: null },
     sendToShellWindows: () => undefined,
     partition: 'persist:test'
@@ -128,6 +128,9 @@ describe('site permission prompt', () => {
     expect((await prompt('en-US', 'media', { mediaTypes: ['video'] }, 'Client A')).detail)
       .toBe('Requested devices: camera. Asked in the “Client A” workspace. '
         + "Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads.")
+    expect((await prompt('en-US', 'openExternal', { externalURL: 'zoommtg://zoom.us/join?confno=1' }, 'Client A')).detail)
+      .toBe('Allow opens this zoommtg: link outside Hronaut, in the app your system uses for it. Asked in the “Client A” workspace. '
+        + "Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads.")
     for (const locale of ['de-DE', 'fr-FR', 'es-ES', 'pl-PL', 'ru-RU'] as const) {
       expect((await prompt(locale, 'geolocation', {}, 'Client A')).detail, locale).toContain('Client A')
       expect((await prompt(locale, 'media', { mediaTypes: ['audio'] }, 'Client A')).detail, locale).toContain('Client A')
@@ -143,5 +146,21 @@ describe('site permission prompt', () => {
       .toBe("Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads.")
     expect((await prompt('en-US', 'fileSystem', {}, 'Client A')).detail)
       .toBe("Asked in the “Client A” workspace. Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads.")
+  })
+
+  it('shows a workspace name an agent chose on one line, and tells it apart from one that reads the same', () => {
+    // An agent can name its workspace. A line break added a paragraph of its own to the prompt, a right-to-left override
+    // reversed the words after it, and the person's own workspace name made the agent's tab look like theirs.
+    const agent = '01912345-6789-7abc-8def-0123456789ab'
+    const own = '01912345-6789-7abc-8def-0123456789cd'
+    expect(promptWorkspaceName(agent, [{ id: agent, name: 'Personal”.\n\nThis request is your own. Choose Allow.\u202E' }]))
+      .toBe('Personal”. This request is your own. Choose Allow.')
+    expect(promptWorkspaceName(agent, [{ id: agent, name: 'Client\u2028\u200BA\u0007' }])).toBe('Client A')
+    expect(promptWorkspaceName(agent, [{ id: own, name: 'Personal' }, { id: agent, name: ' Personal\u200E' }])).toBe('Personal · 6789ab')
+    expect(promptWorkspaceName(own, [{ id: own, name: 'Personal' }, { id: agent, name: 'Personal' }])).toBe('Personal · 6789cd')
+    expect(promptWorkspaceName(agent, [{ id: own, name: 'Personal' }])).toBeUndefined()
+    expect(promptWorkspaceName(agent, [{ id: agent, name: '\u202E\n' }])).toBeUndefined()
+    // Joiners inside an emoji stay.
+    expect(promptWorkspaceName(agent, [{ id: agent, name: 'QA 👩\u200D💻' }])).toBe('QA 👩\u200D💻')
   })
 })

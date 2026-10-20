@@ -114,6 +114,7 @@ All notable changes to Hronaut are documented in this file.
 - **Visual compare**, **Issues**, **Code coverage** and **JavaScript CPU profile** now read the tab again when they dock back from their own window. They showed what they had before they left, such as no baseline after one was set there, or a recording as stopped while it ran.
 - Audits and reports (**Quality audit**, **Accessibility**, **Performance**, **Design overview**, **Page metadata**, **Connection security**, **Memory** and **Debug report**) now run for the page shown when they dock back from their own window with no report, for example after the tab navigated or another tab was selected while they were there. They showed no report and nothing to run it with until closed and opened again.
 - **Site controls** now show the site's cookie and history counts when they dock back from their own window after the tab navigated or another tab was selected while they were there. They showed "…" until closed and opened again.
+- A file access prompt that names no file no longer says both that Hronaut remembers the choice and that it asks again next time.
 
 ### Security
 

@@ -26,8 +26,8 @@ interface BrowserSessionHost {
   effectiveDownloadDirectory(): string
   /** Asks on the main window, or on its own while there is none. */
   showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>
-  /** The name of an open workspace, read when a permission prompt shows; undefined for one Hronaut does not know. */
-  workspaceName(workspaceId: string): string | undefined
+  /** The open and archived workspaces, read when a permission prompt names the one it asks in. */
+  workspaces(): ReadonlyArray<{ id: string, name: string }>
   /** The persistent session and the site permissions; index.ts creates the record, and other features read it too. */
   state: BrowserSessionState
   sendToShellWindows(channel: string, ...args: unknown[]): void
@@ -47,6 +47,24 @@ const FRESH_CONSENT_PERMISSIONS: ReadonlySet<string> = new Set(['media', 'fileSy
  */
 export function rememberedSitePermissions(entries: readonly SitePermissionEntry[]): SitePermissionEntry[] {
   return entries.filter((entry) => !FRESH_CONSENT_PERMISSIONS.has(entry.permission))
+}
+
+/**
+ * A workspace's name as a permission prompt shows it, or undefined for a workspace Hronaut does not know. An agent can
+ * name its workspace, so the name is one line without control or invisible formatting characters, which could add a
+ * paragraph to the prompt or reverse its words, and when another workspace reads the same, such as the person's own,
+ * it ends with part of its id, as Settings shows it.
+ */
+export function promptWorkspaceName(workspaceId: string, workspaces: ReadonlyArray<{ id: string, name: string }>): string | undefined {
+  const plain = (name: string): string => name.normalize('NFC')
+    .replace(/[\p{Cc}\p{Zl}\p{Zp}]|(?![\u200C\u200D])\p{Cf}/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
+  const own = workspaces.find((workspace) => workspace.id === workspaceId)
+  const name = own ? plain(own.name) : ''
+  if (!name) return undefined
+  const readsAlike = workspaces.some((workspace) => workspace.id !== workspaceId && plain(workspace.name) === name)
+  return readsAlike ? `${name} · ${workspaceId.replaceAll('-', '').slice(-6)}` : name
 }
 
 /** The most characters of a link's scheme a prompt shows; a page chooses the scheme, so it can be very long. */
@@ -360,7 +378,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
             : sitePermissionName(permission, (key) => host.text(key))
         // The decision belongs to the tab's workspace, and that tab may be in a workspace that is not shown, such as one
         // an agent works in, so the prompt names it. The name is read now, since the person can rename it meanwhile.
-        const workspace = host.workspaceName(workspaceId)
+        const workspace = promptWorkspaceName(workspaceId, host.workspaces())
         // A request Hronaut never remembers does not say it remembers the choice, even with nothing else to say.
         const permissionDetail = requiresFreshConsent
           ? (workspace ? host.text('native.dialog.permissionAskedIn', { detail: requestedDetail ?? '', workspace }) : requestedDetail ?? '').trim()
