@@ -267,6 +267,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       :reset-permission="resetSitePermission"
       :open-permission-settings="actions.openSitePermissionSettings"
       :open-privacy-settings="actions.openSitePrivacySettings"
+      :refresh="siteDataController.refresh"
     />
     <section
       v-if="visible"

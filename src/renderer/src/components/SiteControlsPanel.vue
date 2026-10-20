@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconHistory from '~icons/material-symbols/history-rounded'
@@ -31,12 +32,20 @@ const props = defineProps<{
   resetPermission: (entry: SitePermissionEntry) => boolean | Promise<boolean>
   openPermissionSettings: () => void
   openPrivacySettings: () => void | Promise<void>
+  refresh: () => unknown
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
 const dock = defineModel<PanelDock>('dock', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 const localNumber = (value: number): string => formatNumber(props.locale, value)
+
+// Docked back from its window after the page changed, the main window had cleared the site's counts for the new page
+// while the panel was away, and showed "…" until it was opened again. It reads them now. The closing panel window still
+// has its counts, so it reads nothing.
+watch(dock, (next, previous) => {
+  if (open.value && previous === 'window' && next !== 'window' && !props.summary && props.state === 'idle') void props.refresh()
+})
 
 /**
  * What tells a decision apart from the page's own decisions in this workspace: a website embedded in the page shows

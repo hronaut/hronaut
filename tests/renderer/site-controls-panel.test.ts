@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import SiteControlsPanel from '../../src/renderer/src/components/SiteControlsPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import type { SitePermissionDecision, SitePermissionEntry, SupportedLocale } from '../../src/shared/types.js'
+import type { PanelDock, SitePermissionDecision, SitePermissionEntry, SupportedLocale } from '../../src/shared/types.js'
 import { getByTooltip } from './helpers/tooltip.js'
 
 const WORKSPACE = '01912345-6789-7abc-8def-0123456789ab'
@@ -19,7 +19,10 @@ function renderPanel(options: {
   permissionPending?: () => boolean
   permissions?: SitePermissionEntry[]
   locale?: SupportedLocale
-  summary?: { cookieCount: number; historyEntries: number; historyVisits: number }
+  summary?: { cookieCount: number; historyEntries: number; historyVisits: number } | null
+  state?: 'idle' | 'loading' | 'error'
+  dock?: PanelDock
+  refresh?: () => unknown
 } = {}) {
   const setPermission = options.setPermission ?? vi.fn(() => true)
   const resetPermission = vi.fn(() => true)
@@ -29,12 +32,12 @@ function renderPanel(options: {
     global: { plugins: [createHronautI18n(options.locale ?? 'en-US')] },
     props: {
       open: true,
-      dock: 'right',
+      dock: options.dock ?? 'right',
       hostname: 'example.test',
       addressKind: 'Secure',
       origin: 'https://example.test',
-      summary: { origin: 'https://example.test', ...(options.summary ?? { cookieCount: 2, historyEntries: 3, historyVisits: 5 }) },
-      state: 'idle',
+      summary: options.summary === null ? null : { origin: 'https://example.test', ...(options.summary ?? { cookieCount: 2, historyEntries: 3, historyVisits: 5 }) },
+      state: options.state ?? 'idle',
       message: '',
       permissions: options.permissions ?? [cameraPermission],
       locale: options.locale ?? 'en-US',
@@ -43,7 +46,8 @@ function renderPanel(options: {
       setPermission,
       resetPermission,
       openPermissionSettings,
-      openPrivacySettings
+      openPrivacySettings,
+      refresh: options.refresh ?? vi.fn()
     }
   })
   return { view, setPermission, resetPermission, openPermissionSettings, openPrivacySettings }
@@ -149,5 +153,34 @@ describe('SiteControlsPanel', () => {
     expect(screen.getByRole('article', { name: '3 сторінки історії та 22 відвідування' })).toBeVisible()
     expect(screen.getByText('файли cookie')).toBeVisible()
     expect(screen.getByText('сторінки історії · 22 відвідування')).toBeVisible()
+  })
+})
+
+describe('Site controls docked back from its window', () => {
+  // The main window kept the panel open, hidden, while it showed in its own window. A page change meanwhile cleared the
+  // site's counts there, so docked back it showed "…" until it was opened again.
+  it('reads the site’s counts when a page change cleared them', async () => {
+    const refresh = vi.fn()
+    const { view } = renderPanel({ dock: 'window', summary: null, refresh })
+    expect(screen.getByRole('article', { name: 'Loading cookie count' })).toBeVisible()
+    await view.rerender({ dock: 'right' })
+    expect(refresh).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the counts it has, and leaves a read still running to answer', async () => {
+    const refresh = vi.fn()
+    const kept = renderPanel({ dock: 'window', refresh })
+    await kept.view.rerender({ dock: 'right' })
+    kept.view.unmount()
+    const loading = renderPanel({ dock: 'window', summary: null, state: 'loading', refresh })
+    await loading.view.rerender({ dock: 'right' })
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('does not read when it moves between docked places', async () => {
+    const refresh = vi.fn()
+    const { view } = renderPanel({ summary: null, refresh })
+    await view.rerender({ dock: 'left' })
+    expect(refresh).not.toHaveBeenCalled()
   })
 })
