@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { chmod, readdir, readFile, rename, rm } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
 import type { CredentialSummary } from '../shared/types.js'
 import { writeTextFileAtomically } from './atomic-file.js'
 import { LocalizedError } from './localized-error.js'
@@ -74,10 +75,40 @@ function normalizeCredentialTimestamps(
   }
 }
 
+/**
+ * Moves a saved-passwords file Hronaut cannot read, such as one cut short by a disk error or written by a newer
+ * version, to `credentials.json.unreadable-<UTC time>` beside it, just before the first save writes a new file, so that
+ * save does not replace every saved password in it. Until then the file stays where it is, so a newer Hronaut opened
+ * again before anything is saved still finds it. When the file cannot be moved, the save replaces it as before. The
+ * kept file is made readable by its owner only, as a new saved-passwords file is.
+ */
+async function keepUnreadableCredentials(path: string): Promise<void> {
+  const aside = `${path}.unreadable-${new Date().toISOString().replace(/[:.]/g, '-')}`
+  try {
+    await rename(path, aside)
+  } catch (error) {
+    // An earlier save that moved the file aside and then failed to write left nothing here to keep.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+    console.warn('[credentials] Could not keep an unreadable saved-passwords file aside; saving a new one replaces it.')
+    return
+  }
+  await chmod(aside, 0o600).catch(() => undefined)
+  console.warn('[credentials] Kept an unreadable saved-passwords file aside before saving a new one.')
+}
+
+/** Deletes the unreadable saved-passwords files kept aside, so removing every saved password leaves none of them. */
+async function removeKeptCredentials(path: string): Promise<void> {
+  const prefix = `${basename(path)}.unreadable-`
+  const names = await readdir(dirname(path)).catch(() => [])
+  await Promise.allSettled(names.filter((name) => name.startsWith(prefix)).map((name) => rm(join(dirname(path), name), { force: true })))
+}
+
 export class CredentialStore {
   private readonly entries = new Map<string, PersistedCredential>()
   private mutationQueue: Promise<void> = Promise.resolve()
   private saveQueue: Promise<void> = Promise.resolve()
+  /** Set when loading found a file it cannot read, which the next save moves aside first. */
+  private unreadableFile = false
 
   constructor(
     private readonly path: string,
@@ -86,11 +117,15 @@ export class CredentialStore {
 
   async load(): Promise<CredentialSummary[]> {
     this.entries.clear()
+    this.unreadableFile = false
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
+      if (parsed === null) return []
       const value = parsed as Partial<PersistedCredentialVault>
-      if (value.version !== 1 || !Array.isArray(value.credentials)) return []
+      if (typeof parsed !== 'object' || Array.isArray(parsed) || value.version !== 1 || !Array.isArray(value.credentials)) {
+        this.unreadableFile = true
+        return []
+      }
       const accounts = new Map<string, { entry: PersistedCredential; updatedAtWasFuture: boolean }>()
       let repairedPersistedVault = false
       const currentTime = Date.now()
@@ -125,6 +160,7 @@ export class CredentialStore {
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
+      if (error instanceof SyntaxError) this.unreadableFile = true
     }
     return this.list()
   }
@@ -262,9 +298,13 @@ export class CredentialStore {
 
   async clear(): Promise<void> {
     await this.queueMutation(async () => {
-      if (!this.entries.size) return
-      await this.persist([])
-      this.entries.clear()
+      // Removing every saved password also removes the ones in a file Hronaut could not read: the save keeps that file
+      // aside like any other, and then every kept file is deleted.
+      if (this.entries.size || this.unreadableFile) {
+        await this.persist([])
+        this.entries.clear()
+      }
+      await removeKeptCredentials(this.path)
     })
   }
 
@@ -289,7 +329,10 @@ export class CredentialStore {
       credentials: [...entries].map((entry) => ({ ...entry }))
     }
     const operation = this.saveQueue.then(async () => {
+      // The file counts as kept only once the new one is written, so a save that fails tries to keep it aside again.
+      if (this.unreadableFile) await keepUnreadableCredentials(this.path)
       await writeTextFileAtomically(this.path, `${JSON.stringify(value, null, 2)}\n`)
+      this.unreadableFile = false
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation
