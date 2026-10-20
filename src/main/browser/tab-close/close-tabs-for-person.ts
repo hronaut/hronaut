@@ -4,13 +4,17 @@ import { isHronautHomeUrl } from '../url.js'
 import type { PersonTabCloseAccess, PersonTabCloseTab } from './close-tabs-for-person-access.js'
 
 /**
- * Closes tabs for the person, in order, stopping at one whose page asks to stay. Undo reopens those that closed, each
- * in its place among its workspace's tabs.
+ * Closes tabs for the person, in order, stopping at one whose page asks to stay. The shown tab closes last, so it
+ * hands over to a tab that stays open rather than waking a sleeping one only to close it next. Undo reopens those that
+ * closed, each in its place among its workspace's tabs.
  */
 export async function closeTabsForPerson<Tab extends PersonTabCloseTab>(access: PersonTabCloseAccess<Tab>, tabIds: readonly string[]): Promise<BrowserState> {
   const closed: { closedTabId: string; index: number; title: string }[] = []
+  const pending = [...tabIds]
   try {
-    for (const tabId of tabIds) {
+    while (pending.length) {
+      const otherIndex = pending.findIndex((candidate) => candidate !== access.activeTabId())
+      const tabId = pending.splice(otherIndex === -1 ? 0 : otherIndex, 1)[0]!
       const tab = tabIds.length === 1 ? access.getTab(tabId) : access.findTab(tabId)
       if (!tab) continue
       const index = tabPeers(access, tab).indexOf(tab)

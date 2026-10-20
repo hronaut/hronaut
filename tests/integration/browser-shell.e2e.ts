@@ -4398,7 +4398,8 @@ test('duplicates navigation history and safely bulk-manages tabs from the native
 
   await openSourceMenu()
   await clickMenuItem('reopen-closed-tab')
-  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.some((tab) => tab.title === "Context right two"))')).toBe(true)
+  // The shown tab, the duplicate now back on its first page, closes after the hidden tabs, so it is the first to come back.
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.some((tab) => tab.title === "Context first"))')).toBe(true)
   await openSourceMenu()
   await clickMenuItem('close-other-tabs')
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.filter((tab) => !tab.url.startsWith("hronaut://")).map(({ title, pinned }) => ({ title, pinned })))')).toEqual([

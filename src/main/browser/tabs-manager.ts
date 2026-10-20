@@ -2764,6 +2764,7 @@ export class BrowserTabsManager {
       getTab: (tabId) => this.getTab(tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       orderedTabs: () => this.orderedTabs(),
+      activeTabId: () => this.activeTabId,
       closedTabs: () => this.closedTabs,
       closeTabInternal: (tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection) => (
         this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload, yieldsToNewerSelection)
