@@ -173,10 +173,17 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     // the tab's top-level page.
     if (!isMainFrame) return
     tab.performanceDocumentRouted = true
+    const previousUrl = tab.url
     syncNavigation()
     access.reproRecorder().navigated(tab, url, true)
-    if (!tab.suppressInitialHistory) access.recordVisit(tab)
-    tab.pendingHistoryUrl = null
+    // A change within the page that keeps its address, such as `history.replaceState(state, '')` saving a router's
+    // state or scroll position, is not another visit. Chrome skips it too unless it follows a click or key press
+    // within a few seconds; Hronaut never counts it. The first visit is still recorded when the document is ready.
+    // This relies on tab.url holding the last committed address, which only syncNavigation sets here.
+    if (url !== previousUrl) {
+      if (!tab.suppressInitialHistory) access.recordVisit(tab)
+      tab.pendingHistoryUrl = null
+    }
     access.scheduleTabOverviewPreview(tab)
   })
   webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
