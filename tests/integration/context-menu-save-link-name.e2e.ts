@@ -9,6 +9,15 @@ test('saves a link under its download name from the page menu unless the server 
       response.writeHead(200, { 'content-type': 'text/csv' }).end('name,amount')
       return
     }
+    if (request.url === '/away') {
+      // A same-origin link that sends the save on to another site.
+      response.writeHead(302, { location: `http://localhost:${(server.address() as { port: number }).port}/payload.js` }).end()
+      return
+    }
+    if (request.url === '/payload.js') {
+      response.writeHead(200, { 'content-type': 'text/javascript' }).end('callback()')
+      return
+    }
     if (request.url === '/export?id=7') {
       response.writeHead(200, { 'content-type': 'text/csv', 'content-disposition': 'attachment; filename="server.csv"' }).end('name,amount')
       return
@@ -16,7 +25,8 @@ test('saves a link under its download name from the page menu unless the server 
     response.writeHead(200, { 'content-type': 'text/html' }).end(`<!doctype html><title>Export fixture</title>
       <p><a id="named" href="/export?id=5" download="report.csv">Report</a></p>
       <p><a id="bare" href="/export?id=6" download="quarterly">Quarterly</a></p>
-      <p><a id="server" href="/export?id=7" download="mine.csv">Server</a></p>`)
+      <p><a id="server" href="/export?id=7" download="mine.csv">Server</a></p>
+      <p><a id="away" href="/away" download="update.bat">Away</a></p>`)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   try {
@@ -62,6 +72,10 @@ test('saves a link under its download name from the page menu unless the server 
     // The server's own name comes first.
     await saveLink('#server')
     await expect.poll(() => existsSync(join(profileDirectory, 'server.csv'))).toBe(true)
+    // Another site that the link redirects to does not get the link's name, as with a click.
+    await saveLink('#away')
+    await expect.poll(() => existsSync(join(profileDirectory, 'payload.js'))).toBe(true)
+    expect(existsSync(join(profileDirectory, 'update.bat'))).toBe(false)
     expect(existsSync(join(profileDirectory, 'export.csv'))).toBe(false)
     expect(existsSync(join(profileDirectory, 'mine.csv'))).toBe(false)
   } finally {

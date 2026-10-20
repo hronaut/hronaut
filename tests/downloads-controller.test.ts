@@ -42,10 +42,11 @@ async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platfo
   }, platform)
   cleanups.push(() => controller.destroy())
   controller.attachSession(session as Session)
-  function download(tabId = 1, failSetup = false, url = 'https://download.example/file.txt', filename = 'file.txt', contentDisposition = '') {
+  function download(tabId = 1, failSetup = false, url = 'https://download.example/file.txt', filename = 'file.txt', contentDisposition = '', urlChain = [url]) {
     const item = new EventEmitter()
     let state: 'progressing' | 'interrupted' | 'completed' | 'cancelled' = 'progressing'
     let savePath = ''
+    let dialogOptions: { defaultPath?: string } = {}
     let paused = false
     const pause = vi.fn(() => { paused = true })
     const resume = vi.fn(() => { paused = false; state = 'progressing' })
@@ -55,7 +56,7 @@ async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platfo
     })
     Object.assign(item, {
       getURL: () => url,
-      getURLChain: () => [url],
+      getURLChain: () => urlChain,
       getContentDisposition: () => contentDisposition,
       getFilename: () => filename,
       getState: () => state,
@@ -69,9 +70,11 @@ async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platfo
         if (failSetup) throw new Error('Injected native setup failure')
         savePath = value
       },
-      setSaveDialogOptions: () => {
+      setSaveDialogOptions: (options: { defaultPath?: string }) => {
         if (failSetup) throw new Error('Injected dialog setup failure')
+        dialogOptions = options
       },
+      getSaveDialogOptions: () => dialogOptions,
       cancel
     })
     const event = { preventDefault: vi.fn() }
@@ -471,6 +474,39 @@ it('saves a link under its download name with Save Link As unless the server nam
   controller.expectSavedLinkName(1, 'https://download.example/export?id=6', 'mine.csv')
   expect(savedAs(download(1, false, 'https://download.example/export?id=6', 'server.csv', 'attachment; filename="server.csv"'))).toBe('server.csv')
   expect(controller.listDownloads().map(entry => entry.filename).sort()).toEqual(['export (1).csv', 'export.csv', 'report.csv', 'server.csv'])
+})
+
+it('keeps the address\'s name when a saved link redirects to another site', async () => {
+  // Hronaut saves without asking, so a redirect elsewhere must not name the file it serves, as a click's does not:
+  // a same-origin redirector could otherwise save another site's reflected response as update.bat.
+  const { controller, download } = await fixture()
+  const savedAs = (transfer: { item: unknown }) => basename((transfer.item as DownloadItem).getSavePath())
+  controller.expectSavedLinkName(1, 'https://download.example/go?u=x', 'update.bat')
+  expect(savedAs(download(1, false, 'https://cdn.example/jsonp', 'jsonp.js', '', ['https://download.example/go?u=x', 'https://cdn.example/jsonp']))).toBe('jsonp.js')
+  // The name was used up by that download.
+  expect(savedAs(download(1, false, 'https://download.example/go?u=x', 'go.bin'))).toBe('go.bin')
+  controller.expectSavedLinkName(1, 'https://download.example/export?id=5', 'report.csv')
+  expect(savedAs(download(1, false, 'https://download.example/files/5', '5.csv', '', ['https://download.example/export?id=5', 'https://download.example/files/5']))).toBe('report.csv')
+})
+
+it('proposes a saved link\'s name when Hronaut asks where to save it', async () => {
+  const { controller, download } = await fixture(true)
+  controller.expectSavedLinkName(1, 'https://download.example/export?id=5', 'report.csv')
+  const transfer = download(1, false, 'https://download.example/export?id=5', 'export.csv')
+  expect(basename((transfer.item as DownloadItem).getSaveDialogOptions().defaultPath ?? '')).toBe('report.csv')
+  expect(controller.listDownloads()[0]?.filename).toBe('report.csv')
+})
+
+it('uses up a saved link\'s name when a full history refuses its download', async () => {
+  // The name stayed, so the next download of that address from the tab took it.
+  const { controller, download } = await fixture()
+  const transfers = Array.from({ length: 200 }, (_, index) => download(1, false, `https://download.example/${index}.txt`, `${index}.txt`))
+  controller.expectSavedLinkName(1, 'https://download.example/export?id=5', 'report.csv')
+  expect(download(1, false, 'https://download.example/export?id=5', 'export.csv').event.preventDefault).toHaveBeenCalled()
+  transfers[0]!.complete()
+  const next = download(1, false, 'https://download.example/export?id=5', 'export.csv')
+  expect(next.event.preventDefault).not.toHaveBeenCalled()
+  expect(basename((next.item as DownloadItem).getSavePath())).toBe('export.csv')
 })
 
 it('removes only the selected finished record and preserves both downloaded files', async () => {
