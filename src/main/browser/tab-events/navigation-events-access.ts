@@ -45,6 +45,8 @@ export interface NavigationEventsTab extends BrowserNetworkRecordingState {
   muted: boolean
   suppressInitialHistory: boolean
   pendingHistoryUrl: string | null
+  /** Where the main frame's document navigation under way is headed, after redirects, until it commits or ends. */
+  pendingMainFrameUrl?: string
   emulationContextGeneration: number
   memoryBaseline?: unknown
   storageComparison?: unknown
