@@ -313,7 +313,10 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
           navigationPolicy: navigationPolicy()
         }))
       } else if (currentWorkspaceId) {
-        const updated = await options.browser.updateTabGroup(currentWorkspaceId, {
+        const current = workspace.value
+        const nextPolicy = navigationPolicy()
+        const policyChanged = !current || JSON.stringify(current.navigationPolicy) !== JSON.stringify(nextPolicy)
+        const saveDetails = () => options.browser.updateTabGroup(currentWorkspaceId, {
           name: name.value,
           description: description.value,
           color: color.value,
@@ -321,13 +324,14 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
           deletionProtected: deletionProtected.value,
           agentAccess: agentAccess.value
         })
+        const saveRules = () => options.browser.updateWorkspaceNavigationPolicy(currentWorkspaceId, nextPolicy)
+        // Agents get access only once the rules chosen with it are saved, and they lose it before looser rules
+        // apply, so a step that fails, such as rules the main process refuses, never leaves them more reach than chosen.
+        const rulesFirst = policyChanged && agentAccess.value && current?.agentAccess === false
+        let state = await (rulesFirst ? saveRules() : saveDetails())
         if (!isPresentationCurrent(presentation)) return
-        const currentPolicy = workspace.value?.navigationPolicy
-        const nextPolicy = navigationPolicy()
-        const state = currentPolicy
-          && JSON.stringify(currentPolicy) === JSON.stringify(nextPolicy)
-          ? updated
-          : await options.browser.updateWorkspaceNavigationPolicy(currentWorkspaceId, nextPolicy)
+        if (rulesFirst) state = await saveDetails()
+        else if (policyChanged) state = await saveRules()
         await options.syncState(state)
       }
       if (!isPresentationCurrent(presentation)) return

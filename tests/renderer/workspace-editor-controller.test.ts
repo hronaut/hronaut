@@ -682,6 +682,54 @@ describe('workspace editor controller', () => {
     controller.dispose()
   })
 
+  it('turns agent access on only after the rules chosen with it are saved', async () => {
+    const { browser, controller, state } = createController()
+    state.value.mcpTabGroups[0].agentAccess = false
+    await controller.openExisting('default')
+    controller.agentAccess.value = true
+    controller.navigationMode.value = 'restricted'
+    controller.navigationRulesText.value = 'https://agent.example'
+
+    await controller.save()
+
+    expect(browser.updateWorkspaceNavigationPolicy).toHaveBeenCalledWith('default', { mode: 'restricted', rules: ['https://agent.example'] })
+    expect(browser.updateWorkspaceNavigationPolicy.mock.invocationCallOrder[0])
+      .toBeLessThan(browser.updateTabGroup.mock.invocationCallOrder[0])
+    controller.dispose()
+  })
+
+  it('leaves agent access off when the rules chosen with it are refused', async () => {
+    const { browser, controller, state } = createController()
+    state.value.mcpTabGroups[0].agentAccess = false
+    await controller.openExisting('default')
+    controller.agentAccess.value = true
+    controller.navigationMode.value = 'restricted'
+    controller.navigationRulesText.value = 'https://agent.example/checkout'
+    browser.updateWorkspaceNavigationPolicy.mockRejectedValueOnce(new Error('Navigation rules must be origins without paths, queries, or fragments.'))
+
+    await controller.save()
+
+    // Agent access was saved first, so agents could open every site while the refused rules were shown as an error.
+    expect(browser.updateTabGroup).not.toHaveBeenCalled()
+    expect(controller.error.value).toBe('Navigation rules must be origins without paths, queries, or fragments.')
+    expect(controller.actionState.value).toBe('idle')
+    controller.dispose()
+  })
+
+  it('turns agent access off before looser rules apply', async () => {
+    const { browser, controller } = createController()
+    await controller.openExisting('agent')
+    controller.agentAccess.value = false
+    controller.navigationMode.value = 'unrestricted'
+
+    await controller.save()
+
+    expect(browser.updateTabGroup).toHaveBeenCalledWith('agent', expect.objectContaining({ agentAccess: false }))
+    expect(browser.updateTabGroup.mock.invocationCallOrder[0])
+      .toBeLessThan(browser.updateWorkspaceNavigationPolicy.mock.invocationCallOrder[0])
+    controller.dispose()
+  })
+
   it('does not submit a restricted policy without any site rules', async () => {
     const { browser, controller } = createController()
     await controller.openNew()
