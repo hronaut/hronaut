@@ -120,7 +120,8 @@ function cardMenuItems(tab: BrowserTabState): UiMenuItem[] {
 /**
  * Every overview action is disabled while one runs, so Chromium moves the focus of the one you used to the document
  * body. A finished close, pin or delete hands focus to the search field itself and a restore closes the overview; after
- * a failure, give the focus back to that control, or else the search field, unless you moved it meanwhile.
+ * a failure, give the focus back to that control, or else the overview itself, unless you moved it meanwhile. Not to the
+ * search field: Enter there runs the selected result, which a held Enter would then do.
  */
 async function keepFocusThrough(event: Event, action: () => Promise<unknown>): Promise<void> {
   const dialog = panel.value
@@ -130,8 +131,8 @@ async function keepFocusThrough(event: Event, action: () => Promise<unknown>): P
   await nextTick()
   if (!focused || !dialog || !open.value || dialog !== panel.value || !dialog.isConnected || !document.hasFocus()) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
-  const target = [focused, input.value].find((element) => element?.isConnected && !element.matches(':disabled'))
-  target?.focus()
+  const target = focused.isConnected && !focused.matches(':disabled') ? focused : dialog
+  target.focus()
 }
 
 function runCardMenuItem(tab: BrowserTabState, id: string): void {

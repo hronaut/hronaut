@@ -96,6 +96,31 @@ describe('workspace editor focus after an action', () => {
     } finally { wrapper.unmount() }
   })
 
+  // A failed copy keeps Copy selected data disabled. The editor itself takes the focus, not its Close button, where a
+  // held Enter would close the editor and lose an unsaved rename.
+  it('gives the focus to the editor, not its Close button, when a failed copy keeps Copy selected data disabled', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const copying = deferred<{ cookieCount: number; localStorageItemCount: number }>()
+    const updateTabGroup = vi.fn(async () => state)
+    const wrapper = await openEditor({ transferWorkspaceStorage: vi.fn(() => copying.promise), updateTabGroup })
+    try {
+      await wrapper.get('#tab-group-name').setValue('Renamed workspace')
+      const copy = wrapper.get<HTMLButtonElement>('.workspace-transfer-button').element
+      copy.focus()
+      copy.click()
+      await flushPromises()
+      expect(copy.disabled).toBe(true)
+      dropFocusLikeChromium(copy)
+      copying.reject(new Error('Copy failed'))
+      await flushPromises()
+      expect(copy.disabled).toBe(true)
+      expect(wrapper.get('form').element).toHaveFocus()
+      expect(wrapper.get('.panel-close').element).not.toHaveFocus()
+      expect(wrapper.emitted<[boolean]>('update:open')?.filter(([open]) => !open) ?? []).toEqual([])
+      expect(updateTabGroup).not.toHaveBeenCalled()
+    } finally { wrapper.unmount() }
+  })
+
   it('gives the focus back to Close workspace once closing it fails', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     const closing = deferred<BrowserState>()

@@ -119,7 +119,8 @@ useModalDialogFocus({ open, panel, focusOnOpen: false })
 /**
  * Saving, closing a workspace or transferring its data disables every control of the editor, so Chromium moves the
  * focus of the one you used to the document body. When the editor stays open, after a failure or a finished transfer,
- * give the focus back to that control, or else the editor's Close button, unless you moved it meanwhile.
+ * give the focus back to that control, or else the editor itself, unless you moved it meanwhile. Not to its Close
+ * button: a held Enter would then close the editor and lose unsaved changes.
  */
 async function keepFocusThrough(action: () => Promise<unknown>): Promise<void> {
   const dialog = panel.value
@@ -129,9 +130,8 @@ async function keepFocusThrough(action: () => Promise<unknown>): Promise<void> {
   await nextTick()
   if (!focused || !dialog || !open.value || dialog !== panel.value || !dialog.isConnected || !document.hasFocus()) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
-  const target = [focused, dialog.querySelector<HTMLElement>('.panel-close')]
-    .find((element) => element?.isConnected && !element.matches(':disabled'))
-  target?.focus()
+  const target = focused.isConnected && !focused.matches(':disabled') ? focused : dialog
+  target.focus()
 }
 
 function colorStyle(value: (typeof BROWSER_TAB_GROUP_COLORS)[number]): Record<string, string> {
@@ -250,7 +250,7 @@ onBeforeUnmount(dispose)
 <template>
   <UiOverlayTransition>
     <div v-if="open" class="tab-group-editor-overlay">
-      <form ref="panel" class="tab-group-editor workspace-editor" :class="{ 'workspace-editor--import': importTarget }" role="dialog" aria-modal="true" aria-labelledby="tab-group-editor-title" :aria-busy="dismissBlocked || templateBusy || importBusy" @submit.prevent="!templateView && !importTarget && keepFocusThrough(mode === 'transfer' ? transferStorage : save)">
+      <form ref="panel" class="tab-group-editor workspace-editor" tabindex="-1" :class="{ 'workspace-editor--import': importTarget }" role="dialog" aria-modal="true" aria-labelledby="tab-group-editor-title" :aria-busy="dismissBlocked || templateBusy || importBusy" @submit.prevent="!templateView && !importTarget && keepFocusThrough(mode === 'transfer' ? transferStorage : save)">
         <header>
           <div><span class="eyebrow">{{ t('workspaceEditor.kicker') }}</span><h2 id="tab-group-editor-title">{{ importTarget ? t('browserImport.action') : templateView ? t('workspaceTemplates.title') : mode === 'transfer' ? t('workspaceEditor.transferData') : mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.edit') }}</h2></div>
           <div class="workspace-editor-header-actions">

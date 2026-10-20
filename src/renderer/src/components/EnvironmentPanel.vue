@@ -54,8 +54,9 @@ const panelRoot = ref<HTMLElement | null>(null)
 
 /**
  * Apply, Apply & reload, Reset and Restore are disabled while a change applies, so Chromium moves the focus of the one
- * you used to the document body. Give it back once that control is enabled again, or to the first condition once a
- * restored tab no longer shows Restore, unless you moved it meanwhile or the panel closed.
+ * you used to the document body. Give it back once that control is enabled again, or to the panel itself once a
+ * restored tab no longer shows Restore, unless you moved it meanwhile or the panel closed. Not to a condition: Enter on
+ * a field of the form submits it, so a held Enter would apply the draft that Restore deliberately left alone.
  */
 async function keepFocusThrough(action: () => Promise<unknown>): Promise<void> {
   const panel = panelRoot.value
@@ -65,9 +66,8 @@ async function keepFocusThrough(action: () => Promise<unknown>): Promise<void> {
   await nextTick()
   if (!focused || !panel || !open.value || panel !== panelRoot.value || !panel.isConnected || !document.hasFocus()) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
-  const target = [focused, panel.querySelector<HTMLElement>('.environment-content select')]
-    .find((element) => element?.isConnected && !element.matches(':disabled'))
-  target?.focus()
+  const target = focused.isConnected && !focused.matches(':disabled') ? focused : panel
+  target.focus()
 }
 
 defineExpose({ handleEscape })
@@ -79,6 +79,7 @@ onBeforeUnmount(dispose)
     v-if="open"
     ref="panelRoot"
     class="accessibility-panel environment-panel"
+    tabindex="-1"
     data-shell-docked-panel
     role="dialog"
     aria-modal="false"

@@ -73,7 +73,7 @@ describe('Network panel focus after Clear', () => {
     } finally { observer.disconnect(); view.unmount() }
   })
 
-  it('keeps the focus on Clear while records remain, and leaves a background window alone', async () => {
+  it('leaves the focus alone when Clear empties the log while the window is in the background', async () => {
     const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     const listNetworkRequests = vi.fn(async (_tabId: string, _clear?: boolean) => [request])
     const view = renderPanel(listNetworkRequests)

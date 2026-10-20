@@ -166,7 +166,8 @@ describe('EnvironmentPanel focus after an action', () => {
   })
 })
 
-it('moves the focus to the first condition once Restore retained settings succeeds and disappears', async () => {
+// Not to a condition: Enter on a field of the form submits it, and a held Enter would apply the draft Restore left alone.
+it('moves the focus to the panel once Restore retained settings succeeds and disappears', async () => {
   vi.spyOn(document, 'hasFocus').mockReturnValue(true)
   const recovering = deferred<BrowserState>()
   const { view, activeTab } = renderPanel({ recoverTabEmulation: vi.fn(() => recovering.promise) })
@@ -182,7 +183,8 @@ it('moves the focus to the first condition once Restore retained settings succee
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'Restore retained settings' })).not.toBeInTheDocument())
     expect(document.body).toHaveFocus()
     recovering.resolve(browserState())
-    await vi.waitFor(() => expect(screen.getByRole('combobox', { name: 'Network' })).toHaveFocus())
+    await vi.waitFor(() => expect(view.container.querySelector('.environment-panel')).toHaveFocus())
+    expect(screen.getByRole('combobox', { name: 'Network' })).not.toHaveFocus()
   } finally {
     view.unmount()
     vi.restoreAllMocks()
