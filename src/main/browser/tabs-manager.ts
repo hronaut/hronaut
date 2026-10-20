@@ -5640,7 +5640,8 @@ export class BrowserTabsManager {
       reload: (tabId) => this.reload(tabId),
       reloadIgnoringCache: (tabId) => this.reloadIgnoringCache(tabId),
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
-      openDevTools: (tab) => this.openDevTools(tab)
+      openDevTools: (tab) => this.openDevTools(tab),
+      expectSavedLinkName: (webContents, url, linkName) => this.downloadController.expectSavedLinkName(webContents.id, url, linkName)
     }
   }
 
