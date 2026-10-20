@@ -16,6 +16,46 @@ function isLoopbackAddress(value: string): boolean {
   }
 }
 
+/**
+ * Whether a scheme-less address names a device on the local network rather than a public site: a private, shared
+ * (100.64.0.0/10, as Tailscale uses), link-local or unspecified IP address, or a `.local`, `.internal`, `.home.arpa`
+ * or `.test` name. No public certificate can name these, so a development server's Network address or a router's setup
+ * page there serves plain HTTP. The address is classified as the URL parser reads it, so `10.5` counts as `10.0.0.5`.
+ */
+function isLocalNetworkAddress(value: string): boolean {
+  try {
+    const hostname = new URL(`http://${value}`).hostname.toLocaleLowerCase().replace(/\.$/, '')
+    const ipv4 = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(hostname)
+    if (ipv4) {
+      const [first, second] = [Number(ipv4[1]), Number(ipv4[2])]
+      return first === 10
+        || (first === 172 && second >= 16 && second <= 31)
+        || (first === 192 && second === 168)
+        || (first === 169 && second === 254)
+        || (first === 100 && second >= 64 && second <= 127)
+        || hostname === '0.0.0.0'
+    }
+    return hostname === '[::]'
+      || /^\[f[cd][0-9a-f]{2}:/.test(hostname)
+      || /^\[fe[89ab][0-9a-f]:/.test(hostname)
+      || hostname.endsWith('.local')
+      || hostname.endsWith('.internal')
+      || hostname.endsWith('.home.arpa')
+      || hostname.endsWith('.test')
+  } catch {
+    return false
+  }
+}
+
+/** Whether a scheme-less address names port 443, which asks for HTTPS wherever the address points. */
+function namesHttpsPort(value: string): boolean {
+  try {
+    return new URL(`http://${value}`).port === '443'
+  } catch {
+    return false
+  }
+}
+
 function hasSchemeLessUserInfo(value: string): boolean {
   const authorityEnd = value.search(/[/?#]/)
   const authority = authorityEnd < 0 ? value : value.slice(0, authorityEnd)
@@ -50,7 +90,8 @@ export function webAddress(input: string): string | undefined {
   if (!value) return 'about:blank'
   if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value) || /^(about|data|file|view-source):/i.test(value)) return value
   if (!hasSchemeLessUserInfo(value) && HOST_LIKE_PATTERN.test(value)) {
-    const candidate = `${isLoopbackAddress(value) ? 'http' : 'https'}://${value}`
+    const plainHttp = !namesHttpsPort(value) && (isLoopbackAddress(value) || isLocalNetworkAddress(value))
+    const candidate = `${plainHttp ? 'http' : 'https'}://${value}`
     try {
       new URL(candidate)
       return candidate
