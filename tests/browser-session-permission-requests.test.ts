@@ -115,6 +115,16 @@ function createPage(main: { url: string, origin: string }, children: Array<{ url
       target.origin = origin
       contents.emit('did-frame-navigate', {}, url, 200, 'OK', target === mainFrame, target.processId, target.routingId)
     },
+    /** Shows an error page in a frame, which Electron reports only as a failed load, with an opaque origin. */
+    failLoad(target: FakeFrame): void {
+      target.origin = 'null'
+      contents.emit('did-fail-load', {}, -102, 'ERR_CONNECTION_REFUSED', target.url, target === mainFrame, target.processId, target.routingId)
+    },
+    /** Removes a child frame from the page, which Electron does not report. */
+    removeFrame(target: FakeFrame): void {
+      target.detached = true
+      frames.splice(frames.indexOf(target), 1)
+    },
     /** Adds a child frame that already shows a document. */
     addFrame(document: { url: string, origin: string }): FakeFrame {
       const added = frame(frames.length + 10, document)
@@ -434,6 +444,45 @@ describe('camera and microphone prompts', () => {
     expect(harness.store.list()).toEqual([
       expect.objectContaining({ origin: meet.origin, permission: 'geolocation', decision: 'allow' })
     ])
+  })
+
+  it('closes a prompt once its page shows an error page, or the frame that asked is removed', async () => {
+    // Electron reports an error page only as a failed load and a removed frame not at all, so a reload that failed or a
+    // widget the page took away left its prompt open in front of every other prompt.
+    const harness = await createHarness()
+    answerLater(harness)
+    const page = createPage(site)
+    const reloaded = ask(harness, page, 'media', camera)
+    await vi.waitFor(() => expect(harness.shown).toHaveLength(1))
+    page.failLoad(page.frames[0]!)
+    expect(await reloaded).toBe(false)
+    expect(harness.shown[0]!.signal?.aborted).toBe(true)
+
+    const widget = { url: 'https://widget.example/call', origin: 'https://widget.example' }
+    const host = createPage(meet, [widget])
+    const removed = ask(harness, host, 'media', { requestingUrl: widget.url, isMainFrame: false, mediaTypes: ['video'] })
+    await vi.waitFor(() => expect(harness.shown).toHaveLength(2))
+    host.removeFrame(host.frames[1]!)
+    expect(await removed).toBe(false)
+    expect(harness.shown[1]!.signal?.aborted).toBe(true)
+    expect(harness.store.list()).toEqual([])
+    expect([host.contents.listenerCount('did-frame-navigate'), host.contents.listenerCount('did-fail-load')]).toEqual([1, 0])
+  })
+
+  it('holds no Deny for a prompt that closed, and refuses the identical requests that waited for it', async () => {
+    // Only a person's Deny holds for the page; a prompt that closed because its frame moved on answered nothing.
+    const harness = await createHarness()
+    answerLater(harness)
+    const widget = { url: 'https://widget.example/call', origin: 'https://widget.example' }
+    const page = createPage(meet, [widget])
+    const fromWidget = { requestingUrl: widget.url, isMainFrame: false, mediaTypes: ['video'] }
+    const [first, second] = [ask(harness, page, 'media', fromWidget), ask(harness, page, 'media', fromWidget)]
+    await vi.waitFor(() => expect(harness.shown).toHaveLength(1))
+    page.navigate(page.frames[1]!, widget.url)
+    expect(await Promise.all([first, second])).toEqual([false, false])
+    harness.decide = () => 'allow'
+    expect(await ask(harness, page, 'media', fromWidget)).toBe(true)
+    expect(harness.shown).toHaveLength(2)
   })
 
   it('keeps a prompt open while another frame of its page loads another document', async () => {

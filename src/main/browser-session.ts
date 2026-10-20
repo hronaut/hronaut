@@ -49,6 +49,8 @@ export function rememberedSitePermissions(entries: readonly SitePermissionEntry[
 
 /** The most characters of a link's scheme a prompt shows; a page chooses the scheme, so it can be very long. */
 const SHOWN_SCHEME_LENGTH = 64
+/** How often a permission prompt checks that the frame that asked is still there, since Electron reports no removed frame. */
+const STALE_PROMPT_CHECK_MS = 500
 
 /**
  * The website a document's permissions belong to: the HTTP or HTTPS origin the document runs as, which `documentOrigin`
@@ -355,14 +357,18 @@ export function createBrowserSession(host: BrowserSessionHost): {
           : mediaTypes.length > 0 && mediaTypes.every((type) => type === 'audio')
             ? host.text('runtime.permissions.microphone')
             : sitePermissionName(permission, (key) => host.text(key))
-        // The prompt closes, as Deny would, once its tab closes or the frame that asked loads another document: its answer
-        // would no longer count, and every prompt after it waited for it, as did the same page asking again.
+        // The prompt closes, as Deny would, once its tab closes, or the page or frame that asked loads another document,
+        // an error page included, or is removed: its answer would no longer count, and every prompt after it waited for it,
+        // as did the same page asking again. Electron reports no removed frame, so the prompt also checks while it shows.
         const promptClosing = new AbortController()
         const closeWhenStale = (): void => {
           if (!requestIsCurrent()) promptClosing.abort()
         }
         webContents.on('did-frame-navigate', closeWhenStale)
+        webContents.on('did-fail-load', closeWhenStale)
         webContents.on('destroyed', closeWhenStale)
+        const staleCheck = setInterval(closeWhenStale, STALE_PROMPT_CHECK_MS)
+        staleCheck.unref()
         let response: number
         try {
           ({ response } = await host.showMessageBox({
@@ -380,7 +386,9 @@ export function createBrowserSession(host: BrowserSessionHost): {
             cancelId: 0
           }))
         } finally {
+          clearInterval(staleCheck)
           webContents.removeListener('did-frame-navigate', closeWhenStale)
+          webContents.removeListener('did-fail-load', closeWhenStale)
           webContents.removeListener('destroyed', closeWhenStale)
         }
         if (promptClosing.signal.aborted || !requestIsCurrent()) return false
