@@ -8,6 +8,53 @@ describe('network detail redaction', () => {
     )
   })
 
+  it.each([
+    ['Azure SAS', 'https://store.blob.core.windows.net/files/report.pdf?sv=2024-11-04&se=2026-10-21&sr=b&sp=r&sig=SECRET', ['sv', 'se', 'sr', 'sp']],
+    ['CloudFront', 'https://d1.cloudfront.net/report.pdf?Expires=1790000000&Signature=SECRET&Key-Pair-Id=K2', ['Expires', 'Key-Pair-Id']],
+    ['S3 SigV2', 'https://bucket.s3.amazonaws.com/report.pdf?AWSAccessKeyId=AKIA&Expires=1790000000&Signature=SECRET', ['AWSAccessKeyId', 'Expires']],
+    ['S3 SigV4', 'https://bucket.s3.amazonaws.com/report.pdf?X-Amz-Date=20261020T000000Z&X-Amz-Signature=SECRET', ['X-Amz-Date']],
+    ['Google Cloud Storage', 'https://storage.googleapis.com/b/report.pdf?X-Goog-Date=20261020T000000Z&X-Goog-Signature=SECRET', ['X-Goog-Date']],
+    ['release asset', 'https://release-assets.example/asset?sp=r&sig=SECRET&jwt=SECRET', ['sp']],
+    ['Tencent COS', 'https://bucket.cos.ap-beijing.myqcloud.com/report.pdf?q-sign-algorithm=sha1&q-ak=AK&q-signature=SECRET', ['q-sign-algorithm', 'q-ak']],
+    ['Akamai token', 'https://video.example/master.m3u8?hdnts=SECRET', []],
+    ['Alibaba OSS', 'https://bucket.oss-cn-hangzhou.aliyuncs.com/report.pdf?x-oss-signature-version=OSS4-HMAC-SHA256&x-oss-signature=SECRET', ['x-oss-signature-version']]
+  ])('redacts the signature of a signed %s link', (_label, url, kept) => {
+    // The signature stayed in download records and network results, so the link kept working for whoever read them.
+    const redacted = redactNetworkUrl(url)
+    expect(redacted).not.toContain('SECRET')
+    const parameters = new URL(redacted).searchParams
+    for (const name of kept) expect(parameters.get(name)).toBe(new URL(url).searchParams.get(name))
+  })
+
+  it('redacts the signature of a signed link a redirect or referrer header names', () => {
+    // A redirect to a signed release asset kept the signature in its Location header, so request details, HAR exports
+    // and cURL copies held a working link.
+    expect(redactNetworkHeaders({
+      Location: 'https://release-assets.example/asset?sp=r&sig=SECRET&jwt=SECRET',
+      'content-location': '/files/report.pdf?Expires=1790000000&Signature=SECRET#part',
+      Referer: ['https://store.blob.core.windows.net/page?sv=1&sig=SECRET'],
+      'X-Request-Id': 'sig=kept'
+    })).toEqual({
+      Location: 'https://release-assets.example/asset?sp=r&sig=%5BREDACTED%5D&jwt=%5BREDACTED%5D',
+      'content-location': '/files/report.pdf?Expires=1790000000&Signature=%5BREDACTED%5D',
+      Referer: ['https://store.blob.core.windows.net/page?sv=1&sig=%5BREDACTED%5D'],
+      'X-Request-Id': 'sig=kept'
+    })
+    expect(redactNetworkHeaders({ Location: '/next?step=2#top' })).toEqual({ Location: '/next?step=2#top' })
+  })
+
+  it('redacts signature fields of a form-encoded body', () => {
+    const body = sanitizeNetworkBody('SAMLResponse=abc&jwt=SECRET&signature=SECRET&design=dark', 'application/x-www-form-urlencoded', 1_000)
+    expect(body.text).not.toContain('SECRET')
+    expect(body.text).toContain('design=dark')
+    expect(body.redacted).toBe(true)
+  })
+
+  it('keeps ordinary query parameters whose names contain sig', () => {
+    expect(redactNetworkUrl('https://example.test/?design=dark&signal=on&signup=1&assign=me'))
+      .toBe('https://example.test/?design=dark&signal=on&signup=1&assign=me')
+  })
+
   it('redacts security headers while preserving diagnostic headers', () => {
     expect(redactNetworkHeaders({
       Authorization: 'Bearer secret',
