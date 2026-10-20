@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../../../ui/UiButton.vue"
+import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconError from '~icons/material-symbols/error-outline-rounded'
@@ -13,6 +14,7 @@ import PanelDockPicker from '../../../components/PanelDockPicker.vue'
 const props = defineProps<{
   locale: SupportedLocale
   controller: DiagnosticsController
+  keepsSeparatePanelOpen: () => boolean
 }>()
 const dock = defineModel<PanelDock>('dock', { required: true })
 const { t } = useI18n({ useScope: 'global' })
@@ -23,6 +25,13 @@ const {
   designOverviewError,
   runDesignOverview
 } = props.controller
+
+// Docked back from its window after the page changed, the panel has nothing to show: the main window cleared its overview
+// for the new page while it was away. It runs again for the page shown now, as its window did. The panel window itself
+// is closing then.
+watch(dock, (next, previous) => {
+  if (designOverviewPanelOpen.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && designOverviewState.value === 'idle' && !designOverviewReport.value) void runDesignOverview()
+})
 
 function localNumber(value: number): string {
   return formatNumber(props.locale, value)

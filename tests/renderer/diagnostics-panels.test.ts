@@ -182,7 +182,7 @@ describe('split diagnostic panels', () => {
     const updatePreservation = vi.fn()
     const view = render(DebugReportPanel, {
       global,
-      props: { dock: 'right', activeTab: tab, locale: 'en-US', controller, preservationBusy: false, updatePreservation }
+      props: { dock: 'right', activeTab: tab, locale: 'en-US', controller, preservationBusy: false, updatePreservation, keepsSeparatePanelOpen: () => false }
     })
     try {
       const panel = screen.getByRole('dialog', { name: 'Debug report' })
