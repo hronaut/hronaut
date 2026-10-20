@@ -2965,7 +2965,8 @@ export const esES = {
     "downloaded": "{received} descargados",
     "complete": "{size} · Completa",
     "cancelled": "Cancelada",
-    "interrupted": "Interrumpida"
+    "interrupted": "Interrumpida",
+    "fileRemoved": "Movido o eliminado"
   },
   "bookmarks": { sortOrder: "Ordenar marcadores", sortUpdated: "Actualizados recientemente", sortTitle: "Título", copyAddress: "Copiar dirección", copyAddressAria: "Copiar dirección de {title}", addressCopied: "Dirección copiada", copyFailed: "No se pudo copiar la dirección. Inténtalo de nuevo.",
     "collection": "Colección",

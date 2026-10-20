@@ -545,6 +545,36 @@ describe('Downloads source origin', () => {
   })
 })
 
+describe('Downloads whose file was moved or deleted', () => {
+  // The panel kept calling such a file complete and offered to show it in its folder, which then failed in English.
+  it.each([['en-US', 'Moved or deleted'], ['de-DE', 'Verschoben oder gelöscht']] as const)('says so in %s and offers only removal', (locale, status) => {
+    renderPanel({ downloads: [{ ...download('gone', 'completed', 100, 100), savePath: '/tmp/gone.bin', fileRemoved: true }] }, locale)
+    const row = screen.getByRole('article')
+    expect(row).toHaveClass('file-removed')
+    expect(row).toHaveTextContent(status)
+    expect(row).not.toHaveTextContent('100 B')
+    expect(row.querySelectorAll('button')).toHaveLength(1)
+    expect(row.querySelector('button')).toHaveClass('download-remove')
+  })
+
+  it('moves the focus to Remove when Show in folder finds the file gone', async () => {
+    const records = [{ ...download('gone', 'completed', 100, 100), savePath: '/tmp/gone.bin' }]
+    const view = renderPanel({
+      downloads: records,
+      showInFolder: vi.fn(async () => {
+        await view.rerender({ downloads: [{ ...records[0], fileRemoved: true }] })
+        throw new Error('This file was moved or deleted, so it cannot be shown in its folder.')
+      })
+    })
+    screen.getByRole('button', { name: 'Show gone.bin in folder' }).focus()
+    await userEvent.keyboard('{Enter}')
+    await flushPromises()
+    expect(screen.getByRole('alert')).toHaveTextContent('This file was moved or deleted')
+    expect(screen.queryByRole('button', { name: 'Show gone.bin in folder' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Remove gone.bin from list' })).toHaveFocus()
+  })
+})
+
 describe('Downloads keyboard focus after a row changes', () => {
   // Chromium moves the focus of a control to the page body while the control is disabled. JSDOM cannot blur a
   // disabled control, so it is enabled for the blur itself.

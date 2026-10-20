@@ -2965,7 +2965,8 @@ export const plPL = {
     "downloaded": "Pobrano {received}",
     "complete": "{size} · Ukończono",
     "cancelled": "Anulowano",
-    "interrupted": "Przerwano"
+    "interrupted": "Przerwano",
+    "fileRemoved": "Przeniesiono lub usunięto"
   },
   "bookmarks": { sortOrder: "Sortuj zakładki", sortUpdated: "Ostatnio zaktualizowane", sortTitle: "Tytuł", copyAddress: "Kopiuj adres", copyAddressAria: "Kopiuj adres strony {title}", addressCopied: "Adres skopiowany", copyFailed: "Nie udało się skopiować adresu. Spróbuj ponownie.",
     "collection": "Kolekcja",

@@ -232,6 +232,15 @@ export const plPLAppErrors: AppErrorMessages = {
     "conditionsPending": "Warunki żądań są wciąż stosowane. Poczekaj na zakończenie, zanim otworzysz narzędzia deweloperskie.",
     "conditionsChanged": "Warunki żądań zmieniły się przed otwarciem narzędzi deweloperskich."
   },
+  "downloads": {
+    "unavailable": "Tego pobierania nie ma już na liście.",
+    "removeActive": "Anuluj to pobieranie, zanim je usuniesz.",
+    "notActive": "To pobieranie już się zakończyło lub zatrzymało.",
+    "notProgressing": "Wstrzymać można tylko trwające pobieranie.",
+    "notResumable": "Tego pobierania nie można wznowić.",
+    "notCompleted": "W folderze można pokazać tylko zakończone pobieranie.",
+    "fileRemoved": "Ten plik został przeniesiony lub usunięty, więc nie można go pokazać w folderze."
+  },
   "bookmarks": {
     "invalidUrl": "Adres zakładki musi być adresem HTTP lub HTTPS o długości do 4096 zakodowanych znaków.",
     "limit": "Osiągnięto limit zakładek ({max}).",

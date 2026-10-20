@@ -178,11 +178,11 @@ onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVi
       <span>{{ t('downloads.changeFilters') }}</span>
     </div>
     <div v-else class="downloads-list">
-      <article v-for="download in filteredDownloads" :key="download.id" class="download-item" :class="[download.state, { paused: download.paused }]">
+      <article v-for="download in filteredDownloads" :key="download.id" class="download-item" :class="[download.state, { paused: download.paused, 'file-removed': download.fileRemoved }]">
         <span class="download-state-icon" aria-hidden="true">
           <IconPause v-if="download.paused" />
           <IconProgress v-else-if="download.state === 'progressing'" class="state-spinner" />
-          <IconDownloadDone v-else-if="download.state === 'completed'" />
+          <IconDownloadDone v-else-if="download.state === 'completed' && !download.fileRemoved" />
           <IconWarning v-else />
         </span>
         <div class="download-copy">
@@ -208,7 +208,7 @@ onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVi
         <UiButton appearance="application" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.cancelAria', { filename: download.filename })" v-tooltip="t('downloads.cancel')" @click="changeTransfer('cancel', download.id, $event)"><IconClose aria-hidden="true" /></UiButton>
         </div>
         <div v-else class="download-actions">
-          <UiButton appearance="application" v-if="download.state === 'completed'" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.showAria', { filename: download.filename })" v-tooltip="t('downloads.show')" @click="changeTransfer('reveal', download.id, $event)"><IconFolderOpen aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" v-if="download.state === 'completed' && !download.fileRemoved" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.showAria', { filename: download.filename })" v-tooltip="t('downloads.show')" @click="changeTransfer('reveal', download.id, $event)"><IconFolderOpen aria-hidden="true" /></UiButton>
           <UiButton appearance="application" v-if="canCopyPath(download)" class="download-action download-copy-path" type="button"
             :aria-disabled="pendingAction !== null"
             :aria-label="t('downloads.copyPathAria', { filename: download.filename })"
