@@ -24,7 +24,6 @@ import {
   formatBytes as formatLocalizedBytes,
   formatNumber
 } from '../../../shared/format'
-import { networkResourceCategory } from '../../../shared/network-har'
 import type {
   BrowserNetworkRequestSortBy,
   BrowserState,
@@ -135,6 +134,10 @@ const {
   isRequestFailure: isNetworkRequestFailure,
   responseSourceLabel: networkResponseSourceLabel,
   serviceWorkerSourceLabel: serviceWorkerResponseSourceLabel,
+  requestCategoryLabel: networkRequestCategoryLabel,
+  resourceTypeLabel: networkResourceTypeLabel,
+  messageDirectionLabel: networkMessageDirectionLabel,
+  messageKindLabel: networkMessageKindLabel,
   replayRequiresConfirmation: networkReplayRequiresConfirmation,
   dispose
 } = useNetworkController({
@@ -382,7 +385,7 @@ onBeforeUnmount(dispose)
               </span>
               <span class="network-request-meta">
                 <span>{{ request.method }}</span>
-                <span>{{ networkResourceCategory(request.resourceType) }}</span>
+                <span>{{ networkRequestCategoryLabel(request.resourceType) }}</span>
                 <span>{{ request.responseSizeBytes !== undefined ? formatBytes(request.responseSizeBytes) : '—' }}</span>
                 <span>{{ networkRequestDuration(request) }}</span>
               </span>
@@ -422,7 +425,7 @@ onBeforeUnmount(dispose)
               <header class="network-detail-heading">
                 <span>{{ networkRequestDetails.method }}</span>
                 <strong>{{ networkRequestStatus(networkRequestDetails) }}</strong>
-                <small>{{ networkRequestDetails.response.protocol || networkRequestDetails.resourceType }}</small>
+                <small>{{ networkRequestDetails.response.protocol || networkResourceTypeLabel(networkRequestDetails.resourceType) }}</small>
               </header>
               <code class="network-detail-url">{{ networkRequestDetails.url }}</code>
               <NetworkRequestPriority :priority="networkRequestDetails.priority" />
@@ -558,7 +561,7 @@ onBeforeUnmount(dispose)
                     >
                       <span>
                         <strong>{{ networkRequestName(networkRequestDetails.relationships.triggeredBy) }}</strong>
-                        <small>{{ networkRequestDetails.relationships.triggeredBy.method }} · {{ networkRequestDetails.relationships.triggeredBy.resourceType }}</small>
+                        <small>{{ networkRequestDetails.relationships.triggeredBy.method }} · {{ networkResourceTypeLabel(networkRequestDetails.relationships.triggeredBy.resourceType) }}</small>
                       </span>
                       <code>{{ networkRequestStatus(networkRequestDetails.relationships.triggeredBy) }}</code>
                     </UiButton>
@@ -582,7 +585,7 @@ onBeforeUnmount(dispose)
                       <i>{{ index + 1 }}</i>
                       <span>
                         <strong>{{ networkRequestName(related) }}</strong>
-                        <small>{{ related.id === networkRequestDetails.id ? t('network.details.currentRequest') : `${related.method} · ${related.resourceType}` }}</small>
+                        <small>{{ related.id === networkRequestDetails.id ? t('network.details.currentRequest') : `${related.method} · ${networkResourceTypeLabel(related.resourceType)}` }}</small>
                       </span>
                       <code>{{ networkRequestStatus(related) }}</code>
                     </UiButton>
@@ -601,7 +604,7 @@ onBeforeUnmount(dispose)
                     >
                       <span>
                         <strong>{{ networkRequestName(related) }}</strong>
-                        <small>{{ related.method }} · {{ related.resourceType }}</small>
+                        <small>{{ related.method }} · {{ networkResourceTypeLabel(related.resourceType) }}</small>
                       </span>
                       <code>{{ networkRequestStatus(related) }}</code>
                     </UiButton>
@@ -625,13 +628,13 @@ onBeforeUnmount(dispose)
                     :class="[message.direction, message.kind]"
                   >
                     <header>
-                      <span>{{ message.direction }}</span>
-                      <strong>{{ message.kind }}</strong>
+                      <span>{{ networkMessageDirectionLabel(message.direction) }}</span>
+                      <strong>{{ networkMessageKindLabel(message.kind) }}</strong>
                       <small>{{ debugTimestamp(message.timestamp) }}</small>
                       <code>{{ formatBytes(message.sizeBytes) }}</code>
                     </header>
                     <pre v-if="message.text">{{ message.text }}</pre>
-                    <p v-else>{{ t('network.details.payloadOmitted', { kind: message.kind }) }}<template v-if="message.opcode !== undefined"> {{ t('network.details.opcode', { opcode: message.opcode }) }}</template>.</p>
+                    <p v-else>{{ t('network.details.payloadOmitted', { kind: networkMessageKindLabel(message.kind) }) }}<template v-if="message.opcode !== undefined"> {{ t('network.details.opcode', { opcode: message.opcode }) }}</template>.</p>
                   </article>
                 </div>
                 <p v-else>{{ t('network.details.noMessages') }}</p>

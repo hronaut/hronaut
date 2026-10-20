@@ -1,4 +1,5 @@
 import { networkPriorityMessages } from './network-priority.js'
+import { networkLabelMessages } from './network-labels.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -22,6 +23,7 @@ export const ruRU = {
   softNavigation: softNavigationMessages['ru-RU'],
   emulationApplication: {"pending": "Применение эмуляции", "unknown": "Эмуляция не подтверждена", "help": "Откройте Среду, проверьте сохранённые настройки и явно восстановите их. Неудачный запрос не будет повторён.", "restore": "Восстановить сохранённые настройки", "networkFirst": "Сначала восстановите сетевые условия в Условиях запросов. Эмуляция останется неподтверждённой до отдельного восстановления."},
   networkPriority: networkPriorityMessages['ru-RU'],
+  networkLabels: networkLabelMessages['ru-RU'],
   lcpAttribution: lcpAttributionMessages['ru-RU'],
   browserImport: browserImportMessages['ru-RU'],
   video: videoRecorderMessages['ru-RU'],
@@ -2550,7 +2552,7 @@ export const ruRU = {
       "connectionOpen": "Соединение открыто",
       "connectionClosed": "Соединение закрыто",
       "socketSafety": "Текст очищается; двоичные данные исключаются.",
-      "payloadOmitted": "Данные исключены для {kind}",
+      "payloadOmitted": "Данные исключены: {kind}",
       "opcode": "(код операции {opcode})",
       "noMessages": "Сообщения пока не зафиксированы.",
       "olderMessages": "Из ограниченного диагностического буфера удалено {count} старое сообщение. | Из ограниченного диагностического буфера удалено {count} старых сообщения. | Из ограниченного диагностического буфера удалено {count} старых сообщений.",

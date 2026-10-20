@@ -23,10 +23,6 @@ import { sortNetworkRequests } from '../../../shared/network-request-sort.js'
 import { networkReplayRequiresConfirmation } from '../../../shared/network-replay.js'
 import { totalNetworkResponseBytes } from '../../../shared/network-bytes.js'
 import {
-  networkResponseSourceLabel,
-  serviceWorkerResponseSourceLabel
-} from '../../../shared/network-response-source.js'
-import {
   buildNetworkWaterfallRange,
   networkRequestDurationMs,
   networkWaterfallPosition
@@ -38,6 +34,7 @@ import {
 } from '../../../shared/network-har.js'
 import { createFeedbackTimerRegistry } from './feedback-timer-registry.js'
 import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
+import { createNetworkLabels } from './network/network-labels.js'
 import { useNetworkContentSearch } from './network/useNetworkContentSearch.js'
 import { useNetworkRequestConditions } from './network/useNetworkRequestConditions.js'
 import { friendlyUiError } from './useAppToastController.js'
@@ -135,16 +132,11 @@ export function useNetworkController(options: NetworkControllerOptions) {
     feedbackTimers.clear('har')
   }, { flush: 'sync' })
 
+  const labels = createNetworkLabels(options.translate)
   const resourceFilters = computed(() => [
     { value: '', label: options.translate('network.filters.all') },
-    { value: 'fetch/xhr', label: options.translate('network.filters.fetchXhr') },
-    { value: 'document', label: options.translate('network.filters.document') },
-    { value: 'script', label: 'JS' },
-    { value: 'stylesheet', label: 'CSS' },
-    { value: 'image', label: options.translate('network.filters.image') },
-    { value: 'eventsource', label: 'SSE' },
-    { value: 'websocket', label: 'WS' },
-    { value: 'other', label: options.translate('network.filters.other') }
+    ...['fetch/xhr', 'document', 'script', 'stylesheet', 'image', 'eventsource', 'websocket', 'other']
+      .map((value) => ({ value, label: labels.categoryLabel(value) }))
   ])
 
   const sortOptions = computed<Array<{ value: BrowserNetworkRequestSortBy; label: string }>>(() => [
@@ -527,13 +519,9 @@ export function useNetworkController(options: NetworkControllerOptions) {
 
   function requestSourceSummary(request: BrowserNetworkRequest): string {
     if (!request.responseSource) return options.translate('network.details.sourceUnavailable')
-    const source = networkResponseSourceLabel(request.responseSource)
+    const source = labels.responseSource(request.responseSource)
     if (request.responseSource !== 'service-worker' || !request.serviceWorkerResponseSource) return source
-    return `${source} · ${serviceWorkerResponseSourceLabel(request.serviceWorkerResponseSource)}`
-  }
-
-  function initiatorLabel(type: string): string {
-    return type.replace(/[-_]/g, ' ').replace(/^\w/, (letter) => letter.toUpperCase())
+    return `${source} · ${labels.serviceWorkerSource(request.serviceWorkerResponseSource)}`
   }
 
   function relationshipCount(details: BrowserNetworkRequestDetails): number {
@@ -670,7 +658,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     setSortBy,
     requestName,
     requestSourceSummary,
-    initiatorLabel,
+    initiatorLabel: labels.initiator,
     relationshipCount,
     sourceLocation,
     formatMilliseconds,
@@ -678,8 +666,12 @@ export function useNetworkController(options: NetworkControllerOptions) {
     timingPercent,
     canFormatRequestCopy: canFormatNetworkRequestCopy,
     isRequestFailure: isNetworkRequestFailure,
-    responseSourceLabel: networkResponseSourceLabel,
-    serviceWorkerSourceLabel: serviceWorkerResponseSourceLabel,
+    responseSourceLabel: labels.responseSource,
+    serviceWorkerSourceLabel: labels.serviceWorkerSource,
+    requestCategoryLabel: labels.requestCategory,
+    resourceTypeLabel: labels.resourceType,
+    messageDirectionLabel: labels.messageDirection,
+    messageKindLabel: labels.messageKind,
     replayRequiresConfirmation: networkReplayRequiresConfirmation,
     dispose
   }

@@ -1,4 +1,5 @@
 import { networkPriorityMessages } from './network-priority.js'
+import { networkLabelMessages } from './network-labels.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -22,6 +23,7 @@ export const esES = {
   softNavigation: softNavigationMessages['es-ES'],
   emulationApplication: {"pending": "Aplicando emulación", "unknown": "Emulación sin confirmar", "help": "Abra Entorno para revisar y restaurar explícitamente los ajustes guardados. No se repetirá la solicitud fallida.", "restore": "Restaurar ajustes guardados", "networkFirst": "Primero recupere las condiciones de red en Condiciones de solicitud. La emulación seguirá sin confirmar hasta restaurarla por separado."},
   networkPriority: networkPriorityMessages['es-ES'],
+  networkLabels: networkLabelMessages['es-ES'],
   lcpAttribution: lcpAttributionMessages['es-ES'],
   browserImport: browserImportMessages['es-ES'],
   video: videoRecorderMessages['es-ES'],
@@ -2550,7 +2552,7 @@ export const esES = {
       "connectionOpen": "Conexión abierta",
       "connectionClosed": "Conexión cerrada",
       "socketSafety": "El texto se depura; se omiten los datos binarios.",
-      "payloadOmitted": "Datos omitidos para {kind}",
+      "payloadOmitted": "Datos omitidos: {kind}",
       "opcode": "(código de operación {opcode})",
       "noMessages": "Todavía no se han capturado mensajes.",
       "olderMessages": "Se ha eliminado {count} mensaje anterior del búfer de diagnóstico limitado. | Se han eliminado {count} mensajes anteriores del búfer de diagnóstico limitado.",
