@@ -415,10 +415,10 @@ document.addEventListener('keydown', (event) => {
     return
   }
   if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && target instanceof HTMLTextAreaElement && cardRoot.contains(target)) {
-    // Ctrl or Cmd with Enter sends what you typed; Enter alone starts a new line.
+    // Ctrl or Cmd with Enter sends what you typed, once while held; Enter alone starts a new line.
     event.preventDefault()
     const sendButton = cardRoot.querySelector<HTMLButtonElement>('[data-focus="answer-send"]')
-    if (sendButton && !sendButton.disabled) sendButton.click()
+    if (!event.repeat && sendButton && !sendButton.disabled) sendButton.click()
     return
   }
   if (event.key === 'Escape') {

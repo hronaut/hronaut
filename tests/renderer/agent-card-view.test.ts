@@ -350,6 +350,9 @@ describe('agent card view: answering a decision', () => {
     expect(press({ key: 'Escape', isComposing: true }).defaultPrevented).toBe(false)
     expect(press({ key: 'Enter', ctrlKey: true, isComposing: true }).defaultPrevented).toBe(false)
     expect(view.sent).toEqual([])
+    // A held Ctrl+Enter sends once: after a send that failed, its repeats would send again.
+    expect(press({ key: 'Enter', ctrlKey: true, repeat: true }).defaultPrevented).toBe(true)
+    expect(view.sent).toEqual([])
     press({ key: 'Enter', metaKey: true })
     expect(view.sent).toEqual([{ cardId: 8, kind: 'action', action: 'answer-resolve', key: 'decision-2_r1', note: 'Blue' }])
     press({ key: 'Escape' })
