@@ -44,6 +44,7 @@ test('deletes exactly one cookie by observed domain and path without collateral 
     await store.set({ url: origin, name: 'b', value: 'other', path: '/checkout' })
     await store.set({ url: origin, name: 'h', value: 'protected', path: '/checkout', httpOnly: true })
     return list()`
+  let closeDevTools = async (): Promise<void> => undefined
   try {
     await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
@@ -124,6 +125,7 @@ test('deletes exactly one cookie by observed domain and path without collateral 
     }, { pageUrl, index, open })
     const devToolsOpen = () => electronApp.evaluate(({ webContents }, { pageUrl, index }) =>
       webContents.getAllWebContents().filter(candidate => candidate.getURL() === pageUrl)[index]!.isDevToolsOpened(), { pageUrl, index })
+    closeDevTools = () => devTools(false)
     await devTools(true)
     await expect.poll(devToolsOpen).toBe(true)
     await native(index, `
@@ -133,7 +135,10 @@ test('deletes exactly one cookie by observed domain and path without collateral 
     expect(deletedByName.isError, text(deletedByName)).not.toBe(true)
     expect(JSON.parse(text(deletedByName))).toMatchObject({ action: 'delete', changed: true })
     expect(await native<string[]>(index, 'return list()')).toEqual(['b=other@127.0.0.1/checkout', 'h=protected@127.0.0.1/checkout', 'token=session@127.0.0.1/'])
-    await native(index, `await store.set({ url: origin, name: 'token', value: 'guest', path: '/checkout' })`)
+    // A cookie set without a name, as document.cookie = 'nameless' does, is cleared too.
+    await native(index, `
+      await store.set({ url: origin, name: 'token', value: 'guest', path: '/checkout' })
+      await store.set({ url: origin, name: '', value: 'nameless', path: '/checkout' })`)
     const cleared = await call('browser_storage', { workspaceId, tabId, kind: 'cookies', action: 'clear' })
     expect(cleared.isError, text(cleared)).not.toBe(true)
     expect(await native<string[]>(index, 'return list()')).toEqual(['h=protected@127.0.0.1/checkout', 'token=session@127.0.0.1/'])
@@ -142,8 +147,8 @@ test('deletes exactly one cookie by observed domain and path without collateral 
     expect(exactWithDevTools.isError, text(exactWithDevTools)).not.toBe(true)
     expect(await native<string[]>(index, 'return list()')).toEqual(['h=protected@127.0.0.1/checkout', 'token=session@127.0.0.1/'])
     expect(await devToolsOpen()).toBe(true)
-    await devTools(false)
   } finally {
+    await closeDevTools().catch(() => undefined)
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)
   }

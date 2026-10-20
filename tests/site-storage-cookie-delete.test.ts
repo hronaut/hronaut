@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { manageCookies } from '../src/main/browser/site-storage/cookies.js'
 import type { SiteStorageAccess, SiteStorageTab } from '../src/main/browser/site-storage/site-storage-access.js'
 
-interface StoredCookie { name: string; value: string; domain: string; path: string; httpOnly: boolean; partitioned?: true }
+interface StoredCookie { name: string; value: string; domain: string; path: string; httpOnly: boolean; secure?: true; partitioned?: true }
 
 const PAGE = new URL('https://app.example.test/checkout/page')
 
@@ -19,7 +19,7 @@ function cookieTab(stored: StoredCookie[]) {
     && (url.pathname === cookie.path || url.pathname.startsWith(cookie.path.endsWith('/') ? cookie.path : `${cookie.path}/`))
   const listing = (url: URL): Cookie[] => stored.filter((cookie) => sentTo(url, cookie)).map((cookie) => ({
     name: cookie.name, value: cookie.value, domain: cookie.domain, path: cookie.path, httpOnly: cookie.httpOnly,
-    hostOnly: !cookie.domain.startsWith('.'), secure: true, session: true, sameSite: 'lax'
+    hostOnly: !cookie.domain.startsWith('.'), secure: cookie.secure ?? false, session: true, sameSite: 'lax'
   }))
   const remove = vi.fn(async (url: string, name: string) => {
     const target = new URL(url)
@@ -27,6 +27,10 @@ function cookieTab(stored: StoredCookie[]) {
   })
   const set = vi.fn(async (details: CookiesSetDetails) => {
     if ((details.expirationDate ?? Infinity) > Date.now() / 1000) throw new Error('Only expiry is modeled')
+    if (!details.name && !details.value) throw new Error('Failed to set cookie - The cookie has neither a name nor a value')
+    if (!details.url.startsWith('https:') && stored.some((cookie) => cookie.name === details.name && cookie.secure)) {
+      throw new Error('Failed to set cookie - The cookie would have overwritten a Secure cookie')
+    }
     const domain = details.domain ?? new URL(details.url).hostname
     const existing = stored.find((cookie) => !cookie.partitioned && cookie.name === details.name && cookie.domain === domain && cookie.path === details.path)
     if (existing?.httpOnly && !details.httpOnly) throw new Error('Failed to set cookie - The cookie would have overwritten an HttpOnly cookie')
@@ -106,6 +110,17 @@ describe('site storage cookie deletion', () => {
     const deleted = cookieTab(stored())
     await expect(manageCookies(deleted.access, deleted.tab, PAGE, 'delete', 'token', undefined, false)).rejects.toThrow('HttpOnly cookies are protected')
     expect(deleted.set).not.toHaveBeenCalled()
+  })
+
+  it('clears a cookie without a name, and one whose name a Secure cookie on another path also has', async () => {
+    const { access, tab, remaining } = cookieTab([
+      { name: '', value: 'nameless', domain: 'app.example.test', path: '/', httpOnly: false },
+      { name: 'tok', value: 'plain', domain: 'app.example.test', path: '/checkout', httpOnly: false },
+      { name: 'tok', value: 'secure', domain: 'app.example.test', path: '/', httpOnly: false, secure: true }
+    ])
+    const result = await manageCookies(access, tab, PAGE, 'clear', undefined, undefined, false)
+    expect(result.changed).toBe(true)
+    expect(remaining()).toEqual([])
   })
 
   it('deletes one exact cookie with Developer Tools open', async () => {

@@ -119,13 +119,16 @@ function countIdentity(cookies: Electron.Cookie[], identity: string): number {
 // unpartitioned cookie of exactly that name, domain and path and store
 // nothing. Chromium refuses to replace an HttpOnly cookie with a cookie that is
 // not HttpOnly, so this can never delete one. Unlike Chromium's debugging
-// connection, it also works while Developer Tools is open.
+// connection, it also works while Developer Tools is open. The address is
+// https so a Secure cookie of the same name elsewhere cannot refuse it, and the
+// value is not empty because Chromium refuses a cookie with neither a name nor
+// a value, which is how a cookie set without a name is listed.
 function expireCookie(cookieStore: Electron.Cookies, cookie: Electron.Cookie): Promise<void> {
   const domain = cookie.domain ?? ''
   return cookieStore.set({
-    url: `${cookie.secure ? 'https' : 'http'}://${domain.replace(/^\./, '')}/`,
+    url: `https://${domain.replace(/^\./, '')}/`,
     name: cookie.name,
-    value: '',
+    value: '0',
     ...(cookie.hostOnly ? {} : { domain }),
     path: cookie.path ?? '/',
     secure: cookie.secure,
