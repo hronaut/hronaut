@@ -17,6 +17,7 @@ test('a held Enter that validates a wallet import leaves the wallet for review',
   await panel.getByRole('combobox', { name: 'Secret format' }).selectOption('private-key')
   const privateKey = panel.getByRole('textbox', { name: 'Private key', exact: true })
   await privateKey.fill(`0x${'02'.repeat(32)}`)
+  await expect(panel.getByRole('button', { name: 'Validate and review' })).toBeEnabled()
   await privateKey.focus()
   const add = panel.getByRole('button', { name: 'Add encrypted wallet' })
   const imported = () => appWindow.evaluate(`window.hronautWallets.list()
