@@ -312,8 +312,12 @@ test('inspects network waits, streams, redirects and redacted diagnostic exports
   }
   const completedFetches = durationSortedFetches.filter((request) => typeof request.durationMs === 'number')
   expect(completedFetches.length).toBeGreaterThan(1)
-  expect(durationSortedFetches.slice(completedFetches.length).every((request) => request.durationMs === undefined)).toBe(true)
-  const sortedDurations = completedFetches.map((request) => Number(request.durationMs))
+  // A request recorded without resource timing sorts by its start to its end, as its row shows it.
+  const sortDurations = durationSortedFetches.map((request) => typeof request.durationMs === 'number'
+    ? request.durationMs
+    : request.completedAt ? Date.parse(String(request.completedAt)) - Date.parse(String(request.startedAt)) : undefined)
+  const sortedDurations = sortDurations.filter((duration) => duration !== undefined)
+  expect(sortDurations.slice(sortedDurations.length).every((duration) => duration === undefined)).toBe(true)
   expect(sortedDurations).toEqual([...sortedDurations].sort((left, right) => right - left))
   expect(completedFetches.find((request) => String(request.url).includes('timing=delayed'))).toMatchObject({
     durationMs: expect.any(Number)
