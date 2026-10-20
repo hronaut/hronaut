@@ -52,7 +52,8 @@ describe('network detail redaction', () => {
 
   it.each([
     ['a Google API key', 'https://maps.example/api/js?key=AIzaSECRET&libraries=places', ['libraries']],
-    ['an access key', 'https://tiles.example/v1/map.png?access_key=SECRET&accessKey=SECRET&zoom=4', ['zoom']],
+    ['an access key', 'https://tiles.example/v1/map.png?access_key=SECRET&accessKey=SECRET&access-key=SECRET&zoom=4', ['zoom']],
+    ['an API Management subscription key', 'https://api.example/orders?subscription-key=SECRET&page=2', ['page']],
     ['a sign-in', 'https://feed.example/export.ics?auth=SECRET&format=ics', ['format']],
     ['a session id', 'https://shop.example/cart?sid=SECRET&PHPSESSID=SECRET&step=2', ['step']],
     ['a password', 'https://router.example/login.cgi?user=admin&pwd=SECRET', ['user']]
@@ -66,7 +67,15 @@ describe('network detail redaction', () => {
 
   it('redacts a session id that a Java server keeps in the path', () => {
     expect(redactNetworkUrl('https://shop.example/cart;jsessionid=SECRET?step=2')).toBe('https://shop.example/cart;jsessionid=[REDACTED]?step=2')
-    expect(redactNetworkUrl('https://shop.example/a;JSESSIONID=SECRET/b;jsessionid=SECRET')).not.toContain('SECRET')
+    expect(redactNetworkUrl('https://shop.example/a;JSESSIONID=SECRET/b;jsessionid=SECRET')).toBe('https://shop.example/a;JSESSIONID=[REDACTED]/b;jsessionid=[REDACTED]')
+  })
+
+  it('redacts a session id in the path of a relative redirect', () => {
+    // Tomcat redirects relatively by default and puts the session in the first redirect's path, so the header kept it.
+    expect(redactNetworkHeaders({ location: '/app/home;jsessionid=SECRET' })).toEqual({ location: '/app/home;jsessionid=[REDACTED]' })
+    expect(redactNetworkHeaders({ location: '/x;jsessionid=SECRET?sid=SECRET&step=2#top' })).toEqual({ location: '/x;jsessionid=[REDACTED]?step=2&sid=%5BREDACTED%5D' })
+    expect(redactNetworkHeaders({ 'content-location': '//cdn.example/a;jsessionid=SECRET' })).toEqual({ 'content-location': '//cdn.example/a;jsessionid=[REDACTED]' })
+    expect(redactNetworkHeaders({ location: '/plain/path?step=2#top' })).toEqual({ location: '/plain/path?step=2#top' })
   })
 
   it('redacts the password of a WordPress sign-in form and a JSON body', () => {

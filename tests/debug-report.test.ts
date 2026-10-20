@@ -16,6 +16,15 @@ describe('debug report', () => {
     expect(redactDiagnosticText(value)).toBe(value)
   })
 
+  it('redacts pwd and passphrase values and PHP and Java sessions in console text', () => {
+    // A console message or exception kept these, and relative addresses in it never reach the URL redaction.
+    const value = redactDiagnosticText('Login failed: pwd=hunter2 passphrase: s3cret cookie PHPSESSID=abc123 fetch /cart;jsessionid=ABC?step=2 failed')
+    for (const secret of ['hunter2', 's3cret', 'abc123', 'ABC']) expect(value).not.toContain(secret)
+    expect(value).toContain('Login failed: pwd=[REDACTED] passphrase: [REDACTED]')
+    expect(value).toContain('fetch /cart;jsessionid=[REDACTED] failed')
+    expect(redactDiagnosticText(value)).toBe(value)
+  })
+
   it('summarizes full bounded histories while returning recent console and failed network evidence', () => {
     const report = buildBrowserDebugReport({
       generatedAt: '2026-08-14T12:00:00.000Z',

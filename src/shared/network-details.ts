@@ -8,11 +8,13 @@ const SENSITIVE_NAME = /(api[-_]?key|authorization|auth[-_]?token|cookie|credent
 // snapshot scripts repeat this pattern.
 const SIGNED_URL_PARAMETER = /^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-signature|hdnt[sla])$/i
 // A link or form can carry a key, a sign-in or a session in one of these parameters (a Google API `key`, `access_key`,
-// `auth`, a PHP session's `PHPSESSID` or `sid`). Matched whole, since `key`, `auth` and `sid` are parts of many
+// an Azure API Management `subscription-key`, `auth`, a PHP session's `PHPSESSID` or `sid`). Matched whole, since `key`, `auth` and `sid` are parts of many
 // ordinary names. The in-page snapshot scripts repeat this pattern.
-const KEY_URL_PARAMETER = /^(?:key|access_?key|auth|sid|phpsessid)$/i
-// A Java server that keeps its session in the address puts it in the path: `/cart;jsessionid=…`.
-const PATH_SESSION = /;jsessionid=[^;/]*/giu
+const KEY_URL_PARAMETER = /^(?:key|access[-_]?key|subscription[-_]?key|auth|sid|phpsessid)$/i
+// A Java server that keeps its session in the address puts it in the path: `/cart;jsessionid=…`. Replaced with
+// `PATH_SESSION_REDACTED`, which keeps the name as the server spelled it.
+const PATH_SESSION = /;(jsessionid)=[^;/]*/giu
+const PATH_SESSION_REDACTED = `;$1=${REDACTED_VALUE}`
 // Headers whose value is an address, such as a redirect's target, which can be a signed link.
 const URL_HEADER = /^(?:location|content-location|referer)$/i
 const JSON_CONTENT_TYPE = /(?:^|[+/])json(?:;|$)/i
@@ -83,15 +85,21 @@ export function redactNetworkHeaders(
   return safe
 }
 
-/** An address header's value with its secrets redacted; a relative address, as `Location` allows, keeps its form. */
+/**
+ * An address header's value with its secrets redacted; a relative address, as `Location` allows, keeps its form. A
+ * Java server's relative redirect commonly carries its session in the path, as `/home;jsessionid=…`.
+ */
 function redactHeaderUrl(value: string): string {
   if (URL.canParse(value)) return redactNetworkUrl(value)
-  const queryStart = value.indexOf('?')
-  if (queryStart < 0) return value
-  const fragmentStart = value.indexOf('#', queryStart)
-  const query = value.slice(queryStart + 1, fragmentStart < 0 ? undefined : fragmentStart)
-  const redacted = redactParameters(new URLSearchParams(query))
-  return redacted ? `${value.slice(0, queryStart)}?${redacted.toString()}` : value
+  const fragmentStart = value.indexOf('#')
+  const address = fragmentStart < 0 ? value : value.slice(0, fragmentStart)
+  const queryStart = address.indexOf('?')
+  const path = (queryStart < 0 ? address : address.slice(0, queryStart)).replace(PATH_SESSION, PATH_SESSION_REDACTED)
+  const query = queryStart < 0 ? '' : address.slice(queryStart)
+  const redacted = query ? redactParameters(new URLSearchParams(query.slice(1))) : undefined
+  const safe = `${path}${redacted ? `?${redacted.toString()}` : query}`
+  // Like an absolute address, a changed one loses its fragment.
+  return safe === address ? value : safe
 }
 
 function redactParameters(parameters: URLSearchParams): URLSearchParams | undefined {
@@ -123,7 +131,7 @@ export function redactNetworkUrl(input: string): string {
     if (url.password) url.password = REDACTED_VALUE
     const redacted = redactParameters(url.searchParams)
     if (redacted) url.search = redacted.toString()
-    const path = url.pathname.replace(PATH_SESSION, `;jsessionid=${REDACTED_VALUE}`)
+    const path = url.pathname.replace(PATH_SESSION, PATH_SESSION_REDACTED)
     if (path !== url.pathname) url.pathname = path
     url.hash = ''
     return url.href

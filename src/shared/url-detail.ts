@@ -10,7 +10,9 @@ export const URL_DETAIL_OMITTED_NOTE = '(query and fragment omitted)'
 export function urlWithoutDetail(value: string): string {
   try {
     const url = new URL(value)
-    if (url.protocol === 'http:' || url.protocol === 'https:') return url.origin + url.pathname
+    // A Java server's session in the path, as `/cart;jsessionid=…`, is detail too. The page snapshot scripts embed this
+    // function's source, so the pattern stays inline.
+    if (url.protocol === 'http:' || url.protocol === 'https:') return url.origin + url.pathname.replace(/;(jsessionid)=[^;/]*/giu, ';$1=[REDACTED]')
     return url.href === 'about:blank' ? url.href : url.protocol
   } catch {
     return ''

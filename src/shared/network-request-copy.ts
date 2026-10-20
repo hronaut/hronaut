@@ -8,7 +8,7 @@ const MAX_COPY_HEADERS = 64
 const MAX_HEADER_VALUE_CHARS = 2_000
 const MAX_COPY_URL_CHARS = 8_000
 const MAX_COPY_BODY_CHARS = 20_000
-const SENSITIVE_HEADER_NAME = /(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|secret|session|token)/i
+const SENSITIVE_HEADER_NAME = /(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|passphrase|pwd|secret|session|token)/i
 const OMITTED_REPLAY_HEADERS = new Set([
   'accept-encoding',
   'connection',
