@@ -83,6 +83,14 @@ async function zoomFromControl(action: ZoomAction): Promise<void> {
   target.focus()
 }
 
+// Escape typed anywhere in the bar closes Zoom itself, not the first panel in the shell's Escape order, such as Site
+// storage in its own window.
+function handleBarKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Escape' || event.defaultPrevented) return
+  event.preventDefault()
+  close()
+}
+
 watch(open, (isOpen) => {
   if (!isOpen) {
     targetTabId = undefined
@@ -110,7 +118,7 @@ defineExpose({ close, openForTab, setZoom })
 </script>
 
 <template>
-  <div v-if="open" ref="bar" class="zoom-bar" tabindex="-1" role="group" :aria-label="t('zoom.controls')" :aria-busy="busy">
+  <div v-if="open" ref="bar" class="zoom-bar" tabindex="-1" role="group" :aria-label="t('zoom.controls')" :aria-busy="busy" @keydown="handleBarKeydown">
     <span>{{ t('zoom.heading') }}</span>
     <span v-if="activeTab?.zoomIsolated" class="zoom-isolated" data-testid="zoom-isolated">{{ t('zoom.isolated') }}</span>
     <span v-if="activeTab?.defaultFontSize" class="zoom-isolated" data-testid="zoom-default-font-size">{{ t('zoom.defaultFontSize', { size: activeTab.defaultFontSize }) }}</span>

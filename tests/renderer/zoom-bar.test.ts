@@ -132,6 +132,26 @@ describe('ZoomBar', () => {
     expect(screen.getByRole('button', { name: 'Zoom in' })).toBeEnabled()
   })
 
+  it('closes Zoom itself on Escape typed in the bar, before the shell\'s Escape order sees it', () => {
+    const { view } = renderBar()
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+
+    screen.getByRole('button', { name: 'Zoom in' }).dispatchEvent(escape)
+
+    expect(escape.defaultPrevented).toBe(true)
+    expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
+  })
+
+  it('leaves Zoom open on an Escape that a control in the bar already handled', () => {
+    const { view } = renderBar()
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    escape.preventDefault()
+
+    screen.getByRole('button', { name: 'Zoom in' }).dispatchEvent(escape)
+
+    expect(view.emitted()['update:open']).toBeUndefined()
+  })
+
   it('closes stale controls when the active tab changes or becomes Home', async () => {
     const changed = renderBar()
 
