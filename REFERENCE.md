@@ -268,7 +268,7 @@ A waiting spinner means a control change is queued or being applied. The affecte
 
 ## Right-click webpage actions
 
-Right-click an unlocked website to use a native context menu. Links can open in a background tab, be copied, or downloaded; images can be copied, opened, or saved; text fields expose spelling suggestions and standard editing commands; selections can be copied; and every page includes Back, Forward, Reload, Reload Without Cache, Copy Page Address, and Inspect. The native View menu and `Ctrl/Cmd+R` now reload the active website rather than Hronaut's application shell; use `Ctrl/Cmd+Shift+R` when debugging requires a fresh network load. Download actions use Hronaut's configured collision-safe download directory. Context menus remain completely suppressed while the tab or all of Hronaut is human-interaction locked.
+Right-click an unlocked website to use a native context menu. Links can open in a background tab, be copied, or downloaded; images can be copied, opened, or saved; text fields expose spelling suggestions and standard editing commands; selections can be copied; and every page includes Back, Forward, Reload, Reload Without Cache, Copy Page Address, and Inspect. Home leaves out Inspect: it has no Developer Tools. The native View menu and `Ctrl/Cmd+R` now reload the active website rather than Hronaut's application shell; use `Ctrl/Cmd+Shift+R` when debugging requires a fresh network load. Download actions use Hronaut's configured collision-safe download directory. Context menus remain completely suppressed while the tab or all of Hronaut is human-interaction locked.
 
 ## Inspect current-site storage
 

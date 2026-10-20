@@ -1,5 +1,5 @@
 import { Menu, type ContextMenuParams, type MenuItemConstructorOptions } from 'electron'
-import { isWebUrl } from '../url.js'
+import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
 
 /**
@@ -164,7 +164,9 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       label: access.text('native.context.copyPageAddress'),
       click: () => copyText(tab.url)
     },
-    {
+    // Hronaut Home has no Developer Tools, as F12 and Ctrl+Shift+I already refuse there: its page holds Hronaut's
+    // privileged Home bridge.
+    ...isHronautHomeUrl(tab.url) ? [] : [{
       id: 'inspect-element',
       label: access.text('native.context.inspect'),
       click: () => {
@@ -174,7 +176,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
             access.options().onActionFailed?.('inspect element', error)
           })
       }
-    }
+    }]
   ])
 
   const template = groups.flatMap((group, index) => index === 0
@@ -188,7 +190,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
 }
 
 async function inspectElement<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, x: number, y: number): Promise<void> {
-  if (access.isHumanInteractionLocked(tab)) return
+  if (access.isHumanInteractionLocked(tab) || isHronautHomeUrl(tab.url)) return
   await access.openDevTools(tab)
   const webContents = tab.webContents
   if (!webContents.isDestroyed()) webContents.inspectElement(Math.round(x), Math.round(y))

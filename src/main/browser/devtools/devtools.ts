@@ -30,11 +30,12 @@ export async function toggleDevTools<Tab extends DevToolsTab>(access: DevToolsAc
  * its request routes and waiting for dialog monitoring and queued debugger
  * commands. It throws when the tab, its page or its debugger changed, or its
  * request conditions are not confirmed, and checks them again with no await
- * before the debugger is detached.
+ * before the debugger is detached. Hronaut Home gets none, whichever action
+ * asks.
  */
 export async function openDevTools<Tab extends DevToolsTab>(access: DevToolsAccess<Tab>, tab: Tab): Promise<void> {
   const webContents = tab.webContents
-  if (webContents.isDestroyed() || webContents.isDevToolsOpened()) return
+  if (webContents.isDestroyed() || webContents.isDevToolsOpened() || isHronautHomeUrl(tab.url)) return
   const debuggerEpoch = tab.networkDebuggerEpoch
   const validateOwnership = (): void => {
     if (access.isDestroyed() || webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new LocalizedError('appErrors.devTools.targetChanged')
