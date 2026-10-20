@@ -1,9 +1,8 @@
 import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
 import { writeTextFileAtomically } from '../atomic-file.js'
-import { humanWaitingSnapshotSchema, type HumanWaitingStore } from './human-waiting-store.js'
+import { HUMAN_WAITING_HISTORY_MAX_BYTES as MAX_HISTORY_BYTES, humanWaitingSnapshotSchema, type HumanWaitingStore } from './human-waiting-store.js'
 
-const MAX_HISTORY_BYTES = 1_048_576
 type Snapshot = ReturnType<HumanWaitingStore['snapshot']>
 
 /** The lifecycle owner serializes mutations and treats save failure as an
