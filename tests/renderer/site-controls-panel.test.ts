@@ -23,6 +23,7 @@ function renderPanel(options: {
   state?: 'idle' | 'loading' | 'error'
   dock?: PanelDock
   refresh?: () => unknown
+  keepsSeparatePanelOpen?: () => boolean
 } = {}) {
   const setPermission = options.setPermission ?? vi.fn(() => true)
   const resetPermission = vi.fn(() => true)
@@ -47,7 +48,8 @@ function renderPanel(options: {
       resetPermission,
       openPermissionSettings,
       openPrivacySettings,
-      refresh: options.refresh ?? vi.fn()
+      refresh: options.refresh ?? vi.fn(),
+      keepsSeparatePanelOpen: options.keepsSeparatePanelOpen ?? (() => false)
     }
   })
   return { view, setPermission, resetPermission, openPermissionSettings, openPrivacySettings }
@@ -181,6 +183,13 @@ describe('Site controls docked back from its window', () => {
     const refresh = vi.fn()
     const { view } = renderPanel({ summary: null, refresh })
     await view.rerender({ dock: 'left' })
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('does not read in the panel window that is closing', async () => {
+    const refresh = vi.fn()
+    const { view } = renderPanel({ dock: 'window', summary: null, refresh, keepsSeparatePanelOpen: () => true })
+    await view.rerender({ dock: 'right' })
     expect(refresh).not.toHaveBeenCalled()
   })
 })

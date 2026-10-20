@@ -131,7 +131,8 @@ const BrowserAddressBarStub = defineComponent({
     locale: String,
     formatNumber: Function,
     runAction: Function,
-    actions: Object
+    actions: Object,
+    keepsSeparatePanelOpen: Function
   },
   emits: ['update:siteControlsOpen', 'update:panelDock'],
   setup() {
@@ -274,6 +275,7 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
   const activeIsHome = ref(home)
   const runtimeActiveTab = ref(activeTab)
   const panelDock = ref<'right' | 'bottom' | 'left' | 'window'>('right')
+  const keepsSeparatePanelOpen = () => false
   const runAction = vi.fn(async (action: () => unknown) => {
     await action()
     return true
@@ -373,6 +375,7 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
       verticalTabRailPinned: ref(false),
       verticalTabRailRevealed: ref(false),
       panelDock,
+      keepsSeparatePanelOpen,
       tabRailResize,
       ...shellActions
     } as never,
@@ -474,6 +477,7 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
     activeIsHome,
     runtimeActiveTab,
     panelDock,
+    keepsSeparatePanelOpen,
     runAction,
     syncState,
     browser,
@@ -886,6 +890,7 @@ describe('AppBrowserChromeLayer', () => {
     expect(navigation.props('zoomOpen')).toBe(true)
     expect(address.props('siteControlsOpen')).toBe(true)
     expect(address.props('panelDock')).toBe('right')
+    expect(address.props('keepsSeparatePanelOpen')).toBe(harness.keepsSeparatePanelOpen)
     expect(address.props('activeTab')).toEqual(harness.props.state.tabs[0])
     expect(page.props()).toMatchObject({ splitMenuOpen: true, pageToolsOpen: true })
 

@@ -33,6 +33,7 @@ const props = defineProps<{
   openPermissionSettings: () => void
   openPrivacySettings: () => void | Promise<void>
   refresh: () => unknown
+  keepsSeparatePanelOpen: () => boolean
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -41,10 +42,10 @@ const { t } = useI18n({ useScope: 'global' })
 const localNumber = (value: number): string => formatNumber(props.locale, value)
 
 // Docked back from its window after the page changed, the main window had cleared the site's counts for the new page
-// while the panel was away, and showed "…" until it was opened again. It reads them now. The closing panel window still
-// has its counts, so it reads nothing.
+// while the panel was away, and showed "…" until it was opened again. It reads them now. The closing panel window
+// reads nothing.
 watch(dock, (next, previous) => {
-  if (open.value && previous === 'window' && next !== 'window' && !props.summary && props.state === 'idle') void props.refresh()
+  if (open.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && !props.summary && props.state === 'idle') void props.refresh()
 })
 
 /**
