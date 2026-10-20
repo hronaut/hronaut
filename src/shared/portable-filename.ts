@@ -17,8 +17,8 @@ export function portableExportFilename(requested: string | undefined, title: str
     const result = filename.toLowerCase().endsWith(extension) ? filename : `${filename}${extension}`
     if (
       !filename
-      || filename === '.'
-      || filename === '..'
+      // A name starting with a dot is hidden on macOS and Linux, and `.pdf` alone has no name before its extension.
+      || filename.startsWith('.')
       || filename.length > 180
       || /[\u0000-\u001f<>:"/\\|?*]/.test(filename)
       || /[. ]$/.test(filename)
@@ -35,6 +35,8 @@ export function portableExportFilename(requested: string | undefined, title: str
     .replace(/[\u0000-\u001f<>:"/\\|?*]/g, '-')
     .replace(/\s+/g, ' ')
     .trim()
+    // A title such as `.NET documentation` would otherwise make a file that macOS and Linux hide.
+    .replace(/^[. ]+/, '')
   if (isWindowsReservedFilename(normalized)) normalized = `${fallback}-${normalized}`
   let stem = ''
   let bytes = encoder.encode(suffix).byteLength
