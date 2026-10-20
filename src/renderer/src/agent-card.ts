@@ -380,6 +380,8 @@ function render(state: AgentCardState): void {
   if (decisionId) for (const id of [...drafts.keys()]) if (id !== decisionId) drafts.delete(id)
   announce(state.model.reason?.decision?.status)
   document.documentElement.dataset.theme = state.theme
+  // The card's text is in the interface language; its page said English, so a screen reader read it with English rules.
+  document.documentElement.lang = state.locale
   const card = build(state.cardId, state.model, () => measure(state.cardId, state.revision, card))
   if (opening) card.dataset.opening = 'true'
   cardRoot.replaceChildren(card)

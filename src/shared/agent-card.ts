@@ -1,5 +1,6 @@
 import type { AgentPresenceState } from './agent-presence.js'
 import { normalizeHumanWaitingNote } from './human-waiting.js'
+import { isSupportedLocale, type SupportedLocale } from './locale.js'
 import type { ShellTooltipRect } from './shell-tooltip.js'
 import { isResolvedThemeName, type ResolvedThemeName } from './theme.js'
 
@@ -120,6 +121,8 @@ export interface AgentCardShowRequest {
   cardId: number
   anchor: ShellTooltipRect
   theme: ResolvedThemeName
+  /** The interface language, so a screen reader reads the card in it. */
+  locale: SupportedLocale
   model: AgentCardModel
 }
 
@@ -128,6 +131,7 @@ export interface AgentCardState {
   cardId: number
   revision: number
   theme: ResolvedThemeName
+  locale: SupportedLocale
   model: AgentCardModel
 }
 
@@ -315,11 +319,14 @@ export function parseAgentCardModel(value: unknown): AgentCardModel {
 export function parseAgentCardShowRequest(value: unknown): AgentCardShowRequest {
   const source = record(value)
   const anchor = record(source?.anchor)
-  if (!source || !validAgentCardId(source.cardId) || !anchor || !isResolvedThemeName(source.theme)) throw new TypeError('Invalid agent card request')
+  if (!source || !validAgentCardId(source.cardId) || !anchor || !isResolvedThemeName(source.theme) || !isSupportedLocale(source.locale)) {
+    throw new TypeError('Invalid agent card request')
+  }
   return {
     cardId: source.cardId,
     anchor: { x: finite(anchor.x, -100_000), y: finite(anchor.y, -100_000), width: finite(anchor.width, 0), height: finite(anchor.height, 0) },
     theme: source.theme,
+    locale: source.locale,
     model: parseAgentCardModel(source.model)
   }
 }
