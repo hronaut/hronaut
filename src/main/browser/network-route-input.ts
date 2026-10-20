@@ -11,6 +11,22 @@ export const MAX_HOLD_SECONDS = 120
 const MAX_HEADERS = 50
 const MAX_HEADER_BYTES = 32 * 1024
 
+const refusals = new WeakSet<Error>()
+
+/**
+ * Marks a request condition change refused before anything was sent, so browser_network_routes can tell the agent what
+ * to change. Its message names at most a header name or rule ID from the request, never a header value or body.
+ */
+export function networkRouteRefusal<E extends Error>(error: E): E {
+  refusals.add(error)
+  return error
+}
+
+/** Whether a failure is a refusal that networkRouteRefusal marked. */
+export function isNetworkRouteRefusal(error: unknown): error is Error {
+  return error instanceof Error && refusals.has(error)
+}
+
 // Zod records omit __proto__. HTTP names must survive parsing as own properties;
 // fromEntries preserves them without invoking the legacy prototype setter.
 const responseHeadersSchema = z.unknown().transform((value, context): Record<string, string> => {
@@ -71,8 +87,18 @@ export interface NormalizedNetworkRoute extends Omit<BrowserNetworkRouteSummary,
   responseBody?: string
 }
 
-/** Transport-independent rules run before any debugger or tab state is changed. */
+/** Transport-independent rules run before any debugger or tab state is changed; each refusal says what to change. */
 export function normalizeNetworkRouteInput(value: unknown): NormalizedNetworkRoute {
+  try {
+    return normalizedRouteInput(value)
+  } catch (error) {
+    // A schema error lists every issue; MCP checks the same schema before a call gets here.
+    if (error instanceof Error && !(error instanceof z.ZodError)) networkRouteRefusal(error)
+    throw error
+  }
+}
+
+function normalizedRouteInput(value: unknown): NormalizedNetworkRoute {
   const input = parseNetworkRouteInput(value)
   if ([input.response, input.abort, input.throttle].filter(behavior => behavior !== undefined).length !== 1) {
     throw new Error('Provide exactly one network route behavior: response, abort, or throttle')

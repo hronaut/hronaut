@@ -6,7 +6,7 @@ import type {
   BrowserNetworkRouteSummary
 } from '../../../shared/types.js'
 import { networkRoutePatternMatches } from '../../../shared/network-routes.js'
-import { normalizeNetworkRouteInput } from '../network-route-input.js'
+import { networkRouteRefusal, normalizeNetworkRouteInput } from '../network-route-input.js'
 import { isHronautHomeUrl } from '../url.js'
 import { LocalizedError } from '../../localized-error.js'
 import { endHeldResponses, heldResponseCount, holdNetworkResponse, MAX_HELD_RESPONSES } from './held-responses.js'
@@ -17,7 +17,7 @@ const MAX_NETWORK_ROUTES = 50
 
 /** A rule removed meanwhile, for example by an agent. The Network panel shows its key; its English message names the rule's ID. */
 function conditionGone(routeId: string): LocalizedError {
-  return new LocalizedError('appErrors.networkConditions.conditionGone', undefined, { message: `Network route not found: ${routeId}` })
+  return networkRouteRefusal(new LocalizedError('appErrors.networkConditions.conditionGone', undefined, { message: `Network route not found: ${routeId}` }))
 }
 
 /** Whether the tab's request-condition rules are confirmed applied natively, with their public summaries. */
@@ -71,15 +71,15 @@ export async function addNetworkRoute<Tab extends NetworkConditionsTab>(access: 
   const normalized = normalizeNetworkRouteInput(input)
   await applyNetworkRoutes(access, tab, validate, false, () => {
     if (isHronautHomeUrl(tab.url)) {
-      throw new LocalizedError('appErrors.networkConditions.websiteTab', undefined, { message: 'Open a website tab before adding a network route' })
+      throw networkRouteRefusal(new LocalizedError('appErrors.networkConditions.websiteTab', undefined, { message: 'Open a website tab before adding a network route' }))
     }
     if (tab.networkRoutes.length >= MAX_NETWORK_ROUTES) {
-      throw new LocalizedError('appErrors.networkConditions.limitReached', { max: MAX_NETWORK_ROUTES }, {
+      throw networkRouteRefusal(new LocalizedError('appErrors.networkConditions.limitReached', { max: MAX_NETWORK_ROUTES }, {
         message: `Network route limit reached (${MAX_NETWORK_ROUTES})`
-      })
+      }))
     }
     if (normalized.hold && heldResponseCount(access, tab.webContents) + tab.networkRoutes.filter(route => route.hold).length >= MAX_HELD_RESPONSES) {
-      throw new Error(`A tab can hold at most ${MAX_HELD_RESPONSES} requests, counting hold rules not matched yet. Release or cancel one first.`)
+      throw networkRouteRefusal(new Error(`A tab can hold at most ${MAX_HELD_RESPONSES} requests, counting hold rules not matched yet. Release or cancel one first.`))
     }
     tab.networkRoutes = [...tab.networkRoutes, { ...normalized, id: randomUUID(), createdAt: new Date().toISOString() }]
   }, markSubmitted)
