@@ -31,7 +31,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
   host.handleBrowserIpc('browser:manage-storage', (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof value !== 'object' || value === null) throw new TypeError('Invalid site storage request')
-    const { tabId, kind, action, key, value: storageValue, includeValues } = value as Record<string, unknown>
+    const { tabId, kind, action, key, value: storageValue, includeValues, cookieDomain, cookiePath } = value as Record<string, unknown>
     if (
       (tabId !== undefined && typeof tabId !== 'string')
       || (kind !== 'local-storage' && kind !== 'session-storage' && kind !== 'cookies')
@@ -39,8 +39,10 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       || (key !== undefined && typeof key !== 'string')
       || (storageValue !== undefined && typeof storageValue !== 'string')
       || (includeValues !== undefined && typeof includeValues !== 'boolean')
+      || (cookieDomain !== undefined && typeof cookieDomain !== 'string')
+      || (cookiePath !== undefined && typeof cookiePath !== 'string')
     ) throw new TypeError('Invalid site storage request')
-    return host.tabs()!.manageStorage({ tabId, kind, action, key, value: storageValue, includeValues })
+    return host.tabs()!.manageStorage({ tabId, kind, action, key, value: storageValue, includeValues, cookieDomain, cookiePath })
   })
   host.handleBrowserIpc('browser:storage-usage', (event, tabId: unknown) => {
     host.assertTrustedSender(event)

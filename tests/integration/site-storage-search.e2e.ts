@@ -56,3 +56,42 @@ test('filters retained storage across keys, values and cookie domains without ch
     await closeFixtureServer(server)
   }
 })
+
+test('deletes only the cookie row chosen and keeps HttpOnly cookies when clearing cookies', async ({ appWindow }) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, {
+      'content-type': 'text/html',
+      'set-cookie': ['pref=root; Path=/', 'pref=app; Path=/app', 'sid=signed-in; HttpOnly; Path=/', 'sid=guest; Path=/app']
+    })
+    response.end('<title>Cookie rows fixture</title>')
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Missing cookie fixture address')
+    const state = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(`http://127.0.0.1:${address.port}/app/page`)}, active: true })`) as BrowserState
+    const tabId = state.activeTabId
+    const cookies = async () => ((await appWindow.evaluate(`window.hronaut.manageStorage({ tabId: ${JSON.stringify(tabId)}, kind: 'cookies', action: 'list' })`)) as { items: Array<{ key: string; path: string; protected?: boolean }> })
+      .items.map(item => `${item.key}${item.path}${item.protected ? ' HttpOnly' : ''}`).sort()
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.title)')).toBe('Cookie rows fixture')
+    expect(await cookies()).toEqual(['pref/', 'pref/app', 'sid/ HttpOnly', 'sid/app'])
+    await appWindow.getByRole('button', { name: 'Page tools', exact: true }).click()
+    await appWindow.getByRole('button', { name: 'Site storage for 127.0.0.1', exact: true }).click()
+    const panel = appWindow.getByRole('dialog', { name: 'Site storage · 127.0.0.1', exact: true })
+    await panel.getByRole('button', { name: 'Cookies', exact: true }).click()
+    await expect(panel.locator('.site-storage-item')).toHaveCount(4)
+    // Both pref rows are named "Delete pref"; the filter leaves the /app one.
+    await panel.getByRole('searchbox', { name: 'Filter site storage', exact: true }).fill('pref app')
+    await expect(panel.locator('.site-storage-item')).toHaveCount(1)
+    await panel.getByRole('button', { name: 'Delete pref', exact: true }).click()
+    await expect.poll(cookies).toEqual(['pref/', 'sid/ HttpOnly', 'sid/app'])
+    await panel.getByRole('searchbox', { name: 'Filter site storage', exact: true }).fill('')
+    await expect(panel.locator('.site-storage-item')).toHaveCount(3)
+    appWindow.once('dialog', confirmation => { void confirmation.accept() })
+    await panel.getByRole('button', { name: 'Clear cookies', exact: true }).click()
+    await expect.poll(cookies).toEqual(['sid/ HttpOnly'])
+    await expect(panel.locator('.site-storage-item')).toHaveCount(1)
+  } finally {
+    await closeFixtureServer(server)
+  }
+})

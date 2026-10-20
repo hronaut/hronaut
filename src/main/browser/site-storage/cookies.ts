@@ -69,18 +69,9 @@ export async function manageCookies<Tab extends SiteStorageTab>(
     const matches = cookies.filter((cookie) => cookie.name === key)
     const editable = matches.filter((cookie) => !cookie.httpOnly)
     if (matches.length && !editable.length) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
-    for (const cookie of editable) {
-      const removalUrl = cookieRemovalUrl(cookie)
-      await operation.write(() => cookieStore.remove(removalUrl, cookie.name))
-    }
-    changed = editable.length > 0
+    changed = await deleteListedCookies(access, contents, editable, operation, assertCurrent)
   } else if (action === 'clear') {
-    const editable = cookies.filter((cookie) => !cookie.httpOnly)
-    for (const cookie of editable) {
-      const removalUrl = cookieRemovalUrl(cookie)
-      await operation.write(() => cookieStore.remove(removalUrl, cookie.name))
-    }
-    changed = editable.length > 0
+    changed = await deleteListedCookies(access, contents, cookies.filter((cookie) => !cookie.httpOnly), operation, assertCurrent)
   }
   const next = await cookieStore.get({ url })
   assertCurrent()
@@ -148,8 +139,37 @@ async function deleteExactCookie<Tab extends SiteStorageTab>(
   }, assertCurrent)
 }
 
-function cookieRemovalUrl(cookie: { domain?: string; path?: string; secure?: boolean }): string {
-  const domain = cookie.domain?.replace(/^\./, '')
-  if (!domain) throw new Error('Cookie domain is unavailable.')
-  return `${cookie.secure ? 'https' : 'http'}://${domain}${cookie.path || '/'}`
+// Name-only deletion and clear delete each listed cookie by its exact name,
+// domain and path too. Electron's cookies.remove(url, name) would also delete
+// an HttpOnly cookie of that name sent to the URL, and a host-only cookie of
+// the parent domain that the tab never receives. An identity the complete store
+// also holds as an HttpOnly cookie is left as it is; partitioned cookies are
+// never matched without a partition key. Returns whether it deleted any.
+async function deleteListedCookies<Tab extends SiteStorageTab>(
+  access: SiteStorageAccess<Tab>,
+  contents: WebContents,
+  listed: Electron.Cookie[],
+  operation: { write(write: () => Promise<void>): Promise<void> },
+  assertCurrent: () => void
+): Promise<boolean> {
+  if (!listed.length) return false
+  return access.withDebugger(contents, async () => {
+    assertCurrent()
+    const store = await contents.debugger.sendCommand('Network.getAllCookies') as {
+      cookies?: Array<{ name: string; domain: string; path: string; httpOnly?: boolean; partitionKey?: unknown }>
+    }
+    assertCurrent()
+    let deleted = false
+    for (const cookie of listed) {
+      const target = { name: cookie.name, domain: cookie.domain ?? '', path: cookie.path ?? '/' }
+      const stored = (store.cookies ?? []).filter((candidate) => candidate.partitionKey === undefined
+        && candidate.name === target.name && candidate.domain === target.domain && candidate.path === target.path)
+      if (!target.domain || !stored.length || stored.some((candidate) => candidate.httpOnly)) continue
+      await operation.write(async () => {
+        await contents.debugger.sendCommand('Network.deleteCookies', target)
+      })
+      deleted = true
+    }
+    return deleted
+  }, assertCurrent)
 }

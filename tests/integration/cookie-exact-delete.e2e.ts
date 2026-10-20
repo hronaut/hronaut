@@ -113,6 +113,20 @@ test('deletes exactly one cookie by observed domain and path without collateral 
     await native(index, `await cdp('Network.deleteCookies', { name: 'a', domain: '127.0.0.1', path: '/checkout', partitionKey: { topLevelSite: 'https://example.com', hasCrossSiteAncestor: true } }); await cdp('Network.deleteCookies', { name: 'a', domain: '127.0.0.1', path: '/partitioned-only', partitionKey: { topLevelSite: 'https://example.com', hasCrossSiteAncestor: true } })`)
     expect((await call('browser_storage', { workspaceId, tabId, kind: 'cookies', action: 'delete', key: 'a' })).isError).not.toBe(true)
     expect(await native<string[]>(index, 'return list()')).toEqual(['b=other@127.0.0.1/checkout', 'h=protected@127.0.0.1/checkout'])
+
+    // Name-only deletion and clear never take an HttpOnly cookie along. Electron's URL-based removal of token=guest
+    // would also delete the HttpOnly token on the parent path, which /checkout receives.
+    await native(index, `
+      await store.set({ url: origin, name: 'token', value: 'session', path: '/', httpOnly: true })
+      await store.set({ url: origin, name: 'token', value: 'guest', path: '/checkout' })`)
+    const deletedByName = await call('browser_storage', { workspaceId, tabId, kind: 'cookies', action: 'delete', key: 'token' })
+    expect(deletedByName.isError, text(deletedByName)).not.toBe(true)
+    expect(JSON.parse(text(deletedByName))).toMatchObject({ action: 'delete', changed: true })
+    expect(await native<string[]>(index, 'return list()')).toEqual(['b=other@127.0.0.1/checkout', 'h=protected@127.0.0.1/checkout', 'token=session@127.0.0.1/'])
+    await native(index, `await store.set({ url: origin, name: 'token', value: 'guest', path: '/checkout' })`)
+    const cleared = await call('browser_storage', { workspaceId, tabId, kind: 'cookies', action: 'clear' })
+    expect(cleared.isError, text(cleared)).not.toBe(true)
+    expect(await native<string[]>(index, 'return list()')).toEqual(['h=protected@127.0.0.1/checkout', 'token=session@127.0.0.1/'])
   } finally {
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)
