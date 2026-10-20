@@ -52,6 +52,7 @@ import { useFullPageView } from './composables/useFullPageView'
 import { licenseExpiryNoticeShown } from './composables/license-expiry-notice'
 import { useUserAttention } from './composables/useUserAttention'
 import { useSettingsWorkspaceLists } from './composables/useSettingsWorkspaceLists'
+import { confirmAction } from './confirm-action.js'
 
 const { t } = useI18n({ useScope: 'global' })
 // The translation most features take: named values, and a count when the text has plural forms.
@@ -241,7 +242,7 @@ const appSettingsFeatureController = useAppSettingsFeatureController({
   copyText: copyAppText,
   translate,
   formatNumber: localNumber,
-  confirm: (message) => window.confirm(message),
+  confirm: confirmAction,
   showToast: showAppToast,
   onSettingError: handleExtractedSettingError
 })

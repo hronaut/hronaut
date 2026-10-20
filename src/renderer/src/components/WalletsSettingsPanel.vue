@@ -13,6 +13,7 @@ import IconWarning from '~icons/material-symbols/warning-rounded'
 import type { WalletPreparedImport } from '../../../shared/types.js'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import WalletNetworkFields from './WalletNetworkFields.vue'
+import { confirmAction } from '../confirm-action.js'
 import {
   isWalletTokenMethod,
   WalletNetworkSchema,
@@ -504,7 +505,7 @@ function cancelWalletRpcEdit(): void {
 
 async function removeWallet(): Promise<void> {
   const wallet = selectedWallet.value
-  if (wallet && window.confirm(t('wallets.removeConfirm', { name: wallet.name }))) await props.controller.remove(wallet.id)
+  if (wallet && confirmAction(t('wallets.removeConfirm', { name: wallet.name }))) await props.controller.remove(wallet.id)
 }
 
 async function addPolicy(): Promise<void> {

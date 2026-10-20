@@ -578,6 +578,7 @@ const shellApi: HronautShellApi = {
     mainWindow: process.argv.includes('--hronaut-window-kind=main')
   },
   isWindowFocused: () => ipcRenderer.invoke('shell:is-window-focused'),
+  confirm: (message: string) => ipcRenderer.sendSync('shell:confirm', message) === true,
   setToolbarHeight: (height: number) => ipcRenderer.send('browser:toolbar-height', height),
   setContentInsets: (insets: { top: number; right: number; bottom: number; left: number }) =>
     ipcRenderer.send('browser:content-insets', insets),

@@ -3645,7 +3645,7 @@ export const frFR = {
       "workspaceRecoveryMessage": "Le démarrage a été arrêté pour éviter de remplacer les espaces enregistrés.",
       "workspaceRecoveryDetail": "Quittez Hronaut. Utilisez une version compatible avec le profil ou restaurez une sauvegarde valide de tabs.json dans le profil Hronaut avec l’application fermée. Conservez les fichiers existants ; ne réinitialisez pas le profil.",
       "mcpFailedTitle": "Échec du démarrage du serveur MCP",
-      "mcpFailedMessage": "Impossible d’écouter sur {host}:{port}", "claudeSetupTitle": "Configurer Claude Code", "claudeSetupMessage": "Ajouter Hronaut à Claude Code ?", "claudeSetupDetail": "Fichier : {path}\n\nNouvelle entrée dans \"mcpServers\" :\n\"hronaut\": {after}\n\n{replaces}Une copie du fichier est d’abord enregistrée sous {backup}.", "claudeSetupReplaces": "Elle remplace :\n\"hronaut\": {before}\n\n", "claudeSetupConfirm": "Ajouter à Claude Code",
+      "mcpFailedMessage": "Impossible d’écouter sur {host}:{port}", "claudeSetupTitle": "Configurer Claude Code", "claudeSetupMessage": "Ajouter Hronaut à Claude Code ?", "claudeSetupDetail": "Fichier : {path}\n\nNouvelle entrée dans \"mcpServers\" :\n\"hronaut\": {after}\n\n{replaces}Une copie du fichier est d’abord enregistrée sous {backup}.", "claudeSetupReplaces": "Elle remplace :\n\"hronaut\": {before}\n\n", "claudeSetupConfirm": "Ajouter à Claude Code", "confirmOk": "OK",
       "savePasswordTitle": "Enregistrer le mot de passe ?",
       "updatePasswordTitle": "Mettre à jour le mot de passe enregistré ?",
       "savePasswordMessage": "Enregistrer le mot de passe de {account} ?",

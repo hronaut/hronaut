@@ -59,6 +59,7 @@ if (pageLocation?.protocol === 'hronaut:' && pageLocation.hostname === 'home') {
     getWorkspaces: () => ipcRenderer.invoke('hronaut-home:workspaces'),
     workspaceAction: (request: HomeWorkspaceAction) => ipcRenderer.invoke('hronaut-home:workspace-action', request),
     copyText: (text: string) => ipcRenderer.invoke('hronaut-home:copy-text', text),
+    confirm: (message: string) => ipcRenderer.sendSync('hronaut-home:confirm', message) === true,
     openAgentGuide: (clientId: AgentGuideId) => ipcRenderer.invoke('hronaut-home:open-agent-guide', clientId),
     openVsCodeInstall: () => ipcRenderer.invoke('hronaut-home:open-vscode-install'),
     openSetupHelp: () => ipcRenderer.invoke('hronaut-home:open-setup-help'),

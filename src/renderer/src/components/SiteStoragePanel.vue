@@ -24,6 +24,7 @@ import PwaLifecyclePanel from './PwaLifecyclePanel.vue'
 import SiteStoragePwaView from './SiteStoragePwaView.vue'
 import SiteStorageUsageView from './SiteStorageUsageView.vue'
 import { vTooltip } from '../ui/tooltip.js'
+import { confirmAction } from '../confirm-action.js'
 
 const props = defineProps<{
   activeTab?: BrowserTabState
@@ -106,7 +107,7 @@ const {
   browser: window.hronaut,
   translate: (message, parameters) => t(message, parameters ?? {}),
   copyText: props.copyText,
-  confirm: (message) => window.confirm(message),
+  confirm: confirmAction,
   keepsSeparatePanelOpen: props.keepsSeparatePanelOpen
 })
 

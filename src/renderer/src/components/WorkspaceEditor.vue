@@ -32,6 +32,7 @@ import {
 import { useWorkspaceEditorController } from '../composables/useWorkspaceEditorController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 import { vTooltip } from '../ui/tooltip.js'
+import { confirmAction } from '../confirm-action.js'
 
 const props = defineProps<{
   state: BrowserState
@@ -100,7 +101,7 @@ const {
   syncState: props.syncState,
   translate: (message, parameters) => t(message, parameters ?? {}),
   formatNumber: props.formatNumber,
-  confirm: (message) => window.confirm(message),
+  confirm: confirmAction,
   canPresent: () => props.canPresent
 })
 

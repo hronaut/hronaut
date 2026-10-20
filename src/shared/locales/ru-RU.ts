@@ -3645,7 +3645,7 @@ export const ruRU = {
       "workspaceRecoveryMessage": "Запуск остановлен, чтобы не заменить сохранённые пространства.",
       "workspaceRecoveryDetail": "Закройте Hronaut. Используйте совместимую с профилем версию или восстановите исправную копию tabs.json в профиле Hronaut при закрытом приложении. Сохраните существующие файлы; не сбрасывайте профиль.",
       "mcpFailedTitle": "Не удалось запустить сервер MCP",
-      "mcpFailedMessage": "Не удалось прослушивать {host}:{port}", "claudeSetupTitle": "Настроить Claude Code", "claudeSetupMessage": "Добавить Hronaut в Claude Code?", "claudeSetupDetail": "Файл: {path}\n\nНовая запись в \"mcpServers\":\n\"hronaut\": {after}\n\n{replaces}Сначала копия файла сохранится как {backup}.", "claudeSetupReplaces": "Она заменит:\n\"hronaut\": {before}\n\n", "claudeSetupConfirm": "Добавить в Claude Code",
+      "mcpFailedMessage": "Не удалось прослушивать {host}:{port}", "claudeSetupTitle": "Настроить Claude Code", "claudeSetupMessage": "Добавить Hronaut в Claude Code?", "claudeSetupDetail": "Файл: {path}\n\nНовая запись в \"mcpServers\":\n\"hronaut\": {after}\n\n{replaces}Сначала копия файла сохранится как {backup}.", "claudeSetupReplaces": "Она заменит:\n\"hronaut\": {before}\n\n", "claudeSetupConfirm": "Добавить в Claude Code", "confirmOk": "ОК",
       "savePasswordTitle": "Сохранить пароль?",
       "updatePasswordTitle": "Обновить сохранённый пароль?",
       "savePasswordMessage": "Сохранить пароль для {account}?",

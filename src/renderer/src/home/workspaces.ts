@@ -19,6 +19,8 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
   let undoId: string | null = null
   const messages = data.messages.workspaceLibrary
   const labels = data.messages.settings.privacy
+  // Main asks natively with Cancel as the button Enter presses; `window.confirm` presses OK, in English.
+  const confirm = (message: string): boolean => api.confirm ? api.confirm(message) : window.confirm(message)
   const mission = data.messages.home.mission
   const root = element('home-workspaces')
   const search = element<HTMLInputElement>('workspace-search')
@@ -133,10 +135,10 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     // the archive has no room for that.
     if (input.view === 'clear') {
       const undoable = state.savedTabGroups.length < MAX_ARCHIVED_WORKSPACES
-      if (!group || group.deletionProtected || (!undoable && !window.confirm(interpolate(messages.clearConfirm, { name: group.name })))) return
+      if (!group || group.deletionProtected || (!undoable && !confirm(interpolate(messages.clearConfirm, { name: group.name })))) return
       request = { ...input, undoable }
     }
-    if (input.view === 'delete' && (!group || group.deletionProtected || !window.confirm(interpolate(messages.deleteConfirm, { name: group.name })))) return
+    if (input.view === 'delete' && (!group || group.deletionProtected || !confirm(interpolate(messages.deleteConfirm, { name: group.name })))) return
     pending = true
     const generation = ++revision
     error.textContent = ''; error.hidden = true

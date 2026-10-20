@@ -15,6 +15,7 @@ import IconSearch from '~icons/material-symbols/search-rounded'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../../../shared/types.js'
 import { useHistoryPanelController } from '../composables/useHistoryPanelController.js'
 import { vTooltip } from '../ui/tooltip.js'
+import { confirmAction } from '../confirm-action.js'
 
 const props = defineProps<{
   formatDateTime: (value: Date | number | string) => string
@@ -70,7 +71,7 @@ const {
   openHistoryEntryInBackground: props.openHistoryEntryInBackground,
   saveHistoryBookmark: props.saveHistoryBookmark,
   copyHistoryAddress: props.copyHistoryAddress,
-  confirmClear: () => window.confirm(t('privacyActions.clearHistory'))
+  confirmClear: () => confirmAction(t('privacyActions.clearHistory'))
 })
 
 defineExpose({ toggle })

@@ -595,6 +595,24 @@ describe('Home workspace hub', () => {
     if (!full) expect(document.activeElement).toBe(button('#workspace-undo'))
   })
 
+  it.each([false, true])('asks main natively, not window.confirm, before a clear that cannot be undone (confirmed=%s)', async confirmed => {
+    const archive = Array.from({ length: 50 }, (_, index) => ({ ...workspace, id: `archived-${index}`, savedAt: workspace.lastUsedAt, tabs: [] }))
+    const full = { ...inventory, savedTabGroups: archive }
+    const action = vi.fn().mockResolvedValue({ ...full, mcpTabGroups: [] })
+    const nativeConfirm = vi.fn(() => confirmed)
+    const windowConfirm = vi.spyOn(window, 'confirm')
+    mount({ getWorkspaces: vi.fn().mockResolvedValue(full), workspaceAction: action, confirm: nativeConfirm })
+    await settle()
+
+    button('[data-workspace-action="clear"]').click()
+    await settle()
+
+    expect(nativeConfirm).toHaveBeenCalledExactlyOnceWith('Permanently clear “Research <safe>”, close its pages, and delete its website data? This cannot be undone.')
+    expect(windowConfirm).not.toHaveBeenCalled()
+    if (confirmed) expect(action).toHaveBeenCalledWith({ view: 'clear', workspaceId: 'project', undoable: false })
+    else expect(action).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['hiddenFromSidebar', false, false], ['hiddenFromSidebar', true, false],
     ['deletionProtected', false, false], ['deletionProtected', true, false],

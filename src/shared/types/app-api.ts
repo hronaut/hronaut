@@ -169,6 +169,11 @@ export interface BrowserOcclusionSnapshot {
 export interface HronautShellApi {
   windowChrome: WindowChromeState
   isWindowFocused(): Promise<boolean>
+  /**
+   * Asks in a native dialog whose Cancel is the button Enter and Escape press, in the interface language, and waits
+   * like `window.confirm`; true only when the person chose OK.
+   */
+  confirm(message: string): boolean
   setToolbarHeight(height: number): void
   setContentInsets(insets: { top: number; right: number; bottom: number; left: number }): void
   setBrowserContentOccluded(occluded: boolean): void

@@ -8,6 +8,7 @@ import { MAX_MCP_PORT, MIN_MCP_PORT } from '../../../shared/mcp-port'
 import { isMcpToolSet } from '../../../shared/mcp-tool-sets'
 import type { McpSettingsController } from '../composables/useMcpSettingsController'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
+import { confirmAction } from '../confirm-action.js'
 import type { McpCapabilityProfilePreset } from '../../../shared/types'
 
 const props = defineProps<{
@@ -107,7 +108,7 @@ async function submitCapabilityProfile(): Promise<void> {
 }
 
 async function revokeProfile(id: string, name: string): Promise<void> {
-  if (window.confirm(t('settings.mcp.capabilities.revokeConfirm', { name }))) await revokeCapabilityProfile(id)
+  if (confirmAction(t('settings.mcp.capabilities.revokeConfirm', { name }))) await revokeCapabilityProfile(id)
 }
 
 onMounted(() => { void loadCapabilityProfiles() })
