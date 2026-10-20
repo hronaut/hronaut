@@ -193,5 +193,6 @@ async function inspectElement<Tab extends PageContextMenuTab>(access: PageContex
   if (access.isHumanInteractionLocked(tab) || isHronautHomeUrl(tab.url)) return
   await access.openDevTools(tab)
   const webContents = tab.webContents
-  if (!webContents.isDestroyed()) webContents.inspectElement(Math.round(x), Math.round(y))
+  // Inspecting opens Developer Tools by itself, so check again for a tab that shows Home by now.
+  if (!webContents.isDestroyed() && !isHronautHomeUrl(tab.url)) webContents.inspectElement(Math.round(x), Math.round(y))
 }

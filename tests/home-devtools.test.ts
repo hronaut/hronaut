@@ -13,7 +13,7 @@ vi.mock('electron', () => ({
 }))
 
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
-const { openDevTools } = await import('../src/main/browser/devtools/devtools.js')
+const { openDevTools, toggleDevTools } = await import('../src/main/browser/devtools/devtools.js')
 type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
 type DevToolsAccess = import('../src/main/browser/devtools/devtools-access.js').DevToolsAccess<import('../src/main/browser/devtools/devtools-access.js').DevToolsTab>
 
@@ -26,20 +26,41 @@ interface PageTab {
 const HOME_URL = 'hronaut://home/'
 
 function pageWebContents(): WebContents & { inspectElement: ReturnType<typeof vi.fn>, openDevTools: ReturnType<typeof vi.fn> } {
+  let opened = false
   return {
     id: 7,
     isDestroyed: () => false,
-    isDevToolsOpened: () => false,
+    isDevToolsOpened: () => opened,
     navigationHistory: { canGoBack: () => false, canGoForward: () => false },
     debugger: { isAttached: () => false, detach: () => undefined },
     once: () => undefined,
     removeListener: () => undefined,
     inspectElement: vi.fn(),
-    openDevTools: vi.fn()
+    // Opening reports open at once, so a regression fails its assertion instead of waiting for devtools-opened.
+    openDevTools: vi.fn(() => { opened = true })
   } as unknown as WebContents & { inspectElement: ReturnType<typeof vi.fn>, openDevTools: ReturnType<typeof vi.fn> }
 }
 
-function menuFor(url: string): { ids: Array<string | undefined>, tab: PageTab, openDevToolsCalls: PageTab[] } {
+function devToolsTab(url: string, webContents = pageWebContents()) {
+  return { id: 'tab', title: 'Page', url, webContents, networkDebuggerEpoch: 0, networkConditionApplication: 'confirmed', networkRoutes: [] }
+}
+
+function devToolsAccess(tab: ReturnType<typeof devToolsTab>, dialogMonitorAttach: () => unknown = () => undefined): DevToolsAccess {
+  return {
+    getTab: () => tab,
+    findTab: () => tab,
+    wakeTab: async () => undefined,
+    isDestroyed: () => false,
+    isHumanInteractionLocked: () => false,
+    requireNetworkConditionsKnown: () => undefined,
+    devToolsOpening: () => new Set<number>(),
+    dialogMonitorAttach,
+    pendingDebuggerCommand: () => undefined,
+    text: (key: string) => key
+  } as unknown as DevToolsAccess
+}
+
+function menuFor(url: string, onOpenDevTools: (tab: PageTab) => void = () => undefined): { ids: Array<string | undefined>, tab: PageTab, openDevToolsCalls: PageTab[] } {
   const tab: PageTab = { id: 'tab', url, webContents: pageWebContents() }
   const openDevToolsCalls: PageTab[] = []
   const access = {
@@ -50,6 +71,7 @@ function menuFor(url: string): { ids: Array<string | undefined>, tab: PageTab, o
     isHumanInteractionLocked: () => false,
     openDevTools: async (target: PageTab) => {
       openDevToolsCalls.push(target)
+      onOpenDevTools(target)
     }
   } as unknown as PageContextMenuAccess
   showContextMenu(access, tab, { x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {} } as unknown as ContextMenuParams)
@@ -77,18 +99,32 @@ describe('Developer Tools on Hronaut Home', () => {
   })
 
   it('does not open Developer Tools for Home, whichever action asks', async () => {
-    const webContents = pageWebContents()
-    const tab = { id: 'home', title: 'Home', url: HOME_URL, webContents, networkDebuggerEpoch: 0, networkConditionApplication: 'confirmed', networkRoutes: [] }
-    const access = {
-      findTab: () => tab,
-      isDestroyed: () => false,
-      requireNetworkConditionsKnown: () => undefined,
-      devToolsOpening: () => new Set<number>(),
-      dialogMonitorAttach: () => undefined,
-      pendingDebuggerCommand: () => undefined,
-      text: (key: string) => key
-    } as unknown as DevToolsAccess
-    await openDevTools(access, tab as never)
-    expect(webContents.openDevTools).not.toHaveBeenCalled()
+    const tab = devToolsTab(HOME_URL)
+    await openDevTools(devToolsAccess(tab), tab as never)
+    await expect(toggleDevTools(devToolsAccess(tab))).resolves.toBe(false)
+    expect(tab.webContents.openDevTools).not.toHaveBeenCalled()
+    const website = devToolsTab('https://shop.example/')
+    await openDevTools(devToolsAccess(website), website as never)
+    expect(website.webContents.openDevTools).toHaveBeenCalledOnce()
+  })
+
+  it('does not open Developer Tools for a tab that shows Home once the wait ends', async () => {
+    const tab = devToolsTab('https://shop.example/')
+    await openDevTools(devToolsAccess(tab, () => { tab.url = HOME_URL }), tab as never)
+    expect(tab.webContents.openDevTools).not.toHaveBeenCalled()
+  })
+
+  it('does not inspect a tab that shows Home by the time Inspect is chosen or Developer Tools open', async () => {
+    const chosen = menuFor('https://shop.example/')
+    chosen.tab.url = HOME_URL
+    ;(built.templates.at(-1)!.find(item => item.id === 'inspect-element')!.click as () => void)()
+    // Inspecting opens Developer Tools by itself, even where opening them was refused.
+    const opened = menuFor('https://shop.example/', tab => { tab.url = HOME_URL })
+    ;(built.templates.at(-1)!.find(item => item.id === 'inspect-element')!.click as () => void)()
+    await vi.waitFor(() => expect(opened.openDevToolsCalls).toEqual([opened.tab]))
+    await Promise.resolve()
+    expect(chosen.openDevToolsCalls).toEqual([])
+    expect(chosen.tab.webContents.inspectElement).not.toHaveBeenCalled()
+    expect(opened.tab.webContents.inspectElement).not.toHaveBeenCalled()
   })
 })
