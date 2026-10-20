@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatNumber } from '../../../shared/format.js'
+import type { SupportedLocale } from '../../../shared/types.js'
 import UiButton from '../ui/UiButton.vue'
 import VideoAudioEditor from './VideoAudioEditor.vue'
 import VideoMotionEditor from './VideoMotionEditor.vue'
@@ -8,7 +10,9 @@ import { VIDEO_ANNOTATION_KINDS, VIDEO_PLACEMENTS, VIDEO_TEXT_PRESETS, videoAnno
 import { friendlyUiError } from '../composables/useAppToastController.js'
 
 const props = defineProps<{ tabId: string }>()
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
+// Seconds use the interface language's decimal separator.
+const seconds = (milliseconds: number, digits: number): string => formatNumber(locale.value as SupportedLocale, milliseconds / 1000, { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const state = ref<BrowserVideoState | null>(null)
 const busy = ref(false)
 const pendingAction = ref<BrowserVideoOptions['action']>()
@@ -150,7 +154,7 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
 <template>
   <section ref="recorder" class="video-recorder" tabindex="-1" :aria-label="t('video.title')" :aria-busy="busy">
     <p>{{ t('video.privacy') }}</p>
-    <p v-if="state" role="status">{{ t(`video.status.${state.status}`) }} · {{ (state.durationMs / 1000).toFixed(1) }} {{ t('video.seconds') }}</p>
+    <p v-if="state" role="status">{{ t(`video.status.${state.status}`) }} · {{ seconds(state.durationMs, 1) }} {{ t('video.seconds') }}</p>
     <p v-if="state?.notice">{{ state.notice }}</p>
     <p v-if="error" role="alert">{{ error }}</p>
     <div class="video-actions">

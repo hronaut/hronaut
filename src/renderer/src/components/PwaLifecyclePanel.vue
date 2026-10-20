@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatDateTime } from '../../../shared/format.js'
+import type { SupportedLocale } from '../../../shared/types'
 import UiButton from '../ui/UiButton.vue'
 import type { BrowserTabState } from '../../../shared/types'
 import type { PwaLifecycleAction, PwaLifecycleReport } from '../../../shared/pwa-lifecycle'
 import { friendlyUiError } from '../composables/useAppToastController.js'
 
 const props = defineProps<{ tab?: BrowserTabState }>()
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
+// Times follow Hronaut's interface language, not the system's.
+const localTime = (value: number): string => formatDateTime(locale.value as SupportedLocale, value, { timeStyle: 'medium' })
 const report = ref<PwaLifecycleReport | null>(null)
 const error = ref('')
 const busy = ref(false)
@@ -47,7 +51,7 @@ onBeforeUnmount(() => { disposed = true; request++; clearInterval(timer) })
       <p role="status">{{ report.active ? t('pwaLifecycle.active') : t('pwaLifecycle.stopped') }} · {{ report.events.length }}<template v-if="report.reason"> · {{ report.reason }}</template></p>
       <ol class="pwa-lifecycle-events">
         <li v-for="(event, index) in report.events" :key="index">
-          <time>{{ new Date(event.observedAt).toLocaleTimeString() }}</time> · {{ event.kind }}
+          <time>{{ localTime(event.observedAt) }}</time> · {{ event.kind }}
           <span v-if="event.worker"> · {{ event.worker.id }} {{ event.worker.state }}</span>
           <code>{{ event.scope ?? event.controller?.scriptUrl }}</code>
           <small v-if="event.waiting">{{ t('pwaLifecycle.waiting') }} {{ event.waiting.id }}</small>

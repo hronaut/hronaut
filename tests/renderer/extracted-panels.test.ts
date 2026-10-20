@@ -426,6 +426,20 @@ describe('extracted diagnostic panels', () => {
     expect(view.emitted().copy).toHaveLength(1)
   })
 
+  it('writes the share of the quota used in the interface language', () => {
+    // The share used a decimal point and no space in every language: "12.50%" in German.
+    const report: BrowserStorageUsageReport = {
+      tabId: 'tab-1', url: 'https://example.test/app', origin: 'https://example.test', capturedAt: '2026-08-21T12:00:00.000Z',
+      source: 'chromium-quota', usage: 1_280, quota: 10_240, available: 8_960, usagePercent: 12.5, overrideActive: false,
+      breakdown: [], breakdownAvailable: true, caveats: []
+    }
+    render(SiteStorageUsageView, {
+      global: { plugins: [createHronautI18n('de-DE')] },
+      props: { state: 'ready', report, error: '', copied: false, locale: 'de-DE' }
+    })
+    expect(screen.getByText(/12,50\s%/)).toBeVisible()
+  })
+
   it('delegates baseline creation from the empty storage-changes state', async () => {
     const report: BrowserStorageChangesReport = {
       tabId: 'tab-1',

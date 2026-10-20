@@ -255,7 +255,7 @@ function performanceContributorSource(contributor: BrowserPerformanceScriptContr
             <ol>
               <li v-for="(entry, index) in performanceReport.layoutShifts.entries" :key="`${entry.startTimeMs}-${index}`">
                 <span><strong>{{ entry.sources[0] || t('performance.affectedUnavailable') }}</strong><small>{{ localNumber(Math.round(entry.startTimeMs)) }} {{ t('performance.afterNavigation') }}<span v-if="entry.sources.length > 1"> · {{ localNumber(entry.sources.length) }} {{ t('performance.affectedElements', entry.sources.length) }}</span></small></span>
-                <output>{{ entry.value.toFixed(3) }}</output>
+                <output>{{ formatNumber(locale, entry.value, { minimumFractionDigits: 3, maximumFractionDigits: 3 }) }}</output>
               </li>
             </ol>
             <p v-if="performanceReport.layoutShifts.truncated" class="performance-attribution-note">{{ t('performance.shiftsLimit') }}</p>

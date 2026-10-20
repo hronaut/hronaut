@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatNumber } from '../../../shared/format.js'
+import type { SupportedLocale } from '../../../shared/types.js'
 import UiButton from '../ui/UiButton.vue'
 import type { BrowserVideoOptions, BrowserVideoState } from '../../../shared/video.js'
 import { VIDEO_AUDIO_LIMITS } from '../../../shared/video-audio.js'
@@ -11,7 +13,9 @@ const emit = defineEmits<{
   import: [provenance: string]
   removeAsset: [assetId: string]
 }>()
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
+// Seconds use the interface language's decimal separator.
+const seconds = (milliseconds: number, digits: number): string => formatNumber(locale.value as SupportedLocale, milliseconds / 1000, { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const assetId = ref(''), start = ref(0), end = ref(1), offset = ref(0)
 const volume = ref(60), fadeIn = ref(0), fadeOut = ref(0), loop = ref(false)
 const provenance = ref(''), editing = ref<number | null>(null)
@@ -59,8 +63,8 @@ function name(id: string): string { return assets.value.find(item => item.id ===
     <summary>{{ t('video.audio.title') }} <span>{{ t('video.audio.capacity', { count: events.length, limit: VIDEO_AUDIO_LIMITS.events }) }}</span></summary>
     <fieldset :disabled="busy">
       <legend>{{ editing === null ? t('video.audio.add') : t('video.audio.edit') }}</legend>
-      <p class="video-help">{{ t('video.audio.timingHelp', { duration: (outputMs / 1000).toFixed(1) }) }}</p>
-      <label>{{ t('video.audio.asset') }}<select v-model="assetId" @change="chooseAsset"><option v-for="item in assets" :key="item.id" :value="item.id">{{ item.name }} · {{ (item.durationMs / 1000).toFixed(2) }} {{ t('video.seconds') }}</option></select></label>
+      <p class="video-help">{{ t('video.audio.timingHelp', { duration: seconds(outputMs, 1) }) }}</p>
+      <label>{{ t('video.audio.asset') }}<select v-model="assetId" @change="chooseAsset"><option v-for="item in assets" :key="item.id" :value="item.id">{{ item.name }} · {{ seconds(item.durationMs, 2) }} {{ t('video.seconds') }}</option></select></label>
       <p v-if="asset" class="video-help">{{ asset.provenance }}</p>
       <div class="video-fields">
         <label>{{ t('video.audio.from') }}<input v-model.number="start" type="number" min="0" :max="outputMs / 1000" step="0.01" /></label>

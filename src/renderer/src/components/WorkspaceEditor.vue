@@ -12,6 +12,7 @@ import UiTextarea from '../ui/UiTextarea.vue'
 import UiOverlayTransition from '../ui/UiOverlayTransition.vue'
 import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatDateTime } from '../../../shared/format.js'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDatabase from '~icons/material-symbols/database-rounded'
@@ -21,7 +22,8 @@ import IconSwapHoriz from '~icons/material-symbols/swap-horiz-rounded'
 import type {
   BrowserState,
   BrowserWorkspaceNavigationAuditEntry,
-  BrowserWorkspaceNavigationAuditSource
+  BrowserWorkspaceNavigationAuditSource,
+  SupportedLocale
 } from '../../../shared/types.js'
 import {
   BROWSER_TAB_GROUP_COLORS,
@@ -42,7 +44,7 @@ const props = defineProps<{
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
 const panel = ref<HTMLElement | null>(null)
 const importTarget = ref<string | null>(null)
 const importDestination = ref('')
@@ -161,7 +163,7 @@ function navigateColor(event: KeyboardEvent): void {
 }
 
 function formatAuditTime(value: string): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  return formatDateTime(locale.value as SupportedLocale, value)
 }
 
 function auditReasonLabel(reason: BrowserWorkspaceNavigationAuditEntry['reason']): string {
