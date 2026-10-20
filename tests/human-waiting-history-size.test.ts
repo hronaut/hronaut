@@ -1,4 +1,5 @@
-import { mkdtemp, rm, stat } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -51,6 +52,43 @@ describe('human waiting history size', () => {
     const restored = new HumanWaitingStore()
     restored.restore(await new HumanWaitingPersistence(path).load())
     expect(restored.list(WORKSPACE_ID).length).toBeGreaterThan(0)
+  }, 60_000)
+
+  // Before the budget, a receipt (acknowledging, approving or attempting a review) could be the change that crossed the
+  // limit, so the file kept the state just under it with that review still open. Restoring ends the review with one
+  // more receipt, the startup save failed, and agent dispatch stayed refused after every restart.
+  it('starts from an earlier version\'s history that sits just under the limit with an open review', async () => {
+    directory = await mkdtemp(join(tmpdir(), 'hronaut-waiting-size-'))
+    const path = join(directory, 'human-waiting.json')
+    const request = (review: ReturnType<typeof largeGroupedReview>) => ({
+      workspaceId: WORKSPACE_ID, runId: '0198dc5b-4192-7000-8000-000000000002', decision: 'approve-action' as const,
+      owner: 'local-operator', fallbackOwner: 'local-operator', timeoutMs: 60_000, priorOutcome: 'OUTCOME_UNKNOWN' as const, review
+    })
+    const source = new HumanWaitingStore()
+    const finished = source.create(request(largeGroupedReview('ж'.repeat(512))))
+    source.cancel(finished.id, finished.revision)
+    const finishedRecord = source.snapshot().records[0]!
+    const open = new HumanWaitingStore().create(request(largeGroupedReview('ш'.repeat(512))))
+    const limit = 1_048_576
+    const size = (records: unknown[]) => Buffer.byteLength(JSON.stringify({ version: 1, savedAt: Date.now(), records }))
+    const older: Array<typeof finishedRecord> = []
+    while (size([...older, finishedRecord, open]) < limit - 64) older.push({ ...structuredClone(finishedRecord), id: randomUUID(), revision: randomUUID() })
+    for (const record of older) {
+      const gap = limit - 8 - size([...older, open])
+      if (gap <= 0) break
+      record.owner += 'x'.repeat(Math.min(gap, 128 - record.owner.length))
+    }
+    const contents = JSON.stringify({ version: 1, savedAt: Date.now(), records: [...older, open] })
+    expect(Buffer.byteLength(contents)).toBeGreaterThan(limit - 16)
+    expect(Buffer.byteLength(contents)).toBeLessThanOrEqual(limit)
+    await writeFile(path, contents)
+
+    const service = new HumanWaitingService(new HumanWaitingPersistence(path), new HumanWaitingStore())
+    await expect(service.requireDispatch(WORKSPACE_ID, authorize)).resolves.toBeUndefined()
+    expect((await stat(path)).size).toBeLessThanOrEqual(limit)
+    const restored = await service.list(WORKSPACE_ID, authorize)
+    expect(restored.find(record => record.id === open.id)?.state).toBe('EXPIRED')
+    expect(restored.length).toBeLessThan(older.length + 1)
   }, 60_000)
 
   it('refuses a decision that cannot fit beside open reviews without disabling the history', async () => {

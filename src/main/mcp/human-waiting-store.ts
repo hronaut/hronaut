@@ -97,7 +97,7 @@ export const HUMAN_WAITING_HISTORY_MAX_BYTES = 1_048_576
 /** The saved history without records, with the longest save time. */
 const HISTORY_ENVELOPE_BYTES = Buffer.byteLength(JSON.stringify({ version: 1, savedAt: -Number.MAX_SAFE_INTEGER, records: [] }))
 /** The longest review receipt, with the comma before it. */
-const MAX_RECEIPT_BYTES = Buffer.byteLength(`,${JSON.stringify({ status: 'PROPOSED', at: -Number.MAX_SAFE_INTEGER })}`)
+const MAX_RECEIPT_BYTES = Buffer.byteLength(`,${JSON.stringify({ status: 'CANCELLED', at: -Number.MAX_SAFE_INTEGER })}`)
 /** Room for a decision's state, next action and notification words to change to their longest. */
 const STATE_GROWTH_BYTES = 64
 
@@ -232,27 +232,37 @@ export class HumanWaitingStore {
       notificationStatus: 'not-attempted', nextAction: 'REVIEW_CURRENT_STATE',
       ...(review ? { review: { ...review, status: 'PROPOSED', receipts: [{ status: 'PROPOSED', at: createdAt }] } } : {})
     }
-    // The oldest finished decisions make room, both when the store is full and when the history, with room for every
-    // decision kept to finish, would outgrow what its persistence owner saves. A decision that still does not fit is
-    // refused here rather than saved into an unsavable history.
-    const retirable = [...this.records].filter(([, entry]) => terminal(entry.record.state) && !activeReview(entry.record))
-    const retired: string[] = []
-    if (this.records.size >= this.capacity) {
-      const oldest = retirable.shift()
-      if (!oldest) throw new Error('Human waiting capacity reached')
-      retired.push(oldest[0])
-    }
-    let historyBytes = HISTORY_ENVELOPE_BYTES + savedRecordBudget(record)
-    for (const [id, entry] of this.records) if (!retired.includes(id)) historyBytes += savedRecordBudget(entry.record)
-    while (historyBytes > HUMAN_WAITING_HISTORY_MAX_BYTES) {
-      const oldest = retirable.shift()
-      if (!oldest) throw new Error('Human waiting capacity reached')
-      retired.push(oldest[0])
-      historyBytes -= savedRecordBudget(oldest[1].record)
-    }
+    // A decision that does not fit even once every finished one is retired is refused here rather than saved into an
+    // unsavable history.
+    const retired = this.retirementsFor(record)
+    if (!retired) throw new Error('Human waiting capacity reached')
     for (const id of retired) this.records.delete(id)
     this.records.set(record.id, { record, createdMonotonic: now, deadlineMonotonic: now + timeoutMs })
     return structuredClone(record)
+  }
+
+  /**
+   * The oldest finished decisions to retire: one when the store is full and `incoming` needs its place, and as many as
+   * it takes for the history, with room for every kept decision (and `incoming`) to finish, to stay within what its
+   * persistence owner saves. Undefined when retiring every finished decision is not enough.
+   */
+  private retirementsFor(incoming?: WaitingRecord): string[] | undefined {
+    const retirable = [...this.records].filter(([, entry]) => terminal(entry.record.state) && !activeReview(entry.record))
+    const retired: string[] = []
+    if (incoming && this.records.size >= this.capacity) {
+      const oldest = retirable.shift()
+      if (!oldest) return undefined
+      retired.push(oldest[0])
+    }
+    let historyBytes = HISTORY_ENVELOPE_BYTES + (incoming ? savedRecordBudget(incoming) : 0)
+    for (const [id, entry] of this.records) if (!retired.includes(id)) historyBytes += savedRecordBudget(entry.record)
+    while (historyBytes > HUMAN_WAITING_HISTORY_MAX_BYTES) {
+      const oldest = retirable.shift()
+      if (!oldest) return undefined
+      retired.push(oldest[0])
+      historyBytes -= savedRecordBudget(oldest[1].record)
+    }
+    return retired
   }
 
   list(workspaceId: string): WaitingRecord[] {
@@ -288,6 +298,9 @@ export class HumanWaitingStore {
       return { record, createdMonotonic: now, deadlineMonotonic: now + Math.max(0, Math.min(86_400_000, remaining)) }
     })
     for (const entry of restored) this.records.set(entry.record.id, entry)
+    // A history saved before its size was budgeted can sit just under the limit, and restoring adds a receipt to every
+    // review it ends, so the oldest finished decisions make room for it to be saved again.
+    for (const id of this.retirementsFor() ?? []) this.records.delete(id)
     this.lastMonotonic = now
   }
 
