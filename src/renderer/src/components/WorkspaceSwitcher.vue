@@ -189,8 +189,10 @@ function searchTabs(): void {
   emit('searchTabs')
 }
 
-function createWorkspace(): void {
+async function createWorkspace(): Promise<void> {
   close()
+  // The workspace editor opens only while the palette is closed, which it sees once the closed switcher is drawn.
+  await nextTick()
   emit('createWorkspace')
 }
 
