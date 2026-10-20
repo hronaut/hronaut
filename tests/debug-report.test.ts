@@ -23,6 +23,8 @@ describe('debug report', () => {
     expect(value).toContain('Login failed: pwd=[REDACTED] passphrase: [REDACTED]')
     expect(value).toContain('fetch /cart;jsessionid=[REDACTED] failed')
     expect(redactDiagnosticText(value)).toBe(value)
+    // Simple Machines Forum names its password field passwrd.
+    expect(redactDiagnosticText('Login failed: user=ada passwrd=hunter2')).toBe('Login failed: user=ada passwrd=[REDACTED]')
   })
 
   it('summarizes full bounded histories while returning recent console and failed network evidence', () => {

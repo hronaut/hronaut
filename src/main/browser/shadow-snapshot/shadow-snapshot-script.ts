@@ -81,8 +81,9 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number, omi
         url.hash = '';
         url.pathname = url.pathname.replace(/;(jsessionid)=[^;/]*/gi, ';$1=[REDACTED]');
         for (const key of [...url.searchParams.keys()]) {
-          if (/(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|passphrase|pwd|secret|session|token)/i.test(key)
-            || /^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-signature|hdnt[sla]|key|access[-_]?key|subscription[-_]?key|auth|sid|phpsessid)$/i.test(key)) {
+          if (/(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passwrd|passcode|passphrase|pwd|secret|session|token)/i.test(key)
+            || /^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-signature|hdnt[sla]|key|access[-_]?key|subscription[-_]?key|auth|sid|phpsessid)$/i.test(key)
+            || /(?:^|[[_-])(?:pass|pw)\\d?(?:[\\][]|$)/i.test(key)) {
             url.searchParams.set(key, '[REDACTED]');
           }
         }

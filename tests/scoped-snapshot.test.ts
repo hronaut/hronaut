@@ -180,6 +180,8 @@ it('redacts the signature of a signed link in the snapshot', () => {
     <a href="https://example.test/?design=dark&signal=on">Ordinary link</a>
     <a href="https://maps.example/embed?key=AIzaSECRET&q=Paris">Map</a>
     <a href="https://shop.example/cart;jsessionid=SECRET?sid=SECRET&step=2">Cart</a>
+    <a href="https://forum.example/login.php?id=ada&pw=SECRET&pass=SECRET">Forum</a>
+    <a href="https://cms.example/user?id=ada&user%5Bpass%5D=SECRET&pass1=SECRET&current_pass=SECRET&passwrd=SECRET&pass_rate=high">Account</a>
   `
   const text = capture('#target').text
   expect(text).not.toContain('SECRET')
@@ -187,4 +189,6 @@ it('redacts the signature of a signed link in the snapshot', () => {
   expect(text).toContain('design=dark&signal=on')
   expect(text).toContain('q=Paris')
   expect(text).toContain('step=2')
+  expect(text).toContain('id=ada')
+  expect(text).toContain('pass_rate=high')
 })

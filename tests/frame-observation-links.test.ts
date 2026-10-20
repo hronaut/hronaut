@@ -18,5 +18,8 @@ it('redacts keys, session ids and signatures in the links of a same-origin frame
   expect(safeUrl('https://maps.example/embed?key=AIzaSECRET&q=Paris')).toBe('https://maps.example/embed?key=%5BREDACTED%5D&q=Paris')
   expect(safeUrl('/cart;JSESSIONID=SECRET?PHPSESSID=SECRET&step=2#top')).toBe('https://frame.example/cart;JSESSIONID=[REDACTED]?PHPSESSID=%5BREDACTED%5D&step=2')
   expect(safeUrl('https://store.example/invoice.pdf?sig=SECRET&subscription-key=SECRET&access-key=SECRET')).not.toContain('SECRET')
+  expect(safeUrl('https://forum.example/login.php?id=ada&pw=SECRET&pass=SECRET')).toBe('https://forum.example/login.php?id=ada&pw=%5BREDACTED%5D&pass=%5BREDACTED%5D')
+  expect(safeUrl('https://cms.example/user?user%5Bpass%5D=SECRET&pass1=SECRET&current_pass=SECRET&passwrd=SECRET&pass_rate=high'))
+    .toBe('https://cms.example/user?user%5Bpass%5D=%5BREDACTED%5D&pass1=%5BREDACTED%5D&current_pass=%5BREDACTED%5D&passwrd=%5BREDACTED%5D&pass_rate=high')
   expect(safeUrl('https://example.test/?keyword=shoes&author=me&side=left')).toBe('https://example.test/?keyword=shoes&author=me&side=left')
 })
