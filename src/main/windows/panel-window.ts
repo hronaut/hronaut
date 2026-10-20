@@ -76,6 +76,7 @@ interface PanelWindowHost {
  * The detached panel window: one window beside the main window that shows a single panel at a time in its own copy
  * of the trusted shell. Opening it again shows the requested panel in the window already open, including while it
  * is still loading. Closing it before the window exists keeps it from opening, unless it is opened again meanwhile.
+ * Closing it while its window loads closes it as a loaded window closes, without reporting the load as failed.
  */
 export function createPanelWindow(host: PanelWindowHost): {
   detachedPanelTitle(panel: DetachablePanelId): string
@@ -224,7 +225,9 @@ export function createPanelWindow(host: PanelWindowHost): {
       created.on('unmaximize', host.schedulePanelWindowStateSave)
       created.on('enter-full-screen', host.schedulePanelWindowStateSave)
       created.on('leave-full-screen', host.schedulePanelWindowStateSave)
+      let closing = false
       created.on('close', () => {
+        closing = true
         host.refs.lastState = host.currentPanelWindowState() ?? host.refs.lastState
       })
       created.on('closed', () => {
@@ -240,13 +243,22 @@ export function createPanelWindow(host: PanelWindowHost): {
         }
       })
 
-      await loadNativeWindowWithRollback(created, expectedUrl, () => {
-        if (host.refs.window !== created) return
-        host.refs.window = null
-        host.refs.url = null
-        host.refs.panel = null
-        host.refs.redocking = false
-      })
+      try {
+        await loadNativeWindowWithRollback(created, expectedUrl, () => {
+          // A window closed while it loads, from either window, ends its load as failed. Its closed listener lets
+          // go of it and tells the main window, as for a loaded window, once the rollback has destroyed it.
+          if (closing || host.refs.window !== created) return
+          host.refs.window = null
+          host.refs.url = null
+          host.refs.panel = null
+          host.refs.redocking = false
+        })
+      } catch (error) {
+        if (!closing) throw error
+        // Closing it was asked for, so its failed load is not an error to show. A rollback that could not finish is
+        // still logged.
+        if (error instanceof AggregateError) console.error('[panel-window] Failed to close a loading panel window:', error)
+      }
     })()
     panelWindowOpening = opening
     try {

@@ -1,11 +1,17 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DetachablePanelId } from '../src/shared/types.js'
 
 const created: FakeWindow[] = []
 
-/** A BrowserWindow that loads at once and records whether it was shown, retitled or closed. */
+/**
+ * A BrowserWindow that loads at once, or holds its load while `holdLoads` is set, and records whether it was shown,
+ * retitled or closed.
+ */
 class FakeWindow {
+  static holdLoads = false
   destroyed = false
+  private pendingLoad: ((error: Error) => void) | undefined
+  private closedEmitted = false
   shown = false
   title: string
   private readonly listeners = new Map<string, Array<(...args: unknown[]) => void>>()
@@ -29,16 +35,41 @@ class FakeWindow {
   setTitle(title: string) { this.title = title }
   on(event: string, listener: (...args: unknown[]) => void) { this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener]) }
   once(event: string, listener: (...args: unknown[]) => void) { this.on(event, listener) }
-  async loadURL() { for (const listener of this.listeners.get('ready-to-show') ?? []) listener() }
+  async loadURL() {
+    if (FakeWindow.holdLoads) {
+      await new Promise<void>((_resolve, reject) => { this.pendingLoad = reject })
+      return
+    }
+    for (const listener of this.listeners.get('ready-to-show') ?? []) listener()
+  }
+  failLoad(error: Error) {
+    this.pendingLoad?.(error)
+    this.pendingLoad = undefined
+  }
   show() { this.shown = true }
   focus() {}
   restore() {}
   close() {
-    this.destroyed = true
-    for (const listener of this.listeners.get('closed') ?? []) listener()
+    this.emit('close')
+    if (!this.pendingLoad) {
+      this.finishClosing()
+      return
+    }
+    // As in Electron, a load fails as soon as its page goes, and the window reports that it closed only afterwards.
+    this.failLoad(Object.assign(new Error("ERR_FAILED (-2) loading 'file:///shell/index.html'"), { errno: -2, code: 'ERR_FAILED' }))
+    setTimeout(() => this.finishClosing(), 0)
   }
-  destroy() { this.destroyed = true }
+  destroy() { this.finishClosing() }
+  private finishClosing() {
+    if (this.closedEmitted) return
+    this.closedEmitted = true
+    this.destroyed = true
+    this.emit('closed')
+  }
+  private emit(event: string) { for (const listener of this.listeners.get(event) ?? []) listener() }
 }
+
+afterEach(() => { FakeWindow.holdLoads = false })
 
 vi.mock('electron', () => ({
   BrowserWindow: FakeWindow,
@@ -107,9 +138,12 @@ function panelWindowHandlers() {
     refs,
     open: (panel: DetachablePanelId) => handlers.get('panel-window:open')!({}, panel) as Promise<void>,
     close: () => handlers.get('panel-window:close')!({}),
+    redock: (panel: DetachablePanelId, dock: string) => handlers.get('panel-window:redock')!({}, panel, dock),
     releaseSavedBounds: () => releaseSavedBounds(),
     sentToMainWindow,
-    openWindows: () => created.filter((window) => !window.destroyed).map((window) => ({ title: window.title, shown: window.shown }))
+    openWindows: () => created.filter((window) => !window.destroyed).map((window) => ({ title: window.title, shown: window.shown })),
+    createdWindows: () => created.length,
+    loadingWindow: () => created.at(-1)!
   }
 }
 
@@ -179,6 +213,61 @@ describe('detached panel window', () => {
 
     await panels.close()
     expect(panels.openWindows()).toEqual([])
+    expect(panels.refs.window).toBeNull()
+  })
+
+  it('closes a panel window that is still loading without reporting its load as failed', async () => {
+    FakeWindow.holdLoads = true
+    for (const closeFrom of ['main window', 'panel window'] as const) {
+      const panels = panelWindowHandlers()
+      const opening = panels.open('console')
+      panels.releaseSavedBounds()
+      await vi.waitFor(() => expect(panels.createdWindows()).toBe(1))
+
+      if (closeFrom === 'main window') await panels.close()
+      else panels.loadingWindow().close()
+
+      // Its load used to fail the opening, and the main window showed "Browser action failed" with the load error.
+      await expect(opening).resolves.toBeUndefined()
+      expect(panels.openWindows()).toEqual([])
+      expect(panels.refs.window).toBeNull()
+      expect(panels.refs.panel).toBeNull()
+      expect(panels.sentToMainWindow).toEqual(['panel-window:closed'])
+    }
+  })
+
+  it('still reports a panel window that fails to load', async () => {
+    FakeWindow.holdLoads = true
+    const panels = panelWindowHandlers()
+    const opening = panels.open('console')
+    panels.releaseSavedBounds()
+    await vi.waitFor(() => expect(panels.createdWindows()).toBe(1))
+
+    panels.loadingWindow().failLoad(new Error("ERR_FILE_NOT_FOUND (-6) loading 'file:///shell/index.html'"))
+
+    await expect(opening).rejects.toThrow('ERR_FILE_NOT_FOUND')
+    expect(panels.openWindows()).toEqual([])
+    expect(panels.refs.window).toBeNull()
+    expect(panels.refs.panel).toBeNull()
+    expect(panels.refs.url).toBeNull()
+    // The main window learns of the failure from the opening, so it is not also told a window closed.
+    expect(panels.sentToMainWindow).toEqual([])
+  })
+
+  it('docks the panel again when it is moved back while its window is still loading', async () => {
+    FakeWindow.holdLoads = true
+    const panels = panelWindowHandlers()
+    const opening = panels.open('console')
+    panels.releaseSavedBounds()
+    await vi.waitFor(() => expect(panels.createdWindows()).toBe(1))
+
+    panels.redock('console', 'right')
+
+    await expect(opening).resolves.toBeUndefined()
+    expect(panels.openWindows()).toEqual([])
+    // The main window docks the panel on its side; it is not told the window closed, which would close the panel.
+    expect(panels.sentToMainWindow).toEqual(['panel-window:redock-requested'])
+    expect(panels.refs.redocking).toBe(false)
     expect(panels.refs.window).toBeNull()
   })
 })
