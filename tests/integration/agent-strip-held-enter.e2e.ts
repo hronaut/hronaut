@@ -51,6 +51,23 @@ test('a held Enter on Hand back in the live strip hands back without pausing or 
     // A new press still runs it.
     await appWindow.keyboard.press('Enter')
     await expect.poll(paused).toBe(true)
+
+    // Unpin hands its focus to the agent's avatar, which each repeat used to open the card from.
+    const unpin = strip.getByRole('button', { name: 'Unpin live status', exact: true })
+    await unpin.focus()
+    await expect(unpin).toBeFocused()
+    const avatar = appWindow.getByRole('group', { name: 'Agents in this workspace', exact: true }).getByRole('button', { name: /^Claude Code, / })
+    await appWindow.keyboard.down('Enter')
+    await expect(strip).toHaveCount(0)
+    for (let repeat = 0; repeat < 5; repeat += 1) {
+      await appWindow.waitForTimeout(50)
+      await expect(avatar).toBeFocused()
+      await appWindow.keyboard.down('Enter')
+    }
+    await appWindow.keyboard.up('Enter')
+    await expect(avatar).toHaveAttribute('aria-expanded', 'false')
+    await appWindow.keyboard.press('Enter')
+    await expect(avatar).toHaveAttribute('aria-expanded', 'true')
   } finally {
     await client.close()
   }
