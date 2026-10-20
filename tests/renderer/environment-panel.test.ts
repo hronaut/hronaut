@@ -29,6 +29,7 @@ function deferred<T>() {
 
 function renderPanel(overrides: {
   setTabEnvironment?: (tabId: string, environment: BrowserEnvironmentSettings) => Promise<BrowserState>
+  recoverTabEmulation?: (tabId: string) => Promise<BrowserState>
 } = {}) {
   const open = ref(true)
   const activeTab = ref<BrowserTabState | undefined>(browserTab())
@@ -36,7 +37,7 @@ function renderPanel(overrides: {
   const controller = useEnvironmentPanelController({
     open,
     activeTab,
-    recoverTabEmulation: vi.fn(async () => ({}) as BrowserState),
+    recoverTabEmulation: overrides.recoverTabEmulation ?? vi.fn(async () => ({}) as BrowserState),
     setTabEnvironment: overrides.setTabEnvironment ?? vi.fn(async () => browserState()),
     reloadIgnoringCache: vi.fn(async () => browserState()),
     syncState: async (operation) => { await operation },
@@ -114,4 +115,78 @@ describe('EnvironmentPanel', () => {
     expect(view.emitted()['update:dock']?.at(-1)).toEqual(['bottom'])
     expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
   })
+})
+
+describe('EnvironmentPanel focus after an action', () => {
+  // JSDOM keeps focus on a control that becomes disabled; Chromium moves it to the document body.
+  function dropFocusLikeChromium(control: HTMLElement): void {
+    control.removeAttribute('disabled')
+    control.blur()
+    control.setAttribute('disabled', '')
+    expect(document.body).toHaveFocus()
+  }
+
+  // Apply, Apply & reload and Reset were disabled while the change applied, so Chromium moved the focus of the one you
+  // used to the document body, and nothing gave it back: the next Tab started at the top of the window.
+  it.each([/^Apply$/, /^Apply & reload$/, /^Reset environment$/])('gives the focus back to %s once the change applies', async (name) => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const pending = deferred<BrowserState>()
+    const { view } = renderPanel({ setTabEnvironment: vi.fn(() => pending.promise) })
+    try {
+      const button = screen.getByRole('button', { name })
+      await userEvent.setup().click(button)
+      expect(button).toBeDisabled()
+      dropFocusLikeChromium(button)
+      pending.resolve(browserState())
+      await vi.waitFor(() => expect(button).toBeEnabled())
+      await vi.waitFor(() => expect(button).toHaveFocus())
+    } finally {
+      view.unmount()
+      vi.restoreAllMocks()
+    }
+  })
+
+  it('leaves newer focus alone when the change applies', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const pending = deferred<BrowserState>()
+    const { view } = renderPanel({ setTabEnvironment: vi.fn(() => pending.promise) })
+    try {
+      const button = screen.getByRole('button', { name: /^Apply$/ })
+      await userEvent.setup().click(button)
+      dropFocusLikeChromium(button)
+      const network = screen.getByRole('combobox', { name: 'Network' })
+      network.focus()
+      pending.resolve(browserState())
+      await vi.waitFor(() => expect(button).toBeEnabled())
+      expect(network).toHaveFocus()
+    } finally {
+      view.unmount()
+      vi.restoreAllMocks()
+    }
+  })
+})
+
+// Not to a condition: Enter on a field of the form submits it, and a held Enter would apply the draft Restore left alone.
+it('moves the focus to the panel once Restore retained settings succeeds and disappears', async () => {
+  vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+  const recovering = deferred<BrowserState>()
+  const { view, activeTab } = renderPanel({ recoverTabEmulation: vi.fn(() => recovering.promise) })
+  const retained = activeTab.value!.emulation!
+  activeTab.value = { ...activeTab.value!, emulation: undefined, emulationState: { application: 'unknown', retainedSettings: retained, recovery: 'restore-committed' } }
+  try {
+    const restore = await screen.findByRole('button', { name: 'Restore retained settings' })
+    await vi.waitFor(() => expect(restore).toBeEnabled())
+    await userEvent.setup().click(restore)
+    expect(restore).toBeDisabled()
+    // Recovery confirms the retained settings, so the warning and its Restore button go away with the focus.
+    activeTab.value = { ...activeTab.value, emulation: retained, emulationState: undefined }
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'Restore retained settings' })).not.toBeInTheDocument())
+    expect(document.body).toHaveFocus()
+    recovering.resolve(browserState())
+    await vi.waitFor(() => expect(view.container.querySelector('.environment-panel')).toHaveFocus())
+    expect(screen.getByRole('combobox', { name: 'Network' })).not.toHaveFocus()
+  } finally {
+    view.unmount()
+    vi.restoreAllMocks()
+  }
 })

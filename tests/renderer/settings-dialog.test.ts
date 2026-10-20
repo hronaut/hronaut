@@ -181,3 +181,82 @@ describe('SettingsDialog', () => {
     controller.dispose()
   })
 })
+
+describe('SettingsDialog focus after Reset to default', () => {
+  // JSDOM keeps focus on a control that becomes disabled; Chromium moves it to the document body.
+  function dropFocusLikeChromium(control: HTMLElement): void {
+    control.removeAttribute('disabled')
+    control.blur()
+    control.setAttribute('disabled', '')
+    expect(document.body).toHaveFocus()
+  }
+
+  function renderDialog(resetSection: () => Promise<boolean>) {
+    const controller = useSettingsDialogController({
+      beforeOpen: vi.fn(), resetSection, isResetDisabled: () => false, onResetError: vi.fn()
+    })
+    const settings = ref<AppSettings>({ ...DEFAULT_RENDERER_SETTINGS })
+    const searchController = useSearchSettingsController({
+      settings, setSearchEngine: vi.fn(async () => settings.value), onError: vi.fn()
+    })
+    const inactiveController = {} as never
+    const view = render(SettingsDialog, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: {
+        controller, searchController, downloadController: inactiveController, performanceController: inactiveController,
+        mcpController: inactiveController, privacyController: inactiveController, permissionsController: inactiveController,
+        credentialsController: inactiveController, updateController: inactiveController,
+        releaseHistoryController: inactiveController, supportController: inactiveController,
+        walletsController: inactiveController, workspaces: [], dataWorkspaces: [], formatBytes: String,
+        formatNumber: String, formatDateTime: String, testSound: vi.fn(), reportSettingError: vi.fn(),
+        openUrl: vi.fn(async () => undefined), purchaseCommercialLicense: vi.fn()
+      }
+    })
+    return { controller, searchController, view }
+  }
+
+  // Reset to default disabled itself and the whole section while it ran, Chromium moved its focus to the document body,
+  // and nothing gave it back: after resetting a section with the keyboard, the next Tab started at the top of the window.
+  it('gives the focus back to Reset to default once the reset finishes', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const resetting = deferred<boolean>()
+    const { controller, searchController, view } = renderDialog(() => resetting.promise)
+    try {
+      controller.openSection('search')
+      const reset = await screen.findByRole('button', { name: 'Reset to default' })
+      await userEvent.setup().click(reset)
+      expect(reset).toBeDisabled()
+      dropFocusLikeChromium(reset)
+      resetting.resolve(true)
+      await vi.waitFor(() => expect(reset).toBeEnabled())
+      await vi.waitFor(() => expect(reset).toHaveFocus())
+    } finally {
+      view.unmount()
+      vi.restoreAllMocks()
+      searchController.dispose()
+      controller.dispose()
+    }
+  })
+
+  it('leaves newer focus alone when the reset finishes', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const resetting = deferred<boolean>()
+    const { controller, searchController, view } = renderDialog(() => resetting.promise)
+    try {
+      controller.openSection('search')
+      const reset = await screen.findByRole('button', { name: 'Reset to default' })
+      await userEvent.setup().click(reset)
+      dropFocusLikeChromium(reset)
+      const close = screen.getByRole('button', { name: 'Close settings' })
+      close.focus()
+      resetting.resolve(true)
+      await vi.waitFor(() => expect(reset).toBeEnabled())
+      expect(close).toHaveFocus()
+    } finally {
+      view.unmount()
+      vi.restoreAllMocks()
+      searchController.dispose()
+      controller.dispose()
+    }
+  })
+})

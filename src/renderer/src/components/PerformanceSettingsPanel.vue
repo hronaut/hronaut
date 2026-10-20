@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { UiButton, UiCheckbox } from '../ui/index.js'
+import { nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconBedtime from '~icons/material-symbols/bedtime-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
@@ -34,15 +35,34 @@ function timeoutLabel(timeoutMinutes: number): string {
   return t('runtimeActions.memory.hours', { count: props.formatNumber(hours) }, hours)
 }
 
+/**
+ * Every Memory Saver control is disabled while one change runs, so Chromium moves the focus of the one you used to the
+ * document body. Give it back once that control is enabled again, unless you moved it meanwhile.
+ */
+async function keepFocusThrough(event: Event, action: () => Promise<unknown>): Promise<void> {
+  const control = event.currentTarget instanceof HTMLElement && document.activeElement === event.currentTarget
+    ? event.currentTarget : null
+  const panel = control?.closest('.performance-settings')
+  await action()
+  await nextTick()
+  if (!control || !panel?.isConnected || !control.isConnected || control.matches(':disabled') || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== control) return
+  control.focus()
+}
+
 async function changeEnabled(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
-  if (!(await setEnabled(input.checked))) input.checked = settings.value.memorySaverEnabled
+  await keepFocusThrough(event, async () => {
+    if (!(await setEnabled(input.checked))) input.checked = settings.value.memorySaverEnabled
+  })
 }
 
 async function changeTimeout(event: Event): Promise<void> {
   const input = event.target as HTMLSelectElement
   const minutes = Number(input.value) as MemorySaverTimeoutMinutes
-  if (!(await setTimeout(minutes))) input.value = String(settings.value.memorySaverTimeoutMinutes)
+  await keepFocusThrough(event, async () => {
+    if (!(await setTimeout(minutes))) input.value = String(settings.value.memorySaverTimeoutMinutes)
+  })
 }
 </script>
 
@@ -89,7 +109,7 @@ async function changeTimeout(event: Event): Promise<void> {
       </label>
     </div>
     <div class="memory-saver-actions">
-      <UiButton class="secondary-button" type="button" :disabled="busy || !settings.memorySaverEnabled" @click="sleepNow">
+      <UiButton class="secondary-button" type="button" :disabled="busy || !settings.memorySaverEnabled" @click="keepFocusThrough($event, sleepNow)">
         <IconBedtime aria-hidden="true" /> {{ t('settings.memory.sleepNow') }}
       </UiButton>
     </div>

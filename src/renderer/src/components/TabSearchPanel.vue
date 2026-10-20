@@ -117,9 +117,27 @@ function cardMenuItems(tab: BrowserTabState): UiMenuItem[] {
   ]
 }
 
+/**
+ * Every overview action is disabled while one runs, so Chromium moves the focus of the one you used to the document
+ * body. A finished close, pin or delete hands focus to the search field itself and a restore closes the overview; after
+ * a failure, give the focus back to that control, or else the overview itself, unless you moved it meanwhile. Not to the
+ * search field: Enter there runs the selected result, which a held Enter would then do.
+ */
+async function keepFocusThrough(event: Event, action: () => Promise<unknown>): Promise<void> {
+  const dialog = panel.value
+  const focused = event.currentTarget instanceof HTMLElement && document.activeElement === event.currentTarget
+    ? event.currentTarget : null
+  await action()
+  await nextTick()
+  if (!focused || !dialog || !open.value || dialog !== panel.value || !dialog.isConnected || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  const target = focused.isConnected && !focused.matches(':disabled') ? focused : dialog
+  target.focus()
+}
+
 function runCardMenuItem(tab: BrowserTabState, id: string): void {
   if (id === 'pin') void togglePinnedTab(undefined, tab)
-  else if (id === 'preview') void showPagePreview(tab)
+  else if (id === 'preview') void showPagePreview(tab, `tab-card-menu-${tab.id}`)
 }
 
 function tabHost(tab: BrowserTabState): string {
@@ -138,9 +156,10 @@ const fitOptions = computed(() => [
 ])
 let previewReturnId: string | null = null
 
-async function showPagePreview(tab: BrowserTabState): Promise<void> {
+/** Opens the tab's full-page preview; Back to tabs returns to `returnId`'s control, or else the search field. */
+async function showPagePreview(tab: BrowserTabState, returnId: string | null): Promise<void> {
   if (actionPending.value || tab.sleeping || tab.loading) return
-  previewReturnId = `tab-card-menu-${tab.id}`
+  previewReturnId = returnId
   void pagePreview.show(tab)
   await nextTick()
   if (previewTabId.value === tab.id) previewBack.value?.focus()
@@ -168,7 +187,8 @@ function handleSearchKeydown(event: KeyboardEvent): void {
   if (event.isComposing || event.keyCode === 229) return
   if (event.altKey && event.key === 'Enter' && selectedResult.value?.kind === 'open') {
     event.preventDefault()
-    void showPagePreview(selectedResult.value.tab)
+    // Alt+Enter opens it from the search field, so Back to tabs returns there.
+    void showPagePreview(selectedResult.value.tab, null)
     return
   }
   handleKeydown(event)
@@ -381,7 +401,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                       @update:open="cardMenuTabId = $event ? tab.id : (cardMenuTabId === tab.id ? null : cardMenuTabId)"
                       @select="runCardMenuItem(tab, $event)"
                     ><template #trigger><IconMore aria-hidden="true" /></template></UiMenu>
-                    <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.closeTabAria', { title: tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) })" v-tooltip="t('tabSearch.closeTab')" :disabled="actionPending" @click="closeOpenTab($event, tab.id)"><IconClose aria-hidden="true" /></UiButton>
+                    <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.closeTabAria', { title: tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) })" v-tooltip="t('tabSearch.closeTab')" :disabled="actionPending" @click="keepFocusThrough($event, () => closeOpenTab($event, tab.id))"><IconClose aria-hidden="true" /></UiButton>
                   </span>
                   <TabLabelEditor :tab="tab" />
                 </article>
@@ -400,7 +420,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                 role="listitem"
                 @pointermove="selectFromPointer($event, resultIndex('saved', group.id))"
               >
-                <UiButton appearance="application" :id="resultId({ kind: 'saved', tab: group })" class="tab-search-open" type="button" v-tooltip="group.tabs.map((tab) => tab.url).join('\n')" :disabled="actionPending" @click="restoreSavedGroup(group)">
+                <UiButton appearance="application" :id="resultId({ kind: 'saved', tab: group })" class="tab-search-open" type="button" v-tooltip="group.tabs.map((tab) => tab.url).join('\n')" :disabled="actionPending" @click="keepFocusThrough($event, () => restoreSavedGroup(group))">
                   <span class="tab-search-site-icon saved" :style="tabGroupColorStyle(group.color)" aria-hidden="true"><IconFolderOpen /></span>
                   <span class="tab-search-copy">
                     <strong>{{ group.name }}</strong>
@@ -408,8 +428,8 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                     <small>{{ group.tabs.slice(0, 3).map((tab) => tab.label || tabTitleForDisplay(tab, t('tabSearch.newTabTitle'))).join(' · ') }}</small>
                   </span>
                 </UiButton>
-                <UiButton appearance="application" class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreWorkspaceAria', { name: group.name })" v-tooltip="t('tabSearch.restoreWorkspace')" :disabled="actionPending" @click="restoreSavedGroup(group)"><IconRestore aria-hidden="true" /></UiButton>
-                <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.deleteWorkspaceAria', { name: group.name })" v-tooltip="t('tabSearch.deleteWorkspace')" :disabled="actionPending" @click="deleteSavedGroup($event, group)"><IconDelete aria-hidden="true" /></UiButton>
+                <UiButton appearance="application" class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreWorkspaceAria', { name: group.name })" v-tooltip="t('tabSearch.restoreWorkspace')" :disabled="actionPending" @click="keepFocusThrough($event, () => restoreSavedGroup(group))"><IconRestore aria-hidden="true" /></UiButton>
+                <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.deleteWorkspaceAria', { name: group.name })" v-tooltip="t('tabSearch.deleteWorkspace')" :disabled="actionPending" @click="keepFocusThrough($event, () => deleteSavedGroup($event, group))"><IconDelete aria-hidden="true" /></UiButton>
               </article>
             </div>
           </section>

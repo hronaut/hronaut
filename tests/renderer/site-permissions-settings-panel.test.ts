@@ -436,3 +436,74 @@ describe('decisions that belong to a workspace and a page', () => {
     controller.dispose()
   })
 })
+
+describe('focus after changing a decision', () => {
+  // JSDOM keeps focus on a control that becomes disabled; Chromium moves it to the document body.
+  function dropFocusLikeChromium(control: HTMLElement): void {
+    control.removeAttribute('disabled')
+    control.blur()
+    control.setAttribute('disabled', '')
+    expect(document.body).toHaveFocus()
+  }
+
+  // A decision's select was disabled while it saved, so Chromium moved its focus to the document body, and nothing gave
+  // it back: an arrow key on the select changed one decision and the next arrow key or Tab started outside Settings.
+  it.each(['is saved', 'fails'] as const)('gives the focus back to the select once the change %s', async (outcome) => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const saving = deferred<SitePermissionEntry>()
+    const { api, controller } = renderPanel(permissions)
+    api.set.mockImplementationOnce(() => saving.promise)
+    try {
+      const select = screen.getByRole('combobox', { name: selectName(permissions[1]) })
+      await userEvent.setup().selectOptions(select, 'deny')
+      expect(select).toBeDisabled()
+      dropFocusLikeChromium(select)
+      if (outcome === 'fails') saving.reject(new Error('cannot save permission'))
+      else saving.resolve({ ...permissions[1], decision: 'deny' })
+      await vi.waitFor(() => expect(select).toBeEnabled())
+      await vi.waitFor(() => expect(select).toHaveFocus())
+      expect(select).toHaveValue(outcome === 'fails' ? 'allow' : 'deny')
+    } finally {
+      vi.restoreAllMocks()
+      controller.dispose()
+    }
+  })
+
+  it('leaves newer focus alone when the change settles', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const saving = deferred<SitePermissionEntry>()
+    const { api, controller } = renderPanel(permissions)
+    api.set.mockImplementationOnce(() => saving.promise)
+    try {
+      const select = screen.getByRole('combobox', { name: selectName(permissions[1]) })
+      await userEvent.setup().selectOptions(select, 'deny')
+      dropFocusLikeChromium(select)
+      const search = screen.getByRole('searchbox')
+      search.focus()
+      saving.resolve({ ...permissions[1], decision: 'deny' })
+      await vi.waitFor(() => expect(select).toBeEnabled())
+      expect(search).toHaveFocus()
+    } finally {
+      vi.restoreAllMocks()
+      controller.dispose()
+    }
+  })
+
+  it('does not take the focus while Hronaut is in the background', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    const saving = deferred<SitePermissionEntry>()
+    const { api, controller } = renderPanel(permissions)
+    api.set.mockImplementationOnce(() => saving.promise)
+    try {
+      const select = screen.getByRole('combobox', { name: selectName(permissions[1]) })
+      await userEvent.setup().selectOptions(select, 'deny')
+      dropFocusLikeChromium(select)
+      saving.resolve({ ...permissions[1], decision: 'deny' })
+      await vi.waitFor(() => expect(select).toBeEnabled())
+      expect(document.body).toHaveFocus()
+    } finally {
+      vi.restoreAllMocks()
+      controller.dispose()
+    }
+  })
+})

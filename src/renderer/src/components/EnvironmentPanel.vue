@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
-import { onBeforeUnmount } from 'vue'
+import { nextTick, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -50,6 +50,25 @@ const {
 } = props.controller
 
 const localNumber = (value: number): string => formatNumber(props.locale, value)
+const panelRoot = ref<HTMLElement | null>(null)
+
+/**
+ * Apply, Apply & reload, Reset and Restore are disabled while a change applies, so Chromium moves the focus of the one
+ * you used to the document body. Give it back once that control is enabled again, or to the panel itself once a
+ * restored tab no longer shows Restore, unless you moved it meanwhile or the panel closed. Not to a condition: Enter on
+ * a field of the form submits it, so a held Enter would apply the draft that Restore deliberately left alone.
+ */
+async function keepFocusThrough(action: () => Promise<unknown>): Promise<void> {
+  const panel = panelRoot.value
+  const active = document.activeElement
+  const focused = active instanceof HTMLElement && panel?.contains(active) ? active : null
+  await action()
+  await nextTick()
+  if (!focused || !panel || !open.value || panel !== panelRoot.value || !panel.isConnected || !document.hasFocus()) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  const target = focused.isConnected && !focused.matches(':disabled') ? focused : panel
+  target.focus()
+}
 
 defineExpose({ handleEscape })
 onBeforeUnmount(dispose)
@@ -58,7 +77,9 @@ onBeforeUnmount(dispose)
 <template>
   <section
     v-if="open"
+    ref="panelRoot"
     class="accessibility-panel environment-panel"
+    tabindex="-1"
     data-shell-docked-panel
     role="dialog"
     aria-modal="false"
@@ -78,9 +99,9 @@ onBeforeUnmount(dispose)
     <div v-if="application !== 'confirmed'" class="environment-status" role="status">
       <IconWarning aria-hidden="true" />
       <span><strong>{{ t('emulationApplication.' + application) }}</strong><small>{{ t(networkUnconfirmed ? 'emulationApplication.networkFirst' : 'emulationApplication.help') }}</small></span>
-      <UiButton appearance="application" type="button" :disabled="application !== 'unknown' || networkUnconfirmed || pendingAction !== null" @click="recover">{{ t('emulationApplication.restore') }}</UiButton>
+      <UiButton appearance="application" type="button" :disabled="application !== 'unknown' || networkUnconfirmed || pendingAction !== null" @click="keepFocusThrough(recover)">{{ t('emulationApplication.restore') }}</UiButton>
     </div>
-    <form class="environment-content" @submit.prevent="apply(false)">
+    <form class="environment-content" @submit.prevent="keepFocusThrough(() => apply(false))">
       <section aria-labelledby="environment-speed-title">
         <div class="environment-section-heading">
           <div><h3 id="environment-speed-title">{{ t('environment.loading.heading') }}</h3><p>{{ t('environment.loading.description') }}</p></div>
@@ -290,10 +311,10 @@ onBeforeUnmount(dispose)
       </output>
       <p class="responsive-preview-caveat"><IconInfo aria-hidden="true" /> {{ t('environment.limitation') }}</p>
       <footer>
-        <UiButton appearance="application" type="button" :disabled="application !== 'confirmed' || pendingAction !== null" @click="reset">{{ t('environment.reset') }}</UiButton>
+        <UiButton appearance="application" type="button" :disabled="application !== 'confirmed' || pendingAction !== null" @click="keepFocusThrough(reset)">{{ t('environment.reset') }}</UiButton>
         <div>
           <UiButton appearance="application" type="submit" :disabled="application !== 'confirmed' || !settings || pendingAction !== null">{{ t('environment.apply') }}</UiButton>
-          <UiButton appearance="application" variant="primary" class="primary" type="button" :disabled="application !== 'confirmed' || !settings || pendingAction !== null" @click="apply(true)">
+          <UiButton appearance="application" variant="primary" class="primary" type="button" :disabled="application !== 'confirmed' || !settings || pendingAction !== null" @click="keepFocusThrough(() => apply(true))">
             <IconProgress v-if="pendingAction !== null" class="state-spinner" aria-hidden="true" />
             <IconRefresh v-else aria-hidden="true" />
             {{ pendingAction !== null ? t('environment.applying') : t('environment.applyReload') }}
