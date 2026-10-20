@@ -138,6 +138,7 @@ function panelWindowHandlers() {
     refs,
     open: (panel: DetachablePanelId) => handlers.get('panel-window:open')!({}, panel) as Promise<void>,
     close: () => handlers.get('panel-window:close')!({}),
+    redock: (panel: DetachablePanelId, dock: string) => handlers.get('panel-window:redock')!({}, panel, dock),
     releaseSavedBounds: () => releaseSavedBounds(),
     sentToMainWindow,
     openWindows: () => created.filter((window) => !window.destroyed).map((window) => ({ title: window.title, shown: window.shown })),
@@ -246,6 +247,27 @@ describe('detached panel window', () => {
 
     await expect(opening).rejects.toThrow('ERR_FILE_NOT_FOUND')
     expect(panels.openWindows()).toEqual([])
+    expect(panels.refs.window).toBeNull()
+    expect(panels.refs.panel).toBeNull()
+    expect(panels.refs.url).toBeNull()
+    // The main window learns of the failure from the opening, so it is not also told a window closed.
+    expect(panels.sentToMainWindow).toEqual([])
+  })
+
+  it('docks the panel again when it is moved back while its window is still loading', async () => {
+    FakeWindow.holdLoads = true
+    const panels = panelWindowHandlers()
+    const opening = panels.open('console')
+    panels.releaseSavedBounds()
+    await vi.waitFor(() => expect(panels.createdWindows()).toBe(1))
+
+    panels.redock('console', 'right')
+
+    await expect(opening).resolves.toBeUndefined()
+    expect(panels.openWindows()).toEqual([])
+    // The main window docks the panel on its side; it is not told the window closed, which would close the panel.
+    expect(panels.sentToMainWindow).toEqual(['panel-window:redock-requested'])
+    expect(panels.refs.redocking).toBe(false)
     expect(panels.refs.window).toBeNull()
   })
 })
