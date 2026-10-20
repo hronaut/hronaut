@@ -1045,6 +1045,34 @@ describe('BrowserTabsBar', () => {
     expect(view.emitted('closeTab')).toEqual([[audible.id]])
   })
 
+  it('closes one tab and toggles mute once while Delete or M is held', () => {
+    const audible = tab('audible', { active: true, audible: true })
+    const view = renderTabs(browserState({ tabs: [audible, tab('next')], activeTabId: audible.id }))
+    const control = screen.getByRole('tab', { name: /Page audible/ })
+
+    for (const key of ['m', 'Delete']) {
+      control.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+      control.dispatchEvent(new KeyboardEvent('keydown', { key, repeat: true, bubbles: true, cancelable: true }))
+    }
+
+    // A closed tab hands the focus to the next one, so each repeat of a held Delete closed one more tab.
+    expect(view.emitted('toggleTabMuted')).toEqual([[audible]])
+    expect(view.emitted('closeTab')).toEqual([[audible.id]])
+  })
+
+  it('leaves Delete with a modifier to its shortcut', () => {
+    const view = renderTabs(browserState({ tabs: [tab('first', { active: true }), tab('next')], activeTabId: 'first' }))
+    const control = screen.getByRole('tab', { name: /Page first/ })
+
+    for (const modifiers of [{ ctrlKey: true, shiftKey: true }, { metaKey: true, shiftKey: true }, { shiftKey: true }, { altKey: true }]) {
+      const event = new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true, ...modifiers })
+      control.dispatchEvent(event)
+      // Ctrl or Cmd with Shift and Delete opens Workspaces & data; it closed the focused tab instead.
+      expect(event.defaultPrevented).toBe(false)
+    }
+    expect(view.emitted('closeTab')).toBeUndefined()
+  })
+
   it('keeps the keyboard close shortcut available while website input is locked', async () => {
     const audible = tab('audible', { active: true, audible: true })
     const view = renderTabs(browserState({
