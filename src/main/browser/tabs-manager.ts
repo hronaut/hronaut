@@ -1274,6 +1274,11 @@ export class BrowserTabsManager {
   private readonly tabOverviewPreviewableTabs = new Set<string>()
   private tabOverviewLiveCaptureCursor = 0
   private readonly closedTabs: BrowserClosedTabState[] = []
+  /**
+   * Recently closed tabs held out of closedTabs while a tab reopens or a workspace closes, until that puts them back.
+   * Forgetting closed tabs with the history reaches these too.
+   */
+  private readonly detachedClosedTabs = new Set<BrowserClosedTabState[]>()
   private mcpUrl: string
 
   constructor(
@@ -1672,6 +1677,7 @@ export class BrowserTabsManager {
       tabs: () => this.tabs,
       orderedTabs: () => this.orderedTabs(),
       closedTabs: () => this.closedTabs,
+      detachedClosedTabs: () => this.detachedClosedTabs,
       activeTabId: () => this.activeTabId,
       tabSelectionGeneration: () => this.tabSelectionGeneration,
       options: () => this.options,
@@ -2294,6 +2300,7 @@ export class BrowserTabsManager {
   private tabReopeningAccess(): TabReopeningAccess<BrowserTab> {
     return {
       closedTabs: () => this.closedTabs,
+      detachedClosedTabs: () => this.detachedClosedTabs,
       tabCount: () => this.tabs.size,
       getTab: (tabId) => this.getTab(tabId),
       navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),

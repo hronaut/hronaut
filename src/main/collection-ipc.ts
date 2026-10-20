@@ -99,8 +99,8 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
   ipcMain.handle('visit-history:remove', async (event, id: unknown) => {
     host.assertTrustedSender(event)
     if (typeof id !== 'string') throw new TypeError('Invalid history entry ID')
-    const url = host.history().list().find((entry) => entry.id === id)?.url
-    if (await host.history().remove(id) && url) host.historyEntryRemoved?.(url)
+    const removed = await host.history().remove(id)
+    if (removed) host.historyEntryRemoved?.(removed.url)
     return host.publishVisitHistory()
   })
   ipcMain.handle('visit-history:clear', async (event) => {

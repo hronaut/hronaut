@@ -146,8 +146,8 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     list: () => host.state.history?.list() ?? [],
     remove: async (id) => {
       if (!host.state.history) throw new LocalizedError('appErrors.bookmarks.historyUnavailable')
-      const url = host.state.history.list().find((entry) => entry.id === id)?.url
-      if (await host.state.history.remove(id) && url) historyEntryRemoved(url)
+      const removed = await host.state.history.remove(id)
+      if (removed) historyEntryRemoved(removed.url)
       return publishVisitHistory()
     },
     clear: async () => {

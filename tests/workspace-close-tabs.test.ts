@@ -84,6 +84,7 @@ async function browser() {
     savedTabGroups: new Map(), workspaceOperations: new Map(), savedWorkspaceOperations: new Map(),
     workspaceStorageOperation: null, pendingWorkspaceOperationPromises: new Set(), pendingTabLabels: new Set(),
     tabLabelLifecycleHolds: 0, tabLabelAdmissionClosed: false, pendingHumanTabCloses: new Map(), expectedTabClosures: new Set(), closedTabs: [],
+    detachedClosedTabs: new Set(),
     deletedWorkspaceStorageIds: new Set(), workspaceStorageCleanupBlocked: false,
     workspaceContinuity: { guardedWorkspaceIds: () => [] },
     allTabsMuted: false, allHumanInteractionLocked: false,
@@ -356,5 +357,41 @@ describe('recently closed tabs of other workspaces', () => {
     await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
     expect(workspaceTabs(CLOSING)).toEqual([SHOWN, ASLEEP])
     expect(closedTabs.map((entry) => entry.id)).toEqual(closedElsewhere().map((entry) => entry.id))
+  })
+
+  it('stay forgotten when the page they showed leaves the history while another workspace closes', async () => {
+    const { manager, internals, release } = await browser()
+    release()
+    Object.assign(internals, { options: { partition: 'persist:hronaut' } })
+    const closedTabs = (internals as unknown as { closedTabs: Array<{ id: string }> }).closedTabs
+    closedTabs.push(...closedElsewhere())
+    let deleteStorage!: () => void
+    internals.assertStorageDeletionOwnership.mockReturnValueOnce(new Promise<void>((resolve) => { deleteStorage = resolve }))
+    const closing = manager.closeMcpTabGroup(CLOSING)
+    await vi.waitFor(() => expect(internals.assertStorageDeletionOwnership).toHaveBeenCalled())
+    // The two oldest are held aside while the workspace's storage is deleted, and the person removes the page of the
+    // oldest from the history meanwhile.
+    manager.forgetClosedTabs((url) => url === 'https://other.test/0')
+    deleteStorage()
+    await closing
+    // Closing the workspace used to put the held-aside tab back, its address with it.
+    expect(closedTabs.map((entry) => entry.id)).toEqual(closedElsewhere().slice(1).map((entry) => entry.id))
+  })
+
+  it('stay forgotten when the history is cleared while closing another workspace fails and its tabs come back', async () => {
+    const { manager, internals, release, workspaceTabs } = await browser()
+    release()
+    const closedTabs = (internals as unknown as { closedTabs: Array<{ id: string }> }).closedTabs
+    closedTabs.push(...closedElsewhere())
+    let refuse!: (error: Error) => void
+    internals.assertStorageDeletionOwnership.mockReturnValueOnce(new Promise<void>((_resolve, reject) => { refuse = reject }))
+    const closing = manager.closeMcpTabGroup(CLOSING)
+    await vi.waitFor(() => expect(internals.assertStorageDeletionOwnership).toHaveBeenCalled())
+    manager.forgetClosedTabs(() => true)
+    refuse(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
+    await expect(closing).rejects.toThrow('ambiguous ownership')
+    expect(workspaceTabs(CLOSING)).toEqual([SHOWN, ASLEEP])
+    // Putting the workspace's tabs back used to put the two held-aside tabs back too, after Clear all.
+    expect(closedTabs).toEqual([])
   })
 })

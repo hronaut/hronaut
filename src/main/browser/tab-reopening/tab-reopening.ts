@@ -16,7 +16,8 @@ export async function reopenClosedTabAfterLabelSave<Tab extends TabReopeningTab>
 /**
  * Reopens the most recently closed tab, or the one with this id, showing it
  * when active is set. It is undefined when that tab is no longer remembered,
- * and the tab is remembered again when opening it fails.
+ * and the tab is remembered again when opening it fails, unless the history
+ * that showed it was cleared meanwhile.
  */
 export async function reopenClosedTabEntry<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, closedTabId: string | undefined, active: boolean): Promise<Tab | undefined> {
   const index = closedTabId === undefined
@@ -24,13 +25,18 @@ export async function reopenClosedTabEntry<Tab extends TabReopeningTab>(access: 
     : access.closedTabs().findIndex((tab) => tab.id === closedTabId)
   if (index < 0) return undefined
   if (access.tabCount() >= MAX_TABS) throw new LocalizedError('appErrors.tabs.limit', { max: MAX_TABS })
-  const [closed] = access.closedTabs().splice(index, 1)
+  // Held aside while the tab opens, where forgetting closed tabs still reaches it.
+  const held = access.closedTabs().splice(index, 1)
+  const closed = held[0]
   if (!closed) return undefined
+  access.detachedClosedTabs().add(held)
   try {
     return await access.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active, mcpGroupId: closed.mcpGroupId, zoomIsolated: closed.zoomIsolated === true, defaultFontSize: closed.defaultFontSize })
   } catch (error) {
-    access.closedTabs().splice(index, 0, closed)
+    if (held.length) access.closedTabs().splice(index, 0, closed)
     throw error
+  } finally {
+    access.detachedClosedTabs().delete(held)
   }
 }
 
@@ -57,15 +63,19 @@ export async function duplicateTabAfterLabelSave<Tab extends TabReopeningTab>(ac
 
 /**
  * Forgets the remembered closed tabs whose address matches, as Chrome does when history is cleared: Recently closed
- * names the pages, and Reopen closed tab would bring them back. True when any was forgotten.
+ * names the pages, and Reopen closed tab would bring them back. Those held aside while a tab reopens or a workspace
+ * closes are forgotten too, so they are not put back. True when any was forgotten.
  */
 export function forgetClosedTabs<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, matches: (url: string) => boolean): boolean {
-  const closedTabs = access.closedTabs()
-  const count = closedTabs.length
-  for (let index = closedTabs.length - 1; index >= 0; index -= 1) {
-    if (matches(closedTabs[index]!.url)) closedTabs.splice(index, 1)
+  let forgotten = false
+  for (const closedTabs of [access.closedTabs(), ...access.detachedClosedTabs()]) {
+    for (let index = closedTabs.length - 1; index >= 0; index -= 1) {
+      if (!matches(closedTabs[index]!.url)) continue
+      closedTabs.splice(index, 1)
+      forgotten = true
+    }
   }
-  return closedTabs.length !== count
+  return forgotten
 }
 
 /** Remembers a closed tab so it can be reopened, keeping only the newest; Hronaut Home is not remembered. */
