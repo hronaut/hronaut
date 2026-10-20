@@ -58,15 +58,20 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
   }))
   // Closing each tab remembers it among the recently closed tabs, whose bounded list would then push out the oldest
   // tabs closed elsewhere, although this workspace's entries leave again below. Those are held aside meanwhile, so a
-  // tab the person closed in another workspace stays recoverable, and come back as the oldest.
+  // tab the person closed in another workspace stays recoverable.
   const overflow = access.closedTabs().length + tabSnapshots.length - MAX_CLOSED_TABS
   const heldClosedTabs = overflow > 0 ? access.closedTabs().splice(0, overflow) : []
   const returnHeldClosedTabs = (removeWorkspaceEntries: boolean): void => {
-    access.closedTabs().unshift(...heldClosedTabs.splice(0))
     if (removeWorkspaceEntries) {
       for (let index = access.closedTabs().length - 1; index >= 0; index -= 1) {
         if (access.closedTabs()[index]?.mcpGroupId === groupId) access.closedTabs().splice(index, 1)
       }
+    }
+    // Each goes back where it was closed in time, also among tabs another workspace's close holds aside meanwhile.
+    // They were older than every entry left in the list, so they go before entries closed at the same moment.
+    for (const held of heldClosedTabs.splice(0).reverse()) {
+      const newer = access.closedTabs().findIndex((entry) => entry.closedAt >= held.closedAt)
+      access.closedTabs().splice(newer < 0 ? access.closedTabs().length : newer, 0, held)
     }
     if (access.closedTabs().length > MAX_CLOSED_TABS) access.closedTabs().splice(0, access.closedTabs().length - MAX_CLOSED_TABS)
   }

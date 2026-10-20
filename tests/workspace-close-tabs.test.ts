@@ -304,6 +304,49 @@ describe('recently closed tabs of other workspaces', () => {
     expect(closedTabs.map((entry) => entry.id)).toEqual(closedElsewhere().map((entry) => entry.id))
   })
 
+  it('come back in the order they were closed when two workspaces close at once', async () => {
+    const { manager, internals, release } = await browser()
+    release()
+    Object.assign(internals, { options: { partition: 'persist:hronaut' } })
+    const closedTabs = (internals as unknown as { closedTabs: Array<{ id: string; closedAt: string; mcpGroupId?: string }> }).closedTabs
+    // Tabs closed outside both workspaces, a minute apart, oldest first.
+    const elsewhere = Array.from({ length: 50 }, (_unused, index) => ({
+      id: `closed-${index}`, title: `Closed ${index}`, url: `https://elsewhere.test/${index}`, pinned: false,
+      closedAt: new Date(Date.UTC(2026, 9, 19, 9, index)).toISOString()
+    }))
+    closedTabs.push(...elsewhere)
+    // Deleting each workspace's storage waits until the test lets it go on.
+    const deletions = new Map<string, () => void>()
+    internals.assertStorageDeletionOwnership.mockImplementation((groupId: string) => new Promise<void>((resolve) => { deletions.set(groupId, resolve) }))
+    const closing = manager.closeMcpTabGroup(CLOSING)
+    await vi.waitFor(() => expect(deletions.has(CLOSING)).toBe(true))
+    const closingOther = manager.closeMcpTabGroup(OTHER)
+    await vi.waitFor(() => expect(deletions.has(OTHER)).toBe(true))
+    // The workspace that closed first finishes first.
+    deletions.get(CLOSING)!()
+    await closing
+    deletions.get(OTHER)!()
+    await closingOther
+    // The entries the second close held aside used to come back in front of the older ones the first close returned.
+    expect(closedTabs.map((entry) => entry.id)).toEqual(elsewhere.map((entry) => entry.id))
+  })
+
+  it('stay recoverable when closing another workspace and reopening its tabs both fail', async () => {
+    const { manager, internals, release, workspaceTabs } = await browser()
+    release()
+    const closedTabs = (internals as unknown as { closedTabs: Array<{ id: string; mcpGroupId?: string }> }).closedTabs
+    closedTabs.push(...closedElsewhere())
+    // Hronaut Home is never remembered, so closing the workspace adds one entry for its two tabs.
+    internals.tabs.get(ASLEEP)!.url = 'hronaut://home/'
+    internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
+    internals.createTab.mockRejectedValue(new Error('The tab could not be opened again.'))
+    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow()
+    expect(workspaceTabs(CLOSING)).toEqual([])
+    // The tab that could not come back stays recoverable, and only the oldest entry makes room for it.
+    expect(closedTabs.map((entry) => entry.id)).toEqual([...closedElsewhere().slice(1).map((entry) => entry.id), expect.any(String)])
+    expect(closedTabs.at(-1)).toMatchObject({ url: 'https://example.test/ab', mcpGroupId: CLOSING })
+  })
+
   it('stay recoverable when closing another workspace fails and its tabs come back', async () => {
     const { manager, internals, release, workspaceTabs } = await browser()
     release()

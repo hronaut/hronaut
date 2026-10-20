@@ -24,7 +24,7 @@ function page(id: string, number: number, lastActiveAt: number): Tab {
 
 /**
  * Three website tabs with Memory Saver on its default hour. Putting a tab to sleep is recorded instead of done, so the
- * test sees which tabs the sweep finds inactive for longer than the timeout.
+ * test sees which tabs the sweep finds inactive for longer than the timeout, before checking whether each may sleep.
  */
 function browser() {
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -47,13 +47,13 @@ function browser() {
     layout: vi.fn(), focusTabOrTrustedChrome: vi.fn(), changed: vi.fn(), getState: () => ({})
   }) as BrowserTabsManager
   const sweep = () => (manager as unknown as { sweepMemorySaver(force: boolean): Promise<void> }).sweepMemorySaver(false)
-  const sleptTabs = () => putTabToSleep.mock.calls.map(([tab]) => tab.id)
-  return { manager, sweep, sleptTabs }
+  const askedToSleep = () => putTabToSleep.mock.calls.map(([tab]) => tab.id)
+  return { manager, sweep, askedToSleep }
 }
 
 describe('Memory Saver inactivity', () => {
   it('counts the time a tab was in view as activity, so switching away does not put it to sleep at once', async () => {
-    const { manager, sweep, sleptTabs } = browser()
+    const { manager, sweep, askedToSleep } = browser()
     manager.selectTab('reading')
     // The person reads the page for two hours, scrolling but never clicking or typing in it.
     vi.setSystemTime(Date.now() + 2 * 60 * MINUTE)
@@ -61,17 +61,17 @@ describe('Memory Saver inactivity', () => {
     await sweep()
     // The page the person was reading until a moment ago used to go to sleep at the next sweep, within 30 seconds of
     // switching away, as if it had been inactive for two hours.
-    expect(sleptTabs()).not.toContain('reading')
-    expect(sleptTabs()).toContain('idle')
+    expect(askedToSleep()).not.toContain('reading')
+    expect(askedToSleep()).toContain('idle')
 
     // Once it has been out of view for longer than the timeout, it may sleep.
     vi.setSystemTime(Date.now() + 61 * MINUTE)
     await sweep()
-    expect(sleptTabs()).toContain('reading')
+    expect(askedToSleep()).toContain('reading')
   })
 
   it('counts the time a page was in split view as activity when the split view closes', async () => {
-    const { manager, sweep, sleptTabs } = browser()
+    const { manager, sweep, askedToSleep } = browser()
     manager.selectTab('reading')
     manager.openSplitView('other')
     // Both pages stay side by side for two hours.
@@ -79,18 +79,18 @@ describe('Memory Saver inactivity', () => {
     manager.closeSplitView()
     await sweep()
     // The page that left the window used to sleep at the next sweep.
-    expect(sleptTabs()).not.toContain('other')
-    expect(sleptTabs()).toContain('idle')
+    expect(askedToSleep()).not.toContain('other')
+    expect(askedToSleep()).toContain('idle')
   })
 
   it('counts the time a page was in split view as activity when another split view replaces it', async () => {
-    const { manager, sweep, sleptTabs } = browser()
+    const { manager, sweep, askedToSleep } = browser()
     manager.selectTab('reading')
     manager.openSplitView('other')
     vi.setSystemTime(Date.now() + 2 * 60 * MINUTE)
     // The person pairs the page they are on with another one; the earlier partner leaves the window.
     manager.openSplitView('idle')
     await sweep()
-    expect(sleptTabs()).not.toContain('other')
+    expect(askedToSleep()).not.toContain('other')
   })
 })
