@@ -56,7 +56,21 @@ function cookieOrigin(cookie: BrowsingDataCookie): string | null {
 
 /** Hosts Chromium trusts over plain HTTP, so it sends them Secure cookies: localhost, its subdomains and loopback addresses. */
 function loopbackHostname(hostname: string): boolean {
-  return hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === '[::1]' || /^127(?:\.\d{1,3}){3}$/.test(hostname)
+  const host = hostname.endsWith('.') ? hostname.slice(0, -1) : hostname
+  return host === 'localhost' || host.endsWith('.localhost') || host === '[::1]' || /^127(?:\.\d{1,3}){3}$/.test(host)
+}
+
+/**
+ * Whether a request to the origin can match the cookie's path: the origin's address at that path spells it the same
+ * way. One with a space, for example, never matches, and Chromium writes `|` in a request path as `%7C`.
+ */
+function pathReceivedBy(origin: string, path: string): boolean {
+  if (path.includes('|')) return false
+  try {
+    return new URL(`${origin}${path}`).pathname === path
+  } catch {
+    return false
+  }
 }
 
 export function cookieAvailableToOrigin(cookie: BrowsingDataCookie, origin: string): boolean {
@@ -65,9 +79,8 @@ export function cookieAvailableToOrigin(cookie: BrowsingDataCookie, origin: stri
   const url = new URL(origin)
   const hostname = url.hostname.toLocaleLowerCase()
   if (cookie.secure && url.protocol !== 'https:' && !loopbackHostname(hostname)) return false
-  // A path that an address would spell differently, such as one with a space, never matches a request's path.
-  if (cookie.path !== undefined && new URL(cookie.path, url).pathname !== cookie.path) return false
-  return hostname === domain || (!cookie.hostOnly && hostname.endsWith(`.${domain}`))
+  if (hostname !== domain && (cookie.hostOnly || !hostname.endsWith(`.${domain}`))) return false
+  return cookie.path === undefined || pathReceivedBy(url.origin, cookie.path)
 }
 
 export function buildBrowsingDataWebsiteInventory(sources: BrowsingDataWebsiteSources): BrowsingDataWebsiteSummary[] {
