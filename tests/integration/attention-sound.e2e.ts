@@ -456,18 +456,18 @@ test('keeps the current tab selected when presentation actions cannot wake their
       const scope = globalThis as typeof globalThis & {
         __hronautRejectedTrayWake?: {
           pageId: number
-          restore: Electron.NavigationHistory['restore']
+          goToIndex: Electron.NavigationHistory['goToIndex']
           loadUrl: Electron.WebContents['loadURL']
         }
       }
       scope.__hronautRejectedTrayWake = {
         pageId: page.id,
-        restore: page.navigationHistory.restore.bind(page.navigationHistory),
+        goToIndex: page.navigationHistory.goToIndex.bind(page.navigationHistory),
         loadUrl: page.loadURL.bind(page)
       }
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async () => { throw new Error('simulated requested tray wake failure') }
+        value: () => { throw new Error('simulated requested tray wake failure') }
       })
       Object.defineProperty(page, 'loadURL', {
         configurable: true,
@@ -515,7 +515,7 @@ test('keeps the current tab selected when presentation actions cannot wake their
         __hronautTrayRequestMenu?: { original: typeof Menu.buildFromTemplate }
         __hronautRejectedTrayWake?: {
           pageId: number
-          restore: Electron.NavigationHistory['restore']
+          goToIndex: Electron.NavigationHistory['goToIndex']
           loadUrl: Electron.WebContents['loadURL']
         }
       }
@@ -527,7 +527,7 @@ test('keeps the current tab selected when presentation actions cannot wake their
       const wakeControl = scope.__hronautRejectedTrayWake
       const page = wakeControl ? webContents.fromId(wakeControl.pageId) : undefined
       if (wakeControl && page) {
-        Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: wakeControl.restore })
+        Object.defineProperty(page.navigationHistory, 'goToIndex', { configurable: true, value: wakeControl.goToIndex })
         Object.defineProperty(page, 'loadURL', { configurable: true, value: wakeControl.loadUrl })
       }
       delete scope.__hronautRejectedTrayWake
@@ -586,20 +586,21 @@ test('keeps newer user attention authoritative when an older tab wake finishes l
     await electronApp.evaluate(({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))
       if (!page) throw new Error('Delayed attention WebContents was not found')
-      const originalRestore = page.navigationHistory.restore.bind(page.navigationHistory)
+      const originalGoToIndex = page.navigationHistory.goToIndex.bind(page.navigationHistory)
       const control = {
         pageId: page.id,
-        restore: originalRestore,
+        goToIndex: originalGoToIndex,
         started: false,
         release: undefined as (() => void) | undefined
       }
       ;(globalThis as typeof globalThis & { __hronautDelayedAttentionWake?: typeof control }).__hronautDelayedAttentionWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async (...args: Parameters<typeof originalRestore>) => {
+        value: (...args: Parameters<typeof originalGoToIndex>) => {
           control.started = true
-          await new Promise<void>((resolve) => { control.release = resolve })
-          return originalRestore(...args)
+          void new Promise<void>((resolve) => { control.release = resolve }).then(() => {
+            if (!page.isDestroyed()) originalGoToIndex(...args)
+          })
         }
       })
     })
@@ -657,14 +658,14 @@ test('keeps newer user attention authoritative when an older tab wake finishes l
   } finally {
     await electronApp.evaluate(({ webContents }) => {
       const scope = globalThis as typeof globalThis & {
-        __hronautDelayedAttentionWake?: { pageId: number; restore: Electron.NavigationHistory['restore']; release?: () => void }
+        __hronautDelayedAttentionWake?: { pageId: number; goToIndex: Electron.NavigationHistory['goToIndex']; release?: () => void }
         __hronautPendingAttentionRequest?: Promise<unknown>
       }
       scope.__hronautDelayedAttentionWake?.release?.()
       const control = scope.__hronautDelayedAttentionWake
       const page = control ? webContents.fromId(control.pageId) : undefined
       if (control && page) {
-        Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
+        Object.defineProperty(page.navigationHistory, 'goToIndex', { configurable: true, value: control.goToIndex })
       }
       delete scope.__hronautDelayedAttentionWake
       delete scope.__hronautPendingAttentionRequest

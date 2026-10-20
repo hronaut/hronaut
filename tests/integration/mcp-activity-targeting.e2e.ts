@@ -438,20 +438,21 @@ test('attributes omitted-tab activity only to the validated workspace target', a
     await diagnostics.main(() => electronApp.evaluate(({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))
       if (!page) throw new Error('Sleeping activity target WebContents was not found')
-      const originalRestore = page.navigationHistory.restore.bind(page.navigationHistory)
+      const originalGoToIndex = page.navigationHistory.goToIndex.bind(page.navigationHistory)
       const control = {
         pageId: page.id,
-        restore: originalRestore,
+        goToIndex: originalGoToIndex,
         started: false,
         release: undefined as (() => void) | undefined
       }
       ;(globalThis as typeof globalThis & { __hronautDelayedMcpActivityWake?: typeof control }).__hronautDelayedMcpActivityWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async (...args: Parameters<typeof originalRestore>) => {
+        value: (...args: Parameters<typeof originalGoToIndex>) => {
           control.started = true
-          await new Promise<void>((resolve) => { control.release = resolve })
-          return originalRestore(...args)
+          void new Promise<void>((resolve) => { control.release = resolve }).then(() => {
+            if (!page.isDestroyed()) originalGoToIndex(...args)
+          })
         }
       })
     }))
@@ -492,13 +493,13 @@ test('attributes omitted-tab activity only to the validated workspace target', a
   } finally {
     await diagnostics.main(() => electronApp.evaluate(({ webContents }) => {
       const scope = globalThis as typeof globalThis & {
-        __hronautDelayedMcpActivityWake?: { pageId: number; restore: Electron.NavigationHistory['restore']; release?: () => void }
+        __hronautDelayedMcpActivityWake?: { pageId: number; goToIndex: Electron.NavigationHistory['goToIndex']; release?: () => void }
       }
       scope.__hronautDelayedMcpActivityWake?.release?.()
       const control = scope.__hronautDelayedMcpActivityWake
       const page = control ? webContents.fromId(control.pageId) : undefined
       if (control && page) {
-        Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
+        Object.defineProperty(page.navigationHistory, 'goToIndex', { configurable: true, value: control.goToIndex })
       }
       delete scope.__hronautDelayedMcpActivityWake
     })).catch(() => undefined)
@@ -553,21 +554,22 @@ test('keeps a newer human selection authoritative while MCP wakes a sleeping sel
     await diagnostics.main(() => electronApp.evaluate(({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))
       if (!page) throw new Error('Sleeping MCP selection WebContents was not found')
-      const originalRestore = page.navigationHistory.restore.bind(page.navigationHistory)
+      const originalGoToIndex = page.navigationHistory.goToIndex.bind(page.navigationHistory)
       const control = {
         pageId: page.id,
-        restore: originalRestore,
+        goToIndex: originalGoToIndex,
         started: false,
         release: undefined as (() => void) | undefined
       }
       ;(globalThis as typeof globalThis & { __hronautDelayedMcpSelectionWake?: typeof control })
         .__hronautDelayedMcpSelectionWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async (...args: Parameters<typeof originalRestore>) => {
+        value: (...args: Parameters<typeof originalGoToIndex>) => {
           control.started = true
-          await new Promise<void>((resolve) => { control.release = resolve })
-          return originalRestore(...args)
+          void new Promise<void>((resolve) => { control.release = resolve }).then(() => {
+            if (!page.isDestroyed()) originalGoToIndex(...args)
+          })
         }
       })
     }))
@@ -598,7 +600,7 @@ test('keeps a newer human selection authoritative while MCP wakes a sleeping sel
       const scope = globalThis as typeof globalThis & {
         __hronautDelayedMcpSelectionWake?: {
           pageId: number
-          restore: Electron.NavigationHistory['restore']
+          goToIndex: Electron.NavigationHistory['goToIndex']
           release?: () => void
         }
       }
@@ -606,7 +608,7 @@ test('keeps a newer human selection authoritative while MCP wakes a sleeping sel
       const control = scope.__hronautDelayedMcpSelectionWake
       const page = control ? webContents.fromId(control.pageId) : undefined
       if (control && page) {
-        Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
+        Object.defineProperty(page.navigationHistory, 'goToIndex', { configurable: true, value: control.goToIndex })
       }
       delete scope.__hronautDelayedMcpSelectionWake
     })).catch(() => undefined)
@@ -653,19 +655,19 @@ test('closes a sleeping MCP tab without trying to wake it', async ({
     await electronApp.evaluate(({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))
       if (!page) throw new Error('Sleeping MCP close WebContents was not found')
-      const originalRestore = page.navigationHistory.restore.bind(page.navigationHistory)
+      const originalGoToIndex = page.navigationHistory.goToIndex.bind(page.navigationHistory)
       const originalLoadUrl = page.loadURL.bind(page)
       const control = {
         pageId: page.id,
-        restore: originalRestore,
+        goToIndex: originalGoToIndex,
         loadUrl: originalLoadUrl,
         wakeAttempts: 0
       }
       ;(globalThis as typeof globalThis & { __hronautRejectedMcpCloseWake?: typeof control })
         .__hronautRejectedMcpCloseWake = control
-      Object.defineProperty(page.navigationHistory, 'restore', {
+      Object.defineProperty(page.navigationHistory, 'goToIndex', {
         configurable: true,
-        value: async () => {
+        value: () => {
           control.wakeAttempts += 1
           throw new Error('MCP close must not restore a sleeping tab')
         }
@@ -695,14 +697,14 @@ test('closes a sleeping MCP tab without trying to wake it', async ({
       const scope = globalThis as typeof globalThis & {
         __hronautRejectedMcpCloseWake?: {
           pageId: number
-          restore: Electron.NavigationHistory['restore']
+          goToIndex: Electron.NavigationHistory['goToIndex']
           loadUrl: Electron.WebContents['loadURL']
         }
       }
       const control = scope.__hronautRejectedMcpCloseWake
       const page = control ? webContents.fromId(control.pageId) : undefined
       if (control && page) {
-        Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
+        Object.defineProperty(page.navigationHistory, 'goToIndex', { configurable: true, value: control.goToIndex })
         Object.defineProperty(page, 'loadURL', { configurable: true, value: control.loadUrl })
       }
       delete scope.__hronautRejectedMcpCloseWake
