@@ -3593,6 +3593,12 @@ export const frFR = {
       "wrongProduct": "Cette licence commerciale n’est pas destinée à Hronaut."
     },
     "dialog": {
+      "quitDownloadsTitle": "Quitter Hronaut ?",
+      "quitDownloadsMessage": "Un téléchargement est en cours. | {count} téléchargements sont en cours.",
+      "quitDownloadDetail": "Si vous quittez maintenant, il sera annulé et le fichier incomplet supprimé.",
+      "quitDownloadsDetail": "Si vous quittez maintenant, ils seront annulés et les fichiers incomplets supprimés.",
+      "quitDownloadsQuit": "Quitter",
+      "quitDownloadsKeep": "Continuer le téléchargement",
       "closeTabTitle": "Fermer cet onglet ?",
       "closeTabMessage": "Cette page demande à Hronaut de confirmer sa fermeture.",
       "closeTabDetail": "La fermeture de l’onglet peut supprimer des modifications non enregistrées.",

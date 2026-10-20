@@ -3593,6 +3593,12 @@ export const esES = {
       "wrongProduct": "Esta licencia comercial no es para Hronaut."
     },
     "dialog": {
+      "quitDownloadsTitle": "¿Salir de Hronaut?",
+      "quitDownloadsMessage": "Hay una descarga en curso. | Hay {count} descargas en curso.",
+      "quitDownloadDetail": "Si sales ahora, se cancelará y se eliminará el archivo sin terminar.",
+      "quitDownloadsDetail": "Si sales ahora, se cancelarán y se eliminarán los archivos sin terminar.",
+      "quitDownloadsQuit": "Salir",
+      "quitDownloadsKeep": "Seguir descargando",
       "closeTabTitle": "¿Cerrar esta pestaña?",
       "closeTabMessage": "Esta página ha pedido a Hronaut que confirme antes de cerrarla.",
       "closeTabDetail": "Al cerrar la pestaña se pueden perder los cambios no guardados.",
