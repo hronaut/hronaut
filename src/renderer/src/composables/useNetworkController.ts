@@ -9,8 +9,10 @@ import type {
   BrowserNetworkRequestSortDirection,
   BrowserState,
   BrowserTabState,
-  HronautApi
+  HronautApi,
+  SupportedLocale
 } from '../../../shared/types.js'
+import { formatNumber } from '../../../shared/format.js'
 import {
   canFormatNetworkRequestCopy,
   formatNetworkRequestCopy,
@@ -63,6 +65,7 @@ export interface NetworkControllerOptions {
   open: Ref<boolean>
   browser: NetworkBrowserApi
   translate: Translate
+  locale: () => SupportedLocale
   copyText: CopyTextWithFeedback
   syncState: (operation: Promise<BrowserState>) => Promise<void>
   keepsSeparatePanelOpen: () => boolean
@@ -453,11 +456,15 @@ export function useNetworkController(options: NetworkControllerOptions) {
     return request.completedAt ? options.translate('runtime.network.done') : options.translate('runtime.network.pending')
   }
 
+  // Durations use the interface language's decimal separator, such as 1,25 s in German.
   function formatMilliseconds(value: number): string {
     if (value > 0 && value < 1) return '<1 ms'
-    if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 1 : 2)} s`
-    const rounded = Math.round(value * 10) / 10
-    return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)} ms`
+    if (value >= 1_000) {
+      const digits = value >= 10_000 ? 1 : 2
+      return `${formatNumber(options.locale(), value / 1_000, { minimumFractionDigits: digits, maximumFractionDigits: digits })} s`
+    }
+    // A Server-Timing entry can carry -0, which is written as 0.
+    return `${formatNumber(options.locale(), value === 0 ? 0 : value, { maximumFractionDigits: 1, useGrouping: false })} ms`
   }
 
   function requestDuration(request: BrowserNetworkRequest): string {

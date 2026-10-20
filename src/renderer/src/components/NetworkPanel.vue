@@ -141,6 +141,7 @@ const {
   open,
   browser: window.hronaut,
   translate: (message, parameters) => t(message, parameters ?? {}),
+  locale: () => props.locale,
   copyText: props.copyText,
   syncState: props.syncState,
   keepsSeparatePanelOpen: props.keepsSeparatePanelOpen

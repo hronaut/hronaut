@@ -48,3 +48,11 @@ it('avoids opening import at asset capacity and enables it after an unused asset
   await view.rerender({ state: { ...current, audioAssets: current.audioAssets!.filter(asset => asset.id !== 'import-0') } })
   expect(screen.getByRole('button', { name: 'Choose WAV audio…' })).toBeEnabled()
 })
+
+it('writes audio event times in the interface language', async () => {
+  // Times used a decimal point in every language: "1.5 · 3.25" in German.
+  const current = state()
+  current.audio = [{ assetId: 'builtin:ambient', startMs: 1500, endMs: 3250, offsetMs: 0, volume: 0.5, fadeInMs: 0, fadeOutMs: 0, loop: false }]
+  render(VideoAudioEditor, { props: { state: current, busy: false }, global: { plugins: [createHronautI18n('de-DE')] } })
+  expect(screen.getByText(/1,5 · 3,25/)).toBeInTheDocument()
+})

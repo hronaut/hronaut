@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatDateTime } from '../../../../../shared/format.js'
+import type { SupportedLocale } from '../../../../../shared/types.js'
 import { incidentKinds, incidentOmissionLimit, incidentReplacementLimit, incidentPathOmissionLimit, incidentLiteralPathSchema, type IncidentDraft, type IncidentKind, type IncidentPreview } from '../../../../../shared/incident-package'
 import UiButton from '../../../ui/UiButton.vue'
 import UiInput from '../../../ui/UiInput.vue'
 import { friendlyUiError } from '../../../composables/useAppToastController.js'
 
 const props = defineProps<{ tabId: string }>()
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
 const selected = ref<IncidentKind[]>([])
 const minutes = ref(10)
 const included = ref<IncidentKind[]>([])
@@ -154,7 +156,7 @@ onBeforeUnmount(reset)
       <UiButton type="button" :disabled="!selected.length" @click="capture">{{ t('incident.capture') }}</UiButton>
     </fieldset>
     <template v-if="draft">
-      <p>{{ t('incident.expires') }} {{ draft.expiresAt }}</p>
+      <p>{{ t('incident.expires') }} {{ formatDateTime(locale as SupportedLocale, draft.expiresAt, { dateStyle: 'medium', timeStyle: 'medium' }) }}</p>
       <fieldset :disabled="busy">
         <legend>{{ t('incident.include') }}</legend>
         <label v-for="artifact in draft.artifacts" :key="artifact.kind"><input v-model="included" type="checkbox" :value="artifact.kind">{{ t(`incident.${artifact.kind}`) }} — {{ t(`incident.${artifact.status}`) }} <span v-if="artifact.truncated">{{ t('incident.truncated') }}</span></label>

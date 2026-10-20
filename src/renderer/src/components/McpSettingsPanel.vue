@@ -2,6 +2,7 @@
 import { UiButton, UiCheckbox } from '../ui/index.js'
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatDateTime } from '../../../shared/format'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
 import { MAX_MCP_PORT, MIN_MCP_PORT } from '../../../shared/mcp-port'
@@ -9,13 +10,15 @@ import { isMcpToolSet } from '../../../shared/mcp-tool-sets'
 import type { McpSettingsController } from '../composables/useMcpSettingsController'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { confirmAction } from '../confirm-action.js'
-import type { McpCapabilityProfilePreset } from '../../../shared/types'
+import type { McpCapabilityProfilePreset, SupportedLocale } from '../../../shared/types'
 
 const props = defineProps<{
   controller: McpSettingsController
 }>()
 
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
+// Dates follow Hronaut's interface language, not the system's.
+const localDateTime = (value: number | string): string => formatDateTime(locale.value as SupportedLocale, value, { dateStyle: 'medium', timeStyle: 'medium' })
 const {
   settings,
   endpoint,
@@ -346,7 +349,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
             }) }}</small>
             <small v-if="profile.revokedAt" class="mcp-capability-revoked">{{ t('settings.mcp.capabilities.revoked') }}</small>
             <small v-else-if="!profile.lineageActive" class="mcp-capability-revoked">{{ t('settings.mcp.capabilities.inactiveLineage') }}</small>
-            <small v-else-if="profile.expiresAt">{{ t('settings.mcp.capabilities.expires', { date: new Date(profile.expiresAt).toLocaleString() }) }}</small>
+            <small v-else-if="profile.expiresAt">{{ t('settings.mcp.capabilities.expires', { date: localDateTime(profile.expiresAt) }) }}</small>
           </div>
           <div class="mcp-capability-actions">
             <UiButton type="button" :disabled="capabilityBusy || !profile.lineageActive" @click="rotateCapabilityProfile(profile.id)">{{ t('settings.mcp.capabilities.rotate') }}</UiButton>

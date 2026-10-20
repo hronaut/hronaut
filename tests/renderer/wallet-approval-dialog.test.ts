@@ -8,6 +8,7 @@ import { useWalletsController, type WalletsController } from '../../src/renderer
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { HronautWalletsApi } from '../../src/shared/types.js'
 import type { WalletRequestSummary } from '../../src/shared/wallet.js'
+import { formatDateTime } from '../../src/shared/format.js'
 
 function request(id = 'request-1', walletName = 'Main wallet'): WalletRequestSummary {
   return {
@@ -225,6 +226,19 @@ describe('WalletApprovalDialog', () => {
     ])
   })
 
+  it('writes when a request expires in the interface language, not the system\'s', () => {
+    // The expiry used the system's date format, such as 1/15/2027 for a Ukrainian interface on an English system.
+    const pending = request()
+    pending.expiresAt = '2027-01-15T08:00:00.000Z'
+    const view = render(WalletApprovalDialog, {
+      props: { controller: { ...controller(), awaitingApproval: ref([pending]) } as unknown as WalletsController, workspaces: [] },
+      global: { plugins: [createHronautI18n('uk-UA')] }
+    })
+    expect(document.body).toHaveTextContent(formatDateTime('uk-UA', pending.expiresAt, { dateStyle: 'medium', timeStyle: 'medium' }))
+    expect(document.body).not.toHaveTextContent('1/15/2027')
+    view.unmount()
+  })
+
   it('shows until when a typed-data permit can be used, and warns when it never expires', () => {
     const expiresAt = '2027-01-15T08:00:00.000Z'
     const permit = (tokenAccess: Record<string, unknown>, warnings: string[]): WalletRequestSummary => {
@@ -243,7 +257,7 @@ describe('WalletApprovalDialog', () => {
       props: { controller: { ...controller(), awaitingApproval: ref([permit({ expiresAt }, ['token-permit'])]) } as unknown as WalletsController, workspaces: [] },
       global: { plugins: [createHronautI18n('en-US')] }
     })
-    expect(screen.getByRole('region', { name: 'Typed data to sign' })).toHaveTextContent(`Valid until${new Date(expiresAt).toLocaleString()}`)
+    expect(screen.getByRole('region', { name: 'Typed data to sign' })).toHaveTextContent(`Valid until${formatDateTime('en-US', expiresAt, { dateStyle: 'medium', timeStyle: 'medium' })}`)
     view.unmount()
 
     render(WalletApprovalDialog, {

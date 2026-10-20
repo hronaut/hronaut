@@ -9,7 +9,8 @@ import type {
   BrowserNetworkRouteSummary,
   BrowserNetworkSearchResult,
   BrowserState,
-  BrowserTabState
+  BrowserTabState,
+  SupportedLocale
 } from '../../src/shared/types.js'
 
 function tab(id = 'tab-1', networkRouteCount = 0): BrowserTabState {
@@ -193,7 +194,7 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController(copyTextOverride?: CopyTextWithFeedback) {
+function createController(copyTextOverride?: CopyTextWithFeedback, locale: SupportedLocale = 'en-US') {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const open = ref(true)
   const synced: BrowserState[] = []
@@ -255,6 +256,7 @@ function createController(copyTextOverride?: CopyTextWithFeedback) {
     open,
     browser,
     translate: (key) => key,
+    locale: () => locale,
     copyText,
     syncState,
     keepsSeparatePanelOpen: () => false
@@ -264,6 +266,22 @@ function createController(copyTextOverride?: CopyTextWithFeedback) {
 
 afterEach(() => {
   vi.useRealTimers()
+})
+
+describe('Network request durations', () => {
+  it('writes durations with the interface language\'s decimal separator', () => {
+    // Durations used a decimal point in every language, so German read "1.25 s".
+    const english = createController().controller
+    const german = createController(undefined, 'de-DE').controller
+    try {
+      expect([1_250, 12.34, 12_345, 0.5].map(english.formatMilliseconds)).toEqual(['1.25 s', '12.3 ms', '12.3 s', '<1 ms'])
+      expect([1_250, 12.34, 12_345, 40].map(german.formatMilliseconds)).toEqual(['1,25 s', '12,3 ms', '12,3 s', '40 ms'])
+      expect([999.95, -0].map(german.formatMilliseconds)).toEqual(['1000 ms', '0 ms'])
+    } finally {
+      english.dispose()
+      german.dispose()
+    }
+  })
 })
 
 describe('Network detail copy failure ownership', () => {

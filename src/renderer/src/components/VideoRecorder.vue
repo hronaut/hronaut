@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatNumber } from '../../../shared/format.js'
+import type { SupportedLocale } from '../../../shared/types.js'
 import UiButton from '../ui/UiButton.vue'
 import VideoAudioEditor from './VideoAudioEditor.vue'
 import VideoMotionEditor from './VideoMotionEditor.vue'
@@ -8,7 +10,9 @@ import { VIDEO_ANNOTATION_KINDS, VIDEO_PLACEMENTS, VIDEO_TEXT_PRESETS, videoAnno
 import { friendlyUiError } from '../composables/useAppToastController.js'
 
 const props = defineProps<{ tabId: string }>()
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
+// Seconds use the interface language's decimal separator: a set number of digits for a length, up to milliseconds for a time.
+const seconds = (milliseconds: number, digits?: number): string => formatNumber(locale.value as SupportedLocale, milliseconds / 1000, digits === undefined ? { maximumFractionDigits: 3 } : { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const state = ref<BrowserVideoState | null>(null)
 const busy = ref(false)
 const pendingAction = ref<BrowserVideoOptions['action']>()
@@ -150,7 +154,7 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
 <template>
   <section ref="recorder" class="video-recorder" tabindex="-1" :aria-label="t('video.title')" :aria-busy="busy">
     <p>{{ t('video.privacy') }}</p>
-    <p v-if="state" role="status">{{ t(`video.status.${state.status}`) }} · {{ (state.durationMs / 1000).toFixed(1) }} {{ t('video.seconds') }}</p>
+    <p v-if="state" role="status">{{ t(`video.status.${state.status}`) }} · {{ seconds(state.durationMs, 1) }} {{ t('video.seconds') }}</p>
     <p v-if="state?.notice">{{ state.notice }}</p>
     <p v-if="error" role="alert">{{ error }}</p>
     <div class="video-actions">
@@ -197,7 +201,7 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
       </fieldset>
       <ol v-if="state?.annotations.length">
         <li v-for="(annotation, index) in state.annotations" :key="index">
-          <span>{{ t(`video.kinds.${annotation.kind}`) }} · {{ annotation.startMs / 1000 }} · {{ annotation.endMs / 1000 }} · {{ annotation.text }}</span>
+          <span>{{ t(`video.kinds.${annotation.kind}`) }} · {{ seconds(annotation.startMs) }} · {{ seconds(annotation.endMs) }} · {{ annotation.text }}</span>
           <UiButton :disabled="busy" :aria-label="t('video.removeAnnotation', { index: index + 1 })" @click="manage('edit', { annotations: state.annotations.filter((_, i) => i !== index) })">{{ t('video.remove') }}</UiButton>
         </li>
       </ol>
@@ -210,7 +214,7 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
         </div>
         <UiButton @click="manage('edit', { clips: [...(state?.clips ?? []), { startMs: clipStart * 1000, endMs: clipEnd * 1000 }] })">{{ t('video.addClip') }}</UiButton>
         <UiButton v-if="state?.clips.length" @click="manage('edit', { clips: [{ startMs: 0, endMs: state.durationMs }] })">{{ t('video.wholeRecording') }}</UiButton>
-        <ol><li v-for="(clip, index) in state?.clips" :key="index">{{ clip.startMs / 1000 }} · {{ clip.endMs / 1000 }} {{ t('video.seconds') }}<UiButton v-if="state && state.clips.length > 1" @click="manage('edit', { clips: state.clips.filter((_, i) => i !== index) })">{{ t('video.remove') }}</UiButton></li></ol>
+        <ol><li v-for="(clip, index) in state?.clips" :key="index">{{ seconds(clip.startMs) }} · {{ seconds(clip.endMs) }} {{ t('video.seconds') }}<UiButton v-if="state && state.clips.length > 1" @click="manage('edit', { clips: state.clips.filter((_, i) => i !== index) })">{{ t('video.remove') }}</UiButton></li></ol>
       </fieldset>
       <VideoAudioEditor v-if="state" :key="`audio-${tabId}-${state.recordingId ?? ''}`" :state="state" :busy="busy" @edit="manage('edit', $event)" @import="importAudio" @remove-asset="manage('remove-audio', { assetId: $event })" />
       <VideoMotionEditor v-if="state" :key="`motion-${tabId}-${state.recordingId ?? ''}`" :state="state" :busy="busy" @edit="manage('edit', $event)" />

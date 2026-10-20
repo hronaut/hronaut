@@ -3,6 +3,8 @@ import UiButton from "../ui/UiButton.vue"
 import UiOverlayTransition from "../ui/UiOverlayTransition.vue"
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatDateTime } from '../../../shared/format.js'
+import type { SupportedLocale } from '../../../shared/types.js'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 import {
@@ -18,6 +20,8 @@ const props = defineProps<{
   workspaces: readonly { id: string; name: string }[]
 }>()
 const { t, locale } = useI18n({ useScope: 'global' })
+// Dates follow Hronaut's interface language, not the system's.
+const localDateTime = (value: number | string): string => formatDateTime(locale.value as SupportedLocale, value, { dateStyle: 'medium', timeStyle: 'medium' })
 const request = computed(() => props.controller.awaitingApproval.value[0])
 const open = computed(() => Boolean(request.value))
 const requestId = computed(() => request.value?.id)
@@ -190,7 +194,7 @@ function rawDetails(): string {
               <template v-else>{{ revertReason }}</template>
             </dd>
           </div>
-          <div><dt>{{ t('wallets.approval.expires') }}</dt><dd>{{ new Date(request.expiresAt).toLocaleString() }}</dd></div>
+          <div><dt>{{ t('wallets.approval.expires') }}</dt><dd>{{ localDateTime(request.expiresAt) }}</dd></div>
         </dl>
         <div v-if="!request.details?.understood" class="wallet-approval-warning" role="alert">
           {{ t('wallets.approval.undecodable') }}
@@ -216,7 +220,7 @@ function rawDetails(): string {
               <dt>{{ tokenAmountLabel(index) }}</dt>
               <dd><code v-if="allowance.token">{{ allowance.token }}</code>{{ allowance.token ? ' · ' : '' }}{{ allowance.unlimited ? t('wallets.approval.typedData.unlimited') : allowance.amount ? t('wallets.approval.typedData.baseUnits', { amount: allowance.amount }) : t('wallets.approval.typedData.unknownAmount') }}</dd>
             </div>
-            <div v-if="request.details.typedData.tokenAccess?.expiresAt || request.details.typedData.tokenAccess?.neverExpires"><dt>{{ t('wallets.approval.typedData.validUntil') }}</dt><dd>{{ request.details.typedData.tokenAccess.expiresAt ? new Date(request.details.typedData.tokenAccess.expiresAt).toLocaleString() : t('wallets.approval.typedData.neverExpires') }}</dd></div>
+            <div v-if="request.details.typedData.tokenAccess?.expiresAt || request.details.typedData.tokenAccess?.neverExpires"><dt>{{ t('wallets.approval.typedData.validUntil') }}</dt><dd>{{ request.details.typedData.tokenAccess.expiresAt ? localDateTime(request.details.typedData.tokenAccess.expiresAt) : t('wallets.approval.typedData.neverExpires') }}</dd></div>
           </dl>
           <p v-if="request.details.typedData.tokenAccess?.moreAllowances" class="wallet-approval-message-note">{{ t('wallets.approval.typedData.moreAllowances') }}</p>
         </section>

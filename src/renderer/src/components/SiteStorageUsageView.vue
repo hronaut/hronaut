@@ -6,7 +6,7 @@ import IconCopy from '~icons/material-symbols/content-copy-rounded'
 import IconError from '~icons/material-symbols/error-outline-rounded'
 import IconPieChart from '~icons/material-symbols/pie-chart-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
-import { formatBytes } from '../../../shared/format'
+import { formatBytes, formatPercent } from '../../../shared/format'
 import type { SupportedLocale } from '../../../shared/locale'
 import type { BrowserStorageUsageReport } from '../../../shared/types'
 
@@ -26,9 +26,11 @@ function bytes(value: number): string {
 }
 
 function usagePercent(percent: number): string {
-  if (percent <= 0) return '0%'
-  if (percent < 0.01) return '<0.01%'
-  return `${percent.toFixed(2).replace(/\.00$/, '')}%`
+  // Written in the interface language, such as 12,50 % in German.
+  if (percent <= 0) return formatPercent(props.locale, 0)
+  if (percent < 0.01) return `<${formatPercent(props.locale, 0.0001, { maximumFractionDigits: 2 })}`
+  const rounded = Number(percent.toFixed(2))
+  return formatPercent(props.locale, rounded / 100, { minimumFractionDigits: Number.isInteger(rounded) ? 0 : 2, maximumFractionDigits: 2 })
 }
 
 function usageTypeLabel(storageType: string): string {

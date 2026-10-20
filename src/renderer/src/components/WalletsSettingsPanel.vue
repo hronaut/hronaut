@@ -6,6 +6,8 @@ import IconWallet from '~icons/material-symbols/account-balance-wallet-outline-r
 import IconAdd from '~icons/material-symbols/add-rounded'
 import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatDateTime } from '../../../shared/format.js'
+import type { SupportedLocale } from '../../../shared/types.js'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
@@ -33,7 +35,9 @@ const props = defineProps<{
   controller: WalletsController
   workspaces: Array<{ id: string; name: string }>
 }>()
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
+// Dates follow Hronaut's interface language, not the system's.
+const localDateTime = (value: number | string): string => formatDateTime(locale.value as SupportedLocale, value, { dateStyle: 'medium', timeStyle: 'medium' })
 
 const workspaceScopeGroupId = `wallet-workspace-scope-${useId()}`
 const activeTab = ref('wallets')
@@ -637,7 +641,7 @@ async function addPolicy(): Promise<void> {
             <ul class="wallet-list"><li v-for="policy in selectedPolicies" :key="policy.id"><span><strong>{{ policy.name }}</strong><small>{{ policy.allowMainnetAgentAutomation ? t('wallets.policyBypassValue', { origins: policy.origins.join(', ') }) : t('wallets.policyValue', { mode: policy.mode, origins: policy.origins.join(', ') }) }}</small><small v-if="policy.contracts?.length" class="wallet-policy-contract">{{ t('wallets.policyContractValue', { contracts: policy.contracts.join(', ') }) }}</small><small v-else-if="policy.allowAnyTokenContract" class="wallet-policy-contract">{{ t('wallets.policyAnyTokenValue') }}</small><small v-if="policy.allowWebsiteSignIn" class="wallet-policy-sign-in">{{ policy.allowMainnetWebsiteSignIn ? t('wallets.policyMainnetSignInValue') : t('wallets.policySignInValue') }}</small><small v-if="policy.allowWebsiteSignIn && policy.allowWebsiteTypedData" class="wallet-policy-typed-data">{{ policy.allowMainnetWebsiteTypedData ? t('wallets.policyMainnetTypedDataValue') : t('wallets.policyTypedDataValue') }}</small></span><UiButton variant="danger" size="small" type="button" :disabled="controller.busy.value" @click="controller.removePolicy(policy.id)">{{ t('wallets.remove') }}</UiButton></li></ul>
           </div>
 
-            <div class="wallet-subsection"><h5>{{ t('wallets.websitePermissions') }}</h5><p v-if="selectedPermissions.length === 0">{{ t('wallets.noPermissions') }}</p><ul class="wallet-list"><li v-for="permission in selectedPermissions" :key="permission.id"><span><strong>{{ permission.origin }}</strong><small>{{ t('wallets.permissionValue', { workspace: permission.workspaceId, expires: new Date(permission.expiresAt).toLocaleString() }) }}</small></span><UiButton variant="danger" size="small" type="button" :disabled="controller.busy.value" @click="controller.revokePermission(permission.id)">{{ t('wallets.revoke') }}</UiButton></li></ul></div>
+            <div class="wallet-subsection"><h5>{{ t('wallets.websitePermissions') }}</h5><p v-if="selectedPermissions.length === 0">{{ t('wallets.noPermissions') }}</p><ul class="wallet-list"><li v-for="permission in selectedPermissions" :key="permission.id"><span><strong>{{ permission.origin }}</strong><small>{{ t('wallets.permissionValue', { workspace: permission.workspaceId, expires: localDateTime(permission.expiresAt) }) }}</small></span><UiButton variant="danger" size="small" type="button" :disabled="controller.busy.value" @click="controller.revokePermission(permission.id)">{{ t('wallets.revoke') }}</UiButton></li></ul></div>
           </section>
         </section>
       </section>
@@ -689,7 +693,7 @@ async function addPolicy(): Promise<void> {
         <div class="wallet-card-heading"><div class="wallet-section-heading"><h4>{{ t('wallets.requestsAudit') }}</h4><p>{{ t('wallets.requestsAuditCount', { requests: controller.requests.value.length, events: controller.audit.value.length }) }}</p></div><UiButton :disabled="controller.busy.value" @click="controller.refreshDetails">{{ t('wallets.refresh') }}</UiButton></div>
         <h5>{{ t('wallets.recentAudit') }}</h5>
         <div v-if="!controller.audit.value.length" class="wallet-empty-state"><strong>{{ t('wallets.noActivity') }}</strong><p>{{ t('wallets.activityDescription') }}</p></div>
-        <ul v-else class="wallet-list"><li v-for="entry in controller.audit.value.slice(-20).reverse()" :key="entry.sequence"><span><strong>{{ entry.type }}</strong><small>{{ t('wallets.auditValue', { time: new Date(entry.timestamp).toLocaleString(), sequence: entry.sequence }) }}</small></span></li></ul>
+        <ul v-else class="wallet-list"><li v-for="entry in controller.audit.value.slice(-20).reverse()" :key="entry.sequence"><span><strong>{{ entry.type }}</strong><small>{{ t('wallets.auditValue', { time: localDateTime(entry.timestamp), sequence: entry.sequence }) }}</small></span></li></ul>
       </section>
     </UiTabs>
   </div>
