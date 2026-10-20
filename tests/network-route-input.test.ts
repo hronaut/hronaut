@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest'
 import { z } from 'zod'
 import { networkRouteInputSchema, normalizeNetworkRouteInput, parseNetworkRouteInput } from '../src/main/browser/network-route-input.js'
+import { LocalizedError } from '../src/main/localized-error.js'
+import { translate, type MessageKey } from '../src/shared/i18n.js'
 
 const urlPattern = 'https://example.test/*'
 
@@ -87,4 +89,30 @@ it('normalizes a held mock to one GET request with a bounded hold', () => {
   expect(() => normalizeNetworkRouteInput({ urlPattern, response: {}, holdSeconds: 10 })).toThrow('holdSeconds requires holdUntilReleased')
   expect(() => normalizeNetworkRouteInput({ urlPattern, response: {}, holdUntilReleased: true, holdSeconds: 121 })).toThrow()
   expect(normalizeNetworkRouteInput({ urlPattern, response: {} })).not.toHaveProperty('hold')
+})
+
+it.each([
+  [{ urlPattern: 'api.example.test/*', response: {} }, 'appErrors.networkConditions.patternScheme',
+    'Network route URL pattern must include a scheme, for example https://api.example.com/*'],
+  [{ urlPattern: 'https://example.test/\t*', response: {} }, 'appErrors.networkConditions.patternControl',
+    'Network route URL pattern cannot contain control characters'],
+  [{ urlPattern, response: { headers: { 'content type': 'text/plain' } } }, 'appErrors.networkConditions.headerName',
+    'Header name must be a valid HTTP token ["content type"]'],
+  [{ urlPattern, response: { headers: { 'x-note': 'one\ntwo' } } }, 'appErrors.networkConditions.headerValue',
+    'Invalid character in header content ["x-note"]'],
+  [{ urlPattern, response: { headers: Object.fromEntries(Array.from({ length: 51 }, (_, index) => [`header-${index}`, 'value'])) } },
+    'appErrors.networkConditions.tooManyHeaders', 'Mock response cannot have more than 50 headers'],
+  [{ urlPattern, response: { headers: { x: 'a'.repeat(32768) } } }, 'appErrors.networkConditions.headersTooLarge',
+    'Mock response headers cannot exceed 32768 bytes']
+] satisfies Array<[unknown, MessageKey, string]>)('names a Request conditions mistake for the Network panel and keeps the agent message (%#)', (input, key, message) => {
+  // The Network panel showed these in English in every interface language, in the words agents read.
+  let error: unknown
+  try {
+    normalizeNetworkRouteInput(input)
+  } catch (cause) {
+    error = cause
+  }
+  expect(error).toBeInstanceOf(LocalizedError)
+  expect(error).toMatchObject({ key, message })
+  expect(translate('de-DE', key, { max: 50 })).not.toBe(translate('en-US', key, { max: 50 }))
 })

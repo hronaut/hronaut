@@ -8,11 +8,17 @@ import type {
 import { networkRoutePatternMatches } from '../../../shared/network-routes.js'
 import { normalizeNetworkRouteInput } from '../network-route-input.js'
 import { isHronautHomeUrl } from '../url.js'
+import { LocalizedError } from '../../localized-error.js'
 import { endHeldResponses, heldResponseCount, holdNetworkResponse, MAX_HELD_RESPONSES } from './held-responses.js'
 import type { BrowserNetworkRouteRecord, NetworkConditionsAccess, NetworkConditionsTab } from './network-conditions-access.js'
 
 /** How many request-condition rules one tab can retain. */
 const MAX_NETWORK_ROUTES = 50
+
+/** A rule removed meanwhile, for example by an agent; agents keep the message that names the rule's ID. */
+function conditionGone(routeId: string): LocalizedError {
+  return new LocalizedError('appErrors.networkConditions.conditionGone', undefined, { message: `Network route not found: ${routeId}` })
+}
 
 /** Whether the tab's request-condition rules are confirmed applied natively, with their public summaries. */
 export function networkConditionState<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId?: string): BrowserNetworkConditionState {
@@ -65,7 +71,11 @@ export async function addNetworkRoute<Tab extends NetworkConditionsTab>(access: 
   const normalized = normalizeNetworkRouteInput(input)
   await applyNetworkRoutes(access, tab, validate, false, () => {
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before adding a network route')
-    if (tab.networkRoutes.length >= MAX_NETWORK_ROUTES) throw new Error(`Network route limit reached (${MAX_NETWORK_ROUTES})`)
+    if (tab.networkRoutes.length >= MAX_NETWORK_ROUTES) {
+      throw new LocalizedError('appErrors.networkConditions.limitReached', { max: MAX_NETWORK_ROUTES }, {
+        message: `Network route limit reached (${MAX_NETWORK_ROUTES})`
+      })
+    }
     if (normalized.hold && heldResponseCount(access, tab.webContents) + tab.networkRoutes.filter(route => route.hold).length >= MAX_HELD_RESPONSES) {
       throw new Error(`A tab can hold at most ${MAX_HELD_RESPONSES} requests, counting hold rules not matched yet. Release or cancel one first.`)
     }
@@ -87,7 +97,7 @@ export async function setNetworkRouteEnabled<Tab extends NetworkConditionsTab>(a
     validate()
     if (access.isDestroyed() || contents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before toggle')
     if (tab.networkConditionApplication !== 'confirmed') throw new Error('Request-condition application must be confirmed before enabling or disabling a rule. Explicitly clear unknown conditions to recover.')
-    if (!tab.networkRoutes.some(route => route.id === routeId)) throw new Error(`Network route not found: ${routeId}`)
+    if (!tab.networkRoutes.some(route => route.id === routeId)) throw conditionGone(routeId)
   }
   admission()
   await applyNetworkRoutes(access, tab, validate, false, () => {
@@ -103,7 +113,7 @@ export async function removeNetworkRoute<Tab extends NetworkConditionsTab>(acces
   const tab = access.getTab(tabId)
   await applyNetworkRoutes(access, tab, validate, false, () => {
     const remaining = tab.networkRoutes.filter(route => route.id !== routeId)
-    if (remaining.length === tab.networkRoutes.length) throw new Error(`Network route not found: ${routeId}`)
+    if (remaining.length === tab.networkRoutes.length) throw conditionGone(routeId)
     tab.networkRoutes = remaining
   }, markSubmitted)
   return networkRoutes(access, tab.id)
@@ -114,7 +124,7 @@ export async function moveNetworkRoute<Tab extends NetworkConditionsTab>(access:
   const tab = access.getTab(tabId)
   await applyNetworkRoutes(access, tab, validate, false, () => {
     const index = tab.networkRoutes.findIndex(route => route.id === routeId)
-    if (index < 0) throw new Error(`Network route not found: ${routeId}`)
+    if (index < 0) throw conditionGone(routeId)
     const target = direction === 'up' ? index - 1 : index + 1
     if (target < 0 || target >= tab.networkRoutes.length) return
     const reordered = [...tab.networkRoutes]

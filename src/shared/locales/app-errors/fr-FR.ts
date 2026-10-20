@@ -395,6 +395,16 @@ export const frFRAppErrors: AppErrorMessages = {
     "saveRollbackFailed": "Impossible d’enregistrer la règle dans le portefeuille, et l’annulation de la modification est incomplète.",
     "removeRollbackFailed": "Impossible de supprimer la règle du portefeuille, et l’annulation de la modification est incomplète."
   },
+  "networkConditions": {
+    "patternControl": "Le motif d’URL ne peut pas contenir de caractères de contrôle, comme une tabulation.",
+    "patternScheme": "Commencez le motif d’URL par un schéma ou par *, par exemple https://api.example.com/*.",
+    "headerName": "Un nom d’en-tête de réponse contient un caractère que HTTP n’autorise pas, comme une espace ou un deux-points.",
+    "headerValue": "Une valeur d’en-tête de réponse contient un caractère que HTTP n’autorise pas, comme un saut de ligne.",
+    "tooManyHeaders": "Une réponse simulée peut avoir au plus {max} en-têtes.",
+    "headersTooLarge": "Les en-têtes de réponse sont trop longs ; ensemble, ils peuvent faire au plus 32 Kio.",
+    "limitReached": "Un onglet peut avoir au plus {max} conditions de requête. Supprimez-en une avant d’en ajouter une autre.",
+    "conditionGone": "Cette condition de requête n’existe plus ; elle a peut-être été supprimée ailleurs, par exemple par un agent."
+  },
   "startupScreen": {
     "title": "Hronaut n’a pas pu démarrer",
     "description": "L’interface de l’application n’a pas pu charger ses paramètres initiaux.",

@@ -395,6 +395,16 @@ export const esESAppErrors: AppErrorMessages = {
     "saveRollbackFailed": "No se pudo guardar la política en el monedero y el cambio no se pudo deshacer por completo.",
     "removeRollbackFailed": "No se pudo eliminar la política del monedero y el cambio no se pudo deshacer por completo."
   },
+  "networkConditions": {
+    "patternControl": "El patrón de URL no puede contener caracteres de control, como un tabulador.",
+    "patternScheme": "Empieza el patrón de URL con un esquema o con *, por ejemplo https://api.example.com/*.",
+    "headerName": "Un nombre de encabezado de respuesta contiene un carácter que HTTP no permite, como un espacio o dos puntos.",
+    "headerValue": "Un valor de encabezado de respuesta contiene un carácter que HTTP no permite, como un salto de línea.",
+    "tooManyHeaders": "Una respuesta simulada puede tener como máximo {max} encabezados.",
+    "headersTooLarge": "Los encabezados de respuesta son demasiado largos; juntos pueden ocupar como máximo 32 KiB.",
+    "limitReached": "Una pestaña puede tener como máximo {max} condiciones de solicitud. Quita una antes de añadir otra.",
+    "conditionGone": "Esa condición de solicitud ya no existe; puede que la haya quitado un agente u otra ventana."
+  },
   "startupScreen": {
     "title": "Hronaut no se pudo iniciar",
     "description": "La interfaz de la aplicación no pudo cargar su configuración inicial.",

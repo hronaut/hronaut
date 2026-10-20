@@ -74,7 +74,8 @@ test('disabled records retain cap accounting and explicit set-enabled validates 
     try { await api.addNetworkRoute(tabId, { urlPattern: `${fixtureOrigin}/over-limit`, abort: 'Failed' }) } catch (e) { error = String(e) }
     return { error, routes: await api.listNetworkRoutes(tabId), last }
   }, { tabId, fixtureOrigin })
-  expect(result.error).toContain('limit reached (50)')
+  // Hronaut's own pages read the limit in the interface language; agents keep "Network route limit reached (50)".
+  expect(result.error).toContain('A tab can have at most 50 request conditions.')
   expect(result.routes).toHaveLength(50)
   expect(result.routes.every(r => !r.enabled)).toBe(true)
   for (const input of [{}, { enabled: null }, { enabled: 'false' }, { enabled: 0 }]) expect((await client.callTool({ name: 'browser_network_routes', arguments: { action: 'set-enabled', tabId, routeId: result.last, ...input } })).isError).toBe(true)

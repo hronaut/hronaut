@@ -395,6 +395,16 @@ export const plPLAppErrors: AppErrorMessages = {
     "saveRollbackFailed": "Nie udało się zapisać zasady w portfelu, a cofnięcie zmiany nie powiodło się w pełni.",
     "removeRollbackFailed": "Nie udało się usunąć zasady portfela, a cofnięcie zmiany nie powiodło się w pełni."
   },
+  "networkConditions": {
+    "patternControl": "Wzorzec URL nie może zawierać znaków sterujących, takich jak tabulator.",
+    "patternScheme": "Zacznij wzorzec URL od schematu lub od *, na przykład https://api.example.com/*.",
+    "headerName": "Nazwa nagłówka odpowiedzi zawiera znak niedozwolony w HTTP, na przykład spację lub dwukropek.",
+    "headerValue": "Wartość nagłówka odpowiedzi zawiera znak niedozwolony w HTTP, na przykład podział wiersza.",
+    "tooManyHeaders": "Symulowana odpowiedź może mieć najwyżej {max} nagłówków.",
+    "headersTooLarge": "Nagłówki odpowiedzi są za długie; razem mogą mieć najwyżej 32 KiB.",
+    "limitReached": "Karta może mieć najwyżej {max} warunków żądań. Usuń jeden, zanim dodasz kolejny.",
+    "conditionGone": "Tego warunku żądania już nie ma; mógł zostać usunięty gdzie indziej, na przykład przez agenta."
+  },
   "startupScreen": {
     "title": "Nie udało się uruchomić Hronaut",
     "description": "Interfejs aplikacji nie mógł wczytać początkowych ustawień.",
