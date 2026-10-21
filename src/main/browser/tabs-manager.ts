@@ -467,7 +467,7 @@ import {
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { pageShortcut, type TakeOverMark } from './take-over.js'
 import type { AgentPauseAccess } from './agent-pause/agent-pause-access.js'
-import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused, shareWindowOpenerPause } from './agent-pause/agent-pause.js'
+import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
 import type { InteractionLockAccess } from './interaction-lock/interaction-lock-access.js'
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './interaction-lock/interaction-lock.js'
 import type { WebsiteDialogsAccess } from './website-dialogs/website-dialogs-access.js'
@@ -5250,8 +5250,6 @@ export class BrowserTabsManager {
     }
     tab.webContents.setAudioMuted(tab.muted)
     this.tabs.set(id, tab)
-    // A page opened for a window starts with its opener's pause, which the two share while both are open.
-    shareWindowOpenerPause(this.agentPauseAccess(), tab)
     if (tab.mcpGroupId) {
       const group = this.mcpTabGroups.get(tab.mcpGroupId)!
       if (options.active || !group.activeTabId) group.activeTabId = id

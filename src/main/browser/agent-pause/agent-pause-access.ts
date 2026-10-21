@@ -3,12 +3,11 @@ import type { BrowserNetworkRecordingState } from '../network-recording.js'
 import type { TakeOverMark } from '../take-over.js'
 
 /**
- * The tab fields agent pausing reads and writes: the tab's own pause, the tab
- * that opened it as a window, the person's take over and hand back, and the
- * generations a hand back note compares. A pause change also advances the
- * native input environment generation and ends the tab's network priority
- * observations, which the network recording helper keeps in the recording
- * state.
+ * The tab fields agent pausing reads and writes: the tab's own pause, the
+ * person's take over and hand back, and the generations a hand back note
+ * compares. A pause change also advances the native input environment
+ * generation and ends the tab's network priority observations, which the
+ * network recording helper keeps in the recording state.
  */
 export interface AgentPauseTab extends BrowserNetworkRecordingState {
   id: string
@@ -17,8 +16,6 @@ export interface AgentPauseTab extends BrowserNetworkRecordingState {
   humanInteractionGeneration: number
   nativeInputEnvironmentGeneration: number
   tabAgentPaused: boolean
-  /** The tab whose page opened this one's as a window and can reach it; the two share their pause. */
-  openerTabId?: string
   takeOver?: TakeOverMark
   handedBack?: { at: number; note: string; noteWithoutUrlDetail?: string }
 }
