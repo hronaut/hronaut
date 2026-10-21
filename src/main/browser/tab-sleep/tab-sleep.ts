@@ -179,9 +179,10 @@ export async function setTabSleeping<Tab extends TabSleepTab>(access: TabSleepAc
 }
 
 /**
- * The tab to show instead when the active tab goes to sleep: the next awake
- * tab after it, then before it, or a sleeping one when all of them sleep. A
- * tab of its own workspace comes first, so the person stays in the workspace.
+ * The tab to show instead when the active tab goes to sleep, looking after it
+ * and then before it: an awake tab of its workspace, then a sleeping one there,
+ * so the person stays in the workspace, then an awake tab of another
+ * workspace, then any.
  */
 export function sleepFallbackTab<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tab: Tab): Tab | undefined {
   const ordered = access.orderedTabs()

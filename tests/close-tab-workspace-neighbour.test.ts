@@ -4,8 +4,8 @@ import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
 import { sleepFallbackTab } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
 // Closing, or putting to sleep, the last tab of a workspace's row showed the first tab of the next workspace, though
-// the tab to its left in the same workspace was still open. Close Other Tabs and Close Tabs to the Right did the same
-// when the shown tab was among those closed.
+// the tab to its left in the same workspace was still open. Close Other Tabs and Close Tabs to the Right, which close
+// the shown tab last, did the same; the e2e close-tab-workspace-neighbour drives them through the menu.
 
 interface Tab { id: string; url: string; pinned: boolean; sleeping: boolean; mcpGroupId: string; webContents: { isDestroyed: () => boolean } }
 interface Internals {
@@ -51,15 +51,6 @@ describe('closing the shown tab', () => {
     const manager = fixture([{ id: 'work-1', mcpGroupId: 'work' }, { id: 'docs-1', mcpGroupId: 'docs' }])
     expect(nextAfterClosing(manager, 'work-1')).toBe('docs-1')
     expect(nextAfterClosing(manager, 'docs-1')).toBe('work-1')
-  })
-
-  it('shows the tab that Close Other Tabs keeps when the shown tab is among those closed', () => {
-    // The person shows work-2 and right-clicks work-1: work-3 closes first, then work-2.
-    const manager = fixture([
-      { id: 'work-1', mcpGroupId: 'work' }, { id: 'work-2', mcpGroupId: 'work' }, { id: 'work-3', mcpGroupId: 'work' }, { id: 'docs-1', mcpGroupId: 'docs' }
-    ])
-    manager.tabs.delete('work-3')
-    expect(nextAfterClosing(manager, 'work-2')).toBe('work-1')
   })
 })
 
