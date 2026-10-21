@@ -196,6 +196,18 @@ describe('BrowserTabsBar', () => {
     expect(view.container.querySelector('[data-tab-id="playing"] .tab-audio')).toHaveClass('muted')
   })
 
+  it('says why an agent waiting on a decision needs you in the interface language', async () => {
+    // The tab read "Agent benötigt Ihre Aufmerksamkeit: Human decision required: provide-input".
+    const view = renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }), true, 'horizontal', true, 'de-DE')
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    await view.rerender({ userAttention: { id: 'attention-1', reason: 'Human decision required: provide-input', requestedAt: '2026-10-21T00:00:00.000Z', tabId: 'first', humanWaitingDecisionId: 'decision-1' } })
+    expect(first).toHaveAccessibleDescription('Agent benötigt Ihre Aufmerksamkeit: Der Agent braucht Ihre Antwort, um weiterzumachen.')
+    expect(first.dataset.tooltip).toBe('Page first\n\nAgent benötigt Ihre Aufmerksamkeit: Der Agent braucht Ihre Antwort, um weiterzumachen.')
+    // An agent's own request keeps its words.
+    await view.rerender({ userAttention: { id: 'attention-2', reason: 'Approve this step.', requestedAt: '2026-10-21T00:00:00.000Z', tabId: 'first' } })
+    expect(first).toHaveAccessibleDescription('Agent benötigt Ihre Aufmerksamkeit: Approve this step.')
+  })
+
   it.each(['horizontal', 'vertical'] as const)('marks only the requested tab in the %s rail and clears it with the request', async orientation => {
     const view = renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }), true, orientation)
     const first = screen.getByRole('tab', { name: 'Page first' })

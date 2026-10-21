@@ -1,4 +1,8 @@
 export type HumanWaitingDecision = 'review-page' | 'approve-action' | 'provide-input' | 'resolve-unknown'
+/** The English line a decision's attention request carries. MCP results and the tray keep it; the renderer names the decision instead. */
+export function humanDecisionAttentionReason(decision: HumanWaitingDecision): string {
+  return `Human decision required: ${decision}`
+}
 export type HumanWaitingState = 'WAITING_FOR_HUMAN' | 'ACKNOWLEDGED' | 'RESOLVED' | 'REJECTED'
   | 'EXPIRED' | 'CANCELLED' | 'ATTEMPTED' | 'VERIFIED' | 'UNKNOWN'
 /** Still waiting for the person: not yet answered, cancelled or expired. */

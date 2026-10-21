@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { humanDecisionAttentionReason } from '../../../../shared/human-waiting.js'
 import { mcpCapabilityOperationClass } from '../../capability-classification.js'
 import { humanWaitingArtifactHash } from '../../human-waiting-store.js'
 import { textResult, toolDefinition, toolDescription } from '../../tool-results.js'
@@ -136,7 +137,7 @@ export function registerBrowserHumanWaiting(context: McpToolContext): void {
         ...(reviewArtifact ? { review: reviewArtifact } : {}) }, authorize)
       if (record.state !== 'WAITING_FOR_HUMAN') return textResult(record)
       return textResult(await humanWaiting.notify(input.workspaceId, record.id, authorize, async () => {
-        await requestUserAttention({ workspaceId: input.workspaceId, reason: `Human decision required: ${input.decision}`, expiresAt: record.deadlineAt, humanWaitingDecisionId: record.id })
+        await requestUserAttention({ workspaceId: input.workspaceId, reason: humanDecisionAttentionReason(record.decision), expiresAt: record.deadlineAt, humanWaitingDecisionId: record.id })
       }))
     }),
     { pageOrigins: 'none', leaseExempt: () => true }

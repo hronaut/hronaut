@@ -38,6 +38,7 @@ import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shar
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { foldRailWorkspaces, pinnedWorkspacesFirst } from '../../../shared/workspace-rail.js'
 import { keyedPinnedWorkspaces } from '../../../shared/workspace-shortcuts.js'
+import { attentionReasonText } from '../composables/agent-attention-reason.js'
 import { useWorkspaceGroupAgents } from '../composables/useWorkspaceGroupAgents.js'
 import { useCollapsedTabGroups } from '../composables/useCollapsedTabGroups.js'
 import { useTabDragReorder } from '../composables/useTabDragReorder.js'
@@ -153,6 +154,11 @@ const followingLabel = computed(() => (
   props.state.agentFollow ? t('shell.tabs.followingAgent', { name: props.state.agentFollow.agentName || t('shell.agents.unnamed') }) : ''
 ))
 
+// Why the agent needs you, as the tab and workspace tooltips say it.
+const attentionLine = computed(() => props.userAttention
+  ? `${t('shell.tabs.agentAttention')}: ${attentionReasonText(t, props.userAttention.reason, props.userAttention.humanWaitingDecisionId !== undefined)}`
+  : '')
+
 // A request names its tab when it has one; that tab's workspace is the one
 // waiting, even when the person has folded it or moved to another workspace.
 function workspaceNeedsYou(groupId: string): boolean {
@@ -189,7 +195,7 @@ const pinnedWorkspaceKeys = computed(() => {
 })
 
 function tabGroupLabelDescription(workspace: BrowserTabGroupState): string | undefined {
-  const reason = workspaceNeedsYou(workspace.id) && props.userAttention ? `${t('shell.tabs.agentAttention')}: ${props.userAttention.reason}` : ''
+  const reason = workspaceNeedsYou(workspace.id) ? attentionLine.value : ''
   const key = pinnedWorkspaceKeys.value.get(workspace.id)
   const pinned = workspace.pinnedAt ? (key ? t('shell.tabs.pinnedWorkspaceKey', { key }) : t('shell.tabs.pinnedWorkspace')) : ''
   return [reason, pinned, tabGroupAgentsDescription(workspace.id), workspace.description].filter(Boolean).join('\n\n') || undefined
@@ -584,10 +590,10 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
             'needs-attention': userAttention?.tabId === tab.id
           }"
           :style="tabGroupStyle(tab)"
-          v-tooltip="userAttention?.tabId === tab.id ? `${tabTooltip(tab)}\n\n${t('shell.tabs.agentAttention')}: ${userAttention.reason}` : mcpActivityByTab[tab.id] ? `${tabTooltip(tab)}\n\n${t('tabSearch.meta.agent')}` : tabTooltip(tab)"
+          v-tooltip="userAttention?.tabId === tab.id ? `${tabTooltip(tab)}\n\n${attentionLine}` : mcpActivityByTab[tab.id] ? `${tabTooltip(tab)}\n\n${t('tabSearch.meta.agent')}` : tabTooltip(tab)"
           :data-mcp-command="mcpActivityByTab[tab.id]?.toolName"
           :aria-label="tabTooltip(tab)"
-          :aria-description="userAttention?.tabId === tab.id ? `${t('shell.tabs.agentAttention')}: ${userAttention.reason}` : mcpActivityByTab[tab.id] ? t('tabSearch.meta.agent') : undefined"
+          :aria-description="userAttention?.tabId === tab.id ? attentionLine : mcpActivityByTab[tab.id] ? t('tabSearch.meta.agent') : undefined"
           type="button"
           role="tab"
           :tabindex="tabKeyboardIndex(tab)"

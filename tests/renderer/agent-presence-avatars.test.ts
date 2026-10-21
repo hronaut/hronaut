@@ -84,6 +84,16 @@ describe('agent avatars in the toolbar', () => {
     expect(claude.querySelector('.agent-avatar-badge')).toBeNull()
   })
 
+  it('says why an agent waiting on a decision needs you instead of the request\'s English line', async () => {
+    // The tooltip read "Windsurf · Needs you: Human decision required: approve-action".
+    renderAvatars([agent('Windsurf', { state: 'needs-you', step: 'askYou' })], {
+      attentionReason: 'Human decision required: approve-action', attentionId: 'attention-3', attentionDecision: true
+    })
+    const group = await screen.findByRole('group', { name: 'Agents in this workspace' })
+    expect(within(group).getByRole('button', { name: 'Windsurf, needs you' }).dataset.tooltip)
+      .toBe('Windsurf · Needs you: The agent wants your approval before it acts.')
+  })
+
   it('names what the current step acts on in the tooltip when main knows it', async () => {
     renderAvatars([
       agent('Claude Code', { step: 'click', target: 'Review order' }),

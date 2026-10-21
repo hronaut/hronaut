@@ -14,6 +14,7 @@ import {
   type HronautAgentPresenceApi
 } from '../../../shared/agent-presence.js'
 import { agentStepText } from '../../../shared/agent-step-text.js'
+import { attentionReasonText } from '../composables/agent-attention-reason.js'
 import { agentCardModel, useAgentCard } from '../composables/useAgentCard.js'
 import { useAgentDecisionAnswers, type AgentDecisionBrowser } from '../composables/useAgentDecisionAnswers.js'
 import { useAgentPresence } from '../composables/useAgentPresence.js'
@@ -123,7 +124,7 @@ function tooltip(agent: AgentPresence): string {
   if (takeOver) return t(takeOver === 'offer' ? 'shell.takeOver.avatarOffer' : 'shell.takeOver.avatarControl', { name })
   if (agent.state === 'needs-you') {
     return props.attentionReason
-      ? t('shell.agents.needsYouReason', { name, reason: props.attentionReason })
+      ? t('shell.agents.needsYouReason', { name, reason: attentionReasonText(t, props.attentionReason, props.attentionDecision === true) })
       : t('shell.agents.needsYou', { name })
   }
   if (agent.state === 'idle') return t('shell.agents.idle', { name })
