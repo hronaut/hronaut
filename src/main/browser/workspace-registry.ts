@@ -39,6 +39,9 @@ export interface ArchivedWorkspace extends BrowserSavedTabGroupState {
 export interface WorkspacePlacement {
   /** Its place among the open workspaces when it was archived. */
   index: number
+  /** The open workspaces right before and after it then, which it goes back next to while either is still open. */
+  after?: string
+  before?: string
   pinnedAt?: string
 }
 interface WorkspaceTab { label?: string; id: string; mcpGroupId?: string; title: string; url: string; pinned: boolean; zoomIsolated?: boolean; defaultFontSize?: number }
@@ -116,9 +119,12 @@ export class WorkspaceRegistry {
       // Until its tabs are open, the archive keeps its place for a rollback.
       this.archived.delete(id); this.reservedArchivePlaces++
       if (placement) {
-        // The open workspaces are kept in their tab rail order.
+        // The open workspaces are kept in their tab rail order. A workspace before it may have closed meanwhile, so
+        // its place is found from its neighbours first.
         const open = [...this.active]
-        open.splice(Math.min(placement.index, open.length), 0, [id, restored])
+        const after = open.findIndex(([key]) => key === placement.after)
+        const before = open.findIndex(([key]) => key === placement.before)
+        open.splice(after >= 0 ? after + 1 : before >= 0 ? before : Math.min(placement.index, open.length), 0, [id, restored])
         this.active.clear()
         for (const [key, value] of open) this.active.set(key, value)
       } else this.active.set(id, restored)

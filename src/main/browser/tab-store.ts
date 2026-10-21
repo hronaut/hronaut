@@ -157,6 +157,11 @@ function persistedWorkspacePinnedAt(value: unknown): string | undefined {
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : undefined
 }
 
+/** Which of an archived workspace's tabs was shown, or undefined when the value is not one of its tabs. */
+function persistedShownTabIndex(value: unknown, tabCount: number): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < tabCount ? value : undefined
+}
+
 function repairedWorkspaceTimestamp(value: string, currentTime: number): string {
   const parsed = Date.parse(value)
   return new Date(Number.isFinite(parsed) ? Math.min(parsed, currentTime) : currentTime).toISOString()
@@ -498,6 +503,8 @@ export class TabStateStore {
         if (candidate.description !== undefined && candidate.description !== description) {
           repairedPersistedState = true
         }
+        const shownTabIndex = persistedShownTabIndex(candidate.shownTabIndex, candidate.tabs.length)
+        if (candidate.shownTabIndex !== undefined && shownTabIndex === undefined) repairedPersistedState = true
         savedTabGroups.push({
           id: candidate.id,
           hiddenFromSidebar: candidate.hiddenFromSidebar === true,
@@ -537,11 +544,8 @@ export class TabStateStore {
               ...(defaultFontSize ? { defaultFontSize } : {})
             }
           }),
-          ...(Number.isInteger(candidate.shownTabIndex) && (candidate.shownTabIndex as number) >= 0 && (candidate.shownTabIndex as number) < candidate.tabs.length
-            ? { shownTabIndex: candidate.shownTabIndex as number }
-            : {})
+          ...(shownTabIndex !== undefined ? { shownTabIndex } : {})
         })
-        if (candidate.shownTabIndex !== undefined && savedTabGroups.at(-1)!.shownTabIndex === undefined) repairedPersistedState = true
         if (JSON.stringify(candidate.navigationPolicy ?? { mode: 'unrestricted', rules: [] }) !== JSON.stringify(navigationPolicy)) {
           repairedPersistedState = true
         }

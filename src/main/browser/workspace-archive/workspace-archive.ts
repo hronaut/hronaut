@@ -28,8 +28,12 @@ interface WorkspaceUndo {
 
 function holdWorkspaceForUndo(access: WorkspaceArchiveAccess, groupId: string): WorkspaceUndo {
   const group = access.mcpTabGroups().get(groupId)
+  const order = [...access.mcpTabGroups().keys()]
+  const index = order.indexOf(groupId)
+  const after = index > 0 ? order[index - 1] : undefined
+  const before = index >= 0 ? order[index + 1] : undefined
   const undo: WorkspaceUndo = {
-    placement: { index: Math.max(0, [...access.mcpTabGroups().keys()].indexOf(groupId)), ...(group?.pinnedAt ? { pinnedAt: group.pinnedAt } : {}) },
+    placement: { index: Math.max(0, index), ...(after ? { after } : {}), ...(before ? { before } : {}), ...(group?.pinnedAt ? { pinnedAt: group.pinnedAt } : {}) },
     closedTabs: access.closedTabs().filter((tab) => tab.mcpGroupId === groupId)
   }
   access.detachedClosedTabs().add(undo.closedTabs)
@@ -52,6 +56,16 @@ function releaseClosedTabs(access: WorkspaceArchiveAccess, undo: WorkspaceUndo):
   undo.closedTabs.splice(0)
 }
 
+/**
+ * Stops holding the workspace's closed tabs aside without Undo: they go back to the recently closed tabs while the
+ * workspace is open, as when archiving it failed or it was restored from the archive meanwhile, and are forgotten with
+ * it otherwise.
+ */
+function settleClosedTabs(access: WorkspaceArchiveAccess, groupId: string, undo: WorkspaceUndo): void {
+  if (access.mcpTabGroups().has(groupId)) returnClosedTabs(access, undo)
+  else releaseClosedTabs(access, undo)
+}
+
 /** Archives an open workspace once pending tab label edits settle. */
 export async function saveAndCloseTabGroup(access: WorkspaceArchiveAccess, groupId: string): Promise<BrowserSavedTabGroupState> {
   return access.withTabLabelLifecycle(() => access.workspaceRegistry().archive(groupId))
@@ -64,14 +78,14 @@ export async function archiveWorkspaceForPerson(access: WorkspaceArchiveAccess, 
   try {
     archived = await saveAndCloseTabGroup(access, groupId)
   } catch (error) {
-    releaseClosedTabs(access, undo)
+    settleClosedTabs(access, groupId, undo)
     throw error
   }
   access.options().offerUndo?.({
     kind: 'workspace-archived',
     name: archived.name,
     undo: () => restoreArchiveForUndo(access, archived.id, undo),
-    finalize: async () => releaseClosedTabs(access, undo)
+    finalize: async () => settleClosedTabs(access, archived.id, undo)
   })
   return archived
 }
@@ -83,13 +97,13 @@ export async function archiveWorkspaceForPerson(access: WorkspaceArchiveAccess, 
 async function restoreArchiveForUndo(access: WorkspaceArchiveAccess, savedGroupId: string, undo: WorkspaceUndo): Promise<boolean> {
   if (!access.savedTabGroups().has(savedGroupId)) {
     if (access.closingWorkspace()?.id === savedGroupId) access.setClosingWorkspace(undefined)
-    releaseClosedTabs(access, undo)
+    settleClosedTabs(access, savedGroupId, undo)
     return false
   }
   try {
     await restoreSavedTabGroup(access, savedGroupId, undo.placement)
   } catch (error) {
-    releaseClosedTabs(access, undo)
+    settleClosedTabs(access, savedGroupId, undo)
     throw error
   }
   returnClosedTabs(access, undo)
@@ -121,7 +135,7 @@ export async function closeWorkspaceForPerson(access: WorkspaceArchiveAccess, gr
   try {
     archived = await saveAndCloseTabGroup(access, groupId)
   } catch (error) {
-    releaseClosedTabs(access, undo)
+    settleClosedTabs(access, groupId, undo)
     // Another workspace archived at the same time can take the last place after the check above.
     if (error instanceof LocalizedError && error.key === 'appErrors.workspace.archiveLimit') {
       throw new LocalizedError('appErrors.workspace.archiveLimitUndo', { max: MAX_SAVED_TAB_GROUPS, name: group.name })
@@ -137,7 +151,7 @@ export async function closeWorkspaceForPerson(access: WorkspaceArchiveAccess, gr
     name: archived.name,
     undo: () => restoreArchiveForUndo(access, archived.id, undo),
     finalize: async () => {
-      releaseClosedTabs(access, undo)
+      settleClosedTabs(access, archived.id, undo)
       // It stays marked as closing until deleted, so a restore tried meanwhile still keeps it.
       try {
         if (closing.kept || !saved || access.savedTabGroups().get(archived.id) !== saved || saved.deletionProtected) return

@@ -28,11 +28,11 @@ export interface ClosingWorkspace {
  * What archiving, restoring and deleting archived workspaces, and closing a
  * workspace for the person with Undo, need from the tab manager, which keeps
  * the open and archived workspaces, the workspace registry, workspace
- * operations, tab label edits, workspace continuity, the session store and
- * state publication private. The workspace maps are the workspace registry's
- * own. The workspace closing with Undo stays a manager field because
- * copying, moving and forking workspaces read it too; it is read again at
- * every use and changed through its setter.
+ * operations, tab label edits, workspace continuity, the recently closed tabs,
+ * the session store and state publication private. The workspace maps are the
+ * workspace registry's own. The workspace closing with Undo stays a manager
+ * field because copying, moving and forking workspaces read it too; it is read
+ * again at every use and changed through its setter.
  */
 export interface WorkspaceArchiveAccess {
   /** The open workspaces by id. */

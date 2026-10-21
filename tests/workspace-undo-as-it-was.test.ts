@@ -21,8 +21,11 @@ function closedTab(id: string, mcpGroupId: string, closedAt: string): BrowserClo
   return { id, title: id, url: `https://${id}.example/`, pinned: false, closedAt, mcpGroupId }
 }
 
-/** Three open workspaces, the middle one pinned with two tabs, the first of which is shown and zoomed on its own. */
-function browser() {
+/**
+ * Three open workspaces, the middle one pinned with two tabs, the first of which is shown and zoomed on its own. Its
+ * close can fail as closing its tabs does when one cannot close, which reopens them and forgets its closed tabs.
+ */
+function browser(options: { closeFails?: boolean } = {}) {
   const tabs: Tab[] = [
     { id: 'a', mcpGroupId: 'two', title: 'A', url: 'https://a.example/', pinned: false, zoomIsolated: true, defaultFontSize: 20 },
     { id: 'b', mcpGroupId: 'two', title: 'B', url: 'https://b.example/', pinned: false }
@@ -41,6 +44,10 @@ function browser() {
     withActiveOperation: (_id, _action, run) => run(),
     withArchivedOperation: (_id, _action, run) => run(),
     closeActive: async (id) => {
+      if (options.closeFails) {
+        closedTabs.splice(0, closedTabs.length, ...closedTabs.filter((tab) => tab.mcpGroupId !== id))
+        throw new Error('A tab could not close.')
+      }
       tabs.splice(0, tabs.length, ...tabs.filter((tab) => tab.mcpGroupId !== id))
       registry.active.delete(id)
     },
@@ -120,6 +127,46 @@ describe('Undo of archiving or closing a workspace', () => {
     expect(registry.active.get('two')!.pinnedAt).toBe('2026-10-21T09:30:00.000Z')
     expect(selected).toEqual(['restored-1'])
     expect(closedTabs.map((tab) => tab.id)).toEqual(['older-two', 'one-closed', 'newer-two'])
+  })
+
+  it('brings it back next to the workspace it followed when one before that closed meanwhile', async () => {
+    const { registry, offers, access, forgetWorkspaceClosedTabs } = browser()
+    await archiveWorkspaceForPerson(access as never, 'two')
+    forgetWorkspaceClosedTabs()
+    // An agent closes the workspace before it, which ends no Undo.
+    registry.active.delete('one')
+
+    await offers[0]!.undo()
+
+    // Its old place, the second, would now be after the workspace it came before.
+    expect([...registry.active.keys()]).toEqual(['two', 'three'])
+  })
+
+  it.each(['undo', 'finalize'] as const)('puts the closed tabs back on %s when it was restored from the archive meanwhile', async (end) => {
+    const { registry, closedTabs, detachedClosedTabs, offers, access, forgetWorkspaceClosedTabs } = browser()
+    await archiveWorkspaceForPerson(access as never, 'two')
+    forgetWorkspaceClosedTabs()
+    await registry.restore('two')
+
+    if (end === 'undo') await expect(offers[0]!.undo()).resolves.toBe(false)
+    else await offers[0]!.finalize!()
+
+    expect(closedTabs.map((tab) => tab.id)).toEqual(['older-two', 'one-closed', 'newer-two'])
+    expect(detachedClosedTabs.size).toBe(0)
+  })
+
+  it.each([
+    ['archiving', (access: never) => archiveWorkspaceForPerson(access, 'two')],
+    ['closing', (access: never) => closeWorkspaceForPerson(access, 'two')]
+  ])('keeps the closed tabs when %s it fails and it stays open', async (_name, close) => {
+    const { registry, closedTabs, detachedClosedTabs, offers, access } = browser({ closeFails: true })
+
+    await expect(close(access as never)).rejects.toThrow('A tab could not close.')
+
+    expect(registry.active.has('two')).toBe(true)
+    expect(offers).toEqual([])
+    expect(closedTabs.map((tab) => tab.id)).toEqual(['older-two', 'one-closed', 'newer-two'])
+    expect(detachedClosedTabs.size).toBe(0)
   })
 
   it('keeps forgotten the closed tabs whose history was cleared while Undo was on offer', async () => {
