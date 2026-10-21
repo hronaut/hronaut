@@ -13,6 +13,7 @@ import { formatNumber, formatTime } from '../../../../../shared/format'
 import type { PanelDock, SupportedLocale } from '../../../../../shared/types'
 import type { DiagnosticsController } from '../useDiagnosticsController'
 import PanelDockPicker from '../../../components/PanelDockPicker.vue'
+import { createQualityAuditLabels } from './quality-audit-labels.js'
 
 const props = defineProps<{
   locale: SupportedLocale
@@ -45,6 +46,11 @@ function localNumber(value: number): string {
 function localTime(value: Date | number | string): string {
   return formatTime(props.locale, value)
 }
+
+const labels = createQualityAuditLabels(
+  (key, named = {}, plural) => plural === undefined ? t(key, named) : t(key, named, plural),
+  (value, options) => formatNumber(props.locale, value, options)
+)
 </script>
 
 <template>
@@ -92,26 +98,26 @@ function localTime(value: Date | number | string): string {
         <section class="quality-audit-categories" :aria-label="t('qualityAudit.categories')">
           <article v-for="category in qualityAuditReport.categories" :key="category.id" :class="category.status">
             <header>
-              <strong>{{ category.label }}</strong>
-              <span>{{ category.status.replace('-', ' ') }}</span>
+              <strong>{{ labels.categoryLabel(category) }}</strong>
+              <span>{{ labels.status(category.status) }}</span>
             </header>
-            <p>{{ category.summary }}</p>
+            <p>{{ labels.sentence(category.summary) }}</p>
             <ul>
-              <li v-for="item in category.evidence" :key="item">{{ item }}</li>
+              <li v-for="item in category.evidence" :key="item">{{ labels.sentence(item) }}</li>
             </ul>
           </article>
         </section>
         <section v-if="qualityAuditReport.findings.length" class="quality-audit-findings" aria-labelledby="quality-audit-findings-title">
           <h3 id="quality-audit-findings-title">{{ t('qualityAudit.findings') }}</h3>
           <article v-for="(finding, index) in qualityAuditReport.findings" :key="`${finding.category}-${finding.code}-${index}`" :class="finding.severity">
-            <header><span>{{ finding.severity }}</span><strong>{{ finding.code }}</strong><small>{{ finding.category }}</small></header>
-            <p>{{ finding.message }}</p>
+            <header><span>{{ labels.severity(finding.severity) }}</span><strong>{{ finding.code }}</strong><small>{{ labels.findingCategory(finding.category) }}</small></header>
+            <p>{{ labels.finding(finding) }}</p>
           </article>
           <p v-if="qualityAuditReport.truncated" class="quality-audit-truncated">{{ t('qualityAudit.truncated') }}</p>
         </section>
         <details class="quality-audit-caveats">
           <summary>{{ t('qualityAudit.limitations') }}</summary>
-          <ul><li v-for="caveat in qualityAuditReport.caveats" :key="caveat">{{ caveat }}</li></ul>
+          <ul><li v-for="caveat in qualityAuditReport.caveats" :key="caveat">{{ labels.caveat(caveat) }}</li></ul>
         </details>
       </div>
       <footer>

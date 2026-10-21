@@ -4,6 +4,7 @@ import { reproStepMessages } from './repro-steps.js'
 import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
+import { qualityAuditTextMessages } from './quality-audit-text.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -32,6 +33,7 @@ export const ruRU = {
   viewportPresets: viewportPresetMessages['ru-RU'],
   searchEngines: searchEngineMessages['ru-RU'],
   browserIssueTitles: browserIssueTitleMessages['ru-RU'],
+  qualityAuditText: qualityAuditTextMessages['ru-RU'],
   lcpAttribution: lcpAttributionMessages['ru-RU'],
   browserImport: browserImportMessages['ru-RU'],
   video: videoRecorderMessages['ru-RU'],
