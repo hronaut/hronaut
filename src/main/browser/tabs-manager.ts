@@ -6192,17 +6192,17 @@ export class BrowserTabsManager {
   }
 
   private orderedTabs(): BrowserTab[] {
-    // Workspaces in the order the rail and strip show them, pinned ones first, so tab shortcuts and the tab that
-    // follows a closed one go by what is on screen.
+    // Workspaces in the order the rail and strip show them, pinned ones first, and each workspace's pinned tabs
+    // before its other tabs, so tab shortcuts and the tab that follows a closed one go by what is on screen.
     const groupOrder = new Map(pinnedWorkspacesFirst([...this.mcpTabGroups.values()]).map((group, index) => [group.id, index + 1]))
     return [...this.tabs.values()].sort((first, second) => {
       const firstIsHome = isHronautHomeUrl(first.url)
       const secondIsHome = isHronautHomeUrl(second.url)
       if (firstIsHome !== secondIsHome) return firstIsHome ? -1 : 1
-      if (first.pinned !== second.pinned) return first.pinned ? -1 : 1
       const firstGroup = first.mcpGroupId ? groupOrder.get(first.mcpGroupId) ?? Number.MAX_SAFE_INTEGER : 0
       const secondGroup = second.mcpGroupId ? groupOrder.get(second.mcpGroupId) ?? Number.MAX_SAFE_INTEGER : 0
       if (firstGroup !== secondGroup) return firstGroup - secondGroup
+      if (first.pinned !== second.pinned) return first.pinned ? -1 : 1
       return 0
     })
   }
