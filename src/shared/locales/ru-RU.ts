@@ -5,6 +5,7 @@ import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
 import { qualityAuditTextMessages } from './quality-audit-text.js'
+import { networkAbortReasonMessages } from './network-abort-reasons.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -34,6 +35,7 @@ export const ruRU = {
   searchEngines: searchEngineMessages['ru-RU'],
   browserIssueTitles: browserIssueTitleMessages['ru-RU'],
   qualityAuditText: qualityAuditTextMessages['ru-RU'],
+  networkAbortReasons: networkAbortReasonMessages['ru-RU'],
   lcpAttribution: lcpAttributionMessages['ru-RU'],
   browserImport: browserImportMessages['ru-RU'],
   video: videoRecorderMessages['ru-RU'],
@@ -2465,7 +2467,7 @@ export const ruRU = {
       "firstWins": "Применяется первое подходящее условие",
       "priority": "Приоритет {number}",
       "anyMethod": "Любой метод",
-      "failAs": "Завершить с ошибкой {reason}",
+      "failAs": "Завершить с ошибкой: {reason}",
       "respond": "Ответ {status} · тело {bytes} Б",
       "throttleAs": "Замедлить как {profile}",
       "matchesLeft": "Осталось {count} совпадение | Осталось {count} совпадения | Осталось {count} совпадений",

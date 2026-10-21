@@ -19,7 +19,7 @@ it('keeps the space before a request condition’s lifetime', () => {
   try {
     const [untilRemoved, limited] = [...view.container.querySelectorAll('.request-condition-copy small')]
       .map((line) => line.textContent?.replace(/\s+/g, ' ').trim())
-    expect(untilRemoved).toBe('Any method · Fail as Failed · until removed')
-    expect(limited).toBe('Any method · Fail as Failed · 2 matches left')
+    expect(untilRemoved).toBe('Any method · Fail: Generic failure · until removed')
+    expect(limited).toBe('Any method · Fail: Generic failure · 2 matches left')
   } finally { view.unmount() }
 })

@@ -52,6 +52,12 @@ function localNumber(value: number): string {
   return formatNumber(props.locale, value)
 }
 
+// A condition an agent added comes from main; a reason this renderer does not know still shows as its code.
+const ABORT_REASONS = new Set<string>(BROWSER_NETWORK_ABORT_REASONS)
+function abortReasonLabel(reason: string | undefined): string {
+  return reason !== undefined && ABORT_REASONS.has(reason) ? t(`networkAbortReasons.${reason}`) : reason ?? ''
+}
+
 function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string {
   if (network === 'slow-3g') return t('environment.network.slow3g')
   if (network === 'slow-4g') return t('environment.network.slow4g')
@@ -93,7 +99,7 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
             <strong v-tooltip="route.urlPattern">{{ route.urlPattern }}</strong>
             <small>
               {{ route.method || t('network.conditions.anyMethod') }} ·
-              <template v-if="route.behavior === 'abort'">{{ t('network.conditions.failAs', { reason: route.abort }) }}</template>
+              <template v-if="route.behavior === 'abort'">{{ t('network.conditions.failAs', { reason: abortReasonLabel(route.abort) }) }}</template>
               <template v-else-if="route.behavior === 'fulfill'">{{ t('network.conditions.respond', { status: route.response?.status ?? '', bytes: localNumber(route.response?.bodyBytes || 0) }) }}</template>
               <template v-else>{{ t('network.conditions.throttleAs', { profile: networkProfileLabel(route.throttle || 'slow-4g') }) }}</template>
               <template v-if="route.remainingMatches !== undefined"> · {{ t('network.conditions.matchesLeft', { count: localNumber(route.remainingMatches) }, route.remainingMatches) }}</template>
@@ -152,7 +158,7 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
         </div>
         <label v-if="mode === 'abort'">
           <span>{{ t('network.conditions.failureReason') }}</span>
-          <select v-model="abort"><option v-for="reason in BROWSER_NETWORK_ABORT_REASONS" :key="reason" :value="reason">{{ reason }}</option></select>
+          <select v-model="abort"><option v-for="reason in BROWSER_NETWORK_ABORT_REASONS" :key="reason" :value="reason">{{ abortReasonLabel(reason) }}</option></select>
         </label>
         <template v-else-if="mode === 'fulfill'">
           <label><span>{{ t('network.conditions.httpStatus') }}</span><input v-model.number="status" type="number" min="100" max="599" step="1" required /></label>

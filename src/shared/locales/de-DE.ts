@@ -5,6 +5,7 @@ import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
 import { qualityAuditTextMessages } from './quality-audit-text.js'
+import { networkAbortReasonMessages } from './network-abort-reasons.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -34,6 +35,7 @@ export const deDE = {
   searchEngines: searchEngineMessages['de-DE'],
   browserIssueTitles: browserIssueTitleMessages['de-DE'],
   qualityAuditText: qualityAuditTextMessages['de-DE'],
+  networkAbortReasons: networkAbortReasonMessages['de-DE'],
   lcpAttribution: lcpAttributionMessages['de-DE'],
   browserImport: browserImportMessages['de-DE'],
   video: videoRecorderMessages['de-DE'],
@@ -2465,7 +2467,7 @@ export const deDE = {
       "firstWins": "Die erste passende Bedingung gewinnt",
       "priority": "Priorität {number}",
       "anyMethod": "Beliebige Methode",
-      "failAs": "Fehlschlagen als {reason}",
+      "failAs": "Fehlschlagen: {reason}",
       "respond": "Antwort {status} · {bytes} B Text",
       "throttleAs": "Drosseln als {profile}",
       "matchesLeft": "{count} Treffer übrig | {count} Treffer übrig",

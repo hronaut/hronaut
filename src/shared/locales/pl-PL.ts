@@ -5,6 +5,7 @@ import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
 import { qualityAuditTextMessages } from './quality-audit-text.js'
+import { networkAbortReasonMessages } from './network-abort-reasons.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -34,6 +35,7 @@ export const plPL = {
   searchEngines: searchEngineMessages['pl-PL'],
   browserIssueTitles: browserIssueTitleMessages['pl-PL'],
   qualityAuditText: qualityAuditTextMessages['pl-PL'],
+  networkAbortReasons: networkAbortReasonMessages['pl-PL'],
   lcpAttribution: lcpAttributionMessages['pl-PL'],
   browserImport: browserImportMessages['pl-PL'],
   video: videoRecorderMessages['pl-PL'],
@@ -2465,7 +2467,7 @@ export const plPL = {
       "firstWins": "Obowiązuje pierwszy pasujący warunek",
       "priority": "Priorytet {number}",
       "anyMethod": "Dowolna metoda",
-      "failAs": "Zakończ niepowodzeniem {reason}",
+      "failAs": "Zakończ niepowodzeniem: {reason}",
       "respond": "Odpowiedz {status} · treść {bytes} B",
       "throttleAs": "Ogranicz jak {profile}",
       "matchesLeft": "Pozostało {count} dopasowanie | Pozostały {count} dopasowania | Pozostało {count} dopasowań",
