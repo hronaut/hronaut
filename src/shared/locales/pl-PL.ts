@@ -1,5 +1,6 @@
 import { networkPriorityMessages } from './network-priority.js'
 import { networkLabelMessages } from './network-labels.js'
+import { reproStepMessages } from './repro-steps.js'
 import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
@@ -27,6 +28,7 @@ export const plPL = {
   emulationApplication: {"pending": "Stosowanie emulacji", "unknown": "Emulacja niepotwierdzona", "help": "Otwórz Środowisko, aby sprawdzić i jawnie przywrócić zachowane ustawienia. Nieudane żądanie nie zostanie powtórzone.", "restore": "Przywróć zachowane ustawienia", "networkFirst": "Najpierw przywróć warunki sieciowe w Warunkach żądań. Emulacja pozostaje niepotwierdzona do czasu osobnego przywrócenia."},
   networkPriority: networkPriorityMessages['pl-PL'],
   networkLabels: networkLabelMessages['pl-PL'],
+  reproSteps: reproStepMessages['pl-PL'],
   viewportPresets: viewportPresetMessages['pl-PL'],
   searchEngines: searchEngineMessages['pl-PL'],
   browserIssueTitles: browserIssueTitleMessages['pl-PL'],

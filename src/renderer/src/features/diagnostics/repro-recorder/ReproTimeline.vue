@@ -7,6 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { formatDuration } from '../../../../../shared/format'
 import type { BrowserReproRecording, BrowserReproStep, SupportedLocale } from '../../../../../shared/types'
 import UiButton from '../../../ui/UiButton.vue'
+import { createReproStepLabels } from './repro-step-labels'
 
 const props = defineProps<{
   busy?: boolean
@@ -35,6 +36,7 @@ function addCheckpoint(): void {
   reviewed.value = false
 }
 const { t } = useI18n({ useScope: 'global' })
+const stepLabels = createReproStepLabels((message, parameters) => t(message, parameters ?? {}))
 const timeline = ref<HTMLElement | null>(null)
 const selectedIndex = ref<number | null>(null)
 const selectedStep = computed(() => (
@@ -150,8 +152,8 @@ function moveSelection(event: KeyboardEvent, step: BrowserReproStep): void {
       >
         <span class="repro-step-index">{{ step.index }}</span>
         <span class="repro-step-summary">
-          <span><strong>{{ step.kind }}</strong><time :datetime="step.occurredAt">{{ elapsed(step) }}</time></span>
-          <small>{{ step.description }}</small>
+          <span><strong>{{ stepLabels.kind(step) }}</strong><time :datetime="step.occurredAt">{{ elapsed(step) }}</time></span>
+          <small>{{ stepLabels.description(step) }}</small>
         </span>
       </UiButton>
     </div>
@@ -159,12 +161,12 @@ function moveSelection(event: KeyboardEvent, step: BrowserReproStep): void {
       <header>
         <div>
           <span class="eyebrow">{{ t('repro.selectedStep', { index: selectedStep.index }) }}</span>
-          <strong>{{ selectedStep.description }}</strong>
+          <strong>{{ stepLabels.description(selectedStep) }}</strong>
         </div>
         <time :datetime="selectedStep.occurredAt">{{ elapsed(selectedStep) }}</time>
       </header>
       <dl>
-        <div><dt>{{ t('repro.action') }}</dt><dd>{{ selectedStep.kind }}</dd></div>
+        <div><dt>{{ t('repro.action') }}</dt><dd>{{ stepLabels.kind(selectedStep) }}</dd></div>
         <div v-if="selectedStep.target"><dt>{{ t('repro.target') }}</dt><dd>{{ selectedStep.target.label || selectedStep.target.role || selectedStep.target.tag }}</dd></div>
         <div v-if="selectedStep.target"><dt>{{ t('repro.selector') }}</dt><dd><code v-if="selectedStep.target.selector">{{ selectedStep.target.selector }}</code><span v-else>{{ t('repro.selectorUnavailable') }}</span></dd></div>
         <div v-if="selectedStep.key"><dt>{{ t('repro.key') }}</dt><dd><code>{{ selectedStep.key }}</code></dd></div>

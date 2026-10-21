@@ -1,5 +1,6 @@
 import { networkPriorityMessages } from './network-priority.js'
 import { networkLabelMessages } from './network-labels.js'
+import { reproStepMessages } from './repro-steps.js'
 import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
@@ -27,6 +28,7 @@ export const ruRU = {
   emulationApplication: {"pending": "Применение эмуляции", "unknown": "Эмуляция не подтверждена", "help": "Откройте Среду, проверьте сохранённые настройки и явно восстановите их. Неудачный запрос не будет повторён.", "restore": "Восстановить сохранённые настройки", "networkFirst": "Сначала восстановите сетевые условия в Условиях запросов. Эмуляция останется неподтверждённой до отдельного восстановления."},
   networkPriority: networkPriorityMessages['ru-RU'],
   networkLabels: networkLabelMessages['ru-RU'],
+  reproSteps: reproStepMessages['ru-RU'],
   viewportPresets: viewportPresetMessages['ru-RU'],
   searchEngines: searchEngineMessages['ru-RU'],
   browserIssueTitles: browserIssueTitleMessages['ru-RU'],
