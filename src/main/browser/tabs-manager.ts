@@ -5196,8 +5196,7 @@ export class BrowserTabsManager {
         options.title || (url === HRONAUT_HOME_URL ? 'Hronaut Home' : url === 'about:blank' ? UNTITLED_TAB_TITLE : url)
       ),
       url,
-      // A page opened for a window may never load anything, such as one a site writes into itself.
-      loading: options.adopt ? options.adopt.webContents.isLoading() : true,
+      loading: true,
       navigationGeneration: options.navigationGeneration ?? 0,
       walletNavigationGeneration: options.navigationGeneration ?? 0,
       observationGeneration: options.mcpGroupId

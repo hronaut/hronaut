@@ -62,7 +62,7 @@ test('a sign-in popup answers the page that opened it and closes its tab', async
     const appTabId = (await call<{ activeTabId: string }>('browser_new_tab', { workspaceId, url: `http://127.0.0.1:${address.port}/` })).activeTabId
     await text('browser_wait', { workspaceId, tabId: appTabId, selector: '#sign-in', state: 'visible' })
 
-    // A blank window the page writes into never loads anything, and its tab must not keep loading.
+    // A blank window the page writes into loads nothing of its own, and its tab still finishes loading.
     const write = await call<{ tabsOpenedDuringClick?: { tabIds: string[] } }>('browser_click', { workspaceId, tabId: appTabId, selector: '#write' })
     expect(write.tabsOpenedDuringClick?.tabIds, JSON.stringify(write)).toHaveLength(1)
     const writtenTabId = write.tabsOpenedDuringClick!.tabIds[0]!
