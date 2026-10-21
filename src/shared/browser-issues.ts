@@ -5,7 +5,9 @@ import type {
   BrowserInspectorIssueSource
 } from './types.js'
 
-const ISSUE_METADATA: Record<string, { title: string; severity: BrowserInspectorIssueSeverity }> = {
+// The renderer names these codes in the interface language (src/shared/locales/browser-issue-titles.ts);
+// MCP results keep the English title.
+export const INSPECTOR_ISSUE_METADATA: Readonly<Record<string, { title: string; severity: BrowserInspectorIssueSeverity }>> = {
   BlockedByResponseIssue: { title: 'Response blocked by browser security', severity: 'error' },
   ConnectionAllowlistIssue: { title: 'Connection allowlist problem', severity: 'error' },
   ContentSecurityPolicyIssue: { title: 'Content Security Policy violation', severity: 'error' },
@@ -123,7 +125,7 @@ export function normalizeInspectorIssue(value: unknown, firstSeenAt = new Date()
   const reasons = extractReasons(details)
   const affectedUrls = extractUrls(details)
   const source = extractSource(details)
-  const metadata = ISSUE_METADATA[code] ?? { title: code.replace(/Issue$/, '').replace(/([a-z])([A-Z])/g, '$1 $2'), severity: 'info' as const }
+  const metadata = (Object.hasOwn(INSPECTOR_ISSUE_METADATA, code) ? INSPECTOR_ISSUE_METADATA[code] : undefined) ?? { title: code.replace(/Issue$/, '').replace(/([a-z])([A-Z])/g, '$1 $2'), severity: 'info' as const }
   const fingerprint = [code, ...reasons, ...affectedUrls, source ? `${source.url}:${source.lineNumber}:${source.columnNumber}` : '', ...(disposition ? [disposition] : [])].join('|')
   const issueId = typeof raw.issueId === 'string' && raw.issueId && raw.issueId.length <= 256 ? raw.issueId : fingerprint
   return {

@@ -2,6 +2,7 @@ import { networkPriorityMessages } from './network-priority.js'
 import { networkLabelMessages } from './network-labels.js'
 import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
+import { browserIssueTitleMessages } from './browser-issue-titles.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -26,6 +27,7 @@ export const enUS = {
   networkLabels: networkLabelMessages['en-US'],
   viewportPresets: viewportPresetMessages['en-US'],
   searchEngines: searchEngineMessages['en-US'],
+  browserIssueTitles: browserIssueTitleMessages['en-US'],
   lcpAttribution: lcpAttributionMessages['en-US'],
   browserImport: browserImportMessages['en-US'],
   video: videoRecorderMessages['en-US'],
