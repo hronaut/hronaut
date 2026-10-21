@@ -14,8 +14,8 @@ import { STORAGE_USAGE_CAVEATS, STORAGE_USAGE_FALLBACK_CAVEAT_PREFIX } from '../
 import type { BrowserPwaReport, BrowserStorageChangesReport, BrowserStorageUsageReport, BrowserTabState, SupportedLocale } from '../../src/shared/types.js'
 
 // Site storage's usage, changes and offline views and the service-worker history listed their reports' English caveats
-// in every language, two of them told the person reading the panel to "Use browser_site_data" or "Request includeValues",
-// and a missing cache was named in English.
+// in every language, four of them told the person reading the panel to "Use browser_site_data" or to "Request
+// includeValues" or "includeHeaders", and a missing cache was named in English.
 
 const original = Object.getOwnPropertyDescriptor(window, 'hronaut')
 afterEach(() => {
