@@ -232,6 +232,10 @@ export interface BrowserClosedTabState {
   defaultFontSize?: number
   /** The tab's own mute, not the browser-wide one. */
   muted?: boolean
+  /** Agents paused in the tab itself, not by pausing all agents. */
+  tabAgentPaused?: boolean
+  /** The person's input locked in the tab itself, not by locking every tab. */
+  humanInteractionLocked?: boolean
 }
 
 export const MAX_BROWSER_TABS = 50
