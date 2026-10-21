@@ -2,7 +2,8 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { BrowserImportResponse } from '../../shared/browser-import.js'
 import { BrowserImportService, type ImportDestination } from './service.js'
 import { BrowserImportError } from './contracts.js'
-import { discoverImportProfiles, readImportCookies } from './source.js'
+import { homedir } from 'node:os'
+import { discoverImportProfiles, linuxConfigHome, readImportCookies } from './source.js'
 import type { BrowserImportProfile, BrowserImportResult } from '../../shared/browser-import.js'
 import type { Cookie } from 'electron'
 
@@ -19,7 +20,7 @@ function identifier(value: unknown): string {
   return value
 }
 export function registerBrowserImportIpc(options: Options): () => void {
-  const service = new BrowserImportService({ ...options, discover: () => discoverImportProfiles(), read: readImportCookies })
+  const service = new BrowserImportService({ ...options, discover: () => discoverImportProfiles(homedir(), process.platform, linuxConfigHome()), read: readImportCookies })
   const handle = <T>(channel: string, run: (...values: unknown[]) => Promise<T>): void => {
     options.ipcMain.handle(channel, async (event, ...values: unknown[]): Promise<BrowserImportResponse<T>> => {
       options.assertSender(event)

@@ -2,7 +2,7 @@ import { createDecipheriv, createHash, pbkdf2Sync, randomUUID, timingSafeEqual }
 import { execFile } from 'node:child_process'
 import { lstat, readFile, readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, join, resolve } from 'node:path'
+import { basename, isAbsolute, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import type { Cookie } from 'electron'
 import { BrowserImportError, type CookieSnapshot, type ImportProfile } from './contracts.js'
@@ -52,7 +52,13 @@ function chromiumProfileName(entry: Record<string, unknown>, preferenceName: unk
 }
 
 /** Discovery reads profile names only, never the cookie database or OS keys. */
-export async function discoverImportProfiles(home = homedir(), platform = process.platform): Promise<ImportProfile[]> {
+/** The person's configuration folder: `XDG_CONFIG_HOME` when it is an absolute path, as the XDG specification asks, else `~/.config`. */
+export function linuxConfigHome(home = homedir(), environment: NodeJS.ProcessEnv = process.env): string {
+  const configured = environment.XDG_CONFIG_HOME
+  return configured && isAbsolute(configured) ? configured : join(home, '.config')
+}
+
+export async function discoverImportProfiles(home = homedir(), platform = process.platform, configHome = join(home, '.config')): Promise<ImportProfile[]> {
   if (platform !== 'linux') throw new BrowserImportError('unsupported')
   const profiles: ImportProfile[] = []
   const chromiumRoots = [
@@ -84,7 +90,16 @@ export async function discoverImportProfiles(home = homedir(), platform = proces
       profiles.push({ id: randomUUID(), browser, name: profileLabel(chromiumProfileName(entry, preferenceName), directory), file, kind: 'chromium', keyApplication })
     }
   }
-  for (const root of [join(home, '.mozilla/firefox'), join(home, 'snap/firefox/common/.mozilla/firefox'), join(home, '.var/app/org.mozilla.firefox/.mozilla/firefox')]) {
+  const firefoxRoots = [
+    join(home, '.mozilla/firefox'),
+    // Since Firefox 147, a new install with no ~/.mozilla keeps its profiles in the XDG configuration folder; Flatpak
+    // points that folder at the app's own config directory.
+    join(configHome, 'mozilla/firefox'),
+    join(home, 'snap/firefox/common/.mozilla/firefox'),
+    join(home, '.var/app/org.mozilla.firefox/.mozilla/firefox'),
+    join(home, '.var/app/org.mozilla.firefox/config/mozilla/firefox')
+  ]
+  for (const root of firefoxRoots) {
     let ini: string
     try { ini = await smallText(join(root, 'profiles.ini')) } catch { continue }
     for (const section of ini.split(/(?=^\[)/m).slice(0, 150)) {
