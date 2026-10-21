@@ -144,6 +144,37 @@ describe('restricting a workspace', () => {
     expect(closedTabs).toEqual([`${ALLOWED}/older`])
   })
 
+  it('forgets them before the open tabs are checked, and again once a tab closed meanwhile joins them', async () => {
+    const blocked = tab('blocked', `${BLOCKED}/page`)
+    const { port, closedTabs } = access([blocked])
+    closedTabs.push(`${BLOCKED}/closed-before`)
+    let closedWhileChecking: string[] = []
+    blocked.page.loadURL.mockImplementationOnce(async (url: string) => {
+      // Reopen Closed Tab while the open tabs are checked would take the newest closed tab.
+      closedWhileChecking = [...closedTabs]
+      closedTabs.push(`${BLOCKED}/closed-meanwhile`)
+      blocked.page.shown = url
+    })
+
+    await updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)
+
+    expect(closedWhileChecking).toEqual([])
+    expect(closedTabs).toEqual([])
+  })
+
+  it('does not fail when the workspace closes while its tabs are checked', async () => {
+    const blocked = tab('blocked', `${BLOCKED}/page`)
+    const { port, closedTabs } = access([blocked])
+    blocked.page.loadURL.mockImplementationOnce(async (url: string) => {
+      // The closing workspace's closed tabs are held aside for Undo, where forgetting closed tabs still reaches them.
+      closedTabs.push(`${BLOCKED}/held-for-undo`)
+      port.findWorkspace = () => undefined
+      blocked.page.shown = url
+    })
+
+    await expect(updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)).resolves.toBeDefined()
+  })
+
   it('blanks a denied page and clears its title and icon', async () => {
     const blocked = tab('blocked', `${BLOCKED}/page`)
     const { port } = access([blocked])
