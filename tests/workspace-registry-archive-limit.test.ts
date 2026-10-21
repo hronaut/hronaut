@@ -140,6 +140,8 @@ describe('workspace archive limit', () => {
       mcpTabGroups: () => new Map([['person', { id: 'person', name: 'Client work', deletionProtected: false }]]),
       options: () => ({ endUndo: async () => undefined, offerUndo: vi.fn() }),
       savedTabGroups: () => registry.archived,
+      closedTabs: () => [],
+      detachedClosedTabs: () => new Set(),
       withTabLabelLifecycle: (run: () => Promise<unknown>) => run(),
       workspaceRegistry: () => registry
     }

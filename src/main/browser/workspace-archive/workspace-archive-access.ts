@@ -1,5 +1,5 @@
 import type { Session } from 'electron'
-import type { BrowserSavedTabGroupState, BrowserState } from '../../../shared/types.js'
+import type { BrowserClosedTabState, BrowserSavedTabGroupState, BrowserState } from '../../../shared/types.js'
 import type { UndoableAction } from '../../undo-offers.js'
 import type { PersistedBrowserState, TabStateStore } from '../tab-store.js'
 import type { BrowserWorkspaceOperation, WorkspaceOperationAction } from '../workspace-operations/workspace-operations-access.js'
@@ -47,6 +47,10 @@ export interface WorkspaceArchiveAccess {
   setClosingWorkspace(closing: ClosingWorkspace | undefined): void
   /** The tab manager's options. */
   options(): WorkspaceArchiveOptions
+  /** The recently closed tabs, oldest first. */
+  closedTabs(): BrowserClosedTabState[]
+  /** Recently closed tabs held aside meanwhile, which clearing the history still forgets. */
+  detachedClosedTabs(): Set<BrowserClosedTabState[]>
   /** The workspace registry, which moves workspaces between open and archived. */
   workspaceRegistry(): Pick<WorkspaceRegistry, 'archive' | 'restore'>
   /** Runs an operation once pending tab label edits settle, admitting no new edit until it ends. */

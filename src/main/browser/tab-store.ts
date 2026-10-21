@@ -75,7 +75,9 @@ export interface PersistedSavedTabGroup {
   origins?: string[]
   navigationPolicy?: BrowserWorkspaceNavigationPolicy
   navigationAudit?: BrowserWorkspaceNavigationAuditEntry[]
-  tabs: Array<Pick<PersistedTab, 'title' | 'url' | 'pinned' | 'label'>>
+  tabs: Array<Pick<PersistedTab, 'title' | 'url' | 'pinned' | 'label' | 'zoomIsolated' | 'defaultFontSize'>>
+  /** Which of its tabs was shown when it was archived. */
+  shownTabIndex?: number
 }
 
 export interface PersistedBrowserState {
@@ -523,14 +525,23 @@ export class TabStateStore {
               : normalizeTabTitle(sanitizedUrlFallbackTitle(title, originalUrl, url), url)
             if (url !== originalUrl) repairedPersistedState = true
             if (normalizedTitle !== title) repairedPersistedState = true
+            const savedFontSize = (tab as Record<string, unknown>).defaultFontSize
+            const defaultFontSize = normalizeDefaultFontSize(savedFontSize)
+            if (savedFontSize !== undefined && defaultFontSize === undefined) repairedPersistedState = true
             return {
               title: normalizedTitle,
               ...(restoreTabLabel((tab as Record<string, unknown>).label) ? { label: restoreTabLabel((tab as Record<string, unknown>).label) } : {}),
               url,
-              pinned: (tab as Record<string, unknown>).pinned === true
+              pinned: (tab as Record<string, unknown>).pinned === true,
+              ...((tab as Record<string, unknown>).zoomIsolated === true ? { zoomIsolated: true as const } : {}),
+              ...(defaultFontSize ? { defaultFontSize } : {})
             }
-          })
+          }),
+          ...(Number.isInteger(candidate.shownTabIndex) && (candidate.shownTabIndex as number) >= 0 && (candidate.shownTabIndex as number) < candidate.tabs.length
+            ? { shownTabIndex: candidate.shownTabIndex as number }
+            : {})
         })
+        if (candidate.shownTabIndex !== undefined && savedTabGroups.at(-1)!.shownTabIndex === undefined) repairedPersistedState = true
         if (JSON.stringify(candidate.navigationPolicy ?? { mode: 'unrestricted', rules: [] }) !== JSON.stringify(navigationPolicy)) {
           repairedPersistedState = true
         }

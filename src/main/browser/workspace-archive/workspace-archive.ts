@@ -1,8 +1,9 @@
-import type { BrowserSavedTabGroupState, BrowserState, BrowserTabGroupState } from '../../../shared/types.js'
+import { MAX_BROWSER_TABS, type BrowserClosedTabState, type BrowserSavedTabGroupState, type BrowserState, type BrowserTabGroupState } from '../../../shared/types.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../../shared/undo.js'
 import { LocalizedError } from '../../localized-error.js'
 import { archivedWorkspaceBusyError } from '../workspace-operations/workspace-operations.js'
 import { canonicalStorageId } from '../workspace-storage-deletion.js'
+import type { WorkspacePlacement } from '../workspace-registry.js'
 import { destroyWorkspaceStorage, workspacePartition } from '../workspace-storage.js'
 import type { WorkspaceArchiveAccess } from './workspace-archive-access.js'
 
@@ -12,29 +13,87 @@ const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
 /** How long deleting a closed workspace waits for an operation on its archive before leaving it archived. */
 const CLOSING_WORKSPACE_BUSY_WAIT_MS = 3_000
 
+/** How many recently closed tabs the tab manager remembers; a copy of the tab reopening limit. */
+const MAX_CLOSED_TABS = MAX_BROWSER_TABS
+
+/**
+ * What Undo puts back besides the archive: the workspace's place in the tab rail and its pin, and the tabs the person
+ * had closed in it, which closing the workspace forgets. Those are held aside while Undo is on offer, where clearing
+ * the history still forgets them.
+ */
+interface WorkspaceUndo {
+  placement: WorkspacePlacement
+  closedTabs: BrowserClosedTabState[]
+}
+
+function holdWorkspaceForUndo(access: WorkspaceArchiveAccess, groupId: string): WorkspaceUndo {
+  const group = access.mcpTabGroups().get(groupId)
+  const undo: WorkspaceUndo = {
+    placement: { index: Math.max(0, [...access.mcpTabGroups().keys()].indexOf(groupId)), ...(group?.pinnedAt ? { pinnedAt: group.pinnedAt } : {}) },
+    closedTabs: access.closedTabs().filter((tab) => tab.mcpGroupId === groupId)
+  }
+  access.detachedClosedTabs().add(undo.closedTabs)
+  return undo
+}
+
+/** Puts the workspace's closed tabs back where they were closed in time, unless clearing the history forgot them. */
+function returnClosedTabs(access: WorkspaceArchiveAccess, undo: WorkspaceUndo): void {
+  access.detachedClosedTabs().delete(undo.closedTabs)
+  for (const held of undo.closedTabs.splice(0)) {
+    if (access.closedTabs().some((entry) => entry.id === held.id)) continue
+    const newer = access.closedTabs().findIndex((entry) => entry.closedAt > held.closedAt)
+    access.closedTabs().splice(newer < 0 ? access.closedTabs().length : newer, 0, held)
+  }
+  if (access.closedTabs().length > MAX_CLOSED_TABS) access.closedTabs().splice(0, access.closedTabs().length - MAX_CLOSED_TABS)
+}
+
+function releaseClosedTabs(access: WorkspaceArchiveAccess, undo: WorkspaceUndo): void {
+  access.detachedClosedTabs().delete(undo.closedTabs)
+  undo.closedTabs.splice(0)
+}
+
 /** Archives an open workspace once pending tab label edits settle. */
 export async function saveAndCloseTabGroup(access: WorkspaceArchiveAccess, groupId: string): Promise<BrowserSavedTabGroupState> {
   return access.withTabLabelLifecycle(() => access.workspaceRegistry().archive(groupId))
 }
 
-/** Archives a workspace for the person, with Undo to bring it back. */
+/** Archives a workspace for the person, with Undo to bring it back as it was. */
 export async function archiveWorkspaceForPerson(access: WorkspaceArchiveAccess, groupId: string): Promise<BrowserSavedTabGroupState> {
-  const archived = await saveAndCloseTabGroup(access, groupId)
+  const undo = holdWorkspaceForUndo(access, groupId)
+  let archived: BrowserSavedTabGroupState
+  try {
+    archived = await saveAndCloseTabGroup(access, groupId)
+  } catch (error) {
+    releaseClosedTabs(access, undo)
+    throw error
+  }
   access.options().offerUndo?.({
     kind: 'workspace-archived',
     name: archived.name,
-    undo: () => restoreArchiveForUndo(access, archived.id)
+    undo: () => restoreArchiveForUndo(access, archived.id, undo),
+    finalize: async () => releaseClosedTabs(access, undo)
   })
   return archived
 }
 
-/** Restores an archive for Undo; false when it was already restored or deleted. */
-async function restoreArchiveForUndo(access: WorkspaceArchiveAccess, savedGroupId: string): Promise<boolean> {
+/**
+ * Restores an archive for Undo where it was in the tab rail, pinned as it was, with the tabs the person had closed in
+ * it; false when it was already restored or deleted.
+ */
+async function restoreArchiveForUndo(access: WorkspaceArchiveAccess, savedGroupId: string, undo: WorkspaceUndo): Promise<boolean> {
   if (!access.savedTabGroups().has(savedGroupId)) {
     if (access.closingWorkspace()?.id === savedGroupId) access.setClosingWorkspace(undefined)
+    releaseClosedTabs(access, undo)
     return false
   }
-  await restoreSavedTabGroup(access, savedGroupId)
+  try {
+    await restoreSavedTabGroup(access, savedGroupId, undo.placement)
+  } catch (error) {
+    releaseClosedTabs(access, undo)
+    throw error
+  }
+  returnClosedTabs(access, undo)
+  access.changed(false)
   return true
 }
 
@@ -57,10 +116,12 @@ export async function closeWorkspaceForPerson(access: WorkspaceArchiveAccess, gr
   if (access.savedTabGroups().size >= MAX_SAVED_TAB_GROUPS) {
     throw new LocalizedError('appErrors.workspace.archiveLimitUndo', { max: MAX_SAVED_TAB_GROUPS, name: group.name })
   }
+  const undo = holdWorkspaceForUndo(access, groupId)
   let archived: BrowserSavedTabGroupState
   try {
     archived = await saveAndCloseTabGroup(access, groupId)
   } catch (error) {
+    releaseClosedTabs(access, undo)
     // Another workspace archived at the same time can take the last place after the check above.
     if (error instanceof LocalizedError && error.key === 'appErrors.workspace.archiveLimit') {
       throw new LocalizedError('appErrors.workspace.archiveLimitUndo', { max: MAX_SAVED_TAB_GROUPS, name: group.name })
@@ -74,8 +135,9 @@ export async function closeWorkspaceForPerson(access: WorkspaceArchiveAccess, gr
   access.options().offerUndo?.({
     kind: 'workspace-closed',
     name: archived.name,
-    undo: () => restoreArchiveForUndo(access, archived.id),
+    undo: () => restoreArchiveForUndo(access, archived.id, undo),
     finalize: async () => {
+      releaseClosedTabs(access, undo)
       // It stays marked as closing until deleted, so a restore tried meanwhile still keeps it.
       try {
         if (closing.kept || !saved || access.savedTabGroups().get(archived.id) !== saved || saved.deletionProtected) return
@@ -98,16 +160,16 @@ export async function closeWorkspaceForPerson(access: WorkspaceArchiveAccess, gr
 }
 
 /**
- * Restores an archived workspace once pending tab label edits settle. A
- * workspace the person just closed is kept from then on.
+ * Restores an archived workspace once pending tab label edits settle, at the end of the tab rail or, for Undo, where
+ * it was. A workspace the person just closed is kept from then on.
  */
-export async function restoreSavedTabGroup(access: WorkspaceArchiveAccess, savedGroupId: string): Promise<BrowserTabGroupState> {
+export async function restoreSavedTabGroup(access: WorkspaceArchiveAccess, savedGroupId: string, placement?: WorkspacePlacement): Promise<BrowserTabGroupState> {
   // Any attempt to bring back a workspace the person just closed keeps it, even one that fails.
   if (access.closingWorkspace()?.id === savedGroupId) {
     access.closingWorkspace()!.kept = true
     access.setClosingWorkspace(undefined)
   }
-  return access.withTabLabelLifecycle(() => access.workspaceRegistry().restore(savedGroupId))
+  return access.withTabLabelLifecycle(() => access.workspaceRegistry().restore(savedGroupId, placement))
 }
 
 /** Changes whether an archived workspace shows in the sidebar and is protected from deletion, unless an operation holds it busy. */

@@ -146,6 +146,29 @@ describe('TabStateStore', () => {
     }
   })
 
+  it('keeps an archived tab\'s zoom and font size, and which archived tab was shown, dropping invalid values', async () => {
+    // Archiving dropped them, so a restored workspace lost each tab's own zoom and font size and showed its last tab.
+    const { store } = await createStore()
+    const state = currentState()
+    const saved = state.savedTabGroups![0]!
+    saved.tabs = [
+      { title: 'Orders', url: 'https://docs.example/orders', pinned: true, zoomIsolated: true, defaultFontSize: 24 },
+      { title: 'Returns', url: 'https://docs.example/returns', pinned: false, defaultFontSize: 24.5 }
+    ]
+    saved.shownTabIndex = 0
+    await store.save(state)
+    expect((await store.load())?.savedTabGroups?.[0]).toMatchObject({
+      shownTabIndex: 0,
+      tabs: [{ url: 'https://docs.example/orders', zoomIsolated: true, defaultFontSize: 24 }, { url: 'https://docs.example/returns' }]
+    })
+    expect((await store.load())?.savedTabGroups?.[0]?.tabs[1]).not.toHaveProperty('defaultFontSize')
+    for (const value of [2, -1, 0.5, '0']) {
+      ;(saved as unknown as Record<string, unknown>).shownTabIndex = value
+      await store.save(state)
+      expect((await store.load())?.savedTabGroups?.[0], String(value)).not.toHaveProperty('shownTabIndex')
+    }
+  })
+
   it('loads legacy workspaces without descriptions as empty context', async () => {
     const { path, store } = await createStore()
     const state = currentState()

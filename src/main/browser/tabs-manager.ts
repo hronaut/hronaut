@@ -1369,7 +1369,10 @@ export class BrowserTabsManager {
         origins: [...(group.origins ?? [])],
         navigationPolicy: normalizeWorkspaceNavigationPolicy(group.navigationPolicy),
         navigationAudit: [...(group.navigationAudit ?? [])],
-        tabs: group.tabs.map((tab) => ({ title: tab.title, url: tab.url, pinned: tab.pinned === true, ...(tab.label ? { label: tab.label } : {}) }))
+        tabs: group.tabs.map((tab) => ({
+          title: tab.title, url: tab.url, pinned: tab.pinned === true, ...(tab.label ? { label: tab.label } : {}),
+          ...(tab.zoomIsolated ? { zoomIsolated: true as const } : {}), ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {})
+        }))
       })
     }
     if (persistedTabs.length) {
@@ -2042,6 +2045,8 @@ export class BrowserTabsManager {
       closingWorkspace: () => this.closingWorkspace,
       setClosingWorkspace: (closing) => { this.closingWorkspace = closing },
       options: () => this.options,
+      closedTabs: () => this.closedTabs,
+      detachedClosedTabs: () => this.detachedClosedTabs,
       workspaceRegistry: () => this.workspaceRegistry,
       withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
       withSavedWorkspaceOperation: (savedWorkspaceId, action, operation) => this.withSavedWorkspaceOperation(savedWorkspaceId, action, operation),

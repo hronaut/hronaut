@@ -1,4 +1,4 @@
-import type { BrowserSavedTabGroupState, BrowserTabGroupColor, BrowserTabGroupState, BrowserWorkspaceContextClass, BrowserWorkspaceNavigationAuditEntry, BrowserWorkspaceNavigationPolicy } from '../../shared/types.js'
+import type { BrowserSavedTabGroupState, BrowserSavedTabGroupTab, BrowserTabGroupColor, BrowserTabGroupState, BrowserWorkspaceContextClass, BrowserWorkspaceNavigationAuditEntry, BrowserWorkspaceNavigationPolicy } from '../../shared/types.js'
 import { LocalizedError } from '../localized-error.js'
 import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from './workspace-operations/workspace-operations-access.js'
 
@@ -21,13 +21,27 @@ export interface ActiveWorkspace {
   /** When the person pinned it to the top of the tab rail; see BrowserTabGroupState.pinnedAt. */
   pinnedAt?: string
 }
+/** An archived tab, with the page settings it had, which the browser state does not publish. */
+export interface ArchivedWorkspaceTab extends BrowserSavedTabGroupTab {
+  zoomIsolated?: true
+  defaultFontSize?: number
+}
 export interface ArchivedWorkspace extends BrowserSavedTabGroupState {
   contextClass: BrowserWorkspaceContextClass
   storageId: string
   origins: string[]
   navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
+  tabs: ArchivedWorkspaceTab[]
+  /** Which of its tabs was shown when it was archived, which restoring it shows again. */
+  shownTabIndex?: number
 }
-interface WorkspaceTab { label?: string; id: string; mcpGroupId?: string; title: string; url: string; pinned: boolean }
+/** Where an archived workspace goes back in the tab rail, as Undo puts it back. */
+export interface WorkspacePlacement {
+  /** Its place among the open workspaces when it was archived. */
+  index: number
+  pinnedAt?: string
+}
+interface WorkspaceTab { label?: string; id: string; mcpGroupId?: string; title: string; url: string; pinned: boolean; zoomIsolated?: boolean; defaultFontSize?: number }
 interface WorkspaceRuntimePorts {
   maxTabs: number
   maxArchived: number
@@ -37,7 +51,7 @@ interface WorkspaceRuntimePorts {
   withActiveOperation<T>(id: string, action: OpenWorkspaceOperationAction, run: () => Promise<T>): Promise<T>
   withArchivedOperation<T>(id: string, action: WorkspaceOperationAction, run: () => Promise<T>): Promise<T>
   closeActive(id: string, preserveStorage: boolean): Promise<unknown>
-  createTab(tab: { label?: string; title: string; url: string; pinned: boolean; mcpGroupId: string; allowBusyWorkspace: true; active: false }): Promise<unknown>
+  createTab(tab: { label?: string; title: string; url: string; pinned: boolean; zoomIsolated: boolean; defaultFontSize?: number; mcpGroupId: string; allowBusyWorkspace: true; active: false }): Promise<unknown>
   selectTab(id: string): unknown
   remapDownloads(from: string, to: string): void
   changed(): void
@@ -61,7 +75,7 @@ export class WorkspaceRegistry {
       deletionProtected: group.deletionProtected === true, agentAccess: group.agentAccess !== false,
       contextClass: group.contextClass, storageOriginCount: group.origins.length,
       navigationPolicy: { mode: group.navigationPolicy.mode, rules: [...group.navigationPolicy.rules] },
-      tabs: group.tabs.map(tab => ({ ...tab })) }
+      tabs: group.tabs.map(tab => ({ title: tab.title, url: tab.url, pinned: tab.pinned, ...(tab.label ? { label: tab.label } : {}) })) }
   }
   listArchived(): BrowserSavedTabGroupState[] {
     return [...this.archived.values()].sort((a, b) => b.savedAt.localeCompare(a.savedAt)).map(group => this.publicArchive(group))
@@ -73,9 +87,13 @@ export class WorkspaceRegistry {
       const tabs = host.tabs().filter(tab => tab.mcpGroupId === id)
       if (this.archived.size + this.reservedArchivePlaces >= host.maxArchived) throw new LocalizedError('appErrors.workspace.archiveLimit', { max: host.maxArchived })
       const internal = this.active.get(id)!
+      const shownTabIndex = tabs.findIndex(tab => tab.id === internal.activeTabId)
       const saved: ArchivedWorkspace = { ...this.publicFields(internal), savedAt: new Date().toISOString(),
         storageId: internal.storageId, origins: [...internal.origins], navigationAudit: [...internal.navigationAudit],
-        storageOriginCount: internal.origins.length, tabs: tabs.map(tab => ({ title: tab.title, url: tab.url, pinned: tab.pinned, ...(tab.label ? { label: tab.label } : {}) })) }
+        storageOriginCount: internal.origins.length, tabs: tabs.map(tab => ({ title: tab.title, url: tab.url, pinned: tab.pinned,
+          ...(tab.label ? { label: tab.label } : {}), ...(tab.zoomIsolated ? { zoomIsolated: true as const } : {}),
+          ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}) })),
+        ...(shownTabIndex >= 0 ? { shownTabIndex } : {}) }
       this.reservedArchivePlaces++
       try { await host.closeActive(id, true) } finally { this.reservedArchivePlaces-- }
       this.archived.set(id, saved)
@@ -83,7 +101,8 @@ export class WorkspaceRegistry {
       return this.publicArchive(saved)
     })
   }
-  restore(id: string): Promise<BrowserTabGroupState> {
+  /** Restores an archived workspace at the end of the tab rail, or, for Undo, where it was and pinned as it was. */
+  restore(id: string, placement?: WorkspacePlacement): Promise<BrowserTabGroupState> {
     const host = this.runtime
     return host.withArchivedOperation(id, 'restoring the archived workspace', async () => {
       const saved = this.archived.get(id)
@@ -93,14 +112,27 @@ export class WorkspaceRegistry {
       const now = new Date().toISOString()
       const restored: ActiveWorkspace = { ...this.publicFields(saved), createdAt: now, lastUsedAt: now, activeTabId: null,
         storageId: saved.storageId, origins: [...saved.origins], navigationAudit: [...saved.navigationAudit] }
+      if (placement?.pinnedAt) restored.pinnedAt = placement.pinnedAt
       // Until its tabs are open, the archive keeps its place for a rollback.
-      this.archived.delete(id); this.active.set(id, restored); this.reservedArchivePlaces++
+      this.archived.delete(id); this.reservedArchivePlaces++
+      if (placement) {
+        // The open workspaces are kept in their tab rail order.
+        const open = [...this.active]
+        open.splice(Math.min(placement.index, open.length), 0, [id, restored])
+        this.active.clear()
+        for (const [key, value] of open) this.active.set(key, value)
+      } else this.active.set(id, restored)
       try {
         return await host.withActiveOperation(id, 'restoring the archived workspace', async () => {
           try {
-            for (const tab of saved.tabs) await host.createTab({ label: tab.label, title: tab.title, url: tab.url, pinned: tab.pinned, mcpGroupId: id, allowBusyWorkspace: true, active: false })
+            for (const tab of saved.tabs) {
+              await host.createTab({ label: tab.label, title: tab.title, url: tab.url, pinned: tab.pinned, zoomIsolated: tab.zoomIsolated === true,
+                defaultFontSize: tab.defaultFontSize, mcpGroupId: id, allowBusyWorkspace: true, active: false })
+            }
+            // The tabs open in the order they were saved, so the tab shown when it was archived is shown again.
             const tabs = host.tabs().filter(tab => tab.mcpGroupId === id)
-            if (tabs.length) host.selectTab(tabs[tabs.length - 1]!.id)
+            const shown = tabs[saved.shownTabIndex ?? tabs.length - 1] ?? tabs[tabs.length - 1]
+            if (shown) host.selectTab(shown.id)
             const result = host.requireActive(id)
             host.changed(); host.remapDownloads(id, id)
             return result
