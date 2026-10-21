@@ -3686,7 +3686,7 @@ export const esES = {
       "savePassword": "Guardar contraseña",
       "updatePassword": "Actualizar contraseña",
       "installingUpdate": "Instalando la actualización. Hronaut se reiniciará automáticamente.",
-      "restartingUpdate": "El paquete nuevo está instalado. Reiniciando Hronaut para completar la actualización.",
+      "restartingUpdate": "El paquete nuevo está instalado. Reiniciando Hronaut para completar la actualización.", "restartAfterDownloads": "Hronaut {version} está instalado. Cuando terminen tus descargas, elige «Intentar de nuevo» para reiniciar Hronaut y usar la nueva versión.",
       "walletRecoveryTitle": "Guarda los datos de recuperación del monedero",
       "walletRecoveryMessage": "Anota esta frase de recuperación y guárdala sin conexión.",
       "walletRecoveryWarning": "Hronaut no puede recuperar esta frase. Nunca la compartas con un sitio web ni con un agente de programación.",

@@ -99,6 +99,13 @@ describe('quitting with downloads in progress', () => {
     expect(asked).toHaveLength(2)
   })
 
+  it('quits when the question throws as it opens', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { confirm, asked } = confirmation([download('progressing')], () => { throw new TypeError('Invalid options') })
+    await expect(confirm()).resolves.toBe(true)
+    expect(asked).toHaveLength(1)
+  })
+
   it('quits when the downloads cannot be read', async () => {
     // The window's Close had already been prevented, so a throw here left Hronaut impossible to quit.
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
