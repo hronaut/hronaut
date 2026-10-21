@@ -1,4 +1,5 @@
-import { mkdir, readFile, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ElectronApplication } from '@playwright/test'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -89,24 +90,24 @@ test('saves to a file just emptied, as a website\'s Save dialog leaves it, and t
   expect(await prompts(electronApp)).toEqual([])
 })
 
-test('saves to a file the person opened or dropped only while their switch is on', async ({ appWindow, capabilities, electronApp, profileDirectory }) => {
+test('saves to a file the person opened or dropped only while their switch is on', async ({ appWindow, capabilities, electronApp }) => {
   const { client, tabId, fixtureUrl } = capabilities
   const onPage = <T>(script: string): Promise<T> => electronApp.evaluate(({ webContents }, { url, script }) => (
     webContents.getAllWebContents().find((contents) => contents.getURL() === url)!.executeJavaScript(script, true)
   ), { url: fixtureUrl, script }) as Promise<T>
-  const folder = join(profileDirectory, 'file-saving')
-  await mkdir(folder, { recursive: true })
-  const notes = join(folder, 'notes.txt')
-  await writeFile(notes, 'First draft', 'utf8')
-  const sibling = join(folder, 'sibling.txt')
-  await writeFile(sibling, 'Sibling', 'utf8')
-  await recordPrompts(electronApp)
-  await onPage(DROP_ZONE)
-  const dropped = await client.callTool({ name: 'browser_file_drop', arguments: { tabId, selector: '#zone', paths: [notes] } }) as CallToolResult
-  expect(JSON.parse(text(dropped))).toMatchObject({ status: 'DROPPED', files: 1 })
-  await expect.poll(() => onPage('window.dropped !== null')).toBe(true)
-  expect(await onPage(save('Second draft'))).toBe('NotAllowedError')
+  // Outside Hronaut's profile, which Chromium protects: a rename into it asks whether the website may have that place.
+  const folder = await mkdtemp(join(tmpdir(), 'hronaut-file-saving-'))
   try {
+    const notes = join(folder, 'notes.txt')
+    await writeFile(notes, 'First draft', 'utf8')
+    const sibling = join(folder, 'sibling.txt')
+    await writeFile(sibling, 'Sibling', 'utf8')
+    await recordPrompts(electronApp)
+    await onPage(DROP_ZONE)
+    const dropped = await client.callTool({ name: 'browser_file_drop', arguments: { tabId, selector: '#zone', paths: [notes] } }) as CallToolResult
+    expect(JSON.parse(text(dropped))).toMatchObject({ status: 'DROPPED', files: 1 })
+    await expect.poll(() => onPage('window.dropped !== null')).toBe(true)
+    expect(await onPage(save('Second draft'))).toBe('NotAllowedError')
     await appWindow.evaluate('window.hronautSettings.setAllowWebsiteFileSaving(true)')
     expect(await onPage(save('Second draft'))).toBe('saved')
     expect(await readFile(notes, 'utf8')).toBe('Second draft')
@@ -123,5 +124,6 @@ test('saves to a file the person opened or dropped only while their switch is on
     expect(await prompts(electronApp)).toEqual([])
   } finally {
     await appWindow.evaluate('window.hronautSettings.setAllowWebsiteFileSaving(false)')
+    await rm(folder, { recursive: true, force: true })
   }
 })
