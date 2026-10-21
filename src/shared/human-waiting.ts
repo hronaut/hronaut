@@ -3,8 +3,8 @@ const HUMAN_WAITING_DECISIONS = Object.keys({
   'review-page': true, 'approve-action': true, 'provide-input': true, 'resolve-unknown': true
 } satisfies Record<HumanWaitingDecision, true>) as HumanWaitingDecision[]
 /**
- * The English line a decision's attention request carries. MCP results, the tray and the system notification keep it;
- * the shell names the decision in the interface language instead.
+ * The English line a decision's attention request carries. MCP results keep it; the shell, the tray and the system
+ * notification name the decision in the interface language instead.
  */
 export function humanDecisionAttentionReason(decision: HumanWaitingDecision): string {
   return `Human decision required: ${decision}`

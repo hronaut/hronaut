@@ -108,17 +108,20 @@ export function createTrayAttention(host: TrayAttentionHost): {
    * Why the open request needs the user, as the tray and the system notification say it: a decision's fixed English
    * line in the interface language, and any other reason as the agent wrote it. Agents keep the English line.
    */
-  function attentionReasonText(request: UserAttentionRequest): string {
-    const decision = host.state.decisionId ? humanDecisionFromAttentionReason(request.reason) : undefined
-    return decision ? host.text(`shell.agentCard.decisionReasons.${decision}`) : request.reason
+  function openAttentionReasonText(): string {
+    const reason = host.state.request?.reason ?? ''
+    const decision = host.state.decisionId ? humanDecisionFromAttentionReason(reason) : undefined
+    return decision ? host.text(`shell.agentCard.decisionReasons.${decision}`) : reason
   }
 
+  /** The tray's tooltip and menu for the open request, or for none; the interface language reruns it. */
   function setTrayContextMenu(): void {
     if (!tray || tray.isDestroyed()) return
+    tray.setToolTip(host.state.request ? host.text('native.tray.tooltipAttention', { reason: compactAttentionReason(openAttentionReasonText()) }) : 'Hronaut')
     const contextMenu = Menu.buildFromTemplate([
       ...(host.state.request
         ? [
-            { label: host.text('native.tray.attention', { reason: compactAttentionReason(attentionReasonText(host.state.request!)) }), enabled: false },
+            { label: host.text('native.tray.attention', { reason: compactAttentionReason(openAttentionReasonText()) }), enabled: false },
             {
               label: host.text('native.tray.showRequested'),
               click: () => {
@@ -229,10 +232,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
     if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) host.mainWindow()!.webContents.send('attention:changed', null)
     host.scheduleAgentPresencePublish()
     stopAttentionSignals()
-    if (tray && !tray.isDestroyed()) {
-      tray.setToolTip('Hronaut')
-      setTrayContextMenu()
-    }
+    setTrayContextMenu()
   }
 
   function reconcileUserAttention(state: BrowserState): void {
@@ -298,16 +298,13 @@ export function createTrayAttention(host: TrayAttentionHost): {
     attentionPulseOn = false
     renderAttentionPulse()
     host.mainWindow()?.flashFrame(true)
-    if (tray && !tray.isDestroyed()) {
-      tray.setToolTip(host.text('native.tray.tooltipAttention', { reason: compactAttentionReason(attentionReasonText(request)) }))
-      setTrayContextMenu()
-    }
+    setTrayContextMenu()
     if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) {
       host.mainWindow()!.webContents.send('attention:requested')
     }
     if (Notification.isSupported()) {
       try {
-        const notification = new Notification({ title: 'Hronaut', body: request.notificationMessage || attentionReasonText(request) })
+        const notification = new Notification({ title: 'Hronaut', body: request.notificationMessage || openAttentionReasonText() })
         attentionNotification = notification
         notification.on('click', () => {
           if (host.state.request?.id !== request.id) return
@@ -352,7 +349,6 @@ export function createTrayAttention(host: TrayAttentionHost): {
       trayIcon = loadTrayIcon(trayIconPath)
       trayAttentionIcon = loadTrayIcon(trayAttentionIconPath)
       tray = new Tray(trayIcon)
-      tray.setToolTip('Hronaut')
       setTrayContextMenu()
       bindTrayActivation(tray, host.showWindow, process.platform)
       return true
