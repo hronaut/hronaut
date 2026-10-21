@@ -324,7 +324,14 @@ export const frFRAppErrors: AppErrorMessages = {
     "windowUnavailable": "La fenêtre Hronaut est indisponible.",
     "mcpPortRange": "Le port MCP doit être un entier compris entre 1024 et 65535.",
     "mcpPortInUse": "Impossible d’écouter sur {host}:{port}, car une autre application utilise ce port.",
-    "mcpPortDenied": "Impossible d’écouter sur {host}:{port}, car le système n’autorise pas Hronaut à utiliser ce port."
+    "mcpPortDenied": "Impossible d’écouter sur {host}:{port}, car le système n’autorise pas Hronaut à utiliser ce port.",
+    "downloadFolderDenied": "Hronaut n’a pas l’autorisation de créer ou d’utiliser ce dossier de téléchargement ({code}). Choisissez un autre dossier.",
+    "downloadFolderDiskFull": "L’espace disque est insuffisant pour créer le dossier de téléchargement ({code}).",
+    "downloadFolderReadOnly": "Le dossier de téléchargement se trouve sur un disque en lecture seule ({code}). Choisissez un autre dossier.",
+    "downloadFolderBlocked": "Un fichier empêche de créer le dossier de téléchargement ({code}). Choisissez un autre dossier.",
+    "downloadFolderMissingDrive": "Le lecteur ou l’emplacement réseau du dossier de téléchargement n’est pas disponible ({code}). Choisissez un autre dossier.",
+    "downloadFolderUnavailable": "Hronaut n’a pas pu créer le dossier de téléchargement ({code}).",
+    "downloadFolderOpenFailed": "Hronaut n’a pas pu ouvrir le dossier de téléchargement dans le gestionnaire de fichiers."
   },
   "credentials": {
     "fillAgentActive": "Le mot de passe n’a pas été renseigné, car une commande d’agent était encore en cours. Les agents restent en pause ; réessayez quand elle sera terminée.",

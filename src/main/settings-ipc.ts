@@ -1,9 +1,9 @@
 import type { IpcMain, IpcMainInvokeEvent, OpenDialogReturnValue } from 'electron'
-import { mkdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { McpCapabilityProfileStore } from './mcp/capability-profile-store.js'
 import { mcpCapabilityProfileInputFromPreset, type McpHttpServer } from './mcp/server.js'
+import { createDownloadFolder } from './download-folder.js'
 import { LocalizedError } from './localized-error.js'
 import type { McpTokenConfiguration } from './mcp-token-store.js'
 import { DEFAULT_SETTINGS, isThemeName } from './settings-store.js'
@@ -213,9 +213,9 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
   ipcMain.handle('settings:open-download-directory', async (event) => {
     host.assertTrustedSender(event)
     const directory = host.effectiveDownloadDirectory()
-    await mkdir(directory, { recursive: true })
+    await createDownloadFolder(directory)
     const error = await host.openPath(directory)
-    if (error) throw new Error(error)
+    if (error) throw new LocalizedError('appErrors.settings.downloadFolderOpenFailed', undefined, { message: error })
   })
   host.handleBrowserIpc('settings:set-memory-saver-enabled', async (event, enabled: unknown) => {
     host.assertTrustedSender(event)

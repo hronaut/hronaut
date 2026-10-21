@@ -1,6 +1,6 @@
 import { app, nativeTheme, type Session } from 'electron'
-import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import { createDownloadFolder } from './download-folder.js'
 import { commitRuntimeSetting } from './runtime-setting-commit.js'
 import { SettingsStore } from './settings-store.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
@@ -123,7 +123,7 @@ export function createSettingsRuntime(host: SettingsRuntimeHost): {
 
   async function applyDownloadSettings(updates: Partial<AppSettings>): Promise<AppSettings> {
     const directory = effectiveDownloadDirectory({ ...host.state.current, ...updates })
-    await mkdir(directory, { recursive: true })
+    await createDownloadFolder(directory)
     const next = await updateSettings(updates)
     const committedDirectory = effectiveDownloadDirectory(next)
     host.persistentSession()?.setDownloadPath(committedDirectory)
