@@ -3686,7 +3686,7 @@ export const deDE = {
       "savePassword": "Passwort speichern",
       "updatePassword": "Passwort aktualisieren",
       "installingUpdate": "Das Update wird installiert. Hronaut wird automatisch neu gestartet.",
-      "restartingUpdate": "Das neue Paket ist installiert. Hronaut wird neu gestartet, um das Update abzuschließen.",
+      "restartingUpdate": "Das neue Paket ist installiert. Hronaut wird neu gestartet, um das Update abzuschließen.", "restartAfterDownloads": "Hronaut {version} ist installiert. Wählen Sie „Erneut versuchen“, sobald Ihre Downloads abgeschlossen sind, um Hronaut neu zu starten und die neue Version zu verwenden.",
       "walletRecoveryTitle": "Wallet-Wiederherstellungsdaten sichern",
       "walletRecoveryMessage": "Schreiben Sie diese Wiederherstellungsphrase auf und bewahren Sie sie offline auf.",
       "walletRecoveryWarning": "Hronaut kann diese Phrase nicht wiederherstellen. Geben Sie sie niemals an eine Website oder einen Coding-Agenten weiter.",

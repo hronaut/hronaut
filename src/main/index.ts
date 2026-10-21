@@ -394,7 +394,8 @@ const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloaded
   state: appUpdates,
   sendToShellWindows,
   mainWindow: () => mainWindowRefs.window,
-  panelWindow: () => panelWindowRefs.window
+  panelWindow: () => panelWindowRefs.window,
+  confirmQuit: confirmQuitWithDownloads
 })
 const userAttentionLifecycle = new UserAttentionLifecycle()
 const userAttentionState: UserAttentionState = {

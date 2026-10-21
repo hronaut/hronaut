@@ -3686,7 +3686,7 @@ export const frFR = {
       "savePassword": "Enregistrer le mot de passe",
       "updatePassword": "Mettre à jour le mot de passe",
       "installingUpdate": "Installation de la mise à jour. Hronaut redémarrera automatiquement.",
-      "restartingUpdate": "Le nouveau paquet est installé. Redémarrage de Hronaut pour terminer la mise à jour.",
+      "restartingUpdate": "Le nouveau paquet est installé. Redémarrage de Hronaut pour terminer la mise à jour.", "restartAfterDownloads": "Hronaut {version} est installé. Une fois vos téléchargements terminés, choisissez « Réessayer » pour redémarrer Hronaut et utiliser la nouvelle version.",
       "walletRecoveryTitle": "Enregistrer les données de récupération du portefeuille",
       "walletRecoveryMessage": "Notez cette phrase de récupération et conservez-la hors ligne.",
       "walletRecoveryWarning": "Hronaut ne peut pas récupérer cette phrase. Ne la communiquez jamais à un site web ni à un agent de code.",
