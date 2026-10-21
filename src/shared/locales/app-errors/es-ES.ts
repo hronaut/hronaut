@@ -324,7 +324,13 @@ export const esESAppErrors: AppErrorMessages = {
     "windowUnavailable": "La ventana de Hronaut no está disponible.",
     "mcpPortRange": "El puerto MCP debe ser un número entero entre 1024 y 65535.",
     "mcpPortInUse": "No se pudo escuchar en {host}:{port} porque otra aplicación está usando ese puerto.",
-    "mcpPortDenied": "No se pudo escuchar en {host}:{port} porque el sistema no permite que Hronaut use ese puerto."
+    "mcpPortDenied": "No se pudo escuchar en {host}:{port} porque el sistema no permite que Hronaut use ese puerto.",
+    "downloadFolderDenied": "Hronaut no tiene permiso para crear o usar esta carpeta de descargas ({code}). Elige otra carpeta.",
+    "downloadFolderDiskFull": "No hay suficiente espacio en el disco para crear la carpeta de descargas ({code}).",
+    "downloadFolderReadOnly": "La carpeta de descargas está en una unidad de solo lectura ({code}). Elige otra carpeta.",
+    "downloadFolderBlocked": "Hay un archivo donde debería estar la carpeta de descargas ({code}). Elige otra carpeta.",
+    "downloadFolderUnavailable": "Hronaut no pudo crear la carpeta de descargas ({code}).",
+    "downloadFolderOpenFailed": "Hronaut no pudo abrir la carpeta de descargas en el gestor de archivos."
   },
   "credentials": {
     "fillAgentActive": "No se rellenó la contraseña porque un comando de agente seguía en curso. Los agentes siguen en pausa; vuelve a intentarlo cuando termine.",

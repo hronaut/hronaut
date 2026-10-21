@@ -324,7 +324,13 @@ export const plPLAppErrors: AppErrorMessages = {
     "windowUnavailable": "Okno Hronaut jest niedostępne.",
     "mcpPortRange": "Port MCP musi być liczbą całkowitą od 1024 do 65535.",
     "mcpPortInUse": "Nie udało się nasłuchiwać na {host}:{port}, ponieważ inna aplikacja używa tego portu.",
-    "mcpPortDenied": "Nie udało się nasłuchiwać na {host}:{port}, ponieważ system nie pozwala Hronaut używać tego portu."
+    "mcpPortDenied": "Nie udało się nasłuchiwać na {host}:{port}, ponieważ system nie pozwala Hronaut używać tego portu.",
+    "downloadFolderDenied": "Hronaut nie ma uprawnień do utworzenia lub używania tego folderu pobierania ({code}). Wybierz inny folder.",
+    "downloadFolderDiskFull": "Za mało miejsca na dysku, aby utworzyć folder pobierania ({code}).",
+    "downloadFolderReadOnly": "Folder pobierania znajduje się na dysku tylko do odczytu ({code}). Wybierz inny folder.",
+    "downloadFolderBlocked": "W miejscu folderu pobierania znajduje się plik ({code}). Wybierz inny folder.",
+    "downloadFolderUnavailable": "Hronaut nie mógł utworzyć folderu pobierania ({code}).",
+    "downloadFolderOpenFailed": "Hronaut nie mógł otworzyć folderu pobierania w menedżerze plików."
   },
   "credentials": {
     "fillAgentActive": "Hasło nie zostało wypełnione, ponieważ polecenie agenta wciąż było wykonywane. Agenci pozostają wstrzymani; spróbuj ponownie, gdy się zakończy.",

@@ -324,7 +324,13 @@ export const deDEAppErrors: AppErrorMessages = {
     "windowUnavailable": "Das Hronaut-Fenster ist nicht verfügbar.",
     "mcpPortRange": "Der MCP-Port muss eine ganze Zahl von 1024 bis 65535 sein.",
     "mcpPortInUse": "{host}:{port} konnte nicht abgehört werden, weil eine andere App diesen Port verwendet.",
-    "mcpPortDenied": "{host}:{port} konnte nicht abgehört werden, weil das System Hronaut die Nutzung dieses Ports nicht erlaubt."
+    "mcpPortDenied": "{host}:{port} konnte nicht abgehört werden, weil das System Hronaut die Nutzung dieses Ports nicht erlaubt.",
+    "downloadFolderDenied": "Hronaut darf diesen Downloadordner nicht anlegen oder verwenden ({code}). Wählen Sie einen anderen Ordner.",
+    "downloadFolderDiskFull": "Es ist nicht genug Speicherplatz vorhanden, um den Downloadordner anzulegen ({code}).",
+    "downloadFolderReadOnly": "Der Downloadordner liegt auf einem schreibgeschützten Laufwerk ({code}). Wählen Sie einen anderen Ordner.",
+    "downloadFolderBlocked": "Wo der Downloadordner sein soll, liegt eine Datei ({code}). Wählen Sie einen anderen Ordner.",
+    "downloadFolderUnavailable": "Hronaut konnte den Downloadordner nicht anlegen ({code}).",
+    "downloadFolderOpenFailed": "Hronaut konnte den Downloadordner nicht im Dateimanager öffnen."
   },
   "credentials": {
     "fillAgentActive": "Das Passwort wurde nicht ausgefüllt, weil noch ein Agentenbefehl lief. Agenten bleiben pausiert; versuchen Sie es erneut, wenn er abgeschlossen ist.",

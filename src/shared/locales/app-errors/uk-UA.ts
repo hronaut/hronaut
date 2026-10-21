@@ -324,7 +324,13 @@ export const ukUAAppErrors: AppErrorMessages = {
     "windowUnavailable": "Вікно Hronaut недоступне.",
     "mcpPortRange": "Порт MCP має бути цілим числом від 1024 до 65535.",
     "mcpPortInUse": "Не вдалося слухати {host}:{port}, бо цей порт зайнятий іншим застосунком.",
-    "mcpPortDenied": "Не вдалося слухати {host}:{port}, бо система не дозволяє Hronaut використовувати цей порт."
+    "mcpPortDenied": "Не вдалося слухати {host}:{port}, бо система не дозволяє Hronaut використовувати цей порт.",
+    "downloadFolderDenied": "Hronaut не має дозволу створити або використовувати цю папку завантажень ({code}). Виберіть іншу папку.",
+    "downloadFolderDiskFull": "Недостатньо місця на диску, щоб створити папку завантажень ({code}).",
+    "downloadFolderReadOnly": "Папка завантажень розташована на диску, доступному лише для читання ({code}). Виберіть іншу папку.",
+    "downloadFolderBlocked": "На місці папки завантажень є файл ({code}). Виберіть іншу папку.",
+    "downloadFolderUnavailable": "Hronaut не вдалося створити папку завантажень ({code}).",
+    "downloadFolderOpenFailed": "Hronaut не вдалося відкрити папку завантажень у файловому менеджері."
   },
   "credentials": {
     "fillAgentActive": "Пароль не заповнено, бо команда агента ще виконувалася. Агенти залишаються призупиненими; спробуйте ще раз, коли вона завершиться.",

@@ -328,7 +328,13 @@ export const enUSAppErrors = {
     "windowUnavailable": "The Hronaut window is not available",
     "mcpPortRange": "MCP port must be an integer from 1024 through 65535",
     "mcpPortInUse": "Could not listen on {host}:{port} because another app is using that port.",
-    "mcpPortDenied": "Could not listen on {host}:{port} because the system does not allow Hronaut to use that port."
+    "mcpPortDenied": "Could not listen on {host}:{port} because the system does not allow Hronaut to use that port.",
+    "downloadFolderDenied": "Hronaut does not have permission to create or use this download folder ({code}). Choose another folder.",
+    "downloadFolderDiskFull": "There is not enough disk space to create the download folder ({code}).",
+    "downloadFolderReadOnly": "The download folder is on a read-only drive ({code}). Choose another folder.",
+    "downloadFolderBlocked": "A file is where the download folder should be ({code}). Choose another folder.",
+    "downloadFolderUnavailable": "Hronaut could not create the download folder ({code}).",
+    "downloadFolderOpenFailed": "Hronaut could not open the download folder in your file manager."
   },
   "credentials": {
     "fillAgentActive": "The password was not filled because an agent command was still running. Agents stay paused; try again when it finishes.",
