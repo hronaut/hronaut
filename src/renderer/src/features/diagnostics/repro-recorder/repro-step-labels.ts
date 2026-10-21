@@ -6,8 +6,8 @@ import {
   reproInputText,
   reproKeyText,
   reproScrollText
-} from '../../../../../shared/repro-step-text'
-import type { BrowserReproStep, BrowserReproTarget } from '../../../../../shared/types'
+} from '../../../../../shared/repro-step-text.js'
+import type { BrowserReproStep, BrowserReproTarget } from '../../../../../shared/types.js'
 
 type Translate = (key: string, parameters?: Record<string, unknown>) => string
 
@@ -17,7 +17,7 @@ const CONDITIONS = new Set(['visible', 'hidden', 'text', 'checked', 'unchecked',
 /**
  * Names repro steps in the interface language. Main records each step in English (src/shared/repro-step-text.ts),
  * and MCP results and copied timelines keep that text. A step whose description is not one of those sentences for
- * its own fields, such as one redacted after recording, shows as recorded.
+ * its own fields, such as one whose sentence redaction changed while it was recorded, shows as recorded.
  */
 export function createReproStepLabels(translate: Translate) {
   function kind(step: BrowserReproStep): string {
@@ -57,7 +57,7 @@ export function createReproStepLabels(translate: Translate) {
       return translate('reproSteps.steps.scroll', { x: step.scroll.x, y: step.scroll.y })
     }
     if (step.kind === 'expect' && condition && CONDITIONS.has(condition) && text === reproExpectText(condition)) {
-      return translate('reproSteps.steps.expect', { condition: translate(`repro.checkpoint.${condition}`) })
+      return translate('reproSteps.steps.expect', { condition: translate(`reproSteps.conditions.${condition}`) })
     }
     return text
   }
