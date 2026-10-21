@@ -1,6 +1,6 @@
 import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
-import { parseWorkspaceTemplate, WORKSPACE_TEMPLATE_MAX_BYTES } from '../shared/workspace-template.js'
+import { parseWorkspaceTemplate, WORKSPACE_TEMPLATE_ERRORS, WORKSPACE_TEMPLATE_MAX_BYTES } from '../shared/workspace-template.js'
 import { writeTextFileAtomically } from './atomic-file.js'
 
 /** Paths come from a trusted native file dialog, never from manifest fields. */
@@ -9,7 +9,7 @@ export async function readWorkspaceTemplateFile(path: string): Promise<string> {
   try {
     const stat = await file.stat()
     if (!stat.isFile()) throw new TypeError('Select a regular workspace template file.')
-    if (stat.size > WORKSPACE_TEMPLATE_MAX_BYTES) throw new TypeError('Workspace template exceeds the size limit.')
+    if (stat.size > WORKSPACE_TEMPLATE_MAX_BYTES) throw new TypeError(WORKSPACE_TEMPLATE_ERRORS.tooLarge)
     // Bound actual reads too: the file may grow after stat. Nonblocking open
     // avoids hanging on a named pipe before we can reject its file type.
     const buffer = Buffer.alloc(WORKSPACE_TEMPLATE_MAX_BYTES + 1)
@@ -19,7 +19,7 @@ export async function readWorkspaceTemplateFile(path: string): Promise<string> {
       if (!bytesRead) break
       length += bytesRead
     }
-    if (length > WORKSPACE_TEMPLATE_MAX_BYTES) throw new TypeError('Workspace template exceeds the size limit.')
+    if (length > WORKSPACE_TEMPLATE_MAX_BYTES) throw new TypeError(WORKSPACE_TEMPLATE_ERRORS.tooLarge)
     let text: string
     try { text = new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, length)) } catch {
       throw new TypeError('Workspace template must be valid UTF-8.')

@@ -23,7 +23,7 @@ import type {
   BrowserWorkspaceStorageTransferOptions,
   UserAttentionRequest
 } from '../shared/types.js'
-import { parseWorkspaceTemplate } from '../shared/workspace-template.js'
+import { parseWorkspaceTemplate, WORKSPACE_TEMPLATE_ERRORS } from '../shared/workspace-template.js'
 
 type WorkspacesIpcTabs = Pick<BrowserTabsManager,
   | 'getState' | 'renameMcpTabGroup' | 'updateMcpTabGroup'
@@ -182,7 +182,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
   })
   host.handleBrowserIpc('browser:save-workspace-template-file', async (event, value: unknown) => {
     host.assertTrustedSender(event)
-    if (typeof value !== 'string') throw new TypeError('Invalid workspace template.')
+    if (typeof value !== 'string') throw new TypeError(WORKSPACE_TEMPLATE_ERRORS.invalidTemplate)
     parseWorkspaceTemplate(value)
     if (!host.mainWindow() || host.mainWindow()!.isDestroyed()) throw new Error(host.text('native.errors.actionFailed'))
     const selection = await host.showSaveDialog(host.mainWindow()!, {
@@ -201,7 +201,7 @@ export function registerWorkspacesIpc(host: WorkspacesIpcHost): void {
   })
   host.handleBrowserIpc('browser:import-workspace-template', async (event, value: unknown) => {
     host.assertTrustedSender(event)
-    if (typeof value !== 'string') throw new TypeError('Invalid workspace template.')
+    if (typeof value !== 'string') throw new TypeError(WORKSPACE_TEMPLATE_ERRORS.invalidTemplate)
     const result = await host.tabs()!.importWorkspaceTemplate(value)
     return { ...result, state: host.tabs()!.getState() }
   })
