@@ -2190,6 +2190,7 @@ export const esES = {
     }
   },
   "coverage": {
+    "modes": {"function": "función", "block": "bloque"},
     "kicker": "Flujo de trabajo actual",
     "heading": "Cobertura de código",
     "close": "Cerrar la cobertura de código",
@@ -2742,6 +2743,7 @@ export const esES = {
     }
   },
   "domChanges": {
+    "kinds": {"child-list": "elementos secundarios", "attributes": "atributos", "text": "texto"},
     "kicker": "Evidencia estructural",
     "heading": "Cambios del DOM",
     "close": "Cerrar los cambios del DOM",
@@ -3046,6 +3048,7 @@ export const esES = {
     "visits": "{count} visitas"
   },
   "siteStorage": {
+    "changeTypes": {"added": "añadido", "updated": "actualizado", "removed": "eliminado"},
     "kicker": "Sitio actual",
     "heading": "Almacenamiento del sitio · {host}",
     "close": "Cerrar almacenamiento del sitio",

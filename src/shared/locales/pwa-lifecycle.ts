@@ -9,7 +9,43 @@ export const pwaLifecycleMessages = {
     "active": "Observing workers",
     "stopped": "Capture stopped",
     "waiting": "Waiting",
-    "coverage": "Coverage and privacy"
+    "coverage": "Coverage and privacy",
+    "kinds": {
+      "initial": "capture started",
+      "registration-initial": "registration present",
+      "registration-discovered": "registration found",
+      "registration-removed": "registration removed",
+      "updatefound": "update found",
+      "statechange": "state changed",
+      "controllerchange": "controller changed"
+    },
+    "workerStates": {
+      "parsed": "parsed",
+      "installing": "installing",
+      "installed": "installed",
+      "activating": "activating",
+      "activated": "activated",
+      "redundant": "redundant"
+    },
+    "reasons": {
+      "stopped": "stopped on request",
+      "replaced": "replaced by a new capture",
+      "shutdown": "Hronaut closed",
+      "navigation": "page navigated",
+      "renderer-unavailable": "page process ended",
+      "debugger-detached": "debugger detached",
+      "duration-limit": "two-minute limit reached",
+      "initial-read-unavailable": "first read failed",
+      "page-observer-unavailable": "page observer stopped",
+      "context-or-authority-lost": "page context or access lost",
+      "worker-limit": "worker limit reached",
+      "event-limit": "event limit reached",
+      "registration-limit": "registration limit reached",
+      "discovery-unavailable": "registration discovery failed",
+      "unsupported": "service workers are not supported",
+      "workspace-control-changed": "workspace control changed",
+      "ownership-released": "workspace released"
+    }
   },
   "de-DE": {
     "title": "Service-Worker-Verlauf",
@@ -21,7 +57,43 @@ export const pwaLifecycleMessages = {
     "active": "Worker werden beobachtet",
     "stopped": "Aufzeichnung beendet",
     "waiting": "Wartend",
-    "coverage": "Abdeckung und Datenschutz"
+    "coverage": "Abdeckung und Datenschutz",
+    "kinds": {
+      "initial": "Aufzeichnung gestartet",
+      "registration-initial": "Registrierung vorhanden",
+      "registration-discovered": "Registrierung gefunden",
+      "registration-removed": "Registrierung entfernt",
+      "updatefound": "Update gefunden",
+      "statechange": "Status geändert",
+      "controllerchange": "Controller gewechselt"
+    },
+    "workerStates": {
+      "parsed": "geparst",
+      "installing": "wird installiert",
+      "installed": "installiert",
+      "activating": "wird aktiviert",
+      "activated": "aktiviert",
+      "redundant": "veraltet"
+    },
+    "reasons": {
+      "stopped": "auf Anforderung gestoppt",
+      "replaced": "durch neue Aufzeichnung ersetzt",
+      "shutdown": "Hronaut beendet",
+      "navigation": "Seite hat navigiert",
+      "renderer-unavailable": "Seitenprozess beendet",
+      "debugger-detached": "Debugger getrennt",
+      "duration-limit": "Zwei-Minuten-Limit erreicht",
+      "initial-read-unavailable": "erstes Auslesen fehlgeschlagen",
+      "page-observer-unavailable": "Seitenbeobachter beendet",
+      "context-or-authority-lost": "Seitenkontext verloren",
+      "worker-limit": "Worker-Limit erreicht",
+      "event-limit": "Ereignislimit erreicht",
+      "registration-limit": "Registrierungslimit erreicht",
+      "discovery-unavailable": "Registrierungssuche fehlgeschlagen",
+      "unsupported": "Service Worker nicht unterstützt",
+      "workspace-control-changed": "Arbeitsbereichssteuerung geändert",
+      "ownership-released": "Arbeitsbereich freigegeben"
+    }
   },
   "es-ES": {
     "title": "Historial de service workers",
@@ -33,7 +105,43 @@ export const pwaLifecycleMessages = {
     "active": "Observando workers",
     "stopped": "Captura detenida",
     "waiting": "En espera",
-    "coverage": "Cobertura y privacidad"
+    "coverage": "Cobertura y privacidad",
+    "kinds": {
+      "initial": "captura iniciada",
+      "registration-initial": "registro presente",
+      "registration-discovered": "registro encontrado",
+      "registration-removed": "registro eliminado",
+      "updatefound": "actualización encontrada",
+      "statechange": "estado cambiado",
+      "controllerchange": "controlador cambiado"
+    },
+    "workerStates": {
+      "parsed": "analizado",
+      "installing": "instalando",
+      "installed": "instalado",
+      "activating": "activando",
+      "activated": "activado",
+      "redundant": "redundante"
+    },
+    "reasons": {
+      "stopped": "detenida a petición",
+      "replaced": "sustituida por una nueva captura",
+      "shutdown": "Hronaut cerrado",
+      "navigation": "la página navegó a otra dirección",
+      "renderer-unavailable": "proceso de la página finalizado",
+      "debugger-detached": "depurador desconectado",
+      "duration-limit": "límite de dos minutos alcanzado",
+      "initial-read-unavailable": "falló la primera lectura",
+      "page-observer-unavailable": "observador de página detenido",
+      "context-or-authority-lost": "contexto de página perdido",
+      "worker-limit": "límite de workers alcanzado",
+      "event-limit": "límite de eventos alcanzado",
+      "registration-limit": "límite de registros alcanzado",
+      "discovery-unavailable": "falló la búsqueda de registros",
+      "unsupported": "service workers no compatibles",
+      "workspace-control-changed": "control del espacio de trabajo cambiado",
+      "ownership-released": "espacio de trabajo liberado"
+    }
   },
   "fr-FR": {
     "title": "Historique des service workers",
@@ -45,7 +153,43 @@ export const pwaLifecycleMessages = {
     "active": "Observation en cours",
     "stopped": "Capture arrêtée",
     "waiting": "En attente",
-    "coverage": "Couverture et confidentialité"
+    "coverage": "Couverture et confidentialité",
+    "kinds": {
+      "initial": "capture démarrée",
+      "registration-initial": "inscription présente",
+      "registration-discovered": "inscription trouvée",
+      "registration-removed": "inscription supprimée",
+      "updatefound": "mise à jour trouvée",
+      "statechange": "état modifié",
+      "controllerchange": "contrôleur changé"
+    },
+    "workerStates": {
+      "parsed": "analysé",
+      "installing": "en cours d’installation",
+      "installed": "installé",
+      "activating": "en cours d’activation",
+      "activated": "activé",
+      "redundant": "redondant"
+    },
+    "reasons": {
+      "stopped": "arrêtée à la demande",
+      "replaced": "remplacée par une nouvelle capture",
+      "shutdown": "Hronaut fermé",
+      "navigation": "la page a changé d’adresse",
+      "renderer-unavailable": "processus de la page terminé",
+      "debugger-detached": "débogueur détaché",
+      "duration-limit": "limite de deux minutes atteinte",
+      "initial-read-unavailable": "première lecture impossible",
+      "page-observer-unavailable": "observateur de page arrêté",
+      "context-or-authority-lost": "contexte de page perdu",
+      "worker-limit": "limite de workers atteinte",
+      "event-limit": "limite d’événements atteinte",
+      "registration-limit": "limite d’inscriptions atteinte",
+      "discovery-unavailable": "découverte des inscriptions impossible",
+      "unsupported": "service workers non pris en charge",
+      "workspace-control-changed": "contrôle de l’espace de travail modifié",
+      "ownership-released": "espace de travail libéré"
+    }
   },
   "pl-PL": {
     "title": "Historia service workerów",
@@ -55,9 +199,45 @@ export const pwaLifecycleMessages = {
     "refresh": "Odśwież",
     "clear": "Wyczyść historię",
     "active": "Trwa obserwacja",
-    "stopped": "Rejestrowanie zatrzymane",
+    "stopped": "Przechwytywanie zatrzymane",
     "waiting": "Oczekuje",
-    "coverage": "Zakres i prywatność"
+    "coverage": "Zakres i prywatność",
+    "kinds": {
+      "initial": "rozpoczęto przechwytywanie",
+      "registration-initial": "rejestracja już istnieje",
+      "registration-discovered": "znaleziono rejestrację",
+      "registration-removed": "usunięto rejestrację",
+      "updatefound": "znaleziono aktualizację",
+      "statechange": "zmieniono stan",
+      "controllerchange": "zmieniono kontroler"
+    },
+    "workerStates": {
+      "parsed": "przetworzony",
+      "installing": "instaluje się",
+      "installed": "zainstalowany",
+      "activating": "aktywuje się",
+      "activated": "aktywny",
+      "redundant": "zbędny"
+    },
+    "reasons": {
+      "stopped": "zatrzymano na żądanie",
+      "replaced": "zastąpiono nowym przechwytywaniem",
+      "shutdown": "zamknięto Hronaut",
+      "navigation": "strona zmieniła adres",
+      "renderer-unavailable": "proces strony zakończony",
+      "debugger-detached": "debuger odłączony",
+      "duration-limit": "osiągnięto limit dwóch minut",
+      "initial-read-unavailable": "pierwszy odczyt nieudany",
+      "page-observer-unavailable": "obserwator strony zatrzymany",
+      "context-or-authority-lost": "utracono kontekst strony",
+      "worker-limit": "osiągnięto limit workerów",
+      "event-limit": "osiągnięto limit zdarzeń",
+      "registration-limit": "osiągnięto limit rejestracji",
+      "discovery-unavailable": "wykrywanie rejestracji nieudane",
+      "unsupported": "service workery nieobsługiwane",
+      "workspace-control-changed": "zmieniono kontrolę obszaru roboczego",
+      "ownership-released": "zwolniono obszar roboczy"
+    }
   },
   "ru-RU": {
     "title": "История service worker",
@@ -69,7 +249,43 @@ export const pwaLifecycleMessages = {
     "active": "Идёт наблюдение",
     "stopped": "Запись остановлена",
     "waiting": "Ожидает",
-    "coverage": "Охват и конфиденциальность"
+    "coverage": "Охват и конфиденциальность",
+    "kinds": {
+      "initial": "запись начата",
+      "registration-initial": "регистрация уже есть",
+      "registration-discovered": "регистрация найдена",
+      "registration-removed": "регистрация удалена",
+      "updatefound": "найдено обновление",
+      "statechange": "состояние изменилось",
+      "controllerchange": "контроллер сменился"
+    },
+    "workerStates": {
+      "parsed": "разобран",
+      "installing": "устанавливается",
+      "installed": "установлен",
+      "activating": "активируется",
+      "activated": "активен",
+      "redundant": "устарел"
+    },
+    "reasons": {
+      "stopped": "остановлено по запросу",
+      "replaced": "заменено новой записью",
+      "shutdown": "Hronaut закрыт",
+      "navigation": "страница сменила адрес",
+      "renderer-unavailable": "процесс страницы завершён",
+      "debugger-detached": "отладчик отключён",
+      "duration-limit": "достигнут лимит в две минуты",
+      "initial-read-unavailable": "первое чтение не удалось",
+      "page-observer-unavailable": "наблюдатель страницы остановлен",
+      "context-or-authority-lost": "контекст страницы потерян",
+      "worker-limit": "достигнут лимит worker",
+      "event-limit": "достигнут лимит событий",
+      "registration-limit": "достигнут лимит регистраций",
+      "discovery-unavailable": "не удалось найти регистрации",
+      "unsupported": "service worker не поддерживается",
+      "workspace-control-changed": "изменилось управление рабочим пространством",
+      "ownership-released": "рабочее пространство освобождено"
+    }
   },
   "uk-UA": {
     "title": "Історія service worker",
@@ -81,6 +297,42 @@ export const pwaLifecycleMessages = {
     "active": "Триває спостереження",
     "stopped": "Запис зупинено",
     "waiting": "Очікує",
-    "coverage": "Охоплення й конфіденційність"
+    "coverage": "Охоплення й конфіденційність",
+    "kinds": {
+      "initial": "запис розпочато",
+      "registration-initial": "реєстрація наявна",
+      "registration-discovered": "реєстрацію знайдено",
+      "registration-removed": "реєстрацію видалено",
+      "updatefound": "знайдено оновлення",
+      "statechange": "стан змінився",
+      "controllerchange": "контролер змінився"
+    },
+    "workerStates": {
+      "parsed": "розібраний",
+      "installing": "встановлюється",
+      "installed": "встановлений",
+      "activating": "активується",
+      "activated": "активний",
+      "redundant": "застарів"
+    },
+    "reasons": {
+      "stopped": "зупинено на запит",
+      "replaced": "замінено новим записом",
+      "shutdown": "Hronaut закрито",
+      "navigation": "сторінка змінила адресу",
+      "renderer-unavailable": "процес сторінки завершено",
+      "debugger-detached": "налагоджувач від’єднано",
+      "duration-limit": "досягнуто ліміту у дві хвилини",
+      "initial-read-unavailable": "перше читання не вдалося",
+      "page-observer-unavailable": "спостерігач сторінки зупинився",
+      "context-or-authority-lost": "контекст сторінки втрачено",
+      "worker-limit": "досягнуто ліміту worker",
+      "event-limit": "досягнуто ліміту подій",
+      "registration-limit": "досягнуто ліміту реєстрацій",
+      "discovery-unavailable": "не вдалося знайти реєстрації",
+      "unsupported": "service worker не підтримується",
+      "workspace-control-changed": "змінилося керування робочим простором",
+      "ownership-released": "робочий простір звільнено"
+    }
   }
 }

@@ -2190,6 +2190,7 @@ export const frFR = {
     }
   },
   "coverage": {
+    "modes": {"function": "fonction", "block": "bloc"},
     "kicker": "Flux de travail actuel",
     "heading": "Couverture du code",
     "close": "Fermer la couverture du code",
@@ -2742,6 +2743,7 @@ export const frFR = {
     }
   },
   "domChanges": {
+    "kinds": {"child-list": "enfants", "attributes": "attributs", "text": "texte"},
     "kicker": "Preuves structurelles",
     "heading": "Modifications du DOM",
     "close": "Fermer les modifications du DOM",
@@ -3046,6 +3048,7 @@ export const frFR = {
     "visits": "{count} visites"
   },
   "siteStorage": {
+    "changeTypes": {"added": "ajouté", "updated": "mis à jour", "removed": "supprimé"},
     "kicker": "Site actuel",
     "heading": "Stockage du site · {host}",
     "close": "Fermer le stockage du site",

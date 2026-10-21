@@ -2190,6 +2190,7 @@ export const plPL = {
     }
   },
   "coverage": {
+    "modes": {"function": "funkcji", "block": "bloków"},
     "kicker": "Bieżący przepływ pracy",
     "heading": "Pokrycie kodu",
     "close": "Zamknij pokrycie kodu",
@@ -2742,6 +2743,7 @@ export const plPL = {
     }
   },
   "domChanges": {
+    "kinds": {"child-list": "elementy podrzędne", "attributes": "atrybuty", "text": "tekst"},
     "kicker": "Dowody strukturalne",
     "heading": "Zmiany DOM",
     "close": "Zamknij zmiany DOM",
@@ -3046,6 +3048,7 @@ export const plPL = {
     "visits": "{count} wizyta | {count} wizyty | {count} wizyt"
   },
   "siteStorage": {
+    "changeTypes": {"added": "dodano", "updated": "zaktualizowano", "removed": "usunięto"},
     "kicker": "Bieżąca witryna",
     "heading": "Pamięć witryny · {host}",
     "close": "Zamknij pamięć witryny",

@@ -6,12 +6,20 @@ import type { SupportedLocale } from '../../../shared/types'
 import UiButton from '../ui/UiButton.vue'
 import type { BrowserTabState } from '../../../shared/types'
 import type { PwaLifecycleAction, PwaLifecycleReport } from '../../../shared/pwa-lifecycle'
+import { pwaLifecycleMessages } from '../../../shared/locales/pwa-lifecycle.js'
 import { friendlyUiError } from '../composables/useAppToastController.js'
 
 const props = defineProps<{ tab?: BrowserTabState }>()
 const { t, locale } = useI18n({ useScope: 'global' })
 // Times follow Hronaut's interface language, not the system's.
 const localTime = (value: number): string => formatDateTime(locale.value as SupportedLocale, value, { timeStyle: 'medium' })
+// The page reports these words, so one Hronaut does not know still shows as the page sent it.
+const EVENT_KINDS = new Set(Object.keys(pwaLifecycleMessages['en-US'].kinds))
+const WORKER_STATES = new Set(Object.keys(pwaLifecycleMessages['en-US'].workerStates))
+const STOP_REASONS = new Set(Object.keys(pwaLifecycleMessages['en-US'].reasons))
+const eventKind = (kind: string): string => EVENT_KINDS.has(kind) ? t(`pwaLifecycle.kinds.${kind}`) : kind
+const workerState = (state: string): string => WORKER_STATES.has(state) ? t(`pwaLifecycle.workerStates.${state}`) : state
+const stopReason = (reason: string): string => STOP_REASONS.has(reason) ? t(`pwaLifecycle.reasons.${reason}`) : reason
 const report = ref<PwaLifecycleReport | null>(null)
 const error = ref('')
 const busy = ref(false)
@@ -48,11 +56,11 @@ onBeforeUnmount(() => { disposed = true; request++; clearInterval(timer) })
     </div>
     <p v-if="error" role="alert">{{ error }}</p>
     <template v-if="report">
-      <p role="status">{{ report.active ? t('pwaLifecycle.active') : t('pwaLifecycle.stopped') }} · {{ report.events.length }}<template v-if="report.reason"> · {{ report.reason }}</template></p>
+      <p role="status">{{ report.active ? t('pwaLifecycle.active') : t('pwaLifecycle.stopped') }} · {{ report.events.length }}<template v-if="report.reason"> · {{ stopReason(report.reason) }}</template></p>
       <ol class="pwa-lifecycle-events">
         <li v-for="(event, index) in report.events" :key="index">
-          <time>{{ localTime(event.observedAt) }}</time> · {{ event.kind }}
-          <span v-if="event.worker"> · {{ event.worker.id }} {{ event.worker.state }}</span>
+          <time>{{ localTime(event.observedAt) }}</time> · {{ eventKind(event.kind) }}
+          <span v-if="event.worker"> · {{ event.worker.id }} {{ workerState(event.worker.state) }}</span>
           <code>{{ event.scope ?? event.controller?.scriptUrl }}</code>
           <small v-if="event.waiting">{{ t('pwaLifecycle.waiting') }} {{ event.waiting.id }}</small>
         </li>

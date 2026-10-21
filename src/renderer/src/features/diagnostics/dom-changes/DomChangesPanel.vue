@@ -119,7 +119,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <article v-for="entry in domChangesReport.entries" :key="entry.index" class="repro-step" :class="entry.kind">
           <span class="repro-step-index">{{ entry.index }}</span>
           <div>
-            <header><strong>{{ entry.kind }}</strong><time>{{ formatReproElapsed(entry.elapsedMs) }}</time></header>
+            <header><strong>{{ t(`domChanges.kinds.${entry.kind}`) }}</strong><time>{{ formatReproElapsed(entry.elapsedMs) }}</time></header>
             <p>{{ domChangeDescription(entry) }}</p>
             <code>{{ entry.target }}</code>
             <small v-if="entry.addedTags?.length">{{ t('domChanges.addedTags', { tags: entry.addedTags.join(', ') }) }}</small>

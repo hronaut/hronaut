@@ -164,7 +164,7 @@ test('trusted Offline panel starts, refreshes and clears worker observations', a
   await panel.getByRole('button', { name: 'Offline', exact: true }).click()
   await panel.getByRole('button', { name: 'Observe for 2 minutes', exact: true }).click()
   await expect(panel.getByRole('status')).toContainText('Observing workers')
-  await expect(panel).toContainText('initial')
+  await expect(panel).toContainText('capture started')
   await appWindow.screenshot({ path: testInfo.outputPath('pwa-lifecycle.png') })
   await panel.getByRole('button', { name: 'Stop observing workers', exact: true }).click()
   await expect(panel.getByRole('status')).toContainText('Capture stopped')
