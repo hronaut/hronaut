@@ -24,6 +24,8 @@ test('starts with safe defaults when non-workspace profile stores contain JSON n
       theme: 'cyberpunk'
     })
     await expect(window.locator('html')).toHaveAttribute('data-theme', 'cyberpunk')
+    // hronaut.dev's scrollbar thumb, over each surface rather than a stock track.
+    expect(await window.evaluate(() => getComputedStyle(document.documentElement).scrollbarColor)).toBe('rgb(78, 28, 111) rgba(0, 0, 0, 0)')
   } finally {
     await closeHronaut(app)
   }

@@ -147,6 +147,12 @@ describe('design tokens v2', () => {
     expect(failures).toEqual([])
   })
 
+  it('draws scrollbars in the border color of the theme instead of stock system ones', () => {
+    const shared = [...tokens.matchAll(/([^{}]+)\{([^{}]*)\}/gu)]
+      .find(([, selector]) => selector!.split(',').map((entry) => entry.trim()).join(',') === ':root,.ui-theme-scope')
+    expect(shared?.[2]).toContain('scrollbar-color: var(--border) transparent;')
+  })
+
   it('paints Cyberpunk in the colors hronaut.dev uses', () => {
     const values = themeTokens('cyberpunk')
     const site = {
