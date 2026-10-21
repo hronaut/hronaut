@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import { BROWSER_TAB_GROUP_COLORS } from '../../../shared/tab-groups.js'
 import { nextWorkspaceTemplateName, parseWorkspaceTemplate, previewWorkspaceTemplate, WORKSPACE_TEMPLATE_ERRORS, type WorkspaceTemplate } from '../../../shared/workspace-template.js'
+import { WORKSPACE_DESCRIPTION_ERRORS } from '../../../shared/workspace-description.js'
 import type { BrowserState, HronautApi } from '../../../shared/types.js'
 import { friendlyUiError } from '../composables/useAppToastController.js'
 
@@ -27,7 +28,7 @@ const sourceId = ref('')
 const PLATFORM_NAMES: Record<WorkspaceTemplate['sourcePlatform'], string> = { windows: 'Windows', macos: 'macOS', linux: 'Linux' }
 // The template checks refuse in English, here and in main, where a TypeError crosses IPC with its name; an error
 // Hronaut does not know still shows as it came.
-const TEMPLATE_ERROR_KEYS = new Map(Object.entries(WORKSPACE_TEMPLATE_ERRORS).map(([key, value]) => [value as string, key]))
+const TEMPLATE_ERROR_KEYS = new Map(Object.entries({ ...WORKSPACE_TEMPLATE_ERRORS, ...WORKSPACE_DESCRIPTION_ERRORS }).map(([key, value]) => [value as string, key]))
 function templateErrorText(message: string): string {
   const key = TEMPLATE_ERROR_KEYS.get(message.replace(/^TypeError:\s*/, ''))
   return key ? t(`workspaceTemplates.errors.${key}`) : message

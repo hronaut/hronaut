@@ -63,7 +63,7 @@ export function nextWorkspaceTemplateName(
   entries: Pick<WorkspaceTemplateEntry, 'name'>[],
   defaultName: (number: number) => string = number => `Workspace ${number}`
 ): string {
-  const occupied = new Set(entries.map(entry => nameKey(entry.name)))
+  const occupied = new Set(entries.map(entry => nameKey(plainWorkspaceName(entry.name))))
   let number = entries.length + 1
   while (occupied.has(nameKey(defaultName(number)))) number += 1
   return defaultName(number)

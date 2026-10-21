@@ -5,10 +5,11 @@ import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { localeMessages } from '../../src/shared/i18n.js'
 import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
 import type { BrowserState, SupportedLocale } from '../../src/shared/types.js'
+import { WORKSPACE_DESCRIPTION_ERRORS } from '../../src/shared/workspace-description.js'
 import { WORKSPACE_TEMPLATE_ERRORS, nextWorkspaceTemplateName } from '../../src/shared/workspace-template.js'
 
-// The template editor refused a file or a start page in English in every language, showed main's refusals with
-// "TypeError:" in front, and named new entries "Workspace 1".
+// The template editor refused a name, description or start page in English in every language, and named new entries
+// "Workspace 1". Main only refuses what the editor already accepted when Node and Chromium parse a URL differently.
 
 const state: BrowserState = { tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false, mcpUrl: '', profilePath: '', mcpTabGroups: [], savedTabGroups: [] }
 const valid = JSON.stringify({ format: 'hronaut-workspace-template', version: 1, sourcePlatform: 'linux', workspaces: [{ name: 'Demo', color: 'blue', startPages: [] }] })
@@ -31,10 +32,14 @@ function setup(locale: SupportedLocale, file: string, importTemplate: () => Prom
 }
 
 describe('workspace template editor in the interface language', () => {
-  it('refuses a file that is not JSON in German', async () => {
-    const { click, alerts } = setup('de-DE', '{')
-    await click(german.openFile)
-    expect(alerts()).toEqual(['Die Arbeitsbereichsvorlage ist kein gültiges JSON.'])
+  it('refuses a cleared name or a description with a control character in German while editing', async () => {
+    const { wrapper, click, alerts } = setup('de-DE', valid)
+    await click(german.newExport)
+    await wrapper.get('fieldset input[maxlength="80"]').setValue('')
+    expect(alerts()).toEqual(['Ungültiger Arbeitsbereichsname in der Vorlage.'])
+    await wrapper.get('fieldset input[maxlength="80"]').setValue('Demo')
+    await wrapper.get('fieldset textarea[maxlength="1000"]').setValue('Zeile\u000Bzwei')
+    expect(alerts()).toEqual(['Die Arbeitsbereichsbeschreibung enthält nicht unterstützte Steuerzeichen.'])
   })
 
   it('refuses a start page with credentials or another scheme in German while editing', async () => {
@@ -66,12 +71,13 @@ describe('workspace template editor in the interface language', () => {
     expect(wrapper.findAll<HTMLInputElement>('fieldset input[maxlength="80"]').map(input => input.element.value)).toEqual(['Arbeitsbereich 1', 'Arbeitsbereich 2'])
     expect(nextWorkspaceTemplateName([{ name: 'arbeitsbereich 2' }], number => `Arbeitsbereich ${number}`)).toBe('Arbeitsbereich 3')
     expect(nextWorkspaceTemplateName([{ name: 'Workspace 2' }])).toBe('Workspace 3')
+    expect(nextWorkspaceTemplateName([{ name: 'Workspace\u200B 2' }])).toBe('Workspace 3')
   })
 
   it('has a message for every refusal in every language and keeps the English the checks throw', () => {
     for (const locale of SUPPORTED_LOCALES) {
-      expect(Object.keys(localeMessages[locale].workspaceTemplates.errors)).toEqual(Object.keys(WORKSPACE_TEMPLATE_ERRORS))
+      expect(Object.keys(localeMessages[locale].workspaceTemplates.errors)).toEqual(Object.keys({ ...WORKSPACE_TEMPLATE_ERRORS, ...WORKSPACE_DESCRIPTION_ERRORS }))
     }
-    expect(localeMessages['en-US'].workspaceTemplates.errors).toEqual(WORKSPACE_TEMPLATE_ERRORS)
+    expect(localeMessages['en-US'].workspaceTemplates.errors).toEqual({ ...WORKSPACE_TEMPLATE_ERRORS, ...WORKSPACE_DESCRIPTION_ERRORS })
   })
 })
