@@ -99,6 +99,8 @@ export class HistoryStore {
   private saveQueue: Promise<void> = Promise.resolve()
   private expiryTimer: NodeJS.Timeout | undefined
   private disposed = false
+  /** The file holds history Hronaut could not read, such as a newer version's, which only replacing the file removes. */
+  private unreadableFile = false
 
   constructor(
     private readonly path: string,
@@ -110,11 +112,18 @@ export class HistoryStore {
     if (this.expiryTimer) clearTimeout(this.expiryTimer)
     this.expiryTimer = undefined
     this.entries.clear()
+    this.unreadableFile = false
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        this.unreadableFile = true
+        return []
+      }
       const value = parsed as Partial<PersistedHistory>
-      if (value.version !== HISTORY_VERSION || !Array.isArray(value.entries)) return []
+      if (value.version !== HISTORY_VERSION || !Array.isArray(value.entries)) {
+        this.unreadableFile = true
+        return []
+      }
       const now = this.now()
       const oldestAllowed = now - HISTORY_RETENTION_MS
       const validEntries = value.entries.filter((entry) => validEntry(entry, oldestAllowed))
@@ -162,6 +171,7 @@ export class HistoryStore {
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
+      if (error instanceof SyntaxError) this.unreadableFile = true
     }
     this.scheduleExpiry()
     return this.list()
@@ -254,7 +264,8 @@ export class HistoryStore {
 
   async clear(): Promise<void> {
     await this.queueMutation(async () => {
-      if (!this.entries.size) return
+      // A file Hronaut could not read still holds its visits, though none are listed.
+      if (!this.entries.size && !this.unreadableFile) return
       await this.persist([])
       this.replaceEntries(new Map())
     })
@@ -269,7 +280,8 @@ export class HistoryStore {
         nextEntries.delete(entry.id)
         removed += 1
       }
-      if (!removed) return 0
+      // A file Hronaut could not read may hold the website's visits, though none are listed.
+      if (!removed && !this.unreadableFile) return 0
       await this.persist(nextEntries.values())
       this.replaceEntries(nextEntries)
       return removed
@@ -317,6 +329,7 @@ export class HistoryStore {
     const value: PersistedHistory = { version: HISTORY_VERSION, entries: sortedHistory(entries) }
     const operation = this.saveQueue.then(async () => {
       await writeTextFileAtomically(this.path, `${JSON.stringify(value, null, 2)}\n`)
+      this.unreadableFile = false
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation
