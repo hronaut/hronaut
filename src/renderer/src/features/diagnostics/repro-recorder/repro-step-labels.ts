@@ -62,5 +62,10 @@ export function createReproStepLabels(translate: Translate) {
     return text
   }
 
-  return { kind, description }
+  /** The checkpoint condition as the Condition menu names it; a condition this version does not know shows as recorded. */
+  function condition(value: string): string {
+    return CONDITIONS.has(value) ? translate(`repro.checkpoint.${value}`) : value
+  }
+
+  return { kind, description, condition }
 }
