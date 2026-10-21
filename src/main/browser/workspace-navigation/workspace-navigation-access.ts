@@ -29,7 +29,8 @@ export interface WorkspaceNavigationOptions {
 /**
  * What the workspace navigation policy needs from the tab manager, which
  * keeps the tabs, the active and archived workspaces, their busy state and
- * inspection permissions, its options and state publication private. The
+ * inspection permissions, its recently closed tabs, its options and state
+ * publication private. The
  * workspace is the registry's own record, so a policy change and a recorded
  * denial land on it, and its identity keys the inspection permission.
  */

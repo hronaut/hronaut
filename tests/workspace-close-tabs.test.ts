@@ -305,6 +305,21 @@ describe('recently closed tabs of other workspaces', () => {
     expect(closedTabs.map((entry) => entry.id)).toEqual(closedElsewhere().map((entry) => entry.id))
   })
 
+  it('leave with the closed workspace when its own oldest entries were held aside with them', async () => {
+    const { manager, internals, release } = await browser()
+    release()
+    Object.assign(internals, { options: { partition: 'persist:hronaut' } })
+    const closedTabs = (internals as unknown as { closedTabs: Array<{ id: string; mcpGroupId?: string }> }).closedTabs
+    // The two oldest entries are tabs closed earlier in the workspace that closes; reopening one would name a
+    // workspace that is gone, fail and go back on top, so Reopen Closed Tab would fail every time once it got there.
+    const entries = closedElsewhere()
+    entries[0]!.mcpGroupId = CLOSING
+    entries[1]!.mcpGroupId = CLOSING
+    closedTabs.push(...entries)
+    await manager.closeMcpTabGroup(CLOSING)
+    expect(closedTabs.map((entry) => entry.id)).toEqual(entries.slice(2).map((entry) => entry.id))
+  })
+
   it('come back in the order they were closed when two workspaces close at once', async () => {
     const { manager, internals, release } = await browser()
     release()

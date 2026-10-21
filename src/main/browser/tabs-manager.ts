@@ -1794,7 +1794,7 @@ export class BrowserTabsManager {
   /**
    * The narrow view the workspace navigation policy gets of this manager's
    * private tabs, active and archived workspaces, busy workspaces, inspection
-   * permissions, options and state publication. It is a prototype method
+   * permissions, recently closed tabs, options and state publication. It is a prototype method
    * rather than a field, so managers created without the constructor (as unit
    * tests do) still provide it. The delegates below return the feature's
    * value or promise directly, so no extra ticks separate its final checks

@@ -74,6 +74,7 @@ export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavig
   if (policyChanged) access.setInspectionPermission(group, (access.inspectionPermission(group) ?? 0) + 1)
   group.navigationPolicy = policy
   group.lastUsedAt = new Date().toISOString()
+  forgetDeniedClosedTabs(access, groupId)
   const failures: unknown[] = []
   // The live iterator skips a tab closed while an earlier one is replaced.
   for (const tab of access.tabs()) {
@@ -84,12 +85,21 @@ export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavig
       if (access.findTab(tab.id) === tab) failures.push(error)
     }
   }
-  // Reopen Closed Tab takes the newest closed tab, so one the policy now denies would fail every time and hide the
-  // older ones; as with a denied page that is open, the denied page does not come back.
-  access.forgetWorkspaceClosedTabs(groupId, (url) => !workspaceNavigationDecision(access, groupId, url).allowed)
+  // A tab closed while the open ones were checked joined the recently closed tabs after the first pass.
+  forgetDeniedClosedTabs(access, groupId)
   access.changed()
   if (failures.length) throw failures[0]
   return access.getState()
+}
+
+/**
+ * Forgets the workspace's recently closed tabs on a page its policy denies. Reopen Closed Tab takes the newest closed
+ * tab, so one the policy denies would fail every time and hide the older ones; as with a denied page that is open, the
+ * denied page does not come back. A workspace closed or archived meanwhile has already taken its closed tabs along.
+ */
+function forgetDeniedClosedTabs<Tab extends WorkspaceNavigationTab>(access: WorkspaceNavigationAccess<Tab>, groupId: string): void {
+  if (!access.findWorkspace(groupId)) return
+  access.forgetWorkspaceClosedTabs(groupId, (url) => !workspaceNavigationDecision(access, groupId, url).allowed)
 }
 
 /**
