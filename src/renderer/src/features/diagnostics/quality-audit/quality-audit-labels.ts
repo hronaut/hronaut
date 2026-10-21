@@ -30,7 +30,7 @@ const METADATA_ISSUES: Readonly<Record<string, string>> = {
  * Names the quality audit in the interface language. The audit records English (src/shared/quality-audit-text.ts),
  * and MCP results and copied audits keep it. Each sentence is translated only when the English helper rebuilds it
  * exactly from the values read back out of it, so text Hronaut did not write, such as a truncated message, shows as
- * recorded.
+ * recorded. Page metadata findings are named by their code, as the Page metadata panel names them.
  */
 export function createQualityAuditLabels(translate: Translate, formatNumber: FormatNumber) {
   const count = (value: string) => formatNumber(Number(value))
@@ -51,8 +51,6 @@ export function createQualityAuditLabels(translate: Translate, formatNumber: For
       ([, a = '', b = '']) => text('accessibilityViolations', { violations: plural('violations', a), nodes: plural('violationNodes', b) })],
     [/^(\d+) rules passed$/, ([, a = '']) => english.rulesPassed(Number(a)), ([, a = '']) => plural('rulesPassed', a)],
     [/^(\d+) checks need review$/, ([, a = '']) => english.checksNeedReview(Number(a)), ([, a = '']) => plural('checksNeedReview', a)],
-    [/^(.+) \((\d+) affected nodes?\)$/, ([, help = '', a = '']) => english.accessibilityFinding(help, Number(a)),
-      ([, help = '', a = '']) => text('accessibilityFinding', { help, nodes: plural('affectedNodes', a) })],
     [/^(\d+) accessibility checks need human review\.$/, ([, a = '']) => english.needsHumanReview(Number(a)), ([, a = '']) => plural('needsHumanReview', a)],
     [/^(\d+) of (\d+) observed Web Vitals are good$/, ([, a = '', b = '']) => english.performanceGood(Number(a), Number(b)),
       ([, a = '', b = '']) => text('performanceGood', { good: count(a), total: count(b) }, Number(b))],
@@ -123,6 +121,13 @@ export function createQualityAuditLabels(translate: Translate, formatNumber: For
       const blocks = value.code === 'invalid-json-ld' ? /^(\d+) JSON-LD block\(s\) could not be parsed\.$/.exec(value.message)?.[1] : undefined
       if (blocks) return translate('pageMetadata.issues.invalidJsonLd.message', { count: count(blocks) }, Number(blocks))
       return value.message
+    }
+    // axe names its rules, so only an accessibility finding is read as a rule and its node count.
+    if (value.category === 'accessibility') {
+      const [, help = '', nodes = ''] = /^(.+) \((\d+) affected nodes?\)$/.exec(value.message) ?? []
+      if (help && english.accessibilityFinding(help, Number(nodes)) === value.message) {
+        return text('accessibilityFinding', { help, nodes: plural('affectedNodes', nodes) })
+      }
     }
     return sentence(value.message)
   }

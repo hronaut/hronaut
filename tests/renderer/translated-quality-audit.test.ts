@@ -5,6 +5,8 @@ import QualityAuditPanel from '../../src/renderer/src/features/diagnostics/quali
 import { useDiagnosticsController } from '../../src/renderer/src/features/diagnostics/useDiagnosticsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { buildBrowserQualityAudit, type BrowserQualityAuditSources } from '../../src/shared/quality-audit.js'
+import { QUALITY_AUDIT_CATEGORY_LABELS, QUALITY_AUDIT_CAVEATS, QUALITY_AUDIT_FIXED_TEXT } from '../../src/shared/quality-audit-text.js'
+import { qualityAuditTextMessages } from '../../src/shared/locales/quality-audit-text.js'
 import type { BrowserQualityAudit, BrowserTabState, SupportedLocale } from '../../src/shared/types.js'
 
 // The quality audit showed every category, summary, evidence line, finding and caveat in English, whatever the
@@ -288,7 +290,21 @@ describe('quality audit in the interface language', () => {
       .map((item) => item.replace('3200 ms (needs-improvement)', '3,200 ms (needs improvement)').replace(/^1 (error|warning)s$/, '1 $1')))
     // Metadata findings read as in Page metadata.
     expect(shown.findings).toEqual(report.findings.map((finding) => finding.message.replace('3200 ms', '3,200 ms').replace('block(s)', 'blocks')))
+    // Each finding names its category as the category cards do.
+    expect(shown.findingCategories).toEqual(report.findings.map((finding) => report.categories.find((category) => category.id === finding.category)?.label))
     expect(shown.caveats).toEqual(report.caveats)
+  })
+
+  it('reads counts in Russian plural forms', async () => {
+    const shown = await renderAudit('ru-RU', buildBrowserQualityAudit(troubledSources()))
+    expect(shown.summaries[0]).toBe('2 нарушения в 3 затронутых узлах')
+  })
+
+  it('keeps the English messages in step with the text the audit records', () => {
+    const english = qualityAuditTextMessages['en-US']
+    expect(english.fixed).toEqual(QUALITY_AUDIT_FIXED_TEXT)
+    expect(english.caveats).toEqual(QUALITY_AUDIT_CAVEATS)
+    expect(english.categories).toEqual(QUALITY_AUDIT_CATEGORY_LABELS)
   })
 
   it('names a healthy audit in German and keeps it as recorded in English', async () => {
@@ -317,13 +333,15 @@ describe('quality audit in the interface language', () => {
     const changed: BrowserQualityAudit = {
       ...report,
       categories: [
-        { ...report.categories[0], summary: '2 violations across 3 affected nodes (bounded)', evidence: ['007 rules passed', 'Language: '] },
+        { ...report.categories[0], summary: '2 violations across 3 affected nodes (bounded)', evidence: ['007 rules passed', 'Language: ', 'Language: x (2 affected nodes)'] },
         { ...report.categories[1], id: 'toString' as never, label: 'Future category', status: 'future' as never, summary: 'Future summary', evidence: [] }
       ],
       findings: [
         { category: 'browser-issues', severity: 'warning', code: 'toString', message: 'Inherited' },
         { category: 'metadata', severity: 'warning', code: 'constructor', message: 'Page-specific metadata note' },
-        { category: 'accessibility', severity: 'error', code: 'label', message: 'Form elements must have labels (1 affected nodes)' }
+        { category: 'accessibility', severity: 'error', code: 'label', message: 'Form elements must have labels (1 affected nodes)' },
+        // Only an accessibility finding is read as an axe rule and its node count.
+        { category: 'browser-issues', severity: 'warning', code: 'FutureIssue', message: 'Something (3 affected nodes)' }
       ],
       caveats: ['A future caveat.']
     }
@@ -332,9 +350,9 @@ describe('quality audit in the interface language', () => {
     expect(shown.categories).toEqual(['Barrierefreiheit', 'Future category'])
     expect(shown.statuses).toEqual(['bestanden', 'future'])
     expect(shown.summaries[0]).toBe('2 violations across 3 affected nodes (bounded)')
-    expect(shown.evidence).toEqual(['007 rules passed', 'Language: '])
-    expect(shown.findingCategories).toEqual(['Chromium-Probleme', 'Metadaten & SEO', 'Barrierefreiheit'])
-    expect(shown.findings).toEqual(['Inherited', 'Page-specific metadata note', 'Form elements must have labels (1 affected nodes)'])
+    expect(shown.evidence).toEqual(['007 rules passed', 'Language: ', 'Sprache: x (2 affected nodes)'])
+    expect(shown.findingCategories).toEqual(['Chromium-Probleme', 'Metadaten & SEO', 'Barrierefreiheit', 'Chromium-Probleme'])
+    expect(shown.findings).toEqual(['Inherited', 'Page-specific metadata note', 'Form elements must have labels (1 affected nodes)', 'Something (3 affected nodes)'])
     expect(shown.caveats).toEqual(['A future caveat.'])
   })
 })
