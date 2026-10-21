@@ -57,3 +57,32 @@ test('shows the tab beside the closed one in its own workspace', async ({ appWin
   await expect.poll(titles).toEqual(['Work one', 'Docs one'])
   await expect.poll(activeTitle).toBe('Work one')
 })
+
+test('remembers the tab beside the closed one in a workspace that is not on screen', async ({ appWindow }) => {
+  // The workspace remembered its first tab, which going back to it showed and agent commands without a tab ID used.
+  const ids = await appWindow.evaluate(async (pages) => {
+    const api = (window as unknown as { hronaut: HronautApi }).hronaut
+    const state = await api.createWorkspace({ name: 'Remembered work', storage: 'scratch' })
+    const work = state.mcpTabGroups.find(group => group.name === 'Remembered work')!.id
+    const starting = state.tabs.filter(tab => tab.mcpGroupId === work).map(tab => tab.id)
+    const open = async (url: string) => (await api.newTab({ url, mcpGroupId: work, active: true })).activeTabId!
+    await open(pages.one)
+    const two = await open(pages.two)
+    const three = await open(pages.three)
+    for (const id of starting) await api.closeTab(id)
+    await api.selectTab(two)
+    const docs = await api.createWorkspace({ name: 'Remembered docs', storage: 'scratch' })
+    const shown = docs.tabs.find(tab => tab.mcpGroupId === docs.mcpTabGroups.find(group => group.name === 'Remembered docs')!.id)!.id
+    await api.selectTab(shown)
+    return { work, two, three, shown }
+  }, { one: page('Remembered one'), two: page('Remembered two'), three: page('Remembered three') })
+  const remembered = () => appWindow.evaluate(async (work) => (
+    (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).mcpTabGroups.find(group => group.id === work)?.activeTabId
+  ), ids.work)
+  await expect.poll(remembered).toBe(ids.two)
+
+  await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.closeTab(id), ids.two)
+
+  await expect.poll(remembered).toBe(ids.three)
+  await expect.poll(() => appWindow.evaluate(async () => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).activeTabId)).toBe(ids.shown)
+})
