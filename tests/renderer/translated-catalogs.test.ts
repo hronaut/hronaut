@@ -50,7 +50,7 @@ describe('translated preset and search engine catalogs', () => {
     expect(presets).toHaveTextContent('Schmale mobile Layouts')
     expect(presets).toHaveTextContent('Breite Desktop-Layouts')
     expect(presets).not.toHaveTextContent('Compact phone')
-    expect(presets).not.toHaveTextContent('mobile layouts')
+    expect(presets).not.toHaveTextContent('Narrow mobile')
   })
 
   it('describes the search engines in the interface language and keeps brand names', () => {
@@ -61,10 +61,13 @@ describe('translated preset and search engine catalogs', () => {
       props: { controller }
     })
 
-    const duckDuckGo = screen.getByTestId('search-engine-duckduckgo')
-    expect(duckDuckGo).toHaveTextContent('DuckDuckGo')
-    expect(duckDuckGo).toHaveTextContent('Suche ohne personalisiertes Tracking')
-    expect(screen.getByTestId('search-engine-google')).not.toHaveTextContent('Broad web results')
-    controller.dispose()
+    try {
+      const duckDuckGo = screen.getByTestId('search-engine-duckduckgo')
+      expect(duckDuckGo).toHaveTextContent('DuckDuckGo')
+      expect(duckDuckGo).toHaveTextContent('Suche ohne personalisiertes Tracking')
+      expect(screen.getByTestId('search-engine-google')).not.toHaveTextContent('Broad web results')
+    } finally {
+      controller.dispose()
+    }
   })
 })

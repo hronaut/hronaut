@@ -9,28 +9,28 @@ export const searchEngineMessages = {
     startpage: 'Private results without profiling'
   },
   'de-DE': {
-    google: 'Breite Webergebnisse und vertraute Rangfolge',
+    google: 'Umfassende Webergebnisse und gewohnte Rangfolge',
     duckduckgo: 'Suche ohne personalisiertes Tracking',
     bing: 'Web- und Bildersuche von Microsoft',
     brave: 'Unabhängige, datenschutzorientierte Suche',
     startpage: 'Private Ergebnisse ohne Profilbildung'
   },
   'fr-FR': {
-    google: 'Résultats web étendus et classement familier',
+    google: 'Résultats web étendus et classement habituel',
     duckduckgo: 'Recherche sans suivi personnalisé',
     bing: 'Recherche web et d’images de Microsoft',
     brave: 'Recherche indépendante axée sur la confidentialité',
     startpage: 'Résultats privés sans profilage'
   },
   'es-ES': {
-    google: 'Resultados web amplios y clasificación conocida',
+    google: 'Resultados web amplios y clasificación habitual',
     duckduckgo: 'Búsqueda sin seguimiento personalizado',
     bing: 'Búsqueda web y de imágenes de Microsoft',
     brave: 'Búsqueda independiente centrada en la privacidad',
     startpage: 'Resultados privados sin elaboración de perfiles'
   },
   'pl-PL': {
-    google: 'Szerokie wyniki z sieci i znany ranking',
+    google: 'Obszerne wyniki z sieci i znajomy ranking',
     duckduckgo: 'Wyszukiwanie bez spersonalizowanego śledzenia',
     bing: 'Wyszukiwarka stron i obrazów Microsoftu',
     brave: 'Niezależne wyszukiwanie dbające o prywatność',
@@ -40,14 +40,14 @@ export const searchEngineMessages = {
     google: 'Широкая выдача и привычное ранжирование',
     duckduckgo: 'Поиск без персонализированного отслеживания',
     bing: 'Поиск по сайтам и изображениям от Microsoft',
-    brave: 'Независимый поиск с упором на приватность',
+    brave: 'Независимый поиск с упором на конфиденциальность',
     startpage: 'Приватные результаты без профилирования'
   },
   'uk-UA': {
     google: 'Широка видача та звичне ранжування',
     duckduckgo: 'Пошук без персоналізованого стеження',
     bing: 'Пошук сайтів і зображень від Microsoft',
-    brave: 'Незалежний пошук з упором на приватність',
+    brave: 'Незалежний пошук з акцентом на приватність',
     startpage: 'Приватні результати без профілювання'
   }
 }

@@ -12,7 +12,7 @@ export const viewportPresetMessages = {
     'compact-phone': { label: 'Kompaktes Smartphone', description: 'Schmale mobile Layouts' },
     phone: { label: 'Smartphone', description: 'Typische mobile Layouts' },
     'large-phone': { label: 'Großes Smartphone', description: 'Breite mobile Layouts' },
-    tablet: { label: 'Tablet', description: 'Tablet-Layouts für Touch-Bedienung' },
+    tablet: { label: 'Tablet', description: 'Touch-Layouts für Tablets' },
     laptop: { label: 'Laptop', description: 'Kompakte Desktop-Layouts' },
     desktop: { label: 'Desktop', description: 'Breite Desktop-Layouts' }
   },
@@ -21,8 +21,8 @@ export const viewportPresetMessages = {
     phone: { label: 'Téléphone', description: 'Mises en page mobiles courantes' },
     'large-phone': { label: 'Grand téléphone', description: 'Mises en page mobiles larges' },
     tablet: { label: 'Tablette', description: 'Mises en page tactiles pour tablette' },
-    laptop: { label: 'Ordinateur portable', description: 'Mises en page bureau compactes' },
-    desktop: { label: 'Ordinateur de bureau', description: 'Mises en page bureau larges' }
+    laptop: { label: 'Ordinateur portable', description: 'Mises en page compactes pour ordinateur' },
+    desktop: { label: 'Ordinateur de bureau', description: 'Mises en page larges pour ordinateur' }
   },
   'es-ES': {
     'compact-phone': { label: 'Teléfono compacto', description: 'Diseños móviles estrechos' },
@@ -37,23 +37,23 @@ export const viewportPresetMessages = {
     phone: { label: 'Telefon', description: 'Typowe układy mobilne' },
     'large-phone': { label: 'Duży telefon', description: 'Szerokie układy mobilne' },
     tablet: { label: 'Tablet', description: 'Dotykowe układy na tablet' },
-    laptop: { label: 'Laptop', description: 'Kompaktowe układy desktopowe' },
-    desktop: { label: 'Komputer stacjonarny', description: 'Szerokie układy desktopowe' }
+    laptop: { label: 'Laptop', description: 'Kompaktowe układy na komputer' },
+    desktop: { label: 'Komputer stacjonarny', description: 'Szerokie układy na komputer' }
   },
   'ru-RU': {
     'compact-phone': { label: 'Компактный телефон', description: 'Узкие мобильные макеты' },
-    phone: { label: 'Телефон', description: 'Типичные мобильные макеты' },
+    phone: { label: 'Телефон', description: 'Обычные мобильные макеты' },
     'large-phone': { label: 'Большой телефон', description: 'Широкие мобильные макеты' },
-    tablet: { label: 'Планшет', description: 'Сенсорные макеты для планшета' },
-    laptop: { label: 'Ноутбук', description: 'Компактные десктопные макеты' },
-    desktop: { label: 'Настольный компьютер', description: 'Широкие десктопные макеты' }
+    tablet: { label: 'Планшет', description: 'Макеты для сенсорных планшетов' },
+    laptop: { label: 'Ноутбук', description: 'Компактные макеты для компьютера' },
+    desktop: { label: 'Настольный компьютер', description: 'Широкие макеты для компьютера' }
   },
   'uk-UA': {
     'compact-phone': { label: 'Компактний телефон', description: 'Вузькі мобільні макети' },
     phone: { label: 'Телефон', description: 'Типові мобільні макети' },
     'large-phone': { label: 'Великий телефон', description: 'Широкі мобільні макети' },
-    tablet: { label: 'Планшет', description: 'Сенсорні макети для планшета' },
-    laptop: { label: 'Ноутбук', description: 'Компактні десктопні макети' },
-    desktop: { label: 'Настільний комп’ютер', description: 'Широкі десктопні макети' }
+    tablet: { label: 'Планшет', description: 'Макети для сенсорних планшетів' },
+    laptop: { label: 'Ноутбук', description: 'Компактні макети для комп’ютера' },
+    desktop: { label: 'Настільний комп’ютер', description: 'Широкі макети для комп’ютера' }
   }
 }
