@@ -46,9 +46,22 @@ async function start(): Promise<void> {
 }
 async function read(): Promise<void> {
   const current = generation
-  const source = profileId.value
+  let source = profileId.value
   await run(async () => {
-    const next = unwrap(await props.browser.browserImport.preview(props.workspaceId, source))
+    let response = await props.browser.browserImport.preview(props.workspaceId, source)
+    // Hronaut forgets the listed profiles five minutes after listing them, or when the workspace changes, so Continue
+    // then lists them again and goes on with the same profile, which the new list names by a new ID.
+    if (!response.ok && response.error === 'expired') {
+      const chosen = profiles.value.find(p => p.id === source)
+      const listed = unwrap(await props.browser.browserImport.list(props.workspaceId))
+      if (current !== generation || profileId.value !== source) return
+      const again = listed.find(p => p.browser === chosen?.browser && p.name === chosen?.name)
+      profiles.value = listed; profileId.value = again?.id ?? listed[0]?.id ?? ''
+      if (!again) throw new Error(t('browserImport.errors.expired'))
+      source = again.id
+      response = await props.browser.browserImport.preview(props.workspaceId, source)
+    }
+    const next = unwrap(response)
     if (current !== generation || profileId.value !== source) return
     preview.value = next; previewConsumed.value = false; selected.value = []
   })
