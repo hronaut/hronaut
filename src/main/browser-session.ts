@@ -60,8 +60,9 @@ export function rememberedSitePermissions(entries: readonly SitePermissionEntry[
  * it ends with part of its id, as Settings shows it.
  */
 export function promptWorkspaceName(workspaceId: string, workspaces: ReadonlyArray<{ id: string, name: string }>): string | undefined {
-  // Joiners, direction marks and runs of spaces do not change how a name reads.
-  const reading = (name: string): string => plainWorkspaceName(name).replace(/[\u200C-\u200F\u061C]/gu, '').replace(/\s+/gu, ' ')
+  // Joiners, direction marks and runs of spaces do not change how a name reads, nor a letter and its accent written
+  // apart, which they could keep apart.
+  const reading = (name: string): string => plainWorkspaceName(name).replace(/[\u200C-\u200F\u061C]/gu, '').normalize('NFC').replace(/\s+/gu, ' ')
   const own = workspaces.find((workspace) => workspace.id === workspaceId)
   const name = own ? plainWorkspaceName(own.name) : ''
   if (!own || !name) return undefined

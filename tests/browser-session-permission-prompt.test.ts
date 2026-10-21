@@ -162,6 +162,8 @@ describe('site permission prompt', () => {
     expect(promptWorkspaceName(agent, [{ id: own, name: 'Personal' }, { id: agent, name: ' Personal\u200B' }])).toBe('Personal · 6789ab')
     // A direction mark stays, but does not make a name read differently.
     expect(promptWorkspaceName(agent, [{ id: own, name: 'Personal' }, { id: agent, name: 'Personal\u200E' }])).toBe('Personal\u200E · 6789ab')
+    // A joiner kept between a letter and its accent leaves them apart, but the name still reads as the person's.
+    expect(promptWorkspaceName(agent, [{ id: own, name: 'Caf\u00E9' }, { id: agent, name: 'Cafe\u200D\u0301' }])).toBe('Cafe\u200D\u0301 · 6789ab')
     expect(promptWorkspaceName(own, [{ id: own, name: 'Personal' }, { id: agent, name: 'Personal' }])).toBe('Personal · 6789cd')
     expect(promptWorkspaceName(agent, [{ id: own, name: 'Personal' }])).toBeUndefined()
     expect(promptWorkspaceName(agent, [{ id: agent, name: '\u202E\n' }])).toBeUndefined()
