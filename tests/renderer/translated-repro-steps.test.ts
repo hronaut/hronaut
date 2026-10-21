@@ -97,6 +97,9 @@ describe('repro steps in the interface language', () => {
     expect(detail('de-DE', { condition: 'text', text: 'Bestellt', observedMatch: true })).toMatch(/^Bedingung: Exakter Text Bestellt — /)
     expect(detail('en-US', { condition: 'urlPath', path: '/orders/complete', observedMatch: true })).toBe('Condition: URL pathname /orders/complete — Currently matches')
     expect(detail('en-US', { condition: 'hidden', observedMatch: false })).toBe('Condition: Hidden — Does not currently match')
+    expect(detail('en-US', { condition: 'visible', observedMatch: true })).toBe('Condition: Visible — Currently matches')
+    expect(detail('en-US', { condition: 'checked', observedMatch: true })).toBe('Condition: Checked (checkbox/radio) — Currently matches')
+    expect(detail('en-US', { condition: 'unchecked', observedMatch: true })).toBe('Condition: Unchecked (checkbox/radio) — Currently matches')
     // A condition this version does not know, or one named like an object property, shows as recorded.
     expect(detail('en-US', { condition: 'futureCondition' as never, observedMatch: true })).toBe('Condition: futureCondition — Currently matches')
     expect(detail('en-US', { condition: 'constructor' as never, observedMatch: true })).toBe('Condition: constructor — Currently matches')

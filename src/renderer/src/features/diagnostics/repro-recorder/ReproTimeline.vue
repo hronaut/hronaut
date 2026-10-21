@@ -177,7 +177,7 @@ function moveSelection(event: KeyboardEvent, step: BrowserReproStep): void {
         <UiButton appearance="application" type="button" :disabled="busy" @click="useCheckpointSelector">{{ t('repro.checkpoint.useSelector') }}</UiButton>
         <p>{{ t('repro.checkpoint.selectorHint') }}</p>
       </template>
-      <p v-if="selectedStep.expectation">{{ t('repro.checkpoint.condition') }}: {{ stepLabels.condition(selectedStep.expectation.condition) }} <span v-if="selectedStep.expectation.condition === 'count'">{{ selectedStep.expectation.count }}</span> <span v-if="selectedStep.expectation.path !== undefined">{{ selectedStep.expectation.path }}</span> <span v-if="selectedStep.expectation.text !== undefined">{{ selectedStep.expectation.text }}</span> — {{ t(selectedStep.expectation.observedMatch ? 'repro.checkpoint.matched' : 'repro.checkpoint.notMatched') }}</p>
+      <p v-if="selectedStep.expectation">{{ t('repro.checkpoint.condition') }}: {{ stepLabels.condition(selectedStep.expectation.condition) }} <span v-if="selectedStep.expectation.condition === 'count'">{{ selectedStep.expectation.count }}</span> <span v-if="selectedStep.expectation.path !== undefined">{{ selectedStep.expectation.path }}</span> <q v-if="selectedStep.expectation.text !== undefined">{{ selectedStep.expectation.text }}</q> — {{ t(selectedStep.expectation.observedMatch ? 'repro.checkpoint.matched' : 'repro.checkpoint.notMatched') }}</p>
       <p v-if="selectedStep.valueRedacted" class="repro-step-redacted">{{ t('repro.valueRedacted') }}</p>
     </section>
   </div>
