@@ -55,3 +55,14 @@ it('asks to check the values when the refusal has no named reason', async () => 
   expect(screen.getByRole('alert').textContent).not.toContain('"code"')
   expect(edits(manageVideo)).toHaveLength(0)
 })
+
+it('says the same for a camera move from its own editor', async () => {
+  const manageVideo = await showRecorder()
+  await fireEvent.click(screen.getByText(de.motion.title))
+  await fireEvent.update(screen.getByLabelText(de.motion.from), '1')
+  await fireEvent.update(screen.getByLabelText(de.motion.to), '0.5')
+  await fireEvent.click(screen.getByRole('button', { name: de.motion.add }))
+  await flushPromises()
+  expect(screen.getByRole('alert')).toHaveTextContent(de.errors.cameraEnd)
+  expect(edits(manageVideo)).toHaveLength(0)
+})

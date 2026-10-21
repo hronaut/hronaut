@@ -98,7 +98,7 @@ export const esESVideoRecorder = {
     "annotationEnd": "El final de la anotación debe ir después de su inicio",
     "annotationText": "Las anotaciones de texto y las llamadas de paso necesitan texto",
     "annotationPoint": "Esta anotación necesita coordenadas x/y",
-    "annotationEndPoint": "Las flechas, las zonas y las llamadas de paso necesitan un punto final",
+    "annotationEndPoint": "Las flechas, las zonas y las llamadas de paso necesitan un punto de destino",
     "annotationRegion": "Las zonas deben tener un ancho y un alto distintos de cero",
     "customPlacement": "La posición personalizada necesita coordenadas x/y",
     "clipEnd": "El final del clip debe ir después de su inicio",

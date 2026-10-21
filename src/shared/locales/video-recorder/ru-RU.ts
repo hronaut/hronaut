@@ -100,7 +100,7 @@ export const ruRUVideoRecorder = {
     "annotationPoint": "Этой аннотации нужны координаты x/y",
     "annotationEndPoint": "Стрелкам, областям и выноскам шага нужна конечная точка",
     "annotationRegion": "У областей должны быть ненулевые ширина и высота",
-    "customPlacement": "Для своего положения нужны координаты x/y",
+    "customPlacement": "Для произвольного положения нужны координаты x/y",
     "clipEnd": "Конец фрагмента должен быть позже его начала",
     "audioEnd": "Конец звука должен быть позже его начала",
     "audioFades": "Нарастание и затухание должны помещаться в звуковое событие",
@@ -114,7 +114,7 @@ export const ruRUVideoRecorder = {
     "audioFileExtension": "Это расширение формата WAV не поддерживается",
     "audioFileData": "В файле WAV должен быть ровно один непустой блок звуковых данных",
     "audioFileMissing": "В файле WAV нет формата или звуковых данных",
-    "audioFileEncoding": "Поддерживается звук WAV PCM16, моно или стерео, 8–48 кГц",
+    "audioFileEncoding": "Поддерживается звук WAV PCM16, моно или стерео, 8–48 kHz",
     "audioFileDuration": "Звук должен длиться не больше двух минут"
   },
   "seconds": "с",
