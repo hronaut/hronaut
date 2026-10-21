@@ -5,6 +5,13 @@ import { BufferSource, Input, WEBM } from 'mediabunny'
 import type { HronautApi, HronautMcpApi } from '../../src/shared/types.js'
 import type { BrowserVideoState } from '../../src/shared/video.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { waitForSettledPageBounds } from './settled-page-bounds.js'
+
+// A recording keeps its first size, and the toolbar still grows when the shell leaves Home for the fixture's tab.
+test.beforeEach(async ({ appWindow, capabilities, electronApp }) => {
+  await expect(appWindow.getByRole('combobox', { name: 'Address', exact: true })).toHaveValue(capabilities.fixtureUrl)
+  await waitForSettledPageBounds(electronApp, capabilities.fixtureUrl)
+})
 
 type VideoTestWindow = Window & { hronaut: HronautApi; hronautMcp: HronautMcpApi }
 

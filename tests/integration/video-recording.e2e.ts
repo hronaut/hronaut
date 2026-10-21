@@ -8,6 +8,13 @@ import { Input, BufferSource, WEBM } from 'mediabunny'
 import type { BrowserVideoState } from '../../src/shared/video.js'
 import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { waitForSettledPageBounds } from './settled-page-bounds.js'
+
+// A recording keeps its first size, and the toolbar still grows when the shell leaves Home for the fixture's tab.
+test.beforeEach(async ({ appWindow, capabilities, electronApp }) => {
+  await expect(appWindow.getByRole('combobox', { name: 'Address', exact: true })).toHaveValue(capabilities.fixtureUrl)
+  await waitForSettledPageBounds(electronApp, capabilities.fixtureUrl)
+})
 
 // Exercises the real capture, sandboxed WebCodecs encoder, WebM muxer and browser decoder.
 test('records, annotates, trims and decodes a WebM tutorial through MCP and the UI', async ({ capabilities, appWindow, electronApp }, testInfo) => {

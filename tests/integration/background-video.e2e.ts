@@ -6,6 +6,13 @@ import type { HronautApi, HronautSettingsApi, HronautShellApi } from '../../src/
 import type { BrowserVideoState } from '../../src/shared/video.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { test, expect, text } from './capability-fixtures.js'
+import { waitForSettledPageBounds } from './settled-page-bounds.js'
+
+// A recording keeps its first size, and the toolbar still grows when the shell leaves Home for the fixture's tab.
+test.beforeEach(async ({ appWindow, capabilities, electronApp }) => {
+  await expect(appWindow.getByRole('combobox', { name: 'Address', exact: true })).toHaveValue(capabilities.fixtureUrl)
+  await waitForSettledPageBounds(electronApp, capabilities.fixtureUrl)
+})
 
 type SleepCaptureGlobal = typeof globalThis & { __sleepCapture?: { held: boolean; restore(): void } }
 
