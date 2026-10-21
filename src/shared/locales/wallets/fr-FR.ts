@@ -26,6 +26,14 @@ export const frFRWallets = {
     "passphrase-setup-required": "Les portefeuilles gérés nécessitent une phrase secrète de coffre-fort.",
     "disabled": "Les portefeuilles gérés sont désactivés."
   },
+  "disabledReasons": {
+    "notInitialized": "Le service des portefeuilles n’a pas encore démarré.",
+    "secureStorageUnavailable": "Le stockage sécurisé du système d’exploitation requis par ce coffre-fort de portefeuilles n’est pas disponible.",
+    "noBackend": "Aucun stockage sécurisé des clés n’est disponible pour les portefeuilles.",
+    "integrityFailure": "Les données des portefeuilles ont échoué aux contrôles d’intégrité. Les opérations sur les portefeuilles sont désactivées.",
+    "unlockFailure": "Le coffre-fort des portefeuilles n’a pas pu être déverrouillé avec le stockage sécurisé du système d’exploitation. Les opérations sur les portefeuilles sont désactivées.",
+    "initializationFailure": "L’initialisation des portefeuilles a échoué. Les opérations sur les portefeuilles sont désactivées."
+  },
   "backends": {
     "safeStorage": "Protégés par le stockage sécurisé du système d’exploitation.",
     "keychain": "Protégés par le Trousseau macOS.",

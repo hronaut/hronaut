@@ -590,6 +590,16 @@ export const WalletProviderEventSchema = z.object({
 }).strict()
 export type WalletProviderEvent = z.infer<typeof WalletProviderEventSchema>
 
+/** Why managed wallets are disabled, as main reports it; Settings › Wallets names it in the interface language. */
+export const WALLET_DISABLED_REASONS = {
+  notInitialized: 'Wallet service is not initialized',
+  secureStorageUnavailable: 'The operating-system secure storage required by this wallet vault is unavailable',
+  noBackend: 'No secure wallet key-storage backend is available',
+  integrityFailure: 'Wallet data failed integrity checks. Wallet operations are disabled.',
+  unlockFailure: 'The wallet vault could not be unlocked with operating-system secure storage. Wallet operations are disabled.',
+  initializationFailure: 'Wallet initialization failed. Wallet operations are disabled.'
+} as const
+
 export const WalletServiceStatusSchema = z.object({
   managedWallets: z.enum(['ready', 'locked', 'passphrase-setup-required', 'disabled']),
   backend: z.string().trim().min(1).max(128),

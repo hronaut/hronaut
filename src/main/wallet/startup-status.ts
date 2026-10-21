@@ -1,4 +1,4 @@
-import type { WalletServiceStatus } from '../../shared/wallet.js'
+import { WALLET_DISABLED_REASONS, type WalletServiceStatus } from '../../shared/wallet.js'
 
 const INTEGRITY_FAILURES = new Set([
   'Watch-only wallet store is invalid',
@@ -21,7 +21,7 @@ export function walletStartupFailureStatus(error: unknown): WalletServiceStatus 
       managedWallets: 'disabled',
       backend: 'integrity-failure',
       watchOnlyAvailable: false,
-      reason: 'Wallet data failed integrity checks. Wallet operations are disabled.'
+      reason: WALLET_DISABLED_REASONS.integrityFailure
     }
   }
   if (message === 'Wallet vault unlock failed') {
@@ -29,13 +29,13 @@ export function walletStartupFailureStatus(error: unknown): WalletServiceStatus 
       managedWallets: 'disabled',
       backend: 'secure-storage-failure',
       watchOnlyAvailable: false,
-      reason: 'The wallet vault could not be unlocked with operating-system secure storage. Wallet operations are disabled.'
+      reason: WALLET_DISABLED_REASONS.unlockFailure
     }
   }
   return {
     managedWallets: 'disabled',
     backend: 'initialization-failure',
     watchOnlyAvailable: false,
-    reason: 'Wallet initialization failed. Wallet operations are disabled.'
+    reason: WALLET_DISABLED_REASONS.initializationFailure
   }
 }

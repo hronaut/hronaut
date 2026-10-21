@@ -26,6 +26,14 @@ export const enUSWallets = {
     "passphrase-setup-required": "Managed wallets need a vault passphrase.",
     "disabled": "Managed wallets are disabled."
   },
+  "disabledReasons": {
+    "notInitialized": "The wallet service has not started yet.",
+    "secureStorageUnavailable": "The operating-system secure storage this wallet vault needs is unavailable.",
+    "noBackend": "No secure key storage is available for wallets.",
+    "integrityFailure": "Wallet data failed integrity checks. Wallet operations are disabled.",
+    "unlockFailure": "The wallet vault could not be unlocked with operating-system secure storage. Wallet operations are disabled.",
+    "initializationFailure": "Wallet initialization failed. Wallet operations are disabled."
+  },
   "backends": {
     "safeStorage": "Protected by operating-system secure storage.",
     "keychain": "Protected by macOS Keychain.",

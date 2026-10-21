@@ -7,6 +7,7 @@ import {
   isWalletTokenMethod,
   WalletCreateInputSchema,
   WalletImportDetailsSchema,
+  WALLET_DISABLED_REASONS,
   WalletPolicySchema,
   WalletUpdateInputSchema,
   WalletWatchOnlyInputSchema,
@@ -104,7 +105,7 @@ export class WalletService {
   private vault: WalletVault | undefined
   private protection: WalletVaultProtection | undefined
   private statusValue: WalletServiceStatus = {
-    managedWallets: 'disabled', backend: 'uninitialized', watchOnlyAvailable: true, reason: 'Wallet service is not initialized'
+    managedWallets: 'disabled', backend: 'uninitialized', watchOnlyAvailable: true, reason: WALLET_DISABLED_REASONS.notInitialized
   }
   private readonly imports = new Map<string, PendingImport>()
   private readonly importExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -150,7 +151,7 @@ export class WalletService {
       this.protection = detectedProtection
       this.statusValue = {
         managedWallets: 'disabled', backend: detectedProtection.backend, watchOnlyAvailable: true,
-        reason: 'The operating-system secure storage required by this wallet vault is unavailable'
+        reason: WALLET_DISABLED_REASONS.secureStorageUnavailable
       }
     } else if (detectedProtection.mode === 'safe-storage') {
       this.protection = detectedProtection
@@ -167,7 +168,7 @@ export class WalletService {
       this.protection = detectedProtection
       this.statusValue = {
         managedWallets: 'disabled', backend: detectedProtection.backend, watchOnlyAvailable: true,
-        reason: 'No secure wallet key-storage backend is available'
+        reason: WALLET_DISABLED_REASONS.noBackend
       }
     }
     this.publish()

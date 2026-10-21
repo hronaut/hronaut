@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { walletStartupFailureStatus } from '../src/main/wallet/startup-status.js'
+import { WALLET_DISABLED_REASONS } from '../src/shared/wallet.js'
 
 describe('walletStartupFailureStatus', () => {
   it.each([
@@ -32,5 +33,12 @@ describe('walletStartupFailureStatus', () => {
       watchOnlyAvailable: false
     })
     expect(JSON.stringify(status)).not.toContain(marker)
+  })
+
+  it('reports the shared English reasons Settings names in the interface language', () => {
+    expect(walletStartupFailureStatus(new Error('Wallet vault file is invalid')).reason).toBe(WALLET_DISABLED_REASONS.integrityFailure)
+    expect(walletStartupFailureStatus(new Error('Wallet vault unlock failed')).reason).toBe(WALLET_DISABLED_REASONS.unlockFailure)
+    expect(walletStartupFailureStatus(new Error('disk full')).reason).toBe(WALLET_DISABLED_REASONS.initializationFailure)
+    expect(WALLET_DISABLED_REASONS.integrityFailure).toBe('Wallet data failed integrity checks. Wallet operations are disabled.')
   })
 })

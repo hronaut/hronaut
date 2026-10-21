@@ -19,6 +19,7 @@ import { confirmAction } from '../confirm-action.js'
 import { ignoreHeldEnter } from '../held-enter.js'
 import {
   isWalletTokenMethod,
+  WALLET_DISABLED_REASONS,
   WalletNetworkSchema,
   walletNetworkValidationIssue,
   type WalletChainFamily,
@@ -240,9 +241,14 @@ const backendTranslationKeys: Record<string, string> = {
   initializing: 'initializing',
   uninitialized: 'initializing'
 }
+// Main reports why wallets are disabled in English; a known reason is named in the interface language, any other shows as it came.
+const DISABLED_REASON_KEYS = new Map(Object.entries(WALLET_DISABLED_REASONS).map(([key, value]) => [value as string, key as keyof typeof WALLET_DISABLED_REASONS]))
 const statusCopy = computed(() => {
   const service = props.controller.status.value
   const status = t(`wallets.statuses.${service.managedWallets}`)
+  const reasonKey = service.reason ? DISABLED_REASON_KEYS.get(service.reason) : undefined
+  // A known reason takes the backend sentence's place, which would repeat it or, after a failed check, wrongly blame the backend.
+  if (service.managedWallets === 'disabled' && reasonKey) return t('wallets.status', { status, backend: t(`wallets.disabledReasons.${reasonKey}`) })
   const backend = t(`wallets.backends.${backendTranslationKeys[service.backend] ?? 'unavailable'}`)
   return service.managedWallets === 'disabled' && service.reason
     ? t('wallets.statusWithReason', { status, backend, reason: service.reason })

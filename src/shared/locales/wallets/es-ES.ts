@@ -26,6 +26,14 @@ export const esESWallets = {
     "passphrase-setup-required": "Los monederos gestionados necesitan una frase de contraseña para la bóveda.",
     "disabled": "Los monederos gestionados están desactivados."
   },
+  "disabledReasons": {
+    "notInitialized": "El servicio de monederos aún no se ha iniciado.",
+    "secureStorageUnavailable": "El almacenamiento seguro del sistema operativo que necesita esta bóveda de monederos no está disponible.",
+    "noBackend": "No hay ningún almacenamiento seguro de claves disponible para los monederos.",
+    "integrityFailure": "Los datos de los monederos no han superado las comprobaciones de integridad. Las operaciones con los monederos están desactivadas.",
+    "unlockFailure": "No se ha podido desbloquear la bóveda de monederos con el almacenamiento seguro del sistema operativo. Las operaciones con los monederos están desactivadas.",
+    "initializationFailure": "La inicialización de los monederos ha fallado. Las operaciones con los monederos están desactivadas."
+  },
   "backends": {
     "safeStorage": "Protegidos por el almacenamiento seguro del sistema operativo.",
     "keychain": "Protegidos por el llavero de macOS.",
