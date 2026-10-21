@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ZodError } from 'zod'
 import { formatNumber } from '../../../shared/format.js'
 import type { SupportedLocale } from '../../../shared/types.js'
 import UiButton from '../ui/UiButton.vue'
 import VideoAudioEditor from './VideoAudioEditor.vue'
 import VideoMotionEditor from './VideoMotionEditor.vue'
-import { VIDEO_ANNOTATION_KINDS, VIDEO_PLACEMENTS, VIDEO_RECORDING_NOTICES, VIDEO_TEXT_PRESETS, videoAnnotationSchema, videoOptionsSchema, type BrowserVideoOptions, type BrowserVideoState, type VideoAnnotation } from '../../../shared/video.js'
+import { VIDEO_ANNOTATION_KINDS, VIDEO_PLACEMENTS, VIDEO_RECORDING_NOTICES, VIDEO_SCHEMA_ERRORS, VIDEO_TEXT_PRESETS, videoAnnotationSchema, videoOptionsSchema, type BrowserVideoOptions, type BrowserVideoState, type VideoAnnotation } from '../../../shared/video.js'
 import { friendlyUiError } from '../composables/useAppToastController.js'
 
 const props = defineProps<{ tabId: string }>()
@@ -21,6 +22,13 @@ const notice = computed(() => {
   const key = NOTICE_KEYS.get(text)
   return key ? t(`video.notices.${key}`) : text
 })
+// An edit's refusal is a list of schema issues: name the first known one in the interface language, never the raw list.
+const EDIT_ERROR_KEYS = new Map(Object.entries(VIDEO_SCHEMA_ERRORS).map(([key, value]) => [value as string, key]))
+function actionError(cause: unknown): string {
+  if (!(cause instanceof ZodError)) return friendlyUiError(cause, t('runtime.toast.actionFailed'))
+  const key = EDIT_ERROR_KEYS.get(cause.issues[0]?.message ?? '')
+  return t(key ? `video.errors.${key}` : 'video.errors.invalidEdit')
+}
 const busy = ref(false)
 const pendingAction = ref<BrowserVideoOptions['action']>()
 const error = ref('')
@@ -121,7 +129,7 @@ async function perform(action: BrowserVideoOptions['action'], operation: (tabId:
       previewSource = source
     }
   } catch (cause) {
-    if (!disposed && expected === revision) error.value = friendlyUiError(cause, t('runtime.toast.actionFailed'))
+    if (!disposed && expected === revision) error.value = actionError(cause)
   } finally {
     if (!disposed && expected === revision) { busy.value = false; pendingAction.value = undefined; void refresh(); void keepFocus(focused, section, expected, giveBack) }
   }
@@ -143,7 +151,7 @@ async function addAnnotation(): Promise<void> {
       color: color.value, animation: animation.value
     })
     await manage('edit', { annotations: [...(state.value?.annotations ?? []), annotation] })
-  } catch (cause) { error.value = friendlyUiError(cause, t('runtime.toast.actionFailed')) }
+  } catch (cause) { error.value = actionError(cause) }
 }
 watch(kind, value => {
   if (value === 'callout') { placement.value = 'auto'; cardWidth.value = 30 }

@@ -10,6 +10,19 @@ export const VIDEO_RECORDING_NOTICES = {
   durationLimit: 'Recording reached its two-minute limit',
   sizeLimit: 'Recording reached its 64 MiB limit'
 } as const
+/** Why an annotation, clip, audio event or camera move is refused; browser_video keeps this English, the recorder panel names it. */
+export const VIDEO_SCHEMA_ERRORS = {
+  annotationEnd: 'Annotation end must follow its start',
+  annotationText: 'Text and callout annotations require text',
+  annotationPoint: 'This annotation requires x/y coordinates',
+  annotationEndPoint: 'Arrows, regions and callouts require an end point',
+  annotationRegion: 'Regions must have a non-zero width and height',
+  customPlacement: 'Custom placement requires x/y coordinates',
+  clipEnd: 'Clip end must follow its start',
+  audioEnd: 'Audio end must follow its start',
+  audioFades: 'Audio fades must fit inside the event',
+  cameraEnd: 'Camera end must follow its start'
+} as const
 const time = z.number().finite().min(0).max(VIDEO_LIMITS.durationMs)
 const point = z.number().finite().min(0).max(1)
 export const VIDEO_ANNOTATION_KINDS = ['text', 'callout', 'arrow', 'highlight', 'spotlight', 'click'] as const
@@ -37,26 +50,26 @@ export const videoAnnotationSchema = z.object({
   step: z.number().int().min(1).max(99).optional().describe('Optional numbered step badge on a callout.'),
   animation: z.enum(['none', 'fade', 'draw']).optional().describe('Default fade uses short entrances/exits; draw also reveals arrows and pulses click markers.'),
   curvature: z.number().finite().min(-1).max(1).optional().describe('Arrow bend; zero makes a straight arrow.')
-}).strict().refine(a => a.endMs > a.startMs, 'Annotation end must follow its start')
-  .refine(a => !['text', 'callout'].includes(a.kind) || !!a.text, 'Text and callout annotations require text')
-  .refine(a => !['arrow', 'highlight', 'spotlight', 'click'].includes(a.kind) || (a.x !== undefined && a.y !== undefined), 'This annotation requires x/y coordinates')
-  .refine(a => !['arrow', 'highlight', 'spotlight', 'callout'].includes(a.kind) || (a.endX !== undefined && a.endY !== undefined), 'Arrows, regions and callouts require an end point')
-  .refine(a => !['highlight', 'spotlight'].includes(a.kind) || (a.x !== a.endX && a.y !== a.endY), 'Regions must have a non-zero width and height')
-  .refine(a => a.placement !== 'custom' || (a.x !== undefined && a.y !== undefined), 'Custom placement requires x/y coordinates')
+}).strict().refine(a => a.endMs > a.startMs, VIDEO_SCHEMA_ERRORS.annotationEnd)
+  .refine(a => !['text', 'callout'].includes(a.kind) || !!a.text, VIDEO_SCHEMA_ERRORS.annotationText)
+  .refine(a => !['arrow', 'highlight', 'spotlight', 'click'].includes(a.kind) || (a.x !== undefined && a.y !== undefined), VIDEO_SCHEMA_ERRORS.annotationPoint)
+  .refine(a => !['arrow', 'highlight', 'spotlight', 'callout'].includes(a.kind) || (a.endX !== undefined && a.endY !== undefined), VIDEO_SCHEMA_ERRORS.annotationEndPoint)
+  .refine(a => !['highlight', 'spotlight'].includes(a.kind) || (a.x !== a.endX && a.y !== a.endY), VIDEO_SCHEMA_ERRORS.annotationRegion)
+  .refine(a => a.placement !== 'custom' || (a.x !== undefined && a.y !== undefined), VIDEO_SCHEMA_ERRORS.customPlacement)
 export const videoClipSchema = z.object({ startMs: time, endMs: time }).strict()
-  .refine(c => c.endMs > c.startMs, 'Clip end must follow its start')
+  .refine(c => c.endMs > c.startMs, VIDEO_SCHEMA_ERRORS.clipEnd)
 export const videoAudioEventSchema = z.object({
   assetId: z.string().min(1).max(80), startMs: time, endMs: time,
   offsetMs: time.default(0), volume: point.default(0.5),
   fadeInMs: time.default(0), fadeOutMs: time.default(0), loop: z.boolean().default(false)
-}).strict().refine(a => a.endMs > a.startMs, 'Audio end must follow its start')
-  .refine(a => a.fadeInMs + a.fadeOutMs <= a.endMs - a.startMs, 'Audio fades must fit inside the event')
+}).strict().refine(a => a.endMs > a.startMs, VIDEO_SCHEMA_ERRORS.audioEnd)
+  .refine(a => a.fadeInMs + a.fadeOutMs <= a.endMs - a.startMs, VIDEO_SCHEMA_ERRORS.audioFades)
 export const videoCameraSchema = z.object({
   startMs: time, endMs: time, x: point, y: point,
   zoom: z.number().finite().min(1).max(3).default(1.5),
   endX: point.optional(), endY: point.optional(), endZoom: z.number().finite().min(1).max(3).optional(),
   easeMs: z.number().finite().min(0).max(2000).default(300)
-}).strict().refine(c => c.endMs > c.startMs, 'Camera end must follow its start')
+}).strict().refine(c => c.endMs > c.startMs, VIDEO_SCHEMA_ERRORS.cameraEnd)
 export const videoTransitionSchema = z.object({ durationMs: z.number().finite().min(0).max(1000).default(300) }).strict()
 export const videoOptionsShape = {
   tabId: z.string().min(1).max(128).optional(),

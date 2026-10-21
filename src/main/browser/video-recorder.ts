@@ -170,7 +170,7 @@ export class BrowserVideoRecorder {
       try {
         const bytes = await this.host.loadAudio(options.audioPath, current)
         current()
-        const asset = normalizeVideoAudioWav(bytes)
+        const asset = normalizeVideoAudioWav(bytes, issue => new LocalizedError(`video.errors.${issue}`))
         if (asset.data.byteLength + [...r.audioAssets.values()].reduce((sum, data) => sum + data.byteLength, 0) > VIDEO_AUDIO_LIMITS.totalBytes) throw new LocalizedError('video.errors.importedAudioTooLarge')
         current()
         const id = randomUUID()
