@@ -50,19 +50,20 @@ test('leaves the person\'s split view alone when an agent opens its archived wor
   const client = await connectClient(mcpPort, mcpToken)
   try {
     const { id: workspaceId } = JSON.parse(await call(client, 'browser_workspaces', { action: 'create', name: 'Agent research' })) as { id: string }
-    await call(client, 'browser_new_tab', { workspaceId, url: 'data:text/html,<title>Agent page</title>' })
+    await call(client, 'browser_new_tab', { workspaceId, url: 'data:text/html,<title>Agent sources</title>' })
+    await call(client, 'browser_new_tab', { workspaceId, url: 'data:text/html,<title>Agent draft</title>' })
     const saved = JSON.parse(await call(client, 'browser_saved_workspaces', { action: 'save', workspaceId })) as { id: string }
     await expect.poll(shown).toEqual(before)
 
-    await call(client, 'browser_saved_workspaces', { action: 'open', savedWorkspaceId: saved.id })
+    const opened = JSON.parse(await call(client, 'browser_saved_workspaces', { action: 'open', savedWorkspaceId: saved.id })) as { activeTabId: string }
 
-    await expect.poll(() => appWindow.evaluate(async (id) => (
-      (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.some(tab => tab.mcpGroupId === id)
-    ), workspaceId)).toBe(true)
     expect(await shown()).toEqual(before)
     expect(before.activeTabId).toBe(person.transfer)
-    // The agent keeps working in its workspace without a tab ID.
-    expect(await call(client, 'browser_tabs', { workspaceId })).toContain('Agent page')
+    // Agent calls without a tab ID use the tab that was shown when it was archived.
+    const draft = await appWindow.evaluate(async (id) => (
+      (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.mcpGroupId === id && tab.title === 'Agent draft')?.id
+    ), workspaceId)
+    expect(opened.activeTabId).toBe(draft)
   } finally {
     await client.close()
   }

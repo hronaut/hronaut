@@ -2086,7 +2086,7 @@ export class BrowserTabsManager {
 
   /** Restores an archived workspace for an agent without showing it, as an agent's other calls leave the window as it is. */
   restoreSavedTabGroupForAgent(savedGroupId: string): Promise<BrowserTabGroupState> {
-    return restoreSavedTabGroup(this.workspaceArchiveAccess(), savedGroupId, undefined, false)
+    return restoreSavedTabGroup(this.workspaceArchiveAccess(), savedGroupId, { show: false })
   }
 
   updateArchivedWorkspacePreferences(workspaceId: string, updates: { hiddenFromSidebar?: boolean; deletionProtected?: boolean }): void {

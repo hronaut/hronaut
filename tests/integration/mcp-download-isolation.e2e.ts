@@ -153,46 +153,34 @@ test('keeps MCP download history isolated across workspace archive and restore',
       action: 'save',
       workspaceId: secondWorkspaceId
     }))) as { id: string }
-    await electronApp.evaluate(({ BrowserWindow, WebContentsView }) => {
-      const mainWindow = BrowserWindow.getAllWindows()[0]
-      if (!mainWindow) throw new Error('Main window is unavailable')
-      const contentView = mainWindow.contentView as unknown as {
-        removeChildView: (view: Electron.WebContentsView) => void
-      }
-      const viewPrototype = WebContentsView.prototype as unknown as {
-        setBounds: (bounds: Electron.Rectangle) => void
-      }
-      const originalRemoveChildView = contentView.removeChildView
-      const originalSetBounds = viewPrototype.setBounds
-      const existingViews = new Set(mainWindow.contentView.children)
-      let layoutFailed = false
-      let restoredView: Electron.WebContentsView | null = null
-      contentView.removeChildView = function (view): void {
-        if (layoutFailed && view === restoredView) throw new Error('Injected download ownership rollback detach failure')
-        return originalRemoveChildView.call(this, view)
-      }
-      viewPrototype.setBounds = function (this: Electron.WebContentsView, bounds): void {
-        // Fail restored layout after attachment, not pre-registration sizing.
-        if (!layoutFailed && !existingViews.has(this) && mainWindow.contentView.children.includes(this)) {
-          restoredView = this
-          layoutFailed = true
-          throw new Error('Injected download ownership restore layout failure')
+    await electronApp.evaluate(({ webContents }) => {
+      // An agent's restore leaves the restored tab out of the window, so both faults are on its page: wiring the page
+      // up fails once after its tab is registered, which fails the restore, and closing it fails once, which fails the
+      // rollback.
+      type Method = (...args: unknown[]) => unknown
+      const prototype = Object.getPrototypeOf(webContents.getAllWebContents()[0]) as { setWindowOpenHandler: Method; close: Method }
+      const originalSetWindowOpenHandler = prototype.setWindowOpenHandler
+      const originalClose = prototype.close
+      const existing = new Set(webContents.getAllWebContents().map((contents) => contents.id))
+      let restored: Electron.WebContents | null = null
+      let closeFailed = false
+      prototype.setWindowOpenHandler = function (this: Electron.WebContents, ...args: unknown[]): unknown {
+        if (!restored && !existing.has(this.id)) {
+          restored = this
+          throw new Error('Injected download ownership restore wiring failure')
         }
-        return originalSetBounds.call(this, bounds)
+        return originalSetWindowOpenHandler.apply(this, args)
+      }
+      prototype.close = function (this: Electron.WebContents, ...args: unknown[]): unknown {
+        if (this === restored && !closeFailed) {
+          closeFailed = true
+          throw new Error('Injected download ownership rollback close failure')
+        }
+        return originalClose.apply(this, args)
       }
       ;(globalThis as typeof globalThis & {
-        __hronautDownloadRestoreFault?: {
-          contentView: typeof contentView
-          viewPrototype: typeof viewPrototype
-          originalRemoveChildView: typeof originalRemoveChildView
-          originalSetBounds: typeof originalSetBounds
-        }
-      }).__hronautDownloadRestoreFault = {
-        contentView,
-        viewPrototype,
-        originalRemoveChildView,
-        originalSetBounds
-      }
+        __hronautDownloadRestoreFault?: { prototype: { setWindowOpenHandler: Method; close: Method }; originalSetWindowOpenHandler: Method; originalClose: Method }
+      }).__hronautDownloadRestoreFault = { prototype, originalSetWindowOpenHandler, originalClose }
     })
     try {
       const failedOpen = await client.callTool({
@@ -205,15 +193,14 @@ test('keeps MCP download history isolated across workspace archive and restore',
       await electronApp.evaluate(() => {
         const state = (globalThis as typeof globalThis & {
           __hronautDownloadRestoreFault?: {
-            contentView: { removeChildView: (view: Electron.WebContentsView) => void }
-            viewPrototype: { setBounds: (bounds: Electron.Rectangle) => void }
-            originalRemoveChildView: (view: Electron.WebContentsView) => void
-            originalSetBounds: (bounds: Electron.Rectangle) => void
+            prototype: { setWindowOpenHandler: unknown; close: unknown }
+            originalSetWindowOpenHandler: unknown
+            originalClose: unknown
           }
         }).__hronautDownloadRestoreFault
         if (!state) return
-        state.contentView.removeChildView = state.originalRemoveChildView
-        state.viewPrototype.setBounds = state.originalSetBounds
+        state.prototype.setWindowOpenHandler = state.originalSetWindowOpenHandler
+        state.prototype.close = state.originalClose
         delete (globalThis as typeof globalThis & { __hronautDownloadRestoreFault?: unknown }).__hronautDownloadRestoreFault
       })
     }
@@ -239,15 +226,14 @@ test('keeps MCP download history isolated across workspace archive and restore',
     await electronApp.evaluate(() => {
       const state = (globalThis as typeof globalThis & {
         __hronautDownloadRestoreFault?: {
-          contentView: { removeChildView: (view: Electron.WebContentsView) => void }
-          viewPrototype: { setBounds: (bounds: Electron.Rectangle) => void }
-          originalRemoveChildView: (view: Electron.WebContentsView) => void
-          originalSetBounds: (bounds: Electron.Rectangle) => void
+          prototype: { setWindowOpenHandler: unknown; close: unknown }
+          originalSetWindowOpenHandler: unknown
+          originalClose: unknown
         }
       }).__hronautDownloadRestoreFault
       if (!state) return
-      state.contentView.removeChildView = state.originalRemoveChildView
-      state.viewPrototype.setBounds = state.originalSetBounds
+      state.prototype.setWindowOpenHandler = state.originalSetWindowOpenHandler
+      state.prototype.close = state.originalClose
       delete (globalThis as typeof globalThis & { __hronautDownloadRestoreFault?: unknown }).__hronautDownloadRestoreFault
     }).catch(() => undefined)
     await client.close().catch(() => undefined)

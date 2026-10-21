@@ -220,6 +220,7 @@ describe('MCP workspace fork sources and direct access', () => {
     })
     const result = await call('browser_saved_workspaces', { action, savedWorkspaceId: ownId, ...(action === 'resume' ? { resumeKey: key } : {}) })
     expect(manager.inspectWorkspaceContinuity).toHaveBeenCalledWith(ownId)
+    if (action === 'open') expect(manager.restoreSavedTabGroupForAgent).toHaveBeenCalledWith(ownId)
     expect(result.isError).toBe(true)
     expect(JSON.stringify(result)).not.toContain(key)
     expect(JSON.stringify(result)).not.toContain('continuity')

@@ -101,7 +101,7 @@ async function restoreArchiveForUndo(access: WorkspaceArchiveAccess, savedGroupI
     return false
   }
   try {
-    await restoreSavedTabGroup(access, savedGroupId, undo.placement)
+    await restoreSavedTabGroup(access, savedGroupId, { placement: undo.placement })
   } catch (error) {
     settleClosedTabs(access, savedGroupId, undo)
     throw error
@@ -177,7 +177,11 @@ export async function closeWorkspaceForPerson(access: WorkspaceArchiveAccess, gr
  * Restores an archived workspace once pending tab label edits settle, at the end of the tab rail or, for Undo, where
  * it was, and shows it unless `show` is false, as for an agent. A workspace the person just closed is kept from then on.
  */
-export async function restoreSavedTabGroup(access: WorkspaceArchiveAccess, savedGroupId: string, placement?: WorkspacePlacement, show = true): Promise<BrowserTabGroupState> {
+export async function restoreSavedTabGroup(
+  access: WorkspaceArchiveAccess,
+  savedGroupId: string,
+  { placement, show = true }: { placement?: WorkspacePlacement; show?: boolean } = {}
+): Promise<BrowserTabGroupState> {
   // Any attempt to bring back a workspace the person just closed keeps it, even one that fails.
   if (access.closingWorkspace()?.id === savedGroupId) {
     access.closingWorkspace()!.kept = true
