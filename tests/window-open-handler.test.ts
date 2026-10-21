@@ -12,16 +12,18 @@ interface Response {
   action: 'allow' | 'deny'
   outlivesOpener?: boolean
   overrideBrowserWindowOptions?: { webPreferences?: Record<string, unknown> }
-  createWindow?: (options: { webContents?: WebContents; webPreferences?: Record<string, unknown> }) => WebContents | undefined
+  createWindow?: (options: { webContents: WebContents; webPreferences?: Record<string, unknown> }) => WebContents
 }
 
 const PAGE_PREFERENCES = { preload: '/app/preload/page.cjs', contextIsolation: true, nodeIntegration: false, sandbox: true }
 
-function guestPage(): WebContents & { close: ReturnType<typeof vi.fn> } {
-  return { isDestroyed: vi.fn(() => false), close: vi.fn() } as unknown as WebContents & { close: ReturnType<typeof vi.fn> }
+/** The page Chromium created for the window; window.open() gives it an opener, a target="_blank" link does not. */
+function guestPage(options: { opener?: boolean } = {}): WebContents & { close: ReturnType<typeof vi.fn> } {
+  return { isDestroyed: vi.fn(() => false), close: vi.fn(), opener: options.opener === false ? null : { url: 'https://app.example/' } } as unknown as WebContents & { close: ReturnType<typeof vi.fn> }
 }
 
 function fixture(options: { mcpGroupId?: string; allowed?: boolean; createTab?: WindowOpenHandlerAccess<WindowOpenHandlerTab>['createTab'] } = {}) {
+  const agentInput = new Map<number, number>()
   const tab: WindowOpenHandlerTab = { id: 'opener', webContents: { id: 7 } as WebContents, ...('mcpGroupId' in options ? { mcpGroupId: options.mcpGroupId } : { mcpGroupId: 'client' }) }
   const observation = new OpenedTabObservation()
   const onActionFailed = vi.fn()
@@ -36,11 +38,11 @@ function fixture(options: { mcpGroupId?: string; allowed?: boolean; createTab?: 
     workspaceNavigationAllowed: () => options.allowed ?? true,
     options: () => ({ onActionFailed }),
     createTab,
-    agentInputWebContents: () => new Map()
+    agentInputWebContents: () => agentInput
   }
   let handler!: (details: Details) => Response
   attachWindowOpenHandler(access, tab, { id: 7, setWindowOpenHandler: (registered: typeof handler) => { handler = registered } } as unknown as WebContents)
-  return { open: (details: Details) => handler(details), createTab, observation, onActionFailed }
+  return { open: (details: Details) => handler(details), createTab, observation, onActionFailed, agentInput }
 }
 
 const details: Details = { url: 'https://accounts.example/sign-in', disposition: 'new-window', referrer: { url: 'https://app.example/', policy: 'strict-origin-when-cross-origin' } }
@@ -49,7 +51,14 @@ describe('a window a workspace page opens', () => {
   it('lets Chromium create it, with the page script every tab has, and shows that page in a new tab', async () => {
     const { open, createTab, observation } = fixture()
     const response = open(details)
-    expect(response).toMatchObject({ action: 'allow', outlivesOpener: true, overrideBrowserWindowOptions: { webPreferences: PAGE_PREFERENCES } })
+    // A page's window.open() features, such as javascript=no, cannot change them.
+    expect(response).toMatchObject({
+      action: 'allow',
+      outlivesOpener: true,
+      overrideBrowserWindowOptions: {
+        webPreferences: { ...PAGE_PREFERENCES, javascript: true, webviewTag: false, nodeIntegrationInSubFrames: false, nodeIntegrationInWorker: false }
+      }
+    })
     expect(createTab).not.toHaveBeenCalled()
 
     const guest = guestPage()
@@ -59,7 +68,8 @@ describe('a window a workspace page opens', () => {
       url: details.url,
       active: true,
       mcpGroupId: 'client',
-      adopt: { webContents: guest, webPreferences }
+      // The two pages can reach each other, so the new tab remembers its opener's.
+      adopt: { webContents: guest, webPreferences, openerTabId: 'opener' }
     }))
     // Chromium sends the referrer and any form post to the page it created.
     expect(createTab.mock.calls[0]![0]).not.toHaveProperty('loadOptions')
@@ -89,19 +99,20 @@ describe('a window a workspace page opens', () => {
     expect(guest.close).not.toHaveBeenCalled()
   })
 
-  it('loads the address with its referrer and form post when Electron created no page for it', () => {
+  it('does not link a page opened without an opener, such as from a target="_blank" link', () => {
     const { open, createTab } = fixture()
-    const postBody = { data: [{ type: 'rawData', bytes: Buffer.from('q=1') }], contentType: 'application/x-www-form-urlencoded' }
-    open({ ...details, disposition: 'background-tab', postBody }).createWindow!({})
-    expect(createTab).toHaveBeenCalledWith(expect.objectContaining({
-      active: false,
-      loadOptions: {
-        httpReferrer: details.referrer,
-        postData: postBody.data,
-        extraHeaders: 'Content-Type: application/x-www-form-urlencoded'
-      }
-    }))
-    expect(createTab.mock.calls[0]![0]).not.toHaveProperty('adopt')
+    const guest = guestPage({ opener: false })
+    open({ ...details, disposition: 'background-tab' }).createWindow!({ webContents: guest })
+    expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ active: false, adopt: { webContents: guest, webPreferences: undefined } }))
+  })
+
+  it('decides whether to show the tab when the page asks, while the agent\'s input that asked still runs', () => {
+    const { open, createTab, agentInput } = fixture()
+    agentInput.set(7, 1)
+    const response = open(details)
+    agentInput.clear()
+    response.createWindow!({ webContents: guestPage() })
+    expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ selectVisible: false }))
   })
 
   it('blocks Home and addresses the workspace does not allow', () => {
@@ -115,9 +126,13 @@ describe('a window a workspace page opens', () => {
 })
 
 describe('a window a page outside a workspace opens', () => {
-  it('still loads its address in a new tab', () => {
+  it('still loads its address in a new tab, with its referrer and form post', () => {
     const { open, createTab } = fixture({ mcpGroupId: undefined })
-    expect(open(details)).toEqual({ action: 'deny' })
-    expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ url: details.url, loadOptions: { httpReferrer: details.referrer } }))
+    const postBody = { data: [{ type: 'rawData', bytes: Buffer.from('q=1') }], contentType: 'application/x-www-form-urlencoded' }
+    expect(open({ ...details, postBody })).toEqual({ action: 'deny' })
+    expect(createTab).toHaveBeenCalledWith(expect.objectContaining({
+      url: details.url,
+      loadOptions: { httpReferrer: details.referrer, postData: postBody.data, extraHeaders: 'Content-Type: application/x-www-form-urlencoded' }
+    }))
   })
 })

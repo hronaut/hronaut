@@ -35,6 +35,7 @@ export const esESAppErrors: AppErrorMessages = {
     "mcpCommand": "Una pestaña con un comando MCP en curso permanece activa.",
     "download": "Una pestaña con una descarga en curso permanece activa.",
     "render": "Una pestaña que crea una captura de página o un PDF permanece activa.",
+    "window": "Una pestaña conectada a una ventana que abrió, o a la pestaña que la abrió, permanece activa.",
     "unsavedForm": "Esta pestaña tiene un formulario a medio rellenar y permanece activa para no perder los datos sin guardar."
   },
   "splitView": {

@@ -467,7 +467,7 @@ import {
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { pageShortcut, type TakeOverMark } from './take-over.js'
 import type { AgentPauseAccess } from './agent-pause/agent-pause-access.js'
-import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
+import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused, shareWindowOpenerPause } from './agent-pause/agent-pause.js'
 import type { InteractionLockAccess } from './interaction-lock/interaction-lock-access.js'
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './interaction-lock/interaction-lock.js'
 import type { WebsiteDialogsAccess } from './website-dialogs/website-dialogs-access.js'
@@ -493,7 +493,7 @@ import type { AgentInputScopeAccess } from './agent-input-scope/agent-input-scop
 import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
 import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
 import type { PageDestroyedEventsAccess } from './tab-events/page-destroyed-events-access.js'
-import { attachPageDestroyedEvents } from './tab-events/page-destroyed-events.js'
+import { attachPageDestroyedEvents, recoverFromDestroyedPage } from './tab-events/page-destroyed-events.js'
 import type { PageCloseEventsAccess } from './tab-events/page-close-events-access.js'
 import { attachPageCloseEvents } from './tab-events/page-close-events.js'
 import type { DebuggerEventsAccess } from './tab-events/debugger-events-access.js'
@@ -623,6 +623,8 @@ function screenshotFilename(requested: string | undefined, title: string): strin
 }
 
 interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState {
+  /** The tab whose page opened this one's as a window and can reach it, as this page can reach it through window.opener. */
+  openerTabId?: string
   label?: string
   labelDurabilityUnconfirmed?: boolean
   labelCommit?: symbol
@@ -5122,8 +5124,11 @@ export class BrowserTabsManager {
     suppressInitialHistory?: boolean
     navigationHistory?: { entries: NavigationEntry[]; index: number }
     loadOptions?: LoadURLOptions
-    /** The page Chromium created for a window a workspace tab opened, which this tab shows; it loads itself. */
-    adopt?: { webContents: WebContents; webPreferences?: WebPreferences }
+    /**
+     * The page Chromium created for a window a workspace tab opened, which this tab shows; it loads itself. The
+     * opener's tab id is there while the two pages can reach each other.
+     */
+    adopt?: { webContents: WebContents; webPreferences?: WebPreferences; openerTabId?: string }
     active: boolean
     selectVisible?: boolean
     mcpGroupId?: string
@@ -5138,10 +5143,12 @@ export class BrowserTabsManager {
     if (options.mcpGroupId && !options.allowBusyWorkspace) this.assertWorkspaceCanOpenTab(options.mcpGroupId)
     const id = options.id ?? uuidV7()
     const url = normalizeAddress(options.url, this.options.getSearchEngine?.())
-    if (options.mcpGroupId) {
+    // The window open handler checked the address of a page opened for a window, and its navigation is checked too.
+    if (options.mcpGroupId && !options.adopt) {
       this.assertWorkspaceNavigationAllowed(options.mcpGroupId, url, 'direct')
     }
     const defaultFontSize = isHronautHomeUrl(url) ? undefined : normalizeDefaultFontSize(options.defaultFontSize)
+    const opener = options.adopt?.openerTabId ? this.tabs.get(options.adopt.openerTabId) : undefined
     const workspace = options.mcpGroupId ? this.mcpTabGroups.get(options.mcpGroupId) : undefined
     const partition = isHronautHomeUrl(url)
       ? workspacePartition(this.options.partition, 'home')
@@ -5238,10 +5245,13 @@ export class BrowserTabsManager {
       performanceBaselineGeneration: 0,
       visualComparisonGeneration: 0,
       storageComparisonGeneration: 0,
-      ...(options.mcpGroupId ? { mcpGroupId: options.mcpGroupId } : {})
+      ...(options.mcpGroupId ? { mcpGroupId: options.mcpGroupId } : {}),
+      ...(opener ? { openerTabId: opener.id } : {})
     }
     tab.webContents.setAudioMuted(tab.muted)
     this.tabs.set(id, tab)
+    // A page opened for a window starts with its opener's pause, which the two share while both are open.
+    shareWindowOpenerPause(this.agentPauseAccess(), tab)
     if (tab.mcpGroupId) {
       const group = this.mcpTabGroups.get(tab.mcpGroupId)!
       if (options.active || !group.activeTabId) group.activeTabId = id
@@ -5251,8 +5261,8 @@ export class BrowserTabsManager {
     this.options.configureSession?.(view.webContents.session, isHronautHomeUrl(url) ? undefined : workspace?.id)
     this.installSessionHooks(view.webContents.session)
     this.attachTabEvents(tab)
-    // Only a page opened for a window may close itself, as in Chromium; other tabs keep their recovery from a page
-    // destroyed under them.
+    // A page opened for a window closes its tab when it closes itself. Other tabs keep their recovery from a page
+    // destroyed under them, as tests and Electron destroy pages for other reasons.
     if (options.adopt) attachPageCloseEvents(this.pageCloseEventsAccess(), tab, view.webContents)
     // Restore all tabs before selecting the saved global tab. Selecting the first
     // recreated tab here would overwrite its workspace's remembered selection.
@@ -5616,18 +5626,11 @@ export class BrowserTabsManager {
   }
 
   /**
-   * The narrow view a page's window open handler gets of this manager's
-   * private opened tab observations, workspace navigation policy, options,
-   * tab creation and in-flight agent input. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit tests
-   * do) still provide it. Each member reads the manager when called.
-   */
-  /**
    * The narrow view a page closing itself gets of this manager's private
-   * destroyed flag, tabs, expected closures, tab closing and options. It is
-   * a prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. Each member reads the
-   * manager when called.
+   * destroyed flag, tabs, expected closures, tab closing and recovery from a
+   * destroyed page. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. Each
+   * member reads the manager when called.
    */
   private pageCloseEventsAccess(): PageCloseEventsAccess<BrowserTab> {
     return {
@@ -5635,10 +5638,18 @@ export class BrowserTabsManager {
       findTab: (tabId) => this.tabs.get(tabId),
       expectedTabClosures: () => this.expectedTabClosures,
       closeTab: (tabId) => this.closeTab(tabId),
-      options: () => this.options
+      recoverDestroyedPage: (tab) => recoverFromDestroyedPage(this.pageDestroyedEventsAccess(), tab)
     }
   }
 
+  /**
+   * The narrow view a page's window open handler gets of this manager's
+   * private web preferences of website tabs, opened tab observations,
+   * workspace navigation policy, options, tab creation and in-flight agent
+   * input. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. Each member
+   * reads the manager when called.
+   */
   private windowOpenHandlerAccess(): WindowOpenHandlerAccess<BrowserTab> {
     return {
       pageWebPreferences: () => this.pageWebPreferences(),

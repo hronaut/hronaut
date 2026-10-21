@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { HronautApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 // A website's sign-in popup, such as "Sign in with Google", got no window: window.open() returned null, so the site
@@ -24,7 +25,7 @@ const APP = `<!doctype html><title>App</title>
 const SIGN_IN = `<!doctype html><title>Sign in</title>
 <button id="continue" style="${BUTTON}" onclick="window.opener.postMessage('ada', location.origin); window.close()">Continue</button>`
 
-test('a sign-in popup answers the page that opened it and closes its tab', async ({ mcpPort, mcpToken }) => {
+test('a sign-in popup answers the page that opened it and closes its tab', async ({ appWindow, mcpPort, mcpToken }) => {
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end(request.url === '/sign-in' ? SIGN_IN : APP)
@@ -65,6 +66,15 @@ test('a sign-in popup answers the page that opened it and closes its tab', async
     // The popup is a tab of the same workspace, with Hronaut's page script like any other tab.
     expect(await evaluate(popupTabId, '({ opener: window.opener !== null, bridge: typeof window.__hronautWalletBridge })'))
       .toEqual({ opener: true, bridge: 'object' })
+
+    // The two pages can read each other's, so while the person has the popup the agent in the app tab waits too.
+    const setPaused = (tabId: string, paused: boolean, takeOver?: boolean) => appWindow.evaluate(
+      ({ tabId, paused, takeOver }) => (window as unknown as { hronaut: HronautApi }).hronaut.setTabAgentPaused(tabId, paused, { takeOver }),
+      { tabId, paused, takeOver })
+    await setPaused(popupTabId, true, true)
+    await expect(evaluate(appTabId, 'document.title')).rejects.toThrow('Agents are paused for this target')
+    await setPaused(appTabId, false)
+    expect(await evaluate(popupTabId, 'document.title')).toBe('Sign in')
 
     // The popup closes its tab during the click, so the click may report that it cannot tell the outcome.
     const signIn = await client.callTool({ name: 'browser_click', arguments: { workspaceId, tabId: popupTabId, selector: '#continue' } }) as CallToolResult

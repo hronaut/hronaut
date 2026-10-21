@@ -284,6 +284,10 @@ export function sleepBlockReason<Tab extends TabSleepTab>(access: TabSleepAccess
     return 'appErrors.sleep.download'
   }
   if (access.renderQueues().has(tab.webContents.id)) return 'appErrors.sleep.render'
+  // Sleeping replaces the page, which would break what the two pages are doing together, such as signing in.
+  if ((tab.openerTabId && access.hasTab(tab.openerTabId)) || [...access.tabs()].some(other => other.openerTabId === tab.id)) {
+    return 'appErrors.sleep.window'
+  }
   return undefined
 }
 

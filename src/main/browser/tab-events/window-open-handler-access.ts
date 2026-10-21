@@ -16,10 +16,10 @@ export interface WindowOpenHandlerOptions {
 
 /**
  * What opening a page's new windows as tabs needs from the tab manager, which
- * keeps the observations of tabs opened during an agent's click, the
- * workspace navigation policy, its options, tab creation and in-flight agent
- * input private. Each member reads the manager when the page asks to open a
- * window.
+ * keeps the web preferences of website tabs, the observations of tabs opened
+ * during an agent's click, the workspace navigation policy, its options, tab
+ * creation and in-flight agent input private. Each member reads the manager
+ * when the page asks to open a window.
  */
 export interface WindowOpenHandlerAccess<Tab extends WindowOpenHandlerTab> {
   /** The observations watching each tab for tabs it opens during an agent's click. */
@@ -40,7 +40,7 @@ export interface WindowOpenHandlerAccess<Tab extends WindowOpenHandlerTab> {
     selectVisible?: boolean
     mcpGroupId?: string
     loadOptions?: LoadURLOptions
-    adopt?: { webContents: WebContents; webPreferences?: WebPreferences }
+    adopt?: { webContents: WebContents; webPreferences?: WebPreferences; openerTabId?: string }
     onCreated?: (tab: Tab) => void
   }): Promise<Tab>
   /** How many agent input operations are in flight for each page, by WebContents id. */

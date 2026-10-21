@@ -11,17 +11,16 @@ function fixture(options: { closeTab?: () => Promise<never> } = {}) {
   const page = new EventEmitter() as EventEmitter & WebContents
   const tabs = new Map([[tab.id, tab]])
   const expectedTabClosures = new WeakSet<WebContents>()
-  const onActionFailed = vi.fn()
   let destroyed = false
   const access: PageCloseEventsAccess<PageCloseEventsTab> = {
     isDestroyed: () => destroyed,
     findTab: (tabId) => tabs.get(tabId),
     expectedTabClosures: () => expectedTabClosures,
     closeTab: vi.fn(options.closeTab ?? (async () => ({}) as never)),
-    options: () => ({ onActionFailed })
+    recoverDestroyedPage: vi.fn()
   }
   attachPageCloseEvents(access, tab, page)
-  return { page, tabs, expectedTabClosures, access, onActionFailed, closeBrowser: () => { destroyed = true } }
+  return { tab, page, tabs, expectedTabClosures, access, closeBrowser: () => { destroyed = true } }
 }
 
 describe('a page opened for a window that closes itself', () => {
@@ -51,12 +50,18 @@ describe('a page opened for a window that closes itself', () => {
     expect(quitting.access.closeTab).not.toHaveBeenCalled()
   })
 
-  it('reports a tab it could not close', async () => {
-    const { page, onActionFailed } = fixture({ closeTab: async () => { throw new Error('Tab busy') } })
+  it('says the page is gone when its tab cannot close, unless another close closed it', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
-      page.emit('close')
-      await vi.waitFor(() => expect(onActionFailed).toHaveBeenCalledWith('close tab', expect.objectContaining({ message: 'Tab busy' })))
+      const stuck = fixture({ closeTab: async () => { throw new Error('Could not wake the next tab') } })
+      stuck.page.emit('close')
+      await vi.waitFor(() => expect(stuck.access.recoverDestroyedPage).toHaveBeenCalledWith(stuck.tab))
+
+      const closedMeanwhile = fixture({ closeTab: async () => { throw new Error('Unknown tab') } })
+      closedMeanwhile.page.emit('close')
+      closedMeanwhile.tabs.delete('popup')
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(closedMeanwhile.access.recoverDestroyedPage).not.toHaveBeenCalled()
     } finally {
       consoleError.mockRestore()
     }

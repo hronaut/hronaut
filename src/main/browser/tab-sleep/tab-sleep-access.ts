@@ -21,6 +21,8 @@ import type { BrowserReproRecordingInternal } from '../repro-recorder.js'
  */
 export interface TabSleepTab extends Pick<BrowserProfilingState, 'codeCoverage' | 'cpuProfile' | 'memoryAllocation'> {
   id: string
+  /** The tab whose page opened this one's as a window and can reach it. */
+  openerTabId?: string
   url: string
   pinned: boolean
   sleeping: boolean

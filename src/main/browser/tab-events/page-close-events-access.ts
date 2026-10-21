@@ -6,15 +6,10 @@ export interface PageCloseEventsTab {
   id: string
 }
 
-/** The tab manager option a page closing itself uses to report a tab it could not close. */
-export interface PageCloseEventsOptions {
-  onActionFailed?: (action: string, error: unknown) => void
-}
-
 /**
  * What closing a tab whose page closed itself needs from the tab manager,
  * which keeps its destroyed flag, the tabs, the closures it expects, tab
- * closing and its options private.
+ * closing and the recovery from a destroyed page private.
  */
 export interface PageCloseEventsAccess<Tab extends PageCloseEventsTab> {
   /** Whether the browser is closing. */
@@ -25,6 +20,6 @@ export interface PageCloseEventsAccess<Tab extends PageCloseEventsTab> {
   expectedTabClosures(): WeakSet<WebContents>
   /** Closes the tab as the person's close does, without asking the page to stay. */
   closeTab(tabId: string): Promise<BrowserState>
-  /** The tab manager's options. */
-  options(): PageCloseEventsOptions
+  /** Shows that the tab's page is gone and keeps the browser usable, as for a page destroyed under its tab. */
+  recoverDestroyedPage(tab: Tab): void
 }

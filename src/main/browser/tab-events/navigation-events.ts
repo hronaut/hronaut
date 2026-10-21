@@ -55,7 +55,13 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     access.changed(false)
   })
   webContents.on('will-frame-navigate', (details) => {
-    if (tab.sleeping || !details.isMainFrame) return
+    if (!details.isMainFrame) return
+    // Hronaut wakes a sleeping tab without this event. A page that can reach the tab, such as the one that opened it
+    // as a window, may not load another page into it unseen.
+    if (tab.sleeping) {
+      details.preventDefault()
+      return
+    }
     if (tab.mcpGroupId
       && !access.workspaceNavigationAllowed(tab.mcpGroupId, details.url, 'page')) {
       tab.navigationPolicyDenialSequence += 1

@@ -35,6 +35,7 @@ export const deDEAppErrors: AppErrorMessages = {
     "mcpCommand": "Ein Tab mit einem laufenden MCP-Befehl bleibt aktiv.",
     "download": "Ein Tab mit einem laufenden Download bleibt aktiv.",
     "render": "Ein Tab, der eine Seitenaufnahme oder ein PDF erstellt, bleibt aktiv.",
+    "window": "Ein Tab, der mit einem von ihm geöffneten Fenster oder mit dem Tab, der ihn geöffnet hat, verbunden ist, bleibt aktiv.",
     "unsavedForm": "Dieser Tab enthält ein teilweise ausgefülltes Formular und bleibt aktiv, damit nicht gespeicherte Eingaben erhalten bleiben."
   },
   "splitView": {
