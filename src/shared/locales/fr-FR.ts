@@ -1864,6 +1864,8 @@ export const frFR = {
     "runAgain": "Relancer"
   },
   "accessibilityAudit": {
+    "impacts": {"critical": "critique", "serious": "grave", "moderate": "modérée", "minor": "mineure", "unknown": "inconnue"},
+    "standards": {"wcag-aa": "WCAG A et AA", "wcag-aaa": "WCAG A, AA et AAA", "best-practice": "Bonnes pratiques", "all": "Toutes les règles"},
     "kicker": "Vérification WCAG locale",
     "heading": "Accessibilité",
     "close": "Fermer l’audit d’accessibilité",
@@ -1893,6 +1895,9 @@ export const frFR = {
     "saveBaseline": "Enregistrer la référence"
   },
   "performance": {
+    "ratings": {"good": "bon", "needs-improvement": "à améliorer", "poor": "mauvais"},
+    "invokers": {"user-callback": "rappel utilisateur", "event-listener": "écouteur d’événement", "resolve-promise": "promesse résolue", "reject-promise": "promesse rejetée", "classic-script": "script classique", "module-script": "script de module"},
+    "measure": "mesure",
     "kicker": "Visite actuelle",
     "heading": "Performances de la page",
     "close": "Fermer le rapport de performances",
@@ -2127,6 +2132,8 @@ export const frFR = {
     }
   },
   "securityReport": {
+    "states": {"secure": "sécurisée", "insecure": "non sécurisée", "insecure-broken": "défaillante", "neutral": "neutre", "info": "informative", "unknown": "inconnue"},
+    "ctCompliance": {"compliant": "Conforme", "not-compliant": "Non conforme", "unknown": "Inconnue"},
     "kicker": "Document principal actuel",
     "heading": "Sécurité de la connexion",
     "close": "Fermer le rapport de sécurité",

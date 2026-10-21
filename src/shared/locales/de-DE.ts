@@ -1864,6 +1864,8 @@ export const deDE = {
     "runAgain": "Erneut ausführen"
   },
   "accessibilityAudit": {
+    "impacts": {"critical": "kritisch", "serious": "schwerwiegend", "moderate": "mittel", "minor": "gering", "unknown": "unbekannt"},
+    "standards": {"wcag-aa": "WCAG A und AA", "wcag-aaa": "WCAG A, AA und AAA", "best-practice": "Bewährte Verfahren", "all": "Alle Regeln"},
     "kicker": "Lokale WCAG-Prüfung",
     "heading": "Barrierefreiheit",
     "close": "Barrierefreiheitsprüfung schließen",
@@ -1893,6 +1895,9 @@ export const deDE = {
     "saveBaseline": "Baseline speichern"
   },
   "performance": {
+    "ratings": {"good": "gut", "needs-improvement": "verbesserungswürdig", "poor": "schlecht"},
+    "invokers": {"user-callback": "Benutzer-Callback", "event-listener": "Event-Listener", "resolve-promise": "Promise erfüllt", "reject-promise": "Promise abgelehnt", "classic-script": "klassisches Skript", "module-script": "Modulskript"},
+    "measure": "Messung",
     "kicker": "Aktueller Besuch",
     "heading": "Seitenleistung",
     "close": "Leistungsbericht schließen",
@@ -2127,6 +2132,8 @@ export const deDE = {
     }
   },
   "securityReport": {
+    "states": {"secure": "sicher", "insecure": "nicht sicher", "insecure-broken": "fehlerhaft", "neutral": "neutral", "info": "Info", "unknown": "unbekannt"},
+    "ctCompliance": {"compliant": "Konform", "not-compliant": "Nicht konform", "unknown": "Unbekannt"},
     "kicker": "Aktuelles Hauptdokument",
     "heading": "Verbindungssicherheit",
     "close": "Sicherheitsbericht schließen",

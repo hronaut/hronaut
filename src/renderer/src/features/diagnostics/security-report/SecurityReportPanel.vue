@@ -55,6 +55,14 @@ function formatSecurityDate(value: string): string {
   if (!value || Number.isNaN(date.valueOf())) return t('securityReport.unavailable')
   return formatDateTime(props.locale, date, { dateStyle: 'medium', timeStyle: 'short' })
 }
+
+// Chromium's certificate transparency compliance values; another value shows as Chromium names it.
+const CERTIFICATE_TRANSPARENCY_COMPLIANCE = new Set(['compliant', 'not-compliant', 'unknown'])
+
+function certificateTransparencyLabel(compliance: string | undefined): string {
+  if (!compliance) return t('securityReport.unavailable')
+  return CERTIFICATE_TRANSPARENCY_COMPLIANCE.has(compliance) ? t(`securityReport.ctCompliance.${compliance}`) : compliance
+}
 </script>
 
 <template>
@@ -94,10 +102,10 @@ function formatSecurityDate(value: string): string {
         <div>
           <strong v-if="securityReport.state === 'secure'">{{ t('securityReport.secure') }}</strong>
           <strong v-else-if="securityReport.state === 'insecure' || securityReport.state === 'insecure-broken'">{{ t('securityReport.insecure') }}</strong>
-          <strong v-else>{{ t('securityReport.state', { state: securityReport.state }) }}</strong>
+          <strong v-else>{{ t('securityReport.state', { state: t(`securityReport.states.${securityReport.state}`) }) }}</strong>
           <span>{{ securityReport.origin || securityReport.url }}</span>
         </div>
-        <span class="security-state">{{ securityReport.state }}</span>
+        <span class="security-state">{{ t(`securityReport.states.${securityReport.state}`) }}</span>
       </div>
       <div class="security-details">
         <section>
@@ -107,7 +115,7 @@ function formatSecurityDate(value: string): string {
             <div><dt>{{ t('securityReport.protocol') }}</dt><dd>{{ securityReport.connection?.protocol || t('securityReport.unavailable') }}</dd></div>
             <div><dt>{{ t('securityReport.cipher') }}</dt><dd>{{ securityReport.connection?.cipher || t('securityReport.unavailable') }}</dd></div>
             <div><dt>{{ t('securityReport.keyExchange') }}</dt><dd>{{ securityReport.connection?.keyExchangeGroup || securityReport.connection?.keyExchange || t('securityReport.unavailable') }}</dd></div>
-            <div><dt>{{ t('securityReport.certificateTransparency') }}</dt><dd>{{ securityReport.connection?.certificateTransparencyCompliance || t('securityReport.unavailable') }}</dd></div>
+            <div><dt>{{ t('securityReport.certificateTransparency') }}</dt><dd>{{ certificateTransparencyLabel(securityReport.connection?.certificateTransparencyCompliance) }}</dd></div>
             <div><dt>{{ t('securityReport.encryptedClientHello') }}</dt><dd>{{ securityReport.connection?.encryptedClientHello == null ? t('securityReport.unavailable') : securityReport.connection.encryptedClientHello ? t('securityReport.yes') : t('securityReport.no') }}</dd></div>
           </dl>
         </section>

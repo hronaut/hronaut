@@ -103,6 +103,14 @@ function create(locale?: SupportedLocale) {
 }
 
 describe('page tools presentation controller', () => {
+  it('names a connection security state in the interface language', () => {
+    const state = create('de-DE')
+    state.diagnostics.securityReportState.value = 'complete'
+    state.diagnostics.securityReport.value = { state: 'unknown' }
+
+    expect(state.controller.labels.value.security).toBe('Verbindungsstatus: unbekannt')
+  })
+
   it('provides stable default labels for an idle website', () => {
     const { controller } = create()
 

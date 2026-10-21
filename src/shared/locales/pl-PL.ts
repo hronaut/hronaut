@@ -1864,6 +1864,8 @@ export const plPL = {
     "runAgain": "Uruchom ponownie"
   },
   "accessibilityAudit": {
+    "impacts": {"critical": "krytyczne", "serious": "poważne", "moderate": "umiarkowane", "minor": "drobne", "unknown": "nieznane"},
+    "standards": {"wcag-aa": "WCAG A i AA", "wcag-aaa": "WCAG A, AA i AAA", "best-practice": "Dobre praktyki", "all": "Wszystkie reguły"},
     "kicker": "Lokalna kontrola WCAG",
     "heading": "Dostępność",
     "close": "Zamknij audyt dostępności",
@@ -1893,6 +1895,9 @@ export const plPL = {
     "saveBaseline": "Zapisz punkt odniesienia"
   },
   "performance": {
+    "ratings": {"good": "dobry", "needs-improvement": "do poprawy", "poor": "słaby"},
+    "invokers": {"user-callback": "wywołanie zwrotne użytkownika", "event-listener": "obsługa zdarzenia", "resolve-promise": "obietnica spełniona", "reject-promise": "obietnica odrzucona", "classic-script": "klasyczny skrypt", "module-script": "skrypt modułu"},
+    "measure": "pomiar",
     "kicker": "Bieżąca wizyta",
     "heading": "Wydajność strony",
     "close": "Zamknij raport wydajności",
@@ -2127,6 +2132,8 @@ export const plPL = {
     }
   },
   "securityReport": {
+    "states": {"secure": "bezpieczne", "insecure": "niebezpieczne", "insecure-broken": "uszkodzone", "neutral": "neutralne", "info": "informacyjne", "unknown": "nieznane"},
+    "ctCompliance": {"compliant": "Zgodna", "not-compliant": "Niezgodna", "unknown": "Nieznana"},
     "kicker": "Bieżący dokument główny",
     "heading": "Bezpieczeństwo połączenia",
     "close": "Zamknij raport bezpieczeństwa",
