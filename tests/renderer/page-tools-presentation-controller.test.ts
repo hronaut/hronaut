@@ -111,6 +111,14 @@ describe('page tools presentation controller', () => {
     expect(state.controller.labels.value.security).toBe('Verbindungsstatus: unbekannt')
   })
 
+  it('names the coverage precision in the interface language', () => {
+    // The label read "Abdeckung im Modus „block“ wird aufgezeichnet".
+    const state = create('de-DE')
+    state.activeTab.value = tab({ codeCoverageRecording: { startedAt: '', mode: 'block' } })
+
+    expect(state.controller.labels.value.coverage).toBe('Abdeckung im Modus „Block“ wird aufgezeichnet')
+  })
+
   it('provides stable default labels for an idle website', () => {
     const { controller } = create()
 
@@ -192,7 +200,7 @@ describe('page tools presentation controller', () => {
       designOverview: '[designOverview.toolIssueCount:#2]',
       pageMetadata: '[pageMetadata.toolWarningCount:#1]',
       security: '[securityReport.toolSecure]',
-      coverage: '[coverage.toolRecording:block]',
+      coverage: '[coverage.toolRecording:[coverage.modes.block]]',
       cpuProfile: '[cpuProfile.toolRecording]',
       memory: '[memory.toolSampling]',
       debugReport: '[debugReport.toolSignals:#6]',

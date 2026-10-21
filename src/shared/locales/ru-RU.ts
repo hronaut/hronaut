@@ -2190,6 +2190,7 @@ export const ruRU = {
     }
   },
   "coverage": {
+    "modes": {"function": "функции", "block": "блоки"},
     "kicker": "Текущий рабочий процесс",
     "heading": "Покрытие кода",
     "close": "Закрыть покрытие кода",
@@ -2742,6 +2743,7 @@ export const ruRU = {
     }
   },
   "domChanges": {
+    "kinds": {"child-list": "дочерние элементы", "attributes": "атрибуты", "text": "текст"},
     "kicker": "Структурные сведения",
     "heading": "Изменения DOM",
     "close": "Закрыть изменения DOM",
@@ -3046,6 +3048,7 @@ export const ruRU = {
     "visits": "Посещений: {count}"
   },
   "siteStorage": {
+    "changeTypes": {"added": "добавлено", "updated": "изменено", "removed": "удалено"},
     "kicker": "Текущий сайт",
     "heading": "Хранилище сайта · {host}",
     "close": "Закрыть хранилище сайта",

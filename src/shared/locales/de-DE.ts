@@ -2190,6 +2190,7 @@ export const deDE = {
     }
   },
   "coverage": {
+    "modes": {"function": "Funktion", "block": "Block"},
     "kicker": "Aktueller Arbeitsablauf",
     "heading": "Codeabdeckung",
     "close": "Codeabdeckung schließen",
@@ -2742,6 +2743,7 @@ export const deDE = {
     }
   },
   "domChanges": {
+    "kinds": {"child-list": "Kindelemente", "attributes": "Attribute", "text": "Text"},
     "kicker": "Strukturelle Nachweise",
     "heading": "DOM-Änderungen",
     "close": "DOM-Änderungen schließen",
@@ -3046,6 +3048,7 @@ export const deDE = {
     "visits": "{count} Besuche"
   },
   "siteStorage": {
+    "changeTypes": {"added": "hinzugefügt", "updated": "geändert", "removed": "entfernt"},
     "kicker": "Aktuelle Website",
     "heading": "Website-Speicher · {host}",
     "close": "Website-Speicher schließen",

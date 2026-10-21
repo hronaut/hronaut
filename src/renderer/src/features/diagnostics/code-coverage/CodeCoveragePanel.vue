@@ -102,7 +102,7 @@ function debugTimestamp(value: string): string {
       <IconRecord aria-hidden="true" />
       <strong>{{ t('coverage.recording') }}</strong>
       <span>{{ t('coverage.recordingDescription') }}</span>
-      <small>{{ t('coverage.recordingMeta', { mode: coverageResult.recording?.mode ?? '', time: debugTimestamp(coverageResult.recording?.startedAt || '') }) }}</small>
+      <small>{{ t('coverage.recordingMeta', { mode: coverageResult.recording ? t(`coverage.modes.${coverageResult.recording.mode}`) : '', time: debugTimestamp(coverageResult.recording?.startedAt || '') }) }}</small>
       <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageCodeCoverage('stop')"><IconStop aria-hidden="true" /> {{ t('coverage.stop') }}</UiButton>
     </div>
     <template v-else-if="coverageResult?.report">
@@ -148,7 +148,7 @@ function debugTimestamp(value: string): string {
         </ul>
       </details>
       <footer>
-        <span>{{ t('coverage.mode', { mode: coverageResult.report.mode }) }}<span v-if="coverageResult.report.truncated">{{ ' ' + t('coverage.bounded') }}</span></span>
+        <span>{{ t('coverage.mode', { mode: t(`coverage.modes.${coverageResult.report.mode}`) }) }}<span v-if="coverageResult.report.truncated">{{ ' ' + t('coverage.bounded') }}</span></span>
         <div>
           <UiButton appearance="application" type="button" @click="manageCodeCoverage('clear')"><IconDelete aria-hidden="true" /> {{ t('coverage.clear') }}</UiButton>
           <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageCodeCoverage('start', true)"><IconRefresh aria-hidden="true" /> {{ t('coverage.recordAgain') }}</UiButton>

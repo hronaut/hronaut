@@ -160,7 +160,7 @@ export function usePageToolsPresentationController(options: PageToolsPresentatio
     if (diagnostics.coverageState.value === 'loading') return options.translate('coverage.toolLoading')
     if (diagnostics.coverageState.value === 'error') return options.translate('coverage.toolAttention')
     if (options.activeTab.value?.codeCoverageRecording) {
-      return options.translate('coverage.toolRecording', { mode: options.activeTab.value.codeCoverageRecording.mode })
+      return options.translate('coverage.toolRecording', { mode: options.translate(`coverage.modes.${options.activeTab.value.codeCoverageRecording.mode}`) })
     }
     if (diagnostics.coverageResult.value?.status === 'complete') {
       return options.translate('coverage.toolComplete', {
