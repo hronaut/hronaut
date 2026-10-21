@@ -25,9 +25,12 @@ it('says in German that capture paused for system sleep', async () => {
   expect(screen.queryByText(VIDEO_RECORDING_NOTICES.sleep)).toBeNull()
 })
 
-it('names the capture conditions in English for a person, without "resume explicitly"', async () => {
+it('speaks to the person in English, without "resume explicitly"', async () => {
   await showNotice(VIDEO_RECORDING_NOTICES.gap, 'en-US')
   expect(screen.getByText('Capture paused after a gap without frames. Resume the video to continue.')).toBeInTheDocument()
+  cleanup()
+  await showNotice(VIDEO_RECORDING_NOTICES.conditions, 'en-US')
+  expect(screen.getByText('Capture paused. Keep Hronaut visible and the source tab awake, on the website origin and at the size it started with, with recording access available.')).toBeInTheDocument()
 })
 
 it('shows a notice it does not know as it came', async () => {

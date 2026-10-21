@@ -144,6 +144,8 @@ export class BrowserVideoRecorder {
     }
     if (options.action === 'pause' || options.action === 'stop') {
       if (options.action === 'pause' && r.state.status === 'stopped') throw new Error('Stopped recordings cannot resume; start a new recording after clearing')
+      // A person's own pause or stop replaces why capture paused by itself; a limit that stopped it stays named.
+      if (r.state.status !== 'stopped') r.state.notice = undefined
       this.halt(r, options.action === 'pause' ? 'paused' : 'stopped')
     } else if (options.action === 'resume') {
       if (r.state.status !== 'paused') throw new Error('Only a paused recording can resume')

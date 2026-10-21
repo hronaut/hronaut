@@ -62,7 +62,7 @@ export const esESVideoRecorder = {
   },
   "notices": {
     "gap": "Grabación en pausa tras un intervalo sin fotogramas. Reanuda el vídeo para continuar.",
-    "conditions": "Grabación en pausa. Mantén Hronaut visible y la pestaña de origen activa, en su sitio original y con su tamaño original, con el acceso de grabación disponible.",
+    "conditions": "Grabación en pausa. Mantén Hronaut visible y la pestaña fuente despierta, en el origen del sitio y con el tamaño con los que empezó, con el acceso de grabación disponible.",
     "sleep": "Grabación en pausa mientras el equipo estaba suspendido. Reanuda el vídeo para continuar.",
     "durationLimit": "La grabación alcanzó su límite de dos minutos.",
     "sizeLimit": "La grabación alcanzó su límite de 64 MiB."

@@ -62,7 +62,7 @@ export const enUSVideoRecorder = {
   },
   "notices": {
     "gap": "Capture paused after a gap without frames. Resume the video to continue.",
-    "conditions": "Capture paused. Keep Hronaut visible and the source tab awake, on its original site and at its original size, with recording access available.",
+    "conditions": "Capture paused. Keep Hronaut visible and the source tab awake, on the website origin and at the size it started with, with recording access available.",
     "sleep": "Capture paused while the computer slept. Resume the video to continue.",
     "durationLimit": "Recording reached its two-minute limit.",
     "sizeLimit": "Recording reached its 64 MiB limit."
