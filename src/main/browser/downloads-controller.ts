@@ -294,7 +294,8 @@ export class BrowserDownloadsController {
       if (workspaceId !== sourceWorkspaceId) continue
       this.downloadWorkspaceIds.set(downloadId, targetWorkspaceId)
       const download = this.downloads.get(downloadId)
-      if (download) download.observationGeneration = this.host.workspaceObservationGeneration(targetWorkspaceId)
+      // As when the observation advances, a live transfer stays with the observation that started it.
+      if (download && !isActiveDownload(download)) download.observationGeneration = this.host.workspaceObservationGeneration(targetWorkspaceId)
     }
   }
 
@@ -410,6 +411,9 @@ export class BrowserDownloadsController {
           download.paused = false
           download.canResume = false
           download.completedAt = new Date().toISOString()
+          // A finished download is in its workspace's current observation, as those finished before it advanced are.
+          const ownerWorkspaceId = this.downloadWorkspaceIds.get(id)
+          if (ownerWorkspaceId) download.observationGeneration = this.host.workspaceObservationGeneration(ownerWorkspaceId)
           if (state === 'completed' && download.savePath) this.recordCompletedFile(id, download.savePath)
           this.downloadItems.delete(id)
           this.trimDownloadHistory()
