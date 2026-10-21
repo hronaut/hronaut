@@ -1344,7 +1344,7 @@ export const plPL = {
       "scrollBack": "Pokaż poprzednie karty",
       "scrollForward": "Pokaż następne karty",
       "pageAttention": "Strona wymaga uwagi",
-      "agentAttention": "Agent wymaga Twojej uwagi",
+      "agentAttentionReason": "Agent wymaga Twojej uwagi: {reason}",
       "needsYou": "Czeka na Ciebie",
       "followingAgent": "Śledzenie: {name}",
       "pinnedWorkspace": "Przypięty u góry",

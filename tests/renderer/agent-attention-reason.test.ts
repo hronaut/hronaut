@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { attentionReasonText } from '../../src/renderer/src/composables/agent-attention-reason.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import { humanDecisionAttentionReason, type HumanWaitingDecision } from '../../src/shared/human-waiting.js'
+import { humanDecisionAttentionReason, humanDecisionFromAttentionReason, type HumanWaitingDecision } from '../../src/shared/human-waiting.js'
 import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
 
-const DECISIONS: HumanWaitingDecision[] = ['review-page', 'approve-action', 'provide-input', 'resolve-unknown']
+const DECISIONS = Object.keys({
+  'review-page': true, 'approve-action': true, 'provide-input': true, 'resolve-unknown': true
+} satisfies Record<HumanWaitingDecision, true>) as HumanWaitingDecision[]
 
 describe('why an agent needs you', () => {
   it('keeps the English line a decision raises for MCP results and the tray', () => {
     expect(humanDecisionAttentionReason('approve-action')).toBe('Human decision required: approve-action')
+    for (const decision of DECISIONS) expect(humanDecisionFromAttentionReason(humanDecisionAttentionReason(decision))).toBe(decision)
+    expect(humanDecisionFromAttentionReason('Human decision required: approve-action ')).toBeUndefined()
   })
 
   it('names each decision in every language and shows anything else as written', () => {

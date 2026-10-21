@@ -156,7 +156,7 @@ const followingLabel = computed(() => (
 
 // Why the agent needs you, as the tab and workspace tooltips say it.
 const attentionLine = computed(() => props.userAttention
-  ? `${t('shell.tabs.agentAttention')}: ${attentionReasonText(t, props.userAttention.reason, props.userAttention.humanWaitingDecisionId !== undefined)}`
+  ? t('shell.tabs.agentAttentionReason', { reason: attentionReasonText(t, props.userAttention.reason, props.userAttention.humanWaitingDecisionId !== undefined) })
   : '')
 
 // A request names its tab when it has one; that tab's workspace is the one

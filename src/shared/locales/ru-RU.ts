@@ -1344,7 +1344,7 @@ export const ruRU = {
       "scrollBack": "Показать предыдущие вкладки",
       "scrollForward": "Показать следующие вкладки",
       "pageAttention": "Страница требует внимания",
-      "agentAttention": "Агенту нужно ваше внимание",
+      "agentAttentionReason": "Агенту нужно ваше внимание: {reason}",
       "needsYou": "Ждёт вас",
       "followingAgent": "Отслеживание: {name}",
       "pinnedWorkspace": "Закреплена вверху",

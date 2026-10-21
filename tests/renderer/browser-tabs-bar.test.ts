@@ -208,6 +208,14 @@ describe('BrowserTabsBar', () => {
     expect(first).toHaveAccessibleDescription('Agent benötigt Ihre Aufmerksamkeit: Approve this step.')
   })
 
+  it('says why a workspace waiting on a decision needs you, with each language\'s punctuation', async () => {
+    const view = renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }), true, 'horizontal', true, 'fr-FR')
+    await view.rerender({ userAttention: { id: 'attention-1', reason: 'Human decision required: approve-action', requestedAt: '2026-10-21T00:00:00.000Z', tabId: 'first', humanWaitingDecisionId: 'decision-1' } })
+    const header = view.container.querySelector('[aria-description*="L’agent a besoin de votre attention"]:not([role="tab"])')
+    expect(header?.getAttribute('aria-description')).toBe('L’agent a besoin de votre attention : L’agent attend votre accord avant d’agir.')
+    expect(screen.getByRole('tab', { name: 'Page first' })).toHaveAccessibleDescription('L’agent a besoin de votre attention : L’agent attend votre accord avant d’agir.')
+  })
+
   it.each(['horizontal', 'vertical'] as const)('marks only the requested tab in the %s rail and clears it with the request', async orientation => {
     const view = renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }), true, orientation)
     const first = screen.getByRole('tab', { name: 'Page first' })

@@ -1344,7 +1344,7 @@ export const frFR = {
       "scrollBack": "Afficher les onglets précédents",
       "scrollForward": "Afficher les onglets suivants",
       "pageAttention": "La page requiert votre attention",
-      "agentAttention": "L’agent a besoin de votre attention",
+      "agentAttentionReason": "L’agent a besoin de votre attention : {reason}",
       "needsYou": "Vous attend",
       "followingAgent": "Suivi de {name}",
       "pinnedWorkspace": "Épinglé en haut",
