@@ -3655,7 +3655,7 @@ export const deDE = {
       "deny": "Ablehnen",
       "allow": "Zulassen",
       "requestedDevices": "Angeforderte Geräte: {devices}.",
-      "requestedFile": "Angeforderter Zugriff ({access}): {path}.", "fileWriteUntilReload": "Nach „Zulassen“ kann diese Website dort Änderungen speichern, bis diese Seite neu geladen wird.", "fileReadKeeps": "Nach „Zulassen“ kann diese Website den Inhalt weiter lesen, auch nach einem Neustart von Hronaut.",
+      "requestedFile": "Angeforderter Zugriff ({access}): {path}.", "fileWriteUntilReload": "Nach „Zulassen“ kann diese Website dort Änderungen speichern, bis diese Seite neu geladen wird.", "fileReadKeeps": "Nach „Zulassen“ kann diese Website den Inhalt weiter lesen, auch nach einem Neustart von Hronaut.", "protectedFolder": "{origin} kann diesen Ordner nicht öffnen", "protectedFile": "{origin} kann diese Datei nicht öffnen", "protectedFolderDetail": "Hronaut gibt Websites keine Systemordner, keine eigenen Daten, keine privaten Schlüssel wie ~/.ssh und keinen ganzen persönlichen Ordner wie den Benutzer-, Dokumente- oder Downloads-Ordner. Sie können einen anderen Ordner wählen, etwa einen in „Dokumente“.", "protectedFileDetail": "Hronaut gibt Websites keine Systemdateien, keine eigenen Daten und keine privaten Schlüssel. Sie können eine andere Datei wählen.", "chooseAnotherFolder": "Anderen Ordner wählen", "chooseAnotherFile": "Andere Datei wählen",
       "requestedExternalApp": "„Zulassen“ öffnet diesen Link ({scheme}) außerhalb von Hronaut in der App, die Ihr System dafür verwendet.",
       "camera": "Kamera",
       "microphone": "Mikrofon",

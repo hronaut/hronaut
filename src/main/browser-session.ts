@@ -505,6 +505,60 @@ export function createBrowserSession(host: BrowserSessionHost): {
         respond(allowed)
       })
     })
+    browserSession.on('file-system-access-restricted', (_event, details, callback) => {
+      answerProtectedLocation(browserSession, details, callback)
+    })
+  }
+
+  /**
+   * Answers Electron when a website gets a location Chromium protects, from its picker or a dropped folder: a system
+   * folder, Hronaut's own data, private keys such as ~/.ssh, or a whole personal folder such as the home or Documents
+   * folder. Electron waits for the answer, and the website's picker never returned while nothing answered. Hronaut never
+   * gives such a location: the person can choose another, which opens the picker again, or cancel, which refuses it.
+   */
+  function answerProtectedLocation(
+    browserSession: Session,
+    details: Electron.FileSystemAccessRestrictedDetails,
+    callback: (action: 'allow' | 'deny' | 'tryAgain') => void
+  ): void {
+    const { webContents } = details
+    const origin = normalizeSitePermissionOrigin(details.origin)
+    if (!sessionWorkspaces.get(browserSession) || !webContents || webContents.isDestroyed() || !origin) {
+      callback('deny')
+      return
+    }
+    const kind = details.isDirectory ? 'Folder' : 'File'
+    queuePermissionRequest(async () => {
+      // Nothing waits for the answer once the page closes or loads another document, so the prompt closes with it.
+      const closing = new AbortController()
+      const close = (): void => closing.abort()
+      const closeOnPageChange = (_event: unknown, _url: string, _code: number, _status: string, isMainFrame: boolean): void => {
+        if (isMainFrame) close()
+      }
+      let action: 'deny' | 'tryAgain' = 'deny'
+      try {
+        if (webContents.isDestroyed()) return
+        webContents.once('destroyed', close)
+        webContents.on('did-frame-navigate', closeOnPageChange)
+        const { response } = await host.showMessageBox({
+          signal: closing.signal,
+          type: 'warning',
+          title: host.text('native.dialog.sitePermission'),
+          message: host.text(`native.dialog.protected${kind}`, { origin }),
+          detail: host.text(`native.dialog.protected${kind}Detail`),
+          buttons: [host.text('native.dialog.cancel'), host.text(`native.dialog.chooseAnother${kind}`)],
+          defaultId: 1,
+          cancelId: 0
+        })
+        if (response === 1 && !closing.signal.aborted && !webContents.isDestroyed()) action = 'tryAgain'
+      } finally {
+        if (!webContents.isDestroyed()) {
+          webContents.removeListener('destroyed', close)
+          webContents.removeListener('did-frame-navigate', closeOnPageChange)
+        }
+        callback(action)
+      }
+    })
   }
 
   async function configurePersistentSession(): Promise<void> {

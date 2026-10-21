@@ -38,7 +38,8 @@ function createHarness(answers: Array<'allow' | 'deny'> = []) {
   const workspaceSession = {
     setDownloadPath: () => undefined,
     setPermissionCheckHandler: (next: CheckHandler) => { handlers.check = next },
-    setPermissionRequestHandler: (next: RequestHandler) => { handlers.request = next }
+    setPermissionRequestHandler: (next: RequestHandler) => { handlers.request = next },
+    on: () => undefined
   } as unknown as Session
   browserSession.configureBrowserSession(workspaceSession, WORKSPACE)
   return { shown, handlers, workspaceSession, browserSession }
@@ -177,7 +178,8 @@ describe('files and folders a website holds', () => {
     const otherSession = {
       setDownloadPath: () => undefined,
       setPermissionCheckHandler: (next: CheckHandler) => { other.check = next },
-      setPermissionRequestHandler: () => undefined
+      setPermissionRequestHandler: () => undefined,
+      on: () => undefined
     } as unknown as Session
     harness.browserSession.configureBrowserSession(otherSession, '01912345-678a-7abc-8def-0123456789ab')
     expect(file(other, 'writable')).toBe(false)
@@ -185,7 +187,8 @@ describe('files and folders a website holds', () => {
     harness.browserSession.configureBrowserSession({
       setDownloadPath: () => undefined,
       setPermissionCheckHandler: (next: CheckHandler) => { home.check = next },
-      setPermissionRequestHandler: () => undefined
+      setPermissionRequestHandler: () => undefined,
+      on: () => undefined
     } as unknown as Session)
     expect(file(home, 'readable')).toBe(false)
   })
