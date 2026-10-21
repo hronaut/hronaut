@@ -72,7 +72,7 @@ test('tells the person a website cannot have a protected folder, and the website
     await dropFolder(electronApp, fixtureUrl, protectedFolder)
     // The website hears that it did not get the folder instead of waiting forever.
     await expect.poll(() => onPage('window.dropped')).toBe('AbortError')
-    expect(await prompts()).toEqual([`${fixtureOrigin} can't open this folder | Cancel, Choose another folder`])
+    expect(await prompts()).toEqual([`${fixtureOrigin} can't use this folder | Cancel, Choose another folder`])
 
     await answerPrompts(electronApp, 0)
     await onPage(DROP_ZONE)
