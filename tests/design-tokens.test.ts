@@ -150,7 +150,10 @@ describe('design tokens v2', () => {
   it('draws scrollbars in the border color of the theme instead of stock system ones', () => {
     const shared = [...tokens.matchAll(/([^{}]+)\{([^{}]*)\}/gu)]
       .find(([, selector]) => selector!.split(',').map((entry) => entry.trim()).join(',') === ':root,.ui-theme-scope')
-    expect(shared?.[2]).toContain('scrollbar-color: var(--border) transparent;')
+    expect(shared?.[2]).toContain('scrollbar-color: color-mix(in srgb, var(--border) 76%, var(--text)) transparent;')
+    const cyberpunk = [...tokens.matchAll(/([^{}]+)\{([^{}]*)\}/gu)]
+      .find(([, selector]) => selector!.split(',').map((entry) => entry.trim()).join(',') === ':root[data-theme="cyberpunk"],.ui-theme-scope[data-theme="cyberpunk"]')
+    expect(cyberpunk?.[2]).toContain('scrollbar-color: var(--border) transparent;')
   })
 
   it('paints Cyberpunk in the colors hronaut.dev uses', () => {

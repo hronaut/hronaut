@@ -199,17 +199,17 @@ test('persists the selected theme across application restarts', async ({
   profileDirectory
 }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
-  await appWindow.getByTestId('theme-cyberpunk').click()
+  await appWindow.getByTestId('theme-matrix').click()
 
   const settingsPath = join(profileDirectory, 'settings.json')
-  await expect.poll(async () => JSON.parse(await readFile(settingsPath, 'utf8')).theme).toBe('cyberpunk')
+  await expect.poll(async () => JSON.parse(await readFile(settingsPath, 'utf8')).theme).toBe('matrix')
   await closeHronaut(electronApp)
 
   const restarted = await launchHronaut(profileDirectory, mcpPort + 1)
   try {
-    await expect(restarted.window.locator('html')).toHaveAttribute('data-theme', 'cyberpunk')
+    await expect(restarted.window.locator('html')).toHaveAttribute('data-theme', 'matrix')
     await restarted.window.getByRole('button', { name: 'Settings' }).click()
-    await expect(restarted.window.getByTestId('theme-cyberpunk')).toHaveAttribute('aria-checked', 'true')
+    await expect(restarted.window.getByTestId('theme-matrix')).toHaveAttribute('aria-checked', 'true')
   } finally {
     await closeHronaut(restarted.app)
   }

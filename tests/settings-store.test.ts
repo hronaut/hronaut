@@ -63,7 +63,7 @@ describe('SettingsStore', () => {
   it('atomically persists and restores settings', async () => {
     const { path, store } = await createStore()
     await store.save({
-      theme: 'cyberpunk',
+      theme: 'matrix',
       interfaceScale: 1.25,
       tabPosition: 'left',
       useSystemTitleBar: true,
@@ -90,7 +90,7 @@ describe('SettingsStore', () => {
       languagePreference: 'uk-UA'
     })
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({
-      theme: 'cyberpunk',
+      theme: 'matrix',
       interfaceScale: 1.25,
       tabPosition: 'left',
       useSystemTitleBar: true,
@@ -117,7 +117,7 @@ describe('SettingsStore', () => {
       languagePreference: 'uk-UA'
     })
     expect(await store.load()).toEqual({
-      theme: 'cyberpunk',
+      theme: 'matrix',
       interfaceScale: 1.25,
       tabPosition: 'left',
       useSystemTitleBar: true,
