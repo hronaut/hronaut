@@ -472,3 +472,59 @@ test('runs an approved action group in order and advances only after verified po
     await closeFixtureServer(fixture)
   }
 })
+
+test('names a decision in the interface language in the tray and system notification while agents keep the English line', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
+  // The tray and the notification said "Human decision required: provide-input" in every language.
+  type NativeRecorder = { supported: () => boolean; show: () => void; buildFromTemplate: typeof Electron.Menu.buildFromTemplate; shown: string[]; menus: string[][] }
+  await electronApp.evaluate(({ Menu, Notification }) => {
+    const scope = globalThis as typeof globalThis & { __hronautDecisionNative?: NativeRecorder }
+    const buildFromTemplate = Menu.buildFromTemplate
+    scope.__hronautDecisionNative = { supported: Notification.isSupported, show: Notification.prototype.show, buildFromTemplate, shown: [], menus: [] }
+    Notification.isSupported = () => true
+    Notification.prototype.show = function () { scope.__hronautDecisionNative!.shown.push(this.body) }
+    Object.defineProperty(Menu, 'buildFromTemplate', {
+      configurable: true,
+      value: (template: Electron.MenuItemConstructorOptions[]) => {
+        scope.__hronautDecisionNative!.menus.push(template.map((item) => item.label).filter((label): label is string => typeof label === 'string'))
+        return buildFromTemplate.call(Menu, template)
+      }
+    })
+  })
+  const recorded = () => electronApp.evaluate(() => {
+    const native = (globalThis as typeof globalThis & { __hronautDecisionNative?: NativeRecorder }).__hronautDecisionNative
+    return { shown: native?.shown ?? [], trayLines: (native?.menus ?? []).flat() }
+  })
+  const client = new Client({ name: 'human-decision-notification-qa', version: '1' })
+  const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
+  const decode = <T>(result: CallToolResult): T => {
+    const value = result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
+    if (result.isError) throw new Error(value)
+    return JSON.parse(value) as T
+  }
+  try {
+    await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+    const workspace = decode<{ id: string }>(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Decision notification QA' }))
+    decode(await call('browser_human_waiting', { workspaceId: workspace.id, action: 'request', runId: randomUUID(), decision: 'provide-input' }))
+    await expect.poll(async () => (await recorded()).shown).toEqual(['The agent needs your answer to carry on.'])
+    expect((await recorded()).trayLines).toContain('Attention needed: The agent needs your answer to carry on.')
+    const status = decode<{ userAttention: { reason: string } | null }>(await call('browser_status', { workspaceId: workspace.id }))
+    expect(status.userAttention?.reason).toBe('Human decision required: provide-input')
+    // The tray follows a language change while the decision waits.
+    await appWindow.evaluate("window.hronautSettings.setLanguagePreference('de-DE')")
+    await expect.poll(async () => (await recorded()).trayLines).toContain('Aufmerksamkeit erforderlich: Der Agent braucht Ihre Antwort, um weiterzumachen.')
+  } finally {
+    await client.close()
+    await appWindow.evaluate("window.hronautSettings.setLanguagePreference('en-US')").catch(() => undefined)
+    await electronApp.evaluate(({ Menu, Notification }) => {
+      const scope = globalThis as typeof globalThis & { __hronautDecisionNative?: NativeRecorder }
+      const original = scope.__hronautDecisionNative
+      if (original) {
+        Notification.isSupported = original.supported
+        Notification.prototype.show = original.show
+        Object.defineProperty(Menu, 'buildFromTemplate', { configurable: true, value: original.buildFromTemplate })
+      }
+      delete scope.__hronautDecisionNative
+    }).catch(() => undefined)
+  }
+})
