@@ -16,6 +16,14 @@ describe('debug report', () => {
     expect(redactDiagnosticText(value)).toBe(value)
   })
 
+  it('ends an address at a typographic quote', () => {
+    // The quote became part of the address: Click link “https://example.test/%E2%80%9D, and «…» or „…“ alike.
+    expect(redactDiagnosticText('Click link “https://example.test”')).toBe('Click link “https://example.test/”')
+    expect(redactDiagnosticText('Link „https://example.test/a#private“')).toBe('Link „https://example.test/a“')
+    expect(redactDiagnosticText('Ссылка «https://example.test/a?token=secret&view=kept»')).toBe('Ссылка «https://example.test/a?view=kept&token=[REDACTED]»')
+    expect(redactDiagnosticText('‘https://example.test/a’')).toBe('‘https://example.test/a’')
+  })
+
   it('redacts pwd and passphrase values and PHP and Java sessions in console text', () => {
     // A console message or exception kept these, and relative addresses in it never reach the URL redaction.
     const value = redactDiagnosticText('Login failed: pwd=hunter2 passphrase: s3cret cookie PHPSESSID=abc123 fetch /cart;jsessionid=ABC?step=2 failed')

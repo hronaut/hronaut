@@ -17,7 +17,9 @@ const MAX_REPORT_ENTRIES = 100
 const MAX_CONSOLE_MESSAGE_CHARS = 4_000
 const MAX_CONSOLE_SOURCE_CHARS = 2_048
 const REDACTED = '[REDACTED]'
-const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi
+// An address ends at a typographic quote too, as in “https://example.test” in a repro step: inside it the quote was
+// percent-encoded into the address and the sentence lost its closing quote.
+const URL_PATTERN = /https?:\/\/[^\s<>"'“”„«»‘’]+/gi
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g
 const SENSITIVE_ASSIGNMENT_PATTERN = /\b(api[-_ ]?key|authorization|auth[-_ ]?token|cookie|credential|csrf|password|passwd|passwrd|passcode|passphrase|pwd|secret|session|phpsessid|jsessionid|token)\b(\s*[:=]\s*)(?:Bearer\s+)?(\[REDACTED\]|%5BREDACTED%5D|[^\s,;)}\]]+)/gi
