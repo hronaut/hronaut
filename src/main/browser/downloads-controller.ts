@@ -388,6 +388,8 @@ export class BrowserDownloadsController {
           download.completedAt = new Date().toISOString()
           download.paused = false
           download.canResume = false
+          // A finished download is in its workspace's current observation, though the request that started it was older.
+          if (workspaceId) download.observationGeneration = this.host.workspaceObservationGeneration(workspaceId)
           this.notifyDownloadsChanged(true)
           return
         }

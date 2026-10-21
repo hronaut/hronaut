@@ -136,7 +136,6 @@ it('preserves workspace ownership and excludes a live download from a new observ
   expect(() => controller.manageWorkspaceDownloads('first', 'cancel', entry!.id)).toThrow('Active download not found')
   expect(controller.hasActiveDownload('1')).toBe(true)
   first.complete()
-  controller.advanceWorkspaceObservationGeneration('first', 1)
   expect(controller.manageWorkspaceDownloads('first', 'list')).toEqual([
     expect.objectContaining({ id: entry!.id, state: 'completed', observationGeneration: 1 })
   ])
@@ -333,7 +332,6 @@ it('does not reassign a non-resumable interrupted transfer to a new observation 
   controller.advanceWorkspaceObservationGeneration('first', 1)
   expect(controller.manageWorkspaceDownloads('first', 'list')).toEqual([])
   transfer.complete()
-  controller.advanceWorkspaceObservationGeneration('first', 1)
   expect(controller.manageWorkspaceDownloads('first', 'list')).toEqual([
     expect.objectContaining({ state: 'completed', observationGeneration: 1 })
   ])

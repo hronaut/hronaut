@@ -7,7 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // When control of a workspace changes (Pause agents, an MCP session closing, another client resuming it), a live
 // transfer leaves the agent's observation, and finished downloads stay in it. Archiving and restoring the workspace
-// handed the live transfer back to the agent, and a download that finished after the change stayed hidden for good.
+// handed the live transfer back to the agent, and a download that finished after the change stayed hidden until
+// control changed again or the workspace was archived and restored.
 
 vi.mock('electron', () => ({ shell: { showItemInFolder: vi.fn() }, session: {}, WebContentsView: class {}, nativeImage: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
 
@@ -27,10 +28,12 @@ async function fixture() {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-download-observation-'))
   cleanups.push(() => rm(directory, { recursive: true, force: true }))
   const generations = new Map([['w', 0]])
+  // The generation of the request a download comes from, which can be older than the workspace's.
+  let requestGeneration: number | undefined
   const session = new EventEmitter()
   const controller = new BrowserDownloadsController({
     getSettings: () => ({ downloadDirectory: directory, saveDialogTitle: 'Save', askWhereToSaveDownloads: false }),
-    getSource: () => ({ tabId: 'tab-1', workspaceId: 'w', observationGeneration: generations.get('w')! }),
+    getSource: () => ({ tabId: 'tab-1', workspaceId: 'w', observationGeneration: requestGeneration ?? generations.get('w')! }),
     workspaceObservationGeneration: id => generations.get(id) ?? 0,
     isAvailable: () => true,
     publish: () => undefined
@@ -42,7 +45,7 @@ async function fixture() {
     generations.set('w', generations.get('w')! + 1)
     controller.advanceWorkspaceObservationGeneration('w', generations.get('w')!)
   }
-  function download(filename: string) {
+  function download(filename: string, { failSetup = false } = {}) {
     const item = new EventEmitter()
     let savePath = ''
     let state = 'progressing'
@@ -51,7 +54,11 @@ async function fixture() {
       getURL: () => `https://files.example/${filename}`, getURLChain: () => [`https://files.example/${filename}`],
       getContentDisposition: () => '', getFilename: () => filename, getState: () => state,
       getReceivedBytes: () => 1, getTotalBytes: () => 2, isPaused: () => false, pause: vi.fn(), resume: vi.fn(),
-      canResume: () => false, getSavePath: () => savePath, setSavePath: (value: string) => { savePath = value },
+      canResume: () => state === 'interrupted', getSavePath: () => savePath,
+      setSavePath: (value: string) => {
+        if (failSetup) throw new Error('Injected native setup failure')
+        savePath = value
+      },
       setSaveDialogOptions: () => undefined, cancel
     })
     session.emit('will-download', { preventDefault: vi.fn() }, item as unknown as DownloadItem, { id: 1 })
@@ -59,6 +66,10 @@ async function fixture() {
     return {
       entry,
       cancel,
+      interrupt() {
+        state = 'interrupted'
+        item.emit('updated', {}, 'interrupted')
+      },
       async complete() {
         await writeFile(savePath, 'downloaded bytes')
         state = 'completed'
@@ -88,14 +99,17 @@ async function fixture() {
     navigationAudit: [], contextClass: 'standard'
   })
   const listed = () => controller.manageWorkspaceDownloads('w', 'list').map((entry) => entry.filename).sort()
-  return { controller, registry, changeControl, download, listed }
+  const fromRequestBefore = (generation: number) => { requestGeneration = generation }
+  return { controller, registry, changeControl, download, listed, fromRequestBefore }
 }
 
 describe('downloads in an agent\'s observation', () => {
   it('keep a live transfer a control change took from the agent out of it after the workspace is archived and restored', async () => {
     const { controller, registry, changeControl, download, listed } = await fixture()
     const transfer = download('big.iso')
+    const stalled = download('stalled.iso')
     const finished = download('notes.pdf')
+    stalled.interrupt()
     await finished.complete()
     changeControl()
     expect(listed()).toEqual(['notes.pdf'])
@@ -104,8 +118,10 @@ describe('downloads in an agent\'s observation', () => {
     await registry.restore('w')
 
     expect(listed()).toEqual(['notes.pdf'])
-    expect(() => controller.manageWorkspaceDownloads('w', 'cancel', transfer.entry.id)).toThrow('Active download not found')
-    expect(transfer.cancel).not.toHaveBeenCalled()
+    for (const live of [transfer, stalled]) {
+      expect(() => controller.manageWorkspaceDownloads('w', 'cancel', live.entry.id)).toThrow('Active download not found')
+      expect(live.cancel).not.toHaveBeenCalled()
+    }
   })
 
   it('include a download that finished after a control change, as one that finished before it', async () => {
@@ -120,5 +136,15 @@ describe('downloads in an agent\'s observation', () => {
 
     expect(listed()).toEqual(['early.pdf', 'late.pdf'])
     await expect(controller.completedWorkspaceDownloadFile('w', late.entry.id)).resolves.toMatchObject({ savePath: late.entry.savePath })
+  })
+
+  it('include a download that could not start, from a request made before a control change', async () => {
+    const { changeControl, download, listed, fromRequestBefore } = await fixture()
+    fromRequestBefore(0)
+    changeControl()
+
+    download('report.pdf', { failSetup: true })
+
+    expect(listed()).toEqual(['report.pdf'])
   })
 })
