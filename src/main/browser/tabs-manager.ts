@@ -5260,7 +5260,8 @@ export class BrowserTabsManager {
     if (tab.mcpGroupId) {
       const group = this.mcpTabGroups.get(tab.mcpGroupId)!
       if (options.active || !group.activeTabId) group.activeTabId = id
-      group.lastUsedAt = new Date().toISOString()
+      // Putting the saved tabs back at startup is not a use of their workspace.
+      if (!this.restoringLayout) group.lastUsedAt = new Date().toISOString()
     }
     this.webContentsToTab.set(view.webContents.id, id)
     this.options.configureSession?.(view.webContents.session, isHronautHomeUrl(url) ? undefined : workspace?.id)
