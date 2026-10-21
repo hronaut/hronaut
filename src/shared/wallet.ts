@@ -590,7 +590,7 @@ export const WalletProviderEventSchema = z.object({
 }).strict()
 export type WalletProviderEvent = z.infer<typeof WalletProviderEventSchema>
 
-/** Why managed wallets are disabled; MCP results keep this English, Settings names it in the interface language. */
+/** Why managed wallets are disabled, as main reports it; Settings › Wallets names it in the interface language. */
 export const WALLET_DISABLED_REASONS = {
   notInitialized: 'Wallet service is not initialized',
   secureStorageUnavailable: 'The operating-system secure storage required by this wallet vault is unavailable',

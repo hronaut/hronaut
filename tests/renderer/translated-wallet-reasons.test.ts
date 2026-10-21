@@ -1,6 +1,6 @@
 import { ref } from 'vue'
-import { cleanup, render, screen } from '@testing-library/vue'
-import { afterEach, expect, it, vi } from 'vitest'
+import { render, screen } from '@testing-library/vue'
+import { expect, it, vi } from 'vitest'
 import WalletsSettingsPanel from '../../src/renderer/src/components/WalletsSettingsPanel.vue'
 import type { WalletsController } from '../../src/renderer/src/composables/useWalletsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
@@ -11,15 +11,13 @@ import { WALLET_DISABLED_REASONS, type WalletServiceStatus } from '../../src/sha
 // Settings > Wallets named why managed wallets were disabled in English after a translated status, such as
 // "Verwaltete Wallets sind deaktiviert. … Wallet data failed integrity checks. Wallet operations are disabled."
 
-afterEach(cleanup)
-
-function showStatus(status: WalletServiceStatus, locale: 'de-DE' | 'en-US' = 'de-DE'): void {
+function showStatus(status: WalletServiceStatus): void {
   const noop = vi.fn(async () => undefined)
   const controller = {
     status: ref(status), wallets: ref([]), policies: ref([]), permissions: ref([]), requests: ref([]), audit: ref([]), awaitingApproval: ref([]),
     busy: ref(false), errorMessage: ref(''), initialize: noop, refreshDetails: noop, dispose: vi.fn()
   } as unknown as WalletsController
-  render(WalletsSettingsPanel, { props: { controller, workspaces: [] }, global: { plugins: [createHronautI18n(locale)] } })
+  render(WalletsSettingsPanel, { props: { controller, workspaces: [] }, global: { plugins: [createHronautI18n('de-DE')] } })
 }
 
 it('names a failed integrity check in German', () => {
@@ -27,11 +25,18 @@ it('names a failed integrity check in German', () => {
   const status = screen.getByText(/Verwaltete Wallets sind deaktiviert/)
   expect(status).toHaveTextContent('Die Wallet-Daten haben die Integritätsprüfung nicht bestanden. Wallet-Vorgänge sind deaktiviert.')
   expect(status).not.toHaveTextContent('integrity checks')
+  // The backend sentence would wrongly say no secure backend is available.
+  expect(status).not.toHaveTextContent('Kein sicheres Backend')
 })
 
 it('names a vault that operating-system secure storage could not unlock in German', () => {
   showStatus({ managedWallets: 'disabled', backend: 'secure-storage-failure', watchOnlyAvailable: false, reason: WALLET_DISABLED_REASONS.unlockFailure })
   expect(screen.getByText(/Verwaltete Wallets sind deaktiviert/)).toHaveTextContent('Der Wallet-Tresor konnte nicht mit dem sicheren Speicher des Betriebssystems entsperrt werden.')
+})
+
+it('says wallets are starting without an English reason before main answers', () => {
+  showStatus({ managedWallets: 'disabled', backend: 'initializing', watchOnlyAvailable: false })
+  expect(screen.getByText(/Verwaltete Wallets sind deaktiviert/)).toHaveTextContent('Verwaltete Wallets sind deaktiviert. Wallet-Sicherheit wird gestartet.')
 })
 
 it('shows a reason it does not know as it came', () => {

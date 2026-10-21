@@ -30,9 +30,9 @@ export const frFRWallets = {
     "notInitialized": "Le service des portefeuilles n’a pas encore démarré.",
     "secureStorageUnavailable": "Le stockage sécurisé du système d’exploitation requis par ce coffre-fort de portefeuilles n’est pas disponible.",
     "noBackend": "Aucun stockage sécurisé des clés n’est disponible pour les portefeuilles.",
-    "integrityFailure": "Les données des portefeuilles n’ont pas passé les contrôles d’intégrité. Les opérations des portefeuilles sont désactivées.",
-    "unlockFailure": "Le coffre-fort des portefeuilles n’a pas pu être déverrouillé avec le stockage sécurisé du système d’exploitation. Les opérations des portefeuilles sont désactivées.",
-    "initializationFailure": "L’initialisation des portefeuilles a échoué. Les opérations des portefeuilles sont désactivées."
+    "integrityFailure": "Les données des portefeuilles ont échoué aux contrôles d’intégrité. Les opérations sur les portefeuilles sont désactivées.",
+    "unlockFailure": "Le coffre-fort des portefeuilles n’a pas pu être déverrouillé avec le stockage sécurisé du système d’exploitation. Les opérations sur les portefeuilles sont désactivées.",
+    "initializationFailure": "L’initialisation des portefeuilles a échoué. Les opérations sur les portefeuilles sont désactivées."
   },
   "backends": {
     "safeStorage": "Protégés par le stockage sécurisé du système d’exploitation.",

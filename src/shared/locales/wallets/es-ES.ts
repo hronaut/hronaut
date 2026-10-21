@@ -30,9 +30,9 @@ export const esESWallets = {
     "notInitialized": "El servicio de monederos aún no se ha iniciado.",
     "secureStorageUnavailable": "El almacenamiento seguro del sistema operativo que necesita esta bóveda de monederos no está disponible.",
     "noBackend": "No hay ningún almacenamiento seguro de claves disponible para los monederos.",
-    "integrityFailure": "Los datos de los monederos no superaron las comprobaciones de integridad. Las operaciones de los monederos están desactivadas.",
-    "unlockFailure": "No se pudo desbloquear la bóveda de monederos con el almacenamiento seguro del sistema operativo. Las operaciones de los monederos están desactivadas.",
-    "initializationFailure": "La inicialización de los monederos falló. Las operaciones de los monederos están desactivadas."
+    "integrityFailure": "Los datos de los monederos no han superado las comprobaciones de integridad. Las operaciones con los monederos están desactivadas.",
+    "unlockFailure": "No se ha podido desbloquear la bóveda de monederos con el almacenamiento seguro del sistema operativo. Las operaciones con los monederos están desactivadas.",
+    "initializationFailure": "La inicialización de los monederos ha fallado. Las operaciones con los monederos están desactivadas."
   },
   "backends": {
     "safeStorage": "Protegidos por el almacenamiento seguro del sistema operativo.",

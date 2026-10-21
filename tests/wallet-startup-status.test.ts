@@ -39,5 +39,6 @@ describe('walletStartupFailureStatus', () => {
     expect(walletStartupFailureStatus(new Error('Wallet vault file is invalid')).reason).toBe(WALLET_DISABLED_REASONS.integrityFailure)
     expect(walletStartupFailureStatus(new Error('Wallet vault unlock failed')).reason).toBe(WALLET_DISABLED_REASONS.unlockFailure)
     expect(walletStartupFailureStatus(new Error('disk full')).reason).toBe(WALLET_DISABLED_REASONS.initializationFailure)
+    expect(WALLET_DISABLED_REASONS.integrityFailure).toBe('Wallet data failed integrity checks. Wallet operations are disabled.')
   })
 })
