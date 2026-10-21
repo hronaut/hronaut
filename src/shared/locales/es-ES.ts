@@ -3165,6 +3165,7 @@ export const esES = {
       "updateViaCache": "actualización mediante caché: {value}",
       "noRegistrations": "No hay registros de service worker",
       "cacheUnavailable": "Cache Storage no disponible: {error}",
+      "cacheNotFound": "No se encontró la caché: {name}",
       "cache": "Caché",
       "cacheAria": "Caché de Cache Storage",
       "filter": "Filtrar solicitudes almacenadas en caché",

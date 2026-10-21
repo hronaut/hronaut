@@ -12,6 +12,7 @@ import IconRefresh from '~icons/material-symbols/refresh-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
 import { formatBytes, formatNumber } from '../../../shared/format'
 import type { SupportedLocale } from '../../../shared/locale'
+import { STORAGE_CHANGES_CAVEATS } from '../../../shared/storage-changes'
 import type { BrowserStorageChange, BrowserStorageChangesAction, BrowserStorageChangesReport, BrowserStorageKind } from '../../../shared/types'
 
 const props = defineProps<{
@@ -35,6 +36,12 @@ function timestamp(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.valueOf())) return value
   return new Intl.DateTimeFormat(props.locale, { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 }).format(date)
+}
+// The report's caveats are English for agents; a caveat Hronaut does not know still shows as recorded.
+const CAVEAT_KEYS = new Map(Object.entries(STORAGE_CHANGES_CAVEATS).map(([key, value]) => [value as string, key]))
+function caveatText(caveat: string): string {
+  const key = CAVEAT_KEYS.get(caveat)
+  return key ? t(`reportCaveats.storageChanges.${key}`) : caveat
 }
 function kindLabel(kind: BrowserStorageKind): string {
   if (kind === 'local-storage') return t('runtime.storage.local')
@@ -63,7 +70,7 @@ function kindLabel(kind: BrowserStorageKind): string {
           </UiButton>
         </div>
         <p v-if="report.truncated" class="storage-changes-note"><IconInfo aria-hidden="true" /> {{ t('siteStorage.trackedChanges.truncated') }}</p>
-        <details class="storage-changes-caveats"><summary>{{ t('siteStorage.scopePrivacy') }}</summary><ul><li v-for="caveat in report.caveats" :key="caveat">{{ caveat }}</li></ul></details>
+        <details class="storage-changes-caveats"><summary>{{ t('siteStorage.scopePrivacy') }}</summary><ul><li v-for="caveat in report.caveats" :key="caveat">{{ caveatText(caveat) }}</li></ul></details>
         <footer class="storage-changes-footer">
           <span>{{ t('siteStorage.trackedChanges.baseline', { time: report.baselineAt ? timestamp(report.baselineAt) : t('siteStorage.trackedChanges.notSet') }) }}</span>
           <div><UiButton appearance="application" type="button" @click="emit('manage', 'clear')"><IconDelete aria-hidden="true" /> {{ t('siteStorage.trackedChanges.clear') }}</UiButton><UiButton appearance="application" type="button" @click="emit('manage', 'baseline')"><IconRefresh aria-hidden="true" /> {{ t('siteStorage.trackedChanges.newBaseline') }}</UiButton><UiButton appearance="application" v-if="report.status === 'compared'" type="button" :disabled="state === 'loading'" @click="emit('copy')"><IconCheck v-if="copied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ copied ? t('siteStorage.copied') : t('siteStorage.trackedChanges.copy') }}</UiButton><UiButton appearance="application" variant="primary" class="primary" type="button" :disabled="state === 'loading'" @click="emit('manage', 'compare')"><IconDifference aria-hidden="true" /> {{ t('siteStorage.trackedChanges.compare') }}</UiButton></div>

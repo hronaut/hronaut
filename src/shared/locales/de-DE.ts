@@ -3165,6 +3165,7 @@ export const deDE = {
       "updateViaCache": "Aktualisierung über Cache: {value}",
       "noRegistrations": "Keine Service-Worker-Registrierungen",
       "cacheUnavailable": "Cache Storage nicht verfügbar: {error}",
+      "cacheNotFound": "Cache nicht gefunden: {name}",
       "cache": "Cache",
       "cacheAria": "Cache-Storage-Cache",
       "filter": "Zwischengespeicherte Anfragen filtern",

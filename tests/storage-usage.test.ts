@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildBrowserStorageUsageReport,
   normalizeStorageUsageBreakdown,
+  STORAGE_USAGE_CAVEATS,
+  STORAGE_USAGE_FALLBACK_CAVEAT_PREFIX,
   storageManagerUsageBreakdown
 } from '../src/shared/storage-usage.js'
 
@@ -71,5 +73,13 @@ describe('storage usage reports', () => {
     })
     expect(report.caveats.join(' ')).toContain('Keys, values, filenames, and response bodies are never included')
     expect(report.caveats.join(' ')).toContain('read-only')
+  })
+
+  it('builds its caveats from the shared text the Site storage panel translates', () => {
+    const report = buildBrowserStorageUsageReport({
+      tabId: 'tab-1', url: 'https://example.test/', origin: 'https://example.test', source: 'storage-manager',
+      raw: { usage: 1, quota: 2 }, fallbackReason: 'Quota database closed.'
+    })
+    expect(report.caveats).toEqual([...Object.values(STORAGE_USAGE_CAVEATS), `${STORAGE_USAGE_FALLBACK_CAVEAT_PREFIX}Quota database closed.`])
   })
 })

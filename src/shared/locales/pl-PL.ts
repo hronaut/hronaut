@@ -3165,6 +3165,7 @@ export const plPL = {
       "updateViaCache": "aktualizacja przez pamięć podręczną: {value}",
       "noRegistrations": "Brak rejestracji service worker",
       "cacheUnavailable": "Cache Storage jest niedostępne: {error}",
+      "cacheNotFound": "Nie znaleziono pamięci podręcznej: {name}",
       "cache": "Pamięć podręczna",
       "cacheAria": "Pamięć podręczna Cache Storage",
       "filter": "Filtruj żądania w pamięci podręcznej",

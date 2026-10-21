@@ -10,6 +10,18 @@ export const pwaLifecycleMessages = {
     "stopped": "Capture stopped",
     "waiting": "Waiting",
     "coverage": "Coverage and privacy",
+    "caveats": {
+      "observedTimes": "Times show when a change was observed, not when it happened, and a capture never has the complete history.",
+      "polling": "Registrations are checked once per second, so early transitions and short-lived registrations can be missed.",
+      "scope": "Registrations belong to this top-level origin and workspace, not only to this tab.",
+      "identities": "Worker identities are local to this capture and tell apart versions of the same script.",
+      "interruption": "Navigating, reloading or closing the page, or losing the debugger or access, interrupts capture. Stopping or an interruption can drop events not yet read.",
+      "limits": "A capture keeps at most 100 events, 20 registrations and 100 workers for up to two minutes; five captures stay in memory, and starting another removes the oldest stopped one.",
+      "longUrls": "Addresses longer than 2,048 characters are left out rather than partly showing one that may carry a credential.",
+      "metadataOnly": "Only metadata is observed. Hronaut never updates, messages, activates or runs workers, clears caches or changes permissions.",
+      "sleeping": "Sleeping or frozen tabs are not woken. Sleep or freezing interrupts capture instead of keeping the page active.",
+      "snapshot": "Reads show the last snapshot taken. A complete history, or every worker's full lifetime, is not guaranteed."
+    },
     "kinds": {
       "initial": "capture started",
       "registration-initial": "registration present",
@@ -58,6 +70,18 @@ export const pwaLifecycleMessages = {
     "stopped": "Aufzeichnung beendet",
     "waiting": "Wartend",
     "coverage": "Abdeckung und Datenschutz",
+    "caveats": {
+      "observedTimes": "Zeiten zeigen, wann eine Änderung beobachtet wurde, nicht wann sie geschah, und eine Aufzeichnung hat nie den vollständigen Verlauf.",
+      "polling": "Registrierungen werden einmal pro Sekunde geprüft, daher können frühe Übergänge und kurzlebige Registrierungen fehlen.",
+      "scope": "Registrierungen gehören zu diesem Top-Level-Ursprung und Arbeitsbereich, nicht nur zu diesem Tab.",
+      "identities": "Worker-Kennungen gelten nur für diese Aufzeichnung und unterscheiden Versionen desselben Skripts.",
+      "interruption": "Navigieren, Neuladen oder Schließen der Seite sowie der Verlust des Debuggers oder des Zugriffs unterbrechen die Aufzeichnung. Beim Stoppen oder einer Unterbrechung können noch nicht gelesene Ereignisse fehlen.",
+      "limits": "Eine Aufzeichnung behält höchstens 100 Ereignisse, 20 Registrierungen und 100 Worker für bis zu zwei Minuten; fünf Aufzeichnungen bleiben im Speicher, und eine neue entfernt die älteste beendete.",
+      "longUrls": "Adressen mit mehr als 2.048 Zeichen werden ausgelassen, statt eine Adresse, die Zugangsdaten enthalten kann, teilweise zu zeigen.",
+      "metadataOnly": "Es werden nur Metadaten beobachtet. Hronaut aktualisiert, benachrichtigt, aktiviert oder startet nie Worker, leert keine Caches und ändert keine Berechtigungen.",
+      "sleeping": "Schlafende oder eingefrorene Tabs werden nicht geweckt. Ruhezustand oder Einfrieren unterbricht die Aufzeichnung, statt die Seite aktiv zu halten.",
+      "snapshot": "Abrufe zeigen die zuletzt erfasste Momentaufnahme. Ein vollständiger Verlauf oder die gesamte Lebensdauer jedes Workers ist nicht garantiert."
+    },
     "kinds": {
       "initial": "Aufzeichnung gestartet",
       "registration-initial": "Registrierung vorhanden",
@@ -106,6 +130,18 @@ export const pwaLifecycleMessages = {
     "stopped": "Captura detenida",
     "waiting": "En espera",
     "coverage": "Cobertura y privacidad",
+    "caveats": {
+      "observedTimes": "Las horas indican cuándo se observó un cambio, no cuándo ocurrió, y una captura nunca tiene el historial completo.",
+      "polling": "Los registros se comprueban una vez por segundo, así que pueden faltar transiciones tempranas y registros de corta duración.",
+      "scope": "Los registros pertenecen a este origen de nivel superior y a este espacio de trabajo, no solo a esta pestaña.",
+      "identities": "Los identificadores de los workers son propios de esta captura y distinguen versiones del mismo script.",
+      "interruption": "Navegar, recargar o cerrar la página, o perder el depurador o el acceso, interrumpe la captura. Al detenerla o interrumpirse pueden faltar eventos aún no leídos.",
+      "limits": "Una captura guarda como máximo 100 eventos, 20 registros y 100 workers durante un máximo de dos minutos; se conservan cinco capturas en memoria y al iniciar otra se elimina la detenida más antigua.",
+      "longUrls": "Las direcciones de más de 2048 caracteres se omiten en lugar de mostrar parte de una que podría contener credenciales.",
+      "metadataOnly": "Solo se observan metadatos. Hronaut nunca actualiza, envía mensajes, activa ni ejecuta workers, no vacía cachés ni cambia permisos.",
+      "sleeping": "Las pestañas en reposo o congeladas no se despiertan. El reposo o la congelación interrumpe la captura en lugar de mantener activa la página.",
+      "snapshot": "Las lecturas muestran la última instantánea tomada. No se garantiza un historial completo ni la vida completa de cada worker."
+    },
     "kinds": {
       "initial": "captura iniciada",
       "registration-initial": "registro presente",
@@ -154,6 +190,18 @@ export const pwaLifecycleMessages = {
     "stopped": "Capture arrêtée",
     "waiting": "En attente",
     "coverage": "Couverture et confidentialité",
+    "caveats": {
+      "observedTimes": "Les heures indiquent quand un changement a été observé, pas quand il a eu lieu, et une capture n’a jamais l’historique complet.",
+      "polling": "Les enregistrements sont vérifiés une fois par seconde ; des transitions précoces et des enregistrements de courte durée peuvent manquer.",
+      "scope": "Les enregistrements appartiennent à cette origine de premier niveau et à cet espace de travail, pas seulement à cet onglet.",
+      "identities": "Les identifiants des workers sont propres à cette capture et distinguent les versions d’un même script.",
+      "interruption": "Naviguer, recharger ou fermer la page, ou perdre le débogueur ou l’accès, interrompt la capture. Un arrêt ou une interruption peut omettre des événements pas encore lus.",
+      "limits": "Une capture conserve au plus 100 événements, 20 enregistrements et 100 workers pendant deux minutes au maximum ; cinq captures restent en mémoire, et en démarrer une autre supprime la plus ancienne déjà arrêtée.",
+      "longUrls": "Les adresses de plus de 2 048 caractères sont omises plutôt que d’en montrer une partie qui pourrait contenir des identifiants de connexion.",
+      "metadataOnly": "Seules les métadonnées sont observées. Hronaut ne met jamais à jour, n’envoie aucun message, n’active ni n’exécute de workers, ne vide pas de caches et ne modifie pas les autorisations.",
+      "sleeping": "Les onglets en veille ou gelés ne sont pas réveillés. La mise en veille ou le gel interrompt la capture au lieu de garder la page active.",
+      "snapshot": "Les lectures montrent le dernier instantané pris. Un historique complet ou la durée de vie entière de chaque worker n’est pas garanti."
+    },
     "kinds": {
       "initial": "capture démarrée",
       "registration-initial": "inscription présente",
@@ -202,6 +250,18 @@ export const pwaLifecycleMessages = {
     "stopped": "Przechwytywanie zatrzymane",
     "waiting": "Oczekuje",
     "coverage": "Zakres i prywatność",
+    "caveats": {
+      "observedTimes": "Czasy pokazują, kiedy zaobserwowano zmianę, a nie kiedy nastąpiła, a przechwytywanie nigdy nie ma pełnej historii.",
+      "polling": "Rejestracje są sprawdzane raz na sekundę, więc wczesne przejścia i krótkotrwałe rejestracje mogą zostać pominięte.",
+      "scope": "Rejestracje należą do tego źródła najwyższego poziomu i obszaru roboczego, nie tylko do tej karty.",
+      "identities": "Identyfikatory workerów dotyczą tylko tego przechwytywania i odróżniają wersje tego samego skryptu.",
+      "interruption": "Nawigacja, przeładowanie lub zamknięcie strony albo utrata debugera lub dostępu przerywa przechwytywanie. Zatrzymanie lub przerwanie może pominąć jeszcze nieodczytane zdarzenia.",
+      "limits": "Przechwytywanie przechowuje najwyżej 100 zdarzeń, 20 rejestracji i 100 workerów przez maksymalnie dwie minuty; w pamięci zostaje pięć przechwyceń, a rozpoczęcie kolejnego usuwa najstarsze zatrzymane.",
+      "longUrls": "Adresy dłuższe niż 2048 znaków są pomijane, zamiast częściowo pokazywać adres, który może zawierać dane logowania.",
+      "metadataOnly": "Obserwowane są tylko metadane. Hronaut nigdy nie aktualizuje, nie wysyła wiadomości, nie aktywuje ani nie uruchamia workerów, nie czyści pamięci podręcznych i nie zmienia uprawnień.",
+      "sleeping": "Uśpione lub zamrożone karty nie są wybudzane. Uśpienie lub zamrożenie przerywa przechwytywanie zamiast utrzymywać stronę aktywną.",
+      "snapshot": "Odczyty pokazują ostatnią wykonaną migawkę. Pełna historia ani cały czas życia każdego workera nie są gwarantowane."
+    },
     "kinds": {
       "initial": "rozpoczęto przechwytywanie",
       "registration-initial": "rejestracja już istnieje",
@@ -250,6 +310,18 @@ export const pwaLifecycleMessages = {
     "stopped": "Запись остановлена",
     "waiting": "Ожидает",
     "coverage": "Охват и конфиденциальность",
+    "caveats": {
+      "observedTimes": "Время показывает, когда изменение было замечено, а не когда оно произошло, и запись никогда не содержит полную историю.",
+      "polling": "Регистрации проверяются раз в секунду, поэтому ранние переходы и недолговечные регистрации могут быть пропущены.",
+      "scope": "Регистрации принадлежат этому источнику верхнего уровня и рабочему пространству, а не только этой вкладке.",
+      "identities": "Идентификаторы воркеров действуют только в этой записи и различают версии одного и того же скрипта.",
+      "interruption": "Переход, перезагрузка или закрытие страницы, а также потеря отладчика или доступа прерывают запись. При остановке или прерывании ещё не прочитанные события могут потеряться.",
+      "limits": "Запись хранит не более 100 событий, 20 регистраций и 100 воркеров в течение не более двух минут; в памяти остаются пять записей, и новая запись удаляет самую старую из остановленных.",
+      "longUrls": "Адреса длиннее 2048 символов не показываются, чтобы не раскрывать частично адрес, который может содержать учётные данные.",
+      "metadataOnly": "Наблюдаются только метаданные. Hronaut никогда не обновляет, не отправляет сообщений, не активирует и не запускает воркеры, не очищает кеши и не меняет разрешения.",
+      "sleeping": "Спящие или замороженные вкладки не пробуждаются. Сон или заморозка прерывает запись, а не удерживает страницу активной.",
+      "snapshot": "Чтение показывает последний сделанный снимок. Полная история или всё время жизни каждого воркера не гарантируются."
+    },
     "kinds": {
       "initial": "запись начата",
       "registration-initial": "регистрация уже есть",
@@ -298,6 +370,18 @@ export const pwaLifecycleMessages = {
     "stopped": "Запис зупинено",
     "waiting": "Очікує",
     "coverage": "Охоплення й конфіденційність",
+    "caveats": {
+      "observedTimes": "Час показує, коли зміну помічено, а не коли вона сталася, і запис ніколи не містить повної історії.",
+      "polling": "Реєстрації перевіряються раз на секунду, тому ранні переходи й короткочасні реєстрації можуть бути пропущені.",
+      "scope": "Реєстрації належать цьому джерелу верхнього рівня й робочому простору, а не лише цій вкладці.",
+      "identities": "Ідентифікатори воркерів діють лише в цьому записі й розрізняють версії одного скрипту.",
+      "interruption": "Перехід, перезавантаження чи закриття сторінки, а також утрата налагоджувача чи доступу переривають запис. Під час зупинки чи переривання ще не прочитані події можуть загубитися.",
+      "limits": "Запис зберігає щонайбільше 100 подій, 20 реєстрацій і 100 воркерів упродовж щонайбільше двох хвилин; у пам’яті залишаються п’ять записів, і новий запис видаляє найстаріший із зупинених.",
+      "longUrls": "Адреси, довші за 2048 символів, не показуються, щоб не розкривати частково адресу, яка може містити облікові дані.",
+      "metadataOnly": "Спостерігаються лише метадані. Hronaut ніколи не оновлює, не надсилає повідомлень, не активує й не запускає воркери, не очищає кеші й не змінює дозволи.",
+      "sleeping": "Сплячі або заморожені вкладки не пробуджуються. Сон або заморожування перериває запис, а не утримує сторінку активною.",
+      "snapshot": "Читання показує останній зроблений знімок. Повна історія чи весь час життя кожного воркера не гарантуються."
+    },
     "kinds": {
       "initial": "запис розпочато",
       "registration-initial": "реєстрація наявна",

@@ -3165,6 +3165,7 @@ export const ruRU = {
       "updateViaCache": "обновление через кеш: {value}",
       "noRegistrations": "Нет регистраций service worker",
       "cacheUnavailable": "Cache Storage недоступно: {error}",
+      "cacheNotFound": "Кеш не найден: {name}",
       "cache": "Кеш",
       "cacheAria": "Кеш Cache Storage",
       "filter": "Фильтровать кешированные запросы",

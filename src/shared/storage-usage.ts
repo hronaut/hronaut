@@ -7,6 +7,17 @@ import type {
 const MAX_STORAGE_USAGE_TYPES = 32
 const MAX_STORAGE_TYPE_CHARS = 80
 
+/** The English caveats a storage usage report carries; MCP results keep them and the panel names them in the interface language. */
+export const STORAGE_USAGE_CAVEATS = {
+  estimates: 'Usage and quota are point-in-time browser estimates and may change as Chromium evicts or writes data.',
+  quota: 'Quota is the origin budget Chromium currently reports, not the device free-space total.',
+  origin: 'The report covers this top-level HTTP(S) origin only; third-party and partitioned storage can have separate accounting.',
+  aggregates: 'Only aggregate byte counts and browser-defined storage categories are returned. Keys, values, filenames, and response bodies are never included.',
+  readOnly: 'The inspector is read-only. Use browser_site_data only when the task explicitly requires clearing origin data.'
+} as const
+/** Starts the caveat added when Chromium's quota breakdown fails; Chromium's own reason follows it. */
+export const STORAGE_USAGE_FALLBACK_CAVEAT_PREFIX = "Chromium's detailed quota breakdown was unavailable, so this report uses StorageManager.estimate(): "
+
 export interface RawBrowserStorageUsage {
   usage?: unknown
   quota?: unknown
@@ -79,12 +90,8 @@ export function buildBrowserStorageUsageReport(input: {
     breakdown,
     breakdownAvailable: breakdown.length > 0,
     caveats: [
-      'Usage and quota are point-in-time browser estimates and may change as Chromium evicts or writes data.',
-      'Quota is the origin budget Chromium currently reports, not the device free-space total.',
-      'The report covers this top-level HTTP(S) origin only; third-party and partitioned storage can have separate accounting.',
-      'Only aggregate byte counts and browser-defined storage categories are returned. Keys, values, filenames, and response bodies are never included.',
-      'The inspector is read-only. Use browser_site_data only when the task explicitly requires clearing origin data.',
-      ...(input.fallbackReason ? [`Chromium's detailed quota breakdown was unavailable, so this report uses StorageManager.estimate(): ${input.fallbackReason}`] : [])
+      ...Object.values(STORAGE_USAGE_CAVEATS),
+      ...(input.fallbackReason ? [`${STORAGE_USAGE_FALLBACK_CAVEAT_PREFIX}${input.fallbackReason}`] : [])
     ]
   }
 }

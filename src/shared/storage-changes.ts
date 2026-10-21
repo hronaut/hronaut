@@ -6,6 +6,14 @@ import type {
 } from './types.js'
 
 export const MAX_STORAGE_CHANGES = 200
+/** The English caveats a storage comparison carries; MCP results keep them and the panel names them in the interface language. */
+export const STORAGE_CHANGES_CAVEATS = {
+  baseline: 'The baseline stays only in memory and is discarded when cleared, when the tab changes origin or closes, or when Hronaut exits.',
+  scope: 'Local storage and cookies are shared by origin inside this workspace and isolated from other workspaces; session storage belongs only to this tab.',
+  valuesIncluded: 'Bounded non-HttpOnly values are included. HttpOnly cookie values always remain protected.',
+  valuesOmitted: 'Values are omitted. Request includeValues only when the changed values are necessary and safe to return.',
+  snapshot: 'The snapshot covers the first 200 sorted entries per storage kind. Storage may also change in the background between the baseline and comparison.'
+} as const
 export const MAX_STORAGE_SNAPSHOT_ITEMS_PER_KIND = 200
 export const MAX_STORAGE_CHANGE_VALUE_BYTES = 16 * 1024
 export const MAX_STORAGE_CHANGE_VALUES_TOTAL_BYTES = 128 * 1024

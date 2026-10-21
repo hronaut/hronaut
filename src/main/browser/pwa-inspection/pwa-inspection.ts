@@ -3,7 +3,10 @@ import { redactNetworkUrl } from '../../../shared/network-details.js'
 import { sanitizeCacheStorageCacheName } from '../../../shared/network-response-source.js'
 import {
   normalizeBrowserPwaOptions,
+  PWA_CACHE_NOT_FOUND_PREFIX,
+  PWA_INSPECTION_CAVEATS,
   PWA_INSPECTION_LIMITS,
+  PWA_INSTALLABILITY_UNAVAILABLE_PREFIX,
   pwaRegistrationsPageScript,
   sanitizePwaManifest,
   sanitizePwaHeaders,
@@ -72,16 +75,14 @@ export async function inspectPwa<Tab extends PwaInspectionTab>(access: PwaInspec
     caches: [],
     cacheInspectionAvailable: true,
     caveats: [
-      'The report covers this top-level origin only; third-party frame workers and caches are not included.',
-      'Registrations and cached entries are point-in-time snapshots. Refresh after the website changes its offline state.',
-      'Manifest source is parsed into bounded diagnostic fields; the raw manifest source is never returned.',
-      'Installability error identifiers come from Chromium and may change between Chromium versions.',
-      'The inspector is read-only and never returns cached response bodies.',
-      normalized.includeHeaders
-        ? 'Bounded request and response headers are included; recognized secret-bearing headers are redacted.'
-        : 'Header values are omitted. Request includeHeaders only when they are necessary and safe to return.',
-      'Opaque response sizes may include browser quota padding and are not measured by this report.',
-      'Use browser_site_data only when the task explicitly requires unregistering workers or clearing origin caches.'
+      PWA_INSPECTION_CAVEATS.origin,
+      PWA_INSPECTION_CAVEATS.snapshot,
+      PWA_INSPECTION_CAVEATS.manifest,
+      PWA_INSPECTION_CAVEATS.installabilityIds,
+      PWA_INSPECTION_CAVEATS.readOnly,
+      normalized.includeHeaders ? PWA_INSPECTION_CAVEATS.headersIncluded : PWA_INSPECTION_CAVEATS.headersOmitted,
+      PWA_INSPECTION_CAVEATS.opaqueSizes,
+      PWA_INSPECTION_CAVEATS.clearing
     ]
   }
 
@@ -100,7 +101,7 @@ export async function inspectPwa<Tab extends PwaInspectionTab>(access: PwaInspec
         } catch (error) {
           report.installabilityInspectionAvailable = false
           if (!access.isUnavailableCdpMethod(error)) {
-            report.caveats.push(`Installability diagnostics were unavailable: ${redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 500)}`)
+            report.caveats.push(`${PWA_INSTALLABILITY_UNAVAILABLE_PREFIX}${redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 500)}`)
           }
         }
         requireCurrentPage()
@@ -128,7 +129,7 @@ export async function inspectPwa<Tab extends PwaInspectionTab>(access: PwaInspec
       const selected = usableCaches.find((cache) => cache.cacheName === normalized.cacheName)
         ?? usableCaches.find((cache) => sanitizeCacheStorageCacheName(cache.cacheName) === normalized.cacheName)
       if (!selected) {
-        report.cacheInspectionError = `Cache Storage cache not found: ${redactDiagnosticText(normalized.cacheName)}`
+        report.cacheInspectionError = `${PWA_CACHE_NOT_FOUND_PREFIX}${redactDiagnosticText(normalized.cacheName)}`
         return
       }
       const entriesResult = await tab.webContents.debugger.sendCommand('CacheStorage.requestEntries', {

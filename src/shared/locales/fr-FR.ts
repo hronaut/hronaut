@@ -3165,6 +3165,7 @@ export const frFR = {
       "updateViaCache": "mise à jour via le cache : {value}",
       "noRegistrations": "Aucune inscription de service worker",
       "cacheUnavailable": "Cache Storage indisponible : {error}",
+      "cacheNotFound": "Cache introuvable : {name}",
       "cache": "Cache",
       "cacheAria": "Cache de Cache Storage",
       "filter": "Filtrer les requêtes en cache",
