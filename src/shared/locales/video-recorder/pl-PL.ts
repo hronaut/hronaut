@@ -77,6 +77,7 @@ export const plPLVideoRecorder = {
     "onlyPausedResume": "Wznowić można tylko wstrzymane nagranie",
     "recordingLimit": "Osiągnięto limit nagrania",
     "stopBeforeImport": "Zatrzymaj nagrywanie przed importem dźwięku",
+    "recordingChanged": "Nagranie zmieniło się podczas wybierania dźwięku",
     "audioAssetCount": "Najpierw usuń jeden z zaimportowanych plików dźwiękowych (maksymalnie osiem)",
     "importedAudioTooLarge": "Zaimportowany dźwięk przekracza limit nagrania wynoszący 32 MiB",
     "stopBeforeRemovingAudio": "Zatrzymaj nagrywanie przed usunięciem dźwięku",

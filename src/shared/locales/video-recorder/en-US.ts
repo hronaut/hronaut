@@ -77,6 +77,7 @@ export const enUSVideoRecorder = {
     "onlyPausedResume": "Only a paused recording can resume",
     "recordingLimit": "Recording limit reached",
     "stopBeforeImport": "Stop recording before importing audio",
+    "recordingChanged": "The recording changed while choosing audio",
     "audioAssetCount": "Remove an imported audio asset first (maximum eight)",
     "importedAudioTooLarge": "Imported audio exceeds the 32 MiB recording limit",
     "stopBeforeRemovingAudio": "Stop recording before removing audio",

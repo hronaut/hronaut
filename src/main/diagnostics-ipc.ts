@@ -1,6 +1,7 @@
 import { videoOptionsSchema } from '../shared/video.js'
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import { LocalizedError } from './localized-error.js'
 import type {
   BrowserAccessibilityAuditOptions,
   BrowserCodeCoverageOptions,
@@ -179,12 +180,12 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     if (typeof tabId !== 'string' || !tabId || typeof provenance !== 'string' || !provenance.trim() || provenance.length > 240) throw new TypeError('Audio import requires a tab and source/usage rights')
     const tabs = host.tabs()
     const before = await tabs.videoRecording({ tabId, action: 'get' })
-    if (!before.recordingId || before.status !== 'stopped') throw new Error('Stop recording before importing audio')
+    if (!before.recordingId || before.status !== 'stopped') throw new LocalizedError('video.errors.stopBeforeImport')
     if (!host.pickVideoAudio) throw new Error('Audio import is unavailable')
     const path = await host.pickVideoAudio()
     host.assertTrustedSender(event)
     const current = await tabs.videoRecording({ tabId, action: 'get' })
-    if (current.recordingId !== before.recordingId || current.status !== 'stopped') throw new Error('The recording changed while choosing audio')
+    if (current.recordingId !== before.recordingId || current.status !== 'stopped') throw new LocalizedError('video.errors.recordingChanged')
     if (!path) return current
     return tabs.videoRecording({ tabId, action: 'import-audio', audioPath: path, audioProvenance: provenance.trim() }, () => host.assertTrustedSender(event))
   })

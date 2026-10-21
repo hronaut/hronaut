@@ -77,6 +77,7 @@ export const deDEVideoRecorder = {
     "onlyPausedResume": "Nur eine pausierte Aufnahme lässt sich fortsetzen",
     "recordingLimit": "Das Aufnahmelimit ist erreicht",
     "stopBeforeImport": "Stoppen Sie die Aufnahme, bevor Sie Audio importieren",
+    "recordingChanged": "Die Aufnahme hat sich geändert, während Sie Audio ausgewählt haben",
     "audioAssetCount": "Entfernen Sie zuerst eine importierte Audiodatei (höchstens acht)",
     "importedAudioTooLarge": "Das importierte Audio überschreitet das Aufnahmelimit von 32 MiB",
     "stopBeforeRemovingAudio": "Stoppen Sie die Aufnahme, bevor Sie Audio entfernen",

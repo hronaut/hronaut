@@ -154,3 +154,14 @@ it('keeps native audio selection bound to its stopped recording and trusted send
   await invoke('video-import-audio', 'tab', 'Original composition')
   expect(tabs.videoRecording).toHaveBeenLastCalledWith({ tabId: 'tab', action: 'import-audio', audioPath: '/chosen.wav', audioProvenance: 'Original composition' }, expect.any(Function))
 })
+
+it('says in the interface language why the panel cannot import audio, while the English stays for logs', async () => {
+  const { tabs, host, invoke } = fixture()
+  tabs.videoRecording.mockResolvedValue({ recordingId: 'recording', status: 'recording' })
+  const refusal = await invoke('video-import-audio', 'tab', 'Original composition').catch((error: unknown) => error)
+  expect(refusal).toMatchObject({ name: 'Error', message: 'Stop recording before importing audio', key: 'video.errors.stopBeforeImport' })
+  expect(host.pickVideoAudio).not.toHaveBeenCalled()
+  tabs.videoRecording.mockReset().mockResolvedValueOnce({ recordingId: 'recording', status: 'stopped' }).mockResolvedValueOnce({ recordingId: 'recording', status: 'recording' })
+  host.pickVideoAudio.mockResolvedValue('/chosen.wav')
+  await expect(invoke('video-import-audio', 'tab', 'Original composition')).rejects.toMatchObject({ message: 'The recording changed while choosing audio', key: 'video.errors.recordingChanged' })
+})
