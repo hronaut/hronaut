@@ -113,8 +113,12 @@ export class WorkspaceRegistry {
       return this.publicArchive(saved)
     })
   }
-  /** Restores an archived workspace at the end of the tab rail, or, for Undo, where it was and pinned as it was. */
-  restore(id: string, placement?: WorkspacePlacement): Promise<BrowserTabGroupState> {
+  /**
+   * Restores an archived workspace at the end of the tab rail, or, for Undo, where it was and pinned as it was, and
+   * shows the tab that was shown when it was archived. With `show` false, as for an agent, the window stays as it is
+   * and that tab only becomes the workspace's remembered tab.
+   */
+  restore(id: string, placement?: WorkspacePlacement, show = true): Promise<BrowserTabGroupState> {
     const host = this.runtime
     return host.withArchivedOperation(id, 'restoring the archived workspace', async () => {
       const saved = this.archived.get(id)
@@ -148,7 +152,8 @@ export class WorkspaceRegistry {
             // The tabs open in the order they were saved, so the tab shown when it was archived is shown again.
             const tabs = host.tabs().filter(tab => tab.mcpGroupId === id)
             const shown = tabs[saved.shownTabIndex ?? tabs.length - 1] ?? tabs[tabs.length - 1]
-            if (shown) host.selectTab(shown.id)
+            if (shown && show) host.selectTab(shown.id)
+            else if (shown) restored.activeTabId = shown.id
             const result = host.requireActive(id)
             host.changed(); host.remapDownloads(id, id)
             return result

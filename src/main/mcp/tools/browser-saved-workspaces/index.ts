@@ -86,7 +86,8 @@ export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
       if (action === 'open') {
         const writeLease = workspaceLeases.require(savedWorkspaceId, client.id)
         try {
-          const opened = await manager.restoreSavedTabGroup(savedWorkspaceId)
+          // Like the agent's other calls, opening it leaves the person's window as it is.
+          const opened = await manager.restoreSavedTabGroupForAgent(savedWorkspaceId)
           workspaceLeases.require(savedWorkspaceId, client.id, writeLease.generation)
           savedWorkspaceIds.delete(savedWorkspaceId)
           activeWorkspaceIds.add(opened.id)

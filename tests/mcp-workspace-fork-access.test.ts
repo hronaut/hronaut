@@ -78,7 +78,7 @@ describe('MCP workspace fork sources and direct access', () => {
         mcpTabGroups: [{ id: ownId, navigationPolicy: { mode: 'unrestricted', rules: [] } }]
       })),
       deleteSavedTabGroup: vi.fn(),
-      restoreSavedTabGroup: vi.fn(async () => workspace),
+      restoreSavedTabGroupForAgent: vi.fn(async () => workspace),
       transferWorkspaceStorage: vi.fn(async () => ({ copied: true })),
       saveAndCloseTabGroup: vi.fn(async () => workspace)
     }
@@ -220,6 +220,7 @@ describe('MCP workspace fork sources and direct access', () => {
     })
     const result = await call('browser_saved_workspaces', { action, savedWorkspaceId: ownId, ...(action === 'resume' ? { resumeKey: key } : {}) })
     expect(manager.inspectWorkspaceContinuity).toHaveBeenCalledWith(ownId)
+    if (action === 'open') expect(manager.restoreSavedTabGroupForAgent).toHaveBeenCalledWith(ownId)
     expect(result.isError).toBe(true)
     expect(JSON.stringify(result)).not.toContain(key)
     expect(JSON.stringify(result)).not.toContain('continuity')
@@ -250,7 +251,7 @@ describe('MCP workspace fork sources and direct access', () => {
     for (const action of ['open', 'delete', 'resume']) {
       expect((await call('browser_saved_workspaces', { action, savedWorkspaceId: ownId, resumeKey: key })).isError).toBe(true)
     }
-    expect(manager.restoreSavedTabGroup).not.toHaveBeenCalled()
+    expect(manager.restoreSavedTabGroupForAgent).not.toHaveBeenCalled()
     expect(manager.deleteSavedTabGroup).not.toHaveBeenCalled()
   })
 
