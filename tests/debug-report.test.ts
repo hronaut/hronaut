@@ -16,12 +16,16 @@ describe('debug report', () => {
     expect(redactDiagnosticText(value)).toBe(value)
   })
 
-  it('ends an address at a typographic quote', () => {
+  it('keeps a closing typographic quote out of the address', () => {
     // The quote became part of the address: Click link “https://example.test/%E2%80%9D, and «…» or „…“ alike.
+    expect(redactDiagnosticText('Click link “https://example.test/”')).toBe('Click link “https://example.test/”')
     expect(redactDiagnosticText('Click link “https://example.test”')).toBe('Click link “https://example.test/”')
     expect(redactDiagnosticText('Link „https://example.test/a#private“')).toBe('Link „https://example.test/a“')
     expect(redactDiagnosticText('Ссылка «https://example.test/a?token=secret&view=kept»')).toBe('Ссылка «https://example.test/a?view=kept&token=[REDACTED]»')
     expect(redactDiagnosticText('‘https://example.test/a’')).toBe('‘https://example.test/a’')
+    expect(redactDiagnosticText('Siehe „https://example.test/a“.')).toBe('Siehe „https://example.test/a“.')
+    // A quote inside an address stays part of it, so what follows is still redacted with the address.
+    expect(redactDiagnosticText('https://example.test/a”?sig=secret#access_token=secret')).toBe('https://example.test/a%E2%80%9D?sig=%5BREDACTED%5D')
   })
 
   it('redacts pwd and passphrase values and PHP and Java sessions in console text', () => {
