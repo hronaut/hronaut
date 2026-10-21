@@ -75,7 +75,7 @@ import { inspectVideo, videoPreview, videoRecording } from './video-recording/vi
 import { renderBrowserVideo } from './video-export.js'
 import { readVideoAudioFile } from './video-audio-file.js'
 import { writeUniqueDownloadFile } from './unique-download-file.js'
-import type { BrowserVideoOptions, BrowserVideoState } from '../../shared/video.js'
+import { VIDEO_RECORDING_NOTICES, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import type { BrowserCredentialCandidate, CredentialCaptureAccess } from './credential-capture/credential-capture-access.js'
 import { watchCredentialSubmission } from './credential-capture/credential-capture.js'
 import type { BrowserNetworkRecordingState, BrowserNetworkRequestRecord } from './network-recording.js'
@@ -1012,7 +1012,7 @@ export class BrowserTabsManager {
     isAgentInput: webContents => this.agentInputWebContents.has(webContents.id),
     changed: () => this.changed(false)
   })
-  private readonly pauseVideoForSuspend = (): void => { this.videoRecorder.pauseAll('Capture paused for system sleep; resume explicitly') }
+  private readonly pauseVideoForSuspend = (): void => { this.videoRecorder.pauseAll(VIDEO_RECORDING_NOTICES.sleep) }
   private readonly videoRecorder = new BrowserVideoRecorder({
     changed: () => this.changed(false),
     render: renderBrowserVideo,

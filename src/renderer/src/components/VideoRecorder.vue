@@ -6,7 +6,7 @@ import type { SupportedLocale } from '../../../shared/types.js'
 import UiButton from '../ui/UiButton.vue'
 import VideoAudioEditor from './VideoAudioEditor.vue'
 import VideoMotionEditor from './VideoMotionEditor.vue'
-import { VIDEO_ANNOTATION_KINDS, VIDEO_PLACEMENTS, VIDEO_TEXT_PRESETS, videoAnnotationSchema, videoOptionsSchema, type BrowserVideoOptions, type BrowserVideoState, type VideoAnnotation } from '../../../shared/video.js'
+import { VIDEO_ANNOTATION_KINDS, VIDEO_PLACEMENTS, VIDEO_RECORDING_NOTICES, VIDEO_TEXT_PRESETS, videoAnnotationSchema, videoOptionsSchema, type BrowserVideoOptions, type BrowserVideoState, type VideoAnnotation } from '../../../shared/video.js'
 import { friendlyUiError } from '../composables/useAppToastController.js'
 
 const props = defineProps<{ tabId: string }>()
@@ -14,6 +14,13 @@ const { t, locale } = useI18n({ useScope: 'global' })
 // Seconds use the interface language's decimal separator: a set number of digits for a length, up to milliseconds for a time.
 const seconds = (milliseconds: number, digits?: number): string => formatNumber(locale.value as SupportedLocale, milliseconds / 1000, digits === undefined ? { maximumFractionDigits: 3 } : { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const state = ref<BrowserVideoState | null>(null)
+// browser_video keeps the English notice; a known one is named in the interface language, any other shows as it came.
+const NOTICE_KEYS = new Map(Object.entries(VIDEO_RECORDING_NOTICES).map(([key, value]) => [value as string, key]))
+const notice = computed(() => {
+  const text = state.value?.notice ?? ''
+  const key = NOTICE_KEYS.get(text)
+  return key ? t(`video.notices.${key}`) : text
+})
 const busy = ref(false)
 const pendingAction = ref<BrowserVideoOptions['action']>()
 const error = ref('')
@@ -155,7 +162,7 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
   <section ref="recorder" class="video-recorder" tabindex="-1" :aria-label="t('video.title')" :aria-busy="busy">
     <p>{{ t('video.privacy') }}</p>
     <p v-if="state" role="status">{{ t(`video.status.${state.status}`) }} · {{ seconds(state.durationMs, 1) }} {{ t('video.seconds') }}</p>
-    <p v-if="state?.notice">{{ state.notice }}</p>
+    <p v-if="notice">{{ notice }}</p>
     <p v-if="error" role="alert">{{ error }}</p>
     <div class="video-actions">
       <UiButton variant="primary" v-if="!state || state.status === 'idle'" :disabled="busy" @click="manage('start')">{{ t('video.start') }}</UiButton>

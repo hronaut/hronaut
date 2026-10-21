@@ -60,6 +60,13 @@ export const frFRVideoRecorder = {
     "stopped": "Enregistrement arrêté",
     "rendering": "Rendu de la vidéo…"
   },
+  "notices": {
+    "gap": "Enregistrement en pause après une interruption sans images. Reprenez la vidéo pour continuer.",
+    "conditions": "Enregistrement en pause. Gardez Hronaut visible et l’onglet source actif, sur son site d’origine et à sa taille d’origine, avec l’accès à l’enregistrement disponible.",
+    "sleep": "Enregistrement en pause pendant la mise en veille de l’ordinateur. Reprenez la vidéo pour continuer.",
+    "durationLimit": "L’enregistrement a atteint sa limite de deux minutes.",
+    "sizeLimit": "L’enregistrement a atteint sa limite de 64 Mio."
+  },
   "seconds": "s",
   "start": "Démarrer l’enregistrement vidéo",
   "pause": "Mettre la vidéo en pause",
