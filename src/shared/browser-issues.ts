@@ -125,7 +125,8 @@ export function normalizeInspectorIssue(value: unknown, firstSeenAt = new Date()
   const reasons = extractReasons(details)
   const affectedUrls = extractUrls(details)
   const source = extractSource(details)
-  const metadata = (Object.hasOwn(INSPECTOR_ISSUE_METADATA, code) ? INSPECTOR_ISSUE_METADATA[code] : undefined) ?? { title: code.replace(/Issue$/, '').replace(/([a-z])([A-Z])/g, '$1 $2'), severity: 'info' as const }
+  const metadata = (Object.hasOwn(INSPECTOR_ISSUE_METADATA, code) ? INSPECTOR_ISSUE_METADATA[code] : undefined)
+    ?? { title: code.replace(/Issue$/, '').replace(/([a-z])([A-Z])/g, '$1 $2'), severity: 'info' as const }
   const fingerprint = [code, ...reasons, ...affectedUrls, source ? `${source.url}:${source.lineNumber}:${source.columnNumber}` : '', ...(disposition ? [disposition] : [])].join('|')
   const issueId = typeof raw.issueId === 'string' && raw.issueId && raw.issueId.length <= 256 ? raw.issueId : fingerprint
   return {
