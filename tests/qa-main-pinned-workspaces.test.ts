@@ -101,7 +101,7 @@ describe('tab order in main with pinned workspaces', () => {
     { id: 'home', url: 'hronaut://home/', pinned: false }
   ]
 
-  it('orders Home, pinned tabs, then workspaces with pinned ones first, the earliest pinned first', () => {
+  it('orders Home, then workspaces with pinned ones first, the earliest pinned first, each with its pinned tabs first', () => {
     const { internals } = fixture([
       group('alpha'),
       group('beta', '2026-10-17T12:00:00.000Z'),
@@ -113,9 +113,9 @@ describe('tab order in main with pinned workspaces', () => {
   it('returns an unpinned workspace to its stored place', () => {
     const { manager, internals } = fixture([group('alpha'), group('beta'), group('gamma')], tabs)
     const stored = internals.orderedTabs().map((tab) => tab.id)
-    expect(stored).toEqual(['home', 'gamma-pinned', 'alpha-1', 'alpha-2', 'beta-1', 'gamma-1'])
+    expect(stored).toEqual(['home', 'alpha-1', 'alpha-2', 'beta-1', 'gamma-pinned', 'gamma-1'])
     manager.setWorkspacePinned('beta', true)
-    expect(internals.orderedTabs().map((tab) => tab.id)).toEqual(['home', 'gamma-pinned', 'beta-1', 'alpha-1', 'alpha-2', 'gamma-1'])
+    expect(internals.orderedTabs().map((tab) => tab.id)).toEqual(['home', 'beta-1', 'alpha-1', 'alpha-2', 'gamma-pinned', 'gamma-1'])
     manager.setWorkspacePinned('beta', false)
     expect(internals.orderedTabs().map((tab) => tab.id)).toEqual(stored)
   })
@@ -130,6 +130,20 @@ describe('tab order in main with pinned workspaces', () => {
     expect(internals.closeTabTransition(internals.tabs.get('beta-1')!).nextId).toBe('alpha-1')
     internals.activeTabId = 'alpha-1'
     expect(internals.closeTabTransition(internals.tabs.get('alpha-1')!).nextId).toBe('beta-1')
+  })
+
+  // A pinned tab of any workspace but the first came before every other workspace's tabs, so closing it showed the
+  // first workspace's tab, and Ctrl+1 to 9 and Ctrl+Tab went by that order rather than the one on screen.
+  it('keeps a later workspace\'s pinned tab in its workspace, and shows that workspace\'s next tab when it closes', () => {
+    const { internals } = fixture([group('work'), group('docs')], [
+      { id: 'work-1', url: 'https://work.test/1', pinned: false, mcpGroupId: 'work' },
+      { id: 'work-2', url: 'https://work.test/2', pinned: false, mcpGroupId: 'work' },
+      { id: 'docs-2', url: 'https://docs.test/2', pinned: false, mcpGroupId: 'docs' },
+      { id: 'docs-pinned', url: 'https://docs.test/pinned', pinned: true, mcpGroupId: 'docs' }
+    ])
+    expect(internals.orderedTabs().map((tab) => tab.id)).toEqual(['work-1', 'work-2', 'docs-pinned', 'docs-2'])
+    internals.activeTabId = 'docs-pinned'
+    expect(internals.closeTabTransition(internals.tabs.get('docs-pinned')!).nextId).toBe('docs-2')
   })
 })
 
