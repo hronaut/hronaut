@@ -26,6 +26,14 @@ export const plPLWallets = {
     "passphrase-setup-required": "Zarządzane portfele wymagają hasła sejfu.",
     "disabled": "Zarządzane portfele są wyłączone."
   },
+  "disabledReasons": {
+    "notInitialized": "Usługa portfeli jeszcze się nie uruchomiła.",
+    "secureStorageUnavailable": "Bezpieczna pamięć systemu operacyjnego wymagana przez ten sejf portfeli jest niedostępna.",
+    "noBackend": "Brak dostępnej bezpiecznej pamięci kluczy dla portfeli.",
+    "integrityFailure": "Dane portfeli nie przeszły kontroli integralności. Operacje na portfelach są wyłączone.",
+    "unlockFailure": "Nie udało się odblokować sejfu portfeli przez bezpieczną pamięć systemu operacyjnego. Operacje na portfelach są wyłączone.",
+    "initializationFailure": "Inicjowanie portfeli nie powiodło się. Operacje na portfelach są wyłączone."
+  },
   "backends": {
     "safeStorage": "Chronione przez bezpieczną pamięć systemu operacyjnego.",
     "keychain": "Chronione przez Pęk kluczy macOS.",

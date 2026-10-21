@@ -26,6 +26,14 @@ export const deDEWallets = {
     "passphrase-setup-required": "Verwaltete Wallets benötigen eine Tresor-Passphrase.",
     "disabled": "Verwaltete Wallets sind deaktiviert."
   },
+  "disabledReasons": {
+    "notInitialized": "Der Wallet-Dienst wurde noch nicht gestartet.",
+    "secureStorageUnavailable": "Der sichere Speicher des Betriebssystems, den dieser Wallet-Tresor benötigt, ist nicht verfügbar.",
+    "noBackend": "Für Wallets ist kein sicherer Schlüsselspeicher verfügbar.",
+    "integrityFailure": "Die Wallet-Daten haben die Integritätsprüfung nicht bestanden. Wallet-Vorgänge sind deaktiviert.",
+    "unlockFailure": "Der Wallet-Tresor konnte nicht mit dem sicheren Speicher des Betriebssystems entsperrt werden. Wallet-Vorgänge sind deaktiviert.",
+    "initializationFailure": "Die Wallet-Initialisierung ist fehlgeschlagen. Wallet-Vorgänge sind deaktiviert."
+  },
   "backends": {
     "safeStorage": "Geschützt durch den sicheren Speicher des Betriebssystems.",
     "keychain": "Geschützt durch den macOS-Schlüsselbund.",

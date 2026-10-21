@@ -19,6 +19,7 @@ import { confirmAction } from '../confirm-action.js'
 import { ignoreHeldEnter } from '../held-enter.js'
 import {
   isWalletTokenMethod,
+  WALLET_DISABLED_REASONS,
   WalletNetworkSchema,
   walletNetworkValidationIssue,
   type WalletChainFamily,
@@ -240,12 +241,15 @@ const backendTranslationKeys: Record<string, string> = {
   initializing: 'initializing',
   uninitialized: 'initializing'
 }
+// MCP results keep main's English reason; a known one is named in the interface language, any other shows as it came.
+const DISABLED_REASON_KEYS = new Map(Object.entries(WALLET_DISABLED_REASONS).map(([key, value]) => [value as string, key]))
 const statusCopy = computed(() => {
   const service = props.controller.status.value
   const status = t(`wallets.statuses.${service.managedWallets}`)
   const backend = t(`wallets.backends.${backendTranslationKeys[service.backend] ?? 'unavailable'}`)
+  const reasonKey = service.reason ? DISABLED_REASON_KEYS.get(service.reason) : undefined
   return service.managedWallets === 'disabled' && service.reason
-    ? t('wallets.statusWithReason', { status, backend, reason: service.reason })
+    ? t('wallets.statusWithReason', { status, backend, reason: reasonKey ? t(`wallets.disabledReasons.${reasonKey}`) : service.reason })
     : t('wallets.status', { status, backend })
 })
 
