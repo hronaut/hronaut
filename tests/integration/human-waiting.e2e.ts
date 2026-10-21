@@ -472,3 +472,43 @@ test('runs an approved action group in order and advances only after verified po
     await closeFixtureServer(fixture)
   }
 })
+
+test('names a decision in the interface language in the system notification while agents keep the English line', async ({ electronApp, mcpPort, mcpToken }) => {
+  // The notification said "Human decision required: provide-input" in every language.
+  type NotificationRecorder = { supported: () => boolean; show: () => void; shown: string[] }
+  await electronApp.evaluate(({ Notification }) => {
+    const scope = globalThis as typeof globalThis & { __hronautDecisionNotification?: NotificationRecorder }
+    scope.__hronautDecisionNotification = { supported: Notification.isSupported, show: Notification.prototype.show, shown: [] }
+    Notification.isSupported = () => true
+    Notification.prototype.show = function () { scope.__hronautDecisionNotification!.shown.push(this.body) }
+  })
+  const client = new Client({ name: 'human-decision-notification-qa', version: '1' })
+  const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
+  const decode = <T>(result: CallToolResult): T => {
+    const value = result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
+    if (result.isError) throw new Error(value)
+    return JSON.parse(value) as T
+  }
+  try {
+    await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+    const workspace = decode<{ id: string }>(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Decision notification QA' }))
+    decode(await call('browser_human_waiting', { workspaceId: workspace.id, action: 'request', runId: randomUUID(), decision: 'provide-input' }))
+    await expect.poll(() => electronApp.evaluate(() => (
+      globalThis as typeof globalThis & { __hronautDecisionNotification?: NotificationRecorder }
+    ).__hronautDecisionNotification?.shown)).toEqual(['The agent needs your answer to carry on.'])
+    const status = decode<{ userAttention: { reason: string } | null }>(await call('browser_status', { workspaceId: workspace.id }))
+    expect(status.userAttention?.reason).toBe('Human decision required: provide-input')
+  } finally {
+    await client.close()
+    await electronApp.evaluate(({ Notification }) => {
+      const scope = globalThis as typeof globalThis & { __hronautDecisionNotification?: NotificationRecorder }
+      const original = scope.__hronautDecisionNotification
+      if (original) {
+        Notification.isSupported = original.supported
+        Notification.prototype.show = original.show
+      }
+      delete scope.__hronautDecisionNotification
+    }).catch(() => undefined)
+  }
+})
