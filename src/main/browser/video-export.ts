@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { join } from 'node:path'
+import { LocalizedError } from '../localized-error.js'
 import { VIDEO_LIMITS, videoSourceTime, videoFrameTiming, type VideoFrame, type VideoRenderPlan } from '../../shared/video.js'
 
 /** An isolated trusted renderer encodes pixels. No Node, preload bridge, page scripts or network. */
@@ -10,12 +11,12 @@ export async function renderBrowserVideo(plan: VideoRenderPlan, frames: readonly
   // is destroyed. Cancellation must settle our caller independently of Electron.
   let interrupt!: () => void
   const interrupted = new Promise<never>((_resolve, reject) => {
-    interrupt = () => { reject(new Error('Video export cancelled or timed out')); stop() }
+    interrupt = () => { reject(new LocalizedError('video.errors.exportTimeout')); stop() }
   })
   void interrupted.catch(() => undefined)
   signal.addEventListener('abort', interrupt, { once: true })
   const timer = setTimeout(interrupt, 5 * 60_000)
-  const assertCurrent = (): void => { if (signal.aborted || window.isDestroyed()) throw new Error('Video export cancelled or timed out'); validate() }
+  const assertCurrent = (): void => { if (signal.aborted || window.isDestroyed()) throw new LocalizedError('video.errors.exportTimeout'); validate() }
   const call = async (method: 'begin' | 'frame' | 'finish', args: unknown[] = []): Promise<unknown> => {
     assertCurrent()
     const result: unknown = await Promise.race([window.webContents.executeJavaScript(`window.hronautVideoExport.${method}(...${JSON.stringify(args)})`), interrupted])

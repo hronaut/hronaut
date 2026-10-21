@@ -2,8 +2,9 @@ import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import { VIDEO_AUDIO_LIMITS } from '../../shared/video-audio.js'
+import { LocalizedError } from '../localized-error.js'
 
-const readError = (): Error => new Error('Audio file could not be read. Select a non-empty regular file no larger than 10 MiB.')
+const readError = (): Error => new LocalizedError('video.errors.audioUnreadable')
 
 /** Filesystem errors must not disclose a local path through an MCP result. */
 async function readIo<T>(operation: () => Promise<T>): Promise<T> {
