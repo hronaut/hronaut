@@ -3119,9 +3119,9 @@ export class BrowserTabsManager {
       this.options.onWalletTabClosed?.(tab.id)
     ))
     this.deleteSnapshotBaselineForTab(tab.id)
-    // A workspace whose remembered tab closes remembers the one beside it, which closing the tab on screen would show.
+    // A workspace whose remembered tab closes remembers the tab that closing it on screen would show.
     const group = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const rememberedInstead = group?.activeTabId === tab.id ? this.workspaceTabBeside(tab) : undefined
+    const rememberedInstead = group?.activeTabId === tab.id ? this.workspaceTabAfterClose(tab) : undefined
     this.tabs.delete(tab.id)
     this.globallyUnlockedTabIds.delete(tab.id)
     this.globallyResumedAgentTabIds.delete(tab.id)
@@ -3141,10 +3141,13 @@ export class BrowserTabsManager {
   }
 
   /**
-   * The open tab beside this one in its workspace as the tab strip shows them, to its right and otherwise to its left,
-   * or null when it is the workspace's only tab.
+   * The workspace's tab that follows this one when it closes, as the close hand-over picks it: the tab that opened it as
+   * a popup, otherwise the open tab beside it as the tab strip shows them, to its right and otherwise to its left; null
+   * when it is the workspace's only tab.
    */
-  private workspaceTabBeside(tab: BrowserTab): string | null {
+  private workspaceTabAfterClose(tab: BrowserTab): string | null {
+    const opener = tab.openerTabId ? this.tabs.get(tab.openerTabId) : undefined
+    if (opener && opener.mcpGroupId === tab.mcpGroupId && !opener.webContents.isDestroyed()) return opener.id
     const siblings = this.orderedTabs().filter((candidate) => (
       candidate.mcpGroupId === tab.mcpGroupId && (candidate === tab || !candidate.webContents.isDestroyed())
     ))
