@@ -531,6 +531,7 @@ export const plPL = {
   "workspaceNavigationAudit": { "reasonCredentials": "osadzone dane logowania", "reasonMalformed": "nieprawidłowy adres", "reasonUnsupportedScheme": "nieobsługiwany schemat", "reasonNoMatch": "poza listą dozwolonych", "sourceDirect": "adres lub żądanie agenta", "sourcePage": "nawigacja strony", "sourceRedirect": "przekierowanie", "sourcePopup": "wyskakujące okno", "sourceHistory": "wstecz lub dalej", "sourcePolicyChange": "zmiana zasad", "sourceRestore": "przywrócenie sesji" },
   "workspaceEditor": {
     transferData: "Przenieś dane przeglądarki",
+    colors: { gray: "Szary", blue: "Niebieski", cyan: "Turkusowy", green: "Zielony", yellow: "Żółty", orange: "Pomarańczowy", red: "Czerwony", pink: "Różowy", purple: "Fioletowy" },
     archived: "Zarchiwizowany",
     archiveBeforeMove: "Przed przenoszeniem zarchiwizuj oba obszary, aby ich strony nie zmieniały danych. Kopiowanie działa w otwartych obszarach.",
 

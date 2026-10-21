@@ -531,6 +531,7 @@ export const deDE = {
   "workspaceNavigationAudit": { "reasonCredentials": "eingebettete Zugangsdaten", "reasonMalformed": "ungültige Adresse", "reasonUnsupportedScheme": "nicht unterstütztes Schema", "reasonNoMatch": "nicht auf der Positivliste", "sourceDirect": "Adresse oder Agentenanfrage", "sourcePage": "Seitennavigation", "sourceRedirect": "Weiterleitung", "sourcePopup": "Pop-up", "sourceHistory": "Zurück oder Vor", "sourcePolicyChange": "Richtlinienänderung", "sourceRestore": "Sitzungswiederherstellung" },
   "workspaceEditor": {
     transferData: "Browserdaten übertragen",
+    colors: { gray: "Grau", blue: "Blau", cyan: "Türkis", green: "Grün", yellow: "Gelb", orange: "Orange", red: "Rot", pink: "Rosa", purple: "Violett" },
     archived: "Archiviert",
     archiveBeforeMove: "Archivieren Sie beide Arbeitsbereiche vor dem Verschieben, damit ihre Seiten die Daten nicht ändern. Kopieren funktioniert auch mit offenen Arbeitsbereichen.",
 

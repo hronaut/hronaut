@@ -246,7 +246,7 @@ export const enUS = {
   appErrors: appErrorMessages['en-US'],
   workspaceNavigationAudit: { reasonCredentials: 'embedded credentials', reasonMalformed: 'invalid address', reasonUnsupportedScheme: 'unsupported scheme', reasonNoMatch: 'not on allowlist', sourceDirect: 'address or agent request', sourcePage: 'page navigation', sourceRedirect: 'redirect', sourcePopup: 'popup', sourceHistory: 'back or forward', sourcePolicyChange: 'policy change', sourceRestore: 'session restore' },
   workspaceEditor: {
-    transferData: "Transfer browser data",
+    transferData: "Transfer browser data", colors: { gray: "Gray", blue: "Blue", cyan: "Cyan", green: "Green", yellow: "Yellow", orange: "Orange", red: "Red", pink: "Pink", purple: "Purple" },
     archived: "Archived",
     archiveBeforeMove: "Archive both workspaces before moving data so their pages cannot change it during the move. Copy works while workspaces are open.",
 

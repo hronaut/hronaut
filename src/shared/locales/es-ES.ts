@@ -531,6 +531,7 @@ export const esES = {
   "workspaceNavigationAudit": { "reasonCredentials": "credenciales incrustadas", "reasonMalformed": "dirección no válida", "reasonUnsupportedScheme": "esquema no compatible", "reasonNoMatch": "fuera de la lista permitida", "sourceDirect": "dirección o solicitud del agente", "sourcePage": "navegación de página", "sourceRedirect": "redirección", "sourcePopup": "ventana emergente", "sourceHistory": "atrás o adelante", "sourcePolicyChange": "cambio de política", "sourceRestore": "restauración de sesión" },
   "workspaceEditor": {
     transferData: "Transferir datos del navegador",
+    colors: { gray: "Gris", blue: "Azul", cyan: "Turquesa", green: "Verde", yellow: "Amarillo", orange: "Naranja", red: "Rojo", pink: "Rosa", purple: "Morado" },
     archived: "Archivado",
     archiveBeforeMove: "Archive ambos espacios antes de mover datos para impedir que sus páginas los modifiquen. Puede copiar mientras los espacios están abiertos.",
 

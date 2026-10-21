@@ -531,6 +531,7 @@ export const frFR = {
   "workspaceNavigationAudit": { "reasonCredentials": "identifiants intégrés", "reasonMalformed": "adresse invalide", "reasonUnsupportedScheme": "schéma non pris en charge", "reasonNoMatch": "absent de la liste autorisée", "sourceDirect": "adresse ou demande d’agent", "sourcePage": "navigation de page", "sourceRedirect": "redirection", "sourcePopup": "fenêtre contextuelle", "sourceHistory": "précédent ou suivant", "sourcePolicyChange": "changement de politique", "sourceRestore": "restauration de session" },
   "workspaceEditor": {
     transferData: "Transférer des données du navigateur",
+    colors: { gray: "Gris", blue: "Bleu", cyan: "Turquoise", green: "Vert", yellow: "Jaune", orange: "Orange", red: "Rouge", pink: "Rose", purple: "Violet" },
     archived: "Archivé",
     archiveBeforeMove: "Archivez les deux espaces avant le déplacement pour empêcher leurs pages de modifier les données. La copie fonctionne avec les espaces ouverts.",
 
