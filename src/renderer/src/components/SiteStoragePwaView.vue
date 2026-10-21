@@ -40,7 +40,7 @@ const { t } = useI18n({ useScope: 'global' })
 function localNumber(value: number): string { return formatNumber(props.locale, value) }
 // The report's caveats and cache error are English for agents; text Hronaut does not know still shows as recorded,
 // and the redacted reason or cache name after a known start stays as it is.
-const CAVEAT_KEYS = new Map(Object.entries(PWA_INSPECTION_CAVEATS).map(([key, value]) => [value, key]))
+const CAVEAT_KEYS = new Map(Object.entries(PWA_INSPECTION_CAVEATS).map(([key, value]) => [value as string, key]))
 function after(text: string, prefix: string): string {
   return text.startsWith(prefix) ? text.slice(prefix.length) : ''
 }

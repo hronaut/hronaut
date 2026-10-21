@@ -21,7 +21,7 @@ const eventKind = (kind: string): string => EVENT_KINDS.has(kind) ? t(`pwaLifecy
 const workerState = (state: string): string => WORKER_STATES.has(state) ? t(`pwaLifecycle.workerStates.${state}`) : state
 const stopReason = (reason: string): string => STOP_REASONS.has(reason) ? t(`pwaLifecycle.reasons.${reason}`) : reason
 // The capture's caveats are English for agents; a caveat Hronaut does not know still shows as recorded.
-const CAVEAT_KEYS = new Map(Object.entries(PWA_LIFECYCLE_CAVEATS).map(([key, value]) => [value, key]))
+const CAVEAT_KEYS = new Map(Object.entries(PWA_LIFECYCLE_CAVEATS).map(([key, value]) => [value as string, key]))
 const caveatText = (caveat: string): string => {
   const key = CAVEAT_KEYS.get(caveat)
   return key ? t(`pwaLifecycle.caveats.${key}`) : caveat

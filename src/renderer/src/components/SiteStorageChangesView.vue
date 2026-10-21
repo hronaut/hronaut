@@ -38,7 +38,7 @@ function timestamp(value: string): string {
   return new Intl.DateTimeFormat(props.locale, { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 }).format(date)
 }
 // The report's caveats are English for agents; a caveat Hronaut does not know still shows as recorded.
-const CAVEAT_KEYS = new Map(Object.entries(STORAGE_CHANGES_CAVEATS).map(([key, value]) => [value, key]))
+const CAVEAT_KEYS = new Map(Object.entries(STORAGE_CHANGES_CAVEATS).map(([key, value]) => [value as string, key]))
 function caveatText(caveat: string): string {
   const key = CAVEAT_KEYS.get(caveat)
   return key ? t(`reportCaveats.storageChanges.${key}`) : caveat

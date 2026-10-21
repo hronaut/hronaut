@@ -14,7 +14,7 @@ export const PWA_INSPECTION_CAVEATS = {
   headersOmitted: 'Header values are omitted. Request includeHeaders only when they are necessary and safe to return.',
   opaqueSizes: 'Opaque response sizes may include browser quota padding and are not measured by this report.',
   clearing: 'Use browser_site_data only when the task explicitly requires unregistering workers or clearing origin caches.'
-}
+} as const
 /** Starts the caveat added when Chromium's installability check fails; the redacted reason follows it. */
 export const PWA_INSTALLABILITY_UNAVAILABLE_PREFIX = 'Installability diagnostics were unavailable: '
 /** Starts the cache error for a cache name the page no longer has; the redacted name follows it. */

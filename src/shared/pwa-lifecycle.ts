@@ -10,7 +10,7 @@ export const PWA_LIFECYCLE_CAVEATS = {
   metadataOnly: 'Only metadata is observed. No worker updates, messages, activation, cache clearing, permission changes or worker execution requests.',
   sleeping: 'Sleeping or frozen tabs are not awakened. Sleep or freeze interrupts capture instead of keeping the page active.',
   snapshot: 'Reads return the last drained snapshot. No complete-history or universal worker-lifetime guarantee is made.'
-}
+} as const
 
 export const PWA_LIFECYCLE_LIMITS = {
   events: 100,
