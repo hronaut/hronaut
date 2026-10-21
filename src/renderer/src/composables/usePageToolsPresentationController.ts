@@ -153,7 +153,7 @@ export function usePageToolsPresentationController(options: PageToolsPresentatio
     const report = diagnostics.securityReport.value
     if (report?.state === 'secure') return options.translate('securityReport.toolSecure')
     if (report?.state === 'insecure' || report?.state === 'insecure-broken') return options.translate('securityReport.toolInsecure')
-    if (report) return options.translate('securityReport.toolState', { state: report.state })
+    if (report) return options.translate('securityReport.toolState', { state: options.translate(`securityReport.states.${report.state}`) })
     return options.translate('securityReport.toolDescription')
   })
   const coverageLabel = computed(() => {

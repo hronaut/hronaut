@@ -1864,6 +1864,8 @@ export const esES = {
     "runAgain": "Ejecutar de nuevo"
   },
   "accessibilityAudit": {
+    "impacts": {"critical": "crítica", "serious": "grave", "moderate": "moderada", "minor": "menor", "unknown": "desconocida"},
+    "standards": {"wcag-aa": "WCAG A y AA", "wcag-aaa": "WCAG A, AA y AAA", "best-practice": "Buenas prácticas", "all": "Todas las reglas"},
     "kicker": "Comprobación WCAG local",
     "heading": "Accesibilidad",
     "close": "Cerrar la auditoría de accesibilidad",
@@ -1893,6 +1895,9 @@ export const esES = {
     "saveBaseline": "Guardar referencia"
   },
   "performance": {
+    "ratings": {"good": "bueno", "needs-improvement": "mejorable", "poor": "deficiente"},
+    "invokers": {"user-callback": "callback de usuario", "event-listener": "detector de eventos", "resolve-promise": "promesa resuelta", "reject-promise": "promesa rechazada", "classic-script": "script clásico", "module-script": "script de módulo"},
+    "measure": "medición",
     "kicker": "Visita actual",
     "heading": "Rendimiento de la página",
     "close": "Cerrar el informe de rendimiento",
@@ -2127,6 +2132,8 @@ export const esES = {
     }
   },
   "securityReport": {
+    "states": {"secure": "segura", "insecure": "no segura", "insecure-broken": "defectuosa", "neutral": "neutral", "info": "informativa", "unknown": "desconocida"},
+    "ctCompliance": {"compliant": "Conforme", "not-compliant": "No conforme", "unknown": "Desconocida"},
     "kicker": "Documento principal actual",
     "heading": "Seguridad de la conexión",
     "close": "Cerrar el informe de seguridad",
@@ -2138,7 +2145,7 @@ export const esES = {
     "toolAttention": "El informe de seguridad requiere atención",
     "toolSecure": "Conexión segura",
     "toolInsecure": "La conexión no es segura",
-    "toolState": "Estado de la conexión: {state}",
+    "toolState": "Seguridad de la conexión: {state}",
     "toolDescription": "Detalles de TLS, certificado y conexión",
     "toolAria": "Seguridad: {status}",
     "secure": "Esta conexión es segura",

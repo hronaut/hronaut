@@ -98,12 +98,19 @@ function performanceBaselineTime(): string {
   return Number.isNaN(date.valueOf()) ? measuredAt : formatDateTime(props.locale, date, { timeStyle: 'short' })
 }
 
+// Chromium's long-animation-frame script invoker types; another value shows as Chromium names it.
+const SCRIPT_INVOKER_TYPES = new Set(['user-callback', 'event-listener', 'resolve-promise', 'reject-promise', 'classic-script', 'module-script'])
+
+function performanceInvokerLabel(invokerType: string): string {
+  return SCRIPT_INVOKER_TYPES.has(invokerType) ? t(`performance.invokers.${invokerType}`) : invokerType
+}
+
 function performanceContributorTitle(contributor: BrowserPerformanceScriptContributor): string {
   return contributor.sourceFunctionName || contributor.invoker || t('runtimeDetails.performance.anonymous')
 }
 
 function performanceContributorSource(contributor: BrowserPerformanceScriptContributor): string {
-  if (!contributor.sourceUrl) return contributor.invokerType || t('runtimeDetails.performance.unavailable')
+  if (!contributor.sourceUrl) return contributor.invokerType ? performanceInvokerLabel(contributor.invokerType) : t('runtimeDetails.performance.unavailable')
   try {
     const url = new URL(contributor.sourceUrl)
     const source = `${url.host}${url.pathname}`
@@ -167,7 +174,7 @@ function performanceContributorSource(contributor: BrowserPerformanceScriptContr
         >
           <header>
             <strong>{{ name }}</strong>
-            <span>{{ performanceMetric(name)?.rating?.replace('-', ' ') || t('performance.notObserved') }}</span>
+            <span>{{ performanceMetric(name) ? t(`performance.ratings.${performanceMetric(name)?.rating}`) : t('performance.notObserved') }}</span>
           </header>
           <output>{{ formatPerformanceMetric(performanceMetric(name)) }}</output>
           <small v-if="name === 'LCP'">{{ t('performance.goodLcp') }}</small>
@@ -275,7 +282,7 @@ function performanceContributorSource(contributor: BrowserPerformanceScriptContr
           <div class="performance-contributors performance-user-timings">
             <ol>
               <li v-for="(entry, index) in performanceReport.userTimings.entries" :key="`${entry.type}-${entry.startTimeMs}-${index}`">
-                <span><strong>{{ entry.name }}</strong><small>{{ entry.type }} · {{ localNumber(Math.round(entry.startTimeMs)) }} {{ t('performance.afterNavigation') }}</small></span>
+                <span><strong>{{ entry.name }}</strong><small>{{ entry.type === 'measure' ? t('performance.measure') : t('performance.mark') }} · {{ localNumber(Math.round(entry.startTimeMs)) }} {{ t('performance.afterNavigation') }}</small></span>
                 <output>{{ entry.type === 'measure' ? localDuration(entry.durationMs) : t('performance.mark') }}</output>
               </li>
             </ol>

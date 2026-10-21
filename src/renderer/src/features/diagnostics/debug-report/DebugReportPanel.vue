@@ -23,6 +23,8 @@ import type { DiagnosticsController } from '../useDiagnosticsController'
 import PanelDockPicker from '../../../components/PanelDockPicker.vue'
 import IncidentPackageReview from './IncidentPackageReview.vue'
 import { vTooltip } from '../../../ui/tooltip.js'
+import { networkLabelMessages } from '../../../../../shared/locales/network-labels.js'
+import { browserConsoleLevel } from '../../../../../shared/console-messages.js'
 
 const props = defineProps<{
   activeTab?: BrowserTabState
@@ -50,6 +52,14 @@ const {
 watch(dock, (next, previous) => {
   if (debugReportPanelOpen.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && debugReportState.value === 'idle' && !debugReport.value) void runDebugReport()
 })
+
+// Names Chromium resource types as the Network panel does; a type it does not know shows as Chromium names it.
+const RESOURCE_TYPES = new Set(Object.keys(networkLabelMessages['en-US'].resourceTypes))
+
+function requestTypeLabel(type: string): string {
+  const normalized = type.toLowerCase()
+  return RESOURCE_TYPES.has(normalized) ? t(`networkLabels.resourceTypes.${normalized}`) : type
+}
 
 function localNumber(value: number): string {
   return formatNumber(props.locale, value)
@@ -130,7 +140,7 @@ function debugRequestStatus(request: BrowserDebugReport['network'][number]): str
           <h3 id="debug-report-console-title">{{ t('debugReport.recentConsole') }} <span>{{ localNumber(debugReport.console.length) }}</span></h3>
           <article v-for="(message, index) in debugReport.console" :key="`${message.timestamp}-${index}`" class="debug-console-entry" :class="message.level">
             <header>
-              <span>{{ message.level }}</span>
+              <span>{{ t(`console.levels.${browserConsoleLevel(message.level)}`) }}</span>
               <time :datetime="message.timestamp">{{ debugTimestamp(message.timestamp) }}</time>
             </header>
             <code>{{ message.message }}</code>
@@ -146,7 +156,7 @@ function debugRequestStatus(request: BrowserDebugReport['network'][number]): str
               <time :datetime="request.startedAt">{{ debugTimestamp(request.startedAt) }}</time>
             </header>
             <code>{{ request.url }}</code>
-            <small>{{ request.resourceType }}<template v-if="request.durationMs !== undefined"> · {{ localDuration(request.durationMs) }}</template><template v-if="request.responseSizeBytes !== undefined"> · {{ formatBytes(request.responseSizeBytes) }}</template></small>
+            <small>{{ requestTypeLabel(request.resourceType) }}<template v-if="request.durationMs !== undefined"> · {{ localDuration(request.durationMs) }}</template><template v-if="request.responseSizeBytes !== undefined"> · {{ formatBytes(request.responseSizeBytes) }}</template></small>
           </article>
         </section>
         <details class="debug-report-caveats">

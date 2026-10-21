@@ -149,7 +149,7 @@ function accessibilityImpactCount(impact: BrowserAccessibilityImpact): number {
       <div v-else class="accessibility-violations">
         <article v-for="violation in accessibilityAudit.violations" :key="violation.id" class="accessibility-violation">
           <header>
-            <span class="accessibility-impact" :class="violation.impact">{{ violation.impact }}</span>
+            <span class="accessibility-impact" :class="violation.impact">{{ t(`accessibilityAudit.impacts.${violation.impact}`) }}</span>
             <strong>{{ violation.help }}</strong>
             <small>{{ violation.id }} · {{ violation.nodeCount }} {{ t('accessibilityAudit.elements', violation.nodeCount) }}</small>
           </header>
@@ -164,7 +164,7 @@ function accessibilityImpactCount(impact: BrowserAccessibilityImpact): number {
         </article>
       </div>
       <footer>
-        <span>{{ accessibilityAudit.engine.name }} {{ accessibilityAudit.engine.version }} · {{ accessibilityAudit.standard }}</span>
+        <span>{{ accessibilityAudit.engine.name }} {{ accessibilityAudit.engine.version }} · {{ t(`accessibilityAudit.standards.${accessibilityAudit.standard}`) }}</span>
         <div>
           <UiButton v-if="accessibilityAudit.baseline" appearance="application" type="button" @click="runAccessibilityAudit('clear-baseline')">{{ t('accessibilityAudit.clearBaseline') }}</UiButton>
           <UiButton appearance="application" type="button" @click="runAccessibilityAudit('set-baseline')">{{ accessibilityAudit.baseline ? t('accessibilityAudit.replaceBaseline') : t('accessibilityAudit.saveBaseline') }}</UiButton>
