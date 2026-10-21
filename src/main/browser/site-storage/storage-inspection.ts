@@ -1,5 +1,5 @@
 import { redactDiagnosticText } from '../../../shared/debug-report.js'
-import { indexedDbPageScript, normalizeBrowserIndexedDbOptions } from '../../../shared/indexeddb.js'
+import { INDEXEDDB_CAVEATS, indexedDbPageScript, normalizeBrowserIndexedDbOptions } from '../../../shared/indexeddb.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
 import { buildBrowserStorageUsageReport, storageManagerUsageBreakdown } from '../../../shared/storage-usage.js'
@@ -54,14 +54,12 @@ export async function inspectIndexedDb<Tab extends SiteStorageTab>(access: SiteS
     origin: pageUrl.origin,
     ...result,
     caveats: [
-      'The report covers this top-level origin only; third-party frame databases are not included.',
-      'Database and record lists are point-in-time snapshots. Refresh after the website changes IndexedDB.',
-      'Database, object-store, index, and key names are website-authored and can themselves contain private data.',
-      'Database or object-store names longer than 512 characters are omitted from this bounded inspector.',
-      normalized.includeValues
-        ? 'Bounded record previews are included and may contain private application data.'
-        : 'Record values are omitted. Request includeValues only when their bounded previews are necessary and safe to return.',
-      'The inspector is read-only. Use browser_site_data only when the task explicitly requires clearing origin storage.'
+      INDEXEDDB_CAVEATS.origin,
+      INDEXEDDB_CAVEATS.snapshot,
+      INDEXEDDB_CAVEATS.names,
+      INDEXEDDB_CAVEATS.longNames,
+      normalized.includeValues ? INDEXEDDB_CAVEATS.valuesIncluded : INDEXEDDB_CAVEATS.valuesOmitted,
+      INDEXEDDB_CAVEATS.readOnly
     ]
   }
 }

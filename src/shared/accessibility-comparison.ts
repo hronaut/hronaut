@@ -5,6 +5,15 @@ import type {
   BrowserAccessibilityFinding
 } from './types.js'
 
+/** Why a comparison with the baseline is limited. The panel names these in the interface language. */
+export const ACCESSIBILITY_COMPARISON_CAVEATS = {
+  urlChanged: 'The page URL changed after the accessibility baseline.',
+  scopeChanged: 'The accessibility standard, selector, or collection limits changed; set a new baseline for this scope.',
+  engineChanged: 'The accessibility engine changed; set a new baseline before comparing findings.',
+  baselineTruncated: 'The baseline was truncated, so new findings cannot be determined safely.',
+  currentTruncated: 'The current audit was truncated, so resolved findings cannot be determined safely.'
+} as const
+
 interface IndexedFinding {
   key: string
   finding: BrowserAccessibilityFinding
@@ -56,11 +65,11 @@ export function buildAccessibilityComparison(
     && baseline.engine.version === current.engine.version
   const comparable = sameScope && sameEngine
   const caveats: string[] = []
-  if (!sameUrl) caveats.push('The page URL changed after the accessibility baseline.')
-  if (!sameScope) caveats.push('The accessibility standard, selector, or collection limits changed; set a new baseline for this scope.')
-  if (!sameEngine) caveats.push('The accessibility engine changed; set a new baseline before comparing findings.')
-  if (baseline.truncated) caveats.push('The baseline was truncated, so new findings cannot be determined safely.')
-  if (current.truncated) caveats.push('The current audit was truncated, so resolved findings cannot be determined safely.')
+  if (!sameUrl) caveats.push(ACCESSIBILITY_COMPARISON_CAVEATS.urlChanged)
+  if (!sameScope) caveats.push(ACCESSIBILITY_COMPARISON_CAVEATS.scopeChanged)
+  if (!sameEngine) caveats.push(ACCESSIBILITY_COMPARISON_CAVEATS.engineChanged)
+  if (baseline.truncated) caveats.push(ACCESSIBILITY_COMPARISON_CAVEATS.baselineTruncated)
+  if (current.truncated) caveats.push(ACCESSIBILITY_COMPARISON_CAVEATS.currentTruncated)
   if (!comparable) {
     return {
       comparable,

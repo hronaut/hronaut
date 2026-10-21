@@ -6,6 +6,7 @@ import { searchEngineMessages } from './search-engines.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
 import { qualityAuditTextMessages } from './quality-audit-text.js'
 import { networkAbortReasonMessages } from './network-abort-reasons.js'
+import { reportCaveatMessages } from './report-caveats.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -34,6 +35,7 @@ export const enUS = {
   browserIssueTitles: browserIssueTitleMessages['en-US'],
   qualityAuditText: qualityAuditTextMessages['en-US'],
   networkAbortReasons: networkAbortReasonMessages['en-US'],
+  reportCaveats: reportCaveatMessages['en-US'],
   lcpAttribution: lcpAttributionMessages['en-US'],
   browserImport: browserImportMessages['en-US'],
   video: videoRecorderMessages['en-US'],

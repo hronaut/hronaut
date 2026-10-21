@@ -6,6 +6,7 @@ import { searchEngineMessages } from './search-engines.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
 import { qualityAuditTextMessages } from './quality-audit-text.js'
 import { networkAbortReasonMessages } from './network-abort-reasons.js'
+import { reportCaveatMessages } from './report-caveats.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -36,6 +37,7 @@ export const ruRU = {
   browserIssueTitles: browserIssueTitleMessages['ru-RU'],
   qualityAuditText: qualityAuditTextMessages['ru-RU'],
   networkAbortReasons: networkAbortReasonMessages['ru-RU'],
+  reportCaveats: reportCaveatMessages['ru-RU'],
   lcpAttribution: lcpAttributionMessages['ru-RU'],
   browserImport: browserImportMessages['ru-RU'],
   video: videoRecorderMessages['ru-RU'],
