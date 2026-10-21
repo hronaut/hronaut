@@ -53,7 +53,7 @@ describe('opening the download folder from Settings', () => {
     const { invoke, openPath } = settingsIpc({ directory: join(file, 'Hronaut') })
     const error = await invoke('settings:open-download-directory').catch((caught: unknown) => caught as Error)
     expect(error).toBeInstanceOf(Error)
-    expect((error as Error).message).toBe('Wo der Downloadordner sein soll, liegt eine Datei (ENOTDIR). Wählen Sie einen anderen Ordner.')
+    expect((error as Error).message).toBe('Eine Datei steht dem Downloadordner im Weg (ENOTDIR). Wählen Sie einen anderen Ordner.')
     expect(openPath).not.toHaveBeenCalled()
   })
 
@@ -76,7 +76,7 @@ describe('choosing the download folder in Settings', () => {
     const { invoke, setDownloadPath } = settingsIpc({ directory: root, chosen: join(file, 'Hronaut') })
     const error = await invoke('settings:choose-download-directory').catch((caught: unknown) => caught as Error)
     expect(error).toBeInstanceOf(Error)
-    expect((error as Error).message).toBe('Wo der Downloadordner sein soll, liegt eine Datei (ENOTDIR). Wählen Sie einen anderen Ordner.')
+    expect((error as Error).message).toBe('Eine Datei steht dem Downloadordner im Weg (ENOTDIR). Wählen Sie einen anderen Ordner.')
     expect(setDownloadPath).not.toHaveBeenCalled()
   })
 })

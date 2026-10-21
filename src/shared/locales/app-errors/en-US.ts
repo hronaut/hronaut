@@ -332,7 +332,8 @@ export const enUSAppErrors = {
     "downloadFolderDenied": "Hronaut does not have permission to create or use this download folder ({code}). Choose another folder.",
     "downloadFolderDiskFull": "There is not enough disk space to create the download folder ({code}).",
     "downloadFolderReadOnly": "The download folder is on a read-only drive ({code}). Choose another folder.",
-    "downloadFolderBlocked": "A file is where the download folder should be ({code}). Choose another folder.",
+    "downloadFolderBlocked": "A file is in the way of the download folder ({code}). Choose another folder.",
+    "downloadFolderMissingDrive": "The drive or network location of the download folder is not available ({code}). Choose another folder.",
     "downloadFolderUnavailable": "Hronaut could not create the download folder ({code}).",
     "downloadFolderOpenFailed": "Hronaut could not open the download folder in your file manager."
   },

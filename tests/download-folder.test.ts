@@ -29,10 +29,11 @@ describe('creating the download folder', () => {
     ['ENOSPC', 'There is not enough disk space to create the download folder (ENOSPC).'],
     ['EDQUOT', 'There is not enough disk space to create the download folder (EDQUOT).'],
     ['EROFS', 'The download folder is on a read-only drive (EROFS). Choose another folder.'],
-    ['EEXIST', 'A file is where the download folder should be (EEXIST). Choose another folder.'],
-    ['ENOTDIR', 'A file is where the download folder should be (ENOTDIR). Choose another folder.'],
+    ['EEXIST', 'A file is in the way of the download folder (EEXIST). Choose another folder.'],
+    ['ENOTDIR', 'A file is in the way of the download folder (ENOTDIR). Choose another folder.'],
+    ['ENOENT', 'The drive or network location of the download folder is not available (ENOENT). Choose another folder.'],
     ['EIO', 'Hronaut could not create the download folder (EIO).']
-  ])('says why it could not create it for %s, without the path, and keeps Node\'s error for logs', async (code, sentence) => {
+  ])('says why it could not create it for %s, without the path, and keeps Node\'s error in the main process', async (code, sentence) => {
     const failure = nodeError(code)
     fs.mkdir.mockRejectedValue(failure)
     const error = await createDownloadFolder('/media/usb/Downloads').catch((caught: unknown) => caught)
@@ -51,7 +52,7 @@ describe('creating the download folder', () => {
   })
 
   it('keeps an error without a code as it is', async () => {
-    const failure = new TypeError('The "path" argument must be of type string')
+    const failure = new Error('The folder watcher stopped')
     fs.mkdir.mockRejectedValue(failure)
     await expect(createDownloadFolder('/media/usb/Downloads')).rejects.toBe(failure)
   })

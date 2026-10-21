@@ -328,7 +328,8 @@ export const plPLAppErrors: AppErrorMessages = {
     "downloadFolderDenied": "Hronaut nie ma uprawnień do utworzenia lub używania tego folderu pobierania ({code}). Wybierz inny folder.",
     "downloadFolderDiskFull": "Za mało miejsca na dysku, aby utworzyć folder pobierania ({code}).",
     "downloadFolderReadOnly": "Folder pobierania znajduje się na dysku tylko do odczytu ({code}). Wybierz inny folder.",
-    "downloadFolderBlocked": "W miejscu folderu pobierania znajduje się plik ({code}). Wybierz inny folder.",
+    "downloadFolderBlocked": "Plik uniemożliwia utworzenie folderu pobierania ({code}). Wybierz inny folder.",
+    "downloadFolderMissingDrive": "Dysk lub lokalizacja sieciowa folderu pobierania jest niedostępna ({code}). Wybierz inny folder.",
     "downloadFolderUnavailable": "Hronaut nie mógł utworzyć folderu pobierania ({code}).",
     "downloadFolderOpenFailed": "Hronaut nie mógł otworzyć folderu pobierania w menedżerze plików."
   },

@@ -328,7 +328,8 @@ export const frFRAppErrors: AppErrorMessages = {
     "downloadFolderDenied": "Hronaut n’a pas l’autorisation de créer ou d’utiliser ce dossier de téléchargement ({code}). Choisissez un autre dossier.",
     "downloadFolderDiskFull": "L’espace disque est insuffisant pour créer le dossier de téléchargement ({code}).",
     "downloadFolderReadOnly": "Le dossier de téléchargement se trouve sur un disque en lecture seule ({code}). Choisissez un autre dossier.",
-    "downloadFolderBlocked": "Un fichier se trouve à l’emplacement du dossier de téléchargement ({code}). Choisissez un autre dossier.",
+    "downloadFolderBlocked": "Un fichier empêche de créer le dossier de téléchargement ({code}). Choisissez un autre dossier.",
+    "downloadFolderMissingDrive": "Le lecteur ou l’emplacement réseau du dossier de téléchargement n’est pas disponible ({code}). Choisissez un autre dossier.",
     "downloadFolderUnavailable": "Hronaut n’a pas pu créer le dossier de téléchargement ({code}).",
     "downloadFolderOpenFailed": "Hronaut n’a pas pu ouvrir le dossier de téléchargement dans le gestionnaire de fichiers."
   },

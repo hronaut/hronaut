@@ -328,7 +328,8 @@ export const ruRUAppErrors: AppErrorMessages = {
     "downloadFolderDenied": "У Hronaut нет разрешения создать или использовать эту папку загрузок ({code}). Выберите другую папку.",
     "downloadFolderDiskFull": "Недостаточно места на диске, чтобы создать папку загрузок ({code}).",
     "downloadFolderReadOnly": "Папка загрузок находится на диске, доступном только для чтения ({code}). Выберите другую папку.",
-    "downloadFolderBlocked": "На месте папки загрузок находится файл ({code}). Выберите другую папку.",
+    "downloadFolderBlocked": "Файл мешает создать папку загрузок ({code}). Выберите другую папку.",
+    "downloadFolderMissingDrive": "Диск или сетевое расположение папки загрузок недоступны ({code}). Выберите другую папку.",
     "downloadFolderUnavailable": "Hronaut не удалось создать папку загрузок ({code}).",
     "downloadFolderOpenFailed": "Hronaut не удалось открыть папку загрузок в файловом менеджере."
   },

@@ -328,7 +328,8 @@ export const deDEAppErrors: AppErrorMessages = {
     "downloadFolderDenied": "Hronaut darf diesen Downloadordner nicht anlegen oder verwenden ({code}). Wählen Sie einen anderen Ordner.",
     "downloadFolderDiskFull": "Es ist nicht genug Speicherplatz vorhanden, um den Downloadordner anzulegen ({code}).",
     "downloadFolderReadOnly": "Der Downloadordner liegt auf einem schreibgeschützten Laufwerk ({code}). Wählen Sie einen anderen Ordner.",
-    "downloadFolderBlocked": "Wo der Downloadordner sein soll, liegt eine Datei ({code}). Wählen Sie einen anderen Ordner.",
+    "downloadFolderBlocked": "Eine Datei steht dem Downloadordner im Weg ({code}). Wählen Sie einen anderen Ordner.",
+    "downloadFolderMissingDrive": "Das Laufwerk oder der Netzwerkspeicherort des Downloadordners ist nicht verfügbar ({code}). Wählen Sie einen anderen Ordner.",
     "downloadFolderUnavailable": "Hronaut konnte den Downloadordner nicht anlegen ({code}).",
     "downloadFolderOpenFailed": "Hronaut konnte den Downloadordner nicht im Dateimanager öffnen."
   },

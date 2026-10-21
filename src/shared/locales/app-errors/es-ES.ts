@@ -328,7 +328,8 @@ export const esESAppErrors: AppErrorMessages = {
     "downloadFolderDenied": "Hronaut no tiene permiso para crear o usar esta carpeta de descargas ({code}). Elige otra carpeta.",
     "downloadFolderDiskFull": "No hay suficiente espacio en el disco para crear la carpeta de descargas ({code}).",
     "downloadFolderReadOnly": "La carpeta de descargas está en una unidad de solo lectura ({code}). Elige otra carpeta.",
-    "downloadFolderBlocked": "Hay un archivo donde debería estar la carpeta de descargas ({code}). Elige otra carpeta.",
+    "downloadFolderBlocked": "Un archivo impide crear la carpeta de descargas ({code}). Elige otra carpeta.",
+    "downloadFolderMissingDrive": "La unidad o la ubicación de red de la carpeta de descargas no está disponible ({code}). Elige otra carpeta.",
     "downloadFolderUnavailable": "Hronaut no pudo crear la carpeta de descargas ({code}).",
     "downloadFolderOpenFailed": "Hronaut no pudo abrir la carpeta de descargas en el gestor de archivos."
   },

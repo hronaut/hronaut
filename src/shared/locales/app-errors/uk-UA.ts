@@ -328,7 +328,8 @@ export const ukUAAppErrors: AppErrorMessages = {
     "downloadFolderDenied": "Hronaut не має дозволу створити або використовувати цю папку завантажень ({code}). Виберіть іншу папку.",
     "downloadFolderDiskFull": "Недостатньо місця на диску, щоб створити папку завантажень ({code}).",
     "downloadFolderReadOnly": "Папка завантажень розташована на диску, доступному лише для читання ({code}). Виберіть іншу папку.",
-    "downloadFolderBlocked": "На місці папки завантажень є файл ({code}). Виберіть іншу папку.",
+    "downloadFolderBlocked": "Файл заважає створити папку завантажень ({code}). Виберіть іншу папку.",
+    "downloadFolderMissingDrive": "Диск або мережеве розташування папки завантажень недоступні ({code}). Виберіть іншу папку.",
     "downloadFolderUnavailable": "Hronaut не вдалося створити папку завантажень ({code}).",
     "downloadFolderOpenFailed": "Hronaut не вдалося відкрити папку завантажень у файловому менеджері."
   },

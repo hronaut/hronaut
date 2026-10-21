@@ -21,7 +21,7 @@ import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { createTrayAttention, type UserAttentionState } from './tray-attention.js'
 import { join } from 'node:path'
 import { createIpcGuards, trustedShellUrl, trustedUrlMatches } from './ipc-guards.js'
-import { withTranslatedIpcErrors } from './localized-error.js'
+import { LocalizedError, withTranslatedIpcErrors } from './localized-error.js'
 import {
   app,
   autoUpdater as nativeAutoUpdater,
@@ -928,7 +928,7 @@ function registerIpc(): void {
     defaultDownloadDirectory,
     effectiveDownloadDirectory: () => effectiveDownloadDirectory(),
     chooseDownloadDirectory: () => {
-      if (!mainWindowRefs.window) throw new Error('The Hronaut window is not available')
+      if (!mainWindowRefs.window) throw new LocalizedError('appErrors.settings.windowUnavailable')
       return dialog.showOpenDialog(mainWindowRefs.window, {
         title: text('native.dialog.chooseDownloadFolder'),
         defaultPath: effectiveDownloadDirectory(),

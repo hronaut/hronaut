@@ -10,13 +10,16 @@ const FOLDER_FAILURE_MESSAGES: Record<string, MessageKey> = {
   EDQUOT: 'appErrors.settings.downloadFolderDiskFull',
   EROFS: 'appErrors.settings.downloadFolderReadOnly',
   EEXIST: 'appErrors.settings.downloadFolderBlocked',
-  ENOTDIR: 'appErrors.settings.downloadFolderBlocked'
+  ENOTDIR: 'appErrors.settings.downloadFolderBlocked',
+  // Windows reports a drive or network share that is not there as a missing path.
+  ENOENT: 'appErrors.settings.downloadFolderMissingDrive'
 }
 
 /**
  * Creates the download folder Settings chose or opens. A failure reads, on Hronaut's own pages, as a sentence in the
- * interface language that ends with its code and leaves out the path; its message stays Node's, for logs, and so do
- * the code, errno, syscall and path Node gave. An error without a code is thrown as it is.
+ * interface language that names the cause and includes its code but not the path. The error itself keeps Node's
+ * message and the code, errno, syscall and path Node gave, for code in the main process. An error without a code is
+ * thrown as it is.
  */
 export async function createDownloadFolder(directory: string): Promise<void> {
   try {
