@@ -23,6 +23,8 @@ const error = ref('')
 const retained = ref<string[]>([])
 const completed = ref(false)
 const sourceId = ref('')
+// The file records the platform as a code; people read the platform's own name, which no language translates.
+const PLATFORM_NAMES: Record<WorkspaceTemplate['sourcePlatform'], string> = { windows: 'Windows', macos: 'macOS', linux: 'Linux' }
 const sources = computed(() => [...props.state.mcpTabGroups, ...props.state.savedTabGroups])
 const selectedSource = computed(() => sources.value.find(group => group.id === sourceId.value))
 const sourcePages = computed(() => {
@@ -119,13 +121,13 @@ async function cleanup(): Promise<void> {
           <label v-for="url in sourcePages" :key="url"><input v-model="draft.workspaces[draft.workspaces.length - 1]!.startPages" type="checkbox" :value="url" :disabled="busy" />{{ url }}</label>
         </template>
       </div>
-      <p>{{ t('workspaceTemplates.source', { platform: draft.sourcePlatform }) }}</p>
+      <p>{{ t('workspaceTemplates.source', { platform: PLATFORM_NAMES[draft.sourcePlatform] }) }}</p>
       <fieldset v-for="(entry, index) in draft.workspaces" :key="index" :disabled="busy || completed || retained.length > 0">
         <legend>{{ t('workspaceTemplates.entry', { number: index + 1 }) }}</legend>
         <UiButton type="button" :disabled="draft.workspaces.length <= 1" @click="draft.workspaces.splice(index, 1)">{{ t('workspaceTemplates.remove', { number: index + 1 }) }}</UiButton>
         <label>{{ t('workspaceEditor.name') }}<input v-model="entry.name" maxlength="80" autocomplete="off" /></label>
         <label>{{ t('workspaceEditor.description') }}<textarea v-model="entry.description" maxlength="1000" rows="3" /></label>
-        <label>{{ t('workspaceEditor.color') }}<select v-model="entry.color"><option v-for="color in BROWSER_TAB_GROUP_COLORS" :key="color" :value="color">{{ color }}</option></select></label>
+        <label>{{ t('workspaceEditor.color') }}<select v-model="entry.color"><option v-for="color in BROWSER_TAB_GROUP_COLORS" :key="color" :value="color">{{ t(`workspaceEditor.colors.${color}`) }}</option></select></label>
         <label>{{ t('workspaceTemplates.pages') }}<textarea :value="entry.startPages.join('\n')" rows="3" spellcheck="false" @input="reviewed = false" @change="entry.startPages = ($event.target as HTMLTextAreaElement).value.split('\n').filter(line => line.trim()).map(line => line.trim())" /></label>
       </fieldset>
       <UiButton v-if="mode === 'export'" type="button" :disabled="busy || completed || draft.workspaces.length >= 20" @click="draft.workspaces.push({ name: nextWorkspaceTemplateName(draft.workspaces), description: '', color: 'blue', startPages: [] })">{{ t('workspaceTemplates.add') }}</UiButton>

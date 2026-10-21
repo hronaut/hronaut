@@ -531,6 +531,7 @@ export const ruRU = {
   "workspaceNavigationAudit": { "reasonCredentials": "встроенные учётные данные", "reasonMalformed": "некорректный адрес", "reasonUnsupportedScheme": "неподдерживаемая схема", "reasonNoMatch": "нет в списке разрешённых", "sourceDirect": "адрес или запрос агента", "sourcePage": "переход со страницы", "sourceRedirect": "перенаправление", "sourcePopup": "всплывающее окно", "sourceHistory": "назад или вперёд", "sourcePolicyChange": "изменение политики", "sourceRestore": "восстановление сеанса" },
   "workspaceEditor": {
     transferData: "Перенести данные браузера",
+    colors: { gray: "Серый", blue: "Синий", cyan: "Бирюзовый", green: "Зелёный", yellow: "Жёлтый", orange: "Оранжевый", red: "Красный", pink: "Розовый", purple: "Фиолетовый" },
     archived: "Архивный",
     archiveBeforeMove: "Архивируйте оба пространства перед перемещением, чтобы их страницы не меняли данные. Копирование работает и в открытых пространствах.",
 

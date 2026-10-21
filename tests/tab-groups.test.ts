@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BROWSER_TAB_GROUP_COLORS,
   defaultTabGroupColor,
-  isBrowserTabGroupColor,
-  tabGroupColorLabel
+  isBrowserTabGroupColor
 } from '../src/shared/tab-groups.js'
 
 describe('tab group colors', () => {
@@ -13,9 +12,8 @@ describe('tab group colors', () => {
     expect(isBrowserTabGroupColor(undefined)).toBe(false)
   })
 
-  it('derives a stable valid migration color and human label', () => {
+  it('derives a stable valid migration color', () => {
     expect(defaultTabGroupColor('group-a')).toBe(defaultTabGroupColor('group-a'))
     expect(BROWSER_TAB_GROUP_COLORS).toContain(defaultTabGroupColor('group-a'))
-    expect(tabGroupColorLabel('orange')).toBe('Orange')
   })
 })

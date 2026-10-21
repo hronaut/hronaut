@@ -317,7 +317,7 @@ export const ukUA = {
   appErrors: appErrorMessages['uk-UA'],
   workspaceNavigationAudit: { reasonCredentials: 'вбудовані облікові дані', reasonMalformed: 'некоректна адреса', reasonUnsupportedScheme: 'непідтримувана схема', reasonNoMatch: 'немає у списку дозволених', sourceDirect: 'адреса або запит агента', sourcePage: 'перехід зі сторінки', sourceRedirect: 'перенаправлення', sourcePopup: 'спливне вікно', sourceHistory: 'назад або вперед', sourcePolicyChange: 'зміна політики', sourceRestore: 'відновлення сесії' },
   workspaceEditor: {
-    transferData: "Перенести дані браузера",
+    transferData: "Перенести дані браузера", colors: { gray: "Сірий", blue: "Синій", cyan: "Бірюзовий", green: "Зелений", yellow: "Жовтий", orange: "Помаранчевий", red: "Червоний", pink: "Рожевий", purple: "Фіолетовий" },
     archived: "Архівний",
     archiveBeforeMove: "Архівуйте обидва простори перед переміщенням, щоб їхні сторінки не змінювали дані. Копіювання працює й у відкритих просторах.",
 

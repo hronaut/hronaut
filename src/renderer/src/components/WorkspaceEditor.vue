@@ -28,7 +28,6 @@ import type {
 import {
   BROWSER_TAB_GROUP_COLORS,
   BROWSER_TAB_GROUP_COLOR_HEX,
-  tabGroupColorLabel,
   isBrowserTabGroupColor
 } from '../../../shared/tab-groups.js'
 import { useWorkspaceEditorController } from '../composables/useWorkspaceEditorController.js'
@@ -285,12 +284,12 @@ onBeforeUnmount(dispose)
                   :style="colorStyle(option)"
                   type="button"
                   role="radio"
-                  :aria-label="tabGroupColorLabel(option)"
+                  :aria-label="t(`workspaceEditor.colors.${option}`)"
                   :aria-checked="color === option"
                   :tabindex="color === option ? 0 : -1"
                   :data-color="option"
                   @keydown="navigateColor"
-                  v-tooltip="tabGroupColorLabel(option)"
+                  v-tooltip="t(`workspaceEditor.colors.${option}`)"
                   :disabled="dismissBlocked"
                   @click="color = option"
                 ><IconCheck v-if="color === option" aria-hidden="true" /></UiButton>

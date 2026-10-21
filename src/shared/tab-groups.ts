@@ -33,7 +33,3 @@ export function defaultTabGroupColor(groupId: string): BrowserTabGroupColor {
   for (const character of groupId) hash = ((hash << 5) - hash + character.charCodeAt(0)) | 0
   return BROWSER_TAB_GROUP_COLORS[Math.abs(hash) % BROWSER_TAB_GROUP_COLORS.length]!
 }
-
-export function tabGroupColorLabel(color: BrowserTabGroupColor): string {
-  return color[0]!.toLocaleUpperCase() + color.slice(1)
-}
