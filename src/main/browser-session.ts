@@ -151,7 +151,8 @@ function permissionHold(page: PagePermissionRequests, origin: string, permission
  * session the page runs in and, for a website embedded in a page of another website, to that page's website, as
  * `SitePermissionStore.decisionFor` looks it up; a session no workspace claimed gets no permission. Camera, microphone,
  * file system access and every link to another app always ask again, unless the person denied the same request for the
- * same page document, and screen sharing is refused without asking. Home never gets a permission.
+ * same page document, and a check finds them allowed only as `freshConsentAllows` says. Screen sharing is refused
+ * without asking. Home never gets a permission.
  * `configurePersistentSession` opens the remembered site permissions and the profile's own session,
  * `publishSitePermissions` tells both shell windows the remembered permissions, `forgetWorkspaceSitePermissions` forgets
  * the decisions of a workspace that is gone for good, `forgetRemovedWorkspacesSitePermissions` those of every workspace
@@ -219,9 +220,10 @@ export function createBrowserSession(host: BrowserSessionHost): {
    * Whether a check for a permission Hronaut never remembers finds it allowed. Chromium asks the check, not what the
    * request answered, whether a page may still use what the person gave it: a page that got its camera or microphone
    * learns the devices' names and that access is allowed while it keeps its document. A file or folder the website
-   * holds can be read, since only the person's pick or drop, or an Allow, hands one to it, unless the person denied
-   * reading it on a page of the website that keeps that document; it can be written only while a page of the website
-   * keeps the document the person allowed writing it for. A link to another app is never allowed by a check.
+   * holds can be read, since only the person's pick or drop, or an Allow, hands one to it, and that includes a handle the
+   * website stored and restores after a restart, unless the person denied reading it on a page of the website that keeps
+   * that document; it can be written only while a page of the website keeps the document the person allowed writing it
+   * for. A link to another app is never allowed by a check.
    */
   function freshConsentAllows(
     browserSession: Session,
@@ -399,8 +401,11 @@ export function createBrowserSession(host: BrowserSessionHost): {
             ? 'native.dialog.fileReadAccess'
             : details.fileAccessType === 'writable' ? 'native.dialog.fileWriteAccess' : 'native.dialog.unspecifiedAccess')
           const requested = host.text('native.dialog.requestedFile', { access, path: details.filePath || host.text('native.dialog.unspecifiedPath') })
-          // An Allow to write holds while the page keeps its document, as Chromium then writes without asking again.
-          return details.fileAccessType === 'writable' ? `${requested} ${host.text('native.dialog.fileWriteUntilReload')}` : requested
+          // Chromium asks only the check before it reads or writes again: an Allow to read holds for every handle the website
+          // keeps, even one it restores after a restart, and an Allow to write holds while this page keeps its document.
+          const lasts = details.fileAccessType === 'readable' ? 'native.dialog.fileReadKeeps'
+            : details.fileAccessType === 'writable' ? 'native.dialog.fileWriteUntilReload' : null
+          return lasts ? `${requested} ${host.text(lasts)}` : requested
         }
         if (externalLink) {
           const { scheme } = externalLink

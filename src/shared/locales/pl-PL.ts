@@ -3655,7 +3655,7 @@ export const plPL = {
       "deny": "Odmów",
       "allow": "Zezwól",
       "requestedDevices": "Żądane urządzenia: {devices}.",
-      "requestedFile": "Żądany dostęp ({access}): {path}.", "fileWriteUntilReload": "Po wybraniu „Zezwól” ta strona będzie mogła zapisywać tam zmiany, dopóki nie zostanie ponownie wczytana.",
+      "requestedFile": "Żądany dostęp ({access}): {path}.", "fileWriteUntilReload": "Po wybraniu „Zezwól” ta witryna będzie mogła zapisywać tam zmiany, dopóki ta strona nie zostanie ponownie wczytana.", "fileReadKeeps": "Po wybraniu „Zezwól” ta witryna będzie mogła nadal odczytywać jego zawartość, także po ponownym uruchomieniu Hronaut.",
       "requestedExternalApp": "„Zezwól” otworzy ten link {scheme} poza Hronaut, w aplikacji, której Twój system używa do takich linków.",
       "camera": "kamera",
       "microphone": "mikrofon",

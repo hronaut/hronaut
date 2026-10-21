@@ -104,14 +104,15 @@ describe('site permission prompt', () => {
   it('names read and write file access in the interface language', async () => {
     // The detail used to show Electron's "readable" or "writable" between translated words.
     expect((await prompt('en-US', 'fileSystem', { fileAccessType: 'readable', filePath: '/home/notes.txt' })).detail)
-      .toBe('Requested read access: /home/notes.txt. '
+      .toBe('Requested read access: /home/notes.txt. If you choose Allow, this website can keep reading it, even after Hronaut restarts. '
         + "Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads.")
     const writable = await prompt('uk-UA', 'fileSystem', { fileAccessType: 'writable', filePath: '/home/notes.txt' })
     expect(writable.message).toBe('Сайт https://files.example запитує дозвіл «Файли й папки».')
-    expect(writable.detail).toContain('Запитано доступ на запис: /home/notes.txt. Після «Дозволити» ця сторінка зможе зберігати туди зміни, доки її не буде перезавантажено.')
+    expect(writable.detail).toContain('Запитано доступ на запис: /home/notes.txt. Після «Дозволити» цей сайт зможе зберігати туди зміни, доки цю сторінку не буде перезавантажено.')
     expect((await prompt('de-DE', 'fileSystem', { fileAccessType: 'readable', filePath: '/home/notes.txt' })).detail)
       .toContain('Angeforderter Zugriff (Lesen): /home/notes.txt.')
-    expect((await prompt('fr-FR', 'fileSystem', { filePath: '/home/notes.txt' })).detail).toContain('Accès non précisé demandé : /home/notes.txt.')
+    // An unspecified access says nothing about how long an Allow holds.
+    expect((await prompt('fr-FR', 'fileSystem', { filePath: '/home/notes.txt' })).detail).toMatch(/^Accès non précisé demandé : \/home\/notes\.txt\. Hronaut/)
     expect((await prompt('ru-RU', 'fileSystem', { fileAccessType: 'writable', filePath: '/home/notes.txt' })).detail)
       .toContain('Запрошен доступ (запись): /home/notes.txt.')
     expect((await prompt('es-ES', 'fileSystem', { filePath: '/home/notes.txt' })).detail).toContain('Acceso solicitado (no especificado): /home/notes.txt.')

@@ -93,6 +93,20 @@ describe('camera and microphone the person allowed', () => {
     expect(device(handlers, page, 'video')).toBe(false)
   })
 
+  it('reads as allowed for a website embedded in the page, and not for the page around it', async () => {
+    const { handlers, workspaceSession } = createHarness(['allow'])
+    const page = createPage(workspaceSession)
+    const ads = { frameTreeNodeId: 2, processId: 8, routingId: 200, url: 'https://ads.example/call', origin: 'https://ads.example', detached: false }
+    page.contents.mainFrame.framesInSubtree.push(ads)
+    expect(await ask(handlers, page, 'media', { requestingUrl: ads.url, isMainFrame: false, mediaTypes: ['video'] })).toBe(true)
+    const embedded = (mediaType: string) => handlers.check!(page.contents as never, 'media', ads.origin, {
+      securityOrigin: `${ads.origin}/`, requestingUrl: ads.url, isMainFrame: false, mediaType
+    } as never)
+    expect(embedded('video')).toBe(true)
+    expect(embedded('audio')).toBe(false)
+    expect(device(handlers, page, 'video')).toBe(false)
+  })
+
   it('reads as blocked again once the person denies the same device on that page, and asks for every request', async () => {
     const { handlers, workspaceSession, shown } = createHarness(['allow', 'deny'])
     const page = createPage(workspaceSession)
@@ -121,7 +135,7 @@ describe('files and folders a website holds', () => {
     const page = createPage(workspaceSession)
     expect(await ask(handlers, page, 'fileSystem', { filePath: '/home/person/notes.txt', isDirectory: false, fileAccessType: 'writable' })).toBe(true)
     expect(shown[0]!.detail).toBe(
-      'Requested write access: /home/person/notes.txt. If you choose Allow, this page can save changes there until it reloads. '
+      'Requested write access: /home/person/notes.txt. If you choose Allow, this website can save changes there until this page reloads. '
         + "Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads."
     )
     expect(file(handlers, 'writable')).toBe(true)
@@ -141,9 +155,14 @@ describe('files and folders a website holds', () => {
   })
 
   it('cannot be read once the person denies reading them, until that page loads another document', async () => {
-    const { handlers, workspaceSession } = createHarness(['deny'])
+    const { handlers, workspaceSession, shown } = createHarness(['deny'])
     const page = createPage(workspaceSession)
     expect(await ask(handlers, page, 'fileSystem', { filePath: '/home/person/notes.txt', fileAccessType: 'readable' })).toBe(false)
+    // A website keeps reading what it holds, even a handle it restores after a restart, so the prompt says so.
+    expect(shown[0]!.detail).toBe(
+      'Requested read access: /home/person/notes.txt. If you choose Allow, this website can keep reading it, even after Hronaut restarts. '
+        + "Hronaut doesn't remember this choice. If you choose Deny, this page can't ask for this again until it reloads."
+    )
     expect(file(handlers, 'readable')).toBe(false)
     expect(file(handlers, 'readable', '/home/person/other.txt')).toBe(true)
     page.reload()
