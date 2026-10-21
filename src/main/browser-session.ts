@@ -547,7 +547,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
           message: host.text(`native.dialog.protected${kind}`, { origin }),
           detail: host.text(`native.dialog.protected${kind}Detail`),
           buttons: [host.text('native.dialog.cancel'), host.text(`native.dialog.chooseAnother${kind}`)],
-          defaultId: 1,
+          // As in every permission prompt, a held Enter from the picker refuses rather than reopening it.
+          defaultId: 0,
           cancelId: 0
         })
         if (response === 1 && !closing.signal.aborted && !webContents.isDestroyed()) action = 'tryAgain'

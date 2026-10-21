@@ -69,7 +69,7 @@ describe('a location Chromium protects', () => {
       detail: 'Hronaut never gives websites a system folder, its own data, private keys such as ~/.ssh, or a whole personal '
         + 'folder such as your home, Documents or Downloads folder. You can choose another folder, such as one inside Documents.',
       buttons: ['Cancel', 'Choose another folder'],
-      defaultId: 1,
+      defaultId: 0,
       cancelId: 0
     })
     // The prompt never names the path: the website chose where its picker opened.
