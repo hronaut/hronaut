@@ -175,15 +175,15 @@ export async function closeWorkspaceForPerson(access: WorkspaceArchiveAccess, gr
 
 /**
  * Restores an archived workspace once pending tab label edits settle, at the end of the tab rail or, for Undo, where
- * it was. A workspace the person just closed is kept from then on.
+ * it was, and shows it unless `show` is false, as for an agent. A workspace the person just closed is kept from then on.
  */
-export async function restoreSavedTabGroup(access: WorkspaceArchiveAccess, savedGroupId: string, placement?: WorkspacePlacement): Promise<BrowserTabGroupState> {
+export async function restoreSavedTabGroup(access: WorkspaceArchiveAccess, savedGroupId: string, placement?: WorkspacePlacement, show = true): Promise<BrowserTabGroupState> {
   // Any attempt to bring back a workspace the person just closed keeps it, even one that fails.
   if (access.closingWorkspace()?.id === savedGroupId) {
     access.closingWorkspace()!.kept = true
     access.setClosingWorkspace(undefined)
   }
-  return access.withTabLabelLifecycle(() => access.workspaceRegistry().restore(savedGroupId, placement))
+  return access.withTabLabelLifecycle(() => access.workspaceRegistry().restore(savedGroupId, placement, show))
 }
 
 /** Changes whether an archived workspace shows in the sidebar and is protected from deletion, unless an operation holds it busy. */

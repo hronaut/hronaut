@@ -78,7 +78,7 @@ describe('MCP workspace fork sources and direct access', () => {
         mcpTabGroups: [{ id: ownId, navigationPolicy: { mode: 'unrestricted', rules: [] } }]
       })),
       deleteSavedTabGroup: vi.fn(),
-      restoreSavedTabGroup: vi.fn(async () => workspace),
+      restoreSavedTabGroupForAgent: vi.fn(async () => workspace),
       transferWorkspaceStorage: vi.fn(async () => ({ copied: true })),
       saveAndCloseTabGroup: vi.fn(async () => workspace)
     }
@@ -250,7 +250,7 @@ describe('MCP workspace fork sources and direct access', () => {
     for (const action of ['open', 'delete', 'resume']) {
       expect((await call('browser_saved_workspaces', { action, savedWorkspaceId: ownId, resumeKey: key })).isError).toBe(true)
     }
-    expect(manager.restoreSavedTabGroup).not.toHaveBeenCalled()
+    expect(manager.restoreSavedTabGroupForAgent).not.toHaveBeenCalled()
     expect(manager.deleteSavedTabGroup).not.toHaveBeenCalled()
   })
 
