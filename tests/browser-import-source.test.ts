@@ -1,5 +1,5 @@
 import { createCipheriv, createHash, pbkdf2Sync } from 'node:crypto'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -87,7 +87,7 @@ describe('external cookie sources', () => {
     expect(sources.map(source => source.file).sort()).toEqual(Object.keys(cache).map(folder => join(root, folder, 'Cookies')).sort())
   })
   // Firefox 147 and later keep a new install's profiles in the XDG configuration folder, where import did not look, so
-  // it said no supported browser profiles were found.
+  // they were missing from the list.
   it.each([
     '.mozilla/firefox', 'snap/firefox/common/.mozilla/firefox', '.var/app/org.mozilla.firefox/.mozilla/firefox',
     '.config/mozilla/firefox', '.var/app/org.mozilla.firefox/config/mozilla/firefox'
@@ -106,6 +106,15 @@ describe('external cookie sources', () => {
     await writeFile(join(root, 'profiles.ini'), '[Profile0]\nName=default-release\nIsRelative=1\nPath=abcd.default-release\n')
     expect((await discoverImportProfiles(home, 'linux', configHome)).map(source => source.file)).toEqual([join(root, 'abcd.default-release/cookies.sqlite')])
     expect(await discoverImportProfiles(home, 'linux')).toEqual([])
+  })
+  it.each(['~/.mozilla linked to the configuration folder', 'the configuration folder linked to ~/.mozilla'])('lists a Firefox profile once when %s', async (link) => {
+    const home = await directory(); const legacy = join(home, '.mozilla'); const xdg = join(home, '.config/mozilla')
+    const [real, linked] = link.startsWith('~') ? [xdg, legacy] : [legacy, xdg]
+    await mkdir(join(real, 'firefox/abcd.default-release'), { recursive: true })
+    await writeFile(join(real, 'firefox/abcd.default-release/cookies.sqlite'), 'not SQLite')
+    await writeFile(join(real, 'firefox/profiles.ini'), '[Profile0]\nName=default-release\nIsRelative=1\nPath=abcd.default-release\n')
+    await mkdir(join(linked, '..'), { recursive: true }); await symlink(real, linked)
+    expect((await discoverImportProfiles(home)).map(source => source.name)).toEqual(['default-release · abcd.default-release'])
   })
   it('takes XDG_CONFIG_HOME only when it is an absolute path', () => {
     expect(linuxConfigHome('/home/person', { XDG_CONFIG_HOME: '/data/config' })).toBe('/data/config')

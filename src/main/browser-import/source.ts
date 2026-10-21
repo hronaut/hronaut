@@ -1,6 +1,6 @@
 import { createDecipheriv, createHash, pbkdf2Sync, randomUUID, timingSafeEqual } from 'node:crypto'
 import { execFile } from 'node:child_process'
-import { lstat, readFile, readdir } from 'node:fs/promises'
+import { lstat, readFile, readdir, realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, isAbsolute, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -51,13 +51,13 @@ function chromiumProfileName(entry: Record<string, unknown>, preferenceName: unk
   return label(`${accountName} (${localName})`, '')
 }
 
-/** Discovery reads profile names only, never the cookie database or OS keys. */
 /** The person's configuration folder: `XDG_CONFIG_HOME` when it is an absolute path, as the XDG specification asks, else `~/.config`. */
 export function linuxConfigHome(home = homedir(), environment: NodeJS.ProcessEnv = process.env): string {
   const configured = environment.XDG_CONFIG_HOME
   return configured && isAbsolute(configured) ? configured : join(home, '.config')
 }
 
+/** Discovery reads profile names only, never the cookie database or OS keys. */
 export async function discoverImportProfiles(home = homedir(), platform = process.platform, configHome = join(home, '.config')): Promise<ImportProfile[]> {
   if (platform !== 'linux') throw new BrowserImportError('unsupported')
   const profiles: ImportProfile[] = []
@@ -99,6 +99,8 @@ export async function discoverImportProfiles(home = homedir(), platform = proces
     join(home, '.var/app/org.mozilla.firefox/.mozilla/firefox'),
     join(home, '.var/app/org.mozilla.firefox/config/mozilla/firefox')
   ]
+  // A ~/.mozilla moved to the configuration folder is often linked back, so both roots read the same profiles.
+  const firefoxFolders = new Set<string>()
   for (const root of firefoxRoots) {
     let ini: string
     try { ini = await smallText(join(root, 'profiles.ini')) } catch { continue }
@@ -108,7 +110,10 @@ export async function discoverImportProfiles(home = homedir(), platform = proces
       if (!values.Path) continue
       const folder = values.IsRelative === '1' ? resolve(root, values.Path) : values.Path
       const file = join(folder, 'cookies.sqlite')
-      if (!await exists(file) || profiles.some(p => p.file === file)) continue
+      if (!await exists(file)) continue
+      const realFolder = await realpath(folder).catch(() => folder)
+      if (firefoxFolders.has(realFolder)) continue
+      firefoxFolders.add(realFolder)
       profiles.push({ id: randomUUID(), browser: 'Firefox', name: profileLabel(values.Name, basename(folder)), file, kind: 'firefox', keyApplication: '' })
     }
   }
