@@ -168,7 +168,8 @@ describe('agent card content', () => {
       const unresolved = decide({ key: 'd4_r1', id: 'd4', revision: 'r1', decision: 'resolve-unknown', phase: 'idle' })
       expect(unresolved).toEqual({ heading: 'Why it needs you', text: 'The agent can’t tell whether its last action took effect.', answers: [{ action: 'review-decision', label: 'Review the decision', key: 'attention-2' }] })
       const card = agentCardModel(asking, context({ attentionReason: 'Human decision required: review-page', attentionId: 'attention-2', attentionDecision: true }), t)
-      expect(card.reason).toEqual({ heading: 'Why it needs you', text: 'Human decision required: review-page', answers: [{ action: 'review-decision', label: 'Review the decision', key: 'attention-2' }] })
+      // Before the card has read the decision, it said "Human decision required: review-page".
+      expect(card.reason).toEqual({ heading: 'Why it needs you', text: 'Look at the page, then hand it back or tell the agent what to fix.', answers: [{ action: 'review-decision', label: 'Review the decision', key: 'attention-2' }] })
     })
   })
 

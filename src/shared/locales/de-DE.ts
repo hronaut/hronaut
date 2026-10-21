@@ -1344,7 +1344,7 @@ export const deDE = {
       "scrollBack": "Vorherige Tabs anzeigen",
       "scrollForward": "Weitere Tabs anzeigen",
       "pageAttention": "Seite erfordert Aufmerksamkeit",
-      "agentAttention": "Agent benötigt Ihre Aufmerksamkeit",
+      "agentAttentionReason": "Agent benötigt Ihre Aufmerksamkeit: {reason}",
       "needsYou": "Wartet auf Sie",
       "followingAgent": "Folgt {name}",
       "pinnedWorkspace": "Oben angeheftet",

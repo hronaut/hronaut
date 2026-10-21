@@ -1344,7 +1344,7 @@ export const esES = {
       "scrollBack": "Mostrar pestañas anteriores",
       "scrollForward": "Mostrar pestañas siguientes",
       "pageAttention": "La página requiere atención",
-      "agentAttention": "El agente necesita tu atención",
+      "agentAttentionReason": "El agente necesita tu atención: {reason}",
       "needsYou": "Te necesita",
       "followingAgent": "Siguiendo a {name}",
       "pinnedWorkspace": "Fijado arriba",

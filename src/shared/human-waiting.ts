@@ -1,4 +1,18 @@
 export type HumanWaitingDecision = 'review-page' | 'approve-action' | 'provide-input' | 'resolve-unknown'
+const HUMAN_WAITING_DECISIONS = Object.keys({
+  'review-page': true, 'approve-action': true, 'provide-input': true, 'resolve-unknown': true
+} satisfies Record<HumanWaitingDecision, true>) as HumanWaitingDecision[]
+/**
+ * The English line a decision's attention request carries. MCP results, the tray and the system notification keep it;
+ * the shell names the decision in the interface language instead.
+ */
+export function humanDecisionAttentionReason(decision: HumanWaitingDecision): string {
+  return `Human decision required: ${decision}`
+}
+/** The decision a request's line names, or undefined for any other line, such as one an agent wrote. */
+export function humanDecisionFromAttentionReason(reason: string): HumanWaitingDecision | undefined {
+  return HUMAN_WAITING_DECISIONS.find((decision) => humanDecisionAttentionReason(decision) === reason)
+}
 export type HumanWaitingState = 'WAITING_FOR_HUMAN' | 'ACKNOWLEDGED' | 'RESOLVED' | 'REJECTED'
   | 'EXPIRED' | 'CANCELLED' | 'ATTEMPTED' | 'VERIFIED' | 'UNKNOWN'
 /** Still waiting for the person: not yet answered, cancelled or expired. */

@@ -15,6 +15,7 @@ import type { AgentPresence } from '../../../shared/agent-presence.js'
 import { isSupportedLocale } from '../../../shared/locale.js'
 import { isResolvedThemeName } from '../../../shared/theme.js'
 import { agentFinishedStepText, agentStepText } from '../../../shared/agent-step-text.js'
+import { attentionReasonText } from './agent-attention-reason.js'
 import { agentCardCompletes, type AgentDecisionAnswerState } from './useAgentDecisionAnswers.js'
 
 type Translate = (key: string, values?: Record<string, unknown>) => string
@@ -92,7 +93,7 @@ export function agentCardModel(agent: AgentPresence, context: AgentCardContext, 
             // A decision's request carries a fixed English line; once read, the card says it in your language.
             text: context.attentionDecision && context.decision
               ? t(`shell.agentCard.decisionReasons.${context.decision.decision}`)
-              : fitAgentCardText(context.attentionReason, AGENT_CARD_REASON_LIMIT),
+              : fitAgentCardText(attentionReasonText(t, context.attentionReason, context.attentionDecision === true), AGENT_CARD_REASON_LIMIT),
             ...(context.attentionId ? reasonAnswers(context.attentionId, context, t) : {})
           }
         }
