@@ -63,7 +63,7 @@ describe('SettingsStore', () => {
   it('atomically persists and restores settings', async () => {
     const { path, store } = await createStore()
     await store.save({
-      theme: 'cyberpunk',
+      theme: 'matrix',
       interfaceScale: 1.25,
       tabPosition: 'left',
       useSystemTitleBar: true,
@@ -90,7 +90,7 @@ describe('SettingsStore', () => {
       languagePreference: 'uk-UA'
     })
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({
-      theme: 'cyberpunk',
+      theme: 'matrix',
       interfaceScale: 1.25,
       tabPosition: 'left',
       useSystemTitleBar: true,
@@ -117,7 +117,7 @@ describe('SettingsStore', () => {
       languagePreference: 'uk-UA'
     })
     expect(await store.load()).toEqual({
-      theme: 'cyberpunk',
+      theme: 'matrix',
       interfaceScale: 1.25,
       tabPosition: 'left',
       useSystemTitleBar: true,
@@ -210,6 +210,16 @@ describe('SettingsStore', () => {
       checkForUpdatesOnStartup: true,
       languagePreference: 'system'
     })
+  })
+
+  it('starts a new profile in Cyberpunk and keeps a saved theme, System included', async () => {
+    const { path, store } = await createStore()
+    expect((await store.load()).theme).toBe('cyberpunk')
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, '{"theme":"system"}\n', 'utf8')
+    expect((await store.load()).theme).toBe('system')
+    await writeFile(path, '{"theme":"neon"}\n', 'utf8')
+    expect((await store.load()).theme).toBe('cyberpunk')
   })
 
   it('keeps the live status strip unpinned unless the settings file pins it with a boolean', async () => {

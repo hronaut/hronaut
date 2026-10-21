@@ -88,7 +88,7 @@ const TITLE_BAR_THEME_COLORS: Record<ResolvedThemeName, TitleBarThemeColors> = {
   midnight: { horizontal: '#111f32', vertical: '#0b1422', symbols: '#edf4ff' },
   sepia: { horizontal: '#e8dcc8', vertical: '#f4ecdf', symbols: '#3c3025' },
   'cyberpunk-turbo': { horizontal: CYBERPUNK_TURBO_COLORS.shellTop, vertical: CYBERPUNK_TURBO_COLORS.background, symbols: CYBERPUNK_TURBO_COLORS.text },
-  cyberpunk: { horizontal: '#1d0a32', vertical: '#10071c', symbols: '#f5f0ff' },
+  cyberpunk: { horizontal: '#1d0a32', vertical: '#0a0414', symbols: '#f5f0ff' },
   matrix: { horizontal: '#07160b', vertical: '#020b05', symbols: '#d9ffe0' },
   machine: { horizontal: '#251012', vertical: '#13080a', symbols: '#fff0ee' },
   galactic: { horizontal: '#111b3a', vertical: '#070d20', symbols: '#f3f5ff' }

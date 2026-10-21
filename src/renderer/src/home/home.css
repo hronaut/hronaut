@@ -15,7 +15,7 @@
   --code-text: var(--text);
 }
 * { box-sizing: border-box; }
-html { min-width: 320px; min-height: 100%; background: var(--bg); scrollbar-color: var(--border) var(--bg); scrollbar-gutter: stable; }
+html { min-width: 320px; min-height: 100%; background: var(--bg); scrollbar-gutter: stable; }
 body { min-height: 100vh; margin: 0; color: var(--text); background: var(--bg); }
 button, input { font: inherit; }
 button { color: inherit; cursor: pointer; }

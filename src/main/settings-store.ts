@@ -18,7 +18,8 @@ import {
 import { writeTextFileAtomically } from './atomic-file.js'
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  theme: 'system',
+  // New profiles start in the look hronaut.dev shows; a saved theme, System included, stays as it is.
+  theme: 'cyberpunk',
   interfaceScale: DEFAULT_INTERFACE_SCALE,
   tabPosition: DEFAULT_TAB_POSITION,
   useSystemTitleBar: false,

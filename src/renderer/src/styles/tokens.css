@@ -30,6 +30,8 @@
 
 :root,
 .ui-theme-scope {
+  /* Scrollbars take the theme's strong border color over each surface instead of the system's stock ones. */
+  scrollbar-color: color-mix(in srgb, var(--border) 76%, var(--text)) transparent;
   --font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-code: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
@@ -294,37 +296,42 @@
   --danger: #9f3b36;
 }
 
+/* Cyberpunk: hronaut.dev's palette, neon cyan and magenta on violet-black. */
 :root[data-theme="cyberpunk"],
 .ui-theme-scope[data-theme="cyberpunk"] {
   color: #f5f0ff;
-  background: #10071c;
+  background: #0a0414;
   --text: #f5f0ff;
   --muted: #b9a9cf;
   --subtle: #8f7ba8;
   --accent: #00f5ff;
+  /* Stronger than the site's 8% wash, so a selected control stays apart from a hovered one. */
   --accent-soft: rgba(0, 245, 255, 0.15);
   --accent-text: #00f5ff;
-  --button-text: #071015;
+  --button-text: #0a0414;
   --shell-top: #1d0a32;
   --titlebar-background: #1d0a32;
   --titlebar-muted: #b9a9cf;
-  --shell-bottom: #10071c;
-  --toolbar: #130922;
-  --surface: #190c2a;
-  --surface-raised: #211035;
-  --surface-muted: #241139;
-  --hover: #351651;
-  --tab-hover: rgba(255, 46, 224, 0.11);
+  --shell-bottom: #0a0414;
+  --toolbar: #12081f;
+  --surface: #12081f;
+  --surface-raised: #1a0c2c;
+  --surface-muted: #160a27;
+  /* The site's 7% cyan wash, made opaque over the toolbar so text contrast stays measurable. */
+  --hover: #11192f;
+  --tab-hover: rgba(255, 46, 224, 0.08);
   --border: #4e1c6f;
-  --border-soft: #59237c;
-  --pill-bg: #1d0b31;
-  --pill-border: #0eb8c2;
-  --shadow: rgba(255, 34, 218, 0.24);
-  --focus-bg: #1b0b2e;
+  --border-soft: #2e1446;
+  --pill-bg: #12081f;
+  --pill-border: rgba(0, 245, 255, 0.4);
+  --shadow: rgba(255, 46, 224, 0.25);
+  --focus-bg: #12081f;
   --success: #8dff4a;
   --danger: #ff5ca8;
   --overlay-border: #78309b;
   --overlay-ring: 0 0 0 1px rgba(0, 245, 255, 0.16);
+  /* hronaut.dev's own scrollbar thumb. */
+  scrollbar-color: var(--border) transparent;
 }
 
 /* Cyberpunk Turbo: neon cyan and magenta with yellow highlights. */

@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DEFAULT_MCP_PORT } from '../../src/shared/mcp-port.js'
+import type { HronautApi } from '../../src/shared/types.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 test('starts with safe defaults when non-workspace profile stores contain JSON null', async ({
@@ -21,8 +22,15 @@ test('starts with safe defaults when non-workspace profile stores contain JSON n
     await expect(window.getByRole('button', { name: 'Home' })).toBeVisible()
     await expect.poll(() => window.evaluate('window.hronautSettings.get()')).toMatchObject({
       mcpPort,
-      theme: 'system'
+      theme: 'cyberpunk'
     })
+    await expect(window.locator('html')).toHaveAttribute('data-theme', 'cyberpunk')
+    // hronaut.dev's scrollbar thumb, over each surface rather than a stock track.
+    expect(await window.evaluate(() => getComputedStyle(document.documentElement).scrollbarColor)).toBe('rgb(78, 28, 111) rgba(0, 0, 0, 0)')
+    // Websites keep their own scrollbars: the theme never reaches a page.
+    await window.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url: 'data:text/html,<title>Plain page</title><p>Plain page</p>', active: true }))
+    await expect.poll(() => app.evaluate(async ({ webContents }) => await webContents.getAllWebContents()
+      .find(page => page.getURL().startsWith('data:text/html'))?.executeJavaScript('getComputedStyle(document.documentElement).scrollbarColor'))).toBe('auto')
   } finally {
     await closeHronaut(app)
   }
