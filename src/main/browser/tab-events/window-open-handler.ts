@@ -78,7 +78,17 @@ export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access
       return { action: 'deny' }
     }
 
+    // A tab going to sleep still runs its page until the sleeping page replaces it, and a window opened then would
+    // link the two pages while the tab sleeps.
+    if (tab.sleeping) return blocked()
     const creations = observations.map(observation => observation.creationStarted())
+    // Checked before Chromium creates the window, so window.open() returns no window, as for a blocked popup.
+    try {
+      access.assertCanOpenTab(tab.mcpGroupId)
+    } catch (error) {
+      failed(creations, error)
+      return { action: 'deny' }
+    }
     return {
       action: 'allow',
       // The new tab stays open when its opener closes, as every tab does.

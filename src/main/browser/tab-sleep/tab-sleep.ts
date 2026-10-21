@@ -443,6 +443,8 @@ export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAcc
       return false
     }
     let restoreError: unknown
+    // Awake while its page returns, as waking does, so the page's own redirects still go through.
+    tab.sleeping = false
     try {
       try {
         await returnFromSleepingPage(tab.webContents, tab.url)

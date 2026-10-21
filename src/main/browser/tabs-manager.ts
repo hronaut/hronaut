@@ -2850,9 +2850,11 @@ export class BrowserTabsManager {
       : null
     const ids = this.orderedTabs().map((candidate) => candidate.id)
     const index = ids.indexOf(tab.id)
+    // A website popup returns to the tab that opened it, as in Chrome, rather than to a tab of the next workspace.
+    const openerId = tab.openerTabId && this.tabs.has(tab.openerTabId) ? [tab.openerTabId] : []
     const orderedCandidates = splitPartnerId
       ? [splitPartnerId, ...ids]
-      : [...ids.slice(index + 1), ...ids.slice(0, index).reverse()]
+      : [...openerId, ...ids.slice(index + 1), ...ids.slice(0, index).reverse()]
     const nextId = tab.id === this.activeTabId
       ? orderedCandidates.find((candidateId) => {
         const candidate = this.tabs.get(candidateId)
@@ -5107,6 +5109,15 @@ export class BrowserTabsManager {
     }
   }
 
+  /** Refuses a new tab past the tab limit, in an unknown workspace, or in a workspace that cannot take one now. */
+  private assertCanCreateTab(mcpGroupId: string | undefined, allowBusyWorkspace: boolean): void {
+    if (this.tabs.size >= MAX_TABS) throw new LocalizedError('appErrors.tabs.limit', { max: MAX_TABS })
+    if (mcpGroupId && !this.mcpTabGroups.has(mcpGroupId)) {
+      throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${mcpGroupId}` })
+    }
+    if (mcpGroupId && !allowBusyWorkspace) this.assertWorkspaceCanOpenTab(mcpGroupId)
+  }
+
   private async createTab(options: {
     id?: string
     title?: string
@@ -5136,11 +5147,7 @@ export class BrowserTabsManager {
     onCreated?: (tab: BrowserTab) => void
     onCreationAttempt?: () => void
   }): Promise<BrowserTab> {
-    if (this.tabs.size >= MAX_TABS) throw new LocalizedError('appErrors.tabs.limit', { max: MAX_TABS })
-    if (options.mcpGroupId && !this.mcpTabGroups.has(options.mcpGroupId)) {
-      throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${options.mcpGroupId}` })
-    }
-    if (options.mcpGroupId && !options.allowBusyWorkspace) this.assertWorkspaceCanOpenTab(options.mcpGroupId)
+    this.assertCanCreateTab(options.mcpGroupId, options.allowBusyWorkspace === true)
     const id = options.id ?? uuidV7()
     const url = normalizeAddress(options.url, this.options.getSearchEngine?.())
     // The window open handler checked the address of a page opened for a window, and its navigation is checked too.
@@ -5189,7 +5196,8 @@ export class BrowserTabsManager {
         options.title || (url === HRONAUT_HOME_URL ? 'Hronaut Home' : url === 'about:blank' ? UNTITLED_TAB_TITLE : url)
       ),
       url,
-      loading: true,
+      // A page opened for a window may never load anything, such as one a site writes into itself.
+      loading: options.adopt ? options.adopt.webContents.isLoading() : true,
       navigationGeneration: options.navigationGeneration ?? 0,
       walletNavigationGeneration: options.navigationGeneration ?? 0,
       observationGeneration: options.mcpGroupId
@@ -5654,6 +5662,7 @@ export class BrowserTabsManager {
       openedTabObservations: () => this.openedTabObservations,
       workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
       options: () => this.options,
+      assertCanOpenTab: (groupId) => this.assertCanCreateTab(groupId, false),
       createTab: (options) => this.createTab(options),
       agentInputWebContents: () => this.agentInputWebContents
     }

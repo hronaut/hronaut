@@ -22,13 +22,13 @@ function guestPage(options: { opener?: boolean } = {}): WebContents & { close: R
   return { isDestroyed: vi.fn(() => false), close: vi.fn(), opener: options.opener === false ? null : { url: 'https://app.example/' } } as unknown as WebContents & { close: ReturnType<typeof vi.fn> }
 }
 
-function fixture(options: { mcpGroupId?: string; allowed?: boolean; createTab?: WindowOpenHandlerAccess<WindowOpenHandlerTab>['createTab'] } = {}) {
+function fixture(options: { mcpGroupId?: string; allowed?: boolean; canOpenTab?: () => void; createTab?: WindowOpenHandlerAccess<WindowOpenHandlerTab>['createTab'] } = {}) {
   const agentInput = new Map<number, number>()
-  const tab: WindowOpenHandlerTab = { id: 'opener', webContents: { id: 7 } as WebContents, ...('mcpGroupId' in options ? { mcpGroupId: options.mcpGroupId } : { mcpGroupId: 'client' }) }
+  const tab: WindowOpenHandlerTab = { id: 'opener', sleeping: false, ...('mcpGroupId' in options ? { mcpGroupId: options.mcpGroupId } : { mcpGroupId: 'client' }) }
   const observation = new OpenedTabObservation()
   const onActionFailed = vi.fn()
   const createTab = vi.fn(options.createTab ?? (async (tabOptions) => {
-    const created = { id: 'popup', webContents: tabOptions.adopt?.webContents ?? ({ id: 8 } as WebContents) }
+    const created = { id: 'popup', sleeping: false }
     tabOptions.onCreated?.(created)
     return created
   }))
@@ -37,12 +37,13 @@ function fixture(options: { mcpGroupId?: string; allowed?: boolean; createTab?: 
     openedTabObservations: () => new Map([[tab, new Set([observation])]]),
     workspaceNavigationAllowed: () => options.allowed ?? true,
     options: () => ({ onActionFailed }),
+    assertCanOpenTab: vi.fn(options.canOpenTab ?? (() => undefined)),
     createTab,
     agentInputWebContents: () => agentInput
   }
   let handler!: (details: Details) => Response
   attachWindowOpenHandler(access, tab, { id: 7, setWindowOpenHandler: (registered: typeof handler) => { handler = registered } } as unknown as WebContents)
-  return { open: (details: Details) => handler(details), createTab, observation, onActionFailed, agentInput }
+  return { tab, open: (details: Details) => handler(details), createTab, observation, onActionFailed, agentInput }
 }
 
 const details: Details = { url: 'https://accounts.example/sign-in', disposition: 'new-window', referrer: { url: 'https://app.example/', policy: 'strict-origin-when-cross-origin' } }
@@ -90,7 +91,7 @@ describe('a window a workspace page opens', () => {
     const guest = guestPage()
     const { open } = fixture({
       createTab: async (tabOptions) => {
-        tabOptions.onCreated?.({ id: 'popup', webContents: guest })
+        tabOptions.onCreated?.({ id: 'popup', sleeping: false })
         throw new Error('Layout failed')
       }
     })
@@ -113,6 +114,21 @@ describe('a window a workspace page opens', () => {
     agentInput.clear()
     response.createWindow!({ webContents: guestPage() })
     expect(createTab).toHaveBeenCalledWith(expect.objectContaining({ selectVisible: false }))
+  })
+
+  it('gives the page no window when the workspace cannot take another tab, as for a blocked popup', () => {
+    const { open, createTab, observation, onActionFailed } = fixture({ canOpenTab: () => { throw new Error('Too many tabs') } })
+    expect(open(details)).toEqual({ action: 'deny' })
+    expect(createTab).not.toHaveBeenCalled()
+    expect(onActionFailed).toHaveBeenCalledWith('open page in new tab', expect.objectContaining({ message: 'Too many tabs' }))
+    expect(observation.stop(() => true)).toEqual({ tabIds: [], failed: 1 })
+  })
+
+  it('opens no window from a tab going to sleep, whose page still runs until the sleeping page replaces it', () => {
+    const { tab, open, createTab } = fixture()
+    tab.sleeping = true
+    expect(open(details)).toEqual({ action: 'deny' })
+    expect(createTab).not.toHaveBeenCalled()
   })
 
   it('blocks Home and addresses the workspace does not allow', () => {

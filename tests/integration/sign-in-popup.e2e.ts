@@ -15,6 +15,11 @@ const APP = `<!doctype html><title>App</title>
   window.signInPopup = window.open('/sign-in', 'sign-in', 'width=480,height=640')
   document.title = window.signInPopup ? 'Waiting for sign-in' : 'Popup blocked'
 ">Sign in</button>
+<button id="write" style="${BUTTON}; top: 50px" onclick="
+  window.written = window.open('')
+  window.written.document.write('<title>Written</title>')
+  window.written.document.close()
+">Write</button>
 <script>
   addEventListener('message', (event) => {
     if (event.origin === location.origin && event.source === window.signInPopup) document.title = 'Signed in as ' + event.data
@@ -56,6 +61,18 @@ test('a sign-in popup answers the page that opened it and closes its tab', async
     const workspaceId = (await call<{ id: string }>('browser_workspaces', { action: 'create', name: 'Sign-in popup' })).id
     const appTabId = (await call<{ activeTabId: string }>('browser_new_tab', { workspaceId, url: `http://127.0.0.1:${address.port}/` })).activeTabId
     await text('browser_wait', { workspaceId, tabId: appTabId, selector: '#sign-in', state: 'visible' })
+
+    // A blank window the page writes into never loads anything, and its tab must not keep loading.
+    const write = await call<{ tabsOpenedDuringClick?: { tabIds: string[] } }>('browser_click', { workspaceId, tabId: appTabId, selector: '#write' })
+    expect(write.tabsOpenedDuringClick?.tabIds, JSON.stringify(write)).toHaveLength(1)
+    const writtenTabId = write.tabsOpenedDuringClick!.tabIds[0]!
+    expect(await evaluate(writtenTabId, 'document.title')).toBe('Written')
+    await expect.poll(async () => (await call<Array<{ id: string; loading: boolean }>>('browser_tabs', { workspaceId })).find(tab => tab.id === writtenTabId)?.loading)
+      .toBe(false)
+    // The page that opened a window can close it, which closes its tab.
+    expect(await evaluate(appTabId, '(window.written.close(), true)')).toBe(true)
+    await expect.poll(async () => (await call<Array<{ id: string }>>('browser_tabs', { workspaceId })).map(tab => tab.id))
+      .toEqual([appTabId])
 
     const click = await call<{ tabsOpenedDuringClick?: { tabIds: string[] } }>('browser_click', { workspaceId, tabId: appTabId, selector: '#sign-in' })
     expect(await evaluate(appTabId, 'document.title')).toBe('Waiting for sign-in')
