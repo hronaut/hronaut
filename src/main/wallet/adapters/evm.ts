@@ -280,7 +280,12 @@ function readRpcError(error: unknown): Error {
   const data = typeof rpc.data === 'string' && /^0x[0-9a-fA-F]*$/.test(rpc.data) && rpc.data.length <= MAX_READ_RPC_ERROR_DATA_CHARS
     ? `, data ${rpc.data}`
     : ''
-  const detail = rpc.details.replace(/[^A-Za-z0-9_ .,:'"()/-]/g, ' ').replace(/(?:https?|wss?):\/\/\S*/gi, '').trim().slice(0, 160)
+  // Addresses go first, while their query and fragment still belong to them: replacing ? = & # first split an
+  // address there and kept a key in its query as words. Any scheme counts, as do http and ws addresses whose
+  // slashes were collapsed or escaped.
+  const details = typeof rpc.details === 'string' ? rpc.details : ''
+  const detail = details.replace(/(?:[a-z][a-z0-9+.-]*:\/\/|(?:https?|wss?):[/\\]+)\S*/gi, '').replace(/[^A-Za-z0-9_ .,:'"()/-]/g, ' ')
+    .replace(/\s+/g, ' ').trim().slice(0, 160).trimEnd()
   return new Error(`EVM RPC error (code ${rpc.code}${data}): ${detail || 'request failed'}`)
 }
 

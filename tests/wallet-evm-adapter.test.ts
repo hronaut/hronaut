@@ -439,6 +439,22 @@ describe('EvmWalletAdapter', () => {
     expect(error.message).toBe('EVM RPC error (code 3, data 0x08c379a0): execution reverted: Not owner')
     expect(error.message).not.toContain('secret-key')
 
+    // A node that names an address with a key in its query loses the whole address, query and all.
+    client.request.mockRejectedValueOnce(new RpcRequestError({
+      body: { method: 'eth_call' },
+      error: { code: -32000, message: 'upstream https://upstream.example/v1?apikey=SECRET123&x=1#frag failed, see wss://user:pw@ws.example/?token=SECRET456' },
+      url: 'https://secret-key.rpc.example/v3/abc'
+    }))
+    const upstream = await adapter.readRpc(wallet(), 'eth_call', [{}]).then(() => new Error('resolved'), (cause: unknown) => cause as Error)
+    expect(upstream.message).toBe('EVM RPC error (code -32000): upstream failed, see')
+    for (const secret of ['SECRET123', 'SECRET456', 'apikey', 'pw', 'frag']) expect(upstream.message).not.toContain(secret)
+    client.request.mockRejectedValueOnce(new RpcRequestError({
+      body: { method: 'eth_call' },
+      error: { code: -32000, message: 'upstream postgres://app:SECRET1@db:5432/x and https:/host.example/v3/KEY2?k=SECRET3 failed' },
+      url: 'https://secret-key.rpc.example/v3/abc'
+    }))
+    await expect(adapter.readRpc(wallet(), 'eth_call', [{}])).rejects.toThrow(/^EVM RPC error \(code -32000\): upstream and failed$/)
+
     client.request.mockRejectedValueOnce(new Error('fetch failed for https://secret-key.rpc.example/v3/abc'))
     await expect(adapter.readRpc(wallet(), 'eth_blockNumber', [])).rejects.toThrow(/^EVM RPC read request failed$/)
   })
