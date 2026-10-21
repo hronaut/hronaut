@@ -1864,7 +1864,7 @@ export const ruRU = {
     "runAgain": "Запустить снова"
   },
   "accessibilityAudit": {
-    "impacts": {"critical": "критическое", "serious": "серьёзное", "moderate": "умеренное", "minor": "незначительное", "unknown": "неизвестно"},
+    "impacts": {"critical": "критическое", "serious": "серьёзное", "moderate": "умеренное", "minor": "незначительное", "unknown": "неизвестное"},
     "standards": {"wcag-aa": "WCAG A и AA", "wcag-aaa": "WCAG A, AA и AAA", "best-practice": "Рекомендуемые практики", "all": "Все правила"},
     "kicker": "Локальная проверка WCAG",
     "heading": "Доступность",
@@ -2132,7 +2132,7 @@ export const ruRU = {
     }
   },
   "securityReport": {
-    "states": {"secure": "безопасно", "insecure": "небезопасно", "insecure-broken": "нарушено", "neutral": "нейтрально", "info": "информационно", "unknown": "неизвестно"},
+    "states": {"secure": "безопасно", "insecure": "небезопасно", "insecure-broken": "нарушено", "neutral": "нейтрально", "info": "для сведения", "unknown": "неизвестно"},
     "ctCompliance": {"compliant": "Соответствует", "not-compliant": "Не соответствует", "unknown": "Неизвестно"},
     "kicker": "Текущий основной документ",
     "heading": "Безопасность соединения",

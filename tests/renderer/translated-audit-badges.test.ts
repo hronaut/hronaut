@@ -61,7 +61,7 @@ function accessibilityAudit(): BrowserAccessibilityAudit {
     tabId: 'tab-1', url: 'https://example.test/app', title: 'Example', auditedAt: '2026-09-15T10:05:00.000Z',
     action: 'measure', standard: 'wcag-aa', scope: { selector: null, maxViolations: 50, maxNodesPerViolation: 3 },
     engine: { name: 'axe-core', version: '4.13.0' },
-    violationCount: 2, affectedNodeCount: 2, needsReviewCount: 0, passedRuleCount: 20, truncated: false,
+    violationCount: 3, affectedNodeCount: 3, needsReviewCount: 0, passedRuleCount: 20, truncated: false,
     violations: [
       {
         id: 'color-contrast', impact: 'serious', help: 'Elements must meet minimum color contrast ratio thresholds',
@@ -70,16 +70,20 @@ function accessibilityAudit(): BrowserAccessibilityAudit {
       {
         id: 'region', impact: 'moderate', help: 'All page content should be contained by landmarks',
         helpUrl: '', description: 'Ensure landmarks', nodeCount: 1, nodes: [{ targets: ['#aside'], failureSummary: 'Add a landmark' }]
+      },
+      {
+        id: 'future-rule', impact: 'unknown', help: 'A rule without an impact',
+        helpUrl: '', description: 'Ensure something', nodeCount: 1, nodes: [{ targets: ['#footer'], failureSummary: 'Fix it' }]
       }
     ]
   }
 }
 
-function securityReport(state: BrowserSecurityReport['state']): BrowserSecurityReport {
+function securityReport(state: BrowserSecurityReport['state'], certificateTransparencyCompliance = 'not-compliant'): BrowserSecurityReport {
   return {
     tabId: 'tab-1', url: 'https://example.test/app', origin: 'https://example.test', title: 'Example',
     checkedAt: '2026-09-15T10:05:00.000Z', state, secureTransport: true,
-    connection: { protocol: 'TLS 1.3', cipher: 'AES_128_GCM', keyExchangeGroup: 'X25519', certificateTransparencyCompliance: 'not-compliant', encryptedClientHello: false },
+    connection: { protocol: 'TLS 1.3', cipher: 'AES_128_GCM', keyExchangeGroup: 'X25519', certificateTransparencyCompliance, encryptedClientHello: false },
     caveats: []
   }
 }
@@ -97,6 +101,8 @@ function debugReport(): BrowserDebugReport {
     caveats: []
   }
 }
+
+let mounted: { unmount: () => void, dispose: () => void } | undefined
 
 function renderGermanPanels(overrides: Partial<DiagnosticsBrowser>) {
   const browser: DiagnosticsBrowser = {
@@ -121,17 +127,24 @@ function renderGermanPanels(overrides: Partial<DiagnosticsBrowser>) {
       openSupport: vi.fn(async () => undefined), preservationBusy: false, updatePreservation: vi.fn(), keepsSeparatePanelOpen: () => false
     }
   })
-  return { controller, view }
+  mounted = { unmount: () => view.unmount(), dispose: () => controller.dispose() }
+  return { controller }
 }
 
 beforeEach(() => {
   vi.stubGlobal('hronaut', { discardIncident: vi.fn(async () => undefined), invalidateIncidentPreview: vi.fn(async () => undefined) })
 })
-afterEach(() => { vi.unstubAllGlobals() })
+afterEach(() => {
+  // Unmount before un-stubbing: the debug report's incident review calls the stubbed bridge as it closes.
+  mounted?.unmount()
+  mounted?.dispose()
+  mounted = undefined
+  vi.unstubAllGlobals()
+})
 
 describe('audit ratings and states in the interface language', () => {
   it('rates Web Vitals and names script invokers and user timings in German', async () => {
-    const { controller, view } = renderGermanPanels({ measurePerformance: vi.fn(async () => performanceReport()) })
+    const { controller } = renderGermanPanels({ measurePerformance: vi.fn(async () => performanceReport()) })
     await controller.runPerformanceReport()
     const panel = screen.getByRole('dialog', { name: 'Seitenleistung' })
 
@@ -146,44 +159,42 @@ describe('audit ratings and states in the interface language', () => {
     const timings = panel.querySelector('.performance-user-timings')!
     expect(within(timings as HTMLElement).getByText('app:start').closest('li')).toHaveTextContent('Marke ·')
     expect(within(timings as HTMLElement).getByText('app:boot').closest('li')).toHaveTextContent('Messung ·')
-    view.unmount()
-    controller.dispose()
   })
 
   it('names each violation impact and the audited standard in German', async () => {
-    const { controller, view } = renderGermanPanels({ runAccessibilityAudit: vi.fn(async () => accessibilityAudit()) })
+    const { controller } = renderGermanPanels({ runAccessibilityAudit: vi.fn(async () => accessibilityAudit()) })
     await controller.runAccessibilityAudit()
     const panel = screen.getByRole('dialog', { name: 'Barrierefreiheit' })
 
     const impacts = [...panel.querySelectorAll('.accessibility-impact')].map((badge) => badge.textContent)
-    expect(impacts).toEqual(['schwerwiegend', 'mittel'])
+    expect(impacts).toEqual(['schwerwiegend', 'mittel', 'unbekannt'])
     expect(panel.querySelector('footer')).toHaveTextContent('axe-core 4.13.0 · WCAG A und AA')
-    view.unmount()
-    controller.dispose()
   })
 
   it('names the connection security state and certificate transparency in German', async () => {
-    const inspectSecurity = vi.fn(async () => securityReport('neutral'))
-    const { controller, view } = renderGermanPanels({ inspectSecurity })
+    const inspectSecurity = vi.fn(async () => securityReport('insecure'))
+    const { controller } = renderGermanPanels({ inspectSecurity })
     await controller.runSecurityReport()
     const panel = screen.getByRole('dialog', { name: 'Verbindungssicherheit' })
-    expect(panel.querySelector('.security-state')).toHaveTextContent('neutral')
-    expect(panel).toHaveTextContent('Nicht konform')
-    expect(panel).not.toHaveTextContent('not-compliant')
+    const badge = () => panel.querySelector('.security-state')?.textContent
+    const transparency = () => within(panel).getByText('Zertifikatstransparenz').nextElementSibling?.textContent
+    expect(badge()).toBe('nicht sicher')
+    expect(transparency()).toBe('Nicht konform')
 
-    inspectSecurity.mockResolvedValueOnce(securityReport('secure'))
+    inspectSecurity.mockResolvedValueOnce(securityReport('insecure-broken', 'compliant'))
     await controller.runSecurityReport()
-    expect(panel.querySelector('.security-state')).toHaveTextContent('sicher')
-    inspectSecurity.mockResolvedValueOnce(securityReport('unknown'))
+    expect(badge()).toBe('fehlerhaft')
+    expect(transparency()).toBe('Konform')
+
+    inspectSecurity.mockResolvedValueOnce(securityReport('unknown', 'future-compliance'))
     await controller.runSecurityReport()
-    expect(panel.querySelector('.security-overview strong')).toHaveTextContent('Verbindungssicherheit: unbekannt')
-    expect(panel.querySelector('.security-state')).toHaveTextContent('unbekannt')
-    view.unmount()
-    controller.dispose()
+    expect(panel.querySelector('.security-overview strong')?.textContent).toBe('Verbindungssicherheit: unbekannt')
+    expect(badge()).toBe('unbekannt')
+    expect(transparency()).toBe('future-compliance')
   })
 
   it('names console levels and request types in the German debug report', async () => {
-    const { controller, view } = renderGermanPanels({ createDebugReport: vi.fn(async () => debugReport()) })
+    const { controller } = renderGermanPanels({ createDebugReport: vi.fn(async () => debugReport()) })
     await controller.runDebugReport()
     const panel = screen.getByRole('dialog', { name: 'Debugbericht' })
 
@@ -191,7 +202,5 @@ describe('audit ratings and states in the interface language', () => {
     expect(levels).toEqual(['Fehler', 'Warnung'])
     expect(panel.querySelector('.debug-network-entry small')).toHaveTextContent('Skript')
     expect(panel.querySelector('.debug-network-entry small')).not.toHaveTextContent('script')
-    view.unmount()
-    controller.dispose()
   })
 })

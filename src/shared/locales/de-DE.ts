@@ -1896,7 +1896,7 @@ export const deDE = {
   },
   "performance": {
     "ratings": {"good": "gut", "needs-improvement": "verbesserungswürdig", "poor": "schlecht"},
-    "invokers": {"user-callback": "Benutzer-Callback", "event-listener": "Event-Listener", "resolve-promise": "Promise erfüllt", "reject-promise": "Promise abgelehnt", "classic-script": "klassisches Skript", "module-script": "Modulskript"},
+    "invokers": {"user-callback": "Benutzer-Callback", "event-listener": "Event-Listener", "resolve-promise": "Promise erfüllt", "reject-promise": "Promise abgelehnt", "classic-script": "Klassisches Skript", "module-script": "Modulskript"},
     "measure": "Messung",
     "kicker": "Aktueller Besuch",
     "heading": "Seitenleistung",

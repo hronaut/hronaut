@@ -2145,7 +2145,7 @@ export const frFR = {
     "toolAttention": "Le rapport de sécurité requiert votre attention",
     "toolSecure": "Connexion sécurisée",
     "toolInsecure": "La connexion n’est pas sécurisée",
-    "toolState": "État de la connexion : {state}",
+    "toolState": "Sécurité de la connexion : {state}",
     "toolDescription": "Détails TLS, du certificat et de la connexion",
     "toolAria": "Sécurité : {status}",
     "secure": "Cette connexion est sécurisée",

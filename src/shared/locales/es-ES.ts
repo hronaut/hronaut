@@ -1897,7 +1897,7 @@ export const esES = {
   "performance": {
     "ratings": {"good": "bueno", "needs-improvement": "mejorable", "poor": "deficiente"},
     "invokers": {"user-callback": "callback de usuario", "event-listener": "detector de eventos", "resolve-promise": "promesa resuelta", "reject-promise": "promesa rechazada", "classic-script": "script clásico", "module-script": "script de módulo"},
-    "measure": "medida",
+    "measure": "medición",
     "kicker": "Visita actual",
     "heading": "Rendimiento de la página",
     "close": "Cerrar el informe de rendimiento",
@@ -2132,7 +2132,7 @@ export const esES = {
     }
   },
   "securityReport": {
-    "states": {"secure": "segura", "insecure": "no segura", "insecure-broken": "dañada", "neutral": "neutral", "info": "informativa", "unknown": "desconocida"},
+    "states": {"secure": "segura", "insecure": "no segura", "insecure-broken": "defectuosa", "neutral": "neutral", "info": "informativa", "unknown": "desconocida"},
     "ctCompliance": {"compliant": "Conforme", "not-compliant": "No conforme", "unknown": "Desconocida"},
     "kicker": "Documento principal actual",
     "heading": "Seguridad de la conexión",
@@ -2145,7 +2145,7 @@ export const esES = {
     "toolAttention": "El informe de seguridad requiere atención",
     "toolSecure": "Conexión segura",
     "toolInsecure": "La conexión no es segura",
-    "toolState": "Estado de la conexión: {state}",
+    "toolState": "Seguridad de la conexión: {state}",
     "toolDescription": "Detalles de TLS, certificado y conexión",
     "toolAria": "Seguridad: {status}",
     "secure": "Esta conexión es segura",

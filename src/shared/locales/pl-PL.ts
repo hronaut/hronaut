@@ -1895,8 +1895,8 @@ export const plPL = {
     "saveBaseline": "Zapisz punkt odniesienia"
   },
   "performance": {
-    "ratings": {"good": "dobry", "needs-improvement": "do poprawy", "poor": "słaby"},
-    "invokers": {"user-callback": "wywołanie zwrotne użytkownika", "event-listener": "obsługa zdarzenia", "resolve-promise": "obietnica spełniona", "reject-promise": "obietnica odrzucona", "classic-script": "klasyczny skrypt", "module-script": "skrypt modułu"},
+    "ratings": {"good": "dobrze", "needs-improvement": "do poprawy", "poor": "słabo"},
+    "invokers": {"user-callback": "wywołanie zwrotne użytkownika", "event-listener": "obsługa zdarzenia", "resolve-promise": "obietnica spełniona", "reject-promise": "obietnica odrzucona", "classic-script": "klasyczny skrypt", "module-script": "skrypt modułowy"},
     "measure": "pomiar",
     "kicker": "Bieżąca wizyta",
     "heading": "Wydajność strony",
@@ -2145,7 +2145,7 @@ export const plPL = {
     "toolAttention": "Raport bezpieczeństwa wymaga uwagi",
     "toolSecure": "Bezpieczne połączenie",
     "toolInsecure": "Połączenie nie jest bezpieczne",
-    "toolState": "Stan połączenia: {state}",
+    "toolState": "Bezpieczeństwo połączenia: {state}",
     "toolDescription": "Szczegóły TLS, certyfikatu i połączenia",
     "toolAria": "Bezpieczeństwo: {status}",
     "secure": "To połączenie jest bezpieczne",
