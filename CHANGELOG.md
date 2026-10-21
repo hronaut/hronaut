@@ -150,6 +150,7 @@ All notable changes to Hronaut are documented in this file.
 - **Clear history** now removes the visits in the history file even when Hronaut could not read that file, such as one saved by a newer version or a damaged one, and so does clearing one website's history. Hronaut then listed no history and wrote nothing on clearing, so the visits stayed on disk until the next page you visited replaced the file.
 - **Import from browser…** no longer gets stuck when you click **Continue** more than five minutes after opening it, for example after closing the source browser as an error asks, or after the workspace changed. Every **Continue** then said the preview had expired until you cancelled and opened the import again. Hronaut now lists the profiles again and goes on with the one you chose, or asks you to choose again when it cannot tell which one that was.
 - A sleeping tab whose website cannot be reached, such as a local dev server you stopped, now opens on the browser's error page for its address, as in Chrome, so **Reload** tries again. Selecting it failed with "The website refused the connection" and left the other tab on screen, and closing the tab beside it failed the same way.
+- **Import from browser…** now finds Firefox profiles kept in your configuration folder (`~/.config/mozilla/firefox`, or where `XDG_CONFIG_HOME` points), where Firefox 147 and later put them for a new install. Those profiles were missing from the list, so with no other browser installed it said no supported browser profiles were found.
 
 ### Security
 

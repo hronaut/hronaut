@@ -1,11 +1,11 @@
 import { createCipheriv, createHash, pbkdf2Sync } from 'node:crypto'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ImportProfile } from '../src/main/browser-import/contracts.js'
-import { decryptLinuxCookie, discoverImportProfiles, readImportCookies } from '../src/main/browser-import/source.js'
+import { decryptLinuxCookie, discoverImportProfiles, linuxConfigHome, readImportCookies } from '../src/main/browser-import/source.js'
 const roots: string[] = []
 async function directory() { const root = await mkdtemp(join(tmpdir(), 'hronaut-import-source-')); roots.push(root); return root }
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })
@@ -86,13 +86,40 @@ describe('external cookie sources', () => {
     expect(new Set(sources.map(source => source.id)).size).toBe(2)
     expect(sources.map(source => source.file).sort()).toEqual(Object.keys(cache).map(folder => join(root, folder, 'Cookies')).sort())
   })
-  it.each(['.mozilla/firefox', 'snap/firefox/common/.mozilla/firefox', '.var/app/org.mozilla.firefox/.mozilla/firefox'])('preserves Firefox names and folder fallback in %s', async relativeRoot => {
+  // Firefox 147 and later keep a new install's profiles in the XDG configuration folder, where import did not look, so
+  // they were missing from the list.
+  it.each([
+    '.mozilla/firefox', 'snap/firefox/common/.mozilla/firefox', '.var/app/org.mozilla.firefox/.mozilla/firefox',
+    '.config/mozilla/firefox', '.var/app/org.mozilla.firefox/config/mozilla/firefox'
+  ])('preserves Firefox names and folder fallback in %s', async relativeRoot => {
     const home = await directory(); const root = join(home, relativeRoot)
     for (const folder of ['first', 'second', 'unnamed']) { await mkdir(join(root, folder), { recursive: true }); await writeFile(join(root, folder, 'cookies.sqlite'), 'not SQLite') }
     await writeFile(join(root, 'profiles.ini'), '[Profile0]\nName=研究 🚀\nIsRelative=1\nPath=first\n[Profile1]\nName=研究 🚀\nIsRelative=1\nPath=second\n[Profile2]\nName=  \nIsRelative=1\nPath=unnamed\n')
     const sources = await discoverImportProfiles(home)
     expect(sources.map(source => source.name)).toEqual(['研究 🚀 · first', '研究 🚀 · second', 'unnamed'])
     expect(new Set(sources.map(source => source.id)).size).toBe(3)
+  })
+  it('finds Firefox profiles in the configuration folder XDG_CONFIG_HOME names', async () => {
+    const home = await directory(); const configHome = await directory(); const root = join(configHome, 'mozilla/firefox')
+    await mkdir(join(root, 'abcd.default-release'), { recursive: true })
+    await writeFile(join(root, 'abcd.default-release/cookies.sqlite'), 'not SQLite')
+    await writeFile(join(root, 'profiles.ini'), '[Profile0]\nName=default-release\nIsRelative=1\nPath=abcd.default-release\n')
+    expect((await discoverImportProfiles(home, 'linux', configHome)).map(source => source.file)).toEqual([join(root, 'abcd.default-release/cookies.sqlite')])
+    expect(await discoverImportProfiles(home, 'linux')).toEqual([])
+  })
+  it.each(['~/.mozilla linked to the configuration folder', 'the configuration folder linked to ~/.mozilla'])('lists a Firefox profile once when %s', async (link) => {
+    const home = await directory(); const legacy = join(home, '.mozilla'); const xdg = join(home, '.config/mozilla')
+    const [real, linked] = link.startsWith('~') ? [xdg, legacy] : [legacy, xdg]
+    await mkdir(join(real, 'firefox/abcd.default-release'), { recursive: true })
+    await writeFile(join(real, 'firefox/abcd.default-release/cookies.sqlite'), 'not SQLite')
+    await writeFile(join(real, 'firefox/profiles.ini'), '[Profile0]\nName=default-release\nIsRelative=1\nPath=abcd.default-release\n')
+    await mkdir(join(linked, '..'), { recursive: true }); await symlink(real, linked)
+    expect((await discoverImportProfiles(home)).map(source => source.name)).toEqual(['default-release · abcd.default-release'])
+  })
+  it('takes XDG_CONFIG_HOME only when it is an absolute path', () => {
+    expect(linuxConfigHome('/home/person', { XDG_CONFIG_HOME: '/data/config' })).toBe('/data/config')
+    expect(linuxConfigHome('/home/person', { XDG_CONFIG_HOME: 'config' })).toBe('/home/person/.config')
+    expect(linuxConfigHome('/home/person', {})).toBe('/home/person/.config')
   })
   it('reads committed WAL data, decrypts v24 host-bound cookies and skips partitions without modifying the source', async () => {
     const root = await directory(); const file = join(root, 'Cookies'); const db = chromiumDatabase(file)

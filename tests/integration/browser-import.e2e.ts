@@ -45,7 +45,9 @@ for (const sourceBrowser of ['chromium', 'firefox'] as const) {
       const originalDatabase = await readFile(databasePath)
       previousHome = await electronApp.evaluate(({ dialog }, fixtureHome) => {
         const previous = process.env.HOME ?? ''; process.env.HOME = fixtureHome
-        const scope = globalThis as typeof globalThis & { importConsent?: boolean }
+        const scope = globalThis as typeof globalThis & { importConsent?: boolean; importConfigHome?: string }
+        // A configuration folder the runner names would list its real Firefox profiles; without one, HOME's is read.
+        scope.importConfigHome = process.env.XDG_CONFIG_HOME; delete process.env.XDG_CONFIG_HOME
         scope.importConsent = false
         dialog.showMessageBox = async () => ({ response: scope.importConsent ? 1 : 0, checkboxChecked: false })
         return previous
@@ -141,7 +143,11 @@ for (const sourceBrowser of ['chromium', 'firefox'] as const) {
       await expect(appWindow.getByRole('button', { name: 'Resume agents', exact: true })).toBeVisible()
     } finally {
       await source.close().catch(() => {})
-      if (previousHome) await electronApp.evaluate((_electron, value) => { process.env.HOME = value }, previousHome)
+      if (previousHome) await electronApp.evaluate((_electron, value) => {
+        process.env.HOME = value
+        const configHome = (globalThis as typeof globalThis & { importConfigHome?: string }).importConfigHome
+        if (configHome !== undefined) process.env.XDG_CONFIG_HOME = configHome
+      }, previousHome)
       await closeFixtureServer(server)
       await removeTestDirectory(home)
     }

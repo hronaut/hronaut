@@ -28,7 +28,10 @@ test('shows browser display names and preserves the selected duplicate-name prof
     previousHome = await electronApp.evaluate(({ dialog }, home) => {
       const previous = process.env.HOME
       process.env.HOME = home
-      const scope = globalThis as typeof globalThis & { profileNameConsent?: string }
+      const scope = globalThis as typeof globalThis & { profileNameConsent?: string; profileNameConfigHome?: string }
+      // A configuration folder the runner names would list its real Firefox profiles; without one, HOME's is read.
+      scope.profileNameConfigHome = process.env.XDG_CONFIG_HOME
+      delete process.env.XDG_CONFIG_HOME
       dialog.showMessageBox = async (...args: unknown[]) => {
         scope.profileNameConsent = JSON.stringify(args.at(-1))
         return { response: 0, checkboxChecked: false }
@@ -61,6 +64,8 @@ test('shows browser display names and preserves the selected duplicate-name prof
     if (homeChanged) await electronApp.evaluate((_electron, previous) => {
       if (previous === undefined) delete process.env.HOME
       else process.env.HOME = previous
+      const configHome = (globalThis as typeof globalThis & { profileNameConfigHome?: string }).profileNameConfigHome
+      if (configHome !== undefined) process.env.XDG_CONFIG_HOME = configHome
     }, previousHome)
     await removeTestDirectory(fixtureHome)
   }
