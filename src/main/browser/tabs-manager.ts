@@ -198,7 +198,8 @@ import {
   type NavigationEntry,
   type Rectangle,
   type Session,
-  type WebContents
+  type WebContents,
+  type WebPreferences
 } from 'electron'
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import type { PageKeyboardEventsAccess } from './tab-events/page-keyboard-events-access.js'
@@ -493,6 +494,8 @@ import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
 import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
 import type { PageDestroyedEventsAccess } from './tab-events/page-destroyed-events-access.js'
 import { attachPageDestroyedEvents } from './tab-events/page-destroyed-events.js'
+import type { PageCloseEventsAccess } from './tab-events/page-close-events-access.js'
+import { attachPageCloseEvents } from './tab-events/page-close-events.js'
 import type { DebuggerEventsAccess } from './tab-events/debugger-events-access.js'
 import { attachDebuggerEvents } from './tab-events/debugger-events.js'
 import type { NavigationEventsAccess } from './tab-events/navigation-events-access.js'
@@ -5087,6 +5090,21 @@ export class BrowserTabsManager {
     this.browserSessionAuthorityHooks.clear()
   }
 
+  /**
+   * The web preferences of every website tab: Hronaut's page script in an isolated world, a sandboxed renderer without
+   * Node, and the web's own security. A page a tab opens for a window gets them too.
+   */
+  private pageWebPreferences(): WebPreferences {
+    return {
+      preload: join(__dirname, '../preload/page.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false
+    }
+  }
+
   private async createTab(options: {
     id?: string
     title?: string
@@ -5104,6 +5122,8 @@ export class BrowserTabsManager {
     suppressInitialHistory?: boolean
     navigationHistory?: { entries: NavigationEntry[]; index: number }
     loadOptions?: LoadURLOptions
+    /** The page Chromium created for a window a workspace tab opened, which this tab shows; it loads itself. */
+    adopt?: { webContents: WebContents; webPreferences?: WebPreferences }
     active: boolean
     selectVisible?: boolean
     mcpGroupId?: string
@@ -5127,22 +5147,20 @@ export class BrowserTabsManager {
       ? workspacePartition(this.options.partition, 'home')
       : workspacePartition(this.options.partition, workspace!.storageId)
     options.onCreationAttempt?.()
-    const view = new WebContentsView({
-      webPreferences: {
-        partition,
-        preload: join(__dirname, '../preload/page.cjs'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-        webSecurity: true,
-        allowRunningInsecureContent: false,
-        // Construction-time only: switching a live view back to shared mode can
-        // write its level into the origin zoom map.
-        ...(options.zoomIsolated === true && !isHronautHomeUrl(url) ? { zoomMode: 'isolated' } : {}),
-        // Also construction-time only: Electron has no API to change it on a live view.
-        ...(defaultFontSize ? { defaultFontSize } : {})
-      }
-    })
+    // An adopted page already belongs to its opener's session, the workspace's.
+    const view = options.adopt
+      ? new WebContentsView({ webContents: options.adopt.webContents, webPreferences: options.adopt.webPreferences })
+      : new WebContentsView({
+        webPreferences: {
+          partition,
+          ...this.pageWebPreferences(),
+          // Construction-time only: switching a live view back to shared mode can
+          // write its level into the origin zoom map.
+          ...(options.zoomIsolated === true && !isHronautHomeUrl(url) ? { zoomMode: 'isolated' } : {}),
+          // Also construction-time only: Electron has no API to change it on a live view.
+          ...(defaultFontSize ? { defaultFontSize } : {})
+        }
+      })
     try {
       view.setBackgroundColor('#ffffff')
       // Background tabs need a real initial layout even before their first selection.
@@ -5233,15 +5251,20 @@ export class BrowserTabsManager {
     this.options.configureSession?.(view.webContents.session, isHronautHomeUrl(url) ? undefined : workspace?.id)
     this.installSessionHooks(view.webContents.session)
     this.attachTabEvents(tab)
+    // Only a page opened for a window may close itself, as in Chromium; other tabs keep their recovery from a page
+    // destroyed under them.
+    if (options.adopt) attachPageCloseEvents(this.pageCloseEventsAccess(), tab, view.webContents)
     // Restore all tabs before selecting the saved global tab. Selecting the first
     // recreated tab here would overwrite its workspace's remembered selection.
     if ((options.active && options.selectVisible !== false) || (!this.activeTabId && !this.restoringLayout)) {
       this.selectTab(id, { focus: options.focus })
     }
     if (options.navigationHistory) tab.discoveryTitle.restoring(options.navigationHistory.entries)
-    const loading = options.navigationHistory
-      ? view.webContents.navigationHistory.restore(options.navigationHistory)
-      : view.webContents.loadURL(url, options.loadOptions)
+    const loading = options.adopt
+      ? Promise.resolve()
+      : options.navigationHistory
+        ? view.webContents.navigationHistory.restore(options.navigationHistory)
+        : view.webContents.loadURL(url, options.loadOptions)
     void loading.catch((error: unknown) => {
       if (isAbortedLoad(error)) return
       if (tab.navigationPolicyDenialSequence > 0) {
@@ -5599,8 +5622,26 @@ export class BrowserTabsManager {
    * than a field, so managers created without the constructor (as unit tests
    * do) still provide it. Each member reads the manager when called.
    */
+  /**
+   * The narrow view a page closing itself gets of this manager's private
+   * destroyed flag, tabs, expected closures, tab closing and options. It is
+   * a prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. Each member reads the
+   * manager when called.
+   */
+  private pageCloseEventsAccess(): PageCloseEventsAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      findTab: (tabId) => this.tabs.get(tabId),
+      expectedTabClosures: () => this.expectedTabClosures,
+      closeTab: (tabId) => this.closeTab(tabId),
+      options: () => this.options
+    }
+  }
+
   private windowOpenHandlerAccess(): WindowOpenHandlerAccess<BrowserTab> {
     return {
+      pageWebPreferences: () => this.pageWebPreferences(),
       openedTabObservations: () => this.openedTabObservations,
       workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
       options: () => this.options,

@@ -243,16 +243,18 @@ describe('a tab an agent opens or selects while Follow agents is on', () => {
   it('opens the window an agent\'s click asks for without showing it, unlike one the person opens', () => {
     const { internals, agentTab } = fixture({ pageFullscreen: true })
     internals.createTab = vi.fn(async () => ({ id: 'popup' }))
-    let openWindow!: (details: { url: string; disposition: string; referrer: { url: string; policy: string } }) => unknown
+    type Response = { createWindow(options: { webContents: WebContents }): WebContents }
+    let openWindow!: (details: { url: string; disposition: string; referrer: { url: string; policy: string } }) => Response
     const webContents = { id: agentTab.webContents.id, setWindowOpenHandler: (handler: typeof openWindow) => { openWindow = handler } }
-    attachWindowOpenHandler(internals.windowOpenHandlerAccess(), agentTab, webContents as unknown as WebContents)
+    attachWindowOpenHandler(internals.windowOpenHandlerAccess(), agentTab as unknown as WindowOpenHandlerTab, webContents as unknown as WebContents)
     const details = { url: 'https://agent.test/child', disposition: 'foreground-tab', referrer: { url: '', policy: 'default' } }
+    const guest = { isDestroyed: () => false } as unknown as WebContents
 
     internals.agentInputWebContents.set(agentTab.webContents.id, 1)
-    openWindow(details)
+    openWindow(details).createWindow({ webContents: guest })
     expect(internals.createTab).toHaveBeenLastCalledWith(expect.objectContaining({ active: true, selectVisible: false }))
     internals.agentInputWebContents.clear()
-    openWindow(details)
+    openWindow(details).createWindow({ webContents: guest })
     expect(internals.createTab).toHaveBeenLastCalledWith(expect.objectContaining({ active: true, selectVisible: true }))
   })
 })
