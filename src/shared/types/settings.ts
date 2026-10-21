@@ -50,6 +50,11 @@ export interface AppSettings {
   challengeDetectionEnabled: boolean
   /** Agents see tab addresses as origin and path, without credentials, query or fragment. */
   omitAgentUrlDetail: boolean
+  /**
+   * Websites may save to every single file they hold, such as one opened or dropped on them, and not only to the one
+   * picked in their Save dialog. Off by default: Electron cannot tell such a file from one a rename would replace.
+   */
+  allowWebsiteFileSaving: boolean
   followAgentActivity: boolean
   /** Draw each agent's named cursor on the page where it clicks, points or drags. */
   showAgentCursor: boolean

@@ -44,19 +44,49 @@ function renderPanel(
     remove: vi.fn(async () => true),
     clear: vi.fn(async () => undefined)
   }
+  const fileSavingEnabled = ref(false)
+  const setFileSaving = vi.fn(async (enabled: boolean) => { fileSavingEnabled.value = enabled })
+  const onError = vi.fn()
   const controller = useSitePermissionsController({
     api,
-    onError: vi.fn(),
+    onError,
     translate: (key, parameters) => i18n.global.t(key, parameters ?? {}),
-    workspaces: knownWorkspaces
+    workspaces: knownWorkspaces,
+    fileSaving: { enabled: () => fileSavingEnabled.value, set: setFileSaving }
   })
   controller.replace(entries)
   const view = render(SitePermissionsSettingsPanel, {
     global: { plugins: [i18n] },
     props: { controller }
   })
-  return { api, controller, view, i18n }
+  return { api, controller, view, i18n, fileSavingEnabled, setFileSaving, onError }
 }
+
+describe('saving to files websites hold', () => {
+  it('is off until the person turns it on, and warns more loudly while it is on', async () => {
+    const { setFileSaving, view } = renderPanel()
+    const toggle = screen.getByRole('checkbox', { name: /Let websites save to files you open or drop/ })
+    expect(toggle).not.toBeChecked()
+    expect(toggle).toHaveAccessibleDescription(expect.stringContaining('could also overwrite other files in the folder'))
+    expect(view.container.querySelector('.security-warning')).toBeNull()
+    await userEvent.click(toggle)
+    expect(setFileSaving).toHaveBeenLastCalledWith(true)
+    expect(toggle).toBeChecked()
+    expect(view.container.querySelector('.security-warning')).not.toBeNull()
+    await userEvent.click(toggle)
+    expect(setFileSaving).toHaveBeenLastCalledWith(false)
+    expect(toggle).not.toBeChecked()
+  })
+
+  it('stays as it was when the change is not saved', async () => {
+    const { setFileSaving, onError } = renderPanel()
+    setFileSaving.mockRejectedValueOnce(new Error('Settings could not be written'))
+    const toggle = screen.getByRole('checkbox', { name: /Let websites save to files you open or drop/ })
+    await userEvent.click(toggle)
+    expect(onError).toHaveBeenCalledOnce()
+    expect(toggle).not.toBeChecked()
+  })
+})
 
 const searchablePermissions: SitePermissionEntry[] = [
   locationPermission,

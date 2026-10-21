@@ -1,6 +1,9 @@
 import type { MessageBoxOptions, Session } from 'electron'
 import { EventEmitter } from 'node:events'
-import { describe, expect, it, vi } from 'vitest'
+import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { translate } from '../src/shared/i18n.js'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' }, session: { fromPartition: vi.fn() } }))
@@ -20,7 +23,7 @@ const site = { url: 'https://editor.example/notes', origin: 'https://editor.exam
 const fromSite = { requestingUrl: site.url, isMainFrame: true }
 
 /** One workspace session's handlers, answering each prompt with the next answer in `answers`. */
-function createHarness(answers: Array<'allow' | 'deny'> = []) {
+function createHarness(answers: Array<'allow' | 'deny'> = [], saveFiles: () => boolean = () => false) {
   const shown: MessageBoxOptions[] = []
   const handlers = { request: undefined as RequestHandler | undefined, check: undefined as CheckHandler | undefined }
   const browserSession = createBrowserSession({
@@ -33,7 +36,8 @@ function createHarness(answers: Array<'allow' | 'deny'> = []) {
     workspaces: () => [],
     state: { persistentSession: null, sitePermissionStore: null },
     sendToShellWindows: () => undefined,
-    partition: 'persist:test'
+    partition: 'persist:test',
+    websitesMaySaveFiles: saveFiles
   })
   const workspaceSession = {
     setDownloadPath: () => undefined,
@@ -191,6 +195,66 @@ describe('files and folders a website holds', () => {
       on: () => undefined
     } as unknown as Session)
     expect(file(home, 'readable')).toBe(false)
+  })
+})
+
+describe('a single file a website holds', () => {
+  const folders: string[] = []
+  afterEach(async () => {
+    await Promise.all(folders.splice(0).map((folder) => rm(folder, { recursive: true, force: true })))
+  })
+  async function folder(): Promise<string> {
+    const created = await mkdtemp(join(tmpdir(), 'hronaut-save-dialog-'))
+    folders.push(created)
+    return created
+  }
+  const file = (handlers: { check?: CheckHandler }, filePath: string, origin = `${site.origin}/`, isDirectory = false) =>
+    handlers.check!(null, 'fileSystem' as never, origin, { filePath, isDirectory, fileAccessType: 'writable' } as never)
+
+  // A website's Save dialog emptied the file the person picked, as Chromium does before it asks anything, and the
+  // check then refused every write, so saving over a file left it empty.
+  it('can be saved to once its Save dialog has just emptied it, and again after it has something in it', async () => {
+    const { handlers } = createHarness()
+    const picked = join(await folder(), 'drawing.svg')
+    await writeFile(picked, '')
+    expect(file(handlers, picked)).toBe(true)
+    await writeFile(picked, '<svg/>')
+    expect(file(handlers, picked)).toBe(true)
+    // Only that website, in that workspace, picked it.
+    expect(file(handlers, picked, 'https://ads.example/')).toBe(false)
+    expect(file(createHarness().handlers, picked)).toBe(false)
+  })
+
+  it('cannot be saved to while it holds anything, was emptied long ago, or is not a file', async () => {
+    const { handlers } = createHarness()
+    const files = await folder()
+    const notes = join(files, 'notes.txt')
+    await writeFile(notes, 'First draft')
+    expect(file(handlers, notes)).toBe(false)
+    const old = join(files, '.hushlogin')
+    await writeFile(old, '')
+    const lastYear = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+    await utimes(old, lastYear, lastYear)
+    expect(file(handlers, old)).toBe(false)
+    const inner = join(files, 'inner')
+    await mkdir(inner)
+    expect(file(handlers, inner)).toBe(false)
+    expect(file(handlers, join(files, 'missing.txt'))).toBe(false)
+    expect(file(handlers, 'drawing.svg')).toBe(false)
+    // A folder the website holds is never written without the person's Allow.
+    expect(file(handlers, inner, `${site.origin}/`, true)).toBe(false)
+  })
+
+  it('can be saved to with the person\'s switch on, whatever it holds, but a folder still needs an Allow', async () => {
+    let switchOn = true
+    const { handlers } = createHarness([], () => switchOn)
+    const files = await folder()
+    const notes = join(files, 'notes.txt')
+    await writeFile(notes, 'First draft')
+    expect(file(handlers, notes)).toBe(true)
+    expect(file(handlers, files, `${site.origin}/`, true)).toBe(false)
+    switchOn = false
+    expect(file(handlers, notes)).toBe(false)
   })
 })
 

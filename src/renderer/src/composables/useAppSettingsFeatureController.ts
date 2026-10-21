@@ -45,6 +45,7 @@ interface AppSettingsFeatureStore {
   setSearchEngine(searchEngine: SearchEngineName): Promise<AppSettings>
   setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
   setOmitAgentUrlDetail(enabled: boolean): Promise<AppSettings>
+  setAllowWebsiteFileSaving(enabled: boolean): Promise<AppSettings>
   setMcpRemoteAccess(enabled: boolean): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>
@@ -119,6 +120,10 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
           ...options.browserState.value.savedTabGroups.map(({ id, name }) => ({ id, name, archived: true }))
         ]
       : null,
+    fileSaving: {
+      enabled: () => options.settings.value.allowWebsiteFileSaving,
+      set: (enabled) => options.settingsStore.setAllowWebsiteFileSaving(enabled)
+    },
     onError: (error) => options.showToast(
       'error',
       options.translate('runtime.toast.settingNotSaved'),

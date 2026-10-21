@@ -31,6 +31,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   attentionSoundCue: 'warning',
   challengeDetectionEnabled: false,
   omitAgentUrlDetail: false,
+  allowWebsiteFileSaving: false,
   followAgentActivity: false,
   showAgentCursor: true,
   // Off by default for now; the default for everyone is still to be decided.
@@ -99,6 +100,7 @@ export class SettingsStore {
           typeof value.pinAgentLiveStatus === 'boolean' ? value.pinAgentLiveStatus : DEFAULT_SETTINGS.pinAgentLiveStatus,
         challengeDetectionEnabled: value.challengeDetectionEnabled === true,
         omitAgentUrlDetail: value.omitAgentUrlDetail === true,
+        allowWebsiteFileSaving: value.allowWebsiteFileSaving === true,
         mcpRemoteAccess: value.mcpRemoteAccess === true,
         mcpAuthentication:
           typeof value.mcpAuthentication === 'boolean'

@@ -53,6 +53,18 @@ describe('SettingsStore', () => {
     expect((await store.load()).omitAgentUrlDetail).toBe(true)
   })
 
+  // Saving to every file a website holds is a choice the person makes; anything but true leaves it off.
+  it.each([undefined, false, true, 'true', 1])('loads and persists the website file saving switch %s', async (value) => {
+    const { path, store } = await createStore()
+    await store.save({ ...DEFAULT_SETTINGS })
+    await writeFile(path, JSON.stringify({ allowWebsiteFileSaving: value }))
+    const loaded = await store.load()
+    expect(DEFAULT_SETTINGS.allowWebsiteFileSaving).toBe(false)
+    expect(loaded.allowWebsiteFileSaving).toBe(value === true)
+    await store.save({ ...loaded, allowWebsiteFileSaving: true })
+    expect((await store.load()).allowWebsiteFileSaving).toBe(true)
+  })
+
   it('preserves optional authentication when restoring a remote-access profile', async () => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
@@ -75,6 +87,7 @@ describe('SettingsStore', () => {
       attentionSoundCue: 'bell',
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
+      allowWebsiteFileSaving: false,
       followAgentActivity: true,
       showAgentCursor: false,
       pinAgentLiveStatus: true,
@@ -102,6 +115,7 @@ describe('SettingsStore', () => {
       attentionSoundCue: 'bell',
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
+      allowWebsiteFileSaving: false,
       followAgentActivity: true,
       showAgentCursor: false,
       pinAgentLiveStatus: true,
@@ -129,6 +143,7 @@ describe('SettingsStore', () => {
       attentionSoundCue: 'bell',
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
+      allowWebsiteFileSaving: false,
       followAgentActivity: true,
       showAgentCursor: false,
       pinAgentLiveStatus: true,
@@ -196,6 +211,7 @@ describe('SettingsStore', () => {
       attentionSoundCue: 'warning',
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
+      allowWebsiteFileSaving: false,
       followAgentActivity: false,
       showAgentCursor: true,
       pinAgentLiveStatus: false,

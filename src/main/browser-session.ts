@@ -1,5 +1,6 @@
 import { app, session, type MessageBoxOptions, type MessageBoxReturnValue, type Session, type WebContents } from 'electron'
-import { join } from 'node:path'
+import { statSync } from 'node:fs'
+import { isAbsolute, join } from 'node:path'
 import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { normalizeSitePermissionOrigin, SitePermissionStore } from './site-permission-store.js'
@@ -34,6 +35,8 @@ interface BrowserSessionHost {
   sendToShellWindows(channel: string, ...args: unknown[]): void
   /** The partition of the profile's persistent browser session. */
   partition: string
+  /** Whether the person turned on letting websites save to any single file they hold; read on every check. */
+  websitesMaySaveFiles(): boolean
 }
 
 /**
@@ -139,6 +142,25 @@ interface PagePermissionRequests {
   allowed: Set<string>
 }
 
+/** How long after a website's Save dialog empties the file the person picked Hronaut still takes it for that file. */
+const SAVE_DIALOG_FILE_MS = 60_000
+
+/**
+ * Whether a file is the one a website's Save dialog has just given it. Chromium creates the file the person picked, or
+ * empties it after they agreed to replace it, before Hronaut is asked anything, and then asks only the permission check
+ * whether the website may write it: it is a regular file with nothing in it, changed moments ago. A file with anything
+ * in it never is, so this never lets a website change what a file holds.
+ */
+function emptiedBySaveDialog(path: string, now: number): boolean {
+  if (!isAbsolute(path)) return false
+  try {
+    const file = statSync(path, { throwIfNoEntry: false })
+    return Boolean(file?.isFile() && file.size === 0 && Math.abs(now - file.mtimeMs) <= SAVE_DIALOG_FILE_MS)
+  } catch {
+    return false
+  }
+}
+
 /** The key a Deny or an Allow for a permission Hronaut never remembers holds under for the page's document. */
 function permissionHold(page: PagePermissionRequests, origin: string, permission: string, scope: string): string {
   return [page.pageDocument, origin, permission, scope].join('\u0000')
@@ -173,6 +195,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
   const pagePermissionRequests = new WeakMap<WebContents, PagePermissionRequests>()
   /** The pages with a file access Deny or Allow; Chromium checks a file it gave a website without naming the page. */
   const fileAccessPages = new Set<WebContents>()
+  /** The files each session's websites picked in their Save dialog, by website and path, until Hronaut quits. */
+  const saveDialogFiles = new WeakMap<Session, Set<string>>()
   let documentCount = 0
 
   function queuePermissionRequest(operation: () => Promise<void>): void {
@@ -245,7 +269,18 @@ export function createBrowserSession(host: BrowserSessionHost): {
       .filter((page) => !page.isDestroyed() && page.session === browserSession)
       .flatMap((page) => pagePermissionRequests.get(page) ?? [])
     if (pages.some((page) => page.denied.has(permissionHold(page, origin, permission, scope)))) return false
-    return access === 'readable' || pages.some((page) => page.allowed.has(permissionHold(page, origin, permission, scope)))
+    if (access === 'readable' || pages.some((page) => page.allowed.has(permissionHold(page, origin, permission, scope)))) return true
+    // A single file: the person's switch lets websites write every one they hold, which Electron cannot tell apart from
+    // a file a rename would replace. Without it, only the file the website's Save dialog just emptied, as in Chrome.
+    if (!('isDirectory' in details) || details.isDirectory !== false || typeof details.filePath !== 'string') return false
+    if (host.websitesMaySaveFiles()) return true
+    const saved = saveDialogFiles.get(browserSession) ?? new Set<string>()
+    const file = [origin, details.filePath].join('\u0000')
+    if (saved.has(file)) return true
+    if (!emptiedBySaveDialog(details.filePath, Date.now())) return false
+    saved.add(file)
+    saveDialogFiles.set(browserSession, saved)
+    return true
   }
 
   /**

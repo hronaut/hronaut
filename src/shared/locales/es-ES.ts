@@ -431,7 +431,7 @@ export const esES = {
       "archivedWorkspace": "{name} (archivado)",
       "removedWorkspace": "Espacio de trabajo eliminado {id}",
       "loadingWorkspace": "Cargando espacio de trabajo…",
-      "embeddedIn": "en {site}"
+      "embeddedIn": "en {site}", "fileSaving": "Permitir que los sitios web guarden en archivos abiertos o soltados", "fileSavingDescription": "Los editores en línea podrán guardar sin preguntar los cambios en un archivo que abras o sueltes sobre ellos. Siempre se puede guardar en un archivo que elijas en el cuadro de diálogo Guardar de un sitio web.", "fileSavingWarning": "Con esta opción activada, un sitio web también podría sobrescribir otros archivos de la carpeta de cualquier archivo que haya recibido, incluidos los que suelte un agente, porque Electron no puede distinguirlos. Actívala solo mientras uses sitios web de confianza."
     },
     "passwords": {
       "search": "Buscar contraseñas guardadas",

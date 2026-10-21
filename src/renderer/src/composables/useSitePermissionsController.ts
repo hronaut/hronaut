@@ -27,6 +27,8 @@ export interface SitePermissionsControllerOptions {
    * that is not listed may still be one of them.
    */
   workspaces: () => readonly SitePermissionWorkspace[] | null
+  /** Whether websites may save to every single file they hold, read from the settings, and how to change it. */
+  fileSaving: { enabled: () => boolean, set: (enabled: boolean) => Promise<unknown> }
   onError: (error: unknown) => void
 }
 
@@ -59,6 +61,8 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
   const pendingKeys = ref(new Set<string>())
   const clearing = ref(false)
   const errorMessage = ref('')
+  const fileSavingPending = ref(false)
+  const fileSavingEnabled = computed(() => options.fileSaving.enabled())
   let generation = 0
   let revision = 0
   let initializationGeneration = 0
@@ -214,10 +218,27 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     }
   }
 
+  /** Turns saving to every single file a website holds on or off; false when it did not change, or the panel went away. */
+  async function setFileSaving(enabled: boolean): Promise<boolean> {
+    if (fileSavingPending.value) return false
+    const operationGeneration = generation
+    fileSavingPending.value = true
+    try {
+      await options.fileSaving.set(enabled)
+      return operationGeneration === generation
+    } catch (error) {
+      if (operationGeneration === generation) options.onError(error)
+      return false
+    } finally {
+      if (operationGeneration === generation) fileSavingPending.value = false
+    }
+  }
+
   function dispose(): void {
     generation += 1
     pendingKeys.value = new Set()
     clearing.value = false
+    fileSavingPending.value = false
   }
 
   return {
@@ -235,6 +256,9 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     setDecision,
     remove,
     clear,
+    fileSavingEnabled,
+    fileSavingPending,
+    setFileSaving,
     dispose
   }
 }

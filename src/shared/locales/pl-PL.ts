@@ -431,7 +431,7 @@ export const plPL = {
       "archivedWorkspace": "{name} (zarchiwizowany)",
       "removedWorkspace": "Usunięty obszar roboczy {id}",
       "loadingWorkspace": "Wczytywanie obszaru roboczego…",
-      "embeddedIn": "na {site}"
+      "embeddedIn": "na {site}", "fileSaving": "Pozwalaj witrynom zapisywać w otwartych lub upuszczonych plikach", "fileSavingDescription": "Edytory online mogą wtedy bez pytania zapisywać zmiany w pliku, który otworzysz lub upuścisz na nie. W pliku wybranym w oknie zapisu witryny zawsze można zapisywać.", "fileSavingWarning": "Gdy to jest włączone, witryna mogłaby też nadpisać inne pliki w folderze każdego pliku, który otrzymała, także pliku upuszczonego przez agenta, bo Electron nie potrafi ich odróżnić. Włączaj to tylko wtedy, gdy korzystasz z zaufanych witryn."
     },
     "passwords": {
       "search": "Szukaj zapisanych haseł",

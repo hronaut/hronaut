@@ -29,7 +29,8 @@ function createController() {
     api,
     onError,
     translate: (key) => key,
-    workspaces: () => []
+    workspaces: () => [],
+    fileSaving: { enabled: () => false, set: async () => undefined }
   })
   controller.replace([permission('allow')])
   return { api, controller, onError }
