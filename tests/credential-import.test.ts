@@ -119,6 +119,26 @@ describe('browser password CSV import', () => {
     expect(parsed.credentials).toEqual([{ origin: 'https://bank.test', username: 'person', password: 'secret' }])
   })
 
+  // KeePass's CSV (1.x) export writes a quote as \" and a backslash as \\: a Windows domain user name was saved with
+  // both backslashes, and a quote anywhere in the file refused the whole file as not CSV.
+  it('reads the backslash escapes of a KeePass CSV export', () => {
+    const parsed = parseCredentialImportCsv([
+      '"Account","Login Name","Password","Web Site","Comments"',
+      '"Corp VPN","CORP\\\\jdoe","ends with \\\\","https://vpn.corp.test/","Line one',
+      'line two"',
+      '"Mail","me","pa\\"ss","https://mail.test/","say \\"hi\\""'
+    ].join('\r\n'))
+    expect(parsed.credentials).toEqual([
+      { origin: 'https://vpn.corp.test', username: 'CORP\\jdoe', password: 'ends with \\' },
+      { origin: 'https://mail.test', username: 'me', password: 'pa"ss' }
+    ])
+  })
+
+  it('keeps backslashes as written in other exports', () => {
+    expect(parseCredentialImportCsv('url,username,password\nhttps://a.test,CORP\\jdoe,"p\\"').credentials)
+      .toEqual([{ origin: 'https://a.test', username: 'CORP\\jdoe', password: 'p\\' }])
+  })
+
   it('prefers the more specific of the further header names, wherever their columns are', () => {
     expect(parseCredentialImportCsv('hostname,account,login_uri,login_username,login_password\nhttps://other.test,Title,"https://a.test,https://b.test",person,secret')
       .credentials).toEqual([

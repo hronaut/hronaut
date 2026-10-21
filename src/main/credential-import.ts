@@ -24,7 +24,11 @@ export class CredentialImportError extends Error {
   }
 }
 
-function parseCsvRows(source: string): string[][] {
+// KeePass's CSV (1.x) export, which has exactly this header, writes a quote in a field as \" and a backslash as \\,
+// where other exports double a quote.
+const KEEPASS_1X_HEADER = /^\uFEFF?"Account","Login Name","Password","Web Site","Comments"(?:\r|\n|$)/
+
+function parseCsvRows(source: string, backslashEscapes: boolean): string[][] {
   const rows: string[][] = []
   let row: string[] = []
   let field = ''
@@ -46,6 +50,11 @@ function parseCsvRows(source: string): string[][] {
   for (let index = 0; index < source.length; index += 1) {
     const character = source[index]!
     if (quoted) {
+      if (backslashEscapes && character === '\\' && (source[index + 1] === '"' || source[index + 1] === '\\')) {
+        field += source[index + 1]
+        index += 1
+        continue
+      }
       if (character !== '"') {
         field += character
         continue
@@ -136,7 +145,7 @@ function normalizedOrigins(value: string, list: boolean): string[] {
 
 export function parseCredentialImportCsv(source: string): ParsedCredentialImport {
   if (source.includes('\u0000')) throw new CredentialImportError('invalid_csv')
-  const rows = parseCsvRows(source)
+  const rows = parseCsvRows(source, KEEPASS_1X_HEADER.test(source))
   const header = rows.shift()
   if (!header) throw new CredentialImportError('missing_columns')
   const headers = header.map(normalizedHeader)
