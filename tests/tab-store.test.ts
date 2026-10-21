@@ -169,6 +169,21 @@ describe('TabStateStore', () => {
     }
   })
 
+  it('keeps an archived tab\'s own mute, and no mute that is not true', async () => {
+    // Archiving dropped it, so a muted tab came back with sound when its workspace was restored.
+    const { store } = await createStore()
+    const state = currentState()
+    const saved = state.savedTabGroups![0]!
+    saved.tabs = [
+      { title: 'Video', url: 'https://docs.example/video', pinned: false, muted: true },
+      { title: 'Docs', url: 'https://docs.example/', pinned: false, muted: 'yes' as unknown as boolean }
+    ]
+    await store.save(state)
+    const tabs = (await store.load())?.savedTabGroups?.[0]?.tabs
+    expect(tabs?.[0]).toMatchObject({ url: 'https://docs.example/video', muted: true })
+    expect(tabs?.[1]).not.toHaveProperty('muted')
+  })
+
   it('loads legacy workspaces without descriptions as empty context', async () => {
     const { path, store } = await createStore()
     const state = currentState()
