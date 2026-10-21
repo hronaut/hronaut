@@ -72,6 +72,8 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
     // Each goes back where it was closed in time, also among tabs another workspace's close holds aside meanwhile.
     // They were older than every entry left in the list, so they go before entries closed at the same moment.
     for (const held of heldClosedTabs.splice(0).reverse()) {
+      // The workspace's own oldest entries can be among those held aside; they leave with its other entries.
+      if (removeWorkspaceEntries && held.mcpGroupId === groupId) continue
       const newer = access.closedTabs().findIndex((entry) => entry.closedAt >= held.closedAt)
       access.closedTabs().splice(newer < 0 ? access.closedTabs().length : newer, 0, held)
     }

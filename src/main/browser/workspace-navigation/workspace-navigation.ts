@@ -54,7 +54,8 @@ export function listWorkspaceNavigationAudit<Tab extends WorkspaceNavigationTab>
  * inspection permission. Each of the workspace's tabs is then checked against
  * the new policy: the decision is reported, and a denied page is recorded and
  * replaced with a blank page (see applyPolicyToTab). A tab that fails is
- * reported after the others are checked.
+ * reported after the others are checked. The workspace's recently closed tabs
+ * on a page the policy denies are forgotten, since they could not reopen.
  */
 export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavigationTab>(
   access: WorkspaceNavigationAccess<Tab>,
@@ -73,6 +74,7 @@ export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavig
   if (policyChanged) access.setInspectionPermission(group, (access.inspectionPermission(group) ?? 0) + 1)
   group.navigationPolicy = policy
   group.lastUsedAt = new Date().toISOString()
+  forgetDeniedClosedTabs(access, groupId)
   const failures: unknown[] = []
   // The live iterator skips a tab closed while an earlier one is replaced.
   for (const tab of access.tabs()) {
@@ -83,9 +85,21 @@ export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavig
       if (access.findTab(tab.id) === tab) failures.push(error)
     }
   }
+  // A tab closed while the open ones were checked joined the recently closed tabs after the first pass.
+  forgetDeniedClosedTabs(access, groupId)
   access.changed()
   if (failures.length) throw failures[0]
   return access.getState()
+}
+
+/**
+ * Forgets the workspace's recently closed tabs on a page its policy denies. Reopen Closed Tab takes the newest closed
+ * tab, so one the policy denies would fail every time and hide the older ones; as with a denied page that is open, the
+ * denied page does not come back. A workspace closed or archived meanwhile has already taken its closed tabs along.
+ */
+function forgetDeniedClosedTabs<Tab extends WorkspaceNavigationTab>(access: WorkspaceNavigationAccess<Tab>, groupId: string): void {
+  if (!access.findWorkspace(groupId)) return
+  access.forgetWorkspaceClosedTabs(groupId, (url) => !workspaceNavigationDecision(access, groupId, url).allowed)
 }
 
 /**

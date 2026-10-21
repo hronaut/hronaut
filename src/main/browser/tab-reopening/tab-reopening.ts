@@ -78,6 +78,23 @@ export function forgetClosedTabs<Tab extends TabReopeningTab>(access: TabReopeni
   return forgotten
 }
 
+/**
+ * Forgets the workspace's remembered closed tabs whose address matches, such as those on pages its Site access rules
+ * now deny, including those held aside while a tab reopens or the workspace closes. True when any was forgotten.
+ */
+export function forgetWorkspaceClosedTabs<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, workspaceId: string, matches: (url: string) => boolean): boolean {
+  let forgotten = false
+  for (const closedTabs of [access.closedTabs(), ...access.detachedClosedTabs()]) {
+    for (let index = closedTabs.length - 1; index >= 0; index -= 1) {
+      const closed = closedTabs[index]!
+      if (closed.mcpGroupId !== workspaceId || !matches(closed.url)) continue
+      closedTabs.splice(index, 1)
+      forgotten = true
+    }
+  }
+  return forgotten
+}
+
 /** Remembers a closed tab so it can be reopened, keeping only the newest; Hronaut Home is not remembered. */
 export function rememberClosedTab<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, tab: Tab): void {
   if (isHronautHomeUrl(tab.url)) return
