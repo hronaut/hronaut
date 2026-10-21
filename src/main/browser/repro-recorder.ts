@@ -5,6 +5,15 @@ import type { WebContents, WebContentsView } from 'electron'
 import type { BrowserReproAction, BrowserReproRecording, BrowserReproStep, BrowserReproTarget } from '../../shared/types.js'
 import { redactDiagnosticText } from '../../shared/debug-report.js'
 import { redactNetworkUrl } from '../../shared/network-details.js'
+import {
+  REPRO_NAVIGATION_PREFIXES,
+  REPRO_UNRESOLVED_ACTION,
+  reproClickText,
+  reproExpectText,
+  reproInputText,
+  reproKeyText,
+  reproScrollText
+} from '../../shared/repro-step-text.js'
 import { reproScrollScript, reproTargetScript } from './repro-page-scripts.js'
 import { isHronautHomeUrl } from './url.js'
 
@@ -107,7 +116,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       }
       this.addReproStep(tab, {
         kind: 'navigate',
-        description: `Open ${redactNetworkUrl(tab.url)}`
+        description: `${REPRO_NAVIGATION_PREFIXES.open}${redactNetworkUrl(tab.url)}`
       })
       this.host.changed()
       return this.reproRecordingResult(tab)
@@ -154,7 +163,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
         if (!['http:', 'https:'].includes(current.protocol)) throw new Error('URL-path checkpoints require an HTTP(S) page')
         assertCurrent()
         this.addReproStep(tab, {
-          kind: 'expect', description: 'Expected result: urlPath',
+          kind: 'expect', description: reproExpectText('urlPath'),
           expectation: { condition: 'urlPath', path: request.path, observedMatch: current.pathname === request.path }
         })
         return
@@ -184,7 +193,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
         throw new Error('Checkpoint target could not be represented safely')
       }
       this.addReproStep(tab, {
-        kind: 'expect', description: `Expected result: ${request.condition}`,
+        kind: 'expect', description: reproExpectText(request.condition),
         target: { selector: result.selector, tag: result.tag.slice(0, 64) },
         expectation: { condition: request.condition, ...(request.text !== undefined ? { text: request.text } : {}), ...(request.count !== undefined ? { count: request.count } : {}), observedMatch: result.observedMatch }
       })
@@ -251,7 +260,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
     if (!sameDocument) tab.reproRecording.scrollPosition = { x: 0, y: 0 }
     this.addReproStep(tab, {
       kind: 'navigate',
-      description: `${sameDocument ? 'Navigate within the page to' : 'Navigate to'} ${redactNetworkUrl(url)}`
+      description: `${sameDocument ? REPRO_NAVIGATION_PREFIXES.navigateWithin : REPRO_NAVIGATION_PREFIXES.navigate}${redactNetworkUrl(url)}`
     })
     if (sameDocument) this.refreshReproScrollPosition(tab)
   }
@@ -363,9 +372,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
         // key. The exporter requires manual review of this target-free step.
         this.addReproStep(tab, {
           kind: actionKind,
-          description: failed
-            ? 'Action target could not be captured; recreate this action manually.'
-            : 'Action capture interrupted by navigation; recreate this action manually.'
+          description: failed ? REPRO_UNRESOLVED_ACTION.captureFailed : REPRO_UNRESOLVED_ACTION.captureInterrupted
         })
       }
     }
@@ -415,11 +422,6 @@ export class BrowserReproRecorder<T extends ReproTab> {
     }
   }
 
-  private reproTargetName(target: BrowserReproTarget): string {
-    const kind = target.role || (target.tag === 'input' && target.inputType ? `${target.inputType} input` : target.tag)
-    return target.label ? `${kind} “${target.label}”` : kind
-  }
-
   observeReproMouse(tab: T, mouse: Electron.MouseInputEvent): void {
     const recording = tab.reproRecording
     if (!recording?.active || this.host.isAgentInput(tab.webContents)) return
@@ -445,7 +447,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
           if (target === false) throw new Error('Reproduction target read failed')
           if (target) this.addReproStep(tab, {
             kind: 'click',
-            description: `Click ${this.reproTargetName(target)}`,
+            description: reproClickText(target),
             target
           }, context)
         }, pending.navigationGeneration, 'click')
@@ -473,7 +475,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       if (editsValue && !activatesControl) {
         this.addReproStep(tab, {
           kind: 'input',
-          description: `Type in ${this.reproTargetName(target)} (value not recorded)`,
+          description: reproInputText(target),
           target,
           valueRedacted: true
         }, context)
@@ -485,7 +487,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
         .slice(0, 80)
       this.addReproStep(tab, {
         kind: 'key',
-        description: `Press ${key} on ${this.reproTargetName(target)}`,
+        description: reproKeyText(key, target),
         target,
         key
       }, context)
@@ -538,7 +540,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
     recording.scrollPosition = normalized
     this.addReproStep(tab, {
       kind: 'scroll',
-      description: `Scroll to x=${normalized.x}, y=${normalized.y}`,
+      description: reproScrollText(normalized),
       scroll: normalized
     })
   }

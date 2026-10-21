@@ -1,5 +1,6 @@
 import { networkPriorityMessages } from './network-priority.js'
 import { networkLabelMessages } from './network-labels.js'
+import { reproStepMessages } from './repro-steps.js'
 import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
@@ -27,6 +28,7 @@ export const deDE = {
   emulationApplication: {"pending": "Emulation wird angewendet", "unknown": "Emulation unbestätigt", "help": "Öffnen Sie Umgebung, um gespeicherte Einstellungen zu prüfen und ausdrücklich wiederherzustellen. Die fehlgeschlagene Anfrage wird nicht wiederholt.", "restore": "Gespeicherte Einstellungen wiederherstellen", "networkFirst": "Stellen Sie zuerst die Netzwerkbedingungen unter Anfragebedingungen wieder her. Die Emulation bleibt bis zur separaten Wiederherstellung unbestätigt."},
   networkPriority: networkPriorityMessages['de-DE'],
   networkLabels: networkLabelMessages['de-DE'],
+  reproSteps: reproStepMessages['de-DE'],
   viewportPresets: viewportPresetMessages['de-DE'],
   searchEngines: searchEngineMessages['de-DE'],
   browserIssueTitles: browserIssueTitleMessages['de-DE'],

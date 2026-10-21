@@ -1,5 +1,6 @@
 import { networkPriorityMessages } from './network-priority.js'
 import { networkLabelMessages } from './network-labels.js'
+import { reproStepMessages } from './repro-steps.js'
 import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
@@ -27,6 +28,7 @@ export const ukUA = {
   emulationApplication: {"pending": "Застосування емуляції", "unknown": "Емуляцію не підтверджено", "help": "Відкрийте Середовище, перевірте збережені налаштування та явно відновіть їх. Невдалий запит не повторюватиметься.", "restore": "Відновити збережені налаштування", "networkFirst": "Спочатку відновіть мережеві умови в Умовах запитів. Емуляція залишиться непідтвердженою до окремого відновлення."},
   networkPriority: networkPriorityMessages['uk-UA'],
   networkLabels: networkLabelMessages['uk-UA'],
+  reproSteps: reproStepMessages['uk-UA'],
   viewportPresets: viewportPresetMessages['uk-UA'],
   searchEngines: searchEngineMessages['uk-UA'],
   browserIssueTitles: browserIssueTitleMessages['uk-UA'],
