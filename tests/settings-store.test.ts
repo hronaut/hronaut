@@ -212,6 +212,16 @@ describe('SettingsStore', () => {
     })
   })
 
+  it('starts a new profile in Cyberpunk and keeps a saved theme, System included', async () => {
+    const { path, store } = await createStore()
+    expect((await store.load()).theme).toBe('cyberpunk')
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, '{"theme":"system"}\n', 'utf8')
+    expect((await store.load()).theme).toBe('system')
+    await writeFile(path, '{"theme":"neon"}\n', 'utf8')
+    expect((await store.load()).theme).toBe('cyberpunk')
+  })
+
   it('keeps the live status strip unpinned unless the settings file pins it with a boolean', async () => {
     const { path, store } = await createStore()
     expect((await store.load()).pinAgentLiveStatus).toBe(false)

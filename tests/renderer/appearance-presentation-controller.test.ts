@@ -235,7 +235,7 @@ describe('useAppearancePresentationController', () => {
   )
 
   it('applies system theme and plays the selected attention cue', () => {
-    const settings = ref({ ...DEFAULT_RENDERER_SETTINGS, attentionSoundCue: 'chime' as const })
+    const settings = ref({ ...DEFAULT_RENDERER_SETTINGS, theme: 'system' as const, attentionSoundCue: 'chime' as const })
     const systemTheme = ref<'light' | 'dark'>('dark')
     const scope = effectScope()
     const controller = scope.run(() => useAppearancePresentationController({ settings, systemTheme, detachedWindow: false }))!

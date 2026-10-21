@@ -111,9 +111,9 @@ export async function launchHronaut(
     await readFile(settingsPath, 'utf8')
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    // Existing geometry cases explicitly exercise top tabs and the complete catalog.
-    // Fresh-profile coverage separately verifies the production left-rail default.
-    await writeFile(settingsPath, `${JSON.stringify({ interfaceScale, tabPosition: 'top', mcpToolSet: 'complete' }, null, 2)}\n`, 'utf8')
+    // Existing geometry cases explicitly exercise top tabs and the complete catalog, and existing color cases the
+    // System theme. Fresh-profile coverage separately verifies the production left-rail and Cyberpunk defaults.
+    await writeFile(settingsPath, `${JSON.stringify({ theme: 'system', interfaceScale, tabPosition: 'top', mcpToolSet: 'complete' }, null, 2)}\n`, 'utf8')
   }
   const environment = { ...process.env }
   for (const [name, value] of Object.entries(environmentOverrides)) {

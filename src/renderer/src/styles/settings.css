@@ -49,7 +49,7 @@
 .theme-dark { --preview-page: #19191c; --preview-bar: #2b2b30; --preview-surface: #202023; --preview-accent: #ad9aff; }
 .theme-midnight { --preview-page: #0b1422; --preview-bar: #1b2d45; --preview-surface: #132238; --preview-accent: #69a7ff; }
 .theme-sepia { --preview-page: #f2eadc; --preview-bar: #eee3d1; --preview-surface: #fffaf1; --preview-accent: #a55f31; }
-.theme-cyberpunk { --preview-page: #10071c; --preview-bar: #241139; --preview-surface: #1d0a32; --preview-accent: #00f5ff; }
+.theme-cyberpunk { --preview-page: #0a0414; --preview-bar: #160a27; --preview-surface: #1d0a32; --preview-accent: #00f5ff; }
 .theme-cyberpunk-turbo { --preview-page: #12121e; --preview-bar: #292942; --preview-surface: #222238; --preview-accent: #ff4de3; }
 .theme-matrix { --preview-page: #020b05; --preview-bar: #0d2414; --preview-surface: #07150b; --preview-accent: #39ff72; }
 .theme-machine { --preview-page: #13080a; --preview-bar: #35191c; --preview-surface: #241012; --preview-accent: #ff493f; }

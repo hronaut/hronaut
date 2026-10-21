@@ -35,6 +35,7 @@ function mountFeature(options: {
 }) {
   const settings = ref({
     ...DEFAULT_RENDERER_SETTINGS,
+    theme: 'system' as const,
     tabPosition: 'left' as const
   })
   const systemTheme = ref<'light' | 'dark'>('dark')

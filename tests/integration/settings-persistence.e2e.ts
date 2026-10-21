@@ -21,8 +21,9 @@ test('starts with safe defaults when non-workspace profile stores contain JSON n
     await expect(window.getByRole('button', { name: 'Home' })).toBeVisible()
     await expect.poll(() => window.evaluate('window.hronautSettings.get()')).toMatchObject({
       mcpPort,
-      theme: 'system'
+      theme: 'cyberpunk'
     })
+    await expect(window.locator('html')).toHaveAttribute('data-theme', 'cyberpunk')
   } finally {
     await closeHronaut(app)
   }

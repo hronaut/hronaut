@@ -18,7 +18,7 @@ import type {
 } from '../../../shared/types.js'
 
 export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
-  theme: 'system',
+  theme: 'cyberpunk',
   interfaceScale: DEFAULT_INTERFACE_SCALE,
   tabPosition: DEFAULT_TAB_POSITION,
   useSystemTitleBar: false,

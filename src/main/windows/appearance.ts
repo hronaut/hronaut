@@ -12,7 +12,7 @@ export const THEME_BACKGROUND: Record<ResolvedThemeName, string> = {
   dark: '#171821',
   midnight: '#0b1422',
   sepia: '#f2eadc',
-  cyberpunk: '#10071c',
+  cyberpunk: '#0a0414',
   'cyberpunk-turbo': CYBERPUNK_TURBO_COLORS.background,
   matrix: '#020b05',
   machine: '#13080a',

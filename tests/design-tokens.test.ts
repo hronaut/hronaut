@@ -147,6 +147,18 @@ describe('design tokens v2', () => {
     expect(failures).toEqual([])
   })
 
+  it('paints Cyberpunk in the colors hronaut.dev uses', () => {
+    const values = themeTokens('cyberpunk')
+    const site = {
+      '--shell-bottom': '#0a0414', '--toolbar': '#12081f', '--surface': '#12081f', '--surface-raised': '#1a0c2c',
+      '--surface-muted': '#160a27', '--shell-top': '#1d0a32', '--border': '#4e1c6f', '--border-soft': '#2e1446',
+      '--text': '#f5f0ff', '--muted': '#b9a9cf', '--accent': '#00f5ff', '--button-text': '#0a0414', '--success': '#8dff4a'
+    }
+    expect(Object.fromEntries(Object.keys(site).map((name) => [name, values.get(name)]))).toEqual(site)
+    // The site's hover is a 7% cyan wash over its panels; the app keeps it opaque.
+    expect(values.get('--hover')).toBe(mix('#00f5ff', '#12081f', 0x12 / 255))
+  })
+
   it('keeps colors meant for the dark themes off Sepia, which is a light theme', () => {
     const offenders = stylesheets().flatMap((path) => [...styleSource(path).matchAll(/:root:not\(([^)]*)\)/gu)]
       .filter(([, excluded]) => excluded!.includes('data-theme="light"') && !excluded!.includes('data-theme="sepia"'))

@@ -280,7 +280,7 @@ test('resets every Appearance preference including interface size', async ({
   profileDirectory
 }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
-  await appWindow.getByTestId('theme-cyberpunk').click()
+  await appWindow.getByTestId('theme-matrix').click()
   await appWindow.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
   await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('top')
   await appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' }).uncheck()
@@ -302,7 +302,8 @@ test('resets every Appearance preference including interface size', async ({
   await appWindow.locator('.settings-header .secondary-button').click()
 
   await expect(appWindow.locator('html')).toHaveAttribute('lang', 'en-US')
-  await expect(appWindow.getByTestId('theme-system')).toHaveAttribute('aria-checked', 'true')
+  await expect(appWindow.getByTestId('theme-cyberpunk')).toHaveAttribute('aria-checked', 'true')
+  await expect(appWindow.locator('html')).toHaveAttribute('data-theme', 'cyberpunk')
   await expect(appWindow.locator('#setting-language')).toHaveValue('system')
   await expect(appWindow.getByRole('combobox', { name: 'Interface size' })).toHaveValue('1')
   await expect(appWindow.getByRole('combobox', { name: 'Tab position' })).toHaveValue('left')
@@ -312,7 +313,7 @@ test('resets every Appearance preference including interface size', async ({
     BrowserWindow.getAllWindows()[0]?.webContents.getZoomFactor()
   ))).toBe(1)
   await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8'))).toMatchObject({
-    theme: 'system',
+    theme: 'cyberpunk',
     interfaceScale: 1,
     tabPosition: 'left',
     hideInTray: true,
