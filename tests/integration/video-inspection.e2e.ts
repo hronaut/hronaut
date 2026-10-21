@@ -9,8 +9,11 @@ import type { VideoInspectionReport } from '../../src/shared/video-inspection.js
 import { expect, test, text } from './capability-fixtures.js'
 import { waitForSettledPageBounds } from './settled-page-bounds.js'
 
-// A recording keeps its first size, and the toolbar can still be growing just after the fixture selects its tab.
-test.beforeEach(async ({ capabilities, electronApp }) => { await waitForSettledPageBounds(electronApp, capabilities.fixtureUrl) })
+// A recording keeps its first size, and the toolbar still grows when the shell leaves Home for the fixture's tab.
+test.beforeEach(async ({ appWindow, capabilities, electronApp }) => {
+  await expect(appWindow.getByRole('combobox', { name: 'Address', exact: true })).toHaveValue(capabilities.fixtureUrl)
+  await waitForSettledPageBounds(electronApp, capabilities.fixtureUrl)
+})
 
 type TestWindow = Window & { hronaut: HronautApi; hronautMcp: HronautMcpApi; hronautSettings: HronautSettingsApi }
 const request = (state: BrowserVideoState) => ({ action:'inspect',recordingId:state.recordingId,expectedRevision:state.timing!.revision,startMs:0,endMs:state.durationMs,maxFrames:12 })
