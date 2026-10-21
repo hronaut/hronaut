@@ -123,7 +123,8 @@ function namedEmbeddingSite(embeddingOrigin: string | undefined, origin: string)
  * A prompt waiting or showing gives its answer to every identical request from the same frame's document. A Deny for a
  * permission Hronaut never remembers holds for the page's document: the same request from any of its frames that runs
  * as the same website, including a frame that loads again or a new one, is refused without asking until the main frame
- * loads another document.
+ * loads another document. An Allow for one also holds for that document, but only for what Chromium checks: the page's
+ * camera and microphone devices, and writing a file or folder the website holds. Every request still asks.
  */
 interface PagePermissionRequests {
   /** The number of the main frame's document; every Deny holds until it is renewed. */
@@ -134,6 +135,13 @@ interface PagePermissionRequests {
   prompts: Map<string, Promise<boolean>>
   /** The requests the person denied for the page's document, by page document, website, permission and scope. */
   denied: Set<string>
+  /** What the person allowed for the page's document, by page document, website, permission and scope. */
+  allowed: Set<string>
+}
+
+/** The key a Deny or an Allow for a permission Hronaut never remembers holds under for the page's document. */
+function permissionHold(page: PagePermissionRequests, origin: string, permission: string, scope: string): string {
+  return [page.pageDocument, origin, permission, scope].join('\u0000')
 }
 
 /**
@@ -162,6 +170,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
   const sessionWorkspaces = new WeakMap<Session, string | null>()
   let permissionRequestQueue: Promise<void> = Promise.resolve()
   const pagePermissionRequests = new WeakMap<WebContents, PagePermissionRequests>()
+  /** The pages with a file access Deny or Allow; Chromium checks a file it gave a website without naming the page. */
+  const fileAccessPages = new Set<WebContents>()
   let documentCount = 0
 
   function queuePermissionRequest(operation: () => Promise<void>): void {
@@ -173,7 +183,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
   function permissionRequestsOf(webContents: WebContents): PagePermissionRequests {
     const known = pagePermissionRequests.get(webContents)
     if (known) return known
-    const page: PagePermissionRequests = { pageDocument: ++documentCount, frameDocuments: new Map(), prompts: new Map(), denied: new Set() }
+    const page: PagePermissionRequests = { pageDocument: ++documentCount, frameDocuments: new Map(), prompts: new Map(), denied: new Set(), allowed: new Set() }
     pagePermissionRequests.set(webContents, page)
     webContents.on('did-frame-navigate', (_event, _url, _httpResponseCode, _httpStatusText, isMainFrame, frameProcessId, frameRoutingId) => {
       if (webContents.isDestroyed()) return
@@ -182,10 +192,11 @@ export function createBrowserSession(host: BrowserSessionHost): {
         frame.processId === frameProcessId && frame.routingId === frameRoutingId
       )
       if (isMainFrame && navigated(mainFrame)) {
-        // A new page replaces every frame and lifts every Deny.
+        // A new page replaces every frame and lifts every Deny and Allow.
         page.pageDocument = ++documentCount
         page.frameDocuments.clear()
         page.denied.clear()
+        page.allowed.clear()
         return
       }
       // Electron also reports the main frame of a page that is not the one shown, such as one loading in the background.
@@ -197,8 +208,42 @@ export function createBrowserSession(host: BrowserSessionHost): {
         page.frameDocuments.set(renewed.frameTreeNodeId, ++documentCount)
       }
     })
-    webContents.once('destroyed', () => pagePermissionRequests.delete(webContents))
+    webContents.once('destroyed', () => {
+      pagePermissionRequests.delete(webContents)
+      fileAccessPages.delete(webContents)
+    })
     return page
+  }
+
+  /**
+   * Whether a check for a permission Hronaut never remembers finds it allowed. Chromium asks the check, not what the
+   * request answered, whether a page may still use what the person gave it: a page that got its camera or microphone
+   * learns the devices' names and that access is allowed while it keeps its document. A file or folder the website
+   * holds can be read, since only the person's pick or drop, or an Allow, hands one to it, unless the person denied
+   * reading it on a page of the website that keeps that document; it can be written only while a page of the website
+   * keeps the document the person allowed writing it for. A link to another app is never allowed by a check.
+   */
+  function freshConsentAllows(
+    browserSession: Session,
+    webContents: WebContents | null,
+    origin: string,
+    permission: string,
+    details: Electron.PermissionCheckHandlerHandlerDetails
+  ): boolean {
+    if (permission === 'media') {
+      const page = webContents ? pagePermissionRequests.get(webContents) : undefined
+      const { mediaType } = details
+      return Boolean(page && (mediaType === 'video' || mediaType === 'audio') && page.allowed.has(permissionHold(page, origin, permission, mediaType)))
+    }
+    if (permission !== 'fileSystem' || !('fileAccessType' in details) || !('filePath' in details)) return false
+    const access = details.fileAccessType
+    if (access !== 'readable' && access !== 'writable') return false
+    const scope = `${access}\u0000${typeof details.filePath === 'string' ? details.filePath : ''}`
+    const pages = [...fileAccessPages]
+      .filter((page) => !page.isDestroyed() && page.session === browserSession)
+      .flatMap((page) => pagePermissionRequests.get(page) ?? [])
+    if (pages.some((page) => page.denied.has(permissionHold(page, origin, permission, scope)))) return false
+    return access === 'readable' || pages.some((page) => page.allowed.has(permissionHold(page, origin, permission, scope)))
   }
 
   /**
@@ -215,7 +260,6 @@ export function createBrowserSession(host: BrowserSessionHost): {
     configuredBrowserSessions.add(browserSession)
     browserSession.setDownloadPath(host.effectiveDownloadDirectory())
     browserSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
-      if (FRESH_CONSENT_PERMISSIONS.has(permission)) return false
       const workspaceId = sessionWorkspaces.get(browserSession)
       if (!workspaceId) return false
       // Electron gives the checking document's real origin, so an about:blank, about:srcdoc or blob: document resolves
@@ -230,6 +274,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
         ? embeddingSiteOf(webContents, origin, details.isMainFrame)
         : namedEmbeddingSite(details.embeddingOrigin, origin)
       if (embeddedIn === null) return false
+      if (FRESH_CONSENT_PERMISSIONS.has(permission)) return freshConsentAllows(browserSession, webContents, origin, permission, details)
       return host.state.sitePermissionStore?.decisionFor(origin, permission, workspaceId, embeddedIn) === 'allow'
     })
     browserSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
@@ -321,7 +366,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
         : permission === 'fileSystem' && 'filePath' in details
           ? `${details.fileAccessType ?? ''}\u0000${details.filePath ?? ''}`
           : externalLink?.scheme ?? ''
-      const hold = [page.pageDocument, origin, permission, scope].join('\u0000')
+      const hold = permissionHold(page, origin, permission, scope)
       if (page.denied.has(hold)) {
         respond(false)
         return
@@ -353,7 +398,9 @@ export function createBrowserSession(host: BrowserSessionHost): {
           const access = host.text(details.fileAccessType === 'readable'
             ? 'native.dialog.fileReadAccess'
             : details.fileAccessType === 'writable' ? 'native.dialog.fileWriteAccess' : 'native.dialog.unspecifiedAccess')
-          return host.text('native.dialog.requestedFile', { access, path: details.filePath || host.text('native.dialog.unspecifiedPath') })
+          const requested = host.text('native.dialog.requestedFile', { access, path: details.filePath || host.text('native.dialog.unspecifiedPath') })
+          // An Allow to write holds while the page keeps its document, as Chromium then writes without asking again.
+          return details.fileAccessType === 'writable' ? `${requested} ${host.text('native.dialog.fileWriteUntilReload')}` : requested
         }
         if (externalLink) {
           const { scheme } = externalLink
@@ -425,7 +472,15 @@ export function createBrowserSession(host: BrowserSessionHost): {
         if (requiresFreshConsent) {
           // Allow is never reused, but Deny holds for the page's document: a page that asks again at once, or many
           // times, is refused without another prompt until the main frame loads another document, such as on reload.
-          if (decision === 'deny') page.denied.add(hold)
+          // An Allow holds for what Chromium checks afterwards: each device it gave and the file access.
+          const answered = permission === 'media' ? mediaTypes.map((type) => permissionHold(page, origin, permission, type)) : [hold]
+          if (decision === 'deny') {
+            page.denied.add(hold)
+            for (const allowed of answered) page.allowed.delete(allowed)
+          } else if (permission !== 'openExternal') {
+            for (const allowed of answered) page.allowed.add(allowed)
+          }
+          if (permission === 'fileSystem') fileAccessPages.add(webContents)
           return decision === 'allow'
         }
         try {

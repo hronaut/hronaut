@@ -3655,7 +3655,7 @@ export const deDE = {
       "deny": "Ablehnen",
       "allow": "Zulassen",
       "requestedDevices": "Angeforderte Geräte: {devices}.",
-      "requestedFile": "Angeforderter Zugriff ({access}): {path}. Diese Entscheidung gilt nur einmal.",
+      "requestedFile": "Angeforderter Zugriff ({access}): {path}.", "fileWriteUntilReload": "Nach „Zulassen“ kann diese Seite dort Änderungen speichern, bis sie neu geladen wird.",
       "requestedExternalApp": "„Zulassen“ öffnet diesen Link ({scheme}) außerhalb von Hronaut in der App, die Ihr System dafür verwendet.",
       "camera": "Kamera",
       "microphone": "Mikrofon",

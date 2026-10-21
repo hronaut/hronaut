@@ -3655,7 +3655,7 @@ export const frFR = {
       "deny": "Refuser",
       "allow": "Autoriser",
       "requestedDevices": "Appareils demandés : {devices}.",
-      "requestedFile": "Accès {access} demandé : {path}. Cette décision ne s’appliquera qu’une fois.",
+      "requestedFile": "Accès {access} demandé : {path}.", "fileWriteUntilReload": "Après « Autoriser », cette page pourra y enregistrer des modifications tant qu’elle n’aura pas été rechargée.",
       "requestedExternalApp": "« Autoriser » ouvre ce lien {scheme} hors de Hronaut, dans l’application que votre système utilise pour ce type de lien.",
       "camera": "caméra",
       "microphone": "microphone",

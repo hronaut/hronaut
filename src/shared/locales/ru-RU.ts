@@ -3655,7 +3655,7 @@ export const ruRU = {
       "deny": "Запретить",
       "allow": "Разрешить",
       "requestedDevices": "Запрошенные устройства: {devices}.",
-      "requestedFile": "Запрошен доступ ({access}): {path}. Это решение применяется один раз.",
+      "requestedFile": "Запрошен доступ ({access}): {path}.", "fileWriteUntilReload": "После «Разрешить» эта страница сможет сохранять туда изменения, пока её не перезагрузят.",
       "requestedExternalApp": "«Разрешить» откроет эту ссылку {scheme} вне Hronaut — в приложении, которое ваша система использует для таких ссылок.",
       "camera": "камера",
       "microphone": "микрофон",

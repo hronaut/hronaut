@@ -3655,7 +3655,7 @@ export const esES = {
       "deny": "Denegar",
       "allow": "Permitir",
       "requestedDevices": "Dispositivos solicitados: {devices}.",
-      "requestedFile": "Acceso solicitado ({access}): {path}. Esta decisión se aplicará una sola vez.",
+      "requestedFile": "Acceso solicitado ({access}): {path}.", "fileWriteUntilReload": "Tras «Permitir», esta página podrá guardar cambios ahí hasta que se recargue.",
       "requestedExternalApp": "«Permitir» abre este enlace {scheme} fuera de Hronaut, en la aplicación que tu sistema usa para este tipo de enlaces.",
       "camera": "cámara",
       "microphone": "micrófono",
