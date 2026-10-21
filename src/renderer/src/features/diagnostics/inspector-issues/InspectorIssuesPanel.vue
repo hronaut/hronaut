@@ -11,8 +11,9 @@ import IconInfo from '~icons/material-symbols/info-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconRefresh from '~icons/material-symbols/refresh-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
+import { INSPECTOR_ISSUE_METADATA } from '../../../../../shared/browser-issues'
 import { formatNumber } from '../../../../../shared/format'
-import type { PanelDock, SupportedLocale } from '../../../../../shared/types'
+import type { BrowserInspectorIssue, PanelDock, SupportedLocale } from '../../../../../shared/types'
 import type { DiagnosticsController } from '../useDiagnosticsController'
 import PanelDockPicker from '../../../components/PanelDockPicker.vue'
 
@@ -42,6 +43,11 @@ watch(dock, (next, previous) => {
 
 function localNumber(value: number): string {
   return formatNumber(props.locale, value)
+}
+
+// Known Chromium issue codes read in the interface language; another code keeps the title main derived from it.
+function issueTitle(issue: BrowserInspectorIssue): string {
+  return Object.hasOwn(INSPECTOR_ISSUE_METADATA, issue.code) ? t(`browserIssueTitles.${issue.code}`) : issue.title
 }
 </script>
 
@@ -91,7 +97,7 @@ function localNumber(value: number): string {
         <article v-for="issue in inspectorIssuesReport.issues" :key="issue.id" class="inspector-issue" :class="issue.severity">
           <header>
             <span class="inspector-issue-icon" aria-hidden="true"><IconError v-if="issue.severity === 'error'" /><IconWarning v-else-if="issue.severity === 'warning'" /><IconInfo v-else /></span>
-            <span><strong>{{ issue.title }}</strong><small>{{ issue.code }}</small></span>
+            <span><strong>{{ issueTitle(issue) }}</strong><small>{{ issue.code }}</small></span>
           </header>
           <small v-if="issue.cspDisposition">{{ t(`issues.cspDisposition.${issue.cspDisposition}`) }}</small>
           <ul v-if="issue.reasons.length" class="inspector-issue-reasons">
