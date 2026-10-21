@@ -47,9 +47,9 @@ describe('a workspace whose remembered tab closes', () => {
   })
 
   it('goes by the order on screen, where pinned tabs come first', () => {
-    // The pinned tab was opened last, so it is last in the order the tabs were opened.
-    const manager = fixture([{ id: 'one' }, { id: 'two' }, { id: 'pinned', pinned: true }], 'pinned')
-    expect(close(manager, 'pinned')).toBe('one')
+    // The pinned tabs were opened last; on screen the second one is followed by the first unpinned tab.
+    const manager = fixture([{ id: 'one' }, { id: 'two' }, { id: 'pinned-1', pinned: true }, { id: 'pinned-2', pinned: true }], 'pinned-2')
+    expect(close(manager, 'pinned-2')).toBe('one')
   })
 
   it('skips a tab whose page is already gone', () => {
