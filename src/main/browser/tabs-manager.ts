@@ -2852,9 +2852,14 @@ export class BrowserTabsManager {
     const index = ids.indexOf(tab.id)
     // A website popup returns to the tab that opened it, as in Chrome, rather than to a tab of the next workspace.
     const openerId = tab.openerTabId && this.tabs.has(tab.openerTabId) ? [tab.openerTabId] : []
+    const after = ids.slice(index + 1)
+    const before = ids.slice(0, index).reverse()
+    // A tab beside it in its own workspace comes first, as Chrome stays in a tab group, so closing the last tab of a
+    // workspace's row shows the one to its left rather than a tab of the next workspace.
+    const sameWorkspace = (candidateId: string) => this.tabs.get(candidateId)?.mcpGroupId === tab.mcpGroupId
     const orderedCandidates = splitPartnerId
       ? [splitPartnerId, ...ids]
-      : [...openerId, ...ids.slice(index + 1), ...ids.slice(0, index).reverse()]
+      : [...openerId, ...after.filter(sameWorkspace), ...before.filter(sameWorkspace), ...after, ...before]
     const nextId = tab.id === this.activeTabId
       ? orderedCandidates.find((candidateId) => {
         const candidate = this.tabs.get(candidateId)

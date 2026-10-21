@@ -180,7 +180,8 @@ export async function setTabSleeping<Tab extends TabSleepTab>(access: TabSleepAc
 
 /**
  * The tab to show instead when the active tab goes to sleep: the next awake
- * tab after it, then before it, or any other tab when all of them sleep.
+ * tab after it, then before it, or a sleeping one when all of them sleep. A
+ * tab of its own workspace comes first, so the person stays in the workspace.
  */
 export function sleepFallbackTab<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tab: Tab): Tab | undefined {
   const ordered = access.orderedTabs()
@@ -189,7 +190,11 @@ export function sleepFallbackTab<Tab extends TabSleepTab>(access: TabSleepAccess
     ...ordered.slice(index + 1),
     ...ordered.slice(0, index).reverse()
   ].filter((candidate) => candidate.id !== tab.id && !candidate.webContents.isDestroyed())
-  return candidates.find((candidate) => !candidate.sleeping) ?? candidates[0]
+  const sameWorkspace = candidates.filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId)
+  return sameWorkspace.find((candidate) => !candidate.sleeping)
+    ?? sameWorkspace[0]
+    ?? candidates.find((candidate) => !candidate.sleeping)
+    ?? candidates[0]
 }
 
 /**
