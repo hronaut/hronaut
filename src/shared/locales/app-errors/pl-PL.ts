@@ -35,6 +35,7 @@ export const plPLAppErrors: AppErrorMessages = {
     "mcpCommand": "Karta z trwającym poleceniem MCP pozostaje aktywna.",
     "download": "Karta z trwającym pobieraniem pozostaje aktywna.",
     "render": "Karta tworząca zrzut strony lub PDF pozostaje aktywna.",
+    "window": "Karta połączona z otwartym przez nią oknem lub z kartą, która ją otworzyła, pozostaje aktywna.",
     "unsavedForm": "Ta karta ma częściowo wypełniony formularz i pozostaje aktywna, aby nie utracić niezapisanych danych."
   },
   "splitView": {

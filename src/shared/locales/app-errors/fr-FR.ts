@@ -35,6 +35,7 @@ export const frFRAppErrors: AppErrorMessages = {
     "mcpCommand": "Un onglet avec une commande MCP en cours reste actif.",
     "download": "Un onglet avec un téléchargement en cours reste actif.",
     "render": "Un onglet qui crée une capture de page ou un PDF reste actif.",
+    "window": "Un onglet relié à une fenêtre qu’il a ouverte, ou à l’onglet qui l’a ouvert, reste actif.",
     "unsavedForm": "Cet onglet contient un formulaire partiellement rempli et reste actif pour ne pas perdre la saisie non enregistrée."
   },
   "splitView": {

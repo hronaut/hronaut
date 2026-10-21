@@ -39,6 +39,7 @@ export const enUSAppErrors = {
     "mcpCommand": "A tab with an active MCP command stays active.",
     "download": "A tab with an active download stays active.",
     "render": "A tab rendering a page capture or PDF stays active.",
+    "window": "A tab connected to a window it opened, or to the tab that opened it, stays active.",
     "unsavedForm": "This tab has a partially filled form and stays active to protect unsaved input."
   },
   "splitView": {
