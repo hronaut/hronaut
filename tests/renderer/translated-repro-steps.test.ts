@@ -82,6 +82,29 @@ describe('repro steps in the interface language', () => {
     expect(within(detail).getByText('Aktion').nextElementSibling).toHaveTextContent(/^Navigation$/)
   })
 
+  it('names the selected checkpoint condition as the Condition menu does', () => {
+    // The step detail read "Bedingung: count 3" in German and "Condition: urlPath /orders/complete" in English.
+    const detail = (locale: 'de-DE' | 'en-US', expectation: NonNullable<BrowserReproStep['expectation']>) => {
+      const view = render(ReproTimeline, {
+        global: { plugins: [createHronautI18n(locale)] },
+        props: { locale, recording: recording([step(1, { kind: 'expect', description: reproExpectText(expectation.condition), expectation })]) }
+      })
+      try {
+        return [...view.container.querySelectorAll('p')].map((line) => line.textContent?.replace(/\s+/g, ' ').trim()).find((line) => line?.startsWith(locale === 'de-DE' ? 'Bedingung:' : 'Condition:'))
+      } finally { view.unmount() }
+    }
+    expect(detail('de-DE', { condition: 'count', count: 3, observedMatch: false })).toMatch(/^Bedingung: Elementanzahl 3 — /)
+    expect(detail('de-DE', { condition: 'text', text: 'Bestellt', observedMatch: true })).toMatch(/^Bedingung: Exakter Text Bestellt — /)
+    expect(detail('en-US', { condition: 'urlPath', path: '/orders/complete', observedMatch: true })).toBe('Condition: URL pathname /orders/complete — Currently matches')
+    expect(detail('en-US', { condition: 'hidden', observedMatch: false })).toBe('Condition: Hidden — Does not currently match')
+    expect(detail('en-US', { condition: 'visible', observedMatch: true })).toBe('Condition: Visible — Currently matches')
+    expect(detail('en-US', { condition: 'checked', observedMatch: true })).toBe('Condition: Checked (checkbox/radio) — Currently matches')
+    expect(detail('en-US', { condition: 'unchecked', observedMatch: true })).toBe('Condition: Unchecked (checkbox/radio) — Currently matches')
+    // A condition this version does not know, or one named like an object property, shows as recorded.
+    expect(detail('en-US', { condition: 'futureCondition' as never, observedMatch: true })).toBe('Condition: futureCondition — Currently matches')
+    expect(detail('en-US', { condition: 'constructor' as never, observedMatch: true })).toBe('Condition: constructor — Currently matches')
+  })
+
   it('shows each English step exactly as main recorded it', () => {
     const steps = [
       step(1, { kind: 'navigate', description: `${REPRO_NAVIGATION_PREFIXES.open}https://example.test/app` }),
