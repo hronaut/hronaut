@@ -60,6 +60,13 @@ export const deDEVideoRecorder = {
     "stopped": "Aufnahme gestoppt",
     "rendering": "Video wird gerendert…"
   },
+  "notices": {
+    "gap": "Aufnahme pausiert, weil eine Weile keine Bilder ankamen. Setzen Sie das Video fort, um weiterzumachen.",
+    "conditions": "Aufnahme pausiert. Lassen Sie Hronaut sichtbar und den Quell-Tab aktiv, auf dem Website-Ursprung und in der Größe, mit denen er begonnen hat, mit verfügbarem Aufnahmezugriff.",
+    "sleep": "Aufnahme pausiert, während der Computer im Ruhezustand war. Setzen Sie das Video fort, um weiterzumachen.",
+    "durationLimit": "Die Aufnahme hat ihr Limit von zwei Minuten erreicht.",
+    "sizeLimit": "Die Aufnahme hat ihr Limit von 64 MiB erreicht."
+  },
   "seconds": "Sekunden",
   "start": "Videoaufnahme starten",
   "pause": "Video pausieren",

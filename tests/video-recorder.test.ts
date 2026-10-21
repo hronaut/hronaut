@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { BrowserVideoRecorder, type VideoRecorderHost } from '../src/main/browser/video-recorder.js'
-import { VIDEO_LIMITS, videoAnnotationSchema, videoOptionsSchema, validateVideoEdit, videoSourceTime } from '../src/shared/video.js'
+import { VIDEO_LIMITS, VIDEO_RECORDING_NOTICES, videoAnnotationSchema, videoOptionsSchema, validateVideoEdit, videoSourceTime } from '../src/shared/video.js'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
@@ -60,7 +60,7 @@ it('pauses without retaining pixels when authority changes during a capture', as
   await manage('start')
   capture.mockImplementationOnce(async () => { validate.mockImplementation(() => { throw new Error('revoked') }); return { data: new Uint8Array([99]), width: 640, height: 360 } })
   await vi.advanceTimersByTimeAsync(100)
-  expect(recorder.state('tab')).toMatchObject({ status: 'paused', frameCount: 1 })
+  expect(recorder.state('tab')).toMatchObject({ status: 'paused', frameCount: 1, notice: VIDEO_RECORDING_NOTICES.conditions })
   recorder.destroy()
 })
 
@@ -95,7 +95,7 @@ it('bounds memory, duration and number of retained recordings', async () => {
   const { recorder, capture, validate, manage } = fixture()
   capture.mockResolvedValueOnce({ data: new Uint8Array(VIDEO_LIMITS.bytes), width: 640, height: 360 })
   await manage('start'); await vi.advanceTimersByTimeAsync(100)
-  expect(recorder.state('tab')).toMatchObject({ status: 'stopped', bytes: VIDEO_LIMITS.bytes, frameCount: 1 })
+  expect(recorder.state('tab')).toMatchObject({ status: 'stopped', bytes: VIDEO_LIMITS.bytes, frameCount: 1, notice: VIDEO_RECORDING_NOTICES.sizeLimit })
   await manage('clear'); await manage('start')
   vi.setSystemTime(Date.now() + VIDEO_LIMITS.durationMs)
   await vi.advanceTimersByTimeAsync(100)
@@ -236,7 +236,26 @@ it('pauses a sustained unavailable frame stream rather than recording a healthy-
   await manage('start')
   capture.mockImplementation(async () => null)
   await vi.advanceTimersByTimeAsync(3200)
-  expect(recorder.state('tab')).toMatchObject({ status: 'paused', frameCount: 1 })
+  expect(recorder.state('tab')).toMatchObject({ status: 'paused', frameCount: 1, notice: VIDEO_RECORDING_NOTICES.gap })
   expect(recorder.state('tab').durationMs).toBeLessThan(100)
+  recorder.destroy()
+})
+
+it('drops why capture paused by itself once the person stops it, and keeps a limit that stopped it', async () => {
+  const { recorder, manage, capture } = fixture()
+  await manage('start')
+  capture.mockImplementation(async () => null)
+  await vi.advanceTimersByTimeAsync(3200)
+  expect(recorder.state('tab').notice).toBe(VIDEO_RECORDING_NOTICES.gap)
+  await manage('stop')
+  expect(recorder.state('tab')).toMatchObject({ status: 'stopped' })
+  expect(recorder.state('tab').notice).toBeUndefined()
+  await manage('clear')
+  capture.mockImplementation(async () => ({ data: new Uint8Array([4, 5, 6]), width: 640, height: 360 }))
+  capture.mockResolvedValueOnce({ data: new Uint8Array(VIDEO_LIMITS.bytes), width: 640, height: 360 })
+  await manage('start'); await vi.advanceTimersByTimeAsync(100)
+  expect(recorder.state('tab').status).toBe('stopped')
+  await manage('stop')
+  expect(recorder.state('tab').notice).toBe(VIDEO_RECORDING_NOTICES.sizeLimit)
   recorder.destroy()
 })

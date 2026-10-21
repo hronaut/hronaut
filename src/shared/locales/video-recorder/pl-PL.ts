@@ -60,6 +60,13 @@ export const plPLVideoRecorder = {
     "stopped": "Nagrywanie zatrzymane",
     "rendering": "Renderowanie wideo…"
   },
+  "notices": {
+    "gap": "Nagrywanie wstrzymane po przerwie bez klatek. Wznów nagrywanie, aby kontynuować.",
+    "conditions": "Nagrywanie wstrzymane. Pozostaw Hronaut widoczny, a kartę źródłową aktywną, w pochodzeniu witryny i rozmiarze, z którymi zaczęła, z dostępem do nagrywania.",
+    "sleep": "Nagrywanie wstrzymane podczas uśpienia komputera. Wznów nagrywanie, aby kontynuować.",
+    "durationLimit": "Nagranie osiągnęło limit dwóch minut.",
+    "sizeLimit": "Nagranie osiągnęło limit 64 MiB."
+  },
   "seconds": "s",
   "start": "Rozpocznij nagrywanie wideo",
   "pause": "Wstrzymaj nagrywanie",

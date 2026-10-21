@@ -2,6 +2,14 @@ import { z } from 'zod'
 import { videoInspectionFields } from './video-inspection.js'
 
 export const VIDEO_LIMITS = { durationMs: 120_000, framesPerSecond: 12, width: 1280, height: 720, bytes: 64 * 1024 * 1024, recordings: 3, annotations: 100, clips: 30 } as const
+/** Why capture paused or stopped by itself; browser_video keeps this English, the recorder panel names it in the interface language. */
+export const VIDEO_RECORDING_NOTICES = {
+  gap: 'Capture paused after a gap without frames; resume explicitly',
+  conditions: 'Capture paused: keep Hronaut visible and the source tab awake, at its original origin and size, with recording access available',
+  sleep: 'Capture paused for system sleep; resume explicitly',
+  durationLimit: 'Recording reached its two-minute limit',
+  sizeLimit: 'Recording reached its 64 MiB limit'
+} as const
 const time = z.number().finite().min(0).max(VIDEO_LIMITS.durationMs)
 const point = z.number().finite().min(0).max(1)
 export const VIDEO_ANNOTATION_KINDS = ['text', 'callout', 'arrow', 'highlight', 'spotlight', 'click'] as const

@@ -1,7 +1,7 @@
 import { VIDEO_INSPECTION_LIMITS, videoInspectionSchema, type BrowserVideoInspectionOptions, type VideoInspectionReport } from '../../shared/video-inspection.js'
 import { selectVideoFrames, type SelectedVideoFrame } from './video-inspection-frames.js'
 import { randomUUID } from 'node:crypto'
-import { VIDEO_LIMITS, videoOptionsSchema, validateVideoEdit, type BrowserVideoOptions, type BrowserVideoState, type VideoFrame, type VideoRenderPlan, type VideoTimingObservation } from '../../shared/video.js'
+import { VIDEO_LIMITS, VIDEO_RECORDING_NOTICES, videoOptionsSchema, validateVideoEdit, type BrowserVideoOptions, type BrowserVideoState, type VideoFrame, type VideoRenderPlan, type VideoTimingObservation } from '../../shared/video.js'
 import { VIDEO_AUDIO_BUILTINS, VIDEO_AUDIO_LIMITS, normalizeVideoAudioWav } from '../../shared/video-audio.js'
 
 export interface VideoSourceBinding { readonly tabId: string; readonly workspaceId: string | undefined; readonly origin: string }
@@ -144,6 +144,8 @@ export class BrowserVideoRecorder {
     }
     if (options.action === 'pause' || options.action === 'stop') {
       if (options.action === 'pause' && r.state.status === 'stopped') throw new Error('Stopped recordings cannot resume; start a new recording after clearing')
+      // A person's own pause or stop replaces why capture paused by itself; a limit that stopped it stays named.
+      if (r.state.status !== 'stopped') r.state.notice = undefined
       this.halt(r, options.action === 'pause' ? 'paused' : 'stopped')
     } else if (options.action === 'resume') {
       if (r.state.status !== 'paused') throw new Error('Only a paused recording can resume')
@@ -258,15 +260,15 @@ export class BrowserVideoRecorder {
     try {
       r.validateSource()
       r.validate()
-      if (this.now() - r.lastFrameAt > 3000) { this.pauseAtLastFrame(r, 'Capture paused after a gap without frames; resume explicitly'); return }
-      if (timeMs >= VIDEO_LIMITS.durationMs) { this.halt(r, 'stopped', 'Recording reached its two-minute limit'); return }
+      if (this.now() - r.lastFrameAt > 3000) { this.pauseAtLastFrame(r, VIDEO_RECORDING_NOTICES.gap); return }
+      if (timeMs >= VIDEO_LIMITS.durationMs) { this.halt(r, 'stopped', VIDEO_RECORDING_NOTICES.durationLimit); return }
       const frame = await Promise.race([r.capture(), new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('Capture timeout')), 3000) })])
       const completedAt = this.now()
       if (this.recordings.get(tabId) !== r || r.state.status !== 'recording' || revision !== r.captureRevision) return
       r.validateSource()
       r.validate()
       if (!frame) return
-      if (r.state.bytes + frame.data.byteLength > VIDEO_LIMITS.bytes) { this.halt(r, 'stopped', 'Recording reached its 64 MiB limit'); return }
+      if (r.state.bytes + frame.data.byteLength > VIDEO_LIMITS.bytes) { this.halt(r, 'stopped', VIDEO_RECORDING_NOTICES.sizeLimit); return }
       if (!frame.data.byteLength || !frame.width || !frame.height) throw new Error('Empty frame')
       if (r.frames.length && (frame.width !== r.state.width || frame.height !== r.state.height)) throw new Error('Viewport changed')
       r.lastFrameAt = this.now()
@@ -281,7 +283,7 @@ export class BrowserVideoRecorder {
       Object.assign(r.state, { width: frame.width, height: frame.height, frameCount: r.frames.length, bytes: r.state.bytes + frame.data.byteLength })
       if (r.frames.length % VIDEO_LIMITS.framesPerSecond === 0) this.host.changed()
     } catch {
-      if (this.recordings.get(tabId) === r && r.state.status === 'recording' && revision === r.captureRevision) this.pauseAtLastFrame(r, 'Capture paused: keep Hronaut visible and the source tab awake, at its original origin and size, with recording access available')
+      if (this.recordings.get(tabId) === r && r.state.status === 'recording' && revision === r.captureRevision) this.pauseAtLastFrame(r, VIDEO_RECORDING_NOTICES.conditions)
     } finally { if (timeout) clearTimeout(timeout) }
   }
 
