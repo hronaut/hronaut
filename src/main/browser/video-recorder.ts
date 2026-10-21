@@ -1,6 +1,7 @@
 import { VIDEO_INSPECTION_LIMITS, videoInspectionSchema, type BrowserVideoInspectionOptions, type VideoInspectionReport } from '../../shared/video-inspection.js'
 import { selectVideoFrames, type SelectedVideoFrame } from './video-inspection-frames.js'
 import { randomUUID } from 'node:crypto'
+import { LocalizedError } from '../localized-error.js'
 import { VIDEO_LIMITS, VIDEO_RECORDING_NOTICES, videoOptionsSchema, validateVideoEdit, type BrowserVideoOptions, type BrowserVideoState, type VideoFrame, type VideoRenderPlan, type VideoTimingObservation } from '../../shared/video.js'
 import { VIDEO_AUDIO_BUILTINS, VIDEO_AUDIO_LIMITS, normalizeVideoAudioWav } from '../../shared/video-audio.js'
 
@@ -70,7 +71,7 @@ export class BrowserVideoRecorder {
     const recording = this.recordings.get(tabId)
     recording?.validateSource()
     const data = recording?.preview
-    if (!data) throw new Error('Render a preview first')
+    if (!data) throw new LocalizedError('video.errors.renderFirst')
     return data
   }
 
@@ -120,10 +121,10 @@ export class BrowserVideoRecorder {
     if (options.action === 'get') { this.recordings.get(tabId)?.validateSource(); return this.state(tabId) }
     if (options.action === 'clear') { this.clear(tabId); return this.state(tabId) }
     let r = this.recordings.get(tabId)
-    if (r?.busy) throw new Error('Wait for the current video operation to finish')
+    if (r?.busy) throw new LocalizedError('video.errors.busy')
     if (options.action === 'start') {
-      if (r) throw new Error('Clear the previous recording before starting another')
-      if (this.recordings.size >= VIDEO_LIMITS.recordings) throw new Error('Clear a retained recording first (maximum three)')
+      if (r) throw new LocalizedError('video.errors.previousRecording')
+      if (this.recordings.size >= VIDEO_LIMITS.recordings) throw new LocalizedError('video.errors.recordingCount')
       validate()
       const now = this.now()
       r = { state: { ...this.state(tabId), recordingId: randomUUID(), status: 'recording' }, frames: [], source: source ? Object.freeze({ ...source }) : undefined, audioAssets: new Map(), elapsedMs: 0, clockOrigin: now, runningSince: now, lastFrameAt: now, capture, validate, validateSource, captureRevision: 0, abort: new AbortController(), busy: true }
@@ -134,22 +135,22 @@ export class BrowserVideoRecorder {
       this.schedule(tabId, r)
       return this.state(tabId)
     }
-    if (!r) throw new Error('Start a recording first')
+    if (!r) throw new LocalizedError('video.errors.startFirst')
     validate()
     const recording = r
     const current = (): void => {
-      if (this.recordings.get(tabId) !== recording || recording.abort.signal.aborted || signal?.aborted) throw new Error('Video operation was cancelled')
+      if (this.recordings.get(tabId) !== recording || recording.abort.signal.aborted || signal?.aborted) throw new LocalizedError('video.errors.cancelled')
       recording.validateSource()
       validate()
     }
     if (options.action === 'pause' || options.action === 'stop') {
-      if (options.action === 'pause' && r.state.status === 'stopped') throw new Error('Stopped recordings cannot resume; start a new recording after clearing')
+      if (options.action === 'pause' && r.state.status === 'stopped') throw new LocalizedError('video.errors.stoppedCannotResume')
       // A person's own pause or stop replaces why capture paused by itself; a limit that stopped it stays named.
       if (r.state.status !== 'stopped') r.state.notice = undefined
       this.halt(r, options.action === 'pause' ? 'paused' : 'stopped')
     } else if (options.action === 'resume') {
-      if (r.state.status !== 'paused') throw new Error('Only a paused recording can resume')
-      if (r.elapsedMs >= VIDEO_LIMITS.durationMs || r.state.bytes >= VIDEO_LIMITS.bytes) throw new Error('Recording limit reached')
+      if (r.state.status !== 'paused') throw new LocalizedError('video.errors.onlyPausedResume')
+      if (r.elapsedMs >= VIDEO_LIMITS.durationMs || r.state.bytes >= VIDEO_LIMITS.bytes) throw new LocalizedError('video.errors.recordingLimit')
       validate()
       r.validateSource()
       r.validate = validate
@@ -161,16 +162,16 @@ export class BrowserVideoRecorder {
       this.schedule(tabId, r)
     } else if (options.action === 'import-audio') {
       current()
-      if (r.state.status !== 'stopped') throw new Error('Stop recording before importing audio')
+      if (r.state.status !== 'stopped') throw new LocalizedError('video.errors.stopBeforeImport')
       if (!options.audioPath || !options.audioProvenance) throw new Error('Audio import requires an absolute path and source/usage rights')
       if (!this.host.loadAudio) throw new Error('Audio import is unavailable')
-      if (r.audioAssets.size >= VIDEO_AUDIO_LIMITS.assets) throw new Error('Remove an imported audio asset first (maximum eight)')
+      if (r.audioAssets.size >= VIDEO_AUDIO_LIMITS.assets) throw new LocalizedError('video.errors.audioAssetCount')
       r.busy = true
       try {
         const bytes = await this.host.loadAudio(options.audioPath, current)
         current()
         const asset = normalizeVideoAudioWav(bytes)
-        if (asset.data.byteLength + [...r.audioAssets.values()].reduce((sum, data) => sum + data.byteLength, 0) > VIDEO_AUDIO_LIMITS.totalBytes) throw new Error('Imported audio exceeds the 32 MiB recording limit')
+        if (asset.data.byteLength + [...r.audioAssets.values()].reduce((sum, data) => sum + data.byteLength, 0) > VIDEO_AUDIO_LIMITS.totalBytes) throw new LocalizedError('video.errors.importedAudioTooLarge')
         current()
         const id = randomUUID()
         r.audioAssets.set(id, asset.data)
@@ -178,29 +179,29 @@ export class BrowserVideoRecorder {
       } finally { r.busy = false; this.host.changed() }
     } else if (options.action === 'remove-audio') {
       current()
-      if (r.state.status !== 'stopped') throw new Error('Stop recording before removing audio')
+      if (r.state.status !== 'stopped') throw new LocalizedError('video.errors.stopBeforeRemovingAudio')
       if (!options.assetId || !r.audioAssets.has(options.assetId)) throw new Error('Imported audio asset is unavailable')
-      if (r.state.audio?.some(event => event.assetId === options.assetId)) throw new Error('Remove this asset from the audio timeline first')
+      if (r.state.audio?.some(event => event.assetId === options.assetId)) throw new LocalizedError('video.errors.audioAssetInUse')
       r.audioAssets.delete(options.assetId)
       r.state.audioAssets = r.state.audioAssets?.filter(asset => asset.id !== options.assetId)
     } else if (options.action === 'edit') {
       r.validateSource()
-      if (r.state.status !== 'stopped') throw new Error('Stop recording before editing')
+      if (r.state.status !== 'stopped') throw new LocalizedError('video.errors.stopBeforeEditing')
       const annotations = options.annotations ?? r.state.annotations
       const clips = options.clips ?? r.state.clips
-      validateVideoEdit(this.duration(r), annotations, clips)
+      validateVideoEdit(this.duration(r), annotations, clips, issue => new LocalizedError(`video.errors.${issue}`))
       const audio = options.audio ?? r.state.audio ?? []
       const cameras = options.cameras ?? r.state.cameras ?? []
       const duration = clips.length ? clips.reduce((sum, clip) => sum + clip.endMs - clip.startMs, 0) : this.duration(r)
       for (const event of audio) {
         const asset = r.state.audioAssets?.find(asset => asset.id === event.assetId)
-        if (!asset) throw new Error('Audio asset is unavailable in this recording')
-        if (event.endMs > duration) throw new Error('Audio events must fit inside the finished video')
-        if (event.offsetMs >= asset.durationMs || (!event.loop && event.offsetMs + event.endMs - event.startMs > asset.durationMs + 0.01)) throw new Error('Audio event exceeds its asset; shorten it or enable looping')
+        if (!asset) throw new LocalizedError('video.errors.audioAssetUnavailable')
+        if (event.endMs > duration) throw new LocalizedError('video.errors.audioOutsideVideo')
+        if (event.offsetMs >= asset.durationMs || (!event.loop && event.offsetMs + event.endMs - event.startMs > asset.durationMs + 0.01)) throw new LocalizedError('video.errors.audioExceedsAsset')
       }
       let previousEnd = 0
       for (const camera of cameras) {
-        if (camera.startMs < previousEnd || camera.endMs > this.duration(r)) throw new Error('Camera moves must be ordered, non-overlapping and inside the recording')
+        if (camera.startMs < previousEnd || camera.endMs > this.duration(r)) throw new LocalizedError('video.errors.camerasInvalid')
         previousEnd = camera.endMs
       }
       current()
@@ -214,7 +215,7 @@ export class BrowserVideoRecorder {
       r.state.previewReady = false
       r.state.exported = undefined
     } else if (options.action === 'render' || options.action === 'export') {
-      if (r.state.status !== 'stopped' || !r.frames.length || !r.elapsedMs) throw new Error('Stop a non-empty recording before exporting')
+      if (r.state.status !== 'stopped' || !r.frames.length || !r.elapsedMs) throw new LocalizedError('video.errors.exportEmpty')
       r.busy = true
       r.state.status = 'rendering'
       this.host.changed()

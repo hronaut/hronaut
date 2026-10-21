@@ -122,12 +122,26 @@ export interface BrowserVideoState {
 export interface VideoFrame { timeMs: number; data: Uint8Array }
 export interface VideoRenderPlan { width: number; height: number; durationMs: number; annotations: VideoAnnotation[]; clips: VideoClip[]; audio?: VideoAudioEvent[]; cameras?: VideoCamera[]; transition?: VideoTransition }
 
-/** Clips use source time, sorted and disjoint; annotations keep source coordinates and time. */
-export function validateVideoEdit(durationMs: number, annotations: VideoAnnotation[], clips: VideoClip[]): void {
-  if (annotations.some(a => a.endMs > durationMs)) throw new Error('Annotations must fit inside the recording')
+/** Why an edit does not fit its recording, with the English that browser_video reports. */
+export const VIDEO_EDIT_ERRORS = {
+  annotationsOutside: 'Annotations must fit inside the recording',
+  clipsInvalid: 'Clips must be ordered, non-overlapping, and inside the recording'
+} as const
+
+/**
+ * Clips use source time, sorted and disjoint; annotations keep source coordinates and time. Main passes `fail` to
+ * throw an error Hronaut's pages can name in the interface language.
+ */
+export function validateVideoEdit(
+  durationMs: number,
+  annotations: VideoAnnotation[],
+  clips: VideoClip[],
+  fail: (issue: keyof typeof VIDEO_EDIT_ERRORS) => Error = issue => new Error(VIDEO_EDIT_ERRORS[issue])
+): void {
+  if (annotations.some(a => a.endMs > durationMs)) throw fail('annotationsOutside')
   let previousEnd = 0
   for (const clip of clips) {
-    if (clip.endMs > durationMs || clip.startMs < previousEnd) throw new Error('Clips must be ordered, non-overlapping, and inside the recording')
+    if (clip.endMs > durationMs || clip.startMs < previousEnd) throw fail('clipsInvalid')
     previousEnd = clip.endMs
   }
 }
