@@ -1,5 +1,5 @@
 import type { Session } from 'electron'
-import type { BrowserSavedTabGroupState, BrowserState } from '../../../shared/types.js'
+import type { BrowserClosedTabState, BrowserSavedTabGroupState, BrowserState } from '../../../shared/types.js'
 import type { UndoableAction } from '../../undo-offers.js'
 import type { PersistedBrowserState, TabStateStore } from '../tab-store.js'
 import type { BrowserWorkspaceOperation, WorkspaceOperationAction } from '../workspace-operations/workspace-operations-access.js'
@@ -28,11 +28,11 @@ export interface ClosingWorkspace {
  * What archiving, restoring and deleting archived workspaces, and closing a
  * workspace for the person with Undo, need from the tab manager, which keeps
  * the open and archived workspaces, the workspace registry, workspace
- * operations, tab label edits, workspace continuity, the session store and
- * state publication private. The workspace maps are the workspace registry's
- * own. The workspace closing with Undo stays a manager field because
- * copying, moving and forking workspaces read it too; it is read again at
- * every use and changed through its setter.
+ * operations, tab label edits, workspace continuity, the recently closed tabs,
+ * the session store and state publication private. The workspace maps are the
+ * workspace registry's own. The workspace closing with Undo stays a manager
+ * field because copying, moving and forking workspaces read it too; it is read
+ * again at every use and changed through its setter.
  */
 export interface WorkspaceArchiveAccess {
   /** The open workspaces by id. */
@@ -47,6 +47,10 @@ export interface WorkspaceArchiveAccess {
   setClosingWorkspace(closing: ClosingWorkspace | undefined): void
   /** The tab manager's options. */
   options(): WorkspaceArchiveOptions
+  /** The recently closed tabs, oldest first. */
+  closedTabs(): BrowserClosedTabState[]
+  /** Recently closed tabs held aside meanwhile, which clearing the history still forgets. */
+  detachedClosedTabs(): Set<BrowserClosedTabState[]>
   /** The workspace registry, which moves workspaces between open and archived. */
   workspaceRegistry(): Pick<WorkspaceRegistry, 'archive' | 'restore'>
   /** Runs an operation once pending tab label edits settle, admitting no new edit until it ends. */

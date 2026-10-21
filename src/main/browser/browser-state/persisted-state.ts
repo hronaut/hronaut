@@ -36,7 +36,8 @@ export function persistedState<Tab extends PersistedStateTab>(access: PersistedS
         rules: [...group.navigationPolicy.rules]
       },
       navigationAudit: group.navigationAudit.map((entry) => ({ ...entry })),
-      tabs: group.tabs.map((tab) => ({ ...tab }))
+      tabs: group.tabs.map((tab) => ({ ...tab })),
+      ...(group.shownTabIndex !== undefined ? { shownTabIndex: group.shownTabIndex } : {})
     })),
     tabs: access.orderedTabs().map((tab) => ({
       id: tab.id,

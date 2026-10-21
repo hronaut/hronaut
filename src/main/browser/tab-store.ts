@@ -75,7 +75,9 @@ export interface PersistedSavedTabGroup {
   origins?: string[]
   navigationPolicy?: BrowserWorkspaceNavigationPolicy
   navigationAudit?: BrowserWorkspaceNavigationAuditEntry[]
-  tabs: Array<Pick<PersistedTab, 'title' | 'url' | 'pinned' | 'label'>>
+  tabs: Array<Pick<PersistedTab, 'title' | 'url' | 'pinned' | 'label' | 'zoomIsolated' | 'defaultFontSize'>>
+  /** Which of its tabs was shown when it was archived. */
+  shownTabIndex?: number
 }
 
 export interface PersistedBrowserState {
@@ -153,6 +155,11 @@ function persistedWorkspacePinnedAt(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const parsed = Date.parse(value)
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : undefined
+}
+
+/** Which of an archived workspace's tabs was shown, or undefined when the value is not one of its tabs. */
+function persistedShownTabIndex(value: unknown, tabCount: number): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < tabCount ? value : undefined
 }
 
 function repairedWorkspaceTimestamp(value: string, currentTime: number): string {
@@ -496,6 +503,8 @@ export class TabStateStore {
         if (candidate.description !== undefined && candidate.description !== description) {
           repairedPersistedState = true
         }
+        const shownTabIndex = persistedShownTabIndex(candidate.shownTabIndex, candidate.tabs.length)
+        if (candidate.shownTabIndex !== undefined && shownTabIndex === undefined) repairedPersistedState = true
         savedTabGroups.push({
           id: candidate.id,
           hiddenFromSidebar: candidate.hiddenFromSidebar === true,
@@ -523,13 +532,19 @@ export class TabStateStore {
               : normalizeTabTitle(sanitizedUrlFallbackTitle(title, originalUrl, url), url)
             if (url !== originalUrl) repairedPersistedState = true
             if (normalizedTitle !== title) repairedPersistedState = true
+            const savedFontSize = (tab as Record<string, unknown>).defaultFontSize
+            const defaultFontSize = normalizeDefaultFontSize(savedFontSize)
+            if (savedFontSize !== undefined && defaultFontSize === undefined) repairedPersistedState = true
             return {
               title: normalizedTitle,
               ...(restoreTabLabel((tab as Record<string, unknown>).label) ? { label: restoreTabLabel((tab as Record<string, unknown>).label) } : {}),
               url,
-              pinned: (tab as Record<string, unknown>).pinned === true
+              pinned: (tab as Record<string, unknown>).pinned === true,
+              ...((tab as Record<string, unknown>).zoomIsolated === true ? { zoomIsolated: true as const } : {}),
+              ...(defaultFontSize ? { defaultFontSize } : {})
             }
-          })
+          }),
+          ...(shownTabIndex !== undefined ? { shownTabIndex } : {})
         })
         if (JSON.stringify(candidate.navigationPolicy ?? { mode: 'unrestricted', rules: [] }) !== JSON.stringify(navigationPolicy)) {
           repairedPersistedState = true
