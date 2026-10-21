@@ -3119,6 +3119,9 @@ export class BrowserTabsManager {
       this.options.onWalletTabClosed?.(tab.id)
     ))
     this.deleteSnapshotBaselineForTab(tab.id)
+    // A workspace whose remembered tab closes remembers the one beside it, which closing the tab on screen would show.
+    const group = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const rememberedInstead = group?.activeTabId === tab.id ? this.workspaceTabBeside(tab) : undefined
     this.tabs.delete(tab.id)
     this.globallyUnlockedTabIds.delete(tab.id)
     this.globallyResumedAgentTabIds.delete(tab.id)
@@ -3132,11 +3135,21 @@ export class BrowserTabsManager {
     this.mcpActivitiesByTab.delete(tab.id)
     this.mcpActivityFollower.removeTab(tab.id)
     this.webContentsToTab.delete(tab.webContents.id)
-    if (!tab.mcpGroupId) return
-    const group = this.mcpTabGroups.get(tab.mcpGroupId)
-    if (group?.activeTabId !== tab.id) return
-    group.activeTabId = [...this.tabs.values()].find((candidate) => candidate.mcpGroupId === tab.mcpGroupId)?.id ?? null
+    if (!group || rememberedInstead === undefined) return
+    group.activeTabId = rememberedInstead
     group.lastUsedAt = new Date().toISOString()
+  }
+
+  /**
+   * The open tab beside this one in its workspace as the tab strip shows them, to its right and otherwise to its left,
+   * or null when it is the workspace's only tab.
+   */
+  private workspaceTabBeside(tab: BrowserTab): string | null {
+    const siblings = this.orderedTabs().filter((candidate) => (
+      candidate.mcpGroupId === tab.mcpGroupId && (candidate === tab || !candidate.webContents.isDestroyed())
+    ))
+    const index = siblings.indexOf(tab)
+    return (siblings[index + 1] ?? siblings[index - 1])?.id ?? null
   }
 
   /**
