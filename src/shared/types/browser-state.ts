@@ -230,6 +230,8 @@ export interface BrowserClosedTabState {
   mcpGroupId?: string
   zoomIsolated?: boolean
   defaultFontSize?: number
+  /** The tab's own mute, not the browser-wide one. */
+  muted?: boolean
 }
 
 export const MAX_BROWSER_TABS = 50

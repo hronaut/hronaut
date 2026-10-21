@@ -31,7 +31,7 @@ export async function reopenClosedTabEntry<Tab extends TabReopeningTab>(access: 
   if (!closed) return undefined
   access.detachedClosedTabs().add(held)
   try {
-    return await access.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active, mcpGroupId: closed.mcpGroupId, zoomIsolated: closed.zoomIsolated === true, defaultFontSize: closed.defaultFontSize })
+    return await access.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active, mcpGroupId: closed.mcpGroupId, zoomIsolated: closed.zoomIsolated === true, defaultFontSize: closed.defaultFontSize, muted: closed.muted === true })
   } catch (error) {
     if (held.length) access.closedTabs().splice(index, 0, closed)
     throw error
@@ -55,7 +55,8 @@ export async function duplicateTabAfterLabelSave<Tab extends TabReopeningTab>(ac
     navigationHistory,
     mcpGroupId: source.mcpGroupId,
     zoomIsolated: source.zoomIsolated,
-    defaultFontSize: source.defaultFontSize
+    defaultFontSize: source.defaultFontSize,
+    muted: source.tabMuted
   })
   access.reorderTab(duplicate.id, source.id, 'after')
   return access.getState()
@@ -107,7 +108,8 @@ export function rememberClosedTab<Tab extends TabReopeningTab>(access: TabReopen
     closedAt: new Date().toISOString(),
     ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {}),
     ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
-    ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {})
+    ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
+    ...(tab.tabMuted ? { muted: true } : {})
   })
   if (access.closedTabs().length > MAX_CLOSED_TABS) access.closedTabs().shift()
 }

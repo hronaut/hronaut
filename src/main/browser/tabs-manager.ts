@@ -1371,7 +1371,8 @@ export class BrowserTabsManager {
         navigationAudit: [...(group.navigationAudit ?? [])],
         tabs: group.tabs.map((tab) => ({
           title: tab.title, url: tab.url, pinned: tab.pinned === true, ...(tab.label ? { label: tab.label } : {}),
-          ...(tab.zoomIsolated ? { zoomIsolated: true as const } : {}), ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {})
+          ...(tab.zoomIsolated ? { zoomIsolated: true as const } : {}), ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
+          ...(tab.muted ? { muted: true as const } : {})
         }))
       })
     }

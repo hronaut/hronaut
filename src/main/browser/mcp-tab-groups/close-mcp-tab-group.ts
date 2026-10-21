@@ -53,6 +53,7 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
     tabAgentPaused: tab.tabAgentPaused,
     zoomIsolated: tab.zoomIsolated,
     defaultFontSize: tab.defaultFontSize,
+    muted: tab.tabMuted,
     navigationGeneration: tab.navigationGeneration,
     navigationHistory: access.navigationHistorySnapshot(tab)
   }))

@@ -25,6 +25,8 @@ export interface ActiveWorkspace {
 export interface ArchivedWorkspaceTab extends BrowserSavedTabGroupTab {
   zoomIsolated?: true
   defaultFontSize?: number
+  /** The tab's own mute, not the browser-wide one. */
+  muted?: true
 }
 export interface ArchivedWorkspace extends BrowserSavedTabGroupState {
   contextClass: BrowserWorkspaceContextClass
@@ -44,7 +46,7 @@ export interface WorkspacePlacement {
   before?: string
   pinnedAt?: string
 }
-interface WorkspaceTab { label?: string; id: string; mcpGroupId?: string; title: string; url: string; pinned: boolean; zoomIsolated?: boolean; defaultFontSize?: number }
+interface WorkspaceTab { label?: string; id: string; mcpGroupId?: string; title: string; url: string; pinned: boolean; zoomIsolated?: boolean; defaultFontSize?: number; tabMuted?: boolean }
 interface WorkspaceRuntimePorts {
   maxTabs: number
   maxArchived: number
@@ -54,7 +56,7 @@ interface WorkspaceRuntimePorts {
   withActiveOperation<T>(id: string, action: OpenWorkspaceOperationAction, run: () => Promise<T>): Promise<T>
   withArchivedOperation<T>(id: string, action: WorkspaceOperationAction, run: () => Promise<T>): Promise<T>
   closeActive(id: string, preserveStorage: boolean): Promise<unknown>
-  createTab(tab: { label?: string; title: string; url: string; pinned: boolean; zoomIsolated: boolean; defaultFontSize?: number; mcpGroupId: string; allowBusyWorkspace: true; active: false }): Promise<unknown>
+  createTab(tab: { label?: string; title: string; url: string; pinned: boolean; zoomIsolated: boolean; defaultFontSize?: number; muted: boolean; mcpGroupId: string; allowBusyWorkspace: true; active: false }): Promise<unknown>
   selectTab(id: string): unknown
   remapDownloads(from: string, to: string): void
   changed(): void
@@ -95,7 +97,7 @@ export class WorkspaceRegistry {
         storageId: internal.storageId, origins: [...internal.origins], navigationAudit: [...internal.navigationAudit],
         storageOriginCount: internal.origins.length, tabs: tabs.map(tab => ({ title: tab.title, url: tab.url, pinned: tab.pinned,
           ...(tab.label ? { label: tab.label } : {}), ...(tab.zoomIsolated ? { zoomIsolated: true as const } : {}),
-          ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}) })),
+          ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}), ...(tab.tabMuted ? { muted: true as const } : {}) })),
         ...(shownTabIndex >= 0 ? { shownTabIndex } : {}) }
       this.reservedArchivePlaces++
       try { await host.closeActive(id, true) } finally { this.reservedArchivePlaces-- }
@@ -133,7 +135,7 @@ export class WorkspaceRegistry {
           try {
             for (const tab of saved.tabs) {
               await host.createTab({ label: tab.label, title: tab.title, url: tab.url, pinned: tab.pinned, zoomIsolated: tab.zoomIsolated === true,
-                defaultFontSize: tab.defaultFontSize, mcpGroupId: id, allowBusyWorkspace: true, active: false })
+                defaultFontSize: tab.defaultFontSize, muted: tab.muted === true, mcpGroupId: id, allowBusyWorkspace: true, active: false })
             }
             // The tabs open in the order they were saved, so the tab shown when it was archived is shown again.
             const tabs = host.tabs().filter(tab => tab.mcpGroupId === id)

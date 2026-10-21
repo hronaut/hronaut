@@ -1,7 +1,10 @@
 import type { NavigationEntry } from 'electron'
 import type { BrowserClosedTabState, BrowserState } from '../../../shared/types.js'
 
-/** The tab fields remembering, reopening and duplicating tabs read: its address, titles, pin, workspace and zoom settings. */
+/**
+ * The tab fields remembering, reopening and duplicating tabs read: its address, titles, pin, workspace, zoom settings
+ * and its own mute.
+ */
 export interface TabReopeningTab {
   id: string
   url: string
@@ -11,6 +14,7 @@ export interface TabReopeningTab {
   mcpGroupId?: string
   zoomIsolated: boolean
   defaultFontSize?: number
+  tabMuted: boolean
 }
 
 /** What reopening or duplicating a tab asks the tab manager to open. */
@@ -25,6 +29,7 @@ export interface TabReopeningCreation {
   mcpGroupId?: string
   zoomIsolated?: boolean
   defaultFontSize?: number
+  muted?: boolean
 }
 
 /**

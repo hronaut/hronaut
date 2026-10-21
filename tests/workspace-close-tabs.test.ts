@@ -171,6 +171,17 @@ describe('closing a whole workspace', () => {
     expect(internals.activeTabId).toBe(SHOWN)
   })
 
+  it('brings its muted tab back muted when deleting its storage fails', async () => {
+    const { manager, internals, release } = await browser()
+    release()
+    ;(internals.tabs.get(SHOWN) as unknown as { tabMuted: boolean }).tabMuted = true
+    internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
+    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
+    // Reopened as they were, the tab's own mute included; it came back with sound.
+    expect(internals.createTab).toHaveBeenCalledWith(expect.objectContaining({ id: SHOWN, muted: true }))
+    expect(internals.createTab).toHaveBeenCalledWith(expect.objectContaining({ id: ASLEEP, muted: false }))
+  })
+
   it('keeps a tab the person selects while deleting its storage fails', async () => {
     const { manager, internals, release, workspaceTabs } = await browser()
     release()
