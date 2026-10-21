@@ -31,7 +31,18 @@ export async function reopenClosedTabEntry<Tab extends TabReopeningTab>(access: 
   if (!closed) return undefined
   access.detachedClosedTabs().add(held)
   try {
-    return await access.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active, mcpGroupId: closed.mcpGroupId, zoomIsolated: closed.zoomIsolated === true, defaultFontSize: closed.defaultFontSize, muted: closed.muted === true })
+    return await access.createTab({
+      url: closed.url,
+      label: closed.label,
+      pinned: closed.pinned,
+      active,
+      mcpGroupId: closed.mcpGroupId,
+      zoomIsolated: closed.zoomIsolated === true,
+      defaultFontSize: closed.defaultFontSize,
+      muted: closed.muted === true,
+      tabAgentPaused: closed.tabAgentPaused === true,
+      humanInteractionLocked: closed.humanInteractionLocked === true
+    })
   } catch (error) {
     if (held.length) access.closedTabs().splice(index, 0, closed)
     throw error
@@ -56,7 +67,9 @@ export async function duplicateTabAfterLabelSave<Tab extends TabReopeningTab>(ac
     mcpGroupId: source.mcpGroupId,
     zoomIsolated: source.zoomIsolated,
     defaultFontSize: source.defaultFontSize,
-    muted: source.tabMuted
+    muted: source.tabMuted,
+    tabAgentPaused: source.tabAgentPaused,
+    humanInteractionLocked: source.humanInteractionLocked
   })
   access.reorderTab(duplicate.id, source.id, 'after')
   return access.getState()
@@ -109,7 +122,9 @@ export function rememberClosedTab<Tab extends TabReopeningTab>(access: TabReopen
     ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {}),
     ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
     ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
-    ...(tab.tabMuted ? { muted: true } : {})
+    ...(tab.tabMuted ? { muted: true } : {}),
+    ...(tab.tabAgentPaused ? { tabAgentPaused: true } : {}),
+    ...(tab.humanInteractionLocked ? { humanInteractionLocked: true } : {})
   })
   if (access.closedTabs().length > MAX_CLOSED_TABS) access.closedTabs().shift()
 }

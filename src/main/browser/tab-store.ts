@@ -75,7 +75,7 @@ export interface PersistedSavedTabGroup {
   origins?: string[]
   navigationPolicy?: BrowserWorkspaceNavigationPolicy
   navigationAudit?: BrowserWorkspaceNavigationAuditEntry[]
-  tabs: Array<Pick<PersistedTab, 'title' | 'url' | 'pinned' | 'label' | 'zoomIsolated' | 'defaultFontSize' | 'muted'>>
+  tabs: Array<Pick<PersistedTab, 'title' | 'url' | 'pinned' | 'label' | 'zoomIsolated' | 'defaultFontSize' | 'muted' | 'tabAgentPaused' | 'humanInteractionLocked'>>
   /** Which of its tabs was shown when it was archived. */
   shownTabIndex?: number
 }
@@ -542,7 +542,9 @@ export class TabStateStore {
               pinned: (tab as Record<string, unknown>).pinned === true,
               ...((tab as Record<string, unknown>).zoomIsolated === true ? { zoomIsolated: true as const } : {}),
               ...(defaultFontSize ? { defaultFontSize } : {}),
-              ...((tab as Record<string, unknown>).muted === true ? { muted: true } : {})
+              ...((tab as Record<string, unknown>).muted === true ? { muted: true } : {}),
+              ...((tab as Record<string, unknown>).tabAgentPaused === true ? { tabAgentPaused: true } : {}),
+              ...((tab as Record<string, unknown>).humanInteractionLocked === true ? { humanInteractionLocked: true } : {})
             }
           }),
           ...(shownTabIndex !== undefined ? { shownTabIndex } : {})

@@ -184,6 +184,22 @@ describe('TabStateStore', () => {
     expect(tabs?.[1]).not.toHaveProperty('muted')
   })
 
+  it('keeps an archived tab\'s own agent pause and input lock, and none that is not true', async () => {
+    // Archiving dropped them, so agents could act in a paused tab again once its workspace was restored.
+    const { store } = await createStore()
+    const state = currentState()
+    const saved = state.savedTabGroups![0]!
+    saved.tabs = [
+      { title: 'Account', url: 'https://docs.example/account', pinned: false, tabAgentPaused: true, humanInteractionLocked: true },
+      { title: 'Docs', url: 'https://docs.example/', pinned: false, tabAgentPaused: 1 as unknown as boolean, humanInteractionLocked: 'yes' as unknown as boolean }
+    ]
+    await store.save(state)
+    const tabs = (await store.load())?.savedTabGroups?.[0]?.tabs
+    expect(tabs?.[0]).toMatchObject({ url: 'https://docs.example/account', tabAgentPaused: true, humanInteractionLocked: true })
+    expect(tabs?.[1]).not.toHaveProperty('tabAgentPaused')
+    expect(tabs?.[1]).not.toHaveProperty('humanInteractionLocked')
+  })
+
   it('loads legacy workspaces without descriptions as empty context', async () => {
     const { path, store } = await createStore()
     const state = currentState()

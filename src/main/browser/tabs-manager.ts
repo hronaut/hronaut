@@ -1372,7 +1372,9 @@ export class BrowserTabsManager {
         tabs: group.tabs.map((tab) => ({
           title: tab.title, url: tab.url, pinned: tab.pinned === true, ...(tab.label ? { label: tab.label } : {}),
           ...(tab.zoomIsolated ? { zoomIsolated: true as const } : {}), ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
-          ...(tab.muted ? { muted: true as const } : {})
+          ...(tab.muted ? { muted: true as const } : {}),
+          ...(tab.tabAgentPaused ? { tabAgentPaused: true as const } : {}),
+          ...(tab.humanInteractionLocked ? { humanInteractionLocked: true as const } : {})
         }))
       })
     }
