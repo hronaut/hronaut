@@ -45,7 +45,8 @@ async function request(
     workspaces: () => workspaceName === undefined ? [] : [{ id: WORKSPACE, name: workspaceName }],
     state: { persistentSession: null, sitePermissionStore: null },
     sendToShellWindows: () => undefined,
-    partition: 'persist:test'
+    partition: 'persist:test',
+    websitesMaySaveFiles: () => false
   })
   browserSession.configureBrowserSession({
     setDownloadPath: () => undefined,

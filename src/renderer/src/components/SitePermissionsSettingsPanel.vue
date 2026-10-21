@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiIconButton from "../ui/UiIconButton.vue"
+import { UiCheckbox } from '../ui/index.js'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ignoreHeldEnter } from '../held-enter.js'
@@ -7,6 +8,7 @@ import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
+import IconWarning from '~icons/material-symbols/warning-rounded'
 import { formatNumber } from '../../../shared/format'
 import type { SitePermissionDecision, SitePermissionEntry, SupportedLocale } from '../../../shared/types'
 import type { SitePermissionsController } from '../composables/useSitePermissionsController'
@@ -25,7 +27,10 @@ const {
   permissionKey,
   isPending,
   setDecision,
-  remove
+  remove,
+  fileSavingEnabled,
+  fileSavingPending,
+  setFileSaving
 } = props.controller
 
 const panelRoot = ref<HTMLElement | null>(null)
@@ -94,6 +99,11 @@ function controlLabel(entry: SitePermissionEntry, kind: 'select' | 'forget'): st
   })
 }
 
+async function changeFileSaving(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  if (!(await setFileSaving(input.checked))) input.checked = fileSavingEnabled.value
+}
+
 async function changePermission(entry: SitePermissionEntry, event: Event): Promise<void> {
   const input = event.target as HTMLSelectElement
   const panel = panelRoot.value
@@ -115,6 +125,23 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
     <div class="setting-copy">
       <h3 tabindex="-1">{{ t('settings.permissions.heading') }}</h3>
       <p>{{ t('settings.permissions.description') }}</p>
+    </div>
+    <div class="settings-rows">
+      <label class="settings-row" for="setting-website-file-saving">
+        <span>
+          <strong>{{ t('settings.permissions.fileSaving') }}</strong>
+          <small>{{ t('settings.permissions.fileSavingDescription') }}</small>
+        </span>
+        <UiCheckbox bare appearance="switch" id="setting-website-file-saving" :checked="fileSavingEnabled"
+          :disabled="fileSavingPending" aria-describedby="website-file-saving-warning" @change="changeFileSaving" />
+      </label>
+      <div class="settings-info" :class="{ 'security-warning': fileSavingEnabled }">
+        <span class="info-dot" aria-hidden="true">
+          <IconWarning v-if="fileSavingEnabled" />
+          <IconInfo v-else />
+        </span>
+        <p id="website-file-saving-warning">{{ t('settings.permissions.fileSavingWarning') }}</p>
+      </div>
     </div>
     <label class="settings-search permission-search">
       <IconSearch aria-hidden="true" />

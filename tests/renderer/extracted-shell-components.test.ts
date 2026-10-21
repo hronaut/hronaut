@@ -262,6 +262,7 @@ describe('extracted shell components', () => {
       api,
       translate: (key, parameters) => i18n.global.t(key, parameters ?? {}),
       workspaces: () => [{ id: WORKSPACE, name: 'Client A', archived: false }],
+      fileSaving: { enabled: () => false, set: async () => undefined },
       onError: vi.fn()
     })
     sitePermissionsController.replace([legacy])

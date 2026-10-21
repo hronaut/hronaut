@@ -326,6 +326,13 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.publishSettings()
     return { ...host.settings() }
   })
+  ipcMain.handle('settings:set-allow-website-file-saving', async (event, enabled: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof enabled !== 'boolean') throw new TypeError('Website file saving must be a boolean')
+    await host.updateSettings({ allowWebsiteFileSaving: enabled })
+    host.publishSettings()
+    return { ...host.settings() }
+  })
   ipcMain.handle('settings:set-mcp-remote-access', async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Remote MCP access must be a boolean')

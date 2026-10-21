@@ -431,7 +431,7 @@ export const frFR = {
       "archivedWorkspace": "{name} (archivé)",
       "removedWorkspace": "Espace de travail supprimé {id}",
       "loadingWorkspace": "Chargement de l’espace de travail…",
-      "embeddedIn": "sur {site}"
+      "embeddedIn": "sur {site}", "fileSaving": "Laisser les sites web enregistrer dans les fichiers ouverts ou déposés", "fileSavingDescription": "Les éditeurs en ligne peuvent alors enregistrer sans demander les modifications d’un fichier que vous ouvrez ou déposez sur eux. Un fichier choisi dans la boîte de dialogue Enregistrer d’un site web peut toujours être enregistré.", "fileSavingWarning": "Une fois activé, un site web pourrait aussi écraser d’autres fichiers du dossier de tout fichier qu’il a reçu, y compris les fichiers déposés par un agent, car Electron ne peut pas les distinguer. Activez-le uniquement pendant que vous utilisez des sites web de confiance."
     },
     "passwords": {
       "search": "Rechercher des mots de passe enregistrés",

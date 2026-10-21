@@ -328,7 +328,8 @@ const {
   workspaces: () => tabRuntime.tabs ? [...tabRuntime.tabs.listMcpTabGroups(), ...tabRuntime.tabs.listSavedTabGroups()] : [],
   state: browserSessionState,
   sendToShellWindows,
-  partition: PARTITION
+  partition: PARTITION,
+  websitesMaySaveFiles: () => settingsState.current.allowWebsiteFileSaving
 })
 const credentialRuntime: CredentialRuntimeState = {
   storageStatus: { available: false, reason: 'Secure storage is initializing.' },

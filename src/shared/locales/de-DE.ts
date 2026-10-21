@@ -431,7 +431,7 @@ export const deDE = {
       "archivedWorkspace": "{name} (archiviert)",
       "removedWorkspace": "Entfernter Arbeitsbereich {id}",
       "loadingWorkspace": "Arbeitsbereich wird geladen…",
-      "embeddedIn": "auf {site}"
+      "embeddedIn": "auf {site}", "fileSaving": "Websites in geöffnete oder abgelegte Dateien speichern lassen", "fileSavingDescription": "Online-Editoren können dann ohne Nachfrage Änderungen in einer Datei speichern, die Sie geöffnet oder auf ihnen abgelegt haben. In eine Datei, die Sie im Speichern-Dialog einer Website wählen, kann immer gespeichert werden.", "fileSavingWarning": "Ist dies aktiviert, könnte eine Website auch andere Dateien im Ordner jeder Datei überschreiben, die sie erhalten hat, auch von einem Agenten abgelegte Dateien, da Electron sie nicht unterscheiden kann. Aktivieren Sie es nur, solange Sie vertrauenswürdige Websites verwenden."
     },
     "passwords": {
       "search": "Gespeicherte Passwörter suchen",
