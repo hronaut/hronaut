@@ -448,6 +448,12 @@ describe('EvmWalletAdapter', () => {
     const upstream = await adapter.readRpc(wallet(), 'eth_call', [{}]).then(() => new Error('resolved'), (cause: unknown) => cause as Error)
     expect(upstream.message).toBe('EVM RPC error (code -32000): upstream failed, see')
     for (const secret of ['SECRET123', 'SECRET456', 'apikey', 'pw', 'frag']) expect(upstream.message).not.toContain(secret)
+    client.request.mockRejectedValueOnce(new RpcRequestError({
+      body: { method: 'eth_call' },
+      error: { code: -32000, message: 'upstream postgres://app:SECRET1@db:5432/x and https:/host.example/v3/KEY2?k=SECRET3 failed' },
+      url: 'https://secret-key.rpc.example/v3/abc'
+    }))
+    await expect(adapter.readRpc(wallet(), 'eth_call', [{}])).rejects.toThrow(/^EVM RPC error \(code -32000\): upstream and failed$/)
 
     client.request.mockRejectedValueOnce(new Error('fetch failed for https://secret-key.rpc.example/v3/abc'))
     await expect(adapter.readRpc(wallet(), 'eth_blockNumber', [])).rejects.toThrow(/^EVM RPC read request failed$/)
