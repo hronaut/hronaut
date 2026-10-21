@@ -50,7 +50,8 @@ async function request(
   browserSession.configureBrowserSession({
     setDownloadPath: () => undefined,
     setPermissionCheckHandler: () => undefined,
-    setPermissionRequestHandler: (next: RequestHandler) => { handler = next }
+    setPermissionRequestHandler: (next: RequestHandler) => { handler = next },
+    on: () => undefined
   } as unknown as Session, WORKSPACE)
   const url = 'https://files.example/'
   const frame = { frameTreeNodeId: 1, url, origin: 'https://files.example', detached: false }

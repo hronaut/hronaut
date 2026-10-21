@@ -78,7 +78,8 @@ async function createHarness(locale: SupportedLocale = 'en-US') {
     const fakeSession = {
       setDownloadPath: () => undefined,
       setPermissionCheckHandler: (next: CheckHandler) => { handlers.check = next },
-      setPermissionRequestHandler: (next: RequestHandler) => { handlers.request = next }
+      setPermissionRequestHandler: (next: RequestHandler) => { handlers.request = next },
+      on: () => undefined
     } as unknown as Session
     browserSession.configureBrowserSession(fakeSession, workspaceId)
     return Object.assign(handlers, { session: fakeSession })

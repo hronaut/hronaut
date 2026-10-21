@@ -505,6 +505,77 @@ export function createBrowserSession(host: BrowserSessionHost): {
         respond(allowed)
       })
     })
+    browserSession.on('file-system-access-restricted', (_event, details, callback) => {
+      answerProtectedLocation(browserSession, details, callback)
+    })
+  }
+
+  /**
+   * Answers Electron when a website's picker or a dropped folder gives it a location Chromium protects: a system
+   * folder, Hronaut's own data, private keys such as ~/.ssh, or a whole personal folder such as the home or Documents
+   * folder. Electron waits for the answer, and the website's picker never returned while nothing answered. Hronaut never
+   * gives such a location: the person can choose another, which opens the picker again, or cancel, which refuses it.
+   * Chromium refuses a dropped folder whatever the answer, since it has no picker to open again.
+   */
+  function answerProtectedLocation(
+    browserSession: Session,
+    details: Electron.FileSystemAccessRestrictedDetails,
+    callback: (action: 'allow' | 'deny' | 'tryAgain') => void
+  ): void {
+    const { webContents, frame } = details
+    const origin = normalizeSitePermissionOrigin(details.origin)
+    if (!sessionWorkspaces.get(browserSession) || !webContents || webContents.isDestroyed() || !frame || frame.detached || !origin) {
+      callback('deny')
+      return
+    }
+    // The answer belongs to the document that asked. It no longer counts once its tab closes, or the page or the frame
+    // that asked loads another document, an error page included, or is removed, even while it waits behind other prompts.
+    const page = permissionRequestsOf(webContents)
+    const frameTreeNodeId = frame.frameTreeNodeId
+    const document = page.frameDocuments.get(frameTreeNodeId) ?? page.pageDocument
+    const isCurrent = (): boolean => {
+      if (webContents.isDestroyed() || (page.frameDocuments.get(frameTreeNodeId) ?? page.pageDocument) !== document) return false
+      const asking = webContents.mainFrame.framesInSubtree.find(
+        (candidate) => candidate.frameTreeNodeId === frameTreeNodeId && !candidate.detached
+      )
+      return Boolean(asking && documentPermissionOrigin(asking.url, asking.origin) === origin)
+    }
+    const kind = details.isDirectory ? 'Folder' : 'File'
+    queuePermissionRequest(async () => {
+      const closing = new AbortController()
+      const closeWhenStale = (): void => {
+        if (!isCurrent()) closing.abort()
+      }
+      let action: 'deny' | 'tryAgain' = 'deny'
+      let staleCheck: ReturnType<typeof setInterval> | undefined
+      try {
+        if (!isCurrent()) return
+        webContents.on('did-frame-navigate', closeWhenStale)
+        webContents.on('did-fail-load', closeWhenStale)
+        webContents.on('destroyed', closeWhenStale)
+        // Electron reports no removed frame, so the prompt also checks while it shows.
+        staleCheck = setInterval(closeWhenStale, STALE_PROMPT_CHECK_MS)
+        staleCheck.unref()
+        const { response } = await host.showMessageBox({
+          signal: closing.signal,
+          type: 'warning',
+          title: host.text('native.dialog.sitePermission'),
+          message: host.text(`native.dialog.protected${kind}`, { origin }),
+          detail: host.text(`native.dialog.protected${kind}Detail`),
+          buttons: [host.text('native.dialog.cancel'), host.text(`native.dialog.chooseAnother${kind}`)],
+          // As in every permission prompt, a held Enter from the picker refuses rather than reopening it.
+          defaultId: 0,
+          cancelId: 0
+        })
+        if (response === 1 && !closing.signal.aborted && isCurrent()) action = 'tryAgain'
+      } finally {
+        clearInterval(staleCheck)
+        webContents.removeListener('did-frame-navigate', closeWhenStale)
+        webContents.removeListener('did-fail-load', closeWhenStale)
+        webContents.removeListener('destroyed', closeWhenStale)
+        callback(action)
+      }
+    })
   }
 
   async function configurePersistentSession(): Promise<void> {

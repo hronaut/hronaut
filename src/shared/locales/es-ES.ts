@@ -3655,7 +3655,7 @@ export const esES = {
       "deny": "Denegar",
       "allow": "Permitir",
       "requestedDevices": "Dispositivos solicitados: {devices}.",
-      "requestedFile": "Acceso solicitado ({access}): {path}.", "fileWriteUntilReload": "Tras «Permitir», este sitio web podrá guardar cambios ahí hasta que esta página se recargue.", "fileReadKeeps": "Tras «Permitir», este sitio web podrá seguir leyendo su contenido, incluso después de reiniciar Hronaut.",
+      "requestedFile": "Acceso solicitado ({access}): {path}.", "fileWriteUntilReload": "Tras «Permitir», este sitio web podrá guardar cambios ahí hasta que esta página se recargue.", "fileReadKeeps": "Tras «Permitir», este sitio web podrá seguir leyendo su contenido, incluso después de reiniciar Hronaut.", "protectedFolder": "{origin} no puede usar esta carpeta", "protectedFile": "{origin} no puede usar este archivo", "protectedFolderDetail": "Ni el selector de un sitio web ni una carpeta que sueltes en él le dan carpetas del sistema, los datos del propio Hronaut, claves privadas como ~/.ssh ni una carpeta personal entera, como tu carpeta de inicio, Documentos o Descargas. Puedes elegir otra carpeta, por ejemplo una dentro de Documentos. Si soltaste esta carpeta, suelta otra.", "protectedFileDetail": "El selector de archivos de un sitio web no le da archivos del sistema, los datos del propio Hronaut ni claves privadas. Puedes elegir otro archivo.", "chooseAnotherFolder": "Elegir otra carpeta", "chooseAnotherFile": "Elegir otro archivo",
       "requestedExternalApp": "«Permitir» abre este enlace {scheme} fuera de Hronaut, en la aplicación que tu sistema usa para este tipo de enlaces.",
       "camera": "cámara",
       "microphone": "micrófono",
