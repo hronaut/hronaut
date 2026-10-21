@@ -3,6 +3,23 @@ import type { BrowserPwaManifest } from './types.js'
 import { redactDiagnosticText } from './debug-report.js'
 import { redactNetworkHeaders, redactNetworkUrl } from './network-details.js'
 
+/** The English caveats an offline app report carries; MCP results keep them and the panel names them in the interface language. */
+export const PWA_INSPECTION_CAVEATS = {
+  origin: 'The report covers this top-level origin only; third-party frame workers and caches are not included.',
+  snapshot: 'Registrations and cached entries are point-in-time snapshots. Refresh after the website changes its offline state.',
+  manifest: 'Manifest source is parsed into bounded diagnostic fields; the raw manifest source is never returned.',
+  installabilityIds: 'Installability error identifiers come from Chromium and may change between Chromium versions.',
+  readOnly: 'The inspector is read-only and never returns cached response bodies.',
+  headersIncluded: 'Bounded request and response headers are included; recognized secret-bearing headers are redacted.',
+  headersOmitted: 'Header values are omitted. Request includeHeaders only when they are necessary and safe to return.',
+  opaqueSizes: 'Opaque response sizes may include browser quota padding and are not measured by this report.',
+  clearing: 'Use browser_site_data only when the task explicitly requires unregistering workers or clearing origin caches.'
+}
+/** Starts the caveat added when Chromium's installability check fails; the redacted reason follows it. */
+export const PWA_INSTALLABILITY_UNAVAILABLE_PREFIX = 'Installability diagnostics were unavailable: '
+/** Starts the cache error for a cache name the page no longer has; the redacted name follows it. */
+export const PWA_CACHE_NOT_FOUND_PREFIX = 'Cache Storage cache not found: '
+
 export const PWA_INSPECTION_LIMITS = {
   maxCaches: 100,
   maxEntries: 100,

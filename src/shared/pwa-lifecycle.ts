@@ -1,3 +1,17 @@
+/** The English caveats a service-worker capture carries; MCP results keep them and the panel names them in the interface language. */
+export const PWA_LIFECYCLE_CAVEATS = {
+  observedTimes: 'Observed callback times are not historical lifecycle timestamps. Capture always has incomplete history.',
+  polling: 'Registration discovery polls once per second; early transitions and short-lived registrations may be missed.',
+  scope: 'Registrations belong to this top-level origin and workspace, not exclusively to this tab.',
+  identities: 'Worker identities are local to this capture and distinguish versions at the same script URL.',
+  interruption: 'Navigation, reload, closure, debugger loss or authority loss interrupts capture. Stopping or interruption can omit undrained events.',
+  limits: 'At most 100 events, 20 registrations, 100 workers and two minutes; five captures retained in memory, oldest stopped first.',
+  longUrls: 'URLs exceeding 2048 characters are omitted rather than partially exposing a credential-bearing URL.',
+  metadataOnly: 'Only metadata is observed. No worker updates, messages, activation, cache clearing, permission changes or worker execution requests.',
+  sleeping: 'Sleeping or frozen tabs are not awakened. Sleep or freeze interrupts capture instead of keeping the page active.',
+  snapshot: 'Reads return the last drained snapshot. No complete-history or universal worker-lifetime guarantee is made.'
+}
+
 export const PWA_LIFECYCLE_LIMITS = {
   events: 100,
   registrations: 20,

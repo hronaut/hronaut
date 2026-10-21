@@ -8,6 +8,7 @@ import IconPieChart from '~icons/material-symbols/pie-chart-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import { formatBytes, formatPercent } from '../../../shared/format'
 import type { SupportedLocale } from '../../../shared/locale'
+import { STORAGE_USAGE_CAVEATS, STORAGE_USAGE_FALLBACK_CAVEAT_PREFIX } from '../../../shared/storage-usage'
 import type { BrowserStorageUsageReport } from '../../../shared/types'
 
 const props = defineProps<{
@@ -20,6 +21,16 @@ const props = defineProps<{
 
 const emit = defineEmits<{ copy: [] }>()
 const { t } = useI18n({ useScope: 'global' })
+
+// The report's caveats are English for agents; a caveat Hronaut does not know still shows as recorded.
+const CAVEAT_KEYS = new Map(Object.entries(STORAGE_USAGE_CAVEATS).map(([key, value]) => [value, key]))
+function caveatText(caveat: string): string {
+  const key = CAVEAT_KEYS.get(caveat)
+  if (key) return t(`reportCaveats.storageUsage.${key}`)
+  // Chromium's own reason follows the fallback caveat and stays as Chromium wrote it.
+  const reason = caveat.startsWith(STORAGE_USAGE_FALLBACK_CAVEAT_PREFIX) ? caveat.slice(STORAGE_USAGE_FALLBACK_CAVEAT_PREFIX.length) : ''
+  return reason ? t('reportCaveats.storageUsage.fallback', { reason }) : caveat
+}
 
 function bytes(value: number): string {
   return formatBytes(props.locale, value)
@@ -81,7 +92,7 @@ function usageShare(value: number): number {
         </article>
       </div>
       <div v-else class="site-storage-empty compact"><IconPieChart aria-hidden="true" /><strong>{{ t('siteStorage.noBreakdown') }}</strong><span>{{ t('siteStorage.noBreakdownDescription') }}</span></div>
-      <details class="storage-changes-caveats storage-usage-caveats"><summary>{{ t('siteStorage.scopePrivacy') }}</summary><ul><li v-for="caveat in report.caveats" :key="caveat">{{ caveat }}</li></ul></details>
+      <details class="storage-changes-caveats storage-usage-caveats"><summary>{{ t('siteStorage.scopePrivacy') }}</summary><ul><li v-for="caveat in report.caveats" :key="caveat">{{ caveatText(caveat) }}</li></ul></details>
       <footer class="storage-usage-footer"><span>{{ report.origin }}</span><span>{{ t('siteStorage.aggregate') }}</span></footer>
     </template>
   </section>

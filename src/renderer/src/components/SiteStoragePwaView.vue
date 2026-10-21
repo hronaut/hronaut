@@ -13,6 +13,7 @@ import IconSearch from '~icons/material-symbols/search-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
 import { formatNumber } from '../../../shared/format'
 import type { SupportedLocale } from '../../../shared/locale'
+import { PWA_CACHE_NOT_FOUND_PREFIX, PWA_INSPECTION_CAVEATS, PWA_INSTALLABILITY_UNAVAILABLE_PREFIX } from '../../../shared/pwa'
 import type { BrowserPwaReport } from '../../../shared/types'
 import { pwaLifecycleMessages } from '../../../shared/locales/pwa-lifecycle.js'
 
@@ -37,6 +38,22 @@ const query = defineModel<string>('query', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 
 function localNumber(value: number): string { return formatNumber(props.locale, value) }
+// The report's caveats and cache error are English for agents; text Hronaut does not know still shows as recorded,
+// and the redacted reason or cache name after a known start stays as it is.
+const CAVEAT_KEYS = new Map(Object.entries(PWA_INSPECTION_CAVEATS).map(([key, value]) => [value, key]))
+function after(text: string, prefix: string): string {
+  return text.startsWith(prefix) ? text.slice(prefix.length) : ''
+}
+function caveatText(caveat: string): string {
+  const key = CAVEAT_KEYS.get(caveat)
+  if (key) return t(`reportCaveats.pwa.${key}`)
+  const reason = after(caveat, PWA_INSTALLABILITY_UNAVAILABLE_PREFIX)
+  return reason ? t('reportCaveats.pwa.installabilityUnavailable', { reason }) : caveat
+}
+function cacheErrorText(error: string): string {
+  const name = after(error, PWA_CACHE_NOT_FOUND_PREFIX)
+  return name ? t('siteStorage.pwa.cacheNotFound', { name }) : error
+}
 // The page reports worker states, so one Hronaut does not know still shows as the page sent it.
 const WORKER_STATES = new Set(Object.keys(pwaLifecycleMessages['en-US'].workerStates))
 function registrationState(registration: BrowserPwaReport['registrations'][number]): string {
@@ -80,7 +97,7 @@ function timestamp(value: string): string {
         <article v-for="registration in report.registrations" :key="registration.scope"><strong>{{ registration.scope }}</strong><code>{{ registration.active?.scriptUrl ?? registration.waiting?.scriptUrl ?? registration.installing?.scriptUrl ?? t('siteStorage.pwa.noWorkerScript') }}</code><small>{{ registrationState(registration) }} · {{ t('siteStorage.pwa.updateViaCache', { value: registration.updateViaCache }) }}</small></article>
       </div>
       <div v-else class="site-storage-empty compact"><IconOffline aria-hidden="true" /><strong>{{ t('siteStorage.pwa.noRegistrations') }}</strong></div>
-      <div v-if="report.cacheInspectionError" class="pwa-cache-warning" role="status"><IconWarning aria-hidden="true" /><span>{{ report.cacheInspectionAvailable ? report.cacheInspectionError : t('siteStorage.pwa.cacheUnavailable', { error: report.cacheInspectionError }) }}</span></div>
+      <div v-if="report.cacheInspectionError" class="pwa-cache-warning" role="status"><IconWarning aria-hidden="true" /><span>{{ report.cacheInspectionAvailable ? cacheErrorText(report.cacheInspectionError) : t('siteStorage.pwa.cacheUnavailable', { error: report.cacheInspectionError }) }}</span></div>
       <template v-else-if="report.caches.length">
         <div class="pwa-cache-tools">
           <label><span>{{ t('siteStorage.pwa.cache') }}</span><select v-model="cache" :aria-label="t('siteStorage.pwa.cacheAria')" @change="emit('cacheChange')"><option v-for="item in report.caches" :key="item.name" :value="item.name">{{ item.name }}</option></select></label>
@@ -90,7 +107,7 @@ function timestamp(value: string): string {
         <div v-else-if="report.selectedCache" class="pwa-cache-entries"><article v-for="entry in report.selectedCache.entries" :key="`${entry.requestMethod}-${entry.requestUrl}`"><header><strong>{{ entry.requestMethod }}</strong><span>{{ entry.responseStatus }} {{ entry.responseStatusText }}</span></header><code>{{ entry.requestUrl }}</code><small>{{ entry.responseType }}<template v-if="entry.responseTime"> · {{ timestamp(entry.responseTime) }}</template></small></article></div>
       </template>
       <div v-else-if="report.cacheInspectionAvailable" class="site-storage-empty compact"><IconOffline aria-hidden="true" /><strong>{{ t('siteStorage.pwa.noCaches') }}</strong></div>
-      <details class="storage-changes-caveats pwa-caveats"><summary>{{ t('siteStorage.scopePrivacy') }}</summary><ul><li v-for="caveat in report.caveats" :key="caveat">{{ caveat }}</li></ul></details>
+      <details class="storage-changes-caveats pwa-caveats"><summary>{{ t('siteStorage.scopePrivacy') }}</summary><ul><li v-for="caveat in report.caveats" :key="caveat">{{ caveatText(caveat) }}</li></ul></details>
       <footer v-if="report.selectedCache" class="indexeddb-footer"><span>{{ t('siteStorage.pwa.matching', { count: localNumber(report.selectedCache.totalEntries) }, report.selectedCache.totalEntries) }}</span><div><UiButton appearance="application" type="button" :disabled="offset === 0 || state === 'loading'" @click="emit('move', -1)"><IconArrowBack aria-hidden="true" /> {{ t('siteStorage.indexed.previous') }}</UiButton><UiButton appearance="application" type="button" :disabled="!report.selectedCache.hasMore || state === 'loading'" @click="emit('move', 1)">{{ t('siteStorage.indexed.next') }} <IconArrowForward aria-hidden="true" /></UiButton></div></footer>
     </template>
   </section>

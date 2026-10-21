@@ -5,7 +5,7 @@ import { formatDateTime } from '../../../shared/format.js'
 import type { SupportedLocale } from '../../../shared/types'
 import UiButton from '../ui/UiButton.vue'
 import type { BrowserTabState } from '../../../shared/types'
-import type { PwaLifecycleAction, PwaLifecycleReport } from '../../../shared/pwa-lifecycle'
+import { PWA_LIFECYCLE_CAVEATS, type PwaLifecycleAction, type PwaLifecycleReport } from '../../../shared/pwa-lifecycle'
 import { pwaLifecycleMessages } from '../../../shared/locales/pwa-lifecycle.js'
 import { friendlyUiError } from '../composables/useAppToastController.js'
 
@@ -20,6 +20,12 @@ const STOP_REASONS = new Set(Object.keys(pwaLifecycleMessages['en-US'].reasons))
 const eventKind = (kind: string): string => EVENT_KINDS.has(kind) ? t(`pwaLifecycle.kinds.${kind}`) : kind
 const workerState = (state: string): string => WORKER_STATES.has(state) ? t(`pwaLifecycle.workerStates.${state}`) : state
 const stopReason = (reason: string): string => STOP_REASONS.has(reason) ? t(`pwaLifecycle.reasons.${reason}`) : reason
+// The capture's caveats are English for agents; a caveat Hronaut does not know still shows as recorded.
+const CAVEAT_KEYS = new Map(Object.entries(PWA_LIFECYCLE_CAVEATS).map(([key, value]) => [value, key]))
+const caveatText = (caveat: string): string => {
+  const key = CAVEAT_KEYS.get(caveat)
+  return key ? t(`pwaLifecycle.caveats.${key}`) : caveat
+}
 const report = ref<PwaLifecycleReport | null>(null)
 const error = ref('')
 const busy = ref(false)
@@ -65,7 +71,7 @@ onBeforeUnmount(() => { disposed = true; request++; clearInterval(timer) })
           <small v-if="event.waiting">{{ t('pwaLifecycle.waiting') }} {{ event.waiting.id }}</small>
         </li>
       </ol>
-      <details><summary>{{ t('pwaLifecycle.coverage') }}</summary><ul><li v-for="caveat in report.caveats" :key="caveat">{{ caveat }}</li></ul></details>
+      <details><summary>{{ t('pwaLifecycle.coverage') }}</summary><ul><li v-for="caveat in report.caveats" :key="caveat">{{ caveatText(caveat) }}</li></ul></details>
     </template>
   </section>
 </template>

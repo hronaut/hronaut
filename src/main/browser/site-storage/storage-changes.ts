@@ -6,6 +6,7 @@ import {
   MAX_STORAGE_CHANGE_VALUE_BYTES,
   MAX_STORAGE_CHANGE_VALUES_TOTAL_BYTES,
   MAX_STORAGE_SNAPSHOT_ITEMS_PER_KIND,
+  STORAGE_CHANGES_CAVEATS,
   compareBrowserStorageSnapshots,
   type BrowserStorageSnapshot,
   type BrowserStorageSnapshotEntry
@@ -106,12 +107,10 @@ function storageChangesReport(
 ): BrowserStorageChangesReport {
   const comparison = tab.storageComparison
   const caveats = [
-    'The baseline stays only in memory and is discarded when cleared, when the tab changes origin or closes, or when Hronaut exits.',
-    'Local storage and cookies are shared by origin inside this workspace and isolated from other workspaces; session storage belongs only to this tab.',
-    includeValues
-      ? 'Bounded non-HttpOnly values are included. HttpOnly cookie values always remain protected.'
-      : 'Values are omitted. Request includeValues only when the changed values are necessary and safe to return.',
-    'The snapshot covers the first 200 sorted entries per storage kind. Storage may also change in the background between the baseline and comparison.'
+    STORAGE_CHANGES_CAVEATS.baseline,
+    STORAGE_CHANGES_CAVEATS.scope,
+    includeValues ? STORAGE_CHANGES_CAVEATS.valuesIncluded : STORAGE_CHANGES_CAVEATS.valuesOmitted,
+    STORAGE_CHANGES_CAVEATS.snapshot
   ]
   if (!comparison) {
     return {

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import {
-  PWA_LIFECYCLE_LIMITS, pwaLifecyclePageScript,
+  PWA_LIFECYCLE_CAVEATS, PWA_LIFECYCLE_LIMITS, pwaLifecyclePageScript,
   type PwaLifecycleOptions, type PwaLifecyclePageSnapshot, type PwaLifecycleReport,
   type PwaLifecycleWorker
 } from '../../shared/pwa-lifecycle.js'
@@ -88,18 +88,7 @@ export class BrowserPwaLifecycle<T extends CaptureTab> {
         captureId: randomUUID(), tabId: tab.id, origin: origin.origin,
         active: true, reason: null, startedAt: Date.now(), stoppedAt: null,
         events: [], truncated: false, missingHistory: true, interrupted: false, lastDrainedAt: null, coverage: 'observed-only',
-        caveats: [
-          'Observed callback times are not historical lifecycle timestamps. Capture always has incomplete history.',
-          'Registration discovery polls once per second; early transitions and short-lived registrations may be missed.',
-          'Registrations belong to this top-level origin and workspace, not exclusively to this tab.',
-          'Worker identities are local to this capture and distinguish versions at the same script URL.',
-          'Navigation, reload, closure, debugger loss or authority loss interrupts capture. Stopping or interruption can omit undrained events.',
-          'At most 100 events, 20 registrations, 100 workers and two minutes; five captures retained in memory, oldest stopped first.',
-          'URLs exceeding 2048 characters are omitted rather than partially exposing a credential-bearing URL.',
-          'Only metadata is observed. No worker updates, messages, activation, cache clearing, permission changes or worker execution requests.',
-          'Sleeping or frozen tabs are not awakened. Sleep or freeze interrupts capture instead of keeping the page active.',
-          'Reads return the last drained snapshot. No complete-history or universal worker-lifetime guarantee is made.'
-        ]
+        caveats: Object.values(PWA_LIFECYCLE_CAVEATS)
       }
     }
     this.captures.set(capture.report.captureId, capture)
