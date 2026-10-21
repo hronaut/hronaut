@@ -100,17 +100,21 @@ test('a tab that slept after going back wakes on that page with the pages before
   }
 })
 
-test('a wake onto a page that cannot be reached fails and leaves the tab asleep', async ({ appWindow, electronApp }) => {
+test('a wake onto a page that cannot be reached opens its error page, with the pages before it', async ({ appWindow, electronApp }) => {
   const { server, origin, unreachable } = await pages({ noStore: true })
   try {
-    const { tabId } = await tabThrough(appWindow, electronApp, origin, ['/one', '/two'])
+    const { tabId, pageId } = await tabThrough(appWindow, electronApp, origin, ['/one', '/two'])
     await appWindow.evaluate((tabId) => (window as unknown as { hronaut: HronautApi }).hronaut.setTabSleeping(tabId, true), tabId)
     unreachable.add('/two')
 
-    // Going back failed and showed an error page, whose load then counted as the retry's, so the wake reported success.
-    await expect(appWindow.evaluate((tabId) => (window as unknown as { hronaut: HronautApi }).hronaut.setTabSleeping(tabId, false), tabId))
-      .rejects.toThrow()
-    expect(await tabState(appWindow, tabId)).toMatchObject({ url: `${origin}/two`, sleeping: true })
+    // Going back fails and shows the error page at the tab's address, as Chrome shows a discarded tab whose site is
+    // down, so the tab is awake there and Reload tries again. The wake used to fail and send the tab back to sleep, so
+    // the person could not open the tab at all.
+    await appWindow.evaluate((tabId) => (window as unknown as { hronaut: HronautApi }).hronaut.setTabSleeping(tabId, false), tabId)
+    await expect.poll(() => tabState(appWindow, tabId)).toMatchObject({
+      url: `${origin}/two`, sleeping: false, loading: false, pageProblem: { kind: 'load-error' }
+    })
+    expect(await history(electronApp, pageId)).toEqual({ urls: [`${origin}/one`, `${origin}/two`], index: 1 })
   } finally {
     await closeFixtureServer(server)
   }

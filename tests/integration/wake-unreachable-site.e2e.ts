@@ -29,7 +29,7 @@ test('opens a sleeping tab whose website cannot be reached on its error page, al
     const tab = (id: string) => appWindow.evaluate(async (id) => {
       const state = await (window as unknown as { hronaut: HronautApi }).hronaut.getState()
       const found = state.tabs.find(candidate => candidate.id === id)
-      return found && { sleeping: found.sleeping, loading: found.loading, active: state.activeTabId === id }
+      return found && { sleeping: found.sleeping, loading: found.loading, active: state.activeTabId === id, problem: found.pageProblem?.kind }
     }, id)
     await expect.poll(async () => (await tab(ids.sleepy))?.loading).toBe(false)
     await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabSleeping(id, true), ids.sleepy)
@@ -46,7 +46,7 @@ test('opens a sleeping tab whose website cannot be reached on its error page, al
       }
     }, ids.sleepy)
     expect(selected).toBeNull()
-    await expect.poll(() => tab(ids.sleepy)).toEqual({ sleeping: false, loading: false, active: true })
+    await expect.poll(() => tab(ids.sleepy)).toEqual({ sleeping: false, loading: false, active: true, problem: 'load-error' })
     // The tab's history holds its address once, and no longer the sleeping page.
     expect(await electronApp.evaluate(({ webContents }, url) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
@@ -68,7 +68,7 @@ test('opens a sleeping tab whose website cannot be reached on its error page, al
     }, ids.shown)
     expect(closed).toBeNull()
     await expect.poll(async () => (await tab(ids.shown)) ?? 'closed').toBe('closed')
-    await expect.poll(() => tab(ids.sleepy)).toEqual({ sleeping: false, loading: false, active: true })
+    await expect.poll(() => tab(ids.sleepy)).toEqual({ sleeping: false, loading: false, active: true, problem: 'load-error' })
   } finally {
     if (serverOpen) await closeFixtureServer(server)
   }

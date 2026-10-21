@@ -101,9 +101,9 @@ function forgetSleepingPageOnNextPage<Tab extends TabSleepTab>(access: TabSleepA
  * Wakes a sleeping tab by going back to the page it slept on, or loading its
  * address, and marks it active now. A wake already running is joined. When
  * that fails and no newer navigation took over, the address is loaded again;
- * when that fails too, the tab is awake on the error page at its address, or,
- * if it still shows the sleeping page, goes back to sleep and the failure is
- * thrown. Once awake, the sleeping page leaves its history.
+ * when that fails too, the tab is awake on the error page that load showed,
+ * or, if it still shows the sleeping page, goes back to sleep and the failure
+ * is thrown. Once awake, the sleeping page leaves its history.
  */
 export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tabId: string): Promise<BrowserState> {
   const tab = access.getTab(tabId)
@@ -151,8 +151,9 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
           return
         }
         // A website that cannot be reached, such as a stopped local server, leaves the tab on Chromium's error page at
-        // its address, as Chrome shows a discarded tab: the tab is awake there, and Reload tries again.
-        if (access.findTab(tab.id) === tab && !tab.webContents.isDestroyed() && tab.webContents.getURL() === restoreUrl) {
+        // its address, or at the address it redirected to, as Chrome shows a discarded tab: the tab is awake there,
+        // and Reload tries again. A load that commits nothing, such as a download, leaves the sleeping page.
+        if (access.findTab(tab.id) === tab && !tab.webContents.isDestroyed() && tab.webContents.getURL() !== SLEEPING_PAGE_URL) {
           forgetSleepingPage(tab.webContents)
           return
         }
