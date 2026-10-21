@@ -3686,7 +3686,7 @@ export const plPL = {
       "savePassword": "Zapisz hasło",
       "updatePassword": "Zaktualizuj hasło",
       "installingUpdate": "Instalowanie aktualizacji. Hronaut uruchomi się ponownie automatycznie.",
-      "restartingUpdate": "Nowy pakiet został zainstalowany. Ponowne uruchamianie Hronaut w celu ukończenia aktualizacji.", "restartAfterDownloads": "Hronaut {version} jest zainstalowany. Gdy pobieranie się zakończy, wybierz „Spróbuj ponownie”, aby ponownie uruchomić Hronaut i używać nowej wersji.",
+      "restartingUpdate": "Nowy pakiet został zainstalowany. Ponowne uruchamianie Hronaut w celu ukończenia aktualizacji.", "restartAfterDownloads": "Hronaut {version} jest zainstalowany. Gdy pobierania się zakończą, wybierz „Spróbuj ponownie”, aby ponownie uruchomić Hronaut i używać nowej wersji.",
       "walletRecoveryTitle": "Zapisz dane odzyskiwania portfela",
       "walletRecoveryMessage": "Zapisz tę frazę odzyskiwania i przechowuj ją offline.",
       "walletRecoveryWarning": "Hronaut nie może odzyskać tej frazy. Nigdy nie udostępniaj jej witrynie ani agentowi programistycznemu.",

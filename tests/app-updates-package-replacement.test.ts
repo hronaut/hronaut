@@ -36,14 +36,16 @@ beforeEach(() => {
   relaunch.scheduleLinuxUpdateRelaunch.mockClear()
 })
 
-function createHarness(answers: boolean[]) {
+function createHarness(answers: Array<boolean | 'reject'>) {
   const state: AppUpdatesState = { current: { status: 'idle', currentVersion: '3.3.1' } }
   const hidden: string[] = []
   const autoUpdater = { on: vi.fn(), checkForUpdates: vi.fn(async () => null), downloadUpdate: vi.fn(), quitAndInstall: vi.fn() }
   let release: ((restart: boolean) => void) | undefined
-  const confirmQuit = vi.fn(() => answers.length > 0
-    ? Promise.resolve(answers.shift()!)
-    : new Promise<boolean>((resolve) => { release = resolve }))
+  const confirmQuit = vi.fn(() => {
+    if (answers.length === 0) return new Promise<boolean>((resolve) => { release = resolve })
+    const answer = answers.shift()!
+    return answer === 'reject' ? Promise.reject(new Error('No display')) : Promise.resolve(answer)
+  })
   const updates = createAppUpdates({
     autoUpdater: autoUpdater as never,
     text: (key, parameters) => translate('en-US', key, parameters),
@@ -62,7 +64,7 @@ describe('restarting into a package that replaced Hronaut', () => {
     expect(await updates.checkForUpdates()).toMatchObject({
       status: 'error',
       availableVersion: '3.4.0',
-      message: 'Hronaut 3.4.0 is installed. Once your downloads finish, choose Try again to restart Hronaut and use it.'
+      message: 'Hronaut 3.4.0 is installed. Once your downloads finish, choose Try again to restart Hronaut and use the new version.'
     })
     expect(confirmQuit).toHaveBeenCalledTimes(1)
     expect(electron.app.quit).not.toHaveBeenCalled()
@@ -81,14 +83,37 @@ describe('restarting into a package that replaced Hronaut', () => {
   })
 
   it('asks once and restarts once when the person checks again while the question is open', async () => {
-    const { confirmQuit, updates, release } = createHarness([])
+    const { state, confirmQuit, updates, release } = createHarness([])
     const first = updates.checkForUpdates()
     await vi.waitFor(() => expect(confirmQuit).toHaveBeenCalledTimes(1))
-    expect(await updates.checkForUpdates()).toMatchObject({ status: 'idle' })
-    expect(await updates.downloadUpdate()).toMatchObject({ status: 'idle' })
+    // The update card behind the question says why Hronaut asks to quit.
+    expect(state.current).toMatchObject({
+      status: 'installing',
+      availableVersion: '3.4.0',
+      message: 'The new package is installed. Restarting Hronaut to finish the update.'
+    })
+    expect(await updates.checkForUpdates()).toMatchObject({ status: 'installing' })
+    expect(await updates.downloadUpdate()).toMatchObject({ status: 'installing' })
+    expect(await updates.installDownloadedUpdate()).toBe(false)
     release(true)
     expect(await first).toMatchObject({ status: 'installing' })
     expect(confirmQuit).toHaveBeenCalledTimes(1)
+    expect(relaunch.scheduleLinuxUpdateRelaunch).toHaveBeenCalledTimes(1)
+    expect(electron.app.quit).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks again each time the person checks while downloads are still in progress', async () => {
+    const { confirmQuit, updates } = createHarness([false, false])
+    expect(await updates.checkForUpdates()).toMatchObject({ status: 'error', availableVersion: '3.4.0' })
+    expect(await updates.checkForUpdates()).toMatchObject({ status: 'error', availableVersion: '3.4.0' })
+    expect(confirmQuit).toHaveBeenCalledTimes(2)
+    expect(electron.app.quit).not.toHaveBeenCalled()
+    expect(relaunch.scheduleLinuxUpdateRelaunch).not.toHaveBeenCalled()
+  })
+
+  it('restarts when the question cannot be shown, as Quit does', async () => {
+    const { updates } = createHarness(['reject'])
+    expect(await updates.checkForUpdates()).toMatchObject({ status: 'installing' })
     expect(relaunch.scheduleLinuxUpdateRelaunch).toHaveBeenCalledTimes(1)
     expect(electron.app.quit).toHaveBeenCalledTimes(1)
   })

@@ -51,9 +51,13 @@ export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost)
     } catch (error) {
       return Promise.resolve(quitAnyway(error))
     }
-    pending = host.showMessageBox(parent, options)
-      .then(({ response }) => response === 1, quitAnyway)
-      .finally(() => { pending = undefined })
+    try {
+      pending = host.showMessageBox(parent, options)
+        .then(({ response }) => response === 1, quitAnyway)
+        .finally(() => { pending = undefined })
+    } catch (error) {
+      return Promise.resolve(quitAnyway(error))
+    }
     return pending
   }
 }

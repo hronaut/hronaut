@@ -192,9 +192,15 @@ export function createAppUpdates(host: AppUpdatesHost): {
       const replacementVersion = replacedPackageVersion(app.getVersion(), manifest)
       if (!replacementVersion) return false
       updateInstallationInProgress = true
-      // Restarting cancels downloads in progress and deletes their files, as Quit does, so it asks first. A person who
-      // keeps downloading restarts later by checking again.
-      if (!(await host.confirmQuit())) {
+      publishUpdateState({
+        status: 'installing',
+        availableVersion: replacementVersion,
+        percent: undefined,
+        message: host.text('native.dialog.restartingUpdate')
+      })
+      // Restarting cancels downloads in progress and deletes their files, as Quit does, so it asks first, with the update
+      // card behind the question saying why. A person who keeps downloading restarts later by checking again.
+      if (!(await host.confirmQuit().catch(() => true))) {
         updateInstallationInProgress = false
         publishUpdateState({
           status: 'error',
@@ -207,12 +213,6 @@ export function createAppUpdates(host: AppUpdatesHost): {
       console.warn(
         `[updates] Package ${replacementVersion} replaced the running ${app.getVersion()} process; restarting before another updater operation.`
       )
-      publishUpdateState({
-        status: 'installing',
-        availableVersion: replacementVersion,
-        percent: undefined,
-        message: host.text('native.dialog.restartingUpdate')
-      })
       scheduleLinuxUpdateRelaunch(process.pid, linuxUpdateExecutable(process.env, process.execPath))
       host.mainWindow()?.hide()
       host.panelWindow()?.hide()
