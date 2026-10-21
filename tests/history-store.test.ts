@@ -497,6 +497,20 @@ describe('HistoryStore', () => {
     expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual([])
   })
 
+  // Clear history wrote nothing when it listed no visits, so a history file Hronaut could not read kept its visits on
+  // disk though the Privacy page said the history was cleared.
+  it.each([
+    ['a newer version', JSON.stringify({ version: 2, entries: [{ id: 'a', url: 'https://private.example/visit', title: 'Private', visitedAt: '2026-08-12T00:00:00.000Z', visitCount: 1 }] })],
+    ['a cut-short file', '{"version":1,"entries":[{"id":"a","url":"https://private.example/visit","title":"Private"']
+  ])('removes the visits of %s it could not read when clearing', async (_name, contents) => {
+    const { path, store } = await storeAt()
+    await writeFile(path, contents)
+    await expect(store.load()).resolves.toEqual([])
+    await store.clear()
+    expect(await readFile(path, 'utf8')).not.toContain('private.example')
+    expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual([])
+  })
+
   it('clears history for one exact website origin', async () => {
     const { store } = await storeAt()
     await store.record({ url: 'https://example.com/one', title: 'One' })

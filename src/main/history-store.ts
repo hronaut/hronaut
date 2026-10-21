@@ -254,7 +254,8 @@ export class HistoryStore {
 
   async clear(): Promise<void> {
     await this.queueMutation(async () => {
-      if (!this.entries.size) return
+      // Written even when nothing is listed: a file Hronaut could not read, such as one from a newer version, still
+      // holds its visits until it is replaced.
       await this.persist([])
       this.replaceEntries(new Map())
     })
