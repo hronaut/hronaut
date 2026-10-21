@@ -21,6 +21,8 @@ export interface McpTabGroupsTab extends BrowserNetworkRecordingState {
   tabAgentPaused: boolean
   zoomIsolated: boolean
   defaultFontSize?: number
+  /** The tab's own mute, not the browser-wide one. */
+  tabMuted: boolean
   navigationGeneration: number
   visualComparisonGeneration: number
   mcpGroupId?: string
@@ -50,6 +52,7 @@ export interface McpTabGroupsTabCreation {
   tabAgentPaused?: boolean
   zoomIsolated?: boolean
   defaultFontSize?: number
+  muted?: boolean
   navigationGeneration?: number
   suppressInitialHistory?: boolean
   navigationHistory?: { entries: NavigationEntry[]; index: number }

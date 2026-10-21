@@ -34,6 +34,7 @@ interface Manager {
   tabs: Map<string, Tab>
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   setTabMuted(tabId: string, muted: boolean): unknown
+  setAllTabsMuted(muted: boolean): unknown
   rememberClosedTab(tab: Tab): void
   reopenClosedTabEntry(closedTabId: string | undefined, active: boolean): Promise<Tab>
   duplicateTabAfterLabelSave(tabId: string): Promise<unknown>
@@ -145,14 +146,46 @@ describe('a muted tab brought back', () => {
 
     expect(sound(findByUrl(manager, tab.url))).toEqual(MUTED)
   })
+})
 
-  it('brings back an unmuted tab with sound, also while every tab is muted from the menu', async () => {
-    const { manager } = browser()
+describe('a tab muted only because every tab was muted', () => {
+  // Muting every tab from the menu mutes each page too, but not the tab's own mute: once every tab is unmuted again,
+  // the tab brought back must have sound.
+  async function quietTab(manager: Manager): Promise<Tab> {
     const tab = await manager.createTab({ url: 'https://docs.example/', mcpGroupId: WORKSPACE, active: false })
-    await manager.closeTabInternal(tab.id)
-    Object.assign(manager, { allTabsMuted: true })
+    manager.setAllTabsMuted(true)
+    expect(sound(tab)).toEqual({ muted: true, tabMuted: false, pageMuted: true })
+    return tab
+  }
+  const SOUND = { muted: false, tabMuted: false, pageMuted: false }
 
-    // Muting every tab mutes it too, but its own mute stays off, so it has sound again once all tabs are unmuted.
-    expect(sound(await manager.reopenClosedTabEntry(undefined, false))).toEqual({ muted: true, tabMuted: false, pageMuted: true })
+  it('comes back with sound after Reopen Closed Tab', async () => {
+    const { manager } = browser()
+    const tab = await quietTab(manager)
+    await manager.closeTabInternal(tab.id)
+    manager.setAllTabsMuted(false)
+
+    expect(sound(await manager.reopenClosedTabEntry(undefined, false))).toEqual(SOUND)
+  })
+
+  it('has a duplicate with sound', async () => {
+    const { manager } = browser()
+    const tab = await quietTab(manager)
+    await manager.duplicateTabAfterLabelSave(tab.id)
+    manager.setAllTabsMuted(false)
+
+    expect(sound([...manager.tabs.values()].find((candidate) => candidate.id !== tab.id))).toEqual(SOUND)
+  })
+
+  it('comes back with sound when its workspace is archived and restored', async () => {
+    const { manager, registry } = browser()
+    const tab = await quietTab(manager)
+    await registry.archive(WORKSPACE)
+    expect(registry.archived.get(WORKSPACE)?.tabs[0]).not.toHaveProperty('muted')
+    manager.setAllTabsMuted(false)
+
+    await registry.restore(WORKSPACE)
+
+    expect(sound(findByUrl(manager, tab.url))).toEqual(SOUND)
   })
 })
