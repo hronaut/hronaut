@@ -144,10 +144,38 @@ describe('browser import picker', () => {
       expect(browserImport.preview).toHaveBeenCalledTimes(1)
       expect(wrapper.find('[role="alert"]').text()).toBe('This preview expired or its workspace changed. Choose the profile again.')
       expect(wrapper.findAll('option').map(option => option.text())).toEqual(['Firefox · Default'])
+      // Nothing is chosen for the person, so a quick second Continue cannot read another profile.
+      expect(button('Continue').attributes('disabled')).toBeDefined()
+      await wrapper.get('#browser-import-profile').setValue('other')
       await button('Continue').trigger('click'); await flushPromises()
       expect(browserImport.preview).toHaveBeenLastCalledWith('chosen', 'other')
       expect(wrapper.text()).toContain('Choose sites')
     } finally { wrapper.unmount() }
   })
 
+
+  it('asks to choose again when profiles in different folders read the same', async () => {
+    const twin = { browser: 'Firefox', name: 'Work · abcd.default' }
+    const { wrapper, browserImport, button } = setup(state, [{ id: 'old-first', ...twin }, { id: 'old-second', ...twin }])
+    try {
+      await flushPromises()
+      await wrapper.get('#browser-import-profile').setValue('old-second')
+      browserImport.preview.mockResolvedValueOnce({ ok: false, error: 'expired' } as never)
+      browserImport.list.mockResolvedValueOnce({ ok: true, value: [{ id: 'new-first', ...twin }, { id: 'new-second', ...twin }] })
+      await button('Continue').trigger('click'); await flushPromises()
+      expect(browserImport.preview).toHaveBeenCalledTimes(1)
+      expect(wrapper.find('[role="alert"]').text()).toBe('This preview expired or its workspace changed. Choose the profile again.')
+    } finally { wrapper.unmount() }
+  })
+  it.each(['Cancel', 'closing the panel'] as const)('does not list the profiles again for a preview that expired after %s', async (ending) => {
+    const { wrapper, browserImport, button } = setup()
+    let finish!: (value: Awaited<ReturnType<typeof browserImport.preview>>) => void
+    browserImport.preview.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    await flushPromises(); await button('Continue').trigger('click'); await flushPromises()
+    if (ending === 'Cancel') await button('Cancel').trigger('click')
+    else wrapper.unmount()
+    finish({ ok: false, error: 'expired' } as never); await flushPromises()
+    expect(browserImport.list).toHaveBeenCalledTimes(1)
+    if (ending === 'Cancel') wrapper.unmount()
+  })
 })
