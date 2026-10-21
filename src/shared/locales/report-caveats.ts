@@ -24,7 +24,7 @@ export const reportCaveatMessages = {
       currentTruncated: "The current audit was truncated, so resolved findings cannot be determined safely."
     },
     indexedDb: {
-      origin: "Covers this top-level origin only; databases in third-party frames are not included.",
+      origin: "Only this top-level origin is covered; databases in third-party frames are not included.",
       snapshot: "Databases and records are a point-in-time snapshot. Refresh after the website changes IndexedDB.",
       names: "Database, object store, index and key names are written by the website and can themselves contain private data.",
       longNames: "Databases and object stores with names longer than 512 characters are left out.",
@@ -41,20 +41,20 @@ export const reportCaveatMessages = {
       longAnimationFrames: "Die Zuordnung langer Animationsframes nennt die Einstiegspunkte von Skripten, nicht unbedingt die langsamste interne Funktion.",
       crossOrigin: "Frames anderer Ursprünge, Worker, Service Worker und Code in isolierten Welten können Arbeit verursachen, die keinem Skript zugeordnet wird.",
       userTimings: "Namen benutzerdefinierter Zeitmessungen stammen von der Seite und werden bereinigt; beliebige Detailobjekte, Stacktraces und Quellcode werden weggelassen.",
-      layoutShifts: "Layout-Verschiebungen kurz nach einer Eingabe werden nicht berücksichtigt. Die Summe ihrer Werte dient der Diagnose und kann von der CLS-Bewertung nach Sitzungsfenstern abweichen.",
+      layoutShifts: "Layoutverschiebungen kurz nach einer Eingabe werden nicht berücksichtigt. Die Summe ihrer Werte dient der Diagnose und kann von der CLS-Bewertung nach Sitzungsfenstern abweichen.",
       baselineUrl: "Die Adresse des Ausgangswerts unterscheidet sich von dieser Messung; vergleichen Sie nur, wenn die Navigation beabsichtigt war.",
-      environment: "Die Browserumgebung unterscheidet sich vom Ausgangswert; Änderungen an Viewport, Drosselung, Cache, Headern oder Sprache können die Differenz beeinflussen.",
+      environment: "Die Browserumgebung unterscheidet sich vom Ausgangswert; Änderungen an Ansichtsbereich, Drosselung, Cache, Headern oder Sprache können die Differenz beeinflussen.",
       deltas: "Vorher-nachher-Differenzen vergleichen zwei lokale Stichproben und können normale Schwankungen zwischen Läufen enthalten; wiederholen Sie wichtige Messungen unter gleichen Bedingungen."
     },
     accessibilityComparison: {
-      urlChanged: "Die Seitenadresse hat sich seit dem Ausgangswert geändert.",
-      scopeChanged: "Standard, Selektor oder Erfassungsgrenzen der Prüfung haben sich geändert; legen Sie für diesen Umfang einen neuen Ausgangswert fest.",
-      engineChanged: "Die Prüf-Engine hat sich geändert; legen Sie vor dem Vergleich einen neuen Ausgangswert fest.",
-      baselineTruncated: "Der Ausgangswert wurde gekürzt, daher lassen sich neue Befunde nicht sicher bestimmen.",
+      urlChanged: "Die Seitenadresse hat sich seit der Baseline geändert.",
+      scopeChanged: "Standard, Selektor oder Erfassungsgrenzen der Prüfung haben sich geändert; legen Sie für diesen Umfang eine neue Baseline fest.",
+      engineChanged: "Die Prüf-Engine hat sich geändert; legen Sie vor dem Vergleich eine neue Baseline fest.",
+      baselineTruncated: "Die Baseline wurde gekürzt, daher lassen sich neue Befunde nicht sicher bestimmen.",
       currentTruncated: "Die aktuelle Prüfung wurde gekürzt, daher lassen sich behobene Befunde nicht sicher bestimmen."
     },
     indexedDb: {
-      origin: "Umfasst nur diesen Top-Level-Ursprung; Datenbanken in Frames von Drittanbietern sind nicht enthalten.",
+      origin: "Nur dieser Top-Level-Ursprung wird erfasst; Datenbanken in Frames von Drittanbietern sind nicht enthalten.",
       snapshot: "Datenbanken und Datensätze sind eine Momentaufnahme. Aktualisieren Sie, nachdem die Website IndexedDB geändert hat.",
       names: "Namen von Datenbanken, Objektspeichern, Indizes und Schlüsseln stammen von der Website und können selbst private Daten enthalten.",
       longNames: "Datenbanken und Objektspeicher mit Namen über 512 Zeichen werden ausgelassen.",
@@ -69,11 +69,11 @@ export const reportCaveatMessages = {
       localSample: "Il s’agit d’un seul échantillon local de la visite en cours, et non de données terrain ni d’un résultat CrUX au 75e centile.",
       inpUnavailable: "L’INP reste indisponible tant que la page n’a pas reçu d’interaction prise en compte ; certaines métriques sont indisponibles pour les visites en arrière-plan ou très courtes.",
       longAnimationFrames: "L’attribution des longues images d’animation désigne les points d’entrée des scripts, pas forcément la fonction interne la plus lente.",
-      crossOrigin: "Les frames d’autres origines, les workers, les service workers et le code des mondes isolés peuvent effectuer du travail sans être attribués à un script.",
+      crossOrigin: "Les cadres d’autres origines, les workers, les service workers et le code des mondes isolés peuvent effectuer du travail sans être attribués à un script.",
       userTimings: "Les noms de chronométrage utilisateur sont définis par la page et nettoyés ; les objets de détail arbitraires, les piles d’appels et le code source sont omis.",
       layoutShifts: "Les décalages de mise en page survenus juste après une saisie sont exclus. La somme de leurs scores sert au diagnostic et peut différer du CLS calculé par fenêtres de session.",
       baselineUrl: "L’adresse de la référence diffère de cette mesure ; ne comparez que si le changement de navigation était voulu.",
-      environment: "L’environnement du navigateur diffère de la référence ; un changement de fenêtre d’affichage, de limitation, de cache, d’en-têtes ou de langue peut influer sur l’écart.",
+      environment: "L’environnement du navigateur diffère de la référence ; un changement de zone d’affichage, de ralentissement, de cache, d’en-têtes ou de langue peut influer sur l’écart.",
       deltas: "Les écarts avant et après comparent deux échantillons locaux et peuvent inclure la variation normale d’une exécution à l’autre ; répétez les mesures importantes dans les mêmes conditions."
     },
     accessibilityComparison: {
@@ -84,7 +84,7 @@ export const reportCaveatMessages = {
       currentTruncated: "L’audit actuel a été tronqué : les constats résolus ne peuvent pas être déterminés de façon fiable."
     },
     indexedDb: {
-      origin: "Porte uniquement sur cette origine de premier niveau ; les bases de données des frames tiers ne sont pas incluses.",
+      origin: "Seule cette origine de premier niveau est couverte ; les bases de données des cadres tiers ne sont pas incluses.",
       snapshot: "Les bases de données et les enregistrements sont un instantané. Actualisez après une modification d’IndexedDB par le site.",
       names: "Les noms des bases de données, magasins d’objets, index et clés sont définis par le site et peuvent eux-mêmes contenir des données privées.",
       longNames: "Les bases de données et magasins d’objets dont le nom dépasse 512 caractères sont omis.",
@@ -101,9 +101,9 @@ export const reportCaveatMessages = {
       longAnimationFrames: "La atribución de fotogramas de animación largos señala los puntos de entrada de los scripts, no necesariamente la función interna más lenta.",
       crossOrigin: "Los marcos de otros orígenes, los workers, los service workers y el código de mundos aislados pueden generar trabajo sin atribución a un script.",
       userTimings: "Los nombres de los tiempos de usuario los define la página y se depuran; se omiten los objetos de detalle arbitrarios, las pilas de llamadas y el código fuente.",
-      layoutShifts: "Se excluyen los cambios de diseño ocurridos justo después de una entrada. La suma de sus puntuaciones es orientativa y puede diferir del CLS calculado por ventanas de sesión.",
+      layoutShifts: "Se excluyen los desplazamientos de diseño ocurridos justo después de una entrada. La suma de sus puntuaciones es orientativa y puede diferir del CLS calculado por ventanas de sesión.",
       baselineUrl: "La dirección de la referencia difiere de esta medición; compara solo si el cambio de navegación fue intencionado.",
-      environment: "El entorno del navegador difiere de la referencia; los cambios de ventana gráfica, limitación, caché, encabezados o idioma pueden afectar a la diferencia.",
+      environment: "El entorno del navegador difiere de la referencia; los cambios de área visible, ralentización, caché, encabezados o idioma pueden afectar a la diferencia.",
       deltas: "Las diferencias de antes y después comparan dos muestras locales y pueden incluir la variación normal entre ejecuciones; repite las mediciones importantes en las mismas condiciones."
     },
     accessibilityComparison: {
@@ -114,7 +114,7 @@ export const reportCaveatMessages = {
       currentTruncated: "La auditoría actual se truncó, así que los hallazgos resueltos no se pueden determinar con seguridad."
     },
     indexedDb: {
-      origin: "Abarca solo este origen de nivel superior; no incluye las bases de datos de marcos de terceros.",
+      origin: "Solo se incluye este origen de nivel superior; no se incluyen las bases de datos de marcos de terceros.",
       snapshot: "Las bases de datos y los registros son una instantánea. Actualiza después de que el sitio cambie IndexedDB.",
       names: "Los nombres de bases de datos, almacenes de objetos, índices y claves los define el sitio y pueden contener datos privados.",
       longNames: "Se omiten las bases de datos y los almacenes de objetos con nombres de más de 512 caracteres.",
@@ -133,18 +133,18 @@ export const reportCaveatMessages = {
       userTimings: "Nazwy czasów użytkownika pochodzą ze strony i są oczyszczane; dowolne obiekty szczegółów, stosy wywołań i kod źródłowy są pomijane.",
       layoutShifts: "Przesunięcia układu tuż po wprowadzeniu danych są pomijane. Suma ich wyników służy diagnozie i może różnić się od CLS liczonego w oknach sesji.",
       baselineUrl: "Adres stanu bazowego różni się od tego pomiaru; porównuj tylko wtedy, gdy zmiana nawigacji była zamierzona.",
-      environment: "Środowisko przeglądarki różni się od stanu bazowego; zmiany widoku, ograniczania, pamięci podręcznej, nagłówków lub języka mogą wpłynąć na różnicę.",
+      environment: "Środowisko przeglądarki różni się od stanu bazowego; zmiany obszaru wyświetlania, ograniczania, pamięci podręcznej, nagłówków lub języka mogą wpłynąć na różnicę.",
       deltas: "Różnice przed i po porównują dwie lokalne próbki i mogą obejmować zwykłe wahania między przebiegami; powtarzaj ważne pomiary w tych samych warunkach."
     },
     accessibilityComparison: {
       urlChanged: "Adres strony zmienił się od ustawienia punktu odniesienia dostępności.",
-      scopeChanged: "Zmienił się standard, selektor lub limity zbierania audytu; ustaw nowy stan bazowy dla tego zakresu.",
-      engineChanged: "Zmienił się silnik audytu; ustaw nowy stan bazowy przed porównaniem problemów.",
-      baselineTruncated: "Stan bazowy został obcięty, więc nie da się bezpiecznie ustalić nowych problemów.",
+      scopeChanged: "Zmienił się standard, selektor lub limity zbierania audytu; ustaw nowy punkt odniesienia dla tego zakresu.",
+      engineChanged: "Zmienił się silnik audytu; ustaw nowy punkt odniesienia przed porównaniem problemów.",
+      baselineTruncated: "Punkt odniesienia został obcięty, więc nie da się bezpiecznie ustalić nowych problemów.",
       currentTruncated: "Bieżący audyt został obcięty, więc nie da się bezpiecznie ustalić rozwiązanych problemów."
     },
     indexedDb: {
-      origin: "Obejmuje tylko to źródło najwyższego poziomu; bazy danych ramek innych firm nie są uwzględniane.",
+      origin: "Uwzględniane jest tylko to źródło najwyższego poziomu; bazy danych ramek innych firm są pomijane.",
       snapshot: "Bazy danych i rekordy to migawka z danej chwili. Odśwież po zmianie IndexedDB przez witrynę.",
       names: "Nazwy baz danych, magazynów obiektów, indeksów i kluczy pochodzą z witryny i same mogą zawierać prywatne dane.",
       longNames: "Bazy danych i magazyny obiektów o nazwach dłuższych niż 512 znaków są pomijane.",
@@ -155,16 +155,16 @@ export const reportCaveatMessages = {
   },
   "ru-RU": {
     performance: {
-      lcpPhases: "Фазы LCP — это замеры времени браузером, а не доказательство причины. Отсутствующие или ограниченные данные отмечаются явно; фазы после восстановления страницы и при мягкой навигации не распределяются.",
-      localSample: "Это один локальный замер текущего посещения, а не полевые данные и не результат CrUX по 75-му процентилю.",
+      lcpPhases: "Фазы LCP — это измерения времени браузером, а не доказательство причины. Отсутствующие или ограниченные данные отмечаются явно; фазы после восстановления страницы и при мягкой навигации не определяются.",
+      localSample: "Это одна локальная выборка текущего посещения, а не полевые данные и не результат CrUX по 75-му процентилю.",
       inpUnavailable: "INP недоступен, пока страница не получит подходящее взаимодействие; некоторые метрики недоступны для фоновых или очень коротких посещений.",
       longAnimationFrames: "Атрибуция долгих кадров анимации указывает точки входа скриптов, а не обязательно самую медленную внутреннюю функцию.",
       crossOrigin: "Фреймы других источников, воркеры, service worker и код изолированных миров могут выполнять работу без привязки к скрипту.",
       userTimings: "Названия пользовательских меток времени задаёт страница, и они очищаются; произвольные объекты деталей, стеки вызовов и исходный код опускаются.",
       layoutShifts: "Сдвиги макета сразу после ввода не учитываются. Сумма их оценок служит для диагностики и может отличаться от CLS, рассчитанного по окнам сеанса.",
-      baselineUrl: "Адрес базового замера отличается от этого замера; сравнивайте, только если переход был намеренным.",
-      environment: "Среда браузера отличается от базового замера; изменения области просмотра, замедления, кеша, заголовков или языка могут повлиять на разницу.",
-      deltas: "Разница «до и после» сравнивает два локальных замера и может включать обычный разброс между запусками; повторяйте важные замеры в одинаковых условиях."
+      baselineUrl: "Адрес базового уровня отличается от этого измерения; сравнивайте, только если переход был намеренным.",
+      environment: "Среда браузера отличается от базового уровня; изменения области просмотра, замедления, кеша, заголовков или языка могут повлиять на разницу.",
+      deltas: "Разница «до и после» сравнивает две локальные выборки и может включать обычный разброс между запусками; повторяйте важные измерения в одинаковых условиях."
     },
     accessibilityComparison: {
       urlChanged: "Адрес страницы изменился после базового аудита доступности.",
@@ -174,7 +174,7 @@ export const reportCaveatMessages = {
       currentTruncated: "Текущий аудит был сокращён, поэтому решённые проблемы нельзя определить надёжно."
     },
     indexedDb: {
-      origin: "Охватывает только этот источник верхнего уровня; базы данных сторонних фреймов не включаются.",
+      origin: "Учитывается только этот источник верхнего уровня; базы данных сторонних фреймов не включаются.",
       snapshot: "Базы данных и записи — это снимок на определённый момент. Обновите после того, как сайт изменит IndexedDB.",
       names: "Имена баз данных, хранилищ объектов, индексов и ключей задаёт сайт, и они сами могут содержать личные данные.",
       longNames: "Базы данных и хранилища объектов с именами длиннее 512 символов не показываются.",
@@ -185,16 +185,16 @@ export const reportCaveatMessages = {
   },
   "uk-UA": {
     performance: {
-      lcpPhases: "Фази LCP — це вимірювання часу браузером, а не доказ причини. Відсутні або обмежені дані позначаються явно; фази після відновлення сторінки та під час м’якої навігації не розподіляються.",
-      localSample: "Це один локальний замір поточного відвідування, а не польові дані й не результат CrUX за 75-м процентилем.",
+      lcpPhases: "Фази LCP — це вимірювання часу браузером, а не доказ причини. Відсутні або обмежені дані позначаються явно; фази після відновлення сторінки та під час м’якої навігації не визначаються.",
+      localSample: "Це один локальний зразок поточного відвідування, а не польові дані й не результат CrUX за 75-м процентилем.",
       inpUnavailable: "INP недоступний, доки сторінка не отримає відповідну взаємодію; деякі метрики недоступні для фонових або дуже коротких відвідувань.",
       longAnimationFrames: "Атрибуція довгих кадрів анімації вказує точки входу скриптів, а не обов’язково найповільнішу внутрішню функцію.",
       crossOrigin: "Фрейми інших джерел, воркери, service worker і код ізольованих світів можуть виконувати роботу без прив’язки до скрипту.",
       userTimings: "Назви користувацьких позначок часу задає сторінка, і вони очищаються; довільні об’єкти деталей, стеки викликів і вихідний код пропускаються.",
-      layoutShifts: "Зсуви макета одразу після введення не враховуються. Сума їхніх оцінок слугує для діагностики й може відрізнятися від CLS, обчисленого за вікнами сеансу.",
-      baselineUrl: "Адреса базового заміру відрізняється від цього заміру; порівнюйте, лише якщо перехід був навмисним.",
-      environment: "Середовище браузера відрізняється від базового заміру; зміни області перегляду, сповільнення, кешу, заголовків або мови можуть вплинути на різницю.",
-      deltas: "Різниця «до і після» порівнює два локальні заміри й може містити звичайний розкид між запусками; повторюйте важливі заміри за однакових умов."
+      layoutShifts: "Зміщення компонування одразу після введення не враховуються. Сума їхніх оцінок слугує для діагностики й може відрізнятися від CLS, обчисленого за вікнами сеансу.",
+      baselineUrl: "Адреса базового вимірювання відрізняється від цього вимірювання; порівнюйте, лише якщо перехід був навмисним.",
+      environment: "Середовище браузера відрізняється від базового вимірювання; зміни області перегляду, сповільнення, кешу, заголовків або мови можуть вплинути на різницю.",
+      deltas: "Різниця «до і після» порівнює два локальні зразки й може містити звичайний розкид між запусками; повторюйте важливі вимірювання за однакових умов."
     },
     accessibilityComparison: {
       urlChanged: "Адреса сторінки змінилася після базового аудиту доступності.",
@@ -204,7 +204,7 @@ export const reportCaveatMessages = {
       currentTruncated: "Поточний аудит було скорочено, тому розв’язані проблеми не можна визначити надійно."
     },
     indexedDb: {
-      origin: "Охоплює лише це джерело верхнього рівня; бази даних сторонніх фреймів не включено.",
+      origin: "Враховано лише це джерело верхнього рівня; бази даних сторонніх фреймів не включено.",
       snapshot: "Бази даних і записи — це знімок на певну мить. Оновіть після того, як вебсайт змінить IndexedDB.",
       names: "Назви баз даних, сховищ об’єктів, індексів і ключів задає вебсайт, і вони самі можуть містити приватні дані.",
       longNames: "Бази даних і сховища об’єктів із назвами, довшими за 512 символів, не показуються.",

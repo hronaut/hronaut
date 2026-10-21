@@ -180,8 +180,8 @@ describe('report caveats in the interface language', () => {
     const german = renderPanels('de-DE', { runAccessibilityAudit: vi.fn(async () => comparedAudit()) })
     await german.controller.runAccessibilityAudit()
     expect(caveats(screen.getByRole('dialog', { name: 'Barrierefreiheit' }), '.accessibility-comparison-caveats li')).toEqual([
-      'Die Seitenadresse hat sich seit dem Ausgangswert geändert.',
-      'Der Ausgangswert wurde gekürzt, daher lassen sich neue Befunde nicht sicher bestimmen.',
+      'Die Seitenadresse hat sich seit der Baseline geändert.',
+      'Die Baseline wurde gekürzt, daher lassen sich neue Befunde nicht sicher bestimmen.',
       'A future caveat.'
     ])
     mounted?.unmount(); mounted?.dispose(); mounted = undefined
@@ -207,5 +207,39 @@ describe('report caveats in the interface language', () => {
     expect(reportCaveatMessages['en-US'].performance).toEqual({ ...PERFORMANCE_REPORT_CAVEATS, ...PERFORMANCE_COMPARISON_CAVEATS })
     expect(reportCaveatMessages['en-US'].accessibilityComparison).toEqual(ACCESSIBILITY_COMPARISON_CAVEATS)
     expect(Object.keys(reportCaveatMessages['en-US'].indexedDb)).toEqual(Object.keys(INDEXEDDB_CAVEATS))
+  })
+
+  it('keeps the English caveats MCP results return, word for word and in order', () => {
+    // Agents read these through browser_performance, browser_accessibility_audit and browser_indexeddb.
+    expect(Object.values(PERFORMANCE_REPORT_CAVEATS)).toEqual([
+      'LCP phases are browser-timing observations, not causal proof. Missing or restricted evidence is explicit; restoration and soft-navigation phase attribution are unsupported.',
+      'This is one local current-visit sample, not field data or a 75th-percentile CrUX result.',
+      'INP is unavailable until the page receives a qualifying interaction; some metrics are unavailable for background or short-lived visits.',
+      'Long animation frame attribution identifies script entry points rather than necessarily the slowest internal function.',
+      'Cross-origin frames, workers, service workers, and isolated-world code may contribute work without script attribution.',
+      'User Timing names are page-authored and sanitized; arbitrary detail objects, stack traces, and source code are omitted.',
+      'Layout-shift evidence excludes entries with recent discrete input. Its score sum is diagnostic and may differ from CLS session-window scoring.'
+    ])
+    expect(Object.values(PERFORMANCE_COMPARISON_CAVEATS)).toEqual([
+      'The baseline URL differs from this measurement; compare only if the navigation change was intentional.',
+      'The browser environment differs from the baseline; viewport, throttling, cache, headers, or locale changes can affect the delta.',
+      'Before-and-after deltas compare two local samples and may include normal run-to-run variation; repeat important measurements under matching conditions.'
+    ])
+    expect(Object.values(ACCESSIBILITY_COMPARISON_CAVEATS)).toEqual([
+      'The page URL changed after the accessibility baseline.',
+      'The accessibility standard, selector, or collection limits changed; set a new baseline for this scope.',
+      'The accessibility engine changed; set a new baseline before comparing findings.',
+      'The baseline was truncated, so new findings cannot be determined safely.',
+      'The current audit was truncated, so resolved findings cannot be determined safely.'
+    ])
+    expect(Object.values(INDEXEDDB_CAVEATS)).toEqual([
+      'The report covers this top-level origin only; third-party frame databases are not included.',
+      'Database and record lists are point-in-time snapshots. Refresh after the website changes IndexedDB.',
+      'Database, object-store, index, and key names are website-authored and can themselves contain private data.',
+      'Database or object-store names longer than 512 characters are omitted from this bounded inspector.',
+      'Bounded record previews are included and may contain private application data.',
+      'Record values are omitted. Request includeValues only when their bounded previews are necessary and safe to return.',
+      'The inspector is read-only. Use browser_site_data only when the task explicitly requires clearing origin storage.'
+    ])
   })
 })
