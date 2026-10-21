@@ -90,7 +90,11 @@ test('offers Undo after closing tabs, closing a workspace and removing a bookmar
   await expect.poll(() => workspaceTabUrls(appWindow, workspace.id)).toEqual(urls)
   await expect.poll(async () => (await state(appWindow)).tabs.find((tab) => tab.active)?.url).toBe(middle.url)
 
-  // Closing the workspace from its editor asks nothing, and Undo brings it back with its tabs.
+  // Closing the workspace from its editor asks nothing, and Undo brings it back as it was: with its tabs, in its place
+  // before a workspace opened after it, and on the tab it showed, not its last one.
+  const opened = await appWindow.evaluate(() => (window as unknown as { hronaut: UndoApi }).hronaut.createWorkspace({ name: 'Undo later', storage: 'scratch' }))
+  const order = opened.mcpTabGroups.map((group) => group.id)
+  expect(order.indexOf(workspace.id)).toBeLessThan(order.indexOf(opened.mcpTabGroups.find((group) => group.name === 'Undo later')!.id))
   await appWindow.evaluate((id) => (window as unknown as { hronaut: UndoApi }).hronaut.closeWorkspace(id, { undoable: true }), workspace.id)
   const closed = appWindow.getByRole('status', { name: 'Workspace closed' })
   await expect(closed).toContainText('Undo alpha')
@@ -100,6 +104,8 @@ test('offers Undo after closing tabs, closing a workspace and removing a bookmar
   await expect.poll(async () => (await state(appWindow)).mcpTabGroups.some((group) => group.id === workspace.id)).toBe(true)
   await expect.poll(async () => (await workspaceTabUrls(appWindow, workspace.id)).filter((url) => url.startsWith('data:')).length).toBe(3)
   expect((await state(appWindow)).savedTabGroups.some((group) => group.id === workspace.id)).toBe(false)
+  expect((await state(appWindow)).mcpTabGroups.map((group) => group.id)).toEqual(order)
+  await expect.poll(async () => (await state(appWindow)).tabs.find((tab) => tab.active)?.url).toBe(middle.url)
 
   // Dismissed, the toast lets the close finish: the workspace is deleted, not left archived.
   await appWindow.evaluate((id) => (window as unknown as { hronaut: UndoApi }).hronaut.closeWorkspace(id, { undoable: true }), workspace.id)
