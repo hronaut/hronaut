@@ -58,6 +58,8 @@ function tab(id: string, url: string, options: { sleeping?: boolean } = {}): Fak
 function access(tabs: FakeTab[], policy: BrowserWorkspaceNavigationPolicy = UNRESTRICTED) {
   const open = new Map(tabs.map((candidate) => [candidate.id, candidate]))
   const workspace: WorkspaceNavigationWorkspace = { contextClass: 'standard', lastUsedAt: '', navigationPolicy: policy, navigationAudit: [] }
+  // The workspace's recently closed tabs, by address.
+  const closedTabs: string[] = []
   const wakeTab = vi.fn(async (id: string) => {
     const woken = open.get(id)!
     woken.sleeping = false
@@ -74,6 +76,9 @@ function access(tabs: FakeTab[], policy: BrowserWorkspaceNavigationPolicy = UNRE
     options: () => ({}),
     prepareDiagnosticNavigation: () => undefined,
     wakeTab,
+    forgetWorkspaceClosedTabs: (id, matches) => {
+      if (id === 'workspace') closedTabs.splice(0, closedTabs.length, ...closedTabs.filter((url) => !matches(url)))
+    },
     changed: () => undefined,
     getState: () => ({}) as BrowserState
   }
@@ -81,7 +86,7 @@ function access(tabs: FakeTab[], policy: BrowserWorkspaceNavigationPolicy = UNRE
     open.delete(closed.id)
     closed.page.destroyed = true
   }
-  return { port, workspace, wakeTab, close }
+  return { port, workspace, wakeTab, close, closedTabs }
 }
 
 describe('restricting a workspace', () => {
@@ -127,6 +132,16 @@ describe('restricting a workspace', () => {
     expect(toBlocked.page.loadURL.mock.calls.map(([url]) => url)).toEqual(['about:blank'])
     expect(toBlocked).toMatchObject({ title: 'New tab', faviconDataUrl: undefined })
     expect(workspace.navigationAudit).toEqual([expect.objectContaining({ targetOrigin: BLOCKED, source: 'policy-change' })])
+  })
+
+  it('forgets the closed tabs on denied pages, which Reopen Closed Tab could never open', async () => {
+    // The newest closed tab failed to reopen every time, and Reopen Closed Tab never reached the older ones.
+    const { port, closedTabs } = access([])
+    closedTabs.push(`${ALLOWED}/older`, `${BLOCKED}/newest`)
+
+    await updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)
+
+    expect(closedTabs).toEqual([`${ALLOWED}/older`])
   })
 
   it('blanks a denied page and clears its title and icon', async () => {

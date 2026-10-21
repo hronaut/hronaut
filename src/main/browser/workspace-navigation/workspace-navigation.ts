@@ -54,7 +54,8 @@ export function listWorkspaceNavigationAudit<Tab extends WorkspaceNavigationTab>
  * inspection permission. Each of the workspace's tabs is then checked against
  * the new policy: the decision is reported, and a denied page is recorded and
  * replaced with a blank page (see applyPolicyToTab). A tab that fails is
- * reported after the others are checked.
+ * reported after the others are checked. The workspace's recently closed tabs
+ * on a page the policy denies are forgotten, since they could not reopen.
  */
 export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavigationTab>(
   access: WorkspaceNavigationAccess<Tab>,
@@ -83,6 +84,9 @@ export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavig
       if (access.findTab(tab.id) === tab) failures.push(error)
     }
   }
+  // Reopen Closed Tab takes the newest closed tab, so one the policy now denies would fail every time and hide the
+  // older ones; as with a denied page that is open, the denied page does not come back.
+  access.forgetWorkspaceClosedTabs(groupId, (url) => !workspaceNavigationDecision(access, groupId, url).allowed)
   access.changed()
   if (failures.length) throw failures[0]
   return access.getState()

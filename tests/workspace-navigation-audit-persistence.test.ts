@@ -31,6 +31,7 @@ function recordingAccess(workspace: WorkspaceNavigationWorkspace): WorkspaceNavi
     options: () => ({}),
     prepareDiagnosticNavigation: () => undefined,
     wakeTab: async () => undefined,
+    forgetWorkspaceClosedTabs: () => undefined,
     changed: () => undefined,
     getState: () => ({}) as BrowserState
   }

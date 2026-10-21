@@ -540,7 +540,7 @@ import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
 import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import type { TabReopeningAccess } from './tab-reopening/tab-reopening-access.js'
-import { duplicateTabAfterLabelSave, forgetClosedTabs, rememberClosedTab, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
+import { duplicateTabAfterLabelSave, forgetClosedTabs, forgetWorkspaceClosedTabs, rememberClosedTab, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
 import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
 import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import type { BrowserWalletPageContext, WalletPagesAccess } from './wallet-pages/wallet-pages-access.js'
@@ -1812,6 +1812,7 @@ export class BrowserTabsManager {
       options: () => this.options,
       prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
       wakeTab: (tabId) => this.wakeTab(tabId),
+      forgetWorkspaceClosedTabs: (workspaceId, matches) => { forgetWorkspaceClosedTabs(this.tabReopeningAccess(), workspaceId, matches) },
       changed: (persist) => this.changed(persist),
       getState: () => this.getState()
     }

@@ -44,6 +44,8 @@ export interface WorkspaceNavigationAccess<Tab extends WorkspaceNavigationTab> {
   options(): WorkspaceNavigationOptions
   prepareDiagnosticNavigation(tab: Tab): void
   wakeTab(tabId: string): Promise<unknown>
+  /** Forgets the workspace's recently closed tabs whose address matches. */
+  forgetWorkspaceClosedTabs(workspaceId: string, matches: (url: string) => boolean): void
   changed(persist?: boolean): void
   getState(): BrowserState
 }
