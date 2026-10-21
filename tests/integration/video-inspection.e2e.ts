@@ -7,6 +7,11 @@ import type { HronautApi, HronautMcpApi, HronautSettingsApi } from '../../src/sh
 import type { BrowserVideoState } from '../../src/shared/video.js'
 import type { VideoInspectionReport } from '../../src/shared/video-inspection.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { waitForSettledPageBounds } from './settled-page-bounds.js'
+
+// A recording keeps its first size, and the toolbar can still be growing just after the fixture selects its tab.
+test.beforeEach(async ({ capabilities, electronApp }) => { await waitForSettledPageBounds(electronApp, capabilities.fixtureUrl) })
+
 type TestWindow = Window & { hronaut: HronautApi; hronautMcp: HronautMcpApi; hronautSettings: HronautSettingsApi }
 const request = (state: BrowserVideoState) => ({ action:'inspect',recordingId:state.recordingId,expectedRevision:state.timing!.revision,startMs:0,endMs:state.durationMs,maxFrames:12 })
 const video = (client: Client, tabId: string, action: string, extra: Record<string,unknown> = {}) => client.callTool({name:'browser_video',arguments:{tabId,action,...extra}}) as Promise<CallToolResult>

@@ -2,6 +2,10 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserVideoState } from '../../src/shared/video.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { waitForSettledPageBounds } from './settled-page-bounds.js'
+
+// A recording keeps its first size, and the toolbar can still be growing just after the fixture selects its tab.
+test.beforeEach(async ({ capabilities, electronApp }) => { await waitForSettledPageBounds(electronApp, capabilities.fixtureUrl) })
 
 type Gate = { held: boolean; finished: boolean; release(): void; restore(): void }
 type ProbeGlobal = typeof globalThis & { previewIdentityGate?: Gate }
