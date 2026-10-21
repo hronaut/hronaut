@@ -49,7 +49,7 @@ const save = (content: string): string => `(async () => {
   }
 })()`
 
-test('saves to the file a website\'s Save dialog emptied, and to no other file, as in Chrome', async ({ capabilities, electronApp, profileDirectory }) => {
+test('saves to a file just emptied, as a website\'s Save dialog leaves it, and to no other file, as in Chrome', async ({ capabilities, electronApp, profileDirectory }) => {
   const { client, tabId, fixtureUrl } = capabilities
   const onPage = <T>(script: string): Promise<T> => electronApp.evaluate(({ webContents }, { url, script }) => (
     webContents.getAllWebContents().find((contents) => contents.getURL() === url)!.executeJavaScript(script, true)
@@ -98,6 +98,8 @@ test('saves to a file the person opened or dropped only while their switch is on
   await mkdir(folder, { recursive: true })
   const notes = join(folder, 'notes.txt')
   await writeFile(notes, 'First draft', 'utf8')
+  const sibling = join(folder, 'sibling.txt')
+  await writeFile(sibling, 'Sibling', 'utf8')
   await recordPrompts(electronApp)
   await onPage(DROP_ZONE)
   const dropped = await client.callTool({ name: 'browser_file_drop', arguments: { tabId, selector: '#zone', paths: [notes] } }) as CallToolResult
@@ -111,6 +113,13 @@ test('saves to a file the person opened or dropped only while their switch is on
     await appWindow.evaluate('window.hronautSettings.setAllowWebsiteFileSaving(false)')
     expect(await onPage(save('Third draft'))).toBe('NotAllowedError')
     expect(await readFile(notes, 'utf8')).toBe('Second draft')
+    // What the switch warns about: Electron checks a rename that replaces another file in the folder as a write to it.
+    const rename = `(async () => (await window.dropped).move('sibling.txt').then(() => 'moved', (error) => error.name))()`
+    expect(await onPage(rename)).toBe('NotAllowedError')
+    expect(await readFile(sibling, 'utf8')).toBe('Sibling')
+    await appWindow.evaluate('window.hronautSettings.setAllowWebsiteFileSaving(true)')
+    expect(await onPage(rename)).toBe('moved')
+    expect(await readFile(sibling, 'utf8')).toBe('Second draft')
     expect(await prompts(electronApp)).toEqual([])
   } finally {
     await appWindow.evaluate('window.hronautSettings.setAllowWebsiteFileSaving(false)')

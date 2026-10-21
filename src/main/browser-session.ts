@@ -272,6 +272,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
     if (access === 'readable' || pages.some((page) => page.allowed.has(permissionHold(page, origin, permission, scope)))) return true
     // A single file: the person's switch lets websites write every one they hold, which Electron cannot tell apart from
     // a file a rename would replace. Without it, only the file the website's Save dialog just emptied, as in Chrome.
+    // Electron does not say that a check follows a Save dialog, so any empty file changed in the last minute counts, such
+    // as one a rename would replace, since replacing an empty file loses nothing.
     if (!('isDirectory' in details) || details.isDirectory !== false || typeof details.filePath !== 'string') return false
     if (host.websitesMaySaveFiles()) return true
     const saved = saveDialogFiles.get(browserSession) ?? new Set<string>()

@@ -51,6 +51,7 @@ function createHarness(responses: Array<number | 'reject'> = [], workspaceId: st
       return { response, checkboxChecked: false }
     },
     workspaces: () => [],
+    websitesMaySaveFiles: () => false,
     state: { persistentSession: null, sitePermissionStore: null },
     sendToShellWindows: () => undefined,
     partition: 'persist:test'
