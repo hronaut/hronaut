@@ -18,6 +18,10 @@ const MAX_CONSOLE_MESSAGE_CHARS = 4_000
 const MAX_CONSOLE_SOURCE_CHARS = 2_048
 const REDACTED = '[REDACTED]'
 const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi
+// A closing typographic quote at the end of an address, and the sentence punctuation after it, belong to the sentence,
+// as in Click link “https://example.test/”: kept in the address, the quote was percent-encoded into it. One inside an
+// address stays part of it, so what follows it is still redacted with the address.
+const URL_CLOSING_QUOTE = /[“”„«»‘’]+[.,:;!?)\]]*$/u
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g
 const SENSITIVE_ASSIGNMENT_PATTERN = /\b(api[-_ ]?key|authorization|auth[-_ ]?token|cookie|credential|csrf|password|passwd|passwrd|passcode|passphrase|pwd|secret|session|phpsessid|jsessionid|token)\b(\s*[:=]\s*)(?:Bearer\s+)?(\[REDACTED\]|%5BREDACTED%5D|[^\s,;)}\]]+)/gi
@@ -55,7 +59,11 @@ function recentEntries<T>(values: T[], limit: number): T[] {
 
 export function redactDiagnosticText(value: string): string {
   return value
-    .replace(URL_PATTERN, (url) => redactNetworkUrl(url))
+    .replace(URL_PATTERN, (match) => {
+      const closing = URL_CLOSING_QUOTE.exec(match)?.[0] ?? ''
+      const address = match.slice(0, match.length - closing.length)
+      return closing && URL.canParse(address) ? `${redactNetworkUrl(address)}${closing}` : redactNetworkUrl(match)
+    })
     .replace(BEARER_PATTERN, `Bearer ${REDACTED}`)
     .replace(JWT_PATTERN, REDACTED)
     .replace(SENSITIVE_ASSIGNMENT_PATTERN, (_match, name: string, separator: string) => `${name}${separator}${REDACTED}`)
