@@ -2,7 +2,8 @@ import { render } from '@testing-library/vue'
 import { describe, expect, it } from 'vitest'
 import NetworkRequestConditions from '../../src/renderer/src/components/NetworkRequestConditions.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import type { SupportedLocale } from '../../src/shared/locale.js'
+import { SUPPORTED_LOCALES, type SupportedLocale } from '../../src/shared/locale.js'
+import { networkAbortReasonMessages } from '../../src/shared/locales/network-abort-reasons.js'
 import { BROWSER_NETWORK_ABORT_REASONS, type BrowserNetworkRouteSummary } from '../../src/shared/types.js'
 
 function shown(locale: SupportedLocale, routes: BrowserNetworkRouteSummary[]) {
@@ -33,7 +34,7 @@ describe('request condition failure reasons', () => {
     const german = shown('de-DE', [route('a', 'TimedOut'), route('b', 'BlockedByClient')])
     expect(german.rows).toEqual(['Beliebige Methode · Fehlschlagen: Zeitüberschreitung · bis zum Entfernen', 'Beliebige Methode · Fehlschlagen: Vom Client blockiert · bis zum Entfernen'])
     expect(german.options.map(([value]) => value)).toEqual([...BROWSER_NETWORK_ABORT_REASONS])
-    expect(german.options).toContainEqual(['NameNotResolved', 'Name nicht aufgelöst'])
+    expect(german.options).toContainEqual(['NameNotResolved', 'Hostname nicht aufgelöst'])
     expect(german.selected).toBe('BlockedByClient')
 
     const english = shown('en-US', [route('a', 'ConnectionRefused')])
@@ -42,7 +43,9 @@ describe('request condition failure reasons', () => {
   })
 
   it('names every reason in every locale, and shows one it does not know as its code', () => {
-    for (const locale of ['en-US', 'de-DE', 'fr-FR', 'es-ES', 'pl-PL', 'ru-RU', 'uk-UA'] as const) {
+    for (const locale of SUPPORTED_LOCALES) {
+      // A code without a name here would show its message key path.
+      expect(Object.keys(networkAbortReasonMessages[locale]).sort()).toEqual([...BROWSER_NETWORK_ABORT_REASONS].sort())
       const labels = shown(locale, []).options.map(([, label]) => label)
       expect(new Set(labels).size).toBe(BROWSER_NETWORK_ABORT_REASONS.length)
       // A code is a label only where it is already a word, as English Aborted.
