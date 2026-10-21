@@ -4,10 +4,12 @@ import { readVideoAudioFile } from '../src/main/browser/video-audio-file.js'
 import { LocalizedError } from '../src/main/localized-error.js'
 import { localeMessages, translate } from '../src/shared/i18n.js'
 import { SUPPORTED_LOCALES } from '../src/shared/locale.js'
-import { VIDEO_EDIT_ERRORS, validateVideoEdit, videoAnnotationSchema } from '../src/shared/video.js'
+import { VIDEO_AUDIO_FILE_ERRORS, normalizeVideoAudioWav } from '../src/shared/video-audio.js'
+import { VIDEO_EDIT_ERRORS, VIDEO_SCHEMA_ERRORS, validateVideoEdit, videoAnnotationSchema } from '../src/shared/video.js'
 
 // The video recorder refused an action or an edit in English in every language, such as "Clear a retained recording
-// first (maximum three)" or "Annotations must fit inside the recording".
+// first (maximum three)" or "Annotations must fit inside the recording", and a WAV file it could not use, such as
+// "Unsupported WAV format".
 
 // The English that browser_video has always reported; MCP results and code comparing messages keep reading it.
 const ENGLISH = {
@@ -37,14 +39,36 @@ const ENGLISH = {
   returnToOrigin: 'Return to the recording origin to access this video, or discard it',
   tabUnavailable: 'Recording tab is unavailable',
   audioUnreadable: 'Audio file could not be read. Select a non-empty regular file no larger than 10 MiB.',
-  exportTimeout: 'Video export cancelled or timed out'
+  exportTimeout: 'Video export cancelled or timed out',
+  annotationEnd: 'Annotation end must follow its start',
+  annotationText: 'Text and callout annotations require text',
+  annotationPoint: 'This annotation requires x/y coordinates',
+  annotationEndPoint: 'Arrows, regions and callouts require an end point',
+  annotationRegion: 'Regions must have a non-zero width and height',
+  customPlacement: 'Custom placement requires x/y coordinates',
+  clipEnd: 'Clip end must follow its start',
+  audioEnd: 'Audio end must follow its start',
+  audioFades: 'Audio fades must fit inside the event',
+  cameraEnd: 'Camera end must follow its start',
+  invalidEdit: 'Check the values of this edit and try again',
+  audioFileSize: 'Audio must be a non-empty WAV file no larger than 10 MiB',
+  audioFileRiff: 'Audio must be a complete RIFF/WAVE file',
+  audioFileChunks: 'Malformed WAV chunks',
+  audioFileTruncated: 'Truncated WAV chunk',
+  audioFileFormat: 'Unsupported WAV format',
+  audioFileExtension: 'Unsupported WAV format extension',
+  audioFileData: 'WAV must have one non-empty audio data chunk',
+  audioFileMissing: 'WAV format or audio data is missing',
+  audioFileEncoding: 'Supported audio is PCM16 WAV, mono or stereo, at 8–48 kHz',
+  audioFileDuration: 'Audio must be no longer than two minutes'
 }
+const pick = (prefix: RegExp) => Object.fromEntries(Object.entries(ENGLISH).filter(([key]) => prefix.test(key)))
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
 
-function recorder() {
-  const host = { changed: vi.fn(), render: vi.fn(async () => new Uint8Array([1])), save: vi.fn(async () => ({ filename: 'video.webm', path: '/downloads/video.webm' })), now: () => Date.now() }
+function recorder(extra: { loadAudio?: () => Promise<Uint8Array> } = {}) {
+  const host = { ...extra, changed: vi.fn(), render: vi.fn(async () => new Uint8Array([1])), save: vi.fn(async () => ({ filename: 'video.webm', path: '/downloads/video.webm' })), now: () => Date.now() }
   const video = new BrowserVideoRecorder(host)
   const capture = vi.fn(async () => ({ data: new Uint8Array([4, 5, 6]), width: 640, height: 360 }))
   const manage = (tabId: string, options: Parameters<BrowserVideoRecorder['manage']>[1]) => video.manage(tabId, options, capture, vi.fn(), vi.fn())
@@ -88,8 +112,24 @@ it('refuses an unreadable audio file without naming its path', async () => {
   expect(error.message).not.toContain('secret-name')
 })
 
+it('refuses an audio file that is not a WAV with a key, while the shared reader keeps its plain English error', async () => {
+  const { video, manage } = recorder({ loadAudio: async () => new TextEncoder().encode('ID3'.padEnd(64, '\0')) })
+  await manage('tab', { action: 'start' })
+  await vi.advanceTimersByTimeAsync(1000)
+  await manage('tab', { action: 'stop' })
+  const error = await refusal(() => manage('tab', { action: 'import-audio', audioPath: '/music/secret-name.mp3', audioProvenance: 'Licensed' }))
+  expect(error.key).toBe('video.errors.audioFileRiff')
+  expect(error.message).toBe(ENGLISH.audioFileRiff)
+  expect(translate('de-DE', error.key)).toBe('Audio muss eine vollständige RIFF/WAVE-Datei sein')
+  expect(() => normalizeVideoAudioWav(new Uint8Array(8))).toThrow(new Error(ENGLISH.audioFileSize))
+  expect(() => normalizeVideoAudioWav(new Uint8Array(8))).not.toThrow(LocalizedError)
+  video.destroy()
+})
+
 it('keeps the English refusals and has every refusal in every language', () => {
   expect(localeMessages['en-US'].video.errors).toEqual(ENGLISH)
   expect(VIDEO_EDIT_ERRORS).toEqual({ annotationsOutside: ENGLISH.annotationsOutside, clipsInvalid: ENGLISH.clipsInvalid })
+  expect(VIDEO_SCHEMA_ERRORS).toEqual(pick(/^(annotation(End|Text|Point|EndPoint|Region)|customPlacement|clipEnd|audioEnd|audioFades|cameraEnd)$/))
+  expect(VIDEO_AUDIO_FILE_ERRORS).toEqual(pick(/^audioFile/))
   for (const locale of SUPPORTED_LOCALES) expect(Object.keys(localeMessages[locale].video.errors)).toEqual(Object.keys(ENGLISH))
 })

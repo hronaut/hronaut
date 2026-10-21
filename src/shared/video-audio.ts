@@ -40,39 +40,55 @@ function fourCc(view: DataView, offset: number): string {
   return String.fromCharCode(view.getUint8(offset), view.getUint8(offset + 1), view.getUint8(offset + 2), view.getUint8(offset + 3))
 }
 
+/** Why an audio file is refused; browser_video keeps this English, the recorder panel names it in the interface language. */
+export const VIDEO_AUDIO_FILE_ERRORS = {
+  audioFileSize: 'Audio must be a non-empty WAV file no larger than 10 MiB',
+  audioFileRiff: 'Audio must be a complete RIFF/WAVE file',
+  audioFileChunks: 'Malformed WAV chunks',
+  audioFileTruncated: 'Truncated WAV chunk',
+  audioFileFormat: 'Unsupported WAV format',
+  audioFileExtension: 'Unsupported WAV format extension',
+  audioFileData: 'WAV must have one non-empty audio data chunk',
+  audioFileMissing: 'WAV format or audio data is missing',
+  audioFileEncoding: 'Supported audio is PCM16 WAV, mono or stereo, at 8–48 kHz',
+  audioFileDuration: 'Audio must be no longer than two minutes'
+} as const
+export type VideoAudioFileIssue = keyof typeof VIDEO_AUDIO_FILE_ERRORS
+const plainAudioFileError = (issue: VideoAudioFileIssue): Error => new Error(VIDEO_AUDIO_FILE_ERRORS[issue])
+
 /** Strict, allocation-bounded PCM16 RIFF/WAVE reader. Does not invoke media decoders. */
-function inspectWav(bytes: Uint8Array): WavInfo {
+function inspectWav(bytes: Uint8Array, fail: (issue: VideoAudioFileIssue) => Error): WavInfo {
   if (!(bytes instanceof Uint8Array) || bytes.byteLength < 44 || bytes.byteLength > VIDEO_AUDIO_LIMITS.bytes) {
-    throw new Error('Audio must be a non-empty WAV file no larger than 10 MiB')
+    throw fail('audioFileSize')
   }
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   if (fourCc(view, 0) !== 'RIFF' || fourCc(view, 8) !== 'WAVE' || view.getUint32(4, true) !== bytes.byteLength - 8) {
-    throw new Error('Audio must be a complete RIFF/WAVE file')
+    throw fail('audioFileRiff')
   }
   let formatOffset = -1
   let dataOffset = -1
   let dataBytes = 0
   let chunkCount = 0
   for (let offset = 12; offset < bytes.byteLength;) {
-    if (++chunkCount > 128 || offset + 8 > bytes.byteLength) throw new Error('Malformed WAV chunks')
+    if (++chunkCount > 128 || offset + 8 > bytes.byteLength) throw fail('audioFileChunks')
     const kind = fourCc(view, offset)
     const length = view.getUint32(offset + 4, true)
     const start = offset + 8
     const end = start + length
     const paddedEnd = end + (length % 2)
-    if (paddedEnd > bytes.byteLength) throw new Error('Truncated WAV chunk')
+    if (paddedEnd > bytes.byteLength) throw fail('audioFileTruncated')
     if (kind === 'fmt ') {
-      if (formatOffset !== -1 || (length !== 16 && length !== 18)) throw new Error('Unsupported WAV format')
-      if (length === 18 && view.getUint16(start + 16, true) !== 0) throw new Error('Unsupported WAV format extension')
+      if (formatOffset !== -1 || (length !== 16 && length !== 18)) throw fail('audioFileFormat')
+      if (length === 18 && view.getUint16(start + 16, true) !== 0) throw fail('audioFileExtension')
       formatOffset = start
     } else if (kind === 'data') {
-      if (dataOffset !== -1 || length === 0) throw new Error('WAV must have one non-empty audio data chunk')
+      if (dataOffset !== -1 || length === 0) throw fail('audioFileData')
       dataOffset = start
       dataBytes = length
     }
     offset = paddedEnd
   }
-  if (formatOffset === -1 || dataOffset === -1) throw new Error('WAV format or audio data is missing')
+  if (formatOffset === -1 || dataOffset === -1) throw fail('audioFileMissing')
   const channelCount = view.getUint16(formatOffset + 2, true)
   const sampleRate = view.getUint32(formatOffset + 4, true)
   const blockAlign = view.getUint16(formatOffset + 12, true)
@@ -81,17 +97,17 @@ function inspectWav(bytes: Uint8Array): WavInfo {
     || sampleRate < VIDEO_AUDIO_LIMITS.minSampleRate || sampleRate > VIDEO_AUDIO_LIMITS.maxSampleRate
     || blockAlign !== channelCount * 2 || view.getUint32(formatOffset + 8, true) !== sampleRate * blockAlign
     || dataBytes % blockAlign !== 0) {
-    throw new Error('Supported audio is PCM16 WAV, mono or stereo, at 8–48 kHz')
+    throw fail('audioFileEncoding')
   }
   const sampleCount = dataBytes / blockAlign
   const durationMs = sampleCount * 1000 / sampleRate
-  if (durationMs > VIDEO_AUDIO_LIMITS.durationMs) throw new Error('Audio must be no longer than two minutes')
+  if (durationMs > VIDEO_AUDIO_LIMITS.durationMs) throw fail('audioFileDuration')
   return { view, sampleRate, channelCount, sampleCount, durationMs, dataOffset, dataBytes }
 }
 
 /** Rebuild the container from validated samples, discarding names, tags and other chunks. */
-export function normalizeVideoAudioWav(bytes: Uint8Array): { data: Uint8Array; sampleRate: number; channelCount: number; durationMs: number } {
-  const info = inspectWav(bytes)
+export function normalizeVideoAudioWav(bytes: Uint8Array, fail: (issue: VideoAudioFileIssue) => Error = plainAudioFileError): { data: Uint8Array; sampleRate: number; channelCount: number; durationMs: number } {
+  const info = inspectWav(bytes, fail)
   const data = new Uint8Array(44 + info.dataBytes)
   const view = new DataView(data.buffer)
   const write = (offset: number, value: string): void => {
@@ -108,7 +124,7 @@ export function normalizeVideoAudioWav(bytes: Uint8Array): { data: Uint8Array; s
 }
 
 export function parseVideoAudioWav(bytes: Uint8Array): VideoAudioPcm {
-  const info = inspectWav(bytes)
+  const info = inspectWav(bytes, plainAudioFileError)
   const channels = Array.from({ length: info.channelCount }, () => new Float32Array(info.sampleCount))
   for (let frame = 0; frame < info.sampleCount; frame++) {
     for (let channel = 0; channel < info.channelCount; channel++) {
