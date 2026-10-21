@@ -31,7 +31,7 @@ it('shows the tab that opened a popup when the popup closes', () => {
   ])
   manager.activeTabId = 'popup'
   expect(manager.closeTabTransition(manager.tabs.get('popup')!).nextId).toBe('app')
-  // Once its opener is closed, the popup's tab closes as any other.
+  // Once its opener is closed, the popup's tab closes as any other, showing the tab beside it in its workspace.
   manager.tabs.delete('app')
-  expect(manager.closeTabTransition(manager.tabs.get('popup')!).nextId).toBe('other')
+  expect(manager.closeTabTransition(manager.tabs.get('popup')!).nextId).toBe('docs')
 })
