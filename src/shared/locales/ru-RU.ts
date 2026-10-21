@@ -3048,7 +3048,7 @@ export const ruRU = {
     "visits": "Посещений: {count}"
   },
   "siteStorage": {
-    "changeTypes": {"added": "добавлено", "updated": "изменено", "removed": "удалено"},
+    "changeTypes": {"added": "добавлено", "updated": "обновлено", "removed": "удалено"},
     "kicker": "Текущий сайт",
     "heading": "Хранилище сайта · {host}",
     "close": "Закрыть хранилище сайта",

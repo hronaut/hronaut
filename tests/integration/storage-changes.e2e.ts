@@ -190,11 +190,20 @@ test('compares bounded browser storage changes for people and grouped agents', a
 
     await client.callTool({
       name: 'browser_evaluate',
-      arguments: { workspaceId, tabId, script: "localStorage.setItem('ui-change', 'ready')" }
+      arguments: { workspaceId, tabId, script: "localStorage.setItem('ui-change', 'ready'); localStorage.removeItem('theme')" }
     })
     await storagePanel.getByRole('button', { name: 'Compare now' }).click()
-    await expect(storagePanel).toContainText('1 storage change')
+    await expect(storagePanel).toContainText('2 storage changes')
     await expect(storagePanel).toContainText('ui-change')
+    // The rows share one badge column, so every key starts at the same x whatever its change word.
+    await expect(storagePanel.locator('.storage-change')).toHaveCount(2)
+    const rowGeometry = await storagePanel.locator('.storage-change').evaluateAll((rows) => rows.map((row) => {
+      const badge = row.querySelector('.storage-change-type')!.getBoundingClientRect()
+      const copy = row.querySelector('.storage-change-copy')!.getBoundingClientRect()
+      return { badgeRight: badge.right, copyLeft: Math.round(copy.left) }
+    }))
+    expect(new Set(rowGeometry.map((row) => row.copyLeft)).size).toBe(1)
+    for (const row of rowGeometry) expect(row.badgeRight).toBeLessThanOrEqual(row.copyLeft)
     await storagePanel.getByRole('button', { name: 'Copy report' }).click()
     await expect(storagePanel.getByRole('button', { name: 'Copied' })).toBeVisible()
     await storagePanel.getByRole('button', { name: /ui-change/ }).click()

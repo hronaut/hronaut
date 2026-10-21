@@ -3048,7 +3048,7 @@ export const plPL = {
     "visits": "{count} wizyta | {count} wizyty | {count} wizyt"
   },
   "siteStorage": {
-    "changeTypes": {"added": "dodano", "updated": "zmieniono", "removed": "usunięto"},
+    "changeTypes": {"added": "dodano", "updated": "zaktualizowano", "removed": "usunięto"},
     "kicker": "Bieżąca witryna",
     "heading": "Pamięć witryny · {host}",
     "close": "Zamknij pamięć witryny",

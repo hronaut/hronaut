@@ -3048,7 +3048,7 @@ export const deDE = {
     "visits": "{count} Besuche"
   },
   "siteStorage": {
-    "changeTypes": {"added": "hinzugefügt", "updated": "geändert", "removed": "entfernt"},
+    "changeTypes": {"added": "hinzugefügt", "updated": "aktualisiert", "removed": "entfernt"},
     "kicker": "Aktuelle Website",
     "heading": "Website-Speicher · {host}",
     "close": "Website-Speicher schließen",

@@ -2743,7 +2743,7 @@ export const esES = {
     }
   },
   "domChanges": {
-    "kinds": {"child-list": "hijos", "attributes": "atributos", "text": "texto"},
+    "kinds": {"child-list": "elementos secundarios", "attributes": "atributos", "text": "texto"},
     "kicker": "Evidencia estructural",
     "heading": "Cambios del DOM",
     "close": "Cerrar los cambios del DOM",

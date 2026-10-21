@@ -3048,7 +3048,7 @@ export const frFR = {
     "visits": "{count} visites"
   },
   "siteStorage": {
-    "changeTypes": {"added": "ajouté", "updated": "modifié", "removed": "supprimé"},
+    "changeTypes": {"added": "ajouté", "updated": "mis à jour", "removed": "supprimé"},
     "kicker": "Site actuel",
     "heading": "Stockage du site · {host}",
     "close": "Fermer le stockage du site",

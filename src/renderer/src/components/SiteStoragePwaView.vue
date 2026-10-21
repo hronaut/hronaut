@@ -14,6 +14,7 @@ import IconWarning from '~icons/material-symbols/warning-rounded'
 import { formatNumber } from '../../../shared/format'
 import type { SupportedLocale } from '../../../shared/locale'
 import type { BrowserPwaReport } from '../../../shared/types'
+import { pwaLifecycleMessages } from '../../../shared/locales/pwa-lifecycle.js'
 
 const props = defineProps<{
   state: 'idle' | 'loading' | 'ready' | 'error'
@@ -36,6 +37,13 @@ const query = defineModel<string>('query', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 
 function localNumber(value: number): string { return formatNumber(props.locale, value) }
+// The page reports worker states, so one Hronaut does not know still shows as the page sent it.
+const WORKER_STATES = new Set(Object.keys(pwaLifecycleMessages['en-US'].workerStates))
+function registrationState(registration: BrowserPwaReport['registrations'][number]): string {
+  const state = registration.active?.state ?? registration.waiting?.state ?? registration.installing?.state
+  if (state === undefined) return t('siteStorage.pwa.inactive')
+  return WORKER_STATES.has(state) ? t(`pwaLifecycle.workerStates.${state}`) : state
+}
 function timestamp(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.valueOf())) return value
@@ -69,7 +77,7 @@ function timestamp(value: string): string {
       </article>
       <div v-else-if="report.manifestInspectionAvailable" class="site-storage-empty compact"><IconDashboard aria-hidden="true" /><strong>{{ t('siteStorage.pwa.noManifest') }}</strong></div>
       <div v-if="report.registrations.length" class="pwa-registrations">
-        <article v-for="registration in report.registrations" :key="registration.scope"><strong>{{ registration.scope }}</strong><code>{{ registration.active?.scriptUrl ?? registration.waiting?.scriptUrl ?? registration.installing?.scriptUrl ?? t('siteStorage.pwa.noWorkerScript') }}</code><small>{{ registration.active?.state ?? registration.waiting?.state ?? registration.installing?.state ?? t('siteStorage.pwa.inactive') }} · {{ t('siteStorage.pwa.updateViaCache', { value: registration.updateViaCache }) }}</small></article>
+        <article v-for="registration in report.registrations" :key="registration.scope"><strong>{{ registration.scope }}</strong><code>{{ registration.active?.scriptUrl ?? registration.waiting?.scriptUrl ?? registration.installing?.scriptUrl ?? t('siteStorage.pwa.noWorkerScript') }}</code><small>{{ registrationState(registration) }} · {{ t('siteStorage.pwa.updateViaCache', { value: registration.updateViaCache }) }}</small></article>
       </div>
       <div v-else class="site-storage-empty compact"><IconOffline aria-hidden="true" /><strong>{{ t('siteStorage.pwa.noRegistrations') }}</strong></div>
       <div v-if="report.cacheInspectionError" class="pwa-cache-warning" role="status"><IconWarning aria-hidden="true" /><span>{{ report.cacheInspectionAvailable ? report.cacheInspectionError : t('siteStorage.pwa.cacheUnavailable', { error: report.cacheInspectionError }) }}</span></div>

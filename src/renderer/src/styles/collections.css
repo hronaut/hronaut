@@ -414,8 +414,9 @@
 .storage-changes-summary span { @apply block; }
 .storage-changes-summary strong { @apply [font-size:var(--type-body-size)]; }
 .storage-changes-summary span { @apply [margin-top:3px] text-muted [font-size:var(--type-small-size)]; }
-/* The rows share one set of columns so a longer change-type word in another language widens every row's badge column alike. */
-.storage-changes-list { @apply grid [min-height:100px] content-start overflow-y-auto [grid-template-columns:minmax(68px,_max-content)_minmax(0,_1fr)_auto] [border-top:1px_solid_var(--border-soft)]; }
+/* The rows share one set of columns so a longer change-type word in another language widens every row's badge column alike.
+   A subgrid row's padding and half its gap count toward the edge column, so 85px keeps the badge's 68px. */
+.storage-changes-list { @apply grid [min-height:100px] content-start overflow-y-auto [grid-template-columns:minmax(85px,_max-content)_minmax(0,_1fr)_auto] [border-top:1px_solid_var(--border-soft)]; }
 .storage-change { @apply grid w-full [min-height:60px] [grid-column:1_/_-1] [grid-template-columns:subgrid] items-center [gap:10px] [padding:8px_12px] border-0 [border-bottom:1px_solid_var(--border-soft)] text-copy bg-transparent text-left cursor-pointer; }
 .storage-change:hover { @apply bg-hover; }
 .storage-change-type { @apply [justify-self:start] [padding:3px_6px] whitespace-nowrap [border-radius:5px] text-muted bg-surface-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] uppercase; }

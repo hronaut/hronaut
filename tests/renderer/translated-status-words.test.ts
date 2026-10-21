@@ -3,12 +3,13 @@ import { ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import PwaLifecyclePanel from '../../src/renderer/src/components/PwaLifecyclePanel.vue'
 import SiteStorageChangesView from '../../src/renderer/src/components/SiteStorageChangesView.vue'
+import SiteStoragePwaView from '../../src/renderer/src/components/SiteStoragePwaView.vue'
 import CodeCoveragePanel from '../../src/renderer/src/features/diagnostics/code-coverage/CodeCoveragePanel.vue'
 import DomChangesPanel from '../../src/renderer/src/features/diagnostics/dom-changes/DomChangesPanel.vue'
 import { useDiagnosticsController } from '../../src/renderer/src/features/diagnostics/useDiagnosticsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { PwaLifecycleReport } from '../../src/shared/pwa-lifecycle.js'
-import type { BrowserCodeCoverageResult, BrowserDomChangesReport, BrowserStorageChangesReport, BrowserTabState } from '../../src/shared/types.js'
+import type { BrowserCodeCoverageResult, BrowserDomChangesReport, BrowserPwaReport, BrowserStorageChangesReport, BrowserTabState } from '../../src/shared/types.js'
 
 // These panels showed the words the main process and the page report, such as "added", "child-list", "block" and
 // "activated", in an interface that is otherwise German.
@@ -81,7 +82,7 @@ describe('status words in the interface language', () => {
     }
     const { container } = render(SiteStorageChangesView, { global: german, props: { state: 'ready', report, error: '', copied: false, locale: 'de-DE' } })
 
-    expect([...container.querySelectorAll('.storage-change-type')].map(badge => badge.textContent)).toEqual(['hinzugefügt', 'geändert', 'entfernt'])
+    expect([...container.querySelectorAll('.storage-change-type')].map(badge => badge.textContent)).toEqual(['hinzugefügt', 'aktualisiert', 'entfernt'])
   })
 
   it('names each kind of DOM change', async () => {
@@ -136,15 +137,34 @@ describe('status words in the interface language', () => {
       truncated: false, missingHistory: true, interrupted: false, lastDrainedAt: 2, coverage: 'observed-only', caveats: [],
       events: [
         { kind: 'statechange', observedAt: 1, scope: 'https://example.test/', worker: { id: 1, scriptUrl: 'https://example.test/sw.js', state: 'activated' }, controller: null },
-        { kind: 'future-event', observedAt: 2, scope: 'https://example.test/', worker: { id: 2, scriptUrl: 'https://example.test/sw.js', state: 'future-state' }, controller: null }
+        { kind: 'future-event', observedAt: 2, scope: 'https://example.test/', worker: { id: 2, scriptUrl: 'https://example.test/sw.js', state: 'future-state' }, controller: null },
+        { kind: 'constructor', observedAt: 3, scope: 'https://example.test/', worker: { id: 3, scriptUrl: 'https://example.test/sw.js', state: '__proto__' }, controller: null }
       ]
     }
     Object.defineProperty(window, 'hronaut', { configurable: true, value: { pwaLifecycle: vi.fn(async () => report) } })
     render(PwaLifecyclePanel, { global: german, props: { tab: activeTab() } })
 
     expect(await screen.findByRole('status')).toHaveTextContent(/· Zwei-Minuten-Limit erreicht$/)
-    const [known, unknown] = screen.getAllByRole('listitem')
-    expect(known).toHaveTextContent('Status geändert · 1 aktiviert')
-    expect(unknown).toHaveTextContent('future-event · 2 future-state')
+    const [known, unknown, inherited] = screen.getAllByRole('listitem')
+    expect(known).toHaveTextContent(/· Status geändert · 1 aktiviert/)
+    expect(unknown).toHaveTextContent(/· future-event · 2 future-state/)
+    expect(inherited).toHaveTextContent(/· constructor · 3 __proto__/)
   })
+
+  it('names the state of each registered service worker on the Offline tab', () => {
+    const report: BrowserPwaReport = {
+      tabId: 'tab-1', url: 'https://example.test/app', origin: 'https://example.test', capturedAt: '2026-09-15T10:00:00.000Z', supported: true,
+      controlled: true, manifestInspectionAvailable: true, installabilityInspectionAvailable: true, caches: [], cacheInspectionAvailable: true, caveats: [],
+      registrations: [
+        { scope: 'https://example.test/', updateViaCache: 'imports', active: { scriptUrl: 'https://example.test/sw.js', state: 'activated' } },
+        { scope: 'https://example.test/next/', updateViaCache: 'imports', waiting: { scriptUrl: 'https://example.test/next.js', state: 'future-state' } },
+        { scope: 'https://example.test/idle/', updateViaCache: 'imports' }
+      ]
+    }
+    const { container } = render(SiteStoragePwaView, { global: german, props: { state: 'ready', report, error: '', copied: false, offset: 0, locale: 'de-DE', cache: '', query: '' } })
+
+    expect([...container.querySelectorAll('.pwa-registrations small')].map((line) => line.textContent?.split(' · ')[0]))
+      .toEqual(['aktiviert', 'future-state', 'inaktiv'])
+  })
+
 })
