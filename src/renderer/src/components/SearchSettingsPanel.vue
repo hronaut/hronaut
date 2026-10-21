@@ -60,7 +60,7 @@ function navigateEngine(event: KeyboardEvent): void {
         <span class="search-engine-mark" aria-hidden="true">{{ engine.label.slice(0, 1) }}</span>
         <span class="search-engine-copy">
           <strong>{{ engine.label }}</strong>
-          <small>{{ engine.description }}</small>
+          <small>{{ t(`searchEngines.${engine.id}`) }}</small>
           <code>{{ engine.hostname }}</code>
         </span>
         <span class="search-engine-check" aria-hidden="true"><IconCheck /></span>

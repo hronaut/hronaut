@@ -1,5 +1,7 @@
 import { networkPriorityMessages } from './network-priority.js'
 import { networkLabelMessages } from './network-labels.js'
+import { viewportPresetMessages } from './viewport-presets.js'
+import { searchEngineMessages } from './search-engines.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -24,6 +26,8 @@ export const deDE = {
   emulationApplication: {"pending": "Emulation wird angewendet", "unknown": "Emulation unbestätigt", "help": "Öffnen Sie Umgebung, um gespeicherte Einstellungen zu prüfen und ausdrücklich wiederherzustellen. Die fehlgeschlagene Anfrage wird nicht wiederholt.", "restore": "Gespeicherte Einstellungen wiederherstellen", "networkFirst": "Stellen Sie zuerst die Netzwerkbedingungen unter Anfragebedingungen wieder her. Die Emulation bleibt bis zur separaten Wiederherstellung unbestätigt."},
   networkPriority: networkPriorityMessages['de-DE'],
   networkLabels: networkLabelMessages['de-DE'],
+  viewportPresets: viewportPresetMessages['de-DE'],
+  searchEngines: searchEngineMessages['de-DE'],
   lcpAttribution: lcpAttributionMessages['de-DE'],
   browserImport: browserImportMessages['de-DE'],
   video: videoRecorderMessages['de-DE'],
@@ -709,7 +713,7 @@ export const deDE = {
       },
       "responsive-preview": {
         "label": "Responsive Vorschau öffnen",
-        "description": "Viewports von Telefon, Tablet und Desktop testen"
+        "description": "Viewports von Smartphone, Tablet und Desktop testen"
       },
       "environment": {
         "label": "Umgebung öffnen",
@@ -871,7 +875,7 @@ export const deDE = {
       "previousWorkspace": "Zum vorherigen Arbeitsbereich wechseln (erneut drücken, um weiter zurückzugehen)"
     },
     "responsive": {
-      "preview": "Telefone, Tablets und Desktops testen",
+      "preview": "Smartphones, Tablets und Desktops testen",
       "at": "{size} bei {scale}×",
       "invalid": "Gib Breite und Höhe zwischen 200 und 3840 sowie einen DPR zwischen 0,5 und 5 ein.",
       "summary": "{size} CSS-Pixel · {scale}× DPR · {rendering}-Darstellung · {input}",

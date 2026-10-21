@@ -23,9 +23,9 @@
 }
 .responsive-preset-grid > button:hover { @apply bg-hover; }
 .responsive-preset-grid > button.selected { @apply border-accent bg-accent-soft [box-shadow:inset_0_0_0_1px_color-mix(in_srgb,_var(--accent)_25%,_transparent)]; }
-.responsive-preset-grid strong { @apply overflow-hidden [font-size:var(--type-small-size)] text-ellipsis whitespace-nowrap; }
+.responsive-preset-grid strong { @apply [font-size:var(--type-small-size)] [overflow-wrap:anywhere]; }
 .responsive-preset-grid span { @apply text-accent-copy [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [font-variant-numeric:tabular-nums]; }
-.responsive-preset-grid small { @apply overflow-hidden text-muted [font-size:var(--type-micro-size)] text-ellipsis whitespace-nowrap; }
+.responsive-preset-grid small { @apply text-muted [font-size:var(--type-micro-size)] [overflow-wrap:anywhere]; }
 .responsive-orientation > div:last-child { @apply flex overflow-hidden flex-none [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)]; }
 .responsive-orientation button {
   @apply [min-height:32px] [padding:6px_10px] border-0 text-muted bg-surface [font:inherit] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] cursor-pointer;
