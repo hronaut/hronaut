@@ -9,6 +9,7 @@ import {
   type PersistedBrowserState
 } from '../src/main/browser/tab-store.js'
 import { MAX_TAB_TITLE_CHARS } from '../src/main/browser/tab-metadata.js'
+import { plainWorkspaceName } from '../src/shared/plain-workspace-name.js'
 
 const DEFAULT_WORKSPACE_ID = '01912345-6789-7abc-8def-0123456789ab'
 const ACTIVE_WORKSPACE_ID = '01912345-678a-7abc-8def-0123456789ab'
@@ -622,6 +623,20 @@ describe('TabStateStore', () => {
         tabs: [expect.objectContaining({ title: expect.stringMatching(/^Orders y+$/) })]
       })]
     })
+  })
+
+  it('restores a workspace and an archive named with an invisible character between a letter and its accent', async () => {
+    // Hronaut removes the invisible character; the name it kept was not NFC-normalized, and the next start stopped.
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.mcpTabGroups![1]!.name = plainWorkspaceName('Cafe\u00AD\u0301 checkout')
+    state.savedTabGroups![0]!.name = plainWorkspaceName('Cafe\u200B\u0301 research')
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    const restored = await store.load()
+    expect(restored?.mcpTabGroups?.[1]).toMatchObject({ id: ACTIVE_WORKSPACE_ID, name: 'Caf\u00E9 checkout' })
+    expect(restored?.savedTabGroups?.[0]).toMatchObject({ id: SAVED_WORKSPACE_ID, name: 'Caf\u00E9 research' })
   })
 
   it('restores distinct workspace identities that intentionally share a human label', async () => {

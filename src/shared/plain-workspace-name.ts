@@ -14,5 +14,7 @@ const UNSAFE_NAME_CHARACTERS = /(\u{1F3F4}[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A
 export function plainWorkspaceName(name: string): string {
   return name.normalize('NFC')
     .replace(UNSAFE_NAME_CHARACTERS, (_match, flag: string | undefined, control: string | undefined) => flag ?? (control ? ' ' : ''))
+    // A character removed from between a letter and its accent, such as a soft hyphen, leaves the two to combine.
+    .normalize('NFC')
     .trim()
 }

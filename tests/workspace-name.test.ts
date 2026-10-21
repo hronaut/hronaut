@@ -27,6 +27,16 @@ describe('workspace names', () => {
     expect(normalizedWorkspaceName('Cafe\u0301')).toBe('Café')
   })
 
+  it('combines a letter and its accent once an invisible character between them is removed', () => {
+    // Saved as "Cafe" and a separate accent, the name made the next start stop with "Saved workspace metadata is
+    // unavailable", since saved names must be NFC-normalized.
+    for (const invisible of ['\u00AD', '\u200B', '\u2060']) {
+      const name = normalizedWorkspaceName(`Cafe${invisible}\u0301 QA`)
+      expect(name).toBe('Caf\u00E9 QA')
+      expect(name).toBe(name.trim().normalize('NFC'))
+    }
+  })
+
   it('refuses a name that is empty once plain, or too long', () => {
     expect(() => normalizedWorkspaceName('\u202E\n\u200B')).toThrow()
     expect(normalizedWorkspaceName('a'.repeat(80))).toBe('a'.repeat(80))
