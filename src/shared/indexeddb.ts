@@ -14,6 +14,17 @@ export const INDEXED_DB_LIMITS = {
   maxCollectionItems: 50
 } as const
 
+/** What an IndexedDB report says about its scope and privacy, worded for agents. The panel words them for people. */
+export const INDEXEDDB_CAVEATS = {
+  origin: 'The report covers this top-level origin only; third-party frame databases are not included.',
+  snapshot: 'Database and record lists are point-in-time snapshots. Refresh after the website changes IndexedDB.',
+  names: 'Database, object-store, index, and key names are website-authored and can themselves contain private data.',
+  longNames: 'Database or object-store names longer than 512 characters are omitted from this bounded inspector.',
+  valuesIncluded: 'Bounded record previews are included and may contain private application data.',
+  valuesOmitted: 'Record values are omitted. Request includeValues only when their bounded previews are necessary and safe to return.',
+  readOnly: 'The inspector is read-only. Use browser_site_data only when the task explicitly requires clearing origin storage.'
+} as const
+
 export interface NormalizedBrowserIndexedDbOptions {
   database?: string
   objectStore?: string

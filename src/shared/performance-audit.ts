@@ -33,6 +33,24 @@ export interface NormalizedPerformanceOptions {
   action: BrowserPerformanceAction
 }
 
+/** What every performance report says about its own evidence. The panel names these in the interface language. */
+export const PERFORMANCE_REPORT_CAVEATS = {
+  lcpPhases: 'LCP phases are browser-timing observations, not causal proof. Missing or restricted evidence is explicit; restoration and soft-navigation phase attribution are unsupported.',
+  localSample: 'This is one local current-visit sample, not field data or a 75th-percentile CrUX result.',
+  inpUnavailable: 'INP is unavailable until the page receives a qualifying interaction; some metrics are unavailable for background or short-lived visits.',
+  longAnimationFrames: 'Long animation frame attribution identifies script entry points rather than necessarily the slowest internal function.',
+  crossOrigin: 'Cross-origin frames, workers, service workers, and isolated-world code may contribute work without script attribution.',
+  userTimings: 'User Timing names are page-authored and sanitized; arbitrary detail objects, stack traces, and source code are omitted.',
+  layoutShifts: 'Layout-shift evidence excludes entries with recent discrete input. Its score sum is diagnostic and may differ from CLS session-window scoring.'
+} as const
+
+/** What a measurement compared with a baseline adds. */
+export const PERFORMANCE_COMPARISON_CAVEATS = {
+  baselineUrl: 'The baseline URL differs from this measurement; compare only if the navigation change was intentional.',
+  environment: 'The browser environment differs from the baseline; viewport, throttling, cache, headers, or locale changes can affect the delta.',
+  deltas: 'Before-and-after deltas compare two local samples and may include normal run-to-run variation; repeat important measurements under matching conditions.'
+} as const
+
 export function normalizePerformanceOptions(
   options: BrowserPerformanceOptions = {}
 ): NormalizedPerformanceOptions {
@@ -465,15 +483,7 @@ export function performanceAuditPageScript(
             .slice(0, config.maxReportedLayoutShifts),
           truncated: collector.layoutShiftsTruncated || layoutShifts.length > config.maxReportedLayoutShifts
         },
-        caveats: [
-          'LCP phases are browser-timing observations, not causal proof. Missing or restricted evidence is explicit; restoration and soft-navigation phase attribution are unsupported.',
-          'This is one local current-visit sample, not field data or a 75th-percentile CrUX result.',
-          'INP is unavailable until the page receives a qualifying interaction; some metrics are unavailable for background or short-lived visits.',
-          'Long animation frame attribution identifies script entry points rather than necessarily the slowest internal function.',
-          'Cross-origin frames, workers, service workers, and isolated-world code may contribute work without script attribution.',
-          'User Timing names are page-authored and sanitized; arbitrary detail objects, stack traces, and source code are omitted.',
-          'Layout-shift evidence excludes entries with recent discrete input. Its score sum is diagnostic and may differ from CLS session-window scoring.'
-        ]
+        caveats: ${JSON.stringify(Object.values(PERFORMANCE_REPORT_CAVEATS))}
       });
     }, config.settleMs));
   })()`

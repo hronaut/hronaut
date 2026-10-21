@@ -16,6 +16,7 @@ import {
   formatDuration,
   formatNumber
 } from '../../../../../shared/format'
+import { PERFORMANCE_COMPARISON_CAVEATS, PERFORMANCE_REPORT_CAVEATS } from '../../../../../shared/performance-audit'
 import type {
   BrowserPerformanceComparisonMetric,
   BrowserPerformanceComparisonMetricName,
@@ -49,6 +50,13 @@ const {
 watch(dock, (next, previous) => {
   if (performancePanelOpen.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && performanceState.value === 'idle' && !performanceReport.value) void runPerformanceReport()
 })
+
+// The report states its caveats in English for agents and copies; one Hronaut does not know shows as recorded.
+const CAVEAT_KEYS = new Map(Object.entries({ ...PERFORMANCE_REPORT_CAVEATS, ...PERFORMANCE_COMPARISON_CAVEATS }).map(([key, value]) => [value as string, key]))
+function caveatText(caveat: string): string {
+  const key = CAVEAT_KEYS.get(caveat)
+  return key ? t(`reportCaveats.performance.${key}`) : caveat
+}
 
 function localNumber(value: number): string {
   return formatNumber(props.locale, value)
@@ -293,7 +301,7 @@ function performanceContributorSource(contributor: BrowserPerformanceScriptContr
         <details>
           <summary>{{ t('performance.interpretation') }}</summary>
           <ul>
-            <li v-for="caveat in performanceReport.caveats" :key="caveat">{{ caveat }}</li>
+            <li v-for="caveat in performanceReport.caveats" :key="caveat">{{ caveatText(caveat) }}</li>
           </ul>
         </details>
       </div>

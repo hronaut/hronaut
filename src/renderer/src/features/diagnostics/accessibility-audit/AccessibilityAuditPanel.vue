@@ -7,6 +7,7 @@ import IconClose from '~icons/material-symbols/close-rounded'
 import IconError from '~icons/material-symbols/error-outline-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconRefresh from '~icons/material-symbols/refresh-rounded'
+import { ACCESSIBILITY_COMPARISON_CAVEATS } from '../../../../../shared/accessibility-comparison'
 import { formatTime } from '../../../../../shared/format'
 import type {
   BrowserAccessibilityImpact,
@@ -31,6 +32,13 @@ const {
   accessibilityPanelOpen,
   runAccessibilityAudit
 } = props.controller
+
+// The comparison states its caveats in English for agents; one Hronaut does not know shows as recorded.
+const CAVEAT_KEYS = new Map(Object.entries(ACCESSIBILITY_COMPARISON_CAVEATS).map(([key, value]) => [value as string, key]))
+function caveatText(caveat: string): string {
+  const key = CAVEAT_KEYS.get(caveat)
+  return key ? t(`reportCaveats.accessibilityComparison.${key}`) : caveat
+}
 
 // Docked back from its window after the page changed, the panel has nothing to show: the main window cleared its audit
 // for the new page while it was away. It runs again for the page shown now, as its window did. The panel window itself
@@ -136,7 +144,7 @@ function accessibilityImpactCount(impact: BrowserAccessibilityImpact): number {
             </ul>
           </section>
           <ul v-if="accessibilityAudit.comparison.caveats.length" class="accessibility-comparison-caveats">
-            <li v-for="caveat in accessibilityAudit.comparison.caveats" :key="caveat">{{ caveat }}</li>
+            <li v-for="caveat in accessibilityAudit.comparison.caveats" :key="caveat">{{ caveatText(caveat) }}</li>
           </ul>
         </template>
         <p v-else>{{ t('accessibilityAudit.measureAfter') }}</p>

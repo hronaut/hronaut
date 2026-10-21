@@ -1,6 +1,7 @@
 import {
   buildPerformanceComparison,
   normalizePerformanceOptions,
+  PERFORMANCE_COMPARISON_CAVEATS,
   performanceAuditPageScript,
   sanitizePerformanceReport
 } from '../../../shared/performance-audit.js'
@@ -74,11 +75,11 @@ export async function performanceReport<Tab extends PageAuditsTab>(access: PageA
   )
   const caveats = [...report.caveats]
   if (!comparison.comparison.sameUrl) {
-    caveats.push('The baseline URL differs from this measurement; compare only if the navigation change was intentional.')
+    caveats.push(PERFORMANCE_COMPARISON_CAVEATS.baselineUrl)
   }
   if (!comparison.comparison.sameEnvironment) {
-    caveats.push('The browser environment differs from the baseline; viewport, throttling, cache, headers, or locale changes can affect the delta.')
+    caveats.push(PERFORMANCE_COMPARISON_CAVEATS.environment)
   }
-  caveats.push('Before-and-after deltas compare two local samples and may include normal run-to-run variation; repeat important measurements under matching conditions.')
+  caveats.push(PERFORMANCE_COMPARISON_CAVEATS.deltas)
   return { ...report, action: normalized.action, ...comparison, caveats }
 }

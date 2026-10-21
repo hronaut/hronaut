@@ -10,6 +10,7 @@ import IconError from '~icons/material-symbols/error-outline-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import { formatBytes, formatNumber } from '../../../shared/format'
+import { INDEXEDDB_CAVEATS } from '../../../shared/indexeddb'
 import type { SupportedLocale } from '../../../shared/locale'
 import type { BrowserIndexedDbReport } from '../../../shared/types'
 
@@ -36,6 +37,13 @@ const search = defineModel<string>('search', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 
 function bytes(value: number): string { return formatBytes(props.locale, value) }
+// The report words its caveats for agents, such as naming browser_site_data; the panel words them for people. One
+// Hronaut does not know shows as recorded.
+const CAVEAT_KEYS = new Map(Object.entries(INDEXEDDB_CAVEATS).map(([key, value]) => [value as string, key]))
+function caveatText(caveat: string): string {
+  const key = CAVEAT_KEYS.get(caveat)
+  return key ? t(`reportCaveats.indexedDb.${key}`) : caveat
+}
 function localNumber(value: number): string { return formatNumber(props.locale, value) }
 </script>
 
@@ -77,7 +85,7 @@ function localNumber(value: number): string { return formatNumber(props.locale, 
       <details class="storage-changes-caveats indexeddb-caveats">
         <summary>{{ t('siteStorage.indexed.schema') }}</summary>
         <div v-for="item in report.selectedDatabase?.objectStores ?? []" :key="item.name" class="indexeddb-store-schema"><strong>{{ item.name }}</strong><span v-if="item.indexes.length">{{ item.indexes.map((index) => `${index.name}${index.unique ? ` ${t('siteStorage.indexed.unique')}` : ''}`).join(', ') }}</span><span v-else>{{ t('siteStorage.indexed.noIndexes') }}</span></div>
-        <ul><li v-for="caveat in report.caveats" :key="caveat">{{ caveat }}</li></ul>
+        <ul><li v-for="caveat in report.caveats" :key="caveat">{{ caveatText(caveat) }}</li></ul>
       </details>
       <footer class="indexeddb-footer">
         <span>{{ t('siteStorage.indexed.range', { start: localNumber(offset + (report.entries.length ? 1 : 0)), end: localNumber(offset + report.entries.length) }) }}</span>
