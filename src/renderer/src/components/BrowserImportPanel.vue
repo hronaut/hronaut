@@ -46,9 +46,25 @@ async function start(): Promise<void> {
 }
 async function read(): Promise<void> {
   const current = generation
-  const source = profileId.value
+  let source = profileId.value
   await run(async () => {
-    const next = unwrap(await props.browser.browserImport.preview(props.workspaceId, source))
+    let response = await props.browser.browserImport.preview(props.workspaceId, source)
+    // Hronaut forgets the listed profiles five minutes after listing them, or when the workspace changes, so Continue
+    // then lists them again and goes on with the same profile, which the new list names by a new ID.
+    if (!response.ok && response.error === 'expired') {
+      // A preview that ends after Cancel or closing the panel answers expired too, and must not list them again.
+      if (current !== generation || profileId.value !== source) return
+      const chosen = profiles.value.find(p => p.id === source)
+      const listed = unwrap(await props.browser.browserImport.list(props.workspaceId))
+      if (current !== generation || profileId.value !== source) return
+      // Firefox profiles in different folders can read the same, so only a single match is surely the chosen one.
+      const matches = listed.filter(p => p.browser === chosen?.browser && p.name === chosen?.name)
+      profiles.value = listed; profileId.value = matches.length === 1 ? matches[0].id : ''
+      if (matches.length !== 1) throw new Error(t('browserImport.errors.expired'))
+      source = matches[0].id
+      response = await props.browser.browserImport.preview(props.workspaceId, source)
+    }
+    const next = unwrap(response)
     if (current !== generation || profileId.value !== source) return
     preview.value = next; previewConsumed.value = false; selected.value = []
   })
