@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import { BROWSER_TAB_GROUP_COLORS } from '../../../shared/tab-groups.js'
-import { nextWorkspaceTemplateName, parseWorkspaceTemplate, previewWorkspaceTemplate, type WorkspaceTemplate } from '../../../shared/workspace-template.js'
+import { nextWorkspaceTemplateName, parseWorkspaceTemplate, previewWorkspaceTemplate, WORKSPACE_TEMPLATE_ERRORS, type WorkspaceTemplate } from '../../../shared/workspace-template.js'
 import type { BrowserState, HronautApi } from '../../../shared/types.js'
 import { friendlyUiError } from '../composables/useAppToastController.js'
 
@@ -25,6 +25,14 @@ const completed = ref(false)
 const sourceId = ref('')
 // The file records the platform as a code; people read the platform's own name, which no language translates.
 const PLATFORM_NAMES: Record<WorkspaceTemplate['sourcePlatform'], string> = { windows: 'Windows', macos: 'macOS', linux: 'Linux' }
+// The template checks refuse in English, here and in main, where a TypeError crosses IPC with its name; an error
+// Hronaut does not know still shows as it came.
+const TEMPLATE_ERROR_KEYS = new Map(Object.entries(WORKSPACE_TEMPLATE_ERRORS).map(([key, value]) => [value as string, key]))
+function templateErrorText(message: string): string {
+  const key = TEMPLATE_ERROR_KEYS.get(message.replace(/^TypeError:\s*/, ''))
+  return key ? t(`workspaceTemplates.errors.${key}`) : message
+}
+function defaultName(number: number): string { return t('workspaceTemplates.entry', { number }) }
 const sources = computed(() => [...props.state.mcpTabGroups, ...props.state.savedTabGroups])
 const selectedSource = computed(() => sources.value.find(group => group.id === sourceId.value))
 const sourcePages = computed(() => {
@@ -34,7 +42,7 @@ const sourcePages = computed(() => {
 })
 function addSource(): void {
   if (busy.value || !draft.value || !selectedSource.value || draft.value.workspaces.length >= 20) return
-  draft.value.workspaces.push({ name: nextWorkspaceTemplateName(draft.value.workspaces), description: '', color: selectedSource.value.color, startPages: [] })
+  draft.value.workspaces.push({ name: nextWorkspaceTemplateName(draft.value.workspaces, defaultName), description: '', color: selectedSource.value.color, startPages: [] })
 }
 let disposed = false
 onBeforeUnmount(() => { disposed = true })
@@ -45,14 +53,14 @@ const validation = computed(() => {
   try {
     const preview = previewWorkspaceTemplate(serialized.value, [...props.state.mcpTabGroups, ...props.state.savedTabGroups].map(group => group.name))
     return { error: '', collisions: mode.value === 'import' ? preview.collisions : [] }
-  } catch (cause) { return { error: String(cause instanceof Error ? cause.message : cause), collisions: [] as string[] } }
+  } catch (cause) { return { error: templateErrorText(String(cause instanceof Error ? cause.message : cause)), collisions: [] as string[] } }
 })
 const canCommit = computed(() => draft.value && reviewed.value && !busy.value && !completed.value && !retained.value.length && !validation.value.error && !validation.value.collisions.length)
 async function run(action: () => Promise<void>): Promise<void> {
   if (busy.value) return
   busy.value = true; emit('busy', true); error.value = ''; message.value = ''
   try { await action() } catch (cause) {
-    if (!disposed) error.value = friendlyUiError(cause, t('runtime.toast.actionFailed'))
+    if (!disposed) error.value = templateErrorText(friendlyUiError(cause, t('runtime.toast.actionFailed')))
   } finally { if (!disposed) { busy.value = false; emit('busy', false) } }
 }
 async function openFile(): Promise<void> {
@@ -67,7 +75,7 @@ function newExport(): void {
   if (busy.value || retained.value.length) return
   reviewed.value = false
   const platform = window.hronautShell?.windowChrome.platform
-  draft.value = { format: 'hronaut-workspace-template', version: 1, sourcePlatform: platform === 'darwin' ? 'macos' : platform === 'win32' ? 'windows' : 'linux', workspaces: [{ name: 'Workspace 1', description: '', color: 'blue', startPages: [] }] }
+  draft.value = { format: 'hronaut-workspace-template', version: 1, sourcePlatform: platform === 'darwin' ? 'macos' : platform === 'win32' ? 'windows' : 'linux', workspaces: [{ name: defaultName(1), description: '', color: 'blue', startPages: [] }] }
   mode.value = 'export'; error.value = ''; message.value = ''; completed.value = false
 }
 async function commit(): Promise<void> {
@@ -130,7 +138,7 @@ async function cleanup(): Promise<void> {
         <label>{{ t('workspaceEditor.color') }}<select v-model="entry.color"><option v-for="color in BROWSER_TAB_GROUP_COLORS" :key="color" :value="color">{{ t(`workspaceEditor.colors.${color}`) }}</option></select></label>
         <label>{{ t('workspaceTemplates.pages') }}<textarea :value="entry.startPages.join('\n')" rows="3" spellcheck="false" @input="reviewed = false" @change="entry.startPages = ($event.target as HTMLTextAreaElement).value.split('\n').filter(line => line.trim()).map(line => line.trim())" /></label>
       </fieldset>
-      <UiButton v-if="mode === 'export'" type="button" :disabled="busy || completed || draft.workspaces.length >= 20" @click="draft.workspaces.push({ name: nextWorkspaceTemplateName(draft.workspaces), description: '', color: 'blue', startPages: [] })">{{ t('workspaceTemplates.add') }}</UiButton>
+      <UiButton v-if="mode === 'export'" type="button" :disabled="busy || completed || draft.workspaces.length >= 20" @click="draft.workspaces.push({ name: nextWorkspaceTemplateName(draft.workspaces, defaultName), description: '', color: 'blue', startPages: [] })">{{ t('workspaceTemplates.add') }}</UiButton>
       <p v-if="validation.error" role="alert">{{ validation.error }}</p>
       <p v-if="validation.collisions.length && !completed" role="alert">{{ t('workspaceTemplates.collisions', { names: validation.collisions.join(', ') }) }}</p>
       <p v-if="mode === 'import'">{{ t('workspaceTemplates.importEffect') }}</p>

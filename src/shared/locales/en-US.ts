@@ -117,7 +117,7 @@ export const enUS = {
     privacy: "Names, descriptions, and URLs can still contain private information. Review every entry before saving or importing. Export starts with generic metadata and no pages.",
     newExport: "Prepare export",
     source: "Source platform: {platform}",
-    entry: "Workspace {number}",
+    entry: "Workspace {number}", errors: { invalidTemplate: "Invalid workspace template.", unsupportedTemplateField: "Unsupported workspace template field.", invalidEntry: "Invalid workspace entry.", unsupportedEntryField: "Unsupported workspace entry field.", tooLarge: "Workspace template exceeds the size limit.", invalidJson: "Workspace template is not valid JSON.", unsupportedFormat: "Unsupported workspace template format or version.", invalidPlatform: "Invalid template source platform.", workspaceCount: "Workspace template must contain between 1 and 20 workspaces.", invalidName: "Invalid template workspace name.", duplicateNames: "Duplicate template workspace names.", invalidDescription: "Invalid template workspace description.", invalidColor: "Invalid template workspace color.", invalidStartPages: "Invalid template start pages.", duplicateStartPages: "Duplicate template start pages.", invalidStartPage: "Invalid template start page.", startPageScheme: "Template start pages require HTTP(S) without URL credentials." },
     pages: "Start pages \u2014 one HTTP(S) URL per line",
     add: "Add workspace",
     collisions: "Rename these entries before importing: {names}",
