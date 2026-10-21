@@ -166,6 +166,19 @@ describe('a paused and locked tab brought back', () => {
 
     expect(guards(manager, findByUrl(manager, tab.url))).toEqual(GUARDED)
   })
+
+  it('stays paused when it was paused before all agents were, after those are resumed', async () => {
+    // Pausing all agents covers the tab's own pause without changing it; the tab brought back meanwhile keeps it.
+    const { manager } = browser()
+    const tab = await guardedTab(manager)
+    manager.setAllAgentsPaused(true)
+    await manager.closeTabInternal(tab.id)
+    const reopened = await manager.reopenClosedTabEntry(undefined, false)
+
+    manager.setAllAgentsPaused(false)
+
+    expect(guards(manager, reopened)).toEqual(GUARDED)
+  })
 })
 
 describe('a tab paused and locked only because every tab was', () => {

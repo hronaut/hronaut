@@ -31,8 +31,18 @@ export async function reopenClosedTabEntry<Tab extends TabReopeningTab>(access: 
   if (!closed) return undefined
   access.detachedClosedTabs().add(held)
   try {
-    return await access.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active, mcpGroupId: closed.mcpGroupId, zoomIsolated: closed.zoomIsolated === true, defaultFontSize: closed.defaultFontSize, muted: closed.muted === true,
-      tabAgentPaused: closed.tabAgentPaused === true, humanInteractionLocked: closed.humanInteractionLocked === true })
+    return await access.createTab({
+      url: closed.url,
+      label: closed.label,
+      pinned: closed.pinned,
+      active,
+      mcpGroupId: closed.mcpGroupId,
+      zoomIsolated: closed.zoomIsolated === true,
+      defaultFontSize: closed.defaultFontSize,
+      muted: closed.muted === true,
+      tabAgentPaused: closed.tabAgentPaused === true,
+      humanInteractionLocked: closed.humanInteractionLocked === true
+    })
   } catch (error) {
     if (held.length) access.closedTabs().splice(index, 0, closed)
     throw error
