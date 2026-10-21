@@ -12,6 +12,7 @@ import type {
   BrowserQualityAuditFinding,
   BrowserSecurityReport
 } from './types.js'
+import { QUALITY_AUDIT_CATEGORY_LABELS, QUALITY_AUDIT_CAVEATS, QUALITY_AUDIT_FIXED_TEXT, qualityAuditText as text } from './quality-audit-text.js'
 
 const MAX_FINDINGS = 40
 const MAX_MESSAGE_CHARS = 500
@@ -38,19 +39,17 @@ function categoryStatus(findings: BrowserQualityAuditFinding[]): BrowserQualityA
 
 function category(
   id: BrowserQualityAuditCategoryId,
-  label: string,
   summary: string,
   evidence: string[],
   findings: BrowserQualityAuditFinding[],
   status = categoryStatus(findings)
 ): BrowserQualityAuditCategory {
-  return { id, label, status, summary, findingCount: findings.length, evidence }
+  return { id, label: QUALITY_AUDIT_CATEGORY_LABELS[id], status, summary, findingCount: findings.length, evidence }
 }
 
 function metricEvidence(metric: BrowserPerformanceMetric | null): string | null {
   if (!metric) return null
-  const value = metric.unit === 'score' ? metric.value.toFixed(3) : `${Math.round(metric.value)} ms`
-  return `${metric.name}: ${value} (${metric.rating})`
+  return text.metricEvidence(metric.name, text.metricValue(metric.value, metric.unit), metric.rating)
 }
 
 function impactSeverity(impact: BrowserAccessibilityAudit['violations'][number]['impact']): BrowserQualityAuditFinding['severity'] {
@@ -64,14 +63,14 @@ export function buildBrowserQualityAudit(sources: BrowserQualityAuditSources): B
     category: 'accessibility',
     severity: impactSeverity(violation.impact),
     code: violation.id,
-    message: boundedMessage(`${violation.help} (${violation.nodeCount} affected ${violation.nodeCount === 1 ? 'node' : 'nodes'})`)
+    message: boundedMessage(text.accessibilityFinding(violation.help, violation.nodeCount))
   }))
   if (sources.accessibility.needsReviewCount > 0) {
     accessibilityFindings.push({
       category: 'accessibility',
       severity: 'warning',
       code: 'needs-review',
-      message: `${sources.accessibility.needsReviewCount} accessibility checks need human review.`
+      message: text.needsHumanReview(sources.accessibility.needsReviewCount)
     })
   }
 
@@ -82,14 +81,14 @@ export function buildBrowserQualityAudit(sources: BrowserQualityAuditSources): B
       category: 'performance',
       severity: 'warning',
       code: `web-vital-${metric.name.toLocaleLowerCase()}`,
-      message: `${metric.name} is rated ${metric.rating.replace('-', ' ')} at ${metric.unit === 'score' ? metric.value.toFixed(3) : `${Math.round(metric.value)} ms`}.`
+      message: text.metricFinding(metric.name, metric.rating, text.metricValue(metric.value, metric.unit))
     }))
   if (!observedMetrics.length) {
     performanceFindings.push({
       category: 'performance',
       severity: 'info',
       code: 'web-vitals-not-observed',
-      message: 'No Web Vitals were observed in the current visit; reload and interact with the page before rerunning the audit.'
+      message: QUALITY_AUDIT_FIXED_TEXT.webVitalsNotObserved
     })
   }
 
@@ -106,14 +105,14 @@ export function buildBrowserQualityAudit(sources: BrowserQualityAuditSources): B
       category: 'security',
       severity: 'error',
       code: 'insecure-transport',
-      message: 'The main document is not using a healthy secure transport.'
+      message: QUALITY_AUDIT_FIXED_TEXT.insecureTransport
     })
   } else if (sources.security.state !== 'secure') {
     securityFindings.push({
       category: 'security',
       severity: 'warning',
       code: 'security-state-unconfirmed',
-      message: `Chromium reported the main document security state as ${sources.security.state}.`
+      message: text.securityStateFinding(sources.security.state)
     })
   }
   if (sources.security.certificate && !sources.security.certificate.valid) {
@@ -122,10 +121,10 @@ export function buildBrowserQualityAudit(sources: BrowserQualityAuditSources): B
       severity: 'error',
       code: 'certificate-invalid',
       message: sources.security.certificate.expired
-        ? 'The main document certificate has expired.'
+        ? QUALITY_AUDIT_FIXED_TEXT.certificateExpired
         : sources.security.certificate.notYetValid
-          ? 'The main document certificate is not valid yet.'
-          : 'The main document certificate is not currently valid.'
+          ? QUALITY_AUDIT_FIXED_TEXT.certificateNotYetValid
+          : QUALITY_AUDIT_FIXED_TEXT.certificateInvalid
     })
   }
 
@@ -144,7 +143,7 @@ export function buildBrowserQualityAudit(sources: BrowserQualityAuditSources): B
       category: 'pwa',
       severity: 'warning',
       code: boundedMessage(error.errorId) || 'installability-error',
-      message: `Chromium reported a PWA installability issue: ${boundedMessage(error.errorId) || 'unknown issue'}.`
+      message: text.installabilityFinding(boundedMessage(error.errorId) || 'unknown issue')
     })
   }
   if (!sources.pwa.manifestInspectionAvailable || !sources.pwa.cacheInspectionAvailable) {
@@ -152,7 +151,7 @@ export function buildBrowserQualityAudit(sources: BrowserQualityAuditSources): B
       category: 'pwa',
       severity: 'info',
       code: 'pwa-inspection-partial',
-      message: 'Some PWA diagnostics were unavailable for this audit.'
+      message: QUALITY_AUDIT_FIXED_TEXT.pwaInspectionPartial
     })
   }
 
@@ -166,77 +165,65 @@ export function buildBrowserQualityAudit(sources: BrowserQualityAuditSources): B
   const categories: BrowserQualityAuditCategory[] = [
     category(
       'accessibility',
-      'Accessibility',
       sources.accessibility.violationCount
-        ? `${sources.accessibility.violationCount} ${sources.accessibility.violationCount === 1 ? 'violation' : 'violations'} across ${sources.accessibility.affectedNodeCount} affected nodes`
-        : 'No automated WCAG AA violations found',
+        ? text.accessibilityViolations(sources.accessibility.violationCount, sources.accessibility.affectedNodeCount)
+        : QUALITY_AUDIT_FIXED_TEXT.accessibilityClear,
       [
-        `${sources.accessibility.passedRuleCount} rules passed`,
-        `${sources.accessibility.needsReviewCount} checks need review`,
+        text.rulesPassed(sources.accessibility.passedRuleCount),
+        text.checksNeedReview(sources.accessibility.needsReviewCount),
         `axe-core ${sources.accessibility.engine.version}`
       ],
       accessibilityFindings
     ),
     category(
       'performance',
-      'Performance',
       observedMetrics.length
-        ? `${observedMetrics.filter((metric) => metric.rating === 'good').length} of ${observedMetrics.length} observed Web Vitals are good`
-        : 'No Web Vitals observed in this visit',
+        ? text.performanceGood(observedMetrics.filter((metric) => metric.rating === 'good').length, observedMetrics.length)
+        : QUALITY_AUDIT_FIXED_TEXT.performanceNone,
       [
         ...Object.values(sources.performance.metrics).map(metricEvidence).filter((value): value is string => value !== null),
-        `${sources.performance.resources.count} resources · ${sources.performance.longTasks.count} long tasks`
+        text.resourcesAndLongTasks(sources.performance.resources.count, sources.performance.longTasks.count)
       ],
       performanceFindings
     ),
     category(
       'metadata',
-      'Metadata & SEO',
-      sources.metadata.issues.length
-        ? `${sources.metadata.issues.length} metadata ${sources.metadata.issues.length === 1 ? 'issue' : 'issues'}`
-        : 'No metadata issues found',
+      sources.metadata.issues.length ? text.metadataIssues(sources.metadata.issues.length) : QUALITY_AUDIT_FIXED_TEXT.metadataClear,
       [
-        `Language: ${sources.metadata.document.language ?? 'missing'}`,
-        `Canonical URLs: ${sources.metadata.document.canonicalUrls.length}`,
-        `Structured data: ${sources.metadata.structuredData.validBlockCount} valid · ${sources.metadata.structuredData.invalidBlockCount} invalid`
+        text.language(sources.metadata.document.language),
+        text.canonicalUrls(sources.metadata.document.canonicalUrls.length),
+        text.structuredData(sources.metadata.structuredData.validBlockCount, sources.metadata.structuredData.invalidBlockCount)
       ],
       metadataFindings
     ),
     category(
       'security',
-      'Security',
-      sources.security.state === 'secure' ? 'Secure main-document transport' : `Security state: ${sources.security.state}`,
+      sources.security.state === 'secure' ? QUALITY_AUDIT_FIXED_TEXT.securitySecure : text.securityState(sources.security.state),
       [
-        `Transport: ${sources.security.secureTransport ? 'secure' : 'not secure'}`,
-        `Protocol: ${sources.security.connection?.protocol ?? 'unavailable'}`,
-        `Certificate: ${sources.security.certificate ? (sources.security.certificate.valid ? 'valid' : 'invalid') : 'unavailable'}`
+        text.transport(sources.security.secureTransport),
+        text.protocol(sources.security.connection?.protocol ?? null),
+        text.certificate(sources.security.certificate ? sources.security.certificate.valid : null)
       ],
       securityFindings
     ),
     category(
       'pwa',
-      'PWA & offline',
-      pwaApplicable
-        ? `${sources.pwa.registrations.length} service-worker registrations · ${sources.pwa.caches.length} caches`
-        : 'No PWA or offline-app surface detected',
+      pwaApplicable ? text.pwaSurface(sources.pwa.registrations.length, sources.pwa.caches.length) : QUALITY_AUDIT_FIXED_TEXT.pwaNone,
       [
-        `Manifest: ${sources.pwa.manifest ? 'present' : 'not detected'}`,
-        `Controlled by service worker: ${sources.pwa.controlled ? 'yes' : 'no'}`,
-        `Installability issues: ${sources.pwa.manifest?.installabilityErrors.length ?? 0}`
+        text.manifest(Boolean(sources.pwa.manifest)),
+        text.controlled(sources.pwa.controlled),
+        text.installabilityIssues(sources.pwa.manifest?.installabilityErrors.length ?? 0)
       ],
       pwaFindings,
       !pwaApplicable && !pwaFindings.length ? 'not-applicable' : categoryStatus(pwaFindings)
     ),
     category(
       'browser-issues',
-      'Chromium issues',
-      sources.browserIssues.issueCount
-        ? `${sources.browserIssues.issueCount} browser-generated ${sources.browserIssues.issueCount === 1 ? 'issue' : 'issues'}`
-        : 'No retained Chromium issues found',
+      sources.browserIssues.issueCount ? text.browserIssues(sources.browserIssues.issueCount) : QUALITY_AUDIT_FIXED_TEXT.browserIssuesClear,
       [
-        `${sources.browserIssues.errorCount} errors`,
-        `${sources.browserIssues.warningCount} warnings`,
-        `${sources.browserIssues.infoCount} informational`
+        text.errors(sources.browserIssues.errorCount),
+        text.warnings(sources.browserIssues.warningCount),
+        text.informational(sources.browserIssues.infoCount)
       ],
       browserIssueFindings
     )
@@ -267,12 +254,6 @@ export function buildBrowserQualityAudit(sources: BrowserQualityAuditSources): B
     categories,
     findings: allFindings.slice(0, MAX_FINDINGS),
     truncated: allFindings.length > MAX_FINDINGS,
-    caveats: [
-      'This is a bounded local diagnostic assembled from Hronaut evidence; it is not a Lighthouse score or a certification.',
-      'Accessibility automation cannot replace keyboard, screen-reader, zoom, motion, and human usability testing.',
-      'Performance reflects the current local visit and environment; repeat important measurements under representative conditions.',
-      'PWA is not treated as a requirement for websites that do not present an offline-app surface.',
-      'Reload before reproducing startup-only Chromium issues, then rerun this audit.'
-    ]
+    caveats: Object.values(QUALITY_AUDIT_CAVEATS)
   }
 }
