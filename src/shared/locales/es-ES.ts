@@ -5,6 +5,7 @@ import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
 import { qualityAuditTextMessages } from './quality-audit-text.js'
+import { networkAbortReasonMessages } from './network-abort-reasons.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -34,6 +35,7 @@ export const esES = {
   searchEngines: searchEngineMessages['es-ES'],
   browserIssueTitles: browserIssueTitleMessages['es-ES'],
   qualityAuditText: qualityAuditTextMessages['es-ES'],
+  networkAbortReasons: networkAbortReasonMessages['es-ES'],
   lcpAttribution: lcpAttributionMessages['es-ES'],
   browserImport: browserImportMessages['es-ES'],
   video: videoRecorderMessages['es-ES'],
@@ -2465,7 +2467,7 @@ export const esES = {
       "firstWins": "Se aplica la primera condición coincidente",
       "priority": "Prioridad {number}",
       "anyMethod": "Cualquier método",
-      "failAs": "Fallar como {reason}",
+      "failAs": "Fallar: {reason}",
       "respond": "Responder {status} · cuerpo de {bytes} B",
       "throttleAs": "Ralentizar como {profile}",
       "matchesLeft": "Queda {count} coincidencia | Quedan {count} coincidencias",

@@ -119,7 +119,7 @@ test('orders, consumes and removes temporary network conditions', async ({ capab
     expect.objectContaining({ behavior: 'abort', remainingMatches: 1 })
   ])
   await expect(appWindow.getByRole('button', { name: 'Open 1 temporary request condition' })).toBeVisible()
-  await expect(requestConditions).toContainText('TimedOut')
+  await expect(requestConditions).toContainText('Fail: Timed out')
   await requestConditions.getByRole('button', { name: 'Remove all' }).click()
   const clearedRoutes = await client.callTool({
     name: 'browser_network_routes',
