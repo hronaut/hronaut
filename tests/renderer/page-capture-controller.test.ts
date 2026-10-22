@@ -112,7 +112,7 @@ describe('page capture controller', () => {
     browser.captureArea.mockImplementationOnce(() => pendingArea.promise)
 
     const capturing = controller.toggleAreaCapture()
-    activeTab.value = tab('https://example.test/changed-during-selection')
+    activeTab.value = { ...tab('https://example.test/changed-during-selection'), navigationGeneration: 1, documentGeneration: 1 }
     await nextTick()
     pendingArea.resolve({ canceled: false, copied: true, width: 80, height: 40 })
     await capturing

@@ -42,6 +42,8 @@ test('keeps the element picker while a site moves its address to the section in 
       return page.executeJavaScript('scrollTo(0, document.querySelector("#setup").offsetTop)')
     }, url)
     await expect.poll(activeUrl).toBe(`${url}#setup`)
+    // The shell has applied that state once its address field shows it.
+    await expect(appWindow.getByRole('combobox', { name: 'Address', exact: true })).toHaveValue(`${url}#setup`)
 
     await expect(cancel).toBeVisible()
     await expect(appWindow.getByRole('button', { name: 'Select an element to copy for agent' })).toHaveCount(0)
