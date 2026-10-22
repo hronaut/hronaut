@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ContextMenuParams, MenuItemConstructorOptions, WebContents } from 'electron'
-import { selectionSearchLabelText, selectionSearchQuery } from '../src/main/browser/selection-search/selection-search.js'
+import { selectionGoToUrl, selectionSearchLabelText, selectionSearchQuery } from '../src/main/browser/selection-search/selection-search.js'
 import type { SearchEngineName } from '../src/shared/search-engine.js'
 
 const built = vi.hoisted(() => ({ templates: [] as MenuItemConstructorOptions[][], closed: false }))
@@ -22,13 +22,13 @@ type PageContextMenuAccess = import('../src/main/browser/context-menus/page-cont
 
 const PAGE = 'https://docs.example/guide'
 
-function openMenu(params: Partial<ContextMenuParams>, options: { engine?: SearchEngineName, createTab?: ReturnType<typeof vi.fn>, occluded?: () => boolean } = {}) {
+function openMenu(params: Partial<ContextMenuParams>, options: { engine?: SearchEngineName, createTab?: ReturnType<typeof vi.fn>, occluded?: () => boolean, url?: string } = {}) {
   const webContents = {
     id: 7,
     isDestroyed: () => false,
     navigationHistory: { canGoBack: () => false, canGoForward: () => false }
   } as unknown as WebContents
-  const tab: PageTab = { id: 'tab', url: PAGE, mcpGroupId: 'client', webContents }
+  const tab: PageTab = { id: 'tab', url: options.url ?? PAGE, mcpGroupId: 'client', webContents }
   const createTab = options.createTab ?? vi.fn(async () => tab)
   const onActionFailed = vi.fn()
   const searchEngine = vi.fn(() => options.engine ?? 'google')
@@ -69,6 +69,10 @@ describe('the selection search query', () => {
     expect(selectionSearchQuery('hunter2', true)).toBeUndefined()
   })
 
+  it('searches half a character a page selected as U+FFFD, as Chrome does, rather than failing', () => {
+    expect(selectionSearchQuery('agents \uD800', false)).toBe('agents \uFFFD')
+  })
+
   it('searches at most the first 2,048 characters of a long selection, without half a character', () => {
     // A selection of a whole long document made a search address of megabytes, which the browser cannot open.
     expect(selectionSearchQuery('word '.repeat(100_000), false)).toBe('word '.repeat(410).slice(0, 2048).trim())
@@ -90,7 +94,76 @@ describe('the selection search query', () => {
   })
 })
 
+describe('the address a selection goes to', () => {
+  it('is a web address written with its scheme or starting with www., as the address bar opens it', () => {
+    expect(selectionGoToUrl('https://docs.example/guide?step=2#setup')).toBe('https://docs.example/guide?step=2#setup')
+    expect(selectionGoToUrl('HTTP://127.0.0.1:3000/dashboard')).toBe('HTTP://127.0.0.1:3000/dashboard')
+    expect(selectionGoToUrl('www.example.com/pricing')).toBe('https://www.example.com/pricing')
+  })
+
+  it('is the whole selected address, however long, never the part a search reads', () => {
+    // A long signed link opened cut to the search's first 2,048 characters.
+    const signed = `https://bucket.example/report.pdf?signature=${'a'.repeat(3000)}`
+    expect(selectionGoToUrl(`  ${signed}\n`)).toBe(signed)
+    expect(selectionGoToUrl(`https://bucket.example/${'a'.repeat(2 * 1024 * 1024)}`)).toBeUndefined()
+  })
+
+  it('is none for a word with a dot, other text, or an address of another kind', () => {
+    for (const query of ['Node.js', 'example.com', 'https://docs.example and more', 'javascript:alert(1)', 'file:///etc/passwd', 'data:text/html,hi', 'https://', 'www.']) {
+      expect(selectionGoToUrl(query), query).toBeUndefined()
+    }
+  })
+})
+
 describe('Search for the selection in the page context menu', () => {
+  it('goes to a selected address instead, in front beside the page, without asking for the search engine', () => {
+    const { tab, createTab, searchEngine, ids, items } = openMenu({ selectionText: ' https://docs.example/guide\n' })
+    expect(ids.slice(0, 3)).toEqual(['copy-selection', 'go-to-selection', 'separator'])
+    expect(ids).not.toContain('search-selection')
+    const item = items.find((entry) => entry.id === 'go-to-selection')!
+    expect(item.label).toBe('native.context.goTo {"text":"https://docs.example/guide"}')
+    ;(item.click as () => void)()
+    expect(createTab).toHaveBeenCalledExactlyOnceWith({
+      url: 'https://docs.example/guide',
+      active: true,
+      mcpGroupId: 'client',
+      openedFrom: { tabId: tab.id, background: false }
+    })
+    expect(searchEngine).not.toHaveBeenCalled()
+  })
+
+  it('goes nowhere behind a Hronaut dialog that opened while the menu was open, and reports an address that would not open', async () => {
+    let occluded = false
+    const { createTab, onActionFailed, items } = openMenu({ selectionText: 'www.example.com' }, { occluded: () => occluded })
+    occluded = true
+    ;(items.find((entry) => entry.id === 'go-to-selection')!.click as () => void)()
+    expect(createTab).not.toHaveBeenCalled()
+    expect(onActionFailed).not.toHaveBeenCalled()
+
+    const refused = openMenu({ selectionText: 'https://blocked.example/' }, { createTab: vi.fn(async () => { throw new Error('Blocked by the workspace') }) })
+    ;(refused.items.find((entry) => entry.id === 'go-to-selection')!.click as () => void)()
+    await vi.waitFor(() => expect(refused.onActionFailed).toHaveBeenCalledExactlyOnceWith('go to the selected address', expect.objectContaining({ message: 'Blocked by the workspace' })))
+  })
+
+  it('offers neither for a link\'s own address, an address with a sign-in, or on Hronaut Home', () => {
+    const link = openMenu({ selectionText: 'https://docs.example/guide', linkURL: 'https://docs.example/guide' })
+    expect(link.ids).toContain('open-link-new-tab')
+    const signIn = openMenu({ selectionText: 'https://admin:hunter2@router.example/' })
+    const home = openMenu({ selectionText: 'Release notes' }, { url: 'hronaut://home/' })
+    for (const { ids } of [link, signIn, home]) {
+      expect(ids).not.toContain('go-to-selection')
+      expect(ids).not.toContain('search-selection')
+    }
+    // Another address than the link's still has Go to.
+    expect(openMenu({ selectionText: 'https://docs.example/other', linkURL: 'https://docs.example/guide' }).ids).toContain('go-to-selection')
+  })
+
+  it('builds the menu for a selection with half a character, searching it as U+FFFD', () => {
+    const { createTab, items } = openMenu({ selectionText: 'agents \uD800' })
+    clickSearch(items)
+    expect(createTab.mock.calls[0]?.[0]).toMatchObject({ url: 'https://www.google.com/search?q=agents%20%EF%BF%BD' })
+  })
+
   it('follows Copy for selected text, named for the address bar\'s search engine', () => {
     const { ids, items } = openMenu({ selectionText: 'Hronaut   browser' }, { engine: 'duckduckgo' })
     expect(ids.slice(0, 3)).toEqual(['copy-selection', 'search-selection', 'separator'])

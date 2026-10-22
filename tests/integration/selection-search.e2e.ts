@@ -4,11 +4,12 @@ import { expect, test } from './capability-fixtures.js'
 
 type State = { activeTabId?: string; tabs: Array<{ id: string; url: string; mcpGroupId?: string }> }
 
-test('Search Google for the selected text from the page context menu opens the results beside the page, as in Chrome', async ({ capabilities, appWindow, electronApp }) => {
+test('Search Google for the selected text, or Go to a selected address, from the page context menu opens it beside the page, as in Chrome', async ({ capabilities, appWindow, electronApp }) => {
   const { tabId } = capabilities
-  const server = createServer((_request, response) => {
+  const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
-    response.end('<!doctype html><title>Selection fixture</title><p id="topic" style="font: 24px sans-serif">Hronaut   agent\nbrowser</p>')
+    response.end(`<!doctype html><title>Selection fixture</title><p id="topic" style="font: 24px sans-serif">Hronaut   agent\nbrowser</p>
+      <p id="address" style="font: 24px sans-serif">http://${request.headers.host}/next</p>`)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -38,14 +39,14 @@ test('Search Google for the selected text from the page context menu opens the r
     }, origin)
     const searches = () => electronApp.evaluate(() => (globalThis as typeof globalThis & { __hronautSearches?: string[] }).__hronautSearches)
 
-    // The person selects the paragraph and right-clicks it.
-    const label = await electronApp.evaluate(async ({ Menu, webContents }, origin) => {
-      const page = webContents.getAllWebContents().find(candidate => candidate.getURL().startsWith(`${origin}/`))
+    // The person selects a paragraph of the page and right-clicks it, then chooses the item.
+    const choose = (paragraph: string, itemId: string) => electronApp.evaluate(async ({ Menu, webContents }, { origin, paragraph, itemId }) => {
+      const page = webContents.getAllWebContents().find(candidate => candidate.getURL() === `${origin}/page`)
       if (!page) throw new Error('Page web contents was not found')
       const point = await page.mainFrame.executeJavaScript(`(() => {
-        const topic = document.getElementById('topic')
-        getSelection().selectAllChildren(topic)
-        const box = topic.getBoundingClientRect()
+        const paragraph = document.getElementById(${JSON.stringify(paragraph)})
+        getSelection().selectAllChildren(paragraph)
+        const box = paragraph.getBoundingClientRect()
         return { x: Math.round(box.left + 20), y: Math.round(box.top + box.height / 2) }
       })()`) as { x: number, y: number }
       const popup = Menu.prototype.popup
@@ -59,12 +60,13 @@ test('Search Google for the selected text from the page context menu opens the r
       } finally {
         Menu.prototype.popup = popup
       }
-      const item = menu?.getMenuItemById('search-selection')
-      if (!item?.click) throw new Error('Missing Search for the selection in the page\'s context menu')
+      const item = menu?.getMenuItemById(itemId)
+      if (!item?.click) throw new Error(`Missing ${itemId} in the page's context menu`)
+      const offered = ['search-selection', 'go-to-selection'].filter(id => menu?.getMenuItemById(id))
       ;(item.click as unknown as () => void)()
-      return item.label
-    }, origin)
-    expect(label).toBe('Search Google for “Hronaut agent browser”')
+      return { label: item.label, offered }
+    }, { origin, paragraph, itemId })
+    expect(await choose('topic', 'search-selection')).toEqual({ label: 'Search Google for “Hronaut agent browser”', offered: ['search-selection'] })
 
     await expect.poll(searches).toEqual(['https://www.google.com/search?q=Hronaut%20agent%20browser'])
     await expect.poll(async () => {
@@ -76,6 +78,17 @@ test('Search Google for the selected text from the page context menu opens the r
         besidePage: current.tabs.indexOf(results) === current.tabs.findIndex(tab => tab.id === tabId) + 1
       }
     }).toEqual({ shown: true, workspace, besidePage: true })
+
+    // A selected address opens instead, as Chrome's Go to does.
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+    await expect.poll(async () => (await state()).activeTabId).toBe(tabId)
+    expect(await choose('address', 'go-to-selection')).toEqual({ label: `Go to ${origin}/next`, offered: ['go-to-selection'] })
+    await expect.poll(async () => {
+      const current = await state()
+      const next = current.tabs.find(tab => tab.url === `${origin}/next`)
+      return next && { shown: current.activeTabId === next.id, workspace: next.mcpGroupId }
+    }).toEqual({ shown: true, workspace })
+    expect(await searches()).toHaveLength(1)
   } finally {
     await closeFixtureServer(server)
   }

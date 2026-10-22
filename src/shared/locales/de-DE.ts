@@ -3600,6 +3600,7 @@ export const deDE = {
       "showFullHistory": "Gesamten Verlauf anzeigen",
       "viewSource": "Seitenquelltext anzeigen",
       "searchFor": "{engine} nach „{text}“ durchsuchen",
+      "goTo": "Gehe zu {text}",
       "savePage": "Speichern unter…"
     },
     "pageProblem": {
