@@ -60,7 +60,7 @@ interface Manager {
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   selectTab(tabId: string): unknown
   openSplitView(tabId: string): unknown
-  selectTabPassively(tabId: string): void
+  selectTabPassively(tabId: string): boolean
   pageFullscreenShown(): boolean
   wakeTab(tabId: string): Promise<unknown>
 }

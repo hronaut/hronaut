@@ -2729,8 +2729,8 @@ export class BrowserTabsManager {
     return selectTab(this.tabSelectionAccess(), tabId, options)
   }
 
-  private selectTabPassively(tabId: string): void {
-    selectTabPassively(this.agentFollowAccess(), tabId)
+  private selectTabPassively(tabId: string): boolean {
+    return selectTabPassively(this.agentFollowAccess(), tabId)
   }
 
   /**

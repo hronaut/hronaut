@@ -5,13 +5,14 @@ import type { AgentFollowAccess } from './agent-follow-access.js'
  * Shows the tab an agent works in without activating the window or giving
  * the page keyboard input: a focused window keeps focus in trusted chrome,
  * and a window that was not focused is blurred again if attaching the page
- * focused it.
+ * focused it. Returns false when the tab was already in view, which leaves
+ * the view as it was.
  */
-export function selectTabPassively(access: AgentFollowAccess, tabId: string): void {
+export function selectTabPassively(access: AgentFollowAccess, tabId: string): boolean {
   // A tab already in view, the active tab or the other pane of the split
   // view, stays as it is: selecting the other pane would make it the active
   // pane and move keyboard focus out of the person's page.
-  if (access.activeTabId() === tabId || access.splitViewContains(tabId)) return
+  if (access.activeTabId() === tabId || access.splitViewContains(tabId)) return false
   const windowWasFocused = access.window().isFocused()
   const target = access.getTab(tabId)
   let focusGuardActive = windowWasFocused
@@ -53,16 +54,17 @@ export function selectTabPassively(access: AgentFollowAccess, tabId: string): vo
     releaseFocusGuard()
     throw error
   }
-  if (access.window().isDestroyed()) return
+  if (access.window().isDestroyed()) return true
 
   // Attaching a WebContentsView can focus it even when selectTab deliberately
   // omits an explicit focus call. Following agent activity is visual-only: it
   // must not activate Hronaut or redirect keyboard input into the agent's page.
   if (!windowWasFocused) {
     if (access.window().isFocused()) access.window().blur()
-    return
+    return true
   }
-  if (!access.window().isFocused()) return
+  if (!access.window().isFocused()) return true
 
   if (electronWebContents.getFocusedWebContents()?.id === target.webContents.id) redirectWebsiteFocus()
+  return true
 }

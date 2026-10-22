@@ -40,7 +40,7 @@ interface ManagerInternals {
   assertTabLabelAdmission: () => void
   saveTabLabel: (tabId: string, value: string, validateAuthority?: () => void, onCommitted?: () => void) => Promise<{ state: unknown; status: 'saved' }>
   pageFullscreenShown(): boolean
-  selectTabPassively(tabId: string): void
+  selectTabPassively(tabId: string): boolean
   windowOpenHandlerAccess(): WindowOpenHandlerAccess<WindowOpenHandlerTab>
 }
 
