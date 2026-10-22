@@ -632,6 +632,11 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
    * shows that tab again when it closes, until Hronaut forgets it as Chrome does.
    */
   openedFromTabId?: string
+  /**
+   * For a tab the person opened in front with + or Ctrl/Cmd+T: the tab their workspace showed before, which shows again
+   * when this tab closes before another tab of the workspace shows, as in Chrome.
+   */
+  returnsToTabId?: string
   label?: string
   labelDurabilityUnconfirmed?: boolean
   labelCommit?: symbol
@@ -2303,7 +2308,11 @@ export class BrowserTabsManager {
   }
 
   async newTab(options: NewTabOptions = {}, selectVisible = true): Promise<BrowserState> {
-    return this.createNewTab(options, selectVisible)
+    // A tab the person opens in front returns to the tab they were on when they close it right away, as in Chrome.
+    const shown = selectVisible && options.active !== false && this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
+    return this.createNewTab(options, selectVisible, shown?.mcpGroupId ? (tab) => {
+      if (tab.mcpGroupId === shown.mcpGroupId && tab.id !== shown.id) tab.returnsToTabId = shown.id
+    } : undefined)
   }
 
   private createNewTab(options: NewTabOptions, selectVisible: boolean, onCreated?: (tab: BrowserTab) => void, onCreationAttempt?: () => void): Promise<BrowserState> {
@@ -2893,6 +2902,8 @@ export class BrowserTabsManager {
     const index = ids.indexOf(tab.id)
     // A website popup returns to the tab that opened it, as in Chrome, rather than to a tab of the next workspace.
     const openerId = tab.openerTabId && this.tabs.has(tab.openerTabId) ? [tab.openerTabId] : []
+    // So does a new tab closed right away, to the tab the person was on.
+    const returnId = tab.returnsToTabId && this.tabs.get(tab.returnsToTabId)?.mcpGroupId === tab.mcpGroupId ? [tab.returnsToTabId] : []
     // A tab opened from a page shows that page's next tab, or the page, as in Chrome.
     const fromPage = tabAfterClosingLinkTab(ordered, tab, (candidate) => !candidate.webContents.isDestroyed())
     const fromPageId = fromPage ? [fromPage.id] : []
@@ -2903,7 +2914,7 @@ export class BrowserTabsManager {
     const sameWorkspace = (candidateId: string) => this.tabs.get(candidateId)?.mcpGroupId === tab.mcpGroupId
     const orderedCandidates = splitPartnerId
       ? [splitPartnerId, ...ids]
-      : [...openerId, ...fromPageId, ...after.filter(sameWorkspace), ...before.filter(sameWorkspace), ...after, ...before]
+      : [...openerId, ...returnId, ...fromPageId, ...after.filter(sameWorkspace), ...before.filter(sameWorkspace), ...after, ...before]
     const nextId = tab.id === this.activeTabId
       ? orderedCandidates.find((candidateId) => {
         const candidate = this.tabs.get(candidateId)
@@ -3181,12 +3192,15 @@ export class BrowserTabsManager {
 
   /**
    * The workspace's tab that follows this one when it closes, as the close hand-over picks it: the tab that opened it as
-   * a popup, otherwise the next tab of the page that opened it or that page, otherwise the open tab beside it as the
-   * tab strip shows them, to its right and otherwise to its left; null when it is the workspace's only tab.
+   * a popup, otherwise the tab a new tab returns to, otherwise the next tab of the page that opened it or that page,
+   * otherwise the open tab beside it as the tab strip shows them, to its right and otherwise to its left; null when it
+   * is the workspace's only tab.
    */
   private workspaceTabAfterClose(tab: BrowserTab): string | null {
     const opener = tab.openerTabId ? this.tabs.get(tab.openerTabId) : undefined
     if (opener && opener.mcpGroupId === tab.mcpGroupId && !opener.webContents.isDestroyed()) return opener.id
+    const returnTo = tab.returnsToTabId ? this.tabs.get(tab.returnsToTabId) : undefined
+    if (returnTo && returnTo.mcpGroupId === tab.mcpGroupId && !returnTo.webContents.isDestroyed()) return returnTo.id
     const fromPage = tabAfterClosingLinkTab(this.orderedTabs(), tab, (candidate) => !candidate.webContents.isDestroyed())
     if (fromPage) return fromPage.id
     const siblings = this.orderedTabs().filter((candidate) => (
@@ -5345,6 +5359,8 @@ export class BrowserTabsManager {
     }
     if (tab.mcpGroupId) {
       const group = this.mcpTabGroups.get(tab.mcpGroupId)!
+      // A new tab the workspace showed returns nowhere once another tab of it shows.
+      if (options.active && group.activeTabId) delete this.tabs.get(group.activeTabId)?.returnsToTabId
       if (options.active || !group.activeTabId) group.activeTabId = id
       // Putting the saved tabs back at startup is not a use of their workspace.
       if (!this.restoringLayout) group.lastUsedAt = new Date().toISOString()
@@ -6323,6 +6339,8 @@ export class BrowserTabsManager {
     if (!tab.mcpGroupId) return
     const group = this.mcpTabGroups.get(tab.mcpGroupId)
     if (!group) return
+    // A new tab the workspace showed returns nowhere once another tab of it shows.
+    if (group.activeTabId && group.activeTabId !== tab.id) delete this.tabs.get(group.activeTabId)?.returnsToTabId
     group.activeTabId = tab.id
     group.lastUsedAt = new Date().toISOString()
   }
