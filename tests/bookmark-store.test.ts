@@ -95,6 +95,28 @@ describe('BookmarkStore', () => {
     expect(await readFile(path, 'utf8')).toBe(persisted)
   })
 
+  it('keeps a bookmark in its place in Recently updated when it is saved with the same title', async () => {
+    // Saving a title without changing it moved the bookmark to the top of Recently updated, and saved that order.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const { path, store } = await createStore()
+    const added = []
+    for (const [index, name] of ['Alpha', 'Beta', 'Gamma'].entries()) {
+      vi.setSystemTime(Date.UTC(2026, 9, 22, 4, index))
+      added.push(await store.add({ url: `https://example.test/${name.toLowerCase()}`, title: name }))
+    }
+    vi.setSystemTime(Date.UTC(2026, 9, 22, 5))
+    const before = await readFile(path, 'utf8')
+
+    await expect(store.rename(added[0]!.id, 'Alpha')).resolves.toEqual(added[0])
+    await expect(store.rename(added[0]!.id, '  Alpha  ')).resolves.toEqual(added[0])
+
+    expect(store.list().map((bookmark) => bookmark.title)).toEqual(['Gamma', 'Beta', 'Alpha'])
+    expect(await readFile(path, 'utf8')).toBe(before)
+    const renamed = await store.rename(added[0]!.id, 'Alpha 2')
+    expect(renamed.updatedAt).toBe(new Date(Date.UTC(2026, 9, 22, 5)).toISOString())
+    expect(store.list().map((bookmark) => bookmark.title)).toEqual(['Alpha 2', 'Gamma', 'Beta'])
+  })
+
   it('keeps blank-title bookmarks on long hostnames reloadable after add and rename', async () => {
     const { path, store } = await createStore()
     const hostname = `${'a'.repeat(60)}.${'b'.repeat(60)}.${'c'.repeat(60)}.${'d'.repeat(40)}.test`
