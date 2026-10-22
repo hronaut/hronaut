@@ -52,8 +52,27 @@ function workspaceShortcut(input: BrowserShortcutInput): BrowserShortcutAction |
   return digit === '0' ? 'previous-workspace' : `select-workspace-${digit}` as BrowserShortcutAction
 }
 
+/** The character each key of a US keyboard's punctuation types without Shift. */
+const US_PUNCTUATION: Readonly<Record<string, string>> = {
+  Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Backslash: '\\', Semicolon: ';', Quote: "'",
+  Backquote: '`', Comma: ',', Period: '.', Slash: '/'
+}
+
+/**
+ * The key a shortcut goes by, in lower case. A key that types a character outside ASCII, such as a letter of a Russian,
+ * Ukrainian or Greek layout, goes by its place on a US keyboard, as in Chrome, so Ctrl+L still focuses the address
+ * with such a layout on. A layout of Latin letters, such as AZERTY or Dvorak, keeps its own.
+ */
+export function shortcutKey(input: Pick<BrowserShortcutInput, 'key' | 'code'>): string {
+  const characters = [...input.key]
+  if (characters.length !== 1 || characters[0]!.codePointAt(0)! < 0x80) return input.key.toLowerCase()
+  const code = input.code ?? ''
+  const usKey = /^Key([A-Z])$/u.exec(code)?.[1]?.toLowerCase() ?? /^Digit([0-9])$/u.exec(code)?.[1] ?? US_PUNCTUATION[code]
+  return usKey ?? input.key.toLowerCase()
+}
+
 export function browserShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
-  const key = input.key.toLowerCase()
+  const key = shortcutKey(input)
   if (input.repeat || input.composing) return null
   if (
     (key === 'f12' && !input.control && !input.meta && !input.alt && !input.shift)

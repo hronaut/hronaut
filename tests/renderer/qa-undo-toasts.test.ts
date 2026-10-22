@@ -423,6 +423,25 @@ describe('useUndoToasts', () => {
     undo.dispose()
   })
 
+  it('undoes on Ctrl+Z with a Russian or Ukrainian layout on, where the Z key types я', async () => {
+    // The key reads я there, so Ctrl+Z did nothing while the toast offered Undo.
+    const undo = setupUndo()
+    undo.offer(offer())
+
+    expect(pressZ({ key: 'я', code: 'KeyZ' }).defaultPrevented).toBe(true)
+    await vi.waitFor(() => expect(undo.browser.undo).toHaveBeenCalledWith(TOKEN_A))
+    undo.dispose()
+  })
+
+  it('leaves Ctrl+Z alone where a Latin layout types another letter on the Z key, as German types y there', () => {
+    const undo = setupUndo()
+    undo.offer(offer())
+
+    expect(pressZ({ key: 'y', code: 'KeyZ' }).defaultPrevented).toBe(false)
+    expect(undo.browser.undo).not.toHaveBeenCalled()
+    undo.dispose()
+  })
+
   it.each([
     ['a text input', () => Object.assign(document.createElement('input'), { type: 'text' })],
     ['a search input', () => Object.assign(document.createElement('input'), { type: 'search' })],

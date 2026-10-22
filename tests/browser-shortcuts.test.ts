@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { browserShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
+import { browserShortcutAction, shortcutKey, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
 
 function input(overrides: Partial<BrowserShortcutInput> = {}): BrowserShortcutInput {
   return {
@@ -167,6 +167,65 @@ describe('browserShortcutAction', () => {
       expect(browserShortcutAction(input({ key: '-', ...modifier }))).toBe('zoom-out')
       expect(browserShortcutAction(input({ key: '0', ...modifier }))).toBe('zoom-reset')
     }
+  })
+
+  // Electron reports the character the layout types, so with a Russian or Ukrainian layout on Ctrl+L came as Ctrl+д and
+  // no browser key worked. Chrome goes by the key's place on a US keyboard for such layouts.
+  it.each([
+    ['д', 'KeyL', false, 'focus-address'],
+    ['е', 'KeyT', false, 'new-tab'],
+    ['ц', 'KeyW', false, 'close-tab'],
+    ['а', 'KeyF', false, 'find'],
+    ['в', 'KeyD', false, 'bookmark'],
+    ['к', 'KeyR', false, 'reload'],
+    ['л', 'KeyK', false, 'switch-workspace'],
+    ['ю', 'Period', false, 'agent-card'],
+    ['Е', 'KeyT', true, 'reopen-closed-tab'],
+    ['Ф', 'KeyA', true, 'search-tabs'],
+    ['З', 'KeyP', true, 'command-palette'],
+    ['К', 'KeyR', true, 'reload-ignoring-cache'],
+    ['А', 'KeyF', true, 'toggle-full-page'],
+    ['Щ', 'KeyO', true, 'take-over'],
+    ['Ш', 'KeyI', true, 'toggle-devtools'],
+    ['С', 'KeyC', true, 'pick-element'],
+    ['і', 'KeyS', false, null],
+    ['λ', 'KeyL', false, 'focus-address']
+  ] as const)('maps Control+%s at %s (Shift %s) by its place on a US keyboard', (key, code, shift, action) => {
+    expect(browserShortcutAction(input({ key, code, shift, control: true }))).toBe(action)
+    if (action && !['toggle-devtools', 'pick-element'].includes(action)) {
+      expect(browserShortcutAction(input({ key, code, shift, meta: true, mac: true }))).toBe(action)
+    }
+  })
+
+  it('goes by the US key for history, tabs and zoom when the layout types other characters there', () => {
+    expect(browserShortcutAction(input({ key: 'р', code: 'KeyH', control: true }))).toBe('visit-history')
+    expect(browserShortcutAction(input({ key: 'н', code: 'KeyY', meta: true, mac: true }))).toBe('visit-history')
+    // Czech types ě on the 2 key and AZERTY à on the 0 key.
+    expect(browserShortcutAction(input({ key: 'ě', code: 'Digit2', control: true }))).toBe('select-tab-2')
+    expect(browserShortcutAction(input({ key: 'à', code: 'Digit0', control: true }))).toBe('zoom-reset')
+  })
+
+  it('keeps the letters of a Latin layout and Control with a letter for the page on macOS', () => {
+    // AZERTY types a on the US Q key and q on the US A key; Dvorak types l on the US P key.
+    expect(browserShortcutAction(input({ key: 'A', code: 'KeyQ', control: true, shift: true }))).toBe('search-tabs')
+    expect(browserShortcutAction(input({ key: 'Q', code: 'KeyA', control: true, shift: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'l', code: 'KeyP', control: true }))).toBe('focus-address')
+    expect(browserShortcutAction(input({ key: 'p', code: 'KeyL', control: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'д', code: 'KeyL', control: true, mac: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'д', code: 'KeyL' }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'д', code: 'KeyL', control: true, alt: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'д', code: 'KeyL', control: true, repeat: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'д', control: true }))).toBeNull()
+  })
+
+  it('names the key a shortcut goes by', () => {
+    expect(shortcutKey({ key: 'Я', code: 'KeyZ' })).toBe('z')
+    expect(shortcutKey({ key: 'Z', code: 'KeyY' })).toBe('z')
+    expect(shortcutKey({ key: 'Tab', code: 'Tab' })).toBe('tab')
+    expect(shortcutKey({ key: 'ю', code: 'Period' })).toBe('.')
+    expect(shortcutKey({ key: 'ж', code: 'Semicolon' })).toBe(';')
+    expect(shortcutKey({ key: 'ж' })).toBe('ж')
+    expect(shortcutKey({ key: 'ö', code: 'IntlBackslash' })).toBe('ö')
   })
 
   it('ignores unsafe modifier combinations, repeats, and composition', () => {
