@@ -8,6 +8,7 @@ import type { WalletProviderEvent, WalletProviderRequest } from '../shared/walle
 import { installHronautWalletProviders } from './wallet-provider-bootstrap.js'
 import { installFixedDate } from './fixed-date-bootstrap.js'
 import type { FixedDateBootstrap } from '../shared/fixed-date.js'
+import { PAGE_PRINT_DIALOG_CHANNEL } from '../shared/page-print-dialog.js'
 
 // Synchronous, main-owned opt-in is resolved before any page scripts execute.
 // Embedded frames never receive an installation authorization.
@@ -134,6 +135,6 @@ pageWindow.addEventListener('unhandledrejection', (event) => {
 // page go instead of keeping the agent's workspace busy. Only the browser's own print events count, not a page's copy.
 for (const type of ['beforeprint', 'afterprint'] as const) {
   pageWindow.addEventListener(type, (event) => {
-    if (event.isTrusted) ipcRenderer.send('hronaut:page-print', type === 'beforeprint')
+    if (event.isTrusted) ipcRenderer.send(PAGE_PRINT_DIALOG_CHANNEL, type === 'beforeprint')
   }, true)
 }

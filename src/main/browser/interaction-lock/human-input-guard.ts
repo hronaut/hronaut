@@ -1,5 +1,6 @@
 import type { InteractionLockAccess, InteractionLockTab } from './interaction-lock-access.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
+import { PrintDialogOpenError, whenPrintDialogCloses } from '../print-dialog-guard.js'
 
 // The same check the screenshot area and the element picker make. A page
 // whose renderer exited has no frames to guard; its next load syncs again.
@@ -80,6 +81,12 @@ export async function syncHumanInteractionInputGuard<Tab extends InteractionLock
       || access.findTab(tab.id) !== tab
       || nativeSelectionContextUnavailable(error)
     ) return
+    if (error instanceof PrintDialogOpenError) {
+      // The native barrier, which the browser process applies, is in place; the frames' wheel guards follow once the
+      // person closes the page's print dialog.
+      void whenPrintDialogCloses(tab.webContents).then(() => syncHumanInteractionInputGuard(access, tab)).catch(() => undefined)
+      return
+    }
     throw error
   }
 }

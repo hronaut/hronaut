@@ -58,6 +58,11 @@ test('an agent click that opens the page print dialog settles and leaves the wor
     expect(held.isError, text(held)).toBe(true)
     expect(text(held)).toContain('The page is showing its print dialog')
 
+    // An agent's close does not wait for the page, so the tab and its dialog can still go.
+    const closing = await call('browser_close_tab', printTab)
+    expect(closing.isError, text(closing)).toBeFalsy()
+    expect(text(closing)).not.toContain(printTab.tabId)
+
     const other = await call('browser_snapshot', plainTab)
     expect(other.isError, text(other)).toBeFalsy()
     expect(text(other)).toContain('Plain page')

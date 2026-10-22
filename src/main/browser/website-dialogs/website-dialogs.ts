@@ -1,6 +1,7 @@
 import type { WebContents } from 'electron'
 import type { BrowserDialogAction, BrowserDialogHandlingOptions } from '../../../shared/types.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
+import { PrintDialogOpenError, whenPrintDialogCloses } from '../print-dialog-guard.js'
 import type { WebsiteDialogsAccess, WebsiteDialogsTab } from './website-dialogs-access.js'
 
 /** The buffer limits dialog monitoring gives the page's network domain, so retained request data stays bounded. */
@@ -154,6 +155,12 @@ export function ensureDialogMonitoring<Tab extends WebsiteDialogsTab>(access: We
             void ensureDialogMonitoring(access, tab)
           })
         }
+        return
+      }
+      if (error instanceof PrintDialogOpenError) {
+        // A page that prints as it opens, such as a receipt, holds its renderer in the print dialog; the page is
+        // monitored once the person closes it.
+        void whenPrintDialogCloses(webContents).then(() => ensureDialogMonitoring(access, tab))
         return
       }
       console.error('[browser] Could not enable page diagnostics:', error)

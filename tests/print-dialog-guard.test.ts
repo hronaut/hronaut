@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { guardPageCallsDuringPrintDialog, PAGE_PRINT_DIALOG_CHANNEL, PrintDialogOpenError } from '../src/main/browser/print-dialog-guard.js'
+import { guardPageCallsDuringPrintDialog, printDialogHolds, PrintDialogOpenError, whenPrintDialogCloses } from '../src/main/browser/print-dialog-guard.js'
+import { PAGE_PRINT_DIALOG_CHANNEL } from '../src/shared/page-print-dialog.js'
 
 function deferred(): { promise: Promise<unknown>; resolve(value: unknown): void; reject(error: unknown): void } {
   let resolve!: (value: unknown) => void
@@ -17,6 +18,7 @@ function fakePage() {
     return reply.promise
   }
   const page = {
+    mainFrame: { processId: 4, routingId: 1 },
     on: (event: string, listener: (...args: unknown[]) => void) => { listeners.set(event, [...(listeners.get(event) ?? []), listener]) },
     executeJavaScript: record('script'),
     executeJavaScriptInIsolatedWorld: record('isolated'),
@@ -27,7 +29,8 @@ function fakePage() {
   guardPageCallsDuringPrintDialog(page as never)
   const emit = (event: string, ...args: unknown[]): void => { for (const listener of listeners.get(event) ?? []) listener(...args) }
   // What the page's preload sends on the browser's beforeprint (true) and afterprint (false).
-  const printEvent = (open: unknown, channel = PAGE_PRINT_DIALOG_CHANNEL): void => emit('ipc-message', {}, channel, open)
+  const printEvent = (open: unknown, channel = PAGE_PRINT_DIALOG_CHANNEL, senderFrame = page.mainFrame): void =>
+    emit('ipc-message', { senderFrame }, channel, open)
   return { page, calls, emit, printEvent }
 }
 
@@ -123,5 +126,48 @@ describe('page calls during a print dialog', () => {
     printEvent(true)
     // A call that already settled is not reported again.
     await expect(script).resolves.toBe(1)
+  })
+
+  it('ignores a report from a frame that is no longer the page\'s main frame', async () => {
+    const { page, calls, printEvent } = fakePage()
+    printEvent(true, PAGE_PRINT_DIALOG_CHANNEL, { processId: 3, routingId: 1 })
+    printEvent(true, PAGE_PRINT_DIALOG_CHANNEL, null as never)
+    void page.executeJavaScript('1')
+    expect(calls.map(call => call.kind)).toEqual(['script'])
+    expect(printDialogHolds(page)).toBe(false)
+  })
+
+  it('sends commands for the page\'s workers and out-of-process frames, which the dialog does not hold', async () => {
+    const { page, calls, printEvent } = fakePage()
+    const worker = page.debugger.sendCommand('Runtime.evaluate', { expression: '1' }, 'worker-session')
+    printEvent(true)
+    const later = page.debugger.sendCommand('Runtime.evaluate', { expression: '2' }, 'worker-session')
+    expect(calls.map(call => call.args)).toEqual([
+      ['Runtime.evaluate', { expression: '1' }, 'worker-session'],
+      ['Runtime.evaluate', { expression: '2' }, 'worker-session']
+    ])
+    for (const call of calls) call.reply.resolve({ result: { value: 1 } })
+    await expect(worker).resolves.toEqual({ result: { value: 1 } })
+    await expect(later).resolves.toEqual({ result: { value: 1 } })
+  })
+
+  it('tells cleanup when the dialog closes, or at once when none is open', async () => {
+    const { page, emit, printEvent } = fakePage()
+    await expect(whenPrintDialogCloses(page)).resolves.toBeUndefined()
+    printEvent(true)
+    expect(printDialogHolds(page)).toBe(true)
+    let closed = false
+    const waiting = whenPrintDialogCloses(page).then(() => { closed = true })
+    await Promise.resolve()
+    expect(closed).toBe(false)
+    printEvent(false)
+    await waiting
+    expect(printDialogHolds(page)).toBe(false)
+
+    printEvent(true)
+    const gone = whenPrintDialogCloses(page)
+    emit('destroyed')
+    await expect(gone).resolves.toBeUndefined()
+    expect(printDialogHolds({})).toBe(false)
   })
 })

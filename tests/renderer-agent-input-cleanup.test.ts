@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { clearRendererAgentInputFlag } from '../src/main/browser/native-input-cleanup.js'
 import { RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
+import { PrintDialogOpenError } from '../src/main/browser/print-dialog-guard.js'
 
 function fixture() {
   const events = new EventEmitter()
@@ -32,6 +33,15 @@ describe('renderer agent-input flag cleanup', () => {
     const f = fixture(), onFailure = vi.fn()
     const pending = clearRendererAgentInputFlag(f.page, onFailure)
     f.reject(new RendererExitedError(sent))
+    await pending
+    expect(onFailure).not.toHaveBeenCalled()
+    expect(f.page.listenerCount('destroyed')).toBe(0)
+  })
+  // withAgentInput clears the flag again once the person closes the dialog.
+  it.each([true, false])('does not report a page its print dialog holds as a failed cleanup (sent: %s)', async sent => {
+    const f = fixture(), onFailure = vi.fn()
+    const pending = clearRendererAgentInputFlag(f.page, onFailure)
+    f.reject(new PrintDialogOpenError(sent))
     await pending
     expect(onFailure).not.toHaveBeenCalled()
     expect(f.page.listenerCount('destroyed')).toBe(0)

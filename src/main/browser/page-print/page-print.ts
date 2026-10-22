@@ -8,7 +8,7 @@ import type { PagePrintAccess, PagePrintTab } from './page-print-access.js'
  * clicking in right now, one whose human input lock holds the person's input back, one behind trusted chrome or with
  * a screenshot area or element pick under way, nor while the page's dialog is already open. Hronaut Home, a sleeping
  * page and a page whose renderer is gone print nothing either. A page an agent is working on is refused with a reason,
- * since the agent would stall until the dialog closed: taking it over or pausing its agents lets it print. Resolves once
+ * since the agent's calls on it would fail until the dialog closed: taking it over or pausing its agents lets it print. Resolves once
  * the dialog closes, also when the person cancels it or the page goes away; a print that fails rejects.
  */
 export function printPage<Tab extends PagePrintTab>(access: PagePrintAccess<Tab>, tab: Tab): Promise<void> {
