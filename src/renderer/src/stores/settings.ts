@@ -35,7 +35,7 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   showAgentCursor: true,
   pinAgentLiveStatus: false,
   mcpRemoteAccess: false,
-  mcpAuthentication: false,
+  mcpAuthentication: true,
   mcpPort: 47_812,
   mcpToolSet: 'essentials',
   downloadDirectory: null,

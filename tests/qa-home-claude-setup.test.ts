@@ -13,8 +13,8 @@ installHomeHooks()
 const SETTINGS = '/home/person/.claude.json'
 const setupState = (state: ClaudeCodeSetupState | null = 'not-configured', detected: AgentGuideId[] = ['claude-code']): HomeSetupState =>
   ({ detected, ...(state ? { claudeCode: { state, path: SETTINGS } } : {}) })
-const plan = (planId: string, before: string | null = null): ClaudeCodeSetupPreview => ({
-  planId, path: SETTINGS, before, after: `{ "type": "http", "url": "http://127.0.0.1:47812/mcp", "plan": "${planId}" }`, backupName: `.claude.json.${planId}.bak`
+const plan = (planId: string, before: string | null = null, tokenHidden = false): ClaudeCodeSetupPreview => ({
+  planId, path: SETTINGS, before, after: `{ "type": "http", "url": "http://127.0.0.1:47812/mcp", "plan": "${planId}" }`, tokenHidden, backupName: `.claude.json.${planId}.bak`
 })
 
 /** A setup bridge whose reads answer at once until `hold()`, then wait for the test. */
@@ -131,18 +131,18 @@ describe('Agents found on this computer (#874)', () => {
     expect(byId('home-onboarding').querySelector<HTMLElement>('#onboarding-claude')!.hidden).toBe(true)
   })
 
-  it('still marks found agents while MCP authentication is on, without offering the setup', async () => {
-    await mountSetup(setupBridge(setupState(null, ['claude-code'])), { authenticationDisabled: false })
+  it('marks found agents and offers the setup while MCP authentication is on', async () => {
+    await mountSetup(setupBridge(setupState('not-configured', ['claude-code'])), { authenticationDisabled: false })
     expect(guideButton('claude-code').querySelector('.agent-found')).not.toBeNull()
-    expect(document.getElementById('claude-setup')).toBeNull()
-    expect(document.getElementById('onboarding-claude')).toBeNull()
     expect(words(byId('guide-name'))).toBe('Claude Code')
+    expect(panel()).toEqual({ shown: true, start: 'Set up Claude Code', startDisabled: false, status: '', preview: false })
+    expect(byId('onboarding-claude').hidden).toBe(false)
   })
 })
 
 describe('The first-run offer (#874)', () => {
   it.each<[ClaudeCodeSetupState | null, boolean]>([
-    ['not-configured', true], ['other-address', true], ['configured', false], ['not-found', false], ['unreadable', false], [null, false]
+    ['not-configured', true], ['other-address', true], ['other-token', true], ['configured', false], ['not-found', false], ['unreadable', false], [null, false]
   ])('with Claude Code %s, offers the setup: %s', async (state, offered) => {
     await mountSetup(setupBridge(setupState(state, state === 'not-found' ? [] : ['claude-code'])))
     expect(byId('home-onboarding').hidden).toBe(false)
@@ -203,6 +203,7 @@ describe('The Set up Claude Code panel (#874)', () => {
   it.each<[ClaudeCodeSetupState, string | null, string]>([
     ['not-configured', 'Set up Claude Code', ''],
     ['other-address', 'Update Claude Code', 'Claude Code points to Hronaut at another address.'],
+    ['other-token', 'Update Claude Code', 'Claude Code’s entry for Hronaut doesn’t send the current MCP token.'],
     ['configured', null, 'Claude Code is already set up for this address.'],
     ['not-found', null, `Claude Code’s settings weren’t found at ${SETTINGS}. Use the command above.`],
     ['unreadable', null, `Hronaut can’t safely change ${SETTINGS}. Use the command above.`]
@@ -239,11 +240,23 @@ describe('The Set up Claude Code panel (#874)', () => {
     expect(byId('claude-setup-before-wrap').hidden).toBe(false)
     expect(byId('claude-setup-before').textContent).toBe('"hronaut": { "type": "http", "url": "http://127.0.0.1:9000/mcp" }')
     expect(words(byId('claude-setup-backup'))).toBe('A copy of the file is saved first as .claude.json.plan-1.bak.')
+    expect(byId('claude-setup-token').hidden).toBe(true)
     byId<HTMLButtonElement>('claude-setup-cancel').click()
     expect(panel()).toMatchObject({ preview: false, start: 'Update Claude Code', status: 'Nothing was changed.' })
     // Not Update Claude Code, which a held Enter would press to show the change again.
     expect(document.activeElement).toBe(command())
     expect(bridge.applyClaudeCodeSetup).not.toHaveBeenCalled()
+  })
+
+  it('says Hronaut writes the actual token where ••• appears while authentication is on', async () => {
+    const bridge = setupBridge(setupState('other-token'))
+    bridge.prepareClaudeCodeSetup.mockResolvedValue(plan('plan-1', '{ "type": "http", "url": "http://127.0.0.1:47812/mcp" }', true))
+    await mountSetup(bridge, { authenticationDisabled: false })
+    openConnect()
+    startButton().click()
+    await flush()
+    expect(byId('claude-setup-token').hidden).toBe(false)
+    expect(words(byId('claude-setup-token'))).toBe('Hronaut writes the actual MCP token where ••• appears.')
   })
 
   it.each<[string, string]>([

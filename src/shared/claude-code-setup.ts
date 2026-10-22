@@ -1,7 +1,10 @@
 import type { AgentGuideId } from './agent-guides.js'
 
-/** What Claude Code's settings file says about Hronaut, read in main without running Claude Code. */
-export type ClaudeCodeSetupState = 'not-found' | 'unreadable' | 'not-configured' | 'configured' | 'other-address'
+/**
+ * What Claude Code's settings file says about Hronaut, read in main without running Claude Code. `other-token`: the
+ * entry has this address but does not send the current MCP token.
+ */
+export type ClaudeCodeSetupState = 'not-found' | 'unreadable' | 'not-configured' | 'configured' | 'other-address' | 'other-token'
 
 export interface ClaudeCodeSetupStatus {
   state: ClaudeCodeSetupState
@@ -16,7 +19,10 @@ export interface ClaudeCodeSetupPreview {
   path: string
   /** Hronaut's current entry as JSON, when it points elsewhere: type and address only, other values hidden. */
   before: string | null
+  /** The new entry; with authentication on, its token shows as •••. */
   after: string
+  /** Whether `after` hides the MCP token that Hronaut writes in its place. */
+  tokenHidden: boolean
   backupName: string
 }
 
@@ -26,7 +32,7 @@ export type ClaudeCodeSetupResult = { outcome: 'applied' | 'overwritten'; backup
 /** Agents found on this computer by fixed paths, and Claude Code's setup when Hronaut can offer it. */
 export interface HomeSetupState {
   detected: AgentGuideId[]
-  /** Absent while MCP authentication is on: Hronaut never writes a token into another app's settings. */
+  /** Absent while the MCP token comes from HRONAUT_MCP_TOKEN for this launch only, which Hronaut does not save. */
   claudeCode?: ClaudeCodeSetupStatus
 }
 

@@ -5,6 +5,7 @@ import { ClaudeCodeSetup, claudeCodeConfigPath } from './claude-code-setup.js'
 import { detectAgentClients } from './agent-client-detection.js'
 import { agentGuideHandler, setupFeedbackHandler, setupHelpHandler } from './setup-feedback-links.js'
 import type { McpPortRecovery } from './mcp-port-suggestion.js'
+import type { McpTokenConfiguration } from './mcp-token-store.js'
 import type { HomeSetupState } from '../shared/claude-code-setup.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import type { AppSettings, McpPortMoveResult } from '../shared/types.js'
@@ -23,6 +24,10 @@ interface HomeIpcHost {
   mcpUrl(): string
   /** The current settings; read on every use because each committed update replaces the object. */
   settings(): AppSettings
+  /** The token MCP clients send while authentication is on; undefined before the MCP runtime has loaded it. */
+  mcpTokenConfiguration(): Pick<McpTokenConfiguration, 'token' | 'source'> | undefined
+  /** Whether the listener takes this bearer credential instead of the token, as an active capability profile's. */
+  mcpCredentialAccepted(bearer: string): boolean
   openExternal(url: string): Promise<void>
   mcpPortRecovery(): Pick<McpPortRecovery, 'move'>
   /** Shows a native message box, on the main window when it is open. */
@@ -56,7 +61,14 @@ export function registerHomeIpc(host: HomeIpcHost): void {
     claudeCodeSetup ??= new ClaudeCodeSetup({
       path: claudeCodeConfigPath(),
       endpoint: () => host.mcpUrl(),
-      allowed: () => !host.settings().mcpAuthentication,
+      credential: () => {
+        if (!host.settings().mcpAuthentication) return undefined
+        const configuration = host.mcpTokenConfiguration()
+        // An entry without the token could not connect while authentication is on.
+        if (!configuration) throw new Error('The MCP token is not loaded yet')
+        return { token: configuration.token, accepts: (bearer) => host.mcpCredentialAccepted(bearer) }
+      },
+      allowed: claudeCodeSetupAllowed,
       confirm: async (preview) => {
         const { response } = await host.showMessageBox({
           type: 'question',
@@ -65,6 +77,7 @@ export function registerHomeIpc(host: HomeIpcHost): void {
           detail: host.text('native.dialog.claudeSetupDetail', {
             path: preview.path,
             after: preview.after,
+            token: preview.tokenHidden ? host.text('native.dialog.claudeSetupToken') : '',
             replaces: preview.before === null ? '' : host.text('native.dialog.claudeSetupReplaces', { before: preview.before }),
             backup: preview.backupName
           }),
@@ -80,9 +93,17 @@ export function registerHomeIpc(host: HomeIpcHost): void {
     return claudeCodeSetup
   }
 
+  /**
+   * A token given to this launch only, with HRONAUT_MCP_TOKEN, is the person's to manage: Hronaut does not save it, so
+   * it does not write it into Claude Code's settings either, and the copied command is the way.
+   */
+  function claudeCodeSetupAllowed(): boolean {
+    if (!host.settings().mcpAuthentication) return true
+    return host.mcpTokenConfiguration()?.source === 'profile'
+  }
+
   function assertClaudeCodeSetupAllowed(): void {
-    // Hronaut never writes a token into another app's settings; with authentication on, the copied command is the way.
-    if (host.settings().mcpAuthentication) throw new Error('Claude Code setup is unavailable while MCP authentication is enabled. Use the command instead.')
+    if (!claudeCodeSetupAllowed()) throw new Error('Claude Code setup is unavailable while the MCP token comes from HRONAUT_MCP_TOKEN. Use the command instead.')
   }
 
   host.handleBrowserIpc('hronaut-home:workspaces', (event) => {
@@ -134,7 +155,7 @@ export function registerHomeIpc(host: HomeIpcHost): void {
     const setup = claudeCodeSetupService()
     const [detected, claudeCode] = await Promise.all([
       detectAgentClients(undefined, { 'claude-code': [setup.path] }),
-      host.settings().mcpAuthentication ? undefined : setup.status()
+      claudeCodeSetupAllowed() ? setup.status() : undefined
     ])
     return { detected, ...(claudeCode ? { claudeCode } : {}) }
   })

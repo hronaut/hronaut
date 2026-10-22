@@ -65,8 +65,41 @@ async function readConfig(path: string, platform: NodeJS.Platform): Promise<Conf
   }
 }
 
-const entryFor = (endpoint: string) => ({ type: 'http', url: endpoint })
-const isEntryFor = (entry: unknown, endpoint: string): boolean => isRecord(entry) && entry.type === 'http' && entry.url === endpoint
+/**
+ * What Claude Code has to send while MCP authentication is on: the profile's token, which Hronaut writes, or any other
+ * credential the listener takes, such as a capability profile's.
+ */
+export interface ClaudeCodeCredential {
+  token: string
+  accepts?: (bearer: string) => boolean
+}
+
+/** With authentication on, Claude Code sends the token in the header the copied command adds. */
+const entryFor = (endpoint: string, token: string | undefined) => token === undefined
+  ? { type: 'http', url: endpoint }
+  : { type: 'http', url: endpoint, headers: { Authorization: `Bearer ${token}` } }
+const pointsAt = (entry: unknown, endpoint: string): entry is Record<string, unknown> => isRecord(entry) && entry.type === 'http' && entry.url === endpoint
+
+/** The credential an entry's Authorization header sends, read as the listener reads it. */
+function bearerOf(entry: Record<string, unknown>): string | undefined {
+  if (!isRecord(entry.headers)) return undefined
+  const header = Object.entries(entry.headers).find(([name]) => name.toLowerCase() === 'authorization')?.[1]
+  return typeof header === 'string' ? /^Bearer +(\S+)$/iu.exec(header)?.[1] : undefined
+}
+
+/** While authentication is off, Hronaut ignores any header, so an entry with an old token still connects. */
+function sendsAccepted(entry: Record<string, unknown>, credential: ClaudeCodeCredential | undefined): boolean {
+  if (credential === undefined) return true
+  const bearer = bearerOf(entry)
+  return bearer !== undefined && (bearer === credential.token || (credential.accepts?.(bearer) ?? false))
+}
+
+const isEntryFor = (entry: unknown, endpoint: string, credential: ClaudeCodeCredential | undefined): boolean =>
+  pointsAt(entry, endpoint) && sendsAccepted(entry, credential)
+/** The entry as Home and the dialog show it: the token stays in main. */
+const shownEntry = (endpoint: string, token: string | undefined) => token === undefined
+  ? entryFor(endpoint, undefined)
+  : { type: 'http', url: endpoint, headers: { Authorization: 'Bearer •••' } }
 const hronautEntry = (config: Extract<ConfigRead, { state: 'ready' }>): unknown => (config.root.mcpServers as Record<string, unknown> | undefined)?.hronaut
 
 /** An address without sign-in details or a query, either of which can carry a token. */
@@ -95,17 +128,27 @@ function describeExisting(entry: unknown): string {
   return text.length > PREVIEW_MAX_CHARACTERS ? `${text.slice(0, PREVIEW_MAX_CHARACTERS)}…` : text
 }
 
-/** What Claude Code's settings say about Hronaut at this endpoint. Never runs Claude Code. */
-export async function claudeCodeSetupStatus(path: string, endpoint: string, platform: NodeJS.Platform = process.platform): Promise<ClaudeCodeSetupStatus> {
+/**
+ * What Claude Code's settings say about Hronaut at this endpoint, with this credential, or none while authentication
+ * is off. Never runs Claude Code.
+ */
+export async function claudeCodeSetupStatus(
+  path: string,
+  endpoint: string,
+  credential: ClaudeCodeCredential | undefined,
+  platform: NodeJS.Platform = process.platform
+): Promise<ClaudeCodeSetupStatus> {
   const config = await readConfig(path, platform)
   if (config.state !== 'ready') return { state: config.state, path }
   const entry = hronautEntry(config)
   if (entry === undefined) return { state: 'not-configured', path }
-  return { state: isEntryFor(entry, endpoint) ? 'configured' : 'other-address', path }
+  if (!pointsAt(entry, endpoint)) return { state: 'other-address', path }
+  return { state: sendsAccepted(entry, credential) ? 'configured' : 'other-token', path }
 }
 
 interface Plan {
   endpoint: string
+  token: string | undefined
   target: string
   hash: string
   next: string
@@ -119,7 +162,12 @@ export interface ClaudeCodeSetupOptions {
   path: string
   /** Read on each step: the MCP port can change in Settings. */
   endpoint: () => string
-  /** Whether Hronaut may write the entry now; false once MCP authentication is on. Checked again after the dialog. */
+  /**
+   * What Claude Code has to send, or undefined while authentication is off. Read on each step, since authentication
+   * can be turned on or off in Settings.
+   */
+  credential?: () => ClaudeCodeCredential | undefined
+  /** Whether Hronaut may write the entry now. Checked again after the dialog and just before the file is replaced. */
   allowed?: () => boolean
   now?: () => number
   /** Asks the person in a native dialog, outside any page, whether to make exactly this change. */
@@ -146,7 +194,7 @@ export class ClaudeCodeSetup {
   get path(): string { return this.options.path }
 
   status(): Promise<ClaudeCodeSetupStatus> {
-    return claudeCodeSetupStatus(this.options.path, this.options.endpoint(), this.platform)
+    return claudeCodeSetupStatus(this.options.path, this.options.endpoint(), this.credential(), this.platform)
   }
 
   async prepare(owner: number): Promise<ClaudeCodeSetupPreview> {
@@ -156,8 +204,10 @@ export class ClaudeCodeSetup {
     const servers = (config.root.mcpServers as Record<string, unknown> | undefined) ?? {}
     const before = servers.hronaut
     const endpoint = this.options.endpoint()
-    const after = entryFor(endpoint)
-    if (isEntryFor(before, endpoint)) throw new ClaudeCodeSetupError('configured')
+    const credential = this.credential()
+    const token = credential?.token
+    const after = entryFor(endpoint, token)
+    if (isEntryFor(before, endpoint, credential)) throw new ClaudeCodeSetupError('configured')
     // Spreading keeps every other key, and an existing entry's place, exactly as they were.
     const next = { ...config.root, mcpServers: { ...servers, hronaut: after } }
     const nextText = JSON.stringify(next, null, config.indent) + (config.newline ? '\n' : '')
@@ -166,12 +216,15 @@ export class ClaudeCodeSetup {
       planId: id,
       path: this.options.path,
       before: before === undefined ? null : describeExisting(before),
-      after: JSON.stringify(after, null, 2),
+      after: JSON.stringify(shownEntry(endpoint, token), null, 2),
+      tokenHidden: token !== undefined,
       backupName: await this.freeBackupName(config.target)
     }
+    // A file that now holds the token is for this account alone; one without it keeps its exact mode.
+    const mode = token === undefined || this.platform === 'win32' ? config.mode : config.mode & 0o700
     // One plan per page: preparing again replaces what that page was shown.
     for (const [key, plan] of this.plans) if (plan.owner === owner) this.plans.delete(key)
-    this.plans.set(id, { endpoint, target: config.target, hash: config.hash, next: nextText, mode: config.mode, owner, expiresAt: this.now() + PLAN_LIFETIME_MS, preview })
+    this.plans.set(id, { endpoint, token, target: config.target, hash: config.hash, next: nextText, mode, owner, expiresAt: this.now() + PLAN_LIFETIME_MS, preview })
     return preview
   }
 
@@ -182,7 +235,7 @@ export class ClaudeCodeSetup {
     this.plans.delete(planId as string)
     this.assertStillValid(plan)
     if (!await this.options.confirm(plan.preview)) return { outcome: 'cancelled' }
-    // The port or authentication can change while the dialog is open.
+    // The port, authentication or the token can change while the dialog is open.
     this.assertStillValid(plan)
     const current = await this.readUnchanged(plan)
     const directory = dirname(plan.target)
@@ -193,13 +246,15 @@ export class ClaudeCodeSetup {
       try {
         await writeNewFile(backup, current.raw, 0o600)
         await writeNewFile(temporary, Buffer.from(plan.next, 'utf8'), plan.mode)
-        // The mode given when creating a file is reduced by the umask; give the new file the old one's exactly.
+        // The mode given when creating a file is reduced by the umask; give the new file the planned one exactly.
         await chmod(temporary, plan.mode)
       } catch {
         throw new ClaudeCodeSetupError('write-failed')
       }
-      // Claude Code rewrites this file often: compare once more just before replacing it.
+      // Claude Code rewrites this file often, and authentication can change during the writes: check both once more
+      // just before replacing it.
       await this.readUnchanged(plan)
+      this.assertStillValid(plan)
       try {
         await rename(temporary, plan.target)
         replaced = true
@@ -216,15 +271,21 @@ export class ClaudeCodeSetup {
       if (!replaced) await rm(backup, { force: true }).catch(() => undefined)
     }
     const written = await readConfig(this.options.path, this.platform)
-    if (written.state === 'ready' && (written.text === plan.next || isEntryFor(hronautEntry(written), plan.endpoint))) {
+    if (written.state === 'ready' && (written.text === plan.next || isEntryFor(hronautEntry(written), plan.endpoint, plan.token === undefined ? undefined : { token: plan.token }))) {
       return { outcome: 'applied', backupName: plan.preview.backupName }
     }
     // Replaced, then changed again right after, most likely by a running Claude Code.
     return { outcome: 'overwritten', backupName: plan.preview.backupName }
   }
 
+  private credential(): ClaudeCodeCredential | undefined {
+    return this.options.credential?.()
+  }
+
   private assertStillValid(plan: Plan): void {
-    if (plan.endpoint !== this.options.endpoint() || !(this.options.allowed?.() ?? true)) throw new ClaudeCodeSetupError('expired')
+    if (plan.endpoint !== this.options.endpoint() || plan.token !== this.credential()?.token || !(this.options.allowed?.() ?? true)) {
+      throw new ClaudeCodeSetupError('expired')
+    }
   }
 
   /** The file as the plan saw it, at the same real path, or a refusal. */

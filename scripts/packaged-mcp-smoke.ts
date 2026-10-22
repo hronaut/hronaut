@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -23,11 +23,13 @@ async function availableLoopbackPort(): Promise<number> {
   return address.port
 }
 
-async function waitForServer(port: number, timeoutMs = 15_000): Promise<void> {
+/** Waits for the listener and returns the profile's MCP token, which a new profile requires. */
+async function waitForServer(port: number, timeoutMs = 15_000): Promise<string> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     try {
-      if ((await fetch(`http://127.0.0.1:${port}/healthz`)).ok) return
+      const token = (await readFile(join(profileDirectory, 'mcp-token'), 'utf8')).trim()
+      if ((await fetch(`http://127.0.0.1:${port}/healthz`, { headers: { authorization: `Bearer ${token}` } })).ok) return token
     } catch {
       // The packaged process is still starting.
     }
@@ -46,6 +48,9 @@ function waitForExit(child: ReturnType<typeof spawn>): Promise<number | null> {
 const mcpPort = await availableLoopbackPort()
 const applicationEnvironment = {
   ...process.env,
+  // The profile's own token, which Hronaut writes into the profile, and not a token or override from this shell.
+  HRONAUT_MCP_TOKEN: undefined,
+  HRONAUT_DISABLE_MCP_AUTH: undefined,
   HRONAUT_MCP_HOST: '127.0.0.1',
   HRONAUT_MCP_PORT: String(mcpPort),
   HRONAUT_USER_DATA_DIR: profileDirectory,
@@ -61,13 +66,13 @@ application.stdout.pipe(process.stdout)
 application.stderr.pipe(process.stderr)
 
 try {
-  await waitForServer(mcpPort)
+  const token = await waitForServer(mcpPort)
   const smoke = spawn(process.execPath, ['scripts/mcp-smoke.ts'], {
     cwd: repositoryRoot,
     env: {
       ...process.env,
       HRONAUT_MCP_URL: `http://127.0.0.1:${mcpPort}/mcp`,
-      HRONAUT_MCP_TOKEN: ''
+      HRONAUT_MCP_TOKEN: token
     },
     stdio: 'inherit'
   })

@@ -1,5 +1,5 @@
 import { createServer } from 'node:net'
-import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ElectronApplication, Page } from '@playwright/test'
@@ -112,6 +112,69 @@ test('sets up Claude Code from Home after a native confirmation, keeping its oth
     await page.getByRole('tab', { name: 'Workspaces', exact: true }).click()
     await expect(firstRun).toBeVisible()
     await expect(firstRun.getByRole('button', { name: 'Set up Claude Code', exact: true })).toBeHidden()
+  } finally {
+    if (instance) await closeHronaut(instance.app)
+    await removeTestDirectory(home)
+  }
+})
+
+test('on a new profile, requires the MCP token and sets up Claude Code with it', async ({ profileDirectory, mcpPort }) => {
+  // A profile saved without the authentication setting starts with the default, as a new install does.
+  await writeFile(join(profileDirectory, 'settings.json'), `${JSON.stringify({ theme: 'system', tabPosition: 'top', mcpToolSet: 'complete' }, null, 2)}\n`)
+  const home = await mkdtemp(join(tmpdir(), 'hronaut-claude-home-'))
+  const configPath = join(home, '.claude.json')
+  const settings = { numStartups: 1, mcpServers: { hronaut: { type: 'http', url: `http://127.0.0.1:${mcpPort}/mcp` } } }
+  await writeFile(configPath, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o644 })
+  const previous = { HOME: process.env.HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR }
+  let instance: HronautInstance | undefined
+  try {
+    process.env.HOME = home
+    process.env.CLAUDE_CONFIG_DIR = home
+    try { instance = await launchHronaut(profileDirectory, mcpPort) } finally {
+      for (const [name, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[name]
+        else process.env[name] = value
+      }
+    }
+    const { app } = instance
+    const token = (await readFile(join(profileDirectory, 'mcp-token'), 'utf8')).trim()
+    // 0 while the listener is still starting.
+    const health = (authorization?: string): Promise<number> =>
+      fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: authorization ? { authorization } : {} }).then(response => response.status, () => 0)
+    await expect.poll(() => health()).toBe(401)
+    expect(await health(`Bearer ${token}`)).toBe(200)
+    expect(JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8'))).toMatchObject({ mcpAuthentication: true })
+
+    // Claude Code points at this address without the token, so Home offers to update its entry.
+    const page = await homePage(app)
+    const endpoint = `http://127.0.0.1:${mcpPort}/mcp`
+    const preview = page.locator('#claude-setup-preview')
+    const status = page.locator('#claude-setup-status')
+    const firstRun = page.locator('#home-onboarding')
+    await firstRun.getByRole('button', { name: 'Set up Claude Code', exact: true }).click()
+    await expect(page.locator('#guide-name')).toHaveText('Claude Code')
+    await expect(preview).toBeVisible()
+    await expect(page.locator('#claude-setup-after')).toHaveText(`"hronaut": ${JSON.stringify({ type: 'http', url: endpoint, headers: { Authorization: 'Bearer •••' } }, null, 2)}`)
+    await expect(page.locator('#claude-setup-token')).toHaveText('Hronaut writes the actual MCP token where ••• appears.')
+    await expect(page.locator('#claude-setup-before')).toHaveText(`"hronaut": ${JSON.stringify({ type: 'http', url: endpoint }, null, 2)}`)
+    // The token itself never reaches Home.
+    expect(await page.content()).not.toContain(token)
+
+    await answerMessageBoxes(app, 1)
+    const backupName = /as (\S+)\.$/u.exec(await page.locator('#claude-setup-backup').innerText())![1]!
+    await preview.getByRole('button', { name: 'Apply change…', exact: true }).click()
+    await expect(status).toHaveText(`Added. Restart Claude Code and it connects here. Backup: ${backupName}.`)
+    const [asked] = await messageBoxes(app)
+    expect(asked!.detail).toContain('"Authorization": "Bearer •••"')
+    expect(asked!.detail).toContain('Hronaut writes the actual MCP token where ••• appears.')
+    expect(asked!.detail).not.toContain(token)
+    const written = JSON.parse(await readFile(configPath, 'utf8')) as { mcpServers: { hronaut: { headers: { Authorization: string } } } }
+    expect(written).toEqual({ numStartups: 1, mcpServers: { hronaut: { type: 'http', url: endpoint, headers: { Authorization: `Bearer ${token}` } } } })
+    // The file now holds the token, so it is for this account alone.
+    if (process.platform !== 'win32') expect((await stat(configPath)).mode & 0o777).toBe(0o600)
+    // What Claude Code will send is what the listener takes.
+    expect(await health(written.mcpServers.hronaut.headers.Authorization)).toBe(200)
+    await expect(page.locator('#claude-setup').getByRole('button', { name: /Claude Code$/ })).toBeHidden()
   } finally {
     if (instance) await closeHronaut(instance.app)
     await removeTestDirectory(home)

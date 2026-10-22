@@ -1,7 +1,7 @@
 import type { MessageBoxOptions, MessageBoxReturnValue } from 'electron'
 import { stageMcpRuntimeCandidate, synchronizeMcpRuntimeCandidate } from './mcp-runtime-candidate.js'
 import { DEFAULT_MCP_TOOL_SET } from '../shared/mcp-tool-sets.js'
-import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
+import { mcpLocalHost } from '../shared/mcp-network.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { McpPauseState } from './mcp-pause-state.js'
@@ -191,10 +191,9 @@ export function createMcpRuntime(host: McpRuntimeHost): {
 
   async function resetMcpSettings(): Promise<AppSettings> {
     host.assertWorkspaceInitialized()
-    // Turning remote access off takes a restart, so a listener still open to other computers keeps its authentication,
-    // and keeps it after that restart: a reset never opens Hronaut to the network. Left out of the save, authentication
-    // keeps the value saved when the save runs, and this launch's override of it, if any.
-    const authenticationReset: Partial<AppSettings> = isLoopbackHost(host.state.host) ? { mcpAuthentication: false } : {}
+    // Authentication is on by default, so a reset never turns it off, also while a listener is still open to other
+    // computers until a restart. Saved on, it is left out of the save and keeps this launch's override of it, if any.
+    const authenticationReset: Partial<AppSettings> = host.persistedSettings().mcpAuthentication ? {} : { mcpAuthentication: true }
     if (host.state.port === DEFAULT_MCP_PORT && host.state.status === 'ready') {
       await host.updateSettings({
         mcpRemoteAccess: false,
