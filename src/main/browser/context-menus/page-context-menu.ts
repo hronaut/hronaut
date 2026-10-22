@@ -1,14 +1,14 @@
 import { Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebFrameMain } from 'electron'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import { pageSourceAddress } from '../page-source/page-source.js'
-import { searchEngineLabel, selectionSearchLabelText, selectionSearchQuery, selectionSearchUrl } from '../selection-search/selection-search.js'
+import { searchEngineLabel, selectionAddressKept, selectionGoToUrl, selectionSearchLabelText, selectionSearchQuery, selectionSearchUrl } from '../selection-search/selection-search.js'
 import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
 import { openedResourceReferrer, savedResourceReferrer } from './page-context-menu-referrer.js'
 
 /**
  * Shows the native context menu for a right-click in the page: link, image,
  * editing and selection actions for what was clicked, with a search for the
- * selected text, then page navigation, copy address, save, print, view source and
+ * selected text or a visit to a selected address, then page navigation, copy address, save, print, view source and
  * inspect. Each action checks that its tab is still open.
  */
 export function showContextMenu<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, params: ContextMenuParams): void {
@@ -64,25 +64,39 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     if (referrer) webContents.downloadURL(url, { headers: { Referer: referrer } })
     else webContents.downloadURL(url)
   }
-  // Chrome's Search for the selection, with the search engine the address bar uses, read once so the search matches the label.
-  // As in Chrome, a misspelled word's menu has none. The results open in front, beside the page and in its workspace,
-  // under its navigation policy, and not behind trusted chrome, as View Page Source does not.
+  // The search or address opens in front, beside the page and in its workspace, under its navigation policy, and not
+  // behind trusted chrome, as View Page Source does not.
+  const openSelectionTab = (actionName: string, url: string): (() => void) => withLiveContents(actionName, () => {
+    if (access.browserContentOccluded()) return
+    void access.createTab({
+      url,
+      active: true,
+      mcpGroupId: tab.mcpGroupId,
+      openedFrom: { tabId: tab.id, background: false }
+    }).catch((error) => reportActionFailure(actionName, error))
+  })
+  // Chrome's Search for the selection, with the search engine the address bar uses, read once so the search matches the
+  // label, or its Go to for a selected address. As in Chrome, a misspelled word's menu has neither, and neither appears
+  // on Hronaut Home, which has no workspace to open them in.
   const searchSelection = (): MenuItemConstructorOptions[] => {
-    const query = params.misspelledWord ? undefined : selectionSearchQuery(params.selectionText, params.formControlType === 'input-password')
+    const query = params.misspelledWord || isHronautHomeUrl(tab.url)
+      ? undefined
+      : selectionSearchQuery(params.selectionText, params.formControlType === 'input-password')
     if (!query) return []
+    const address = selectionGoToUrl(params.selectionText)
+    if (address) {
+      if (selectionAddressKept(address, params.linkURL)) return []
+      return [{
+        id: 'go-to-selection',
+        label: access.text('native.context.goTo', { text: selectionSearchLabelText(query) }),
+        click: openSelectionTab('go to the selected address', address)
+      }]
+    }
     const engine = access.searchEngine()
     return [{
       id: 'search-selection',
       label: access.text('native.context.searchFor', { engine: searchEngineLabel(engine), text: selectionSearchLabelText(query) }),
-      click: withLiveContents('search for the selection', () => {
-        if (access.browserContentOccluded()) return
-        void access.createTab({
-          url: selectionSearchUrl(query, engine),
-          active: true,
-          mcpGroupId: tab.mcpGroupId,
-          openedFrom: { tabId: tab.id, background: false }
-        }).catch((error) => reportActionFailure('search for the selection', error))
-      })
+      click: openSelectionTab('search for the selection', selectionSearchUrl(query, engine))
     }]
   }
   const copyImage = (): void => {

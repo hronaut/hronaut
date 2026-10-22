@@ -3600,6 +3600,7 @@ export const plPL = {
       "showFullHistory": "Pokaż całą historię",
       "viewSource": "Wyświetl źródło strony",
       "searchFor": "Szukaj w {engine}: „{text}”",
+      "goTo": "Przejdź do {text}",
       "savePage": "Zapisz jako…"
     },
     "pageProblem": {

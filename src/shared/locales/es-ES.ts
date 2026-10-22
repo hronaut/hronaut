@@ -3600,6 +3600,7 @@ export const esES = {
       "showFullHistory": "Mostrar historial completo",
       "viewSource": "Ver código fuente de la página",
       "searchFor": "Buscar «{text}» en {engine}",
+      "goTo": "Ir a {text}",
       "savePage": "Guardar como…"
     },
     "pageProblem": {

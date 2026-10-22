@@ -3600,6 +3600,7 @@ export const ruRU = {
       "showFullHistory": "Показать всю историю",
       "viewSource": "Просмотр кода страницы",
       "searchFor": "Найти «{text}» в {engine}",
+      "goTo": "Перейти на {text}",
       "savePage": "Сохранить как…"
     },
     "pageProblem": {
