@@ -7,7 +7,10 @@ import type { TabReopeningAccess, TabReopeningTab } from './tab-reopening-access
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_CLOSED_TABS = MAX_TABS
 
-/** Reopens the most recently closed tab, or the one with this id, and shows it, once tab label saves have settled. */
+/**
+ * Reopens the most recently closed tab, or the one with this id, in its place among its workspace's tabs, and shows it,
+ * once tab label saves have settled.
+ */
 export async function reopenClosedTabAfterLabelSave<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, closedTabId?: string): Promise<BrowserState> {
   await reopenClosedTabEntry(access, closedTabId, true)
   return access.getState()
@@ -51,7 +54,7 @@ export async function reopenClosedTabEntry<Tab extends TabReopeningTab>(access: 
   } finally {
     access.detachedClosedTabs().delete(held)
   }
-  if (closed.index !== undefined) moveToPlace(access, tab, closed.index)
+  if (closed.place !== undefined && tab.pinned === closed.pinned) moveToPlace(access, tab, closed.place)
   return tab
 }
 
@@ -62,12 +65,12 @@ function tabPeers<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, 
   ))
 }
 
-/** Moves an open tab to this place among its peers, or after the last of them when there are fewer now. */
+/** Moves a tab just opened after its peers to this place among them, or after the last of them when there are fewer now. */
 function moveToPlace<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, tab: Tab, place: number): void {
   const peers = tabPeers(access, tab)
-  // A tab that closed again while it opened stays closed.
-  if (!peers.includes(tab)) return
-  const others = peers.filter((candidate) => candidate !== tab)
+  // A tab closed or moved while it opened stays as it is.
+  if (peers.at(-1) !== tab) return
+  const others = peers.slice(0, -1)
   const target = others[Math.min(place, others.length - 1)]
   if (target) access.reorderTab(tab.id, target.id, place < others.length ? 'before' : 'after')
 }
@@ -136,7 +139,7 @@ export function forgetWorkspaceClosedTabs<Tab extends TabReopeningTab>(access: T
  */
 export function rememberClosedTab<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, tab: Tab): void {
   if (isHronautHomeUrl(tab.url)) return
-  const index = tabPeers(access, tab).indexOf(tab)
+  const place = tabPeers(access, tab).indexOf(tab)
   access.closedTabs().push({
     id: uuidV7(),
     title: tab.title || tab.url,
@@ -150,7 +153,7 @@ export function rememberClosedTab<Tab extends TabReopeningTab>(access: TabReopen
     ...(tab.tabMuted ? { muted: true } : {}),
     ...(tab.tabAgentPaused ? { tabAgentPaused: true } : {}),
     ...(tab.humanInteractionLocked ? { humanInteractionLocked: true } : {}),
-    ...(index >= 0 ? { index } : {})
+    ...(place >= 0 ? { place } : {})
   })
   if (access.closedTabs().length > MAX_CLOSED_TABS) access.closedTabs().shift()
 }

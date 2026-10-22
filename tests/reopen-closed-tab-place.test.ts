@@ -37,6 +37,9 @@ function strip(tabs: { title: string; pinned?: boolean; workspace?: string }[]) 
       return reopened
     },
     reorderTab: (tabId, targetTabId, placement) => {
+      const [moving, target] = [tabId, targetTabId].map((id) => open.find((candidate) => candidate.id === id)!)
+      // The tab manager refuses these moves.
+      if (moving!.pinned !== target!.pinned || moving!.mcpGroupId !== target!.mcpGroupId) throw new Error('Moved across a boundary')
       const ordered = orderedTabs()
       const moved = ordered.splice(ordered.findIndex((candidate) => candidate.id === tabId), 1)[0]!
       ordered.splice(ordered.findIndex((candidate) => candidate.id === targetTabId) + (placement === 'after' ? 1 : 0), 0, moved)
@@ -63,7 +66,7 @@ describe('reopening a closed tab', () => {
   it('puts the tab back where it was among its workspace\'s tabs', async () => {
     const tabs = strip([{ title: 'a' }, { title: 'b' }, { title: 'c' }])
     tabs.close('b')
-    expect(tabs.closedTabs[0]).toMatchObject({ url: 'https://example.test/b', index: 1 })
+    expect(tabs.closedTabs[0]).toMatchObject({ url: 'https://example.test/b', place: 1 })
 
     await tabs.reopen()
 
@@ -109,6 +112,41 @@ describe('reopening a closed tab', () => {
     expect(tabs.titles()).toEqual(['a', 'd'])
     await tabs.reopen()
     expect(tabs.titles()).toEqual(['a', 'b', 'd'])
+  })
+
+  it('puts a tab chosen from Recently closed, not the last one closed, back in its place', async () => {
+    const tabs = strip([{ title: 'a' }, { title: 'b' }, { title: 'c' }, { title: 'd' }])
+    tabs.close('b')
+    tabs.close('d')
+
+    await tabs.reopen(tabs.closedTabs.find((closed) => closed.url.endsWith('/b'))!.id)
+
+    expect(tabs.titles()).toEqual(['a', 'b', 'c'])
+  })
+
+  it('leaves a tab where it is when it was moved or pinned while it opened', async () => {
+    const tabs = strip([{ title: 'a' }, { title: 'b' }, { title: 'c' }])
+    tabs.close('a')
+    const createTab = tabs.access.createTab
+    tabs.access.createTab = async (options) => {
+      const reopened = await createTab(options)
+      tabs.access.reorderTab(reopened.id, tabs.access.orderedTabs()[1]!.id, 'before')
+      return reopened
+    }
+    await tabs.reopen()
+    expect(tabs.titles()).toEqual(['b', 'a', 'c'])
+
+
+    const pinning = strip([{ title: 'p', pinned: true }, { title: 'x' }, { title: 'y' }])
+    pinning.close('x')
+    const createPinnedTab = pinning.access.createTab
+    pinning.access.createTab = async (options) => {
+      const reopened = await createPinnedTab(options)
+      reopened.pinned = true
+      return reopened
+    }
+    await pinning.reopen()
+    expect(pinning.titles()).toEqual(['p (pinned)', 'x (pinned)', 'y'])
   })
 
   it('stays last when it was remembered without a place, as before', async () => {
