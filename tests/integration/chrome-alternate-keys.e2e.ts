@@ -45,6 +45,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down work as in Chrome, 
       await expect.poll(() => path(tabId)).toBe(to)
     }
     const addressBar = appWindow.getByRole('combobox', { name: 'Address', exact: true })
+    const focusedPage = () => electronApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.getURL())
 
     await visit('/page')
     await expect.poll(() => loadsOf('/page').length).toBe(1)
@@ -57,8 +58,8 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down work as in Chrome, 
     await press(tabId, 'F5', ['control'])
     await expect.poll(() => loadsOf('/page').length).toBe(4)
     expect(loadsOf('/page')[3]!.cacheControl).toBe('no-cache')
-    await expect(addressBar).not.toBeFocused()
     await press(tabId, 'D', ['alt'])
+    await expect.poll(focusedPage).toBe(appWindow.url())
     await expect(addressBar).toBeFocused()
 
     // An agent's F5 stays with the page, as in Chrome.
@@ -76,13 +77,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down work as in Chrome, 
     await expect.poll(async () => (await keys(tabId)).map(key => key.toLowerCase())).toEqual(['f5', 'd'])
     await appWindow.waitForTimeout(500)
     expect(loadsOf('/editor')).toHaveLength(1)
-    await expect(addressBar).not.toBeFocused()
-
-    // A locked page cannot have the key, so it reloads as Ctrl+R does.
-    await appWindow.evaluate(`window.hronaut.setTabHumanInteractionLocked(${JSON.stringify(tabId)}, true)`)
-    await press(tabId, 'F5')
-    await expect.poll(() => loadsOf('/editor').length).toBe(2)
-    await appWindow.evaluate(`window.hronaut.setTabHumanInteractionLocked(${JSON.stringify(tabId)}, false)`)
+    expect(await focusedPage()).toBe(`${origin}/editor`)
 
     // Ctrl+Page Up and Ctrl+Page Down, from the page and from Hronaut's own window.
     const workspace = (await state()).tabs.find(tab => tab.id === tabId)!.mcpGroupId

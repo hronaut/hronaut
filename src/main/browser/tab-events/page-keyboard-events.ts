@@ -1,5 +1,5 @@
 import type { WebContents } from 'electron'
-import { browserShortcutAction, websiteKeptShortcutAction } from '../../../shared/browser-shortcuts.js'
+import { browserShortcutAction } from '../../../shared/browser-shortcuts.js'
 import type { PageKeyboardEventsAccess, PageKeyboardEventsTab } from './page-keyboard-events-access.js'
 
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. The pointer listeners keep their own copy. */
@@ -10,8 +10,7 @@ const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
  * the pages, a key goes to the shell as a browser shortcut or nowhere; while
  * a screenshot area selection or element picker is in progress, Escape ends
  * it. Otherwise a browser shortcut the page does not keep goes to the shell,
- * the human input lock may hold the key back (Chrome's keys a website may keep,
- * such as F5, then act as browser shortcuts), and the key is recorded,
+ * the human input lock may hold the key back, and the key is recorded,
  * refreshes the tab's overview preview and makes following wait. A key held
  * down in the shell when it hands the focus to the page does not repeat into it.
  */
@@ -98,21 +97,9 @@ export function attachPageKeyboardEvents<Tab extends PageKeyboardEventsTab>(acce
     const page = { tabId: tab.id, workspaceId: tab.mcpGroupId }
     if (access.isHumanInteractionLocked(tab) && !expectedAgentInput) {
       event.preventDefault()
-      // The page cannot have Chrome's keys a website may keep, such as F5, so they act here as Ctrl/Cmd+R does.
-      const held = shortcut ?? (input.type === 'keyDown' ? websiteKeptShortcutAction({
-        key: input.key,
-        code: input.code,
-        control: input.control,
-        meta: input.meta,
-        alt: input.alt,
-        shift: input.shift,
-        repeat: input.isAutoRepeat,
-        composing: input.isComposing,
-        mac: process.platform === 'darwin'
-      }) : null)
-      if (held) {
+      if (shortcut) {
         access.options().onUserInteraction?.()
-        access.options().onShortcutRequested?.(held, page)
+        access.options().onShortcutRequested?.(shortcut, page)
       }
       return
     }

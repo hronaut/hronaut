@@ -75,8 +75,8 @@ function chromeTabShortcut(input: BrowserShortcutInput, key: string): BrowserSho
 /**
  * Chrome's keys a website may keep, elsewhere than macOS: F5 reloads, Shift+F5 or Ctrl+F5 reloads without the cache,
  * and Alt+D goes to the address bar. A website's own keys come first there, as in Chrome, where a web editor runs
- * F5 as its debugger and a web terminal reads Alt+D, so they act only when the page in focus leaves them alone; and in
- * Hronaut's own window and on a page that cannot have them, such as a locked tab, as the browser's keys at once.
+ * F5 as its debugger and a web terminal reads Alt+D, so they act only when the page in focus leaves them alone, and
+ * in Hronaut's own window as the browser's keys at once.
  */
 export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
   if (input.mac || input.meta || input.repeat || input.composing) return null
