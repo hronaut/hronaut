@@ -81,13 +81,18 @@ describe('a workspace whose remembered tab opened from a page closes off screen'
     manager.activeTabId = 'shown'
     manager.removeTabRecord(manager.tabs.get('one')!)
     expect(manager.mcpTabGroups.get('work')!.activeTabId).toBe('app')
+    const siblings = fixture([{ id: 'app' }, { id: 'one', from: 'app' }, { id: 'mail' }, { id: 'two', from: 'app' }], 'two')
+    siblings.removeTabRecord(siblings.tabs.get('two')!)
+    expect(siblings.mcpTabGroups.get('work')!.activeTabId).toBe('one')
   })
 })
 
 describe('the person going to another tab', () => {
-  function switching(from: string, to: string) {
+  function switching(from: string, to: string, workspaceShows = from) {
     const manager = fixture([{ id: 'app' }, { id: 'one', from: 'app' }, { id: 'mail' }, { id: 'elsewhere', from: 'mail', workspace: 'other' }])
     manager.activeTabId = from
+    const workspace = manager.tabs.get(to)!.mcpGroupId
+    manager.mcpTabGroups.get(workspace)!.activeTabId = manager.tabs.get(workspaceShows)!.mcpGroupId === workspace ? workspaceShows : null
     manager.selectTabAndWait = vi.fn(async () => undefined)
     void manager.selectTabForPerson(to)
     expect(manager.selectTabAndWait).toHaveBeenCalledWith(to)
@@ -104,5 +109,11 @@ describe('the person going to another tab', () => {
     expect(switching('app', 'one').tabs.get('one')!.openedFromTabId).toBe('app')
     expect(switching('one', 'app').tabs.get('one')!.openedFromTabId).toBe('app')
     expect(switching('one', 'elsewhere').tabs.get('one')!.openedFromTabId).toBe('app')
+  })
+
+  it('compares the tab with the one its workspace shows when the person comes from another workspace', () => {
+    // As Chrome compares with its window's tab: the workspace last showed the mail tab, unrelated to the link's tab.
+    expect(switching('elsewhere', 'one', 'mail').tabs.get('one')).not.toHaveProperty('openedFromTabId')
+    expect(switching('elsewhere', 'one', 'app').tabs.get('one')!.openedFromTabId).toBe('app')
   })
 })

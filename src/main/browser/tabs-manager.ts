@@ -2735,12 +2735,14 @@ export class BrowserTabsManager {
   }
 
   /**
-   * The person's own switch to a tab. Going to a tab unrelated to the shown one starts another task, so the workspace
-   * forgets which page opened which tab, as Chrome does.
+   * The person's own switch to a tab. Going to a tab unrelated to the one its workspace shows starts another task, so
+   * the workspace forgets which page opened which tab, as Chrome does going from its window's tab. That is also the
+   * tab compared when the person comes from another workspace.
    */
   selectTabForPerson(tabId: string): Promise<BrowserState> {
-    const from = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
     const to = this.tabs.get(tabId)
+    const shownId = to?.mcpGroupId ? this.mcpTabGroups.get(to.mcpGroupId)?.activeTabId : undefined
+    const from = shownId ? this.tabs.get(shownId) : undefined
     if (from && to && switchLeavesOpenedTabs(from, to)) forgetTabsOpenedFrom(this.tabs.values(), to.mcpGroupId)
     return this.selectTabAndWait(tabId)
   }
@@ -3211,6 +3213,7 @@ export class BrowserTabsManager {
       assertWorkspaceNavigationAllowed: (groupId, url, source) => this.assertWorkspaceNavigationAllowed(groupId, url, source),
       workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
       prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
+      forgetTabsOpenedFrom: (groupId) => forgetTabsOpenedFrom(this.tabs.values(), groupId),
       isRendererRecovering: (webContents) => this.rendererRecovery.isRecovering(webContents),
       recoverRenderer: (webContents, loadReplacement) => this.rendererRecovery.recover(webContents, loadReplacement),
       wakeTab: (tabId) => this.wakeTab(tabId),
@@ -3221,9 +3224,6 @@ export class BrowserTabsManager {
   }
 
   navigate(url: string, tabId?: string): Promise<BrowserState> {
-    // A tab sent to another address starts a new task, so its workspace forgets which page opened which tab.
-    const tab = this.tabs.get(tabId ?? this.activeTabId ?? '')
-    if (tab) forgetTabsOpenedFrom(this.tabs.values(), tab.mcpGroupId)
     return navigate(this.pageNavigationAccess(), url, tabId)
   }
 
@@ -5209,8 +5209,11 @@ export class BrowserTabsManager {
      * opener's tab id is there while the two pages can reach each other.
      */
     adopt?: { webContents: WebContents; webPreferences?: WebPreferences; openerTabId?: string }
-    /** The tab whose page opened this one, and whether it opens behind, which places it beside that tab as in Chrome. */
-    openedFrom?: { tabId: string; background: boolean }
+    /**
+     * The tab whose page opened this one, and whether it opens behind, which places it beside that tab as in Chrome,
+     * and whether it is a window that asked for its own size or position, which Chrome opens as a window of its own.
+     */
+    openedFrom?: { tabId: string; background: boolean; window?: boolean }
     active: boolean
     selectVisible?: boolean
     mcpGroupId?: string
@@ -5329,8 +5332,11 @@ export class BrowserTabsManager {
       ...(options.openedFrom ? { openedFromTabId: options.openedFrom.tabId } : {})
     }
     tab.webContents.setAudioMuted(tab.muted)
-    // A page's tab opened in front starts a new task, so its workspace forgets which page opened its other tabs.
-    if (options.openedFrom && !options.openedFrom.background) forgetTabsOpenedFrom(this.tabs.values(), options.mcpGroupId)
+    // A page's tab opened in front starts a new task, so its workspace forgets which page opened its other tabs. A
+    // window such as a sign-in popup leaves them, as in Chrome, where it opens beside the tabs rather than among them.
+    if (options.openedFrom && !options.openedFrom.background && !options.openedFrom.window) {
+      forgetTabsOpenedFrom(this.tabs.values(), options.mcpGroupId)
+    }
     this.tabs.set(id, tab)
     const placed = options.openedFrom ? placeTabOpenedFromPage(this.orderedTabs(), tab, options.openedFrom.background) : undefined
     if (placed) {

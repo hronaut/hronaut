@@ -7,7 +7,7 @@ test('closing a tab opened from a page shows that page\'s next tab, then the pag
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     if (request.url === '/app') {
-      response.end('<!doctype html><title>App</title><p><a id="one" href="/one" target="_blank">One</a> <a id="two" href="/two">Two</a> <a id="three" href="/three">Three</a></p>')
+      response.end('<!doctype html><title>App</title><p><a id="one" href="/one" target="_blank">One</a> <a id="two" href="/two">Two</a> <a id="three" href="/three">Three</a> <button id="popup" onclick="window.open('/popup', 'popup', 'width=400,height=300')">Sign in</button></p>')
     } else {
       response.end(`<!doctype html><title>${request.url}</title>`)
     }
@@ -90,6 +90,17 @@ test('closing a tab opened from a page shows that page\'s next tab, then the pag
     await select('/three')
     await close('/three')
     await expect.poll(order).toEqual(['/app', '/five*', '/mail'])
+
+    // A sign-in popup, which Chrome opens as a window of its own, leaves the tabs the page opened behind.
+    await select('/app')
+    await press('#two', { button: 'middle' })
+    await press('#popup', { button: 'left' })
+    await expect.poll(order).toEqual(['/app', '/popup*', '/two', '/five', '/mail'])
+    await close('/popup')
+    await expect.poll(order).toEqual(['/app*', '/two', '/five', '/mail'])
+    await select('/two')
+    await close('/two')
+    await expect.poll(order).toEqual(['/app*', '/five', '/mail'])
   } finally {
     await closeFixtureServer(server)
   }

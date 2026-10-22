@@ -33,6 +33,8 @@ export interface PageNavigationAccess<Tab extends PageNavigationTab> {
   assertWorkspaceNavigationAllowed(groupId: string, url: string, source: BrowserWorkspaceNavigationAuditSource): void
   workspaceNavigationAllowed(groupId: string, url: string, source: BrowserWorkspaceNavigationAuditSource): boolean
   prepareDiagnosticNavigation(tab: Tab): void
+  /** Forgets which page opened which tab of a workspace. */
+  forgetTabsOpenedFrom(groupId: string): void
   isRendererRecovering(webContents: WebContents): boolean
   recoverRenderer(webContents: WebContents, loadReplacement: () => Promise<void>): Promise<void>
   wakeTab(tabId: string): Promise<BrowserState>

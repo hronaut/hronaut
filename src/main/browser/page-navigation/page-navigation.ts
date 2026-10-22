@@ -30,6 +30,9 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
   }
   if (tab.mcpGroupId) {
     access.assertWorkspaceNavigationAllowed(tab.mcpGroupId, normalized, 'direct')
+    // A tab sent to another address starts a new task, so its workspace forgets which page opened which tab, as Chrome
+    // does for a typed address.
+    access.forgetTabsOpenedFrom(tab.mcpGroupId)
   }
   const navigationPolicyDenialSequence = tab.navigationPolicyDenialSequence
   access.prepareDiagnosticNavigation(tab)

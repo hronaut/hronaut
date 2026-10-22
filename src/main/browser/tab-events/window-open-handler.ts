@@ -114,7 +114,7 @@ export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access
           active,
           selectVisible,
           mcpGroupId: tab.mcpGroupId,
-          openedFrom: { tabId: tab.id, background: !active },
+          openedFrom: { tabId: tab.id, background: !active, window: disposition === 'new-window' },
           adopt: {
             webContents: guest,
             webPreferences: options.webPreferences,

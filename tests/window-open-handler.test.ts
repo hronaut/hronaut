@@ -134,11 +134,15 @@ describe('a window a workspace page opens', () => {
   it('places the tab beside the tab that opened it, behind for a background-tab disposition', () => {
     // A link opened in a new tab went after the workspace's last tab, far from the page that opened it.
     const front = fixture()
-    front.open(details).createWindow!({ webContents: guestPage() })
-    expect(front.createTab).toHaveBeenCalledWith(expect.objectContaining({ openedFrom: { tabId: 'opener', background: false } }))
+    front.open({ ...details, disposition: 'foreground-tab' }).createWindow!({ webContents: guestPage({ opener: false }) })
+    expect(front.createTab).toHaveBeenCalledWith(expect.objectContaining({ openedFrom: { tabId: 'opener', background: false, window: false } }))
     const behind = fixture()
     behind.open({ ...details, disposition: 'background-tab' }).createWindow!({ webContents: guestPage({ opener: false }) })
-    expect(behind.createTab).toHaveBeenCalledWith(expect.objectContaining({ openedFrom: { tabId: 'opener', background: true } }))
+    expect(behind.createTab).toHaveBeenCalledWith(expect.objectContaining({ openedFrom: { tabId: 'opener', background: true, window: false } }))
+    // A window that asked for its own size or position, such as a sign-in popup, is one Chrome opens apart from the tabs.
+    const popup = fixture()
+    popup.open(details).createWindow!({ webContents: guestPage() })
+    expect(popup.createTab).toHaveBeenCalledWith(expect.objectContaining({ openedFrom: { tabId: 'opener', background: false, window: true } }))
   })
 
   it('blocks Home and addresses the workspace does not allow', () => {
