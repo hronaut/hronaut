@@ -366,6 +366,20 @@ describe('agent presence registry', () => {
     expect(registry.nextTransitionAt(1_000 + AGENT_PRESENCE_WINDOW_MS)).toBeUndefined()
   })
 
+  it('names the newest step, not a call left unsettled past the window', () => {
+    const registry = new AgentPresenceRegistry()
+    registry.track(claude, workspace, activity('started', 1_000, { activityId: 'lost', toolName: 'browser_evaluate' }))
+    const later = 1_000 + AGENT_PRESENCE_WINDOW_MS + 1_000
+    registry.track(claude, workspace, activity('started', later, { activityId: 'next', toolName: 'browser_click' }))
+    registry.track(claude, workspace, activity('finished', later + 100, { activityId: 'next', toolName: 'browser_click' }))
+    expect(registry.derive(later + 200, context())[workspace]?.[0]).toMatchObject({ state: 'working', step: 'click' })
+    // Before the window passes, the unsettled call is still the step in progress.
+    registry.track(claude, otherWorkspace, activity('started', later, { activityId: 'running', toolName: 'browser_evaluate' }))
+    registry.track(claude, otherWorkspace, activity('started', later + 100, { activityId: 'quick', toolName: 'browser_click' }))
+    registry.track(claude, otherWorkspace, activity('finished', later + 200, { activityId: 'quick', toolName: 'browser_click' }))
+    expect(registry.derive(later + 300, context())[otherWorkspace]?.[0]).toMatchObject({ state: 'working', step: 'script' })
+  })
+
   it('stays bounded when calls never finish and many clients appear', () => {
     const registry = new AgentPresenceRegistry()
     for (let index = 0; index < 100; index += 1) {

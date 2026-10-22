@@ -438,7 +438,7 @@ export class AgentPresenceRegistry {
           initial: record.initial,
           colorIndex: record.colorIndex,
           state,
-          ...(asking ? { step: 'askYou' as const } : this.currentStep(workspace!)),
+          ...(asking ? { step: 'askYou' as const } : this.currentStep(workspace!, now)),
           recentSteps: workspace ? workspace.steps.slice(-AGENT_RECENT_STEPS_LIMIT).reverse().map(({ step, target, answer, outcome, at }) => ({
             step,
             ...(target ? { target } : {}),
@@ -572,9 +572,12 @@ export class AgentPresenceRegistry {
     return now - workspace.lastActivityAt < AGENT_PRESENCE_WINDOW_MS ? 'idle' : undefined
   }
 
-  private currentStep(workspace: WorkspaceActivity): { step: AgentStepKind; target?: string } {
+  /** The newest running step, or the last one; a call unsettled past the window no longer counts as running. */
+  private currentStep(workspace: WorkspaceActivity, now: number): { step: AgentStepKind; target?: string } {
     let latest: InFlightStep | undefined
-    for (const step of workspace.inFlight.values()) if (!latest || step.startedAt >= latest.startedAt) latest = step
+    for (const step of workspace.inFlight.values()) {
+      if (now - step.startedAt < AGENT_PRESENCE_WINDOW_MS && (!latest || step.startedAt >= latest.startedAt)) latest = step
+    }
     const { step, target } = latest ?? workspace
     return target ? { step, target } : { step }
   }
