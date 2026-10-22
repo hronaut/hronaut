@@ -15,7 +15,7 @@ export async function hover<Tab extends AgentPageActionsTab>(access: AgentPageAc
   const webContents = tab.webContents
   const authority = access.nativeInputAuthority(tab, validateInput)
   try {
-    const point = coordinatePoint ?? await webContents.executeJavaScript(targetPointScript(target), true) as {
+    const point = coordinatePoint ?? await webContents.executeJavaScript(targetPointScript(target), false) as {
       x: number
       y: number
       tag: string
@@ -59,7 +59,7 @@ export async function drag<Tab extends AgentPageActionsTab>(access: AgentPageAct
   const authority = access.nativeInputAuthority(tab, validateInput)
   try {
     const { from, to } = coordinatePoints
-      ?? await webContents.executeJavaScript(dragPointsScript(source, target), true) as {
+      ?? await webContents.executeJavaScript(dragPointsScript(source, target), false) as {
         from: { x: number; y: number; tag: string }
         to: { x: number; y: number; tag: string }
       }

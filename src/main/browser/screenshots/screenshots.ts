@@ -68,14 +68,14 @@ export async function screenshot<Tab extends ScreenshotsTab>(access: Screenshots
                 width: Math.min(rect.width - Math.max(0, -(rect.left + scrollX)), document.documentElement.scrollWidth - x),
                 height: Math.min(rect.height - Math.max(0, -(rect.top + scrollY)), document.documentElement.scrollHeight - y)
               };
-            })()`, true).catch((error: unknown) => { throw screenshotTargetError(error) }) as { x: number; y: number; width: number; height: number }
+            })()`, false).catch((error: unknown) => { throw screenshotTargetError(error) }) as { x: number; y: number; width: number; height: number }
         : await webContents.executeJavaScript(`(() => {
               const clip = ${JSON.stringify(options.clip)};
               if (clip.x + clip.width > innerWidth || clip.y + clip.height > innerHeight) {
                 throw new Error('Screenshot clip must fit inside the visible viewport.');
               }
               return { x: scrollX + clip.x, y: scrollY + clip.y, width: clip.width, height: clip.height };
-            })()`, true) as { x: number; y: number; width: number; height: number }
+            })()`, false) as { x: number; y: number; width: number; height: number }
       if (![requestedClip.x, requestedClip.y, requestedClip.width, requestedClip.height].every(Number.isFinite)) {
         throw new LocalizedError('appErrors.pageTools.areaNotFinite')
       }

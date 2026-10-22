@@ -209,7 +209,8 @@ export async function fillFromFile<Tab extends TextFileFillTab>(
         page = await withTimeout(
           webContents.executeJavaScriptInIsolatedWorld(TEXT_FILE_FILL_WORLD_ID, [{
             code: textFileFillScript(target, text, expectedOrigin, Date.now() + FILL_START_DEADLINE_MS)
-          }], false) as Promise<TextFileFillPageResult>,
+            // With a user gesture, as for browser_type: the page gets the activation a person's typing gives it.
+          }], true) as Promise<TextFileFillPageResult>,
           'The page did not answer in time',
           FILL_ANSWER_TIMEOUT_MS
         )

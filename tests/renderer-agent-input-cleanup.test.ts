@@ -43,7 +43,7 @@ describe('renderer agent-input flag cleanup', () => {
     await Promise.resolve()
     expect(settled).toBe(false)
     expect(f.page.listenerCount('destroyed')).toBe(1)
-    expect(f.page.executeJavaScript).toHaveBeenCalledExactlyOnceWith('delete window.__hronautAgentInputActive', true)
+    expect(f.page.executeJavaScript).toHaveBeenCalledExactlyOnceWith('delete window.__hronautAgentInputActive', false)
     f.resolve(true)
     await pending
     expect(f.page.listenerCount('destroyed')).toBe(0)

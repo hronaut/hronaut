@@ -106,12 +106,12 @@ async function dispatchClick<Tab extends AgentPageActionsTab>(access: AgentPageA
           try {
             assertClickCurrent()
             // Retain the original before any page-owned flag setter or scroll preparation.
-            await webContents.executeJavaScript('window.__hronautAgentInputActive = true', true).catch(() => undefined)
+            await webContents.executeJavaScript('window.__hronautAgentInputActive = true', false).catch(() => undefined)
             assertClickCurrent()
-            let point = await webContents.executeJavaScript(targetPointScript(target), true) as { x: number; y: number; tag: string }
+            let point = await webContents.executeJavaScript(targetPointScript(target), false) as { x: number; y: number; tag: string }
             await access.showAgentPointer(webContents, point, 'click', { agent })
             assertClickCurrent()
-            point = await webContents.executeJavaScript(targetPointScript(target, { rejectNativeDisabled: true }), true) as typeof point
+            point = await webContents.executeJavaScript(targetPointScript(target, { rejectNativeDisabled: true }), false) as typeof point
             try { access.assertClickTargetEnabled(point) } catch (error) { throw new NativeClickAdmissionError('TARGET_DISABLED', { ...progress }, error) }
             if (environment && retainClickAuthority && !retained) {
               retainClickAuthority({ validate: assertClickCurrent, dispose: () => { environment?.dispose(); authority.dispose() } })
@@ -138,7 +138,7 @@ async function dispatchClick<Tab extends AgentPageActionsTab>(access: AgentPageA
           : error instanceof NativeInputCleanupError ? 'NATIVE_INPUT_CLEANUP_FAILED' : 'CONTEXT_OR_INPUT_UNCERTAIN', { ...progress }, error)
       }
     }
-    const pointerPoint = await webContents.executeJavaScript(targetPointScript(target), true)
+    const pointerPoint = await webContents.executeJavaScript(targetPointScript(target), false)
       .catch(() => undefined) as { x: number; y: number } | undefined
     if (pointerPoint) await access.showAgentPointer(webContents, pointerPoint, 'click', { agent })
     const result = await access.withAgentInput(webContents, () => {

@@ -94,7 +94,7 @@ export async function manageStorage<Tab extends SiteStorageTab>(access: SiteStor
         items.sort((left, right) => left[0].localeCompare(right[0]));
       }
       return { changed, itemCount: storage.length, items };
-    })()`, true), webStorageHooks?.progress) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
+    })()`, false), webStorageHooks?.progress) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
   if ('pageChanged' in raw) throw new Error('The page changed before the storage operation. Run a fresh operation.')
   const bounded = boundStorageItems(raw.items, options.includeValues === true || action === 'get')
   return {

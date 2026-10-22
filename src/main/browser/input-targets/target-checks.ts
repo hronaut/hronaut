@@ -40,7 +40,7 @@ export async function assertPointInsideVisibleViewport(
   point: { x: number; y: number },
   action: 'click' | 'hover' | 'drag'
 ): Promise<void> {
-  const viewport = await webContents.executeJavaScript('({ width: innerWidth, height: innerHeight })', true) as {
+  const viewport = await webContents.executeJavaScript('({ width: innerWidth, height: innerHeight })', false) as {
     width: number
     height: number
   }
