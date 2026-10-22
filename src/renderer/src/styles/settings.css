@@ -342,7 +342,10 @@
 .mcp-capability-form input:focus, .mcp-capability-form select:focus, .mcp-capability-form textarea:focus { @apply border-accent [box-shadow:0_0_0_2px_var(--accent-soft)]; }
 .mcp-capability-form .mcp-capability-check { @apply flex-row items-center [align-self:end] [min-height:36px]; }
 .mcp-capability-check input { @apply m-0 [width:17px] [height:17px] flex-none [accent-color:var(--accent)]; }
-.mcp-capability-form > button { @apply [grid-column:1_/_-1] justify-self-end [min-width:128px]; }
+.mcp-capability-form-actions { @apply flex [grid-column:1_/_-1] justify-end [gap:8px]; }
+.mcp-capability-form-actions button { @apply [min-width:128px]; }
+.mcp-capability-new { @apply [margin-top:18px]; }
+.mcp-capability-new svg { @apply [width:16px] [height:16px]; }
 .mcp-capability-secret { @apply [margin-top:18px] [padding:14px] [border:1px_solid_var(--accent)] [border-radius:var(--corner-2)] bg-accent-soft; }
 .mcp-capability-secret p { @apply [margin:5px_0_10px] text-muted [font-size:var(--type-small-size)] [line-height:1.45]; }
 .mcp-capability-secret code { @apply block overflow-auto [padding:9px] [border-radius:var(--corner-1)] bg-surface [font:var(--type-small-size)/1.4_var(--font-code)]; }

@@ -203,6 +203,7 @@ describe('McpSettingsPanel', () => {
     const { controller, createCapabilityProfile } = renderPanel([parent, inactiveChild])
     const user = userEvent.setup()
 
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
     await screen.findByRole('option', { name: 'Parent QA · r3' })
     expect(screen.queryByRole('option', { name: 'Stale child · r3' })).not.toBeInTheDocument()
     expect(screen.getByText('Inactive because its parent changed or exhausted its authority')).toBeVisible()
@@ -262,6 +263,7 @@ describe('McpSettingsPanel', () => {
   it.each(['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__', ''])('shows validation errors for constraint key "%s" and permits correction', async (path) => {
     const { controller, createCapabilityProfile } = renderPanel()
     createCapabilityProfile.mockRejectedValueOnce(new Error('Capability profile argument constraints are invalid'))
+    await fireEvent.click(screen.getByRole('button', { name: 'New capability profile' }))
     await fireEvent.update(screen.getByLabelText('Profile name'), 'QA reader')
     await fireEvent.update(screen.getByLabelText('Exact argument constraints (optional)'), `${path}=1`)
     await fireEvent.click(screen.getByRole('button', { name: 'Create profile' }))
@@ -284,6 +286,7 @@ describe('McpSettingsPanel', () => {
     const { controller, createCapabilityProfile } = renderPanel()
     const user = userEvent.setup()
 
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
     await user.type(screen.getByLabelText('Profile name'), 'QA reader')
     await user.type(screen.getByLabelText('Workspace IDs (optional)'), '01912345-6789-7abc-8def-0123456789ab')
     await user.type(screen.getByLabelText('Website origins (optional)'), 'https://allowed.example/path')
@@ -313,6 +316,7 @@ describe('McpSettingsPanel', () => {
     const { controller } = renderPanel([], copyText)
     const user = userEvent.setup()
 
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
     await user.type(screen.getByLabelText('Profile name'), 'QA reader')
     await user.click(screen.getByRole('button', { name: 'Create profile' }))
     await user.click(screen.getByRole('button', { name: 'Copy credential' }))
@@ -323,10 +327,166 @@ describe('McpSettingsPanel', () => {
     expect(screen.getByText(`hrc1_${'a'.repeat(43)}`).closest('[role="status"]')).toHaveAttribute('aria-atomic', 'false')
 
     await user.click(screen.getByRole('button', { name: 'Dismiss' }))
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
     await user.type(screen.getByLabelText('Profile name'), 'QA reader')
     await user.click(screen.getByRole('button', { name: 'Create profile' }))
     expect(screen.getByRole('button', { name: 'Copy credential' })).toBeVisible()
     expect(screen.queryByText('Credential copied')).not.toBeInTheDocument()
+    controller.dispose()
+  })
+
+  // The whole form for a new profile was always open, a long technical form between the security settings and the
+  // profiles there are.
+  it('opens the form for a new profile only when asked, and Cancel empties and closes it', async () => {
+    const { controller, createCapabilityProfile } = renderPanel()
+    const user = userEvent.setup()
+
+    expect(screen.queryByLabelText('Profile name')).not.toBeInTheDocument()
+    expect(screen.getByText('No restricted capability profiles yet.')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
+    expect(screen.getByLabelText('Profile name')).toHaveFocus()
+    await user.type(screen.getByLabelText('Profile name'), 'Draft')
+    await user.selectOptions(screen.getByLabelText('Access preset'), 'qa')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByLabelText('Profile name')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New capability profile' })).toHaveFocus()
+    // The key that closed the form, held, does not open it again.
+    const held = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    screen.getByRole('button', { name: 'New capability profile' }).dispatchEvent(held)
+    expect(held.defaultPrevented).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
+    expect(screen.getByLabelText('Profile name')).toHaveValue('')
+    expect(screen.getByLabelText('Access preset')).toHaveValue('read-only')
+    expect(createCapabilityProfile).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('closes the form once the profile is created and moves the focus to its credential', async () => {
+    const { controller } = renderPanel()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
+    await user.type(screen.getByLabelText('Profile name'), 'QA reader{Enter}')
+
+    await vi.waitFor(() => expect(screen.getByText(`hrc1_${'a'.repeat(43)}`)).toBeVisible())
+    expect(screen.queryByLabelText('Profile name')).not.toBeInTheDocument()
+    expect(screen.getByText(`hrc1_${'a'.repeat(43)}`).closest('[role="status"]')).toHaveFocus()
+    controller.dispose()
+  })
+
+  const credentialText = `hrc1_${'a'.repeat(43)}`
+  const parentProfile: McpCapabilityProfileSummary = {
+    id: '01912345-6788-7abc-8def-0123456789ab', name: 'Parent QA', revision: 3,
+    credentialId: '22222222-2222-4222-8222-222222222222', allowedTools: ['browser_snapshot', 'browser_click'],
+    operationClasses: ['read', 'interact'], useCount: 0,
+    lineageActive: true,
+    createdAt: '2026-09-11T11:00:00.000Z', updatedAt: '2026-09-11T11:30:00.000Z'
+  }
+  /** Every field of the open form, as the person would see it. */
+  const formFields = () => Array.from(
+    document.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('.mcp-capability-form :is(input, select, textarea)'),
+    field => field instanceof HTMLInputElement && field.type === 'checkbox' ? field.checked : field.value
+  )
+
+  // Cancel cleared only the name and preset could be checked, and a created profile's fields stayed for the next one.
+  it.each(['Cancel', 'Create profile'])('empties every field of the form after %s', async (button) => {
+    const { controller } = renderPanel([parentProfile])
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
+    await screen.findByRole('option', { name: 'Parent QA · r3' })
+    const empty = formFields()
+
+    await user.type(screen.getByLabelText('Profile name'), 'Draft')
+    await user.selectOptions(screen.getByLabelText('Access preset'), 'qa')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Parent capability (optional)' }), parentProfile.id)
+    await user.type(screen.getByLabelText('Workspace IDs (optional)'), '01912345-6789-7abc-8def-0123456789ab')
+    await user.type(screen.getByLabelText('Website origins (optional)'), 'https://allowed.example')
+    await fireEvent.update(screen.getByLabelText('Exact argument constraints (optional)'), 'browser_snapshot.tabId=tab-1')
+    const [expiry] = Array.from(document.querySelectorAll<HTMLSelectElement>('.mcp-capability-form select')).slice(-1)
+    await user.selectOptions(expiry, '60')
+    await user.click(document.querySelector<HTMLInputElement>('.mcp-capability-check input')!)
+    expect(formFields().every((value, index) => value !== empty[index])).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: button }))
+    await vi.waitFor(() => expect(screen.queryByLabelText('Profile name')).not.toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
+    expect(formFields()).toEqual(empty)
+    controller.dispose()
+  })
+
+  // Cancel moved the focus to the first match of the credential or New capability profile, the credential when one
+  // was still on screen from before.
+  it('returns the focus to New capability profile on Cancel while an earlier credential is shown', async () => {
+    const { controller } = renderPanel()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
+    await user.type(screen.getByLabelText('Profile name'), 'QA reader{Enter}')
+    await vi.waitFor(() => expect(screen.getByText(credentialText)).toBeVisible())
+
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.getByRole('button', { name: 'New capability profile' })).toHaveFocus()
+    expect(screen.getByText(credentialText)).toBeVisible()
+    controller.dispose()
+  })
+
+  it('names the credential it focuses, and Dismiss hands the focus to New capability profile', async () => {
+    const { controller } = renderPanel()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
+    await user.type(screen.getByLabelText('Profile name'), 'QA reader{Enter}')
+    const credential = await screen.findByRole('status', { name: 'Copy this credential now' })
+    expect(credential).toHaveFocus()
+
+    await user.tab()
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'Dismiss' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    expect(screen.queryByText(credentialText)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New capability profile' })).toHaveFocus()
+    controller.dispose()
+  })
+
+  it('leaves the focus where the person put it while a profile was being created', async () => {
+    const { controller, createCapabilityProfile } = renderPanel()
+    const pending = deferred<Awaited<ReturnType<typeof createCapabilityProfile>>>()
+    createCapabilityProfile.mockReturnValueOnce(pending.promise)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
+    await user.type(screen.getByLabelText('Profile name'), 'QA reader{Enter}')
+    const elsewhere = screen.getByRole('heading', { name: 'MCP security' })
+    elsewhere.tabIndex = -1
+    elsewhere.focus()
+
+    pending.resolve({ profile: { ...parentProfile, name: 'QA reader' }, credential: credentialText })
+
+    await vi.waitFor(() => expect(screen.getByText(credentialText)).toBeVisible())
+    expect(elsewhere).toHaveFocus()
+    controller.dispose()
+  })
+
+  // A failed Create left the focus on the page, and Cancel left its error on screen under New capability profile.
+  it('keeps the focus in the form after a failed Create, and Cancel takes its error away', async () => {
+    const { controller, createCapabilityProfile } = renderPanel()
+    createCapabilityProfile.mockRejectedValueOnce(new Error('Capability profile argument constraints are invalid'))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
+    await user.type(screen.getByLabelText('Profile name'), 'QA reader{Enter}')
+
+    await vi.waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Capability profile argument constraints are invalid'))
+    const name = screen.getByLabelText('Profile name')
+    expect(name).toHaveFocus()
+    // Enter held in the name field does not send the form again and again.
+    const held = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    name.dispatchEvent(held)
+    expect(held.defaultPrevented).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(createCapabilityProfile).toHaveBeenCalledOnce()
     controller.dispose()
   })
 
@@ -344,6 +504,7 @@ describe('McpSettingsPanel', () => {
     const { controller } = renderPanel([], shell.copyText)
     const user = userEvent.setup()
 
+    await user.click(screen.getByRole('button', { name: 'New capability profile' }))
     await user.type(screen.getByLabelText('Profile name'), 'QA reader')
     await user.click(screen.getByRole('button', { name: 'Create profile' }))
     await user.click(screen.getByRole('button', { name: 'Copy credential' }))
