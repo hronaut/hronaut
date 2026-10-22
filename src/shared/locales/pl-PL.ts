@@ -862,6 +862,9 @@ export const plPL = {
     "initializingStorage": "Inicjowanie bezpiecznej pamięci.",
     "shortcuts": {
       "address": "Przejdź do paska adresu",
+      "addressNewTab": "Otwórz tekst wpisany w pasku adresu w nowej karcie",
+      "addressBackgroundTab": "Otwórz tekst wpisany w pasku adresu w nowej karcie w tle",
+      "addressWwwCom": "Dodaj www. i .com do nazwy witryny wpisanej w pasku adresu i ją otwórz",
       "back": "Wróć do poprzedniej strony",
       "forward": "Przejdź do następnej strony",
       "reload": "Odśwież bieżącą witrynę",

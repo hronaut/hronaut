@@ -5,6 +5,7 @@ import { buildLocalAddressSuggestions } from '../../../shared/address-suggestion
 import type { SupportedLocale } from '../../../shared/locale.js'
 import type { BrowserBookmark, BrowserHistoryEntry, BrowserTabState } from '../../../shared/types.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
+import { addressEnterAction, withWwwAndCom, type AddressEnterAction } from '../address-enter.js'
 import { disposeAll, registerDisposers } from './dispose-all.js'
 
 /**
@@ -31,6 +32,8 @@ interface AddressBarControllerOptions {
   formatNumber: (value: number) => string
   onOpen: () => void
   onNavigate: (address: string) => Promise<void>
+  /** Opens the address in a new tab; a background tab leaves the current one shown. */
+  onOpenInNewTab: (address: string, background: boolean) => Promise<void>
   onFocusLeft: () => void
 }
 
@@ -195,6 +198,37 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     }
   }
 
+  async function openInNewTab(target: string, background: boolean): Promise<void> {
+    cancelBlur()
+    close()
+    if (!background) {
+      // The new tab takes over, and this tab's field shows its own address again when the person comes back to it.
+      editing.value = false
+      dirty.value = false
+      restoreActiveAddress()
+      input.value?.blur()
+    }
+    // A background tab keeps the typed text in the field, as in Chrome, to edit and open again.
+    await options.onOpenInNewTab(target, background)
+  }
+
+  // Enter with Ctrl, Alt or (on a Mac) ⌘ does what it does in Chrome's address bar; see address-enter.ts.
+  function handleModifiedEnter(event: KeyboardEvent, action: AddressEnterAction): boolean {
+    const suggestion = visible.value ? selected.value : undefined
+    // A picked suggestion is a whole address already, so Ctrl+Enter opens it as Enter does.
+    if (action === 'add-www-and-com' && suggestion) return false
+    event.preventDefault()
+    // A held key opens the address once, not a tab for each repeat.
+    if (disposed || event.repeat) return true
+    if (action === 'add-www-and-com') {
+      if (address.value.trim()) void navigateTo(withWwwAndCom(address.value) ?? address.value)
+      return true
+    }
+    const target = suggestion?.url ?? address.value.trim()
+    if (target) void openInNewTab(target, action === 'new-background-tab')
+    return true
+  }
+
   async function submit(): Promise<void> {
     if (disposed || !address.value.trim()) return
     await navigateTo(address.value)
@@ -233,6 +267,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       input.value?.select()
       return
     }
+    const enterAction = addressEnterAction(event, window.hronautShell?.windowChrome?.platform === 'darwin')
+    if (enterAction && handleModifiedEnter(event, enterAction)) return
     if (!suggestions.value.length) return
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()

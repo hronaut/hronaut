@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useBrowserTabActionsController } from '../../src/renderer/src/composables/useBrowserTabActionsController.js'
-import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
+import type { BrowserState, BrowserTabState, NewTabOptions } from '../../src/shared/types.js'
 
 function tab(overrides: Partial<BrowserTabState> = {}): BrowserTabState {
   return {
@@ -54,6 +54,7 @@ function createHarness() {
   const browser = {
     closeTab: vi.fn(async (_tabId: string) => state.value),
     navigate: vi.fn(async (_options: { url: string; tabId?: string }) => state.value),
+    newTab: vi.fn(async (_options?: NewTabOptions) => state.value),
     reload: vi.fn(async (_tabId?: string) => state.value),
     reorderTab: vi.fn(async (_tabId: string, _targetTabId: string, _placement: 'before' | 'after') => state.value),
     selectTab: vi.fn(async (_tabId: string) => state.value),
@@ -96,6 +97,32 @@ function createHarness() {
 }
 
 describe('browser tab actions controller', () => {
+  it('opens an address in a new tab of the shown tab\'s workspace, in front or behind, and reports a failure', async () => {
+    const harness = createHarness()
+    harness.activeTab.value = tab({ mcpGroupId: 'client-a' })
+
+    await harness.controller.openAddressInNewTab('https://next.test/', false)
+    await harness.controller.openAddressInNewTab('https://later.test/', true)
+    expect(harness.browser.newTab.mock.calls).toEqual([
+      [{ url: 'https://next.test/', active: true, focus: true, mcpGroupId: 'client-a' }],
+      [{ url: 'https://later.test/', active: false, focus: false, mcpGroupId: 'client-a' }]
+    ])
+
+    // With no tab shown, main picks the workspace, as for Ctrl/Cmd+T.
+    harness.activeTab.value = undefined
+    await harness.controller.openAddressInNewTab('https://home.test/', false)
+    expect(harness.browser.newTab).toHaveBeenLastCalledWith({ url: 'https://home.test/', active: true, focus: true, mcpGroupId: undefined })
+
+    const failure = new Error('tab limit')
+    harness.browser.newTab.mockRejectedValueOnce(failure)
+    await expect(harness.controller.openAddressInNewTab('https://full.test/', false)).resolves.toBeUndefined()
+    expect(harness.onNavigateError).toHaveBeenCalledWith(failure)
+
+    harness.controller.dispose()
+    await harness.controller.openAddressInNewTab('https://gone.test/', false)
+    expect(harness.browser.newTab).toHaveBeenCalledTimes(4)
+  })
+
   it('contains selection and navigation failures at their action-specific boundaries', async () => {
     const harness = createHarness()
     const selectionFailure = new Error('selection failed')
