@@ -1,5 +1,6 @@
 import { RendererExitedError } from './renderer-exit-guard.js'
 import { PrintDialogOpenError } from './print-dialog-guard.js'
+import { SourceViewError } from './source-view-guard.js'
 
 interface RendererInputCleanupTarget {
   isDestroyed(): boolean
@@ -25,8 +26,8 @@ export async function clearRendererAgentInputFlag(
     await Promise.race([
       page.executeJavaScript('delete window.__hronautAgentInputActive', false).then(value => { if (value === false) onFailure?.() }, error => {
         // The flag lived in the document of a renderer that exited. A page its print dialog holds has the flag
-        // cleared once the dialog closes (withAgentInput).
-        if (!(error instanceof RendererExitedError || error instanceof PrintDialogOpenError)) onFailure?.()
+        // cleared once the dialog closes (withAgentInput). A page's source never had the flag, since setting it is refused there too.
+        if (!(error instanceof RendererExitedError || error instanceof PrintDialogOpenError || error instanceof SourceViewError)) onFailure?.()
       }),
       destroyed
     ])
