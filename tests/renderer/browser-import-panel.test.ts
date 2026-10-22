@@ -50,6 +50,35 @@ describe('browser import picker', () => {
       expect(browserImport.preview).toHaveBeenCalledExactlyOnceWith('chosen', 'second-id')
     } finally { wrapper.unmount() }
   })
+  it('keeps the chosen profile after Back, which lists the profiles again under new IDs', async () => {
+    const { wrapper, browserImport, button } = setup(state, [
+      { id: 'default-id', browser: 'Chrome', name: 'Default' },
+      { id: 'work-id', browser: 'Chrome', name: 'Work' }
+    ])
+    try {
+      await flushPromises()
+      await wrapper.get('#browser-import-profile').setValue('work-id')
+      await button('Continue').trigger('click'); await flushPromises()
+      browserImport.list.mockResolvedValueOnce({ ok: true, value: [
+        { id: 'new-default-id', browser: 'Chrome', name: 'Default' },
+        { id: 'new-work-id', browser: 'Chrome', name: 'Work' }
+      ] })
+      await button('Back').trigger('click'); await flushPromises()
+      // Back chose the first profile, so the next Continue read Default.
+      expect((wrapper.get('#browser-import-profile').element as HTMLSelectElement).value).toBe('new-work-id')
+      await button('Continue').trigger('click'); await flushPromises()
+      expect(browserImport.preview).toHaveBeenLastCalledWith('chosen', 'new-work-id')
+
+      // A name two profiles now share can't say which one was chosen, so the first is chosen, as at the start.
+      browserImport.list.mockResolvedValueOnce({ ok: true, value: [
+        { id: 'one-id', browser: 'Chrome', name: 'Default' },
+        { id: 'two-id', browser: 'Chrome', name: 'Work' },
+        { id: 'three-id', browser: 'Chrome', name: 'Work' }
+      ] })
+      await button('Back').trigger('click'); await flushPromises()
+      expect((wrapper.get('#browser-import-profile').element as HTMLSelectElement).value).toBe('one-id')
+    } finally { wrapper.unmount() }
+  })
   it('preserves hidden selections, uses matching bulk selection and commits only the chosen domains', async () => {
     const { wrapper, browserImport, button } = setup()
     try {

@@ -37,11 +37,16 @@ async function run(action: () => Promise<void>): Promise<void> {
 }
 async function start(): Promise<void> {
   const current = ++generation
+  // Back lists the profiles again under new IDs, so the chosen one is found again by browser and name; choosing the
+  // first profile instead made Continue read another profile than the one picked.
+  const chosen = profiles.value.find(p => p.id === profileId.value)
   preview.value = null; previewConsumed.value = false; result.value = null; selected.value = []; filter.value = ''; profileId.value = ''; profiles.value = []
   await run(async () => {
     const next = unwrap(await props.browser.browserImport.list(props.workspaceId))
     if (current !== generation) return
-    profiles.value = next; profileId.value = next[0]?.id ?? ''
+    // Firefox profiles in different folders can read the same, so only a single match is surely the chosen one.
+    const matches = chosen ? next.filter(p => p.browser === chosen.browser && p.name === chosen.name) : []
+    profiles.value = next; profileId.value = (matches.length === 1 ? matches[0] : next[0])?.id ?? ''
   })
 }
 async function read(): Promise<void> {
