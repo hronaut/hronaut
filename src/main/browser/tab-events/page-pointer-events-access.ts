@@ -20,8 +20,9 @@ export interface PagePointerEventsOptions {
  * from the tab manager, which keeps trusted chrome occlusion, in-flight agent
  * input, agent wheel scrolling, the native selection sessions, the human
  * input lock, repro recording, tab overview previews, the MCP activity
- * follower, the split view, the active tab, agent following, workspace
- * activation, state publication and its options private. The active tab and
+ * follower, the split view, the active tab and its selection generation,
+ * agent following, workspace activation, state publication and its options
+ * private. The active tab and
  * the followed agent stay manager fields because selection, layout, closing
  * and following read and write them too; they are written back through
  * their setters and read again at every use.
@@ -57,6 +58,10 @@ export interface PagePointerEventsAccess<Tab extends PagePointerEventsTab> {
   activeTabId(): string | null
   /** Records the active tab's id. */
   writeActiveTabId(tabId: string): void
+  /** Counts tab selections, so a later selection tells an earlier one it was overtaken. */
+  tabSelectionGeneration(): number
+  /** Records the selection generation. */
+  writeTabSelectionGeneration(generation: number): void
   /** Stops following an agent, when the person picks the other split pane. */
   setAgentFollow(follow: undefined): void
   /** Records the tab as its workspace's active tab. */

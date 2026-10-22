@@ -65,8 +65,10 @@ export function attachPagePointerEvents<Tab extends PagePointerEventsTab>(access
       tab.lastActiveAt = tab.lastHumanInteractionAt
       access.mcpActivityFollower().noteHumanInput()
       if (access.splitViewContains(tab.id) && access.activeTabId() !== tab.id) {
-        // The person picked the other pane, which following did not show.
+        // The person picked the other pane, which following did not show. It
+        // is a selection, so a tab still waking for an earlier one stays out.
         access.setAgentFollow(undefined)
+        access.writeTabSelectionGeneration(access.tabSelectionGeneration() + 1)
         access.writeActiveTabId(tab.id)
         access.markTabActiveInGroup(tab)
         access.changed()

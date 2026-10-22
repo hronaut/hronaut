@@ -5595,6 +5595,8 @@ export class BrowserTabsManager {
       splitViewContains: (tabId) => this.splitViewContains(tabId),
       activeTabId: () => this.activeTabId,
       writeActiveTabId: (tabId) => { this.activeTabId = tabId },
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
+      writeTabSelectionGeneration: (generation) => { this.tabSelectionGeneration = generation },
       setAgentFollow: (follow) => { this.agentFollow = follow },
       markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
       changed: (persist) => this.changed(persist),
