@@ -201,7 +201,7 @@ export async function fillFromFile<Tab extends TextFileFillTab>(
     return await access.withAgentInput(webContents, async (): Promise<TextFileFillResult> => {
       // Nothing is awaited between these checks and the fill's dispatch.
       validate()
-      // Electron holds a script back until the page stops loading, past every check: refuse instead.
+      // A script can be held back while the page loads, past every check: refuse instead.
       if (webContents.isLoadingMainFrame()) throw new Error('The page is still loading, so nothing was filled. Wait for it to finish loading and try again.')
       progress.written = true
       let page: TextFileFillPageResult

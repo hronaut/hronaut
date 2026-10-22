@@ -1,6 +1,7 @@
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { localizedLoadFailure } from '../load-failure-error.js'
+import { PAGE_LOAD_WAIT_MS, settledWithin } from '../page-waits/page-load-limit.js'
 import { isHronautHomeUrl, normalizeAddress } from '../url.js'
 import type { PageNavigationAccess, PageNavigationTab } from './page-navigation-access.js'
 
@@ -40,8 +41,10 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
   }
   const webContents = tab.webContents
   const documentGeneration = tab.documentGeneration
-  const askedToStay = await loadAddress(access, tab, normalized, false)
-  if (!askedToStay) return access.getState()
+  const loaded = await loadAddress(access, tab, normalized, false)
+  // A person sees the tab still loading, as in Chrome; an agent would otherwise read the page it left.
+  if (loaded === 'not-shown' && !options.byPerson) throw new LocalizedError('appErrors.page.loadTimedOut')
+  if (loaded !== 'asked-to-stay') return access.getState()
   if (!options.byPerson) throw new Error(PAGE_ASKED_TO_STAY)
   // The question is only the person's while the same page is still open in the tab. The page keeps running while it is
   // open, unlike under Chrome's own question, so an address change within the page, as an editor's autosave makes,
@@ -59,15 +62,19 @@ const PAGE_ASKED_TO_STAY = 'The page asked to confirm before it is left (a befor
 
 /**
  * Loads the address in the tab and settles once the load ends, a policy denial
- * ends it or it fails. It returns true when the page asked before it is left
+ * ends it, it fails or PAGE_LOAD_WAIT_MS pass while the page still loads. It
+ * returns 'asked-to-stay' when the page asked before it is left
  * and so kept itself open; with `leave`, that question is skipped, once, as the
- * person already answered it.
+ * person already answered it. It returns 'not-shown' when the wait passed before
+ * the new page replaced the one the tab showed.
  */
-async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tab: Tab, normalized: string, leave: boolean): Promise<boolean> {
+async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tab: Tab, normalized: string,
+  leave: boolean): Promise<'done' | 'asked-to-stay' | 'not-shown'> {
   const navigationPolicyDenialSequence = tab.navigationPolicyDenialSequence
   access.prepareDiagnosticNavigation(tab)
   type NavigationOutcome =
     | { kind: 'loaded' }
+    | { kind: 'loading' }
     | { kind: 'failed'; error: unknown }
     | { kind: 'policy-denied' }
   let resolvePolicyDenial!: (outcome: NavigationOutcome) => void
@@ -92,6 +99,8 @@ async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigation
   const onNavigationStart = (_event: Electron.Event, _url: string, isSameDocument: boolean, isMainFrame: boolean): void => {
     if (isMainFrame && !isSameDocument) stopWatchingUnload()
   }
+  let shown = false
+  const onShown = (): void => { shown = true }
   const stopWatchingUnload = (): void => {
     webContents.removeListener('will-prevent-unload', onPreventUnload)
     webContents.removeListener('did-start-navigation', onNavigationStart)
@@ -100,27 +109,37 @@ async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigation
   webContents.on('will-redirect', detectPolicyDenial)
   webContents.on('will-prevent-unload', onPreventUnload)
   webContents.on('did-start-navigation', onNavigationStart)
+  webContents.on('did-navigate', onShown)
   const load = webContents.loadURL(normalized).then<NavigationOutcome, NavigationOutcome>(
     () => ({ kind: 'loaded' }),
     (error: unknown) => ({ kind: 'failed', error })
   )
+  // A page whose load never ends, such as one with an image its server never answers, keeps loading in the tab, as in
+  // Chrome, while the navigation returns.
+  let loadWait: ReturnType<typeof setTimeout> | undefined
+  const stillLoading = new Promise<NavigationOutcome>((resolve) => {
+    loadWait = setTimeout(() => resolve({ kind: 'loading' }), PAGE_LOAD_WAIT_MS)
+  })
   let outcome: NavigationOutcome
   try {
     // Electron can leave loadURL pending after preventDefault() rejects a
     // redirect. A policy decision is already terminal for this navigation,
     // so do not strand renderer IPC waiting for a load event that may never
     // arrive under compositor pressure.
-    outcome = await Promise.race([load, policyDenial])
+    outcome = await Promise.race([load, policyDenial, stillLoading])
   } finally {
+    clearTimeout(loadWait)
     webContents.removeListener('will-frame-navigate', detectPolicyDenial)
     webContents.removeListener('will-redirect', detectPolicyDenial)
+    webContents.removeListener('did-navigate', onShown)
     stopWatchingUnload()
   }
+  if (outcome.kind === 'loading') return shown ? 'done' : 'not-shown'
   if (outcome.kind !== 'failed' || access.findTab(tab.id) !== tab
-    || tab.navigationPolicyDenialSequence !== navigationPolicyDenialSequence) return false
-  if (askedToStay) return true
+    || tab.navigationPolicyDenialSequence !== navigationPolicyDenialSequence) return 'done'
+  if (askedToStay) return 'asked-to-stay'
   if (!isAbortedLoad(outcome.error)) throw localizedLoadFailure(outcome.error)
-  return false
+  return 'done'
 }
 
 /** Goes back in the tab's history, unless the workspace's navigation policy denies the entry. */
@@ -178,9 +197,11 @@ async function reloadPage<Tab extends PageNavigationTab>(access: PageNavigationA
   tab.pageProblem = undefined
   access.changed(false)
   if (pageProblem?.kind === 'load-error' || pageProblem?.kind === 'renderer-gone') {
-    await tab.webContents.loadURL(pageProblem.url, ignoreCache
+    // A page whose load never ends is left loading, and the caller is told.
+    const loaded = await settledWithin(tab.webContents.loadURL(pageProblem.url, ignoreCache
       ? { extraHeaders: 'Cache-Control: no-cache\r\nPragma: no-cache\r\n' }
-      : undefined).catch(() => undefined)
+      : undefined).catch(() => undefined))
+    if (!loaded) throw new LocalizedError('appErrors.page.loadTimedOut')
   } else if (pageProblem?.kind === 'unresponsive') {
     const contents = tab.webContents
     const navigationGeneration = tab.navigationGeneration

@@ -4,6 +4,7 @@ import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { liveRegionRecordingKeepsTabAwake } from '../live-region-recorder.js'
 import { localizedLoadFailure } from '../load-failure-error.js'
+import { settledWithin } from '../page-waits/page-load-limit.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import type { TabSleepAccess, TabSleepTab } from './tab-sleep-access.js'
@@ -109,7 +110,7 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
   const tab = access.getTab(tabId)
   tab.lastActiveAt = Date.now()
   if (tab.wakePromise) {
-    await tab.wakePromise
+    await awaitWake(tab, tab.wakePromise)
     return access.getState()
   }
   if (!tab.sleeping) return access.getState()
@@ -118,6 +119,8 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
   const previousLoading = tab.loading
   const previousSuppressInitialHistory = tab.suppressInitialHistory
   const navigationGeneration = tab.navigationGeneration
+  // Its callers went on with the page it showed, which an agent may already use.
+  const handedOver = (): boolean => shownWakes.has(wake)
   const wake = (async () => {
     tab.sleeping = false
     access.tabOverviewSleepPreviews().delete(tab.id)
@@ -128,6 +131,7 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
     try {
       await returnFromSleepingPage(tab.webContents, restoreUrl)
     } catch (error) {
+      if (handedOver()) return
       const wakeWasSuperseded = () => access.findTab(tab.id) !== tab
         || tab.webContents.isDestroyed()
         || (tab.navigationGeneration !== navigationGeneration
@@ -144,6 +148,7 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
       try {
         await tab.webContents.loadURL(restoreUrl)
       } catch (fallbackError) {
+        if (handedOver()) return
         // A newer navigation can also interrupt the fallback. Preserve its
         // live document instead of restoring the obsolete sleeping state.
         if (isAbortedLoad(fallbackError) && wakeWasSuperseded()) {
@@ -170,12 +175,32 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
     if (access.findTab(tab.id) === tab && !tab.webContents.isDestroyed()) forgetSleepingPage(tab.webContents)
   })()
   tab.wakePromise = wake
-  try {
-    await wake
-  } finally {
-    tab.wakePromise = undefined
-  }
+  const settled = (): void => { if (tab.wakePromise === wake) tab.wakePromise = undefined }
+  wake.then(settled, settled)
+  await awaitWake(tab, wake)
   return access.getState()
+}
+
+/** Wakes whose callers went on once their page showed, while its load went on. */
+const shownWakes = new WeakSet<Promise<void>>()
+
+/**
+ * Waits for a wake. A page whose load never ends, such as one with an image its server never answers, holds the
+ * caller only for PAGE_LOAD_WAIT_MS: once the page shows, the tab is awake and keeps loading, as in Chrome, and the
+ * sleeping page leaves its history; while it still shows the sleeping page, the wait fails.
+ */
+async function awaitWake(tab: TabSleepTab, wake: Promise<void>): Promise<void> {
+  if (await settledWithin(wake)) return
+  if (!tab.webContents.isDestroyed() && tab.webContents.getURL() !== SLEEPING_PAGE_URL) {
+    shownWakes.add(wake)
+    forgetSleepingPage(tab.webContents)
+    // The wake is over for every caller, while the page goes on loading. Its load is not a visit, and the next page's is.
+    if (tab.wakePromise === wake) tab.wakePromise = undefined
+    tab.suppressInitialHistory = false
+    tab.pendingHistoryUrl = null
+    return
+  }
+  throw new LocalizedError('appErrors.page.loadTimedOut')
 }
 
 /** Puts the tab to sleep, reporting what keeps it awake, or wakes it. */
@@ -407,7 +432,15 @@ export function watchUnsavedFormEdits(tab: TabSleepTab, frame?: WebFrameMain): v
  * asleep. Returns whether the tab went to sleep.
  */
 export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAccess<Tab>, tab: Tab, reportBlocked: boolean, isCurrent: () => boolean = () => true): Promise<boolean> {
-  if (tab.wakePromise) await tab.wakePromise
+  if (tab.wakePromise) {
+    try {
+      await awaitWake(tab, tab.wakePromise)
+    } catch (error) {
+      // The tab still shows the sleeping page while its wake goes on.
+      if (reportBlocked) throw error
+      return false
+    }
+  }
   if (!isCurrent() || tab.sleeping) return false
   const blockReason = sleepBlockReason(access, tab)
   if (blockReason) {
