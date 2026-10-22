@@ -315,4 +315,24 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(kept({ key: 'd', code: 'KeyD' })).toBeNull()
     expect(kept({ key: '∂', code: 'KeyD', alt: true, mac: true })).toBeNull()
   })
+
+  it('find the next match with F3 or Ctrl+G, and the previous one with Shift, elsewhere than macOS', () => {
+    // A web editor goes to a line with Ctrl+G, so these are no browser keys a page loses before it sees them.
+    for (const key of [{ key: 'F3' }, { key: 'F3', shift: true }, { key: 'g', code: 'KeyG', control: true }, { key: 'G', code: 'KeyG', control: true, shift: true }]) {
+      expect(browserShortcutAction(input(key))).toBeNull()
+    }
+    expect(kept({ key: 'F3' })).toBe('find-next')
+    expect(kept({ key: 'F3', shift: true })).toBe('find-previous')
+    expect(kept({ key: 'g', code: 'KeyG', control: true })).toBe('find-next')
+    expect(kept({ key: 'G', code: 'KeyG', control: true, shift: true })).toBe('find-previous')
+    expect(kept({ key: 'п', code: 'KeyG', control: true })).toBe('find-next')
+    expect(kept({ key: 'g', code: 'KeyG' })).toBeNull()
+    expect(kept({ key: 'F3', control: true })).toBeNull()
+    expect(kept({ key: 'F3', alt: true })).toBeNull()
+    expect(kept({ key: 'g', code: 'KeyG', control: true, alt: true })).toBeNull()
+    expect(kept({ key: 'F3', repeat: true })).toBeNull()
+    // On macOS Cmd+G reaches the Edit menu's Find Next instead.
+    expect(kept({ key: 'g', code: 'KeyG', meta: true, mac: true })).toBeNull()
+    expect(kept({ key: 'F3', mac: true })).toBeNull()
+  })
 })

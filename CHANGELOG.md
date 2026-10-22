@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - **Ctrl/Cmd+P**, **View → Print…** and **Print…** in a page's context menu now open the system's print dialog for the page, where you can also save it as PDF, as in Chrome. Hronaut had no way to print a page. A website that handles the key itself, such as an online editor printing its document, keeps it, and a key an agent sends stays with the page. Nothing prints while a Hronaut dialog covers the page, on a locked tab or while an agent is sending the page input, and a page an agent is working on asks you to take over or pause its agents first, since the dialog holds the page still until it closes.
+- **Ctrl/Cmd+G** and **Ctrl/Cmd+Shift+G**, and on Windows and Linux **F3** and **Shift+F3**, now go to the next and previous match of **Find**, as in Chrome, from the page or the Find field, and **Edit → Find Next** and **Find Previous** do the same; with Find closed they open it and search for its last text again. Hronaut did nothing with these keys. A website that handles one of them itself, such as a web editor going to a line with Ctrl+G, keeps it, and a key an agent sends stays with the page.
 
 ### Fixed
 

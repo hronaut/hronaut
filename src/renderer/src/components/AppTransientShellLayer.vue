@@ -121,7 +121,7 @@ interface TabSearchSurface {
 }
 
 interface FindSurface {
-  openForTab: (tab: BrowserTabState) => Promise<void>
+  openForTab: (tab: BrowserTabState, again?: 'next' | 'previous') => Promise<void>
   close: () => Promise<void>
 }
 
@@ -192,8 +192,8 @@ function closeTabSearch(): void {
   tabSearchPanel.value?.close()
 }
 
-async function openFindForTab(tab: BrowserTabState): Promise<void> {
-  await findBar.value?.openForTab(tab)
+async function openFindForTab(tab: BrowserTabState, again?: 'next' | 'previous'): Promise<void> {
+  await findBar.value?.openForTab(tab, again)
 }
 
 async function closeFind(): Promise<void> {

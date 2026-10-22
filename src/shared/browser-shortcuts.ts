@@ -10,6 +10,8 @@ export type BrowserShortcutAction =
   | `select-tab-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}`
   | 'select-last-tab'
   | 'find'
+  | 'find-next'
+  | 'find-previous'
   | 'reload'
   | 'reload-ignoring-cache'
   | 'zoom-in'
@@ -74,9 +76,10 @@ function chromeTabShortcut(input: BrowserShortcutInput, key: string): BrowserSho
 
 /**
  * Chrome's keys a website may keep, elsewhere than macOS: F5 reloads, Shift+F5 or Ctrl+F5 reloads without the cache,
- * and Alt+D goes to the address bar. A website's own keys come first there, as in Chrome, where a web editor runs
- * F5 as its debugger and a web terminal reads Alt+D, so they act only when the page in focus leaves them alone, and
- * in Hronaut's own window as the browser's keys at once.
+ * Alt+D goes to the address bar, and F3 or Ctrl+G finds the next match, with Shift the previous one. A website's own
+ * keys come first there, as in Chrome, where a web editor runs F5 as its debugger and Ctrl+G to go to a line and a web
+ * terminal reads Alt+D, so they act only when the page in focus leaves them alone, and in Hronaut's own window as the
+ * browser's keys at once. On macOS, Cmd+G and Cmd+Shift+G reach the Edit menu's Find Next and Find Previous.
  */
 export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
   if (input.mac || input.meta || input.repeat || input.composing) return null
@@ -86,6 +89,7 @@ export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserS
     if (input.control !== input.shift) return 'reload-ignoring-cache'
   }
   if (key === 'd' && input.alt && !input.control && !input.shift) return 'focus-address'
+  if (!input.alt && ((key === 'f3' && !input.control) || (key === 'g' && input.control))) return input.shift ? 'find-previous' : 'find-next'
   return null
 }
 

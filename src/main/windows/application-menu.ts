@@ -48,9 +48,21 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
     }
   }
 
+  // Find Next and Find Previous go to the next and previous match of Find, opening it with its last text when it is
+  // closed, as in Chrome. Their keys are Chrome's, which a website may keep, as a web editor does to go to a line: as
+  // keys of the menu they reach it only when the website or field in focus leaves them alone, and never from an agent,
+  // and only from the main window, since typed in a panel in its own window they would search a page out of view.
+  function findAgain(action: 'find-next' | 'find-previous', window: BaseWindow | undefined, event: KeyboardEvent): void {
+    if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+    // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
+    if (!event.triggeredByAccelerator) host.showWindow()
+    host.runShortcut(action)
+  }
+
   // Chrome's keys a website may keep (websiteKeptShortcutAction). As keys of the menu they reach it only when the
   // website or field in focus leaves them alone, and never from an agent; typed in a panel in its own window, they
-  // would act on a page out of view. Hidden, because Reload and the address bar already show their main keys.
+  // would act on a page out of view. Hidden, because Reload, the address bar and the Edit menu's Find Next and Find
+  // Previous already show their main keys.
   function websiteKeptKeys(): MenuItemConstructorOptions[] {
     if (process.platform === 'darwin') return []
     const item = (label: string, accelerator: string, action: BrowserShortcutAction): MenuItemConstructorOptions => ({
@@ -65,7 +77,9 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
       item(host.text('native.menu.reload'), 'F5', 'reload'),
       item(host.text('native.menu.reloadWithoutCache'), 'Shift+F5', 'reload-ignoring-cache'),
       item(host.text('native.menu.reloadWithoutCache'), 'Ctrl+F5', 'reload-ignoring-cache'),
-      item(host.text('runtime.shortcuts.address'), 'Alt+D', 'focus-address')
+      item(host.text('runtime.shortcuts.address'), 'Alt+D', 'focus-address'),
+      item(host.text('native.menu.findNext'), 'F3', 'find-next'),
+      item(host.text('native.menu.findPrevious'), 'Shift+F3', 'find-previous')
     ]
   }
 
@@ -101,7 +115,18 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
             { role: 'cut' },
             { role: 'copy' },
             { role: 'paste' },
-            { role: 'selectAll' }
+            { role: 'selectAll' },
+            { type: 'separator' },
+            {
+              label: host.text('native.menu.findNext'),
+              accelerator: 'CmdOrCtrl+G',
+              click: (_item, window, event) => findAgain('find-next', window, event)
+            },
+            {
+              label: host.text('native.menu.findPrevious'),
+              accelerator: 'CmdOrCtrl+Shift+G',
+              click: (_item, window, event) => findAgain('find-previous', window, event)
+            }
           ]
         },
         {

@@ -9,7 +9,7 @@ type ZoomAction = 'in' | 'out' | 'reset'
 export interface AppTransientShellSurface {
   openTabSearch: () => Promise<void>
   closeTabSearch: () => void
-  openFindForTab: (tab: BrowserTabState) => Promise<void>
+  openFindForTab: (tab: BrowserTabState, again?: 'next' | 'previous') => Promise<void>
   closeFind: () => Promise<void>
   openZoomForTab: (tab: BrowserTabState) => Promise<void>
   closeZoom: () => void
@@ -63,8 +63,8 @@ export function useAppTransientShellLayerController() {
   })
   const workspaceEditorController = useWorkspaceEditorShellController(workspaceEditorPanel)
 
-  async function openFindForTab(tab: BrowserTabState): Promise<void> {
-    await layer.value?.openFindForTab(tab)
+  async function openFindForTab(tab: BrowserTabState, again?: 'next' | 'previous'): Promise<void> {
+    await layer.value?.openFindForTab(tab, again)
   }
 
   async function closeFind(): Promise<void> {

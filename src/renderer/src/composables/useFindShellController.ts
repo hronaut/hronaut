@@ -7,7 +7,7 @@ export interface FindShellControllerOptions {
   settingsOpen: Ref<boolean>
   splitMenuOpen: Ref<boolean>
   closeTransientPanels: (options?: TransientPanelsCloseOptions) => void
-  openForTab: (tab: BrowserTabState) => Promise<void>
+  openForTab: (tab: BrowserTabState, again?: 'next' | 'previous') => Promise<void>
 }
 
 export function useFindShellController(options: FindShellControllerOptions) {
@@ -21,5 +21,16 @@ export function useFindShellController(options: FindShellControllerOptions) {
     await options.openForTab(tab)
   }
 
-  return { open }
+  /** Find Next or Find Previous: the next or previous match, opening Find with its last text when it is closed. */
+  async function findAgain(again: 'next' | 'previous'): Promise<void> {
+    const tab = options.activeTab.value
+    if (!tab) return
+
+    options.settingsOpen.value = false
+    options.splitMenuOpen.value = false
+    options.closeTransientPanels({ preserveFind: true })
+    await options.openForTab(tab, again)
+  }
+
+  return { open, findAgain }
 }
