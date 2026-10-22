@@ -1398,6 +1398,8 @@ export const plPL = {
     "toolbar": {
       "back": "Wstecz",
       "forward": "Dalej",
+      "backTitle": "Kliknij, aby przejść wstecz; kliknij prawym przyciskiem lub przytrzymaj, aby zobaczyć historię",
+      "forwardTitle": "Kliknij, aby przejść dalej; kliknij prawym przyciskiem lub przytrzymaj, aby zobaczyć historię",
       "address": "Adres",
       "addressPlaceholder": "Wyszukaj lub wpisz adres",
       "findTitle": "Znajdź na stronie (Ctrl/Cmd+F)",
@@ -3585,7 +3587,8 @@ export const plPL = {
       "reloadWithoutCache": "Odśwież bez pamięci podręcznej",
       "copyPageAddress": "Kopiuj adres strony",
       "inspect": "Sprawdź",
-      "print": "Drukuj…"
+      "print": "Drukuj…",
+      "showFullHistory": "Pokaż całą historię"
     },
     "pageProblem": {
       "loadTitle": "Nie udało się otworzyć tej witryny",

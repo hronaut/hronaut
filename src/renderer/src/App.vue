@@ -612,6 +612,7 @@ const { dispose: disposeAppEventsController } = useAppEventsController({
   onTabGroupEdit: openTabGroupEditor,
   // New Tab in a tab's or workspace's menu opens the tab as the + button does, with the cursor in the address field.
   onNewTab: newTabInWorkspace,
+  onVisitHistory: browserCollectionsFeatureController.openVisitHistory,
   onPermissionsChanged: replaceSitePermissions,
   onCredentialsChanged: replaceCredentials,
   onUpdateOpen: openUpdateSettings,

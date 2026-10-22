@@ -156,6 +156,19 @@ describe('useBrowserCollectionsShellController', () => {
     expect(harness.historyPanel.value.toggle).toHaveBeenCalledOnce()
   })
 
+  it('opens history for Show Full History, and leaves it open when it is', async () => {
+    const harness = createController()
+    harness.settingsOpen.value = true
+
+    await harness.controller.openVisitHistory()
+    expect(harness.historyOpen.value).toBe(true)
+    expect(harness.settingsOpen.value).toBe(false)
+    await harness.controller.openVisitHistory()
+
+    expect(harness.historyOpen.value).toBe(true)
+    expect(harness.historyPanel.value.toggle).toHaveBeenCalledOnce()
+  })
+
   it('opens the current-bookmark action without closing Settings', async () => {
     const harness = createController()
     harness.downloadsOpen.value = true

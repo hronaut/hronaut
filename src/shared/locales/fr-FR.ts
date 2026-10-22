@@ -1398,6 +1398,8 @@ export const frFR = {
     "toolbar": {
       "back": "Précédent",
       "forward": "Suivant",
+      "backTitle": "Cliquez pour revenir en arrière ; clic droit ou appui prolongé pour voir l’historique",
+      "forwardTitle": "Cliquez pour avancer ; clic droit ou appui prolongé pour voir l’historique",
       "address": "Adresse",
       "addressPlaceholder": "Rechercher ou saisir une adresse",
       "findTitle": "Rechercher dans la page (Ctrl/Cmd+F)",
@@ -3585,7 +3587,8 @@ export const frFR = {
       "reloadWithoutCache": "Recharger sans cache",
       "copyPageAddress": "Copier l’adresse de la page",
       "inspect": "Inspecter",
-      "print": "Imprimer…"
+      "print": "Imprimer…",
+      "showFullHistory": "Afficher l’historique complet"
     },
     "pageProblem": {
       "loadTitle": "Impossible d’accéder à ce site",

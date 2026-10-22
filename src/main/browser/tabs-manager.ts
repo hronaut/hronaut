@@ -57,6 +57,8 @@ import { saveScreenshot, type PendingScreenshotExport, type ScreenshotExport, ty
 import { FrameObservationController } from './frame-observation.js'
 import type { TabContextMenuAccess } from './context-menus/tab-context-menu-access.js'
 import { showTabContextMenu } from './context-menus/tab-context-menu.js'
+import type { HistoryMenuAccess } from './context-menus/history-menu-access.js'
+import { showHistoryMenu } from './context-menus/history-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
 import { FixedDateController, type FixedDateAuthority } from './fixed-date/fixed-date.js'
 import type { ReactInspectionCommand } from '../../shared/react-inspection.js'
@@ -425,7 +427,7 @@ import { attachDevToolsEvents } from './devtools/devtools-events.js'
 import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
 import type { PageNavigationAccess } from './page-navigation/page-navigation-access.js'
-import { back, forward, navigate, reload, reloadIgnoringCache, stop } from './page-navigation/page-navigation.js'
+import { back, forward, goToHistoryEntry, navigate, reload, reloadIgnoringCache, stop } from './page-navigation/page-navigation.js'
 import type { PageZoomAccess } from './page-zoom/page-zoom-access.js'
 import { setZoom } from './page-zoom/page-zoom.js'
 import type { PageWheelZoomAccess } from './page-zoom/page-wheel-zoom-access.js'
@@ -3269,6 +3271,26 @@ export class BrowserTabsManager {
 
   forward(tabId?: string): Promise<BrowserState> {
     return forward(this.pageNavigationAccess(), tabId)
+  }
+
+  /** Shows the pages the tab's Back or Forward arrow goes through, for the person to pick one, as Chrome does. */
+  showHistoryMenu(tabId: string, direction: 'back' | 'forward', anchor?: { x: number; y: number }): boolean {
+    return showHistoryMenu(this.historyMenuAccess(), tabId, direction, anchor)
+  }
+
+  /**
+   * The narrow view the list of pages Back and Forward show gets of this manager's tabs, window, failed action reports,
+   * localized text and history navigation. It is a prototype method rather than a field, so managers created without
+   * the constructor (as unit tests do) still provide it.
+   */
+  private historyMenuAccess(): HistoryMenuAccess<BrowserTab> {
+    return {
+      findTab: (tabId) => this.tabs.get(tabId),
+      text: (key) => this.text(key),
+      onActionFailed: (action, error) => this.options.onActionFailed?.(action, error),
+      goToHistoryEntry: (tabId, entry) => goToHistoryEntry(this.pageNavigationAccess(), tabId, entry),
+      window: () => this.window
+    }
   }
 
   /** Goes back or forward in the shown tab for the person's Back or Forward key or mouse button, unless its page keeps its input. */

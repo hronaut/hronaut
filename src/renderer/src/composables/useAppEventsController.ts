@@ -20,7 +20,7 @@ interface ShellEventsApi {
 export interface AppEventsControllerOptions {
   browserApi: Pick<
     HronautApi,
-    'onUserAttentionRequested' | 'onShortcutRequested' | 'onTabGroupEditRequested' | 'onNewTabRequested'
+    'onUserAttentionRequested' | 'onShortcutRequested' | 'onTabGroupEditRequested' | 'onNewTabRequested' | 'onVisitHistoryRequested'
   >
   permissionsApi: Pick<HronautPermissionsApi, 'onChanged'>
   credentialsApi: Pick<HronautCredentialsApi, 'onChanged'>
@@ -30,6 +30,8 @@ export interface AppEventsControllerOptions {
   onShortcut: (action: BrowserShortcutAction) => unknown
   onTabGroupEdit: (groupId: string) => unknown
   onNewTab: (workspaceId: string | undefined) => unknown
+  /** Opens the history panel, unless it is open. */
+  onVisitHistory: () => unknown
   onPermissionsChanged: (permissions: SitePermissionEntry[]) => unknown
   onCredentialsChanged: (credentials: CredentialSummary[]) => unknown
   onUpdateOpen: () => unknown
@@ -62,6 +64,7 @@ export function useAppEventsController(options: AppEventsControllerOptions) {
     () => options.browserApi.onShortcutRequested(active(options.onShortcut)),
     () => options.browserApi.onTabGroupEditRequested(active(options.onTabGroupEdit)),
     () => options.browserApi.onNewTabRequested(active(options.onNewTab)),
+    () => options.browserApi.onVisitHistoryRequested(active(options.onVisitHistory)),
     () => options.permissionsApi.onChanged(active(options.onPermissionsChanged)),
     () => options.credentialsApi.onChanged(active(options.onCredentialsChanged)),
     () => options.updatesApi.onOpenRequested(active(options.onUpdateOpen)),

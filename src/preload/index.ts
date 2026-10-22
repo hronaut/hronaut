@@ -190,6 +190,7 @@ const api: HronautApi = {
   navigate: (options: NavigateOptions) => ipcRenderer.invoke('browser:navigate', options),
   back: (tabId?: string) => ipcRenderer.invoke('browser:back', tabId),
   forward: (tabId?: string) => ipcRenderer.invoke('browser:forward', tabId),
+  showHistoryMenu: (options: { tabId: string; direction: 'back' | 'forward'; anchor?: { x: number; y: number } }) => ipcRenderer.invoke('browser:show-history-menu', options),
   reload: (tabId?: string) => ipcRenderer.invoke('browser:reload', tabId),
   reloadIgnoringCache: (tabId?: string) => ipcRenderer.invoke('browser:reload-ignoring-cache', tabId),
   stop: (tabId?: string) => ipcRenderer.invoke('browser:stop', tabId),
@@ -296,6 +297,11 @@ const api: HronautApi = {
     const handler = (_event: Electron.IpcRendererEvent, workspaceId: unknown): void => listener(typeof workspaceId === 'string' ? workspaceId : undefined)
     ipcRenderer.on('browser:new-tab-requested', handler)
     return () => ipcRenderer.removeListener('browser:new-tab-requested', handler)
+  },
+  onVisitHistoryRequested: (listener: () => void) => {
+    const handler = (): void => listener()
+    ipcRenderer.on('browser:visit-history-requested', handler)
+    return () => ipcRenderer.removeListener('browser:visit-history-requested', handler)
   }
 }
 

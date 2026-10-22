@@ -166,6 +166,12 @@ const {
   toggleVisitHistory
 } = props.collectionsController
 const { emulationController, resetActiveTabEmulation } = props.emulationController
+async function listHistory(direction: 'back' | 'forward', anchor: { x: number; y: number }): Promise<boolean> {
+  const tab = activeTab.value
+  let shown = false
+  if (tab) await props.runAction(async () => { shown = await props.browser.showHistoryMenu({ tabId: tab.id, direction, anchor }) })
+  return shown
+}
 function clearActiveCssStatePreview(): Promise<void> | undefined {
   const tab = activeTab.value
   return tab?.cssStatePreview ? props.syncState(props.browser.clearCssStatePreview(tab.id)) : undefined
@@ -460,6 +466,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         :bookmarks-open="bookmarksOpen"
         :current-bookmark="Boolean(currentBookmark)"
         :format-percent="formatPercent"
+        :list-history="listHistory"
         @back="runAction(() => syncState(browser.back()))"
         @forward="runAction(() => syncState(browser.forward()))"
         @reload="runAction(() => syncState(browser.reload()))"
