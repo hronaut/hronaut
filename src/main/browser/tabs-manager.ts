@@ -544,6 +544,7 @@ import { duplicateTabAfterLabelSave, forgetClosedTabs, forgetWorkspaceClosedTabs
 import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
 import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import { placeTabOpenedFromPage } from './link-tab-placement/link-tab-placement.js'
+import { forgetTabsOpenedFrom, handOverTabsOpenedFrom, switchLeavesOpenedTabs, tabAfterClosingLinkTab } from './link-tab-placement/link-tab-openers.js'
 import type { BrowserWalletPageContext, WalletPagesAccess } from './wallet-pages/wallet-pages-access.js'
 import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab } from './wallet-pages/wallet-pages.js'
 import type { WorkspaceScopeAccess } from './workspace-scope/workspace-scope-access.js'
@@ -626,7 +627,10 @@ function screenshotFilename(requested: string | undefined, title: string): strin
 interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState {
   /** The tab whose page opened this one's as a window and can reach it, as this page can reach it through window.opener. */
   openerTabId?: string
-  /** The tab whose page opened this one, from a link or a window it asked for, which places it beside that tab. */
+  /**
+   * The tab whose page opened this one, from a link or a window it asked for, which places it beside that tab and
+   * shows that tab again when it closes, until Hronaut forgets it as Chrome does.
+   */
   openedFromTabId?: string
   label?: string
   labelDurabilityUnconfirmed?: boolean
@@ -2730,6 +2734,19 @@ export class BrowserTabsManager {
     return selectTabAndWait(this.tabSelectionAccess(), tabId, options)
   }
 
+  /**
+   * The person's own switch to a tab. Going to a tab unrelated to the one its workspace shows starts another task, so
+   * the workspace forgets which page opened which tab, as Chrome does going from its window's tab. That is also the
+   * tab compared when the person comes from another workspace.
+   */
+  selectTabForPerson(tabId: string): Promise<BrowserState> {
+    const to = this.tabs.get(tabId)
+    const shownId = to?.mcpGroupId ? this.mcpTabGroups.get(to.mcpGroupId)?.activeTabId : undefined
+    const from = shownId ? this.tabs.get(shownId) : undefined
+    if (from && to && switchLeavesOpenedTabs(from, to)) forgetTabsOpenedFrom(this.tabs.values(), to.mcpGroupId)
+    return this.selectTabAndWait(tabId)
+  }
+
   selectAgentTabAndWait(tabId: string): Promise<BrowserState> {
     return selectAgentTabAndWait(this.tabSelectionAccess(), tabId)
   }
@@ -2871,10 +2888,14 @@ export class BrowserTabsManager {
     const splitPartnerId = this.splitViewContains(tab.id)
       ? (this.splitView!.firstTabId === tab.id ? this.splitView!.secondTabId : this.splitView!.firstTabId)
       : null
-    const ids = this.orderedTabs().map((candidate) => candidate.id)
+    const ordered = this.orderedTabs()
+    const ids = ordered.map((candidate) => candidate.id)
     const index = ids.indexOf(tab.id)
     // A website popup returns to the tab that opened it, as in Chrome, rather than to a tab of the next workspace.
     const openerId = tab.openerTabId && this.tabs.has(tab.openerTabId) ? [tab.openerTabId] : []
+    // A tab opened from a page shows that page's next tab, or the page, as in Chrome.
+    const fromPage = tabAfterClosingLinkTab(ordered, tab, (candidate) => !candidate.webContents.isDestroyed())
+    const fromPageId = fromPage ? [fromPage.id] : []
     const after = ids.slice(index + 1)
     const before = ids.slice(0, index).reverse()
     // A tab beside it in its own workspace comes first, as Chrome stays in a tab group, so closing the last tab of a
@@ -2882,7 +2903,7 @@ export class BrowserTabsManager {
     const sameWorkspace = (candidateId: string) => this.tabs.get(candidateId)?.mcpGroupId === tab.mcpGroupId
     const orderedCandidates = splitPartnerId
       ? [splitPartnerId, ...ids]
-      : [...openerId, ...after.filter(sameWorkspace), ...before.filter(sameWorkspace), ...after, ...before]
+      : [...openerId, ...fromPageId, ...after.filter(sameWorkspace), ...before.filter(sameWorkspace), ...after, ...before]
     const nextId = tab.id === this.activeTabId
       ? orderedCandidates.find((candidateId) => {
         const candidate = this.tabs.get(candidateId)
@@ -3140,6 +3161,7 @@ export class BrowserTabsManager {
     const group = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
     const rememberedInstead = group?.activeTabId === tab.id ? this.workspaceTabAfterClose(tab) : undefined
     this.tabs.delete(tab.id)
+    handOverTabsOpenedFrom(this.tabs.values(), tab)
     this.globallyUnlockedTabIds.delete(tab.id)
     this.globallyResumedAgentTabIds.delete(tab.id)
     if (![...this.tabs.values()].some((candidate) => (
@@ -3159,12 +3181,14 @@ export class BrowserTabsManager {
 
   /**
    * The workspace's tab that follows this one when it closes, as the close hand-over picks it: the tab that opened it as
-   * a popup, otherwise the open tab beside it as the tab strip shows them, to its right and otherwise to its left; null
-   * when it is the workspace's only tab.
+   * a popup, otherwise the next tab of the page that opened it or that page, otherwise the open tab beside it as the
+   * tab strip shows them, to its right and otherwise to its left; null when it is the workspace's only tab.
    */
   private workspaceTabAfterClose(tab: BrowserTab): string | null {
     const opener = tab.openerTabId ? this.tabs.get(tab.openerTabId) : undefined
     if (opener && opener.mcpGroupId === tab.mcpGroupId && !opener.webContents.isDestroyed()) return opener.id
+    const fromPage = tabAfterClosingLinkTab(this.orderedTabs(), tab, (candidate) => !candidate.webContents.isDestroyed())
+    if (fromPage) return fromPage.id
     const siblings = this.orderedTabs().filter((candidate) => (
       candidate.mcpGroupId === tab.mcpGroupId && (candidate === tab || !candidate.webContents.isDestroyed())
     ))
@@ -3189,6 +3213,7 @@ export class BrowserTabsManager {
       assertWorkspaceNavigationAllowed: (groupId, url, source) => this.assertWorkspaceNavigationAllowed(groupId, url, source),
       workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
       prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
+      forgetTabsOpenedFrom: (groupId) => forgetTabsOpenedFrom(this.tabs.values(), groupId),
       isRendererRecovering: (webContents) => this.rendererRecovery.isRecovering(webContents),
       recoverRenderer: (webContents, loadReplacement) => this.rendererRecovery.recover(webContents, loadReplacement),
       wakeTab: (tabId) => this.wakeTab(tabId),
@@ -5184,8 +5209,11 @@ export class BrowserTabsManager {
      * opener's tab id is there while the two pages can reach each other.
      */
     adopt?: { webContents: WebContents; webPreferences?: WebPreferences; openerTabId?: string }
-    /** The tab whose page opened this one, and whether it opens behind, which places it beside that tab as in Chrome. */
-    openedFrom?: { tabId: string; background: boolean }
+    /**
+     * The tab whose page opened this one, and whether it opens behind, which places it beside that tab as in Chrome,
+     * and whether it is a window that asked for its own size or position, which Chrome opens as a window of its own.
+     */
+    openedFrom?: { tabId: string; background: boolean; window?: boolean }
     active: boolean
     selectVisible?: boolean
     mcpGroupId?: string
@@ -5304,6 +5332,11 @@ export class BrowserTabsManager {
       ...(options.openedFrom ? { openedFromTabId: options.openedFrom.tabId } : {})
     }
     tab.webContents.setAudioMuted(tab.muted)
+    // A page's tab opened in front starts a new task, so its workspace forgets which page opened its other tabs. A
+    // window such as a sign-in popup leaves them, as in Chrome, where it opens beside the tabs rather than among them.
+    if (options.openedFrom && !options.openedFrom.background && !options.openedFrom.window) {
+      forgetTabsOpenedFrom(this.tabs.values(), options.mcpGroupId)
+    }
     this.tabs.set(id, tab)
     const placed = options.openedFrom ? placeTabOpenedFromPage(this.orderedTabs(), tab, options.openedFrom.background) : undefined
     if (placed) {

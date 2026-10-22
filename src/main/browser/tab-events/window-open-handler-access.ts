@@ -44,7 +44,7 @@ export interface WindowOpenHandlerAccess<Tab extends WindowOpenHandlerTab> {
     loadOptions?: LoadURLOptions
     adopt?: { webContents: WebContents; webPreferences?: WebPreferences; openerTabId?: string }
     /** The tab whose page opened this one, and whether it opens behind, which places it beside that tab. */
-    openedFrom?: { tabId: string; background: boolean }
+    openedFrom?: { tabId: string; background: boolean; window?: boolean }
     onCreated?: (tab: Tab) => void
   }): Promise<Tab>
   /** How many agent input operations are in flight for each page, by WebContents id. */
