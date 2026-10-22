@@ -74,7 +74,11 @@ export function requestConditionsSettlement(emulation: boolean, input: Record<st
         }
         return settle(result)
       }
-      if (!publication) return undefined
+      if (!publication) {
+        // A call refused before its first check keeps its result as it is, and its activity still ends.
+        finishActivity?.(result)
+        return undefined
+      }
       publication()
       return settle(result) // Publication checks never rewrite main-owned native health.
     },
