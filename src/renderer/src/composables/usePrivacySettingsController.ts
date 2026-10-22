@@ -168,6 +168,8 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
       websiteState.value = 'error'
       websiteMessage.value = errorMessage(error)
       clearingOrigin.value = null
+      // The clear set the totals aside; with none loaded yet, they load again rather than say they are loading forever.
+      if (!summary.value) void refreshSummary()
       return
     }
 
@@ -206,6 +208,8 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
   function resetSelection(): void {
     if (clearing.value) return
     clearOptions.value = { ...DEFAULT_CLEAR_OPTIONS }
+    // A load already running settles the totals itself.
+    if (summaryState.value === 'loading') return
     summaryMessage.value = ''
     summaryState.value = 'idle'
     // With no totals yet, the panel would say they are loading, so they load again rather than show nothing forever.

@@ -102,7 +102,8 @@ describe('PrivacySettingsPanel', () => {
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Refresh' }))
 
-    await vi.waitFor(() => expect(screen.queryByText('history unavailable')).not.toBeInTheDocument())
+    await vi.waitFor(() => expect(screen.getByText('0 history pages')).toBeVisible())
+    expect(screen.queryByText('history unavailable')).not.toBeInTheDocument()
     expect(api.summary).toHaveBeenCalledTimes(2)
     expect(api.websites).toHaveBeenCalledOnce()
     expect(screen.getByText('refreshed.test')).toBeVisible()

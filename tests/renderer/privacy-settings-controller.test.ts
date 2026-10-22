@@ -116,11 +116,45 @@ describe('privacy settings controller', () => {
 
     controller.resetSelection()
     expect(api.summary).toHaveBeenCalledTimes(2)
+    expect(controller.summaryState.value).toBe('loading')
     await vi.waitFor(() => expect(controller.summary.value).toEqual(summary(1)))
     expect(controller.summaryState.value).toBe('idle')
 
     controller.resetSelection()
     expect(api.summary).toHaveBeenCalledTimes(2)
+    controller.dispose()
+  })
+
+  it('leaves a totals load that is already running to settle them when the section resets', async () => {
+    const { api, controller } = createController()
+    const load = deferred<BrowsingDataSummary>()
+    api.summary.mockReturnValueOnce(load.promise)
+    void controller.refreshSummary()
+
+    controller.resetSelection()
+    expect(api.summary).toHaveBeenCalledOnce()
+    expect(controller.summaryState.value).toBe('loading')
+    expect(controller.canClear.value).toBe(false)
+
+    load.reject(new Error('history unavailable'))
+    await vi.waitFor(() => expect(controller.summaryState.value).toBe('error'))
+    expect(controller.summaryMessage.value).toBe('history unavailable')
+    controller.dispose()
+  })
+
+  // A failed site clear set the totals aside, so with none loaded yet the panel said they were loading for good.
+  it('loads the totals again when a site clear fails before they loaded', async () => {
+    const { api, controller } = createController()
+    api.summary.mockRejectedValueOnce(new Error('history unavailable'))
+    await controller.refreshSummary()
+    api.clear.mockRejectedValueOnce(new Error('Clear unavailable'))
+
+    await controller.clearWebsite(website('target.test'))
+
+    expect(controller.websiteMessage.value).toBe('Clear unavailable')
+    expect(api.summary).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(controller.summary.value).toEqual(summary(1)))
+    expect(controller.summaryState.value).toBe('idle')
     controller.dispose()
   })
 
