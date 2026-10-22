@@ -159,6 +159,7 @@ All notable changes to Hronaut are documented in this file.
 - In split view, clicking the other pane's page now cancels a sleeping tab you picked that is still waking, as clicking the pane's marked tab already did. The sleeping tab used to replace your split view once it woke, and took keyboard focus while you worked in the pane.
 - A sleeping tab you picked no longer replaces the split view you open while it still wakes.
 - Opening a split view with a sleeping tab no longer reports an error when you picked another tab or closed one of the two tabs while it woke, such as a failed page load for the tab you closed; the split view you no longer wanted does not open, without a message.
+- In split view, touching the other pane's page on a touchscreen now makes it the active pane, as clicking it does. After a tap there, the address field, the toolbar and Ctrl/Cmd+W used to keep acting on the pane you had left.
 
 ### Security
 
