@@ -206,6 +206,10 @@ The profile picker uses available browser display names, including Chromium acco
 and customized profile names, with directory suffixes to distinguish profiles.
 When name metadata is missing or unreadable, it falls back to the profile directory.
 Changing the label does not change the selected source or import destination.
+Chrome and Chromium profiles are found in `~/.config` and, as Chrome keeps them,
+where `CHROME_CONFIG_HOME` or `XDG_CONFIG_HOME` point; Firefox profiles in
+`~/.mozilla/firefox` and the configuration folder, and in the Snap and Flatpak
+folders of both browsers.
 
 Choose **Import into “Workspace name”**. Active and archived workspaces are
 supported, including workspaces with service workers. Open tabs stay open and

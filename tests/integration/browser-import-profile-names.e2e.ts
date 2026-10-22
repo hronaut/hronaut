@@ -28,10 +28,12 @@ test('shows browser display names and preserves the selected duplicate-name prof
     previousHome = await electronApp.evaluate(({ dialog }, home) => {
       const previous = process.env.HOME
       process.env.HOME = home
-      const scope = globalThis as typeof globalThis & { profileNameConsent?: string; profileNameConfigHome?: string }
-      // A configuration folder the runner names would list its real Firefox profiles; without one, HOME's is read.
+      const scope = globalThis as typeof globalThis & { profileNameConsent?: string; profileNameConfigHome?: string; profileNameChromeConfigHome?: string }
+      // A configuration folder the runner names would list its real Firefox and Chrome profiles; without one, HOME's is read.
       scope.profileNameConfigHome = process.env.XDG_CONFIG_HOME
       delete process.env.XDG_CONFIG_HOME
+      scope.profileNameChromeConfigHome = process.env.CHROME_CONFIG_HOME
+      delete process.env.CHROME_CONFIG_HOME
       dialog.showMessageBox = async (...args: unknown[]) => {
         scope.profileNameConsent = JSON.stringify(args.at(-1))
         return { response: 0, checkboxChecked: false }
@@ -64,9 +66,47 @@ test('shows browser display names and preserves the selected duplicate-name prof
     if (homeChanged) await electronApp.evaluate((_electron, previous) => {
       if (previous === undefined) delete process.env.HOME
       else process.env.HOME = previous
-      const configHome = (globalThis as typeof globalThis & { profileNameConfigHome?: string }).profileNameConfigHome
-      if (configHome !== undefined) process.env.XDG_CONFIG_HOME = configHome
+      const scope = globalThis as typeof globalThis & { profileNameConfigHome?: string; profileNameChromeConfigHome?: string }
+      if (scope.profileNameConfigHome !== undefined) process.env.XDG_CONFIG_HOME = scope.profileNameConfigHome
+      if (scope.profileNameChromeConfigHome !== undefined) process.env.CHROME_CONFIG_HOME = scope.profileNameChromeConfigHome
     }, previousHome)
+    await removeTestDirectory(fixtureHome)
+  }
+})
+
+test('lists Chrome profiles from the configuration folder XDG_CONFIG_HOME names', async ({ appWindow, electronApp }) => {
+  // Chrome keeps its profiles there, but Import from browser only looked in ~/.config and listed none.
+  const fixtureHome = await mkdtemp(join(tmpdir(), 'hronaut-chrome-config-home-'))
+  let changed = false
+  try {
+    const configHome = join(fixtureHome, 'configured')
+    await mkdir(join(fixtureHome, 'home'), { recursive: true })
+    await mkdir(join(configHome, 'google-chrome/Default'), { recursive: true })
+    await writeFile(join(configHome, 'google-chrome/Default/Cookies'), 'not a cookie database')
+    await writeFile(join(configHome, 'google-chrome/Local State'), JSON.stringify({ profile: { info_cache: { Default: { name: 'Configured' } } } }))
+    await electronApp.evaluate((_electron, { home, configHome }) => {
+      const scope = globalThis as typeof globalThis & { configHomeEnvironment?: Record<string, string | undefined> }
+      scope.configHomeEnvironment = { HOME: process.env.HOME, XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME, CHROME_CONFIG_HOME: process.env.CHROME_CONFIG_HOME }
+      process.env.HOME = home
+      process.env.XDG_CONFIG_HOME = configHome
+      delete process.env.CHROME_CONFIG_HOME
+    }, { home: join(fixtureHome, 'home'), configHome })
+    changed = true
+    const target = await appWindow.evaluate(async () => {
+      const state = await (window as unknown as { hronaut: HronautApi }).hronaut.createWorkspace({ name: 'Configured destination', storage: 'scratch' })
+      return state.mcpTabGroups.find(group => group.name === 'Configured destination')!.id
+    })
+    await electronApp.evaluate(({ BrowserWindow }, id) => BrowserWindow.getAllWindows()[0]!.webContents.send('browser:home-workspace-editor', { view: 'import', workspaceId: id }), target)
+    const panel = appWindow.getByTestId('browser-import-panel')
+    await expect(panel.locator('#browser-import-profile option')).toHaveText(['Google Chrome · Configured · Default'])
+  } finally {
+    if (changed) await electronApp.evaluate(() => {
+      const saved = (globalThis as typeof globalThis & { configHomeEnvironment?: Record<string, string | undefined> }).configHomeEnvironment ?? {}
+      for (const [name, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[name]
+        else process.env[name] = value
+      }
+    })
     await removeTestDirectory(fixtureHome)
   }
 })
