@@ -176,6 +176,7 @@ All notable changes to Hronaut are documented in this file.
 - **Back** in **Import from browser…** now keeps the profile you chose, or chooses none when that profile is gone or can't be told from another. It chose the first profile again, so pressing **Continue** once more read another profile than the one you had picked.
 - **New Tab** in a tab's menu now opens the tab in that tab's workspace, and it and **New Tab in Workspace** put the cursor in the address field, as the **+** button and **Ctrl/Cmd+T** do. New Tab opened the tab in the workspace of the tab shown, which differs when you right-click another workspace's tab in the rail, and both left the cursor out of the address field.
 - **Open Link in New Tab** and **Open Image in New Tab** in a page's menu now send the address of the page or frame you right-clicked as the referrer, under its referrer policy, as Chrome does, so a site that serves a page or image only to its own pages opens it. They sent none, and such a site refused it.
+- Clicking a suggestion under the address bar now opens it while the tab's page changes its address, as a page that is still loading or redirecting does, or a documentation site that moves its address to the section in view. The click did nothing, though Enter on the same suggestion opened it. Pressing the right or middle mouse button on a suggestion no longer opens it in the tab; as in Chrome, only the primary button chooses one.
 
 ### Security
 
