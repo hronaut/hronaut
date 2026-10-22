@@ -152,9 +152,9 @@ test('keeps supporting text readable in Settings and page tools', async ({ appWi
   const settingsSizes = await appWindow.evaluate(`(() => ({
     navigation: Number.parseFloat(getComputedStyle(document.querySelector('.settings-nav-item strong')).fontSize),
     description: Number.parseFloat(getComputedStyle(document.querySelector('.setting-copy p')).fontSize),
-    privacyChoice: Number.parseFloat(getComputedStyle(document.querySelector('.privacy-category-options small')).fontSize)
+    privacyStatus: Number.parseFloat(getComputedStyle(document.querySelector('.privacy-data-status')).fontSize)
   }))()`)
-  expect(settingsSizes).toEqual({ navigation: 13, description: 13, privacyChoice: 12 })
+  expect(settingsSizes).toEqual({ navigation: 13, description: 13, privacyStatus: 12 })
 
   await appWindow.getByRole('button', { name: 'Close settings', exact: true }).click()
   await appWindow.getByRole('button', { name: 'New tab' }).click()

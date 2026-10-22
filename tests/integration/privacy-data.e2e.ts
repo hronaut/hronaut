@@ -40,7 +40,7 @@ test('clears global history while preserving workspace storage and retained reco
     await appWindow.keyboard.press('Control+Shift+Delete')
     const dialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
     await expect(dialog.getByRole('heading', { name: 'Global history', exact: true })).toBeVisible()
-    await expect(dialog.getByRole('checkbox')).toHaveCount(1)
+    await expect(dialog.getByRole('checkbox')).toHaveCount(0)
     await expect(dialog.getByText('Global history & legacy data')).toHaveCount(0)
     const search = dialog.getByRole('searchbox', { name: 'Search websites', exact: true })
     await search.fill(`unrelated ${origin}`)

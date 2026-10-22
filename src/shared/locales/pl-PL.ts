@@ -221,7 +221,6 @@ export const plPL = {
     "english": "English",
     "ukrainian": "Українська",
     "tryAgain": "Spróbuj ponownie",
-    "checkAgain": "Sprawdź ponownie"
   },
   "appearance": {
     "heading": "Motyw aplikacji",
@@ -372,7 +371,7 @@ export const plPL = {
     },
     "search": {
       "heading": "Domyślna wyszukiwarka",
-      "description": "Wybierz, gdzie wyszukiwać tekst wpisany w pasku adresu lub przez browser_navigate.",
+      "description": "Wybierz, gdzie wyszukiwać tekst, który nie jest adresem, niezależnie od tego, czy wpiszesz go w pasku adresu, czy otworzy go agent.",
       "privacy": "Sugestie kart, zakładek i historii pozostają na tym urządzeniu. Hronaut wysyła zapytanie dopiero po zatwierdzeniu."
     },
     "downloads": {
@@ -395,7 +394,7 @@ export const plPL = {
       "sleepAfter": "Uśpij po",
       "counted": "Czas liczony od ostatniego wyboru, wpisywania, nawigacji lub polecenia MCP.",
       "sleepNow": "Uśpij teraz dostępne karty",
-      "help": "Widoczne, przypięte, ładowane, odtwarzające dźwięk, pobierające, ze zmienionym formularzem, DevTools i aktywne karty MCP pozostają aktywne."
+      "help": "Widoczne, przypięte, ładowane, odtwarzające dźwięk, pobierające, ze zmienionym formularzem, DevTools i karty używane przez agenta pozostają aktywne."
     },
     "mcp": {
       remote: remoteConnectionMessages['pl-PL'],
@@ -469,9 +468,6 @@ export const plPL = {
       "heading": "Obszary robocze i dane",
       description: "Przeglądaj obszary przeglądarki, zarządzaj ich zasadami oraz kopiuj lub przenoś wybrane dane między izolowanymi profilami.",
       workspaces: "Obszary przeglądarki", workspacesDescription: "Aktywne i zarchiwizowane obszary przechowują osobne pliki cookie i dane lokalne.", createWorkspace: "Utwórz obszar", transferData: "Kopiuj lub przenieś dane", manageWorkspace: "Zarządzaj", workspaceActive: "Aktywny", workspaceArchived: "Zarchiwizowany", workspaceTabs: "{count} karta | {count} karty | {count} kart", workspaceSites: "{count} znana witryna | {count} znane witryny | {count} znanych witryn", historyHeading: "Historia globalna", historyDescription: "Wyczyść historię. Danymi witryn zarządzaj w ich obszarach.",
-      "whatToClear": "Co wyczyścić",
-      "history": "Historia",
-      "localVisits": "Lokalne wizyty",
       "cookies": "Pliki cookie i dane witryn",
       "signOut": "Może Cię wylogować",
       "cache": "Pliki w pamięci podręcznej",
@@ -517,7 +513,7 @@ export const plPL = {
       "deactivate": "Dezaktywuj urządzenie",
       "activateDescription": "Aktywuj klucz licencji komercyjnej z potwierdzenia Creem.",
       "secure": "Klucz jest szyfrowany przy użyciu bezpiecznej pamięci systemu operacyjnego i służy wyłącznie do weryfikacji licencji Creem.",
-      "unavailable": "Aktywacja licencji wymaga bezpiecznej pamięci systemu operacyjnego.",
+      "unavailable": "Aktywacja licencji wymaga na tym komputerze bezpiecznego magazynu, który ochroni klucz, a Hronaut nie znalazł żadnego, którego mógłby użyć. W systemie Linux uruchom lub zainstaluj pęk kluczy, taki jak GNOME Keyring lub KDE Wallet, a potem uruchom ponownie Hronaut.",
       "key": "Klucz licencji komercyjnej",
       "placeholder": "XXXX-XXXX-XXXX-XXXX",
       "activating": "Aktywowanie…",
@@ -3621,7 +3617,7 @@ export const plPL = {
       "tabUnavailable": "Karta nie jest już dostępna.",
       "actionFailed": "Nie udało się ukończyć żądanego działania przeglądarki.",
       "screenshotCreate": "Nie udało się utworzyć wybranego zrzutu ekranu",
-      "linuxSecrets": "Brak chronionej pamięci sekretów systemu Linux. Hronaut nie zapisze haseł z podstawowym szyfrowaniem tekstowym.",
+      "linuxSecrets": "Hronaut nie znalazł na tym komputerze pęku kluczy, którego mógłby użyć, takiego jak GNOME Keyring lub KDE Wallet, więc nie zapisuje haseł i kluczy. Uruchom lub zainstaluj go, a potem uruchom ponownie Hronaut.",
       "secureStorage": "Bezpieczna pamięć systemu operacyjnego jest niedostępna.",
       "activationLimit": "Ta licencja komercyjna osiągnęła limit aktywacji urządzeń.",
       "subscriptionInactive": "Subskrypcja komercyjna dla tej licencji nie jest aktywna.",

@@ -67,10 +67,18 @@ describe('UpdateSettingsPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Check now' }))
 
     expect(screen.getByRole('button', { name: 'Check now' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Check again' })).toBeDisabled()
     expect(screen.getByRole('checkbox', { name: /^Check for updates on startup/ })).toBeDisabled()
     checking.resolve({ status: 'up-to-date', currentVersion: '1.7.1' })
     await vi.waitFor(() => expect(controller.busy.value).toBe(false))
+    controller.dispose()
+  })
+
+  // The status card offered "Check again" right above the panel's own "Check now", two buttons doing the same.
+  it.each<AppUpdateState['status']>(['up-to-date', 'error', 'disabled'])('offers one way to check for updates when the status is %s', async (status) => {
+    const { controller } = renderPanel()
+    controller.accept({ status, currentVersion: '1.7.1', message: 'Status message' })
+    await vi.waitFor(() => expect(screen.getByRole('region', { name: 'Software update status' })).toBeVisible())
+    expect(screen.getAllByRole('button').map(button => button.textContent?.trim())).toEqual(["View what's new", 'Check now'])
     controller.dispose()
   })
 

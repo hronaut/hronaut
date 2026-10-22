@@ -221,7 +221,6 @@ export const esES = {
     "english": "English",
     "ukrainian": "Українська",
     "tryAgain": "Intentar de nuevo",
-    "checkAgain": "Comprobar de nuevo"
   },
   "appearance": {
     "heading": "Tema de la aplicación",
@@ -372,7 +371,7 @@ export const esES = {
     },
     "search": {
       "heading": "Motor de búsqueda predeterminado",
-      "description": "Elige dónde buscar el texto introducido en la barra de direcciones o mediante browser_navigate.",
+      "description": "Elige dónde buscar el texto que no es una dirección, tanto si lo escribes en la barra de direcciones como si lo abre un agente.",
       "privacy": "Las sugerencias de pestañas, marcadores e historial permanecen en este dispositivo. Hronaut solo envía la consulta al confirmarla."
     },
     "downloads": {
@@ -395,7 +394,7 @@ export const esES = {
       "sleepAfter": "Suspender después de",
       "counted": "Contado desde la última selección, entrada, navegación o comando MCP.",
       "sleepNow": "Suspender ahora las pestañas aptas",
-      "help": "Las pestañas visibles, fijadas, cargando, con audio, descargas, formularios modificados, DevTools o MCP activo permanecen despiertas."
+      "help": "Las pestañas visibles, fijadas, cargando, con audio, descargas, formularios modificados, DevTools o en uso por un agente permanecen despiertas."
     },
     "mcp": {
       remote: remoteConnectionMessages['es-ES'],
@@ -469,9 +468,6 @@ export const esES = {
       "heading": "Espacios de trabajo y datos",
       description: "Revisa cada espacio del navegador, gestiona su política y copia o mueve datos seleccionados entre perfiles aislados.",
       workspaces: "Espacios del navegador", workspacesDescription: "Los espacios activos y archivados mantienen cookies y almacenamiento local separados.", createWorkspace: "Crear espacio", transferData: "Copiar o mover datos", manageWorkspace: "Gestionar", workspaceActive: "Activo", workspaceArchived: "Archivado", workspaceTabs: "{count} pestaña | {count} pestañas", workspaceSites: "{count} sitio conocido | {count} sitios conocidos", historyHeading: "Historial global", historyDescription: "Borra el historial. Gestiona los datos de cada sitio en su espacio.",
-      "whatToClear": "Qué borrar",
-      "history": "Historial",
-      "localVisits": "Visitas locales",
       "cookies": "Cookies y datos de sitios",
       "signOut": "Puede cerrar tu sesión",
       "cache": "Archivos en caché",
@@ -517,7 +513,7 @@ export const esES = {
       "deactivate": "Desactivar dispositivo",
       "activateDescription": "Activa la clave de licencia comercial de tu recibo de Creem.",
       "secure": "La clave se cifra con el almacenamiento seguro de tu sistema operativo y solo se usa para validar la licencia de Creem.",
-      "unavailable": "La activación de la licencia requiere un almacenamiento seguro del sistema operativo.",
+      "unavailable": "Para activar una licencia, Hronaut necesita en este equipo un almacenamiento seguro que proteja la clave, y no encontró ninguno que pueda usar. En Linux, inicia o instala un llavero, como GNOME Keyring o KDE Wallet, y luego reinicia Hronaut.",
       "key": "Clave de licencia comercial",
       "placeholder": "XXXX-XXXX-XXXX-XXXX",
       "activating": "Activando…",
@@ -3621,7 +3617,7 @@ export const esES = {
       "tabUnavailable": "La pestaña ya no está disponible.",
       "actionFailed": "No se pudo completar la acción solicitada del navegador.",
       "screenshotCreate": "No se pudo crear la captura de pantalla seleccionada",
-      "linuxSecrets": "No hay disponible un almacén protegido de secretos de Linux. Hronaut no guardará contraseñas con cifrado de texto básico.",
+      "linuxSecrets": "Hronaut no encontró en este equipo ningún llavero que pueda usar, como GNOME Keyring o KDE Wallet, así que no guarda contraseñas ni claves. Inicia o instala uno y luego reinicia Hronaut.",
       "secureStorage": "El almacenamiento seguro del sistema operativo no está disponible.",
       "activationLimit": "Esta licencia comercial alcanzó su límite de activaciones de dispositivo.",
       "subscriptionInactive": "La suscripción comercial para esta licencia no está activa.",

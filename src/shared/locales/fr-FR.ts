@@ -221,7 +221,6 @@ export const frFR = {
     "english": "English",
     "ukrainian": "Українська",
     "tryAgain": "Réessayer",
-    "checkAgain": "Vérifier à nouveau"
   },
   "appearance": {
     "heading": "Thème de l’application",
@@ -372,7 +371,7 @@ export const frFR = {
     },
     "search": {
       "heading": "Moteur de recherche par défaut",
-      "description": "Choisissez où rechercher le texte saisi dans la barre d’adresse ou via browser_navigate.",
+      "description": "Choisissez où rechercher un texte qui n’est pas une adresse, que vous le saisissiez dans la barre d’adresse ou qu’un agent l’ouvre.",
       "privacy": "Les suggestions des onglets, favoris et de l’historique restent sur cet appareil. Hronaut n’envoie la requête qu’après validation."
     },
     "downloads": {
@@ -395,7 +394,7 @@ export const frFR = {
       "sleepAfter": "Mettre en veille après",
       "counted": "Délai calculé depuis la dernière sélection, saisie, navigation ou commande MCP.",
       "sleepNow": "Mettre en veille les onglets admissibles",
-      "help": "Les onglets visibles, épinglés, en chargement, audio, téléchargement, formulaire modifié, DevTools et MCP actif restent éveillés."
+      "help": "Les onglets visibles, épinglés, en chargement, audio, téléchargement, formulaire modifié, DevTools ou utilisés par un agent restent éveillés."
     },
     "mcp": {
       remote: remoteConnectionMessages['fr-FR'],
@@ -469,9 +468,6 @@ export const frFR = {
       "heading": "Espaces de travail et données",
       description: "Examinez chaque espace du navigateur, gérez sa politique et copiez ou déplacez des données sélectionnées entre profils isolés.",
       workspaces: "Espaces du navigateur", workspacesDescription: "Les espaces actifs et archivés conservent des cookies et un stockage local séparés.", createWorkspace: "Créer un espace", transferData: "Copier ou déplacer les données", manageWorkspace: "Gérer", workspaceActive: "Actif", workspaceArchived: "Archivé", workspaceTabs: "{count} onglet | {count} onglets", workspaceSites: "{count} site connu | {count} sites connus", historyHeading: "Historique global", historyDescription: "Effacez l’historique. Gérez les données des sites dans leur espace.",
-      "whatToClear": "Données à effacer",
-      "history": "Historique",
-      "localVisits": "Visites locales",
       "cookies": "Cookies et données de sites",
       "signOut": "Peut vous déconnecter",
       "cache": "Fichiers en cache",
@@ -517,7 +513,7 @@ export const frFR = {
       "deactivate": "Désactiver l’appareil",
       "activateDescription": "Activez la clé de licence commerciale indiquée sur votre reçu Creem.",
       "secure": "La clé est chiffrée par le stockage sécurisé de votre système d’exploitation et sert uniquement à valider la licence Creem.",
-      "unavailable": "L’activation de la licence nécessite un stockage sécurisé du système d’exploitation.",
+      "unavailable": "L’activation d’une licence nécessite un stockage sécurisé sur cet ordinateur pour protéger la clé, et Hronaut n’en a trouvé aucun utilisable. Sous Linux, démarrez ou installez un trousseau, comme GNOME Keyring ou KDE Wallet, puis redémarrez Hronaut.",
       "key": "Clé de licence commerciale",
       "placeholder": "XXXX-XXXX-XXXX-XXXX",
       "activating": "Activation…",
@@ -3621,7 +3617,7 @@ export const frFR = {
       "tabUnavailable": "L’onglet n’est plus disponible.",
       "actionFailed": "Impossible de terminer l’action demandée au navigateur.",
       "screenshotCreate": "Impossible de créer la capture d’écran sélectionnée",
-      "linuxSecrets": "Aucun stockage de secrets Linux protégé n’est disponible. Hronaut n’enregistrera pas les mots de passe avec un chiffrement textuel rudimentaire.",
+      "linuxSecrets": "Hronaut n’a trouvé sur cet ordinateur aucun trousseau utilisable, comme GNOME Keyring ou KDE Wallet, il n’enregistre donc pas les mots de passe et les clés. Démarrez ou installez-en un, puis redémarrez Hronaut.",
       "secureStorage": "Le stockage sécurisé du système d’exploitation est indisponible.",
       "activationLimit": "Cette licence commerciale a atteint sa limite d’activation d’appareils.",
       "subscriptionInactive": "L’abonnement commercial associé à cette licence n’est pas actif.",

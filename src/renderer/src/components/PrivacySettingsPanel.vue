@@ -37,7 +37,6 @@ const emit = defineEmits<{
 const { t } = useI18n({ useScope: 'global' })
 const {
   summary,
-  clearOptions,
   summaryState,
   summaryMessage,
   websites,
@@ -97,7 +96,7 @@ watch(() => filteredWebsites.value.map(site => site.origin).join('\n'), async (_
           <UiButton variant="primary" type="button" :disabled="workspaces.length < 2" @click="emit('transferWorkspaceData')"><IconSwapHoriz aria-hidden="true" />{{ t('settings.privacy.transferData') }}</UiButton>
         </div>
       </div>
-      <div class="workspace-data-list">
+      <div v-if="workspaces.length" class="workspace-data-list">
         <article v-for="workspace in workspaces" :key="workspace.id" class="workspace-data-card">
           <span class="workspace-data-icon" aria-hidden="true"><IconWorkspaces /></span>
           <span class="workspace-data-copy">
@@ -108,19 +107,13 @@ watch(() => filteredWebsites.value.map(site => site.origin).join('\n'), async (_
           <UiButton v-else type="button" @click="emit('transferWorkspaceData', workspace.id)">{{ t('settings.privacy.transferData') }}</UiButton>
         </article>
       </div>
+      <p v-else class="workspace-data-empty"><strong>{{ t('workspaceLibrary.empty') }}</strong>{{ t('workspaceLibrary.emptyHelp') }}</p>
     </section>
     <section class="history-data-section" aria-labelledby="history-data-heading">
       <div class="setting-copy">
         <h4 id="history-data-heading" tabindex="-1">{{ t('settings.privacy.historyHeading') }}</h4>
         <p>{{ t('settings.privacy.historyDescription') }}</p>
       </div>
-    <fieldset class="privacy-category-options" :disabled="clearing">
-      <legend>{{ t('settings.privacy.whatToClear') }}</legend>
-      <label for="clear-browsing-history">
-        <input id="clear-browsing-history" v-model="clearOptions.history" type="checkbox" />
-        <span><strong>{{ t('settings.privacy.history') }}</strong><small>{{ t('settings.privacy.localVisits') }}</small></span>
-      </label>
-    </fieldset>
     <div class="privacy-data-actions">
       <UiButton variant="danger" class="clear-data-button" type="button" :disabled="!canClear" @click="clearSelected">
         {{ summaryState === 'clearing' ? t('settings.privacy.clearingAll') : t('settings.privacy.clearAll') }}
