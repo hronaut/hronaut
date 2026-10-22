@@ -39,6 +39,7 @@ describe('help dialog controller', () => {
     expect(mac.keys['runtime.shortcuts.pick']).toEqual(['Cmd', 'Option', 'C'])
     expect(mac.keys['runtime.shortcuts.history']).toEqual(['Cmd', 'Y'])
     expect(mac.keys['runtime.shortcuts.devtools']).toEqual(['Cmd', 'Option', 'I'])
+    expect(mac.keys['runtime.shortcuts.viewSource']).toEqual(['Cmd', 'Option', 'U'])
     expect(mac.keys['runtime.shortcuts.back']).toEqual(['Cmd', '['])
     expect(mac.keys['runtime.shortcuts.forward']).toEqual(['Cmd', ']'])
     expect(mac.keys['runtime.shortcuts.addressNewTab']).toEqual(['Option', 'Return'])
@@ -113,7 +114,11 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.addressNewTab',
       keys: ['Alt', 'Enter']
     })
-    expect(controller.shortcuts.value).toHaveLength(32)
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.viewSource',
+      keys: ['Ctrl', 'U']
+    })
+    expect(controller.shortcuts.value).toHaveLength(33)
     controller.dispose()
   })
 })

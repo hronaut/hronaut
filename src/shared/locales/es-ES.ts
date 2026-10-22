@@ -865,6 +865,7 @@ export const esES = {
       "addressNewTab": "Abrir lo escrito en la barra de direcciones en una pestaña nueva",
       "addressBackgroundTab": "Abrir lo escrito en la barra de direcciones en una pestaña nueva en segundo plano",
       "addressWwwCom": "Añadir www. y .com al nombre del sitio escrito en la barra de direcciones y abrirlo",
+      "viewSource": "Ver el código fuente de la página",
       "back": "Volver a la página anterior",
       "forward": "Ir a la página siguiente",
       "reload": "Recargar el sitio actual",
@@ -3518,7 +3519,8 @@ export const esES = {
       "support": "Licencia comercial",
       "repository": "Repositorio de GitHub",
       "checkUpdatesPlain": "Buscar actualizaciones",
-      "print": "Imprimir…"
+      "print": "Imprimir…",
+      "viewSource": "Ver código fuente de la página"
     },
     "tray": {
       "show": "Mostrar Hronaut",
@@ -3591,7 +3593,8 @@ export const esES = {
       "copyPageAddress": "Copiar dirección de la página",
       "inspect": "Inspeccionar",
       "print": "Imprimir…",
-      "showFullHistory": "Mostrar historial completo"
+      "showFullHistory": "Mostrar historial completo",
+      "viewSource": "Ver código fuente de la página"
     },
     "pageProblem": {
       "loadTitle": "No se pudo acceder a este sitio",

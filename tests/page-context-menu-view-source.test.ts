@@ -1,0 +1,78 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ContextMenuParams, MenuItemConstructorOptions, WebContents } from 'electron'
+
+const built = vi.hoisted(() => ({ templates: [] as MenuItemConstructorOptions[][], closed: false }))
+
+vi.mock('electron', () => ({
+  Menu: {
+    buildFromTemplate: (template: MenuItemConstructorOptions[]) => {
+      built.templates.push(template)
+      return { popup: () => undefined }
+    }
+  }
+}))
+
+const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
+type PageTab = { id: string, url: string, mcpGroupId?: string, webContents: WebContents }
+type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+
+// The page's context menu had no View Page Source, as Chrome's has.
+
+function openMenu(url: string, viewSource = vi.fn(async () => true), onActionFailed = vi.fn()) {
+  const webContents = {
+    id: 7,
+    isDestroyed: () => false,
+    navigationHistory: { canGoBack: () => false, canGoForward: () => false }
+  } as unknown as WebContents
+  const tab: PageTab = { id: 'tab', url, mcpGroupId: 'client', webContents }
+  const access = {
+    findTab: () => built.closed ? undefined : tab,
+    window: () => ({}),
+    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed }),
+    text: (key: string) => key,
+    isHumanInteractionLocked: () => false,
+    print: vi.fn(async () => undefined),
+    viewSource
+  } as unknown as PageContextMenuAccess
+  showContextMenu(access, tab, {
+    x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
+    pageURL: url, frameURL: url, referrerPolicy: 'strict-origin-when-cross-origin'
+  } as unknown as ContextMenuParams)
+  return { tab, viewSource, onActionFailed, items: built.templates.at(-1)! }
+}
+
+afterEach(() => {
+  built.templates.length = 0
+  built.closed = false
+})
+
+describe('View Page Source in the page context menu', () => {
+  it('opens the source of the page it opened on, between Print and Inspect', () => {
+    const { tab, viewSource, items } = openMenu('https://docs.example/invoice')
+    const ids = items.map((item) => item.id ?? item.type)
+    expect(ids.slice(ids.indexOf('print'))).toEqual(['print', 'view-page-source', 'inspect-element'])
+    const item = items.find((entry) => entry.id === 'view-page-source')!
+    expect(item.label).toBe('native.context.viewSource')
+    ;(item.click as () => void)()
+    expect(viewSource).toHaveBeenCalledExactlyOnceWith(tab)
+  })
+
+  it('reports a source that could not open, and a tab that closed while the menu was open', async () => {
+    const refused = new Error('This workspace does not allow that address.')
+    const { onActionFailed, items } = openMenu('https://docs.example/invoice', vi.fn(async () => { throw refused }))
+    ;(items.find((entry) => entry.id === 'view-page-source')!.click as () => void)()
+    await vi.waitFor(() => expect(onActionFailed).toHaveBeenCalledExactlyOnceWith('view page source', refused))
+
+    const closing = openMenu('https://docs.example/invoice')
+    built.closed = true
+    ;(closing.items.find((entry) => entry.id === 'view-page-source')!.click as () => void)()
+    expect(closing.viewSource).not.toHaveBeenCalled()
+    expect(closing.onActionFailed).toHaveBeenCalledExactlyOnceWith('view page source', expect.objectContaining({ message: 'The tab is no longer available.' }))
+  })
+
+  it('is not offered on Hronaut Home or on a page\'s source', () => {
+    for (const url of ['hronaut://home/', 'view-source:https://docs.example/invoice']) {
+      expect(openMenu(url).items.some((entry) => entry.id === 'view-page-source'), url).toBe(false)
+    }
+  })
+})
