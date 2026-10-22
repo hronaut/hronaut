@@ -388,8 +388,6 @@ export class BrowserDownloadsController {
           download.completedAt = new Date().toISOString()
           download.paused = false
           download.canResume = false
-          // A finished download is in its workspace's current observation, though the request that started it was older.
-          if (workspaceId) download.observationGeneration = this.host.workspaceObservationGeneration(workspaceId)
           this.notifyDownloadsChanged(true)
           return
         }
@@ -413,9 +411,6 @@ export class BrowserDownloadsController {
           download.paused = false
           download.canResume = false
           download.completedAt = new Date().toISOString()
-          // A finished download is in its workspace's current observation, as those finished before it advanced are.
-          const ownerWorkspaceId = this.downloadWorkspaceIds.get(id)
-          if (ownerWorkspaceId) download.observationGeneration = this.host.workspaceObservationGeneration(ownerWorkspaceId)
           if (state === 'completed' && download.savePath) this.recordCompletedFile(id, download.savePath)
           this.downloadItems.delete(id)
           this.trimDownloadHistory()
