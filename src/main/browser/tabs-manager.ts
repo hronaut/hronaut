@@ -543,6 +543,7 @@ import type { TabReopeningAccess } from './tab-reopening/tab-reopening-access.js
 import { duplicateTabAfterLabelSave, forgetClosedTabs, forgetWorkspaceClosedTabs, rememberClosedTab, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
 import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
 import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
+import { placeTabOpenedFromPage } from './link-tab-placement/link-tab-placement.js'
 import type { BrowserWalletPageContext, WalletPagesAccess } from './wallet-pages/wallet-pages-access.js'
 import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab } from './wallet-pages/wallet-pages.js'
 import type { WorkspaceScopeAccess } from './workspace-scope/workspace-scope-access.js'
@@ -625,6 +626,8 @@ function screenshotFilename(requested: string | undefined, title: string): strin
 interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState {
   /** The tab whose page opened this one's as a window and can reach it, as this page can reach it through window.opener. */
   openerTabId?: string
+  /** The tab whose page opened this one, from a link or a window it asked for, which places it beside that tab. */
+  openedFromTabId?: string
   label?: string
   labelDurabilityUnconfirmed?: boolean
   labelCommit?: symbol
@@ -5180,6 +5183,8 @@ export class BrowserTabsManager {
      * opener's tab id is there while the two pages can reach each other.
      */
     adopt?: { webContents: WebContents; webPreferences?: WebPreferences; openerTabId?: string }
+    /** The tab whose page opened this one, and whether it opens behind, which places it beside that tab as in Chrome. */
+    openedFrom?: { tabId: string; background: boolean }
     active: boolean
     selectVisible?: boolean
     mcpGroupId?: string
@@ -5294,10 +5299,16 @@ export class BrowserTabsManager {
       visualComparisonGeneration: 0,
       storageComparisonGeneration: 0,
       ...(options.mcpGroupId ? { mcpGroupId: options.mcpGroupId } : {}),
-      ...(opener ? { openerTabId: opener.id } : {})
+      ...(opener ? { openerTabId: opener.id } : {}),
+      ...(options.openedFrom ? { openedFromTabId: options.openedFrom.tabId } : {})
     }
     tab.webContents.setAudioMuted(tab.muted)
     this.tabs.set(id, tab)
+    const placed = options.openedFrom ? placeTabOpenedFromPage(this.orderedTabs(), tab, options.openedFrom.background) : undefined
+    if (placed) {
+      this.tabs.clear()
+      for (const placedTab of placed) this.tabs.set(placedTab.id, placedTab)
+    }
     if (tab.mcpGroupId) {
       const group = this.mcpTabGroups.get(tab.mcpGroupId)!
       if (options.active || !group.activeTabId) group.activeTabId = id

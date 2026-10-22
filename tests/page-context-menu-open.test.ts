@@ -52,9 +52,9 @@ describe('opening a link or image in a new tab from the page menu', () => {
     // Both opened the address with no referrer, so a site that serves a page or image only to its own pages refused it.
     const referrer = { url: 'https://gallery.example/album/7?sort=new', policy: 'strict-origin-when-cross-origin' }
     const link = openFromMenu('open-link-new-tab', { linkURL: 'https://gallery.example/photos/3' })
-    expect(link).toHaveBeenCalledExactlyOnceWith({ url: 'https://gallery.example/photos/3', active: false, mcpGroupId: 'client', loadOptions: { httpReferrer: referrer } })
+    expect(link).toHaveBeenCalledExactlyOnceWith({ url: 'https://gallery.example/photos/3', active: false, mcpGroupId: 'client', openedFrom: { tabId: 'tab', background: true }, loadOptions: { httpReferrer: referrer } })
     const image = openFromMenu('open-image-new-tab', { mediaType: 'image', srcURL: 'https://images.example/3.png', hasImageContents: true })
-    expect(image).toHaveBeenCalledExactlyOnceWith({ url: 'https://images.example/3.png', active: false, mcpGroupId: 'client', loadOptions: { httpReferrer: referrer } })
+    expect(image).toHaveBeenCalledExactlyOnceWith({ url: 'https://images.example/3.png', active: false, mcpGroupId: 'client', openedFrom: { tabId: 'tab', background: true }, loadOptions: { httpReferrer: referrer } })
   })
 
   it('reads the policy when Electron reports it as a referrer object', () => {
@@ -66,7 +66,7 @@ describe('opening a link or image in a new tab from the page menu', () => {
   })
 
   it('sends no referrer from a sandboxed frame, under no-referrer, or from a frame not on the web', () => {
-    const expected = { url: 'https://files.example/a', active: false, mcpGroupId: 'client' }
+    const expected = { url: 'https://files.example/a', active: false, mcpGroupId: 'client', openedFrom: { tabId: 'tab', background: true } }
     const sandboxed = openFromMenu('open-link-new-tab', {
       linkURL: 'https://files.example/a',
       frame: { origin: 'null' } as unknown as ContextMenuParams['frame']
