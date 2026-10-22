@@ -60,8 +60,9 @@ test('Settings actions have visible button surfaces, comfortable targets, and ke
   const dialog = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
   for (const theme of ['light', 'dark']) {
     await appWindow.evaluate(`window.hronautSettings.setTheme('${theme}')`)
-    for (const [section, selector] of [[0, '.test-sound-button'], [5, '.workspace-data-actions button'], [4, '.mcp-capability-form > button'], [9, '.update-settings-actions button'] ] as const) {
+    for (const [section, selector] of [[0, '.test-sound-button'], [5, '.workspace-data-actions button'], [4, '.mcp-capability-form-actions button'], [9, '.update-settings-actions button'] ] as const) {
       await dialog.locator('.settings-nav-item').nth(section).click()
+      if (section === 4) await dialog.getByRole('button', { name: 'New capability profile', exact: true }).click()
       const buttons = dialog.locator(selector)
       await buttons.first().scrollIntoViewIfNeeded()
       await appWindow.screenshot({ path: testInfo.outputPath(`actions-${theme}-${section}.png`) })
@@ -77,7 +78,7 @@ test('Settings actions have visible button surfaces, comfortable targets, and ke
       }
       if (section === 4) {
         const form = (await dialog.locator('.mcp-capability-form').boundingBox())!
-        const submit = (await buttons.first().boundingBox())!
+        const submit = (await buttons.last().boundingBox())!
         expect(submit.x + submit.width).toBeCloseTo(form.x + form.width, 0)
         const checkbox = dialog.locator('.mcp-capability-check input')
         const check = (await checkbox.boundingBox())!

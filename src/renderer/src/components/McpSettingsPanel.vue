@@ -10,6 +10,8 @@ import { isMcpToolSet } from '../../../shared/mcp-tool-sets'
 import type { McpSettingsController } from '../composables/useMcpSettingsController'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { confirmAction } from '../confirm-action.js'
+import { ignoreHeldEnter } from '../held-enter.js'
+import IconAdd from '~icons/material-symbols/add-rounded'
 import type { McpCapabilityProfilePreset, SupportedLocale } from '../../../shared/types'
 
 const props = defineProps<{
@@ -95,7 +97,44 @@ function argumentConstraints(value: string): Record<string, unknown[]> | undefin
   return result.size ? Object.fromEntries(result) : undefined
 }
 
+// The form for a new profile stays closed until asked for, so MCP security opens on the profiles there are.
+const profileFormOpen = ref(false)
+const profileForm = ref<HTMLFormElement | null>(null)
+const capabilitySection = ref<HTMLElement | null>(null)
+
+function formHasFocus(): boolean {
+  return !!profileForm.value?.contains(document.activeElement)
+}
+
+async function openProfileForm(): Promise<void> {
+  profileFormOpen.value = true
+  await nextTick()
+  profileForm.value?.querySelector<HTMLInputElement>('input')?.focus()
+}
+
+/**
+ * Closes the form and empties it. When the form had the focus and nothing else took it meanwhile, the focus goes to
+ * the new credential once one is shown, or else back to New capability profile, which ignores a held Enter so the key
+ * that closed the form does not open it again.
+ */
+async function closeProfileForm(hadFocus = formHasFocus()): Promise<void> {
+  profileFormOpen.value = false
+  profileName.value = ''
+  profilePreset.value = 'read-only'
+  profileParentId.value = ''
+  profileWorkspaceIds.value = ''
+  profileOrigins.value = ''
+  profileArguments.value = ''
+  profileExpiry.value = '1440'
+  profileSingleUse.value = false
+  await nextTick()
+  if (!hadFocus || (document.activeElement && document.activeElement !== document.body)) return
+  capabilitySection.value?.querySelector<HTMLElement>('.mcp-capability-secret, .mcp-capability-new')?.focus()
+}
+
 async function submitCapabilityProfile(): Promise<void> {
+  // Saving disables the form, which takes the focus away from it, so whether it had the focus is read first.
+  const hadFocus = formHasFocus()
   const expiresInMinutes = profileExpiry.value ? Number(profileExpiry.value) : undefined
   const constraints = argumentConstraints(profileArguments.value)
   if (await createCapabilityProfile({
@@ -107,7 +146,7 @@ async function submitCapabilityProfile(): Promise<void> {
     ...(constraints ? { argumentConstraints: constraints } : {}),
     expiresInMinutes,
     singleUse: profileSingleUse.value
-  })) profileName.value = ''
+  })) await closeProfileForm(hadFocus)
 }
 
 async function revokeProfile(id: string, name: string): Promise<void> {
@@ -268,12 +307,48 @@ function handlePortKeydown(event: KeyboardEvent): void {
       <p v-if="settings.mcpAuthentication">{{ t('settings.mcp.tokenHelp') }}</p>
       <p v-else>{{ t('settings.mcp.warning') }}</p>
     </div>
-    <section class="mcp-capabilities">
+    <section ref="capabilitySection" class="mcp-capabilities">
       <div class="setting-copy">
         <h3>{{ t('settings.mcp.capabilities.heading') }}</h3>
         <p>{{ t('settings.mcp.capabilities.description') }}</p>
       </div>
-      <form class="mcp-capability-form" @submit.prevent="submitCapabilityProfile">
+      <div v-if="capabilityCredential" class="mcp-capability-secret" role="status" tabindex="-1" aria-atomic="false">
+        <strong>{{ t('settings.mcp.capabilities.credentialHeading') }}</strong>
+        <p>{{ t('settings.mcp.capabilities.credentialWarning') }}</p>
+        <code>{{ capabilityCredential }}</code>
+        <div>
+          <UiButton type="button" @click="copyCapabilityCredential">{{ capabilityCopied ? t('settings.mcp.capabilities.copied') : t('settings.mcp.capabilities.copy') }}</UiButton>
+          <UiButton type="button" @click="clearCapabilityCredential">{{ t('settings.mcp.capabilities.dismiss') }}</UiButton>
+        </div>
+      </div>
+      <div v-if="capabilityProfiles.length" class="mcp-capability-list">
+        <article v-for="profile in capabilityProfiles" :key="profile.id" class="mcp-capability-card">
+          <div>
+            <strong>{{ profile.name }}</strong>
+            <small>{{ t('settings.mcp.capabilities.profileSummary', { revision: profile.revision, tools: profile.allowedTools.length, uses: profile.useCount, limit: profile.maxUses ?? '∞' }) }}</small>
+            <small v-if="profile.parentAuthorization">{{ t('settings.mcp.capabilities.derivedFrom', {
+              name: capabilityProfiles.find(candidate => candidate.id === profile.parentAuthorization?.profileId)?.name ?? profile.parentAuthorization.profileId,
+              revision: profile.parentAuthorization.revision
+            }) }}</small>
+            <small v-if="profile.revokedAt" class="mcp-capability-revoked">{{ t('settings.mcp.capabilities.revoked') }}</small>
+            <small v-else-if="!profile.lineageActive" class="mcp-capability-revoked">{{ t('settings.mcp.capabilities.inactiveLineage') }}</small>
+            <small v-else-if="profile.expiresAt">{{ t('settings.mcp.capabilities.expires', { date: localDateTime(profile.expiresAt) }) }}</small>
+          </div>
+          <div class="mcp-capability-actions">
+            <UiButton type="button" :disabled="capabilityBusy || !profile.lineageActive" @click="rotateCapabilityProfile(profile.id)">{{ t('settings.mcp.capabilities.rotate') }}</UiButton>
+            <UiButton variant="danger" type="button" :disabled="capabilityBusy || !!profile.revokedAt" @click="revokeProfile(profile.id, profile.name)">{{ t('settings.mcp.capabilities.revoke') }}</UiButton>
+          </div>
+          <details>
+            <summary>{{ t('settings.mcp.capabilities.inspect') }}</summary>
+            <code>{{ profile.allowedTools.join(', ') }}</code>
+            <small v-if="profile.workspaceIds?.length">{{ profile.workspaceIds.join(', ') }}</small>
+            <small v-if="profile.origins?.length">{{ profile.origins.join(', ') }}</small>
+            <small v-if="profile.argumentValueDigests && Object.keys(profile.argumentValueDigests).length">{{ t('settings.mcp.capabilities.argumentScope', { paths: Object.keys(profile.argumentValueDigests).join(', ') }) }}</small>
+          </details>
+        </article>
+      </div>
+      <p v-else class="mcp-capability-empty">{{ t('settings.mcp.capabilities.empty') }}</p>
+      <form v-if="profileFormOpen" ref="profileForm" class="mcp-capability-form" :aria-label="t('settings.mcp.capabilities.newProfile')" @submit.prevent="submitCapabilityProfile">
         <label>
           <strong>{{ t('settings.mcp.capabilities.name') }}</strong>
           <input v-model="profileName" required maxlength="80" :disabled="capabilityBusy">
@@ -325,46 +400,14 @@ function handlePortKeydown(event: KeyboardEvent): void {
           <input v-model="profileSingleUse" type="checkbox" :disabled="capabilityBusy">
           <span>{{ t('settings.mcp.capabilities.singleUse') }}</span>
         </label>
-        <UiButton variant="primary" type="submit" :disabled="capabilityBusy || !profileName.trim()">
-          {{ capabilityBusy ? t('settings.mcp.capabilities.saving') : t('settings.mcp.capabilities.create') }}
-        </UiButton>
-      </form>
-      <div v-if="capabilityCredential" class="mcp-capability-secret" role="status" aria-atomic="false">
-        <strong>{{ t('settings.mcp.capabilities.credentialHeading') }}</strong>
-        <p>{{ t('settings.mcp.capabilities.credentialWarning') }}</p>
-        <code>{{ capabilityCredential }}</code>
-        <div>
-          <UiButton type="button" @click="copyCapabilityCredential">{{ capabilityCopied ? t('settings.mcp.capabilities.copied') : t('settings.mcp.capabilities.copy') }}</UiButton>
-          <UiButton type="button" @click="clearCapabilityCredential">{{ t('settings.mcp.capabilities.dismiss') }}</UiButton>
+        <div class="mcp-capability-form-actions">
+          <UiButton type="button" :disabled="capabilityBusy" @click="closeProfileForm()">{{ t('settings.mcp.capabilities.cancel') }}</UiButton>
+          <UiButton variant="primary" type="submit" :disabled="capabilityBusy || !profileName.trim()">
+            {{ capabilityBusy ? t('settings.mcp.capabilities.saving') : t('settings.mcp.capabilities.create') }}
+          </UiButton>
         </div>
-      </div>
-      <div v-if="capabilityProfiles.length" class="mcp-capability-list">
-        <article v-for="profile in capabilityProfiles" :key="profile.id" class="mcp-capability-card">
-          <div>
-            <strong>{{ profile.name }}</strong>
-            <small>{{ t('settings.mcp.capabilities.profileSummary', { revision: profile.revision, tools: profile.allowedTools.length, uses: profile.useCount, limit: profile.maxUses ?? '∞' }) }}</small>
-            <small v-if="profile.parentAuthorization">{{ t('settings.mcp.capabilities.derivedFrom', {
-              name: capabilityProfiles.find(candidate => candidate.id === profile.parentAuthorization?.profileId)?.name ?? profile.parentAuthorization.profileId,
-              revision: profile.parentAuthorization.revision
-            }) }}</small>
-            <small v-if="profile.revokedAt" class="mcp-capability-revoked">{{ t('settings.mcp.capabilities.revoked') }}</small>
-            <small v-else-if="!profile.lineageActive" class="mcp-capability-revoked">{{ t('settings.mcp.capabilities.inactiveLineage') }}</small>
-            <small v-else-if="profile.expiresAt">{{ t('settings.mcp.capabilities.expires', { date: localDateTime(profile.expiresAt) }) }}</small>
-          </div>
-          <div class="mcp-capability-actions">
-            <UiButton type="button" :disabled="capabilityBusy || !profile.lineageActive" @click="rotateCapabilityProfile(profile.id)">{{ t('settings.mcp.capabilities.rotate') }}</UiButton>
-            <UiButton variant="danger" type="button" :disabled="capabilityBusy || !!profile.revokedAt" @click="revokeProfile(profile.id, profile.name)">{{ t('settings.mcp.capabilities.revoke') }}</UiButton>
-          </div>
-          <details>
-            <summary>{{ t('settings.mcp.capabilities.inspect') }}</summary>
-            <code>{{ profile.allowedTools.join(', ') }}</code>
-            <small v-if="profile.workspaceIds?.length">{{ profile.workspaceIds.join(', ') }}</small>
-            <small v-if="profile.origins?.length">{{ profile.origins.join(', ') }}</small>
-            <small v-if="profile.argumentValueDigests && Object.keys(profile.argumentValueDigests).length">{{ t('settings.mcp.capabilities.argumentScope', { paths: Object.keys(profile.argumentValueDigests).join(', ') }) }}</small>
-          </details>
-        </article>
-      </div>
-      <p v-else class="mcp-capability-empty">{{ t('settings.mcp.capabilities.empty') }}</p>
+      </form>
+      <UiButton v-else class="mcp-capability-new" type="button" :disabled="capabilityBusy" @keydown="ignoreHeldEnter" @click="openProfileForm"><IconAdd aria-hidden="true" />{{ t('settings.mcp.capabilities.newProfile') }}</UiButton>
       <output v-if="capabilityError" class="site-controls-error" role="alert">{{ capabilityError }}</output>
     </section>
   </div>
