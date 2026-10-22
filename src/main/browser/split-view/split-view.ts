@@ -38,6 +38,8 @@ export async function openSplitViewAndWait<Tab extends SplitViewTab>(access: Spl
     ])
   } catch (error) {
     if (superseded()) return access.getState()
+    // The request was still a selection, which the published state shows, such as no longer marking a followed agent.
+    access.changed(false)
     throw error
   }
   if (superseded()) return access.getState()

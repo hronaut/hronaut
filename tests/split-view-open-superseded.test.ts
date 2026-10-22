@@ -82,6 +82,8 @@ describe('opening a split view with a sleeping tab', () => {
 
     await expect(opening).rejects.toThrow('The site could not be reached.')
     expect(state.splitView).toBeNull()
+    // The request still counted as a selection, so the shell learns that, such as a followed agent's mark going.
+    expect(access.changed).toHaveBeenCalledWith(false)
   })
 
   it('opens both tabs side by side once the chosen tab wakes', async () => {

@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 // tab, changes their mind while it wakes and goes back to work in the right-hand page of their split view. When the
 // sleeping tab finished waking it still replaced the split view and took keyboard focus. Picking the same pane by its
 // marked tab instead did cancel the older selection, because only selecting a tab advanced the selection generation;
-// the page click that makes a pane active did not.
+// the page click that makes a pane active did not, and neither did opening a split view with the split view button.
 
 const focused: string[] = []
 
