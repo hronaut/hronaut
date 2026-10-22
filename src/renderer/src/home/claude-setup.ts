@@ -1,7 +1,10 @@
-import type { ClaudeCodeSetupPreview, HomeSetupState } from '../../../shared/claude-code-setup.js'
+import type { ClaudeCodeSetupPreview, ClaudeCodeSetupState, HomeSetupState } from '../../../shared/claude-code-setup.js'
 import { claudeCodeSetupErrorCode } from '../../../shared/claude-code-setup.js'
 import type { HomeBootstrap, HomeDashboard, HronautHomeApi } from '../../../shared/home.js'
 import { element, interpolate } from './dom.js'
+
+/** States in which Home offers to add or update Hronaut's entry. */
+const offerable = (state: ClaudeCodeSetupState): boolean => state === 'not-configured' || state === 'other-address' || state === 'other-token'
 
 /**
  * "Set up Claude Code" on the Claude Code guide: Home asks main for the exact change and shows it, and main asks the
@@ -11,7 +14,7 @@ import { element, interpolate } from './dom.js'
 export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signal: AbortSignal) {
   const messages = data.messages.home.connect.claudeSetup
   const root = document.getElementById('claude-setup')
-  // Without the panel (MCP authentication on) Home still learns which agents are installed.
+  // Without the panel Home still learns which agents are installed.
   const readState = async (): Promise<HomeSetupState | null> => { try { return await api?.getSetupState?.() ?? null } catch { return null } }
   if (!root || !api?.getSetupState || !api.prepareClaudeCodeSetup || !api.applyClaudeCodeSetup) {
     return { show: (_visible: boolean): void => {}, refresh: readState, update: (_dashboard: HomeDashboard): void => {}, start: (): void => {}, offered: (): boolean => false }
@@ -43,13 +46,14 @@ export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signa
     const claude = setup?.claudeCode
     root!.hidden = !shown || !claude
     if (root!.hidden || !claude) return
-    start.hidden = preview !== null || !(claude.state === 'not-configured' || claude.state === 'other-address')
-    start.textContent = claude.state === 'other-address' ? messages.update : messages.action
+    start.hidden = preview !== null || !offerable(claude.state)
+    start.textContent = claude.state === 'other-address' || claude.state === 'other-token' ? messages.update : messages.action
     panel.hidden = preview === null
     const known = claude.state === 'configured' ? (connected ? messages.connected : messages.configured)
       : claude.state === 'other-address' ? messages.otherAddress
-        : claude.state === 'not-found' ? interpolate(messages.notFound, { path: claude.path })
-          : claude.state === 'unreadable' ? interpolate(messages.unreadable, { path: claude.path }) : ''
+        : claude.state === 'other-token' ? messages.otherToken
+          : claude.state === 'not-found' ? interpolate(messages.notFound, { path: claude.path })
+            : claude.state === 'unreadable' ? interpolate(messages.unreadable, { path: claude.path }) : ''
     const line = preview ? '' : notice || known
     if (status.textContent !== line) status.textContent = line
   }
@@ -90,6 +94,7 @@ export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signa
       notice = ''
       element('claude-setup-intro').textContent = interpolate(messages.previewIntro, { path: next.path })
       element('claude-setup-after').textContent = `"hronaut": ${next.after}`
+      element('claude-setup-token').hidden = !next.tokenHidden
       element('claude-setup-before-wrap').hidden = next.before === null
       element('claude-setup-before').textContent = next.before === null ? '' : `"hronaut": ${next.before}`
       element('claude-setup-backup').textContent = interpolate(messages.previewBackup, { name: next.backupName })
@@ -174,6 +179,6 @@ export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signa
       start.click()
     },
     /** Whether Home can offer to add Hronaut to Claude Code right now. */
-    offered(): boolean { return setup?.claudeCode?.state === 'not-configured' || setup?.claudeCode?.state === 'other-address' }
+    offered(): boolean { return setup?.claudeCode !== undefined && offerable(setup.claudeCode.state) }
   }
 }

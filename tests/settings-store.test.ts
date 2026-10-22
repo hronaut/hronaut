@@ -216,7 +216,7 @@ describe('SettingsStore', () => {
       showAgentCursor: true,
       pinAgentLiveStatus: false,
       mcpRemoteAccess: false,
-      mcpAuthentication: false,
+      mcpAuthentication: true,
       mcpPort: 47_812,
       mcpToolSet: 'essentials',
       downloadDirectory: null,
@@ -226,6 +226,16 @@ describe('SettingsStore', () => {
       checkForUpdatesOnStartup: true,
       languagePreference: 'system'
     })
+  })
+
+  it('starts a new profile with MCP authentication on and keeps a saved choice', async () => {
+    const { path, store } = await createStore()
+    expect((await store.load()).mcpAuthentication).toBe(true)
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, '{"mcpAuthentication":false}\n', 'utf8')
+    expect((await store.load()).mcpAuthentication).toBe(false)
+    await writeFile(path, '{"mcpAuthentication":"no"}\n', 'utf8')
+    expect((await store.load()).mcpAuthentication).toBe(true)
   })
 
   it('starts a new profile in Cyberpunk and keeps a saved theme, System included', async () => {

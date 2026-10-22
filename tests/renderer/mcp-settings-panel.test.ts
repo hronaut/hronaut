@@ -45,7 +45,7 @@ function renderPanel(
     settings.value = {
       ...settings.value,
       mcpRemoteAccess: false,
-      mcpAuthentication: false,
+      mcpAuthentication: true,
       mcpPort: DEFAULT_RENDERER_SETTINGS.mcpPort,
       mcpToolSet: DEFAULT_RENDERER_SETTINGS.mcpToolSet
     }
@@ -128,7 +128,16 @@ describe('McpSettingsPanel', () => {
     expect(screen.getByRole('combobox', { name: 'MCP tool set' })).toHaveValue('essentials')
     expect(screen.getByRole('spinbutton', { name: 'MCP server port' })).toHaveValue(47812)
     expect(screen.getByText('Active endpoint: http://127.0.0.1:47812/mcp')).toBeVisible()
-    expect(screen.getByText(/^Authentication is off\./)).toBeVisible()
+    // Authentication is on by default.
+    expect(screen.getByRole('checkbox', { name: /^Require MCP authentication/ })).toBeChecked()
+    expect(screen.queryByText(/^Authentication is off\./)).toBeNull()
+    controller.dispose()
+  })
+
+  it('warns while authentication is off', async () => {
+    const { controller, settings } = renderPanel()
+    settings.value = { ...settings.value, mcpAuthentication: false }
+    expect(await screen.findByText(/^Authentication is off\./)).toBeVisible()
     controller.dispose()
   })
 
@@ -223,6 +232,7 @@ describe('McpSettingsPanel', () => {
 
   it('enables remote access independently of authentication and explains LAN setup', async () => {
     const { controller, settings } = renderPanel()
+    settings.value = { ...settings.value, mcpAuthentication: false }
     const user = userEvent.setup()
     const remote = screen.getByRole('checkbox', { name: /^Allow connections from other computers/ })
     expect(remote).not.toBeChecked()

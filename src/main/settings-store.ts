@@ -37,7 +37,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   // Off by default for now; the default for everyone is still to be decided.
   pinAgentLiveStatus: false,
   mcpRemoteAccess: false,
-  mcpAuthentication: false,
+  mcpAuthentication: true,
   mcpPort: DEFAULT_MCP_PORT,
   mcpToolSet: DEFAULT_MCP_TOOL_SET,
   downloadDirectory: null,

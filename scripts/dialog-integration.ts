@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -70,6 +70,9 @@ const application = spawn(electronPath, electronArguments, {
   cwd: repositoryRoot,
   env: {
     ...process.env,
+    // The profile's own token, which Hronaut writes into the profile, and not a token or override from this shell.
+    HRONAUT_MCP_TOKEN: undefined,
+    HRONAUT_DISABLE_MCP_AUTH: undefined,
     HRONAUT_MCP_HOST: '127.0.0.1',
     HRONAUT_MCP_PORT: String(mcpPort),
     HRONAUT_USER_DATA_DIR: profileDirectory,
@@ -83,15 +86,17 @@ application.stderr.pipe(process.stderr)
 let client: Client | undefined
 let transport: StreamableHTTPClientTransport | undefined
 try {
+  // A new profile requires its MCP token, which Hronaut writes into the profile as it starts.
+  const authorization = async (): Promise<string> => `Bearer ${(await readFile(join(profileDirectory, 'mcp-token'), 'utf8')).trim()}`
   await waitFor(async () => {
     try {
-      return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok
+      return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization: await authorization() } })).ok
     } catch {
       return false
     }
   }, 'Hronaut MCP server did not start')
   client = new Client({ name: 'hronaut-dialog-integration', version: '1.0.0' })
-  transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`))
+  transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: await authorization() } } })
   await client.connect(transport)
   await useMcpWorkspace(client, 'Dialog integration')
 

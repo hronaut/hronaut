@@ -777,6 +777,8 @@ function registerIpc(): void {
     reportClipboardFailure,
     mcpUrl: () => mcpRuntime.url,
     settings: () => settingsState.current,
+    mcpTokenConfiguration: () => mcpRuntime.tokenConfiguration ?? undefined,
+    mcpCredentialAccepted: (bearer) => agentServices.capabilityProfiles?.authenticate(bearer) != null,
     openExternal: (url) => shell.openExternal(url),
     mcpPortRecovery: () => mcpPortRecovery,
     showMessageBox,

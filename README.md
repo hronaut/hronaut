@@ -109,7 +109,7 @@ Use a task-owned headless browser or automation library when the browser should 
 - Independent public-outcome verification that compares a writer view with a distinct clean, read-only observer workspace and returns a privacy-bounded audience-separated receipt.
 - Optional trusted [workspace site-access allowlists](docs/WORKSPACE_SITE_ACCESS.md) covering direct navigation, redirects, page actions, popups, and history without granting policy changes to agents.
 - Runtime [action-authority fences](docs/UNTRUSTED_PAGE_CONTENT.md) that treat page content as untrusted and reject consequential actions when their origin, navigation, workspace, policy, or target context changes before dispatch.
-- Human-interaction locks, instant MCP pause, explicit permissions, and optional bearer-token authentication.
+- Human-interaction locks, instant MCP pause, explicit permissions, and bearer-token authentication, on by default.
 - Independent **Follow agents** mode that keeps the active agent tab visible without taking keyboard or mouse focus. With it off, agent-created tabs, workspace tab selections, and agent-triggered popups leave the tab you are viewing in place.
 - Built-in history, bookmarks, downloads, password vault, site controls, responsive preview, visual comparison, and Chromium diagnostics.
 - Automatic update checks against public GitHub releases; downloads and installation always require user action.
@@ -178,7 +178,7 @@ Development uses a separate persistent `hronaut-dev` profile. Installed builds u
 
 To connect from another computer on your LAN, open **Settings → MCP security**,
 turn on **Allow connections from other computers**, then fully quit and restart
-Hronaut. This listens on all IPv4 interfaces. Token authentication is optional and
+Hronaut. This listens on all IPv4 interfaces. Token authentication is on by default and
 controlled separately by **Require MCP authentication**.
 Use `http://YOUR-HRONAUT-COMPUTER-LAN-IP:47812/mcp` on the remote computer (replace
 the address and use your configured MCP port). If authentication is enabled, create a credential under
@@ -239,7 +239,7 @@ Hronaut Home provides the same prompt with a copy button. A successful run visib
 
 ### OpenCode
 
-For a new Hronaut profile with MCP authentication disabled, add this server to the global `~/.config/opencode/opencode.json` or a project's `opencode.json`:
+Hronaut requires its MCP token by default, so copy the OpenCode configuration from Hronaut Home; it references the owner-only token file without placing the token in the JSON. With **Require MCP authentication** turned off, this server in the global `~/.config/opencode/opencode.json` or a project's `opencode.json` is enough:
 
 ```json
 {
@@ -255,7 +255,7 @@ For a new Hronaut profile with MCP authentication disabled, add this server to t
 }
 ```
 
-Start Hronaut, then verify the connection with `opencode mcp list`. If MCP authentication is enabled, copy the OpenCode configuration from Hronaut Home; it references the owner-only token file without placing the token in the JSON. Use `opencode mcp debug hronaut` to diagnose connection or authentication failures. Hronaut's [focused OpenCode browser MCP guide](https://hronaut.dev/opencode-browser-mcp) includes stable and V2 configuration, verification, security boundaries, and browser-ownership tradeoffs. See OpenCode's [official MCP guide](https://opencode.ai/docs/mcp-servers/) for the current stable schema.
+Start Hronaut, then verify the connection with `opencode mcp list`. Use `opencode mcp debug hronaut` to diagnose connection or authentication failures. Hronaut's [focused OpenCode browser MCP guide](https://hronaut.dev/opencode-browser-mcp) includes stable and V2 configuration, verification, security boundaries, and browser-ownership tradeoffs. See OpenCode's [official MCP guide](https://opencode.ai/docs/mcp-servers/) for the current stable schema.
 
 ### Gemini CLI
 
@@ -306,7 +306,7 @@ For a protected profile, copy the authentication-aware command from Hronaut Home
 
 This local integration is for Grok Build. Hosted Grok on the web and the X bot cannot reach a loopback-only Hronaut server; Hronaut does not recommend publishing its browser-control endpoint through a public tunnel.
 
-The server listens only on loopback. Authentication is optional for a new profile and can be enabled under **Settings → MCP security**.
+By default the server listens only on loopback and requires the profile's MCP token; both are set under **Settings → MCP security**.
 
 ## Development checks
 

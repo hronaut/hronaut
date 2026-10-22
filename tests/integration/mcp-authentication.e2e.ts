@@ -163,7 +163,7 @@ test('repairs a malformed profile token before starting the browser and MCP list
   }
 })
 
-test('starts without MCP authentication and can enable or disable it in Settings', async ({
+test('turns MCP authentication on or off in Settings, and Reset to default turns it back on', async ({
   appWindow,
   electronApp,
   mcpPort,
@@ -228,13 +228,17 @@ test('starts without MCP authentication and can enable or disable it in Settings
   }
 
   if (reservedDefaultPort) {
+    // Authentication is on by default, so a reset turns it back on.
+    await authentication.uncheck()
+    await expect.poll(() => healthStatus()).toBe(200)
     await appWindow.getByRole('button', { name: 'Reset to default' }).click()
-    await expect(authentication).not.toBeChecked()
-    await expect.poll(() => healthStatus(undefined, defaultHealth)).toBe(200)
+    await expect(authentication).toBeChecked()
+    await expect.poll(() => healthStatus(undefined, defaultHealth)).toBe(401)
+    await expect.poll(() => healthStatus(authorization, defaultHealth)).toBe(200)
     await expect.poll(() => healthStatus()).toBe(0)
     await expect
       .poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')))
-      .toMatchObject({ mcpAuthentication: false, mcpPort: DEFAULT_MCP_PORT })
+      .toMatchObject({ mcpAuthentication: true, mcpPort: DEFAULT_MCP_PORT })
   }
 })
 
