@@ -201,7 +201,7 @@ describe('app panel feature controller', () => {
     expect(harness.controller.activePanelId.value).toBe('console')
     expect(harness.panels.console.value).toBe(true)
 
-    await harness.controller.toggleNetworkMonitor()
+    harness.controller.toggleNetworkMonitor()
     expect(DETACHABLE_PANEL_IDS.filter((panel) => harness.panels[panel].value)).toEqual(['network'])
     expect(harness.controller.activePanelId.value).toBe('network')
 
