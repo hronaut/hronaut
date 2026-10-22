@@ -58,6 +58,7 @@ test('leaves the person\'s pane active when an agent works in the other pane of 
     await expect.poll(shown).toMatchObject({ activeTabId: person, splitView: { firstTabId: person, secondTabId: agentTabId } })
     const before = await shown()
     const focusBefore = await focusedPage()
+    expect(focusBefore).toContain('Notes')
 
     await call(client, 'browser_evaluate', { workspaceId, tabId: agentTabId, script: 'document.title' })
 
