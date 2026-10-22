@@ -72,6 +72,7 @@ export const esESAppErrors: AppErrorMessages = {
     "rendererExitedBeforeAction": "La página no se está ejecutando porque su proceso terminó; no se le envió nada. Recarga o cierra la pestaña y comprueba su estado actual.",
     "printDialogOpenedDuringAction": "La página abrió su diálogo de impresión durante esta acción; el diálogo retiene la página hasta que la persona imprima o cancele, y se desconocen los efectos de la acción. Pide a la persona que cierre el diálogo y comprueba el estado actual.",
     "printDialogOpenBeforeAction": "La página muestra su diálogo de impresión, que la retiene hasta que la persona imprima o cancele; no se le envió nada. Pide a la persona que cierre el diálogo y vuelve a intentarlo.",
+    "sourceViewRunsNoScripts": "Esta pestaña muestra el código fuente de una página (una dirección view-source:), donde los scripts de la página nunca terminan; no se le envió nada. Abre la propia página en la pestaña para inspeccionarla.",
     "closedWhileWaiting": "La pestaña se cerró mientras se esperaba la página.",
     "rendererLostWhileWaiting": "La pestaña dejó de responder mientras se esperaba la página.",
     "loadTimedOut": "Se agotó el tiempo de espera para que la página terminara de cargarse.",

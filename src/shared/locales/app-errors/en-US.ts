@@ -76,6 +76,7 @@ export const enUSAppErrors = {
     "rendererExitedBeforeAction": "The page is not running because its renderer exited; nothing was sent to it. Reload or close the tab, then inspect fresh state.",
     "printDialogOpenedDuringAction": "The page opened its print dialog during this action; the dialog holds the page until the person prints or cancels, and the action's effects are unknown. Ask the person to close the dialog, then inspect fresh state.",
     "printDialogOpenBeforeAction": "The page is showing its print dialog, which holds it until the person prints or cancels; nothing was sent to it. Ask the person to close the dialog, then try again.",
+    "sourceViewRunsNoScripts": "This tab shows a page's source (a view-source: address), where page scripts never finish; nothing was sent to it. Open the page itself in the tab to inspect it.",
     "closedWhileWaiting": "The tab closed while waiting for the page.",
     "rendererLostWhileWaiting": "The tab renderer became unavailable while waiting for the page.",
     "loadTimedOut": "Timed out waiting for the page to finish loading.",
