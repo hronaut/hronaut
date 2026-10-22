@@ -168,7 +168,7 @@ All notable changes to Hronaut are documented in this file.
 - **Import from browser…** now finds Chrome, Chrome Beta and Chromium profiles where `CHROME_CONFIG_HOME` or `XDG_CONFIG_HOME` point, as Chrome keeps them there, as well as in `~/.config`. It only looked in `~/.config`, so with either variable set it listed none of them, while with `XDG_CONFIG_HOME` set it found Firefox there. A profile from a folder Chrome no longer uses names that folder, such as Google Chrome (~/.config), so two Default profiles can be told apart.
 - **Reopen Closed Tab**, **Ctrl/Cmd+Shift+T** and **Recently closed** in **Search tabs** now put the tab back in its place among its workspace's tabs, as Chrome does. They opened it after the workspace's last tab.
 - **Refresh** in **Settings → Workspaces & data** now reads the history totals again too, so totals that failed to load can be tried again; it read only the website list. **Reset to default** in that section, or a failed website clear, while no totals had loaded no longer leaves "Loading history totals…" with nothing loading.
-- **Back** in **Import from browser…** now keeps the profile you chose. It chose the first profile again, so pressing **Continue** once more read another profile than the one you had picked.
+- **Back** in **Import from browser…** now keeps the profile you chose, or chooses none when that profile is gone or can't be told from another. It chose the first profile again, so pressing **Continue** once more read another profile than the one you had picked.
 
 ### Security
 
