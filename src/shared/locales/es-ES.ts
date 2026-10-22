@@ -221,7 +221,6 @@ export const esES = {
     "english": "English",
     "ukrainian": "Українська",
     "tryAgain": "Intentar de nuevo",
-    "checkAgain": "Comprobar de nuevo"
   },
   "appearance": {
     "heading": "Tema de la aplicación",
@@ -514,7 +513,7 @@ export const esES = {
       "deactivate": "Desactivar dispositivo",
       "activateDescription": "Activa la clave de licencia comercial de tu recibo de Creem.",
       "secure": "La clave se cifra con el almacenamiento seguro de tu sistema operativo y solo se usa para validar la licencia de Creem.",
-      "unavailable": "Para activar una licencia, Hronaut necesita en este equipo un almacenamiento seguro que proteja la clave, y no hay ninguno disponible. En Linux, inicia o instala un llavero, como GNOME Keyring o KDE Wallet, y luego reinicia Hronaut.",
+      "unavailable": "Para activar una licencia, Hronaut necesita en este equipo un almacenamiento seguro que proteja la clave, y no encontró ninguno que pueda usar. En Linux, inicia o instala un llavero, como GNOME Keyring o KDE Wallet, y luego reinicia Hronaut.",
       "key": "Clave de licencia comercial",
       "placeholder": "XXXX-XXXX-XXXX-XXXX",
       "activating": "Activando…",
@@ -3618,7 +3617,7 @@ export const esES = {
       "tabUnavailable": "La pestaña ya no está disponible.",
       "actionFailed": "No se pudo completar la acción solicitada del navegador.",
       "screenshotCreate": "No se pudo crear la captura de pantalla seleccionada",
-      "linuxSecrets": "Linux no tiene un llavero, como GNOME Keyring o KDE Wallet, donde Hronaut pueda guardar contraseñas y claves, así que Hronaut no las guarda. Inicia o instala uno y luego reinicia Hronaut.",
+      "linuxSecrets": "Hronaut no encontró en este equipo ningún llavero que pueda usar, como GNOME Keyring o KDE Wallet, así que no guarda contraseñas ni claves. Inicia o instala uno y luego reinicia Hronaut.",
       "secureStorage": "El almacenamiento seguro del sistema operativo no está disponible.",
       "activationLimit": "Esta licencia comercial alcanzó su límite de activaciones de dispositivo.",
       "subscriptionInactive": "La suscripción comercial para esta licencia no está activa.",

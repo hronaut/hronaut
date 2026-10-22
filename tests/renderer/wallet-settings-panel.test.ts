@@ -1137,7 +1137,7 @@ describe('WalletsSettingsPanel', () => {
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
 
     const status = screen.getByText(/managed wallets need a vault passphrase/i)
-    expect(status).toHaveTextContent(/linux has no keyring hronaut can use, so your vault passphrase protects them/i)
+    expect(status).toHaveTextContent(/your vault passphrase protects them/i)
     expect(status).not.toHaveTextContent(/passphrase-setup-required|basic_text|argon2id/i)
   })
 

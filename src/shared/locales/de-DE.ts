@@ -221,7 +221,6 @@ export const deDE = {
     "english": "English",
     "ukrainian": "Українська",
     "tryAgain": "Erneut versuchen",
-    "checkAgain": "Erneut prüfen"
   },
   "appearance": {
     "heading": "App-Design",
@@ -372,7 +371,7 @@ export const deDE = {
     },
     "search": {
       "heading": "Standardsuchmaschine",
-      "description": "Wähle, wo Text gesucht wird, der keine Adresse ist, ob du ihn in die Adressleiste tippst oder ein Agent ihn öffnet.",
+      "description": "Wähle, wo Text gesucht wird, der keine Adresse ist, egal ob du ihn in die Adressleiste tippst oder ein Agent ihn öffnet.",
       "privacy": "Vorschläge aus Tabs, Lesezeichen und Verlauf bleiben auf diesem Gerät. Hronaut sendet die Suche erst nach dem Absenden."
     },
     "downloads": {
@@ -514,7 +513,7 @@ export const deDE = {
       "deactivate": "Gerät deaktivieren",
       "activateDescription": "Aktivieren Sie den kommerziellen Lizenzschlüssel aus Ihrem Creem-Beleg.",
       "secure": "Der Schlüssel wird mit dem sicheren Speicher Ihres Betriebssystems verschlüsselt und nur zur Creem-Lizenzprüfung verwendet.",
-      "unavailable": "Zum Aktivieren einer Lizenz braucht Hronaut einen sicheren Speicher auf diesem Computer, der den Schlüssel schützt, und keiner ist verfügbar. Starten oder installieren Sie unter Linux einen Schlüsselbund wie GNOME Keyring oder KDE Wallet und starten Sie Hronaut dann neu.",
+      "unavailable": "Zum Aktivieren einer Lizenz braucht Hronaut einen sicheren Speicher auf diesem Computer, der den Schlüssel schützt, hat aber keinen nutzbaren gefunden. Starten oder installieren Sie unter Linux einen Schlüsselbund wie GNOME Keyring oder KDE Wallet und starten Sie Hronaut dann neu.",
       "key": "Kommerzieller Lizenzschlüssel",
       "placeholder": "XXXX-XXXX-XXXX-XXXX",
       "activating": "Wird aktiviert…",
@@ -3618,7 +3617,7 @@ export const deDE = {
       "tabUnavailable": "Der Tab ist nicht mehr verfügbar.",
       "actionFailed": "Die angeforderte Browseraktion konnte nicht abgeschlossen werden.",
       "screenshotCreate": "Das ausgewählte Bildschirmfoto konnte nicht erstellt werden",
-      "linuxSecrets": "Unter Linux ist kein Schlüsselbund wie GNOME Keyring oder KDE Wallet verfügbar, in dem Hronaut Passwörter und Schlüssel ablegen kann, daher speichert Hronaut sie nicht. Starten oder installieren Sie einen und starten Sie Hronaut dann neu.",
+      "linuxSecrets": "Hronaut hat auf diesem Computer keinen nutzbaren Schlüsselbund wie GNOME Keyring oder KDE Wallet gefunden und speichert daher keine Passwörter und Schlüssel. Starten oder installieren Sie einen und starten Sie Hronaut dann neu.",
       "secureStorage": "Der sichere Speicher des Betriebssystems ist nicht verfügbar.",
       "activationLimit": "Diese kommerzielle Lizenz hat ihr Aktivierungslimit erreicht.",
       "subscriptionInactive": "Das kommerzielle Abonnement für diese Lizenz ist nicht aktiv.",

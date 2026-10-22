@@ -221,7 +221,6 @@ export const frFR = {
     "english": "English",
     "ukrainian": "Українська",
     "tryAgain": "Réessayer",
-    "checkAgain": "Vérifier à nouveau"
   },
   "appearance": {
     "heading": "Thème de l’application",
@@ -514,7 +513,7 @@ export const frFR = {
       "deactivate": "Désactiver l’appareil",
       "activateDescription": "Activez la clé de licence commerciale indiquée sur votre reçu Creem.",
       "secure": "La clé est chiffrée par le stockage sécurisé de votre système d’exploitation et sert uniquement à valider la licence Creem.",
-      "unavailable": "L’activation d’une licence nécessite un stockage sécurisé sur cet ordinateur pour protéger la clé, et aucun n’est disponible. Sous Linux, démarrez ou installez un trousseau, comme GNOME Keyring ou KDE Wallet, puis redémarrez Hronaut.",
+      "unavailable": "L’activation d’une licence nécessite un stockage sécurisé sur cet ordinateur pour protéger la clé, et Hronaut n’en a trouvé aucun utilisable. Sous Linux, démarrez ou installez un trousseau, comme GNOME Keyring ou KDE Wallet, puis redémarrez Hronaut.",
       "key": "Clé de licence commerciale",
       "placeholder": "XXXX-XXXX-XXXX-XXXX",
       "activating": "Activation…",
@@ -3618,7 +3617,7 @@ export const frFR = {
       "tabUnavailable": "L’onglet n’est plus disponible.",
       "actionFailed": "Impossible de terminer l’action demandée au navigateur.",
       "screenshotCreate": "Impossible de créer la capture d’écran sélectionnée",
-      "linuxSecrets": "Linux ne dispose d’aucun trousseau, comme GNOME Keyring ou KDE Wallet, où Hronaut peut garder les mots de passe et les clés, donc Hronaut ne les enregistre pas. Démarrez ou installez-en un, puis redémarrez Hronaut.",
+      "linuxSecrets": "Hronaut n’a trouvé sur cet ordinateur aucun trousseau utilisable, comme GNOME Keyring ou KDE Wallet, il n’enregistre donc pas les mots de passe et les clés. Démarrez ou installez-en un, puis redémarrez Hronaut.",
       "secureStorage": "Le stockage sécurisé du système d’exploitation est indisponible.",
       "activationLimit": "Cette licence commerciale a atteint sa limite d’activation d’appareils.",
       "subscriptionInactive": "L’abonnement commercial associé à cette licence n’est pas actif.",

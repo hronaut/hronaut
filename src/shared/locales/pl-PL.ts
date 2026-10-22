@@ -221,7 +221,6 @@ export const plPL = {
     "english": "English",
     "ukrainian": "Українська",
     "tryAgain": "Spróbuj ponownie",
-    "checkAgain": "Sprawdź ponownie"
   },
   "appearance": {
     "heading": "Motyw aplikacji",
@@ -372,7 +371,7 @@ export const plPL = {
     },
     "search": {
       "heading": "Domyślna wyszukiwarka",
-      "description": "Wybierz, gdzie wyszukiwać tekst, który nie jest adresem, czy wpiszesz go w pasku adresu, czy otworzy go agent.",
+      "description": "Wybierz, gdzie wyszukiwać tekst, który nie jest adresem, niezależnie od tego, czy wpiszesz go w pasku adresu, czy otworzy go agent.",
       "privacy": "Sugestie kart, zakładek i historii pozostają na tym urządzeniu. Hronaut wysyła zapytanie dopiero po zatwierdzeniu."
     },
     "downloads": {
@@ -514,7 +513,7 @@ export const plPL = {
       "deactivate": "Dezaktywuj urządzenie",
       "activateDescription": "Aktywuj klucz licencji komercyjnej z potwierdzenia Creem.",
       "secure": "Klucz jest szyfrowany przy użyciu bezpiecznej pamięci systemu operacyjnego i służy wyłącznie do weryfikacji licencji Creem.",
-      "unavailable": "Aktywacja licencji wymaga na tym komputerze bezpiecznego magazynu, który ochroni klucz, a żaden nie jest dostępny. W systemie Linux uruchom lub zainstaluj pęk kluczy, taki jak GNOME Keyring lub KDE Wallet, a potem uruchom ponownie Hronaut.",
+      "unavailable": "Aktywacja licencji wymaga na tym komputerze bezpiecznego magazynu, który ochroni klucz, a Hronaut nie znalazł żadnego, którego mógłby użyć. W systemie Linux uruchom lub zainstaluj pęk kluczy, taki jak GNOME Keyring lub KDE Wallet, a potem uruchom ponownie Hronaut.",
       "key": "Klucz licencji komercyjnej",
       "placeholder": "XXXX-XXXX-XXXX-XXXX",
       "activating": "Aktywowanie…",
@@ -3618,7 +3617,7 @@ export const plPL = {
       "tabUnavailable": "Karta nie jest już dostępna.",
       "actionFailed": "Nie udało się ukończyć żądanego działania przeglądarki.",
       "screenshotCreate": "Nie udało się utworzyć wybranego zrzutu ekranu",
-      "linuxSecrets": "W systemie Linux nie ma pęku kluczy, takiego jak GNOME Keyring lub KDE Wallet, w którym Hronaut mógłby przechowywać hasła i klucze, więc Hronaut ich nie zapisuje. Uruchom lub zainstaluj go, a potem uruchom ponownie Hronaut.",
+      "linuxSecrets": "Hronaut nie znalazł na tym komputerze pęku kluczy, którego mógłby użyć, takiego jak GNOME Keyring lub KDE Wallet, więc nie zapisuje haseł i kluczy. Uruchom lub zainstaluj go, a potem uruchom ponownie Hronaut.",
       "secureStorage": "Bezpieczna pamięć systemu operacyjnego jest niedostępna.",
       "activationLimit": "Ta licencja komercyjna osiągnęła limit aktywacji urządzeń.",
       "subscriptionInactive": "Subskrypcja komercyjna dla tej licencji nie jest aktywna.",
