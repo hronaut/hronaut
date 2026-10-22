@@ -1,6 +1,6 @@
 param(
   [Parameter(Mandatory=$true)]
-  [ValidateSet('clear','text','image','tray','menu','screenshot')]
+  [ValidateSet('clear','text','image','tray','menu','screenshot','window')]
   [string]$Action,
   [string]$Label,
   [string]$OutputPath
@@ -24,6 +24,45 @@ if ($Action -eq 'screenshot') {
     $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
     $bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
   } finally { $graphics.Dispose(); $bitmap.Dispose() }
+  exit 0
+}
+if ($Action -eq 'window') {
+  # The state Windows itself gives the window whose handle is the label, with what owns the foreground.
+  Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class NativeWindows {
+  public delegate bool EnumProc(IntPtr handle, IntPtr data);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc proc, IntPtr data);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr handle);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr handle);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr handle, out uint processId);
+  public static int VisibleWindowsOf(uint processId) {
+    int count = 0;
+    EnumWindows((handle, data) => {
+      uint owner;
+      GetWindowThreadProcessId(handle, out owner);
+      if (owner == processId && IsWindowVisible(handle)) count++;
+      return true;
+    }, IntPtr.Zero);
+    return count;
+  }
+}
+'@
+  $handle = [IntPtr][Int64]$Label
+  $owner = [uint32]0
+  if ([NativeWindows]::GetWindowThreadProcessId($handle, [ref]$owner) -eq 0) { throw 'The window handle names no window' }
+  $foreground = [NativeWindows]::GetForegroundWindow()
+  $foregroundOwner = [uint32]0
+  [void][NativeWindows]::GetWindowThreadProcessId($foreground, [ref]$foregroundOwner)
+  [Console]::Write((@{
+    minimized = [NativeWindows]::IsIconic($handle)
+    visible = [NativeWindows]::IsWindowVisible($handle)
+    processVisibleWindows = [NativeWindows]::VisibleWindowsOf($owner)
+    foreground = $foreground.ToInt64()
+    foregroundIsHronaut = ($foregroundOwner -eq $owner)
+  } | ConvertTo-Json -Compress))
   exit 0
 }
 Add-Type -AssemblyName UIAutomationClient

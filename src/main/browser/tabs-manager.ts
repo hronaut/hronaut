@@ -4998,6 +4998,7 @@ export class BrowserTabsManager {
       browserContentOccluded: () => this.browserContentOccluded,
       occlusionSnapshot: () => this.occlusionSnapshot,
       allHumanInteractionLocked: () => this.allHumanInteractionLocked,
+      offscreenCaptureTabIds: () => this.offscreenCaptureTabIds,
       browserViewBounds: () => this.browserViewBounds(),
       tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
       roundPageCorners: (view) => this.roundPageCorners(view),
