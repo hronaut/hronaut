@@ -1313,9 +1313,7 @@ export class BrowserTabsManager {
         return Boolean(tab && !tab.sleeping && !tab.wakePromise && !tab.webContents.isDestroyed())
       },
       wakeTab: async (tabId) => this.wakeTab(tabId),
-      selectTabPassively: (tabId) => {
-        if (this.activeTabId !== tabId) this.selectTabPassively(tabId)
-      },
+      selectTabPassively: (tabId) => this.selectTabPassively(tabId),
       onFollow: ({ tabId, agent }) => {
         const before = this.publishedAgentFollow()
         this.agentFollow = agent
@@ -1498,10 +1496,10 @@ export class BrowserTabsManager {
   /**
    * The narrow view agent following and selecting a tab without moving
    * keyboard focus get of this manager's private followed agent, follow
-   * preference, tabs, active tab and selection generation, MCP activities,
-   * MCP activity follower, state publication, window and selection. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it.
+   * preference, tabs, active tab and selection generation, split view, MCP
+   * activities, MCP activity follower, state publication, window and
+   * selection. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it.
    */
   private agentFollowAccess(): AgentFollowAccess {
     return {
@@ -1510,6 +1508,7 @@ export class BrowserTabsManager {
       followAgentActivity: () => this.followAgentActivity,
       setFollowAgentActivityPreference: (enabled) => { this.followAgentActivity = enabled },
       activeTabId: () => this.activeTabId,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
       tabSelectionGeneration: () => this.tabSelectionGeneration,
       hasTab: (tabId) => this.tabs.has(tabId),
       findTab: (tabId) => this.tabs.get(tabId),

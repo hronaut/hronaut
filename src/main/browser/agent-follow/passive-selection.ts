@@ -8,6 +8,10 @@ import type { AgentFollowAccess } from './agent-follow-access.js'
  * focused it.
  */
 export function selectTabPassively(access: AgentFollowAccess, tabId: string): void {
+  // A tab already in view, the active tab or the other pane of the split
+  // view, stays as it is: selecting the other pane would make it the active
+  // pane and move keyboard focus out of the person's page.
+  if (access.activeTabId() === tabId || access.splitViewContains(tabId)) return
   const windowWasFocused = access.window().isFocused()
   const target = access.getTab(tabId)
   let focusGuardActive = windowWasFocused
