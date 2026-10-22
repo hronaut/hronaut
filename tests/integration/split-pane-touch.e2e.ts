@@ -36,9 +36,14 @@ test('makes the other pane of the split view active when the person touches its 
       )) as Electron.WebContentsView | undefined
       if (!view) throw new Error('The right-hand page is not shown')
       const debuggerSession = view.webContents.debugger
-      if (!debuggerSession.isAttached()) debuggerSession.attach('1.3')
-      await debuggerSession.sendCommand('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 40, y: 40 }] })
-      await debuggerSession.sendCommand('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      const attached = !debuggerSession.isAttached()
+      if (attached) debuggerSession.attach('1.3')
+      try {
+        await debuggerSession.sendCommand('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 40, y: 40 }] })
+        await debuggerSession.sendCommand('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      } finally {
+        if (attached) debuggerSession.detach()
+      }
     }, `${base}/right`)
 
     await expect.poll(activeTabId).toBe(ids.right)

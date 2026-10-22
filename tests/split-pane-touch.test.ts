@@ -110,6 +110,22 @@ describe('a touch on the other pane of the split view', () => {
     expect(manager.mcpActivityFollower.noteHumanInput).toHaveBeenCalledOnce()
   })
 
+  it('counts as no click, since a touch may start a scroll', async () => {
+    const { manager } = browser()
+    const onUserInteraction = vi.fn()
+    Object.assign(manager, { options: { partition: 'persist:hronaut', onUserInteraction } })
+    const { right } = await personInSplitView(manager)
+    const before = (right as Tab & { humanInteractionGeneration: number }).humanInteractionGeneration
+
+    touch(right)
+    touch(right)
+
+    // A touch scroll neither offers a take over nor expires an approval, as a wheel scroll does not.
+    expect(manager.activeTabId).toBe(right.id)
+    expect((right as Tab & { humanInteractionGeneration: number }).humanInteractionGeneration).toBe(before)
+    expect(onUserInteraction).not.toHaveBeenCalled()
+  })
+
   it('leaves the active pane while trusted chrome covers the pages', async () => {
     const { manager } = browser()
     const { left, right } = await personInSplitView(manager)
