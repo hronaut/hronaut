@@ -1137,8 +1137,8 @@ describe('WalletsSettingsPanel', () => {
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
 
     const status = screen.getByText(/managed wallets need a vault passphrase/i)
-    expect(status).toHaveTextContent(/operating-system secret store unavailable/i)
-    expect(status).not.toHaveTextContent(/passphrase-setup-required|basic_text/i)
+    expect(status).toHaveTextContent(/linux has no keyring hronaut can use, so your vault passphrase protects them/i)
+    expect(status).not.toHaveTextContent(/passphrase-setup-required|basic_text|argon2id/i)
   })
 
   it('disables watch-only onboarding when wallet persistence fails integrity checks', async () => {

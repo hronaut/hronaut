@@ -30,7 +30,12 @@ function website(hostname: string): BrowsingDataWebsiteSummary {
   }
 }
 
-function renderPanel(entries = [website('example.test')]) {
+const WORKSPACES = [
+  { id: 'active', name: 'Research', archived: false, tabCount: 2, storageOriginCount: 3 },
+  { id: 'archived', name: 'Released task', archived: true, tabCount: 1, storageOriginCount: 1 }
+]
+
+function renderPanel(entries = [website('example.test')], workspaces = WORKSPACES) {
   const api = {
     summary: vi.fn(async () => EMPTY_SUMMARY),
     websites: vi.fn(async () => [website('refreshed.test')]),
@@ -49,10 +54,7 @@ function renderPanel(entries = [website('example.test')]) {
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
       controller,
-      workspaces: [
-        { id: 'active', name: 'Research', archived: false, tabCount: 2, storageOriginCount: 3 },
-        { id: 'archived', name: 'Released task', archived: true, tabCount: 1, storageOriginCount: 1 }
-      ],
+      workspaces,
       formatBytes: (bytes) => `${bytes} B`,
       formatNumber: String
     }
@@ -110,6 +112,26 @@ describe('PrivacySettingsPanel', () => {
     controller.dispose()
   })
 
+  // With no workspaces the list was an empty box with nothing in it.
+  it('says how to start when there are no workspaces', () => {
+    const { controller } = renderPanel(undefined, [])
+    expect(screen.getByText('Your first workspace starts here')).toBeVisible()
+    expect(screen.getByText(/Create a space for a project, account, or agent task/)).toBeVisible()
+    expect(document.querySelector('.workspace-data-list')).toBeNull()
+    controller.dispose()
+  })
+
+  // Clearing had a "What to clear" choice whose only option was History, which the button already names.
+  it('clears history without a choice of what to clear', async () => {
+    const { controller } = renderPanel()
+    controller.summary.value = { ...EMPTY_SUMMARY, historyEntries: 3 }
+    await nextTick()
+    expect(screen.queryByRole('group', { name: 'What to clear' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Clear history…' })).toBeEnabled()
+    controller.dispose()
+  })
+
   it('blocks refresh and clear controls for the full duration of a clear operation', async () => {
     const { controller } = renderPanel()
 
@@ -118,7 +140,6 @@ describe('PrivacySettingsPanel', () => {
 
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Clearing all…' })).toBeDisabled()
-    expect(screen.getByRole('group', { name: 'What to clear' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Clear history for https://example.test' })).toHaveAttribute('aria-disabled', 'true')
     controller.dispose()
   })

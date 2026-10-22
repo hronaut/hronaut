@@ -19,7 +19,6 @@ const props = withDefaults(defineProps<{ state: AppUpdateState; mode?: 'pill' | 
 })
 const emit = defineEmits<{
   open: []
-  check: []
   download: []
   install: []
 }>()
@@ -123,15 +122,6 @@ const pillLabel = computed(() => {
       v-html="formattedReleaseNotes"
     />
     <div class="update-status-card-actions">
-      <UiButton
-        v-if="state.status === 'up-to-date' || state.status === 'disabled' || state.status === 'error'"
-        class="secondary-button"
-        type="button"
-        :disabled="disabled"
-        @click="emit('check')"
-      >
-        {{ state.status === 'error' ? t('common.tryAgain') : t('common.checkAgain') }}
-      </UiButton>
       <UiButton variant="primary" v-if="state.status === 'available'" class="primary-button" type="button" :disabled="disabled" @click="emit('download')">
         {{ t('updates.download') }}
       </UiButton>

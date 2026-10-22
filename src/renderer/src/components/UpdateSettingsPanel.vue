@@ -39,7 +39,6 @@ async function changeStartupCheck(event: Event): Promise<void> {
       mode="panel"
       :state="state"
       :disabled="busy"
-      @check="check"
       @download="download"
       @install="install"
     />

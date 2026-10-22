@@ -372,7 +372,7 @@ export const deDE = {
     },
     "search": {
       "heading": "Standardsuchmaschine",
-      "description": "Wähle, wo Text aus der Adressleiste oder browser_navigate gesucht wird.",
+      "description": "Wähle, wo Text gesucht wird, der keine Adresse ist, ob du ihn in die Adressleiste tippst oder ein Agent ihn öffnet.",
       "privacy": "Vorschläge aus Tabs, Lesezeichen und Verlauf bleiben auf diesem Gerät. Hronaut sendet die Suche erst nach dem Absenden."
     },
     "downloads": {
@@ -395,7 +395,7 @@ export const deDE = {
       "sleepAfter": "Ruhezustand nach",
       "counted": "Gezählt ab letzter Auswahl, Eingabe, Navigation oder MCP-Aktion.",
       "sleepNow": "Geeignete Tabs jetzt pausieren",
-      "help": "Sichtbare, angeheftete, ladende, Audio- und Download-Tabs, geänderte Formulare, DevTools und aktive MCP-Tabs bleiben aktiv."
+      "help": "Sichtbare, angeheftete, ladende, Audio- und Download-Tabs, geänderte Formulare, DevTools und Tabs, die ein Agent gerade nutzt, bleiben aktiv."
     },
     "mcp": {
       remote: remoteConnectionMessages['de-DE'],
@@ -469,9 +469,6 @@ export const deDE = {
       "heading": "Arbeitsbereiche und Daten",
       description: "Prüfen Sie Browser-Arbeitsbereiche, verwalten Sie ihre Richtlinien und kopieren oder verschieben Sie ausgewählte Website-Daten zwischen isolierten Profilen.",
       workspaces: "Browser-Arbeitsbereiche", workspacesDescription: "Aktive und archivierte Arbeitsbereiche speichern Cookies und lokalen Speicher getrennt.", createWorkspace: "Arbeitsbereich erstellen", transferData: "Daten kopieren oder verschieben", manageWorkspace: "Verwalten", workspaceActive: "Aktiv", workspaceArchived: "Archiviert", workspaceTabs: "{count} Tab | {count} Tabs", workspaceSites: "{count} bekannte Website | {count} bekannte Websites", historyHeading: "Globaler Verlauf", historyDescription: "Löschen Sie den Browserverlauf. Websitedaten verwalten Sie im jeweiligen Arbeitsbereich.",
-      "whatToClear": "Zu löschende Daten",
-      "history": "Verlauf",
-      "localVisits": "Lokale Besuche",
       "cookies": "Cookies und Websitedaten",
       "signOut": "Kann Sie abmelden",
       "cache": "Zwischengespeicherte Dateien",
@@ -517,7 +514,7 @@ export const deDE = {
       "deactivate": "Gerät deaktivieren",
       "activateDescription": "Aktivieren Sie den kommerziellen Lizenzschlüssel aus Ihrem Creem-Beleg.",
       "secure": "Der Schlüssel wird mit dem sicheren Speicher Ihres Betriebssystems verschlüsselt und nur zur Creem-Lizenzprüfung verwendet.",
-      "unavailable": "Die Lizenzaktivierung benötigt einen sicheren Speicher des Betriebssystems.",
+      "unavailable": "Zum Aktivieren einer Lizenz braucht Hronaut einen sicheren Speicher auf diesem Computer, der den Schlüssel schützt, und keiner ist verfügbar. Starten oder installieren Sie unter Linux einen Schlüsselbund wie GNOME Keyring oder KDE Wallet und starten Sie Hronaut dann neu.",
       "key": "Kommerzieller Lizenzschlüssel",
       "placeholder": "XXXX-XXXX-XXXX-XXXX",
       "activating": "Wird aktiviert…",
@@ -3621,7 +3618,7 @@ export const deDE = {
       "tabUnavailable": "Der Tab ist nicht mehr verfügbar.",
       "actionFailed": "Die angeforderte Browseraktion konnte nicht abgeschlossen werden.",
       "screenshotCreate": "Das ausgewählte Bildschirmfoto konnte nicht erstellt werden",
-      "linuxSecrets": "Kein geschützter Linux-Geheimnisspeicher verfügbar. Hronaut speichert keine Passwörter mit einfacher Textverschlüsselung.",
+      "linuxSecrets": "Unter Linux ist kein Schlüsselbund wie GNOME Keyring oder KDE Wallet verfügbar, in dem Hronaut Passwörter und Schlüssel ablegen kann, daher speichert Hronaut sie nicht. Starten oder installieren Sie einen und starten Sie Hronaut dann neu.",
       "secureStorage": "Der sichere Speicher des Betriebssystems ist nicht verfügbar.",
       "activationLimit": "Diese kommerzielle Lizenz hat ihr Aktivierungslimit erreicht.",
       "subscriptionInactive": "Das kommerzielle Abonnement für diese Lizenz ist nicht aktiv.",
