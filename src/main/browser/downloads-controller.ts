@@ -294,7 +294,8 @@ export class BrowserDownloadsController {
       if (workspaceId !== sourceWorkspaceId) continue
       this.downloadWorkspaceIds.set(downloadId, targetWorkspaceId)
       const download = this.downloads.get(downloadId)
-      if (download) download.observationGeneration = this.host.workspaceObservationGeneration(targetWorkspaceId)
+      // As when the observation advances, a live transfer stays with the observation that started it.
+      if (download && !isActiveDownload(download)) download.observationGeneration = this.host.workspaceObservationGeneration(targetWorkspaceId)
     }
   }
 
