@@ -7,7 +7,7 @@ test('closing a tab opened from a page shows that page\'s next tab, then the pag
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     if (request.url === '/app') {
-      response.end('<!doctype html><title>App</title><p><a id="one" href="/one" target="_blank">One</a> <a id="two" href="/two">Two</a> <a id="three" href="/three">Three</a> <button id="popup" onclick="window.open('/popup', 'popup', 'width=400,height=300')">Sign in</button></p>')
+      response.end('<!doctype html><title>App</title><p><a id="one" href="/one" target="_blank">One</a> <a id="two" href="/two">Two</a> <a id="three" href="/three">Three</a> <button id="popup" onclick="window.open(\'/popup\', \'popup\', \'width=400,height=300\')">Sign in</button></p>')
     } else {
       response.end(`<!doctype html><title>${request.url}</title>`)
     }
