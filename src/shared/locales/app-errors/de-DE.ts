@@ -74,7 +74,9 @@ export const deDEAppErrors: AppErrorMessages = {
     "rendererLostWhileWaiting": "Der Tab reagierte nicht mehr, während auf die Seite gewartet wurde.",
     "loadTimedOut": "Zeitüberschreitung beim Warten auf das Laden der Seite.",
     "zoomPercent": "Der Seitenzoom muss eine ganze Zahl zwischen 50 und 400 Prozent sein.",
-    "findQuery": "Der Suchbegriff muss zwischen 1 und 1.000 Zeichen lang sein."
+    "findQuery": "Der Suchbegriff muss zwischen 1 und 1.000 Zeichen lang sein.",
+    "printFailed": "Hronaut konnte diese Seite nicht drucken.",
+    "printAgentWorking": "Auf dieser Seite arbeitet ein Agent. Übernehmen Sie oder pausieren Sie die Agenten, um sie zu drucken."
   },
   "loadFailure": {
     "nameNotResolved": "Die Website-Adresse konnte nicht gefunden werden ({code}).",

@@ -37,6 +37,7 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.commands'), keys: ['Ctrl/Cmd', 'Shift', 'P'] },
     { label: options.translate('runtime.shortcuts.pick'), keys: mac ? ['Cmd', 'Option', 'C'] : ['Ctrl', 'Shift', 'C'] },
     { label: options.translate('runtime.shortcuts.find'), keys: ['Ctrl/Cmd', 'F'] },
+    { label: options.translate('runtime.shortcuts.print'), keys: ['Ctrl/Cmd', 'P'] },
     { label: options.translate('runtime.shortcuts.fullPage'), keys: ['Ctrl/Cmd', 'Shift', 'F'] },
     { label: options.translate('runtime.shortcuts.takeOver'), keys: ['Ctrl/Cmd', 'Shift', 'O'] },
     { label: options.translate('runtime.shortcuts.bookmark'), keys: ['Ctrl/Cmd', 'D'] },

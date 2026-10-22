@@ -873,6 +873,7 @@ export const frFR = {
       "commands": "Ouvrir la palette de commandes",
       "pick": "Sélectionner un élément pour le contexte de l’agent",
       "find": "Rechercher dans la page actuelle",
+      "print": "Imprimer la page",
       "bookmark": "Ajouter la page actuelle aux favoris",
       "history": "Ouvrir l’historique de navigation",
       "clearData": "Effacer les données de navigation",
@@ -3507,7 +3508,8 @@ export const frFR = {
       "about": "À propos de Hronaut",
       "support": "Licence commerciale",
       "repository": "Dépôt GitHub",
-      "checkUpdatesPlain": "Rechercher des mises à jour"
+      "checkUpdatesPlain": "Rechercher des mises à jour",
+      "print": "Imprimer…"
     },
     "tray": {
       "show": "Afficher Hronaut",
@@ -3578,7 +3580,8 @@ export const frFR = {
       "reload": "Recharger",
       "reloadWithoutCache": "Recharger sans cache",
       "copyPageAddress": "Copier l’adresse de la page",
-      "inspect": "Inspecter"
+      "inspect": "Inspecter",
+      "print": "Imprimer…"
     },
     "pageProblem": {
       "loadTitle": "Impossible d’accéder à ce site",

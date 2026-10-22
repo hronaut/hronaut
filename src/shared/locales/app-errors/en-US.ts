@@ -78,7 +78,9 @@ export const enUSAppErrors = {
     "rendererLostWhileWaiting": "The tab renderer became unavailable while waiting for the page.",
     "loadTimedOut": "Timed out waiting for the page to finish loading.",
     "zoomPercent": "Page zoom percent must be an integer from 50 to 400",
-    "findQuery": "Find query must contain between 1 and 1,000 characters"
+    "findQuery": "Find query must contain between 1 and 1,000 characters",
+    "printFailed": "Hronaut could not print this page.",
+    "printAgentWorking": "An agent is working on this page. Take over or pause agents to print it."
   },
   "loadFailure": {
     "nameNotResolved": "The website address could not be found ({code}).",
