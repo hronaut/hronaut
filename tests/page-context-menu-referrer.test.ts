@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { savedResourceReferrer } from '../src/main/browser/context-menus/page-context-menu-referrer.js'
+import { openedResourceReferrer, savedResourceReferrer } from '../src/main/browser/context-menus/page-context-menu-referrer.js'
 
 const page = 'https://user:secret@shop.example/catalog/item?id=7#reviews'
 
@@ -50,5 +50,20 @@ describe('the referrer of a link or image saved from the page menu', () => {
     expect(savedResourceReferrer('data:text/html,x', 'https://shop.example/a.png', 'unsafe-url')).toBeUndefined()
     expect(savedResourceReferrer('', 'https://shop.example/a.png', 'default')).toBeUndefined()
     expect(savedResourceReferrer('https://shop.example/p', 'ftp://files.example/a.png', 'unsafe-url')).toBeUndefined()
+  })
+})
+
+describe('the referrer of a link or image opened in a new tab from the page menu', () => {
+  it.each(['default', 'unsafe-url', 'no-referrer-when-downgrade', 'origin', 'strict-origin-when-cross-origin', 'same-origin', 'strict-origin'])(
+    'passes the page\'s address under %s for Chromium to apply', (policy) => {
+      expect(openedResourceReferrer(page, policy)).toEqual({ url: 'https://shop.example/catalog/item?id=7', policy })
+    }
+  )
+
+  it('sends nothing under no-referrer, under a policy Electron cannot pass on, or from a page not on the web', () => {
+    expect(openedResourceReferrer(page, 'no-referrer')).toBeUndefined()
+    expect(openedResourceReferrer(page, 'origin-when-cross-origin')).toBeUndefined()
+    expect(openedResourceReferrer('file:///home/user/page.html', 'unsafe-url')).toBeUndefined()
+    expect(openedResourceReferrer('', 'default')).toBeUndefined()
   })
 })

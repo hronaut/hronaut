@@ -170,6 +170,7 @@ All notable changes to Hronaut are documented in this file.
 - **Refresh** in **Settings → Workspaces & data** now reads the history totals again too, so totals that failed to load can be tried again; it read only the website list. **Reset to default** in that section, or a failed website clear, while no totals had loaded no longer leaves "Loading history totals…" with nothing loading.
 - **Back** in **Import from browser…** now keeps the profile you chose, or chooses none when that profile is gone or can't be told from another. It chose the first profile again, so pressing **Continue** once more read another profile than the one you had picked.
 - **New Tab** in a tab's menu now opens the tab in that tab's workspace, and it and **New Tab in Workspace** put the cursor in the address field, as the **+** button and **Ctrl/Cmd+T** do. New Tab opened the tab in the workspace of the tab shown, which differs when you right-click another workspace's tab in the rail, and both left the cursor out of the address field.
+- **Open Link in New Tab** and **Open Image in New Tab** in a page's menu now send the address of the page or frame you right-clicked as the referrer, under its referrer policy, as Chrome does, so a site that serves a page or image only to its own pages opens it. They sent none, and such a site refused it.
 
 ### Security
 
