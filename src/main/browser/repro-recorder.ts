@@ -86,7 +86,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       let initialScroll: { x: number; y: number }
       try {
         initialScroll = await this.readPageWithDeadline(
-          webContents.executeJavaScript(reproScrollScript(), true).catch(() => ({ x: 0, y: 0 })),
+          webContents.executeJavaScript(reproScrollScript(), false).catch(() => ({ x: 0, y: 0 })),
           'Reproduction start timed out; recording was not started. Check the page and retry.'
         ) as { x: number; y: number }
       } catch (error) {
@@ -169,7 +169,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
         return
       }
       const result = await this.readPageWithDeadline(
-        page.executeJavaScript(reproCheckpointScript(request), true),
+        page.executeJavaScript(reproCheckpointScript(request), false),
         'Checkpoint page read timed out; expectation was not recorded. Check the page and retry.'
       ) as {
         selector: string; tag: string; observedMatch: boolean; error?: string
@@ -406,7 +406,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
     point?: { x: number; y: number; viewportWidth: number; viewportHeight: number }
   ): Promise<BrowserReproTarget | null> {
     if (tab.webContents.isDestroyed()) return null
-    const target = await tab.webContents.executeJavaScript(reproTargetScript(point), true) as BrowserReproTarget | null
+    const target = await tab.webContents.executeJavaScript(reproTargetScript(point), false) as BrowserReproTarget | null
     if (!target?.tag) return null
     const clean = (value: string | undefined, limit: number): string | undefined => {
       if (!value) return undefined
@@ -513,7 +513,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
     const recording = tab.reproRecording
     if (!recording?.active || tab.webContents.isDestroyed()) return
     const navigationGeneration = tab.navigationGeneration
-    void tab.webContents.executeJavaScript(reproScrollScript(), true)
+    void tab.webContents.executeJavaScript(reproScrollScript(), false)
       .then((scroll: { x: number; y: number }) => {
         if (tab.reproRecording !== recording
           || !recording.active
@@ -528,7 +528,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
     const recording = tab.reproRecording
     if (!recording?.active || tab.webContents.isDestroyed()) return
     const navigationGeneration = tab.navigationGeneration
-    const scroll = await tab.webContents.executeJavaScript(reproScrollScript(), true) as { x: number; y: number }
+    const scroll = await tab.webContents.executeJavaScript(reproScrollScript(), false) as { x: number; y: number }
     if (tab.reproRecording !== recording
       || !recording.active
       || tab.navigationGeneration !== navigationGeneration) return

@@ -30,7 +30,9 @@ export async function withAgentInput<Tab, T>(
   let nativeCleanupFailure: NativeInputCleanupError | undefined
   try {
     if (depth === 1 && !options.deferRendererFlag && !webContents.isDestroyed()) {
-      await webContents.executeJavaScript('window.__hronautAgentInputActive = true', true).catch(() => undefined)
+      // Without a user gesture: marking the page must not give it a person's activation, which a hover or a scroll
+      // never gives in Chrome. A click, a key or typing gives the page its own activation.
+      await webContents.executeJavaScript('window.__hronautAgentInputActive = true', false).catch(() => undefined)
     }
     return await operation()
   } catch (error) {

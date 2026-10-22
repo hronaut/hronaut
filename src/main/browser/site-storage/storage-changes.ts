@@ -202,7 +202,7 @@ async function captureStorageSnapshot(
         };
       };
       return { local: read(localStorage), session: read(sessionStorage) };
-    })()`, true) as {
+    })()`, false) as {
     local: { itemCount: number; entries: Array<{ key: string; fingerprint: string; valueBytes: number; valuePreview: string }> }
     session: { itemCount: number; entries: Array<{ key: string; fingerprint: string; valueBytes: number; valuePreview: string }> }
   }

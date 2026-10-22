@@ -84,5 +84,5 @@ export async function scroll<Tab extends AgentPageActionsTab>(access: AgentPageA
       if (target === document.scrollingElement) window.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: 'instant' });
       else target.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: 'instant' });
       return { x: target.scrollLeft ?? window.scrollX, y: target.scrollTop ?? window.scrollY };
-    })()`, true))
+    })()`, false))
 }

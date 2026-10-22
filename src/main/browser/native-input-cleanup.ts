@@ -22,7 +22,7 @@ export async function clearRendererAgentInputFlag(
   try {
     if (page.isDestroyed()) return
     await Promise.race([
-      page.executeJavaScript('delete window.__hronautAgentInputActive', true).then(value => { if (value === false) onFailure?.() }, error => {
+      page.executeJavaScript('delete window.__hronautAgentInputActive', false).then(value => { if (value === false) onFailure?.() }, error => {
         // The flag lived in the document of a renderer that exited.
         if (!(error instanceof RendererExitedError)) onFailure?.()
       }),

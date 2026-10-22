@@ -130,9 +130,10 @@ export async function waitForText(
     let onDestroyed: () => void = () => undefined
     let evaluationTimer: NodeJS.Timeout | undefined
     try {
+      // Without a user gesture, so that waiting never gives the page a person's activation.
       const evaluation = webContents.executeJavaScript(
         `(() => { const pageText = document.body?.innerText ?? ''; return ${javascriptLiteral(candidates)}.find((candidate) => pageText.includes(candidate)) ?? null })()`,
-        true
+        false
       )
       const closed = new Promise<never>((_resolve, reject) => {
         onDestroyed = () => reject(new Error('The tab closed while waiting for page text.'))
@@ -189,7 +190,8 @@ export async function waitForElement(
     let onDestroyed: () => void = () => undefined
     let evaluationTimer: NodeJS.Timeout | undefined
     try {
-      const evaluation = webContents.executeJavaScript(expression, true) as Promise<{ matches?: boolean }>
+      // Without a user gesture, so that waiting never gives the page a person's activation.
+      const evaluation = webContents.executeJavaScript(expression, false) as Promise<{ matches?: boolean }>
       const closed = new Promise<never>((_resolve, reject) => {
         onDestroyed = () => reject(new Error('The tab closed while waiting for the page element.'))
         webContents.once('destroyed', onDestroyed)

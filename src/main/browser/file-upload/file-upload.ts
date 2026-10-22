@@ -47,7 +47,9 @@ export async function uploadFiles<Tab extends FileUploadTab>(
       assertCurrent()
       const evaluated = await webContents.debugger.sendCommand('Runtime.evaluate', {
         expression: targetExpression(target),
-        returnByValue: false
+        returnByValue: false,
+        // The page gets the activation a person's click on the file input gives it.
+        userGesture: true
       }) as {
         result?: { objectId?: string; subtype?: string }
         exceptionDetails?: { text?: string; exception?: { description?: string; objectId?: string } }
