@@ -12,6 +12,22 @@ import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
 import type { SettingsSection } from '../../src/renderer/src/composables/useSettingsDialogController.js'
 
 const icon = defineComponent({ template: '<svg />' })
+/** The sections Settings lists for a search in an interface language, best first. */
+function sectionsFound(locale: string, query: string): SettingsSection[] {
+  const items = ref(SETTINGS_NAVIGATION.map(item => ({
+    section: item.section,
+    label: translate(locale as never, item.labelKey as never),
+    description: translate(locale as never, item.descriptionKey as never),
+    keywords: translate(locale as never, `settingsSections.keywords.${item.section}` as never),
+    icon
+  })))
+  let search!: ReturnType<typeof useSettingsSectionSearch>
+  render(defineComponent({ setup() { search = useSettingsSectionSearch(items, ref('appearance')); return {} }, template: '<div />' }), {
+    global: { plugins: [createHronautI18n(locale as never)] }
+  })
+  search.query.value = query
+  return search.matches.value.map(item => item.section)
+}
 function navigation() {
   const change = vi.fn()
   const Harness = defineComponent({
@@ -85,23 +101,23 @@ describe('settings section search', () => {
     { locale: 'ru-RU', query: 'обновить', sections: ['updates'] },
     { locale: 'ru-RU', query: 'очистить историю', sections: ['privacy'] },
     { locale: 'ru-RU', query: 'тёмный режим', sections: ['appearance'] },
-    { locale: 'en-US', query: 'passwords', sections: ['credentials'] },
+    { locale: 'en-US', query: 'updated', sections: ['updates'] },
     { locale: 'en-US', query: 'dark mode', sections: ['appearance'] },
     { locale: 'en-US', query: 'proxy', sections: [] }
   ])('finds $query in $locale by the sections Settings shows', ({ locale, query, sections }) => {
-    const items = ref(SETTINGS_NAVIGATION.map(item => ({
-      section: item.section,
-      label: translate(locale as never, item.labelKey as never),
-      description: translate(locale as never, item.descriptionKey as never),
-      keywords: translate(locale as never, `settingsSections.keywords.${item.section}` as never),
-      icon
-    })))
-    let search!: ReturnType<typeof useSettingsSectionSearch>
-    render(defineComponent({ setup() { search = useSettingsSectionSearch(items, ref('appearance')); return {} }, template: '<div />' }), {
-      global: { plugins: [createHronautI18n(locale as never)] }
-    })
-    search.query.value = query
-    expect(search.matches.value.map(item => item.section)).toEqual(sections)
+    expect(sectionsFound(locale, query)).toEqual(sections)
+  })
+
+  // The words for a section's settings and other forms of a word find more sections, which came first in their usual
+  // order, so Enter opened Downloads for "local" instead of MCP security, whose description says it.
+  it.each([
+    { locale: 'en-US', query: 'local', first: 'mcp' },
+    { locale: 'en-US', query: 'profile', first: 'privacy' },
+    { locale: 'ru-RU', query: 'вкладки', first: 'performance' }
+  ])('lists first the section whose name or description has $query in $locale', ({ locale, query, first }) => {
+    const found = sectionsFound(locale, query)
+    expect(found[0]).toBe(first)
+    expect(found.length).toBeGreaterThan(1)
   })
 
   it('has search words for every section in every language', () => {
