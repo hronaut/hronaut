@@ -116,6 +116,31 @@ describe('normalizeAddress', () => {
     expect(normalizeAddress(input)).toBe(expected)
   })
 
+  it.each([
+    'site:github.com electron', 'TypeError: Cannot read properties of undefined', 'error: failed to push some refs',
+    're: meeting notes', 'localhost:3000 not loading', 'note:\tbuy milk'
+  ])('searches text with spaces after a word and a colon: %s', (input) => {
+    // A workspace tab refused it as an address of an unknown scheme, such as `site:`, instead of searching.
+    expect(normalizeAddress(input)).toBe(`https://www.google.com/search?q=${encodeURIComponent(input)}`)
+    expect(webAddress(input)).toBeUndefined()
+  })
+
+  it.each([
+    'mailto:team@example.com?subject=Release notes', 'tel:+1 555 0100', 'SMS:+1 555 0100', 'web+demo:open the docs',
+    'javascript:void 0', 'http:3000 /docs', 'site:github.com', 'magnet:?xt=urn:btih:abc', 'spotify:track:4uLU6hMCjMI75M1A2tKUQC'
+  ])('keeps a link of a scheme as typed: %s', (input) => {
+    expect(normalizeAddress(input)).toBe(input)
+  })
+
+  it('keeps a Windows path with spaces from the search engine', () => {
+    expect(normalizeAddress('C:\\Program Files\\app\\readme.html')).toBe('C:\\Program Files\\app\\readme.html')
+  })
+
+  it.each(['admin:pass word@router.local', 'user:secret@host.test/my page'])('keeps a sign-in typed with spaces from the search engine: %s', (input) => {
+    // Its password would have gone to the search engine in the search's address.
+    expect(normalizeAddress(input)).toBe(input)
+  })
+
   it('turns plain text into a search', () => {
     expect(normalizeAddress('persistent electron browser')).toBe(
       'https://www.google.com/search?q=persistent%20electron%20browser'

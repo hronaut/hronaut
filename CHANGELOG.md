@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Text with spaces after a word and a colon, typed in the address bar or sent with `browser_navigate`, is now searched, as in Chrome, such as `site:github.com electron` or a pasted error message like `TypeError: x is undefined`. Hronaut took it for an address of an unknown scheme and refused it with “Agent workspaces cannot open local, privileged, or credential-bearing browser URLs.”
 - Clicking a suggestion under the address bar now opens it while the tab's page changes its address, as a page that is still loading or redirecting does, or a documentation site that moves its address to the section in view. The click did nothing, though Enter on the same suggestion opened it. Pressing the right or middle mouse button on a suggestion no longer opens it in the tab; as in Chrome, only the primary button chooses one.
 
 ## [3.4.0] - 2026-10-22
