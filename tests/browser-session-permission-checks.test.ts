@@ -1,6 +1,6 @@
 import type { MessageBoxOptions, Session } from 'electron'
 import { EventEmitter } from 'node:events'
-import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, truncate, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -243,6 +243,38 @@ describe('a single file a website holds', () => {
     expect(file(handlers, 'drawing.svg')).toBe(false)
     // A folder the website holds is never written without the person's Allow.
     expect(file(handlers, inner, `${site.origin}/`, true)).toBe(false)
+  })
+
+  // A file the website held was taken for one its Save dialog gave it once it was empty for a moment, such as while
+  // another program saved it in place, and the website could then keep writing over what the person wrote there.
+  it('the website held before it was emptied can be saved to only while it is empty', async () => {
+    const { handlers } = createHarness()
+    const files = await folder()
+    const opened = join(files, 'notes.txt')
+    await writeFile(opened, 'First draft')
+    expect(file(handlers, opened)).toBe(false)
+    const read = join(files, 'todo.txt')
+    await writeFile(read, 'Buy milk')
+    expect(handlers.check!(null, 'fileSystem' as never, `${site.origin}/`, { filePath: read, isDirectory: false, fileAccessType: 'readable' } as never)).toBe(true)
+
+    for (const held of [opened, read]) {
+      await truncate(held, 0)
+      // Replacing an empty file loses nothing.
+      expect(file(handlers, held)).toBe(true)
+      await writeFile(held, 'Second draft, saved in another app')
+      expect(file(handlers, held)).toBe(false)
+    }
+  })
+
+  it('its Save dialog emptied can be saved to again only once the website saved to it while it was empty', async () => {
+    const { handlers } = createHarness()
+    const picked = join(await folder(), 'drawing.svg')
+    await writeFile(picked, '')
+    expect(handlers.check!(null, 'fileSystem' as never, `${site.origin}/`, { filePath: picked, isDirectory: false, fileAccessType: 'readable' } as never)).toBe(true)
+    const lastYear = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+    await writeFile(picked, '<svg>the person drew</svg>')
+    await utimes(picked, lastYear, lastYear)
+    expect(file(handlers, picked)).toBe(false)
   })
 
   it('can be saved to with the person\'s switch on, whatever it holds, but a folder still needs an Allow', async () => {

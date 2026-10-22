@@ -196,8 +196,12 @@ export function createBrowserSession(host: BrowserSessionHost): {
   const pagePermissionRequests = new WeakMap<WebContents, PagePermissionRequests>()
   /** The pages with a file access Deny or Allow; Chromium checks a file it gave a website without naming the page. */
   const fileAccessPages = new Set<WebContents>()
-  /** The files each session's websites picked in their Save dialog, by website and path, until Hronaut quits. */
-  const saveDialogFiles = new WeakMap<Session, Set<string>>()
+  /**
+   * The single files each session's websites used, by website and path, until Hronaut quits: `fresh` when the website's
+   * Save dialog had just emptied it the first time the website used it, `saved` once the website wrote to it so, and
+   * `held` when it was any other file then, such as one you opened.
+   */
+  const fileUses = new WeakMap<Session, Map<string, 'fresh' | 'saved' | 'held'>>()
   let documentCount = 0
 
   function queuePermissionRequest(operation: () => Promise<void>): void {
@@ -265,7 +269,17 @@ export function createBrowserSession(host: BrowserSessionHost): {
     if (permission !== 'fileSystem' || !('fileAccessType' in details) || !('filePath' in details)) return false
     const access = details.fileAccessType
     if (access !== 'readable' && access !== 'writable') return false
-    const scope = `${access}\u0000${typeof details.filePath === 'string' ? details.filePath : ''}`
+    const filePath = typeof details.filePath === 'string' ? details.filePath : ''
+    const scope = `${access}\u0000${filePath}`
+    const singleFile = 'isDirectory' in details && details.isDirectory === false && filePath !== ''
+    // Whether its Save dialog gave the website a file shows the first time the website uses it, so a file it held
+    // before, such as one you opened, is never taken for one once it is emptied.
+    const fileUse = [origin, filePath].join('\u0000')
+    const uses = fileUses.get(browserSession) ?? new Map<string, 'fresh' | 'saved' | 'held'>()
+    if (singleFile && !uses.has(fileUse)) {
+      uses.set(fileUse, emptiedBySaveDialog(filePath, Date.now()) ? 'fresh' : 'held')
+      fileUses.set(browserSession, uses)
+    }
     const pages = [...fileAccessPages]
       .filter((page) => !page.isDestroyed() && page.session === browserSession)
       .flatMap((page) => pagePermissionRequests.get(page) ?? [])
@@ -274,15 +288,14 @@ export function createBrowserSession(host: BrowserSessionHost): {
     // A single file: the person's switch lets websites write every one they hold, which Electron cannot tell apart from
     // a file a rename would replace. Without it, only the file the website's Save dialog just emptied, as in Chrome.
     // Electron does not say that a check follows a Save dialog, so any empty file changed in the last minute counts, such
-    // as one a rename would replace, since replacing an empty file loses nothing.
-    if (!('isDirectory' in details) || details.isDirectory !== false || typeof details.filePath !== 'string') return false
+    // as one a rename would replace, since replacing an empty file loses nothing. The website keeps saving there only
+    // when it was so the first time the website used it; a file it held before gets just that write, as one that
+    // another program saves in place is empty for a moment and then holds the person's text again.
+    if (!singleFile) return false
     if (host.websitesMaySaveFiles()) return true
-    const saved = saveDialogFiles.get(browserSession) ?? new Set<string>()
-    const file = [origin, details.filePath].join('\u0000')
-    if (saved.has(file)) return true
-    if (!emptiedBySaveDialog(details.filePath, Date.now())) return false
-    saved.add(file)
-    saveDialogFiles.set(browserSession, saved)
+    if (uses.get(fileUse) === 'saved') return true
+    if (!emptiedBySaveDialog(filePath, Date.now())) return false
+    if (uses.get(fileUse) === 'fresh') uses.set(fileUse, 'saved')
     return true
   }
 
