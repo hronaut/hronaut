@@ -23,6 +23,40 @@ function nativeEditabilityGuardScript(): string {
   return `{ const failure = editabilityFailure(); if (failure) return failure; }`
 }
 
+// Writes the text, or returns a marker and leaves the field untouched when a number, date or time field does not take
+// it in its format, which would empty it: setting the value directly left the field empty while reporting the text. The
+// text is tried on a detached field of the same type first, so the page's field, what it shows and its edit state stay
+// as they were. Reads go through the native getter, as a page can redefine the value property on its own element.
+// Fields that hold a secret never return a value the page put there: the result has the typed text when the field holds
+// it, else heldDiffers, as a page that rejects the write may restore what the person typed.
+function typedTextScript(): string {
+  return `const writeTypedText = (element, value, setter) => {
+    if (!setter) return null;
+    if (element instanceof HTMLInputElement && value !== ''
+      && ['number', 'date', 'time', 'datetime-local', 'month', 'week'].includes(element.type)) {
+      const trial = document.createElement('input');
+      trial.type = element.type;
+      setter.call(trial, value);
+      if (Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').get.call(trial) === '') {
+        return { typedText: 'not-accepted', inputType: element.type };
+      }
+    }
+    setter.call(element, value);
+    return null;
+  };
+  const heldText = (element, value) => {
+    const prototype = element instanceof HTMLInputElement ? HTMLInputElement.prototype
+      : element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : null;
+    // An editable region reports the text written, not the rest of its content.
+    if (!prototype) return { value };
+    const held = Object.getOwnPropertyDescriptor(prototype, 'value').get.call(element);
+    const secret = element instanceof HTMLInputElement && (element.type === 'password'
+      || /(?:^|\\s)(?:current-password|new-password|one-time-code|cc-\\S+)(?:\\s|$)/i.test(element.getAttribute('autocomplete') || ''));
+    if (!secret || held === value) return { value: secret ? value : held };
+    return { heldDiffers: true };
+  };`
+}
+
 export function targetActionScript(
   action: 'click' | 'type' | 'select',
   target: { ref?: string; selector?: string },
@@ -38,6 +72,7 @@ export function targetActionScript(
       : target.selector ? document.querySelector(target.selector) : null;
     if (!element) throw new Error('Element not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
     ${action !== 'click' ? nativeEditabilityScript() + nativeEditabilityGuardScript() : ''}
+    ${action === 'type' ? typedTextScript() : ''}
     element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
     element.focus();
     if (${JSON.stringify(action)} === 'click') {
@@ -61,11 +96,11 @@ export function targetActionScript(
     if (element instanceof HTMLInputElement) {
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
       ${nativeEditabilityGuardScript()}
-      setter?.call(element, value);
+      { const refused = writeTypedText(element, value, setter); if (refused) return refused; }
     } else if (element instanceof HTMLTextAreaElement) {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
       ${nativeEditabilityGuardScript()}
-      setter?.call(element, value);
+      { const refused = writeTypedText(element, value, setter); if (refused) return refused; }
     } else if (element.isContentEditable) {
       ${nativeEditabilityGuardScript()}
       element.textContent = value;
@@ -74,12 +109,14 @@ export function targetActionScript(
     }
     element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
     element.dispatchEvent(new Event('change', { bubbles: true }));
+    // What the field holds once the page's own input and change handlers that run at once have formatted it.
+    const held = heldText(element, value);
     if (${Boolean(submit)}) {
       const form = element.closest('form');
       if (form && typeof form.requestSubmit === 'function') form.requestSubmit();
       else element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
     }
-    return { ok: true, tag: element.tagName.toLowerCase(), value };
+    return { ok: true, tag: element.tagName.toLowerCase(), ...held };
   })()`
 }
 
@@ -291,10 +328,12 @@ export function fillFormScript(fields: BrowserFormField[]): string {
       ? document.querySelector('[data-hronaut-ref="' + CSS.escape(target.ref) + '"]')
       : target.selector ? document.querySelector(target.selector) : null;
     const results = [];
+    ${typedTextScript()}
     for (const [index, field] of fields.entries()) {
       const result = (() => {
         const element = resolve(field);
-        if (!element) throw new Error('Form field ' + (index + 1) + ' was not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
+        // Markers, not thrown errors: main names the fields already filled, and executeJavaScript may drop a thrown message.
+        if (!element) return { formField: 'missing' };
         ${nativeEditabilityScript()}
         ${nativeEditabilityGuardScript()}
         element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
@@ -303,7 +342,7 @@ export function fillFormScript(fields: BrowserFormField[]): string {
         if (element instanceof HTMLSelectElement) {
           const value = String(field.value);
           const option = [...element.options].find((candidate) => candidate.value === value || candidate.label === value || candidate.text === value);
-          if (!option) throw new Error('Select option not found for form field ' + (index + 1) + ': ' + value);
+          if (!option) return { formField: 'option-not-found', option: value };
           const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
           ${nativeEditabilityGuardScript()}
           setter?.call(element, option.value);
@@ -321,22 +360,22 @@ export function fillFormScript(fields: BrowserFormField[]): string {
         if (element instanceof HTMLInputElement) {
           const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
           ${nativeEditabilityGuardScript()}
-          setter?.call(element, value);
+          { const refused = writeTypedText(element, value, setter); if (refused) return refused; }
         } else if (element instanceof HTMLTextAreaElement) {
           const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
           ${nativeEditabilityGuardScript()}
-          setter?.call(element, value);
+          { const refused = writeTypedText(element, value, setter); if (refused) return refused; }
         } else if (element.isContentEditable) {
           ${nativeEditabilityGuardScript()}
           element.textContent = value;
         } else {
-          throw new Error('Form field ' + (index + 1) + ' is not editable.');
+          return { formField: 'not-editable' };
         }
         element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
-        return { index, tag: element.tagName.toLowerCase(), value };
+        return { index, tag: element.tagName.toLowerCase(), ...heldText(element, value) };
       })();
-      if (result.nativeEditability) return { ...result, fieldIndex: index + 1 };
+      if (result.nativeEditability || result.typedText || result.formField) return { ...result, fieldIndex: index + 1 };
       results.push(result);
     }
     return results;

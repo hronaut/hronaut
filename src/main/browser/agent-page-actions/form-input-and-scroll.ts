@@ -1,4 +1,5 @@
 import { fillFormScript, targetActionScript, targetExpression, type BrowserFormField } from '../page-scripts.js'
+import { assertFormFieldWritten, assertTypedTextAccepted } from '../input-targets/target-checks.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from '../semantic-multi-select.js'
 import type { AgentPageActionsAccess, AgentPageActionsTab } from './agent-page-actions-access.js'
 
@@ -15,6 +16,7 @@ export async function type<Tab extends AgentPageActionsTab>(access: AgentPageAct
   const result = await access.withAgentInput(tab.webContents, () =>
     tab.webContents.executeJavaScript(targetActionScript('type', target, target.text, target.submit), true))
   access.assertNativeEditability(result)
+  assertTypedTextAccepted(result)
   return result
 }
 
@@ -61,6 +63,8 @@ export async function fillForm<Tab extends AgentPageActionsTab>(access: AgentPag
   const webContents = access.getTab(tabId).webContents
   const result = await access.withAgentInput(webContents, () => webContents.executeJavaScript(fillFormScript(fields), true))
   access.assertNativeEditability(result)
+  assertTypedTextAccepted(result)
+  assertFormFieldWritten(result)
   return result
 }
 
