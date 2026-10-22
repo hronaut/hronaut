@@ -54,6 +54,32 @@ function workspaceShortcut(input: BrowserShortcutInput): BrowserShortcutAction |
   return digit === '0' ? 'previous-workspace' : `select-workspace-${digit}` as BrowserShortcutAction
 }
 
+/**
+ * Chrome's other keys for some of these actions. Elsewhere than macOS: F5 reloads, and Shift+F5 or Ctrl+F5 reloads
+ * without the cache; Ctrl+Page Down and Ctrl+Page Up go to the next and previous tab; Alt+D goes to the address bar.
+ * On macOS, where Option with D types a character, Cmd+Shift+] and Cmd+Shift+[ (by the keys' place on a US keyboard)
+ * and Cmd+Option+Right and Cmd+Option+Left go to the next and previous tab.
+ */
+function chromeAlternateShortcut(input: BrowserShortcutInput, key: string): BrowserShortcutAction | null {
+  if (input.mac) {
+    if (!input.meta || input.control) return null
+    if (input.shift && !input.alt && input.code === 'BracketRight') return 'next-tab'
+    if (input.shift && !input.alt && input.code === 'BracketLeft') return 'previous-tab'
+    if (input.alt && !input.shift && key === 'arrowright') return 'next-tab'
+    if (input.alt && !input.shift && key === 'arrowleft') return 'previous-tab'
+    return null
+  }
+  if (input.meta) return null
+  if (key === 'f5' && !input.alt) {
+    if (!input.control && !input.shift) return 'reload'
+    if (input.control !== input.shift) return 'reload-ignoring-cache'
+  }
+  if (input.control && !input.alt && !input.shift && key === 'pagedown') return 'next-tab'
+  if (input.control && !input.alt && !input.shift && key === 'pageup') return 'previous-tab'
+  if (input.alt && !input.control && !input.shift && key === 'd') return 'focus-address'
+  return null
+}
+
 export function browserShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
   const key = shortcutKey(input)
   if (input.repeat || input.composing) return null
@@ -68,6 +94,8 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   ) return 'pick-element'
   const workspace = workspaceShortcut(input)
   if (workspace) return workspace
+  const alternate = chromeAlternateShortcut(input, key)
+  if (alternate) return alternate
   if (input.alt) return null
 
   if (input.control && key === 'tab') return input.shift ? 'previous-tab' : 'next-tab'
