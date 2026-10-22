@@ -4,6 +4,7 @@ import { rememberedSitePermissions } from '../browser-session.js'
 import { loadNativeWindowWithRollback } from '../native-window-load.js'
 import { LocalizedError } from '../localized-error.js'
 import { restoreWindowBounds, type SavedWindowState, type WindowStateStore } from '../window-state.js'
+import { attachShellEditContextMenu } from './shell-edit-context-menu.js'
 import type { BookmarkStore } from '../bookmark-store.js'
 import type { BrowserTabsManager } from '../browser/tabs-manager.js'
 import type { CredentialStore } from '../credential-store.js'
@@ -206,6 +207,7 @@ export function createPanelWindow(host: PanelWindowHost): {
       host.refs.redocking = false
       created.setMenuBarVisibility(false)
       created.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+      attachShellEditContextMenu(created, host.text)
       created.webContents.on('will-navigate', (event, url) => {
         if (url !== expectedUrl) event.preventDefault()
       })
