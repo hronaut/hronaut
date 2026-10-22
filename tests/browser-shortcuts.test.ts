@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { browserShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
+import { browserShortcutAction, websiteKeptShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
 import { shortcutKey } from '../src/shared/shortcut-key.js'
 
 function input(overrides: Partial<BrowserShortcutInput> = {}): BrowserShortcutInput {
@@ -247,20 +247,9 @@ describe('browserShortcutAction', () => {
   })
 })
 
-describe('Chrome\'s other keys for reload, tabs and the address bar', () => {
-  // F5, Ctrl+Page Down, Alt+D and, on macOS, Cmd+Shift+] or Cmd+Option+Right did nothing, where Chrome has them.
+describe('Chrome\'s other keys for changing tabs', () => {
+  // Ctrl+Page Down and, on macOS, Cmd+Shift+] or Cmd+Option+Right did nothing, where Chrome has them.
   const keys = (overrides: Partial<BrowserShortcutInput>) => browserShortcutAction(input(overrides))
-
-  it('reloads with F5, and without the cache with Shift+F5 or Ctrl+F5, elsewhere than macOS', () => {
-    expect(keys({ key: 'F5' })).toBe('reload')
-    expect(keys({ key: 'F5', shift: true })).toBe('reload-ignoring-cache')
-    expect(keys({ key: 'F5', control: true })).toBe('reload-ignoring-cache')
-    expect(keys({ key: 'F5', control: true, shift: true })).toBeNull()
-    expect(keys({ key: 'F5', alt: true })).toBeNull()
-    expect(keys({ key: 'F5', meta: true })).toBeNull()
-    expect(keys({ key: 'F5', mac: true })).toBeNull()
-    expect(keys({ key: 'F5', repeat: true })).toBeNull()
-  })
 
   it('goes to the next and previous tab with Ctrl+Page Down and Ctrl+Page Up elsewhere than macOS', () => {
     expect(keys({ key: 'PageDown', control: true })).toBe('next-tab')
@@ -269,25 +258,20 @@ describe('Chrome\'s other keys for reload, tabs and the address bar', () => {
     expect(keys({ key: 'PageDown', control: true, shift: true })).toBeNull()
     expect(keys({ key: 'PageDown' })).toBeNull()
     expect(keys({ key: 'PageDown', meta: true })).toBeNull()
+    expect(keys({ key: 'PageDown', control: true, repeat: true })).toBeNull()
     // Control with a key stays with the website or field on macOS.
     expect(keys({ key: 'PageDown', control: true, mac: true })).toBeNull()
-  })
-
-  it('goes to the address bar with Alt+D elsewhere than macOS, in every layout', () => {
-    expect(keys({ key: 'd', code: 'KeyD', alt: true })).toBe('focus-address')
-    expect(keys({ key: 'в', code: 'KeyD', alt: true })).toBe('focus-address')
-    // AltGr is Ctrl+Alt on Windows and types characters; Option with D types ∂ on macOS.
-    expect(keys({ key: 'd', code: 'KeyD', alt: true, control: true })).toBeNull()
-    expect(keys({ key: 'D', code: 'KeyD', alt: true, shift: true })).toBeNull()
-    expect(keys({ key: '∂', code: 'KeyD', alt: true, mac: true })).toBeNull()
   })
 
   it('goes to the next and previous tab with Cmd+Shift+] and Cmd+Shift+[ or Cmd+Option+Right and Left on macOS', () => {
     const mac = (overrides: Partial<BrowserShortcutInput>) => keys({ mac: true, meta: true, ...overrides })
     expect(mac({ key: '}', code: 'BracketRight', shift: true })).toBe('next-tab')
     expect(mac({ key: '{', code: 'BracketLeft', shift: true })).toBe('previous-tab')
+    expect(mac({ key: ']', code: 'BracketRight', shift: true })).toBe('next-tab')
     expect(mac({ key: 'ArrowRight', alt: true })).toBe('next-tab')
     expect(mac({ key: 'ArrowLeft', alt: true })).toBe('previous-tab')
+    // A layout whose bracket key types a letter, such as German ü, gains no tab key.
+    expect(mac({ key: 'Ü', code: 'BracketLeft', shift: true })).toBeNull()
     // Cmd+[ and Cmd+] go back and forward, and Cmd with an arrow moves the caret to the line's start or end.
     expect(mac({ key: '[', code: 'BracketLeft' })).toBeNull()
     expect(mac({ key: ']', code: 'BracketRight' })).toBeNull()
@@ -296,5 +280,39 @@ describe('Chrome\'s other keys for reload, tabs and the address bar', () => {
     // Elsewhere these are no browser keys.
     expect(keys({ key: '}', code: 'BracketRight', shift: true, control: true })).toBeNull()
     expect(keys({ key: 'ArrowRight', alt: true })).toBeNull()
+  })
+})
+
+describe('Chrome\'s keys a website may keep', () => {
+  // F5, Shift+F5, Ctrl+F5 and Alt+D did nothing in Hronaut, where Chrome reloads or goes to the address bar.
+  const kept = (overrides: Partial<BrowserShortcutInput>) => websiteKeptShortcutAction(input(overrides))
+
+  it('are no browser keys a page loses before it sees them', () => {
+    // A web editor runs F5 as its debugger and a web terminal reads Alt+D.
+    for (const key of [{ key: 'F5' }, { key: 'F5', shift: true }, { key: 'F5', control: true }, { key: 'd', code: 'KeyD', alt: true }]) {
+      expect(browserShortcutAction(input(key))).toBeNull()
+    }
+  })
+
+  it('reload with F5, and without the cache with Shift+F5 or Ctrl+F5, elsewhere than macOS', () => {
+    expect(kept({ key: 'F5' })).toBe('reload')
+    expect(kept({ key: 'F5', shift: true })).toBe('reload-ignoring-cache')
+    expect(kept({ key: 'F5', control: true })).toBe('reload-ignoring-cache')
+    expect(kept({ key: 'F5', control: true, shift: true })).toBeNull()
+    expect(kept({ key: 'F5', alt: true })).toBeNull()
+    expect(kept({ key: 'F5', meta: true })).toBeNull()
+    expect(kept({ key: 'F5', mac: true })).toBeNull()
+    expect(kept({ key: 'F5', repeat: true })).toBeNull()
+    expect(kept({ key: 'F5', composing: true })).toBeNull()
+  })
+
+  it('go to the address bar with Alt+D elsewhere than macOS, in every layout', () => {
+    expect(kept({ key: 'd', code: 'KeyD', alt: true })).toBe('focus-address')
+    expect(kept({ key: 'в', code: 'KeyD', alt: true })).toBe('focus-address')
+    // AltGr is Ctrl+Alt on Windows and types characters; Option with D types ∂ on macOS.
+    expect(kept({ key: 'd', code: 'KeyD', alt: true, control: true })).toBeNull()
+    expect(kept({ key: 'D', code: 'KeyD', alt: true, shift: true })).toBeNull()
+    expect(kept({ key: 'd', code: 'KeyD' })).toBeNull()
+    expect(kept({ key: '∂', code: 'KeyD', alt: true, mac: true })).toBeNull()
   })
 })

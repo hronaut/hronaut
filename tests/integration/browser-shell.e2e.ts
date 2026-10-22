@@ -2837,7 +2837,8 @@ test('puts Help in the native application menu and opens shell dialogs above eve
     const menu = Menu.getApplicationMenu()
     return Object.fromEntries((menu?.items ?? []).map((item) => [
       item.label,
-      item.submenu?.items.map((child) => child.type === 'separator' ? 'separator' : child.label) ?? []
+      // Hidden items only carry keys, such as F5.
+      item.submenu?.items.filter((child) => child.visible).map((child) => child.type === 'separator' ? 'separator' : child.label) ?? []
     ]))
   })
   expect(menuItems.Help).toEqual([

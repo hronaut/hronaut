@@ -32,6 +32,21 @@ function setup(options: {
 }
 
 describe('useShellKeyboardController', () => {
+  it('runs F5 and Alt+D in Hronaut\'s own window, which has no website to keep them', () => {
+    // They did nothing in the address bar or the rail, where Chrome reloads or goes to the address bar.
+    const { controller, runShortcut } = setup()
+    const f5 = new KeyboardEvent('keydown', { key: 'F5', code: 'F5', cancelable: true })
+    controller.handleKeyDown(f5)
+    expect(runShortcut).toHaveBeenLastCalledWith('reload')
+    // Taken here, so the menu's own F5 does not reload a second time.
+    expect(f5.defaultPrevented).toBe(true)
+    controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'F5', code: 'F5', shiftKey: true, cancelable: true }))
+    expect(runShortcut).toHaveBeenLastCalledWith('reload-ignoring-cache')
+    controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'd', code: 'KeyD', altKey: true, cancelable: true }))
+    expect(runShortcut).toHaveBeenLastCalledWith('focus-address')
+    expect(runShortcut).toHaveBeenCalledTimes(3)
+  })
+
   it('leaves shell surfaces open when Escape belongs to an IME composition', () => {
     const commandPalette = surface(true)
     const modal = surface(true)
