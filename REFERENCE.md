@@ -308,7 +308,7 @@ Each tab keeps at most one baseline and one diff in memory. They disappear when 
 
 Press **Ctrl+F** on Linux or Windows, **Cmd+F** on macOS, or use the find button beside the address bar. Hronaut uses Chromium's native page search to highlight matches and show the current result count. Press Enter or Shift+Enter to move between matches, or Escape to close the bar and clear the search selection. The Next/Previous match buttons keep keyboard focus while a search is pending; unavailable buttons remain focusable but cannot start another match request until results are ready.
 
-Switching tabs, navigating, or reloading closes Find and clears the previous page's matches. Reopening Find repeats the retained query against the current page.
+Switching tabs, navigating, or reloading closes Find and clears the previous page's matches, also when you opened Find while the next page was still loading. A change within the page keeps Find and its matches, such as a link to a section of the page or a site that moves its address to the section in view as you scroll. Reopening Find repeats the retained query against the current page.
 
 ## Find any Hronaut command
 

@@ -314,7 +314,9 @@ describe('FindInPageBar', () => {
 
   it.each([
     ['same-URL reload', { navigationGeneration: 1, documentGeneration: 1 }],
-    ['another page', { url: 'https://example.test/another', navigationGeneration: 1, documentGeneration: 1 }]
+    ['another page', { url: 'https://example.test/another', navigationGeneration: 1, documentGeneration: 1 }],
+    // Find opened while the next page loaded searched the old page, which that page then replaced.
+    ['the next page replacing the page Find was opened on', { url: 'https://example.test/another', documentGeneration: 1 }]
   ])('clears old matches after %s in the same tab', async (_name, changes) => {
     const { view, browser, activeTab } = renderBar()
     await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
@@ -348,6 +350,18 @@ describe('FindInPageBar', () => {
     await fireEvent.keyDown(search, { key: 'Enter' })
     expect(await screen.findByText('2 / 3')).toBeVisible()
     expect(browser.findInPage).toHaveBeenLastCalledWith(expect.objectContaining({ tabId: 'first', query: 'needle', findNext: false }))
+  })
+
+  it('applies a match result that arrives after a change within the page', async () => {
+    const pending = deferred<BrowserFindResult>()
+    const { view, activeTab } = renderBar({ browser: { findInPage: () => pending.promise } })
+    await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
+
+    await view.rerender({ activeTab: { ...activeTab, url: 'https://example.test/first#setup', navigationGeneration: 1 } })
+    pending.resolve({ activeMatchOrdinal: 2, matches: 4 })
+
+    expect(await screen.findByText('2 / 4')).toBeVisible()
+    expect(view.emitted()['update:open']).toBeUndefined()
   })
 
   it('discards a delayed match result from before a same-URL reload', async () => {

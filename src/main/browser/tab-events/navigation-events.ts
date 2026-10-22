@@ -91,6 +91,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     retireNetworkPriorityObservations(tab)
     access.invalidateTabOverviewPreview(tab)
     if (!isSameDocument) {
+      tab.documentGeneration += 1
       tab.walletNavigationGeneration = tab.navigationGeneration
       access.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
         access.options().onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
@@ -157,6 +158,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     if (tab.sleeping) return
     // Reset only when a new main-frame document commits, never on a failed load.
     tab.performanceDocumentRouted = false
+    tab.documentGeneration += 1
     access.trackWorkspaceOrigin(tab, url)
     tab.memoryBaseline = undefined
     const previousUrl = tab.url
@@ -207,6 +209,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     syncNavigation()
     if (!isMainFrame || errorCode === ABORTED_LOAD_ERROR) return
     tab.authNavigationPending = false
+    tab.documentGeneration += 1
     const failedUrl = validatedURL || tab.url
     tab.loading = false
     if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined
