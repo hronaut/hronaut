@@ -1,6 +1,6 @@
 import type { MessageBoxOptions, Session } from 'electron'
 import { EventEmitter } from 'node:events'
-import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, truncate, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -243,6 +243,57 @@ describe('a single file a website holds', () => {
     expect(file(handlers, 'drawing.svg')).toBe(false)
     // A folder the website holds is never written without the person's Allow.
     expect(file(handlers, inner, `${site.origin}/`, true)).toBe(false)
+  })
+
+  // A file the website held was taken for one its Save dialog gave it once it was empty for a moment, such as while
+  // another program saved it in place, and the website could then keep writing over what the person wrote there.
+  // So a file the website read, which you then pick in its Save dialog, is saved to once, and you pick it again or turn
+  // on the switch for the next save.
+  it('the website read or asked to write before it was emptied can be saved to only while it is empty', async () => {
+    const { handlers } = createHarness()
+    const files = await folder()
+    const opened = join(files, 'notes.txt')
+    await writeFile(opened, 'First draft')
+    expect(file(handlers, opened)).toBe(false)
+    const read = join(files, 'todo.txt')
+    await writeFile(read, 'Buy milk')
+    expect(handlers.check!(null, 'fileSystem' as never, `${site.origin}/`, { filePath: read, isDirectory: false, fileAccessType: 'readable' } as never)).toBe(true)
+
+    for (const held of [opened, read]) {
+      await truncate(held, 0)
+      // Replacing an empty file loses nothing.
+      expect(file(handlers, held)).toBe(true)
+      await writeFile(held, 'Second draft, saved in another app')
+      expect(file(handlers, held)).toBe(false)
+    }
+  })
+
+  it('its Save dialog emptied but the website did not save to is not taken for that file once it changed', async () => {
+    const { handlers } = createHarness()
+    const picked = join(await folder(), 'report.txt')
+    await writeFile(picked, '')
+    const halfAMinuteAgo = new Date(Date.now() - 30_000)
+    await utimes(picked, halfAMinuteAgo, halfAMinuteAgo)
+    // The website reads the file its Save dialog emptied and saves nothing; you write there in another app.
+    expect(handlers.check!(null, 'fileSystem' as never, `${site.origin}/`, { filePath: picked, isDirectory: false, fileAccessType: 'readable' } as never)).toBe(true)
+    await writeFile(picked, 'Figures')
+    expect(file(handlers, picked)).toBe(false)
+
+    await truncate(picked, 0)
+    expect(file(handlers, picked)).toBe(true)
+    await writeFile(picked, 'Figures, saved in another app')
+    expect(file(handlers, picked)).toBe(false)
+  })
+
+  it('beyond the files Hronaut remembers a website using is never taken for one its Save dialog gave it', async () => {
+    const { handlers } = createHarness()
+    const files = await folder()
+    for (let index = 0; index < 10_000; index += 1) file(handlers, join(files, `missing-${index}.txt`))
+    const picked = join(files, 'drawing.svg')
+    await writeFile(picked, '')
+    expect(file(handlers, picked)).toBe(true)
+    await writeFile(picked, '<svg/>')
+    expect(file(handlers, picked)).toBe(false)
   })
 
   it('can be saved to with the person\'s switch on, whatever it holds, but a folder still needs an Allow', async () => {
