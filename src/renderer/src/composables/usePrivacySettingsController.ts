@@ -208,6 +208,8 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
     clearOptions.value = { ...DEFAULT_CLEAR_OPTIONS }
     summaryMessage.value = ''
     summaryState.value = 'idle'
+    // With no totals yet, the panel would say they are loading, so they load again rather than show nothing forever.
+    if (!summary.value) void refreshSummary()
   }
 
   function dispose(): void {

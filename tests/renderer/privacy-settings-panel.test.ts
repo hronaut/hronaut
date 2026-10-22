@@ -91,6 +91,24 @@ describe('PrivacySettingsPanel', () => {
     controller.dispose()
   })
 
+  // Refresh read only the websites again, so totals that failed to load kept their error until Settings reopened.
+  it('reads the totals again with Refresh after they failed to load', async () => {
+    const { api, controller } = renderPanel()
+    controller.summary.value = null
+    api.summary.mockRejectedValueOnce(new Error('history unavailable'))
+    await controller.refreshSummary()
+    await nextTick()
+    expect(screen.getByText('history unavailable')).toBeVisible()
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Refresh' }))
+
+    await vi.waitFor(() => expect(screen.queryByText('history unavailable')).not.toBeInTheDocument())
+    expect(api.summary).toHaveBeenCalledTimes(2)
+    expect(api.websites).toHaveBeenCalledOnce()
+    expect(screen.getByText('refreshed.test')).toBeVisible()
+    controller.dispose()
+  })
+
   it('blocks refresh and clear controls for the full duration of a clear operation', async () => {
     const { controller } = renderPanel()
 

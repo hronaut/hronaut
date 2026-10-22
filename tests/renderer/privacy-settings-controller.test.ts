@@ -106,6 +106,24 @@ describe('privacy settings controller', () => {
     controller.dispose()
   })
 
+  // Resetting the section with no totals left the panel saying they were loading, and nothing loaded them.
+  it('loads the totals again when the section resets before they loaded', async () => {
+    const { api, controller } = createController()
+    api.summary.mockRejectedValueOnce(new Error('history unavailable'))
+    await controller.refreshSummary()
+    expect(controller.summaryState.value).toBe('error')
+    expect(controller.summary.value).toBeNull()
+
+    controller.resetSelection()
+    expect(api.summary).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(controller.summary.value).toEqual(summary(1)))
+    expect(controller.summaryState.value).toBe('idle')
+
+    controller.resetSelection()
+    expect(api.summary).toHaveBeenCalledTimes(2)
+    controller.dispose()
+  })
+
   it('ignores an older website refresh that finishes after a newer refresh', async () => {
     const first = deferred<BrowsingDataWebsiteSummary[]>()
     const { api, controller } = createController()
