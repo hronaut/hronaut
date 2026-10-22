@@ -2583,7 +2583,6 @@ export class BrowserTabsManager {
       text: (key, parameters) => this.text(key, parameters),
       allHumanInteractionLocked: () => this.allHumanInteractionLocked,
       sleepBlockReason: (tab) => this.sleepBlockReason(tab),
-      createTab: (options) => this.createTab(options),
       setWorkspacePinned: (groupId, pinned) => this.setWorkspacePinned(groupId, pinned),
       sleepWorkspaceTabs: (groupId) => this.sleepWorkspaceTabs(groupId),
       archiveWorkspaceForPerson: (groupId) => this.archiveWorkspaceForPerson(groupId)
@@ -2624,7 +2623,6 @@ export class BrowserTabsManager {
       splitView: () => this.splitView,
       updateSplitView: (updates) => this.updateSplitView(updates),
       closeSplitView: () => this.closeSplitView(),
-      newTab: () => this.newTab(),
       reload: (tabId) => this.reload(tabId),
       reloadIgnoringCache: (tabId) => this.reloadIgnoringCache(tabId),
       duplicateTab: (tabId) => this.duplicateTab(tabId),

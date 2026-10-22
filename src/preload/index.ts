@@ -291,6 +291,11 @@ const api: HronautApi = {
     const handler = (_event: Electron.IpcRendererEvent, groupId: string): void => listener(groupId)
     ipcRenderer.on('browser:edit-tab-group', handler)
     return () => ipcRenderer.removeListener('browser:edit-tab-group', handler)
+  },
+  onNewTabRequested: (listener: (workspaceId: string | undefined) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, workspaceId: unknown): void => listener(typeof workspaceId === 'string' ? workspaceId : undefined)
+    ipcRenderer.on('browser:new-tab-requested', handler)
+    return () => ipcRenderer.removeListener('browser:new-tab-requested', handler)
   }
 }
 

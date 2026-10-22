@@ -25,9 +25,8 @@ export function workspaceContextMenuItems<Tab extends WorkspaceContextMenuTab>(a
     {
       id: 'new-tab-in-workspace',
       label: access.text('native.context.newTabWorkspace'),
-      click: () => runAction('open a new tab in the workspace', () => (
-        access.createTab({ url: 'about:blank', active: true, mcpGroupId: group.id })
-      ))
+      // The window opens it as its + button does, so the cursor goes to the address field.
+      click: () => runAction('open a new tab in the workspace', () => access.window().webContents.send('browser:new-tab-requested', group.id))
     },
     { type: 'separator' },
     {

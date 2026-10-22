@@ -227,4 +227,6 @@ export interface HronautApi {
   onShortcutRequested(listener: (action: import('../browser-shortcuts.js').BrowserShortcutAction) => void): () => void
   onHomeWorkspaceEditorRequested(listener: (request: import('../home-workspaces.js').HomeWorkspaceEditorRequest) => void): () => void
   onTabGroupEditRequested(listener: (groupId: string) => void): () => void
+  /** A menu asked for a new tab in the workspace, or in the active tab's workspace when it names none. */
+  onNewTabRequested(listener: (workspaceId: string | undefined) => void): () => void
 }
