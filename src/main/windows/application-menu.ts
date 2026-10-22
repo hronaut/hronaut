@@ -1,4 +1,4 @@
-import { Menu, type BrowserWindow } from 'electron'
+import { Menu, type BaseWindow, type BrowserWindow, type KeyboardEvent } from 'electron'
 import type { BrowserTabsManager } from '../browser/tabs-manager.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { AppUpdateState, HelpMenuAction } from '../../shared/types.js'
@@ -8,13 +8,13 @@ interface ApplicationMenuHost {
   text(key: MessageKey, parameters?: MessageParameters): string
   showWindow(): void
   /** The main window; read on every use because it is created after the menu and goes when it closes. */
-  mainWindow(): Pick<BrowserWindow, 'webContents'> | null
+  mainWindow(): Pick<BrowserWindow, 'webContents' | 'id'> | null
   checkForUpdates(): Promise<AppUpdateState>
   /** Quits, after asking first when downloads are in progress; the menu's Quit uses it. */
   requestQuit(): void
   /** Runs a browser action from native UI and reports its failure to the shell; skipped until saved workspaces are up. */
   runNativeBrowserAction(action: string, callback: () => unknown): void
-  tabs(): Pick<BrowserTabsManager, 'newTab' | 'back' | 'forward' | 'reload' | 'reloadIgnoringCache' | 'toggleDevTools' | 'setZoom'> | null
+  tabs(): Pick<BrowserTabsManager, 'newTab' | 'back' | 'forward' | 'historyGesture' | 'reload' | 'reloadIgnoringCache' | 'toggleDevTools' | 'setZoom'> | null
 }
 
 /**
@@ -33,6 +33,16 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
       'open GitHub repository',
       () => host.tabs()?.newTab({ url: 'https://github.com/hronaut/hronaut', active: true })
     )
+  }
+
+  // Choosing Back or Forward goes like the toolbar's arrow. Their keys go by the rules of the person's own input on the
+  // shown tab, and only from the main window: typed in a panel in its own window, they would change a page out of view.
+  function goInHistory(direction: 'back' | 'forward', window: BaseWindow | undefined, event: KeyboardEvent): void {
+    if (!event.triggeredByAccelerator) {
+      host.runNativeBrowserAction(`go ${direction}`, () => direction === 'back' ? host.tabs()?.back() : host.tabs()?.forward())
+    } else if (window !== undefined && window.id === host.mainWindow()?.id) {
+      host.runNativeBrowserAction(`go ${direction}`, () => host.tabs()?.historyGesture(direction))
+    }
   }
 
   function installApplicationMenu(): void {
@@ -95,12 +105,12 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               // Chrome's keys. As keys of the menu they reach it only when the website or field in focus leaves them
               // alone, as in Chrome, and never from an agent: Chromium keeps the keys an agent sends from the menu.
               accelerator: process.platform === 'darwin' ? 'Cmd+[' : 'Alt+Left',
-              click: () => host.runNativeBrowserAction('go back', () => host.tabs()?.back())
+              click: (_item, window, event) => goInHistory('back', window, event)
             },
             {
               label: host.text('native.menu.forward'),
               accelerator: process.platform === 'darwin' ? 'Cmd+]' : 'Alt+Right',
-              click: () => host.runNativeBrowserAction('go forward', () => host.tabs()?.forward())
+              click: (_item, window, event) => goInHistory('forward', window, event)
             },
             {
               label: host.text('native.menu.reload'),

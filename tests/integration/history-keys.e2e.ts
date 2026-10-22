@@ -88,6 +88,27 @@ test('Alt+Left, Alt+Right and the mouse\'s side buttons go back and forward, as 
     await appCommand('browser-forward')
     await expect.poll(path).toBe('/keeps')
 
+    // Neither goes behind a Hronaut dialog, where the page would change unseen, nor on a tab whose page input is locked.
+    await appWindow.keyboard.press('Control+Shift+P')
+    const palette = appWindow.getByRole('dialog', { name: 'Commands' })
+    await expect(palette).toBeVisible()
+    await press('shell', 'Left')
+    await appCommand('browser-backward')
+    await appWindow.waitForTimeout(500)
+    expect(await path()).toBe('/keeps')
+    await appWindow.keyboard.press('Escape')
+    await expect(palette).toBeHidden()
+    const lock = (locked: boolean) => appWindow.evaluate(`window.hronaut.setTabHumanInteractionLocked(${JSON.stringify(tabId)}, ${locked})`)
+    await lock(true)
+    await appCommand('browser-backward')
+    await appWindow.waitForTimeout(500)
+    expect(await path()).toBe('/keeps')
+    await lock(false)
+    await appCommand('browser-backward')
+    await expect.poll(path).toBe('/three')
+    await appCommand('browser-forward')
+    await expect.poll(path).toBe('/keeps')
+
     // And View → Back and Forward.
     const clickViewItem = (label: string) => electronApp.evaluate(({ BrowserWindow, Menu }, label) => {
       const item = Menu.getApplicationMenu()?.items.find(candidate => candidate.label === 'View')

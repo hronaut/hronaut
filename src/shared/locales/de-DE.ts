@@ -862,8 +862,8 @@ export const deDE = {
     "initializingStorage": "Sicherer Speicher wird initialisiert.",
     "shortcuts": {
       "address": "Adressleiste fokussieren",
-      "back": "Zur vorherigen Seite zurück",
-      "forward": "Zur nächsten Seite vorwärts",
+      "back": "Zur vorherigen Seite zurückgehen",
+      "forward": "Zur nächsten Seite vorwärtsgehen",
       "reload": "Aktuelle Website neu laden",
       "reloadFresh": "Ohne zwischengespeicherte Dateien neu laden",
       "newTab": "Neuen Tab öffnen",
