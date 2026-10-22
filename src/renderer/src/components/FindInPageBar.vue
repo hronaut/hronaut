@@ -111,8 +111,17 @@ async function activate(tab: BrowserTabState | undefined): Promise<void> {
   if (shouldRepeatQuery) await search(true, true)
 }
 
-async function openForTab(tab: BrowserTabState | undefined = props.activeTab): Promise<void> {
+// Find Next and Find Previous, again: as in Chrome, in an open bar they go to the next or previous match as Enter and
+// Shift+Enter do in its field, and with Find closed they open it and search for its last text again.
+async function openForTab(tab: BrowserTabState | undefined = props.activeTab, again?: 'next' | 'previous'): Promise<void> {
   if (!tab) return
+  const forward = again !== 'previous'
+  if (again && open.value && targetTabId === tab.id) {
+    input.value?.focus()
+    input.value?.select()
+    if (query.value) await search(forward, false)
+    return
+  }
   const shouldRepeatQuery = Boolean(query.value)
   targetTabId = tab.id
   open.value = true
@@ -120,7 +129,7 @@ async function openForTab(tab: BrowserTabState | undefined = props.activeTab): P
   if (!open.value || targetTabId !== tab.id || props.activeTab?.id !== tab.id) return
   input.value?.focus()
   input.value?.select()
-  if (shouldRepeatQuery) await search(true, true)
+  if (shouldRepeatQuery) await search(forward, true)
 }
 
 async function cleanup(): Promise<void> {

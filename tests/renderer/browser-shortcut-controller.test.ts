@@ -67,6 +67,7 @@ function createController(canRunAction = (_action: string) => true) {
     openNewTab: vi.fn(async () => undefined),
     focusAddress: vi.fn(async () => undefined),
     openFind: vi.fn(async () => undefined),
+    findAgain: vi.fn(async (_again: 'next' | 'previous') => undefined),
     setZoom: vi.fn(async () => undefined),
     toggleCurrentBookmark: vi.fn(async () => undefined),
     toggleVisitHistory: vi.fn(async () => undefined),
@@ -138,6 +139,18 @@ describe('browser shortcut controller', () => {
     expect(harness.callbacks.openNewTab).toHaveBeenCalledOnce()
     expect(harness.callbacks.onError).not.toHaveBeenCalled()
     harness.controller.dispose()
+  })
+
+  it('goes to the next and previous match of Find from their shortcuts, but not under Settings', async () => {
+    const harness = createController()
+    await expect(harness.controller.run('find-next')).resolves.toBe(true)
+    expect(harness.callbacks.findAgain).toHaveBeenLastCalledWith('next')
+    await expect(harness.controller.run('find-previous')).resolves.toBe(true)
+    expect(harness.callbacks.findAgain).toHaveBeenLastCalledWith('previous')
+    harness.settingsOpen.value = true
+    await expect(harness.controller.run('find-next')).resolves.toBe(false)
+    await expect(harness.controller.run('find-previous')).resolves.toBe(false)
+    expect(harness.callbacks.findAgain).toHaveBeenCalledTimes(2)
   })
 
   it('opens the agent card from its shortcut, but not over Settings', async () => {

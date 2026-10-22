@@ -51,7 +51,9 @@ export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): 
       // pressed. Move it to trusted chrome before the renderer focuses a
       // field, otherwise the DOM selection is visible while typed keys keep
       // going to the website.
-      if (action === 'find' || action === 'focus-address') host.mainWindowRefs.window.webContents.focus()
+      if (action === 'find' || action === 'find-next' || action === 'find-previous' || action === 'focus-address') {
+        host.mainWindowRefs.window.webContents.focus()
+      }
       host.mainWindowRefs.window.webContents.send('browser:shortcut-requested', action)
     }
   }

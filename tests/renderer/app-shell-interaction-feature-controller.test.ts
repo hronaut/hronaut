@@ -247,6 +247,21 @@ describe('app shell interaction feature controller', () => {
     harness.controller.dispose()
   })
 
+  it('goes to the next or previous match of Find by shortcut, but not over an open dialog', async () => {
+    // Ctrl/Cmd+G reaches the menu from a dialog, which leaves it alone; with Tab search or a wallet approval open, it
+    // opened Find behind the dialog where Ctrl/Cmd+F does nothing.
+    const harness = createHarness()
+    await expect(harness.controller.runBrowserShortcut('find-next')).resolves.toBe(true)
+    await expect(harness.controller.runBrowserShortcut('find-previous')).resolves.toBe(true)
+    for (const dialog of ['commandPalette', 'workspaceEditor', 'credentialPicker', 'tabSearch', 'help', 'releaseHistory', 'agentSteps', 'walletApproval', 'settings'] as const) {
+      harness.refs[dialog].value = true
+      await expect(harness.controller.runBrowserShortcut('find-next'), dialog).resolves.toBe(false)
+      await expect(harness.controller.runBrowserShortcut('find-previous'), dialog).resolves.toBe(false)
+      harness.refs[dialog].value = false
+    }
+    harness.controller.dispose()
+  })
+
   it('takes over from the agent by shortcut, but not over an open dialog', async () => {
     const takeOverFromAgent = vi.fn()
     const harness = createHarness({ takeOverFromAgent })

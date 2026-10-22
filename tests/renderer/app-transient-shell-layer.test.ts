@@ -279,7 +279,7 @@ describe('AppTransientShellLayer', () => {
     const surface = wrapper.vm as unknown as {
       openTabSearch: () => Promise<void>
       closeTabSearch: () => void
-      openFindForTab: (tab: unknown) => Promise<void>
+      openFindForTab: (tab: unknown, again?: 'next' | 'previous') => Promise<void>
       closeFind: () => Promise<void>
       openZoomForTab: (tab: unknown) => Promise<void>
       closeZoom: () => void
@@ -297,6 +297,7 @@ describe('AppTransientShellLayer', () => {
     await surface.openTabSearch()
     surface.closeTabSearch()
     await surface.openFindForTab(tab)
+    await surface.openFindForTab(tab, 'previous')
     await surface.closeFind()
     await surface.openZoomForTab(tab)
     surface.closeZoom()
@@ -311,7 +312,9 @@ describe('AppTransientShellLayer', () => {
 
     expect(handles.tabSearch.openPanel).toHaveBeenCalledOnce()
     expect(handles.tabSearch.close).toHaveBeenCalledOnce()
-    expect(handles.find.openForTab).toHaveBeenCalledWith(tab)
+    // Find itself, then Find Previous.
+    expect(handles.find.openForTab).toHaveBeenNthCalledWith(1, tab, undefined)
+    expect(handles.find.openForTab).toHaveBeenNthCalledWith(2, tab, 'previous')
     expect(handles.find.close).toHaveBeenCalledOnce()
     expect(handles.zoom.openForTab).toHaveBeenCalledWith(tab)
     expect(handles.zoom.close).toHaveBeenCalledOnce()

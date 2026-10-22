@@ -28,6 +28,8 @@ export interface BrowserShortcutControllerOptions {
   openNewTab: ShortcutCallback
   focusAddress: ShortcutCallback
   openFind: ShortcutCallback
+  /** The next or previous match of Find, opening it with its last text when it is closed. */
+  findAgain?: (again: 'next' | 'previous') => void | Promise<void>
   setZoom: (action: 'in' | 'out' | 'reset') => void | Promise<void>
   toggleCurrentBookmark: ShortcutCallback
   toggleVisitHistory: ShortcutCallback
@@ -185,6 +187,12 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
       case 'find':
         await options.openFind()
         return
+      case 'find-next':
+        await options.findAgain?.('next')
+        return
+      case 'find-previous':
+        await options.findAgain?.('previous')
+        return
       case 'reload':
         if (options.activeTab.value) await options.syncState(options.browser.reload(options.activeTab.value.id))
         return
@@ -261,7 +269,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
       disposed
       || !options.canRunAction(action)
       || (options.settingsOpen.value && [
-        'reload', 'reload-ignoring-cache', 'find', 'bookmark', 'pick-element',
+        'reload', 'reload-ignoring-cache', 'find', 'find-next', 'find-previous', 'bookmark', 'pick-element',
         'toggle-devtools', 'zoom-in', 'zoom-out', 'zoom-reset', 'agent-card', 'toggle-full-page', 'take-over'
       ].includes(action))
     ) return false

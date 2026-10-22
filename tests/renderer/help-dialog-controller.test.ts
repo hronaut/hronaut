@@ -90,7 +90,16 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.pinnedWorkspace',
       keys: ['Alt', '1–9']
     })
-    expect(controller.shortcuts.value).toHaveLength(26)
+    // Chrome's keys for the next and previous match of Find.
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.findNext',
+      keys: ['Ctrl/Cmd', 'G']
+    })
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.findPrevious',
+      keys: ['Ctrl/Cmd', 'Shift', 'G']
+    })
+    expect(controller.shortcuts.value).toHaveLength(28)
     controller.dispose()
   })
 })

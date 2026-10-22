@@ -27,6 +27,24 @@ describe('useFindShellController', () => {
     expect(openForTab).toHaveBeenCalledWith(tab)
   })
 
+  it.each(['next', 'previous'] as const)('closes competing shell surfaces and finds the %s match', async (again) => {
+    const settingsOpen = ref(true)
+    const splitMenuOpen = ref(true)
+    const closeTransientPanels = vi.fn()
+    const openForTab = vi.fn(async (_tab: BrowserTabState, _again?: 'next' | 'previous') => undefined)
+    const controller = useFindShellController({ activeTab: ref(tab), settingsOpen, splitMenuOpen, closeTransientPanels, openForTab })
+
+    await controller.findAgain(again)
+
+    expect(settingsOpen.value).toBe(false)
+    expect(splitMenuOpen.value).toBe(false)
+    expect(closeTransientPanels).toHaveBeenCalledWith({ preserveFind: true })
+    expect(openForTab).toHaveBeenCalledWith(tab, again)
+    // Find itself still opens without a match to go to.
+    await controller.open()
+    expect(openForTab).toHaveBeenLastCalledWith(tab)
+  })
+
   it('does nothing without an active tab', async () => {
     const settingsOpen = ref(true)
     const splitMenuOpen = ref(true)
@@ -41,6 +59,7 @@ describe('useFindShellController', () => {
     })
 
     await controller.open()
+    await controller.findAgain('next')
 
     expect(settingsOpen.value).toBe(true)
     expect(splitMenuOpen.value).toBe(true)

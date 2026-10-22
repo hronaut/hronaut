@@ -332,17 +332,35 @@ export function useAppShellInteractionFeatureController(
     settingsTabOpen: surfaces.settings.tabOpen,
     openSettings: () => { surfaces.settings.activate?.() },
     closeSettingsTab: surfaces.settings.closeTab,
-    // A card or a picker over an open dialog would fight it for focus.
-    canRunAction: (action) => (action !== 'pick-element' && action !== 'agent-card' && action !== 'take-over') || !(
-      transient.commandPaletteOpen.value
-      || transient.workspaceEditorOpen.value
-      || transient.credentialPickerOpen.value
-      || surfaces.help.open.value
-      || surfaces.settings.open.value
-    ),
+    canRunAction: (action) => {
+      // Find Next and Find Previous do nothing over a dialog, as Ctrl/Cmd+F does: Find would search the page the dialog
+      // covers and fight it for focus. Their keys reach the menu from a dialog, which leaves them alone.
+      if (action === 'find-next' || action === 'find-previous') {
+        return !(
+          transient.commandPaletteOpen.value
+          || transient.workspaceEditorOpen.value
+          || transient.credentialPickerOpen.value
+          || transient.tabSearchOpen.value
+          || surfaces.help.open.value
+          || surfaces.releaseHistory.open.value
+          || surfaces.agentSteps.open.value
+          || surfaces.walletApproval.value
+          || surfaces.settings.open.value
+        )
+      }
+      // A card or a picker over an open dialog would fight it for focus.
+      return (action !== 'pick-element' && action !== 'agent-card' && action !== 'take-over') || !(
+        transient.commandPaletteOpen.value
+        || transient.workspaceEditorOpen.value
+        || transient.credentialPickerOpen.value
+        || surfaces.help.open.value
+        || surfaces.settings.open.value
+      )
+    },
     openNewTab: async () => { await tabNavigation.openNewTab() },
     focusAddress: async () => { await tabNavigation.focusAddress() },
     openFind: find.open,
+    findAgain: find.findAgain,
     setZoom: transient.setZoom,
     toggleCurrentBookmark: features.collections.toggleCurrentBookmark,
     toggleVisitHistory: features.collections.toggleVisitHistory,

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
+import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import FindInPageBar from '../../src/renderer/src/components/FindInPageBar.vue'
@@ -440,4 +441,85 @@ it('ignores a late failed search after a newer result succeeds', async () => {
   await pending.catch(() => undefined)
   await vi.waitFor(() => expect(screen.getByText('1 / 3')).toBeVisible())
   expect(screen.queryByText('Search failed')).not.toBeInTheDocument()
+})
+
+describe('Find Next and Find Previous', () => {
+  // F3 and Ctrl/Cmd+G, with Shift for the previous match, did nothing, where Chrome goes to the next or previous match.
+  type Exposed = { openForTab(tab?: BrowserTabState, again?: 'next' | 'previous'): Promise<void> }
+
+  function mountBar(open: boolean) {
+    const activeTab = tab('first')
+    const browser = {
+      findInPage: vi.fn(async (_request: unknown): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 })),
+      stopFindInPage: vi.fn(async (_tabId: string) => undefined)
+    }
+    const wrapper = mount(FindInPageBar, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { open, activeTab, browser, 'onUpdate:open': (next: boolean) => wrapper.setProps({ open: next }) }
+    })
+    const exposed = wrapper.vm as unknown as Exposed
+    const field = () => wrapper.find<HTMLInputElement>('input[type="search"]').element
+    return { wrapper, browser, activeTab, exposed, field }
+  }
+
+  it.each([['next', true], ['previous', false]] as const)('in the open bar go to the %s match as Enter does, from the page too', async (again, forward) => {
+    const { wrapper, browser, activeTab, exposed, field } = mountBar(true)
+    try {
+      await flushPromises()
+      await wrapper.find('input[type="search"]').setValue('needle')
+      await flushPromises()
+      field().blur()
+      browser.findInPage.mockClear()
+
+      await exposed.openForTab(activeTab, again)
+
+      expect(browser.findInPage).toHaveBeenCalledOnce()
+      expect(browser.findInPage).toHaveBeenCalledWith({ tabId: 'first', query: 'needle', forward, findNext: false, caseSensitive: false })
+      expect(document.activeElement).toBe(field())
+      expect([field().selectionStart, field().selectionEnd]).toEqual([0, 'needle'.length])
+    } finally { wrapper.unmount() }
+  })
+
+  it.each([['next', true], ['previous', false]] as const)('with Find closed open it and search for its last text, towards the %s match', async (again, forward) => {
+    const { wrapper, browser, activeTab, exposed, field } = mountBar(true)
+    try {
+      await flushPromises()
+      await wrapper.find('input[type="search"]').setValue('needle')
+      await flushPromises()
+      await wrapper.setProps({ open: false })
+      await flushPromises()
+      browser.findInPage.mockClear()
+
+      await exposed.openForTab(activeTab, again)
+
+      expect(wrapper.props('open')).toBe(true)
+      expect(browser.findInPage).toHaveBeenCalledOnce()
+      expect(browser.findInPage).toHaveBeenCalledWith({ tabId: 'first', query: 'needle', forward, findNext: true, caseSensitive: false })
+      expect(document.activeElement).toBe(field())
+    } finally { wrapper.unmount() }
+  })
+
+  it('open an empty Find without searching', async () => {
+    const { wrapper, browser, activeTab, exposed, field } = mountBar(false)
+    try {
+      await exposed.openForTab(activeTab, 'next')
+      expect(wrapper.props('open')).toBe(true)
+      await exposed.openForTab(activeTab, 'previous')
+      expect(browser.findInPage).not.toHaveBeenCalled()
+      expect(document.activeElement).toBe(field())
+    } finally { wrapper.unmount() }
+  })
+
+  it('leave Find itself repeating its search from the start', async () => {
+    const { wrapper, browser, activeTab, exposed } = mountBar(true)
+    try {
+      await flushPromises()
+      await wrapper.find('input[type="search"]').setValue('needle')
+      await flushPromises()
+      browser.findInPage.mockClear()
+      await exposed.openForTab(activeTab)
+      expect(browser.findInPage).toHaveBeenCalledWith(expect.objectContaining({ forward: true, findNext: true }))
+    } finally { wrapper.unmount() }
+  })
 })

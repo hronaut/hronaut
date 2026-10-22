@@ -47,6 +47,23 @@ describe('useShellKeyboardController', () => {
     expect(runShortcut).toHaveBeenCalledTimes(3)
   })
 
+  it('goes to the next and previous match of Find with F3 and Ctrl+G in Hronaut\'s own window', () => {
+    // Typed in the Find field they did nothing, where Chrome goes to the next or previous match.
+    const { controller, runShortcut } = setup()
+    const f3 = new KeyboardEvent('keydown', { key: 'F3', code: 'F3', cancelable: true })
+    controller.handleKeyDown(f3)
+    expect(runShortcut).toHaveBeenLastCalledWith('find-next')
+    // Taken here, so the menu's own key does not go to a match a second time.
+    expect(f3.defaultPrevented).toBe(true)
+    controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'F3', code: 'F3', shiftKey: true, cancelable: true }))
+    expect(runShortcut).toHaveBeenLastCalledWith('find-previous')
+    controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'g', code: 'KeyG', ctrlKey: true, cancelable: true }))
+    expect(runShortcut).toHaveBeenLastCalledWith('find-next')
+    controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'G', code: 'KeyG', ctrlKey: true, shiftKey: true, cancelable: true }))
+    expect(runShortcut).toHaveBeenLastCalledWith('find-previous')
+    expect(runShortcut).toHaveBeenCalledTimes(4)
+  })
+
   it('leaves shell surfaces open when Escape belongs to an IME composition', () => {
     const commandPalette = surface(true)
     const modal = surface(true)
