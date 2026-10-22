@@ -13,6 +13,7 @@ function tab(id: string): BrowserTabState {
     url: `https://example.test/${id}`,
     loading: false,
     navigationGeneration: 0,
+    documentGeneration: 0,
     canGoBack: false,
     canGoForward: false,
     active: true,
@@ -312,9 +313,8 @@ describe('FindInPageBar', () => {
   })
 
   it.each([
-    ['same-URL reload', { navigationGeneration: 1 }],
-    ['another page', { url: 'https://example.test/another' }],
-    ['same-document route change', { url: 'https://example.test/first#profile', navigationGeneration: 1 }]
+    ['same-URL reload', { navigationGeneration: 1, documentGeneration: 1 }],
+    ['another page', { url: 'https://example.test/another', navigationGeneration: 1, documentGeneration: 1 }]
   ])('clears old matches after %s in the same tab', async (_name, changes) => {
     const { view, browser, activeTab } = renderBar()
     await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
@@ -327,12 +327,35 @@ describe('FindInPageBar', () => {
     expect(screen.queryByText('1 / 3')).not.toBeInTheDocument()
   })
 
+  // A change within the page closed Find and cleared its matches, so on a site that moves its address to the section
+  // in view, stepping to a match further down closed Find. Chrome keeps Find open through such changes.
+  it.each([
+    ['the site moves its address to the section in view', { url: 'https://example.test/first#second-section', navigationGeneration: 1 }],
+    ['a route change by history.pushState', { url: 'https://example.test/first/profile', navigationGeneration: 1 }],
+    ['history.replaceState keeps the address', { navigationGeneration: 1 }]
+  ])('keeps Find and its matches when %s', async (_name, changes) => {
+    const { view, browser, activeTab } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await fireEvent.update(search, 'needle')
+    await screen.findByText('1 / 3')
+
+    await view.rerender({ activeTab: { ...activeTab, ...changes } })
+
+    expect(browser.stopFindInPage).not.toHaveBeenCalled()
+    expect(view.emitted()['update:open']).toBeUndefined()
+    expect(screen.getByText('1 / 3')).toBeVisible()
+    browser.findInPage.mockResolvedValueOnce({ activeMatchOrdinal: 2, matches: 3 })
+    await fireEvent.keyDown(search, { key: 'Enter' })
+    expect(await screen.findByText('2 / 3')).toBeVisible()
+    expect(browser.findInPage).toHaveBeenLastCalledWith(expect.objectContaining({ tabId: 'first', query: 'needle', findNext: false }))
+  })
+
   it('discards a delayed match result from before a same-URL reload', async () => {
     const pending = deferred<BrowserFindResult>()
     const { view, browser, activeTab } = renderBar({ browser: { findInPage: () => pending.promise } })
     await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
 
-    await view.rerender({ activeTab: { ...activeTab, navigationGeneration: 1 } })
+    await view.rerender({ activeTab: { ...activeTab, navigationGeneration: 1, documentGeneration: 1 } })
     pending.resolve({ activeMatchOrdinal: 1, matches: 9 })
     await pending.promise
 

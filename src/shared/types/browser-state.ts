@@ -18,6 +18,9 @@ export interface BrowserTabState {
   url: string
   loading: boolean
   navigationGeneration: number
+  /** Opaque marker advanced when the tab starts loading another document, such as another page or a reload; a change
+   * within the page, such as a fragment or `history.pushState`, leaves it. */
+  documentGeneration?: number
   /** Opaque boundary advanced when agent control is handed off or re-established. */
   observationGeneration?: number
   /** Runtime marker for direct human keyboard/mouse input; not page content. */

@@ -37,6 +37,7 @@ function toState<Tab extends BrowserStateTab>(access: BrowserStateAccess<Tab>, t
     url: tab.url,
     loading: tab.loading,
     navigationGeneration: tab.navigationGeneration,
+    documentGeneration: tab.walletNavigationGeneration,
     observationGeneration: tab.observationGeneration,
     humanInteractionGeneration: tab.humanInteractionGeneration,
     browserSessionGeneration: tab.browserSessionGeneration,

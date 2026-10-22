@@ -31,6 +31,8 @@ export interface BrowserStateTab {
   url: string
   loading: boolean
   navigationGeneration: number
+  /** Advanced when the tab starts loading another document; changes within the page leave it. */
+  walletNavigationGeneration: number
   observationGeneration: number
   humanInteractionGeneration: number
   browserSessionGeneration: number
