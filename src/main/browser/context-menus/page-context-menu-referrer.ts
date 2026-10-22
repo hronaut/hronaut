@@ -1,3 +1,5 @@
+import type { Referrer } from 'electron'
+
 // A referrer longer than this is sent as its origin, as the Referrer Policy specification and Chromium do.
 const MAX_REFERRER_LENGTH = 4096
 
@@ -45,4 +47,22 @@ export function savedResourceReferrer(frameUrl: string, target: string, policy: 
       // that this list lacks. Electron reports origin-when-cross-origin as no-referrer, so such a page sends nothing.
       return origin
   }
+}
+
+/** The referrer policies Electron passes on to a page load, which are every policy it reports for a frame. */
+const LOAD_POLICIES = new Set<string>(['default', 'unsafe-url', 'no-referrer-when-downgrade', 'no-referrer', 'origin', 'strict-origin-when-cross-origin', 'same-origin', 'strict-origin'])
+
+/**
+ * The referrer a link or image opened in a new tab from the page menu sends, as Chrome's Open Link in New Tab and Open
+ * Image in New Tab do, so a site that serves a page or image only to its own pages opens it. It is the frame's address
+ * under the frame's referrer policy, which Chromium applies to the load and to every redirect after it, as for a click
+ * on the link. Undefined when nothing is sent: from a frame that is not on the web, and under no-referrer.
+ */
+export function openedResourceReferrer(frameUrl: string, policy: string): Referrer | undefined {
+  const source = webUrl(frameUrl)
+  if (!source || policy === 'no-referrer' || !LOAD_POLICIES.has(policy)) return undefined
+  source.hash = ''
+  source.username = ''
+  source.password = ''
+  return { url: source.href, policy: policy as Referrer['policy'] }
 }

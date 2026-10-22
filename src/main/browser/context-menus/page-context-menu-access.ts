@@ -1,4 +1,4 @@
-import type { BrowserWindow, WebContents } from 'electron'
+import type { BrowserWindow, LoadURLOptions, WebContents } from 'electron'
 import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
 import type { BrowserState } from '../../../shared/types.js'
 
@@ -29,7 +29,8 @@ export interface PageContextMenuAccess<Tab extends PageContextMenuTab> {
   window(): BrowserWindow
   options(): PageContextMenuOptions
   text(key: MessageKey, parameters?: MessageParameters): string
-  createTab(options: { url: string; active: boolean; mcpGroupId?: string }): Promise<Tab>
+  /** Opens a tab; the load options carry the page's referrer to the address. */
+  createTab(options: { url: string; active: boolean; mcpGroupId?: string; loadOptions?: LoadURLOptions }): Promise<Tab>
   back(tabId: string): Promise<BrowserState>
   forward(tabId: string): Promise<BrowserState>
   reload(tabId: string): Promise<BrowserState>

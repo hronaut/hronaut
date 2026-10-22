@@ -1,7 +1,7 @@
 import { Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebFrameMain } from 'electron'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
-import { savedResourceReferrer } from './page-context-menu-referrer.js'
+import { openedResourceReferrer, savedResourceReferrer } from './page-context-menu-referrer.js'
 
 /**
  * Shows the native context menu for a right-click in the page: link, image,
@@ -27,13 +27,6 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       reportActionFailure(actionName, error)
     }
   }
-  const openBackgroundTab = (url: string): void => {
-    void access.createTab({ url, active: false, mcpGroupId: tab.mcpGroupId })
-      .catch((error) => {
-        console.error(`[browser] Could not open context-menu URL ${url}:`, error)
-        access.options().onActionFailed?.('open link in new tab', error)
-      })
-  }
   const reportCopyFailure = (kind: 'text' | 'image', error: unknown): void => {
     console.error(`[browser] Could not copy context-menu ${kind}:`, error)
     access.options().onClipboardCopyFailed?.(error)
@@ -47,6 +40,14 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   // A sandboxed frame or page has an opaque origin and sends no referrer, as in Chrome. It is read now, since the frame
   // can be gone by the time an item is chosen.
   const sandboxedFrame = hasOpaqueOrigin(params.frame)
+  const openBackgroundTab = (url: string): void => {
+    const referrer = sandboxedFrame ? undefined : openedResourceReferrer(params.frameURL, policy)
+    void access.createTab({ url, active: false, mcpGroupId: tab.mcpGroupId, ...(referrer ? { loadOptions: { httpReferrer: referrer } } : {}) })
+      .catch((error) => {
+        console.error(`[browser] Could not open context-menu URL ${url}:`, error)
+        access.options().onActionFailed?.('open link in new tab', error)
+      })
+  }
   const download = (url: string, linkName = ''): void => {
     const referrer = sandboxedFrame ? undefined : savedResourceReferrer(params.frameURL, url, policy)
     // Blink gives a same-origin link's `download` name, which Chrome saves the link under.
