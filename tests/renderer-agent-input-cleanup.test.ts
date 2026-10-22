@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { clearRendererAgentInputFlag } from '../src/main/browser/native-input-cleanup.js'
 import { RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 import { PrintDialogOpenError } from '../src/main/browser/print-dialog-guard.js'
+import { SourceViewError } from '../src/main/browser/source-view-guard.js'
 
 function fixture() {
   const events = new EventEmitter()
@@ -42,6 +43,15 @@ describe('renderer agent-input flag cleanup', () => {
     const f = fixture(), onFailure = vi.fn()
     const pending = clearRendererAgentInputFlag(f.page, onFailure)
     f.reject(new PrintDialogOpenError(sent))
+    await pending
+    expect(onFailure).not.toHaveBeenCalled()
+    expect(f.page.listenerCount('destroyed')).toBe(0)
+  })
+  // Setting the flag is refused on a page's source too, so it never had one; a failed cleanup would block native clicks on the tab.
+  it('does not report a page\'s source as a failed cleanup', async () => {
+    const f = fixture(), onFailure = vi.fn()
+    const pending = clearRendererAgentInputFlag(f.page, onFailure)
+    f.reject(new SourceViewError())
     await pending
     expect(onFailure).not.toHaveBeenCalled()
     expect(f.page.listenerCount('destroyed')).toBe(0)

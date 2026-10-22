@@ -72,6 +72,7 @@ export const plPLAppErrors: AppErrorMessages = {
     "rendererExitedBeforeAction": "Strona nie działa, bo jej proces się zakończył; nic do niej nie wysłano. Odśwież lub zamknij kartę, a potem sprawdź jej bieżący stan.",
     "printDialogOpenedDuringAction": "Podczas tej czynności strona otworzyła okno drukowania; trzyma ono stronę, dopóki osoba nie wydrukuje lub nie anuluje, a skutki czynności są nieznane. Poproś o zamknięcie okna, a potem sprawdź bieżący stan.",
     "printDialogOpenBeforeAction": "Strona pokazuje okno drukowania, które trzyma ją, dopóki osoba nie wydrukuje lub nie anuluje; nic do niej nie wysłano. Poproś o zamknięcie okna, a potem spróbuj ponownie.",
+    "sourceViewRunsNoScripts": "Ta karta pokazuje źródło strony (adres view-source:), w którym skrypty strony nigdy się nie kończą; nic do niej nie wysłano. Otwórz w karcie samą stronę, aby ją zbadać.",
     "closedWhileWaiting": "Karta została zamknięta podczas oczekiwania na stronę.",
     "rendererLostWhileWaiting": "Karta przestała działać podczas oczekiwania na stronę.",
     "loadTimedOut": "Upłynął limit czasu oczekiwania na wczytanie strony.",
