@@ -271,6 +271,16 @@ export class AgentPresenceRegistry {
     tabInWorkspace: (tabId: string) => boolean = () => true
   ): string | undefined {
     if (this.closedSessions.has(client.id)) return undefined
+    // A tab activity that ends past the window, as one Hronaut ends itself when its call never does, only stops
+    // counting as running: it is no sign the agent is active now, nor of what it is doing.
+    if (call.source !== 'call' && call.phase !== 'started') {
+      const inFlight = this.clients.get(client.id)?.workspaces.get(workspaceId)?.inFlight
+      const pending = inFlight?.get(call.activityId)
+      if (inFlight && pending && call.occurredAt - pending.startedAt >= AGENT_PRESENCE_WINDOW_MS) {
+        inFlight.delete(call.activityId)
+        return undefined
+      }
+    }
     const record = this.client(client, call.occurredAt)
     let workspace = record.workspaces.get(workspaceId)
     if (!workspace) {

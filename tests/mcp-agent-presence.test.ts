@@ -380,6 +380,21 @@ describe('agent presence registry', () => {
     expect(registry.derive(later + 300, context())[otherWorkspace]?.[0]).toMatchObject({ state: 'working', step: 'script' })
   })
 
+  it('lets a tab activity ended past the window go without bringing the agent back or naming it', () => {
+    const registry = new AgentPresenceRegistry()
+    registry.track(claude, workspace, activity('started', 1_000, { activityId: 'stuck', tabId: 'tab-2', toolName: 'browser_evaluate' }))
+    // Hronaut ends a tab activity itself once its call outlasts every tool's deadline.
+    const ended = 1_000 + 2 * AGENT_PRESENCE_WINDOW_MS
+    registry.track(claude, workspace, activity('failed', ended, { activityId: 'stuck', tabId: 'tab-2', toolName: 'browser_evaluate' }))
+    expect(registry.derive(ended + 1, context())[workspace]).toBeUndefined()
+    // An agent still at work keeps its own newest step and tab.
+    registry.track(claude, otherWorkspace, activity('started', 1_000, { activityId: 'stuck', tabId: 'tab-2', toolName: 'browser_evaluate' }))
+    registry.track(claude, otherWorkspace, activity('started', ended - 2_000, { activityId: 'click', tabId: 'tab-1' }))
+    registry.track(claude, otherWorkspace, activity('finished', ended - 1_000, { activityId: 'click', tabId: 'tab-1' }))
+    registry.track(claude, otherWorkspace, activity('failed', ended, { activityId: 'stuck', tabId: 'tab-2', toolName: 'browser_evaluate' }))
+    expect(registry.derive(ended + 1, context())[otherWorkspace]?.[0]).toMatchObject({ state: 'working', step: 'click', lastTabId: 'tab-1' })
+  })
+
   it('stays bounded when calls never finish and many clients appear', () => {
     const registry = new AgentPresenceRegistry()
     for (let index = 0; index < 100; index += 1) {

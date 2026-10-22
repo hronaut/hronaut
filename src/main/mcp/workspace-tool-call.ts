@@ -327,6 +327,8 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
         let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | 'provenance-rejected' | undefined
         let authorityReason: BrowserActionAuthorityReason | undefined
         let activityStarted = false
+        // Whether the tab activity began, even if its limit has ended it since.
+        let activityBegun = false
         let activityLimit: ReturnType<typeof setTimeout> | undefined
         let activityDispatched = false
         let verificationResult: { status: string; reason: string; attempt: number } | undefined
@@ -454,6 +456,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           }
           if (activityId && activityToolName && resolvedTabId) {
             activityStarted = true
+            activityBegun = true
             onTabActivity?.({
               activityId,
               tabId: resolvedTabId,
@@ -464,7 +467,14 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
             }, workspaceId)
             // A call whose end never comes, such as a page step that never settles, stops showing as running on its
             // tab, for Follow, tab sleep and the tray as much as for the tab strip.
-            activityLimit = setTimeout(() => endActivity(undefined, true, new Error('Tab activity timed out')), TAB_ACTIVITY_LIMIT_MS)
+            activityLimit = setTimeout(() => {
+              try {
+                endActivity(undefined, true, new Error('Tab activity timed out'))
+              } catch (error) {
+                console.error('[mcp] Could not end a tab activity past its limit:', error)
+              }
+            }, TAB_ACTIVITY_LIMIT_MS)
+            activityLimit.unref?.()
           }
           const finishContinuityAction = manager.beginWorkspaceContinuityAction(workspaceId, readOnly)
           try {
@@ -586,7 +596,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           }, workspaceId)
         }
         const invalidatedWaitResult = (error: unknown): CallToolResult | undefined => {
-          if (!activityStarted || !resolvedTabId || !options.waitsOnTab) {
+          if (!activityBegun || !resolvedTabId || !options.waitsOnTab) {
             return undefined
           }
           return closedTabWaitResult(error, !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId))

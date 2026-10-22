@@ -94,3 +94,28 @@ it('ends the activity of a call that settles in time only once', async () => {
     await server.stop()
   }
 })
+
+it('still reports a closed tab to a wait that outlasted its activity', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout'] })
+  let inWorkspace = true
+  let failWake: (error: Error) => void = () => undefined
+  const { server, client, phases } = await startServer({
+    tabBelongsToMcpGroup: vi.fn(() => inWorkspace),
+    wakeTab: vi.fn(() => new Promise((_resolve, reject) => { failWake = reject }))
+  })
+  try {
+    const pending = client.callTool({ name: 'browser_wait', arguments: { workspaceId, tabId, text: 'Ready' } }, undefined, { timeout: 2 * TAB_ACTIVITY_LIMIT_MS })
+    await vi.waitFor(() => expect(phases()).toEqual(['started']))
+    await vi.advanceTimersByTimeAsync(TAB_ACTIVITY_LIMIT_MS)
+    expect(phases()).toEqual(['started', 'failed'])
+    // The person closes the tab the call was still waking.
+    inWorkspace = false
+    failWake(new Error(`Tab not found: ${tabId}`))
+    const result = await pending as CallToolResult
+    expect(result.structuredContent).toMatchObject({ status: 'STALE_OBSERVATION' })
+    expect(phases()).toEqual(['started', 'failed'])
+  } finally {
+    await client.close()
+    await server.stop()
+  }
+})
