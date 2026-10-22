@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Text with spaces after a word and a colon, typed in the address bar or sent with `browser_navigate`, is now searched, as in Chrome, such as `site:github.com electron` or a pasted error message like `TypeError: x is undefined`. Hronaut took it for an address of an unknown scheme and refused it with “Agent workspaces cannot open local, privileged, or credential-bearing browser URLs.”
+
 ## [3.4.0] - 2026-10-22
 
 ### Changed
