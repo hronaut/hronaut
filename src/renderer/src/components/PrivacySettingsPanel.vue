@@ -49,7 +49,7 @@ const {
   clearing,
   canClear,
   filteredWebsites,
-  refreshWebsites,
+  refresh,
   clearSelected,
   clearWebsite,
   websiteMeta
@@ -132,7 +132,8 @@ watch(() => filteredWebsites.value.map(site => site.origin).join('\n'), async (_
         <h4>{{ t('settings.privacy.websites') }}</h4>
         <p>{{ t('settings.privacy.websitesDescription') }}</p>
       </div>
-      <UiButton class="secondary-button janitor-refresh" type="button" :disabled="websiteState === 'loading' || clearing" @click="refreshWebsites">
+      <!-- Reads the totals again too, so totals that failed to load can be tried again. -->
+      <UiButton class="secondary-button janitor-refresh" type="button" :disabled="websiteState === 'loading' || clearing" @click="refresh">
         <IconRefresh aria-hidden="true" />
         {{ t('settings.privacy.refresh') }}
       </UiButton>
