@@ -7,7 +7,7 @@ import { validateTabOverviewPreviewIds } from '../shared/types.js'
 
 type TabsIpcTabs = Pick<BrowserTabsManager,
   | 'getState' | 'getTabOverviewPreviews' | 'getTabOverviewPagePreview'
-  | 'openHome' | 'newTab' | 'reopenClosedTab' | 'selectTabAndWait' | 'closeTabsForPerson'
+  | 'openHome' | 'newTab' | 'reopenClosedTab' | 'selectTabForPerson' | 'closeTabsForPerson'
   | 'openSplitViewAndWait' | 'updateSplitView' | 'closeSplitView'
   | 'setTabLabel' | 'setTabPinned' | 'setTabSleeping' | 'setTabPageLifecycle' | 'sleepInactiveTabs'
   | 'reorderTab' | 'showTabContextMenu' | 'setTabMuted' | 'setAllTabsMuted'
@@ -51,7 +51,7 @@ export function registerTabsIpc(host: TabsIpcHost): void {
     if (closedTabId !== undefined && typeof closedTabId !== 'string') throw new TypeError('Invalid closed tab ID')
     return host.tabs()!.reopenClosedTab(closedTabId)
   })
-  host.handleBrowserIpc('browser:select-tab', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.selectTabAndWait(tabId) })
+  host.handleBrowserIpc('browser:select-tab', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.selectTabForPerson(tabId) })
   host.handleBrowserIpc('browser:close-tab', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
