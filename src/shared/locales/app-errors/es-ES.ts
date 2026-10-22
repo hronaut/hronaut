@@ -74,7 +74,9 @@ export const esESAppErrors: AppErrorMessages = {
     "rendererLostWhileWaiting": "La pestaña dejó de responder mientras se esperaba la página.",
     "loadTimedOut": "Se agotó el tiempo de espera para que la página terminara de cargarse.",
     "zoomPercent": "El zoom de la página debe ser un número entero entre 50 y 400 por ciento.",
-    "findQuery": "La búsqueda debe tener entre 1 y 1000 caracteres."
+    "findQuery": "La búsqueda debe tener entre 1 y 1000 caracteres.",
+    "printFailed": "Hronaut no pudo imprimir esta página.",
+    "printAgentWorking": "Un agente está trabajando en esta página. Toma el control o pausa los agentes para imprimirla."
   },
   "loadFailure": {
     "nameNotResolved": "No se pudo encontrar la dirección del sitio web ({code}).",

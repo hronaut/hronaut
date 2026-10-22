@@ -873,6 +873,7 @@ export const plPL = {
       "commands": "Otwórz paletę poleceń",
       "pick": "Wybierz element do kontekstu agenta",
       "find": "Znajdź na bieżącej stronie",
+      "print": "Drukuj stronę",
       "bookmark": "Dodaj bieżącą stronę do zakładek",
       "history": "Otwórz historię przeglądania",
       "clearData": "Wyczyść dane przeglądania",
@@ -3507,7 +3508,8 @@ export const plPL = {
       "about": "O Hronaut",
       "support": "Licencja komercyjna",
       "repository": "Repozytorium GitHub",
-      "checkUpdatesPlain": "Sprawdź aktualizacje"
+      "checkUpdatesPlain": "Sprawdź aktualizacje",
+      "print": "Drukuj…"
     },
     "tray": {
       "show": "Pokaż Hronaut",
@@ -3578,7 +3580,8 @@ export const plPL = {
       "reload": "Odśwież",
       "reloadWithoutCache": "Odśwież bez pamięci podręcznej",
       "copyPageAddress": "Kopiuj adres strony",
-      "inspect": "Sprawdź"
+      "inspect": "Sprawdź",
+      "print": "Drukuj…"
     },
     "pageProblem": {
       "loadTitle": "Nie udało się otworzyć tej witryny",

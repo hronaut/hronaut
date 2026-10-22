@@ -6,7 +6,7 @@ import { openedResourceReferrer, savedResourceReferrer } from './page-context-me
 /**
  * Shows the native context menu for a right-click in the page: link, image,
  * editing and selection actions for what was clicked, then page navigation,
- * copy address and inspect. Each action checks that its tab is still open.
+ * copy address, print and inspect. Each action checks that its tab is still open.
  */
 export function showContextMenu<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, params: ContextMenuParams): void {
   const webContents = tab.webContents
@@ -185,6 +185,14 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       label: access.text('native.context.copyPageAddress'),
       click: () => copyText(tab.url)
     },
+    // Hronaut Home is Hronaut's own page, with nothing on it to print.
+    ...isHronautHomeUrl(tab.url) ? [] : [{
+      id: 'print',
+      label: access.text('native.context.print'),
+      click: withLiveContents('print the page', () => {
+        void access.print(tab).catch((error) => access.options().onActionFailed?.('print the page', error))
+      })
+    }],
     // Hronaut Home has no Developer Tools, as F12 and Ctrl+Shift+I already refuse there: its page holds Hronaut's
     // privileged Home bridge.
     ...isHronautHomeUrl(tab.url) ? [] : [{

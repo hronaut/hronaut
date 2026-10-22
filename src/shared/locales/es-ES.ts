@@ -873,6 +873,7 @@ export const esES = {
       "commands": "Abrir la paleta de comandos",
       "pick": "Seleccionar un elemento para el contexto del agente",
       "find": "Buscar en la página actual",
+      "print": "Imprimir la página",
       "bookmark": "Añadir la página actual a marcadores",
       "history": "Abrir el historial de navegación",
       "clearData": "Borrar datos de navegación",
@@ -3507,7 +3508,8 @@ export const esES = {
       "about": "Acerca de Hronaut",
       "support": "Licencia comercial",
       "repository": "Repositorio de GitHub",
-      "checkUpdatesPlain": "Buscar actualizaciones"
+      "checkUpdatesPlain": "Buscar actualizaciones",
+      "print": "Imprimir…"
     },
     "tray": {
       "show": "Mostrar Hronaut",
@@ -3578,7 +3580,8 @@ export const esES = {
       "reload": "Recargar",
       "reloadWithoutCache": "Recargar sin caché",
       "copyPageAddress": "Copiar dirección de la página",
-      "inspect": "Inspeccionar"
+      "inspect": "Inspeccionar",
+      "print": "Imprimir…"
     },
     "pageProblem": {
       "loadTitle": "No se pudo acceder a este sitio",

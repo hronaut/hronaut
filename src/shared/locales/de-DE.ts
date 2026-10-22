@@ -873,6 +873,7 @@ export const deDE = {
       "commands": "Befehlspalette öffnen",
       "pick": "Element für Agentenkontext auswählen",
       "find": "Auf der aktuellen Seite suchen",
+      "print": "Seite drucken",
       "bookmark": "Aktuelle Seite als Lesezeichen speichern",
       "history": "Browserverlauf öffnen",
       "clearData": "Browserdaten löschen",
@@ -3507,7 +3508,8 @@ export const deDE = {
       "about": "Über Hronaut",
       "support": "Kommerzielle Lizenz",
       "repository": "GitHub-Repository",
-      "checkUpdatesPlain": "Nach Updates suchen"
+      "checkUpdatesPlain": "Nach Updates suchen",
+      "print": "Drucken…"
     },
     "tray": {
       "show": "Hronaut anzeigen",
@@ -3578,7 +3580,8 @@ export const deDE = {
       "reload": "Neu laden",
       "reloadWithoutCache": "Ohne Cache neu laden",
       "copyPageAddress": "Seitenadresse kopieren",
-      "inspect": "Untersuchen"
+      "inspect": "Untersuchen",
+      "print": "Drucken…"
     },
     "pageProblem": {
       "loadTitle": "Diese Website konnte nicht erreicht werden",

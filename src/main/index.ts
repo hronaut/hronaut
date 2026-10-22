@@ -1042,6 +1042,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     },
     onWorkspaceForgotten: (workspaceId) => { void forgetWorkspaceSitePermissions(workspaceId) },
     shortcutAvailable: pageShortcutAvailable,
+    agentWorkingOnTab: (tabId, workspaceId) => takeOvers.available(tabId, workspaceId) !== undefined,
     onShortcutRequested: runPageShortcut,
     copyText: copyTextToClipboard,
     copyImageAt: copyPageImageToClipboard,

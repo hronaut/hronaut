@@ -873,6 +873,7 @@ export const ruRU = {
       "commands": "Открыть палитру команд",
       "pick": "Выбрать элемент для контекста агента",
       "find": "Найти на текущей странице",
+      "print": "Распечатать страницу",
       "bookmark": "Добавить текущую страницу в закладки",
       "history": "Открыть историю просмотра",
       "clearData": "Очистить данные браузера",
@@ -3507,7 +3508,8 @@ export const ruRU = {
       "about": "О Hronaut",
       "support": "Коммерческая лицензия",
       "repository": "Репозиторий GitHub",
-      "checkUpdatesPlain": "Проверить обновления"
+      "checkUpdatesPlain": "Проверить обновления",
+      "print": "Печать…"
     },
     "tray": {
       "show": "Показать Hronaut",
@@ -3578,7 +3580,8 @@ export const ruRU = {
       "reload": "Перезагрузить",
       "reloadWithoutCache": "Перезагрузить без кэша",
       "copyPageAddress": "Копировать адрес страницы",
-      "inspect": "Исследовать"
+      "inspect": "Исследовать",
+      "print": "Печать…"
     },
     "pageProblem": {
       "loadTitle": "Не удалось открыть сайт",
