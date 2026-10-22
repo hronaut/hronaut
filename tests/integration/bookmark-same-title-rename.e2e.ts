@@ -23,7 +23,7 @@ test('keeps a bookmark in its place in Recently updated when Rename saves the sa
 
   // Enter in the name field, then the check button, each without a change to the name.
   await panel.getByRole('button', { name: 'Rename Alpha', exact: true }).click()
-  await expect(panel.getByRole('button', { name: 'Save name for Alpha', exact: true })).toBeVisible()
+  await expect(panel.getByRole('textbox', { name: 'Rename Alpha', exact: true })).toBeFocused()
   await appWindow.keyboard.press('Enter')
   await expect(panel.getByRole('button', { name: 'Rename Alpha', exact: true })).toBeVisible()
   expect(await savedOrder()).toEqual(['Gamma', 'Beta', 'Alpha'])
