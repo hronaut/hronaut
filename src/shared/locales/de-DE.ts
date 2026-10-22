@@ -862,6 +862,9 @@ export const deDE = {
     "initializingStorage": "Sicherer Speicher wird initialisiert.",
     "shortcuts": {
       "address": "Adressleiste fokussieren",
+      "addressNewTab": "In der Adressleiste Eingegebenes in einem neuen Tab öffnen",
+      "addressBackgroundTab": "In der Adressleiste Eingegebenes in einem neuen Hintergrund-Tab öffnen",
+      "addressWwwCom": "www. und .com zum Websitenamen in der Adressleiste hinzufügen und öffnen",
       "back": "Zur vorherigen Seite zurückgehen",
       "forward": "Zur nächsten Seite vorwärtsgehen",
       "reload": "Aktuelle Website neu laden",

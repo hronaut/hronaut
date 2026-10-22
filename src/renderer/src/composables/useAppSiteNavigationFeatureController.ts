@@ -23,6 +23,7 @@ type SiteNavigationBrowserApi = Pick<
   HronautApi,
   | 'closeTab'
   | 'navigate'
+  | 'newTab'
   | 'reload'
   | 'reorderTab'
   | 'selectTab'
@@ -142,6 +143,7 @@ export function useAppSiteNavigationFeatureController(
       if (shell.findOpen.value) void actions.closeFind()
     },
     onNavigate: browserTabActionsController.navigateAddress,
+    onOpenInNewTab: browserTabActionsController.openAddressInNewTab,
     onFocusLeft: () => (siteControlsOpen.value = false)
   })
   const stopFollowAgentActivitySuspensionWatch = watch(

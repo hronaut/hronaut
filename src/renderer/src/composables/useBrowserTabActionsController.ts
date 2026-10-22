@@ -9,6 +9,7 @@ type BrowserTabActionsApi = Pick<
   HronautApi,
   | 'closeTab'
   | 'navigate'
+  | 'newTab'
   | 'reload'
   | 'reorderTab'
   | 'selectTab'
@@ -90,6 +91,22 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
       if (!disposed && navigationTokens.get(navigationKey) === token) options.onNavigateError(error)
     } finally {
       if (navigationTokens.get(navigationKey) === token) navigationTokens.delete(navigationKey)
+    }
+  }
+
+  // Alt+Enter or ⌘+Return in the address field opens the address in a new tab of the shown tab's workspace, as Chrome
+  // opens it in the same window.
+  async function openAddressInNewTab(address: string, background: boolean): Promise<void> {
+    if (disposed) return
+    try {
+      await options.syncState(options.browser.newTab({
+        url: address,
+        active: !background,
+        focus: !background,
+        mcpGroupId: options.activeTab.value?.mcpGroupId
+      }))
+    } catch (error) {
+      if (!disposed) options.onNavigateError(error)
     }
   }
 
@@ -219,6 +236,7 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     reorderTab,
     selectBrowserTab,
     navigateAddress,
+    openAddressInNewTab,
     retryActivePageProblem,
     showWorkspaceContextMenu,
     closeTab,

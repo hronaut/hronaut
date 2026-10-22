@@ -76,6 +76,7 @@ function createHarness(options: {
         formatNumber: String,
         onOpen,
         onNavigate,
+        onOpenInNewTab: vi.fn(async () => undefined),
         onFocusLeft
       })
       return controller
