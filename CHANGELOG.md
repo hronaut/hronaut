@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - **Ctrl/Cmd+P**, **View → Print…** and **Print…** in a page's context menu now open the system's print dialog for the page, where you can also save it as PDF, as in Chrome. Hronaut had no way to print a page. A website that handles the key itself, such as an online editor printing its document, keeps it, and a key an agent sends stays with the page. Nothing prints while a Hronaut dialog covers the page, on a locked tab or while an agent is sending the page input, and a page an agent is working on asks you to take over or pause its agents first, since the dialog holds the page still until it closes.
 
+### Fixed
+
+- Text with spaces after a word and a colon, typed in the address bar or sent with `browser_navigate`, is now searched, as in Chrome, such as `site:github.com electron` or a pasted error message like `TypeError: x is undefined`. Hronaut took it for an address of an unknown scheme and refused it with “Agent workspaces cannot open local, privileged, or credential-bearing browser URLs.”
+
 ## [3.4.0] - 2026-10-22
 
 ### Changed

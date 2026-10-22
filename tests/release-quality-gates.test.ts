@@ -173,7 +173,7 @@ describe('release quality gates', () => {
     }
   })
 
-  it('restores complete static-analysis state only after install and saves it only after validation', async () => {
+  it('restores TypeScript build state only after install and saves it only after validation, without ESLint results', async () => {
     const workflow = await readFile('.github/workflows/ci.yml', 'utf8')
     const validate = job(workflow, 'validate')
     const install = validate.indexOf('name: Install dependencies')
@@ -181,7 +181,7 @@ describe('release quality gates', () => {
     const staticValidation = validate.indexOf('run: npm run validate')
     const save = validate.indexOf('uses: actions/cache/save@v6')
     const configHash = "${{ hashFiles('package-lock.json', 'package.json', 'eslint.config.mjs', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'tsconfig.website.json') }}"
-    const cachePrefix = `static-analysis-v2-\${{ runner.os }}-node24-${configHash}`
+    const cachePrefix = `static-analysis-v3-\${{ runner.os }}-node24-${configHash}`
 
     expect(install).toBeGreaterThanOrEqual(0)
     expect(restore).toBeGreaterThan(install)
@@ -191,11 +191,13 @@ describe('release quality gates', () => {
     expect(validate).toContain(`key: ${cachePrefix}-\${{ github.sha }}`)
     expect(validate).toContain(`restore-keys: |\n            ${cachePrefix}-`)
     for (const path of [
-      'node_modules/.cache/eslint',
       'tsconfig.node.tsbuildinfo',
       'tsconfig.web.tsbuildinfo',
       'tsconfig.website.tsbuildinfo'
     ]) expect(validate).toContain(path)
+    // A cached ESLint result for an unchanged file hides a type-aware error that a change in another file causes, and
+    // the release gate lints without a cache, so the rehearsal does too.
+    expect(validate).not.toContain('.cache/eslint')
   })
 
   it('blocks native preflights on the release gate\'s advisories and only reports development ones', async () => {
