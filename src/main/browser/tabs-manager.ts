@@ -2326,6 +2326,7 @@ export class BrowserTabsManager {
       closedTabs: () => this.closedTabs,
       detachedClosedTabs: () => this.detachedClosedTabs,
       tabCount: () => this.tabs.size,
+      orderedTabs: () => this.orderedTabs(),
       getTab: (tabId) => this.getTab(tabId),
       navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
       createTab: (options) => this.createTab(options),
