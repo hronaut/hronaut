@@ -883,6 +883,7 @@ export const ruRU = {
       "bookmark": "Добавить текущую страницу в закладки",
       "history": "Открыть историю просмотра",
       "downloads": "Открыть загрузки",
+      "savePage": "Сохранить страницу",
       "clearData": "Очистить данные браузера",
       "devtools": "Переключить инструменты разработчика",
       "nextTab": "Перейти к следующей вкладке",
@@ -3522,7 +3523,8 @@ export const ruRU = {
       "checkUpdatesPlain": "Проверить обновления",
       "print": "Печать…",
       "viewSource": "Просмотр кода страницы",
-      "downloads": "Загрузки"
+      "downloads": "Загрузки",
+      "savePage": "Сохранить страницу как…"
     },
     "tray": {
       "show": "Показать Hronaut",
@@ -3597,7 +3599,8 @@ export const ruRU = {
       "print": "Печать…",
       "showFullHistory": "Показать всю историю",
       "viewSource": "Просмотр кода страницы",
-      "searchFor": "Найти «{text}» в {engine}"
+      "searchFor": "Найти «{text}» в {engine}",
+      "savePage": "Сохранить как…"
     },
     "pageProblem": {
       "loadTitle": "Не удалось открыть сайт",
@@ -3722,7 +3725,10 @@ export const ruRU = {
       "wavAudioFilter": "Аудио PCM WAV",
       "chooseVideoAudio": "Выберите аудио для видео",
       "chooseAudio": "Выбрать аудио",
-      "devToolsWindowTitle": "Инструменты разработчика Hronaut — {title}"
+      "devToolsWindowTitle": "Инструменты разработчика Hronaut — {title}",
+      "savePageTitle": "Сохранить страницу как",
+      "webpageComplete": "Веб-страница полностью",
+      "webpageSingleFile": "Веб-страница, один файл"
     }
   }
 } satisfies MessageSchema

@@ -42,6 +42,18 @@ export function isStaleAddressTitle(title: string, previousUrl: string, url: str
   })
 }
 
+/**
+ * Whether Chromium's title for the page is an address on the page's site, its own or an earlier one: the name Chromium
+ * gives an untitled page, whose fragment can hold a sign-in token.
+ */
+export function isAddressTitle(title: string, url: string): boolean {
+  const site = comparableAddress(url)?.origin
+  if (!site) return false
+  const shown = title.replace(/^\u202A/u, '').replace(/\u202C$/u, '').trim()
+  if (!shown || /\s/u.test(shown.split(/[/?#]/u, 1)[0] ?? '')) return false
+  return SHOWN_ADDRESS_PREFIXES.some((prefix) => comparableAddress(`${prefix}${shown}`)?.origin === site)
+}
+
 /** The page's new address as Chromium shows an untitled page: without its sign-in, `http://` or a bare trailing slash. */
 export function untitledPageTitle(href: string): string {
   let url: URL

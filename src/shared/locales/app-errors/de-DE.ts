@@ -79,7 +79,9 @@ export const deDEAppErrors: AppErrorMessages = {
     "zoomPercent": "Der Seitenzoom muss eine ganze Zahl zwischen 50 und 400 Prozent sein.",
     "findQuery": "Der Suchbegriff muss zwischen 1 und 1.000 Zeichen lang sein.",
     "printFailed": "Hronaut konnte diese Seite nicht drucken.",
-    "printAgentWorking": "Auf dieser Seite arbeitet ein Agent. Übernehmen Sie oder pausieren Sie die Agenten, um sie zu drucken."
+    "printAgentWorking": "Auf dieser Seite arbeitet ein Agent. Übernehmen Sie oder pausieren Sie die Agenten, um sie zu drucken.",
+    "saveFailed": "Hronaut konnte diese Seite nicht speichern.",
+    "saveChanged": "Die Seite hat sich geändert, während das Fenster „Seite speichern unter“ offen war. Speichern Sie sie erneut."
   },
   "loadFailure": {
     "nameNotResolved": "Die Website-Adresse konnte nicht gefunden werden ({code}).",

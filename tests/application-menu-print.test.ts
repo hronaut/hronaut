@@ -25,12 +25,12 @@ function viewMenu(on: NodeJS.Platform) {
 }
 
 describe('Print in the View menu', () => {
-  it('has Chrome\'s key on each platform, in a group of its own after Full-Page View', () => {
+  it('has Chrome\'s key on each platform, in a group after Full-Page View, after Save Page As', () => {
     for (const on of ['linux', 'win32', 'darwin'] as const) {
       const { view, print } = viewMenu(on)
       expect(print.accelerator).toBe('CmdOrCtrl+P')
       const at = view.indexOf(print)
-      expect([view[at - 2]?.label, view[at - 1]?.type, view[at + 1]?.type]).toEqual(['native.menu.fullPageView', 'separator', 'separator'])
+      expect([view[at - 3]?.label, view[at - 2]?.type, view[at - 1]?.label, view[at + 1]?.type]).toEqual(['native.menu.fullPageView', 'separator', 'native.menu.savePage', 'separator'])
     }
   })
 

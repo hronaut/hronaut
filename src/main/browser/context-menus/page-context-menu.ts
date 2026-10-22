@@ -8,7 +8,7 @@ import { openedResourceReferrer, savedResourceReferrer } from './page-context-me
 /**
  * Shows the native context menu for a right-click in the page: link, image,
  * editing and selection actions for what was clicked, with a search for the
- * selected text, then page navigation, copy address, print, view source and
+ * selected text, then page navigation, copy address, save, print, view source and
  * inspect. Each action checks that its tab is still open.
  */
 export function showContextMenu<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, params: ContextMenuParams): void {
@@ -211,8 +211,14 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       label: access.text('native.context.copyPageAddress'),
       click: () => copyText(tab.url)
     },
-    // Hronaut Home is Hronaut's own page, with nothing on it to print.
+    // Hronaut Home is Hronaut's own page, with nothing on it to save or print. Save As comes before Print, as in Chrome.
     ...isHronautHomeUrl(tab.url) ? [] : [{
+      id: 'save-page',
+      label: access.text('native.context.savePage'),
+      click: withLiveContents('save the page', () => {
+        void access.savePage(tab).catch((error) => reportActionFailure('save the page', error))
+      })
+    }, {
       id: 'print',
       label: access.text('native.context.print'),
       click: withLiveContents('print the page', () => {

@@ -109,6 +109,10 @@ describe('help dialog controller', () => {
       keys: ['Ctrl/Cmd', 'Shift', 'G']
     })
     expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.savePage',
+      keys: ['Ctrl/Cmd', 'S']
+    })
+    expect(controller.shortcuts.value).toContainEqual({
       label: 'translated:runtime.shortcuts.print',
       keys: ['Ctrl/Cmd', 'P']
     })
@@ -120,7 +124,7 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.viewSource',
       keys: ['Ctrl', 'U']
     })
-    expect(controller.shortcuts.value).toHaveLength(34)
+    expect(controller.shortcuts.value).toHaveLength(35)
     controller.dispose()
   })
 })

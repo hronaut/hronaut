@@ -883,6 +883,7 @@ export const plPL = {
       "bookmark": "Dodaj bieżącą stronę do zakładek",
       "history": "Otwórz historię przeglądania",
       "downloads": "Otwórz pobrane",
+      "savePage": "Zapisz stronę",
       "clearData": "Wyczyść dane przeglądania",
       "devtools": "Pokaż lub ukryj narzędzia deweloperskie",
       "nextTab": "Przejdź do następnej karty",
@@ -3522,7 +3523,8 @@ export const plPL = {
       "checkUpdatesPlain": "Sprawdź aktualizacje",
       "print": "Drukuj…",
       "viewSource": "Wyświetl źródło strony",
-      "downloads": "Pobrane pliki"
+      "downloads": "Pobrane pliki",
+      "savePage": "Zapisz stronę jako…"
     },
     "tray": {
       "show": "Pokaż Hronaut",
@@ -3597,7 +3599,8 @@ export const plPL = {
       "print": "Drukuj…",
       "showFullHistory": "Pokaż całą historię",
       "viewSource": "Wyświetl źródło strony",
-      "searchFor": "Szukaj w {engine}: „{text}”"
+      "searchFor": "Szukaj w {engine}: „{text}”",
+      "savePage": "Zapisz jako…"
     },
     "pageProblem": {
       "loadTitle": "Nie udało się otworzyć tej witryny",
@@ -3722,7 +3725,10 @@ export const plPL = {
       "wavAudioFilter": "Dźwięk PCM WAV",
       "chooseVideoAudio": "Wybierz dźwięk do filmu",
       "chooseAudio": "Wybierz dźwięk",
-      "devToolsWindowTitle": "Narzędzia deweloperskie Hronaut — {title}"
+      "devToolsWindowTitle": "Narzędzia deweloperskie Hronaut — {title}",
+      "savePageTitle": "Zapisz stronę jako",
+      "webpageComplete": "Strona internetowa, kompletna",
+      "webpageSingleFile": "Strona internetowa, jeden plik"
     }
   }
 } satisfies MessageSchema

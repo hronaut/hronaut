@@ -883,6 +883,7 @@ export const deDE = {
       "bookmark": "Aktuelle Seite als Lesezeichen speichern",
       "history": "Browserverlauf öffnen",
       "downloads": "Downloads öffnen",
+      "savePage": "Seite speichern",
       "clearData": "Browserdaten löschen",
       "devtools": "Entwicklertools umschalten",
       "nextTab": "Zum nächsten Tab wechseln",
@@ -3522,7 +3523,8 @@ export const deDE = {
       "checkUpdatesPlain": "Nach Updates suchen",
       "print": "Drucken…",
       "viewSource": "Seitenquelltext anzeigen",
-      "downloads": "Downloads"
+      "downloads": "Downloads",
+      "savePage": "Seite speichern unter…"
     },
     "tray": {
       "show": "Hronaut anzeigen",
@@ -3597,7 +3599,8 @@ export const deDE = {
       "print": "Drucken…",
       "showFullHistory": "Gesamten Verlauf anzeigen",
       "viewSource": "Seitenquelltext anzeigen",
-      "searchFor": "{engine} nach „{text}“ durchsuchen"
+      "searchFor": "{engine} nach „{text}“ durchsuchen",
+      "savePage": "Speichern unter…"
     },
     "pageProblem": {
       "loadTitle": "Diese Website konnte nicht erreicht werden",
@@ -3722,7 +3725,10 @@ export const deDE = {
       "wavAudioFilter": "PCM-WAV-Audio",
       "chooseVideoAudio": "Audio für das Video auswählen",
       "chooseAudio": "Audio auswählen",
-      "devToolsWindowTitle": "Hronaut-Entwicklertools — {title}"
+      "devToolsWindowTitle": "Hronaut-Entwicklertools — {title}",
+      "savePageTitle": "Seite speichern unter",
+      "webpageComplete": "Webseite, vollständig",
+      "webpageSingleFile": "Webseite, eine Datei"
     }
   }
 } satisfies MessageSchema

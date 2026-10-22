@@ -43,6 +43,8 @@ export interface PageContextMenuAccess<Tab extends PageContextMenuTab> {
   print(tab: Tab): Promise<void>
   /** Opens the page's source in a new tab beside it, for a web page. */
   viewSource(tab: Tab): Promise<boolean>
+  /** Opens the save dialog for the tab's page and saves it where the person chooses. */
+  savePage(tab: Tab): Promise<boolean>
   /** The search engine the address bar uses, which searches the selected text. */
   searchEngine(): SearchEngineName
   /** Whether trusted chrome, such as one of Hronaut's dialogs, covers the page, which a new tab in front would change. */

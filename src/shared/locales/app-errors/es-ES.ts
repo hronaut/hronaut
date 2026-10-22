@@ -79,7 +79,9 @@ export const esESAppErrors: AppErrorMessages = {
     "zoomPercent": "El zoom de la página debe ser un número entero entre 50 y 400 por ciento.",
     "findQuery": "La búsqueda debe tener entre 1 y 1000 caracteres.",
     "printFailed": "Hronaut no pudo imprimir esta página.",
-    "printAgentWorking": "Un agente está trabajando en esta página. Toma el control o pausa los agentes para imprimirla."
+    "printAgentWorking": "Un agente está trabajando en esta página. Toma el control o pausa los agentes para imprimirla.",
+    "saveFailed": "Hronaut no pudo guardar esta página.",
+    "saveChanged": "La página cambió mientras el cuadro de diálogo Guardar estaba abierto. Guárdala de nuevo."
   },
   "loadFailure": {
     "nameNotResolved": "No se pudo encontrar la dirección del sitio web ({code}).",
