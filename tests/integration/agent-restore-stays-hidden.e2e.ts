@@ -52,6 +52,10 @@ test('leaves the person\'s split view alone when an agent opens its archived wor
     const { id: workspaceId } = JSON.parse(await call(client, 'browser_workspaces', { action: 'create', name: 'Agent research' })) as { id: string }
     await call(client, 'browser_new_tab', { workspaceId, url: 'data:text/html,<title>Agent sources</title>' })
     await call(client, 'browser_new_tab', { workspaceId, url: 'data:text/html,<title>Agent draft</title>' })
+    // The archive keeps each tab's title, which the restored tabs are found by below.
+    await expect.poll(() => appWindow.evaluate(async (id) => (
+      (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.filter(tab => tab.mcpGroupId === id).map(tab => tab.title).sort()
+    ), workspaceId)).toEqual(['Agent draft', 'Agent sources'])
     const saved = JSON.parse(await call(client, 'browser_saved_workspaces', { action: 'save', workspaceId })) as { id: string }
     await expect.poll(shown).toEqual(before)
 
