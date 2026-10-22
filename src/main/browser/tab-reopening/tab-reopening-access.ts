@@ -54,13 +54,15 @@ export interface TabReopeningAccess<Tab extends TabReopeningTab> {
   detachedClosedTabs(): Set<BrowserClosedTabState[]>
   /** How many tabs are open. */
   tabCount(): number
+  /** The open tabs in the order the strip and rail show them. */
+  orderedTabs(): Tab[]
   /** The tab with this id, or the active tab; it throws when there is none. */
   getTab(tabId?: string): Tab
   /** A tab's back and forward history, which a duplicate restores. */
   navigationHistorySnapshot(tab: Tab): { entries: NavigationEntry[]; index: number }
   /** Opens a tab. */
   createTab(options: TabReopeningCreation): Promise<Tab>
-  /** Moves the tab before or after another tab. */
+  /** Moves the tab before or after another tab of its workspace, pinned or not as it is. */
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): BrowserState
   /** The browser state. */
   getState(): BrowserState

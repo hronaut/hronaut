@@ -15,9 +15,10 @@ export async function reopenClosedTabAfterLabelSave<Tab extends TabReopeningTab>
 
 /**
  * Reopens the most recently closed tab, or the one with this id, showing it
- * when active is set. It is undefined when that tab is no longer remembered,
- * and the tab is remembered again when opening it fails, unless the history
- * that showed it was cleared meanwhile.
+ * when active is set, in its place among its workspace's tabs, as Chrome
+ * does. It is undefined when that tab is no longer remembered, and the tab is
+ * remembered again when opening it fails, unless the history that showed it
+ * was cleared meanwhile.
  */
 export async function reopenClosedTabEntry<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, closedTabId: string | undefined, active: boolean): Promise<Tab | undefined> {
   const index = closedTabId === undefined
@@ -30,8 +31,9 @@ export async function reopenClosedTabEntry<Tab extends TabReopeningTab>(access: 
   const closed = held[0]
   if (!closed) return undefined
   access.detachedClosedTabs().add(held)
+  let tab: Tab
   try {
-    return await access.createTab({
+    tab = await access.createTab({
       url: closed.url,
       label: closed.label,
       pinned: closed.pinned,
@@ -49,6 +51,25 @@ export async function reopenClosedTabEntry<Tab extends TabReopeningTab>(access: 
   } finally {
     access.detachedClosedTabs().delete(held)
   }
+  if (closed.index !== undefined) moveToPlace(access, tab, closed.index)
+  return tab
+}
+
+/** The website tabs a tab moves among: its workspace's, pinned or not as it is. */
+function tabPeers<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, tab: Tab): Tab[] {
+  return access.orderedTabs().filter((candidate) => (
+    candidate.mcpGroupId === tab.mcpGroupId && candidate.pinned === tab.pinned && !isHronautHomeUrl(candidate.url)
+  ))
+}
+
+/** Moves an open tab to this place among its peers, or after the last of them when there are fewer now. */
+function moveToPlace<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, tab: Tab, place: number): void {
+  const peers = tabPeers(access, tab)
+  // A tab that closed again while it opened stays closed.
+  if (!peers.includes(tab)) return
+  const others = peers.filter((candidate) => candidate !== tab)
+  const target = others[Math.min(place, others.length - 1)]
+  if (target) access.reorderTab(tab.id, target.id, place < others.length ? 'before' : 'after')
 }
 
 /** Opens a copy of the tab, with its back and forward history, right after it, once tab label saves have settled. Hronaut Home has no copy. */
@@ -109,9 +130,13 @@ export function forgetWorkspaceClosedTabs<Tab extends TabReopeningTab>(access: T
   return forgotten
 }
 
-/** Remembers a closed tab so it can be reopened, keeping only the newest; Hronaut Home is not remembered. */
+/**
+ * Remembers a closed tab, with its place among its workspace's tabs, so it can be reopened, keeping only the newest;
+ * Hronaut Home is not remembered. It is called while the tab is still among the open tabs.
+ */
 export function rememberClosedTab<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, tab: Tab): void {
   if (isHronautHomeUrl(tab.url)) return
+  const index = tabPeers(access, tab).indexOf(tab)
   access.closedTabs().push({
     id: uuidV7(),
     title: tab.title || tab.url,
@@ -124,7 +149,8 @@ export function rememberClosedTab<Tab extends TabReopeningTab>(access: TabReopen
     ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
     ...(tab.tabMuted ? { muted: true } : {}),
     ...(tab.tabAgentPaused ? { tabAgentPaused: true } : {}),
-    ...(tab.humanInteractionLocked ? { humanInteractionLocked: true } : {})
+    ...(tab.humanInteractionLocked ? { humanInteractionLocked: true } : {}),
+    ...(index >= 0 ? { index } : {})
   })
   if (access.closedTabs().length > MAX_CLOSED_TABS) access.closedTabs().shift()
 }

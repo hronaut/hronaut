@@ -240,6 +240,8 @@ export interface BrowserClosedTabState {
   tabAgentPaused?: boolean
   /** The person's input locked in the tab itself, not by locking every tab. */
   humanInteractionLocked?: boolean
+  /** Its place among its workspace's tabs, pinned or not as it was, when it closed; reopening puts it back there. */
+  index?: number
 }
 
 export const MAX_BROWSER_TABS = 50
