@@ -1,13 +1,15 @@
 import { Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebFrameMain } from 'electron'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import { pageSourceAddress } from '../page-source/page-source.js'
+import { searchEngineLabel, selectionSearchLabelText, selectionSearchQuery, selectionSearchUrl } from '../selection-search/selection-search.js'
 import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
 import { openedResourceReferrer, savedResourceReferrer } from './page-context-menu-referrer.js'
 
 /**
  * Shows the native context menu for a right-click in the page: link, image,
- * editing and selection actions for what was clicked, then page navigation,
- * copy address, print, view source and inspect. Each action checks that its tab is still open.
+ * editing and selection actions for what was clicked, with a search for the
+ * selected text, then page navigation, copy address, print, view source and
+ * inspect. Each action checks that its tab is still open.
  */
 export function showContextMenu<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, params: ContextMenuParams): void {
   const webContents = tab.webContents
@@ -61,6 +63,27 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     if (linkName) access.expectSavedLinkName(webContents, url, linkName)
     if (referrer) webContents.downloadURL(url, { headers: { Referer: referrer } })
     else webContents.downloadURL(url)
+  }
+  // Chrome's Search for the selection, with the search engine the address bar uses, read once so the search matches the label.
+  // As in Chrome, a misspelled word's menu has none. The results open in front, beside the page and in its workspace,
+  // under its navigation policy, and not behind trusted chrome, as View Page Source does not.
+  const searchSelection = (): MenuItemConstructorOptions[] => {
+    const query = params.misspelledWord ? undefined : selectionSearchQuery(params.selectionText, params.formControlType === 'input-password')
+    if (!query) return []
+    const engine = access.searchEngine()
+    return [{
+      id: 'search-selection',
+      label: access.text('native.context.searchFor', { engine: searchEngineLabel(engine), text: selectionSearchLabelText(query) }),
+      click: withLiveContents('search for the selection', () => {
+        if (access.browserContentOccluded()) return
+        void access.createTab({
+          url: selectionSearchUrl(query, engine),
+          active: true,
+          mcpGroupId: tab.mcpGroupId,
+          openedFrom: { tabId: tab.id, background: false }
+        }).catch((error) => reportActionFailure('search for the selection', error))
+      })
+    }]
   }
   const copyImage = (): void => {
     void access.options().copyImageAt(webContents, params.x, params.y)
@@ -144,8 +167,10 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       { type: 'separator' },
       { id: 'select-all', label: access.text('native.context.selectAll'), enabled: params.editFlags.canSelectAll, click: withLiveContents('select all', () => webContents.selectAll()) }
     ])
+    const search = searchSelection()
+    if (search.length) groups.push(search)
   } else if (params.selectionText) {
-    groups.push([{ id: 'copy-selection', label: access.text('native.context.copy'), click: withLiveContents('copy selection', () => webContents.copy()) }])
+    groups.push([{ id: 'copy-selection', label: access.text('native.context.copy'), click: withLiveContents('copy selection', () => webContents.copy()) }, ...searchSelection()])
   }
 
   const navigation = webContents.navigationHistory

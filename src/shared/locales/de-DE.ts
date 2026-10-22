@@ -3596,7 +3596,8 @@ export const deDE = {
       "inspect": "Untersuchen",
       "print": "Drucken…",
       "showFullHistory": "Gesamten Verlauf anzeigen",
-      "viewSource": "Seitenquelltext anzeigen"
+      "viewSource": "Seitenquelltext anzeigen",
+      "searchFor": "{engine} nach „{text}“ durchsuchen"
     },
     "pageProblem": {
       "loadTitle": "Diese Website konnte nicht erreicht werden",

@@ -3596,7 +3596,8 @@ export const ruRU = {
       "inspect": "Исследовать",
       "print": "Печать…",
       "showFullHistory": "Показать всю историю",
-      "viewSource": "Просмотр кода страницы"
+      "viewSource": "Просмотр кода страницы",
+      "searchFor": "Найти «{text}» в {engine}"
     },
     "pageProblem": {
       "loadTitle": "Не удалось открыть сайт",

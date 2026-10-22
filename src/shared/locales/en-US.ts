@@ -765,7 +765,7 @@ export const enUS = {
       moveLeft: 'Move Tab Left', moveRight: 'Move Tab Right', moveUp: 'Move Tab Up', moveDown: 'Move Tab Down', closeTab: 'Close Tab', closeOthers: 'Close Other Tabs', closeRight: 'Close Tabs to the Right', closeBelow: 'Close Tabs Below', closeDuplicates: 'Close Duplicate Tabs', reopenClosed: 'Reopen Closed Tab',
       openLink: 'Open Link in New Tab', copyLink: 'Copy Link Address', saveLink: 'Save Link', openImage: 'Open Image in New Tab', copyImage: 'Copy Image', copyImageAddress: 'Copy Image Address', saveImage: 'Save Image',
       addDictionary: 'Add “{word}” to Dictionary', undo: 'Undo', redo: 'Redo', cut: 'Cut', copy: 'Copy', paste: 'Paste', pasteMatchStyle: 'Paste and Match Style', delete: 'Delete', selectAll: 'Select All',
-      back: 'Back', forward: 'Forward', reload: 'Reload', reloadWithoutCache: 'Reload Without Cache', copyPageAddress: 'Copy Page Address', inspect: 'Inspect', print: 'Print…', showFullHistory: 'Show Full History', viewSource: 'View Page Source'
+      back: 'Back', forward: 'Forward', reload: 'Reload', reloadWithoutCache: 'Reload Without Cache', copyPageAddress: 'Copy Page Address', inspect: 'Inspect', print: 'Print…', showFullHistory: 'Show Full History', viewSource: 'View Page Source', searchFor: 'Search {engine} for “{text}”'
     },
     pageProblem: {
       loadTitle: 'This site could not be reached', loadTabTitle: 'Site unavailable', loadDefault: 'Hronaut could not load this address.', rendererTitle: 'This page stopped working', rendererDefault: 'The page process unexpectedly disappeared.',

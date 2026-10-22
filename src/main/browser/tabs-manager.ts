@@ -409,7 +409,7 @@ import type { ImportDestination } from '../browser-import/service.js'
 import { browserImportDestination, importBrowserCookies } from './workspace-data/browser-cookie-import.js'
 import type { Cookie } from 'electron'
 import { runBackgroundAction } from './background-action.js'
-import type { SearchEngineName } from '../../shared/search-engine.js'
+import { DEFAULT_SEARCH_ENGINE, type SearchEngineName } from '../../shared/search-engine.js'
 import type { AgentPointerIdentity, BrowserFormField } from './page-scripts.js'
 import { evaluate, type EvaluationDeadline } from './page-evaluation/evaluate.js'
 import { TabStateStore, type PersistedBrowserState } from './tab-store.js'
@@ -5920,6 +5920,8 @@ export class BrowserTabsManager {
       openDevTools: (tab) => this.openDevTools(tab),
       print: (tab) => printPage(this.pagePrintAccess(), tab),
       viewSource: (tab) => viewPageSource(this.pageSourceAccess(), tab),
+      searchEngine: () => this.options.getSearchEngine?.() ?? DEFAULT_SEARCH_ENGINE,
+      browserContentOccluded: () => this.browserContentOccluded,
       expectSavedLinkName: (webContents, url, linkName) => this.downloadController.expectSavedLinkName(webContents.id, url, linkName)
     }
   }
