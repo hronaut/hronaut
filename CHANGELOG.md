@@ -176,6 +176,7 @@ All notable changes to Hronaut are documented in this file.
 - **Back** in **Import from browser…** now keeps the profile you chose, or chooses none when that profile is gone or can't be told from another. It chose the first profile again, so pressing **Continue** once more read another profile than the one you had picked.
 - **New Tab** in a tab's menu now opens the tab in that tab's workspace, and it and **New Tab in Workspace** put the cursor in the address field, as the **+** button and **Ctrl/Cmd+T** do. New Tab opened the tab in the workspace of the tab shown, which differs when you right-click another workspace's tab in the rail, and both left the cursor out of the address field.
 - **Open Link in New Tab** and **Open Image in New Tab** in a page's menu now send the address of the page or frame you right-clicked as the referrer, under its referrer policy, as Chrome does, so a site that serves a page or image only to its own pages opens it. They sent none, and such a site refused it.
+- Text with spaces after a word and a colon, typed in the address bar or sent with `browser_navigate`, is now searched, as in Chrome, such as `site:github.com electron` or a pasted error message like `TypeError: x is undefined`. Hronaut took it for an address of an unknown scheme and refused it with “Agent workspaces cannot open local, privileged, or credential-bearing browser URLs.”
 
 ### Security
 

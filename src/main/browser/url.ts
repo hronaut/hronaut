@@ -16,6 +16,10 @@ const KEPT_SCHEMES: ReadonlySet<string> = new Set([
   'callto', 'facetime', 'facetime-audio', 'fax', 'mms', 'sip', 'sips', 'sms', 'tel',
   'ftp', 'http', 'https', 'ws', 'wss'
 ])
+// Schemes whose links may be typed with spaces, such as a phone number or an email's subject. Text with spaces after
+// any other word and a colon is search terms, as in Chrome: a `site:` search, or an error message such as
+// `TypeError: x is undefined`, which was refused as an address of an unknown scheme instead.
+const SCHEMES_TYPED_WITH_SPACES: ReadonlySet<string> = new Set([...KEPT_SCHEMES, 'mailto', 'javascript'])
 
 function isLoopbackAddress(value: string): boolean {
   try {
@@ -130,8 +134,13 @@ export function webAddress(input: string): string | undefined {
     const candidate = `${namesHttpsPort(value) ? 'https' : 'http'}://${value}`
     return URL.canParse(candidate) ? candidate : undefined
   }
-  if (SCHEME_PATTERN.test(value)) return value
-  return undefined
+  const scheme = SCHEME_PATTERN.exec(value)?.[0].slice(0, -1).toLowerCase()
+  if (!scheme) return undefined
+  // A Windows path, such as `C:\Program Files\app`, never goes to the search engine, even with spaces, and neither does a
+  // sign-in typed before a host, such as `admin:pass word@router.local`, whose password would leave the computer.
+  const keptWithSpaces = /^[a-z]:[\\/]/i.test(value) || hasSchemeLessUserInfo(value)
+  if (/\s/.test(value) && !keptWithSpaces && !SCHEMES_TYPED_WITH_SPACES.has(scheme) && !scheme.startsWith('web+')) return undefined
+  return value
 }
 
 export function normalizeAddress(input: string, searchEngine: SearchEngineName = DEFAULT_SEARCH_ENGINE): string {
