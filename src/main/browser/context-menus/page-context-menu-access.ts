@@ -29,8 +29,8 @@ export interface PageContextMenuAccess<Tab extends PageContextMenuTab> {
   window(): BrowserWindow
   options(): PageContextMenuOptions
   text(key: MessageKey, parameters?: MessageParameters): string
-  /** Opens a tab; the load options carry the page's referrer to the address. */
-  createTab(options: { url: string; active: boolean; mcpGroupId?: string; loadOptions?: LoadURLOptions }): Promise<Tab>
+  /** Opens a tab beside the tab its page opened it from; the load options carry the page's referrer to the address. */
+  createTab(options: { url: string; active: boolean; mcpGroupId?: string; loadOptions?: LoadURLOptions; openedFrom?: { tabId: string; background: boolean } }): Promise<Tab>
   back(tabId: string): Promise<BrowserState>
   forward(tabId: string): Promise<BrowserState>
   reload(tabId: string): Promise<BrowserState>

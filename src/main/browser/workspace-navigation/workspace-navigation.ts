@@ -76,9 +76,10 @@ export async function updateWorkspaceNavigationPolicy<Tab extends WorkspaceNavig
   group.lastUsedAt = new Date().toISOString()
   forgetDeniedClosedTabs(access, groupId)
   const failures: unknown[] = []
-  // The live iterator skips a tab closed while an earlier one is replaced.
-  for (const tab of access.tabs()) {
-    if (tab.mcpGroupId !== groupId) continue
+  // A copy, since a page can open a tab beside another while one is replaced, which puts the tabs in a new order; a tab
+  // closed meanwhile is skipped.
+  for (const tab of [...access.tabs()]) {
+    if (tab.mcpGroupId !== groupId || access.findTab(tab.id) !== tab) continue
     try {
       await applyPolicyToTab(access, groupId, tab, policyChanged)
     } catch (error) {

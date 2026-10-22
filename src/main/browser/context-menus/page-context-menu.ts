@@ -42,7 +42,13 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   const sandboxedFrame = hasOpaqueOrigin(params.frame)
   const openBackgroundTab = (url: string): void => {
     const referrer = sandboxedFrame ? undefined : openedResourceReferrer(params.frameURL, policy)
-    void access.createTab({ url, active: false, mcpGroupId: tab.mcpGroupId, ...(referrer ? { loadOptions: { httpReferrer: referrer } } : {}) })
+    void access.createTab({
+      url,
+      active: false,
+      mcpGroupId: tab.mcpGroupId,
+      openedFrom: { tabId: tab.id, background: true },
+      ...(referrer ? { loadOptions: { httpReferrer: referrer } } : {})
+    })
       .catch((error) => {
         console.error(`[browser] Could not open context-menu URL ${url}:`, error)
         access.options().onActionFailed?.('open link in new tab', error)

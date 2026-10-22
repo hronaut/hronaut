@@ -34,9 +34,10 @@ function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: 
  * tab, whatever window.open()'s features ask, outlives its opener, and
  * remembers the tab that opened it while the two pages can reach each
  * other. A tab outside a workspace loads the address in a new tab with the
- * referrer and form post carried over. A tab opened by an agent's input is
- * not shown: Follow agents shows it through the agent's calls on it, so it
- * waits as for any call, such as while a page fills the window.
+ * referrer and form post carried over. A workspace tab's new tab goes beside
+ * it, as in Chrome. A tab opened by an agent's input is not shown: Follow
+ * agents shows it through the agent's calls on it, so it waits as for any
+ * call, such as while a page fills the window.
  */
 export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access: WindowOpenHandlerAccess<Tab>, tab: Tab, webContents: WebContents): void {
   webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
@@ -113,6 +114,7 @@ export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access
           active,
           selectVisible,
           mcpGroupId: tab.mcpGroupId,
+          openedFrom: { tabId: tab.id, background: !active },
           adopt: {
             webContents: guest,
             webPreferences: options.webPreferences,

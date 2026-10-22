@@ -131,6 +131,16 @@ describe('a window a workspace page opens', () => {
     expect(createTab).not.toHaveBeenCalled()
   })
 
+  it('places the tab beside the tab that opened it, behind for a background-tab disposition', () => {
+    // A link opened in a new tab went after the workspace's last tab, far from the page that opened it.
+    const front = fixture()
+    front.open(details).createWindow!({ webContents: guestPage() })
+    expect(front.createTab).toHaveBeenCalledWith(expect.objectContaining({ openedFrom: { tabId: 'opener', background: false } }))
+    const behind = fixture()
+    behind.open({ ...details, disposition: 'background-tab' }).createWindow!({ webContents: guestPage({ opener: false }) })
+    expect(behind.createTab).toHaveBeenCalledWith(expect.objectContaining({ openedFrom: { tabId: 'opener', background: true } }))
+  })
+
   it('blocks Home and addresses the workspace does not allow', () => {
     const home = fixture()
     expect(home.open({ ...details, url: 'hronaut://home/' })).toEqual({ action: 'deny' })

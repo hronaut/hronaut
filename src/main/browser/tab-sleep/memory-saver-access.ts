@@ -19,6 +19,8 @@ export interface MemorySaverTab {
 export interface MemorySaverAccess<Tab extends MemorySaverTab> {
   /** The open tabs. */
   tabs(): IterableIterator<Tab>
+  /** The open tab with this id. */
+  findTab(tabId: string): Tab | undefined
   /** Whether the tab manager was destroyed. */
   isDestroyed(): boolean
   /** Whether Memory Saver puts inactive tabs to sleep. */
