@@ -161,6 +161,7 @@ All notable changes to Hronaut are documented in this file.
 - Opening a split view with a sleeping tab no longer reports an error when you picked another tab or closed one of the two tabs while it woke, such as a failed page load for the tab you closed; the split view you no longer wanted does not open, without a message.
 - In split view, touching the other pane's page on a touchscreen now makes it the active pane, as clicking it does. After a tap there, the address field, the toolbar and Ctrl/Cmd+W used to keep acting on the pane you had left.
 - Find in page stays open, with its matches, when the page changes its address without loading another page, as in Chrome. On a site that moves its address to the section in view, stepping to a match further down used to close Find and clear its matches.
+- Picking an element for an agent, or for an element screenshot, is no longer cancelled when the page changes its address without loading another page. On a site that moves its address to the section in view, scrolling toward the element ended the pick.
 
 ### Security
 

@@ -41,11 +41,14 @@ test('keeps Find open while a site moves its address to the match in view', asyn
     // The person steps to the next match; the page scrolls to it and the site moves its address there.
     await search.press('Enter')
     await expect.poll(activeUrl).toBe(`${url}#setup`)
+    // The shell has applied that state once its address field shows it.
+    await expect(appWindow.getByRole('combobox', { name: 'Address', exact: true })).toHaveValue(`${url}#setup`)
     await expect(bar).toBeVisible()
     await expect(bar.locator('.find-count')).toHaveText('2 / 3')
 
     await search.press('Enter')
     await expect.poll(activeUrl).toBe(`${url}#usage`)
+    await expect(appWindow.getByRole('combobox', { name: 'Address', exact: true })).toHaveValue(`${url}#usage`)
     await expect(bar.locator('.find-count')).toHaveText('3 / 3')
     await expect(search).toHaveValue('needle')
   } finally {

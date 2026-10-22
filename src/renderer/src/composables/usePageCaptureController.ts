@@ -262,11 +262,12 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
     if (areaToCancel) void options.browser.cancelAreaCapture(areaToCancel).catch(() => false)
   }
 
+  // Another tab, another page or a reload ends a pick or capture. A change within the page keeps it, such as a site
+  // moving its address to the section in view while the person scrolls to the element.
   const stopContextWatcher = watch(
-    () => [options.activeTab.value?.id, options.activeTab.value?.url, options.activeTab.value?.navigationGeneration] as const,
-    ([tabId, url, navigationGeneration], previousContext) => {
-      if (previousContext && tabId === previousContext[0] && url === previousContext[1]
-        && navigationGeneration === previousContext[2]) return
+    () => [options.activeTab.value?.id, options.activeTab.value?.documentGeneration] as const,
+    ([tabId, documentGeneration], previousContext) => {
+      if (previousContext && tabId === previousContext[0] && documentGeneration === previousContext[1]) return
       // Area selection owns a frozen image and intentionally survives navigation.
       if (previousContext && tabId === previousContext[0] && captureState.value === 'picking') return
       invalidateContext()
