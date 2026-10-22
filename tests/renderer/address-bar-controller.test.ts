@@ -322,6 +322,36 @@ describe('address bar controller', () => {
     expect(input).toHaveValue('https://second.example/unsaved-form')
   })
 
+  it.each(['within the page', 'in a redirect'] as const)('opens a picked suggestion after the tab\'s page moves its address %s', async (change) => {
+    // Clicking a row did nothing once the page moved its address, as a page still loading or one that moves its
+    // address to the section in view does, while Enter on the same row opened it.
+    const saved: BrowserBookmark = {
+      id: 'saved',
+      title: 'Saved page',
+      url: 'https://saved.example/',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }
+    const rendered = createHarness({ bookmarks: [saved] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    const request = rendered.overlay.show.mock.calls.at(-1)?.[0]
+
+    const current = rendered.activeTab.value
+    rendered.activeTab.value = {
+      ...current,
+      url: change === 'in a redirect' ? 'https://example.test/landing' : `${current.url}#setup`,
+      navigationGeneration: current.navigationGeneration + 1
+    }
+    await nextTick()
+    rendered.selectOverlay(request!.suggestions[0].id)
+    await Promise.resolve()
+
+    expect(rendered.onNavigate).toHaveBeenCalledWith('https://saved.example/')
+  })
+
   it('ignores a delayed native selection after Escape cancels the address search', async () => {
     const saved: BrowserBookmark = { id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
     const rendered = createHarness({ bookmarks: [saved] })

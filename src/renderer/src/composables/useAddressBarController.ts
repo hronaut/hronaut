@@ -65,7 +65,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const selected = computed(() => selection.value >= 0 ? suggestions.value[selection.value] : undefined)
   let blurTimer: number | undefined
   let presentedSuggestions: AddressSuggestion[] = []
-  let presentedSuggestionOwner: Pick<BrowserTabState, 'id' | 'navigationGeneration'> | null = null
+  let presentedSuggestionOwner: Pick<BrowserTabState, 'id'> | null = null
   let overlaySessionId = 0
   let cleanupCallbacks: (() => void)[] = []
   let pendingNavigation: {
@@ -264,9 +264,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     const maxHeight = Math.max(1, Math.min(440, window.innerHeight - y - viewportMargin))
     const activeTab = options.activeTab.value
     presentedSuggestions = suggestions.value.map((suggestion) => ({ ...suggestion }))
-    presentedSuggestionOwner = activeTab
-      ? { id: activeTab.id, navigationGeneration: activeTab.navigationGeneration }
-      : null
+    presentedSuggestionOwner = activeTab ? { id: activeTab.id } : null
     overlay.show({
       sessionId: overlaySessionId,
       bounds: { x, y, width, maxHeight },
@@ -334,11 +332,10 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       () => overlay.onSelected(({ sessionId, suggestionId }) => {
         if (disposed || sessionId !== overlaySessionId) return
         const activeTab = options.activeTab.value
-        if (
-          !activeTab
-          || activeTab.id !== presentedSuggestionOwner?.id
-          || activeTab.navigationGeneration !== presentedSuggestionOwner.navigationGeneration
-        ) return
+        // A row picked for another tab does nothing. A pick for this tab opens even when the tab's own page has changed
+        // its address since, as a page still loading or one that moves its address to the section in view does, just as
+        // Enter on the row opens it. Such a click did nothing before.
+        if (!activeTab || activeTab.id !== presentedSuggestionOwner?.id) return
         const suggestion = presentedSuggestions.find((candidate) => candidate.id === suggestionId)
         if (suggestion) void chooseSuggestion(suggestion)
       }),
