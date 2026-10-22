@@ -151,7 +151,7 @@ after a verified probe; existing workspace profiles keep workspace-first access.
 The MCP status control opens the same compact evidence summary. **Copy URL** is
 an explicit action inside it, and Escape closes it and restores keyboard focus.
 
-Regular websites, including `https://google.com`, can be opened from the address bar, a new-tab request with a URL, or `browser_navigate`.
+Regular websites, including `https://google.com`, can be opened from the address bar, a new-tab request with a URL, or `browser_navigate`. A page that asks before it is left, as an editor with unsaved changes does, keeps itself open: an address typed in the address bar then asks **Leave this page?**, with **Keep editing** as the default and **Leave page** to load the address, and `browser_navigate` returns an error saying the page stayed open and nothing was loaded, so the agent can open the address in a new tab with `browser_new_tab`, finish or save what the page holds first, or close the tab with `browser_close_tab`, which discards its unsaved changes. Back, Forward and Reload from such a page still keep it without asking.
 
 The MCP tool set selected in **Settings → MCP security** applies to new connections. Each live connection keeps the names, schemas, annotations, descriptions, and server instructions it received when it connected. Reconnect an MCP client to adopt an intentional catalog change; Hronaut never rewrites that model-facing metadata within an established transport session.
 

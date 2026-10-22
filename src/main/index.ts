@@ -1073,6 +1073,19 @@ async function createWindow(startMinimized = false): Promise<void> {
       })
       return response === 1
     },
+    confirmBeforeUnloadLeave: async () => {
+      const { response } = await showMessageBox({
+        type: 'warning',
+        title: text('native.dialog.leavePageTitle'),
+        message: text('native.dialog.leavePageMessage'),
+        detail: text('native.dialog.leavePageDetail'),
+        buttons: [text('native.dialog.keepEditing'), text('native.dialog.leavePage')],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true
+      })
+      return response === 1
+    },
     ...walletLifecycleCallbacks,
     onPageVisited: recordPageVisit,
     onPageTitleUpdated: updatePageTitle,

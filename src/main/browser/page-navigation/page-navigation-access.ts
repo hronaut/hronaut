@@ -11,6 +11,8 @@ export interface PageNavigationTab {
   id: string
   mcpGroupId?: string
   navigationGeneration: number
+  /** Counts the documents the tab has started or shown; an address change within a page keeps it. */
+  documentGeneration: number
   navigationPolicyDenialSequence: number
   sleeping: boolean
   wakePromise?: Promise<void>
@@ -41,4 +43,6 @@ export interface PageNavigationAccess<Tab extends PageNavigationTab> {
   waitForPage(tabId: string, timeoutMs: number): Promise<void>
   changed(persist?: boolean): void
   getState(): BrowserState
+  /** Asks the person whether to leave a page that asked to confirm before it is left; true leaves it, and a question that could not be asked keeps the page. */
+  confirmLeavePage(): Promise<boolean>
 }

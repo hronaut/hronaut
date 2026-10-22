@@ -22,7 +22,7 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     return host.tabs()!.toggleDevTools(tabId)
   })
-  host.handleBrowserIpc('browser:navigate', (event, options) => { host.assertTrustedSender(event); return host.tabs()!.navigate(options.url, options.tabId) })
+  host.handleBrowserIpc('browser:navigate', (event, options) => { host.assertTrustedSender(event); return host.tabs()!.navigate(options.url, options.tabId, { byPerson: true }) })
   host.handleBrowserIpc('browser:back', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.back(tabId) })
   host.handleBrowserIpc('browser:forward', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.forward(tabId) })
   host.handleBrowserIpc('browser:reload', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.reload(tabId) })

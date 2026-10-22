@@ -20,9 +20,13 @@ function isAbortedLoad(error: unknown): boolean {
  * Loads an address or search in the tab. An agent workspace cannot open Home,
  * and its navigation policy is checked before the load starts. A load that a
  * policy denial or an abort ended resolves; any other failure of the current
- * load throws.
+ * load throws. A page that asks before it is left, as an editor with unsaved
+ * changes does, keeps itself open: a person who started the load is asked, as
+ * Chrome asks "Leave site?", and an agent gets an error saying so instead of a
+ * load that silently did not happen.
  */
-export async function navigate<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, url: string, tabId?: string): Promise<BrowserState> {
+export async function navigate<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, url: string, tabId?: string,
+  options: { byPerson?: boolean } = {}): Promise<BrowserState> {
   const tab = access.getTab(tabId)
   const normalized = normalizeAddress(url, access.searchEngine())
   if (tab.mcpGroupId && isHronautHomeUrl(normalized)) {
@@ -34,6 +38,32 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
     // does for a typed address.
     access.forgetTabsOpenedFrom(tab.mcpGroupId)
   }
+  const webContents = tab.webContents
+  const documentGeneration = tab.documentGeneration
+  const askedToStay = await loadAddress(access, tab, normalized, false)
+  if (!askedToStay) return access.getState()
+  if (!options.byPerson) throw new Error(PAGE_ASKED_TO_STAY)
+  // The question is only the person's while the same page is still open in the tab. The page keeps running while it is
+  // open, unlike under Chrome's own question, so an address change within the page, as an editor's autosave makes,
+  // still leaves it.
+  const samePage = (): boolean => access.findTab(tab.id) === tab && tab.webContents === webContents
+    && !webContents.isDestroyed() && tab.documentGeneration === documentGeneration
+  if (!samePage() || !await access.confirmLeavePage() || !samePage()) return access.getState()
+  // The workspace's sites may have changed while the question was open.
+  if (tab.mcpGroupId) access.assertWorkspaceNavigationAllowed(tab.mcpGroupId, normalized, 'direct')
+  await loadAddress(access, tab, normalized, true)
+  return access.getState()
+}
+
+const PAGE_ASKED_TO_STAY = 'The page asked to confirm before it is left (a beforeunload prompt, as a page with unsaved changes shows), so it stayed open and nothing was loaded. To open the address anyway, use browser_new_tab. Otherwise finish or save what the page holds first. browser_close_tab closes the tab and discards its unsaved changes.'
+
+/**
+ * Loads the address in the tab and settles once the load ends, a policy denial
+ * ends it or it fails. It returns true when the page asked before it is left
+ * and so kept itself open; with `leave`, that question is skipped, once, as the
+ * person already answered it.
+ */
+async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tab: Tab, normalized: string, leave: boolean): Promise<boolean> {
   const navigationPolicyDenialSequence = tab.navigationPolicyDenialSequence
   access.prepareDiagnosticNavigation(tab)
   type NavigationOutcome =
@@ -49,9 +79,28 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
       resolvePolicyDenial({ kind: 'policy-denied' })
     }
   }
-  tab.webContents.on('will-frame-navigate', detectPolicyDenial)
-  tab.webContents.on('will-redirect', detectPolicyDenial)
-  const load = tab.webContents.loadURL(normalized).then<NavigationOutcome, NavigationOutcome>(
+  // Without a listener Electron keeps the page and cancels the load, as an abort that is otherwise silent. The page's
+  // question comes before the new page starts loading, so the listener goes once it starts and cannot answer a
+  // question the new page asks later.
+  let askedToStay = false
+  const webContents = tab.webContents
+  const onPreventUnload = (event: Electron.Event): void => {
+    stopWatchingUnload()
+    if (leave) event.preventDefault()
+    else askedToStay = true
+  }
+  const onNavigationStart = (_event: Electron.Event, _url: string, isSameDocument: boolean, isMainFrame: boolean): void => {
+    if (isMainFrame && !isSameDocument) stopWatchingUnload()
+  }
+  const stopWatchingUnload = (): void => {
+    webContents.removeListener('will-prevent-unload', onPreventUnload)
+    webContents.removeListener('did-start-navigation', onNavigationStart)
+  }
+  webContents.on('will-frame-navigate', detectPolicyDenial)
+  webContents.on('will-redirect', detectPolicyDenial)
+  webContents.on('will-prevent-unload', onPreventUnload)
+  webContents.on('did-start-navigation', onNavigationStart)
+  const load = webContents.loadURL(normalized).then<NavigationOutcome, NavigationOutcome>(
     () => ({ kind: 'loaded' }),
     (error: unknown) => ({ kind: 'failed', error })
   )
@@ -63,17 +112,15 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
     // arrive under compositor pressure.
     outcome = await Promise.race([load, policyDenial])
   } finally {
-    tab.webContents.removeListener('will-frame-navigate', detectPolicyDenial)
-    tab.webContents.removeListener('will-redirect', detectPolicyDenial)
+    webContents.removeListener('will-frame-navigate', detectPolicyDenial)
+    webContents.removeListener('will-redirect', detectPolicyDenial)
+    stopWatchingUnload()
   }
-  if (outcome.kind === 'failed') {
-    if (
-      access.findTab(tab.id) === tab
-      && !isAbortedLoad(outcome.error)
-      && tab.navigationPolicyDenialSequence === navigationPolicyDenialSequence
-    ) throw localizedLoadFailure(outcome.error)
-  }
-  return access.getState()
+  if (outcome.kind !== 'failed' || access.findTab(tab.id) !== tab
+    || tab.navigationPolicyDenialSequence !== navigationPolicyDenialSequence) return false
+  if (askedToStay) return true
+  if (!isAbortedLoad(outcome.error)) throw localizedLoadFailure(outcome.error)
+  return false
 }
 
 /** Goes back in the tab's history, unless the workspace's navigation policy denies the entry. */
