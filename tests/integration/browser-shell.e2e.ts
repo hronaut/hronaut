@@ -6896,8 +6896,11 @@ test('invalidates page matches after same-tab navigation and cleans up failed na
       if (!page) throw new Error('Find navigation page was not found')
       return page.executeJavaScript('location.hash = "profile"')
     }, url)
-    await expect(findBar).toBeHidden()
-    await appWindow.getByRole('button', { name: 'Find in page' }).click()
+    // A change within the page keeps Find and its matches, as in Chrome.
+    await expect.poll(() => appWindow.evaluate(async () => (
+      (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.active)?.url
+    ))).toBe(`${url}#profile`)
+    await expect(findBar).toBeVisible()
     await expect(findBar.locator('.find-count')).toHaveText('1 / 1')
 
     await appWindow.evaluate(async ({ tabId, url }) => (
