@@ -39,11 +39,15 @@ describe('help dialog controller', () => {
     expect(mac.keys['runtime.shortcuts.pick']).toEqual(['Cmd', 'Option', 'C'])
     expect(mac.keys['runtime.shortcuts.history']).toEqual(['Cmd', 'Y'])
     expect(mac.keys['runtime.shortcuts.devtools']).toEqual(['Cmd', 'Option', 'I'])
+    expect(mac.keys['runtime.shortcuts.back']).toEqual(['Cmd', '['])
+    expect(mac.keys['runtime.shortcuts.forward']).toEqual(['Cmd', ']'])
     const linux = keysFor('linux')
     expect(linux.mac).toBe(false)
     expect(linux.keys['runtime.shortcuts.pick']).toEqual(['Ctrl', 'Shift', 'C'])
     expect(linux.keys['runtime.shortcuts.history']).toEqual(['Ctrl', 'H'])
     expect(linux.keys['runtime.shortcuts.devtools']).toEqual(['F12'])
+    expect(linux.keys['runtime.shortcuts.back']).toEqual(['Alt', '←'])
+    expect(linux.keys['runtime.shortcuts.forward']).toEqual(['Alt', '→'])
     // Every key is one key, so the dialog can write each in its platform's own way.
     for (const keys of Object.values(linux.keys)) for (const key of keys) expect(key === '+' || !/.\+./u.test(key)).toBe(true)
   })
@@ -86,7 +90,7 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.pinnedWorkspace',
       keys: ['Alt', '1–9']
     })
-    expect(controller.shortcuts.value).toHaveLength(24)
+    expect(controller.shortcuts.value).toHaveLength(26)
     controller.dispose()
   })
 })

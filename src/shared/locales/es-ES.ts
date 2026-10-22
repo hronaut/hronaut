@@ -862,6 +862,8 @@ export const esES = {
     "initializingStorage": "Inicializando el almacenamiento seguro.",
     "shortcuts": {
       "address": "Ir a la barra de direcciones",
+      "back": "Volver a la página anterior",
+      "forward": "Ir a la página siguiente",
       "reload": "Recargar el sitio actual",
       "reloadFresh": "Recargar sin archivos en caché",
       "newTab": "Abrir una pestaña nueva",
@@ -3492,6 +3494,8 @@ export const esES = {
       "help": "Ayuda",
       "commandPalette": "Paleta de comandos…",
       "pickElement": "Seleccionar elemento para el agente",
+      "back": "Atrás",
+      "forward": "Adelante",
       "reload": "Recargar pestaña",
       "reloadWithoutCache": "Recargar pestaña sin caché",
       "developerTools": "Herramientas de desarrollo",

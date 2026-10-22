@@ -862,6 +862,8 @@ export const frFR = {
     "initializingStorage": "Initialisation du stockage sécurisé.",
     "shortcuts": {
       "address": "Activer la barre d’adresse",
+      "back": "Revenir à la page précédente",
+      "forward": "Aller à la page suivante",
       "reload": "Recharger le site actuel",
       "reloadFresh": "Recharger sans les fichiers en cache",
       "newTab": "Ouvrir un nouvel onglet",
@@ -3492,6 +3494,8 @@ export const frFR = {
       "help": "Aide",
       "commandPalette": "Palette de commandes…",
       "pickElement": "Sélectionner un élément pour l’agent",
+      "back": "Précédent",
+      "forward": "Suivant",
       "reload": "Recharger l’onglet",
       "reloadWithoutCache": "Recharger l’onglet sans cache",
       "developerTools": "Outils de développement",

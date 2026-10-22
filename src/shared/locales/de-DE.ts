@@ -862,6 +862,8 @@ export const deDE = {
     "initializingStorage": "Sicherer Speicher wird initialisiert.",
     "shortcuts": {
       "address": "Adressleiste fokussieren",
+      "back": "Zur vorherigen Seite zurück",
+      "forward": "Zur nächsten Seite vorwärts",
       "reload": "Aktuelle Website neu laden",
       "reloadFresh": "Ohne zwischengespeicherte Dateien neu laden",
       "newTab": "Neuen Tab öffnen",
@@ -3492,6 +3494,8 @@ export const deDE = {
       "help": "Hilfe",
       "commandPalette": "Befehlspalette…",
       "pickElement": "Element für Agent auswählen",
+      "back": "Zurück",
+      "forward": "Vorwärts",
       "reload": "Tab neu laden",
       "reloadWithoutCache": "Tab ohne Cache neu laden",
       "developerTools": "Entwicklertools",

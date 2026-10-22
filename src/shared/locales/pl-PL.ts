@@ -862,6 +862,8 @@ export const plPL = {
     "initializingStorage": "Inicjowanie bezpiecznej pamięci.",
     "shortcuts": {
       "address": "Przejdź do paska adresu",
+      "back": "Wróć do poprzedniej strony",
+      "forward": "Przejdź do następnej strony",
       "reload": "Odśwież bieżącą witrynę",
       "reloadFresh": "Odśwież bez plików z pamięci podręcznej",
       "newTab": "Otwórz nową kartę",
@@ -3492,6 +3494,8 @@ export const plPL = {
       "help": "Pomoc",
       "commandPalette": "Paleta poleceń…",
       "pickElement": "Wybierz element dla agenta",
+      "back": "Wstecz",
+      "forward": "Dalej",
       "reload": "Odśwież kartę",
       "reloadWithoutCache": "Odśwież kartę bez pamięci podręcznej",
       "developerTools": "Narzędzia deweloperskie",

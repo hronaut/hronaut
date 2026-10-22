@@ -14,7 +14,7 @@ interface ApplicationMenuHost {
   requestQuit(): void
   /** Runs a browser action from native UI and reports its failure to the shell; skipped until saved workspaces are up. */
   runNativeBrowserAction(action: string, callback: () => unknown): void
-  tabs(): Pick<BrowserTabsManager, 'newTab' | 'reload' | 'reloadIgnoringCache' | 'toggleDevTools' | 'setZoom'> | null
+  tabs(): Pick<BrowserTabsManager, 'newTab' | 'back' | 'forward' | 'reload' | 'reloadIgnoringCache' | 'toggleDevTools' | 'setZoom'> | null
 }
 
 /**
@@ -90,6 +90,18 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               }
             },
             { type: 'separator' },
+            {
+              label: host.text('native.menu.back'),
+              // Chrome's keys. As keys of the menu they reach it only when the website or field in focus leaves them
+              // alone, as in Chrome, and never from an agent: Chromium keeps the keys an agent sends from the menu.
+              accelerator: process.platform === 'darwin' ? 'Cmd+[' : 'Alt+Left',
+              click: () => host.runNativeBrowserAction('go back', () => host.tabs()?.back())
+            },
+            {
+              label: host.text('native.menu.forward'),
+              accelerator: process.platform === 'darwin' ? 'Cmd+]' : 'Alt+Right',
+              click: () => host.runNativeBrowserAction('go forward', () => host.tabs()?.forward())
+            },
             {
               label: host.text('native.menu.reload'),
               accelerator: 'CmdOrCtrl+R',

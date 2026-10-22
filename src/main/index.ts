@@ -98,6 +98,7 @@ import { registerConfirmDialogIpc } from './confirm-dialog-ipc.js'
 import { createClipboardOperations } from './clipboard-operations.js'
 import { createPanelWindow, type PanelWindowRefs } from './windows/panel-window.js'
 import { createApplicationMenu } from './windows/application-menu.js'
+import { attachHistoryMouseButtons } from './windows/history-mouse-buttons.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
 import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 import { createMcpControlState } from './mcp-control-state.js'
@@ -1146,6 +1147,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     mainWindowRefs.window = null
   })
   attachMenuBarGesture()
+  attachHistoryMouseButtons(mainWindowRefs.window, { runNativeBrowserAction, tabs: () => tabRuntime.tabs })
   mainWindowRefs.window.webContents.on('did-finish-load', () => {
     applyInterfaceScale(settingsState.current.interfaceScale)
     if (tabRuntime.tabs && mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
