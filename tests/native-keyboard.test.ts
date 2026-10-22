@@ -62,4 +62,40 @@ describe('native agent keyboard input', () => {
       key: 'X'
     }))
   })
+  // Enter and Space were sent without their character, so Enter submitted no form, added no line and pressed no
+  // focused button, and Space typed nothing.
+  it.each([
+    ['Enter', { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r', modifiers: 0 }],
+    ['Shift+Enter', { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r', modifiers: 8 }],
+    ['Space', { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, text: ' ', unmodifiedText: ' ', modifiers: 0 }],
+    ['enter', { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r', modifiers: 0 }]
+  ])('types the character of %s, as a keyboard does', async (key, down) => {
+    const sendCommand = vi.fn(async () => undefined)
+    await dispatchNativeKeyPress({ sendCommand }, parseBrowserKeyPress(key))
+    expect(sendCommand.mock.calls).toEqual([
+      ['Input.dispatchKeyEvent', { type: 'keyDown', ...down }],
+      ['Input.dispatchKeyEvent', { type: 'keyUp', key: down.key, code: down.code, windowsVirtualKeyCode: down.windowsVirtualKeyCode, modifiers: down.modifiers }]
+    ])
+  })
+
+  it.each([
+    ['Control+Enter', { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, modifiers: 2 }],
+    ['Alt+Space', { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, modifiers: 1 }],
+    ['Meta+Enter', { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, modifiers: 4 }],
+    ['pagedown', { key: 'PageDown', code: 'PageDown', windowsVirtualKeyCode: 34, modifiers: 0 }],
+    ['ESCAPE', { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, modifiers: 0 }],
+    ['f5', { key: 'F5', code: 'F5', windowsVirtualKeyCode: 116, modifiers: 0 }]
+  ])('sends %s as its key without a character', async (key, down) => {
+    const sendCommand = vi.fn(async () => undefined)
+    await dispatchNativeKeyPress({ sendCommand }, parseBrowserKeyPress(key))
+    expect(sendCommand.mock.calls[0]).toEqual(['Input.dispatchKeyEvent', { type: 'rawKeyDown', ...down }])
+  })
+
+  // The punctuation table was read with a plain lookup, so `constructor` found the object's own constructor and was
+  // sent with no code.
+  it('sends a key named like an object property as itself', async () => {
+    const sendCommand = vi.fn(async () => undefined)
+    await dispatchNativeKeyPress({ sendCommand }, parseBrowserKeyPress('constructor'))
+    expect(sendCommand.mock.calls[0]).toEqual(['Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'constructor', code: 'constructor', windowsVirtualKeyCode: 0, modifiers: 0 }])
+  })
 })

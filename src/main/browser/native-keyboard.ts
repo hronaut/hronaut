@@ -29,6 +29,16 @@ const namedKeys: Readonly<Record<string, { key: string; code: string; virtualKey
   Delete: { key: 'Delete', code: 'Delete', virtualKeyCode: 46 }
 }
 
+// A named key typed in another case, such as `enter` or `pagedown`, is that key. Chromium knows no key named `enter`,
+// so the page saw a key without a name and nothing happened.
+const namedKeysByLowerCase: ReadonlyMap<string, (typeof namedKeys)[string]> = new Map(
+  Object.entries(namedKeys).map(([name, key]) => [name.toLowerCase(), key])
+)
+
+// The character Enter and Space type, as a keyboard does: Enter submits a form, starts a new line in a text area and
+// presses a focused button, and Space types a space. Without it Chromium sent only the key, which none of these act on.
+const namedKeyText: Readonly<Record<string, string>> = { Enter: '\r', ' ': ' ' }
+
 const punctuationKeys: Readonly<Record<string, { code: string; virtualKeyCode: number; shifted: string }>> = {
   '`': { code: 'Backquote', virtualKeyCode: 192, shifted: '~' },
   '-': { code: 'Minus', virtualKeyCode: 189, shifted: '_' },
@@ -54,11 +64,17 @@ export function nativeKeyDescription(input: BrowserKeyPress): {
 } {
   const text = browserKeyCharacter(input) ?? undefined
   const shifted = input.modifiers.includes('shift')
-  const named = namedKeys[input.keyCode === ' ' ? 'Space' : input.keyCode]
-  if (named) return named
-  const functionKey = /^F([1-9]|1[0-2])$/.exec(input.keyCode)
+  const named = namedKeysByLowerCase.get(input.keyCode.toLowerCase())
+  if (named) {
+    const typed = namedKeyText[named.key]
+    // Held with Control, Alt or Meta, they type nothing, as a letter does.
+    const plain = !input.modifiers.some((modifier) => modifier === 'control' || modifier === 'alt' || modifier === 'meta')
+    return typed === undefined || !plain ? named : { ...named, text: typed, unmodifiedText: typed }
+  }
+  const functionKey = /^F([1-9]|1[0-2])$/i.exec(input.keyCode)
   if (functionKey) {
-    return { key: input.keyCode, code: input.keyCode, virtualKeyCode: 111 + Number(functionKey[1]) }
+    const name = `F${functionKey[1]}`
+    return { key: name, code: name, virtualKeyCode: 111 + Number(functionKey[1]) }
   }
   if (/^[a-z]$/i.test(input.keyCode)) {
     const lower = input.keyCode.toLowerCase()
@@ -78,7 +94,8 @@ export function nativeKeyDescription(input: BrowserKeyPress): {
       ...(text === undefined ? {} : { text, unmodifiedText: input.keyCode })
     }
   }
-  const punctuation = punctuationKeys[input.keyCode]
+  // Own keys only, so a key named `constructor` or `toString` is not read from the object's prototype.
+  const punctuation = Object.hasOwn(punctuationKeys, input.keyCode) ? punctuationKeys[input.keyCode] : undefined
   if (punctuation) {
     return {
       key: shifted ? punctuation.shifted : input.keyCode,

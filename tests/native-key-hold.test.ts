@@ -19,6 +19,17 @@ describe('bounded native key hold', () => {
     })
   })
 
+  // A press of Enter or Space types its character; a hold must not, or every repeat would submit or type again.
+  it.each([
+    ['Enter', 'Enter', 'Enter', 13],
+    ['Space', ' ', 'Space', 32]
+  ])('holds %s without its character', (held, key, code, windowsVirtualKeyCode) => {
+    expect(nativeHeldKeyCommands(held)).toEqual({
+      down: { type: 'rawKeyDown', key, code, windowsVirtualKeyCode, modifiers: 0 },
+      up: { type: 'keyUp', key, code, windowsVirtualKeyCode, modifiers: 0 }
+    })
+  })
+
   it('does not schedule a poll when validation synchronously aborts', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
     const controller = new AbortController()
