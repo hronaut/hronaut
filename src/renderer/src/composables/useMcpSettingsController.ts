@@ -416,6 +416,11 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     capabilityCredential.value = ''
   }
 
+  /** Clears an error that belongs to something no longer on screen, unless a newer error replaced it meanwhile. */
+  function clearCapabilityError(error: string): void {
+    if (capabilityError.value === error) capabilityError.value = ''
+  }
+
   function reconcileCapabilityLineage(profiles: McpCapabilityProfileSummary[]): McpCapabilityProfileSummary[] {
     const byId = new Map(profiles.map(profile => [profile.id, profile]))
     const resolved = new Map<string, boolean>()
@@ -484,6 +489,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     revokeCapabilityProfile,
     copyCapabilityCredential,
     clearCapabilityCredential,
+    clearCapabilityError,
     reset,
     dispose
   }
