@@ -348,6 +348,8 @@ export const frFR = {
     "nav": {
       "appearance": "Apparence",
       "appearanceDescription": "Thème et fenêtre",
+      "general": "Général",
+      "generalDescription": "Langue, démarrage, agents",
       "search": "Moteur de recherche",
       "searchDescription": "Recherches de la barre d’adresse",
       "downloads": "Téléchargements",

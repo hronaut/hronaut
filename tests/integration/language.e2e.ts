@@ -11,12 +11,13 @@ test('switches language live through Settings and persists it across restart', a
   profileDirectory
 }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.locator('.settings-nav-item').nth(1).click()
   const selector = appWindow.locator('#setting-language')
   await expect(selector).toHaveValue('system')
   await selector.selectOption('uk-UA')
 
   await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
-  await expect(appWindow.getByRole('heading', { name: 'Тема застосунку' })).toBeVisible()
+  await expect(appWindow.getByRole('heading', { name: 'Загальні' })).toBeVisible()
   await expect(appWindow.getByRole('button', { name: 'Налаштування', exact: true })).toHaveAttribute('aria-pressed', 'true')
   expect(await electronApp.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items.map((item) => item.label))).toContain('Редагування')
 
@@ -34,6 +35,7 @@ test('switches language live through Settings and persists it across restart', a
   try {
     await expect(restarted.window.locator('html')).toHaveAttribute('lang', 'uk-UA')
     await restarted.window.getByRole('button', { name: 'Налаштування' }).click()
+    await restarted.window.locator('.settings-nav-item').nth(1).click()
     await expect(restarted.window.locator('#setting-language')).toHaveValue('uk-UA')
   } finally {
     await closeHronaut(restarted.app)
@@ -56,12 +58,13 @@ test('keeps a committed language change authoritative when the Home refresh fail
   })
 
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.locator('.settings-nav-item').nth(1).click()
   const selector = appWindow.locator('#setting-language')
   await selector.selectOption('uk-UA')
 
   await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
   await expect(selector).toHaveValue('uk-UA')
-  await expect(appWindow.getByRole('heading', { name: 'Тема застосунку' })).toBeVisible()
+  await expect(appWindow.getByRole('heading', { name: 'Загальні' })).toBeVisible()
   expect(await electronApp.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items.map((item) => item.label))).toContain('Редагування')
   await expect
     .poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).languagePreference)
@@ -80,6 +83,7 @@ test('keeps a committed language change authoritative when the Home refresh fail
 
 test('supports Russian and the additional European language choices', async ({ appWindow }, testInfo) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.locator('.settings-nav-item').nth(1).click()
   await appWindow.setViewportSize({ width: 760, height: 640 })
   const selector = appWindow.locator('#setting-language')
   await expect(selector.locator('option')).toHaveCount(8)
@@ -140,10 +144,13 @@ test('keeps English and Ukrainian settings usable across themes and a narrow win
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await appWindow.screenshot({ path: testInfo.outputPath('en-US-system-normal.png') })
   await appWindow.setViewportSize({ width: 760, height: 640 })
+  const sections = appWindow.locator('.settings-nav-item')
   const selector = appWindow.locator('#setting-language')
 
   for (const locale of ['en-US', 'uk-UA'] as const) {
+    await sections.nth(1).click()
     await selector.selectOption(locale)
+    await sections.nth(0).click()
     for (const theme of ['system', 'light', 'dark', 'midnight', 'sepia', 'cyberpunk', 'matrix', 'machine', 'galactic'] as const) {
       await appWindow.getByTestId(`theme-${theme}`).click()
       await expect(appWindow.locator('html')).toHaveAttribute('data-theme-preference', theme)
@@ -203,6 +210,7 @@ test('keeps late Settings sections reachable by mouse wheel at large interface s
 test('names a new tab in the interface language while agents keep its English title', async ({ appWindow, electronApp }) => {
   // Hronaut gave every blank tab the English title "New tab", and the tab strip showed it in every language.
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.locator('.settings-nav-item').nth(1).click()
   await appWindow.locator('#setting-language').selectOption('uk-UA')
   await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
   await appWindow.keyboard.press('Control+t')

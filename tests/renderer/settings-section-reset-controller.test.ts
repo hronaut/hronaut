@@ -4,6 +4,7 @@ import { useSettingsSectionResetController } from '../../src/renderer/src/compos
 function createHarness() {
   const callbacks = {
     resetAppearance: vi.fn(async () => true),
+    resetGeneral: vi.fn(async () => true),
     resetSearch: vi.fn(() => true),
     resetDownloads: vi.fn(async () => true),
     resetPerformance: vi.fn(async () => true),
@@ -25,6 +26,17 @@ describe('settings section reset controller', () => {
     await expect(harness.controller.reset('appearance')).resolves.toBe(true)
 
     expect(harness.callbacks.resetAppearance).toHaveBeenCalledOnce()
+    expect(harness.callbacks.resetGeneral).not.toHaveBeenCalled()
+  })
+
+  // General's rows came from Appearance, whose reset set them back too; each section now resets only its own.
+  it('routes General to its own reset', async () => {
+    const harness = createHarness()
+
+    await expect(harness.controller.reset('general')).resolves.toBe(true)
+
+    expect(harness.callbacks.resetGeneral).toHaveBeenCalledOnce()
+    expect(harness.callbacks.resetAppearance).not.toHaveBeenCalled()
   })
 
   it.each([

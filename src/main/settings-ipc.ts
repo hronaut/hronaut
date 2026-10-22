@@ -122,16 +122,27 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.assertTrustedSender(event)
     return host.shouldUseDarkColors() ? 'dark' : 'light'
   })
+  // Reset to default in Settings → Appearance: how Hronaut looks.
   ipcMain.handle('settings:reset-appearance', async (event) => {
+    host.assertTrustedSender(event)
+    await host.updateSettings({
+      theme: DEFAULT_SETTINGS.theme,
+      interfaceScale: DEFAULT_SETTINGS.interfaceScale,
+      tabPosition: DEFAULT_SETTINGS.tabPosition,
+      useSystemTitleBar: DEFAULT_SETTINGS.useSystemTitleBar
+    })
+    host.applyTheme(host.settings().theme)
+    host.applyInterfaceScale(host.settings().interfaceScale)
+    host.publishSettings()
+    return host.currentRendererSettingsState()
+  })
+  // Reset to default in Settings → General: language, startup and tray, and how agent activity shows.
+  ipcMain.handle('settings:reset-general', async (event) => {
     host.assertTrustedSender(event)
     if (host.isPackaged() && !host.startupLaunchManager()) {
       throw new LocalizedError('appErrors.settings.startupIntegrationUnavailable')
     }
     await host.updateSettings({
-      theme: DEFAULT_SETTINGS.theme,
-      interfaceScale: DEFAULT_SETTINGS.interfaceScale,
-      tabPosition: DEFAULT_SETTINGS.tabPosition,
-      useSystemTitleBar: DEFAULT_SETTINGS.useSystemTitleBar,
       hideInTray: DEFAULT_SETTINGS.hideInTray,
       launchAtStartup: DEFAULT_SETTINGS.launchAtStartup,
       launchMinimized: DEFAULT_SETTINGS.launchMinimized,
@@ -143,8 +154,7 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     }, host.isPackaged()
       ? (next) => host.startupLaunchManager()!.setEnabled(next.launchAtStartup)
       : undefined)
-    host.applyTheme(host.settings().theme)
-    host.applyInterfaceScale(host.settings().interfaceScale)
+    // Publishes the reset settings too, also when the language stays the same.
     await host.applyLanguagePreferenceRuntime(host.settings().languagePreference)
     return host.currentRendererSettingsState()
   })

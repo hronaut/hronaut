@@ -274,19 +274,21 @@ test('scales Hronaut without zooming the active website and persists the choice'
   }
 })
 
-test('resets every Appearance preference including interface size', async ({
+test('resets every Appearance preference including interface size, and only those', async ({
   appWindow,
   electronApp,
   profileDirectory
 }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  const sections = appWindow.locator('.settings-nav-item')
+  await sections.nth(1).click()
+  await appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' }).uncheck()
+  await sections.nth(0).click()
   await appWindow.getByTestId('theme-matrix').click()
   await appWindow.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
   await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('top')
-  await appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' }).uncheck()
-  await appWindow.getByRole('checkbox', { name: 'Play attention sound' }).uncheck()
-  await appWindow.locator('#setting-language').selectOption('uk-UA')
-  await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
+  // The last change's own update reaches the window first, so the probe below counts only the reset's.
+  await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.tabPosition)')).toBe('top')
   await appWindow.evaluate(() => {
     const page = window as typeof window & {
       hronautSettings: {
@@ -301,28 +303,22 @@ test('resets every Appearance preference including interface size', async ({
 
   await appWindow.locator('.settings-header .secondary-button').click()
 
-  await expect(appWindow.locator('html')).toHaveAttribute('lang', 'en-US')
   await expect(appWindow.getByTestId('theme-cyberpunk')).toHaveAttribute('aria-checked', 'true')
   await expect(appWindow.locator('html')).toHaveAttribute('data-theme', 'cyberpunk')
-  await expect(appWindow.locator('#setting-language')).toHaveValue('system')
   await expect(appWindow.getByRole('combobox', { name: 'Interface size' })).toHaveValue('1')
   await expect(appWindow.getByRole('combobox', { name: 'Tab position' })).toHaveValue('left')
-  await expect(appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })).toBeChecked()
-  await expect(appWindow.getByRole('checkbox', { name: 'Play attention sound' })).toBeChecked()
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => (
     BrowserWindow.getAllWindows()[0]?.webContents.getZoomFactor()
   ))).toBe(1)
+  // Appearance's reset also set back the language, startup and tray, and agent activity rows, which are General's now.
   await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8'))).toMatchObject({
     theme: 'cyberpunk',
     interfaceScale: 1,
     tabPosition: 'left',
-    hideInTray: true,
-    launchAtStartup: false,
-    launchMinimized: false,
-    attentionSound: true,
-    attentionSoundCue: 'warning',
-    languagePreference: 'system'
+    hideInTray: false
   })
+  await sections.nth(1).click()
+  await expect(appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })).not.toBeChecked()
   await expect.poll(() => appWindow.evaluate(() => {
     const page = window as typeof window & {
       __appearanceResetProbe?: { count: () => number }
@@ -338,12 +334,45 @@ test('resets every Appearance preference including interface size', async ({
   })
 })
 
+test('resets every General preference including the language, and only those', async ({ appWindow, profileDirectory }) => {
+  await appWindow.getByRole('button', { name: 'Settings' }).click()
+  const sections = appWindow.locator('.settings-nav-item')
+  await appWindow.getByTestId('theme-matrix').click()
+  await sections.nth(1).click()
+  await appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' }).uncheck()
+  await appWindow.getByRole('checkbox', { name: 'Play attention sound' }).uncheck()
+  await appWindow.getByRole('checkbox', { name: /^Show agent cursors/ }).uncheck()
+  await appWindow.locator('#setting-language').selectOption('uk-UA')
+  await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
+
+  await appWindow.locator('.settings-header .secondary-button').click()
+
+  await expect(appWindow.locator('html')).toHaveAttribute('lang', 'en-US')
+  await expect(appWindow.locator('#setting-language')).toHaveValue('system')
+  await expect(appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })).toBeChecked()
+  await expect(appWindow.getByRole('checkbox', { name: 'Play attention sound' })).toBeChecked()
+  await expect(appWindow.getByRole('checkbox', { name: /^Show agent cursors/ })).toBeChecked()
+  await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8'))).toMatchObject({
+    theme: 'matrix',
+    hideInTray: true,
+    launchAtStartup: false,
+    launchMinimized: false,
+    attentionSound: true,
+    attentionSoundCue: 'warning',
+    showAgentCursor: true,
+    pinAgentLiveStatus: false,
+    languagePreference: 'system'
+  })
+  await expect(appWindow.locator('html')).toHaveAttribute('data-theme', 'matrix')
+})
+
 test('can disable hiding in the tray so closing the window quits Hronaut', async ({
   appWindow,
   electronApp,
   profileDirectory
 }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.locator('.settings-nav-item').nth(1).click()
   const hideInTray = appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })
   await expect(hideInTray).toBeChecked()
   await hideInTray.uncheck()
@@ -367,6 +396,7 @@ test('can disable hiding in the tray so closing the window quits Hronaut', async
 
 test('can disable the attention sound', async ({ appWindow, profileDirectory }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.locator('.settings-nav-item').nth(1).click()
   const attentionSound = appWindow.getByRole('checkbox', { name: 'Play attention sound' })
   const attentionSoundCue = appWindow.getByRole('combobox', { name: 'Attention sound' })
   const testSound = appWindow.getByRole('button', { name: 'Test sound' })

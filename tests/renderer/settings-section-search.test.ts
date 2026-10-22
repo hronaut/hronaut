@@ -101,6 +101,10 @@ describe('settings section search', () => {
     { locale: 'ru-RU', query: 'обновить', sections: ['updates'] },
     { locale: 'ru-RU', query: 'очистить историю', sections: ['privacy'] },
     { locale: 'ru-RU', query: 'тёмный режим', sections: ['appearance'] },
+    { locale: 'ru-RU', query: 'автозапуск', sections: ['general'] },
+    { locale: 'ru-RU', query: 'язык', sections: ['general'] },
+    { locale: 'uk-UA', query: 'трей', sections: ['general'] },
+    { locale: 'en-US', query: 'attention sound', sections: ['general'] },
     { locale: 'en-US', query: 'updated', sections: ['updates'] },
     { locale: 'en-US', query: 'dark mode', sections: ['appearance'] },
     { locale: 'en-US', query: 'proxy', sections: [] }

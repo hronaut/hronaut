@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 
 export const SETTINGS_SECTIONS = [
   'appearance',
+  'general',
   'search',
   'downloads',
   'performance',

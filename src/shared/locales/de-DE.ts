@@ -348,6 +348,8 @@ export const deDE = {
     "nav": {
       "appearance": "Erscheinungsbild",
       "appearanceDescription": "Design und Fenster",
+      "general": "Allgemein",
+      "generalDescription": "Sprache, Start, Agenten",
       "search": "Suchmaschine",
       "searchDescription": "Adressleistensuche",
       "downloads": "Downloads",

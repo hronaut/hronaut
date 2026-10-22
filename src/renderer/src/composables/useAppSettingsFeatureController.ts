@@ -39,6 +39,7 @@ import { disposeAll } from './dispose-all.js'
 
 interface AppSettingsFeatureStore {
   resetAppearance(): Promise<RendererSettingsState>
+  resetGeneral(): Promise<RendererSettingsState>
   setFollowAgentActivity(enabled: boolean): Promise<AppSettings>
   setShowAgentCursor(enabled: boolean): Promise<AppSettings>
   setPinAgentLiveStatus(enabled: boolean): Promise<AppSettings>
@@ -272,6 +273,10 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
   const { reset: resetSettingsSection } = useSettingsSectionResetController({
     resetAppearance: async () => {
       await options.settingsStore.resetAppearance()
+      return true
+    },
+    resetGeneral: async () => {
+      await options.settingsStore.resetGeneral()
       return true
     },
     resetSearch: searchSettingsController.reset,

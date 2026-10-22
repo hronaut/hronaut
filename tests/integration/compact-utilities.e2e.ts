@@ -60,7 +60,7 @@ test('Settings actions have visible button surfaces, comfortable targets, and ke
   const dialog = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
   for (const theme of ['light', 'dark']) {
     await appWindow.evaluate(`window.hronautSettings.setTheme('${theme}')`)
-    for (const [section, selector] of [[0, '.test-sound-button'], [5, '.workspace-data-actions button'], [4, '.mcp-capability-form > button'], [9, '.update-settings-actions button'] ] as const) {
+    for (const [section, selector] of [[1, '.test-sound-button'], [6, '.workspace-data-actions button'], [5, '.mcp-capability-form > button'], [10, '.update-settings-actions button'] ] as const) {
       await dialog.locator('.settings-nav-item').nth(section).click()
       const buttons = dialog.locator(selector)
       await buttons.first().scrollIntoViewIfNeeded()
@@ -75,7 +75,7 @@ test('Settings actions have visible button surfaces, comfortable targets, and ke
           expect(await button.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('solid')
         }
       }
-      if (section === 4) {
+      if (section === 5) {
         const form = (await dialog.locator('.mcp-capability-form').boundingBox())!
         const submit = (await buttons.first().boundingBox())!
         expect(submit.x + submit.width).toBeCloseTo(form.x + form.width, 0)
@@ -87,7 +87,7 @@ test('Settings actions have visible button surfaces, comfortable targets, and ke
         await checkbox.check()
         await expect(checkbox).toBeChecked()
       }
-      if (section === 5) {
+      if (section === 6) {
         const transfer = buttons.nth(1)
         expect(await transfer.evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)')
         await buttons.first().click()

@@ -416,6 +416,7 @@ const settingsApi: HronautSettingsApi = {
   getRendererState: () => ipcRenderer.invoke('settings:get-renderer-state'),
   getSystemTheme: () => ipcRenderer.invoke('settings:get-system-theme'),
   resetAppearance: () => ipcRenderer.invoke('settings:reset-appearance'),
+  resetGeneral: () => ipcRenderer.invoke('settings:reset-general'),
   setTheme: (theme: ThemeName) => ipcRenderer.invoke('settings:set-theme', theme),
   setInterfaceScale: (scale: InterfaceScale) => ipcRenderer.invoke('settings:set-interface-scale', scale),
   setTabPosition: (position: TabPosition) => ipcRenderer.invoke('settings:set-tab-position', position),

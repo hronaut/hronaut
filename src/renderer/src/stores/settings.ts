@@ -170,6 +170,18 @@ export const useSettingsStore = defineStore('settings', () => {
     ) acceptAuthoritativeState(next)
     return next
   }
+  async function resetGeneral(): Promise<RendererSettingsState> {
+    const currentGeneration = generation
+    const startingRevision = revision
+    const sequence = ++mutationSequence
+    const next = await window.hronautSettings.resetGeneral()
+    if (
+      generation === currentGeneration
+      && revision === startingRevision
+      && sequence === mutationSequence
+    ) acceptAuthoritativeState(next)
+    return next
+  }
   const setInterfaceScale = (scale: InterfaceScale): Promise<AppSettings> => applySettings(window.hronautSettings.setInterfaceScale(scale))
   const setTabPosition = (position: TabPosition): Promise<AppSettings> => applySettings(window.hronautSettings.setTabPosition(position))
   const setUseSystemTitleBar = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setUseSystemTitleBar(enabled))
@@ -233,6 +245,7 @@ export const useSettingsStore = defineStore('settings', () => {
     acceptAuthoritativeState,
     applySettings,
     resetAppearance,
+    resetGeneral,
     setTheme,
     setInterfaceScale,
     setTabPosition,

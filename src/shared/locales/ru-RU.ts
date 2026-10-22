@@ -348,6 +348,8 @@ export const ruRU = {
     "nav": {
       "appearance": "Внешний вид",
       "appearanceDescription": "Тема и окно",
+      "general": "Общие",
+      "generalDescription": "Язык, запуск, агенты",
       "search": "Поисковая система",
       "searchDescription": "Поиск из адресной строки",
       "downloads": "Загрузки",

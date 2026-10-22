@@ -7,6 +7,7 @@ import IconKey from '~icons/material-symbols/key-rounded'
 import IconWallet from '~icons/material-symbols/account-balance-wallet-rounded'
 import IconWorkspaces from '~icons/material-symbols/workspaces-rounded'
 import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
+import IconGeneral from '~icons/material-symbols/settings-applications-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconShieldLock from '~icons/material-symbols/shield-lock-rounded'
 import IconSystemUpdate from '~icons/material-symbols/system-update-alt-rounded'
@@ -22,6 +23,7 @@ export interface SettingsNavigationItem {
 /** Settings' sections in the order its sidebar lists them, as Settings and the command palette name them. */
 export const SETTINGS_NAVIGATION: readonly SettingsNavigationItem[] = [
   { section: 'appearance', labelKey: 'settings.nav.appearance', descriptionKey: 'settings.nav.appearanceDescription', icon: IconContrast },
+  { section: 'general', labelKey: 'settings.nav.general', descriptionKey: 'settings.nav.generalDescription', icon: IconGeneral },
   { section: 'search', labelKey: 'settings.nav.search', descriptionKey: 'settings.nav.searchDescription', icon: IconSearch },
   { section: 'downloads', labelKey: 'settings.nav.downloads', descriptionKey: 'settings.nav.downloadsDescription', icon: IconDownload },
   { section: 'performance', labelKey: 'settings.nav.performance', descriptionKey: 'settings.nav.performanceDescription', icon: IconBedtime },

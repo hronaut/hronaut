@@ -105,6 +105,7 @@ test('previews and plays the selected Foley cue for user attention', async ({
     }
   })()`)
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('button', { name: /^General/ }).click()
   await appWindow.getByRole('combobox', { name: 'Attention sound' }).selectOption('bell')
   await appWindow.getByRole('button', { name: 'Test sound' }).click()
   await expect.poll(() => appWindow.evaluate('window.__hronautFoleyOscillators')).toBeGreaterThan(0)

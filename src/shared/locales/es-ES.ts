@@ -348,6 +348,8 @@ export const esES = {
     "nav": {
       "appearance": "Apariencia",
       "appearanceDescription": "Tema y ventana",
+      "general": "General",
+      "generalDescription": "Idioma, inicio, agentes",
       "search": "Motor de búsqueda",
       "searchDescription": "Búsquedas de la barra de direcciones",
       "downloads": "Descargas",
