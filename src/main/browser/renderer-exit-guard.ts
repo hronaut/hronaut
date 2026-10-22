@@ -71,6 +71,7 @@ export function guardPageCallsAcrossRendererExit(page: GuardedPage): void {
     : settleBeforeExit(() => sendCommand(method, ...args))
 }
 
-function answeredByBrowserProcess(method: string): boolean {
+/** Whether Chromium answers this DevTools command in the browser process, without waiting on the page's renderer. */
+export function answeredByBrowserProcess(method: string): boolean {
   return BROWSER_PROCESS_COMMANDS.has(method) || BROWSER_PROCESS_DOMAINS.some(domain => method.startsWith(domain))
 }

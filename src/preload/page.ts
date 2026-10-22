@@ -37,6 +37,7 @@ interface PagePromiseRejectionEvent {
 interface PageWindow {
   addEventListener(type: 'error', listener: (event: PageErrorEvent) => void, capture: boolean): void
   addEventListener(type: 'unhandledrejection', listener: (event: PagePromiseRejectionEvent) => void, capture: boolean): void
+  addEventListener(type: 'beforeprint' | 'afterprint', listener: (event: { isTrusted: boolean }) => void, capture: boolean): void
 }
 
 const pageWindow = globalThis as unknown as PageWindow
@@ -128,3 +129,11 @@ pageWindow.addEventListener('unhandledrejection', (event) => {
     promiseRejection: true
   })
 }, true)
+
+// A print dialog holds the page until the person prints or cancels, so the main process lets the calls waiting on the
+// page go instead of keeping the agent's workspace busy. Only the browser's own print events count, not a page's copy.
+for (const type of ['beforeprint', 'afterprint'] as const) {
+  pageWindow.addEventListener(type, (event) => {
+    if (event.isTrusted) ipcRenderer.send('hronaut:page-print', type === 'beforeprint')
+  }, true)
+}
