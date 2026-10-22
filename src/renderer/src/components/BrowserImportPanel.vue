@@ -35,13 +35,24 @@ async function run(action: () => Promise<void>): Promise<void> {
   try { await action() } catch (cause) { if (current === generation) error.value = friendlyUiError(cause, t('browserImport.error')) }
   finally { if (current === generation) setBusy(false) }
 }
+/**
+ * The ID a new list gives the chosen profile, or none when it can't be told apart: Firefox profiles in different
+ * folders can read the same, so only a single match is surely the chosen one.
+ */
+function chosenAgain(chosen: BrowserImportProfile | undefined, listed: BrowserImportProfile[]): string {
+  const matches = listed.filter(p => p.browser === chosen?.browser && p.name === chosen?.name)
+  return matches.length === 1 ? matches[0].id : ''
+}
 async function start(): Promise<void> {
   const current = ++generation
+  // Back lists the profiles again under new IDs, so the chosen one is found again by browser and name, and Continue
+  // reads the profile the person picked. When it can't be found, nothing is chosen for them.
+  const chosen = profiles.value.find(p => p.id === profileId.value)
   preview.value = null; previewConsumed.value = false; result.value = null; selected.value = []; filter.value = ''; profileId.value = ''; profiles.value = []
   await run(async () => {
     const next = unwrap(await props.browser.browserImport.list(props.workspaceId))
     if (current !== generation) return
-    profiles.value = next; profileId.value = next[0]?.id ?? ''
+    profiles.value = next; profileId.value = chosen ? chosenAgain(chosen, next) : next[0]?.id ?? ''
   })
 }
 async function read(): Promise<void> {
@@ -57,11 +68,9 @@ async function read(): Promise<void> {
       const chosen = profiles.value.find(p => p.id === source)
       const listed = unwrap(await props.browser.browserImport.list(props.workspaceId))
       if (current !== generation || profileId.value !== source) return
-      // Firefox profiles in different folders can read the same, so only a single match is surely the chosen one.
-      const matches = listed.filter(p => p.browser === chosen?.browser && p.name === chosen?.name)
-      profiles.value = listed; profileId.value = matches.length === 1 ? matches[0].id : ''
-      if (matches.length !== 1) throw new Error(t('browserImport.errors.expired'))
-      source = matches[0].id
+      profiles.value = listed; profileId.value = chosenAgain(chosen, listed)
+      if (!profileId.value) throw new Error(t('browserImport.errors.expired'))
+      source = profileId.value
       response = await props.browser.browserImport.preview(props.workspaceId, source)
     }
     const next = unwrap(response)

@@ -50,6 +50,54 @@ describe('browser import picker', () => {
       expect(browserImport.preview).toHaveBeenCalledExactlyOnceWith('chosen', 'second-id')
     } finally { wrapper.unmount() }
   })
+  it('keeps the chosen profile after Back, which lists the profiles again under new IDs', async () => {
+    const { wrapper, browserImport, button } = setup(state, [
+      { id: 'chrome-id', browser: 'Chrome', name: 'Default' },
+      { id: 'chromium-id', browser: 'Chromium', name: 'Default' }
+    ])
+    const chosenId = () => (wrapper.get('#browser-import-profile').element as HTMLSelectElement).value
+    try {
+      await flushPromises()
+      await wrapper.get('#browser-import-profile').setValue('chromium-id')
+      await button('Continue').trigger('click'); await flushPromises()
+      browserImport.list.mockResolvedValueOnce({ ok: true, value: [
+        { id: 'new-chrome-id', browser: 'Chrome', name: 'Default' },
+        { id: 'new-chromium-id', browser: 'Chromium', name: 'Default' }
+      ] })
+      await button('Back').trigger('click'); await flushPromises()
+      // Back chose the first profile, so the next Continue read Chrome's.
+      expect(chosenId()).toBe('new-chromium-id')
+      await button('Continue').trigger('click'); await flushPromises()
+      expect(browserImport.preview).toHaveBeenLastCalledWith('chosen', 'new-chromium-id')
+
+      // Profiles in different folders that now read the same can't say which one was chosen, so nothing is chosen for
+      // the person and Continue cannot read another profile.
+      const twin = { browser: 'Chromium', name: 'Default' }
+      browserImport.list.mockResolvedValueOnce({ ok: true, value: [
+        { id: 'one-id', browser: 'Chrome', name: 'Default' },
+        { id: 'two-id', ...twin },
+        { id: 'three-id', ...twin }
+      ] })
+      await button('Back').trigger('click'); await flushPromises()
+      expect(chosenId()).toBe('')
+      expect(button('Continue').attributes('disabled')).toBeDefined()
+    } finally { wrapper.unmount() }
+  })
+  it('chooses nothing after Back when the chosen profile is gone', async () => {
+    const { wrapper, browserImport, button } = setup(state, [
+      { id: 'default-id', browser: 'Chrome', name: 'Default' },
+      { id: 'work-id', browser: 'Chrome', name: 'Work' }
+    ])
+    try {
+      await flushPromises()
+      await wrapper.get('#browser-import-profile').setValue('work-id')
+      await button('Continue').trigger('click'); await flushPromises()
+      browserImport.list.mockResolvedValueOnce({ ok: true, value: [{ id: 'new-default-id', browser: 'Chrome', name: 'Default' }] })
+      await button('Back').trigger('click'); await flushPromises()
+      expect((wrapper.get('#browser-import-profile').element as HTMLSelectElement).value).toBe('')
+      expect(button('Continue').attributes('disabled')).toBeDefined()
+    } finally { wrapper.unmount() }
+  })
   it('preserves hidden selections, uses matching bulk selection and commits only the chosen domains', async () => {
     const { wrapper, browserImport, button } = setup()
     try {
