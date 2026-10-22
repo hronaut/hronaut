@@ -138,6 +138,25 @@ describe('external cookie sources', () => {
     expect(await discoverImportProfiles(home, 'linux', join(home, '.config'), join(home, '.config'))).toHaveLength(1)
     expect(await discoverImportProfiles(home, 'linux', linked, linked)).toHaveLength(1)
   })
+  it('also lists the Chrome profiles of XDG_CONFIG_HOME and ~/.config, naming the folder of each, so the pickers tell them apart', async () => {
+    // A Chrome started without CHROME_CONFIG_HOME, or before XDG_CONFIG_HOME was set, left its profiles there. Each
+    // folder's Default profile read "Google Chrome · Default", in the picker and in the consent dialog alike.
+    const home = await directory(); const chrome = await directory(); const xdg = join(home, 'xdg-config')
+    for (const folder of [chrome, xdg, join(home, '.config')]) {
+      await mkdir(join(folder, 'google-chrome/Default'), { recursive: true })
+      await writeFile(join(folder, 'google-chrome/Default/Cookies'), 'not SQLite')
+    }
+    const environment = { CHROME_CONFIG_HOME: chrome, XDG_CONFIG_HOME: xdg }
+    const sources = await discoverImportProfiles(home, 'linux', linuxConfigHome(home, environment), linuxChromeConfigHome(home, environment))
+    expect(sources.map(({ browser, name, file }) => ({ browser, name, file }))).toEqual([
+      { browser: 'Google Chrome', name: 'Default', file: join(chrome, 'google-chrome/Default/Cookies') },
+      { browser: 'Google Chrome (~/xdg-config)', name: 'Default', file: join(xdg, 'google-chrome/Default/Cookies') },
+      { browser: 'Google Chrome (~/.config)', name: 'Default', file: join(home, '.config/google-chrome/Default/Cookies') }
+    ])
+    // A folder outside the home folder is named in full.
+    const outsideHome = await discoverImportProfiles(home, 'linux', chrome, join(home, '.config'))
+    expect(outsideHome.map((source) => source.browser)).toEqual(['Google Chrome', `Google Chrome (${chrome})`])
+  })
   it('takes CHROME_CONFIG_HOME before XDG_CONFIG_HOME, and only an absolute path', () => {
     expect(linuxChromeConfigHome('/home/person', { CHROME_CONFIG_HOME: '/chrome', XDG_CONFIG_HOME: '/data/config' })).toBe('/chrome')
     expect(linuxChromeConfigHome('/home/person', { CHROME_CONFIG_HOME: 'chrome', XDG_CONFIG_HOME: '/data/config' })).toBe('/data/config')

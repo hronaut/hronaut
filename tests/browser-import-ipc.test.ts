@@ -25,3 +25,19 @@ it('sanitizes source failures and rejects arbitrary profile identifiers before r
     expect(state.read).not.toHaveBeenCalled()
   } finally { cancel() }
 })
+it('lists profiles from the folders CHROME_CONFIG_HOME and XDG_CONFIG_HOME name', async () => {
+  const saved = { CHROME_CONFIG_HOME: process.env.CHROME_CONFIG_HOME, XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME }
+  process.env.CHROME_CONFIG_HOME = '/data/chrome'; process.env.XDG_CONFIG_HOME = '/data/config'
+  const cancel = registerBrowserImportIpc({ ipcMain, assertSender: () => {}, destination: id => ({ id, name: 'Work', fingerprint: 'one' }), consent: async () => true, write: vi.fn() })
+  try {
+    state.discover.mockResolvedValue([])
+    expect(await state.handlers.get('browser-import:list')!({}, 'workspace')).toEqual({ ok: true, value: [] })
+    expect(state.discover).toHaveBeenCalledWith(expect.any(String), process.platform, '/data/config', '/data/chrome')
+  } finally {
+    cancel()
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[name]
+      else process.env[name] = value
+    }
+  }
+})
