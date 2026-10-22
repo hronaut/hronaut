@@ -17,13 +17,14 @@ test('reopens a closed tab in its place among the tabs, with Ctrl/Cmd+Shift+T an
   await appWindow.keyboard.press('ControlOrMeta+Shift+T')
   await expect.poll(order).toEqual(pages)
 
-  // A tab chosen from Recently closed, not the last one closed, goes back to its place as well.
+  // A tab chosen from Recently closed, not the last one closed, goes back to its place as well, and the last one
+  // closed then goes back before the others.
+  await close(pages[3]!)
   await close(pages[0]!)
-  await close(pages[2]!)
-  await expect.poll(order).toEqual([pages[1], pages[3]])
-  const first = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.closedTabs.find((tab) => tab.url === ${JSON.stringify(pages[0])}).id)`)
-  await appWindow.evaluate(`window.hronaut.reopenClosedTab(${JSON.stringify(first)})`)
-  await expect.poll(order).toEqual([pages[0], pages[1], pages[3]])
+  await expect.poll(order).toEqual([pages[1], pages[2]])
+  const last = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.closedTabs.find((tab) => tab.url === ${JSON.stringify(pages[3])}).id)`)
+  await appWindow.evaluate(`window.hronaut.reopenClosedTab(${JSON.stringify(last)})`)
+  await expect.poll(order).toEqual([pages[1], pages[2], pages[3]])
   await appWindow.keyboard.press('ControlOrMeta+Shift+T')
   await expect.poll(order).toEqual(pages)
 })
