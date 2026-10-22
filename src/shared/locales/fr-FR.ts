@@ -3596,7 +3596,8 @@ export const frFR = {
       "inspect": "Inspecter",
       "print": "Imprimer…",
       "showFullHistory": "Afficher l’historique complet",
-      "viewSource": "Afficher le code source de la page"
+      "viewSource": "Afficher le code source de la page",
+      "searchFor": "Rechercher « {text} » sur {engine}"
     },
     "pageProblem": {
       "loadTitle": "Impossible d’accéder à ce site",

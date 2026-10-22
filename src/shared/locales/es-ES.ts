@@ -3596,7 +3596,8 @@ export const esES = {
       "inspect": "Inspeccionar",
       "print": "Imprimir…",
       "showFullHistory": "Mostrar historial completo",
-      "viewSource": "Ver código fuente de la página"
+      "viewSource": "Ver código fuente de la página",
+      "searchFor": "Buscar «{text}» en {engine}"
     },
     "pageProblem": {
       "loadTitle": "No se pudo acceder a este sitio",

@@ -1,0 +1,160 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ContextMenuParams, MenuItemConstructorOptions, WebContents } from 'electron'
+import { selectionSearchLabelText, selectionSearchQuery } from '../src/main/browser/selection-search/selection-search.js'
+import type { SearchEngineName } from '../src/shared/search-engine.js'
+
+const built = vi.hoisted(() => ({ templates: [] as MenuItemConstructorOptions[][], closed: false }))
+
+vi.mock('electron', () => ({
+  Menu: {
+    buildFromTemplate: (template: MenuItemConstructorOptions[]) => {
+      built.templates.push(template)
+      return { popup: () => undefined }
+    }
+  }
+}))
+
+const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
+type PageTab = { id: string, url: string, mcpGroupId?: string, webContents: WebContents }
+type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+
+// The page's context menu had no Search for the selected text, as Chrome's has.
+
+const PAGE = 'https://docs.example/guide'
+
+function openMenu(params: Partial<ContextMenuParams>, options: { engine?: SearchEngineName, createTab?: ReturnType<typeof vi.fn>, occluded?: () => boolean } = {}) {
+  const webContents = {
+    id: 7,
+    isDestroyed: () => false,
+    navigationHistory: { canGoBack: () => false, canGoForward: () => false }
+  } as unknown as WebContents
+  const tab: PageTab = { id: 'tab', url: PAGE, mcpGroupId: 'client', webContents }
+  const createTab = options.createTab ?? vi.fn(async () => tab)
+  const onActionFailed = vi.fn()
+  const searchEngine = vi.fn(() => options.engine ?? 'google')
+  const access = {
+    findTab: () => built.closed ? undefined : tab,
+    window: () => ({}),
+    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed }),
+    text: (key: string, values?: Record<string, string>) => values ? `${key} ${JSON.stringify(values)}` : key,
+    isHumanInteractionLocked: () => false,
+    createTab,
+    searchEngine,
+    browserContentOccluded: options.occluded ?? (() => false)
+  } as unknown as PageContextMenuAccess
+  showContextMenu(access, tab, {
+    x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
+    pageURL: PAGE, frameURL: PAGE, referrerPolicy: 'strict-origin-when-cross-origin', ...params
+  } as unknown as ContextMenuParams)
+  const items = built.templates.at(-1)!
+  return { tab, createTab, onActionFailed, searchEngine, items, ids: items.map((item) => item.id ?? item.type) }
+}
+
+function clickSearch(items: MenuItemConstructorOptions[]): void {
+  ;(items.find((item) => item.id === 'search-selection')!.click as () => void)()
+}
+
+afterEach(() => {
+  built.templates.length = 0
+  built.closed = false
+})
+
+describe('the selection search query', () => {
+  it('searches the selection with its runs of white space made single spaces', () => {
+    expect(selectionSearchQuery('  electron\n\tcontext   menu  ', false)).toBe('electron context menu')
+  })
+
+  it('searches nothing for white space only or a password field', () => {
+    expect(selectionSearchQuery(' \n\t ', false)).toBeUndefined()
+    expect(selectionSearchQuery('hunter2', true)).toBeUndefined()
+  })
+
+  it('searches at most the first 2,048 characters of a long selection, without half a character', () => {
+    // A selection of a whole long document made a search address of megabytes, which the browser cannot open.
+    expect(selectionSearchQuery('word '.repeat(100_000), false)).toBe('word '.repeat(410).slice(0, 2048).trim())
+    expect(selectionSearchQuery(`${'a'.repeat(2047)}😀 tail`, false)).toBe('a'.repeat(2047))
+  })
+
+  it('shows at most 50 characters of the selection in the label, then an ellipsis', () => {
+    expect(selectionSearchLabelText('a'.repeat(50))).toBe('a'.repeat(50))
+    expect(selectionSearchLabelText(`${'a'.repeat(49)} bcd`)).toBe(`${'a'.repeat(49)}…`)
+    // It counts the characters a person sees, so it never splits an emoji, a flag or a letter with its accent.
+    expect(selectionSearchLabelText('😀'.repeat(51))).toBe(`${'😀'.repeat(50)}…`)
+    expect(selectionSearchLabelText('👩‍💻'.repeat(51))).toBe(`${'👩‍💻'.repeat(50)}…`)
+    expect(selectionSearchLabelText(`${'a'.repeat(49)}🇺🇦🇺🇦`)).toBe(`${'a'.repeat(49)}🇺🇦…`)
+    expect(selectionSearchLabelText(`${'a'.repeat(49)}e\u0301x`)).toBe(`${'a'.repeat(49)}e\u0301…`)
+  })
+
+  it('shows an ampersand in the label rather than taking it as an access key', () => {
+    expect(selectionSearchLabelText('R&D & QA')).toBe('R&&D && QA')
+  })
+})
+
+describe('Search for the selection in the page context menu', () => {
+  it('follows Copy for selected text, named for the address bar\'s search engine', () => {
+    const { ids, items } = openMenu({ selectionText: 'Hronaut   browser' }, { engine: 'duckduckgo' })
+    expect(ids.slice(0, 3)).toEqual(['copy-selection', 'search-selection', 'separator'])
+    expect(items[1]?.label).toBe('native.context.searchFor {"engine":"DuckDuckGo","text":"Hronaut browser"}')
+  })
+
+  it('opens the results in front, beside the page and in its workspace', () => {
+    const { tab, createTab, items } = openMenu({ selectionText: 'R&D: what is CDP?' })
+    clickSearch(items)
+    expect(createTab).toHaveBeenCalledExactlyOnceWith({
+      url: 'https://www.google.com/search?q=R%26D%3A%20what%20is%20CDP%3F',
+      active: true,
+      mcpGroupId: 'client',
+      openedFrom: { tabId: tab.id, background: false }
+    })
+  })
+
+  it('searches with the engine its label names, even if the setting changes while the menu is open', () => {
+    const { createTab, searchEngine, items } = openMenu({ selectionText: 'agents' }, { engine: 'bing' })
+    searchEngine.mockReturnValue('brave')
+    clickSearch(items)
+    expect(createTab.mock.calls[0]?.[0]).toMatchObject({ url: 'https://www.bing.com/search?q=agents' })
+    expect(searchEngine).toHaveBeenCalledTimes(1)
+  })
+
+  it('follows the editing commands in a field with selected text, in a group of its own', () => {
+    const { ids } = openMenu({ isEditable: true, selectionText: 'draft title', editFlags: { canCopy: true } as ContextMenuParams['editFlags'] })
+    const selectAll = ids.indexOf('select-all')
+    expect(ids.slice(selectAll, selectAll + 3)).toEqual(['select-all', 'separator', 'search-selection'])
+  })
+
+  it('is not offered for a misspelled word, as in Chrome, whose menu offers its spellings', () => {
+    const { ids } = openMenu({ isEditable: true, selectionText: 'teh', misspelledWord: 'teh', dictionarySuggestions: ['the'], editFlags: {} as ContextMenuParams['editFlags'] })
+    expect(ids).toContain('add-to-dictionary')
+    expect(ids).not.toContain('search-selection')
+  })
+
+  it('opens nothing behind a Hronaut dialog that opened while the menu was open', () => {
+    let occluded = false
+    const { createTab, onActionFailed, items } = openMenu({ selectionText: 'agents' }, { occluded: () => occluded })
+    occluded = true
+    clickSearch(items)
+    expect(createTab).not.toHaveBeenCalled()
+    expect(onActionFailed).not.toHaveBeenCalled()
+  })
+
+  it('is not offered for a password field, white space only, or no selection', () => {
+    expect(openMenu({ isEditable: true, formControlType: 'input-password', selectionText: 'hunter2' } as Partial<ContextMenuParams>).ids).not.toContain('search-selection')
+    expect(openMenu({ selectionText: ' \n ' }).ids).not.toContain('search-selection')
+    const none = openMenu({})
+    expect(none.ids).not.toContain('search-selection')
+    expect(none.searchEngine).not.toHaveBeenCalled()
+  })
+
+  it('reports a search that could not open, and a tab that closed while the menu was open', async () => {
+    const createTab = vi.fn(async () => { throw new Error('Workspace closed') })
+    const failed = openMenu({ selectionText: 'agents' }, { createTab })
+    clickSearch(failed.items)
+    await vi.waitFor(() => expect(failed.onActionFailed).toHaveBeenCalledExactlyOnceWith('search for the selection', expect.objectContaining({ message: 'Workspace closed' })))
+
+    const closed = openMenu({ selectionText: 'agents' })
+    built.closed = true
+    clickSearch(closed.items)
+    expect(closed.createTab).not.toHaveBeenCalled()
+    expect(closed.onActionFailed).toHaveBeenCalledExactlyOnceWith('search for the selection', expect.objectContaining({ message: 'The tab is no longer available.' }))
+  })
+})

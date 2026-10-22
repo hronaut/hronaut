@@ -3596,7 +3596,8 @@ export const plPL = {
       "inspect": "Sprawdź",
       "print": "Drukuj…",
       "showFullHistory": "Pokaż całą historię",
-      "viewSource": "Wyświetl źródło strony"
+      "viewSource": "Wyświetl źródło strony",
+      "searchFor": "Szukaj w {engine}: „{text}”"
     },
     "pageProblem": {
       "loadTitle": "Nie udało się otworzyć tej witryny",
