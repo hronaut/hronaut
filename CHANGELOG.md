@@ -163,6 +163,7 @@ All notable changes to Hronaut are documented in this file.
 - Find in page stays open, with its matches, when the page changes its address without loading another page, as in Chrome. On a site that moves its address to the section in view, stepping to a match further down used to close Find and clear its matches.
 - Picking an element for an agent, or for an element screenshot, is no longer cancelled when the page changes its address without loading another page. On a site that moves its address to the section in view, scrolling toward the element ended the pick.
 - Saving a bookmark's name without changing it, with Rename in Bookmarks or an agent's rename to the same name, no longer moves it to the top of Recently updated, as in Chrome.
+- Escape now closes Search tabs after you save or cancel a tab's label there. Focus goes back to the card's Edit label button, where Escape and Ctrl/Cmd+Shift+A did nothing until you moved focus.
 
 ### Security
 

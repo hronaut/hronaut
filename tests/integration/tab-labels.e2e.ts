@@ -90,6 +90,28 @@ test('edits, searches and clears task labels without replacing document titles t
   expect((await api(appWindow).state()).tabs.find(tab => tab.id === first)?.label).toBeUndefined()
 })
 
+test('closes Search tabs with Escape after saving or canceling a label', async ({ appWindow }) => {
+  // Focus goes back to Edit label, whose keys never left the editor, so Escape and Ctrl/Cmd+Shift+A did nothing there.
+  await newTab(appWindow)
+  const panel = appWindow.getByRole('dialog', { name: 'Tabs', exact: true })
+  const searchTabs = appWindow.getByRole('button', { name: 'Search tabs', exact: true })
+  for (const end of ['save', 'cancel', 'search-tabs key'] as const) {
+    await searchTabs.click()
+    await expect(panel).toBeVisible()
+    const card = panel.locator('.tab-overview-card').first()
+    await card.getByRole('button', { name: /^Edit label for / }).click()
+    const input = panel.getByRole('textbox', { name: 'Tab label', exact: true })
+    await expect(input).toBeFocused()
+    await input.fill(`Label ${end}`)
+    await input.press(end === 'cancel' ? 'Escape' : 'Enter')
+    const trigger = card.getByRole('button', { name: /^Edit label for / })
+    await expect(trigger).toBeFocused()
+    await expect(panel).toBeVisible()
+    await appWindow.keyboard.press(end === 'search-tabs key' ? 'ControlOrMeta+Shift+A' : 'Escape')
+    await expect(panel).toBeHidden()
+  }
+})
+
 for (const owner of ['original editor', 'search', 'other editor'] as const) {
   test(`delayed label save preserves focus owned by ${owner}`, async ({ appWindow, electronApp, profileDirectory }) => {
     await newTab(appWindow)

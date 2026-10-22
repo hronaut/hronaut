@@ -84,10 +84,11 @@ async function save(clear = false): Promise<void> {
 </script>
 
 <template>
-  <div ref="root" class="tab-label-editor" @keydown.stop>
+  <div ref="root" class="tab-label-editor">
     <p v-if="tab.labelDurabilityUnconfirmed && !editing" role="alert">{{ t('tabLabel.uncertain') }}</p>
     <UiButton v-if="!editing" ref="trigger" size="small" :disabled="pending" :aria-label="t('tabLabel.editAria', { title: tab.label || tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) })" @click="edit">{{ t('tabLabel.edit') }}</UiButton>
-    <form v-else :aria-label="t('tabLabel.edit')" @submit.prevent="save()" @keydown.esc.stop.prevent="cancel">
+    <!-- Keys in the editing form stay here. The Edit label button's keys reach Search tabs, so Escape closes it. -->
+    <form v-else :aria-label="t('tabLabel.edit')" @submit.prevent="save()" @keydown.stop @keydown.esc.stop.prevent="cancel">
       <label :for="`tab-label-${tab.id}`">{{ t('tabLabel.name') }}</label>
       <input class="ui-control ui-input" :id="`tab-label-${tab.id}`" ref="input" v-model="draft" :maxlength="MAX_TAB_LABEL_INPUT_LENGTH" :disabled="pending" :aria-describedby="`tab-label-help-${tab.id}`" autocomplete="off" />
       <small :id="`tab-label-help-${tab.id}`">{{ t('tabLabel.help') }}</small>
