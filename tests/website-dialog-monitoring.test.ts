@@ -2,6 +2,8 @@ import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 import { ensureDialogMonitoring } from '../src/main/browser/website-dialogs/website-dialogs.js'
+import { guardPageCallsDuringPrintDialog } from '../src/main/browser/print-dialog-guard.js'
+import { PAGE_PRINT_DIALOG_CHANNEL } from '../src/shared/page-print-dialog.js'
 
 function fixture() {
   const state = { crashed: true, attached: false }
@@ -62,6 +64,34 @@ describe('dialog monitoring on a page whose renderer exited', () => {
       await ensureDialogMonitoring(f.access, f.tab as never)
       expect(error).toHaveBeenCalledOnce()
       expect(f.webContents.listenerCount('dom-ready')).toBe(0)
+    } finally {
+      error.mockRestore()
+    }
+  })
+})
+
+// A page that prints as it opens, such as a receipt, held its renderer in the print dialog while monitoring started.
+describe('dialog monitoring on a page its print dialog holds', () => {
+  it('starts once the person closes the dialog, without logging a failure', async () => {
+    const f = fixture()
+    f.state.crashed = false
+    const page = Object.assign(f.webContents, {
+      mainFrame: { processId: 4, routingId: 1 },
+      executeJavaScript: vi.fn(), executeJavaScriptInIsolatedWorld: vi.fn(), capturePage: vi.fn(), printToPDF: vi.fn()
+    })
+    guardPageCallsDuringPrintDialog(page as never)
+    const print = (open: boolean): void => { page.emit('ipc-message', { senderFrame: page.mainFrame }, PAGE_PRINT_DIALOG_CHANNEL, open) }
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      print(true)
+      await ensureDialogMonitoring(f.access, f.tab as never)
+      expect(f.tab.networkDebuggerEnabled).toBe(false)
+      expect(f.commands).toEqual([])
+
+      print(false)
+      await vi.waitFor(() => expect(f.tab.networkDebuggerEnabled).toBe(true))
+      expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
+      expect(error).not.toHaveBeenCalled()
     } finally {
       error.mockRestore()
     }

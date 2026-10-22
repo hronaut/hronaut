@@ -1,5 +1,6 @@
 import { webContents as electronWebContents, type WebContents } from 'electron'
 import { clearRendererAgentInputFlag, NativeInputCleanupError } from '../native-input-cleanup.js'
+import { printDialogHolds, whenPrintDialogCloses } from '../print-dialog-guard.js'
 import type { AgentInputScopeAccess } from './agent-input-scope-access.js'
 import { beginAgentFocusIsolation, restoreHumanFocusAfterAgentInput } from './focus-isolation.js'
 
@@ -50,6 +51,13 @@ export async function withAgentInput<Tab, T>(
         try {
           if (!webContents.isDestroyed()) {
             await clearRendererAgentInputFlag(webContents, options.onCleanupFailure)
+            if (printDialogHolds(webContents)) {
+              // The page's print dialog kept the flag from being cleared. Without it, the person's own pointer input
+              // to Hronaut's element picker and screenshot area on this page would still read as an agent's.
+              void whenPrintDialogCloses(webContents).then(async () => {
+                if (!webContents.isDestroyed() && !access.agentInputWebContents().has(webContents.id)) await clearRendererAgentInputFlag(webContents)
+              })
+            }
             const tabId = access.tabIdForWebContents(webContents.id)
             const tab = tabId ? access.findTab(tabId) : undefined
             if (!webContents.isDestroyed() && tab && access.isHumanInteractionLocked(tab)) {

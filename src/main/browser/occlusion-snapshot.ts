@@ -1,6 +1,7 @@
 import type { Rectangle } from 'electron'
 import type { BrowserOcclusionSnapshot } from '../../shared/types.js'
 import { RendererExitedError } from './renderer-exit-guard.js'
+import { PrintDialogOpenError } from './print-dialog-guard.js'
 
 export const OCCLUSION_SNAPSHOT_TIMEOUT_MS = 250
 const OCCLUSION_SNAPSHOT_JPEG_QUALITY = 85
@@ -114,10 +115,10 @@ export class OcclusionSnapshot {
             await pane.busy
             if (this.pending?.id !== id) throw new Error('Occlusion snapshot was replaced')
           }
-          // Do not wake a hidden page or count as a visible viewer of it. A crashed pane has no picture; the other
-          // pane's snapshot still shows.
+          // Do not wake a hidden page or count as a visible viewer of it. A crashed pane, or one its print dialog
+          // holds, has no picture; the other pane's snapshot still shows.
           const image = await pane.contents.capturePage(undefined, { stayHidden: true, stayAwake: false }).catch((error: unknown) => {
-            if (error instanceof RendererExitedError) return undefined
+            if (error instanceof RendererExitedError || error instanceof PrintDialogOpenError) return undefined
             throw error
           })
           return { pane, image }

@@ -70,6 +70,8 @@ export const deDEAppErrors: AppErrorMessages = {
   "page": {
     "rendererExitedDuringAction": "Die Seite wurde während dieser Aktion angehalten, weil ihr Prozess beendet wurde; die Auswirkungen sind unbekannt. Laden Sie den Tab neu oder schließen Sie ihn, und prüfen Sie dann seinen aktuellen Zustand.",
     "rendererExitedBeforeAction": "Die Seite läuft nicht, weil ihr Prozess beendet wurde; es wurde nichts an sie gesendet. Laden Sie den Tab neu oder schließen Sie ihn, und prüfen Sie dann seinen aktuellen Zustand.",
+    "printDialogOpenedDuringAction": "Die Seite hat während dieser Aktion ihren Druckdialog geöffnet; er hält die Seite an, bis die Person druckt oder abbricht, und die Auswirkungen der Aktion sind unbekannt. Bitten Sie die Person, den Dialog zu schließen, und prüfen Sie dann den aktuellen Zustand.",
+    "printDialogOpenBeforeAction": "Die Seite zeigt ihren Druckdialog, der sie anhält, bis die Person druckt oder abbricht; es wurde nichts an sie gesendet. Bitten Sie die Person, den Dialog zu schließen, und versuchen Sie es dann erneut.",
     "closedWhileWaiting": "Der Tab wurde geschlossen, während auf die Seite gewartet wurde.",
     "rendererLostWhileWaiting": "Der Tab reagierte nicht mehr, während auf die Seite gewartet wurde.",
     "loadTimedOut": "Zeitüberschreitung beim Warten auf das Laden der Seite.",

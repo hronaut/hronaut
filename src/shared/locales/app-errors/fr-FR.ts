@@ -70,6 +70,8 @@ export const frFRAppErrors: AppErrorMessages = {
   "page": {
     "rendererExitedDuringAction": "La page s’est arrêtée pendant cette action, car son processus s’est terminé ; ses effets sont inconnus. Rechargez ou fermez l’onglet, puis vérifiez son état actuel.",
     "rendererExitedBeforeAction": "La page ne s’exécute pas, car son processus s’est terminé ; rien ne lui a été envoyé. Rechargez ou fermez l’onglet, puis vérifiez son état actuel.",
+    "printDialogOpenedDuringAction": "La page a ouvert sa boîte de dialogue d’impression pendant cette action ; elle bloque la page jusqu’à ce que la personne imprime ou annule, et les effets de l’action sont inconnus. Demandez-lui de fermer la boîte de dialogue, puis vérifiez l’état actuel.",
+    "printDialogOpenBeforeAction": "La page affiche sa boîte de dialogue d’impression, qui la bloque jusqu’à ce que la personne imprime ou annule ; rien ne lui a été envoyé. Demandez-lui de fermer la boîte de dialogue, puis réessayez.",
     "closedWhileWaiting": "L’onglet s’est fermé pendant l’attente de la page.",
     "rendererLostWhileWaiting": "L’onglet a cessé de répondre pendant l’attente de la page.",
     "loadTimedOut": "Le délai d’attente du chargement de la page est dépassé.",

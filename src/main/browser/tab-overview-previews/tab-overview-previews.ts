@@ -4,6 +4,7 @@ import type { BrowserTabOverviewPreview } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { isHronautHomeUrl } from '../url.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
+import { PrintDialogOpenError } from '../print-dialog-guard.js'
 import type {
   TabOverviewPreviewCaptureMode,
   TabOverviewPreviewsAccess,
@@ -240,8 +241,8 @@ export function scheduleTabOverviewPreview<Tab extends TabOverviewPreviewsTab>(a
       access.tabOverviewPreviewTimers().delete(tab.id)
     }
     void captureTabOverviewPreview(access, tab, sequence).catch((error) => {
-      // A crashed page has no preview; its crash already dropped the old one.
-      if (error instanceof RendererExitedError) return
+      // A crashed page has no preview; its crash already dropped the old one. A page in its print dialog keeps its old one.
+      if (error instanceof RendererExitedError || error instanceof PrintDialogOpenError) return
       if (!access.isDestroyed() && access.findTab(tab.id) === tab && !tab.webContents.isDestroyed()) {
         console.warn(`[browser] Could not capture tab overview preview for ${tab.id}:`, error)
       }
