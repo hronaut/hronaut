@@ -18,7 +18,12 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController() {
+function createController(fileSavingOn = false) {
+  let fileSavingEnabled = fileSavingOn
+  const fileSaving = {
+    enabled: () => fileSavingEnabled,
+    set: vi.fn(async (enabled: boolean) => { fileSavingEnabled = enabled })
+  }
   const api = {
     set: vi.fn(async (_origin: string, _name: string, decision: 'allow' | 'deny') => permission(decision)),
     remove: vi.fn(async () => true),
@@ -30,10 +35,10 @@ function createController() {
     onError,
     translate: (key) => key,
     workspaces: () => [],
-    fileSaving: { enabled: () => false, set: async () => undefined }
+    fileSaving
   })
   controller.replace([permission('allow')])
-  return { api, controller, onError }
+  return { api, controller, onError, fileSaving }
 }
 
 describe('site permissions controller', () => {
@@ -104,6 +109,59 @@ describe('site permissions controller', () => {
     await operation
 
     expect(controller.entries.value).toEqual([permission('allow')])
+    controller.dispose()
+  })
+
+  // Reset to default forgot the saved decisions but left saving to every file a website holds on, though it is off by
+  // default and the section's warning is about it.
+  it('turns saving to files a website holds back off when the section resets, before it forgets the decisions', async () => {
+    const { api, controller, fileSaving } = createController(true)
+    const switching = deferred<void>()
+    fileSaving.set.mockImplementationOnce(async () => {
+      await switching.promise
+      await fileSaving.set(false)
+    })
+
+    const reset = controller.clear()
+    expect(controller.fileSavingPending.value).toBe(true)
+    expect(api.clear).not.toHaveBeenCalled()
+    switching.resolve()
+
+    await expect(reset).resolves.toBe(true)
+    expect(fileSaving.set).toHaveBeenCalledWith(false)
+    expect(controller.fileSavingEnabled.value).toBe(false)
+    expect(controller.fileSavingPending.value).toBe(false)
+    expect(api.clear).toHaveBeenCalledOnce()
+    expect(controller.entries.value).toEqual([])
+    controller.dispose()
+  })
+
+  it('keeps the decisions when the switch can\'t be turned off, and leaves an off switch alone', async () => {
+    const failing = createController(true)
+    failing.fileSaving.set.mockRejectedValueOnce(new Error('settings write failed'))
+    await expect(failing.controller.clear()).resolves.toBe(false)
+    expect(failing.api.clear).not.toHaveBeenCalled()
+    expect(failing.controller.entries.value).toEqual([permission('allow')])
+    expect(failing.onError).toHaveBeenCalledOnce()
+    failing.controller.dispose()
+
+    const off = createController(false)
+    await expect(off.controller.clear()).resolves.toBe(true)
+    expect(off.fileSaving.set).not.toHaveBeenCalled()
+    expect(off.api.clear).toHaveBeenCalledOnce()
+    off.controller.dispose()
+  })
+
+  it('waits for a change to the switch before the section resets', async () => {
+    const switching = deferred<void>()
+    const { api, controller, fileSaving } = createController(false)
+    fileSaving.set.mockImplementationOnce(() => switching.promise)
+
+    const change = controller.setFileSaving(true)
+    await expect(controller.clear()).resolves.toBe(false)
+    expect(api.clear).not.toHaveBeenCalled()
+    switching.resolve()
+    await change
     controller.dispose()
   })
 

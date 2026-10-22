@@ -200,13 +200,26 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     }
   }
 
+  /**
+   * Resets the section: forgets every saved decision, and turns saving to every single file a website holds back off,
+   * as it is by default. The switch goes first, so a reset never forgets the decisions and leaves the switch on.
+   */
   async function clear(): Promise<boolean> {
-    if (busy.value) return false
+    if (busy.value || fileSavingPending.value) return false
     const operation = { generation, revision }
     initializationGeneration += 1
     clearing.value = true
     errorMessage.value = ''
     try {
+      if (options.fileSaving.enabled()) {
+        fileSavingPending.value = true
+        try {
+          await options.fileSaving.set(false)
+        } finally {
+          if (operation.generation === generation) fileSavingPending.value = false
+        }
+        if (operation.generation !== generation) return false
+      }
       await options.api.clear()
       if (operation.generation !== generation) return false
       if (operation.revision === revision) entries.value = []
