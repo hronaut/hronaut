@@ -633,8 +633,8 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
    */
   openedFromTabId?: string
   /**
-   * For a tab the person opened in front with + or Ctrl/Cmd+T: the tab their workspace showed before, which shows again
-   * when this tab closes before another tab of the workspace shows, as in Chrome.
+   * For a new tab the person opened with + or Ctrl/Cmd+T: the tab shown before, which shows again when this tab closes
+   * before another tab shows, as in Chrome.
    */
   returnsToTabId?: string
   label?: string
@@ -2308,8 +2308,11 @@ export class BrowserTabsManager {
   }
 
   async newTab(options: NewTabOptions = {}, selectVisible = true): Promise<BrowserState> {
-    // A tab the person opens in front returns to the tab they were on when they close it right away, as in Chrome.
-    const shown = selectVisible && options.active !== false && this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
+    // A new tab the person opens with + or Ctrl/Cmd+T returns to the tab they were on when they close it right away, as
+    // in Chrome. A tab opened at an address, such as a bookmark's, closes as any tab.
+    const shown = selectVisible && options.active !== false && !options.url && this.activeTabId
+      ? this.tabs.get(this.activeTabId)
+      : undefined
     return this.createNewTab(options, selectVisible, shown?.mcpGroupId ? (tab) => {
       if (tab.mcpGroupId === shown.mcpGroupId && tab.id !== shown.id) tab.returnsToTabId = shown.id
     } : undefined)
@@ -2723,7 +2726,7 @@ export class BrowserTabsManager {
       tabSelectionGeneration: () => this.tabSelectionGeneration,
       writeTabSelectionGeneration: (generation) => { this.tabSelectionGeneration = generation },
       activeTabId: () => this.activeTabId,
-      writeActiveTabId: (tabId) => { this.activeTabId = tabId },
+      writeActiveTabId: (tabId) => this.writeActiveTabId(tabId),
       splitView: () => this.splitView,
       writeSplitView: (splitView) => { this.splitView = splitView },
       splitViewContains: (tabId) => this.splitViewContains(tabId),
@@ -5359,8 +5362,6 @@ export class BrowserTabsManager {
     }
     if (tab.mcpGroupId) {
       const group = this.mcpTabGroups.get(tab.mcpGroupId)!
-      // A new tab the workspace showed returns nowhere once another tab of it shows.
-      if (options.active && group.activeTabId) delete this.tabs.get(group.activeTabId)?.returnsToTabId
       if (options.active || !group.activeTabId) group.activeTabId = id
       // Putting the saved tabs back at startup is not a use of their workspace.
       if (!this.restoringLayout) group.lastUsedAt = new Date().toISOString()
@@ -5573,7 +5574,7 @@ export class BrowserTabsManager {
       writeSplitView: (splitView) => { this.splitView = splitView },
       window: () => this.window,
       activeTabId: () => this.activeTabId,
-      writeActiveTabId: (tabId) => { this.activeTabId = tabId },
+      writeActiveTabId: (tabId) => this.writeActiveTabId(tabId),
       markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
       layout: () => this.layout(),
       focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
@@ -5602,7 +5603,7 @@ export class BrowserTabsManager {
       wakeTab: (tabId) => this.wakeTab(tabId),
       splitViewContains: (tabId) => this.splitViewContains(tabId),
       activeTabId: () => this.activeTabId,
-      writeActiveTabId: (tabId) => { this.activeTabId = tabId },
+      writeActiveTabId: (tabId) => this.writeActiveTabId(tabId),
       markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
       changed: (persist) => this.changed(persist)
     }
@@ -5663,7 +5664,7 @@ export class BrowserTabsManager {
       mcpActivityFollower: () => this.mcpActivityFollower,
       splitViewContains: (tabId) => this.splitViewContains(tabId),
       activeTabId: () => this.activeTabId,
-      writeActiveTabId: (tabId) => { this.activeTabId = tabId },
+      writeActiveTabId: (tabId) => this.writeActiveTabId(tabId),
       tabSelectionGeneration: () => this.tabSelectionGeneration,
       writeTabSelectionGeneration: (generation) => { this.tabSelectionGeneration = generation },
       setAgentFollow: (follow) => { this.agentFollow = follow },
@@ -6335,12 +6336,16 @@ export class BrowserTabsManager {
     invalidateTabOverviewPreview(this.tabOverviewPreviewsAccess(), tab)
   }
 
+  /** Records the tab shown. A new tab that stops showing returns nowhere when it later closes, as in Chrome. */
+  private writeActiveTabId(tabId: string | null): void {
+    if (this.activeTabId && this.activeTabId !== tabId) delete this.tabs.get(this.activeTabId)?.returnsToTabId
+    this.activeTabId = tabId
+  }
+
   private markTabActiveInGroup(tab: BrowserTab): void {
     if (!tab.mcpGroupId) return
     const group = this.mcpTabGroups.get(tab.mcpGroupId)
     if (!group) return
-    // A new tab the workspace showed returns nowhere once another tab of it shows.
-    if (group.activeTabId && group.activeTabId !== tab.id) delete this.tabs.get(group.activeTabId)?.returnsToTabId
     group.activeTabId = tab.id
     group.lastUsedAt = new Date().toISOString()
   }
