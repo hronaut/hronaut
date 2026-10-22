@@ -49,8 +49,8 @@ export function savedResourceReferrer(frameUrl: string, target: string, policy: 
   }
 }
 
-/** The referrer policies Electron passes on to a page load, which are every policy it reports for a frame. */
-const LOAD_POLICIES = new Set<string>(['default', 'unsafe-url', 'no-referrer-when-downgrade', 'no-referrer', 'origin', 'strict-origin-when-cross-origin', 'same-origin', 'strict-origin'])
+/** The referrer policies Electron passes on to a page load that send a referrer: every one it reports but no-referrer. */
+const LOAD_POLICIES = new Set<string>(['default', 'unsafe-url', 'no-referrer-when-downgrade', 'origin', 'strict-origin-when-cross-origin', 'same-origin', 'strict-origin'])
 
 /**
  * The referrer a link or image opened in a new tab from the page menu sends, as Chrome's Open Link in New Tab and Open
@@ -60,7 +60,7 @@ const LOAD_POLICIES = new Set<string>(['default', 'unsafe-url', 'no-referrer-whe
  */
 export function openedResourceReferrer(frameUrl: string, policy: string): Referrer | undefined {
   const source = webUrl(frameUrl)
-  if (!source || policy === 'no-referrer' || !LOAD_POLICIES.has(policy)) return undefined
+  if (!source || !LOAD_POLICIES.has(policy)) return undefined
   source.hash = ''
   source.username = ''
   source.password = ''

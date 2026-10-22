@@ -37,8 +37,8 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   // Electron types the frame's referrer policy as a Referrer, but reports the policy name.
   const referrerPolicy = params.referrerPolicy as unknown as string | Partial<Electron.Referrer> | undefined
   const policy = typeof referrerPolicy === 'string' ? referrerPolicy : referrerPolicy?.policy ?? 'default'
-  // A sandboxed frame or page has an opaque origin and sends no referrer, as in Chrome. It is read now, since the frame
-  // can be gone by the time an item is chosen.
+  // A sandboxed frame or page has an opaque origin and sends no referrer, as a click in it does. It is read now, since
+  // the frame can be gone by the time an item is chosen.
   const sandboxedFrame = hasOpaqueOrigin(params.frame)
   const openBackgroundTab = (url: string): void => {
     const referrer = sandboxedFrame ? undefined : openedResourceReferrer(params.frameURL, policy)

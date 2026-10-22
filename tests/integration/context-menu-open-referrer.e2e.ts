@@ -20,18 +20,23 @@ test('opens a link and an image a site serves only to its own pages in a new tab
       else response.writeHead(200, { 'content-type': 'text/html' }).end('<!doctype html><title>Protected page</title>')
       return
     }
+    if (request.url === '/private-page') {
+      opened.push({ path: request.url, referrer: request.headers.referer, status: 200 })
+      response.writeHead(200, { 'content-type': 'text/html' }).end('<!doctype html><title>Private page</title>')
+      return
+    }
     if (request.url === '/mirror') {
       // A same-origin link that sends the load on to another origin.
       response.writeHead(302, { location: `http://localhost:${port}/mirrored` }).end()
       return
     }
-    if (request.url === '/mirrored') {
+    if (request.url === '/mirrored' || request.url === '/elsewhere') {
       opened.push({ path: request.url, referrer: request.headers.referer, status: 200 })
-      response.writeHead(200, { 'content-type': 'text/html' }).end('<!doctype html><title>Mirrored page</title>')
+      response.writeHead(200, { 'content-type': 'text/html' }).end(`<!doctype html><title>${request.url === '/mirrored' ? 'Mirrored' : 'Elsewhere'} page</title>`)
       return
     }
     response.writeHead(200, { 'content-type': 'text/html' })
-      .end('<!doctype html><title>Protected gallery</title><img id="image" src="/protected.png" width="40" height="40"><p><a id="link" href="/protected-page">Page</a> <a id="mirror" href="/mirror">Mirror</a></p>')
+      .end(`<!doctype html><title>Protected gallery</title><img id="image" src="/protected.png" width="40" height="40"><p><a id="link" href="/protected-page">Page</a> <a id="mirror" href="/mirror">Mirror</a> <a id="private" rel="noreferrer" href="/private-page">Private</a> <a id="other" href="http://localhost:${port}/elsewhere">Elsewhere</a></p>`)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -79,15 +84,23 @@ test('opens a link and an image a site serves only to its own pages in a new tab
     expect(opened[1]).toEqual({ path: '/protected-page', referrer: url, status: 200 })
     await expect(appWindow.locator('.tab', { hasText: 'Protected page' })).toHaveCount(1)
 
-    // The policy holds through a redirect to another origin, which gets only the page's origin.
+    // Another origin gets only the page's origin, also through a redirect.
     await choose('#mirror', 'open-link-new-tab')
     await expect.poll(() => opened.length).toBe(3)
     expect(opened[2]).toEqual({ path: '/mirrored', referrer: `http://127.0.0.1:${address.port}/`, status: 200 })
+    await choose('#other', 'open-link-new-tab')
+    await expect.poll(() => opened.length).toBe(4)
+    expect(opened[3]).toEqual({ path: '/elsewhere', referrer: `http://127.0.0.1:${address.port}/`, status: 200 })
+
+    // A link marked rel="noreferrer" sends none, as a click on it does.
+    await choose('#private', 'open-link-new-tab')
+    await expect.poll(() => opened.length).toBe(5)
+    expect(opened[4]).toEqual({ path: '/private-page', status: 200 })
 
     // The new tabs open in the background, as before.
     const tabs = () => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.map((tab) => ({ title: tab.title, active: tab.active })))') as Promise<Array<{ title: string; active: boolean }>>
-    await expect.poll(async () => (await tabs()).filter(tab => ['Protected gallery', 'Protected page', 'Mirrored page'].includes(tab.title)))
-      .toEqual([{ title: 'Protected gallery', active: true }, { title: 'Protected page', active: false }, { title: 'Mirrored page', active: false }])
+    await expect.poll(async () => (await tabs()).filter(tab => ['Protected gallery', 'Protected page', 'Mirrored page', 'Elsewhere page', 'Private page'].includes(tab.title)))
+      .toEqual([{ title: 'Protected gallery', active: true }, { title: 'Protected page', active: false }, { title: 'Mirrored page', active: false }, { title: 'Elsewhere page', active: false }, { title: 'Private page', active: false }])
   } finally {
     await closeFixtureServer(server)
   }
