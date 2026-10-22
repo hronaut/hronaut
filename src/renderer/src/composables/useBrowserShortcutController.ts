@@ -33,6 +33,7 @@ export interface BrowserShortcutControllerOptions {
   setZoom: (action: 'in' | 'out' | 'reset') => void | Promise<void>
   toggleCurrentBookmark: ShortcutCallback
   toggleVisitHistory: ShortcutCallback
+  toggleDownloads: ShortcutCallback
   toggleTabSearch: ShortcutCallback
   openPrivacySettings: ShortcutCallback
   toggleCommandPalette: ShortcutCallback
@@ -234,6 +235,9 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
         return
       case 'visit-history':
         await options.toggleVisitHistory()
+        return
+      case 'downloads':
+        await options.toggleDownloads()
         return
       case 'search-tabs':
         await options.toggleTabSearch()

@@ -19,6 +19,7 @@ export type BrowserShortcutAction =
   | 'zoom-reset'
   | 'bookmark'
   | 'visit-history'
+  | 'downloads'
   | 'search-tabs'
   | 'clear-browsing-data'
   | 'command-palette'

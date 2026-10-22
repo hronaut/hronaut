@@ -882,6 +882,7 @@ export const esES = {
       "print": "Imprimir la página",
       "bookmark": "Añadir la página actual a marcadores",
       "history": "Abrir el historial de navegación",
+      "downloads": "Abrir descargas",
       "clearData": "Borrar datos de navegación",
       "devtools": "Mostrar u ocultar las herramientas de desarrollo",
       "nextTab": "Ir a la pestaña siguiente",
@@ -3520,7 +3521,8 @@ export const esES = {
       "repository": "Repositorio de GitHub",
       "checkUpdatesPlain": "Buscar actualizaciones",
       "print": "Imprimir…",
-      "viewSource": "Ver código fuente de la página"
+      "viewSource": "Ver código fuente de la página",
+      "downloads": "Descargas"
     },
     "tray": {
       "show": "Mostrar Hronaut",

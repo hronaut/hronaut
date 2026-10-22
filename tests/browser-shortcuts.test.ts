@@ -336,3 +336,17 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(kept({ key: 'F3', mac: true })).toBeNull()
   })
 })
+
+// A website may keep Chrome's Downloads key, as a web editor does to show its own panel, so it is only the View menu's
+// key, which reaches the menu when the page leaves it alone.
+describe('the Downloads key', () => {
+  it('is left to the page, Ctrl+J, or Cmd+Option+L on macOS, also with another script\'s layout on', () => {
+    for (const key of [
+      input({ key: 'j', code: 'KeyJ', control: true }), input({ key: 'о', code: 'KeyJ', control: true }),
+      input({ key: '¬', code: 'KeyL', meta: true, alt: true, mac: true })
+    ]) {
+      expect(browserShortcutAction(key)).toBeNull()
+      expect(websiteKeptShortcutAction(key)).toBeNull()
+    }
+  })
+})

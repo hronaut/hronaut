@@ -2852,6 +2852,7 @@ test('puts Help in the native application menu and opens shell dialogs above eve
   expect(menuItems.View).toEqual([
     'Command Palette…',
     'Pick Element for Agent',
+    'Downloads',
     'separator',
     'Back',
     'Forward',
