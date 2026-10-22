@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { browserShortcutAction, shortcutKey, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
+import { browserShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
+import { shortcutKey } from '../src/shared/shortcut-key.js'
 
 function input(overrides: Partial<BrowserShortcutInput> = {}): BrowserShortcutInput {
   return {
@@ -211,6 +212,13 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'Q', code: 'KeyA', control: true, shift: true }))).toBeNull()
     expect(browserShortcutAction(input({ key: 'l', code: 'KeyP', control: true }))).toBe('focus-address')
     expect(browserShortcutAction(input({ key: 'p', code: 'KeyL', control: true }))).toBeNull()
+    // Other Latin letters keep their own too: Turkish F types ı on the US R key, German ß and Hungarian ü sit on the
+    // minus key, and Hungarian ó on the equals key. Chrome gives none of them a browser key.
+    expect(browserShortcutAction(input({ key: 'ı', code: 'KeyR', control: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'ß', code: 'Minus', control: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'ü', code: 'Minus', meta: true, mac: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'ó', code: 'Equal', control: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'ç', code: 'Period', control: true }))).toBeNull()
     expect(browserShortcutAction(input({ key: 'д', code: 'KeyL', control: true, mac: true }))).toBeNull()
     expect(browserShortcutAction(input({ key: 'д', code: 'KeyL' }))).toBeNull()
     expect(browserShortcutAction(input({ key: 'д', code: 'KeyL', control: true, alt: true }))).toBeNull()
@@ -226,6 +234,9 @@ describe('browserShortcutAction', () => {
     expect(shortcutKey({ key: 'ж', code: 'Semicolon' })).toBe(';')
     expect(shortcutKey({ key: 'ж' })).toBe('ж')
     expect(shortcutKey({ key: 'ö', code: 'IntlBackslash' })).toBe('ö')
+    expect(shortcutKey({ key: 'ı', code: 'KeyR' })).toBe('ı')
+    expect(shortcutKey({ key: 'é', code: 'Digit2' })).toBe('2')
+    expect(shortcutKey({ key: 'ש', code: 'KeyA' })).toBe('a')
   })
 
   it('ignores unsafe modifier combinations, repeats, and composition', () => {

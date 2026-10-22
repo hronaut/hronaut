@@ -1,5 +1,5 @@
 import type { HronautApi } from '../../../shared/types.js'
-import { shortcutKey } from '../../../shared/browser-shortcuts.js'
+import { shortcutKey } from '../../../shared/shortcut-key.js'
 import { isUndoToken, UNDO_OFFER_MS, type UndoKind, type UndoOffer } from '../../../shared/undo.js'
 import { friendlyUiError, type AppToastController } from './useAppToastController'
 

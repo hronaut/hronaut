@@ -1088,6 +1088,19 @@ describe('BrowserTabsBar', () => {
     expect(view.emitted('closeTab')).toEqual([[audible.id]])
   })
 
+  it('toggles mute with the M key while a Russian, Hebrew or Greek layout types another letter there', () => {
+    const audible = tab('audible', { active: true, audible: true })
+    const view = renderTabs(browserState({ tabs: [audible], activeTabId: audible.id }))
+    const control = screen.getByRole('tab', { name: /Page audible/ })
+
+    // The key that types M on a US keyboard types ь, צ or μ there; a Latin layout's own m stays the key.
+    for (const [key, code] of [['ь', 'KeyM'], ['צ', 'KeyM'], ['μ', 'KeyM'], ['m', 'Semicolon'], ['ü', 'KeyM']]) {
+      control.dispatchEvent(new KeyboardEvent('keydown', { key, code, bubbles: true, cancelable: true }))
+    }
+
+    expect(view.emitted('toggleTabMuted')).toEqual([[audible], [audible], [audible], [audible]])
+  })
+
   it('leaves Delete with a modifier to its shortcut', () => {
     const view = renderTabs(browserState({ tabs: [tab('first', { active: true }), tab('next')], activeTabId: 'first' }))
     const control = screen.getByRole('tab', { name: /Page first/ })
