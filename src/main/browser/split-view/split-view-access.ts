@@ -17,7 +17,7 @@ export interface SplitViewTab {
  * need from the tab manager, which keeps the tabs, the split view and its
  * generation, the tab selection generation, waking tabs, the window's content
  * view, the divider drag and geometry, layout, focus and state publication
- * private. The split view and its generation stay manager fields because
+ * private. The split view and the generations stay manager fields because
  * layout, selection, closing and restoring tabs read and write them too; they
  * are written back through the write members and read again at every use.
  */
@@ -30,6 +30,7 @@ export interface SplitViewAccess<Tab extends SplitViewTab> {
   splitViewGeneration(): number
   writeSplitViewGeneration(generation: number): void
   tabSelectionGeneration(): number
+  writeTabSelectionGeneration(generation: number): void
   activeTabId(): string | null
   wakeTab(tabId: string): Promise<BrowserState>
   addChildView(view: View): void

@@ -36,6 +36,7 @@ function browser() {
     splitViewGeneration: () => state.splitViewGeneration,
     writeSplitViewGeneration: (generation) => { state.splitViewGeneration = generation },
     tabSelectionGeneration: () => state.tabSelectionGeneration,
+    writeTabSelectionGeneration: (generation) => { state.tabSelectionGeneration = generation },
     activeTabId: () => state.activeTabId,
     wakeTab: async (tabId) => {
       if (tabId === 'reference') await wake

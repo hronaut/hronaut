@@ -2753,6 +2753,7 @@ export class BrowserTabsManager {
       splitViewGeneration: () => this.splitViewGeneration,
       writeSplitViewGeneration: (generation) => { this.splitViewGeneration = generation },
       tabSelectionGeneration: () => this.tabSelectionGeneration,
+      writeTabSelectionGeneration: (generation) => { this.tabSelectionGeneration = generation },
       activeTabId: () => this.activeTabId,
       wakeTab: (tabId) => this.wakeTab(tabId),
       addChildView: (view) => this.window.contentView.addChildView(view),

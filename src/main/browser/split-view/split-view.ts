@@ -8,7 +8,8 @@ import { LocalizedError } from '../../localized-error.js'
  * Wakes the active tab and the chosen one, then opens them side by side,
  * unless the person selected another tab, changed the split view or closed
  * either tab meanwhile. Such a newer action wins: this one then returns the
- * state without opening, even when a wake failed.
+ * state without opening, even when a wake failed. Asking for the split view
+ * is itself a selection, so a tab still waking for an earlier one stays out.
  */
 export async function openSplitViewAndWait<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>, tabId: string): Promise<BrowserState> {
   const current = access.getActiveTab()
@@ -22,6 +23,7 @@ export async function openSplitViewAndWait<Tab extends SplitViewTab>(access: Spl
     throw new LocalizedError('appErrors.splitView.selectedUnavailable')
   }
   access.writeSplitViewGeneration(access.splitViewGeneration() + 1)
+  access.writeTabSelectionGeneration(access.tabSelectionGeneration() + 1)
   const splitGeneration = access.splitViewGeneration()
   const selectionGeneration = access.tabSelectionGeneration()
   const superseded = () => splitGeneration !== access.splitViewGeneration()
