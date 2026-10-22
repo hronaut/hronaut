@@ -146,19 +146,22 @@ interface PagePermissionRequests {
 /** How long after a website's Save dialog empties the file the person picked Hronaut still takes it for that file. */
 const SAVE_DIALOG_FILE_MS = 60_000
 
+/** How many single files Hronaut remembers a session's websites using; a file beyond them is taken for one you opened. */
+const MAX_FILE_USES = 10_000
+
 /**
- * Whether a file is the one a website's Save dialog has just given it. Chromium creates the file the person picked, or
- * empties it after they agreed to replace it, before Hronaut is asked anything, and then asks only the permission check
- * whether the website may write it: it is a regular file with nothing in it, changed moments ago. A file with anything
- * in it never is, so this never lets a website change what a file holds.
+ * When a website's Save dialog emptied a file, if it may have just done so. Chromium creates the file the person picked,
+ * or empties it after they agreed to replace it, before Hronaut is asked anything, and then asks only the permission
+ * check whether the website may write it: it is a regular file with nothing in it, changed moments ago. A file with
+ * anything in it never is, so this never lets a website change what a file holds.
  */
-function emptiedBySaveDialog(path: string, now: number): boolean {
-  if (!isAbsolute(path)) return false
+function emptiedBySaveDialogAt(path: string, now: number): number | undefined {
+  if (!isAbsolute(path)) return undefined
   try {
     const file = statSync(path, { throwIfNoEntry: false })
-    return Boolean(file?.isFile() && file.size === 0 && Math.abs(now - file.mtimeMs) <= SAVE_DIALOG_FILE_MS)
+    return file?.isFile() && file.size === 0 && Math.abs(now - file.mtimeMs) <= SAVE_DIALOG_FILE_MS ? file.mtimeMs : undefined
   } catch {
-    return false
+    return undefined
   }
 }
 
@@ -197,11 +200,11 @@ export function createBrowserSession(host: BrowserSessionHost): {
   /** The pages with a file access Deny or Allow; Chromium checks a file it gave a website without naming the page. */
   const fileAccessPages = new Set<WebContents>()
   /**
-   * The single files each session's websites used, by website and path, until Hronaut quits: `fresh` when the website's
-   * Save dialog had just emptied it the first time the website used it, `saved` once the website wrote to it so, and
-   * `held` when it was any other file then, such as one you opened.
+   * The single files each session's websites read or asked to write, by website and path, until Hronaut quits: when the
+   * file was empty and just changed the first time, as a Save dialog leaves it, the time it was changed; `saved` once the
+   * website asked to write that same empty file; and `held` for any other file, such as one you opened in the website.
    */
-  const fileUses = new WeakMap<Session, Map<string, 'fresh' | 'saved' | 'held'>>()
+  const fileUses = new WeakMap<Session, Map<string, number | 'saved' | 'held'>>()
   let documentCount = 0
 
   function queuePermissionRequest(operation: () => Promise<void>): void {
@@ -252,7 +255,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
    * holds can be read, since only the person's pick or drop, or an Allow, hands one to it, and that includes a handle the
    * website stored and restores after a restart, unless the person denied reading it on a page of the website that keeps
    * that document; it can be written only while a page of the website keeps the document the person allowed writing it
-   * for. A link to another app is never allowed by a check.
+   * for, and a single file also with the person's switch on, or as the file its Save dialog emptied, as below. A link to
+   * another app is never allowed by a check.
    */
   function freshConsentAllows(
     browserSession: Session,
@@ -272,12 +276,12 @@ export function createBrowserSession(host: BrowserSessionHost): {
     const filePath = typeof details.filePath === 'string' ? details.filePath : ''
     const scope = `${access}\u0000${filePath}`
     const singleFile = 'isDirectory' in details && details.isDirectory === false && filePath !== ''
-    // Whether its Save dialog gave the website a file shows the first time the website uses it, so a file it held
-    // before, such as one you opened, is never taken for one once it is emptied.
+    // Whether its Save dialog may have given the website a file shows the first time the website reads it or asks to
+    // write it, so a file it read or asked to write before, such as one you opened in it, is never taken for one.
     const fileUse = [origin, filePath].join('\u0000')
-    const uses = fileUses.get(browserSession) ?? new Map<string, 'fresh' | 'saved' | 'held'>()
-    if (singleFile && !uses.has(fileUse)) {
-      uses.set(fileUse, emptiedBySaveDialog(filePath, Date.now()) ? 'fresh' : 'held')
+    const uses = fileUses.get(browserSession) ?? new Map<string, number | 'saved' | 'held'>()
+    if (singleFile && !uses.has(fileUse) && uses.size < MAX_FILE_USES) {
+      uses.set(fileUse, emptiedBySaveDialogAt(filePath, Date.now()) ?? 'held')
       fileUses.set(browserSession, uses)
     }
     const pages = [...fileAccessPages]
@@ -289,13 +293,16 @@ export function createBrowserSession(host: BrowserSessionHost): {
     // a file a rename would replace. Without it, only the file the website's Save dialog just emptied, as in Chrome.
     // Electron does not say that a check follows a Save dialog, so any empty file changed in the last minute counts, such
     // as one a rename would replace, since replacing an empty file loses nothing. The website keeps saving there only
-    // when it was so the first time the website used it; a file it held before gets just that write, as one that
-    // another program saves in place is empty for a moment and then holds the person's text again.
+    // when it first read or asked to write the file while it was so, and asks to write it before anything changes it:
+    // its first save replaces the file only when it is done. Any other file can be written only while it is empty, as
+    // one that another program saves in place is for a moment, before it holds the person's text again.
     if (!singleFile) return false
     if (host.websitesMaySaveFiles()) return true
-    if (uses.get(fileUse) === 'saved') return true
-    if (!emptiedBySaveDialog(filePath, Date.now())) return false
-    if (uses.get(fileUse) === 'fresh') uses.set(fileUse, 'saved')
+    const use = uses.get(fileUse)
+    if (use === 'saved') return true
+    const emptiedAt = emptiedBySaveDialogAt(filePath, Date.now())
+    if (emptiedAt === undefined) return false
+    if (use === emptiedAt) uses.set(fileUse, 'saved')
     return true
   }
 

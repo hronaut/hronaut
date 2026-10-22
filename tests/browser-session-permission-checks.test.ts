@@ -247,7 +247,9 @@ describe('a single file a website holds', () => {
 
   // A file the website held was taken for one its Save dialog gave it once it was empty for a moment, such as while
   // another program saved it in place, and the website could then keep writing over what the person wrote there.
-  it('the website held before it was emptied can be saved to only while it is empty', async () => {
+  // So a file the website read, which you then pick in its Save dialog, is saved to once, and you pick it again or turn
+  // on the switch for the next save.
+  it('the website read or asked to write before it was emptied can be saved to only while it is empty', async () => {
     const { handlers } = createHarness()
     const files = await folder()
     const opened = join(files, 'notes.txt')
@@ -266,14 +268,31 @@ describe('a single file a website holds', () => {
     }
   })
 
-  it('its Save dialog emptied can be saved to again only once the website saved to it while it was empty', async () => {
+  it('its Save dialog emptied but the website did not save to is not taken for that file once it changed', async () => {
     const { handlers } = createHarness()
-    const picked = join(await folder(), 'drawing.svg')
+    const picked = join(await folder(), 'report.txt')
     await writeFile(picked, '')
+    const halfAMinuteAgo = new Date(Date.now() - 30_000)
+    await utimes(picked, halfAMinuteAgo, halfAMinuteAgo)
+    // The website reads the file its Save dialog emptied and saves nothing; you write there in another app.
     expect(handlers.check!(null, 'fileSystem' as never, `${site.origin}/`, { filePath: picked, isDirectory: false, fileAccessType: 'readable' } as never)).toBe(true)
-    const lastYear = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
-    await writeFile(picked, '<svg>the person drew</svg>')
-    await utimes(picked, lastYear, lastYear)
+    await writeFile(picked, 'Figures')
+    expect(file(handlers, picked)).toBe(false)
+
+    await truncate(picked, 0)
+    expect(file(handlers, picked)).toBe(true)
+    await writeFile(picked, 'Figures, saved in another app')
+    expect(file(handlers, picked)).toBe(false)
+  })
+
+  it('beyond the files Hronaut remembers a website using is never taken for one its Save dialog gave it', async () => {
+    const { handlers } = createHarness()
+    const files = await folder()
+    for (let index = 0; index < 10_000; index += 1) file(handlers, join(files, `missing-${index}.txt`))
+    const picked = join(files, 'drawing.svg')
+    await writeFile(picked, '')
+    expect(file(handlers, picked)).toBe(true)
+    await writeFile(picked, '<svg/>')
     expect(file(handlers, picked)).toBe(false)
   })
 
