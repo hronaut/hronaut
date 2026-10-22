@@ -231,9 +231,12 @@ export class BookmarkStore {
     return this.queueMutation(async () => {
       const existing = this.entries.get(id)
       if (!existing) throw bookmarkNotFound(id)
+      const nextTitle = normalizeBookmarkTitle(title, existing.url)
+      // Saving the same title changes nothing, as in Chrome, so the bookmark keeps its place in Recently updated.
+      if (nextTitle === existing.title) return { ...existing }
       const entry = {
         ...existing,
-        title: normalizeBookmarkTitle(title, existing.url),
+        title: nextTitle,
         updatedAt: new Date().toISOString()
       }
       const nextEntries = new Map(this.entries)

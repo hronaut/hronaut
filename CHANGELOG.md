@@ -162,6 +162,7 @@ All notable changes to Hronaut are documented in this file.
 - In split view, touching the other pane's page on a touchscreen now makes it the active pane, as clicking it does. After a tap there, the address field, the toolbar and Ctrl/Cmd+W used to keep acting on the pane you had left.
 - Find in page stays open, with its matches, when the page changes its address without loading another page, as in Chrome. On a site that moves its address to the section in view, stepping to a match further down used to close Find and clear its matches.
 - Picking an element for an agent, or for an element screenshot, is no longer cancelled when the page changes its address without loading another page. On a site that moves its address to the section in view, scrolling toward the element ended the pick.
+- Saving a bookmark's name without changing it, with Rename in Bookmarks or an agent's rename to the same name, no longer moves it to the top of Recently updated, as in Chrome.
 
 ### Security
 
