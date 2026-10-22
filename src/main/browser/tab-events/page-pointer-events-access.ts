@@ -46,6 +46,8 @@ export interface PagePointerEventsAccess<Tab extends PagePointerEventsTab> {
   queueElementPickerMouseInput(tab: Tab, session: BrowserElementPickerSession, type: 'down' | 'move' | 'up', mouse: Electron.MouseInputEvent): void
   /** Whether the tab's human input lock holds this mouse event back from the page. */
   shouldBlockHumanMouseInput(tab: Tab, mouse: Electron.MouseInputEvent): boolean
+  /** Whether the tab's human input lock holds the person's input back from the page. */
+  isHumanInteractionLocked(tab: Tab): boolean
   /** The repro recorder, which notes the person's mouse input while it records. */
   reproRecorder(): { observeReproMouse(tab: Tab, mouse: Electron.MouseInputEvent): void }
   /** Captures the tab's overview preview once the page settles for this long. */

@@ -5590,6 +5590,7 @@ export class BrowserTabsManager {
       elementPickerSessions: () => this.elementPickerSessions,
       queueElementPickerMouseInput: (tab, session, type, mouse) => this.queueElementPickerMouseInput(tab, session, type, mouse),
       shouldBlockHumanMouseInput: (tab, mouse) => this.shouldBlockHumanMouseInput(tab, mouse),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
       reproRecorder: () => this.reproRecorder,
       scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
       mcpActivityFollower: () => this.mcpActivityFollower,
