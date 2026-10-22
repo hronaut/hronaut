@@ -1,3 +1,5 @@
+import { shortcutKey } from './shortcut-key.js'
+
 export type BrowserShortcutAction =
   | 'focus-address'
   | 'new-tab'
@@ -53,7 +55,7 @@ function workspaceShortcut(input: BrowserShortcutInput): BrowserShortcutAction |
 }
 
 export function browserShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
-  const key = input.key.toLowerCase()
+  const key = shortcutKey(input)
   if (input.repeat || input.composing) return null
   if (
     (key === 'f12' && !input.control && !input.meta && !input.alt && !input.shift)

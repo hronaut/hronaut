@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
+import { shortcutKey } from '../../../shared/shortcut-key.js'
 import IconStopCircle from '~icons/material-symbols/stop-circle-rounded'
 import UiButton from "../ui/UiButton.vue"
 import { friendlyUiError } from '../composables/useAppToastController.js'
@@ -271,7 +272,7 @@ function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
     return
   }
   if (
-    event.key.toLocaleLowerCase() === 'm'
+    shortcutKey(event) === 'm'
     && !event.ctrlKey
     && !event.metaKey
     && !event.altKey

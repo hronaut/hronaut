@@ -1,4 +1,5 @@
 import type { HronautApi } from '../../../shared/types.js'
+import { shortcutKey } from '../../../shared/shortcut-key.js'
 import { isUndoToken, UNDO_OFFER_MS, type UndoKind, type UndoOffer } from '../../../shared/undo.js'
 import { friendlyUiError, type AppToastController } from './useAppToastController'
 
@@ -108,7 +109,8 @@ export function useUndoToasts(options: UndoToastsOptions) {
   function handleKeydown(event: KeyboardEvent): void {
     const offer = live
     if (!offer || event.defaultPrevented || event.isComposing || event.repeat) return
-    if (event.key.toLowerCase() !== 'z' || event.shiftKey || event.altKey || (mac ? !event.metaKey || event.ctrlKey : !event.ctrlKey || event.metaKey)) return
+    // Goes by the key's place on a US keyboard with a layout of other letters, such as Russian, as browser keys do.
+    if (shortcutKey(event) !== 'z' || event.shiftKey || event.altKey || (mac ? !event.metaKey || event.ctrlKey : !event.ctrlKey || event.metaKey)) return
     if (editsText(event.target)) return
     event.preventDefault()
     // Through the toast's own action, so closing the toast does not end the offer first.
