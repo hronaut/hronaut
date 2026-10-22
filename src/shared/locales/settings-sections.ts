@@ -5,7 +5,7 @@ export const settingsSectionMessages = {
   'en-US': {
     keywords: {
       appearance: 'interface size scale zoom tab position left top title bar dark light mode system cyberpunk',
-      general: 'language tray close startup sign in login launch minimized attention sound cursor live status strip agent agents',
+      general: 'language interface system tray close startup sign in login launch minimized attention sound cursor live status strip agent agents',
       search: 'address bar google duckduckgo bing brave startpage',
       downloads: 'folder location save ask file',
       performance: 'memory saver sleep cpu inactive tabs',
@@ -19,12 +19,12 @@ export const settingsSectionMessages = {
     },
     appearanceGroups: { window: 'Window' },
     generalGroups: { startup: 'Startup and tray', agents: 'Agent activity' },
-    general: { heading: 'General', description: 'Language, how Hronaut starts, and how agent activity shows.' }
+    general: { heading: 'General', description: 'Choose Hronaut’s language, how it starts, and how agent activity shows.' }
   },
   'de-DE': {
     keywords: {
       appearance: 'oberfläche größe skalierung zoom tab position links oben titelleiste dunkel hell modus system cyberpunk',
-      general: 'sprache tray infobereich schließen start anmelden starten minimiert aufmerksamkeit ton cursor live status leiste agent agenten',
+      general: 'sprache oberfläche system tray infobereich schließen start anmelden starten minimiert aufmerksamkeit ton cursor live status leiste agent agenten',
       search: 'suchmaschine adressleiste google duckduckgo bing brave startpage',
       downloads: 'ordner speicherort speichern fragen datei',
       performance: 'speicher sparmodus ruhezustand cpu inaktive tabs',
@@ -38,12 +38,12 @@ export const settingsSectionMessages = {
     },
     appearanceGroups: { window: 'Fenster' },
     generalGroups: { startup: 'Start und Infobereich', agents: 'Agentenaktivität' },
-    general: { heading: 'Allgemein', description: 'Sprache, Start von Hronaut und wie Agentenaktivität angezeigt wird.' }
+    general: { heading: 'Allgemein', description: 'Wähle die Sprache von Hronaut, wie es startet und wie Agentenaktivität angezeigt wird.' }
   },
   'fr-FR': {
     keywords: {
       appearance: 'interface taille échelle zoom onglets position gauche haut barre de titre sombre clair mode système cyberpunk',
-      general: 'langue zone de notification fermer démarrage connexion lancer réduit attention son curseur statut en direct bandeau agent agents',
+      general: 'langue interface système zone de notification fermer démarrage connexion lancer réduit attention son curseur statut en direct bandeau agent agents',
       search: 'moteur de recherche barre d’adresse google duckduckgo bing brave startpage',
       downloads: 'dossier emplacement enregistrer demander fichier téléchargements',
       performance: 'mémoire économiseur veille cpu onglets inactifs',
@@ -57,12 +57,12 @@ export const settingsSectionMessages = {
     },
     appearanceGroups: { window: 'Fenêtre' },
     generalGroups: { startup: 'Démarrage et zone de notification', agents: 'Activité des agents' },
-    general: { heading: 'Général', description: 'La langue, le démarrage de Hronaut et l’affichage de l’activité des agents.' }
+    general: { heading: 'Général', description: 'Choisissez la langue de Hronaut, son démarrage et l’affichage de l’activité des agents.' }
   },
   'es-ES': {
     keywords: {
       appearance: 'interfaz tamaño escala zoom pestañas posición izquierda arriba barra de título oscuro claro modo sistema cyberpunk',
-      general: 'idioma bandeja cerrar inicio iniciar sesión abrir minimizado atención sonido cursor estado en vivo franja agente agentes',
+      general: 'idioma interfaz sistema bandeja cerrar inicio iniciar sesión abrir minimizado atención sonido cursor estado en vivo franja agente agentes',
       search: 'motor de búsqueda barra de direcciones google duckduckgo bing brave startpage',
       downloads: 'carpeta ubicación guardar preguntar archivo descargas',
       performance: 'memoria ahorro suspender cpu pestañas inactivas',
@@ -76,12 +76,12 @@ export const settingsSectionMessages = {
     },
     appearanceGroups: { window: 'Ventana' },
     generalGroups: { startup: 'Inicio y bandeja', agents: 'Actividad de los agentes' },
-    general: { heading: 'General', description: 'El idioma, cómo se inicia Hronaut y cómo se muestra la actividad de los agentes.' }
+    general: { heading: 'General', description: 'Elige el idioma de Hronaut, cómo se inicia y cómo se muestra la actividad de los agentes.' }
   },
   'pl-PL': {
     keywords: {
       appearance: 'interfejs rozmiar skala powiększenie karty położenie lewo góra pasek tytułu ciemny jasny tryb systemowy cyberpunk',
-      general: 'język zasobnik zamykanie uruchamianie logowanie start zminimalizowane uwaga dźwięk kursor status na żywo pasek agent agenci',
+      general: 'język interfejs systemowy zasobnik zamykanie uruchamianie logowanie start zminimalizowane uwaga dźwięk kursor status na żywo pasek agent agenci',
       search: 'wyszukiwarka pasek adresu google duckduckgo bing brave startpage',
       downloads: 'folder lokalizacja zapisywanie pytaj plik pobrane',
       performance: 'pamięć oszczędzanie uśpienie cpu nieaktywne karty',
@@ -95,12 +95,12 @@ export const settingsSectionMessages = {
     },
     appearanceGroups: { window: 'Okno' },
     generalGroups: { startup: 'Uruchamianie i zasobnik', agents: 'Aktywność agentów' },
-    general: { heading: 'Ogólne', description: 'Język, uruchamianie Hronaut i sposób pokazywania aktywności agentów.' }
+    general: { heading: 'Ogólne', description: 'Wybierz język Hronaut, sposób uruchamiania i pokazywania aktywności agentów.' }
   },
   'ru-RU': {
     keywords: {
       appearance: 'интерфейс размер масштаб вкладки положение слева сверху заголовок тёмная светлая режим системная cyberpunk',
-      general: 'язык трей закрытие запуск вход автозапуск свёрнуто свернуто внимание звук курсор статус полоса агент агенты',
+      general: 'язык интерфейс интерфейса системный трей закрытие запуск вход автозапуск свёрнуто свернуто внимание звук курсор статус полоса агент агенты',
       search: 'поисковая система адресная строка google duckduckgo bing brave startpage',
       downloads: 'папка расположение сохранять спрашивать файл загрузки',
       performance: 'память экономия сон спящие cpu неактивные вкладки',
@@ -114,12 +114,12 @@ export const settingsSectionMessages = {
     },
     appearanceGroups: { window: 'Окно' },
     generalGroups: { startup: 'Запуск и трей', agents: 'Работа агентов' },
-    general: { heading: 'Общие', description: 'Язык, запуск Hronaut и то, как видна работа агентов.' }
+    general: { heading: 'Общие', description: 'Выберите язык Hronaut, как он запускается и как видна работа агентов.' }
   },
   'uk-UA': {
     keywords: {
       appearance: 'інтерфейс розмір масштаб вкладки положення ліворуч згори заголовок темна світла режим системна cyberpunk',
-      general: 'мова трей закриття запуск вхід автозапуск згорнуто увага звук курсор статус смуга агент агенти',
+      general: 'мова інтерфейс інтерфейсу системний трей закриття запуск вхід автозапуск згорнуто увага звук курсор статус смуга агент агенти',
       search: 'пошукова система адресний рядок google duckduckgo bing brave startpage',
       downloads: 'тека папка розташування зберігати питати файл завантаження',
       performance: 'пам’ять економія сон сплячі cpu неактивні вкладки',
@@ -133,6 +133,6 @@ export const settingsSectionMessages = {
     },
     appearanceGroups: { window: 'Вікно' },
     generalGroups: { startup: 'Запуск і трей', agents: 'Робота агентів' },
-    general: { heading: 'Загальні', description: 'Мова, запуск Hronaut і те, як видно роботу агентів.' }
+    general: { heading: 'Загальні', description: 'Виберіть мову Hronaut, як він запускається і як видно роботу агентів.' }
   }
 }

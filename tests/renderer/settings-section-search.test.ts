@@ -36,7 +36,8 @@ function navigation() {
       const section = ref<SettingsSection>('appearance')
       watch(section, change)
       const items = ref([
-        { section: 'appearance' as const, label: 'Appearance', description: 'Theme and window', keywords: 'tray attention sound', icon },
+        { section: 'appearance' as const, label: 'Appearance', description: 'Theme and window', keywords: 'theme dark', icon },
+        { section: 'general' as const, label: 'General', description: 'Language, startup, agents', keywords: 'tray attention sound', icon },
         { section: 'mcp' as const, label: 'MCP security', description: 'Local authentication', icon },
         { section: 'downloads' as const, label: 'Downloads', description: 'Location and prompts', icon }
       ])
@@ -85,9 +86,10 @@ describe('settings section search', () => {
   it('finds a section by the settings it holds', async () => {
     const { input, change } = navigation()
     await userEvent.type(input, 'tray')
-    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([expect.stringContaining('Appearance')])
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([expect.stringContaining('General')])
     await userEvent.keyboard('{Enter}')
-    expect(change).not.toHaveBeenCalled()
+    expect(change).toHaveBeenCalledOnce()
+    expect(change.mock.calls.at(-1)?.[0]).toBe('general')
     await userEvent.clear(input)
     await userEvent.type(input, 'sound attention')
     expect(screen.getAllByRole('button')).toHaveLength(1)
@@ -105,6 +107,9 @@ describe('settings section search', () => {
     { locale: 'ru-RU', query: 'язык', sections: ['general'] },
     { locale: 'uk-UA', query: 'трей', sections: ['general'] },
     { locale: 'en-US', query: 'attention sound', sections: ['general'] },
+    { locale: 'en-US', query: 'interface language', sections: ['general'] },
+    { locale: 'en-US', query: 'system tray', sections: ['general'] },
+    { locale: 'ru-RU', query: 'язык интерфейса', sections: ['general'] },
     { locale: 'en-US', query: 'updated', sections: ['updates'] },
     { locale: 'en-US', query: 'dark mode', sections: ['appearance'] },
     { locale: 'en-US', query: 'proxy', sections: [] }
@@ -154,7 +159,7 @@ describe('settings section search', () => {
       escaped.mockClear()
       await userEvent.keyboard('{Escape}')
       expect(input).toHaveValue('')
-      expect(screen.getAllByRole('button')).toHaveLength(3)
+      expect(screen.getAllByRole('button')).toHaveLength(4)
       expect(escaped).not.toHaveBeenCalled()
       await userEvent.keyboard('{Escape}')
       expect(escaped).toHaveBeenCalledOnce()
