@@ -882,6 +882,7 @@ export const deDE = {
       "print": "Seite drucken",
       "bookmark": "Aktuelle Seite als Lesezeichen speichern",
       "history": "Browserverlauf öffnen",
+      "downloads": "Downloads öffnen",
       "clearData": "Browserdaten löschen",
       "devtools": "Entwicklertools umschalten",
       "nextTab": "Zum nächsten Tab wechseln",
@@ -3520,7 +3521,8 @@ export const deDE = {
       "repository": "GitHub-Repository",
       "checkUpdatesPlain": "Nach Updates suchen",
       "print": "Drucken…",
-      "viewSource": "Seitenquelltext anzeigen"
+      "viewSource": "Seitenquelltext anzeigen",
+      "downloads": "Downloads"
     },
     "tray": {
       "show": "Hronaut anzeigen",

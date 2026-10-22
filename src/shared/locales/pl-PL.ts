@@ -882,6 +882,7 @@ export const plPL = {
       "print": "Drukuj stronę",
       "bookmark": "Dodaj bieżącą stronę do zakładek",
       "history": "Otwórz historię przeglądania",
+      "downloads": "Otwórz pobrane",
       "clearData": "Wyczyść dane przeglądania",
       "devtools": "Pokaż lub ukryj narzędzia deweloperskie",
       "nextTab": "Przejdź do następnej karty",
@@ -3520,7 +3521,8 @@ export const plPL = {
       "repository": "Repozytorium GitHub",
       "checkUpdatesPlain": "Sprawdź aktualizacje",
       "print": "Drukuj…",
-      "viewSource": "Wyświetl źródło strony"
+      "viewSource": "Wyświetl źródło strony",
+      "downloads": "Pobrane"
     },
     "tray": {
       "show": "Pokaż Hronaut",

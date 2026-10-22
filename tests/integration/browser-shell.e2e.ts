@@ -2862,6 +2862,7 @@ test('puts Help in the native application menu and opens shell dialogs above eve
     'Full-Page View',
     'separator',
     'Print…',
+    'Downloads',
     'separator',
     'Actual Size',
     'Zoom In',

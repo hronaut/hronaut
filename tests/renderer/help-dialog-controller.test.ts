@@ -38,6 +38,7 @@ describe('help dialog controller', () => {
     expect(mac.mac).toBe(true)
     expect(mac.keys['runtime.shortcuts.pick']).toEqual(['Cmd', 'Option', 'C'])
     expect(mac.keys['runtime.shortcuts.history']).toEqual(['Cmd', 'Y'])
+    expect(mac.keys['runtime.shortcuts.downloads']).toEqual(['Cmd', 'Option', 'L'])
     expect(mac.keys['runtime.shortcuts.devtools']).toEqual(['Cmd', 'Option', 'I'])
     expect(mac.keys['runtime.shortcuts.viewSource']).toEqual(['Cmd', 'Option', 'U'])
     expect(mac.keys['runtime.shortcuts.back']).toEqual(['Cmd', '['])
@@ -49,6 +50,7 @@ describe('help dialog controller', () => {
     expect(linux.mac).toBe(false)
     expect(linux.keys['runtime.shortcuts.pick']).toEqual(['Ctrl', 'Shift', 'C'])
     expect(linux.keys['runtime.shortcuts.history']).toEqual(['Ctrl', 'H'])
+    expect(linux.keys['runtime.shortcuts.downloads']).toEqual(['Ctrl', 'J'])
     expect(linux.keys['runtime.shortcuts.devtools']).toEqual(['F12'])
     expect(linux.keys['runtime.shortcuts.back']).toEqual(['Alt', '←'])
     expect(linux.keys['runtime.shortcuts.forward']).toEqual(['Alt', '→'])
@@ -118,7 +120,7 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.viewSource',
       keys: ['Ctrl', 'U']
     })
-    expect(controller.shortcuts.value).toHaveLength(33)
+    expect(controller.shortcuts.value).toHaveLength(34)
     controller.dispose()
   })
 })

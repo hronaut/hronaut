@@ -48,6 +48,7 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.takeOver'), keys: ['Ctrl/Cmd', 'Shift', 'O'] },
     { label: options.translate('runtime.shortcuts.bookmark'), keys: ['Ctrl/Cmd', 'D'] },
     { label: options.translate('runtime.shortcuts.history'), keys: mac ? ['Cmd', 'Y'] : ['Ctrl', 'H'] },
+    { label: options.translate('runtime.shortcuts.downloads'), keys: mac ? ['Cmd', 'Option', 'L'] : ['Ctrl', 'J'] },
     { label: options.translate('runtime.shortcuts.clearData'), keys: ['Ctrl/Cmd', 'Shift', 'Delete'] },
     // F12 needs the Fn key on most Mac keyboards.
     { label: options.translate('runtime.shortcuts.devtools'), keys: mac ? ['Cmd', 'Option', 'I'] : ['F12'] },

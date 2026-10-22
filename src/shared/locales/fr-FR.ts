@@ -882,6 +882,7 @@ export const frFR = {
       "print": "Imprimer la page",
       "bookmark": "Ajouter la page actuelle aux favoris",
       "history": "Ouvrir l’historique de navigation",
+      "downloads": "Ouvrir les téléchargements",
       "clearData": "Effacer les données de navigation",
       "devtools": "Afficher ou masquer les outils de développement",
       "nextTab": "Passer à l’onglet suivant",
@@ -3520,7 +3521,8 @@ export const frFR = {
       "repository": "Dépôt GitHub",
       "checkUpdatesPlain": "Rechercher des mises à jour",
       "print": "Imprimer…",
-      "viewSource": "Afficher le code source de la page"
+      "viewSource": "Afficher le code source de la page",
+      "downloads": "Téléchargements"
     },
     "tray": {
       "show": "Afficher Hronaut",

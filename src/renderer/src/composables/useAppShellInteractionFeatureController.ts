@@ -364,6 +364,7 @@ export function useAppShellInteractionFeatureController(
     setZoom: transient.setZoom,
     toggleCurrentBookmark: features.collections.toggleCurrentBookmark,
     toggleVisitHistory: features.collections.toggleVisitHistory,
+    toggleDownloads: features.collections.toggleDownloads,
     toggleTabSearch: tabSearch.toggle,
     openPrivacySettings: features.site.openPrivacySettings,
     toggleCommandPalette: () => commandPalette.toggle('commands'),

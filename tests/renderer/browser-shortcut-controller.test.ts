@@ -71,6 +71,7 @@ function createController(canRunAction = (_action: string) => true) {
     setZoom: vi.fn(async () => undefined),
     toggleCurrentBookmark: vi.fn(async () => undefined),
     toggleVisitHistory: vi.fn(async () => undefined),
+    toggleDownloads: vi.fn(async () => undefined),
     toggleTabSearch: vi.fn(async () => undefined),
     openPrivacySettings: vi.fn(async () => undefined),
     toggleCommandPalette: vi.fn(async () => undefined),
@@ -117,6 +118,15 @@ describe('browser shortcut controller', () => {
     expect(harness.settingsOpen.value).toBe(false)
     expect(harness.settingsTabOpen.value).toBe(true)
     expect(harness.browser.selectTab).toHaveBeenCalledWith('second')
+  })
+
+  // Ctrl+J, or Cmd+Option+L on macOS, did nothing: the View menu's Downloads now asks for the downloads panel.
+  it('opens or closes the downloads panel, also from Settings, which the panel closes', async () => {
+    const harness = createController()
+    await expect(harness.controller.run('downloads')).resolves.toBe(true)
+    harness.settingsOpen.value = true
+    await expect(harness.controller.run('downloads')).resolves.toBe(true)
+    expect(harness.callbacks.toggleDownloads).toHaveBeenCalledTimes(2)
   })
 
   it('does not reload the hidden website while Settings is active', async () => {
