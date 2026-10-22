@@ -4,8 +4,10 @@ import type { WorkspaceContextMenuAccess, WorkspaceContextMenuTab } from './work
 
 /**
  * The workspace's context menu items: a new tab in it, importing browser
- * cookies, editing, pinning, sleeping its tabs and archiving it. A failed
- * action is logged and reported to the manager's onActionFailed option.
+ * cookies, editing, pinning, sleeping its tabs and archiving it. New tab asks
+ * the window to open the tab, and the window reports its own failures; any
+ * other failed action is logged and reported to the manager's onActionFailed
+ * option.
  */
 export function workspaceContextMenuItems<Tab extends WorkspaceContextMenuTab>(access: WorkspaceContextMenuAccess<Tab>, group: ActiveWorkspace): MenuItemConstructorOptions[] {
   const reportError = (action: string) => (error: unknown): void => {

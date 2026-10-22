@@ -16,7 +16,7 @@ export interface WorkspaceContextMenuOptions {
 /**
  * What the workspace context menu needs from the tab manager, which keeps the
  * tabs, the window, its options, localized text, the human interaction lock,
- * tab creation, workspace pinning, sleeping and archiving private. Each menu
+ * workspace pinning, sleeping and archiving private. Each menu
  * action reads the manager when it runs, not when the menu opens.
  */
 export interface WorkspaceContextMenuAccess<Tab extends WorkspaceContextMenuTab> {

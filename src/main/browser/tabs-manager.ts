@@ -2570,8 +2570,8 @@ export class BrowserTabsManager {
 
   /**
    * The narrow view the workspace context menu gets of this manager's private
-   * tabs, window, options, localized text, human interaction lock, tab
-   * creation, sleep checks and workspace sleeping. It is a prototype method
+   * tabs, window, options, localized text, human interaction lock, sleep
+   * checks and workspace sleeping. It is a prototype method
    * rather than a field, so managers created without the constructor (as unit
    * tests do) still provide it.
    */

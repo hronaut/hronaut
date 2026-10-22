@@ -176,15 +176,6 @@ describe('the workspace menu\'s pin item', () => {
     expect(alpha.pinnedAt).toBeUndefined()
   })
 
-  // New Tab in Workspace opened the tab itself, so the cursor stayed out of the address field; the window now opens it
-  // as its + button does.
-  it('asks the window for a new tab in the workspace with New Tab in Workspace', () => {
-    const { internals } = fixture([group('alpha')])
-    const item = internals.workspaceContextMenuItems(internals.mcpTabGroups.get('alpha')!).find((candidate) => candidate.id === 'new-tab-in-workspace')!
-    click(item)
-    expect(internals.window.webContents.send).toHaveBeenCalledExactlyOnceWith('browser:new-tab-requested', 'alpha')
-  })
-
   it('pins with a click on Pin and unpins with a click on Unpin', () => {
     const { internals } = fixture([group('alpha')])
     const alpha = internals.mcpTabGroups.get('alpha')!
@@ -192,5 +183,16 @@ describe('the workspace menu\'s pin item', () => {
     expect(alpha.pinnedAt).toEqual(expect.any(String))
     click(pinItem(internals.workspaceContextMenuItems(alpha)))
     expect(alpha.pinnedAt).toBeUndefined()
+  })
+})
+
+describe('the workspace menu\'s new tab item', () => {
+  // New Tab in Workspace opened the tab itself, so the cursor stayed out of the address field; the window now opens it
+  // as its + button does.
+  it('asks the window for a new tab in the workspace with New Tab in Workspace', () => {
+    const { internals } = fixture([group('alpha')])
+    const item = internals.workspaceContextMenuItems(internals.mcpTabGroups.get('alpha')!).find((candidate) => candidate.id === 'new-tab-in-workspace')!
+    ;(item.click as () => void)()
+    expect(internals.window.webContents.send).toHaveBeenCalledExactlyOnceWith('browser:new-tab-requested', 'alpha')
   })
 })

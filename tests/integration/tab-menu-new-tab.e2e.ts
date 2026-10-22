@@ -1,8 +1,9 @@
+import type { ElectronApplication, Page } from '@playwright/test'
 import { expect, test } from './fixtures.js'
 
 type MenuGlobal = typeof globalThis & { __hronautTabMenu?: Electron.Menu }
 
-test('New Tab in a tab\'s or a workspace\'s menu opens the tab in that workspace with the cursor in the address field', async ({ appWindow, electronApp }) => {
+async function menuScene(appWindow: Page, electronApp: ElectronApplication) {
   const workspace = async (name: string) => {
     const created = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: ${JSON.stringify(name)}, storage: 'scratch' })`) as {
       mcpTabGroups: Array<{ id: string, name: string }>
@@ -14,11 +15,11 @@ test('New Tab in a tab\'s or a workspace\'s menu opens the tab in that workspace
   await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Client page</title>', mcpGroupId: ${JSON.stringify(client)}, active: true })`)
   const tabs = () => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.map((tab) => ({ id: tab.id, workspace: tab.mcpGroupId, active: tab.active })))`) as Promise<Array<{ id: string, workspace?: string, active: boolean }>>
   const address = appWindow.getByRole('combobox', { name: 'Address', exact: true })
-  const showOwnPage = async () => {
-    await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Own page</title>', mcpGroupId: ${JSON.stringify(own)}, active: true })`)
-    await appWindow.locator('.tab', { hasText: 'Own page' }).last().click()
-    await expect(address).not.toBeFocused()
-  }
+
+  // Another workspace's tab is shown, so the client tab is only in the rail.
+  await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Own page</title>', mcpGroupId: ${JSON.stringify(own)}, active: true })`)
+  await appWindow.locator('.tab', { hasText: 'Own page' }).last().click()
+  await expect(address).not.toBeFocused()
 
   await electronApp.evaluate(({ Menu }) => {
     ;(globalThis as MenuGlobal).__hronautTabMenu = undefined
@@ -43,17 +44,24 @@ test('New Tab in a tab\'s or a workspace\'s menu opens the tab in that workspace
       .toEqual([{ workspace: client, active: true }])
     await expect(address).toBeFocused()
   }
+  return { clickMenuItem, opensInClient }
+}
+
+test('New Tab in a tab\'s menu opens the tab in that tab\'s workspace with the cursor in the address field', async ({ appWindow, electronApp }) => {
+  const { clickMenuItem, opensInClient } = await menuScene(appWindow, electronApp)
 
   // New Tab opened the tab in the workspace of the tab shown, not of the tab whose menu it was, and left the cursor out
   // of the address field, though the + button and Ctrl/Cmd+T put it there.
-  await showOwnPage()
   await opensInClient(async () => {
     await appWindow.locator('.tab', { hasText: 'Client page' }).first().click({ button: 'right' })
     await clickMenuItem('new-tab')
   })
+})
 
-  // New Tab in Workspace, from the workspace's own menu, left the cursor out of the address field too.
-  await showOwnPage()
+test('New Tab in Workspace in a workspace\'s menu puts the cursor in the address field', async ({ appWindow, electronApp }) => {
+  const { clickMenuItem, opensInClient } = await menuScene(appWindow, electronApp)
+
+  // New Tab in Workspace opened the tab in the right workspace but left the cursor out of the address field.
   await opensInClient(async () => {
     await appWindow.locator('.tab-group-label', { hasText: 'Menu client' }).click({ button: 'right' })
     await clickMenuItem('new-tab-in-workspace')
