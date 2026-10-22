@@ -1,4 +1,6 @@
+import { readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { join } from 'node:path'
 import type { BrowserState } from '../../src/shared/types.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 import { seedWorkspaceProfile } from './workspace-profile.js'
@@ -44,6 +46,11 @@ for (const empty of [false, true]) {
         }, workspaceId)
       }
       await instance.window.evaluate(`window.hronaut.saveAndCloseTabGroup(${JSON.stringify(workspaceId)})`)
+      // The renamed archive is on disk before Hronaut quits, so a slow quit the harness ends early cannot undo it.
+      await expect.poll(async () => {
+        const saved = JSON.parse(await readFile(join(profileDirectory, 'tabs.json'), 'utf8')) as { savedTabGroups?: Array<{ id: string; name: string }> }
+        return saved.savedTabGroups?.find(group => group.id === workspaceId)?.name
+      }).toBe('My existing profile')
       await closeHronaut(instance.app)
       instance = await launchHronaut(profileDirectory)
       const archived = await instance.window.evaluate('window.hronaut.getState()') as BrowserState
