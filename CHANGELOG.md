@@ -164,6 +164,7 @@ All notable changes to Hronaut are documented in this file.
 - Picking an element for an agent, or for an element screenshot, is no longer cancelled when the page changes its address without loading another page. On a site that moves its address to the section in view, scrolling toward the element ended the pick.
 - Saving a bookmark's name without changing it, with Rename in Bookmarks or an agent's rename to the same name, no longer moves it to the top of Recently updated, as in Chrome.
 - Escape now closes Search tabs after you save or cancel a tab's label there. Focus goes back to the card's Edit label button, where Escape and Ctrl/Cmd+Shift+A did nothing until you moved focus.
+- Hronaut's browser keys, such as Ctrl/Cmd+L, Ctrl/Cmd+T and Ctrl/Cmd+W, and Ctrl/Cmd+Z for Undo, now work while a Russian, Ukrainian or other layout of non-Latin letters is on. They go by the key's place on a US keyboard there, as in Chrome; before, Ctrl+L with a Russian layout did nothing. A layout of Latin letters, such as AZERTY or Dvorak, keeps its own letters.
 
 ### Security
 
