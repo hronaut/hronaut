@@ -106,6 +106,20 @@ describe('privacy settings controller', () => {
     controller.dispose()
   })
 
+  // With no history at all, Clear history stayed available and asked to clear nothing.
+  it('offers no clearing when there is no history', async () => {
+    const { api, controller } = createController()
+    api.summary.mockResolvedValueOnce(summary(0))
+    await controller.refreshSummary()
+    expect(controller.summary.value?.historyEntries).toBe(0)
+    expect(controller.canClear.value).toBe(false)
+
+    api.summary.mockResolvedValueOnce(summary(3))
+    await controller.refreshSummary()
+    expect(controller.canClear.value).toBe(true)
+    controller.dispose()
+  })
+
   // Resetting the section with no totals left the panel saying they were loading, and nothing loaded them.
   it('loads the totals again when the section resets before they loaded', async () => {
     const { api, controller } = createController()

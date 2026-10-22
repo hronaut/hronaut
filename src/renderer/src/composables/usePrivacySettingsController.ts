@@ -43,6 +43,7 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
   const clearing = computed(() => summaryState.value === 'clearing' || websiteState.value === 'clearing')
   const canClear = computed(() => (
     selectedCount.value > 0
+    && summary.value?.historyEntries !== 0
     && summaryState.value !== 'loading'
     && !clearing.value
   ))

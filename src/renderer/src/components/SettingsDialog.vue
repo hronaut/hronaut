@@ -78,11 +78,13 @@ const navigation = computed<Array<{
   section: SettingsSection
   label: string
   description: string
+  keywords: string
   icon: Component
 }>>(() => SETTINGS_NAVIGATION.map((item) => ({
   section: item.section,
   label: t(item.labelKey),
   description: t(item.descriptionKey),
+  keywords: t(`settingsSections.keywords.${item.section}`),
   icon: item.icon
 })))
 

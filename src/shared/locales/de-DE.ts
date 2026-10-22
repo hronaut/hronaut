@@ -3,6 +3,7 @@ import { networkLabelMessages } from './network-labels.js'
 import { reproStepMessages } from './repro-steps.js'
 import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
+import { settingsSectionMessages } from './settings-sections.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
 import { qualityAuditTextMessages } from './quality-audit-text.js'
 import { networkAbortReasonMessages } from './network-abort-reasons.js'
@@ -34,6 +35,7 @@ export const deDE = {
   reproSteps: reproStepMessages['de-DE'],
   viewportPresets: viewportPresetMessages['de-DE'],
   searchEngines: searchEngineMessages['de-DE'],
+  settingsSections: settingsSectionMessages['de-DE'],
   browserIssueTitles: browserIssueTitleMessages['de-DE'],
   qualityAuditText: qualityAuditTextMessages['de-DE'],
   networkAbortReasons: networkAbortReasonMessages['de-DE'],
@@ -401,7 +403,7 @@ export const deDE = {
       "description": "Lege fest, welche Anwendungen auf dieses Browserprofil zugreifen dürfen.",
       "require": "MCP-Authentifizierung verlangen",
       "requireDescription": "Das private Bearer-Token des Profils für MCP- und Statusanfragen verlangen.",
-      challengeDetection: "Sichtbare Challenges erkennen", challengeDetectionDescription: "Standardmäßig aus. Die Beobachtungsqualität kann sichtbare CAPTCHA- und menschliche Verifizierungsaufgaben melden. Andere Qualitäts- und Berechtigungsprüfungen bleiben aktiv. Challenges werden weder gelöst noch umgangen.", omitUrlDetail: "URL-Details vor Agenten verbergen", omitUrlDetailDescription: "Standardmäßig aus. Agenten sehen die Adressen von Tabs und Snapshots nur als Website und Pfad, ohne Zugangsdaten und ohne den Teil nach ? oder #. Pfade, Seitentexte, Screenshots und andere Werkzeuge können weiterhin private Angaben zeigen.", "toolSet": "MCP-Werkzeugsatz",
+      challengeDetection: "Sichtbare Challenges erkennen", challengeDetectionDescription: "Die Beobachtungsqualität kann sichtbare CAPTCHA- und menschliche Verifizierungsaufgaben melden. Andere Qualitäts- und Berechtigungsprüfungen bleiben aktiv. Challenges werden weder gelöst noch umgangen.", omitUrlDetail: "URL-Details vor Agenten verbergen", omitUrlDetailDescription: "Agenten sehen die Adressen von Tabs und Snapshots nur als Website und Pfad, ohne Zugangsdaten und ohne den Teil nach ? oder #. Pfade, Seitentexte, Screenshots und andere Werkzeuge können weiterhin private Angaben zeigen.", "toolSet": "MCP-Werkzeugsatz",
       "toolSetDescription": "Wähle den aufgabenbezogenen Katalog für neue MCP-Verbindungen.",
       "toolSetEssentials": "Browser-Grundlagen",
       "toolSetQa": "Web-QA",
@@ -475,7 +477,7 @@ export const deDE = {
       "cache": "Zwischengespeicherte Dateien",
       "slower": "Neuladen kann langsamer sein",
       "clearingAll": "Alles wird gelöscht…",
-      clearAll: "Verlauf löschen… ({count})",
+      clearAll: "Verlauf löschen…",
       "totals": "{history} Verlaufsseite | {history} Verlaufsseiten",
       "totalsDetail": "{history} · {cookies} · {cache} Cache",
       loadingTotals: "Verlauf wird geladen…",

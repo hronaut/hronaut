@@ -219,7 +219,8 @@ async function setLanguagePreference(event: Event): Promise<void> {
       <span class="info-dot" aria-hidden="true"><IconInfo /></span>
       <p>{{ t('appearance.systemThemeHelp') }}</p>
     </div>
-    <div class="settings-rows">
+    <h4 class="settings-group-heading">{{ t('settingsSections.appearanceGroups.window') }}</h4>
+    <div class="settings-rows grouped">
       <label class="settings-row" for="setting-language">
         <span>
           <strong>{{ t('appearance.language.label') }}</strong>
@@ -286,6 +287,9 @@ async function setLanguagePreference(event: Event): Promise<void> {
           @change="setUseSystemTitleBar"
         />
       </label>
+    </div>
+    <h4 class="settings-group-heading">{{ t('settingsSections.appearanceGroups.startup') }}</h4>
+    <div class="settings-rows grouped">
       <label class="settings-row" for="setting-hide-in-tray">
         <span>
           <strong>{{ t('appearance.hideInTray.label') }}</strong>
@@ -314,6 +318,9 @@ async function setLanguagePreference(event: Event): Promise<void> {
           @change="setLaunchMinimized"
         />
       </label>
+    </div>
+    <h4 class="settings-group-heading">{{ t('settingsSections.appearanceGroups.agents') }}</h4>
+    <div class="settings-rows grouped">
       <label class="settings-row" for="setting-attention-sound">
         <span>
           <strong>{{ t('appearance.playAttentionSound.label') }}</strong>

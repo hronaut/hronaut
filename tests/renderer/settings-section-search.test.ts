@@ -6,9 +6,28 @@ import SettingsNavigation from '../../src/renderer/src/components/SettingsNaviga
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 
 import { useSettingsSectionSearch } from '../../src/renderer/src/composables/useSettingsSectionSearch.js'
+import { SETTINGS_NAVIGATION } from '../../src/renderer/src/settings-navigation.js'
+import { translate } from '../../src/shared/i18n.js'
+import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
 import type { SettingsSection } from '../../src/renderer/src/composables/useSettingsDialogController.js'
 
 const icon = defineComponent({ template: '<svg />' })
+/** The sections Settings lists for a search in an interface language, best first. */
+function sectionsFound(locale: string, query: string): SettingsSection[] {
+  const items = ref(SETTINGS_NAVIGATION.map(item => ({
+    section: item.section,
+    label: translate(locale as never, item.labelKey as never),
+    description: translate(locale as never, item.descriptionKey as never),
+    keywords: translate(locale as never, `settingsSections.keywords.${item.section}` as never),
+    icon
+  })))
+  let search!: ReturnType<typeof useSettingsSectionSearch>
+  render(defineComponent({ setup() { search = useSettingsSectionSearch(items, ref('appearance')); return {} }, template: '<div />' }), {
+    global: { plugins: [createHronautI18n(locale as never)] }
+  })
+  search.query.value = query
+  return search.matches.value.map(item => item.section)
+}
 function navigation() {
   const change = vi.fn()
   const Harness = defineComponent({
@@ -17,7 +36,7 @@ function navigation() {
       const section = ref<SettingsSection>('appearance')
       watch(section, change)
       const items = ref([
-        { section: 'appearance' as const, label: 'Appearance', description: 'Theme and window', icon },
+        { section: 'appearance' as const, label: 'Appearance', description: 'Theme and window', keywords: 'tray attention sound', icon },
         { section: 'mcp' as const, label: 'MCP security', description: 'Local authentication', icon },
         { section: 'downloads' as const, label: 'Downloads', description: 'Location and prompts', icon }
       ])
@@ -59,6 +78,55 @@ describe('settings section search', () => {
       expect(warning.mock.calls.flat().join(' ')).not.toContain('Component that was made a reactive object')
     } finally {
       warning.mockRestore()
+    }
+  })
+
+  // Searching for a setting by its name, such as the tray or the attention sound, found no section.
+  it('finds a section by the settings it holds', async () => {
+    const { input, change } = navigation()
+    await userEvent.type(input, 'tray')
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([expect.stringContaining('Appearance')])
+    await userEvent.keyboard('{Enter}')
+    expect(change).not.toHaveBeenCalled()
+    await userEvent.clear(input)
+    await userEvent.type(input, 'sound attention')
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+  })
+
+  // The words were matched exactly, so a setting searched in another form of its word, as Russian puts it after
+  // another word ("ключ лицензии"), found nothing.
+  it.each([
+    { locale: 'ru-RU', query: 'ключ лицензии', sections: ['support'] },
+    { locale: 'ru-RU', query: 'кошелёк', sections: ['wallets'] },
+    { locale: 'ru-RU', query: 'обновить', sections: ['updates'] },
+    { locale: 'ru-RU', query: 'очистить историю', sections: ['privacy'] },
+    { locale: 'ru-RU', query: 'тёмный режим', sections: ['appearance'] },
+    { locale: 'en-US', query: 'updated', sections: ['updates'] },
+    { locale: 'en-US', query: 'dark mode', sections: ['appearance'] },
+    { locale: 'en-US', query: 'proxy', sections: [] }
+  ])('finds $query in $locale by the sections Settings shows', ({ locale, query, sections }) => {
+    expect(sectionsFound(locale, query)).toEqual(sections)
+  })
+
+  // The words for a section's settings and other forms of a word find more sections, which came first in their usual
+  // order, so Enter opened Downloads for "local" instead of MCP security, whose description says it.
+  it.each([
+    { locale: 'en-US', query: 'local', first: 'mcp' },
+    { locale: 'en-US', query: 'profile', first: 'privacy' },
+    { locale: 'ru-RU', query: 'вкладки', first: 'performance' }
+  ])('lists first the section whose name or description has $query in $locale', ({ locale, query, first }) => {
+    const found = sectionsFound(locale, query)
+    expect(found[0]).toBe(first)
+    expect(found.length).toBeGreaterThan(1)
+  })
+
+  it('has search words for every section in every language', () => {
+    for (const locale of SUPPORTED_LOCALES) {
+      for (const item of SETTINGS_NAVIGATION) {
+        const key = `settingsSections.keywords.${item.section}` as Parameters<typeof translate>[1]
+        expect(translate(locale, key), `${locale} ${item.section}`).not.toBe(key)
+        expect(translate(locale, key).trim().length, `${locale} ${item.section}`).toBeGreaterThan(0)
+      }
     }
   })
 

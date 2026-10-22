@@ -56,7 +56,7 @@ test('clears global history while preserving workspace storage and retained reco
     await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toHaveLength(1)
     await expect(dialog.locator('.janitor-site')).toHaveCount(0)
     await expect(search).toHaveValue(` HISTORY   ${origin.toUpperCase()} `)
-    await dialog.getByRole('button', { name: 'Clear history… (1)', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Clear history…', exact: true }).click()
     await expect.poll(() => appWindow.evaluate('window.hronautBrowsingData.summary()')).toMatchObject({ historyEntries: 0, bookmarkCount: 1, permissionDecisionCount: 1 })
     expect(await electronApp.evaluate(async ({ webContents }, url) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
