@@ -1,7 +1,13 @@
 import { onScopeDispose, ref, watch, type Ref } from 'vue'
 import { VERTICAL_TAB_RAIL_COLLAPSED_WIDTH } from '../../../shared/tab-position.js'
 
-const COLLAPSE_DURATION = 140
+/** Long enough to read as the rail sliding away rather than snapping shut. */
+export const COLLAPSE_DURATION = 300
+
+/** Starts and ends gently, so the rail eases out of the way instead of jumping at the first frame. */
+function easeInOutCubic(progress: number): number {
+  return progress < 0.5 ? 4 * progress ** 3 : 1 - (-2 * progress + 2) ** 3 / 2
+}
 
 export function useTabRailCollapseMotion(options: {
   collapsed: Readonly<Ref<boolean>>
@@ -37,7 +43,7 @@ export function useTabRailCollapseMotion(options: {
     collapsing.value = true
     const step = (now: number): void => {
       const progress = Math.max(0, Math.min(1, (now - started) / COLLAPSE_DURATION))
-      width.value = VERTICAL_TAB_RAIL_COLLAPSED_WIDTH + (from - VERTICAL_TAB_RAIL_COLLAPSED_WIDTH) * (1 - progress) ** 3
+      width.value = VERTICAL_TAB_RAIL_COLLAPSED_WIDTH + (from - VERTICAL_TAB_RAIL_COLLAPSED_WIDTH) * (1 - easeInOutCubic(progress))
       if (progress < 1) frame = window.requestAnimationFrame(step)
       else settle()
     }
