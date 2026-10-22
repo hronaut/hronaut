@@ -1,3 +1,4 @@
+import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useSitePermissionsController } from '../../src/renderer/src/composables/useSitePermissionsController.js'
 import type { SitePermissionEntry } from '../../src/shared/types.js'
@@ -19,10 +20,10 @@ function deferred<Value>() {
 }
 
 function createController(fileSavingOn = false) {
-  let fileSavingEnabled = fileSavingOn
+  const fileSavingEnabled = ref(fileSavingOn)
   const fileSaving = {
-    enabled: () => fileSavingEnabled,
-    set: vi.fn(async (enabled: boolean) => { fileSavingEnabled = enabled })
+    enabled: () => fileSavingEnabled.value,
+    set: vi.fn(async (enabled: boolean) => { fileSavingEnabled.value = enabled })
   }
   const api = {
     set: vi.fn(async (_origin: string, _name: string, decision: 'allow' | 'deny') => permission(decision)),
@@ -117,18 +118,20 @@ describe('site permissions controller', () => {
   it('turns saving to files a website holds back off when the section resets, before it forgets the decisions', async () => {
     const { api, controller, fileSaving } = createController(true)
     const switching = deferred<void>()
-    fileSaving.set.mockImplementationOnce(async () => {
+    const settle = fileSaving.set.getMockImplementation()!
+    fileSaving.set.mockImplementationOnce(async (enabled) => {
       await switching.promise
-      await fileSaving.set(false)
+      await settle(enabled)
     })
 
     const reset = controller.clear()
     expect(controller.fileSavingPending.value).toBe(true)
+    expect(controller.busy.value).toBe(true)
     expect(api.clear).not.toHaveBeenCalled()
     switching.resolve()
 
     await expect(reset).resolves.toBe(true)
-    expect(fileSaving.set).toHaveBeenCalledWith(false)
+    expect(fileSaving.set.mock.calls).toEqual([[false]])
     expect(controller.fileSavingEnabled.value).toBe(false)
     expect(controller.fileSavingPending.value).toBe(false)
     expect(api.clear).toHaveBeenCalledOnce()
@@ -136,7 +139,7 @@ describe('site permissions controller', () => {
     controller.dispose()
   })
 
-  it('keeps the decisions when the switch can\'t be turned off, and leaves an off switch alone', async () => {
+  it('keeps the decisions when the switch can\'t be turned off, and turns it off even when it reads off', async () => {
     const failing = createController(true)
     failing.fileSaving.set.mockRejectedValueOnce(new Error('settings write failed'))
     await expect(failing.controller.clear()).resolves.toBe(false)
@@ -145,24 +148,51 @@ describe('site permissions controller', () => {
     expect(failing.onError).toHaveBeenCalledOnce()
     failing.controller.dispose()
 
+    // This window's copy of the settings may not have heard that another window turned the switch on.
     const off = createController(false)
     await expect(off.controller.clear()).resolves.toBe(true)
-    expect(off.fileSaving.set).not.toHaveBeenCalled()
+    expect(off.fileSaving.set.mock.calls).toEqual([[false]])
     expect(off.api.clear).toHaveBeenCalledOnce()
     off.controller.dispose()
   })
 
-  it('waits for a change to the switch before the section resets', async () => {
+  it('refuses to reset while a change to the switch is saving, and to change the switch while resetting', async () => {
     const switching = deferred<void>()
     const { api, controller, fileSaving } = createController(false)
     fileSaving.set.mockImplementationOnce(() => switching.promise)
 
     const change = controller.setFileSaving(true)
+    expect(controller.busy.value).toBe(true)
     await expect(controller.clear()).resolves.toBe(false)
     expect(api.clear).not.toHaveBeenCalled()
     switching.resolve()
     await change
+
+    const clearing = deferred<undefined>()
+    api.clear.mockImplementationOnce(() => clearing.promise)
+    const reset = controller.clear()
+    await vi.waitFor(() => expect(api.clear).toHaveBeenCalledOnce())
+    await expect(controller.setFileSaving(true)).resolves.toBe(false)
+    clearing.resolve(undefined)
+    await expect(reset).resolves.toBe(true)
+    expect(fileSaving.set.mock.calls).toEqual([[true], [false]])
     controller.dispose()
+  })
+
+  it('stops a reset that the panel closes on while the switch saves', async () => {
+    const switching = deferred<void>()
+    const { api, controller, fileSaving } = createController(true)
+    fileSaving.set.mockImplementationOnce(() => switching.promise)
+
+    const reset = controller.clear()
+    controller.dispose()
+    expect(controller.fileSavingPending.value).toBe(false)
+    switching.resolve()
+
+    await expect(reset).resolves.toBe(false)
+    expect(api.clear).not.toHaveBeenCalled()
+    expect(controller.fileSavingPending.value).toBe(false)
+    expect(controller.clearing.value).toBe(false)
   })
 
   it('blocks a global reset while a row mutation is pending', async () => {

@@ -17,6 +17,7 @@ test('turns saving to files a website holds back off, with the saved decisions, 
   await expect(appWindow.getByRole('button', { name: 'Forget Location permission for https://reset.example.test (Reset decisions)' })).toBeVisible()
 
   // Reset to default forgot the decisions but left the switch on, though it is off by default.
+  await expect(fileSaving).toBeEnabled()
   await appWindow.getByRole('button', { name: 'Reset to default' }).click()
   await expect(appWindow.getByText('No saved decisions', { exact: true })).toBeVisible()
   await expect(fileSaving).not.toBeChecked()

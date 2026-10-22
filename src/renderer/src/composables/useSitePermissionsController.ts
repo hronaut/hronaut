@@ -76,7 +76,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     }
     return [...grouped].map(([origin, permissions]) => ({ origin, permissions }))
   })
-  const busy = computed(() => clearing.value || pendingKeys.value.size > 0)
+  const busy = computed(() => clearing.value || fileSavingPending.value || pendingKeys.value.size > 0)
 
   function permissionLabel(permission: string): string {
     return sitePermissionName(permission, options.translate)
@@ -202,24 +202,23 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
 
   /**
    * Resets the section: forgets every saved decision, and turns saving to every single file a website holds back off,
-   * as it is by default. The switch goes first, so a reset never forgets the decisions and leaves the switch on.
+   * as it is by default. The switch goes first, so a reset never forgets the decisions and leaves the switch on. It is
+   * turned off even when it reads off here, since this copy of the settings may not have heard of a change yet.
    */
   async function clear(): Promise<boolean> {
-    if (busy.value || fileSavingPending.value) return false
+    if (busy.value) return false
     const operation = { generation, revision }
     initializationGeneration += 1
     clearing.value = true
     errorMessage.value = ''
     try {
-      if (options.fileSaving.enabled()) {
-        fileSavingPending.value = true
-        try {
-          await options.fileSaving.set(false)
-        } finally {
-          if (operation.generation === generation) fileSavingPending.value = false
-        }
-        if (operation.generation !== generation) return false
+      fileSavingPending.value = true
+      try {
+        await options.fileSaving.set(false)
+      } finally {
+        if (operation.generation === generation) fileSavingPending.value = false
       }
+      if (operation.generation !== generation) return false
       await options.api.clear()
       if (operation.generation !== generation) return false
       if (operation.revision === revision) entries.value = []
@@ -233,7 +232,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
 
   /** Turns saving to every single file a website holds on or off; false when it did not change, or the panel went away. */
   async function setFileSaving(enabled: boolean): Promise<boolean> {
-    if (fileSavingPending.value) return false
+    if (fileSavingPending.value || clearing.value) return false
     const operationGeneration = generation
     fileSavingPending.value = true
     try {
