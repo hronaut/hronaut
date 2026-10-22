@@ -74,7 +74,9 @@ export const frFRAppErrors: AppErrorMessages = {
     "rendererLostWhileWaiting": "L’onglet a cessé de répondre pendant l’attente de la page.",
     "loadTimedOut": "Le délai d’attente du chargement de la page est dépassé.",
     "zoomPercent": "Le zoom de la page doit être un nombre entier compris entre 50 et 400 pour cent.",
-    "findQuery": "La recherche doit contenir entre 1 et 1000 caractères."
+    "findQuery": "La recherche doit contenir entre 1 et 1000 caractères.",
+    "printFailed": "Hronaut n’a pas pu imprimer cette page.",
+    "printAgentWorking": "Un agent travaille sur cette page. Prenez la main ou mettez les agents en pause pour l’imprimer."
   },
   "loadFailure": {
     "nameNotResolved": "Impossible de trouver l’adresse du site web ({code}).",

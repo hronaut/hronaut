@@ -2860,6 +2860,8 @@ test('puts Help in the native application menu and opens shell dialogs above eve
     'Developer Tools',
     'Full-Page View',
     'separator',
+    'Print…',
+    'separator',
     'Actual Size',
     'Zoom In',
     'Zoom Out',

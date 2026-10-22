@@ -17,7 +17,7 @@ interface ApplicationMenuHost {
   runNativeBrowserAction(action: string, callback: () => unknown): void
   /** Runs a browser shortcut as a key the page in focus left alone does, in the shell or on its tab. */
   runShortcut(action: BrowserShortcutAction): void
-  tabs(): Pick<BrowserTabsManager, 'newTab' | 'back' | 'forward' | 'historyGesture' | 'reload' | 'reloadIgnoringCache' | 'toggleDevTools' | 'setZoom'> | null
+  tabs(): Pick<BrowserTabsManager, 'newTab' | 'back' | 'forward' | 'historyGesture' | 'reload' | 'reloadIgnoringCache' | 'printShownPage' | 'toggleDevTools' | 'setZoom'> | null
 }
 
 /**
@@ -182,6 +182,18 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               click: () => {
                 host.showWindow()
                 host.mainWindow()?.webContents.send('browser:shortcut-requested', 'toggle-full-page')
+              }
+            },
+            { type: 'separator' },
+            {
+              label: host.text('native.menu.print'),
+              // Chrome's key, which a website may keep, such as an online editor printing its document itself: as the
+              // menu's key it reaches the menu only when the website or field in focus leaves it alone, and never from
+              // an agent. Typed in a panel in its own window, it would print a page out of view.
+              accelerator: 'CmdOrCtrl+P',
+              click: (_item, window, event) => {
+                if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+                host.runNativeBrowserAction('print the page', () => host.tabs()?.printShownPage())
               }
             },
             { type: 'separator' },

@@ -429,6 +429,8 @@ import { setZoom } from './page-zoom/page-zoom.js'
 import type { PageWheelZoomAccess } from './page-zoom/page-wheel-zoom-access.js'
 import { historyGesture } from './history-gesture/history-gesture.js'
 import type { HistoryGestureAccess } from './history-gesture/history-gesture-access.js'
+import { printPage, printShownPage } from './page-print/page-print.js'
+import type { PagePrintAccess } from './page-print/page-print-access.js'
 import { attachPageWheelZoom } from './page-zoom/page-wheel-zoom.js'
 import {
   normalizeWorkspaceNavigationPolicy,
@@ -826,6 +828,8 @@ export interface TabsManagerOptions {
   onShortcutRequested?: (action: BrowserShortcutAction, page?: { tabId: string; workspaceId: string | undefined }) => void
   /** A shortcut the browser takes from this tab's page only while true; the page keeps the key otherwise. */
   shortcutAvailable?: (action: BrowserShortcutAction, workspaceId: string | undefined, tabId: string) => boolean
+  /** Whether an agent is working on the tab now, which a print dialog holding its page still would stall. */
+  agentWorkingOnTab?: (tabId: string, workspaceId: string | undefined) => boolean
   copyText: (text: string) => Promise<void>
   copyImageAt: (webContents: WebContents, x: number, y: number) => Promise<void>
   onClipboardCopyFailed?: (error: unknown) => void
@@ -3273,6 +3277,31 @@ export class BrowserTabsManager {
       agentInputWebContents: () => this.agentInputWebContents,
       nativeSelectionUnderWay: (webContentsId) => this.screenshotAreaSessions.has(webContentsId) || this.elementPickerSessions.has(webContentsId),
       go: (tabId, direction) => direction === 'back' ? this.back(tabId) : this.forward(tabId)
+    }
+  }
+
+  /** Opens the print dialog for the page the window shows, for Print in the menu and its key. */
+  printShownPage(): Promise<void> {
+    return printShownPage(this.pagePrintAccess())
+  }
+
+  private pagePrinting: Set<number> | undefined
+
+  /**
+   * The narrow view printing a page gets of this manager's shown tab, trusted chrome occlusion, human input lock,
+   * in-flight agent input, native selection sessions and the pages printing now. It is a prototype method rather than
+   * a field, so managers created without the constructor (as unit tests do) still provide it. Each member reads the
+   * manager when called.
+   */
+  private pagePrintAccess(): PagePrintAccess<BrowserTab> {
+    return {
+      shownTab: () => this.activeTabId ? this.tabs.get(this.activeTabId) : undefined,
+      browserContentOccluded: () => this.browserContentOccluded,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      agentInputWebContents: () => this.agentInputWebContents,
+      agentWorkingOn: (tab) => this.options.agentWorkingOnTab?.(tab.id, tab.mcpGroupId) === true,
+      nativeSelectionUnderWay: (webContentsId) => this.screenshotAreaSessions.has(webContentsId) || this.elementPickerSessions.has(webContentsId),
+      printingWebContents: () => (this.pagePrinting ??= new Set())
     }
   }
 
@@ -5830,6 +5859,7 @@ export class BrowserTabsManager {
       reloadIgnoringCache: (tabId) => this.reloadIgnoringCache(tabId),
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
       openDevTools: (tab) => this.openDevTools(tab),
+      print: (tab) => printPage(this.pagePrintAccess(), tab),
       expectSavedLinkName: (webContents, url, linkName) => this.downloadController.expectSavedLinkName(webContents.id, url, linkName)
     }
   }

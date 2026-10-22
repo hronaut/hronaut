@@ -875,6 +875,7 @@ export const frFR = {
       "find": "Rechercher dans la page actuelle",
       "findNext": "Aller à l’occurrence suivante de la page",
       "findPrevious": "Aller à l’occurrence précédente de la page",
+      "print": "Imprimer la page",
       "bookmark": "Ajouter la page actuelle aux favoris",
       "history": "Ouvrir l’historique de navigation",
       "clearData": "Effacer les données de navigation",
@@ -3511,7 +3512,8 @@ export const frFR = {
       "about": "À propos de Hronaut",
       "support": "Licence commerciale",
       "repository": "Dépôt GitHub",
-      "checkUpdatesPlain": "Rechercher des mises à jour"
+      "checkUpdatesPlain": "Rechercher des mises à jour",
+      "print": "Imprimer…"
     },
     "tray": {
       "show": "Afficher Hronaut",
@@ -3582,7 +3584,8 @@ export const frFR = {
       "reload": "Recharger",
       "reloadWithoutCache": "Recharger sans cache",
       "copyPageAddress": "Copier l’adresse de la page",
-      "inspect": "Inspecter"
+      "inspect": "Inspecter",
+      "print": "Imprimer…"
     },
     "pageProblem": {
       "loadTitle": "Impossible d’accéder à ce site",

@@ -875,6 +875,7 @@ export const deDE = {
       "find": "Auf der aktuellen Seite suchen",
       "findNext": "Zum nächsten Treffer auf der Seite",
       "findPrevious": "Zum vorherigen Treffer auf der Seite",
+      "print": "Seite drucken",
       "bookmark": "Aktuelle Seite als Lesezeichen speichern",
       "history": "Browserverlauf öffnen",
       "clearData": "Browserdaten löschen",
@@ -3511,7 +3512,8 @@ export const deDE = {
       "about": "Über Hronaut",
       "support": "Kommerzielle Lizenz",
       "repository": "GitHub-Repository",
-      "checkUpdatesPlain": "Nach Updates suchen"
+      "checkUpdatesPlain": "Nach Updates suchen",
+      "print": "Drucken…"
     },
     "tray": {
       "show": "Hronaut anzeigen",
@@ -3582,7 +3584,8 @@ export const deDE = {
       "reload": "Neu laden",
       "reloadWithoutCache": "Ohne Cache neu laden",
       "copyPageAddress": "Seitenadresse kopieren",
-      "inspect": "Untersuchen"
+      "inspect": "Untersuchen",
+      "print": "Drucken…"
     },
     "pageProblem": {
       "loadTitle": "Diese Website konnte nicht erreicht werden",

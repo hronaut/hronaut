@@ -37,6 +37,8 @@ export interface PageContextMenuAccess<Tab extends PageContextMenuTab> {
   reloadIgnoringCache(tabId: string): Promise<BrowserState>
   isHumanInteractionLocked(tab: Tab): boolean
   openDevTools(tab: Tab): Promise<void>
+  /** Opens the print dialog for the tab's page, unless an agent is acting on it or something else holds it. */
+  print(tab: Tab): Promise<void>
   /** Names the download Save Link As starts for this address in this page with the link's `download` name. */
   expectSavedLinkName(webContents: WebContents, url: string, linkName: string): void
 }

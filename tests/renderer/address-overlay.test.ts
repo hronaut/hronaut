@@ -63,4 +63,34 @@ describe('native address overlay renderer', () => {
     expect(select).toHaveBeenNthCalledWith(1, { sessionId: 1, suggestionId: 'history:google' })
     expect(select).toHaveBeenNthCalledWith(2, { sessionId: 2, suggestionId: 'history:google' })
   })
+
+  it('chooses a row with the primary button only', async () => {
+    // A right or middle click on a row opened it in the tab, where Chrome leaves the tab as it is.
+    document.body.innerHTML = '<div id="address-overlay-root"></div>'
+    const select = vi.fn()
+    let receiveState!: (state: AddressSuggestionOverlayState) => void
+    vi.stubGlobal('hronautAddressOverlayView', {
+      onState: (listener: typeof receiveState) => { receiveState = listener; return () => undefined },
+      select,
+      measured: vi.fn()
+    })
+    await import('../../src/renderer/src/address-overlay.js')
+    receiveState({
+      sessionId: 1,
+      suggestions: [{ id: 'history:google', kind: 'history', title: 'Search engine', url: 'https://www.google.com/' }],
+      selectedIndex: -1,
+      theme: 'light',
+      locale: 'en-US'
+    })
+    const row = document.querySelector<HTMLButtonElement>('[role=option]')!
+    for (const button of [1, 2]) {
+      const press = new PointerEvent('pointerdown', { button, bubbles: true, cancelable: true })
+      row.dispatchEvent(press)
+      // Focus stays in the address field all the same.
+      expect(press.defaultPrevented).toBe(true)
+    }
+    expect(select).not.toHaveBeenCalled()
+    row.dispatchEvent(new PointerEvent('pointerdown', { button: 0, bubbles: true, cancelable: true }))
+    expect(select).toHaveBeenCalledWith({ sessionId: 1, suggestionId: 'history:google' })
+  })
 })

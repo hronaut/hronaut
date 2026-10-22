@@ -99,7 +99,11 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.findPrevious',
       keys: ['Ctrl/Cmd', 'Shift', 'G']
     })
-    expect(controller.shortcuts.value).toHaveLength(28)
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.print',
+      keys: ['Ctrl/Cmd', 'P']
+    })
+    expect(controller.shortcuts.value).toHaveLength(29)
     controller.dispose()
   })
 })
