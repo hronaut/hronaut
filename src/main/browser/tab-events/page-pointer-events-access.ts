@@ -22,10 +22,10 @@ export interface PagePointerEventsOptions {
  * input lock, repro recording, tab overview previews, the MCP activity
  * follower, the split view, the active tab and its selection generation,
  * agent following, workspace activation, state publication and its options
- * private. The active tab and
- * the followed agent stay manager fields because selection, layout, closing
- * and following read and write them too; they are written back through
- * their setters and read again at every use.
+ * private. The active tab, its selection generation and the followed agent
+ * stay manager fields because selection, layout, closing and following read
+ * and write them too; they are written back through their setters and read
+ * again at every use.
  */
 export interface PagePointerEventsAccess<Tab extends PagePointerEventsTab> {
   /** Whether trusted chrome covers the pages, which then stay on screen only for their snapshot. */

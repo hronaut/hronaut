@@ -74,7 +74,7 @@ test('keeps the split view when the person clicks its other pane while a sleepin
     await appWindow.evaluate(() => (window as unknown as { __qaSelecting?: Promise<unknown> }).__qaSelecting)
     await expect.poll(() => appWindow.evaluate(async (id) => (
       await (window as unknown as { hronaut: HronautApi }).hronaut.getState()
-    ).tabs.find(tab => tab.id === id)?.sleeping, ids.slow)).toBe(false)
+    ).tabs.find(tab => tab.id === id)?.loading, ids.slow)).toBe(false)
 
     expect(await shown()).toEqual({ activeTabId: ids.right, splitView: split })
   } finally {
