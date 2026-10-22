@@ -82,6 +82,7 @@ import { createBrowserSession, type BrowserSessionState } from './browser-sessio
 import { registerPermissionsIpc } from './permissions-ipc.js'
 import { WindowStateStore } from './window-state.js'
 import { createMainWindow, type MainWindowRefs } from './windows/main-window.js'
+import { attachShellEditContextMenu } from './windows/shell-edit-context-menu.js'
 import { createShellWindows } from './windows/shell-windows.js'
 import { registerTabsIpc } from './tabs-ipc.js'
 import { registerNavigationIpc } from './navigation-ipc.js'
@@ -1001,6 +1002,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   panelWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))
   const savedWindowState = await mainWindowRefs.stateStore.load()
   mainWindowRefs.window = openMainWindow(savedWindowState)
+  attachShellEditContextMenu(mainWindowRefs.window, text)
   mainWindowRefs.window.webContents.setZoomFactor(settingsState.current.interfaceScale)
 
   const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletRuntime.broker)
