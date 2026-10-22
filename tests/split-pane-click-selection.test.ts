@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 // tab, changes their mind while it wakes and goes back to work in the right-hand page of their split view. When the
 // sleeping tab finished waking it still replaced the split view and took keyboard focus. Picking the same pane by its
 // marked tab instead did cancel the older selection, because only selecting a tab advanced the selection generation;
-// the page click that makes a pane active did not.
+// the page click that makes a pane active did not, and neither did opening a split view with the split view button.
 
 const focused: string[] = []
 
@@ -49,6 +49,7 @@ interface Manager {
   selectTab(tabId: string): unknown
   selectTabAndWait(tabId: string): Promise<unknown>
   openSplitView(tabId: string): unknown
+  openSplitViewAndWait(tabId: string): Promise<unknown>
   pagePointerEventsAccess(): never
 }
 
@@ -82,6 +83,7 @@ function browser() {
   }) as Manager
   // Restoring a sleeping page takes until the test lets it finish, as loading a slow site does.
   manager.wakeTab = vi.fn(async (tabId: string) => {
+    if (!manager.tabs.get(tabId)!.sleeping) return {}
     await waking
     manager.tabs.get(tabId)!.sleeping = false
     return {}
@@ -130,5 +132,28 @@ describe('a sleeping tab the person clicked, then went back to their split view 
 
     expect({ splitView: manager.splitView, activeTabId: manager.activeTabId, focused })
       .toEqual({ splitView: split, activeTabId: right.id, focused: [] })
+  })
+})
+
+describe('a sleeping tab the person clicked, then opened a split view instead while it woke', () => {
+  it('stays in the background and leaves the split view the person opened', async () => {
+    const { manager, finishWake } = browser()
+    const notes = await manager.createTab({ url: 'https://notes.example/', mcpGroupId: PERSON, active: false })
+    const reference = await manager.createTab({ url: 'https://reference.example/', mcpGroupId: PERSON, active: false })
+    const sleeper = await manager.createTab({ url: 'https://slow.example/', mcpGroupId: PERSON, active: false })
+    sleeper.sleeping = true
+    manager.selectTab(notes.id)
+
+    const selecting = manager.selectTabAndWait(sleeper.id)
+    // The person opens the reference beside their notes with the split view button.
+    await manager.openSplitViewAndWait(reference.id)
+    const split = structuredClone(manager.splitView)
+    expect(split).toMatchObject({ firstTabId: notes.id, secondTabId: reference.id })
+    focused.length = 0
+    finishWake()
+    await selecting
+
+    expect({ splitView: manager.splitView, activeTabId: manager.activeTabId, focused })
+      .toEqual({ splitView: split, activeTabId: notes.id, focused: [] })
   })
 })
