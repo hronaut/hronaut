@@ -98,6 +98,7 @@ function installSettingsApi(options: {
   getRendererState: () => Promise<RendererSettingsState>
   onRendererStateChanged: (listener: (state: RendererSettingsState) => void) => () => void
   resetAppearance?: () => Promise<RendererSettingsState>
+  resetGeneral?: () => Promise<RendererSettingsState>
   setLanguagePreference?: (preference: RendererSettingsState['settings']['languagePreference']) => Promise<RendererSettingsState>
 }): void {
   Object.defineProperty(window, 'hronautSettings', { configurable: true, value: options })
@@ -339,6 +340,28 @@ describe('browser Pinia store lifecycle', () => {
 })
 
 describe('settings Pinia store lifecycle', () => {
+  it('accepts one authoritative renderer snapshot from a General reset', async () => {
+    const resetState: RendererSettingsState = {
+      ...settingsState('en-US'),
+      settings: { ...settingsState('en-US').settings, languagePreference: 'system' }
+    }
+    const resetGeneral = vi.fn(async () => resetState)
+    installSettingsApi({
+      getRendererState: async () => settingsState('uk-UA'),
+      onRendererStateChanged: () => vi.fn(),
+      resetGeneral
+    })
+    const store = useSettingsStore()
+    await store.initialize()
+
+    await expect(store.resetGeneral()).resolves.toEqual(resetState)
+
+    expect(resetGeneral).toHaveBeenCalledOnce()
+    expect(store.settings.languagePreference).toBe('system')
+    expect(store.resolvedLocale).toBe('en-US')
+    store.dispose()
+  })
+
   it('accepts one authoritative renderer snapshot from an Appearance reset', async () => {
     const resetState: RendererSettingsState = {
       ...settingsState('en-US'),

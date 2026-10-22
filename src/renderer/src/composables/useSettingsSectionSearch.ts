@@ -24,7 +24,7 @@ function matchRank(name: string, text: string, searched: string[]): number | und
 }
 
 /**
- * Finds sections by name, description, or the words for the settings they hold, such as "tray" for Appearance. The
+ * Finds sections by name, description, or the words for the settings they hold, such as "tray" for General. The
  * sections that match best come first, in their usual order, so Enter opens the section named by the search.
  */
 export function useSettingsSectionSearch(items: Ref<Array<{ section: SettingsSection; label: string; description: string; keywords?: string; icon: Component }>>, section: Ref<SettingsSection>) {

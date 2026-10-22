@@ -26,7 +26,11 @@ for (const theme of ['light', 'dark'] as const) {
           height: Math.round(bounds.height) - (window.innerHeight - y)
         }
       })).toEqual({ x: 0, y: 0, width: 0, height: 0 })
-      for (const index of Array.from({ length: 11 }, (_, index) => index)) {
+      const sections = await navigation.getByRole('button').count()
+      expect(sections).toBe(12)
+      const mcpIndex = await navigation.getByRole('button').evaluateAll(buttons => buttons.findIndex(button => button.textContent?.trim().startsWith('MCP')))
+      expect(mcpIndex).toBeGreaterThanOrEqual(0)
+      for (const index of Array.from({ length: sections }, (_, index) => index)) {
         const section = navigation.getByRole('button').nth(index)
         await section.click()
         await expect(section).toHaveAttribute('aria-current', 'page')
@@ -34,7 +38,7 @@ for (const theme of ['light', 'dark'] as const) {
         await content.evaluate(element => { element.scrollTop = 0 })
         await appWindow.screenshot({ path: testInfo.outputPath(`settings-${theme}-${width}-${index}.png`) })
         expect(await content.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
-        if (width === 760 && index === 4) {
+        if (width === 760 && index === mcpIndex) {
           const row = content.locator('.settings-row:has(.setting-select-control)')
           const copy = await row.locator(':scope > span').first().boundingBox()
           const control = await row.locator('.setting-select-control').boundingBox()

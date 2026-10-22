@@ -50,6 +50,7 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
     browserStateLoaded: ref(false),
     settingsStore: {
       resetAppearance: vi.fn(async () => rendererState()),
+      resetGeneral: vi.fn(async () => rendererState()),
       setFollowAgentActivity: vi.fn(async (followAgentActivity: boolean) => applySettings({ ...settings.value, followAgentActivity })),
       setShowAgentCursor: vi.fn(async (showAgentCursor: boolean) => applySettings({ ...settings.value, showAgentCursor })),
       setPinAgentLiveStatus: vi.fn(async (pinAgentLiveStatus: boolean) => applySettings({ ...settings.value, pinAgentLiveStatus })),

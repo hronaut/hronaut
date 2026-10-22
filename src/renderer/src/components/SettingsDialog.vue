@@ -22,6 +22,7 @@ import type { WalletsController } from '../composables/useWalletsController.js'
 import { useSettingsSectionSearch } from '../composables/useSettingsSectionSearch.js'
 import SettingsNavigation from './SettingsNavigation.vue'
 import AppearanceSettings from './AppearanceSettings.vue'
+import GeneralSettings from './GeneralSettings.vue'
 import CredentialsSettingsPanel from './CredentialsSettingsPanel.vue'
 import DownloadSettingsPanel from './DownloadSettingsPanel.vue'
 import McpSettingsPanel from './McpSettingsPanel.vue'
@@ -151,6 +152,10 @@ watch(open, async (active, _previous, onCleanup) => {
 
           <AppearanceSettings
             v-if="section === 'appearance'"
+            @setting-error="reportSettingError"
+          />
+          <GeneralSettings
+            v-else-if="section === 'general'"
             @test-sound="testSound"
             @setting-error="reportSettingError"
           />

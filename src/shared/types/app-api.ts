@@ -111,6 +111,7 @@ export interface HronautSettingsApi {
   getRendererState(): Promise<RendererSettingsState>
   getSystemTheme(): Promise<'light' | 'dark'>
   resetAppearance(): Promise<RendererSettingsState>
+  resetGeneral(): Promise<RendererSettingsState>
   setTheme(theme: ThemeName): Promise<AppSettings>
   setInterfaceScale(scale: InterfaceScale): Promise<AppSettings>
   setTabPosition(position: TabPosition): Promise<AppSettings>

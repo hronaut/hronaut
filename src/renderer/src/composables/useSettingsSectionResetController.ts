@@ -4,6 +4,7 @@ type ResetResult = boolean | void | Promise<boolean | void>
 
 export interface SettingsSectionResetControllerOptions {
   resetAppearance: () => ResetResult
+  resetGeneral: () => ResetResult
   resetSearch: () => ResetResult
   resetDownloads: () => ResetResult
   resetPerformance: () => ResetResult
@@ -16,6 +17,7 @@ export interface SettingsSectionResetControllerOptions {
 export function useSettingsSectionResetController(options: SettingsSectionResetControllerOptions) {
   function reset(section: SettingsSection): ResetResult {
     if (section === 'appearance') return options.resetAppearance()
+    if (section === 'general') return options.resetGeneral()
     if (section === 'search') return options.resetSearch()
     if (section === 'downloads') return options.resetDownloads()
     if (section === 'performance') return options.resetPerformance()

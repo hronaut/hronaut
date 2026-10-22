@@ -348,6 +348,8 @@ export const plPL = {
     "nav": {
       "appearance": "Wygląd",
       "appearanceDescription": "Motyw i okno",
+      "general": "Ogólne",
+      "generalDescription": "Język, uruchamianie, agenci",
       "search": "Wyszukiwarka",
       "searchDescription": "Wyszukiwanie z paska adresu",
       "downloads": "Pobrane pliki",

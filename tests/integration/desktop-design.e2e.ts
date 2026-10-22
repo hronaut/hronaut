@@ -110,7 +110,7 @@ test('settings search supports keyboard selection, recovery, and a fresh search 
   await dialog.getByRole('button', { name: 'Close settings', exact: true }).click()
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(search).toHaveValue('')
-  await expect(dialog.locator('.settings-nav-item')).toHaveCount(11)
+  await expect(dialog.locator('.settings-nav-item')).toHaveCount(12)
 })
 
 test('Home view navigation supports keyboard selection, search, and recovery', async ({ electronApp }) => {
