@@ -1129,6 +1129,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     mainWindowRefs.window.on(change as 'blur', () => agentCards.dismiss())
   }
   mainWindowRefs.window.on('resize', () => tabRuntime.tabs?.layout())
+  // A capture while the window is minimized hands the page back to layout, which hides it there. Restoring shows it again.
+  mainWindowRefs.window.on('restore', () => tabRuntime.tabs?.layout())
   // The toast stays at the bottom of the page area, which moves with the window's size.
   for (const change of ['resize', 'maximize', 'unmaximize', 'restore', 'show', 'enter-full-screen', 'leave-full-screen'] as const) {
     mainWindowRefs.window.on(change as 'resize', () => toastOverlay.relayout())

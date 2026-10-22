@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir, release } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron, expect } from '@playwright/test'
+import { checkCaptureAcrossWindowStates } from './windows-native-capture.ts'
 
 // Packaged Windows execution plus independent native OS clipboard and pointer input.
 if (process.platform !== 'win32') throw new Error('This preflight requires an interactive native Windows desktop')
@@ -49,6 +50,8 @@ try {
   assert.match(image, /^\d+x\d+$/)
   await writeFile(join(proof, 'native-image.txt'), image)
   checks.push('independent Windows clipboard image reader'); await save()
+  await checkCaptureAcrossWindowStates({ app, shell: window, profile, proof, native, mcpPort: 47991 })
+  checks.push('MCP screenshots show fresh pixels while the window is visible, minimized, restored and hidden to the tray'); await save()
   // What shows behind the tab rail, as main reports it to the shell; the screenshot shows how it looks.
   // With the system settings that decide it, since a runner may ask for reduced transparency.
   await writeFile(join(proof, 'window-material.json'), JSON.stringify({

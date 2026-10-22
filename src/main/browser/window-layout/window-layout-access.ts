@@ -24,9 +24,9 @@ export interface ContentInsets {
  * publishing the split divider need from the tab manager, which keeps the
  * tabs, the window, the active tab, the split view and its revision, the
  * divider drag, the toolbar height and content insets, trusted chrome
- * occlusion and its page snapshot, the global input lock, view bounds, page
- * corners, presentation repair, tab overview previews, page geometry, layout
- * and the divider geometry last sent private. The split view, the toolbar
+ * occlusion and its page snapshot, the global input lock, the offscreen
+ * capture set, view bounds, page corners, presentation repair, tab overview
+ * previews, page geometry, layout and the divider geometry last sent private. The split view, the toolbar
  * height, the content insets and the divider geometry stay manager fields
  * because selection, splitting, closing, layout and saving read or write
  * them too; they are written back through their setters and read again at
@@ -67,6 +67,8 @@ export interface WindowLayoutAccess<Tab extends WindowLayoutTab> {
   occlusionSnapshot(): { reconcile(): void; readonly holdingPages: boolean }
   /** Whether the person's input to every tab is locked. */
   allHumanInteractionLocked(): boolean
+  /** The tabs an offscreen capture holds, in the window's own content view or in a capture window of their own. */
+  offscreenCaptureTabIds(): ReadonlySet<string>
   /** The window area the pages share. */
   browserViewBounds(): Rectangle
   /** Where a tab's page goes in its space. */

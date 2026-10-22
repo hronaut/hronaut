@@ -43,9 +43,10 @@ export function publishSplitDivider<Tab extends WindowLayoutTab>(access: WindowL
  * of the split view, which closes when a pane is gone. A shown page in full
  * screen fills the window with square corners, and the other pane waits
  * behind it. Pages are hidden while trusted chrome covers them, once the
- * still image of them shows, the divider and page geometry are published to
- * the shell, and a page in full screen the window no longer shows is asked
- * to leave it.
+ * still image of them shows, or while the window has no room for them, except
+ * a page an offscreen capture holds in its own window. The divider and page
+ * geometry are published to the shell, and a page in full screen the window
+ * no longer shows is asked to leave it.
  */
 export function layout<Tab extends WindowLayoutTab>(access: WindowLayoutAccess<Tab>): void {
   if (access.isDestroyed() || access.window().isDestroyed()) return
@@ -67,6 +68,12 @@ export function layout<Tab extends WindowLayoutTab>(access: WindowLayoutAccess<T
   // Views held on screen under trusted chrome keep their place; they get new bounds before they are shown again.
   const placeViews = browserContentVisible && !access.browserContentOccluded()
   const fullscreenTab = shownPageFullscreenTab(access)
+  // A page an offscreen capture holds in a capture window of its own stays shown there. That window never covers
+  // the shell, and a hidden page never presents the frame or surface the capture waits for, as on Windows while
+  // the window is minimized.
+  const showView = (shown: Tab, visible: boolean): void => shown.view.setVisible(visible || (
+    access.offscreenCaptureTabIds().has(shown.id) && !access.window().contentView.children.includes(shown.view)
+  ))
   if (access.splitView()) {
     const firstTab = access.findTab(access.splitView()!.firstTabId)
     const secondTab = access.findTab(access.splitView()!.secondTabId)
@@ -78,8 +85,8 @@ export function layout<Tab extends WindowLayoutTab>(access: WindowLayoutAccess<T
         access.roundPageCorners(firstTab.view)
         access.roundPageCorners(secondTab.view)
       }
-      firstTab.view.setVisible(browserContentVisible && splitBounds.first.width > 0 && splitBounds.first.height > 0)
-      secondTab.view.setVisible(browserContentVisible && splitBounds.second.width > 0 && splitBounds.second.height > 0)
+      showView(firstTab, browserContentVisible && splitBounds.first.width > 0 && splitBounds.first.height > 0)
+      showView(secondTab, browserContentVisible && splitBounds.second.width > 0 && splitBounds.second.height > 0)
       access.reconcileTabPresentation(firstTab)
       access.reconcileTabPresentation(secondTab)
       access.scheduleTabOverviewPreview(firstTab)
@@ -89,7 +96,7 @@ export function layout<Tab extends WindowLayoutTab>(access: WindowLayoutAccess<T
       access.exitHiddenPageFullscreen()
       return
     }
-    if (firstTab && secondTab) (fullscreenTab === firstTab ? secondTab : firstTab).view.setVisible(false)
+    if (firstTab && secondTab) showView(fullscreenTab === firstTab ? secondTab : firstTab, false)
     else access.writeSplitView(null)
   }
   // The page in view: the split view's pane in full screen, or the active tab.
@@ -101,7 +108,7 @@ export function layout<Tab extends WindowLayoutTab>(access: WindowLayoutAccess<T
     if (fillsWindow) access.squarePageCorners(shownTab.view)
     else access.roundPageCorners(shownTab.view)
   }
-  shownTab.view.setVisible(browserContentVisible)
+  showView(shownTab, browserContentVisible)
   access.reconcileTabPresentation(shownTab)
   access.scheduleTabOverviewPreview(shownTab)
   access.publishSplitDivider()

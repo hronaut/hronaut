@@ -49,6 +49,7 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
       ) return await operation()
 
       const originalBounds = tab.view.getBounds()
+      const visibleAtStart = tab.view.getVisible()
       const viewSizeAtStart = tab.emulationViewSize
       // A visible host already has a compositor surface. Position the capture
       // view outside its viewport so it cannot cover the UI or activate another
@@ -73,6 +74,10 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
         access.offscreenCaptureTabIds().add(tab.id)
         tab.view.setBounds({ x: reuseHost ? -width : 0, y: 0, width, height })
         captureWindow.contentView.addChildView(tab.view, reuseHost ? 0 : undefined)
+        // Layout hides the shown page while the window has no room for it, as a
+        // minimized window on Windows reports. A hidden view never presents a
+        // frame or a surface, so a capture of it would wait forever.
+        tab.view.setVisible(true)
         // Printing works with an attached hidden host. Mapping it on Wayland
         // can interrupt another application's focus even with showInactive.
         if (!reuseHost && mode !== 'print') captureWindow.showInactive()
@@ -111,6 +116,7 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
             } else {
               // A viewport change during the capture left the view's size to this restore.
               tab.view.setBounds(tab.emulationViewSize === viewSizeAtStart ? originalBounds : access.tabViewBounds(tab, access.contentAreaBounds()))
+              tab.view.setVisible(visibleAtStart)
             }
           } catch (error) {
             cleanupError ??= error

@@ -173,6 +173,129 @@ test('routes a minimized full-page capture through a temporary rendering host', 
   }
 })
 
+test('captures the shown tab again after layout hid it in a minimized window', async ({
+  appWindow,
+  electronApp,
+  mcpToken,
+  mcpPort
+}) => {
+  const authorization = `Bearer ${mcpToken}`
+  const client = new Client({ name: 'hronaut-minimized-hidden-view-test', version: '1.0.0' })
+  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+    requestInit: { headers: { authorization } }
+  })
+  const shownViewVisible = () => electronApp.evaluate(({ BrowserWindow, WebContentsView }) => {
+    const view = BrowserWindow.getAllWindows()[0]!.contentView.children.find((child) => (
+      child instanceof WebContentsView && child.webContents.getURL() === 'about:blank'
+    ))
+    return view?.getVisible() ?? null
+  })
+
+  try {
+    await expect.poll(async () => {
+      try {
+        return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization } })).ok
+      } catch {
+        return false
+      }
+    }).toBe(true)
+    await client.connect(transport)
+    await useMcpWorkspace(client, 'Minimized hidden view capture')
+    const status = await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult
+    const tabId = JSON.parse(text(status)).activeTabId as string
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+    await expect.poll(shownViewVisible).toBe(true)
+    await electronApp.evaluate(({ webContents }) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === 'about:blank')
+      if (!contents) throw new Error('Minimized screenshot tab was not found')
+      return contents.executeJavaScript(`(() => {
+        document.body.style.margin = '0';
+        document.body.innerHTML = '<main style="min-height:1800px;background:linear-gradient(#1357a6,#f4b942)"><h1>Minimized capture</h1></main>';
+      })()`)
+    })
+    // A minimized window on Windows reports no content area, so layout hides the page it shows. Windows never
+    // presents a hidden view, so each capture records whether the page was shown in its capture host, after a
+    // layout during the capture, as closing another tab or locking input runs.
+    await electronApp.evaluate(({ BrowserWindow, WebContentsView, webContents }) => {
+      const shellWindow = BrowserWindow.getAllWindows()[0]!
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === 'about:blank')
+      if (!contents) throw new Error('Minimized screenshot tab was not found')
+      const globals = globalThis as typeof globalThis & { __restoreMinimizedWindow?: () => void; __captureViewVisible?: boolean[] }
+      const originalIsMinimized = shellWindow.isMinimized
+      const originalGetContentBounds = shellWindow.getContentBounds
+      const originalSendCommand = contents.debugger.sendCommand
+      const originalCapturePage = contents.capturePage
+      const viewVisible = (): boolean => BrowserWindow.getAllWindows().some((window) => window.contentView.children.some((child) => (
+        child instanceof WebContentsView && child.webContents.id === contents.id && child.getVisible()
+      )))
+      globals.__captureViewVisible = []
+      shellWindow.isMinimized = () => true
+      shellWindow.getContentBounds = () => ({ x: -31_992, y: -32_000, width: 0, height: 0 })
+      contents.debugger.sendCommand = function (...args) {
+        if (args[0] === 'Page.captureScreenshot') {
+          shellWindow.emit('resize')
+          globals.__captureViewVisible!.push(viewVisible())
+        }
+        return originalSendCommand.apply(this, args)
+      }
+      contents.capturePage = function (this: Electron.WebContents, ...args: Parameters<Electron.WebContents['capturePage']>) {
+        shellWindow.emit('resize')
+        globals.__captureViewVisible!.push(viewVisible())
+        return originalCapturePage.apply(this, args)
+      } as Electron.WebContents['capturePage']
+      globals.__restoreMinimizedWindow = () => {
+        shellWindow.isMinimized = originalIsMinimized
+        shellWindow.getContentBounds = originalGetContentBounds
+        contents.debugger.sendCommand = originalSendCommand
+        contents.capturePage = originalCapturePage
+      }
+    })
+
+    for (const fullPage of [false, true, false]) {
+      const screenshot = await client.callTool({
+        name: 'browser_screenshot',
+        arguments: { tabId, fullPage }
+      }, undefined, { timeout: 15_000 }) as CallToolResult
+      expect(screenshot.isError, `${fullPage ? 'full page' : 'viewport'}: ${text(screenshot)}`).not.toBe(true)
+      const image = screenshot.content.find((item) => item.type === 'image')
+      expect(image?.type).toBe('image')
+      if (image?.type === 'image') {
+        const png = Buffer.from(image.data, 'base64')
+        expect(png.readUInt32BE(16)).toBeGreaterThan(0)
+        if (fullPage) expect(png.readUInt32BE(20)).toBeGreaterThanOrEqual(1_800)
+        else expect(png.readUInt32BE(20)).toBeGreaterThan(0)
+      }
+      // Each capture hands the page back to layout, which keeps it hidden while the window has no room for it.
+      expect(await shownViewVisible()).toBe(false)
+    }
+    expect(await electronApp.evaluate(({ BrowserWindow }) => (
+      BrowserWindow.getAllWindows().filter((window) => !window.isDestroyed()).length
+    ))).toBe(1)
+    const captureViewVisible = await electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __captureViewVisible?: boolean[] }).__captureViewVisible
+    ))
+    expect(captureViewVisible?.length).toBeGreaterThanOrEqual(3)
+    expect(captureViewVisible?.every(Boolean), JSON.stringify(captureViewVisible)).toBe(true)
+
+    // Restoring the window shows the page again, also without a resize.
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const globals = globalThis as typeof globalThis & { __restoreMinimizedWindow?: () => void }
+      globals.__restoreMinimizedWindow?.()
+      delete globals.__restoreMinimizedWindow
+      BrowserWindow.getAllWindows()[0]!.emit('restore')
+    })
+    await expect.poll(shownViewVisible).toBe(true)
+  } finally {
+    await electronApp.evaluate(() => {
+      const globals = globalThis as typeof globalThis & { __restoreMinimizedWindow?: () => void; __captureViewVisible?: boolean[] }
+      globals.__restoreMinimizedWindow?.()
+      delete globals.__restoreMinimizedWindow
+      delete globals.__captureViewVisible
+    }).catch(() => undefined)
+    await client.close().catch(() => undefined)
+  }
+})
+
 test('captures hidden pages and survives tab teardown during offscreen rendering', async ({
   electronApp,
   mcpToken,
