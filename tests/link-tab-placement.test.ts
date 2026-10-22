@@ -41,6 +41,19 @@ describe('placing a tab a page opened', () => {
       .toEqual(['pinned-app', 'pinned-mail', 'new', 'docs'])
   })
 
+  it('puts a pinned tab\'s tab opened in front first among the unpinned tabs, before the links it already opened', () => {
+    const pinned = tab('pinned-app', { pinned: true })
+    const earlier = tab('earlier', { openedFromTabId: 'pinned-app' })
+    expect(placed([pinned, earlier, tab('docs'), tab('front', { openedFromTabId: 'pinned-app' })], false))
+      .toEqual(['pinned-app', 'front', 'earlier', 'docs'])
+    expect(placed([pinned, earlier, tab('docs'), tab('behind', { openedFromTabId: 'pinned-app' })], true))
+      .toEqual(['pinned-app', 'earlier', 'behind', 'docs'])
+  })
+
+  it('leaves a pinned new tab where it is', () => {
+    expect(placed([tab('app'), tab('docs'), tab('new', { pinned: true, openedFromTabId: 'app' })], false)).toBeUndefined()
+  })
+
   it('leaves other workspaces\' tabs and Home where they are', () => {
     const tabs = [tab('home', { url: HOME, mcpGroupId: undefined }), tab('app'), tab('docs'), tab('other', { mcpGroupId: 'other' }), tab('new', { openedFromTabId: 'app' })]
     expect(placed(tabs, true)).toEqual(['home', 'app', 'new', 'docs', 'other'])

@@ -48,7 +48,7 @@ function browser() {
   }) as BrowserTabsManager
   const sweep = () => (manager as unknown as { sweepMemorySaver(force: boolean): Promise<void> }).sweepMemorySaver(false)
   const askedToSleep = () => putTabToSleep.mock.calls.map(([tab]) => tab.id)
-  return { manager, sweep, askedToSleep }
+  return { manager, tabs, putTabToSleep, sweep, askedToSleep }
 }
 
 describe('Memory Saver inactivity', () => {
@@ -92,5 +92,20 @@ describe('Memory Saver inactivity', () => {
     manager.openSplitView('idle')
     await sweep()
     expect(askedToSleep()).not.toContain('other')
+  })
+
+  it('asks each tab once when the tabs are put in a new order during the sweep', async () => {
+    const { tabs, putTabToSleep, sweep, askedToSleep } = browser()
+    vi.setSystemTime(Date.now() + 2 * 60 * MINUTE)
+    putTabToSleep.mockImplementationOnce(async () => {
+      // A page opens a tab beside another, which puts the open tabs in a new order.
+      const entries = [...tabs.entries()].reverse()
+      tabs.clear()
+      for (const [id, tab] of entries) tabs.set(id, tab)
+      return false
+    })
+    await sweep()
+    // The open tabs were walked live, so the new order started the sweep again and asked the tabs a second time.
+    expect(askedToSleep().sort()).toEqual(['idle', 'other', 'reading'])
   })
 })

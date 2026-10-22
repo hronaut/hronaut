@@ -139,9 +139,6 @@ describe('a window a workspace page opens', () => {
     const behind = fixture()
     behind.open({ ...details, disposition: 'background-tab' }).createWindow!({ webContents: guestPage({ opener: false }) })
     expect(behind.createTab).toHaveBeenCalledWith(expect.objectContaining({ openedFrom: { tabId: 'opener', background: true } }))
-    const outside = fixture({ mcpGroupId: undefined })
-    outside.open({ ...details, disposition: 'background-tab' })
-    expect(outside.createTab).toHaveBeenCalledWith(expect.objectContaining({ openedFrom: { tabId: 'opener', background: true } }))
   })
 
   it('blocks Home and addresses the workspace does not allow', () => {

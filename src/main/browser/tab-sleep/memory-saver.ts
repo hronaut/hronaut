@@ -43,9 +43,10 @@ async function runMemorySaverSweep<Tab extends MemorySaverTab>(access: MemorySav
   const generation = access.memorySaverSettingsGeneration()
   const isCurrent = () => !access.isDestroyed() && access.memorySaverEnabled() && generation === access.memorySaverSettingsGeneration()
   const cutoff = memorySaverCutoff(Date.now(), access.memorySaverTimeoutMinutes())
-  for (const tab of access.tabs()) {
+  // A copy, since a page can open a tab beside another while one goes to sleep, which puts the tabs in a new order.
+  for (const tab of [...access.tabs()]) {
     if (!isCurrent()) return
-    if (tab.sleeping || (!force && tab.lastActiveAt > cutoff)) continue
+    if (access.findTab(tab.id) !== tab || tab.sleeping || (!force && tab.lastActiveAt > cutoff)) continue
     await access.putTabToSleep(tab, false, isCurrent)
   }
 }

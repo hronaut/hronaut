@@ -2432,6 +2432,7 @@ export class BrowserTabsManager {
   private memorySaverAccess(): MemorySaverAccess<BrowserTab> {
     return {
       tabs: () => this.tabs.values(),
+      findTab: (tabId) => this.tabs.get(tabId),
       isDestroyed: () => this.destroyed,
       memorySaverEnabled: () => this.memorySaverEnabled,
       setMemorySaverEnabled: (enabled) => { this.memorySaverEnabled = enabled },

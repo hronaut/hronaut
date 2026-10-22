@@ -26,8 +26,9 @@ export function placeTabOpenedFromPage<Tab extends LinkTabPlacementTab>(ordered:
   let index = opener.pinned ? 0 : peers.indexOf(opener) + 1
   if (background) {
     const family = new Set([opener.id])
-    while (index < peers.length && peers[index]!.openedFromTabId !== undefined && family.has(peers[index]!.openedFromTabId!)) {
-      family.add(peers[index]!.id)
+    for (const peer of peers.slice(index)) {
+      if (!peer.openedFromTabId || !family.has(peer.openedFromTabId)) break
+      family.add(peer.id)
       index += 1
     }
   }

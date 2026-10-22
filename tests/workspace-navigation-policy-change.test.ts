@@ -65,6 +65,7 @@ function access(tabs: FakeTab[], policy: BrowserWorkspaceNavigationPolicy = UNRE
     woken.sleeping = false
     await woken.page.loadURL(woken.url)
   })
+  const decisions = vi.fn()
   const port: WorkspaceNavigationAccess<FakeTab> = {
     findWorkspace: (id) => id === 'workspace' ? workspace : undefined,
     findArchivedWorkspace: () => undefined,
@@ -73,7 +74,7 @@ function access(tabs: FakeTab[], policy: BrowserWorkspaceNavigationPolicy = UNRE
     setInspectionPermission: () => undefined,
     tabs: () => open.values(),
     findTab: (id) => open.get(id),
-    options: () => ({}),
+    options: () => ({ onWorkspaceNavigationDecision: decisions }),
     prepareDiagnosticNavigation: () => undefined,
     wakeTab,
     forgetWorkspaceClosedTabs: (id, matches) => {
@@ -86,7 +87,13 @@ function access(tabs: FakeTab[], policy: BrowserWorkspaceNavigationPolicy = UNRE
     open.delete(closed.id)
     closed.page.destroyed = true
   }
-  return { port, workspace, wakeTab, close, closedTabs }
+  // Puts the open tabs in this order, as a page opening a tab beside another does.
+  const reorder = (ids: string[]) => {
+    const tabsById = new Map(open)
+    open.clear()
+    for (const id of ids) open.set(id, tabsById.get(id)!)
+  }
+  return { port, workspace, wakeTab, close, closedTabs, decisions, reorder }
 }
 
 describe('restricting a workspace', () => {
@@ -246,6 +253,23 @@ describe('restricting a workspace', () => {
     await expect(updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)).resolves.toBeDefined()
 
     expect(wakeTab).not.toHaveBeenCalled()
+    expect(last.page.getURL()).toBe('about:blank')
+  })
+
+  it('checks each tab once when the tabs are put in a new order while one is replaced', async () => {
+    const first = tab('first', `${BLOCKED}/one`)
+    const last = tab('last', `${BLOCKED}/two`)
+    const { port, decisions, reorder } = access([first, last])
+    first.page.loadURL.mockImplementationOnce(async (url: string) => {
+      reorder(['last', 'first'])
+      first.page.shown = url
+    })
+
+    await updateWorkspaceNavigationPolicy(port, 'workspace', RESTRICTED)
+
+    // The open tabs were walked live, so a new order started the walk again and checked the tabs a second time.
+    expect(decisions).toHaveBeenCalledTimes(2)
+    expect(first.page.loadURL).toHaveBeenCalledOnce()
     expect(last.page.getURL()).toBe('about:blank')
   })
 
