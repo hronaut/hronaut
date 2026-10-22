@@ -9,17 +9,22 @@ const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
  * chrome covers the pages, or a screenshot area selection or element picker
  * is in progress, a person's mouse input goes to that instead of the page;
  * the human input lock may hold it back. Otherwise the input is recorded,
- * refreshes the tab's overview preview, makes following wait, and a press on
- * the other split pane makes it the active tab.
+ * refreshes the tab's overview preview, makes following wait, and a press or
+ * touch on the other split pane makes it the active tab.
  */
 export function attachPagePointerEvents<Tab extends PagePointerEventsTab>(access: PagePointerEventsAccess<Tab>, tab: Tab, webContents: WebContents): void {
   // Wheel and touch input never reach before-mouse-event; while the person scrolls or touches
-  // the page, following waits.
+  // the page, following waits, and a touch counts as a press.
   const webContentsId = webContents.id
   webContents.on('input-event', (_event, input) => {
     if (input.type !== 'mouseWheel' && input.type !== 'touchStart') return
     access.scheduleTabOverviewPreview(tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
     if (access.agentInputWebContents().has(webContentsId) || access.agentWheelUnderWay(webContentsId)) return
+    // A touch while trusted chrome covers the pages, or on a page the human input lock holds, is no press.
+    if (input.type === 'touchStart' && !access.browserContentOccluded() && !access.isHumanInteractionLocked(tab)) {
+      notePersonPress(access, tab)
+      return
+    }
     access.mcpActivityFollower().noteHumanInput()
   })
   webContents.once('destroyed', () => access.agentWheel().delete(webContentsId))
@@ -60,20 +65,29 @@ export function attachPagePointerEvents<Tab extends PagePointerEventsTab>(access
     access.reproRecorder().observeReproMouse(tab, mouse)
     if (mouse.type === 'mouseUp') access.scheduleTabOverviewPreview(tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
     if ((mouse.type === 'mouseDown' || mouse.type === 'contextMenu') && !access.agentInputWebContents().has(webContents.id)) {
-      tab.humanInteractionGeneration += 1
-      tab.lastHumanInteractionAt = Date.now()
-      tab.lastActiveAt = tab.lastHumanInteractionAt
-      access.mcpActivityFollower().noteHumanInput()
-      if (access.splitViewContains(tab.id) && access.activeTabId() !== tab.id) {
-        // The person picked the other pane, which following did not show. It
-        // is a selection, so a tab still waking for an earlier one stays out.
-        access.setAgentFollow(undefined)
-        access.writeTabSelectionGeneration(access.tabSelectionGeneration() + 1)
-        access.writeActiveTabId(tab.id)
-        access.markTabActiveInGroup(tab)
-        access.changed()
-      }
-      access.options().onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
+      notePersonPress(access, tab)
     }
   })
+}
+
+/**
+ * The person pressed the page, with a mouse button or a touch: they used it,
+ * following waits, and a press on the other split pane makes it the active
+ * tab.
+ */
+function notePersonPress<Tab extends PagePointerEventsTab>(access: PagePointerEventsAccess<Tab>, tab: Tab): void {
+  tab.humanInteractionGeneration += 1
+  tab.lastHumanInteractionAt = Date.now()
+  tab.lastActiveAt = tab.lastHumanInteractionAt
+  access.mcpActivityFollower().noteHumanInput()
+  if (access.splitViewContains(tab.id) && access.activeTabId() !== tab.id) {
+    // The person picked the other pane, which following did not show. It
+    // is a selection, so a tab still waking for an earlier one stays out.
+    access.setAgentFollow(undefined)
+    access.writeTabSelectionGeneration(access.tabSelectionGeneration() + 1)
+    access.writeActiveTabId(tab.id)
+    access.markTabActiveInGroup(tab)
+    access.changed()
+  }
+  access.options().onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
 }
