@@ -20,11 +20,11 @@ export interface AgentFollow {
  * What publishing and changing agent following, recording MCP activity on
  * tabs and selecting a tab without moving keyboard focus need from the tab
  * manager, which keeps the followed agent, the follow preference, the tabs,
- * the active tab and its selection generation, the MCP activities in
- * progress, the MCP activity follower, state publication, the window and
- * selection private. The followed agent and the preference stay manager
- * fields because following an agent, creating agent tabs and destroying a
- * page read or clear them too; they are read again at every use.
+ * the active tab and its selection generation, the split view, the MCP
+ * activities in progress, the MCP activity follower, state publication, the
+ * window and selection private. The followed agent and the preference stay
+ * manager fields because following an agent, creating agent tabs and
+ * destroying a page read or clear them too; they are read again at every use.
  */
 export interface AgentFollowAccess {
   /** The agent whose activity last selected a tab. */
@@ -35,6 +35,8 @@ export interface AgentFollowAccess {
   setFollowAgentActivityPreference(enabled: boolean): void
   /** The active tab's id. */
   activeTabId(): string | null
+  /** Whether the tab is a pane of the split view. */
+  splitViewContains(tabId: string): boolean
   /** Counts tab selections, so a later selection tells it was not the agent's. */
   tabSelectionGeneration(): number
   /** Whether a tab with this id is open. */

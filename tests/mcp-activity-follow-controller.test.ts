@@ -24,9 +24,9 @@ function createHarness() {
   const tabs = new Set(['tab-a', 'tab-b', 'tab-c'])
   const readyTabs = new Set(tabs)
   const wakeTab = vi.fn<(tabId: string) => Promise<void>>(async () => undefined)
-  const selectTabPassively = vi.fn((tabId: string) => {
+  const selectTabPassively = vi.fn((_tabId: string) => {
     selectionGeneration += 1
-    return tabId
+    return true
   })
   const onError = vi.fn()
   const onFollow = vi.fn()
@@ -290,6 +290,36 @@ describe('following agents across workspaces', () => {
       // Once Codex is quiet, the call still running is shown again, but holds the view no longer.
       vi.advanceTimersByTime(AGENT_FOLLOW_HOLD_MS + 1)
       expect(shown(harness)).toBe('tab-a')
+      harness.controller.accept(activity('codex-next', 'tab-b'), codex)
+      expect(shown(harness)).toBe('tab-b')
+      harness.controller.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps another agent out after the person used a page, when the call it showed since was already in view', () => {
+    vi.useFakeTimers()
+    try {
+      const harness = createHarness()
+      // tab-c is already in view, such as the other pane of the person's split view, so showing it moves nothing.
+      harness.selectTabPassively.mockImplementation((tabId) => tabId !== 'tab-c')
+      harness.enable()
+      harness.controller.accept(activity('codex-wait', 'tab-b'), codex)
+      expect(shown(harness)).toBe('tab-b')
+      vi.advanceTimersByTime(AGENT_FOLLOW_HOLD_MS + 1)
+      // The person goes back to their own page and types in it.
+      harness.humanSelect()
+      harness.controller.noteHumanInput()
+      const codexShown = () => harness.selectTabPassively.mock.calls.filter(([tabId]) => tabId === 'tab-b').length
+      const codexShownBefore = codexShown()
+      vi.advanceTimersByTime(AGENT_FOLLOW_HUMAN_PAUSE_MS + 1)
+      harness.controller.accept(activity('claude-1', 'tab-c'), claude)
+      harness.controller.accept(activity('claude-1', 'tab-c', 'finished'), claude)
+      expect(harness.onFollow).toHaveBeenLastCalledWith({ tabId: 'tab-c', agent: claude })
+      // Claude Code's hold ends: Codex's call still running stays out, as following has not moved the view since.
+      vi.advanceTimersByTime(AGENT_FOLLOW_HOLD_MS + 1)
+      expect(codexShown()).toBe(codexShownBefore)
       harness.controller.accept(activity('codex-next', 'tab-b'), codex)
       expect(shown(harness)).toBe('tab-b')
       harness.controller.dispose()

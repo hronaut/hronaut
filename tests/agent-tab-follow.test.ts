@@ -40,7 +40,7 @@ interface ManagerInternals {
   assertTabLabelAdmission: () => void
   saveTabLabel: (tabId: string, value: string, validateAuthority?: () => void, onCommitted?: () => void) => Promise<{ state: unknown; status: 'saved' }>
   pageFullscreenShown(): boolean
-  selectTabPassively(tabId: string): void
+  selectTabPassively(tabId: string): boolean
   windowOpenHandlerAccess(): WindowOpenHandlerAccess<WindowOpenHandlerTab>
 }
 
@@ -119,7 +119,7 @@ function followAgents(internals: ManagerInternals): McpActivityFollowController 
     tabExists: (tabId) => internals.tabs.get(tabId)?.webContents.isDestroyed() === false,
     canSelectWithoutWake: (tabId) => internals.tabs.get(tabId)?.sleeping === false,
     wakeTab: (tabId) => internals.wakeTab(tabId),
-    selectTabPassively: (tabId) => { if (internals.activeTabId !== tabId) internals.selectTabPassively(tabId) },
+    selectTabPassively: (tabId) => internals.selectTabPassively(tabId),
     onError: (error) => { throw error }
   })
   return internals.mcpActivityFollower

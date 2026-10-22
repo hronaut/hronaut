@@ -25,7 +25,8 @@ interface McpActivityFollowControllerOptions {
   tabExists: (tabId: string) => boolean
   canSelectWithoutWake: (tabId: string) => boolean
   wakeTab: (tabId: string) => Promise<unknown>
-  selectTabPassively: (tabId: string) => unknown
+  /** Shows the tab; false when it was already in view, so the view did not move. */
+  selectTabPassively: (tabId: string) => boolean
   /** The tab following shows now, and for which agent. */
   onFollow?: (target: FollowTarget) => void
   onError: (error: unknown) => void
@@ -196,13 +197,16 @@ export class McpActivityFollowController {
       || this.target()?.activity.activityId !== entry.activity.activityId
     ) return
 
+    let moved: boolean
     try {
-      this.options.selectTabPassively(entry.activity.tabId)
+      moved = this.options.selectTabPassively(entry.activity.tabId)
     } catch (error) {
       this.options.onError(error)
       return
     }
-    this.humanInputSinceFollow = false
+    // A tab already in view leaves the view as it was, so the person's use of a page since following
+    // last moved it still keeps another agent from taking the view when this hold ends.
+    if (moved) this.humanInputSinceFollow = false
     // Showing a call again, such as one still running when a hold ends or one that never finishes,
     // does not renew the hold: only a call shown for the first time does, or the agent's own calls.
     const shownBefore = entry.shown === true
