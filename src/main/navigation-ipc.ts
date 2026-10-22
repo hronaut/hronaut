@@ -3,7 +3,7 @@ import type { BrowserPdfPageSize } from '../shared/types.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 
 type NavigationIpcTabs = Pick<BrowserTabsManager,
-  | 'toggleDevTools' | 'navigate' | 'back' | 'forward' | 'reload' | 'reloadIgnoringCache' | 'stop'
+  | 'toggleDevTools' | 'navigate' | 'back' | 'forward' | 'showHistoryMenu' | 'reload' | 'reloadIgnoringCache' | 'stop'
   | 'findInPage' | 'stopFindInPage' | 'setZoom' | 'savePdf'>
 
 interface NavigationIpcHost {
@@ -25,6 +25,13 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
   host.handleBrowserIpc('browser:navigate', (event, options) => { host.assertTrustedSender(event); return host.tabs()!.navigate(options.url, options.tabId, { byPerson: true }) })
   host.handleBrowserIpc('browser:back', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.back(tabId) })
   host.handleBrowserIpc('browser:forward', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.forward(tabId) })
+  host.handleBrowserIpc('browser:show-history-menu', (event, options: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof options !== 'object' || options === null) throw new TypeError('Invalid history list options')
+    const { tabId, direction, anchor } = options as Record<string, unknown>
+    if (typeof tabId !== 'string' || (direction !== 'back' && direction !== 'forward')) throw new TypeError('Invalid history list options')
+    return host.tabs()!.showHistoryMenu(tabId, direction, validAnchor(anchor))
+  })
   host.handleBrowserIpc('browser:reload', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.reload(tabId) })
   host.handleBrowserIpc('browser:reload-ignoring-cache', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.reloadIgnoringCache(tabId) })
   host.handleBrowserIpc('browser:stop', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.stop(tabId) })
@@ -71,4 +78,12 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     ) throw new TypeError('Invalid PDF options')
     return host.tabs()!.savePdf({ tabId, filename, landscape, pageSize: pageSize ?? host.defaultPdfPageSize(), outline, preferCSSPageSize })
   })
+}
+
+/** The place a list opens at, in the window's CSS pixels; one that is not a point on a window opens it at the pointer. */
+function validAnchor(anchor: unknown): { x: number; y: number } | undefined {
+  if (typeof anchor !== 'object' || anchor === null) return undefined
+  const { x, y } = anchor as Record<string, unknown>
+  const onWindow = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100_000
+  return onWindow(x) && onWindow(y) ? { x, y } : undefined
 }

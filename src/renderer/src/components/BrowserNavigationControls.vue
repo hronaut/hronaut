@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
 import { useResizeObserver } from '@vueuse/core'
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconArrowBack from '~icons/material-symbols/arrow-back-rounded'
 import IconArrowForward from '~icons/material-symbols/arrow-forward-rounded'
@@ -19,6 +19,8 @@ const props = defineProps<{
   bookmarksOpen: boolean
   currentBookmark: boolean
   formatPercent: (value: number) => string
+  /** Lists the pages the arrow goes through, opening at the anchor, in the window's CSS pixels; false when there were none. */
+  listHistory: (direction: 'back' | 'forward', anchor: { x: number; y: number }) => Promise<boolean>
 }>()
 
 const emit = defineEmits<{
@@ -32,6 +34,57 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
+
+// As in Chrome, holding an arrow down this long, or right-clicking it, lists the pages it goes through.
+const HISTORY_HOLD_MS = 500
+let historyHold: ReturnType<typeof setTimeout> | undefined
+// The arrow whose hold listed its pages, so the click its release makes does not also go there.
+let heldArrow: 'back' | 'forward' | null = null
+
+function openHistoryList(direction: 'back' | 'forward', button: Element): Promise<boolean> {
+  const { left, bottom } = button.getBoundingClientRect()
+  return props.listHistory(direction, { x: left, y: bottom })
+}
+
+function holdArrow(direction: 'back' | 'forward', event: PointerEvent): void {
+  heldArrow = null
+  releaseArrow()
+  const button = event.currentTarget
+  if (event.button !== 0 || !event.isPrimary || !(button instanceof Element)) return
+  historyHold = setTimeout(() => {
+    historyHold = undefined
+    heldArrow = direction
+    // With no list to show, such as for a tab that is waking, letting go goes there as a click does.
+    void openHistoryList(direction, button).then((shown) => {
+      if (!shown && heldArrow === direction) heldArrow = null
+    }, () => {
+      if (heldArrow === direction) heldArrow = null
+    })
+  }, HISTORY_HOLD_MS)
+}
+
+function releaseArrow(): void {
+  clearTimeout(historyHold)
+  historyHold = undefined
+}
+
+function rightClickArrow(direction: 'back' | 'forward', event: MouseEvent): void {
+  // A touch's long press opens the list by the hold already.
+  if ('pointerType' in event && event.pointerType === 'touch') return
+  releaseArrow()
+  if (event.currentTarget instanceof Element) void openHistoryList(direction, event.currentTarget)
+}
+
+function clickArrow(direction: 'back' | 'forward', event: MouseEvent): void {
+  const held = heldArrow === direction
+  heldArrow = null
+  // A key's click has no pointer behind it, so it is never the end of a hold.
+  if (held && event.detail > 0) return
+  if (direction === 'back') emit('back')
+  else emit('forward')
+}
+
+onBeforeUnmount(releaseArrow)
 
 function refreshOrStop(): void {
   if (props.activeTab?.loading) emit('stop')
@@ -56,8 +109,32 @@ useResizeObserver(
 </script>
 
 <template>
-  <UiButton appearance="application" class="icon-button" type="button" v-tooltip="t('shell.toolbar.back')" :aria-label="t('shell.toolbar.back')" :disabled="!activeTab?.canGoBack" @click="emit('back')"><IconArrowBack aria-hidden="true" /></UiButton>
-  <UiButton appearance="application" class="icon-button" type="button" v-tooltip="t('shell.toolbar.forward')" :aria-label="t('shell.toolbar.forward')" :disabled="!activeTab?.canGoForward" @click="emit('forward')"><IconArrowForward aria-hidden="true" /></UiButton>
+  <UiButton appearance="application"
+    class="icon-button back-button"
+    type="button"
+    v-tooltip="t('shell.toolbar.backTitle')"
+    :aria-label="t('shell.toolbar.back')"
+    :disabled="!activeTab?.canGoBack"
+    @click="clickArrow('back', $event)"
+    @pointerdown="holdArrow('back', $event)"
+    @pointerup="releaseArrow"
+    @pointerleave="releaseArrow"
+    @pointercancel="releaseArrow"
+    @contextmenu.prevent="rightClickArrow('back', $event)"
+  ><IconArrowBack aria-hidden="true" /></UiButton>
+  <UiButton appearance="application"
+    class="icon-button forward-button"
+    type="button"
+    v-tooltip="t('shell.toolbar.forwardTitle')"
+    :aria-label="t('shell.toolbar.forward')"
+    :disabled="!activeTab?.canGoForward"
+    @click="clickArrow('forward', $event)"
+    @pointerdown="holdArrow('forward', $event)"
+    @pointerup="releaseArrow"
+    @pointerleave="releaseArrow"
+    @pointercancel="releaseArrow"
+    @contextmenu.prevent="rightClickArrow('forward', $event)"
+  ><IconArrowForward aria-hidden="true" /></UiButton>
   <UiButton appearance="application" class="icon-button reload-button" type="button" v-tooltip="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :disabled="!activeTab" @click="refreshOrStop">
     <IconStop v-if="activeTab?.loading" aria-hidden="true" />
     <IconRefresh v-else aria-hidden="true" />

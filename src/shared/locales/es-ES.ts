@@ -1398,6 +1398,8 @@ export const esES = {
     "toolbar": {
       "back": "Atrás",
       "forward": "Adelante",
+      "backTitle": "Haz clic para volver atrás; haz clic derecho o mantén pulsado para ver el historial",
+      "forwardTitle": "Haz clic para ir hacia delante; haz clic derecho o mantén pulsado para ver el historial",
       "address": "Dirección",
       "addressPlaceholder": "Buscar o escribir una dirección",
       "findTitle": "Buscar en la página (Ctrl/Cmd+F)",
@@ -3585,7 +3587,8 @@ export const esES = {
       "reloadWithoutCache": "Recargar sin caché",
       "copyPageAddress": "Copiar dirección de la página",
       "inspect": "Inspeccionar",
-      "print": "Imprimir…"
+      "print": "Imprimir…",
+      "showFullHistory": "Mostrar historial completo"
     },
     "pageProblem": {
       "loadTitle": "No se pudo acceder a este sitio",

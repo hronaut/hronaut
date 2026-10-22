@@ -102,6 +102,7 @@ export function useAppBrowserCollectionsFeatureController(
     toggleBookmarks: shellController.toggleBookmarks,
     toggleCurrentBookmark: shellController.toggleCurrentBookmark,
     toggleVisitHistory: shellController.toggleVisitHistory,
+    openVisitHistory: shellController.openVisitHistory,
     openBookmark: shellController.openBookmark,
     openBookmarkInBackground,
     openHistoryEntry: shellController.openHistoryEntry,

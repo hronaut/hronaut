@@ -1398,6 +1398,8 @@ export const deDE = {
     "toolbar": {
       "back": "Zurück",
       "forward": "Vorwärts",
+      "backTitle": "Klicken, um zurückzugehen; Rechtsklick oder gedrückt halten, um den Verlauf zu sehen",
+      "forwardTitle": "Klicken, um vorwärtszugehen; Rechtsklick oder gedrückt halten, um den Verlauf zu sehen",
       "address": "Adresse",
       "addressPlaceholder": "Suchen oder Adresse eingeben",
       "findTitle": "Auf Seite suchen (Ctrl/Cmd+F)",
@@ -3585,7 +3587,8 @@ export const deDE = {
       "reloadWithoutCache": "Ohne Cache neu laden",
       "copyPageAddress": "Seitenadresse kopieren",
       "inspect": "Untersuchen",
-      "print": "Drucken…"
+      "print": "Drucken…",
+      "showFullHistory": "Gesamten Verlauf anzeigen"
     },
     "pageProblem": {
       "loadTitle": "Diese Website konnte nicht erreicht werden",

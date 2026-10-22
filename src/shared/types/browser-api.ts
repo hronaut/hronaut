@@ -174,6 +174,8 @@ export interface HronautApi {
   navigate(options: NavigateOptions): Promise<BrowserState>
   back(tabId?: string): Promise<BrowserState>
   forward(tabId?: string): Promise<BrowserState>
+  /** Shows the pages the tab's Back or Forward arrow goes through, as a list opening at the anchor, in CSS pixels; false when there was none to show. */
+  showHistoryMenu(options: { tabId: string; direction: 'back' | 'forward'; anchor?: { x: number; y: number } }): Promise<boolean>
   reload(tabId?: string): Promise<BrowserState>
   reloadIgnoringCache(tabId?: string): Promise<BrowserState>
   stop(tabId?: string): Promise<BrowserState>
@@ -229,4 +231,6 @@ export interface HronautApi {
   onTabGroupEditRequested(listener: (groupId: string) => void): () => void
   /** A menu asked for a new tab in the workspace, or in the active tab's workspace when it names none. */
   onNewTabRequested(listener: (workspaceId: string | undefined) => void): () => void
+  /** Show Full History in Back's or Forward's list asked for the history panel. */
+  onVisitHistoryRequested(listener: () => void): () => void
 }

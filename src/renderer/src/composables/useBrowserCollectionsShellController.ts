@@ -80,6 +80,12 @@ export function useBrowserCollectionsShellController(
     await options.historyPanel.value?.toggle()
   }
 
+  /** Opens the history panel as toggling it does, but leaves an open one open, for Show Full History in Back's list. */
+  async function openVisitHistory(): Promise<void> {
+    if (options.historyOpen.value) return
+    await toggleVisitHistory()
+  }
+
   async function openBookmark(bookmark: BrowserBookmark): Promise<void> {
     options.settingsOpen.value = false
     await options.openUrl(bookmark.url)
@@ -101,6 +107,7 @@ export function useBrowserCollectionsShellController(
     toggleBookmarks,
     toggleCurrentBookmark,
     toggleVisitHistory,
+    openVisitHistory,
     openBookmark,
     openHistoryEntry,
     dispose

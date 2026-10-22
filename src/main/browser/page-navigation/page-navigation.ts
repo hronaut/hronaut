@@ -172,6 +172,25 @@ export async function forward<Tab extends PageNavigationTab>(access: PageNavigat
   return access.getState()
 }
 
+/**
+ * Goes to a page of the tab's history that the person picked from the list Back or Forward shows, unless the
+ * workspace's navigation policy denies it. A list that is out of date by then, because the tab moved in its history or
+ * the history changed, goes nowhere rather than to whichever page now sits at that place.
+ */
+export function goToHistoryEntry<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tabId: string,
+  entry: { index: number; url: string; activeIndex: number }): BrowserState {
+  const tab = access.findTab(tabId)
+  if (!tab || tab.sleeping || tab.wakePromise || tab.webContents.isDestroyed()) return access.getState()
+  const history = tab.webContents.navigationHistory
+  if (history.getActiveIndex() !== entry.activeIndex || history.getAllEntries()[entry.index]?.url !== entry.url) {
+    return access.getState()
+  }
+  if (tab.mcpGroupId && !access.workspaceNavigationAllowed(tab.mcpGroupId, entry.url, 'history')) return access.getState()
+  access.prepareDiagnosticNavigation(tab)
+  history.goToIndex(entry.index)
+  return access.getState()
+}
+
 /** Reloads the tab's page, waking a sleeping tab first. */
 export async function reload<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tabId?: string): Promise<BrowserState> {
   return reloadPage(access, tabId, false)
