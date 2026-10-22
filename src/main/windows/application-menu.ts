@@ -17,7 +17,7 @@ interface ApplicationMenuHost {
   runNativeBrowserAction(action: string, callback: () => unknown): void
   /** Runs a browser shortcut as a key the page in focus left alone does, in the shell or on its tab. */
   runShortcut(action: BrowserShortcutAction): void
-  tabs(): Pick<BrowserTabsManager, 'newTab' | 'back' | 'forward' | 'historyGesture' | 'reload' | 'reloadIgnoringCache' | 'printShownPage' | 'toggleDevTools' | 'setZoom'> | null
+  tabs(): Pick<BrowserTabsManager, 'newTab' | 'back' | 'forward' | 'historyGesture' | 'reload' | 'reloadIgnoringCache' | 'printShownPage' | 'viewShownPageSource' | 'toggleDevTools' | 'setZoom'> | null
 }
 
 /**
@@ -175,6 +175,19 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
             {
               label: host.text('native.menu.developerTools'),
               click: () => host.runNativeBrowserAction('toggle Developer Tools', () => host.tabs()?.toggleDevTools())
+            },
+            {
+              label: host.text('native.menu.viewSource'),
+              // Chrome's key, which a website may keep, as a web editor does to underline: as the menu's key it reaches
+              // the menu only when the website or field in focus leaves it alone, and never from an agent. Typed in a
+              // panel in its own window, it would open the source of a page out of view.
+              accelerator: process.platform === 'darwin' ? 'Cmd+Alt+U' : 'Ctrl+U',
+              click: (_item, window, event) => {
+                if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+                // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
+                if (!event.triggeredByAccelerator) host.showWindow()
+                host.runNativeBrowserAction('view page source', () => host.tabs()?.viewShownPageSource())
+              }
             },
             {
               label: host.text('native.menu.fullPageView'),

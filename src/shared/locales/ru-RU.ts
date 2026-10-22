@@ -865,6 +865,7 @@ export const ruRU = {
       "addressNewTab": "Открыть введённое в адресной строке в новой вкладке",
       "addressBackgroundTab": "Открыть введённое в адресной строке в новой фоновой вкладке",
       "addressWwwCom": "Добавить www. и .com к имени сайта в адресной строке и открыть его",
+      "viewSource": "Показать код страницы",
       "back": "Вернуться на предыдущую страницу",
       "forward": "Перейти на следующую страницу",
       "reload": "Перезагрузить текущий сайт",
@@ -3518,7 +3519,8 @@ export const ruRU = {
       "support": "Коммерческая лицензия",
       "repository": "Репозиторий GitHub",
       "checkUpdatesPlain": "Проверить обновления",
-      "print": "Печать…"
+      "print": "Печать…",
+      "viewSource": "Просмотр кода страницы"
     },
     "tray": {
       "show": "Показать Hronaut",
@@ -3591,7 +3593,8 @@ export const ruRU = {
       "copyPageAddress": "Копировать адрес страницы",
       "inspect": "Исследовать",
       "print": "Печать…",
-      "showFullHistory": "Показать всю историю"
+      "showFullHistory": "Показать всю историю",
+      "viewSource": "Просмотр кода страницы"
     },
     "pageProblem": {
       "loadTitle": "Не удалось открыть сайт",

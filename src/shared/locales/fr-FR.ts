@@ -865,6 +865,7 @@ export const frFR = {
       "addressNewTab": "Ouvrir le texte saisi dans la barre d’adresse dans un nouvel onglet",
       "addressBackgroundTab": "Ouvrir le texte saisi dans la barre d’adresse dans un nouvel onglet en arrière-plan",
       "addressWwwCom": "Ajouter www. et .com au nom de site saisi dans la barre d’adresse et l’ouvrir",
+      "viewSource": "Afficher le code source de la page",
       "back": "Revenir à la page précédente",
       "forward": "Aller à la page suivante",
       "reload": "Recharger le site actuel",
@@ -3518,7 +3519,8 @@ export const frFR = {
       "support": "Licence commerciale",
       "repository": "Dépôt GitHub",
       "checkUpdatesPlain": "Rechercher des mises à jour",
-      "print": "Imprimer…"
+      "print": "Imprimer…",
+      "viewSource": "Afficher le code source de la page"
     },
     "tray": {
       "show": "Afficher Hronaut",
@@ -3591,7 +3593,8 @@ export const frFR = {
       "copyPageAddress": "Copier l’adresse de la page",
       "inspect": "Inspecter",
       "print": "Imprimer…",
-      "showFullHistory": "Afficher l’historique complet"
+      "showFullHistory": "Afficher l’historique complet",
+      "viewSource": "Afficher le code source de la page"
     },
     "pageProblem": {
       "loadTitle": "Impossible d’accéder à ce site",

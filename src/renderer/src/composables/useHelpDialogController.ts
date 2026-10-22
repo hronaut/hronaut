@@ -51,6 +51,7 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.clearData'), keys: ['Ctrl/Cmd', 'Shift', 'Delete'] },
     // F12 needs the Fn key on most Mac keyboards.
     { label: options.translate('runtime.shortcuts.devtools'), keys: mac ? ['Cmd', 'Option', 'I'] : ['F12'] },
+    { label: options.translate('runtime.shortcuts.viewSource'), keys: mac ? ['Cmd', 'Option', 'U'] : ['Ctrl', 'U'] },
     { label: options.translate('runtime.shortcuts.nextTab'), keys: ['Ctrl', 'Tab'] },
     { label: options.translate('runtime.shortcuts.previousTab'), keys: ['Ctrl', 'Shift', 'Tab'] },
     { label: options.translate('runtime.shortcuts.directTab'), keys: [tabKey, '1–8'] },

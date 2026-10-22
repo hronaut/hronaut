@@ -1,12 +1,13 @@
 import { Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebFrameMain } from 'electron'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
+import { pageSourceAddress } from '../page-source/page-source.js'
 import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
 import { openedResourceReferrer, savedResourceReferrer } from './page-context-menu-referrer.js'
 
 /**
  * Shows the native context menu for a right-click in the page: link, image,
  * editing and selection actions for what was clicked, then page navigation,
- * copy address, print and inspect. Each action checks that its tab is still open.
+ * copy address, print, view source and inspect. Each action checks that its tab is still open.
  */
 export function showContextMenu<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, params: ContextMenuParams): void {
   const webContents = tab.webContents
@@ -193,6 +194,14 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
         void access.print(tab).catch((error) => access.options().onActionFailed?.('print the page', error))
       })
     }],
+    // As in Chrome, between Print and Inspect, for a web page; a page's source has no source of its own.
+    ...pageSourceAddress(tab.url) ? [{
+      id: 'view-page-source',
+      label: access.text('native.context.viewSource'),
+      click: withLiveContents('view page source', () => {
+        void access.viewSource(tab).catch((error) => reportActionFailure('view page source', error))
+      })
+    }] : [],
     // Hronaut Home has no Developer Tools, as F12 and Ctrl+Shift+I already refuse there: its page holds Hronaut's
     // privileged Home bridge.
     ...isHronautHomeUrl(tab.url) ? [] : [{

@@ -865,6 +865,7 @@ export const deDE = {
       "addressNewTab": "In der Adressleiste Eingegebenes in einem neuen Tab öffnen",
       "addressBackgroundTab": "In der Adressleiste Eingegebenes in einem neuen Hintergrund-Tab öffnen",
       "addressWwwCom": "www. und .com zum Websitenamen in der Adressleiste hinzufügen und öffnen",
+      "viewSource": "Seitenquelltext anzeigen",
       "back": "Zur vorherigen Seite zurückgehen",
       "forward": "Zur nächsten Seite vorwärtsgehen",
       "reload": "Aktuelle Website neu laden",
@@ -3518,7 +3519,8 @@ export const deDE = {
       "support": "Kommerzielle Lizenz",
       "repository": "GitHub-Repository",
       "checkUpdatesPlain": "Nach Updates suchen",
-      "print": "Drucken…"
+      "print": "Drucken…",
+      "viewSource": "Seitenquelltext anzeigen"
     },
     "tray": {
       "show": "Hronaut anzeigen",
@@ -3591,7 +3593,8 @@ export const deDE = {
       "copyPageAddress": "Seitenadresse kopieren",
       "inspect": "Untersuchen",
       "print": "Drucken…",
-      "showFullHistory": "Gesamten Verlauf anzeigen"
+      "showFullHistory": "Gesamten Verlauf anzeigen",
+      "viewSource": "Seitenquelltext anzeigen"
     },
     "pageProblem": {
       "loadTitle": "Diese Website konnte nicht erreicht werden",

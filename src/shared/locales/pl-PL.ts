@@ -865,6 +865,7 @@ export const plPL = {
       "addressNewTab": "Otwórz tekst wpisany w pasku adresu w nowej karcie",
       "addressBackgroundTab": "Otwórz tekst wpisany w pasku adresu w nowej karcie w tle",
       "addressWwwCom": "Dodaj www. i .com do nazwy witryny wpisanej w pasku adresu i ją otwórz",
+      "viewSource": "Wyświetl źródło strony",
       "back": "Wróć do poprzedniej strony",
       "forward": "Przejdź do następnej strony",
       "reload": "Odśwież bieżącą witrynę",
@@ -3518,7 +3519,8 @@ export const plPL = {
       "support": "Licencja komercyjna",
       "repository": "Repozytorium GitHub",
       "checkUpdatesPlain": "Sprawdź aktualizacje",
-      "print": "Drukuj…"
+      "print": "Drukuj…",
+      "viewSource": "Wyświetl źródło strony"
     },
     "tray": {
       "show": "Pokaż Hronaut",
@@ -3591,7 +3593,8 @@ export const plPL = {
       "copyPageAddress": "Kopiuj adres strony",
       "inspect": "Sprawdź",
       "print": "Drukuj…",
-      "showFullHistory": "Pokaż całą historię"
+      "showFullHistory": "Pokaż całą historię",
+      "viewSource": "Wyświetl źródło strony"
     },
     "pageProblem": {
       "loadTitle": "Nie udało się otworzyć tej witryny",

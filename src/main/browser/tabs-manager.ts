@@ -435,6 +435,8 @@ import type { PageWheelZoomAccess } from './page-zoom/page-wheel-zoom-access.js'
 import { historyGesture } from './history-gesture/history-gesture.js'
 import type { HistoryGestureAccess } from './history-gesture/history-gesture-access.js'
 import { printPage, printShownPage } from './page-print/page-print.js'
+import { viewPageSource, viewShownPageSource } from './page-source/page-source.js'
+import type { PageSourceAccess } from './page-source/page-source-access.js'
 import type { PagePrintAccess } from './page-print/page-print-access.js'
 import { attachPageWheelZoom } from './page-zoom/page-wheel-zoom.js'
 import {
@@ -3321,6 +3323,23 @@ export class BrowserTabsManager {
     return printShownPage(this.pagePrintAccess())
   }
 
+  viewShownPageSource(): Promise<boolean> {
+    return viewShownPageSource(this.pageSourceAccess())
+  }
+
+  /**
+   * The narrow view viewing a page's source gets of this manager's shown tab, trusted chrome occlusion and tab
+   * creation. It is a prototype method rather than a field, so managers created without the constructor (as unit tests
+   * do) still provide it. Each member reads the manager when called.
+   */
+  private pageSourceAccess(): PageSourceAccess<BrowserTab> {
+    return {
+      shownTab: () => this.activeTabId ? this.tabs.get(this.activeTabId) : undefined,
+      browserContentOccluded: () => this.browserContentOccluded,
+      createTab: (options) => this.createTab(options)
+    }
+  }
+
   private pagePrinting: Set<number> | undefined
 
   /**
@@ -5900,6 +5919,7 @@ export class BrowserTabsManager {
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
       openDevTools: (tab) => this.openDevTools(tab),
       print: (tab) => printPage(this.pagePrintAccess(), tab),
+      viewSource: (tab) => viewPageSource(this.pageSourceAccess(), tab),
       expectSavedLinkName: (webContents, url, linkName) => this.downloadController.expectSavedLinkName(webContents.id, url, linkName)
     }
   }
