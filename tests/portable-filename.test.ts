@@ -19,6 +19,13 @@ describe('portable filenames', () => {
     expect(isWindowsReservedFilename(filename)).toBe(false)
   })
 
+  it('drops format characters from a title, which could show the name in another order, but keeps the joiners', () => {
+    // A right-to-left override showed `Invoice\u202Efdp.html` as `Invoicelmth.pdf`.
+    expect(portableExportFilename(undefined, 'Invoice\u202Efdp', 'html')).toBe('Invoicefdp.html')
+    expect(portableExportFilename(undefined, 'Release\u200B notes\u2066', 'pdf')).toBe('Release notes.pdf')
+    expect(portableExportFilename(undefined, 'Coder 👩\u200D💻', 'png')).toBe('Coder 👩\u200D💻.png')
+  })
+
   it('checks a name with a very long run of spaces', () => {
     expect(isWindowsReservedFilename('CON' + ' '.repeat(100_000))).toBe(true)
     expect(isWindowsReservedFilename('a' + ' '.repeat(100_000) + 'b.txt')).toBe(false)

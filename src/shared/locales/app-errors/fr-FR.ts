@@ -79,7 +79,9 @@ export const frFRAppErrors: AppErrorMessages = {
     "zoomPercent": "Le zoom de la page doit être un nombre entier compris entre 50 et 400 pour cent.",
     "findQuery": "La recherche doit contenir entre 1 et 1000 caractères.",
     "printFailed": "Hronaut n’a pas pu imprimer cette page.",
-    "printAgentWorking": "Un agent travaille sur cette page. Prenez la main ou mettez les agents en pause pour l’imprimer."
+    "printAgentWorking": "Un agent travaille sur cette page. Prenez la main ou mettez les agents en pause pour l’imprimer.",
+    "saveFailed": "Hronaut n’a pas pu enregistrer cette page.",
+    "saveChanged": "La page a changé pendant que la fenêtre d’enregistrement était ouverte. Enregistrez-la de nouveau."
   },
   "loadFailure": {
     "nameNotResolved": "Impossible de trouver l’adresse du site web ({code}).",

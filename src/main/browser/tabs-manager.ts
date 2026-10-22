@@ -191,6 +191,7 @@ import { basename, dirname, isAbsolute, join } from 'node:path'
 import axe from 'axe-core'
 import {
   BrowserWindow,
+  dialog,
   Menu,
   powerMonitor,
   screen,
@@ -435,6 +436,8 @@ import type { PageWheelZoomAccess } from './page-zoom/page-wheel-zoom-access.js'
 import { historyGesture } from './history-gesture/history-gesture.js'
 import type { HistoryGestureAccess } from './history-gesture/history-gesture-access.js'
 import { printPage, printShownPage } from './page-print/page-print.js'
+import { savePageAs, saveShownPage } from './page-save/page-save.js'
+import type { PageSaveAccess } from './page-save/page-save-access.js'
 import { viewPageSource, viewShownPageSource } from './page-source/page-source.js'
 import type { PageSourceAccess } from './page-source/page-source-access.js'
 import type { PagePrintAccess } from './page-print/page-print-access.js'
@@ -3327,6 +3330,32 @@ export class BrowserTabsManager {
     return viewShownPageSource(this.pageSourceAccess())
   }
 
+  /** Save Page As for the page the window shows, for the menu and its key. */
+  saveShownPage(): Promise<boolean> {
+    return saveShownPage(this.pageSaveAccess())
+  }
+
+  private pageSaving: Set<number> | undefined
+
+  /**
+   * The narrow view saving a page gets of this manager's shown tab, trusted chrome occlusion, human input lock, download
+   * folder, window and the pages being saved now. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. Each member reads the manager when called.
+   */
+  private pageSaveAccess(): PageSaveAccess<BrowserTab> {
+    return {
+      shownTab: () => this.activeTabId ? this.tabs.get(this.activeTabId) : undefined,
+      browserContentOccluded: () => this.browserContentOccluded,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      downloadDirectory: () => this.options.downloadDirectory,
+      showSaveDialog: (options) => this.window.isDestroyed()
+        ? Promise.resolve({ canceled: true, filePath: '' })
+        : dialog.showSaveDialog(this.window, options),
+      text: (key) => this.text(key),
+      savingWebContents: () => (this.pageSaving ??= new Set())
+    }
+  }
+
   /**
    * The narrow view viewing a page's source gets of this manager's shown tab, trusted chrome occlusion and tab
    * creation. It is a prototype method rather than a field, so managers created without the constructor (as unit tests
@@ -5920,6 +5949,7 @@ export class BrowserTabsManager {
       openDevTools: (tab) => this.openDevTools(tab),
       print: (tab) => printPage(this.pagePrintAccess(), tab),
       viewSource: (tab) => viewPageSource(this.pageSourceAccess(), tab),
+      savePage: (tab) => savePageAs(this.pageSaveAccess(), tab),
       searchEngine: () => this.options.getSearchEngine?.() ?? DEFAULT_SEARCH_ENGINE,
       browserContentOccluded: () => this.browserContentOccluded,
       expectSavedLinkName: (webContents, url, linkName) => this.downloadController.expectSavedLinkName(webContents.id, url, linkName)

@@ -83,7 +83,9 @@ export const enUSAppErrors = {
     "zoomPercent": "Page zoom percent must be an integer from 50 to 400",
     "findQuery": "Find query must contain between 1 and 1,000 characters",
     "printFailed": "Hronaut could not print this page.",
-    "printAgentWorking": "An agent is working on this page. Take over or pause agents to print it."
+    "printAgentWorking": "An agent is working on this page. Take over or pause agents to print it.",
+    "saveFailed": "Hronaut could not save this page.",
+    "saveChanged": "The page changed while the save dialog was open. Save it again."
   },
   "loadFailure": {
     "nameNotResolved": "The website address could not be found ({code}).",

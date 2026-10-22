@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isStaleAddressTitle, untitledPageTitle } from '../src/main/browser/tab-events/untitled-page-title.js'
+import { isAddressTitle, isStaleAddressTitle, untitledPageTitle } from '../src/main/browser/tab-events/untitled-page-title.js'
 
 describe('an untitled page\'s title after it changes its address', () => {
   it('finds the old address in the forms Chromium shows it', () => {
@@ -22,5 +22,21 @@ describe('an untitled page\'s title after it changes its address', () => {
     expect(untitledPageTitle('http://user:pass@127.0.0.1:3000/dashboard?view=week#top')).toBe('127.0.0.1:3000/dashboard?view=week#top')
     expect(untitledPageTitle('http://app.example/')).toBe('app.example')
     expect(untitledPageTitle('https://app.example/')).toBe('https://app.example')
+  })
+})
+
+describe('an untitled page\'s title', () => {
+  it('is an address on the page\'s site in the forms Chromium shows it', () => {
+    expect(isAddressTitle('app.example/callback#access_token=secret', 'https://app.example/callback#access_token=secret')).toBe(true)
+    expect(isAddressTitle('127.0.0.1:3000/dashboard', 'http://127.0.0.1:3000/dashboard')).toBe(true)
+    expect(isAddressTitle('https://docs.example', 'https://docs.example/')).toBe(true)
+    expect(isAddressTitle('\u202Aapp.example/مرحبا#token\u202C', 'https://www.app.example/x')).toBe(true)
+  })
+
+  it('is not a title that names something else, or an address on another site', () => {
+    expect(isAddressTitle('Release notes', 'https://docs.example/notes')).toBe(false)
+    expect(isAddressTitle('GitHub', 'https://github.com/')).toBe(false)
+    expect(isAddressTitle('other.example/page', 'https://docs.example/page')).toBe(false)
+    expect(isAddressTitle('docs.example/page', 'file:///home/docs.example/page')).toBe(false)
   })
 })

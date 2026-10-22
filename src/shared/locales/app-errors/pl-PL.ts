@@ -79,7 +79,9 @@ export const plPLAppErrors: AppErrorMessages = {
     "zoomPercent": "Powiększenie strony musi być liczbą całkowitą od 50 do 400 procent.",
     "findQuery": "Wyszukiwana fraza musi mieć od 1 do 1000 znaków.",
     "printFailed": "Hronaut nie mógł wydrukować tej strony.",
-    "printAgentWorking": "Na tej stronie pracuje agent. Przejmij kontrolę lub wstrzymaj agentów, aby ją wydrukować."
+    "printAgentWorking": "Na tej stronie pracuje agent. Przejmij kontrolę lub wstrzymaj agentów, aby ją wydrukować.",
+    "saveFailed": "Hronaut nie mógł zapisać tej strony.",
+    "saveChanged": "Strona zmieniła się, gdy okno zapisu było otwarte. Zapisz ją ponownie."
   },
   "loadFailure": {
     "nameNotResolved": "Nie udało się znaleźć adresu witryny ({code}).",

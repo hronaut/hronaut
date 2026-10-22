@@ -14,7 +14,7 @@ export function isWindowsReservedFilename(value: string): boolean {
 const MAX_EXPORT_FILENAME_BYTES = 255 - 7
 const encoder = new TextEncoder()
 
-export function portableExportFilename(requested: string | undefined, title: string, format: 'pdf' | 'har' | 'png'): string {
+export function portableExportFilename(requested: string | undefined, title: string, format: 'pdf' | 'har' | 'png' | 'html'): string {
   const extension = `.${format}`
   if (requested !== undefined) {
     const filename = requested.trim()
@@ -36,6 +36,9 @@ export function portableExportFilename(requested: string | undefined, title: str
   const fallback = format === 'har' ? 'network' : 'page'
   const maxCharacters = format === 'har' ? 150 : 160
   let normalized = title
+    // A format character such as a right-to-left override would show the name in another order, hiding its extension.
+    // The joiners stay, as Chromium keeps them: scripts such as Persian and emoji such as 👩‍💻 need them.
+    .replace(/(?![\u200C\u200D])\p{Cf}/gu, '')
     .replace(/[\u0000-\u001f<>:"/\\|?*]/g, '-')
     .replace(/\s+/g, ' ')
     .trim()

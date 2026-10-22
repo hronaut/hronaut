@@ -883,6 +883,7 @@ export const esES = {
       "bookmark": "Añadir la página actual a marcadores",
       "history": "Abrir el historial de navegación",
       "downloads": "Abrir descargas",
+      "savePage": "Guardar la página",
       "clearData": "Borrar datos de navegación",
       "devtools": "Mostrar u ocultar las herramientas de desarrollo",
       "nextTab": "Ir a la pestaña siguiente",
@@ -3522,7 +3523,8 @@ export const esES = {
       "checkUpdatesPlain": "Buscar actualizaciones",
       "print": "Imprimir…",
       "viewSource": "Ver código fuente de la página",
-      "downloads": "Descargas"
+      "downloads": "Descargas",
+      "savePage": "Guardar página como…"
     },
     "tray": {
       "show": "Mostrar Hronaut",
@@ -3597,7 +3599,8 @@ export const esES = {
       "print": "Imprimir…",
       "showFullHistory": "Mostrar historial completo",
       "viewSource": "Ver código fuente de la página",
-      "searchFor": "Buscar «{text}» en {engine}"
+      "searchFor": "Buscar «{text}» en {engine}",
+      "savePage": "Guardar como…"
     },
     "pageProblem": {
       "loadTitle": "No se pudo acceder a este sitio",
@@ -3722,7 +3725,10 @@ export const esES = {
       "wavAudioFilter": "Audio PCM WAV",
       "chooseVideoAudio": "Elegir audio para el vídeo",
       "chooseAudio": "Elegir audio",
-      "devToolsWindowTitle": "Herramientas de desarrollo de Hronaut — {title}"
+      "devToolsWindowTitle": "Herramientas de desarrollo de Hronaut — {title}",
+      "savePageTitle": "Guardar página como",
+      "webpageComplete": "Página web completa",
+      "webpageSingleFile": "Página web, un solo archivo"
     }
   }
 } satisfies MessageSchema
