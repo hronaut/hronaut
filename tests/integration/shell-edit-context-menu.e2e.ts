@@ -57,5 +57,6 @@ test('a right-click in a text field of the window offers its editing actions, an
   await forgetMenus()
   await key.click({ button: 'right' })
   await expect.poll(async () => (await lastMenu())?.find(item => item.id === 'select-all')?.enabled).toBe(true)
-  expect((await lastMenu())!.filter(item => item.id === 'cut' || item.id === 'copy').map(item => item.enabled)).toEqual([false, false])
+  // Delete is available, so the key is still selected when Cut and Copy are not.
+  expect((await lastMenu())!.filter(item => ['cut', 'copy', 'delete'].includes(item.id)).map(item => item.enabled)).toEqual([false, false, true])
 })
