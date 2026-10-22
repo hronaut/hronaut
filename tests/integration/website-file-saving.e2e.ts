@@ -127,3 +127,33 @@ test('saves to a file the person opened or dropped only while their switch is on
     await rm(folder, { recursive: true, force: true })
   }
 })
+
+// A file the website held was taken for one its Save dialog gave it once it was empty for a moment, as while another
+// program saves it in place, and the website then kept saving over what the person wrote there.
+test('saves to a file the person dropped only while it is empty, not once it holds their text again', async ({ capabilities, electronApp }) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  const onPage = <T>(script: string): Promise<T> => electronApp.evaluate(({ webContents }, { url, script }) => (
+    webContents.getAllWebContents().find((contents) => contents.getURL() === url)!.executeJavaScript(script, true)
+  ), { url: fixtureUrl, script }) as Promise<T>
+  const folder = await mkdtemp(join(tmpdir(), 'hronaut-file-saving-'))
+  try {
+    const notes = join(folder, 'notes.txt')
+    await writeFile(notes, 'First draft', 'utf8')
+    await recordPrompts(electronApp)
+    await onPage(DROP_ZONE)
+    const dropped = await client.callTool({ name: 'browser_file_drop', arguments: { tabId, selector: '#zone', paths: [notes] } }) as CallToolResult
+    expect(JSON.parse(text(dropped))).toMatchObject({ status: 'DROPPED', files: 1 })
+    await expect.poll(() => onPage('window.dropped !== null')).toBe(true)
+    expect(await onPage(save('Overwritten'))).toBe('NotAllowedError')
+
+    // Another program saves the file in place: it is empty for a moment, which loses nothing to replace.
+    await writeFile(notes, '', 'utf8')
+    expect(await onPage(save('Written while empty'))).toBe('saved')
+    await writeFile(notes, 'Second draft, saved in another app', 'utf8')
+    expect(await onPage(save('Overwritten'))).toBe('NotAllowedError')
+    expect(await readFile(notes, 'utf8')).toBe('Second draft, saved in another app')
+    expect(await prompts(electronApp)).toEqual([])
+  } finally {
+    await rm(folder, { recursive: true, force: true })
+  }
+})
