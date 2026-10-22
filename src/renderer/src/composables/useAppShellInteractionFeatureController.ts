@@ -335,7 +335,9 @@ export function useAppShellInteractionFeatureController(
     canRunAction: (action) => {
       // Find Next and Find Previous do nothing over a dialog, as Ctrl/Cmd+F does: Find would search the page the dialog
       // covers and fight it for focus. Their keys reach the menu from a dialog, which leaves them alone.
-      if (action === 'find-next' || action === 'find-previous') {
+      // The View menu's Downloads key reaches the menu from a dialog too: the panel would open behind the dialog, or
+      // close Tab search, where Ctrl/Cmd+H does nothing. Over Settings it opens and closes Settings, as Ctrl/Cmd+H does.
+      if (action === 'find-next' || action === 'find-previous' || action === 'downloads') {
         return !(
           transient.commandPaletteOpen.value
           || transient.workspaceEditorOpen.value
@@ -345,7 +347,7 @@ export function useAppShellInteractionFeatureController(
           || surfaces.releaseHistory.open.value
           || surfaces.agentSteps.open.value
           || surfaces.walletApproval.value
-          || surfaces.settings.open.value
+          || (action !== 'downloads' && surfaces.settings.open.value)
         )
       }
       // A card or a picker over an open dialog would fight it for focus.

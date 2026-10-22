@@ -70,7 +70,7 @@ function harness(specs: WorkspaceSpec[], startIn: string) {
     settingsOpen: ref(false),
     canRunAction: () => true,
     openNewTab: noop, focusAddress: noop, openFind: noop, setZoom: noop, toggleCurrentBookmark: noop,
-    toggleVisitHistory: noop, toggleTabSearch: noop, openPrivacySettings: noop, toggleCommandPalette: noop,
+    toggleVisitHistory: noop, toggleDownloads: noop, toggleTabSearch: noop, openPrivacySettings: noop, toggleCommandPalette: noop,
     toggleElementPicker: noop, toggleDeveloperTools: noop,
     onError: vi.fn()
   })

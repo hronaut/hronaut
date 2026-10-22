@@ -3522,7 +3522,7 @@ export const plPL = {
       "checkUpdatesPlain": "Sprawdź aktualizacje",
       "print": "Drukuj…",
       "viewSource": "Wyświetl źródło strony",
-      "downloads": "Pobrane"
+      "downloads": "Pobrane pliki"
     },
     "tray": {
       "show": "Pokaż Hronaut",

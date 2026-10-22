@@ -121,7 +121,7 @@ describe('browser shortcut controller', () => {
   })
 
   // Ctrl+J, or Cmd+Option+L on macOS, did nothing: the View menu's Downloads now asks for the downloads panel.
-  it('opens or closes the downloads panel, also from Settings, which the panel closes', async () => {
+  it('opens or closes the downloads panel, also while Settings is open', async () => {
     const harness = createController()
     await expect(harness.controller.run('downloads')).resolves.toBe(true)
     harness.settingsOpen.value = true

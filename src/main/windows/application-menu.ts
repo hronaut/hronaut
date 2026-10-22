@@ -148,6 +148,17 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
                 host.mainWindow()?.webContents.send('browser:shortcut-requested', 'pick-element')
               }
             },
+            {
+              label: host.text('native.menu.downloads'),
+              // Chrome's key, which a website may keep, as a web editor does to show its own panel: as the menu's key it
+              // reaches the menu only when the website or field in focus leaves it alone, and never from an agent.
+              // Like a page's browser keys, it takes a page out of full screen, which would cover the panel.
+              accelerator: process.platform === 'darwin' ? 'Cmd+Alt+L' : 'Ctrl+J',
+              click: () => {
+                host.showWindow()
+                host.runShortcut('downloads')
+              }
+            },
             { type: 'separator' },
             {
               label: host.text('native.menu.back'),
@@ -207,16 +218,6 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               click: (_item, window, event) => {
                 if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
                 host.runNativeBrowserAction('print the page', () => host.tabs()?.printShownPage())
-              }
-            },
-            {
-              label: host.text('native.menu.downloads'),
-              // Chrome's key, which a website may keep, as a web editor does to show its own panel: as the menu's key it
-              // reaches the menu only when the website or field in focus leaves it alone, and never from an agent.
-              accelerator: process.platform === 'darwin' ? 'Cmd+Alt+L' : 'Ctrl+J',
-              click: () => {
-                host.showWindow()
-                host.mainWindow()?.webContents.send('browser:shortcut-requested', 'downloads')
               }
             },
             { type: 'separator' },

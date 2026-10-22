@@ -68,19 +68,34 @@ test('Ctrl+J and View → Downloads open and close the downloads panel, as in Ch
     await chooseDownloads()
     await expect(panel).toBeHidden()
 
-    // A key an agent sends stays with the page.
+    // A key an agent sends stays with the page: the menu then opens the panel rather than closing it.
     await keys('window.keys = []')
     const pressed = await client.callTool({ name: 'browser_press', arguments: { tabId, key: 'Control+j' } }) as CallToolResult
     expect(pressed.isError, text(pressed)).not.toBe(true)
     await expect.poll(() => keys()).toContain('j')
-    await appWindow.waitForTimeout(500)
+    await chooseDownloads()
+    await expect(panel).toBeVisible()
+    await chooseDownloads()
     await expect(panel).toBeHidden()
     // A website that handles the key itself keeps it.
     await visit('/keeps')
+    await keys('window.keys = []')
     await press('page')
     await expect.poll(() => keys()).toContain('j')
-    await appWindow.waitForTimeout(500)
+    await chooseDownloads()
+    await expect(panel).toBeVisible()
+    await chooseDownloads()
     await expect(panel).toBeHidden()
+    // Nor does it open behind a Hronaut dialog.
+    await appWindow.keyboard.press('Control+Shift+P')
+    const palette = appWindow.getByRole('dialog', { name: 'Commands' })
+    await expect(palette).toBeVisible()
+    await press('shell')
+    // Closing the palette would close a panel opened behind it, so look while it is open.
+    await appWindow.waitForTimeout(500)
+    await expect(panel).toHaveCount(0)
+    await appWindow.keyboard.press('Escape')
+    await expect(palette).toBeHidden()
   } finally {
     await closeFixtureServer(server)
   }
