@@ -120,6 +120,7 @@ export async function press<Tab extends AgentKeysTab>(access: AgentKeysAccess<Ta
       webContents,
       () => dispatchNativeKeyPress(access.agentInputDebugger(webContents, authority.validate), input, access.agentInputDebugger(webContents))
     ))
-    authority.validate()
+    // No check once the key is up, as after a click: a key that submits a form or follows a link navigates the page,
+    // and that is the press working, not the page changing under it.
   } finally { authority.dispose() }
 }
