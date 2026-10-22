@@ -20,7 +20,7 @@ interface ShellEventsApi {
 export interface AppEventsControllerOptions {
   browserApi: Pick<
     HronautApi,
-    'onUserAttentionRequested' | 'onShortcutRequested' | 'onTabGroupEditRequested'
+    'onUserAttentionRequested' | 'onShortcutRequested' | 'onTabGroupEditRequested' | 'onNewTabRequested'
   >
   permissionsApi: Pick<HronautPermissionsApi, 'onChanged'>
   credentialsApi: Pick<HronautCredentialsApi, 'onChanged'>
@@ -29,6 +29,7 @@ export interface AppEventsControllerOptions {
   onUserAttention: () => unknown
   onShortcut: (action: BrowserShortcutAction) => unknown
   onTabGroupEdit: (groupId: string) => unknown
+  onNewTab: (workspaceId: string | undefined) => unknown
   onPermissionsChanged: (permissions: SitePermissionEntry[]) => unknown
   onCredentialsChanged: (credentials: CredentialSummary[]) => unknown
   onUpdateOpen: () => unknown
@@ -60,6 +61,7 @@ export function useAppEventsController(options: AppEventsControllerOptions) {
     () => options.browserApi.onUserAttentionRequested(active(options.onUserAttention)),
     () => options.browserApi.onShortcutRequested(active(options.onShortcut)),
     () => options.browserApi.onTabGroupEditRequested(active(options.onTabGroupEdit)),
+    () => options.browserApi.onNewTabRequested(active(options.onNewTab)),
     () => options.permissionsApi.onChanged(active(options.onPermissionsChanged)),
     () => options.credentialsApi.onChanged(active(options.onCredentialsChanged)),
     () => options.updatesApi.onOpenRequested(active(options.onUpdateOpen)),

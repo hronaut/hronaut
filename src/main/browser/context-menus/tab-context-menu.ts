@@ -121,7 +121,9 @@ export function showTabContextMenu<Tab extends TabContextMenuTab>(access: TabCon
     {
       id: 'new-tab',
       label: access.text('native.context.newTab'),
-      click: () => runAction('open a new tab', () => access.newTab())
+      // In the workspace of the tab whose menu this is, which the rail can show while another workspace's tab is
+      // active. The window opens it as its + button does, so the cursor goes to the address field.
+      click: () => runAction('open a new tab', () => access.window().webContents.send('browser:new-tab-requested', tab.mcpGroupId))
     },
     {
       id: 'reload-tab',

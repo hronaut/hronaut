@@ -12,6 +12,7 @@ type EventListeners = {
   attention?: () => void
   shortcut?: (action: BrowserShortcutAction) => void
   tabGroupEdit?: (groupId: string) => void
+  newTab?: (workspaceId: string | undefined) => void
   permissions?: (permissions: SitePermissionEntry[]) => void
   credentials?: (credentials: CredentialSummary[]) => void
   updateOpen?: () => void
@@ -22,7 +23,7 @@ type EventListeners = {
 
 function createHarness() {
   const listeners: EventListeners = {}
-  const unsubscribers = Array.from({ length: 9 }, () => vi.fn())
+  const unsubscribers = Array.from({ length: 10 }, () => vi.fn())
   const subscribe = <Key extends keyof EventListeners>(key: Key, index: number) => (
     listener: NonNullable<EventListeners[Key]>
   ) => {
@@ -33,7 +34,8 @@ function createHarness() {
     browserApi: {
       onUserAttentionRequested: vi.fn(subscribe('attention', 0)),
       onShortcutRequested: vi.fn(subscribe('shortcut', 1)),
-      onTabGroupEditRequested: vi.fn(subscribe('tabGroupEdit', 2))
+      onTabGroupEditRequested: vi.fn(subscribe('tabGroupEdit', 2)),
+      onNewTabRequested: vi.fn(subscribe('newTab', 9))
     },
     permissionsApi: { onChanged: vi.fn(subscribe('permissions', 3)) },
     credentialsApi: { onChanged: vi.fn(subscribe('credentials', 4)) },
@@ -48,6 +50,7 @@ function createHarness() {
     onUserAttention: vi.fn(),
     onShortcut: vi.fn(),
     onTabGroupEdit: vi.fn(),
+    onNewTab: vi.fn(),
     onPermissionsChanged: vi.fn(),
     onCredentialsChanged: vi.fn(),
     onUpdateOpen: vi.fn(),
@@ -83,6 +86,8 @@ describe('app events controller', () => {
     harness.listeners.attention?.()
     harness.listeners.shortcut?.('new-tab')
     harness.listeners.tabGroupEdit?.('group-1')
+    harness.listeners.newTab?.('workspace-1')
+    harness.listeners.newTab?.(undefined)
     harness.listeners.permissions?.([permission])
     harness.listeners.credentials?.([credential])
     harness.listeners.updateOpen?.()
@@ -93,6 +98,7 @@ describe('app events controller', () => {
     expect(harness.callbacks.onUserAttention).toHaveBeenCalledOnce()
     expect(harness.callbacks.onShortcut).toHaveBeenCalledWith('new-tab')
     expect(harness.callbacks.onTabGroupEdit).toHaveBeenCalledWith('group-1')
+    expect(harness.callbacks.onNewTab.mock.calls).toEqual([['workspace-1'], [undefined]])
     expect(harness.callbacks.onPermissionsChanged).toHaveBeenCalledWith([permission])
     expect(harness.callbacks.onCredentialsChanged).toHaveBeenCalledWith([credential])
     expect(harness.callbacks.onUpdateOpen).toHaveBeenCalledOnce()
@@ -175,6 +181,7 @@ describe('app events controller', () => {
       onUserAttention: vi.fn(),
       onShortcut: vi.fn(),
       onTabGroupEdit: vi.fn(),
+      onNewTab: vi.fn(),
       onPermissionsChanged: vi.fn(),
       onCredentialsChanged: vi.fn(),
       onUpdateOpen: vi.fn(),
@@ -188,7 +195,8 @@ describe('app events controller', () => {
       browserApi: {
         onUserAttentionRequested: vi.fn(() => firstUnsubscribe),
         onShortcutRequested: vi.fn(() => secondUnsubscribe),
-        onTabGroupEditRequested: vi.fn(() => { throw failure })
+        onTabGroupEditRequested: vi.fn(() => { throw failure }),
+        onNewTabRequested: laterSubscription
       },
       permissionsApi: { onChanged: laterSubscription },
       credentialsApi: { onChanged: laterSubscription },

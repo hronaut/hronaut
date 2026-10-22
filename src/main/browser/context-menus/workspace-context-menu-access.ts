@@ -16,7 +16,7 @@ export interface WorkspaceContextMenuOptions {
 /**
  * What the workspace context menu needs from the tab manager, which keeps the
  * tabs, the window, its options, localized text, the human interaction lock,
- * tab creation, workspace pinning, sleeping and archiving private. Each menu
+ * workspace pinning, sleeping and archiving private. Each menu
  * action reads the manager when it runs, not when the menu opens.
  */
 export interface WorkspaceContextMenuAccess<Tab extends WorkspaceContextMenuTab> {
@@ -32,8 +32,6 @@ export interface WorkspaceContextMenuAccess<Tab extends WorkspaceContextMenuTab>
   allHumanInteractionLocked(): boolean
   /** Why the tab cannot be put to sleep now, or undefined when it can. */
   sleepBlockReason(tab: Tab): string | undefined
-  /** Opens a tab. */
-  createTab(options: { url: string; active: boolean; mcpGroupId?: string }): Promise<Tab>
   /** Pins the workspace to the top of the tab rail, or unpins it. */
   setWorkspacePinned(groupId: string, pinned: boolean): BrowserState
   /** Puts the workspace's eligible tabs to sleep. */

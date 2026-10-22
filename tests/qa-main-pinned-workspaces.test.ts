@@ -15,6 +15,7 @@ interface Internals {
   tabs: Map<string, Tab>
   activeTabId: string | null
   changed: ReturnType<typeof vi.fn>
+  window: { webContents: { send: ReturnType<typeof vi.fn> } }
   orderedTabs(): Tab[]
   closeTabTransition(tab: Tab): { splitPartnerId: string | null; nextId: string | undefined }
   workspaceContextMenuItems(group: Group): MenuItemConstructorOptions[]
@@ -182,5 +183,16 @@ describe('the workspace menu\'s pin item', () => {
     expect(alpha.pinnedAt).toEqual(expect.any(String))
     click(pinItem(internals.workspaceContextMenuItems(alpha)))
     expect(alpha.pinnedAt).toBeUndefined()
+  })
+})
+
+describe('the workspace menu\'s new tab item', () => {
+  // New Tab in Workspace opened the tab itself, so the cursor stayed out of the address field; the window now opens it
+  // as its + button does.
+  it('asks the window for a new tab in the workspace with New Tab in Workspace', () => {
+    const { internals } = fixture([group('alpha')])
+    const item = internals.workspaceContextMenuItems(internals.mcpTabGroups.get('alpha')!).find((candidate) => candidate.id === 'new-tab-in-workspace')!
+    ;(item.click as () => void)()
+    expect(internals.window.webContents.send).toHaveBeenCalledExactlyOnceWith('browser:new-tab-requested', 'alpha')
   })
 })

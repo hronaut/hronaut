@@ -65,8 +65,6 @@ export interface TabContextMenuAccess<Tab extends TabContextMenuTab> {
   updateSplitView(updates: { orientation?: BrowserSplitOrientation; ratio?: number; swap?: boolean }): BrowserState
   /** Closes the split view. */
   closeSplitView(): BrowserState
-  /** Opens a new tab. */
-  newTab(): Promise<BrowserState>
   /** Reloads the tab's page. */
   reload(tabId: string): Promise<BrowserState>
   /** Reloads the tab's page without the cache. */

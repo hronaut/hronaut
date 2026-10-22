@@ -4,8 +4,10 @@ import type { WorkspaceContextMenuAccess, WorkspaceContextMenuTab } from './work
 
 /**
  * The workspace's context menu items: a new tab in it, importing browser
- * cookies, editing, pinning, sleeping its tabs and archiving it. A failed
- * action is logged and reported to the manager's onActionFailed option.
+ * cookies, editing, pinning, sleeping its tabs and archiving it. New tab asks
+ * the window to open the tab, and the window reports its own failures; any
+ * other failed action is logged and reported to the manager's onActionFailed
+ * option.
  */
 export function workspaceContextMenuItems<Tab extends WorkspaceContextMenuTab>(access: WorkspaceContextMenuAccess<Tab>, group: ActiveWorkspace): MenuItemConstructorOptions[] {
   const reportError = (action: string) => (error: unknown): void => {
@@ -25,9 +27,8 @@ export function workspaceContextMenuItems<Tab extends WorkspaceContextMenuTab>(a
     {
       id: 'new-tab-in-workspace',
       label: access.text('native.context.newTabWorkspace'),
-      click: () => runAction('open a new tab in the workspace', () => (
-        access.createTab({ url: 'about:blank', active: true, mcpGroupId: group.id })
-      ))
+      // The window opens it as its + button does, so the cursor goes to the address field.
+      click: () => runAction('open a new tab in the workspace', () => access.window().webContents.send('browser:new-tab-requested', group.id))
     },
     { type: 'separator' },
     {
