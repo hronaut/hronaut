@@ -593,6 +593,7 @@ const { installApplicationMenu } = createApplicationMenu({
   checkForUpdates,
   requestQuit,
   runNativeBrowserAction,
+  runShortcut: (action) => runPageShortcut(action),
   tabs: () => tabRuntime.tabs
 })
 

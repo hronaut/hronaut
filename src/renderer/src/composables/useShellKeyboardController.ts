@@ -1,6 +1,8 @@
 import {
   browserShortcutAction,
-  type BrowserShortcutAction
+  websiteKeptShortcutAction,
+  type BrowserShortcutAction,
+  type BrowserShortcutInput
 } from '../../../shared/browser-shortcuts.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 
@@ -47,7 +49,7 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
 
   function handleKeyDown(event: KeyboardEvent): void {
     const composing = isImeCompositionEvent(event)
-    const shortcut = browserShortcutAction({
+    const input: BrowserShortcutInput = {
       key: event.key,
       code: event.code,
       control: event.ctrlKey,
@@ -57,7 +59,9 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
       repeat: event.repeat,
       composing,
       mac: window.hronautShell?.windowChrome.platform === 'darwin'
-    })
+    }
+    // Hronaut's own window has no website to keep F5 or Alt+D.
+    const shortcut = browserShortcutAction(input) ?? websiteKeptShortcutAction(input)
     guardInteraction(event)
     if (event.defaultPrevented || composing) return
     // A held Escape repeats. Only its first press closes anything, so holding it after closing one surface, such as

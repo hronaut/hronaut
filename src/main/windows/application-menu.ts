@@ -1,5 +1,6 @@
-import { Menu, type BaseWindow, type BrowserWindow, type KeyboardEvent } from 'electron'
+import { Menu, type BaseWindow, type BrowserWindow, type KeyboardEvent, type MenuItemConstructorOptions } from 'electron'
 import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { AppUpdateState, HelpMenuAction } from '../../shared/types.js'
 
@@ -14,6 +15,8 @@ interface ApplicationMenuHost {
   requestQuit(): void
   /** Runs a browser action from native UI and reports its failure to the shell; skipped until saved workspaces are up. */
   runNativeBrowserAction(action: string, callback: () => unknown): void
+  /** Runs a browser shortcut as a key the page in focus left alone does, in the shell or on its tab. */
+  runShortcut(action: BrowserShortcutAction): void
   tabs(): Pick<BrowserTabsManager, 'newTab' | 'back' | 'forward' | 'historyGesture' | 'reload' | 'reloadIgnoringCache' | 'toggleDevTools' | 'setZoom'> | null
 }
 
@@ -43,6 +46,27 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
     } else if (window !== undefined && window.id === host.mainWindow()?.id) {
       host.runNativeBrowserAction(`go ${direction}`, () => host.tabs()?.historyGesture(direction))
     }
+  }
+
+  // Chrome's keys a website may keep (websiteKeptShortcutAction). As keys of the menu they reach it only when the
+  // website or field in focus leaves them alone, and never from an agent; typed in a panel in its own window, they
+  // would act on a page out of view. Hidden, because Reload and the address bar already show their main keys.
+  function websiteKeptKeys(): MenuItemConstructorOptions[] {
+    if (process.platform === 'darwin') return []
+    const item = (label: string, accelerator: string, action: BrowserShortcutAction): MenuItemConstructorOptions => ({
+      label,
+      accelerator,
+      visible: false,
+      click: (_item, window, event) => {
+        if (event.triggeredByAccelerator && window !== undefined && window.id === host.mainWindow()?.id) host.runShortcut(action)
+      }
+    })
+    return [
+      item(host.text('native.menu.reload'), 'F5', 'reload'),
+      item(host.text('native.menu.reloadWithoutCache'), 'Shift+F5', 'reload-ignoring-cache'),
+      item(host.text('native.menu.reloadWithoutCache'), 'Ctrl+F5', 'reload-ignoring-cache'),
+      item(host.text('runtime.shortcuts.address'), 'Alt+D', 'focus-address')
+    ]
   }
 
   function installApplicationMenu(): void {
@@ -122,6 +146,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               accelerator: 'CmdOrCtrl+Shift+R',
               click: () => host.runNativeBrowserAction('reload without cache', () => host.tabs()?.reloadIgnoringCache())
             },
+            ...websiteKeptKeys(),
             {
               label: host.text('native.menu.developerTools'),
               click: () => host.runNativeBrowserAction('toggle Developer Tools', () => host.tabs()?.toggleDevTools())
