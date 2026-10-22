@@ -3,7 +3,7 @@
 export const settingsSectionMessages = {
   'en-US': {
     keywords: {
-      appearance: 'language interface size scale zoom tab position left top title bar tray close startup sign in login launch minimized attention sound cursor live status strip',
+      appearance: 'language interface size scale zoom tab position left top title bar tray close startup sign in login launch minimized attention sound cursor live status strip dark light mode system cyberpunk agent agents',
       search: 'address bar google duckduckgo bing brave startpage',
       downloads: 'folder location save ask file',
       performance: 'memory saver sleep cpu inactive tabs',
@@ -19,7 +19,7 @@ export const settingsSectionMessages = {
   },
   'de-DE': {
     keywords: {
-      appearance: 'sprache oberfläche größe skalierung zoom tab position links oben titelleiste tray infobereich schließen start anmelden starten minimiert aufmerksamkeit ton cursor live status leiste',
+      appearance: 'sprache oberfläche größe skalierung zoom tab position links oben titelleiste tray infobereich schließen start anmelden starten minimiert aufmerksamkeit ton cursor live status leiste dunkel hell modus system cyberpunk agent agenten',
       search: 'suchmaschine adressleiste google duckduckgo bing brave startpage',
       downloads: 'ordner speicherort speichern fragen datei',
       performance: 'speicher sparmodus ruhezustand cpu inaktive tabs',
@@ -35,7 +35,7 @@ export const settingsSectionMessages = {
   },
   'fr-FR': {
     keywords: {
-      appearance: 'langue interface taille échelle zoom onglets position gauche haut barre de titre zone de notification fermer démarrage connexion lancer réduit attention son curseur statut en direct bandeau',
+      appearance: 'langue interface taille échelle zoom onglets position gauche haut barre de titre zone de notification fermer démarrage connexion lancer réduit attention son curseur statut en direct bandeau sombre clair mode système cyberpunk agent agents',
       search: 'moteur de recherche barre d’adresse google duckduckgo bing brave startpage',
       downloads: 'dossier emplacement enregistrer demander fichier téléchargements',
       performance: 'mémoire économiseur veille cpu onglets inactifs',
@@ -51,7 +51,7 @@ export const settingsSectionMessages = {
   },
   'es-ES': {
     keywords: {
-      appearance: 'idioma interfaz tamaño escala zoom pestañas posición izquierda arriba barra de título bandeja cerrar inicio iniciar sesión abrir minimizado atención sonido cursor estado en vivo franja',
+      appearance: 'idioma interfaz tamaño escala zoom pestañas posición izquierda arriba barra de título bandeja cerrar inicio iniciar sesión abrir minimizado atención sonido cursor estado en vivo franja oscuro claro modo sistema cyberpunk agente agentes',
       search: 'motor de búsqueda barra de direcciones google duckduckgo bing brave startpage',
       downloads: 'carpeta ubicación guardar preguntar archivo descargas',
       performance: 'memoria ahorro suspender cpu pestañas inactivas',
@@ -67,7 +67,7 @@ export const settingsSectionMessages = {
   },
   'pl-PL': {
     keywords: {
-      appearance: 'język interfejs rozmiar skala powiększenie karty położenie lewo góra pasek tytułu zasobnik zamykanie uruchamianie logowanie start zminimalizowane uwaga dźwięk kursor status na żywo pasek',
+      appearance: 'język interfejs rozmiar skala powiększenie karty położenie lewo góra pasek tytułu zasobnik zamykanie uruchamianie logowanie start zminimalizowane uwaga dźwięk kursor status na żywo pasek ciemny jasny tryb systemowy cyberpunk agent agenci',
       search: 'wyszukiwarka pasek adresu google duckduckgo bing brave startpage',
       downloads: 'folder lokalizacja zapisywanie pytaj plik pobrane',
       performance: 'pamięć oszczędzanie uśpienie cpu nieaktywne karty',
@@ -83,7 +83,7 @@ export const settingsSectionMessages = {
   },
   'ru-RU': {
     keywords: {
-      appearance: 'язык интерфейс размер масштаб вкладки положение слева сверху заголовок трей закрытие запуск вход автозапуск свёрнуто свернуто внимание звук курсор статус полоса',
+      appearance: 'язык интерфейс размер масштаб вкладки положение слева сверху заголовок трей закрытие запуск вход автозапуск свёрнуто свернуто внимание звук курсор статус полоса тёмная светлая режим системная cyberpunk агент агенты',
       search: 'поисковая система адресная строка google duckduckgo bing brave startpage',
       downloads: 'папка расположение сохранять спрашивать файл загрузки',
       performance: 'память экономия сон спящие cpu неактивные вкладки',
@@ -93,13 +93,13 @@ export const settingsSectionMessages = {
       credentials: 'пароль пароли логин вход учётные данные',
       wallets: 'крипто evm solana tron хранилище парольная фраза кошельки',
       updates: 'версия проверить что нового обновление',
-      support: 'лицензия ключ активировать подписка пробный период купить creem'
+      support: 'лицензия лицензионный ключ активировать подписка пробный период купить creem'
     },
     appearanceGroups: { window: 'Окно', startup: 'Запуск и трей', agents: 'Работа агентов' }
   },
   'uk-UA': {
     keywords: {
-      appearance: 'мова інтерфейс розмір масштаб вкладки положення ліворуч згори заголовок трей закриття запуск вхід автозапуск згорнуто увага звук курсор статус смуга',
+      appearance: 'мова інтерфейс розмір масштаб вкладки положення ліворуч згори заголовок трей закриття запуск вхід автозапуск згорнуто увага звук курсор статус смуга темна світла режим системна cyberpunk агент агенти',
       search: 'пошукова система адресний рядок google duckduckgo bing brave startpage',
       downloads: 'тека папка розташування зберігати питати файл завантаження',
       performance: 'пам’ять економія сон сплячі cpu неактивні вкладки',
@@ -109,7 +109,7 @@ export const settingsSectionMessages = {
       credentials: 'пароль паролі логін вхід облікові дані',
       wallets: 'крипто evm solana tron сховище парольна фраза гаманці',
       updates: 'версія перевірити що нового оновлення',
-      support: 'ліцензія ключ активувати підписка пробний період купити creem'
+      support: 'ліцензія ліцензійний ключ активувати підписка пробний період купити creem'
     },
     appearanceGroups: { window: 'Вікно', startup: 'Запуск і трей', agents: 'Робота агентів' }
   }
