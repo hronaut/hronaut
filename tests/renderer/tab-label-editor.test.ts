@@ -132,4 +132,23 @@ describe('tab label editor', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Edit label for Saved role' })).toHaveFocus()
   })
+  it('lets Escape on Edit label reach the window, which closes Search tabs, and keeps typed keys in the editor', async () => {
+    const { user } = setup()
+    const reached: string[] = []
+    const listener = (event: KeyboardEvent): void => { reached.push(event.key) }
+    window.addEventListener('keydown', listener)
+    try {
+      screen.getByRole('button', { name: 'Edit label for Saved role' }).focus()
+      await user.keyboard('{Escape}')
+      expect(reached).toEqual(['Escape'])
+      await user.click(screen.getByRole('button', { name: 'Edit label for Saved role' }))
+      await user.keyboard('ab{Escape}')
+      expect(reached).toEqual(['Escape'])
+      expect(screen.getByRole('button', { name: 'Edit label for Saved role' })).toHaveFocus()
+      await user.keyboard('{Escape}')
+      expect(reached).toEqual(['Escape', 'Escape'])
+    } finally {
+      window.removeEventListener('keydown', listener)
+    }
+  })
 })
