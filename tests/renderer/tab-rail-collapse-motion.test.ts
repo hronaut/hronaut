@@ -1,6 +1,6 @@
 import { effectScope, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useTabRailCollapseMotion } from '../../src/renderer/src/composables/useTabRailCollapseMotion.js'
+import { COLLAPSE_DURATION, useTabRailCollapseMotion } from '../../src/renderer/src/composables/useTabRailCollapseMotion.js'
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
@@ -32,15 +32,20 @@ function harness() {
 }
 
 describe('workspace rail collapse motion', () => {
-  it('shrinks continuously and finishes at the compact width after140ms', () => {
+  // The rail shut in 140ms, starting at full speed, so collapsing read as a snap rather than a slide.
+  it('eases out over the collapse duration and finishes at the compact width', () => {
+    expect(COLLAPSE_DURATION).toBeGreaterThanOrEqual(250)
     const h = harness()
     h.collapsed.value = true
     expect(h.motion.collapsing.value).toBe(true)
     expect(h.motion.width.value).toBe(320)
-    h.tick(70)
-    expect(h.motion.width.value).toBeGreaterThan(56)
+    h.tick(COLLAPSE_DURATION / 10)
+    // A gentle start: after a tenth of the time, the rail has moved less than a tenth of the way.
+    expect(h.motion.width.value).toBeGreaterThan(320 - (320 - 56) / 10)
     expect(h.motion.width.value).toBeLessThan(320)
-    h.tick(70)
+    h.tick(COLLAPSE_DURATION * 4 / 10)
+    expect(h.motion.width.value).toBeCloseTo((320 + 56) / 2, 0)
+    h.tick(COLLAPSE_DURATION / 2)
     expect(h.motion.width.value).toBe(56)
     expect(h.motion.collapsing.value).toBe(false)
     expect(h.frames.size).toBe(0)
@@ -59,9 +64,9 @@ describe('workspace rail collapse motion', () => {
       expect(h.motion.width.value).toBe(320)
       h.tick(10, 0)
       widths.push(h.motion.width.value)
-      h.tick(60, 70)
+      h.tick(60, COLLAPSE_DURATION / 2)
       widths.push(h.motion.width.value)
-      h.tick(70, 140)
+      h.tick(70, COLLAPSE_DURATION)
       widths.push(h.motion.width.value)
       expect(widths.every((width, index) => width >= 56 && width <= (widths[index - 1] ?? 320))).toBe(true)
       expect(h.motion.width.value).toBe(56)
@@ -78,7 +83,7 @@ describe('workspace rail collapse motion', () => {
     expect(h.motion.collapsing.value).toBe(false)
     expect(h.frames.size).toBe(0)
     h.collapsed.value = true
-    h.tick(140)
+    h.tick(COLLAPSE_DURATION)
     expect(h.motion.width.value).toBe(56)
     h.collapsed.value = false
     h.expandedWidth.value = 400
