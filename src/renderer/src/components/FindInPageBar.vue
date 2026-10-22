@@ -143,10 +143,12 @@ watch(open, (isOpen) => {
   else if (!isOpen && targetTabId) void cleanup()
 }, { immediate: true })
 
+// Another tab, another page or a reload ends the search, including one opened while the next page was still loading. A
+// change within the page keeps it, as in Chrome, such as a documentation site moving its address to the section in
+// view while the person steps through matches.
 watch([
   () => props.activeTab?.id,
-  () => props.activeTab?.url,
-  () => props.activeTab?.navigationGeneration
+  () => props.activeTab?.documentGeneration
 ], () => {
   if (open.value && targetTabId) void close()
 }, { flush: 'sync' })

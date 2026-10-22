@@ -31,6 +31,7 @@ export interface BrowserStateTab {
   url: string
   loading: boolean
   navigationGeneration: number
+  documentGeneration: number
   observationGeneration: number
   humanInteractionGeneration: number
   browserSessionGeneration: number

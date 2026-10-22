@@ -27,6 +27,7 @@ export interface NavigationEventsTab extends BrowserNetworkRecordingState {
   navigationPolicyDenialSequence: number
   navigationGeneration: number
   walletNavigationGeneration: number
+  documentGeneration: number
   pageLifecycleState: BrowserPageLifecycleState
   pageLifecycleUnknownRequest?: Exclude<BrowserPageLifecycleState, 'unknown'>
   pageLifecycleAnimations?: unknown

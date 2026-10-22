@@ -646,6 +646,12 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
    * its pending wallet requests and network.
    */
   walletNavigationGeneration: number
+  /**
+   * Advanced when the tab starts loading another document, again when that
+   * document commits or a failed load shows its error page, and never for a
+   * change within the page. Find in page ends its search on it.
+   */
+  documentGeneration: number
   performanceDocumentRouted?: boolean
   humanInteractionGeneration: number
   nativeInputEnvironmentGeneration: number
@@ -5234,6 +5240,7 @@ export class BrowserTabsManager {
       loading: true,
       navigationGeneration: options.navigationGeneration ?? 0,
       walletNavigationGeneration: options.navigationGeneration ?? 0,
+      documentGeneration: 0,
       observationGeneration: options.mcpGroupId
         ? this.workspaceObservationGeneration(options.mcpGroupId)
         : 0,
