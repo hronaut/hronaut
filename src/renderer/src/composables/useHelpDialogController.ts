@@ -23,6 +23,8 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
   const tabKey = mac ? 'Cmd' : 'Ctrl'
   const shortcuts = computed<KeyboardShortcut[]>(() => [
     { label: options.translate('runtime.shortcuts.address'), keys: ['Ctrl/Cmd', 'L'] },
+    { label: options.translate('runtime.shortcuts.back'), keys: mac ? ['Cmd', '['] : ['Alt', '←'] },
+    { label: options.translate('runtime.shortcuts.forward'), keys: mac ? ['Cmd', ']'] : ['Alt', '→'] },
     { label: options.translate('runtime.shortcuts.reload'), keys: ['Ctrl/Cmd', 'R'] },
     { label: options.translate('runtime.shortcuts.reloadFresh'), keys: ['Ctrl/Cmd', 'Shift', 'R'] },
     { label: options.translate('runtime.shortcuts.newTab'), keys: ['Ctrl/Cmd', 'T'] },

@@ -2852,6 +2852,8 @@ test('puts Help in the native application menu and opens shell dialogs above eve
     'Command Palette…',
     'Pick Element for Agent',
     'separator',
+    'Back',
+    'Forward',
     'Reload Tab',
     'Reload Tab Without Cache',
     'Developer Tools',
@@ -2884,6 +2886,7 @@ test('puts Help in the native application menu and opens shell dialogs above eve
   const shortcutsDialog = appWindow.getByRole('dialog', { name: 'Keyboard shortcuts' })
   await expect(shortcutsDialog).toBeVisible()
   await expect(shortcutsDialog).toContainText('Focus the address bar')
+  await expect(shortcutsDialog).toContainText('Go back to the previous page')
   await expect(shortcutsDialog).toContainText('Reload without cached files')
   await expect(shortcutsDialog).toContainText('Clear browsing data')
   await expect(shortcutsDialog).toContainText('Pick an element for agent context')

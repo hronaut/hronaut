@@ -427,6 +427,8 @@ import { back, forward, navigate, reload, reloadIgnoringCache, stop } from './pa
 import type { PageZoomAccess } from './page-zoom/page-zoom-access.js'
 import { setZoom } from './page-zoom/page-zoom.js'
 import type { PageWheelZoomAccess } from './page-zoom/page-wheel-zoom-access.js'
+import { historyGesture } from './history-gesture/history-gesture.js'
+import type { HistoryGestureAccess } from './history-gesture/history-gesture-access.js'
 import { attachPageWheelZoom } from './page-zoom/page-wheel-zoom.js'
 import {
   normalizeWorkspaceNavigationPolicy,
@@ -3250,6 +3252,28 @@ export class BrowserTabsManager {
 
   forward(tabId?: string): Promise<BrowserState> {
     return forward(this.pageNavigationAccess(), tabId)
+  }
+
+  /** Goes back or forward in the shown tab for the person's Back or Forward key or mouse button, unless its page keeps its input. */
+  historyGesture(direction: 'back' | 'forward'): Promise<void> {
+    return historyGesture(this.historyGestureAccess(), direction)
+  }
+
+  /**
+   * The narrow view going back or forward for the person's key or mouse button gets of this manager's shown tab,
+   * trusted chrome occlusion, human input lock, in-flight agent input, native selection sessions and history
+   * navigation. It is a prototype method rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it. Each member reads the manager when called.
+   */
+  private historyGestureAccess(): HistoryGestureAccess<BrowserTab> {
+    return {
+      shownTab: () => this.activeTabId ? this.tabs.get(this.activeTabId) : undefined,
+      browserContentOccluded: () => this.browserContentOccluded,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      agentInputWebContents: () => this.agentInputWebContents,
+      nativeSelectionUnderWay: (webContentsId) => this.screenshotAreaSessions.has(webContentsId) || this.elementPickerSessions.has(webContentsId),
+      go: (tabId, direction) => direction === 'back' ? this.back(tabId) : this.forward(tabId)
+    }
   }
 
   reload(tabId?: string): Promise<BrowserState> {
