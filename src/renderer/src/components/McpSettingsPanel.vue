@@ -49,7 +49,8 @@ const {
   rotateCapabilityProfile,
   revokeCapabilityProfile,
   copyCapabilityCredential,
-  clearCapabilityCredential
+  clearCapabilityCredential,
+  clearCapabilityError
 } = props.controller
 
 const portInput = ref<HTMLInputElement | null>(null)
@@ -101,9 +102,16 @@ function argumentConstraints(value: string): Record<string, unknown[]> | undefin
 const profileFormOpen = ref(false)
 const profileForm = ref<HTMLFormElement | null>(null)
 const capabilitySection = ref<HTMLElement | null>(null)
+/** The error a failed Create showed, which closing the form takes away with it. */
+let profileFormError = ''
 
 function formHasFocus(): boolean {
   return !!profileForm.value?.contains(document.activeElement)
+}
+
+/** Whether the focus went nowhere, as when the control that had it was disabled or removed. */
+function focusLost(): boolean {
+  return !document.activeElement || document.activeElement === document.body
 }
 
 async function openProfileForm(): Promise<void> {
@@ -113,11 +121,13 @@ async function openProfileForm(): Promise<void> {
 }
 
 /**
- * Closes the form and empties it. When the form had the focus and nothing else took it meanwhile, the focus goes to
- * the new credential once one is shown, or else back to New capability profile, which ignores a held Enter so the key
- * that closed the form does not open it again.
+ * Closes the form and empties it, along with the error its last Create showed. When the form had the focus and
+ * nothing else took it meanwhile, the focus goes to the credential the form just created, or else back to New
+ * capability profile, which ignores a held Enter so the key that closed the form does not open it again.
  */
-async function closeProfileForm(hadFocus = formHasFocus()): Promise<void> {
+async function closeProfileForm(hadFocus = formHasFocus(), focusTarget: 'credential' | 'new' = 'new'): Promise<void> {
+  if (profileFormError) clearCapabilityError(profileFormError)
+  profileFormError = ''
   profileFormOpen.value = false
   profileName.value = ''
   profilePreset.value = 'read-only'
@@ -128,16 +138,17 @@ async function closeProfileForm(hadFocus = formHasFocus()): Promise<void> {
   profileExpiry.value = '1440'
   profileSingleUse.value = false
   await nextTick()
-  if (!hadFocus || (document.activeElement && document.activeElement !== document.body)) return
-  capabilitySection.value?.querySelector<HTMLElement>('.mcp-capability-secret, .mcp-capability-new')?.focus()
+  if (!hadFocus || !focusLost()) return
+  capabilitySection.value?.querySelector<HTMLElement>(focusTarget === 'credential' ? '.mcp-capability-secret' : '.mcp-capability-new')?.focus()
 }
 
 async function submitCapabilityProfile(): Promise<void> {
   // Saving disables the form, which takes the focus away from it, so whether it had the focus is read first.
   const hadFocus = formHasFocus()
+  const credentialBefore = capabilityCredential.value
   const expiresInMinutes = profileExpiry.value ? Number(profileExpiry.value) : undefined
   const constraints = argumentConstraints(profileArguments.value)
-  if (await createCapabilityProfile({
+  const created = await createCapabilityProfile({
     name: profileName.value,
     preset: profilePreset.value,
     ...(profileParentId.value ? { parentProfileId: profileParentId.value } : {}),
@@ -146,7 +157,26 @@ async function submitCapabilityProfile(): Promise<void> {
     ...(constraints ? { argumentConstraints: constraints } : {}),
     expiresInMinutes,
     singleUse: profileSingleUse.value
-  })) await closeProfileForm(hadFocus)
+  })
+  if (created) {
+    // A credential shown before this Create, as after a Rotate, is not the one to focus.
+    const credentialShown = !!capabilityCredential.value && capabilityCredential.value !== credentialBefore
+    await closeProfileForm(hadFocus, credentialShown ? 'credential' : 'new')
+    return
+  }
+  profileFormError = capabilityError.value
+  await nextTick()
+  // The form stays open to be corrected, with the focus back in it instead of on the page.
+  if (hadFocus && focusLost()) profileForm.value?.querySelector<HTMLInputElement>('input')?.focus()
+}
+
+/** Dismisses the credential; the focus that was on it moves to New capability profile, or into the open form. */
+async function dismissCredential(): Promise<void> {
+  const hadFocus = !!capabilitySection.value?.querySelector('.mcp-capability-secret')?.contains(document.activeElement)
+  clearCapabilityCredential()
+  await nextTick()
+  if (!hadFocus || !focusLost()) return
+  capabilitySection.value?.querySelector<HTMLElement>('.mcp-capability-new, .mcp-capability-form input')?.focus()
 }
 
 async function revokeProfile(id: string, name: string): Promise<void> {
@@ -312,13 +342,13 @@ function handlePortKeydown(event: KeyboardEvent): void {
         <h3>{{ t('settings.mcp.capabilities.heading') }}</h3>
         <p>{{ t('settings.mcp.capabilities.description') }}</p>
       </div>
-      <div v-if="capabilityCredential" class="mcp-capability-secret" role="status" tabindex="-1" aria-atomic="false">
-        <strong>{{ t('settings.mcp.capabilities.credentialHeading') }}</strong>
+      <div v-if="capabilityCredential" class="mcp-capability-secret" role="status" tabindex="-1" aria-atomic="false" aria-labelledby="mcp-capability-credential-heading">
+        <strong id="mcp-capability-credential-heading">{{ t('settings.mcp.capabilities.credentialHeading') }}</strong>
         <p>{{ t('settings.mcp.capabilities.credentialWarning') }}</p>
         <code>{{ capabilityCredential }}</code>
         <div>
           <UiButton type="button" @click="copyCapabilityCredential">{{ capabilityCopied ? t('settings.mcp.capabilities.copied') : t('settings.mcp.capabilities.copy') }}</UiButton>
-          <UiButton type="button" @click="clearCapabilityCredential">{{ t('settings.mcp.capabilities.dismiss') }}</UiButton>
+          <UiButton type="button" @click="dismissCredential">{{ t('settings.mcp.capabilities.dismiss') }}</UiButton>
         </div>
       </div>
       <div v-if="capabilityProfiles.length" class="mcp-capability-list">
@@ -351,7 +381,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
       <form v-if="profileFormOpen" ref="profileForm" class="mcp-capability-form" :aria-label="t('settings.mcp.capabilities.newProfile')" @submit.prevent="submitCapabilityProfile">
         <label>
           <strong>{{ t('settings.mcp.capabilities.name') }}</strong>
-          <input v-model="profileName" required maxlength="80" :disabled="capabilityBusy">
+          <input v-model="profileName" required maxlength="80" :disabled="capabilityBusy" @keydown="ignoreHeldEnter">
         </label>
         <label>
           <strong>{{ t('settings.mcp.capabilities.preset') }}</strong>
