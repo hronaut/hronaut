@@ -75,7 +75,7 @@ describe('a failed address bar load', () => {
     const tab = {
       id: 'tab',
       navigationPolicyDenialSequence: 0,
-      webContents: { on: () => undefined, removeListener: () => undefined, loadURL: () => Promise.reject(failure) }
+      webContents: { on: () => undefined, once: () => undefined, removeListener: () => undefined, loadURL: () => Promise.reject(failure) }
     }
     return {
       getTab: () => tab,

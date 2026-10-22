@@ -851,6 +851,8 @@ export interface TabsManagerOptions {
   /** True while a page in the tab still waits on a wallet request, so the tab must not sleep. */
   walletKeepsTabAwake?: (tabId: string) => boolean
   confirmBeforeUnloadClose?: () => Promise<boolean>
+  /** Asks the person whether to leave a page that asked to confirm before it is left, for a load they started. */
+  confirmBeforeUnloadLeave?: () => Promise<boolean>
   /**
    * Prepares a browser session before a page uses it. A tab's session also names the workspace the tab belongs to,
    * whose site permission decisions its pages get; Home's names none.
@@ -3242,12 +3244,21 @@ export class BrowserTabsManager {
       wakeTab: (tabId) => this.wakeTab(tabId),
       waitForPage: (tabId, timeoutMs) => this.waitForPage(tabId, timeoutMs),
       changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
+      getState: () => this.getState(),
+      confirmLeavePage: async () => {
+        try {
+          return await (this.options.confirmBeforeUnloadLeave?.() ?? Promise.resolve(false))
+        } catch (error) {
+          console.error('[browser] Could not ask before leaving a page with unsaved changes:', error)
+          this.options.onActionFailed?.('confirm leaving a page', error)
+          return false
+        }
+      }
     }
   }
 
-  navigate(url: string, tabId?: string): Promise<BrowserState> {
-    return navigate(this.pageNavigationAccess(), url, tabId)
+  navigate(url: string, tabId?: string, options?: { byPerson?: boolean }): Promise<BrowserState> {
+    return navigate(this.pageNavigationAccess(), url, tabId, options)
   }
 
   back(tabId?: string): Promise<BrowserState> {
