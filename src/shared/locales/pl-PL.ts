@@ -3,6 +3,7 @@ import { networkLabelMessages } from './network-labels.js'
 import { reproStepMessages } from './repro-steps.js'
 import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
+import { settingsSectionMessages } from './settings-sections.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
 import { qualityAuditTextMessages } from './quality-audit-text.js'
 import { networkAbortReasonMessages } from './network-abort-reasons.js'
@@ -34,6 +35,7 @@ export const plPL = {
   reproSteps: reproStepMessages['pl-PL'],
   viewportPresets: viewportPresetMessages['pl-PL'],
   searchEngines: searchEngineMessages['pl-PL'],
+  settingsSections: settingsSectionMessages['pl-PL'],
   browserIssueTitles: browserIssueTitleMessages['pl-PL'],
   qualityAuditText: qualityAuditTextMessages['pl-PL'],
   networkAbortReasons: networkAbortReasonMessages['pl-PL'],
@@ -401,7 +403,7 @@ export const plPL = {
       "description": "Kontroluj, które aplikacje mogą łączyć się z tym profilem.",
       "require": "Wymagaj uwierzytelniania MCP",
       "requireDescription": "Wymagaj prywatnego tokenu bearer profilu dla MCP i zapytań o stan.",
-      challengeDetection: "Wykrywaj widoczne wyzwania", challengeDetectionDescription: "Domyślnie wyłączone. Ocena jakości obserwacji może wykrywać widoczne CAPTCHA i weryfikację człowieka. Pozostałe kontrole jakości i uprawnień pozostają aktywne. Nie rozwiązuje ani nie omija wyzwań.", omitUrlDetail: "Ukrywaj szczegóły adresów URL przed agentami", omitUrlDetailDescription: "Domyślnie wyłączone. Agenci widzą adresy kart i migawek tylko jako witrynę i ścieżkę, bez danych logowania i części po ? lub #. Ścieżki, tekst strony, zrzuty ekranu i inne narzędzia nadal mogą pokazywać prywatne dane.", "toolSet": "Zestaw narzędzi MCP",
+      challengeDetection: "Wykrywaj widoczne wyzwania", challengeDetectionDescription: "Ocena jakości obserwacji może wykrywać widoczne CAPTCHA i weryfikację człowieka. Pozostałe kontrole jakości i uprawnień pozostają aktywne. Nie rozwiązuje ani nie omija wyzwań.", omitUrlDetail: "Ukrywaj szczegóły adresów URL przed agentami", omitUrlDetailDescription: "Agenci widzą adresy kart i migawek tylko jako witrynę i ścieżkę, bez danych logowania i części po ? lub #. Ścieżki, tekst strony, zrzuty ekranu i inne narzędzia nadal mogą pokazywać prywatne dane.", "toolSet": "Zestaw narzędzi MCP",
       "toolSetDescription": "Wybierz katalog dopasowany do zadania dla nowych połączeń MCP.",
       "toolSetEssentials": "Podstawy przeglądarki",
       "toolSetQa": "QA stron",
@@ -475,7 +477,7 @@ export const plPL = {
       "cache": "Pliki w pamięci podręcznej",
       "slower": "Ponowne ładowanie może być wolniejsze",
       "clearingAll": "Czyszczenie wszystkiego…",
-      clearAll: "Wyczyść historię… ({count})",
+      clearAll: "Wyczyść historię…",
       "totals": "{history} strona historii | {history} strony historii | {history} stron historii",
       "totalsDetail": "{history} · {cookies} · pamięć podręczna {cache}",
       loadingTotals: "Ładowanie historii…",

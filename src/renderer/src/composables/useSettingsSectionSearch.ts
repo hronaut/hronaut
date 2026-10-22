@@ -3,13 +3,14 @@ import { useI18n } from 'vue-i18n'
 import type { SettingsSection } from './useSettingsDialogController.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 
-export function useSettingsSectionSearch(items: Ref<Array<{ section: SettingsSection; label: string; description: string; icon: Component }>>, section: Ref<SettingsSection>) {
+/** Finds sections by name, description, or the words for the settings they hold, such as "tray" for Appearance. */
+export function useSettingsSectionSearch(items: Ref<Array<{ section: SettingsSection; label: string; description: string; keywords?: string; icon: Component }>>, section: Ref<SettingsSection>) {
   const { locale } = useI18n({ useScope: 'global' })
   const query = ref('')
   const matches = computed(() => {
     const words = query.value.trim().toLocaleLowerCase(locale.value).split(/\s+/)
     return items.value
-      .filter(item => words.every(word => `${item.label} ${item.description}`.toLocaleLowerCase(locale.value).includes(word)))
+      .filter(item => words.every(word => `${item.label} ${item.description} ${item.keywords ?? ''}`.toLocaleLowerCase(locale.value).includes(word)))
   })
 
   function searchKeydown(event: KeyboardEvent): void {

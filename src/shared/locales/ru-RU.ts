@@ -3,6 +3,7 @@ import { networkLabelMessages } from './network-labels.js'
 import { reproStepMessages } from './repro-steps.js'
 import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
+import { settingsSectionMessages } from './settings-sections.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
 import { qualityAuditTextMessages } from './quality-audit-text.js'
 import { networkAbortReasonMessages } from './network-abort-reasons.js'
@@ -34,6 +35,7 @@ export const ruRU = {
   reproSteps: reproStepMessages['ru-RU'],
   viewportPresets: viewportPresetMessages['ru-RU'],
   searchEngines: searchEngineMessages['ru-RU'],
+  settingsSections: settingsSectionMessages['ru-RU'],
   browserIssueTitles: browserIssueTitleMessages['ru-RU'],
   qualityAuditText: qualityAuditTextMessages['ru-RU'],
   networkAbortReasons: networkAbortReasonMessages['ru-RU'],
@@ -401,7 +403,7 @@ export const ruRU = {
       "description": "Управляйте приложениями, которые могут подключаться к этому профилю.",
       "require": "Требовать аутентификацию MCP",
       "requireDescription": "Требовать закрытый bearer-токен профиля для MCP и запросов состояния.",
-      challengeDetection: "Обнаруживать видимые проверки", challengeDetectionDescription: "По умолчанию выключено. Оценка качества наблюдения может отмечать видимые CAPTCHA и проверки человека. Остальные проверки качества и разрешений остаются активными. Эта функция не решает и не обходит проверки.", omitUrlDetail: "Скрывать детали URL от агентов", omitUrlDetailDescription: "По умолчанию выключено. Агенты видят адреса вкладок и текстовых снимков страниц только как сайт и путь, без учётных данных и части после ? или #. Пути, текст страниц, снимки экрана и другие инструменты по-прежнему могут показывать личные данные.", "toolSet": "Набор инструментов MCP",
+      challengeDetection: "Обнаруживать видимые проверки", challengeDetectionDescription: "Оценка качества наблюдения может отмечать видимые CAPTCHA и проверки человека. Остальные проверки качества и разрешений остаются активными. Эта функция не решает и не обходит проверки.", omitUrlDetail: "Скрывать детали URL от агентов", omitUrlDetailDescription: "Агенты видят адреса вкладок и текстовых снимков страниц только как сайт и путь, без учётных данных и части после ? или #. Пути, текст страниц, снимки экрана и другие инструменты по-прежнему могут показывать личные данные.", "toolSet": "Набор инструментов MCP",
       "toolSetDescription": "Выберите каталог для задачи, который будет доступен новым MCP-подключениям.",
       "toolSetEssentials": "Основы браузера",
       "toolSetQa": "Веб-QA",
@@ -475,7 +477,7 @@ export const ruRU = {
       "cache": "Кэшированные файлы",
       "slower": "Перезагрузка может стать медленнее",
       "clearingAll": "Очистка всего…",
-      clearAll: "Очистить историю… ({count})",
+      clearAll: "Очистить историю…",
       "totals": "{history} страница истории | {history} страницы истории | {history} страниц истории",
       "totalsDetail": "{history} · {cookies} · кэш {cache}",
       loadingTotals: "Загрузка истории…",

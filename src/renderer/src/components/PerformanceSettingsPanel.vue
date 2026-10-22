@@ -109,7 +109,7 @@ async function changeTimeout(event: Event): Promise<void> {
       </label>
     </div>
     <div class="memory-saver-actions">
-      <UiButton class="secondary-button" type="button" :disabled="busy || !settings.memorySaverEnabled" @click="keepFocusThrough($event, sleepNow)">
+      <UiButton class="secondary-button" type="button" :disabled="busy || !settings.memorySaverEnabled || sleepingTabsCount >= regularTabsCount" @click="keepFocusThrough($event, sleepNow)">
         <IconBedtime aria-hidden="true" /> {{ t('settings.memory.sleepNow') }}
       </UiButton>
     </div>

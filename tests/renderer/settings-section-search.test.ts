@@ -6,6 +6,9 @@ import SettingsNavigation from '../../src/renderer/src/components/SettingsNaviga
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 
 import { useSettingsSectionSearch } from '../../src/renderer/src/composables/useSettingsSectionSearch.js'
+import { SETTINGS_NAVIGATION } from '../../src/renderer/src/settings-navigation.js'
+import { translate } from '../../src/shared/i18n.js'
+import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
 import type { SettingsSection } from '../../src/renderer/src/composables/useSettingsDialogController.js'
 
 const icon = defineComponent({ template: '<svg />' })
@@ -17,7 +20,7 @@ function navigation() {
       const section = ref<SettingsSection>('appearance')
       watch(section, change)
       const items = ref([
-        { section: 'appearance' as const, label: 'Appearance', description: 'Theme and window', icon },
+        { section: 'appearance' as const, label: 'Appearance', description: 'Theme and window', keywords: 'tray attention sound', icon },
         { section: 'mcp' as const, label: 'MCP security', description: 'Local authentication', icon },
         { section: 'downloads' as const, label: 'Downloads', description: 'Location and prompts', icon }
       ])
@@ -59,6 +62,28 @@ describe('settings section search', () => {
       expect(warning.mock.calls.flat().join(' ')).not.toContain('Component that was made a reactive object')
     } finally {
       warning.mockRestore()
+    }
+  })
+
+  // Searching for a setting by its name, such as the tray or the attention sound, found no section.
+  it('finds a section by the settings it holds', async () => {
+    const { input, change } = navigation()
+    await userEvent.type(input, 'tray')
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([expect.stringContaining('Appearance')])
+    await userEvent.keyboard('{Enter}')
+    expect(change).not.toHaveBeenCalled()
+    await userEvent.clear(input)
+    await userEvent.type(input, 'sound attention')
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+  })
+
+  it('has search words for every section in every language', () => {
+    for (const locale of SUPPORTED_LOCALES) {
+      for (const item of SETTINGS_NAVIGATION) {
+        const key = `settingsSections.keywords.${item.section}` as Parameters<typeof translate>[1]
+        expect(translate(locale, key), `${locale} ${item.section}`).not.toBe(key)
+        expect(translate(locale, key).trim().length, `${locale} ${item.section}`).toBeGreaterThan(0)
+      }
     }
   })
 

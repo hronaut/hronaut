@@ -3,6 +3,7 @@ import { networkLabelMessages } from './network-labels.js'
 import { reproStepMessages } from './repro-steps.js'
 import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
+import { settingsSectionMessages } from './settings-sections.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
 import { qualityAuditTextMessages } from './quality-audit-text.js'
 import { networkAbortReasonMessages } from './network-abort-reasons.js'
@@ -34,6 +35,7 @@ export const frFR = {
   reproSteps: reproStepMessages['fr-FR'],
   viewportPresets: viewportPresetMessages['fr-FR'],
   searchEngines: searchEngineMessages['fr-FR'],
+  settingsSections: settingsSectionMessages['fr-FR'],
   browserIssueTitles: browserIssueTitleMessages['fr-FR'],
   qualityAuditText: qualityAuditTextMessages['fr-FR'],
   networkAbortReasons: networkAbortReasonMessages['fr-FR'],
@@ -401,7 +403,7 @@ export const frFR = {
       "description": "Contrôlez quelles applications peuvent se connecter à ce profil.",
       "require": "Exiger l’authentification MCP",
       "requireDescription": "Exiger le jeton bearer privé du profil pour MCP et les contrôles d’état.",
-      challengeDetection: "Détecter les défis visibles", challengeDetectionDescription: "Désactivé par défaut. Permet de signaler les CAPTCHA et vérifications humaines visibles dans la qualité des observations. Les autres contrôles de qualité et de permissions restent actifs. Ne résout ni ne contourne les défis.", omitUrlDetail: "Masquer les détails d’URL aux agents", omitUrlDetailDescription: "Désactivé par défaut. Les agents voient les adresses des onglets et des instantanés réduites au site et au chemin, sans identifiants ni la partie après ? ou #. Les chemins, le texte des pages, les captures d’écran et d’autres outils peuvent encore montrer des informations privées.", "toolSet": "Ensemble d’outils MCP",
+      challengeDetection: "Détecter les défis visibles", challengeDetectionDescription: "Permet de signaler les CAPTCHA et vérifications humaines visibles dans la qualité des observations. Les autres contrôles de qualité et de permissions restent actifs. Ne résout ni ne contourne les défis.", omitUrlDetail: "Masquer les détails d’URL aux agents", omitUrlDetailDescription: "Les agents voient les adresses des onglets et des instantanés réduites au site et au chemin, sans identifiants ni la partie après ? ou #. Les chemins, le texte des pages, les captures d’écran et d’autres outils peuvent encore montrer des informations privées.", "toolSet": "Ensemble d’outils MCP",
       "toolSetDescription": "Choisissez le catalogue adapté à la tâche pour les nouvelles connexions MCP.",
       "toolSetEssentials": "Essentiels du navigateur",
       "toolSetQa": "QA Web",
@@ -475,7 +477,7 @@ export const frFR = {
       "cache": "Fichiers en cache",
       "slower": "Les rechargements peuvent être plus lents",
       "clearingAll": "Tout effacer…",
-      clearAll: "Effacer l’historique… ({count})",
+      clearAll: "Effacer l’historique…",
       "totals": "{history} page d’historique | {history} pages d’historique",
       "totalsDetail": "{history} · {cookies} · cache {cache}",
       loadingTotals: "Chargement de l’historique…",

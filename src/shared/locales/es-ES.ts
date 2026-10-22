@@ -3,6 +3,7 @@ import { networkLabelMessages } from './network-labels.js'
 import { reproStepMessages } from './repro-steps.js'
 import { viewportPresetMessages } from './viewport-presets.js'
 import { searchEngineMessages } from './search-engines.js'
+import { settingsSectionMessages } from './settings-sections.js'
 import { browserIssueTitleMessages } from './browser-issue-titles.js'
 import { qualityAuditTextMessages } from './quality-audit-text.js'
 import { networkAbortReasonMessages } from './network-abort-reasons.js'
@@ -34,6 +35,7 @@ export const esES = {
   reproSteps: reproStepMessages['es-ES'],
   viewportPresets: viewportPresetMessages['es-ES'],
   searchEngines: searchEngineMessages['es-ES'],
+  settingsSections: settingsSectionMessages['es-ES'],
   browserIssueTitles: browserIssueTitleMessages['es-ES'],
   qualityAuditText: qualityAuditTextMessages['es-ES'],
   networkAbortReasons: networkAbortReasonMessages['es-ES'],
@@ -401,7 +403,7 @@ export const esES = {
       "description": "Controla qué aplicaciones pueden conectarse a este perfil.",
       "require": "Requerir autenticación MCP",
       "requireDescription": "Requerir el token bearer privado del perfil para MCP y las consultas de estado.",
-      challengeDetection: "Detectar desafíos visibles", challengeDetectionDescription: "Desactivado por defecto. Permite que la evaluación detecte CAPTCHA y verificaciones humanas visibles. Las demás comprobaciones de calidad y permisos siguen activas. No resuelve ni evita desafíos.", omitUrlDetail: "Ocultar detalles de URL a los agentes", omitUrlDetailDescription: "Desactivado por defecto. Los agentes ven las direcciones de pestañas e instantáneas solo como sitio y ruta, sin credenciales ni la parte tras ? o #. Las rutas, el texto de la página, las capturas de pantalla y otras herramientas aún pueden mostrar datos privados.", "toolSet": "Conjunto de herramientas MCP",
+      challengeDetection: "Detectar desafíos visibles", challengeDetectionDescription: "Permite que la evaluación detecte CAPTCHA y verificaciones humanas visibles. Las demás comprobaciones de calidad y permisos siguen activas. No resuelve ni evita desafíos.", omitUrlDetail: "Ocultar detalles de URL a los agentes", omitUrlDetailDescription: "Los agentes ven las direcciones de pestañas e instantáneas solo como sitio y ruta, sin credenciales ni la parte tras ? o #. Las rutas, el texto de la página, las capturas de pantalla y otras herramientas aún pueden mostrar datos privados.", "toolSet": "Conjunto de herramientas MCP",
       "toolSetDescription": "Elige el catálogo específico de la tarea para las nuevas conexiones MCP.",
       "toolSetEssentials": "Fundamentos del navegador",
       "toolSetQa": "QA web",
@@ -475,7 +477,7 @@ export const esES = {
       "cache": "Archivos en caché",
       "slower": "Las recargas pueden ser más lentas",
       "clearingAll": "Borrando todo…",
-      clearAll: "Borrar historial… ({count})",
+      clearAll: "Borrar historial…",
       "totals": "{history} página del historial | {history} páginas del historial",
       "totalsDetail": "{history} · {cookies} · caché {cache}",
       loadingTotals: "Cargando historial…",

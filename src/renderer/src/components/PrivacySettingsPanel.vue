@@ -123,7 +123,7 @@ watch(() => filteredWebsites.value.map(site => site.origin).join('\n'), async (_
     </fieldset>
     <div class="privacy-data-actions">
       <UiButton variant="danger" class="clear-data-button" type="button" :disabled="!canClear" @click="clearSelected">
-        {{ summaryState === 'clearing' ? t('settings.privacy.clearingAll') : t('settings.privacy.clearAll', { count: formatNumber(selectedCount) }) }}
+        {{ summaryState === 'clearing' ? t('settings.privacy.clearingAll') : t('settings.privacy.clearAll') }}
       </UiButton>
       <output class="privacy-data-status" :class="summaryState" aria-live="polite">{{ summaryMessage || (summary ? t('settings.privacy.totals', { history: formatNumber(summary.historyEntries) }, summary.historyEntries) : t('settings.privacy.loadingTotals')) }}</output>
     </div>

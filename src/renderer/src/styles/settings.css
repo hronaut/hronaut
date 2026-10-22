@@ -34,6 +34,8 @@
 .setting-copy h3 { @apply m-0 [font-size:var(--type-heading-size)] [font-weight:var(--weight-strong)] [letter-spacing:-.025em]; }
 .setting-copy p { @apply [max-width:620px] [margin:7px_0_0] text-muted [font-size:var(--type-body-size)] [line-height:1.6]; }
 .theme-groups { @apply grid [gap:20px] [margin-top:20px]; }
+.settings-group-heading { @apply [margin:28px_0_0] text-muted [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [letter-spacing:.04em]; }
+.settings-group-heading + .settings-rows.grouped { @apply [margin-top:9px]; }
 .theme-group h4 { @apply [margin:0_0_9px] text-muted [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [letter-spacing:.04em]; }
 .theme-options { @apply grid [grid-template-columns:repeat(2,_minmax(0,_1fr))] [gap:12px]; }
 .theme-option {

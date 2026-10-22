@@ -78,6 +78,16 @@ describe('PerformanceSettingsPanel', () => {
     english.controller.dispose()
   })
 
+  // With every website tab already asleep, Sleep eligible tabs now stayed available and did nothing.
+  it('offers sleeping tabs now only while a website tab is awake', async () => {
+    const { state } = renderPanel()
+    const sleep = screen.getByRole('button', { name: 'Sleep eligible tabs now' })
+    expect(sleep).toBeEnabled()
+
+    state.value = { ...state.value, tabs: state.value.tabs.map((tab) => ({ ...tab, sleeping: true })) }
+    await vi.waitFor(() => expect(sleep).toBeDisabled())
+  })
+
   it('disables all actions while saving and restores the timeout after failure', async () => {
     const saving = deferred<AppSettings>()
     const { controller, setTimeout } = renderPanel()
