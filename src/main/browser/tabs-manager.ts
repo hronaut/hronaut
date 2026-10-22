@@ -305,6 +305,7 @@ import { uuidV7 } from '../uuid-v7.js'
 import { LocalizedError } from '../localized-error.js'
 import { RendererRecovery } from './renderer-recovery.js'
 import { guardPageCallsAcrossRendererExit } from './renderer-exit-guard.js'
+import { runPageScriptsOnceDocumentReady } from './page-script-readiness.js'
 import type { CredentialFillContext } from './credential-fill-context.js'
 import type { CredentialFillAccess } from './credential-fill/credential-fill-access.js'
 import { credentialContext, fillCredential } from './credential-fill/credential-fill.js'
@@ -5561,6 +5562,7 @@ export class BrowserTabsManager {
   private attachTabEvents(tab: BrowserTab): void {
     const webContents = tab.webContents
     guardPageCallsAcrossRendererExit(webContents)
+    runPageScriptsOnceDocumentReady(webContents)
     attachPageDestroyedEvents(this.pageDestroyedEventsAccess(), tab, webContents)
     attachPageFocusEvents(this.pageFocusEventsAccess(), tab, webContents)
     attachPageKeyboardEvents(this.pageKeyboardEventsAccess(), tab, webContents)
