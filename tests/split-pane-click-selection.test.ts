@@ -12,7 +12,7 @@ const focused: string[] = []
 vi.mock('electron', () => {
   let nextWebContentsId = 100
   class WebContentsView {
-    webContents: Record<string, unknown>
+    webContents: EventEmitter & { id: number }
     constructor() {
       const id = nextWebContentsId++
       const events = new EventEmitter()
