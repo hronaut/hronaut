@@ -57,18 +57,38 @@ export function linuxConfigHome(home = homedir(), environment: NodeJS.ProcessEnv
   return configured && isAbsolute(configured) ? configured : join(home, '.config')
 }
 
+/** The folder Chrome and Chromium keep their profiles in: `CHROME_CONFIG_HOME` when it is an absolute path, as Chrome reads it, else the configuration folder. */
+export function linuxChromeConfigHome(home = homedir(), environment: NodeJS.ProcessEnv = process.env): string {
+  const configured = environment.CHROME_CONFIG_HOME
+  return configured && isAbsolute(configured) ? configured : linuxConfigHome(home, environment)
+}
+
 /** Discovery reads profile names only, never the cookie database or OS keys. */
-export async function discoverImportProfiles(home = homedir(), platform = process.platform, configHome = join(home, '.config')): Promise<ImportProfile[]> {
+export async function discoverImportProfiles(
+  home = homedir(),
+  platform = process.platform,
+  configHome = join(home, '.config'),
+  chromeConfigHome = configHome
+): Promise<ImportProfile[]> {
   if (platform !== 'linux') throw new BrowserImportError('unsupported')
   const profiles: ImportProfile[] = []
+  // Chrome keeps its profiles where CHROME_CONFIG_HOME or XDG_CONFIG_HOME point, else in ~/.config. Both are read,
+  // since Chrome may have started without the variable Hronaut sees, and a folder reached twice is read once.
+  const chromeConfigFolders = [...new Set([chromeConfigHome, join(home, '.config')])]
   const chromiumRoots = [
-    ['Google Chrome', join(home, '.config/google-chrome'), 'chrome'],
-    ['Google Chrome Beta', join(home, '.config/google-chrome-beta'), 'chrome'],
-    ['Chromium', join(home, '.config/chromium'), 'chromium'],
+    ...chromeConfigFolders.flatMap((folder) => [
+      ['Google Chrome', join(folder, 'google-chrome'), 'chrome'],
+      ['Google Chrome Beta', join(folder, 'google-chrome-beta'), 'chrome'],
+      ['Chromium', join(folder, 'chromium'), 'chromium']
+    ] as const),
     ['Chromium (Snap)', join(home, 'snap/chromium/common/chromium'), 'chromium'],
     ['Chromium (Flatpak)', join(home, '.var/app/org.chromium.Chromium/config/chromium'), 'chromium']
   ] as const
+  const chromiumFolders = new Set<string>()
   for (const [browser, root, keyApplication] of chromiumRoots) {
+    const realRoot = await realpath(root).catch(() => root)
+    if (chromiumFolders.has(realRoot)) continue
+    chromiumFolders.add(realRoot)
     let names: Record<string, unknown> = {}
     try {
       const localState = record(JSON.parse(await smallText(join(root, 'Local State'))))

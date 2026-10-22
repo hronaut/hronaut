@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ImportProfile } from '../src/main/browser-import/contracts.js'
-import { decryptLinuxCookie, discoverImportProfiles, linuxConfigHome, readImportCookies } from '../src/main/browser-import/source.js'
+import { decryptLinuxCookie, discoverImportProfiles, linuxChromeConfigHome, linuxConfigHome, readImportCookies } from '../src/main/browser-import/source.js'
 const roots: string[] = []
 async function directory() { const root = await mkdtemp(join(tmpdir(), 'hronaut-import-source-')); roots.push(root); return root }
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })
@@ -115,6 +115,33 @@ describe('external cookie sources', () => {
     await writeFile(join(real, 'firefox/profiles.ini'), '[Profile0]\nName=default-release\nIsRelative=1\nPath=abcd.default-release\n')
     await mkdir(join(linked, '..'), { recursive: true }); await symlink(real, linked)
     expect((await discoverImportProfiles(home)).map(source => source.name)).toEqual(['default-release · abcd.default-release'])
+  })
+  it.each([
+    ['XDG_CONFIG_HOME', 'google-chrome', 'Google Chrome'],
+    ['XDG_CONFIG_HOME', 'chromium', 'Chromium'],
+    ['CHROME_CONFIG_HOME', 'google-chrome-beta', 'Google Chrome Beta']
+  ])('finds Chrome profiles in the folder %s names, %s', async (variable, folder, browser) => {
+    // Chrome keeps its profiles there, but discovery only looked in ~/.config, so it listed none.
+    const home = await directory(); const configured = await directory(); const root = join(configured, folder)
+    await mkdir(join(root, 'Default'), { recursive: true })
+    await writeFile(join(root, 'Default/Cookies'), 'not SQLite')
+    const environment = { [variable]: configured }
+    const sources = await discoverImportProfiles(home, 'linux', linuxConfigHome(home, environment), linuxChromeConfigHome(home, environment))
+    expect(sources).toEqual([expect.objectContaining({ browser, file: join(root, 'Default/Cookies') })])
+    expect(await discoverImportProfiles(home, 'linux')).toEqual([])
+  })
+  it('lists a Chrome profile once when the configured folder is ~/.config or links to it', async () => {
+    const home = await directory(); const root = join(home, '.config/google-chrome')
+    await mkdir(join(root, 'Default'), { recursive: true })
+    await writeFile(join(root, 'Default/Cookies'), 'not SQLite')
+    const linked = join(home, 'linked-config'); await symlink(join(home, '.config'), linked)
+    expect(await discoverImportProfiles(home, 'linux', join(home, '.config'), join(home, '.config'))).toHaveLength(1)
+    expect(await discoverImportProfiles(home, 'linux', linked, linked)).toHaveLength(1)
+  })
+  it('takes CHROME_CONFIG_HOME before XDG_CONFIG_HOME, and only an absolute path', () => {
+    expect(linuxChromeConfigHome('/home/person', { CHROME_CONFIG_HOME: '/chrome', XDG_CONFIG_HOME: '/data/config' })).toBe('/chrome')
+    expect(linuxChromeConfigHome('/home/person', { CHROME_CONFIG_HOME: 'chrome', XDG_CONFIG_HOME: '/data/config' })).toBe('/data/config')
+    expect(linuxChromeConfigHome('/home/person', {})).toBe('/home/person/.config')
   })
   it('takes XDG_CONFIG_HOME only when it is an absolute path', () => {
     expect(linuxConfigHome('/home/person', { XDG_CONFIG_HOME: '/data/config' })).toBe('/data/config')
