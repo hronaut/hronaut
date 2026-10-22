@@ -288,8 +288,8 @@ it.each(['url', 'reload'] as const)('invalidates screenshot feedback on same-tab
   const capturing = controller.capturePage('viewport')
   expect(controller.captureState.value).toBe('capturing')
   activeTab.value = { ...activeTab.value!, ...(change === 'url'
-    ? { url: 'https://example.test/next' }
-    : { navigationGeneration: 1 }) }
+    ? { url: 'https://example.test/next', navigationGeneration: 1, documentGeneration: 1 }
+    : { navigationGeneration: 1, documentGeneration: 1 }) }
   expect(controller.captureState.value).toBe('idle')
   pending.resolve({ copied: true, width: 100, height: 80 })
   await capturing
@@ -303,7 +303,7 @@ it('cancels a pending element picker when the same tab reloads', async () => {
   const pending = deferred<BrowserElementSelection>()
   browser.pickElement.mockImplementationOnce(() => pending.promise)
   const picking = controller.toggleElementPicker()
-  activeTab.value = { ...activeTab.value!, navigationGeneration: 1 }
+  activeTab.value = { ...activeTab.value!, navigationGeneration: 1, documentGeneration: 1 }
   expect(browser.cancelElementPicker).toHaveBeenCalledWith('tab-1')
   pending.resolve({ copied: true, canceled: false })
   await picking
@@ -311,5 +311,26 @@ it('cancels a pending element picker when the same tab reloads', async () => {
   expect(onCaptureCopied).not.toHaveBeenCalled()
   expect(controller.elementState.value).toBe('idle')
   expect(controller.captureState.value).toBe('idle')
+  controller.dispose()
+})
+
+// A change within the page cancelled the element picker, so on a site that moves its address to the section in view,
+// scrolling to the element ended the pick.
+it.each([
+  ['the site moves its address to the section in view', { url: 'https://example.test/start#setup', navigationGeneration: 1 }],
+  ['a route change by history.pushState', { url: 'https://example.test/start/profile', navigationGeneration: 1 }],
+  ['history.replaceState keeps the address', { navigationGeneration: 1 }]
+])('keeps the element picker and its result when %s', async (_name, changes) => {
+  const { activeTab, browser, controller, onElementCopied } = createController()
+  const pending = deferred<BrowserElementSelection>()
+  browser.pickElement.mockImplementationOnce(() => pending.promise)
+  const picking = controller.toggleElementPicker()
+  activeTab.value = { ...activeTab.value!, ...changes }
+  await nextTick()
+  expect(browser.cancelElementPicker).not.toHaveBeenCalled()
+  expect(controller.elementState.value).toBe('picking')
+  pending.resolve({ copied: true, canceled: false })
+  await picking
+  expect(onElementCopied).toHaveBeenCalledOnce()
   controller.dispose()
 })
