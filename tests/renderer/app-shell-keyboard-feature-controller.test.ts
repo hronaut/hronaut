@@ -7,6 +7,7 @@ function createHarness() {
   const surfaces = {
     commandPalette: ref(false),
     walletApproval: ref(false),
+    trustedDialog: ref(false),
     agentSteps: ref(false),
     workspaceEditor: ref(false),
     credentialPicker: ref(false),
@@ -52,6 +53,7 @@ function createHarness() {
     closeHelpDialog: vi.fn(() => { surfaces.helpDialog.value = false }),
     closeReleaseHistory: vi.fn(() => { surfaces.releaseHistory.value = false }),
     closeAgentSteps: vi.fn(() => { surfaces.agentSteps.value = false }),
+    cancelTrustedDialog: vi.fn(() => { surfaces.trustedDialog.value = false }),
     closeSettings: vi.fn(() => { surfaces.settings.value = false }),
     closeFind: vi.fn(() => { surfaces.find.value = false }),
     closeBookmarks: vi.fn(() => { surfaces.bookmarks.value = false }),
@@ -65,6 +67,7 @@ function createHarness() {
     commandPalette: surfaces.commandPalette,
     modals: {
       walletApproval: { open: surfaces.walletApproval, close: () => undefined },
+      trustedDialog: { open: surfaces.trustedDialog, close: actions.cancelTrustedDialog },
       agentSteps: { open: surfaces.agentSteps, close: actions.closeAgentSteps },
       workspaceEditor: { open: surfaces.workspaceEditor, close: actions.closeWorkspaceEditor },
       credentialPicker: surfaces.credentialPicker,
@@ -279,6 +282,27 @@ describe('useAppShellKeyboardFeatureController', () => {
     }))
     expect(actions.runShortcut).toHaveBeenCalledOnce()
     expect(actions.runShortcut).toHaveBeenCalledWith('focus-address')
+  })
+
+  it('keeps browser shortcuts behind a permission dialog and answers it as Cancel on Escape, once per press', () => {
+    // A website's permission request now appears as Hronaut's own dialog. A shortcut must not act on the page behind
+    // it, and Escape answers it as the system dialog's Cancel did; a held Escape's repeats do not reach what is under it.
+    const { controller, surfaces, actions } = createHarness()
+    surfaces.trustedDialog.value = true
+    surfaces.find.value = true
+    const shortcut = new KeyboardEvent('keydown', { key: 'l', ctrlKey: true, cancelable: true })
+    const repeat = new KeyboardEvent('keydown', { key: 'Escape', repeat: true, cancelable: true })
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+
+    controller.handleKeyDown(shortcut)
+    controller.handleKeyDown(repeat)
+    expect(actions.runShortcut).not.toHaveBeenCalled()
+    expect(repeat.defaultPrevented).toBe(true)
+    expect(actions.cancelTrustedDialog).not.toHaveBeenCalled()
+
+    controller.handleKeyDown(escape)
+    expect(actions.cancelTrustedDialog).toHaveBeenCalledOnce()
+    expect(surfaces.find.value).toBe(true)
   })
 
   it('keeps browser shortcuts and Escape behind trusted wallet approval chrome', () => {
