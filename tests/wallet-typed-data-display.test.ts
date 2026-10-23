@@ -1,5 +1,6 @@
 import { hashTypedData } from 'viem'
 import { describe, expect, it } from 'vitest'
+import { isUnlimitedTokenAmount } from '../src/main/wallet/transaction-display.js'
 import { typedDataDisplay } from '../src/main/wallet/typed-data-display.js'
 import type { WalletDescriptor } from '../src/shared/wallet.js'
 
@@ -143,6 +144,10 @@ describe('typed data in the trusted approval', () => {
     }, wallet)
     expect(display?.tokenAccess?.allowances).toEqual([{ token, amount: uint96Max, unlimited: true }])
     expect(display?.warnings).toEqual(['token-permit', 'unlimited-amount'])
+    expect(typedDataDisplay({
+      domain: { name: 'Permit2', chainId: 11155111, verifyingContract: permit2 }, primaryType: 'PermitSingle', types: permitSingleTypes,
+      message: { details: { token, amount: uint96Max, expiration: 0, nonce: 0 }, spender, sigDeadline: 0 }
+    }, wallet)?.tokenAccess?.allowances).toEqual([{ token, amount: uint96Max, unlimited: true }])
   })
 
   it('treats a DAI-style permit as all or nothing', () => {
@@ -177,7 +182,7 @@ describe('typed data in the trusted approval', () => {
     const candidates: unknown[] = [
       '1', ' 0x10 ', '', '  ', '+3', '-1', '1.5', 1.5, 1e60, true, false, null, {}, [], ['5'], [['7']], [1, 2], [maxUint256],
       `${'0'.repeat(300)}${maxUint160}`, `0x${'0'.repeat(300)}${'f'.repeat(64)}`, '0b101', '0o17', 'ff', '1_000', 'abc',
-      Buffer.from('42'), maxUint256, (2n ** 256n).toString()
+      Buffer.from('42'), maxUint256, (2n ** 256n).toString(), `0x${'f'.repeat(24)}`
     ]
     for (const value of candidates) {
       const typedData = { domain: usdc, primaryType: 'Permit', types: erc2612Types, message: { ...erc2612Message, value } }
@@ -191,7 +196,7 @@ describe('typed data in the trusted approval', () => {
       const [allowance] = display?.tokenAccess?.allowances ?? []
       expect(allowance?.amount, JSON.stringify(value)).toBeDefined()
       expect(signedHash({ ...typedData, message: { ...erc2612Message, value: allowance!.amount } }), JSON.stringify(value)).toBe(hash)
-      expect(Boolean(allowance!.unlimited), JSON.stringify(value)).toBe(BigInt(allowance!.amount!) >= 2n ** 160n - 1n)
+      expect(Boolean(allowance!.unlimited), JSON.stringify(value)).toBe(isUnlimitedTokenAmount(BigInt(allowance!.amount!)))
       expect(display?.warnings, JSON.stringify(value)).not.toContain('unreadable-amount')
     }
   })

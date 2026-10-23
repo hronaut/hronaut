@@ -31,7 +31,7 @@ export interface WalletTokenAllowance {
   spender: string
   amount: string
   rawAmount: string
-  /** At or above the amount Hronaut treats as an unlimited approval. */
+  /** An amount Hronaut treats as an unlimited approval, as `isUnlimitedTokenAmount` reads it. */
   unlimited?: true
 }
 
