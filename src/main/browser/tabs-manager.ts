@@ -1388,7 +1388,6 @@ export class BrowserTabsManager {
     for (const group of saved?.mcpTabGroups ?? []) {
       this.mcpTabGroups.set(group.id, {
         ...group,
-        contextClass: group.contextClass ?? 'standard',
         description: normalizeWorkspaceDescription(group.description ?? ''),
         activeTabId: group.activeTabId ?? null,
         origins: [...(group.origins ?? [])],
@@ -1399,7 +1398,6 @@ export class BrowserTabsManager {
     for (const group of saved?.savedTabGroups ?? []) {
       this.savedTabGroups.set(group.id, {
         ...group,
-        contextClass: group.contextClass ?? 'standard',
         description: normalizeWorkspaceDescription(group.description ?? ''),
         storageOriginCount: group.origins?.length ?? 0,
         origins: [...(group.origins ?? [])],

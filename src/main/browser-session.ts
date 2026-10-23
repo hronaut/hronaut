@@ -6,7 +6,6 @@ import { isHronautHomeUrl } from '../shared/home-url.js'
 import { FRESH_CONSENT_PERMISSIONS, normalizeSitePermissionOrigin, SitePermissionStore } from './site-permission-store.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import { sitePermissionName } from '../shared/site-permission-names.js'
-import { plainWorkspaceName } from '../shared/plain-workspace-name.js'
 import type { SitePermissionDecision } from '../shared/types.js'
 
 /**
@@ -40,17 +39,16 @@ interface BrowserSessionHost {
 }
 
 /**
- * A workspace's name as a permission prompt shows it, or undefined for a workspace Hronaut does not know. An agent can
- * name its workspace, so the name is shown plain, as Hronaut keeps names now, since one saved earlier could add a
- * paragraph to the prompt or reverse its words; and when another workspace reads the same, such as the person's own,
- * it ends with part of its id, as Settings shows it.
+ * A workspace's name as a permission prompt shows it, or undefined for a workspace Hronaut does not know. Hronaut keeps
+ * names plain (see `plainWorkspaceName`), so an agent's name cannot add a paragraph to the prompt or reverse its words;
+ * and when another workspace reads the same, such as the person's own, it ends with part of its id, as Settings shows it.
  */
 export function promptWorkspaceName(workspaceId: string, workspaces: ReadonlyArray<{ id: string, name: string }>): string | undefined {
   // Joiners, direction marks and runs of spaces do not change how a name reads, nor a letter and its accent written
   // apart, which they could keep apart.
-  const reading = (name: string): string => plainWorkspaceName(name).replace(/[\u200C-\u200F\u061C]/gu, '').normalize('NFC').replace(/\s+/gu, ' ')
+  const reading = (name: string): string => name.replace(/[\u200C-\u200F\u061C]/gu, '').normalize('NFC').replace(/\s+/gu, ' ')
   const own = workspaces.find((workspace) => workspace.id === workspaceId)
-  const name = own ? plainWorkspaceName(own.name) : ''
+  const name = own?.name ?? ''
   if (!own || !name) return undefined
   const readsAlike = workspaces.some((workspace) => workspace.id !== workspaceId && reading(workspace.name) === reading(own.name))
   return readsAlike ? `${name} · ${workspaceId.replaceAll('-', '').slice(-6)}` : name

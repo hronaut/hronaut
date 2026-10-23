@@ -112,7 +112,9 @@ it('validates the complete schema before explicit deletion can run', async () =>
 it('validates without repairing, then rereads retired intent before persisting repair', async () => {
   const { root, path, store } = await fixture()
   const id = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'
-  const bytes = JSON.stringify({ ...empty, defaultHumanGroupId: 'repair', deletedWorkspaceStorageIds: [id] })
+  // A description over its limit is repaired, so this load has something to write back.
+  const workspace = { id: '01912345-6789-7abc-8def-0123456789ab', contextClass: 'standard', name: 'Personal', description: 'x'.repeat(1001), color: 'gray', createdAt: '2026-08-20T09:00:00.000Z', lastUsedAt: '2026-08-20T09:00:00.000Z', storageId: 'bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb', navigationPolicy: { mode: 'unrestricted', rules: [] } }
+  const bytes = JSON.stringify({ ...empty, mcpTabGroups: [workspace], deletedWorkspaceStorageIds: [id] })
   await writeFile(path, bytes)
   await store.load({ persistRepairs: false })
   expect(await readFile(path, 'utf8')).toBe(bytes)

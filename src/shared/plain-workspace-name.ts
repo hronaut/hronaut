@@ -18,3 +18,12 @@ export function plainWorkspaceName(name: string): string {
     .normalize('NFC')
     .trim()
 }
+
+/**
+ * The name a workspace is given, as `plainWorkspaceName` keeps it, without the code points this version of Unicode
+ * leaves unassigned. A saved name that is not plain stops startup, and the later Unicode an update brings could make one
+ * of those invisible formatting or an accent; a name made only of assigned characters stays plain.
+ */
+export function givenWorkspaceName(name: string): string {
+  return plainWorkspaceName(name.replace(/\p{Cn}/gu, ''))
+}

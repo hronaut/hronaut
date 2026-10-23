@@ -11,7 +11,7 @@ export async function seedWorkspaceProfile(profileDirectory: string): Promise<{ 
     activeTabId: homeTabId,
     allHumanInteractionLocked: false,
     mcpTabGroups: [{
-      id: workspaceId, name: 'Personal', color: 'gray',
+      id: workspaceId, contextClass: 'standard', name: 'Personal', color: 'gray',
       storageId: '77777777-1111-4111-8111-111111111111',
       createdAt: '2026-09-07T00:00:00.000Z', lastUsedAt: '2026-09-07T00:00:00.000Z',
       activeTabId: null, origins: [], navigationPolicy: { mode: 'unrestricted', rules: [] }, navigationAudit: []

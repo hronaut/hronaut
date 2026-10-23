@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   canonicalizeWorkspaceNavigationRule,
   evaluateWorkspaceNavigation,
-  normalizeSavedWorkspaceNavigationPolicy,
   normalizeWorkspaceNavigationPolicy
 } from '../src/main/browser/workspace-navigation-policy.js'
 import { LocalizedError } from '../src/main/localized-error.js'
@@ -56,17 +55,9 @@ describe('workspace navigation policies', () => {
     expect(ruleError(rule)).toBe('appErrors.siteAccess.wildcardPlacement')
   })
 
-  it('drops saved rules with a misplaced * and keeps refusing other invalid saved rules', () => {
-    expect(normalizeSavedWorkspaceNavigationPolicy({
-      mode: 'restricted',
-      rules: ['http://*.localhost:*', 'https://App.example', 'https://a.*.example.com', '*.trusted.example']
-    })).toEqual({ mode: 'restricted', rules: ['https://app.example', '*.trusted.example'] })
-    expect(normalizeSavedWorkspaceNavigationPolicy({ mode: 'restricted', rules: ['http://*.localhost:*'] }))
-      .toEqual({ mode: 'restricted', rules: [] })
-    expect(normalizeSavedWorkspaceNavigationPolicy(undefined)).toEqual({ mode: 'unrestricted', rules: [] })
-    expect(() => normalizeSavedWorkspaceNavigationPolicy({ mode: 'restricted', rules: ['https://example.com/private'] }))
-      .toThrow()
-    expect(() => normalizeWorkspaceNavigationPolicy({ mode: 'restricted', rules: ['http://*.localhost:*'] })).toThrow()
+  it('refuses a policy holding a rule with a misplaced *', () => {
+    expect(() => normalizeWorkspaceNavigationPolicy({ mode: 'restricted', rules: ['https://app.example', 'http://*.localhost:*'] }))
+      .toThrow(LocalizedError)
   })
 
   it('matches exact origins without leaking URL paths into decisions', () => {
