@@ -43,8 +43,10 @@ test('a paste into the address field drops a leading javascript: and joins an ad
   })
   await expect(address).toHaveValue('void(0)')
 
-  // Text dropped on the field from a page is read the same way and replaces the field's text.
+  // Text dropped on the field from a page is read the same way and replaces the field's text. The field takes the
+  // keyboard with the text selected, as Chrome's does, so Enter opens it; it stayed where the drag came from.
   await address.fill('old')
+  await address.evaluate((field) => (field as HTMLInputElement).blur())
   const transfer = await appWindow.evaluateHandle(() => {
     const data = new DataTransfer()
     data.setData('text/plain', 'javascript:alert(2)')
@@ -52,4 +54,6 @@ test('a paste into the address field drops a leading javascript: and joins an ad
   })
   await address.dispatchEvent('drop', { dataTransfer: transfer })
   await expect(address).toHaveValue('alert(2)')
+  await expect(address).toBeFocused()
+  expect(await address.evaluate((field) => [(field as HTMLInputElement).selectionStart, (field as HTMLInputElement).selectionEnd])).toEqual([0, 8])
 })

@@ -196,7 +196,15 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     if (disposed || draggingFromField || text === dropped) return
     event.preventDefault()
     if (!text) return
+    // The drop the field would have taken gives it the keyboard; this one does too, with the text selected, as Chrome's
+    // does, so Enter opens it and leaving the field closes its suggestions.
     address.value = text
+    const field = input.value
+    if (field) {
+      field.value = text
+      field.focus()
+      field.select()
+    }
     handleInput()
   }
 
