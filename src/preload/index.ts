@@ -488,9 +488,9 @@ const settingsApi: HronautSettingsApi = {
 contextBridge.exposeInMainWorld('hronautSettings', settingsApi)
 const permissionsApi: HronautPermissionsApi = {
   list: () => ipcRenderer.invoke('permissions:list'),
-  set: (origin: string, permission: string, decision: SitePermissionDecision, scope?: SitePermissionScope) =>
+  set: (origin: string, permission: string, decision: SitePermissionDecision, scope: SitePermissionScope) =>
     ipcRenderer.invoke('permissions:set', origin, permission, decision, scope),
-  remove: (origin: string, permission: string, scope?: SitePermissionScope) =>
+  remove: (origin: string, permission: string, scope: SitePermissionScope) =>
     ipcRenderer.invoke('permissions:remove', origin, permission, scope),
   clear: () => ipcRenderer.invoke('permissions:clear'),
   onChanged: (listener: (permissions: SitePermissionEntry[]) => void) => {

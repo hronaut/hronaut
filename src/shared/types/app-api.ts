@@ -263,10 +263,10 @@ export interface HronautWalletsApi {
 
 export interface HronautPermissionsApi {
   list(): Promise<SitePermissionEntry[]>
-  /** Changes the decision with exactly this scope; no scope is a decision saved before decisions had one. */
-  set(origin: string, permission: string, decision: SitePermissionDecision, scope?: SitePermissionScope): Promise<SitePermissionEntry>
-  /** Forgets the decision with exactly this scope; no scope is a decision saved before decisions had one. */
-  remove(origin: string, permission: string, scope?: SitePermissionScope): Promise<boolean>
+  /** Saves the decision with exactly this scope. */
+  set(origin: string, permission: string, decision: SitePermissionDecision, scope: SitePermissionScope): Promise<SitePermissionEntry>
+  /** Forgets the decision with exactly this scope. */
+  remove(origin: string, permission: string, scope: SitePermissionScope): Promise<boolean>
   clear(): Promise<void>
   onChanged(listener: (permissions: SitePermissionEntry[]) => void): () => void
 }

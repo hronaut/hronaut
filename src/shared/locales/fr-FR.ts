@@ -430,7 +430,6 @@ export const frFR = {
       "block": "Bloquer",
       "forget": "Oublier la décision",
       "help": "Après suppression, Hronaut reposera la question lors de la prochaine demande du site.",
-      "allWorkspaces": "Tous les espaces de travail",
       "archivedWorkspace": "{name} (archivé)",
       "removedWorkspace": "Espace de travail supprimé {id}",
       "loadingWorkspace": "Chargement de l’espace de travail…",
@@ -1248,7 +1247,6 @@ export const frFR = {
     },
     "permission": {
       "aria": "Autorisation {permission} pour {origin}",
-      "forgetAria": "Oublier l’autorisation {permission} pour {origin}",
       "resetAria": "Réinitialiser l’autorisation {permission} pour {origin}",
       "scopedAria": "Autorisation {permission} pour {origin} ({scope})",
       "scopedForgetAria": "Oublier l’autorisation {permission} pour {origin} ({scope})",

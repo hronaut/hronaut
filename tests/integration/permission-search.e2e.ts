@@ -5,7 +5,7 @@ import { expect, test } from './fixtures.js'
 
 test('finds saved permissions by site and permission name without modifying hidden decisions', async ({ appWindow, profileDirectory }) => {
   // Camera, microphone and file access are never remembered, so Settings lists none of them; these are all remembered.
-  const entries: SitePermissionEntry[] = [
+  const entries: Array<Omit<SitePermissionEntry, 'workspaceId'>> = [
     { origin: 'https://staging.example.test', permission: 'geolocation', decision: 'allow' },
     { origin: 'https://staging.example.test', permission: 'clipboard-read', decision: 'allow' },
     { origin: 'https://production.example.test', permission: 'clipboard-read', decision: 'deny' },

@@ -90,14 +90,11 @@ export type SitePermissionDecision = 'allow' | 'deny'
 
 /** Where a saved site permission decision applies, besides its website and permission. */
 export interface SitePermissionScope {
-  /**
-   * The workspace the decision was made in. A decision saved before Hronaut kept decisions per workspace has none and
-   * applies in every workspace that has no decision of its own for the website.
-   */
-  workspaceId?: string
+  /** The workspace the decision was made in; it applies only there. */
+  workspaceId: string
   /**
    * The website, as an origin, of the page the requesting website was embedded in, such as the page around a video-call
-   * widget. A decision for a page's own website has none. Only a decision with a workspace has one.
+   * widget. A decision for a page's own website has none.
    */
   embeddedIn?: string
 }

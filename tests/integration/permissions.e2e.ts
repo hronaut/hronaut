@@ -113,14 +113,14 @@ test('manages and persists per-website permission decisions', async ({
   mcpPort,
   profileDirectory
 }) => {
-  // A new decision always belongs to a workspace; a request that names none is refused unless it changes a saved one.
+  // Every decision belongs to a workspace; a request that names none is refused.
   const created = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Permission decisions', storage: 'scratch' })`) as {
     mcpTabGroups: Array<{ id: string, name: string }>
   }
   const workspaceId = created.mcpTabGroups.find((group) => group.name === 'Permission decisions')!.id
   expect(await appWindow.evaluate(
     "window.hronautPermissions.set('https://example.com', 'geolocation', 'allow').then(() => 'saved', (error) => error.message)"
-  )).toContain('no longer saved')
+  )).toContain('scope')
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await appWindow.getByRole('button', { name: 'Site permissions' }).click()
   await expect(appWindow.getByText('No saved decisions')).toBeVisible()
@@ -154,31 +154,27 @@ test('manages and persists per-website permission decisions', async ({
     .toBe('deny')
   await closeHronaut(electronApp)
 
-  // A decision an earlier version saved for all workspaces, and one of a workspace that went while Hronaut was closed.
+  // A decision without a workspace, one Hronaut never remembers, and one of a workspace that went while Hronaut was closed.
   const saved = JSON.parse(await readFile(permissionsPath, 'utf8')) as { permissions: unknown[] }
-  const legacy = { origin: 'https://legacy.example', permission: 'notifications', decision: 'allow' }
   await writeFile(permissionsPath, JSON.stringify({ version: 2, permissions: [
     ...saved.permissions,
-    legacy,
+    { origin: 'https://unscoped.example', permission: 'notifications', decision: 'allow' },
+    { origin: 'https://example.com', permission: 'media', decision: 'allow', workspaceId },
     { origin: 'https://example.com', permission: 'notifications', decision: 'allow', workspaceId: '01912345-6789-7abc-8def-0123456789ab' }
   ] }), 'utf8')
 
   const restarted = await launchHronaut(profileDirectory, mcpPort + 1)
   try {
     const own = { origin: 'https://example.com', permission: 'geolocation', decision: 'deny', workspaceId }
-    await expect.poll(() => restarted.window.evaluate('window.hronautPermissions.list()')).toEqual([own, legacy])
-    await expect.poll(async () => JSON.parse(await readFile(permissionsPath, 'utf8')).permissions).toEqual([own, legacy])
+    await expect.poll(() => restarted.window.evaluate('window.hronautPermissions.list()')).toEqual([own])
+    await expect.poll(async () => JSON.parse(await readFile(permissionsPath, 'utf8')).permissions).toEqual([own])
     await restarted.window.getByRole('button', { name: 'Settings' }).click()
     await restarted.window.getByRole('button', { name: 'Site permissions' }).click()
     const restoredPermission = restarted.window.getByRole('combobox', { name: locationName })
     await expect(restoredPermission).toHaveValue('deny')
-    // Settings still changes the decision for all workspaces.
-    await restarted.window.getByRole('combobox', { name: 'Notifications permission for https://legacy.example' }).selectOption('deny')
-    await expect.poll(async () => JSON.parse(await readFile(permissionsPath, 'utf8')).permissions)
-      .toEqual([own, { ...legacy, decision: 'deny' }])
     await restarted.window.getByRole('button', { name: `Forget ${locationName}` }).click()
     await expect(restoredPermission).toHaveCount(0)
-    await expect.poll(() => restarted.window.evaluate('window.hronautPermissions.list()')).toEqual([{ ...legacy, decision: 'deny' }])
+    await expect.poll(() => restarted.window.evaluate('window.hronautPermissions.list()')).toEqual([])
   } finally {
     await closeHronaut(restarted.app)
   }

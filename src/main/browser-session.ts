@@ -3,11 +3,11 @@ import { statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
-import { normalizeSitePermissionOrigin, SitePermissionStore } from './site-permission-store.js'
+import { FRESH_CONSENT_PERMISSIONS, normalizeSitePermissionOrigin, SitePermissionStore } from './site-permission-store.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import { sitePermissionName } from '../shared/site-permission-names.js'
 import { plainWorkspaceName } from '../shared/plain-workspace-name.js'
-import type { SitePermissionDecision, SitePermissionEntry } from '../shared/types.js'
+import type { SitePermissionDecision } from '../shared/types.js'
 
 /**
  * The profile's persistent browser session and the site permissions the person chose, created once by index.ts and
@@ -37,20 +37,6 @@ interface BrowserSessionHost {
   partition: string
   /** Whether the person turned on letting websites save to any single file they hold; read on every check. */
   websitesMaySaveFiles(): boolean
-}
-
-/**
- * Permissions Hronaut never remembers: camera and microphone, file access and opening a link in another app ask every
- * time. A decision an earlier version saved for one of them is not used, and the shell does not show it.
- */
-const FRESH_CONSENT_PERMISSIONS: ReadonlySet<string> = new Set(['media', 'fileSystem', 'openExternal'])
-
-/**
- * The saved decisions the shell shows and counts. A decision an earlier version saved for a permission Hronaut never
- * remembers stays in the file but has no effect, so Settings must not list it as if it did.
- */
-export function rememberedSitePermissions(entries: readonly SitePermissionEntry[]): SitePermissionEntry[] {
-  return entries.filter((entry) => !FRESH_CONSENT_PERMISSIONS.has(entry.permission))
 }
 
 /**
@@ -645,12 +631,12 @@ export function createBrowserSession(host: BrowserSessionHost): {
 
   /** Tells both shell windows the site permissions the person chose. */
   function publishSitePermissions(): void {
-    host.sendToShellWindows('permissions:changed', rememberedSitePermissions(host.state.sitePermissionStore?.list() ?? []))
+    host.sendToShellWindows('permissions:changed', host.state.sitePermissionStore?.list() ?? [])
   }
 
   /**
    * Forgets the decisions made in a workspace the person closed or deleted for good, not one they archived, and tells
-   * the shell windows. Decisions saved before decisions belonged to a workspace stay.
+   * the shell windows.
    */
   async function forgetWorkspaceSitePermissions(workspaceId: string): Promise<void> {
     const store = host.state.sitePermissionStore
