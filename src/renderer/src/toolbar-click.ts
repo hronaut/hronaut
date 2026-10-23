@@ -1,3 +1,5 @@
+import { openClickTab } from './open-click.js'
+
 /**
  * What a click on Back, Forward or Reload does with the middle button or modifier keys, by the rules of Chrome's toolbar:
  * - a middle-click opens the button's page in a new background tab, and with Shift in a new tab in front;
@@ -10,11 +12,7 @@
 export type ToolbarClickAction = 'new-tab' | 'new-background-tab' | 'reload-ignoring-cache'
 
 export function toolbarClickAction(button: 'back' | 'forward' | 'reload', event: MouseEvent, mac: boolean): ToolbarClickAction | undefined {
-  const middle = event.button === 1
-  if (button === 'reload') {
-    if (middle || (mac && event.metaKey)) return 'new-background-tab'
-    return event.shiftKey || event.ctrlKey ? 'reload-ignoring-cache' : undefined
-  }
-  if (!middle && !(mac ? event.metaKey : event.ctrlKey)) return undefined
-  return event.shiftKey ? 'new-tab' : 'new-background-tab'
+  if (button !== 'reload') return openClickTab(event, mac)
+  if (event.button === 1 || (mac && event.metaKey)) return 'new-background-tab'
+  return event.shiftKey || event.ctrlKey ? 'reload-ignoring-cache' : undefined
 }

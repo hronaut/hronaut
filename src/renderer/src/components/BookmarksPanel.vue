@@ -16,6 +16,7 @@ import IconStarOutline from '~icons/material-symbols/star-outline-rounded'
 import type { BrowserBookmark, HronautBookmarkCollectionsApi, PanelDock } from '../../../shared/types.js'
 import { useBookmarksPanelController } from '../composables/useBookmarksPanelController.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
+import { asMiddleClick, openClickTab } from '../open-click.js'
 import BookmarkCollectionsToolbar from './BookmarkCollectionsToolbar.vue'
 import { useBookmarkCollectionsController } from '../composables/useBookmarkCollectionsController.js'
 import PanelDockPicker from './PanelDockPicker.vue'
@@ -85,6 +86,17 @@ const {
   openBookmarkInBackground: props.openBookmarkInBackground,
   translate: (key) => t(key)
 })
+
+const mac = window.hronautShell?.windowChrome?.platform === 'darwin'
+
+/**
+ * A middle-click or Ctrl+click (⌘-click on a Mac) on a bookmark opens it in a new tab behind and keeps the list open,
+ * as in Chrome; with Shift it opens in front, as a click does.
+ */
+function clickBookmark(event: MouseEvent, bookmark: BrowserBookmark): void {
+  if (openClickTab(event, mac) === 'new-background-tab') void openInBackground(bookmark)
+  else void openEntry(bookmark)
+}
 
 const collectionController = useBookmarkCollectionsController({
   api: props.collectionsApi, open, blocked: computed(() => pendingAction.value !== null), translate: (key) => t(key)
@@ -344,7 +356,8 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
             <span>{{ editingDestination ? bookmark.title : bookmark.url }}</span>
           </span>
         </div>
-        <UiButton appearance="application" v-else class="bookmark-open" type="button" v-tooltip="bookmark.url" :disabled="anyPending" @click="openEntry(bookmark)">
+        <UiButton appearance="application" v-else class="bookmark-open" type="button" v-tooltip="bookmark.url" :disabled="anyPending"
+          @click="clickBookmark($event, bookmark)" @auxclick="asMiddleClick($event, (click) => clickBookmark(click, bookmark))">
           <span class="bookmark-site-icon" aria-hidden="true"><IconLanguage /></span>
           <span class="bookmark-copy">
             <strong>{{ bookmark.title }}</strong>

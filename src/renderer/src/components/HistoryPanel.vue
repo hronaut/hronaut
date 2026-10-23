@@ -15,6 +15,7 @@ import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../../../shared/types.js'
 import { useHistoryPanelController } from '../composables/useHistoryPanelController.js'
+import { asMiddleClick, openClickTab } from '../open-click.js'
 import { vTooltip } from '../ui/tooltip.js'
 import { confirmAction } from '../confirm-action.js'
 
@@ -158,6 +159,16 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
 // When the panel is still open afterwards, as after a failure or once Clear all has emptied History, that control gets
 // the focus back, or Search or Close when it can no longer be used, unless you have moved the focus, gone to the
 // website or another app, or closed the panel meanwhile.
+const mac = window.hronautShell?.windowChrome?.platform === 'darwin'
+
+/**
+ * A middle-click or Ctrl+click (⌘-click on a Mac) on a visit opens it in a new tab behind and keeps History open, as in
+ * Chrome; with Shift it opens in front, as a click does.
+ */
+function openVisit(event: MouseEvent, entry: BrowserHistoryEntry): Promise<void> {
+  return openClickTab(event, mac) === 'new-background-tab' ? openInBackground(entry) : openEntry(entry)
+}
+
 async function keepFocusThrough(event: Event, action: () => Promise<unknown>): Promise<void> {
   const generation = focusGeneration
   const panel = panelRoot.value
@@ -246,7 +257,9 @@ async function clearOrigin(event: Event): Promise<void> {
     </div>
     <div v-else class="history-list">
       <article v-for="entry in filteredEntries" :key="entry.id" class="history-item">
-        <UiButton appearance="application" class="history-open" type="button" v-tooltip="entry.url" :disabled="pendingAction !== null" @click="keepFocusThrough($event, () => openEntry(entry))">
+        <UiButton appearance="application" class="history-open" type="button" v-tooltip="entry.url" :disabled="pendingAction !== null"
+          @click="keepFocusThrough($event, () => openVisit($event, entry))"
+          @auxclick="asMiddleClick($event, (click) => keepFocusThrough(click, () => openVisit(click, entry)))">
           <span class="history-site-icon" aria-hidden="true"><IconLanguage /></span>
           <span class="history-copy">
             <strong>{{ entry.title }}</strong>

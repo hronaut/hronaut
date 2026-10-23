@@ -936,3 +936,48 @@ describe('held Enter', () => {
     }
   })
 })
+
+// A middle-click or Ctrl+click on a bookmark opened it in front and closed the list, where Chrome opens it in a new
+// tab behind.
+describe('opening a bookmark behind with a middle-click or Ctrl+click, as in Chrome', () => {
+  const middleClick = (target: HTMLElement, init: MouseEventInit = {}): MouseEvent => {
+    const event = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1, detail: 1, ...init })
+    target.dispatchEvent(event)
+    return event
+  }
+
+  it('opens it in a new tab behind and keeps the list open, and in front with Shift as a click does', async () => {
+    const openBookmarkInBackground = vi.fn(async () => undefined)
+    const openBookmark = vi.fn(async () => undefined)
+    const view = renderPanel({ openBookmarkInBackground, openBookmark })
+    const alpha = screen.getByRole('button', { name: /^Alpha docs/ })
+
+    const event = middleClick(alpha)
+    await flushPromises()
+    await fireEvent.click(screen.getByRole('button', { name: /^Beta page/ }), { ctrlKey: true, detail: 1 })
+    await flushPromises()
+    expect(event.defaultPrevented).toBe(true)
+    expect(openBookmarkInBackground.mock.calls).toEqual([[bookmark('alpha', 'Alpha docs')], [bookmark('beta', 'Beta page')]])
+    expect(openBookmark).not.toHaveBeenCalled()
+    expect(view.emitted()['update:open']).toBeUndefined()
+
+    // A right-click's own events stay with the system; Shift with a middle-click opens it in front.
+    middleClick(alpha, { button: 2 })
+    middleClick(alpha, { shiftKey: true })
+    await flushPromises()
+    expect(openBookmarkInBackground).toHaveBeenCalledTimes(2)
+    expect(openBookmark).toHaveBeenCalledExactlyOnceWith(bookmark('alpha', 'Alpha docs'))
+  })
+
+  it('opens nothing while another bookmark action is under way', async () => {
+    let finish!: () => void
+    const openBookmarkInBackground = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    renderPanel({ openBookmarkInBackground })
+    middleClick(screen.getByRole('button', { name: /^Alpha docs/ }))
+    await flushPromises()
+    middleClick(screen.getByRole('button', { name: /^Beta page/ }))
+    await flushPromises()
+    expect(openBookmarkInBackground).toHaveBeenCalledOnce()
+    finish()
+  })
+})

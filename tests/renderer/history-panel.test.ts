@@ -824,3 +824,31 @@ describe('held Enter', () => {
     }
   })
 })
+
+// A middle-click or Ctrl+click on a visit opened it in front and closed History, where Chrome opens it in a new tab
+// behind.
+describe('opening a visit behind with a middle-click or Ctrl+click, as in Chrome', () => {
+  it('opens it in a new tab behind and keeps History open, and in front with Shift as a click does', async () => {
+    const openHistoryEntryInBackground = vi.fn(async () => undefined)
+    const openHistoryEntry = vi.fn(async () => undefined)
+    const alpha = { ...entry('alpha', 'Alpha docs'), visitedAt: new Date().toISOString() }
+    const beta = { ...entry('beta', 'Beta page'), visitedAt: new Date().toISOString() }
+    const view = renderPanel({ entries: [alpha, beta], openHistoryEntryInBackground, openHistoryEntry })
+    const alphaRow = screen.getByRole('button', { name: /^Alpha docs/ })
+
+    const event = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1, detail: 1 })
+    alphaRow.dispatchEvent(event)
+    await flushPromises()
+    await fireEvent.click(screen.getByRole('button', { name: /^Beta page/ }), { ctrlKey: true, detail: 1 })
+    await flushPromises()
+    expect(event.defaultPrevented).toBe(true)
+    expect(openHistoryEntryInBackground.mock.calls).toEqual([[alpha], [beta]])
+    expect(openHistoryEntry).not.toHaveBeenCalled()
+    expect(view.emitted()['update:open']).toBeUndefined()
+
+    await fireEvent.click(alphaRow, { ctrlKey: true, shiftKey: true, detail: 1 })
+    await flushPromises()
+    expect(openHistoryEntry).toHaveBeenCalledExactlyOnceWith(alpha)
+    expect(openHistoryEntryInBackground).toHaveBeenCalledTimes(2)
+  })
+})
