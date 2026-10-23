@@ -11,6 +11,7 @@ import IconStar from '~icons/material-symbols/star-rounded'
 import IconStarOutline from '~icons/material-symbols/star-outline-rounded'
 import IconStop from '~icons/material-symbols/stop-rounded'
 import type { BrowserTabState } from '../../../shared/types.js'
+import { toolbarClickAction } from '../toolbar-click.js'
 import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
@@ -27,6 +28,9 @@ const emit = defineEmits<{
   back: []
   forward: []
   reload: []
+  reloadIgnoringCache: []
+  /** The page Back, Forward or Reload goes to, opening in a new tab beside the tab; behind unless active. */
+  openInNewTab: [target: 'back' | 'forward' | 'reload', active: boolean]
   stop: []
   find: []
   toggleZoom: []
@@ -80,15 +84,34 @@ function clickArrow(direction: 'back' | 'forward', event: MouseEvent): void {
   heldArrow = null
   // A key's click has no pointer behind it, so it is never the end of a hold.
   if (held && event.detail > 0) return
+  if (clickedElsewhere(direction, event)) return
   if (direction === 'back') emit('back')
   else emit('forward')
 }
 
 onBeforeUnmount(releaseArrow)
 
-function refreshOrStop(): void {
+function clickReload(event: MouseEvent): void {
   if (props.activeTab?.loading) emit('stop')
-  else emit('reload')
+  else if (!clickedElsewhere('reload', event)) emit('reload')
+}
+
+const mac = window.hronautShell?.windowChrome?.platform === 'darwin'
+
+/** Opens the button's page in a new tab, or reloads without the cache, for a click Chrome reads so; says whether it did. */
+function clickedElsewhere(button: 'back' | 'forward' | 'reload', event: MouseEvent): boolean {
+  const action = toolbarClickAction(button, event, mac)
+  if (action === 'reload-ignoring-cache') emit('reloadIgnoringCache')
+  else if (action) emit('openInNewTab', button, action === 'new-tab')
+  return action !== undefined
+}
+
+/** Chrome's Back, Forward and Reload take a middle-click as a click, which opens their page in a new tab. */
+function middleClick(event: MouseEvent, click: (event: MouseEvent) => void): void {
+  // A disabled button takes no click, whichever button makes it.
+  if (event.button !== 1 || (event.currentTarget instanceof HTMLButtonElement && event.currentTarget.disabled)) return
+  event.preventDefault()
+  click(event)
 }
 
 const commands = ref<HTMLElement>()
@@ -116,6 +139,7 @@ useResizeObserver(
     :aria-label="t('shell.toolbar.back')"
     :disabled="!activeTab?.canGoBack"
     @click="clickArrow('back', $event)"
+    @auxclick="middleClick($event, (click) => clickArrow('back', click))"
     @pointerdown="holdArrow('back', $event)"
     @pointerup="releaseArrow"
     @pointerleave="releaseArrow"
@@ -129,13 +153,14 @@ useResizeObserver(
     :aria-label="t('shell.toolbar.forward')"
     :disabled="!activeTab?.canGoForward"
     @click="clickArrow('forward', $event)"
+    @auxclick="middleClick($event, (click) => clickArrow('forward', click))"
     @pointerdown="holdArrow('forward', $event)"
     @pointerup="releaseArrow"
     @pointerleave="releaseArrow"
     @pointercancel="releaseArrow"
     @contextmenu.prevent="rightClickArrow('forward', $event)"
   ><IconArrowForward aria-hidden="true" /></UiButton>
-  <UiButton appearance="application" class="icon-button reload-button" type="button" v-tooltip="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :disabled="!activeTab" @click="refreshOrStop">
+  <UiButton appearance="application" class="icon-button reload-button" type="button" v-tooltip="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :disabled="!activeTab" @click="clickReload" @auxclick="middleClick($event, clickReload)">
     <IconStop v-if="activeTab?.loading" aria-hidden="true" />
     <IconRefresh v-else aria-hidden="true" />
   </UiButton>

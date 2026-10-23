@@ -172,6 +172,10 @@ async function listHistory(direction: 'back' | 'forward', anchor: { x: number; y
   if (tab) await props.runAction(async () => { shown = await props.browser.showHistoryMenu({ tabId: tab.id, direction, anchor }) })
   return shown
 }
+function openNavigationInNewTab(target: 'back' | 'forward' | 'reload', active: boolean): Promise<void> | undefined {
+  const tab = activeTab.value
+  return tab ? props.syncState(props.browser.openNavigationInNewTab({ tabId: tab.id, target, active })) : undefined
+}
 function clearActiveCssStatePreview(): Promise<void> | undefined {
   const tab = activeTab.value
   return tab?.cssStatePreview ? props.syncState(props.browser.clearCssStatePreview(tab.id)) : undefined
@@ -470,6 +474,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         @back="runAction(() => syncState(browser.back()))"
         @forward="runAction(() => syncState(browser.forward()))"
         @reload="runAction(() => syncState(browser.reload()))"
+        @reload-ignoring-cache="runAction(() => syncState(browser.reloadIgnoringCache()))"
+        @open-in-new-tab="(target, active) => runAction(() => openNavigationInNewTab(target, active))"
         @stop="runAction(() => syncState(browser.stop()))"
         @find="runAction(actions.openFind)"
         @toggle-zoom="runAction(actions.toggleZoom)"

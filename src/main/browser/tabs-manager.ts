@@ -440,6 +440,8 @@ import { savePageAs, saveShownPage } from './page-save/page-save.js'
 import type { PageSaveAccess } from './page-save/page-save-access.js'
 import { viewFrameSource, viewPageSource, viewShownPageSource } from './page-source/page-source.js'
 import type { PageSourceAccess } from './page-source/page-source-access.js'
+import { openNavigationInNewTab } from './navigation-new-tab/navigation-new-tab.js'
+import type { NavigationNewTabAccess } from './navigation-new-tab/navigation-new-tab-access.js'
 import type { PagePrintAccess } from './page-print/page-print-access.js'
 import { attachPageWheelZoom } from './page-zoom/page-wheel-zoom.js'
 import {
@@ -3282,6 +3284,28 @@ export class BrowserTabsManager {
   /** Shows the pages the tab's Back or Forward arrow goes through, for the person to pick one, as Chrome does. */
   showHistoryMenu(tabId: string, direction: 'back' | 'forward', anchor?: { x: number; y: number }): boolean {
     return showHistoryMenu(this.historyMenuAccess(), tabId, direction, anchor)
+  }
+
+  /**
+   * Opens the page Back or Forward goes to, or the tab's own page for Reload, in a new tab beside the tab, as a
+   * middle-click on Chrome's toolbar buttons does.
+   */
+  openNavigationInNewTab(tabId: string, target: 'back' | 'forward' | 'reload', active: boolean): Promise<BrowserState> {
+    return openNavigationInNewTab(this.navigationNewTabAccess(), tabId, target, active)
+  }
+
+  /**
+   * The narrow view opening a tab's back, forward or own page in a new tab gets of this manager's tabs, their history,
+   * tab creation and state. It is a prototype method rather than a field, so managers created without the constructor
+   * (as unit tests do) still provide it.
+   */
+  private navigationNewTabAccess(): NavigationNewTabAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
+      createTab: (options) => this.createTab(options),
+      getState: () => this.getState()
+    }
   }
 
   /**

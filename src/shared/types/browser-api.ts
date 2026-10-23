@@ -176,6 +176,8 @@ export interface HronautApi {
   forward(tabId?: string): Promise<BrowserState>
   /** Shows the pages the tab's Back or Forward arrow goes through, as a list opening at the anchor, in CSS pixels; false when there was none to show. */
   showHistoryMenu(options: { tabId: string; direction: 'back' | 'forward'; anchor?: { x: number; y: number } }): Promise<boolean>
+  /** Opens the page Back or Forward goes to, or the tab's own page for Reload, in a new tab beside the tab; behind unless active. */
+  openNavigationInNewTab(options: { tabId: string; target: 'back' | 'forward' | 'reload'; active: boolean }): Promise<BrowserState>
   reload(tabId?: string): Promise<BrowserState>
   reloadIgnoringCache(tabId?: string): Promise<BrowserState>
   stop(tabId?: string): Promise<BrowserState>

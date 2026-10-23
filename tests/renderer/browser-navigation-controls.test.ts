@@ -221,6 +221,74 @@ describe('BrowserNavigationControls', () => {
     })
   })
 
+  describe('a middle-click or modifier key, as in Chrome', () => {
+    const middleClick = (button: HTMLElement, init: MouseEventInit = {}): MouseEvent => {
+      const event = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1, detail: 1, ...init })
+      button.dispatchEvent(event)
+      return event
+    }
+
+    it('opens the page Back, Forward or Reload goes to in a new tab behind for a middle-click, in front with Shift on an arrow', async () => {
+      const view = renderControls(tab({ canGoForward: true }))
+
+      const event = middleClick(screen.getByRole('button', { name: 'Back' }))
+      middleClick(screen.getByRole('button', { name: 'Forward' }), { shiftKey: true })
+      middleClick(screen.getByRole('button', { name: 'Reload' }))
+      // A right-click's own events stay with the history list.
+      middleClick(screen.getByRole('button', { name: 'Back' }), { button: 2 })
+
+      expect(event.defaultPrevented).toBe(true)
+      expect(view.emitted().openInNewTab).toEqual([['back', false], ['forward', true], ['reload', false]])
+      expect(view.emitted().back).toBeUndefined()
+      expect(view.emitted().forward).toBeUndefined()
+      expect(view.emitted().reload).toBeUndefined()
+    })
+
+    it('opens an arrow\'s page in a new tab for Ctrl+click, and goes there for Shift+click, as Hronaut has no new windows', async () => {
+      const view = renderControls(tab({ canGoForward: true }))
+
+      await fireEvent.click(screen.getByRole('button', { name: 'Back' }), { ctrlKey: true, detail: 1 })
+      await fireEvent.click(screen.getByRole('button', { name: 'Forward' }), { ctrlKey: true, shiftKey: true, detail: 1 })
+      await fireEvent.click(screen.getByRole('button', { name: 'Back' }), { shiftKey: true, detail: 1 })
+
+      expect(view.emitted().openInNewTab).toEqual([['back', false], ['forward', true]])
+      expect(view.emitted().back).toHaveLength(1)
+    })
+
+    it('reloads without the cache for Shift+click or Ctrl+click on Reload, and stops a loading page for any click', async () => {
+      const view = renderControls()
+
+      await fireEvent.click(screen.getByRole('button', { name: 'Reload' }), { shiftKey: true, detail: 1 })
+      await fireEvent.click(screen.getByRole('button', { name: 'Reload' }), { ctrlKey: true, detail: 1 })
+      expect(view.emitted().reloadIgnoringCache).toHaveLength(2)
+      expect(view.emitted().reload).toBeUndefined()
+
+      await view.rerender({ activeTab: tab({ loading: true }) })
+      middleClick(screen.getByRole('button', { name: 'Stop' }))
+      await fireEvent.click(screen.getByRole('button', { name: 'Stop' }), { shiftKey: true, detail: 1 })
+      expect(view.emitted().stop).toHaveLength(2)
+      expect(view.emitted().openInNewTab).toBeUndefined()
+      expect(view.emitted().reloadIgnoringCache).toHaveLength(2)
+    })
+
+    it('opens nothing from a hold whose release the list took, and an arrow it cannot go to', async () => {
+      vi.useFakeTimers()
+      try {
+        const view = renderControls()
+        const back = screen.getByRole('button', { name: 'Back' })
+        back.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, isPrimary: true, button: 0, ctrlKey: true }))
+        vi.advanceTimersByTime(500)
+        await fireEvent.click(back, { ctrlKey: true, detail: 1 })
+        middleClick(screen.getByRole('button', { name: 'Forward' }))
+
+        expect(view.listHistory).toHaveBeenCalledOnce()
+        expect(view.emitted().openInNewTab).toBeUndefined()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
   it('disables every page-specific action when no tab is available', () => {
     renderControls(null)
 
