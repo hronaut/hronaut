@@ -2,12 +2,15 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { AddressSuggestionOverlayState, AddressSuggestionSelection } from '../shared/address-suggestions.js'
 
 export interface HronautAddressOverlayViewApi {
+  /** The operating system, as Node names it, for its click rules: ⌘-click on a Mac does what Ctrl+click does elsewhere. */
+  platform: string
   onState(listener: (state: AddressSuggestionOverlayState) => void): () => void
   select(selection: AddressSuggestionSelection): void
   measured(height: number): void
 }
 
 const api: HronautAddressOverlayViewApi = {
+  platform: process.platform,
   onState: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, state: AddressSuggestionOverlayState): void => listener(state)
     ipcRenderer.on('address-overlay:state', handler)

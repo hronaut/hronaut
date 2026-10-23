@@ -43,6 +43,7 @@ function createHarness(options: {
   const onFocusLeft = vi.fn()
   const onRemoveVisit = vi.fn(options.onRemoveVisit ?? (async () => undefined))
   const onRemoveVisitFailed = vi.fn()
+  const onOpenInNewTab = vi.fn(async (_address: string, _background: boolean) => undefined)
   let selectedListener: ((selection: AddressSuggestionSelection) => void) | undefined
   let dismissedListener: ((sessionId: number) => void) | undefined
   const unsubscribeSelected = vi.fn(options.selectedUnsubscribe ?? (() => undefined))
@@ -79,7 +80,7 @@ function createHarness(options: {
         formatNumber: String,
         onOpen,
         onNavigate,
-        onOpenInNewTab: vi.fn(async () => undefined),
+        onOpenInNewTab,
         onRemoveVisit,
         onRemoveVisitFailed,
         onFocusLeft
@@ -102,12 +103,16 @@ function createHarness(options: {
     overlay,
     onOpen,
     onNavigate,
+    onOpenInNewTab,
     onFocusLeft,
     onRemoveVisit,
     onRemoveVisitFailed,
     unsubscribeSelected,
     unsubscribeDismissed,
     selectOverlay: (suggestionId: string, sessionId = overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0) => selectedListener?.({ sessionId, suggestionId }),
+    selectOverlayInNewTab: (suggestionId: string, disposition: 'new-tab' | 'new-background-tab') => selectedListener?.({
+      sessionId: overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0, suggestionId, disposition
+    }),
     dismissOverlay: (sessionId = overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0) => dismissedListener?.(sessionId)
   }
 }
@@ -473,6 +478,38 @@ describe('address bar controller', () => {
 
     expect(rendered.onNavigate).not.toHaveBeenCalled()
     expect(input).toHaveValue('https://second.example/unsaved-form')
+  })
+
+  it('opens a suggestion in a new tab for a middle-click or Ctrl+click on its row, as Alt+Enter on it does', async () => {
+    const saved: BrowserBookmark = {
+      id: 'saved',
+      title: 'Saved page',
+      url: 'https://saved.example/',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }
+    const rendered = createHarness({ bookmarks: [saved] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    const shown = rendered.overlay.show.mock.calls.length
+
+    rendered.selectOverlayInNewTab('bookmark:saved', 'new-background-tab')
+    await Promise.resolve()
+    expect(rendered.onOpenInNewTab).toHaveBeenCalledExactlyOnceWith('https://saved.example/', true)
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+    // A tab behind keeps the typed text in the field, to open again.
+    expect(input).toHaveValue('saved')
+
+    await fireEvent.update(input, 'saved ')
+    await waitFor(() => expect(rendered.overlay.show.mock.calls.length).toBeGreaterThan(shown))
+    rendered.selectOverlayInNewTab('bookmark:saved', 'new-tab')
+    await Promise.resolve()
+    expect(rendered.onOpenInNewTab).toHaveBeenLastCalledWith('https://saved.example/', false)
+    // The tab in front takes over, and this tab's field shows its own address again.
+    expect(input).toHaveValue('https://example.test/first')
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
   })
 
   it.each(['within the page', 'in a redirect'] as const)('opens a picked suggestion after the tab\'s page moves its address %s', async (change) => {

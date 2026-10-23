@@ -459,7 +459,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const overlay = options.overlay
   if (overlay) {
     registrations.push(
-      () => overlay.onSelected(({ sessionId, suggestionId }) => {
+      () => overlay.onSelected(({ sessionId, suggestionId, disposition }) => {
         if (disposed || sessionId !== overlaySessionId) return
         const activeTab = options.activeTab.value
         // A row picked for another tab does nothing. A pick for this tab opens even when the tab's own page has changed
@@ -467,7 +467,10 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
         // Enter on the row opens it. Such a click did nothing before.
         if (!activeTab || activeTab.id !== presentedSuggestionOwner?.id) return
         const suggestion = presentedSuggestions.find((candidate) => candidate.id === suggestionId)
-        if (suggestion) void chooseSuggestion(suggestion)
+        if (!suggestion) return
+        // A middle-click or Ctrl+click opens the row in a new tab, as Alt+Enter on it does.
+        if (disposition) void openInNewTab(suggestion.url, disposition === 'new-background-tab')
+        else void chooseSuggestion(suggestion)
       }),
       () => overlay.onDismissed((sessionId) => {
         if (disposed || sessionId !== overlaySessionId) return

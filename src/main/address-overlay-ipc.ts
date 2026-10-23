@@ -110,9 +110,12 @@ export function registerAddressOverlayIpc(ipcMain: Pick<IpcMain, 'on'>, host: Ad
     }
     const selection = value as AddressSuggestionSelection
     if (!Number.isSafeInteger(selection.sessionId) || selection.sessionId < 1
-      || typeof selection.suggestionId !== 'string' || selection.suggestionId.length < 1 || selection.suggestionId.length > 512) {
+      || typeof selection.suggestionId !== 'string' || selection.suggestionId.length < 1 || selection.suggestionId.length > 512
+      || (selection.disposition !== undefined && selection.disposition !== 'new-tab' && selection.disposition !== 'new-background-tab')) {
       throw new TypeError('Invalid address suggestion selection')
     }
-    host.addressOverlay().select(selection)
+    // Only the known fields go on to the shell.
+    const { sessionId, suggestionId, disposition } = selection
+    host.addressOverlay().select(disposition ? { sessionId, suggestionId, disposition } : { sessionId, suggestionId })
   })
 }
