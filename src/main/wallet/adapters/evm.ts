@@ -265,8 +265,10 @@ const MAX_NONCE_BLOCKS = 256
  * enough: a load-balanced node can answer from a backend that lags behind,
  * and a node that pruned old transactions forgets mined ones too. So it counts
  * only once the block in which the account used the nonce is found and does
- * not hold this transaction. The count comes first, so a transaction that is
- * merely pending costs one extra read. The block found is kept in `found`, so
+ * not hold this transaction. As backends behind one address can disagree, the
+ * search's answer is checked against the found block itself, by its hash. The
+ * count comes first, so a transaction that is merely pending costs one extra
+ * read. The block found is kept in `found`, so
  * a later check reads only that block, even once the node keeps no account
  * state that old. A node that cannot answer, including one that keeps no
  * account state for that block, throws, so the caller asks again later
@@ -293,7 +295,7 @@ async function nonceTakenByAnother(
   const known = found.get(key)
   if (known) {
     // The same block still, unless the chain replaced it since.
-    if ((await client.getBlock({ blockNumber: known.number })).hash === known.hash) return true
+    if ((await client.getBlock({ blockNumber: known.number })).hash?.toLowerCase() === known.hash) return true
     found.delete(key)
   }
   const usedBy = async (blockNumber: bigint): Promise<boolean> => BigInt(await client.getTransactionCount({ address, blockNumber })) > used
@@ -304,10 +306,15 @@ async function nonceTakenByAnother(
   const number = await blockThatUsedNonce(latest, usedBy)
   const block = await client.getBlock({ blockNumber: number })
   if (block.transactions.some((entry) => entry.toLowerCase() === hash.toLowerCase())) return false
-  if (block.hash) {
-    found.set(key, { number, hash: block.hash })
-    if (found.size > MAX_NONCE_BLOCKS) found.delete(found.keys().next().value!)
+  // The account used the nonce in this very block of the chain and not before it (EIP-1898), whichever backend
+  // answered the search.
+  const countAt = async (blockHash: Hash): Promise<bigint> =>
+    BigInt(await client.getTransactionCount({ address, blockHash, requireCanonical: true }))
+  if (!block.hash || await countAt(block.hash) <= used || await countAt(block.parentHash) > used) {
+    throw new Error('EVM node answered inconsistently about the block that used the nonce')
   }
+  found.set(key, { number, hash: block.hash.toLowerCase() as Hash })
+  if (found.size > MAX_NONCE_BLOCKS) found.delete(found.keys().next().value!)
   return true
 }
 

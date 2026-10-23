@@ -26,8 +26,12 @@ interface NodeState {
   usedIn?: number
   /** The hash of the account's transaction there; another transaction's unless set. */
   taker?: string
-  /** The hash of every block, which changes when the chain replaces them. */
-  blockHash?: string
+  /** The hex digit that starts the hash of every block of the chain, which changes when the chain replaces them. */
+  fork?: string
+  /** Whether blocks by number come from a backend on another fork, whose block in `usedIn` lacks the transaction. */
+  staleBlock?: boolean
+  /** A block for which a backend answers the count by number as if the nonce were used, such as one ignoring the block. */
+  wrongAt?: number
   /** The mined count the node gives for the latest block by name, such as from a backend ahead of the one giving block numbers. */
   latestCount?: string
   /** An error code eth_getTransactionCount answers with. */
@@ -41,6 +45,7 @@ interface NodeState {
 }
 
 const hex = (value: number) => `0x${value.toString(16)}`
+const blockHash = (fork: string, number: number) => `0x${fork}${number.toString(16).padStart(63, '0')}`
 
 function transaction(hash: string, from: string, blockNumber: number | null) {
   return {
@@ -60,6 +65,7 @@ async function node(state: NodeState): Promise<{ wallet: WalletDescriptor; calls
       const { id, method, params } = JSON.parse(body) as { id: number; method: string; params: unknown[] }
       calls.push({ method, params })
       const latest = state.latest ?? 100
+      const fork = state.fork ?? 'e'
       response.setHeader('content-type', 'application/json')
       const reply = (result: unknown) => response.end(JSON.stringify({ jsonrpc: '2.0', id, result }))
       const refuse = (code: number) => response.end(JSON.stringify({ jsonrpc: '2.0', id, error: { code, message: 'backend unavailable' } }))
@@ -71,20 +77,28 @@ async function node(state: NodeState): Promise<{ wallet: WalletDescriptor; calls
       if (method === 'eth_blockNumber') return reply(hex(latest))
       if (method === 'eth_getTransactionCount') {
         if (state.countError !== undefined) return refuse(state.countError)
-        const tag = params[1] as string
+        const tag = params[1] as string | { blockHash: string; requireCanonical?: boolean }
         if (tag === 'latest' && state.latestCount) return reply(state.latestCount)
-        const block = tag === 'latest' ? latest : Number(tag)
+        let block: number
+        if (typeof tag === 'object') {
+          // EIP-1898: a block of the chain by its hash, refused for any other block.
+          if (!tag.requireCanonical || !tag.blockHash.startsWith(`0x${fork}`)) return refuse(-32000)
+          block = Number(`0x${tag.blockHash.slice(3)}`)
+        } else {
+          block = tag === 'latest' ? latest : Number(tag)
+          if (block === state.wrongAt) return reply('0xa')
+        }
         if (block < (state.oldestState ?? 0)) return refuse(-32000)
         return reply(state.usedIn !== undefined && block >= state.usedIn ? '0xa' : '0x9')
       }
       if (method === 'eth_getBlockByNumber') {
         const number = Number(params[0])
         if (state.block === 'missing') return reply(null)
-        // Only transaction hashes are asked for.
-        expect(params[1]).toBe(false)
-        const transactions = number === state.usedIn && state.block !== 'empty' ? [`0x${'77'.repeat(32)}`, state.taker ?? OTHER_HASH] : []
+        const shown = number === state.usedIn && state.block !== 'empty' && !state.staleBlock
+        const transactions = shown ? [`0x${'77'.repeat(32)}`, state.taker ?? OTHER_HASH] : []
+        const blockFork = state.staleBlock ? 'd' : fork
         return reply({
-          number: hex(number), hash: state.blockHash ?? `0x${'e'.repeat(64)}`, parentHash: `0x${'f'.repeat(64)}`, nonce: '0x0000000000000000',
+          number: hex(number), hash: blockHash(blockFork, number), parentHash: blockHash(blockFork, number - 1), nonce: '0x0000000000000000',
           sha3Uncles: `0x${'0'.repeat(64)}`, logsBloom: `0x${'0'.repeat(512)}`, transactionsRoot: `0x${'0'.repeat(64)}`,
           stateRoot: `0x${'0'.repeat(64)}`, receiptsRoot: `0x${'0'.repeat(64)}`, miner: SOMEONE_ELSE, difficulty: '0x0',
           totalDifficulty: '0x0', extraData: '0x', size: '0x0', gasLimit: '0x1c9c380', gasUsed: '0x0', timestamp: '0x0',
@@ -107,11 +121,18 @@ async function node(state: NodeState): Promise<{ wallet: WalletDescriptor; calls
   }
 }
 
+/** The last block the adapter read, after checking it asked only for transaction hashes. */
+function blockRead(calls: Array<{ method: string; params: unknown[] }>) {
+  const reads = calls.filter((call) => call.method === 'eth_getBlockByNumber')
+  expect(reads.every((call) => call.params[1] === false)).toBe(true)
+  return reads.at(-1)?.params[0]
+}
+
 async function confirmation(state: NodeState, nonce?: string) {
   const { wallet, calls } = await node(state)
   try {
     const result = await new EvmWalletAdapter().confirmation(wallet, HASH, nonce)
-    return { result, methods: calls.map((call) => call.method), calls }
+    return { result, methods: calls.map((call) => call.method), calls, block: blockRead(calls) }
   } finally {
     await new Promise<void>((resolve) => server!.close(() => resolve()))
     server = undefined
@@ -125,25 +146,30 @@ describe('EVM confirmation of a replaced transaction', () => {
     expect(replaced.result).toEqual({ confirmed: false, failed: false, replaced: true })
     expect(replaced.methods.slice(0, 4)).toEqual(['eth_getTransactionReceipt', 'eth_getTransactionCount', 'eth_getTransactionByHash', 'eth_blockNumber'])
     expect(replaced.calls[1]!.params).toEqual([ADDRESS, 'latest'])
-    expect(replaced.calls.at(-1)).toEqual({ method: 'eth_getBlockByNumber', params: ['0x61', false] })
+    expect(replaced.block).toBe('0x61')
+    // The account used the nonce in that very block of the chain and not before it, by block hash.
+    expect(replaced.calls.slice(-2)).toEqual([
+      { method: 'eth_getTransactionCount', params: [ADDRESS, { blockHash: blockHash('e', 97), requireCanonical: true }] },
+      { method: 'eth_getTransactionCount', params: [ADDRESS, { blockHash: blockHash('e', 96), requireCanonical: true }] }
+    ])
     // Something other than a transaction of the account's own can use the nonce, such as an EIP-7702 authorization.
     expect((await confirmation({ usedIn: 97, block: 'empty' }, '9')).result).toEqual({ confirmed: false, failed: false, replaced: true })
 
     // The block is found in few reads however far back it is, and also when it is the latest.
     const longAgo = await confirmation({ latest: 5_000_000, usedIn: 3 }, '9')
     expect(longAgo.result).toEqual({ confirmed: false, failed: false, replaced: true })
-    expect(longAgo.calls.at(-1)).toEqual({ method: 'eth_getBlockByNumber', params: ['0x3', false] })
-    expect(longAgo.methods.filter((method) => method === 'eth_getTransactionCount').length).toBeLessThanOrEqual(2 + 2 * 23)
+    expect(longAgo.block).toBe('0x3')
+    expect(longAgo.methods.filter((method) => method === 'eth_getTransactionCount').length).toBeLessThanOrEqual(4 + 2 * 23)
     const latest = await confirmation({ usedIn: 100 }, '9')
     expect(latest.result).toEqual({ confirmed: false, failed: false, replaced: true })
-    expect(latest.calls.at(-1)).toEqual({ method: 'eth_getBlockByNumber', params: ['0x64', false] })
+    expect(latest.block).toBe('0x64')
   })
 
   it('keeps a mined transaction pending when the node has lost it, such as one lagging behind or one that pruned old transactions', async () => {
     // The node has no receipt and no transaction for this hash, but block 97 holds it, so it was mined.
     const lost = await confirmation({ usedIn: 97, taker: HASH }, '9')
     expect(lost.result).toEqual({ confirmed: false, failed: false })
-    expect(lost.calls.at(-1)).toEqual({ method: 'eth_getBlockByNumber', params: ['0x61', false] })
+    expect(lost.block).toBe('0x61')
     // A backend ahead of the one giving block numbers proves nothing until the other sees the block too.
     expect((await confirmation({ latestCount: '0xa' }, '9')).result).toEqual({ confirmed: false, failed: false })
   })
@@ -154,6 +180,14 @@ describe('EVM confirmation of a replaced transaction', () => {
     await expect(confirmation({ usedIn: 97, block: 'missing' }, '9')).rejects.toThrow()
     // A node that shows the nonce used from the first block, such as one ignoring the block it is asked about.
     await expect(confirmation({ usedIn: 0 }, '9')).rejects.toThrow('EVM node shows the nonce used from the first block')
+  })
+
+  it('never takes a wrong answer from one backend as proof, as the transaction may be mined', async () => {
+    // It was mined in block 97, but a backend answers for block 96 as if the nonce were used there.
+    await expect(confirmation({ usedIn: 97, taker: HASH, wrongAt: 96 }, '9'))
+      .rejects.toThrow('EVM node answered inconsistently about the block that used the nonce')
+    // A backend on another fork answers the block, which lacks the transaction there; the node refuses counts for it.
+    await expect(confirmation({ usedIn: 97, taker: HASH, staleBlock: true }, '9')).rejects.toThrow()
   })
 
   it('reads only the block it found on later checks, and searches again once the chain replaced that block', async () => {
@@ -169,10 +203,14 @@ describe('EVM confirmation of a replaced transaction', () => {
     expect(await adapter.confirmation(wallet, HASH, '9')).toEqual(replaced)
     expect(calls.slice(before).map((call) => call.method))
       .toEqual(['eth_getTransactionReceipt', 'eth_getTransactionCount', 'eth_getTransactionByHash', 'eth_getBlockByNumber'])
-    expect(calls.at(-1)).toEqual({ method: 'eth_getBlockByNumber', params: ['0x61', false] })
+    expect(blockRead(calls)).toBe('0x61')
+
+    // The block is kept for this wallet's transaction only.
+    const other = { ...wallet, id: 'wallet-2' }
+    await expect(adapter.confirmation(other, HASH, '9')).rejects.toThrow()
 
     // Another block took its place, so the check searches again, and that needs the account state.
-    state.blockHash = `0x${'9'.repeat(64)}`
+    state.fork = '9'
     await expect(adapter.confirmation(wallet, HASH, '9')).rejects.toThrow()
     delete state.oldestState
     state.taker = HASH
