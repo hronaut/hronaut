@@ -37,6 +37,25 @@ describe('workspace names', () => {
     }
   })
 
+  it('removes code points Unicode does not assign yet', () => {
+    // A saved name must be plain to load. The later Unicode an update brings could make such a code point invisible
+    // formatting, or an accent that combines with the letter before it, and stop Hronaut from starting.
+    // Noncharacters are unassigned in every version, so this stays a test of unassigned code points.
+    expect(normalizedWorkspaceName('Client\uFDD0 A\u{10FFFF}')).toBe('Client A')
+    const name = normalizedWorkspaceName('Cafe\u{1FFFE}\u0301 QA')
+    expect(name).toBe('Caf\u00E9 QA')
+    expect(name).toBe(plainWorkspaceName(name))
+    expect(() => normalizedWorkspaceName('\uFDD0\uFFFF')).toThrow()
+    // A template's workspace gets the same name, so its preview finds the same collisions.
+    const template = JSON.stringify({
+      format: 'hronaut-workspace-template',
+      version: 1,
+      sourcePlatform: 'linux',
+      workspaces: [{ name: 'Client A\uFDD0', color: 'blue', startPages: [] }]
+    })
+    expect(previewWorkspaceTemplate(template, ['Client A'])).toMatchObject({ canImport: false, collisions: ['Client A'] })
+  })
+
   it('refuses a name that is empty once plain, or too long', () => {
     expect(() => normalizedWorkspaceName('\u202E\n\u200B')).toThrow()
     expect(normalizedWorkspaceName('a'.repeat(80))).toBe('a'.repeat(80))

@@ -95,7 +95,8 @@ test('preserves persisted tabs when --quit arrives before browser restoration st
       createdAt: '2026-08-20T09:00:00.000Z',
       lastUsedAt: '2026-08-20T09:01:00.000Z',
       activeTabId: websiteTabId,
-      origins: []
+      origins: [],
+      navigationPolicy: { mode: 'unrestricted', rules: [] }
     }],
     savedTabGroups: [],
     tabs: [

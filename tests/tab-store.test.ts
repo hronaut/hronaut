@@ -234,6 +234,23 @@ describe('TabStateStore', () => {
     await expect(store.load()).rejects.toBeInstanceOf(WorkspaceMetadataError)
   })
 
+  it.each([
+    ['no site, open', false, []],
+    ['no site, archived', true, []],
+    ['every subdomain of a site, open', false, ['https://*.shop.example']],
+    ['every subdomain of a site, archived', true, ['https://*.docs.example']]
+  ] as const)('refuses a public observer limited to %s', async (_label, archived, rules) => {
+    // An agent cannot create one: a public observer is limited to one origin.
+    const { path, store } = await createStore()
+    const state = currentState()
+    const workspace = archived ? state.savedTabGroups![0]! : state.mcpTabGroups![1]!
+    workspace.contextClass = 'public-observer'
+    workspace.navigationPolicy = { mode: 'restricted', rules: [...rules] }
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+    await expect(store.load()).rejects.toMatchObject({ reason: 'invalid-schema' })
+  })
+
   it('repairs malformed descriptions without discarding workspace state', async () => {
     const { path, store } = await createStore()
     const state = currentState()
@@ -797,11 +814,24 @@ describe('workspace data from older versions', () => {
   it.each([false, true])('refuses a workspace without a context class (archived=%s)', async archived => {
     const { path, store } = await createStore()
     const state = currentState()
-    if (archived) delete state.savedTabGroups![0]!.contextClass
-    else delete state.mcpTabGroups![1]!.contextClass
+    if (archived) delete (state.savedTabGroups![0] as { contextClass?: string }).contextClass
+    else delete (state.mcpTabGroups![1] as { contextClass?: string }).contextClass
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify(state))
     await expect(store.load()).rejects.toMatchObject({ reason: 'invalid-schema' })
+  })
+
+  it.each([false, true])('refuses a workspace without Site access, leaving the file as it is (archived=%s)', async archived => {
+    // Both workspaces allow only listed sites. Read as allowing every site, they would have opened any page.
+    const { path, store } = await createStore()
+    const state = currentState()
+    if (archived) delete (state.savedTabGroups![0] as { navigationPolicy?: unknown }).navigationPolicy
+    else delete (state.mcpTabGroups![1] as { navigationPolicy?: unknown }).navigationPolicy
+    await mkdir(join(path, '..'), { recursive: true })
+    const bytes = JSON.stringify(state)
+    await writeFile(path, bytes)
+    await expect(store.load()).rejects.toMatchObject({ reason: 'invalid-schema' })
+    expect(await readFile(path, 'utf8')).toBe(bytes)
   })
 
   it.each([false, true])('refuses a workspace name that is not kept plain (archived=%s)', async archived => {

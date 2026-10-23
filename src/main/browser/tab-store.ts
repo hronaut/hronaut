@@ -46,7 +46,7 @@ export interface PersistedTabGroup {
   hiddenFromSidebar?: boolean
   deletionProtected?: boolean
   agentAccess?: boolean
-  contextClass?: BrowserWorkspaceContextClass
+  contextClass: BrowserWorkspaceContextClass
   id: string
   name: string
   description?: string
@@ -56,7 +56,7 @@ export interface PersistedTabGroup {
   activeTabId?: string | null
   storageId: string
   origins?: string[]
-  navigationPolicy?: BrowserWorkspaceNavigationPolicy
+  navigationPolicy: BrowserWorkspaceNavigationPolicy
   navigationAudit?: BrowserWorkspaceNavigationAuditEntry[]
   pinnedAt?: string
 }
@@ -65,7 +65,7 @@ export interface PersistedSavedTabGroup {
   hiddenFromSidebar?: boolean
   deletionProtected?: boolean
   agentAccess?: boolean
-  contextClass?: BrowserWorkspaceContextClass
+  contextClass: BrowserWorkspaceContextClass
   id: string
   name: string
   description?: string
@@ -73,7 +73,7 @@ export interface PersistedSavedTabGroup {
   savedAt: string
   storageId: string
   origins?: string[]
-  navigationPolicy?: BrowserWorkspaceNavigationPolicy
+  navigationPolicy: BrowserWorkspaceNavigationPolicy
   navigationAudit?: BrowserWorkspaceNavigationAuditEntry[]
   tabs: Array<Pick<PersistedTab, 'title' | 'url' | 'pinned' | 'label' | 'zoomIsolated' | 'defaultFontSize' | 'muted' | 'tabAgentPaused' | 'humanInteractionLocked'>>
   /** Which of its tabs was shown when it was archived. */
@@ -127,10 +127,12 @@ function persistedWorkspaceStorageId(value: unknown): string | undefined {
   return typeof value === 'string' && WORKSPACE_STORAGE_ID_PATTERN.test(value) ? value : undefined
 }
 
-/** A public observer is limited to one HTTP(S) origin, or to no site at all. */
+/**
+ * A public observer is limited to one HTTP(S) origin. A subdomain wildcard such as `https://*.example.com` parses as an
+ * origin too, but allows every subdomain.
+ */
 function isPublicObserverPolicy(policy: BrowserWorkspaceNavigationPolicy): boolean {
-  if (policy.mode === 'restricted' && policy.rules.length === 0) return true
-  if (policy.mode !== 'restricted' || policy.rules.length !== 1) return false
+  if (policy.mode !== 'restricted' || policy.rules.length !== 1 || policy.rules[0]!.includes('*')) return false
   try {
     const parsed = new URL(policy.rules[0]!)
     return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
@@ -387,6 +389,7 @@ export class TabStateStore {
           || candidate.name.length > MAX_WORKSPACE_NAME_LENGTH
           || (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean')
           || (candidate.contextClass !== 'standard' && candidate.contextClass !== 'public-observer')
+          || candidate.navigationPolicy === undefined
           || !isBrowserTabGroupColor(candidate.color)
           || typeof candidate.createdAt !== 'string'
           || typeof candidate.lastUsedAt !== 'string'
@@ -433,7 +436,7 @@ export class TabStateStore {
           navigationAudit,
           ...(pinnedAt ? { pinnedAt } : {})
         })
-        if (JSON.stringify(candidate.navigationPolicy ?? { mode: 'unrestricted', rules: [] }) !== JSON.stringify(navigationPolicy)) {
+        if (JSON.stringify(candidate.navigationPolicy) !== JSON.stringify(navigationPolicy)) {
           repairedPersistedState = true
         }
       }
@@ -460,6 +463,7 @@ export class TabStateStore {
           || candidate.name.length > MAX_WORKSPACE_NAME_LENGTH
           || (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean')
           || (candidate.contextClass !== 'standard' && candidate.contextClass !== 'public-observer')
+          || candidate.navigationPolicy === undefined
           || !isBrowserTabGroupColor(candidate.color)
           || typeof candidate.savedAt !== 'string'
           || !storageId
@@ -530,7 +534,7 @@ export class TabStateStore {
           }),
           ...(shownTabIndex !== undefined ? { shownTabIndex } : {})
         })
-        if (JSON.stringify(candidate.navigationPolicy ?? { mode: 'unrestricted', rules: [] }) !== JSON.stringify(navigationPolicy)) {
+        if (JSON.stringify(candidate.navigationPolicy) !== JSON.stringify(navigationPolicy)) {
           repairedPersistedState = true
         }
       }

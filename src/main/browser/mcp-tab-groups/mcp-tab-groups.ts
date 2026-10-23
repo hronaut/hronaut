@@ -1,7 +1,7 @@
 import type { BrowserTabGroupState } from '../../../shared/types.js'
 import type { BrowserTabGroupColor } from '../../../shared/tab-groups.js'
 import { normalizeWorkspaceDescription } from '../../../shared/workspace-description.js'
-import { plainWorkspaceName } from '../../../shared/plain-workspace-name.js'
+import { givenWorkspaceName } from '../../../shared/plain-workspace-name.js'
 import { LocalizedError } from '../../localized-error.js'
 import { retireNetworkPriorityObservations } from '../network-recording.js'
 import type { McpTabGroupsAccess, McpTabGroupsTab } from './mcp-tab-groups-access.js'
@@ -16,9 +16,12 @@ function unknownWorkspace(groupId: string): LocalizedError {
 /** The longest workspace name, in characters after trimming and normalization. */
 const MAX_WORKSPACE_NAME_LENGTH = 80
 
-/** A workspace name as `plainWorkspaceName` keeps it, one line without invisible formatting; refuses an empty or overlong one. */
+/**
+ * A workspace name as `givenWorkspaceName` makes it, one line without invisible formatting or unassigned code points;
+ * refuses an empty or overlong one.
+ */
 export function normalizedWorkspaceName(name: string): string {
-  const normalized = plainWorkspaceName(name)
+  const normalized = givenWorkspaceName(name)
   if (!normalized) throw new LocalizedError('appErrors.workspace.nameEmpty')
   if (normalized.length > MAX_WORKSPACE_NAME_LENGTH) {
     throw new LocalizedError('appErrors.workspace.nameTooLong', { max: MAX_WORKSPACE_NAME_LENGTH })

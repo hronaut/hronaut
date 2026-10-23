@@ -1,6 +1,6 @@
 import { isBrowserTabGroupColor, type BrowserTabGroupColor } from './tab-groups.js'
 import { normalizeWorkspaceDescription } from './workspace-description.js'
-import { plainWorkspaceName } from './plain-workspace-name.js'
+import { givenWorkspaceName, plainWorkspaceName } from './plain-workspace-name.js'
 
 export const WORKSPACE_TEMPLATE_MAX_BYTES = 256 * 1024
 export const WORKSPACE_TEMPLATE_MAX_WORKSPACES = 20
@@ -103,7 +103,7 @@ export function parseWorkspaceTemplate(text: string): WorkspaceTemplate {
     const entry = record(value, ['name', 'description', 'color', 'startPages'], WORKSPACE_TEMPLATE_ERRORS.invalidEntry, WORKSPACE_TEMPLATE_ERRORS.unsupportedEntryField)
     if (typeof entry.name !== 'string') throw new TypeError(WORKSPACE_TEMPLATE_ERRORS.invalidName)
     // The name the workspace will get, so a collision found at commit is found here too.
-    const name = plainWorkspaceName(entry.name)
+    const name = givenWorkspaceName(entry.name)
     if (!name || name.length > 80 || /[\u0000-\u001f\u007f]/u.test(entry.name.trim())) throw new TypeError(WORKSPACE_TEMPLATE_ERRORS.invalidName)
     if (names.has(nameKey(name))) throw new TypeError(WORKSPACE_TEMPLATE_ERRORS.duplicateNames)
     names.add(nameKey(name))
