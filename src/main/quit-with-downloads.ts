@@ -1,14 +1,18 @@
-import type { BrowserWindow, MessageBoxOptions, MessageBoxReturnValue } from 'electron'
+import type { BrowserWindow } from 'electron'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import type { BrowserDownloadState } from '../shared/types.js'
 import type { AppQuitState } from './app-lifecycle.js'
+import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
 
 export interface QuitWithDownloadsHost {
   /** Every download Hronaut lists, read when a quit is requested. */
   downloads(): readonly BrowserDownloadState[]
-  /** The main window, which the question is attached to while it is shown. */
+  /** The main window, which the question is asked in while it is open. */
   window(): BrowserWindow | undefined
-  showMessageBox(window: BrowserWindow | undefined, options: MessageBoxOptions): Promise<MessageBoxReturnValue>
+  /** Restores, shows and focuses the main window, so a question asked there is seen. */
+  showWindow(): void
+  /** Asks in Hronaut's own dialog over the given window's pages, or in the system dialog, with no window for `null`. */
+  showDialog(options: TrustedDialogOptions<BrowserWindow>): Promise<{ response: number }>
   text(key: MessageKey, parameters?: MessageParameters): string
 }
 
@@ -20,23 +24,37 @@ export interface QuitWithDownloadsHost {
  */
 export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost): () => Promise<boolean> {
   let pending: Promise<boolean> | undefined
+  /** Whether the open question is in the main window rather than in a system dialog of its own. */
+  let askedInWindow = false
   // A question that cannot be shown must not leave Hronaut impossible to quit.
   const quitAnyway = (error: unknown): boolean => {
     console.error('[quit] Could not ask about downloads in progress:', error)
     return true
   }
   return () => {
-    if (pending) return pending
+    if (pending) {
+      // The window may have been hidden or minimized since it asked; bring the question back where it waits.
+      if (askedInWindow) {
+        try {
+          host.showWindow()
+        } catch (error) {
+          console.error('[quit] Could not show the question about downloads in progress:', error)
+        }
+      }
+      return pending
+    }
     let count: number
-    let options: MessageBoxOptions
-    let parent: BrowserWindow | undefined
+    let options: TrustedDialogOptions<BrowserWindow>
     try {
       // A paused download is still in progress; an interrupted one has already stopped.
       count = host.downloads().filter((download) => download.state === 'progressing').length
       if (count === 0) return Promise.resolve(true)
       const window = host.window()
-      // A sheet on a window hidden in the tray or minimized would not be seen.
-      parent = window && !window.isDestroyed() && window.isVisible() && !window.isMinimized() ? window : undefined
+      // Quit from the tray or the menu can come while the window is behind other apps, minimized or hidden in the
+      // tray, so it comes forward to ask; only without a window does the system dialog ask on its own.
+      const open = window && !window.isDestroyed() ? window : null
+      if (open) host.showWindow()
+      askedInWindow = open !== null
       options = {
         type: 'warning',
         title: host.text('native.dialog.quitDownloadsTitle'),
@@ -46,13 +64,15 @@ export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost)
         buttons: [host.text('native.dialog.quitDownloadsKeep'), host.text('native.dialog.quitDownloadsQuit')],
         defaultId: 0,
         cancelId: 0,
-        noLink: true
+        noLink: true,
+        variant: { kind: 'message', topic: 'downloads' },
+        window: open
       }
     } catch (error) {
       return Promise.resolve(quitAnyway(error))
     }
     try {
-      pending = host.showMessageBox(parent, options)
+      pending = host.showDialog(options)
         .then(({ response }) => response === 1, quitAnyway)
         .finally(() => { pending = undefined })
     } catch (error) {

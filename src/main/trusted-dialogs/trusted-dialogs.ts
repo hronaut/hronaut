@@ -46,6 +46,11 @@ export interface TrustedDialogsHost<Window extends TrustedDialogWindow> {
   mainWindow(): Window | null
   /** Electron's `dialog.showMessageBox`, on the given window when there is one. */
   showNativeMessageBox(window: Window | null, options: MessageBoxOptions): Promise<MessageBoxReturnValue>
+  /**
+   * True once Hronaut is quitting. A question no shell window can show then gets its cancel answer instead of a system
+   * dialog, which would pop up with no window while the app closes, and on macOS could hold up the quit.
+   */
+  quitting?(): boolean
 }
 
 interface PendingDialog<Window extends TrustedDialogWindow> {
@@ -123,7 +128,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
 
   function askNatively(options: Options, window: Window | null): Promise<MessageBoxReturnValue> {
     const asked = nativeChain.then(async () => {
-      if (options.signal?.aborted) return { response: cancelResponse(options), checkboxChecked: false }
+      if (options.signal?.aborted || host.quitting?.()) return { response: cancelResponse(options), checkboxChecked: false }
       const parent = window && !window.isDestroyed() ? window : null
       return host.showNativeMessageBox(parent, nativeOptions(options))
     })

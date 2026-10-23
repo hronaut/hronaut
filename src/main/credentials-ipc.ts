@@ -2,8 +2,6 @@ import type {
   BrowserWindow,
   IpcMain,
   IpcMainInvokeEvent,
-  MessageBoxOptions,
-  MessageBoxReturnValue,
   OpenDialogOptions,
   OpenDialogReturnValue
 } from 'electron'
@@ -14,6 +12,7 @@ import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { CredentialStore } from './credential-store.js'
 import type { McpActionTracker } from './mcp/action-tracker.js'
 import type { McpHttpServer } from './mcp/server.js'
+import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import type { CredentialImportResult, CredentialStorageStatus } from '../shared/types.js'
 
@@ -29,8 +28,8 @@ interface CredentialsIpcHost {
   mainWindow(): BrowserWindow | null
   /** Electron's `dialog.showOpenDialog` on the given window. */
   showOpenDialog(window: BrowserWindow, options: OpenDialogOptions): Promise<OpenDialogReturnValue>
-  /** Electron's `dialog.showMessageBox` on the given window. */
-  showWindowMessageBox(window: BrowserWindow, options: MessageBoxOptions): Promise<MessageBoxReturnValue>
+  /** Asks in Hronaut's own dialog over the main window's pages, or in the system dialog while that window cannot show it. */
+  showDialog(options: Omit<TrustedDialogOptions, 'window'>): Promise<{ response: number }>
   text(key: MessageKey, parameters?: MessageParameters): string
   setMcpPaused(paused: boolean): void
   acquireTemporaryMcpPause(): () => void
@@ -89,7 +88,7 @@ export function registerCredentialsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: C
     const updated = [...unique].filter((identity) => current.has(identity)).length
     const added = unique.size - updated
     const skipped = parsed.skippedRows + parsed.credentials.length - unique.size
-    const confirmation = await host.showWindowMessageBox(host.mainWindow()!, {
+    const confirmation = await host.showDialog({
       type: 'warning',
       title: host.text('native.dialog.importPasswordsTitle'),
       message: host.text('native.dialog.importPasswordsMessage', { count: unique.size }),
@@ -102,7 +101,9 @@ export function registerCredentialsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: C
       buttons: [host.text('native.dialog.cancel'), host.text('native.dialog.importPasswords')],
       defaultId: 1,
       cancelId: 0,
-      noLink: true
+      primaryId: 1,
+      noLink: true,
+      variant: { kind: 'message', topic: 'passwords' }
     })
     if (confirmation.response !== 1) return canceled
 

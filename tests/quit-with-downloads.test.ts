@@ -1,6 +1,7 @@
-import type { BrowserWindow, MessageBoxOptions, MessageBoxReturnValue } from 'electron'
+import type { BrowserWindow, MessageBoxReturnValue } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createQuitRequest, createQuitWithDownloadsConfirmation } from '../src/main/quit-with-downloads.js'
+import type { TrustedDialogOptions } from '../src/main/trusted-dialogs/trusted-dialogs.js'
 import { translate } from '../src/shared/i18n.js'
 import type { BrowserDownloadState, SupportedLocale } from '../src/shared/types.js'
 
@@ -17,17 +18,19 @@ function confirmation(
   locale: SupportedLocale = 'en-US'
 ) {
   const parent = { isDestroyed: () => false, isVisible: () => true, isMinimized: () => false, ...window } as unknown as BrowserWindow
-  const asked: Array<{ window: BrowserWindow | undefined; options: MessageBoxOptions }> = []
+  const asked: Array<{ window: BrowserWindow | null | undefined; options: TrustedDialogOptions<BrowserWindow> }> = []
+  const showWindow = vi.fn()
   const confirm = createQuitWithDownloadsConfirmation({
     downloads: typeof downloads === 'function' ? downloads : () => downloads,
     window: () => parent,
-    showMessageBox: vi.fn((parent: BrowserWindow | undefined, options: MessageBoxOptions) => {
-      asked.push({ window: parent, options })
+    showWindow,
+    showDialog: vi.fn((options: TrustedDialogOptions<BrowserWindow>) => {
+      asked.push({ window: options.window, options })
       return answer()
     }),
     text: (key, parameters) => translate(locale, key, parameters)
   })
-  return { confirm, asked, window: parent }
+  return { confirm, asked, window: parent, showWindow }
 }
 
 describe('quitting with downloads in progress', () => {
@@ -49,19 +52,22 @@ describe('quitting with downloads in progress', () => {
         detail: 'Quitting now cancels them and deletes the unfinished files.',
         buttons: ['Keep downloading', 'Quit'],
         defaultId: 0,
-        cancelId: 0
+        cancelId: 0,
+        variant: { kind: 'message', topic: 'downloads' }
       })
     })
     response = 1
     await expect(confirm()).resolves.toBe(true)
   })
 
-  it('asks once for requests made while the question is open', async () => {
+  it('asks once for requests made while the question is open, bringing the window back for each', async () => {
     let answer!: (value: MessageBoxReturnValue) => void
-    const { confirm, asked } = confirmation([download('progressing')], () => new Promise((resolve) => { answer = resolve }))
+    const { confirm, asked, showWindow } = confirmation([download('progressing')], () => new Promise((resolve) => { answer = resolve }))
     const first = confirm()
     const second = confirm()
     expect(asked).toHaveLength(1)
+    // The window may have been hidden or minimized since it asked; a second Quit from the tray shows the question again.
+    expect(showWindow).toHaveBeenCalledTimes(2)
     expect(asked[0]!.options.message).toBe('A download is in progress.')
     expect(asked[0]!.options.detail).toBe('Quitting now cancels it and deletes the unfinished file.')
     answer({ response: 1, checkboxChecked: false })
@@ -69,13 +75,22 @@ describe('quitting with downloads in progress', () => {
   })
 
   it.each([
+    ['behind other apps', {}],
     ['hidden in the tray', { isVisible: () => false }],
-    ['minimized', { isMinimized: () => true }],
-    ['closed', { isDestroyed: () => true }]
-  ] as const)('shows the question on its own while the window is %s', async (_label, window) => {
-    const { confirm, asked } = confirmation([download('progressing')], async () => ({ response: 1, checkboxChecked: false }), window)
+    ['minimized', { isMinimized: () => true }]
+  ] as const)('brings the window forward to ask there while it is %s', async (_label, window) => {
+    // Quit from the tray put the question in a window no one was looking at.
+    const { confirm, asked, window: parent, showWindow } = confirmation([download('progressing')], async () => ({ response: 1, checkboxChecked: false }), window)
     await confirm()
-    expect(asked[0]!.window).toBeUndefined()
+    expect(showWindow).toHaveBeenCalledOnce()
+    expect(asked[0]!.window).toBe(parent)
+  })
+
+  it('asks in a system dialog of its own once the window is closed', async () => {
+    const { confirm, asked, showWindow } = confirmation([download('progressing')], async () => ({ response: 1, checkboxChecked: false }), { isDestroyed: () => true })
+    await expect(confirm()).resolves.toBe(true)
+    expect(showWindow).not.toHaveBeenCalled()
+    expect(asked[0]!.window).toBeNull()
   })
 
   it('says files in Russian for 21 downloads, which Russian counts like one', async () => {

@@ -3,6 +3,7 @@ import { createServer, type ServerResponse } from 'node:http'
 import { join } from 'node:path'
 import type { BrowserDownloadState } from '../../src/shared/types.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { answerTrustedDialog, trustedDialog, trustedDialogHeadline } from './trusted-dialog-fixture.js'
 
 test('asks before Quit cancels a download in progress, and keeps it when asked to', async ({ profileDirectory, mcpPort }) => {
   const held: ServerResponse[] = []
@@ -35,18 +36,6 @@ test('asks before Quit cancels a download in progress, and keeps it when asked t
       const downloads = () => appWindow.evaluate('window.hronautDownloads.list()') as Promise<BrowserDownloadState[]>
       await expect.poll(async () => (await downloads())[0]?.state).toBe('progressing')
 
-      // The question's answer: Keep downloading first, then Quit.
-      await app.evaluate(({ dialog }) => {
-        const scope = globalThis as typeof globalThis & { quitQuestions: string[]; quitAnswer: number }
-        scope.quitQuestions = []
-        scope.quitAnswer = 0
-        dialog.showMessageBox = (async (...args: unknown[]) => {
-          const options = args.at(-1) as Electron.MessageBoxOptions
-          scope.quitQuestions.push(`${options.message} ${options.buttons?.join('/')}`)
-          return { response: scope.quitAnswer, checkboxChecked: false }
-        }) as typeof dialog.showMessageBox
-      })
-      const questions = () => app.evaluate(() => (globalThis as typeof globalThis & { quitQuestions: string[] }).quitQuestions)
       const chooseQuit = () => app.evaluate(({ Menu }) => {
         const find = (items: Electron.MenuItem[]): Electron.MenuItem | undefined => {
           for (const item of items) {
@@ -61,19 +50,33 @@ test('asks before Quit cancels a download in progress, and keeps it when asked t
         quit.click()
       })
 
-      // Quit cancelled the download and deleted its unfinished file without asking.
+      // Quit cancelled the download and deleted its unfinished file without asking. Hronaut now asks in its own dialog
+      // over the window, with Keep downloading focused.
+      const question = trustedDialog(appWindow)
       await chooseQuit()
-      await expect.poll(questions).toEqual(['A download is in progress. Keep downloading/Quit'])
+      await expect(question).toHaveAttribute('data-topic', 'downloads')
+      expect(await trustedDialogHeadline(appWindow)).toBe('A download is in progress.')
+      await expect(question).toContainText('Quitting now cancels it and deletes the unfinished file.')
+      await expect(question.locator('.ui-dialog__footer button')).toHaveText(['Keep downloading', 'Quit'])
+      await expect(question.getByRole('button', { name: 'Keep downloading', exact: true })).toBeFocused()
+      await answerTrustedDialog(appWindow, 'Keep downloading')
+      await expect(question).toBeHidden()
       // Closing the window quits too, and asks the same.
       await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')?.close())
-      await expect.poll(questions).toHaveLength(2)
+      await expect(question).toHaveAttribute('data-topic', 'downloads')
+      await answerTrustedDialog(appWindow, 'Keep downloading')
+      await expect(question).toBeHidden()
       await new Promise((resolve) => setTimeout(resolve, 500))
       expect(child.exitCode).toBeNull()
       expect((await downloads())[0]?.state).toBe('progressing')
 
       const exited = new Promise((resolve) => child.once('exit', resolve))
-      await app.evaluate(() => { (globalThis as typeof globalThis & { quitAnswer: number }).quitAnswer = 1 })
-      await chooseQuit().catch(() => undefined)
+      await chooseQuit()
+      const answered = await answerTrustedDialog(appWindow, 'Quit').then(() => undefined, (error: unknown) => error)
+      // Hronaut quits as soon as the answer arrives, which can close the window under the click; any other failure counts.
+      if (answered !== undefined) {
+        await Promise.race([exited, new Promise((_resolve, reject) => setTimeout(() => reject(answered), 10_000))])
+      }
       await exited
     } finally {
       for (const response of held) response.destroy()

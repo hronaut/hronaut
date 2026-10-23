@@ -1,7 +1,8 @@
-import { app, safeStorage, type BrowserWindow, type MessageBoxOptions, type MessageBoxReturnValue } from 'electron'
+import { app, safeStorage, type BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { CredentialStore } from './credential-store.js'
 import type { BrowserCredentialCandidate } from './browser/tabs-manager.js'
+import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import type { CredentialStorageStatus } from '../shared/types.js'
 
@@ -20,8 +21,8 @@ export interface CredentialRuntimeState {
 interface CredentialRuntimeHost {
   /** Translates into the current interface language; read on every use because the language can change. */
   text(key: MessageKey, parameters?: MessageParameters): string
-  /** Asks on the main window, or on its own while there is none. */
-  showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>
+  /** Asks in Hronaut's own dialog over the main window's pages, or in the system dialog while that window cannot show it. */
+  showDialog(options: Omit<TrustedDialogOptions, 'window'>): Promise<{ response: number }>
   /** The main window, without which no password is offered for saving; read on every use because it can close. */
   mainWindow(): Pick<BrowserWindow, 'isDestroyed'> | null
   /** Secure storage's status and the password store; index.ts creates the record, and other features read it too. */
@@ -56,7 +57,7 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
     }
     const updating = host.state.store!.has(candidate.origin, candidate.username)
     const account = candidate.username || host.text('native.dialog.unnamedAccount')
-    const { response } = await host.showMessageBox({
+    const { response } = await host.showDialog({
       type: 'question',
       title: host.text(updating ? 'native.dialog.updatePasswordTitle' : 'native.dialog.savePasswordTitle'),
       message: host.text(updating ? 'native.dialog.updatePasswordMessage' : 'native.dialog.savePasswordMessage', { account }),
@@ -64,7 +65,9 @@ export function createCredentialRuntime(host: CredentialRuntimeHost): {
       buttons: [host.text('native.dialog.notNow'), host.text(updating ? 'native.dialog.updatePassword' : 'native.dialog.savePassword')],
       defaultId: 1,
       cancelId: 0,
-      noLink: true
+      primaryId: 1,
+      noLink: true,
+      variant: { kind: 'save-password', origin: candidate.origin, username: candidate.username, updating }
     })
     if (response !== 1) return
     await host.state.store!.save(candidate.origin, candidate.username, candidate.password)

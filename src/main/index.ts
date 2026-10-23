@@ -170,6 +170,7 @@ const {
 // Hronaut's own dialogs over the shell, such as a website's permission request; the system dialog while none can show.
 const trustedDialogs = createTrustedDialogs({
   mainWindow: () => mainWindowRefs.window,
+  quitting: () => appQuitState.quitting,
   showNativeMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options)
 })
 const addressSuggestionOverlay = createAddressSuggestionOverlay({
@@ -260,7 +261,8 @@ const appQuitState: AppQuitState = { quitting: false }
 const confirmQuitWithDownloads = createQuitWithDownloadsConfirmation({
   downloads: () => tabRuntime.tabs?.listDownloads() ?? [],
   window: () => mainWindowRefs.window ?? undefined,
-  showMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options),
+  showWindow: () => showWindow(),
+  showDialog: (options) => trustedDialogs.show(options),
   text: (key, parameters) => text(key, parameters)
 })
 /** Quits from the menu, the tray or the window's Close, unless downloads are in progress and the person keeps them. */
@@ -538,7 +540,7 @@ const { currentBrowsingDataSiteSummary, agentSiteData } = createSiteData({
 
 const { publishCredentials, offerToSaveCredential, configureCredentialStore } = createCredentialRuntime({
   text,
-  showMessageBox,
+  showDialog: (options) => trustedDialogs.show(options),
   mainWindow: () => mainWindowRefs.window,
   state: credentialRuntime,
   sendToShellWindows,
@@ -855,11 +857,12 @@ function registerIpc(): void {
     assertSender: assertInitializedMainShellSender,
     destination: id => tabRuntime.tabs!.browserImportDestination(id),
     consent: async (profile, destination) => {
-      const { response } = await showMessageBox({
+      const { response } = await trustedDialogs.show({
         type: 'question', title: text('browserImport.title', { name: destination.name }),
         message: text('browserImport.readConsent', { browser: profile.browser, profile: profile.name }),
         detail: text('browserImport.readDetail', { name: destination.name }),
-        buttons: [text('browserImport.cancel'), text('browserImport.continue')], defaultId: 0, cancelId: 0, noLink: true
+        buttons: [text('browserImport.cancel'), text('browserImport.continue')], defaultId: 0, cancelId: 0, primaryId: 1, noLink: true,
+        variant: { kind: 'message', topic: 'browser-import' }
       })
       return response === 1
     },
@@ -994,7 +997,7 @@ function registerIpc(): void {
     tabs: () => tabRuntime.tabs,
     mainWindow: () => mainWindowRefs.window,
     showOpenDialog: (window, options) => dialog.showOpenDialog(window, options),
-    showWindowMessageBox: (window, options) => dialog.showMessageBox(window, options),
+    showDialog: (options) => trustedDialogs.show(options),
     text,
     setMcpPaused,
     acquireTemporaryMcpPause,
@@ -1097,7 +1100,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     onPageFullscreenChanged: () => sidebarOverlay.relayout(),
     onDownloadsChanged: (downloads) => sendToPanelWindow('browser:downloads-changed', downloads),
     confirmBeforeUnloadClose: async () => {
-      const { response } = await showMessageBox({
+      const { response } = await trustedDialogs.show({
         type: 'warning',
         title: text('native.dialog.closeTabTitle'),
         message: text('native.dialog.closeTabMessage'),
@@ -1105,12 +1108,14 @@ async function createWindow(startMinimized = false): Promise<void> {
         buttons: [text('native.dialog.keepEditing'), text('native.dialog.discardChanges')],
         defaultId: 0,
         cancelId: 0,
-        noLink: true
+        primaryId: 1,
+        noLink: true,
+        variant: { kind: 'message', topic: 'unsaved-changes' }
       })
       return response === 1
     },
     confirmBeforeUnloadLeave: async () => {
-      const { response } = await showMessageBox({
+      const { response } = await trustedDialogs.show({
         type: 'warning',
         title: text('native.dialog.leavePageTitle'),
         message: text('native.dialog.leavePageMessage'),
@@ -1118,7 +1123,9 @@ async function createWindow(startMinimized = false): Promise<void> {
         buttons: [text('native.dialog.keepEditing'), text('native.dialog.leavePage')],
         defaultId: 0,
         cancelId: 0,
-        noLink: true
+        primaryId: 1,
+        noLink: true,
+        variant: { kind: 'message', topic: 'unsaved-changes' }
       })
       return response === 1
     },
@@ -1344,7 +1351,7 @@ const { startMcpServer, setMcpPort, resetMcpSettings } = createMcpRuntime({
   assertWorkspaceInitialized,
   tabs: () => tabRuntime.tabs,
   text,
-  showMessageBox
+  showDialog: (options) => trustedDialogs.show(options)
 })
 
 /**

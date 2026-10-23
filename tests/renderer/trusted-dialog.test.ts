@@ -335,5 +335,78 @@ describe('Hronaut’s permission dialog', () => {
     expect(dialog).toHaveTextContent('First part.')
     expect(dialog).toHaveTextContent('Second part.')
     expect(screen.getByRole('button', { name: 'OK' })).toHaveFocus()
+    expect(dialog).not.toHaveAttribute('data-topic')
+  })
+
+  it('marks one of Hronaut’s own questions by what it is about, keeping its words and the safe answer focused', async () => {
+    const { api, show, settle } = mountDialog()
+    await show({
+      id: 'leave', type: 'warning', title: 'Leave this page?', message: 'This page asked Hronaut to confirm before leaving it.',
+      detail: 'Leaving the page may discard changes that have not been saved.',
+      buttons: ['Keep editing', 'Leave page'], defaultId: 0, cancelId: 0, primaryId: 1,
+      variant: { kind: 'message', topic: 'unsaved-changes' }
+    })
+    const dialog = screen.getByRole('alertdialog', { name: 'This page asked Hronaut to confirm before leaving it.' })
+    expect(dialog).toHaveAttribute('data-topic', 'unsaved-changes')
+    expect(dialog).toHaveClass('trusted-dialog--warning')
+    expect(dialog).toHaveTextContent('Leave this page?')
+    expect(dialog).toHaveTextContent('Leaving the page may discard changes')
+    expect(screen.getByRole('button', { name: 'Keep editing' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Leave page' })).toHaveClass('ui-button--primary')
+    await settle()
+    await fireEvent.click(screen.getByRole('button', { name: 'Leave page' }))
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('leave', 1)
+  })
+})
+
+function savePassword(id: string, overrides: Partial<Extract<TrustedDialogRequest['variant'], { kind: 'save-password' }>> = {}): TrustedDialogRequest {
+  return {
+    id,
+    type: 'question',
+    title: 'Save password?',
+    message: 'Save the password for ada@example.com?',
+    detail: 'https://login.example\n\nPasswords are encrypted with the operating system’s secure storage.',
+    buttons: ['Not now', 'Save password'],
+    defaultId: 1,
+    cancelId: 0,
+    primaryId: 1,
+    variant: { kind: 'save-password', origin: 'https://login.example', username: 'ada@example.com', updating: false, ...overrides }
+  }
+}
+
+describe('Hronaut’s save password dialog', () => {
+  it('names the website, quotes the username the page sent, and saves only on Save', async () => {
+    const { api, show, settle } = mountDialog()
+    await show(savePassword('save'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Save your password for https://login.example?' })
+    expect(dialog).toHaveAttribute('data-variant', 'save-password')
+    expect(dialog.querySelector('.trusted-dialog__origin')).toHaveTextContent('https://login.example')
+    expect(dialog).toHaveTextContent('Saved passwords')
+    expect(screen.getByTestId('trusted-dialog-quoted')).toHaveTextContent('ada@example.com')
+    expect(dialog.querySelector('.trusted-dialog__quoted figcaption')).toHaveTextContent('Username')
+    expect(dialog).toHaveTextContent('Saved passwords are never exposed through MCP.')
+    const save = screen.getByRole('button', { name: 'Save password' })
+    expect(save).toHaveFocus()
+    expect(save).toHaveClass('ui-button--primary')
+    await fireEvent.click(save)
+    expect(api.respond).not.toHaveBeenCalled()
+    await settle()
+    await fireEvent.click(save)
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('save', 1)
+  })
+
+  it('asks to update a saved password, and says so when the page sent no username', async () => {
+    const { show } = mountDialog()
+    await show({ ...savePassword('update', { updating: true, username: '' }), buttons: ['Not now', 'Update password'] })
+    const dialog = screen.getByRole('alertdialog', { name: 'Update your saved password for https://login.example?' })
+    expect(screen.queryByTestId('trusted-dialog-quoted')).toBeNull()
+    expect(dialog).toHaveTextContent('The page sent no username with it.')
+  })
+
+  it('speaks the interface language', async () => {
+    const { show } = mountDialog('ru-RU')
+    await show(savePassword('ru'))
+    screen.getByRole('alertdialog', { name: 'Сохранить пароль для https://login.example?' })
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Имя пользователя')
   })
 })

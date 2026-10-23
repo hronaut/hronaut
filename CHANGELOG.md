@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Hronaut's own questions now appear as Hronaut dialogs over the window instead of system dialogs: saving or updating a password a page submitted, leaving or closing a page that asks to confirm, quitting with downloads in progress, reading another browser's cookies to import them, importing a password file, and the MCP server failing to start. The password dialog names the website and shows the username the page sent apart from Hronaut's words. Quitting with downloads in progress brings the window forward to ask, even from the tray; the others still use the system dialog while Hronaut's window is hidden, minimized or not loaded yet, and none of them asks once Hronaut is quitting.
+
 ## [3.8.0] - 2026-10-23
 
 ### Changed

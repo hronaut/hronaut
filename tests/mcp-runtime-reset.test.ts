@@ -60,7 +60,7 @@ function runtime({ listenerHost, port, savedRemoteAccess = listenerHost === '0.0
     assertWorkspaceInitialized: vi.fn(),
     tabs: () => null,
     text: (key: string) => key,
-    showMessageBox: vi.fn()
+    showDialog: vi.fn()
   }
   return { host, server, candidate, saved: () => persisted, reset: () => createMcpRuntime(host as never).resetMcpSettings() }
 }
