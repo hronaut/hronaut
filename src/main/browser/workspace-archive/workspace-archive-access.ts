@@ -59,6 +59,8 @@ export interface WorkspaceArchiveAccess {
   withSavedWorkspaceOperation<T>(savedWorkspaceId: string, action: WorkspaceOperationAction, operation: () => Promise<T>): Promise<T>
   /** Throws unless the workspace alone owns the storage, so deleting it cannot touch another workspace's data. */
   assertStorageDeletionOwnership(workspaceId: string, storageId: string): Promise<void>
+  /** Settles once the downloads receiving data in the session end, or is undefined when none is. */
+  downloadsEnd(browserSession: Session): Promise<void> | undefined
   /** The storage ids of deleted workspaces, which are saved so no workspace reuses them. */
   deletedWorkspaceStorageIds(): Set<string>
   /** Forgets a deleted workspace's continuity checkpoint. */

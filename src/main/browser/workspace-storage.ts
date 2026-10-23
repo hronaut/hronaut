@@ -486,13 +486,31 @@ export async function transferWorkspaceStorage(
 
 }
 
+/**
+ * Deletes a closed or deleted workspace's storage. Downloads still receiving data in it go on, as Chrome's go on once
+ * their tab or window closes: closing the session's connections would fail them, and clearing its downloads would
+ * cancel any that Chromium stops and could resume. So its cookies, site data and cache go now, and the rest, with every
+ * connection, once those downloads end.
+ */
 export async function destroyWorkspaceStorage(
   partition: string,
-  configureSession?: (browserSession: Session) => void
+  configureSession?: (browserSession: Session) => void,
+  downloadsEnd?: (browserSession: Session) => Promise<void> | undefined
 ): Promise<void> {
   const browserSession = session.fromPartition(partition, { cache: true })
   configureSession?.(browserSession)
-  await browserSession.closeAllConnections()
-  await browserSession.clearData()
+  const clearEverything = async (): Promise<void> => {
+    await browserSession.closeAllConnections()
+    await browserSession.clearData()
+    await flushBrowserSessionStorage(browserSession)
+  }
+  const downloads = downloadsEnd?.(browserSession)
+  if (!downloads) return clearEverything()
+  await browserSession.clearData({
+    dataTypes: ['backgroundFetch', 'cache', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL']
+  })
   await flushBrowserSessionStorage(browserSession)
+  void downloads.then(clearEverything).catch((error: unknown) => {
+    console.error('[workspace] Could not delete the rest of the storage of a closed workspace after its downloads ended:', error)
+  })
 }

@@ -216,7 +216,8 @@ export async function deleteSavedTabGroup(access: WorkspaceArchiveAccess, savedG
       await access.assertStorageDeletionOwnership(savedGroupId, saved.storageId)
       await destroyWorkspaceStorage(
         workspacePartition(access.options().partition, saved.storageId),
-        access.options().configureSession
+        access.options().configureSession,
+        (browserSession) => access.downloadsEnd(browserSession)
       )
     }
     access.savedTabGroups().delete(savedGroupId)

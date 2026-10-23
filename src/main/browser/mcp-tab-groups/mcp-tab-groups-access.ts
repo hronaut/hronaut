@@ -129,6 +129,8 @@ export interface McpTabGroupsAccess<Tab extends McpTabGroupsTab> {
   runWalletLifecycleAction(action: string, callback: () => unknown): void
   /** Throws unless the workspace alone owns the storage, so deleting it cannot touch another workspace's data. */
   assertStorageDeletionOwnership(workspaceId: string, storageId: string): Promise<void>
+  /** Settles once the downloads receiving data in the session end, or is undefined when none is. */
+  downloadsEnd(browserSession: Session): Promise<void> | undefined
   /** Suspends an archived workspace's continuity checkpoint until it is restored. */
   suspendWorkspaceContinuity(workspaceId: string): boolean
   /** Forgets a deleted workspace's continuity checkpoint. */

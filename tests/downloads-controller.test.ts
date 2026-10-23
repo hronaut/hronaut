@@ -674,3 +674,28 @@ it('names transfer failures for the panel while agents keep reading the same mes
   expect([notActive.key, notActive.message]).toEqual(['appErrors.downloads.notActive', `Active download not found: ${id}`])
   expect(translate('de-DE', notActive.key)).toBe('Dieser Download ist bereits beendet oder abgebrochen.')
 })
+
+it('settles when the downloads receiving data in a session end, for a closed workspace to delete the rest of its storage', async () => {
+  const { controller, session, download } = await fixture()
+  const otherSession = new EventEmitter()
+  controller.attachSession(otherSession as Session)
+  expect(controller.downloadsEnd(session as Session)).toBeUndefined()
+
+  const first = download()
+  const second = download(2)
+  const paused = download()
+  paused.pause()
+  const interrupted = download()
+  interrupted.interrupt()
+  // Only the two receiving data are waited for, and not in another session.
+  expect(controller.downloadsEnd(otherSession as Session)).toBeUndefined()
+  let ended = false
+  const end = controller.downloadsEnd(session as Session)!.then(() => { ended = true })
+  first.complete()
+  await Promise.resolve()
+  expect(ended).toBe(false)
+  second.cancel()
+  await end
+  expect(ended).toBe(true)
+  expect(controller.downloadsEnd(session as Session)).toBeUndefined()
+})

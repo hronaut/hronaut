@@ -128,7 +128,8 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
       await access.assertStorageDeletionOwnership(groupId, group.storageId)
       await destroyWorkspaceStorage(
         workspacePartition(access.options().partition, group.storageId),
-        access.options().configureSession
+        access.options().configureSession,
+        (browserSession) => access.downloadsEnd(browserSession)
       )
     }
   } catch (error) {
