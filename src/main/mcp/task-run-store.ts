@@ -171,7 +171,10 @@ interface Entry {
   record: StoredRecord
   deadlineMonotonic: number
   heartbeatDueMonotonic: number
-  /** A success claim that the call which made it still observes again; it waits for that call, not for the heartbeat. */
+  /**
+   * A success claim that the call which made it still observes again; it waits for that call, not for the heartbeat or
+   * the deadline. An invalid clock still settles it.
+   */
   observingClaim?: boolean
 }
 
@@ -358,6 +361,8 @@ export class TaskRunStore {
   confirmSuccess(id: string, revision: string): TaskRunSummary {
     this.expire()
     const entry = this.records.get(idSchema.parse(id))
+    // A clock found invalid meanwhile settles even a claim its call still observes, and the call returns that outcome.
+    if (entry?.observingClaim && terminal(entry.record.state)) return this.publicRecord(entry.record)
     if (!entry || entry.record.state !== 'VERIFYING' || entry.record.revision !== idSchema.parse(revision)) {
       throw new Error('Verifying task run is unavailable or stale')
     }
@@ -369,6 +374,8 @@ export class TaskRunStore {
   invalidateVerification(id: string, revision: string): TaskRunSummary {
     this.expire()
     const entry = this.records.get(idSchema.parse(id))
+    // A clock found invalid meanwhile settles even a claim its call still observes, and the call returns that outcome.
+    if (entry?.observingClaim && terminal(entry.record.state)) return this.publicRecord(entry.record)
     if (!entry || entry.record.state !== 'VERIFYING' || entry.record.revision !== idSchema.parse(revision)) {
       throw new Error('Verifying task run is unavailable or stale')
     }
@@ -453,7 +460,6 @@ export class TaskRunStore {
     const rolledBack = this.lastMonotonic !== undefined && monotonic < this.lastMonotonic
     if (!Number.isFinite(monotonic) || rolledBack) {
       for (const entry of this.records.values()) {
-        if (entry.observingClaim) continue
         if (entry.record.state === 'RUNNING' || entry.record.state === 'VERIFYING') {
           this.transition(entry.record, 'OUTCOME_UNKNOWN', 'CLOCK_INVALID')
         }

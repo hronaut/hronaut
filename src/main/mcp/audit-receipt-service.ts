@@ -70,20 +70,27 @@ export class AuditReceiptService {
       }
       const index = await this.readIndex(id)
       for (const previous of [...index.runs]) {
-        try {
-          await this.finalizeInterruptedVerifications(id, previous)
-        } catch (error) {
-          if (!(error instanceof AuditReceiptHistoryInvalidError)) throw error
-          // An interrupted run whose journal does not verify, such as one an earlier version
-          // saved, one cut off while Hronaut wrote it or one changed since, can be neither read
-          // nor closed. It leaves the list so recordings can start again, and its journal stays
-          // beside the others as evidence. It is set aside before the list changes, so a crash
-          // between the two leaves no journal that the list does not name.
-          await rename(this.journalPath(id, previous.id), this.unverifiedJournalPath(id, previous.id))
-          index.runs.splice(index.runs.indexOf(previous), 1)
-          await this.saveIndex(id, index)
-          console.warn('[audit] Set aside an interrupted audit run whose journal could not be verified.')
+        // A run whose journal was set aside below but whose list change did not land, such as when the disk filled or
+        // Hronaut stopped between the two, leaves the list now.
+        let setAside = await this.journalSetAside(id, previous.id)
+        if (!setAside) {
+          try {
+            await this.finalizeInterruptedVerifications(id, previous)
+          } catch (error) {
+            if (!(error instanceof AuditReceiptHistoryInvalidError)) throw error
+            // An interrupted run whose journal does not verify, such as one an earlier version
+            // saved, one cut off while Hronaut wrote it or one changed since, can be neither read
+            // nor closed. It leaves the list so recordings can start again, and its journal stays
+            // beside the others as evidence. It is set aside before the list changes, so a crash
+            // between the two leaves no journal that the list does not name.
+            await rename(this.journalPath(id, previous.id), this.unverifiedJournalPath(id, previous.id))
+            setAside = true
+          }
         }
+        if (!setAside) continue
+        index.runs.splice(index.runs.indexOf(previous), 1)
+        await this.saveIndex(id, index)
+        console.warn('[audit] Set aside an interrupted audit run whose journal could not be verified.')
       }
       const directory = this.workspacePath(id)
       await mkdir(directory, { recursive: true, mode: 0o700 })
@@ -97,7 +104,8 @@ export class AuditReceiptService {
       if (index.runs.length === 3) {
         const retired = index.runs.shift()!
         await this.saveIndex(id, index)
-        await rm(this.journalPath(id, retired.id))
+        // The list no longer names it, so a journal already gone leaves nothing to remove.
+        await rm(this.journalPath(id, retired.id), { force: true })
       }
       const metadata: Metadata = {
         id: randomUUID(), startedAt: new Date().toISOString(), stoppedAt: null,
@@ -185,12 +193,13 @@ export class AuditReceiptService {
           'Origin identifiers are opaque and stable only within one live run. The hash chain is not authentication against local file rewriting.',
           'Authorization lineage contains only root-to-leaf capability profile IDs and revisions.',
           'Write-lease evidence contains only privacy-safe mode, holder state, expiry, and the current owner generation. Foreign generations and transport identities are omitted.',
-          'Retention is three runs per workspace, each capped at 1000 entries and 1 MiB.'
+          'Retention is three runs per workspace, each capped at 1000 entries and 1 MiB. Journals set aside as unverified are kept outside it.'
         ]
       }
       const metadata = (await this.readIndex(id)).runs.find(run => run.id === selected)
       if (!metadata) throw new Error('Audit run is not retained in this workspace')
-      await stat(this.journalPath(id, selected))
+      // The file system's own error would name the profile folder.
+      await stat(this.journalPath(id, selected)).catch(() => { throw new Error('Audit run journal is unavailable') })
       const current = this.active.get(id)
       if (current?.metadata.id === selected) {
         const report = await current.run.report()
@@ -375,6 +384,20 @@ export class AuditReceiptService {
   private workspacePath(workspaceId: string): string { return join(this.directory, workspaceId) }
   private journalPath(workspaceId: string, runId: string): string { return join(this.workspacePath(workspaceId), `${runId}.jsonl`) }
   private unverifiedJournalPath(workspaceId: string, runId: string): string { return `${this.journalPath(workspaceId, runId)}.unverified` }
+
+  /** Whether the run's journal was set aside as unverified, leaving none under its own name. */
+  private async journalSetAside(workspaceId: string, runId: string): Promise<boolean> {
+    const present = async (path: string): Promise<boolean> => {
+      try {
+        await stat(path)
+        return true
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+        throw new Error('Audit run journal is unavailable')
+      }
+    }
+    return !await present(this.journalPath(workspaceId, runId)) && await present(this.unverifiedJournalPath(workspaceId, runId))
+  }
 
   private async readIndex(workspaceId: string): Promise<Index> {
     let handle

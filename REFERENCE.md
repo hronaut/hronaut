@@ -659,7 +659,9 @@ never automatically resumed or replayed. An interrupted run whose journal no
 longer verifies, such as one saved by an earlier version, one cut off when
 Hronaut stopped while writing it, or one changed since, cannot be read. When the
 next run starts, it leaves the list and its journal is kept beside the others as
-`<run id>.jsonl.unverified`; it is never deleted. Failed metadata persistence leaves the
+`<run id>.jsonl.unverified`; it is never deleted and does not count toward the
+three runs. If Hronaut stops after setting the journal aside and before the list
+changes, the next start finishes it. Failed metadata persistence leaves the
 run in a stopping state until stop succeeds. Unindexed journals are preserved for
 recovery instead of silently discarded.
 

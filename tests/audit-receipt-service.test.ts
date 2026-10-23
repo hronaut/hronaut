@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuditReceiptService } from '../src/main/mcp/audit-receipt-service.js'
 import { AuditReceiptStore } from '../src/main/mcp/audit-receipt-store.js'
 
-const diskFault = vi.hoisted(() => ({ failTemporaryWrite: false }))
+const diskFault = vi.hoisted(() => ({ failTemporaryWrite: false, failTemporaryWriteAfterSetAside: false }))
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
   return {
@@ -17,6 +17,10 @@ vi.mock('node:fs/promises', async (importOriginal) => {
         Object.defineProperty(handle, 'writeFile', { value: async () => { throw new Error('Injected metadata write failure') } })
       }
       return handle
+    },
+    rename: async (...args: Parameters<typeof actual.rename>) => {
+      await actual.rename(...args)
+      if (diskFault.failTemporaryWriteAfterSetAside && String(args[1]).endsWith('.unverified')) diskFault.failTemporaryWrite = true
     }
   }
 })
@@ -24,6 +28,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 const directories: string[] = []
 afterEach(async () => {
   diskFault.failTemporaryWrite = false
+  diskFault.failTemporaryWriteAfterSetAside = false
   await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true })))
 })
 async function fixture() {
@@ -200,6 +205,37 @@ describe('persistent audit receipt service', () => {
     }
   })
 
+  // The disk filled, or Hronaut stopped, after the journal was set aside and before the list dropped its run. The run
+  // stayed listed with no journal, reading it failed with the file system's error naming the profile folder, and a later
+  // start could fail removing its missing journal.
+  it('finishes setting aside a run whose list change did not land', async () => {
+    const { service, root, toolNames, workspaceId } = await fixture()
+    const interrupted = await service.start(workspaceId)
+    await service.execute(workspaceId, action(async () => 'one'))
+    const journal = join(root, workspaceId, `${interrupted.id}.jsonl`)
+    const cutOff = `${await readFile(journal, 'utf8')}{"sequence":3,"workspaceId":"`
+    await writeFile(journal, cutOff)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      const reopened = new AuditReceiptService(root, toolNames)
+      diskFault.failTemporaryWriteAfterSetAside = true
+      await expect(reopened.start(workspaceId)).rejects.toThrow('Injected metadata write failure')
+      diskFault.failTemporaryWriteAfterSetAside = false
+      diskFault.failTemporaryWrite = false
+      expect((await reopened.list(workspaceId)).map(run => run.id)).toEqual([interrupted.id])
+      await expect(stat(journal)).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(reopened.read(workspaceId, interrupted.id)).rejects.toThrow(/^Audit run journal is unavailable$/)
+
+      const fresh = await reopened.start(workspaceId)
+      expect((await reopened.list(workspaceId)).map(run => run.id)).toEqual([fresh.id])
+      expect(await readFile(`${journal}.unverified`, 'utf8')).toBe(cutOff)
+      expect(warn).toHaveBeenCalledTimes(1)
+      await reopened.stop(workspaceId)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
   it('durably resolves verification left pending by a process restart as unknown', async () => {
     const { service, root, toolNames, workspaceId } = await fixture()
     const run = await service.start(workspaceId)
@@ -264,6 +300,19 @@ describe('persistent audit receipt service', () => {
     expect((await readdir(join(root, workspaceId))).filter(name => name.endsWith('.jsonl'))).toHaveLength(3)
     await expect(service.read(workspaceId, ids[0]!)).rejects.toThrow('not retained')
     await expect(service.read(randomUUID(), ids[3]!)).rejects.toThrow('not retained')
+  })
+
+  it('retires the oldest run when its journal is already gone', async () => {
+    const { service, root, workspaceId } = await fixture()
+    const ids: string[] = []
+    for (let index = 0; index < 3; index += 1) {
+      ids.push((await service.start(workspaceId)).id)
+      await service.stop(workspaceId)
+    }
+    await rm(join(root, workspaceId, `${ids[0]}.jsonl`))
+    const next = await service.start(workspaceId)
+    expect((await service.list(workspaceId)).map(run => run.id)).toEqual([...ids.slice(1), next.id])
+    await service.stop(workspaceId)
   })
 
   it('keeps opaque origins stable within one run but unrelated across runs and excludes raw policy data', async () => {
