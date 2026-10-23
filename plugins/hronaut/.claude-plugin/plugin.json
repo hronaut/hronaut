@@ -1,0 +1,25 @@
+{
+  "name": "hronaut",
+  "version": "3.7.0",
+  "description": "Connects your coding agent to Hronaut — a visible desktop browser it can drive over MCP. Watch every step, pause and take over, keep logins between sessions. Requires the Hronaut app (free 10-day trial at hronaut.dev).",
+  "author": {
+    "name": "Hronaut",
+    "url": "https://hronaut.dev"
+  },
+  "homepage": "https://hronaut.dev",
+  "repository": "https://github.com/hronaut/hronaut",
+  "license": "SEE LICENSE IN LICENSE",
+  "privacyPolicyUrl": "https://hronaut.dev/privacy",
+  "icon": ".claude-plugin/icon.png",
+  "keywords": ["browser", "mcp", "qa", "testing", "automation", "localhost"],
+  "mcpServers": {
+    "hronaut": {
+      "type": "http",
+      "url": "http://127.0.0.1:${HRONAUT_MCP_PORT:-47812}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${HRONAUT_MCP_TOKEN:-}"
+      },
+      "headersHelper": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hronaut-headers.sh\" || \"${CLAUDE_PLUGIN_ROOT}/scripts/hronaut-headers.cmd\""
+    }
+  }
+}
