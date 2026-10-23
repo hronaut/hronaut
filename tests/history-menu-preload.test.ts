@@ -29,3 +29,15 @@ it('passes on Show Full History without anything the sender adds, and stops list
   stop()
   expect(electron.removeListener).toHaveBeenCalledWith('browser:visit-history-requested', handler)
 })
+
+it('passes on Paste and Go\'s text only when it is text, and stops listening when asked', async () => {
+  const api = (await hronautApi()) as unknown as { onAddressPasteAndGo: (listener: (...args: unknown[]) => void) => () => void }
+  const listener = vi.fn()
+  const stop = api.onAddressPasteAndGo(listener)
+  const [, handler] = electron.on.mock.calls.find(([channel]) => channel === 'browser:address-paste-and-go')!
+  handler({ sender: 'event' }, 'example.com', 'extra')
+  handler({ sender: 'event' }, { url: 'example.com' })
+  expect(listener.mock.calls).toEqual([['example.com']])
+  stop()
+  expect(electron.removeListener).toHaveBeenCalledWith('browser:address-paste-and-go', handler)
+})

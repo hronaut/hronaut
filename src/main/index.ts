@@ -1002,7 +1002,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   panelWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))
   const savedWindowState = await mainWindowRefs.stateStore.load()
   mainWindowRefs.window = openMainWindow(savedWindowState)
-  attachShellEditContextMenu(mainWindowRefs.window, text)
+  attachShellEditContextMenu(mainWindowRefs.window, text, { addressBar: true })
   mainWindowRefs.window.webContents.setZoomFactor(settingsState.current.interfaceScale)
 
   const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletRuntime.broker)
