@@ -75,8 +75,11 @@ export interface NavigationEventsAccess<Tab extends NavigationEventsTab> {
   isDestroyed(): boolean
   /** Publishes the browser state, and saves it unless persist is false. */
   changed(persist?: boolean): void
-  /** Records a visit to the tab's web page in history and its workspace's origins. */
-  recordVisit(tab: Tab): void
+  /**
+   * Records a visit to the tab's web page in history and its workspace's origins; samePage when the tab opened the page
+   * it showed again, by a reload or a change of only its fragment, which is not another visit.
+   */
+  recordVisit(tab: Tab, samePage: boolean): void
   /** The tab manager's options. */
   options(): NavigationEventsOptions
   /** Whether the workspace's navigation policy lets it open this address, auditing the decision. */

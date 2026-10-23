@@ -851,7 +851,8 @@ export interface TabsManagerOptions {
   offerUndo?: (action: UndoableAction) => void
   /** Ends the Undo on offer, completing what its action held back. */
   endUndo?: () => Promise<void>
-  onPageVisited?: (visit: { url: string; title: string }) => void
+  /** A tab opened a web page, or opened the one it showed again: samePage. */
+  onPageVisited?: (visit: { url: string; title: string; samePage: boolean }) => void
   onPageTitleUpdated?: (page: { url: string; title: string }) => void
   onStateChanged?: (state: BrowserState) => void
   /** A page took or left full screen, which nothing of the shell's is drawn over. */
@@ -5871,7 +5872,7 @@ export class BrowserTabsManager {
     return {
       isDestroyed: () => this.destroyed,
       changed: (persist) => this.changed(persist),
-      recordVisit: (tab) => this.recordVisit(tab),
+      recordVisit: (tab, samePage) => this.recordVisit(tab, samePage),
       options: () => this.options,
       workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
       prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
@@ -5956,10 +5957,10 @@ export class BrowserTabsManager {
     }
   }
 
-  private recordVisit(tab: BrowserTab): void {
+  private recordVisit(tab: BrowserTab, samePage: boolean): void {
     if (!isWebUrl(tab.url)) return
     this.trackWorkspaceOrigin(tab, tab.url)
-    this.options.onPageVisited?.({ url: tab.url, title: tab.title })
+    this.options.onPageVisited?.({ url: tab.url, title: tab.title, samePage })
   }
 
   private trackWorkspaceOrigin(tab: BrowserTab, url: string): void {

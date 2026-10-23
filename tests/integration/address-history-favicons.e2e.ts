@@ -125,6 +125,8 @@ test('does not count an iframe in-page navigation as another visit to its parent
     expect(navigation).toEqual({ url: `${new URL(url).origin}/child#next`, isMainFrame: false })
     expect(await visitCount()).toBe(1)
 
+    const visitedAt = () => appWindow.evaluate(`window.hronautHistory.list().then((entries) => entries.find((entry) => entry.url === ${JSON.stringify(url)})?.visitedAt)`)
+    const visitedBefore = await visitedAt()
     const mainNavigation = await electronApp.evaluate(async ({ webContents }, target) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === target)
       if (!page) throw new Error('Parent page is unavailable')
@@ -135,7 +137,9 @@ test('does not count an iframe in-page navigation as another visit to its parent
       return navigation
     }, url)
     expect(mainNavigation).toEqual({ url: `${url}#section`, isMainFrame: true })
-    await expect.poll(visitCount).toBe(2)
+    // A section of the page is the page the history holds already, which it visits again without another visit.
+    await expect.poll(visitedAt).not.toBe(visitedBefore)
+    expect(await visitCount()).toBe(1)
   } finally {
     await closeFixtureServer(server)
   }

@@ -6591,7 +6591,16 @@ test('records, searches, removes, and clears local browsing history', async ({ a
       expect.objectContaining({ url: alphaUrl, title: 'History alpha', visitCount: 1 })
     ])
 
+    // A section of the page is the page the history holds already: it is visited again without another visit, and
+    // a tab opening the page counts one.
+    const alphaVisitedAt = async () => ((await appWindow.evaluate('window.hronautHistory.list()')) as Array<{ visitedAt: string }>)[0]?.visitedAt
+    const firstVisitedAt = await alphaVisitedAt()
     await appWindow.evaluate(`window.hronaut.navigate({ url: ${JSON.stringify(`${alphaUrl}#details`)} })`)
+    await expect.poll(alphaVisitedAt).not.toBe(firstVisitedAt)
+    expect(await appWindow.evaluate('window.hronautHistory.list()')).toEqual([
+      expect.objectContaining({ url: alphaUrl, title: 'History alpha', visitCount: 1 })
+    ])
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(alphaUrl)}, active: true })`)
     await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toEqual([
       expect.objectContaining({ url: alphaUrl, title: 'History alpha', visitCount: 2 })
     ])

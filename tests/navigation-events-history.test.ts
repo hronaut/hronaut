@@ -1,0 +1,169 @@
+import { EventEmitter } from 'node:events'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { TabDiscoveryTitle } from '../src/main/browser/tab-discovery-title.js'
+import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
+
+/** A stand-in for whatever the handlers call on the tab manager: any call or property gives another stand-in. */
+function anything(): unknown {
+  const stand: unknown = new Proxy(() => undefined, {
+    get: (_target, key) => key === 'then' ? undefined : stand,
+    apply: () => stand
+  })
+  return stand
+}
+
+/**
+ * A tab whose page the case loads, reloads and retitles, with the history entry Electron reports as active, and what
+ * the tab gives the history: its visits, each opening another page or the same one again, and its title updates.
+ */
+function tabPage() {
+  const contents = Object.assign(new EventEmitter(), {
+    url: 'about:blank',
+    title: '',
+    loading: false,
+    entryIndex: -1,
+    getURL: () => contents.url,
+    getTitle: () => contents.title,
+    isLoading: () => contents.loading,
+    isLoadingMainFrame: () => contents.loading,
+    isDestroyed: () => false,
+    navigationHistory: { getActiveIndex: () => contents.entryIndex }
+  })
+  const tab = {
+    id: 'tab', url: 'about:blank', title: 'New Tab', loading: false, sleeping: false,
+    discoveryTitle: new TabDiscoveryTitle(), navigationGeneration: 0, faviconRequestId: 0, pendingHistoryUrl: null,
+    suppressInitialHistory: false, navigationPolicyDenialSequence: 0, emulationContextGeneration: 0,
+    documentGeneration: 0, walletNavigationGeneration: 0
+  }
+  const visits: Array<{ url: string; samePage: boolean }> = []
+  const titles: string[] = []
+  const fallback = anything() as Record<string | symbol, unknown>
+  const answers: Record<string | symbol, unknown> = {
+    isDestroyed: () => false,
+    recordVisit: (visited: typeof tab, samePage: boolean) => visits.push({ url: visited.url, samePage }),
+    options: () => ({ getLocale: () => 'en', onPageTitleUpdated: ({ title }: { title: string }) => titles.push(title) })
+  }
+  const access = new Proxy({}, { get: (_target, key) => answers[key] ?? fallback[key] })
+  attachNavigationEvents(access as never, tab as never, contents as never)
+
+  /** Commits a document at an address and history entry, which then becomes ready and stays loading. */
+  const commit = (url: string, entryIndex: number, title = 'Page') => {
+    contents.url = url
+    contents.title = title
+    contents.entryIndex = entryIndex
+    contents.loading = true
+    contents.emit('did-start-loading')
+    contents.emit('did-navigate', {}, url)
+    contents.emit('dom-ready')
+  }
+  const stopLoading = () => {
+    contents.loading = false
+    contents.emit('did-stop-loading')
+  }
+  /** Loads a document completely. */
+  const load = (url: string, entryIndex: number, title = 'Page') => {
+    commit(url, entryIndex, title)
+    stopLoading()
+  }
+  const setTitle = (title: string) => {
+    contents.title = title
+    contents.emit('page-title-updated', {}, title, true)
+  }
+  /** A change of address within the page, such as a router's pushState, which adds a history entry. */
+  const changeWithinPage = (url: string, entryIndex: number) => {
+    contents.url = url
+    contents.entryIndex = entryIndex
+    contents.emit('did-navigate-in-page', {}, url, true)
+  }
+  return { visits, titles, commit, load, stopLoading, setTitle, changeWithinPage }
+}
+
+describe('visits a tab gives the history', () => {
+  it('opens the same page again when the tab reloads it, which is not another visit', () => {
+    // Every reload counted a visit, so a page reloaded 20 times showed "21 visits" and led Most visited.
+    const page = tabPage()
+    page.load('http://localhost:3000/', 0)
+    for (let reload = 0; reload < 3; reload += 1) page.load('http://localhost:3000/', 0)
+    expect(page.visits).toEqual([
+      { url: 'http://localhost:3000/', samePage: false },
+      { url: 'http://localhost:3000/', samePage: true },
+      { url: 'http://localhost:3000/', samePage: true },
+      { url: 'http://localhost:3000/', samePage: true }
+    ])
+  })
+
+  it('counts a visit to another entry with the same address, such as going back to it', () => {
+    const page = tabPage()
+    page.load('https://news.example/', 0)
+    page.load('https://news.example/story', 1)
+    page.load('https://news.example/', 0)
+    page.load('https://news.example/', 1)
+    expect(page.visits.map((visit) => visit.samePage)).toEqual([false, false, false, false])
+  })
+
+  it('counts a reload of a route as the same page, and a route of its own as another', () => {
+    const page = tabPage()
+    page.load('https://app.example/inbox', 0)
+    page.changeWithinPage('https://app.example/settings', 1)
+    page.load('https://app.example/settings', 1)
+    expect(page.visits).toEqual([
+      { url: 'https://app.example/inbox', samePage: false },
+      { url: 'https://app.example/settings', samePage: false },
+      { url: 'https://app.example/settings', samePage: true }
+    ])
+  })
+
+  it('keeps a link to a section of the page one visit, as the history leaves fragments out', () => {
+    const page = tabPage()
+    page.load('https://docs.example/guide', 0)
+    page.changeWithinPage('https://docs.example/guide#install', 1)
+    page.changeWithinPage('https://docs.example/guide#usage', 2)
+    page.changeWithinPage('https://docs.example/reference#usage', 3)
+    expect(page.visits.map((visit) => visit.samePage)).toEqual([false, true, true, false])
+  })
+})
+
+describe('titles a tab gives the history', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(Date.UTC(2026, 9, 23, 12))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('keeps a title the page sets while it loads or in the 5 s after, and not one it sets later to get attention', () => {
+    // An unread count, a chat message or a timer in the title replaced the page's name in the history, and a title
+    // that changed every second rewrote the history file every second.
+    const page = tabPage()
+    page.commit('https://mail.example/', 0, 'Loading')
+    page.setTitle('Inbox')
+    page.stopLoading()
+    vi.advanceTimersByTime(4_000)
+    page.setTitle('Inbox - mail.example')
+    vi.advanceTimersByTime(1_000)
+    page.setTitle('(1) Inbox - mail.example')
+    page.setTitle('(1) New message from Bob')
+    expect(page.titles).toEqual(['Inbox', 'Inbox - mail.example'])
+  })
+
+  it('keeps at most 5 titles of a page, and 5 more of the next one', () => {
+    const page = tabPage()
+    page.commit('https://timer.example/', 0, 'Timer')
+    for (let second = 10; second > 0; second -= 1) page.setTitle(`00:${String(second).padStart(2, '0')}`)
+    expect(page.titles).toEqual(['00:10', '00:09', '00:08', '00:07', '00:06'])
+    page.commit('https://timer.example/done', 1, 'Done')
+    page.setTitle('Finished')
+    expect(page.titles.at(-1)).toBe('Finished')
+  })
+
+  it('keeps the title a single-page app sets for a route it shows long after it loaded', () => {
+    const page = tabPage()
+    page.load('https://app.example/inbox', 0, 'Inbox')
+    vi.advanceTimersByTime(60_000)
+    page.setTitle('(2) Inbox')
+    page.changeWithinPage('https://app.example/settings', 1)
+    page.setTitle('Settings')
+    expect(page.titles).toEqual(['Settings'])
+  })
+})

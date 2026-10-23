@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 
 - The address bar's suggestions now stay on screen while they change, as Chrome's do, such as when a page finishes loading in another tab and its visit joins them. They hid and shrank to a line until the new ones were drawn, so the list blinked, and a click on a row in that moment missed it.
 - The signatures and keys of more shared and signed links are now redacted wherever Hronaut redacts signed links: SharePoint and OneDrive for work downloads (`tempauth`), personal OneDrive shares (`authkey`), Dropbox shares (`rlkey`), Google Drive shares (`resourcekey`), Discord attachments (`hm`), Facebook, Instagram and Messenger files (`oh`), links signed with `hmac`, such as Shopify's, and nginx secure links (`md5`). Download records and `browser_downloads`, network requests, HAR and cURL copies, and the links of snapshots and frames kept them, so whoever read them could fetch the file.
+- The browsing history now counts visits and keeps titles as Chrome does. Reloading a page, or following a link to a section of it, moves it to the top without counting another visit, so a page reloaded 20 times no longer shows "21 visits" and leads the list. The history also keeps only the titles a page sets while it loads or in the 5 seconds after, at most 5 for each page. A title set later to get attention, such as an unread count, a chat message or a timer, no longer replaces the page's name, and a page changing its title every second no longer rewrites the history file every second.
 
 ## [3.7.0] - 2026-10-23
 

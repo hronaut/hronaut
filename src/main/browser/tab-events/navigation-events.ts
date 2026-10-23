@@ -11,6 +11,14 @@ import { isStaleAddressTitle, untitledPageTitle } from './untitled-page-title.js
 const ABORTED_LOAD_ERROR = -3
 
 /**
+ * As Chrome, the history keeps a title a page sets while it loads or in the 5 s after, and at most 5 of them for each
+ * page. A title a page sets later to get attention, such as a count of unread messages, a chat message or a timer,
+ * stays out of the history, which a page changing its title every second no longer rewrites each time.
+ */
+const HISTORY_TITLE_WINDOW_MS = 5_000
+const HISTORY_TITLE_CHANGES = 5
+
+/**
  * Follows the page's title, loading and navigation: title updates, loading
  * start, the workspace navigation policy for main-frame navigations and
  * redirects, the fresh document a main-frame navigation starts, favicons,
@@ -36,10 +44,25 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       access.options().onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
     ))
   }
+  // The history entry the page shows, and whether the document that committed last opened that entry again: a reload,
+  // which Chrome does not count as another visit, as it counts no navigation to the address the tab shows already.
+  let committedEntryIndex = -1
+  let pendingHistoryReload = false
+  const withoutFragment = (address: string): string => address.split('#', 1)[0] ?? address
+  const activeEntryIndex = (): number => {
+    try {
+      return webContents.navigationHistory.getActiveIndex()
+    } catch {
+      return -1
+    }
+  }
+  // Title changes the history took for the page, and when the page stopped loading.
+  let historyTitleChanges = 0
+  let historyTitleWindowEnd = 0
   const recordPendingHistory = (): void => {
     if (tab.suppressInitialHistory || tab.pendingHistoryUrl !== tab.url) return
     tab.title = normalizeTabTitle(webContents.getTitle(), tab.title)
-    access.recordVisit(tab)
+    access.recordVisit(tab, pendingHistoryReload)
     tab.pendingHistoryUrl = null
   }
   webContents.on('page-title-updated', (_event, title, explicitSet) => {
@@ -48,7 +71,9 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     const nextTitle = normalizeTabTitle(title, tab.title)
     const titleChanged = nextTitle !== tab.title
     tab.title = nextTitle
-    if (titleChanged) {
+    if (titleChanged && historyTitleChanges < HISTORY_TITLE_CHANGES
+      && (webContents.isLoading() || Date.now() < historyTitleWindowEnd)) {
+      historyTitleChanges += 1
       access.options().onPageTitleUpdated?.({
         url: webContents.getURL() || tab.url,
         title: nextTitle
@@ -142,6 +167,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       tab.pendingMainFrameUrl = undefined
     }
     if (tab.sleeping) return
+    historyTitleWindowEnd = Date.now() + HISTORY_TITLE_WINDOW_MS
     access.reconcileTabPresentation(tab)
     syncNavigation()
     access.reproRecorder().refreshReproScrollPosition(tab)
@@ -176,6 +202,10 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       tab.faviconDataUrl = undefined
     }
     if (previousUrl !== url) tab.faviconDataUrl = undefined
+    const entryIndex = activeEntryIndex()
+    pendingHistoryReload = entryIndex >= 0 && entryIndex === committedEntryIndex && url === previousUrl
+    committedEntryIndex = entryIndex
+    historyTitleChanges = 0
     tab.pendingHistoryUrl = isWebUrl(url) ? url : null
     syncNavigation()
     access.reproRecorder().navigated(tab, url, false)
@@ -186,6 +216,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     // A frame's hash or history change does not represent another visit to
     // the tab's top-level page.
     if (!isMainFrame) return
+    committedEntryIndex = activeEntryIndex()
     // No title update follows a change within the page. Chromium names an untitled page by its new address after
     // `history.pushState`, but after `history.replaceState` it keeps the old address, whose fragment can hold a
     // sign-in token, so the tab takes the new one. A title the page set itself stays.
@@ -201,8 +232,12 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     // within a few seconds; Hronaut never counts it. The first visit is still recorded when the document is ready.
     // This relies on tab.url holding the last committed address, which only syncNavigation sets here.
     if (url !== previousUrl) {
-      if (!tab.suppressInitialHistory) access.recordVisit(tab)
+      // The history leaves out fragments, so a link to a section of the page is not another visit to it.
+      if (!tab.suppressInitialHistory) access.recordVisit(tab, withoutFragment(url) === withoutFragment(previousUrl))
       tab.pendingHistoryUrl = null
+      // A route of a single-page app is a page of its own, whose title the app sets once it shows it.
+      historyTitleChanges = 0
+      historyTitleWindowEnd = Date.now() + HISTORY_TITLE_WINDOW_MS
     }
     access.scheduleTabOverviewPreview(tab)
   })
