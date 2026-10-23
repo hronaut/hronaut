@@ -22,6 +22,7 @@ for (const theme of ['light', 'dark'] as const) {
 
 test('toggles Settings with the gear and keeps search, reset and close in the header', async ({ appWindow }, testInfo) => {
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
+  await appWindow.getByRole('button', { name: /^Appearance/ }).click()
   const settings = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
   await settings.getByRole('combobox', { name: 'Tab position' }).selectOption('left')
   await expect(appWindow.locator('.shell-title-bar-surface.surface-settings')).toHaveText('Settings')

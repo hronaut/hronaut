@@ -60,7 +60,7 @@ test('Settings actions have visible button surfaces, comfortable targets, and ke
   const dialog = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
   for (const theme of ['light', 'dark']) {
     await appWindow.evaluate(`window.hronautSettings.setTheme('${theme}')`)
-    for (const [section, selector] of [[1, '.test-sound-button'], [6, '.workspace-data-actions button'], [5, '.mcp-capability-form-actions button'], [10, '.update-settings-actions button'] ] as const) {
+    for (const [section, selector] of [[0, '.test-sound-button'], [6, '.workspace-data-actions button'], [5, '.mcp-capability-form-actions button'], [10, '.update-settings-actions button'] ] as const) {
       await dialog.locator('.settings-nav-item').nth(section).click()
       if (section === 5) await dialog.getByRole('button', { name: 'New capability profile', exact: true }).click()
       const buttons = dialog.locator(selector)

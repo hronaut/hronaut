@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **General** is now the first section in **Settings**, and Settings and the command palette's **Settings** command open on it, as other apps' settings do. Before, Settings listed and opened **Appearance** first.
+
 ## [3.5.0] - 2026-10-22
 
 ### Changed

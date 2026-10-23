@@ -80,6 +80,7 @@ test('keeps the latest theme click selected when queued responses settle in requ
   }, initialSettings)
 
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('button', { name: /^Appearance/ }).click()
   await appWindow.getByTestId('theme-light').click()
   await appWindow.getByTestId('theme-galactic').click()
   await expect.poll(() => electronApp.evaluate(() => (
@@ -116,6 +117,7 @@ test('keeps rejected settings out of live state and later persisted changes', as
   const restoreSettingsFile = await blockFileDestination(settingsPath)
   try {
     await appWindow.getByRole('button', { name: 'Settings' }).click()
+    await appWindow.getByRole('button', { name: /^Appearance/ }).click()
     await appWindow.getByTestId('theme-dark').click()
     await expect(appWindow.getByRole('alert', { name: 'Setting not saved' })).toBeVisible()
     await expect(appWindow.getByTestId('theme-system')).toHaveAttribute('aria-checked', 'true')
@@ -199,6 +201,7 @@ test('persists the selected theme across application restarts', async ({
   profileDirectory
 }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('button', { name: /^Appearance/ }).click()
   await appWindow.getByTestId('theme-matrix').click()
 
   const settingsPath = join(profileDirectory, 'settings.json')
@@ -209,6 +212,7 @@ test('persists the selected theme across application restarts', async ({
   try {
     await expect(restarted.window.locator('html')).toHaveAttribute('data-theme', 'matrix')
     await restarted.window.getByRole('button', { name: 'Settings' }).click()
+    await restarted.window.getByRole('button', { name: /^Appearance/ }).click()
     await expect(restarted.window.getByTestId('theme-matrix')).toHaveAttribute('aria-checked', 'true')
   } finally {
     await closeHronaut(restarted.app)
@@ -224,6 +228,7 @@ test('scales Hronaut without zooming the active website and persists the choice'
   await appWindow.getByRole('button', { name: 'New tab' }).click()
   await expect(appWindow.locator('.toolbar')).toBeVisible()
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('button', { name: /^Appearance/ }).click()
   const interfaceSize = appWindow.getByRole('combobox', { name: 'Interface size' })
   await expect(interfaceSize).toHaveValue('1')
   await interfaceSize.selectOption('1.25')
@@ -268,6 +273,7 @@ test('scales Hronaut without zooming the active website and persists the choice'
       BrowserWindow.getAllWindows()[0]?.webContents.getZoomFactor()
     )).toBe(1.25)
     await restarted.window.getByRole('button', { name: 'Settings' }).click()
+    await restarted.window.getByRole('button', { name: /^Appearance/ }).click()
     await expect(restarted.window.getByRole('combobox', { name: 'Interface size' })).toHaveValue('1.25')
   } finally {
     await closeHronaut(restarted.app)
@@ -281,9 +287,9 @@ test('resets every Appearance preference including interface size, and only thos
 }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   const sections = appWindow.locator('.settings-nav-item')
-  await sections.nth(1).click()
-  await appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' }).uncheck()
   await sections.nth(0).click()
+  await appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' }).uncheck()
+  await sections.nth(1).click()
   await appWindow.getByTestId('theme-matrix').click()
   await appWindow.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
   await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('top')
@@ -317,7 +323,7 @@ test('resets every Appearance preference including interface size, and only thos
     tabPosition: 'left',
     hideInTray: false
   })
-  await sections.nth(1).click()
+  await sections.nth(0).click()
   await expect(appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })).not.toBeChecked()
   await expect.poll(() => appWindow.evaluate(() => {
     const page = window as typeof window & {
@@ -337,8 +343,9 @@ test('resets every Appearance preference including interface size, and only thos
 test('resets every General preference including the language, and only those', async ({ appWindow, profileDirectory }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   const sections = appWindow.locator('.settings-nav-item')
-  await appWindow.getByTestId('theme-matrix').click()
   await sections.nth(1).click()
+  await appWindow.getByTestId('theme-matrix').click()
+  await sections.nth(0).click()
   await appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' }).uncheck()
   await appWindow.getByRole('checkbox', { name: 'Play attention sound' }).uncheck()
   await appWindow.getByRole('checkbox', { name: /^Show agent cursors/ }).uncheck()
@@ -372,7 +379,7 @@ test('can disable hiding in the tray so closing the window quits Hronaut', async
   profileDirectory
 }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
-  await appWindow.locator('.settings-nav-item').nth(1).click()
+  await appWindow.locator('.settings-nav-item').nth(0).click()
   const hideInTray = appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })
   await expect(hideInTray).toBeChecked()
   await hideInTray.uncheck()
@@ -396,7 +403,7 @@ test('can disable hiding in the tray so closing the window quits Hronaut', async
 
 test('can disable the attention sound', async ({ appWindow, profileDirectory }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
-  await appWindow.locator('.settings-nav-item').nth(1).click()
+  await appWindow.locator('.settings-nav-item').nth(0).click()
   const attentionSound = appWindow.getByRole('checkbox', { name: 'Play attention sound' })
   const attentionSoundCue = appWindow.getByRole('combobox', { name: 'Attention sound' })
   const testSound = appWindow.getByRole('button', { name: 'Test sound' })

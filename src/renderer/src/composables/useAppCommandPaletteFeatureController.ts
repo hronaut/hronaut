@@ -135,7 +135,7 @@ export function useAppCommandPaletteFeatureController<
       memory: options.pageTools.toggleMemoryReport,
       'developer-tools': options.browser.toggleDeveloperTools,
       'full-page-view': () => options.browser.runShortcut('toggle-full-page'),
-      settings: () => options.settings.openSection('appearance'),
+      settings: () => options.settings.openSection('general'),
       privacy: options.site.openPrivacySettings,
       'site-permissions': () => options.settings.openSection('permissions'),
       'mcp-security': () => options.settings.openSection('mcp'),

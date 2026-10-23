@@ -64,6 +64,7 @@ for (const theme of ['light', 'dark'] as const) {
 test('keeps Close visible when Large interface size reduces the available Settings height', async ({ appWindow, electronApp }, testInfo) => {
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
   const dialog = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
+  await dialog.getByRole('button', { name: /^Appearance/ }).click()
   await electronApp.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0]!
     window.setMinimumSize(600, 600)

@@ -1,8 +1,8 @@
 import { computed, ref } from 'vue'
 
 export const SETTINGS_SECTIONS = [
-  'appearance',
   'general',
+  'appearance',
   'search',
   'downloads',
   'performance',
@@ -27,7 +27,7 @@ export interface SettingsDialogControllerOptions {
 export function useSettingsDialogController(options: SettingsDialogControllerOptions) {
   const open = ref(false)
   const tabOpen = ref(false)
-  const section = ref<SettingsSection>('appearance')
+  const section = ref<SettingsSection>('general')
   const resetBusy = ref(false)
   let disposed = false
 
