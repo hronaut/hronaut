@@ -50,6 +50,7 @@ export interface AppSiteNavigationFeatureControllerOptions {
   collections: {
     bookmarks: Ref<BrowserBookmark[]>
     history: Ref<BrowserHistoryEntry[]>
+    removeHistoryEntry: (id: string) => Promise<BrowserHistoryEntry[]>
     downloadsOpen: Ref<boolean>
     bookmarksOpen: Ref<boolean>
     historyOpen: Ref<boolean>
@@ -144,6 +145,8 @@ export function useAppSiteNavigationFeatureController(
     },
     onNavigate: browserTabActionsController.navigateAddress,
     onOpenInNewTab: browserTabActionsController.openAddressInNewTab,
+    onRemoveVisit: collections.removeHistoryEntry,
+    onRemoveVisitFailed: actions.onActionError,
     onFocusLeft: () => (siteControlsOpen.value = false)
   })
   const stopFollowAgentActivitySuspensionWatch = watch(

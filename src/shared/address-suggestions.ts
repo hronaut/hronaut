@@ -92,6 +92,11 @@ function matchesHostnamePrefix(url: string, term: string): boolean {
   }
 }
 
+/** The id of the history entry a history suggestion shows; none for a bookmark. */
+export function historySuggestionEntryId(suggestion: AddressSuggestion): string | undefined {
+  return suggestion.kind === 'history' ? suggestion.id.slice('history:'.length) : undefined
+}
+
 export function buildLocalAddressSuggestions(input: AddressSuggestionInput): AddressSuggestion[] {
   const { scope, terms } = parseQuery(input.query)
   const limit = Math.max(1, Math.min(20, Math.trunc(input.limit ?? 8)))

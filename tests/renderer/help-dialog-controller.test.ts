@@ -46,6 +46,7 @@ describe('help dialog controller', () => {
     expect(mac.keys['runtime.shortcuts.addressNewTab']).toEqual(['Option', 'Return'])
     expect(mac.keys['runtime.shortcuts.addressBackgroundTab']).toEqual(['Cmd', 'Return'])
     expect(mac.keys['runtime.shortcuts.addressWwwCom']).toEqual(['Control', 'Return'])
+    expect(mac.keys['runtime.shortcuts.addressForgetVisit']).toEqual(['Shift', 'Fn', 'Delete'])
     const linux = keysFor('linux')
     expect(linux.mac).toBe(false)
     expect(linux.keys['runtime.shortcuts.pick']).toEqual(['Ctrl', 'Shift', 'C'])
@@ -124,7 +125,11 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.viewSource',
       keys: ['Ctrl', 'U']
     })
-    expect(controller.shortcuts.value).toHaveLength(35)
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.addressForgetVisit',
+      keys: ['Shift', 'Delete']
+    })
+    expect(controller.shortcuts.value).toHaveLength(36)
     controller.dispose()
   })
 })

@@ -865,6 +865,7 @@ export const frFR = {
       "addressNewTab": "Ouvrir le texte saisi dans la barre d’adresse dans un nouvel onglet",
       "addressBackgroundTab": "Ouvrir le texte saisi dans la barre d’adresse dans un nouvel onglet en arrière-plan",
       "addressWwwCom": "Ajouter www. et .com au nom de site saisi dans la barre d’adresse et l’ouvrir",
+      "addressForgetVisit": "Retirer la visite en surbrillance des suggestions de la barre d’adresse et de l’historique",
       "viewSource": "Afficher le code source de la page",
       "back": "Revenir à la page précédente",
       "forward": "Aller à la page suivante",

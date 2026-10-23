@@ -1,7 +1,7 @@
-import { computed, nextTick, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, type ComputedRef, type Ref } from 'vue'
 import { useResizeObserver } from '@vueuse/core'
 import type { AddressSuggestion, AddressSuggestionOverlayRequest, AddressSuggestionOverlayTheme, AddressSuggestionSelection } from '../../../shared/address-suggestions.js'
-import { buildLocalAddressSuggestions } from '../../../shared/address-suggestions.js'
+import { buildLocalAddressSuggestions, historySuggestionEntryId } from '../../../shared/address-suggestions.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
 import type { BrowserBookmark, BrowserHistoryEntry, BrowserTabState } from '../../../shared/types.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
@@ -34,6 +34,9 @@ interface AddressBarControllerOptions {
   onNavigate: (address: string) => Promise<void>
   /** Opens the address in a new tab; a background tab leaves the current one shown. */
   onOpenInNewTab: (address: string, background: boolean) => Promise<void>
+  /** Forgets a visit, as removing it in History does; history suggestions update when history does. */
+  onRemoveVisit: (entryId: string) => Promise<unknown>
+  onRemoveVisitFailed: (error: unknown) => void
   onFocusLeft: () => void
 }
 
@@ -59,10 +62,15 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const focused = ref(false)
   const editing = ref(false)
   const dirty = ref(false)
+  // The visits Shift+Delete forgot. Their rows leave at once, as in Chrome, while history saves the change, and come
+  // back if it fails; a visit never returns under the same id, since a new visit gets a new one.
+  const forgottenVisits = shallowRef<ReadonlySet<string>>(new Set())
   const suggestions = computed(() => buildLocalAddressSuggestions({
     query: address.value,
     bookmarks: options.bookmarks.value,
-    history: options.history.value
+    history: forgottenVisits.value.size
+      ? options.history.value.filter((entry) => !forgottenVisits.value.has(entry.id))
+      : options.history.value
   }))
   const visible = computed(() => open.value && suggestions.value.length > 0)
   const selected = computed(() => selection.value >= 0 ? suggestions.value[selection.value] : undefined)
@@ -71,6 +79,10 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   let presentedSuggestionOwner: Pick<BrowserTabState, 'id'> | null = null
   let overlaySessionId = 0
   let cleanupCallbacks: (() => void)[] = []
+  // The highlighted row Shift+Delete forgot, whose highlight goes to the row that takes its place.
+  let forgottenRow: string | null = null
+  // Whether the Delete key held down forgot a visit, so that its repeats do nothing.
+  let forgetKeyHeld = false
   let pendingNavigation: {
     tabId: string | undefined
     initialUrl: string | undefined
@@ -257,6 +269,36 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     revealSelected()
   }
 
+  // Shift+Delete forgets the highlighted visit, as in Chrome's address bar: its row leaves at once and the highlight goes
+  // to the row in its place. A bookmark stays, and the key then edits the text as usual. A held key forgets one visit,
+  // and its repeats leave the text alone, whatever is highlighted next.
+  function forgetSelectedVisit(event: KeyboardEvent): boolean {
+    if (event.key !== 'Delete') return false
+    if (!event.repeat) forgetKeyHeld = false
+    if (!event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return false
+    if (event.repeat) {
+      if (!forgetKeyHeld) return false
+      event.preventDefault()
+      return true
+    }
+    const suggestion = visible.value ? selected.value : undefined
+    const entryId = suggestion && historySuggestionEntryId(suggestion)
+    if (!suggestion || !entryId) return false
+    event.preventDefault()
+    if (disposed) return true
+    forgetKeyHeld = true
+    forgottenRow = suggestion.id
+    forgottenVisits.value = new Set(forgottenVisits.value).add(entryId)
+    void options.onRemoveVisit(entryId).catch((error: unknown) => {
+      if (disposed) return
+      const remaining = new Set(forgottenVisits.value)
+      remaining.delete(entryId)
+      forgottenVisits.value = remaining
+      options.onRemoveVisitFailed(error)
+    })
+    return true
+  }
+
   function handleKeydown(event: KeyboardEvent): void {
     if (isImeCompositionEvent(event)) return
     if (event.key === 'Escape' && (open.value || dirty.value)) {
@@ -269,6 +311,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     }
     const enterAction = addressEnterAction(event, window.hronautShell?.windowChrome?.platform === 'darwin')
     if (enterAction && handleModifiedEnter(event, enterAction)) return
+    if (forgetSelectedVisit(event)) return
     if (!suggestions.value.length) return
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
@@ -327,9 +370,15 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     () => watch(suggestions, async (next, previous) => {
       if (disposed) return
       const selectedSuggestion = previous[selection.value]
-      selection.value = selectedSuggestion
+      let index = selectedSuggestion
         ? next.findIndex((suggestion) => suggestion.id === selectedSuggestion.id && suggestion.url === selectedSuggestion.url)
         : -1
+      // The forgotten visit's highlight goes to the row in its place, or the last row, as in Chrome.
+      if (index < 0 && selectedSuggestion && selectedSuggestion.id === forgottenRow && next.length) {
+        index = Math.min(selection.value, next.length - 1)
+      }
+      forgottenRow = null
+      selection.value = index
       await nextTick()
       if (!disposed) revealSelected()
     }, { flush: 'sync' }),

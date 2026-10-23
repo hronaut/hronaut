@@ -97,6 +97,7 @@ function createHarness() {
         collections: {
           bookmarks: ref([]),
           history: ref([]),
+          removeHistoryEntry: vi.fn(async () => []),
           downloadsOpen,
           bookmarksOpen,
           historyOpen

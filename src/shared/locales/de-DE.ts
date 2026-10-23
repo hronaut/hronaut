@@ -865,6 +865,7 @@ export const deDE = {
       "addressNewTab": "In der Adressleiste Eingegebenes in einem neuen Tab öffnen",
       "addressBackgroundTab": "In der Adressleiste Eingegebenes in einem neuen Hintergrund-Tab öffnen",
       "addressWwwCom": "www. und .com zum Websitenamen in der Adressleiste hinzufügen und öffnen",
+      "addressForgetVisit": "Hervorgehobenen Besuch aus den Vorschlägen der Adressleiste und aus dem Verlauf entfernen",
       "viewSource": "Seitenquelltext anzeigen",
       "back": "Zur vorherigen Seite zurückgehen",
       "forward": "Zur nächsten Seite vorwärtsgehen",

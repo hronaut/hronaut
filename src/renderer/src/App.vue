@@ -331,6 +331,7 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
   collections: {
     bookmarks,
     history: visitHistory,
+    removeHistoryEntry: browserCollectionsFeatureController.browserCollectionsController.removeHistoryEntry,
     downloadsOpen,
     bookmarksOpen,
     historyOpen
