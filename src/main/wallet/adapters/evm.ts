@@ -181,7 +181,7 @@ function decodeOperation(to: Address | undefined, data: Hex, value: bigint, sign
 }
 
 type EvmClient = Pick<PublicClient,
-  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'getTransaction' | 'getTransactionCount' | 'getTransactionReceipt' | 'request' | 'readContract' | 'getBlock'
+  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'getTransaction' | 'getTransactionCount' | 'getTransactionReceipt' | 'request' | 'readContract' | 'getBlock' | 'getBlockNumber'
 >
 
 /** EIP-7825 caps a transaction's gas limit at 2^24; nodes refuse a larger one. */
@@ -255,23 +255,59 @@ function broadcastError(error: unknown): unknown {
 }
 
 /**
- * Whether another transaction from the account took this one's nonce: the
- * account's mined transaction count is past its nonce and the node no longer
- * holds it. The count comes first, so a transaction that is merely pending
- * costs one extra read. A node that cannot answer throws, so the caller asks
+ * Whether another transaction from the account took this one's nonce. The
+ * node no longer holding it while the account's mined count is past its nonce
+ * is not enough: a load-balanced node can answer from a backend that lags
+ * behind, and a node that pruned old transactions forgets mined ones too. So
+ * it counts only when the block in which the account used the nonce holds
+ * another transaction with it. The count comes first, so a transaction that is
+ * merely pending costs one extra read. A node that cannot answer, including
+ * one that keeps no account state for that block, throws, so the caller asks
  * again later instead of counting the check either way.
  */
 async function nonceTakenByAnother(client: EvmClient, wallet: WalletDescriptor, hash: Hash, nonce: string | undefined): Promise<boolean> {
   if (nonce === undefined || !/^\d{1,16}$/.test(nonce) || !isAddress(wallet.publicAddress)) return false
-  const mined = await client.getTransactionCount({ address: getAddress(wallet.publicAddress), blockTag: 'latest' })
-  if (BigInt(mined) <= BigInt(nonce)) return false
+  const address = getAddress(wallet.publicAddress)
+  const used = BigInt(nonce)
+  if (BigInt(await client.getTransactionCount({ address, blockTag: 'latest' })) <= used) return false
   try {
     await client.getTransaction({ hash })
     return false
   } catch (error) {
-    if (error instanceof TransactionNotFoundError) return true
-    throw error
+    if (!(error instanceof TransactionNotFoundError)) throw error
   }
+  const usedBy = async (blockNumber: bigint): Promise<boolean> => BigInt(await client.getTransactionCount({ address, blockNumber })) > used
+  const latest = await client.getBlockNumber({ cacheTime: 0 })
+  // A backend that has not seen the block yet proves nothing.
+  if (!(await usedBy(latest))) return false
+  const block = await client.getBlock({ blockNumber: await blockThatUsedNonce(latest, usedBy), includeTransactions: true })
+  const taker = block.transactions.find((transaction) => getAddress(transaction.from) === address && BigInt(transaction.nonce) === used)
+  if (!taker) throw new Error('EVM node does not show the transaction that used the nonce')
+  return taker.hash.toLowerCase() !== hash.toLowerCase()
+}
+
+/**
+ * The first block by which the account had used the nonce, `usedBy` being
+ * true from it on: steps back from the latest block in doubling steps, so a
+ * recent block costs few reads, then halves the range left.
+ */
+async function blockThatUsedNonce(latest: bigint, usedBy: (blockNumber: bigint) => Promise<boolean>): Promise<bigint> {
+  let used = latest
+  let unused = -1n
+  for (let step = 1n; used > 0n; step *= 2n) {
+    const probe = used > step ? used - step : 0n
+    if (!(await usedBy(probe))) {
+      unused = probe
+      break
+    }
+    used = probe
+  }
+  while (used - unused > 1n) {
+    const middle = unused + (used - unused) / 2n
+    if (await usedBy(middle)) used = middle
+    else unused = middle
+  }
+  return used
 }
 
 function readRpcError(error: unknown): Error {

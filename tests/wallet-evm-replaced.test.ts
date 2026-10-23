@@ -5,7 +5,9 @@ import { EvmWalletAdapter } from '../src/main/wallet/adapters/evm.js'
 import type { WalletDescriptor } from '../src/shared/wallet.js'
 
 const HASH = `0x${'ab'.repeat(32)}`
+const OTHER_HASH = `0x${'cd'.repeat(32)}`
 const ADDRESS = '0x9858EfFD232B4033E47d90003D41EC34EcaEda94'
+const SOMEONE_ELSE = '0x0000000000000000000000000000000000000007'
 
 let server: Server | undefined
 
@@ -18,15 +20,38 @@ interface NodeState {
   receipt?: Record<string, unknown>
   /** Whether the node still holds the transaction. */
   holds?: boolean
-  /** The account's mined transaction count, or an error code. */
-  count?: string | { code: number }
+  /** The latest block; 100 unless set. */
+  latest?: number
+  /** The block holding the account's transaction with nonce 9, from which on its mined count is 10; unset, nonce 9 is unused. */
+  usedIn?: number
+  /** The hash of that transaction; another transaction's unless set. */
+  taker?: string
+  /** The mined count the node gives for the latest block by name, such as from a backend ahead of the one giving block numbers. */
+  latestCount?: string
+  /** An error code eth_getTransactionCount answers with. */
+  countError?: number
+  /** The oldest block the node keeps account state for. */
+  oldestState?: number
+  /** Whether the node answers that the block holding the nonce has no transactions, or no block at all. */
+  block?: 'empty' | 'missing'
   /** An error code eth_getTransactionByHash answers with. */
   lookupError?: number
+}
+
+const hex = (value: number) => `0x${value.toString(16)}`
+
+function transaction(hash: string, from: string, blockNumber: number | null) {
+  return {
+    hash, nonce: '0x9', blockHash: blockNumber === null ? null : `0x${'e'.repeat(64)}`, blockNumber: blockNumber === null ? null : hex(blockNumber),
+    transactionIndex: blockNumber === null ? null : '0x0', from, to: '0x0000000000000000000000000000000000000002', value: '0x1', gas: '0x5208',
+    gasPrice: '0x3b9aca00', input: '0x', type: '0x0', chainId: '0x7a69', v: '0xf6e', r: `0x${'1'.repeat(64)}`, s: `0x${'2'.repeat(64)}`
+  }
 }
 
 /** A node that answers the confirmation lookups from `state`, and records each call. */
 async function node(state: NodeState): Promise<{ wallet: WalletDescriptor; calls: Array<{ method: string; params: unknown[] }> }> {
   const calls: Array<{ method: string; params: unknown[] }> = []
+  const latest = state.latest ?? 100
   server = createServer((request, response) => {
     let body = ''
     request.on('data', (chunk: Buffer) => { body += chunk.toString() })
@@ -39,14 +64,31 @@ async function node(state: NodeState): Promise<{ wallet: WalletDescriptor; calls
       if (method === 'eth_getTransactionReceipt') return reply(state.receipt ?? null)
       if (method === 'eth_getTransactionByHash') {
         if (state.lookupError !== undefined) return refuse(state.lookupError)
-        return reply(state.holds ? {
-          hash: HASH, nonce: '0x9', blockHash: null, blockNumber: null, transactionIndex: null, from: ADDRESS,
-          to: '0x0000000000000000000000000000000000000002', value: '0x1', gas: '0x5208', gasPrice: '0x3b9aca00',
-          input: '0x', type: '0x0', chainId: '0x7a69', v: '0xf6e', r: `0x${'1'.repeat(64)}`, s: `0x${'2'.repeat(64)}`
-        } : null)
+        return reply(state.holds ? transaction(HASH, ADDRESS, null) : null)
       }
+      if (method === 'eth_blockNumber') return reply(hex(latest))
       if (method === 'eth_getTransactionCount') {
-        return typeof state.count === 'object' ? refuse(state.count.code) : reply(state.count ?? '0x0')
+        if (state.countError !== undefined) return refuse(state.countError)
+        const tag = params[1] as string
+        if (tag === 'latest' && state.latestCount) return reply(state.latestCount)
+        const block = tag === 'latest' ? latest : Number(tag)
+        if (block < (state.oldestState ?? 0)) return refuse(-32000)
+        return reply(state.usedIn !== undefined && block >= state.usedIn ? '0xa' : '0x9')
+      }
+      if (method === 'eth_getBlockByNumber') {
+        const number = Number(params[0])
+        if (state.block === 'missing') return reply(null)
+        const transactions = number === state.usedIn && state.block !== 'empty'
+          // Another account's transaction with the same nonce is no proof either way.
+          ? [transaction(OTHER_HASH.replace('cd', '77'), SOMEONE_ELSE, number), transaction(state.taker ?? OTHER_HASH, ADDRESS.toLowerCase(), number)]
+          : []
+        return reply({
+          number: hex(number), hash: `0x${'e'.repeat(64)}`, parentHash: `0x${'f'.repeat(64)}`, nonce: '0x0000000000000000',
+          sha3Uncles: `0x${'0'.repeat(64)}`, logsBloom: `0x${'0'.repeat(512)}`, transactionsRoot: `0x${'0'.repeat(64)}`,
+          stateRoot: `0x${'0'.repeat(64)}`, receiptsRoot: `0x${'0'.repeat(64)}`, miner: SOMEONE_ELSE, difficulty: '0x0',
+          totalDifficulty: '0x0', extraData: '0x', size: '0x0', gasLimit: '0x1c9c380', gasUsed: '0x0', timestamp: '0x0',
+          baseFeePerGas: '0x1', transactions, uncles: []
+        })
       }
       refuse(-32601)
     })
@@ -76,31 +118,58 @@ async function confirmation(state: NodeState, nonce?: string) {
 }
 
 describe('EVM confirmation of a replaced transaction', () => {
-  it('reports a transaction as replaced when the node dropped it and the account already mined its nonce', async () => {
-    // The account has mined nonces 0 to 9, so nonce 9 went to another transaction.
-    const replaced = await confirmation({ count: '0xa' }, '9')
+  it('reports a transaction as replaced once the block in which the account used its nonce holds another transaction', async () => {
+    // The account mined nonce 9 in block 97 with another transaction, so this one can never be mined.
+    const replaced = await confirmation({ usedIn: 97 }, '9')
     expect(replaced.result).toEqual({ confirmed: false, failed: false, replaced: true })
-    expect(replaced.methods).toEqual(['eth_getTransactionReceipt', 'eth_getTransactionCount', 'eth_getTransactionByHash'])
+    expect(replaced.methods.slice(0, 4)).toEqual(['eth_getTransactionReceipt', 'eth_getTransactionCount', 'eth_getTransactionByHash', 'eth_blockNumber'])
     expect(replaced.calls[1]!.params).toEqual([ADDRESS, 'latest'])
+    expect(replaced.calls.at(-1)).toEqual({ method: 'eth_getBlockByNumber', params: ['0x61', true] })
+
+    // The block is found in few reads however far back it is, and also when it is the latest.
+    const longAgo = await confirmation({ latest: 5_000_000, usedIn: 3 }, '9')
+    expect(longAgo.result).toEqual({ confirmed: false, failed: false, replaced: true })
+    expect(longAgo.calls.at(-1)).toEqual({ method: 'eth_getBlockByNumber', params: ['0x3', true] })
+    expect(longAgo.methods.filter((method) => method === 'eth_getTransactionCount').length).toBeLessThanOrEqual(2 + 2 * 23)
+    const latest = await confirmation({ usedIn: 100 }, '9')
+    expect(latest.result).toEqual({ confirmed: false, failed: false, replaced: true })
+    expect(latest.calls.at(-1)).toEqual({ method: 'eth_getBlockByNumber', params: ['0x64', true] })
+  })
+
+  it('keeps a mined transaction pending when the node has lost it, such as one lagging behind or one that pruned old transactions', async () => {
+    // The node has no receipt and no transaction for this hash, but block 97 holds it, so it was mined.
+    const lost = await confirmation({ usedIn: 97, taker: HASH }, '9')
+    expect(lost.result).toEqual({ confirmed: false, failed: false })
+    expect(lost.calls.at(-1)).toEqual({ method: 'eth_getBlockByNumber', params: ['0x61', true] })
+    // A backend ahead of the one giving block numbers proves nothing until the other sees the block too.
+    expect((await confirmation({ latestCount: '0xa' }, '9')).result).toEqual({ confirmed: false, failed: false })
+  })
+
+  it('leaves a check undecided when the node cannot show the transaction that used the nonce', async () => {
+    // The node keeps no account state for blocks before 99, so it cannot tell which block used the nonce.
+    await expect(confirmation({ usedIn: 50, oldestState: 99 }, '9')).rejects.toThrow()
+    // Its block shows no transaction from the account with that nonce, or no block at all.
+    await expect(confirmation({ usedIn: 97, block: 'empty' }, '9')).rejects.toThrow('EVM node does not show the transaction that used the nonce')
+    await expect(confirmation({ usedIn: 97, block: 'missing' }, '9')).rejects.toThrow()
   })
 
   it('keeps a transaction pending while its nonce is free or the node holds it, and leaves an unanswered check undecided', async () => {
     const pending = { confirmed: false, failed: false }
     // Nonce 9 is the account's next nonce, so this transaction can still be mined, and one extra read decides it.
-    const free = await confirmation({ count: '0x9' }, '9')
+    const free = await confirmation({}, '9')
     expect(free.result).toEqual(pending)
     expect(free.methods).toEqual(['eth_getTransactionReceipt', 'eth_getTransactionCount'])
     // The node still holds it, for example a lagging backend behind the same RPC.
-    expect((await confirmation({ holds: true, count: '0xa' }, '9')).result).toEqual(pending)
+    expect((await confirmation({ holds: true, usedIn: 97 }, '9')).result).toEqual(pending)
     // A check the node cannot answer counts neither way, so the broker asks again.
-    await expect(confirmation({ lookupError: -32000, count: '0xa' }, '9')).rejects.toThrow()
-    await expect(confirmation({ count: { code: -32000 } }, '9')).rejects.toThrow()
+    await expect(confirmation({ lookupError: -32000, usedIn: 97 }, '9')).rejects.toThrow()
+    await expect(confirmation({ countError: -32000 }, '9')).rejects.toThrow()
 
     // Without the transaction's nonce there is nothing to compare, and no extra lookups.
-    const withoutNonce = await confirmation({ count: '0xa' })
+    const withoutNonce = await confirmation({ usedIn: 97 })
     expect(withoutNonce.result).toEqual(pending)
     expect(withoutNonce.methods).toEqual(['eth_getTransactionReceipt'])
-    expect((await confirmation({ count: '0xa' }, 'not-a-nonce')).methods).toEqual(['eth_getTransactionReceipt'])
+    expect((await confirmation({ usedIn: 97 }, 'not-a-nonce')).methods).toEqual(['eth_getTransactionReceipt'])
   })
 
   it('reads a mined receipt without the replacement lookups', async () => {
@@ -110,7 +179,7 @@ describe('EVM confirmation of a replaced transaction', () => {
         to: '0x0000000000000000000000000000000000000002', cumulativeGasUsed: '0x5208', gasUsed: '0x5208', contractAddress: null,
         logs: [], logsBloom: `0x${'0'.repeat(512)}`, status: '0x1', effectiveGasPrice: '0x3b9aca00', type: '0x0'
       },
-      count: '0xa'
+      usedIn: 97
     }, '9')
     expect(mined.result).toEqual({ confirmed: true, failed: false, blockReference: '123' })
     expect(mined.methods).toEqual(['eth_getTransactionReceipt'])

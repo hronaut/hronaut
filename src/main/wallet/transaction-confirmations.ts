@@ -5,10 +5,10 @@ import { restoreWalletJson } from './json-safe.js'
 import type { WalletBrokerOptions } from './broker.js'
 import type { WalletService } from './service.js'
 
-// A load-balanced node can briefly answer from a backend that lags behind, so a
-// transaction counts as replaced only after looking so on this many checks over
-// this long, without a longer pause between two checks (such as the computer
-// sleeping) than EVM_REPLACED_MAX_CHECK_GAP_MS.
+// The block holding the transaction that replaced another can still leave the
+// chain, so a transaction counts as replaced only after looking so on this many
+// checks over this long, without a longer pause between two checks (such as the
+// computer sleeping) than EVM_REPLACED_MAX_CHECK_GAP_MS.
 const EVM_REPLACED_TRANSACTION_MS = 60_000
 const EVM_REPLACED_TRANSACTION_CHECKS = 3
 const EVM_REPLACED_MAX_CHECK_GAP_MS = 30_000
