@@ -27,6 +27,17 @@ export async function answerTrustedDialog(window: Page, button: string): Promise
   await dialog.locator('.ui-dialog__footer').getByRole('button', { name: button, exact: true }).click()
 }
 
+/**
+ * Sends the shell's answer for the dialog with this id, as a click that lands just after the dialog closed or the next
+ * one replaced it does. Main counts it only for the dialog it shows now.
+ */
+export async function sendLateTrustedDialogAnswer(window: Page, id: string, response: number): Promise<void> {
+  await window.evaluate(([requestId, button]) => {
+    (globalThis as typeof globalThis & { hronautTrustedDialogs: { respond(id: string, response: number): void } })
+      .hronautTrustedDialogs.respond(requestId, button)
+  }, [id, response] as const)
+}
+
 interface TrustedDialogAnswerer {
   prompts: string[]
   observer?: MutationObserver

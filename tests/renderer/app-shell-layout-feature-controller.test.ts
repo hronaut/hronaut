@@ -2,7 +2,7 @@ import { computed, defineComponent, h, nextTick, ref, type Ref } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DetachablePanelId, PanelDock } from '../../src/shared/types.js'
-import { overlayTransitionHooks, resetOverlayMotion, setPageSnapshotOnScreen } from '../../src/renderer/src/composables/overlay-motion.js'
+import { overlayEntranceEpoch, overlayTransitionHooks, resetOverlayMotion, setPageSnapshotOnScreen } from '../../src/renderer/src/composables/overlay-motion.js'
 import {
   useAppShellLayoutFeatureController,
   type AppShellLayoutFeatureController
@@ -230,7 +230,7 @@ describe('useAppShellLayoutFeatureController', () => {
     const exiting = document.createElement('div')
     try {
       harness.modals.commandPalette.value = true
-      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
       expect(document.documentElement.hasAttribute('data-overlay-entrance-held')).toBe(true)
       setPageSnapshotOnScreen(true)
 
@@ -238,11 +238,11 @@ describe('useAppShellLayoutFeatureController', () => {
       overlayTransitionHooks.onBeforeLeave(exiting)
       await nextTick()
       await nextTick()
-      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
       overlayTransitionHooks.onAfterLeave(exiting)
       await nextTick()
       await nextTick()
-      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false)
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false, overlayEntranceEpoch())
       // Once the page is back, no entrance waits for it.
       expect(document.documentElement.hasAttribute('data-overlay-entrance-held')).toBe(false)
     } finally {
@@ -294,22 +294,22 @@ describe('useAppShellLayoutFeatureController', () => {
       overlayTransitionHooks.onBeforeLeave(exiting)
       await nextTick()
       await nextTick()
-      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
       // Picking a tab in Search tabs withdraws the snapshot; holding the page back would leave an empty window.
       setPageSnapshotOnScreen(false)
       await nextTick()
       await nextTick()
-      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false)
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false, overlayEntranceEpoch())
       overlayTransitionHooks.onAfterLeave(exiting)
 
       // A dialog that never had a snapshot, such as over a sleeping page, also returns the page at once.
       harness.modals.commandPalette.value = true
-      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
       harness.modals.commandPalette.value = false
       overlayTransitionHooks.onBeforeLeave(exiting)
       await nextTick()
       await nextTick()
-      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false)
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false, overlayEntranceEpoch())
     } finally {
       overlayTransitionHooks.onAfterLeave(exiting)
     }
@@ -354,7 +354,7 @@ describe('useAppShellLayoutFeatureController', () => {
       bottom: 0,
       left: 0
     })
-    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
   })
 
   it("reveals What's new immediately above website content without waiting for a window resize", async () => {
@@ -393,6 +393,6 @@ describe('useAppShellLayoutFeatureController', () => {
       bottom: 0,
       left: 0
     })
-    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
   })
 })

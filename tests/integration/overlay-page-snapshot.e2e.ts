@@ -207,7 +207,7 @@ test('blocks clicks on the page while it is held on screen for its snapshot', as
     // The same click reaches the page while no trusted chrome is open.
     await click()
     expect(await clickCount()).toBe(1)
-    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(true)')
+    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(true, 0)')
     await expect(appWindow.getByTestId('page-snapshot')).toHaveCount(1)
     expect(await electronApp.evaluate(({ BrowserWindow }, requestedUrl) => BrowserWindow.getAllWindows()[0]!.contentView.children
       .find((child) => 'webContents' in child && (child as Electron.WebContentsView).webContents.getURL() === requestedUrl)?.getVisible(), url)).toBe(true)
@@ -215,7 +215,7 @@ test('blocks clicks on the page while it is held on screen for its snapshot', as
     expect(await clickCount()).toBe(1)
   } finally {
     await electronApp.evaluate(() => (globalThis as { __restoreSnapshotAck?: () => void }).__restoreSnapshotAck?.()).catch(() => undefined)
-    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(false)').catch(() => undefined)
+    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(false, 0)').catch(() => undefined)
     await closeFixtureServer(server)
   }
 })
@@ -253,7 +253,7 @@ test('captures the page snapshot once a tab preview capture of the same page fin
     }, url)
     await expect.poll(() => electronApp.evaluate(() => (globalThis as { __previewProbe?: PreviewProbe }).__previewProbe!.held)).toBeGreaterThan(0)
 
-    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(true)')
+    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(true, 0)')
     await electronApp.evaluate(() => (globalThis as { __previewProbe?: PreviewProbe }).__previewProbe!.release())
     // Before the fix the page was skipped while its preview was captured, and the dialog opened over an empty window.
     await expect(appWindow.getByTestId('page-snapshot')).toHaveCount(1)
@@ -263,7 +263,7 @@ test('captures the page snapshot once a tab preview capture of the same page fin
       probe?.release()
       probe?.restore()
     }).catch(() => undefined)
-    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(false)').catch(() => undefined)
+    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(false, 0)').catch(() => undefined)
     await electronApp.evaluate(({ BrowserWindow }, size) => {
       BrowserWindow.getAllWindows()[0]!.setContentSize(size[0]!, size[1]!)
     }, original).catch(() => undefined)

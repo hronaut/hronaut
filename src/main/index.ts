@@ -681,6 +681,7 @@ const hronautIpcMain = withTranslatedIpcErrors(ipcMain, {
 
 const {
   assertTrustedShellSender,
+  isShellWindowSender,
   assertMainShellSender,
   assertPanelShellSender,
   isHronautPageSender,
@@ -771,7 +772,7 @@ function registerIpc(): void {
     agentPresenceSnapshot,
     mcpServer: () => mcpRuntime.server
   })
-  trustedDialogs.registerIpc({ ipcMain: hronautIpcMain, assertTrustedShellSender })
+  trustedDialogs.registerIpc({ ipcMain: hronautIpcMain, isTrustedShellSender: isShellWindowSender })
   registerConfirmDialogIpc({
     ipcMain: hronautIpcMain,
     assertTrustedShellSender,

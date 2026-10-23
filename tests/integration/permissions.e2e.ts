@@ -3,7 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { closeFixtureServer, blockFileDestination, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
-import { answerTrustedDialog, trustedDialog, trustedDialogHeadline } from './trusted-dialog-fixture.js'
+import { answerTrustedDialog, sendLateTrustedDialogAnswer, trustedDialog, trustedDialogHeadline, trustedDialogRequestId } from './trusted-dialog-fixture.js'
 
 async function requestGeolocationPermission(electronApp: ElectronApplication, appWindow: Page): Promise<void> {
   await electronApp.evaluate(async ({ webContents }) => {
@@ -263,6 +263,7 @@ test('does not persist a stale permission decision after the requesting tab navi
     )`)).toBe('Permission race')
 
     await requestGeolocationPermission(electronApp, appWindow)
+    const asked = await trustedDialogRequestId(appWindow)
 
     await appWindow.evaluate(`window.hronaut.navigate({
       tabId: ${JSON.stringify(tabId)},
@@ -270,8 +271,11 @@ test('does not persist a stale permission decision after the requesting tab navi
     })`)
     // The dialog closes as Deny would: its answer no longer counts for the page that asked.
     await expect(trustedDialog(appWindow)).toHaveCount(0)
+    // Nor does an Allow that lands just after it closed.
+    await sendLateTrustedDialogAnswer(appWindow, asked, 1)
+    await electronApp.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 100)))
 
-    await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([])
+    expect(await appWindow.evaluate('window.hronautPermissions.list()')).toEqual([])
   } finally {
     await closeFixtureServer(server)
   }
@@ -303,12 +307,14 @@ test('does not persist a stale permission decision after the requesting tab clos
     )`)).toBe('Permission race')
 
     await requestGeolocationPermission(electronApp, appWindow)
+    const asked = await trustedDialogRequestId(appWindow)
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(tabId)})`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) =>
       state.tabs.some((tab) => tab.id === ${JSON.stringify(tabId)})
     )`)).toBe(false)
 
     await expect(trustedDialog(appWindow)).toHaveCount(0)
+    await sendLateTrustedDialogAnswer(appWindow, asked, 1)
     await electronApp.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 100)))
     expect(await appWindow.evaluate('window.hronautPermissions.list()')).toEqual([])
     await expect(appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)'))
@@ -396,6 +402,7 @@ test('does not persist an iframe permission after the requesting frame navigates
       .toBe(true)
 
     await requestIframeGeolocationPermission(electronApp, appWindow)
+    const asked = await trustedDialogRequestId(appWindow)
     await electronApp.evaluate(async ({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Iframe permission host')
       const child = page?.mainFrame.framesInSubtree.find((frame) => frame.url.endsWith('/child'))
@@ -406,8 +413,10 @@ test('does not persist an iframe permission after the requesting frame navigates
       .some((contents) => contents.mainFrame.framesInSubtree.some((frame) => frame.url.endsWith('/child')))))
       .toBe(false)
     await expect(trustedDialog(appWindow)).toHaveCount(0)
+    await sendLateTrustedDialogAnswer(appWindow, asked, 1)
+    await electronApp.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 100)))
 
-    await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([])
+    expect(await appWindow.evaluate('window.hronautPermissions.list()')).toEqual([])
   } finally {
     await Promise.all([
       closeFixtureServer(childServer),

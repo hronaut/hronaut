@@ -40,9 +40,9 @@ function harness() {
   })
   dialogs.registerIpc({
     ipcMain: { on: (channel: string, listener: Listener) => { listeners.set(channel, listener) } } as never,
-    assertTrustedShellSender: (event) => {
+    isTrustedShellSender: (event) => {
       const sender = event.sender as unknown
-      if (sender !== main.contents && sender !== panel.contents) throw new Error('Rejected IPC from an untrusted renderer')
+      return sender === main.contents || sender === panel.contents
     }
   })
   const send = (from: { contents: unknown }, channel: string, ...args: unknown[]): void => {
@@ -202,22 +202,37 @@ describe('Hronaut’s own dialogs', () => {
     // A reloading shell document is not ready until it says so again.
     ready()
     const afterReload = dialogs.show(permission)
-    main.contents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
+    main.contents.emit('did-navigate', {}, 'http://127.0.0.1:5173/', 200, 'OK')
     await vi.waitFor(() => expect(native).toHaveLength(3))
     native[2]!.answer(0)
     await expect(afterReload).resolves.toMatchObject({ response: 0 })
     void dialogs.show(permission)
     await vi.waitFor(() => expect(native).toHaveLength(4))
+    native[3]!.answer(0)
+
+    // An error page that replaces the shell document takes its dialog away too.
+    ready()
+    const beforeError = dialogs.show(permission)
+    main.contents.emit('did-fail-provisional-load', {}, -102, 'ERR_CONNECTION_REFUSED', 'http://127.0.0.1:5173/', true)
+    await vi.waitFor(() => expect(native).toHaveLength(5))
+    native[4]!.answer(1)
+    await expect(beforeError).resolves.toMatchObject({ response: 1 })
   })
 
-  it('keeps the dialog in the shell for a same-document navigation', () => {
-    const { dialogs, main, native, ready } = harness()
+  it('keeps the dialog in the shell until another document replaces it, so the shell can still answer it', async () => {
+    // The shell document stays when a navigation it starts is refused or cancelled, and when only a frame fails to
+    // load. Moving its dialog to the system dialog then left the shell drawing a dialog whose answers counted nowhere.
+    const { dialogs, main, native, ready, respond } = harness()
     ready()
-    void dialogs.show(permission)
+    const asked = dialogs.show(permission)
+    main.contents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
     main.contents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true })
-    main.contents.emit('did-start-navigation', { isMainFrame: false, isSameDocument: false })
+    main.contents.emit('did-fail-provisional-load', {}, -102, 'ERR_CONNECTION_REFUSED', 'https://frame.example/', false)
+    main.contents.emit('did-navigate-in-page', {}, 'http://127.0.0.1:5173/#settings', true)
     expect(native).toHaveLength(0)
-    expect(main.shown()).not.toBeNull()
+    const shown = main.shown()!
+    respond(main, shown.id, 1)
+    await expect(asked).resolves.toMatchObject({ response: 1 })
   })
 
   it('defaults to the cancel button for focus and a plain message design', () => {

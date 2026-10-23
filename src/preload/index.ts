@@ -606,7 +606,7 @@ const shellApi: HronautShellApi = {
   setToolbarHeight: (height: number) => ipcRenderer.send('browser:toolbar-height', height),
   setContentInsets: (insets: { top: number; right: number; bottom: number; left: number }) =>
     ipcRenderer.send('browser:content-insets', insets),
-  setBrowserContentOccluded: (occluded: boolean) => ipcRenderer.send('browser:content-occluded', occluded),
+  setBrowserContentOccluded: (occluded: boolean, request: number) => ipcRenderer.send('browser:content-occluded', occluded, request),
   onOcclusionSnapshot: (listener: (snapshot: BrowserOcclusionSnapshot | null) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, snapshot: BrowserOcclusionSnapshot | null): void => listener(snapshot)
     ipcRenderer.on('browser:occlusion-snapshot', handler)
@@ -614,8 +614,10 @@ const shellApi: HronautShellApi = {
   },
   presentOcclusionSnapshot: (id: number) => ipcRenderer.send('browser:occlusion-snapshot-presented', id),
   setWindowControlsScrim: (color: string | null) => ipcRenderer.send('shell:window-controls-scrim', color),
-  onOcclusionPagesHidden: (listener: () => void) => {
-    const handler = (): void => listener()
+  onOcclusionPagesHidden: (listener: (request: number) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, request: unknown): void => {
+      if (typeof request === 'number') listener(request)
+    }
     ipcRenderer.on('browser:occlusion-pages-hidden', handler)
     return () => ipcRenderer.removeListener('browser:occlusion-pages-hidden', handler)
   },
