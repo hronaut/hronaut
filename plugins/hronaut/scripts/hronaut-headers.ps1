@@ -5,8 +5,8 @@ $ErrorActionPreference = 'Stop'
 # The port is part of the address the header goes to, so anything but a number could send it elsewhere.
 $port = $env:HRONAUT_MCP_PORT
 $profileDirectory = $env:HRONAUT_USER_DATA_DIR
-# Electron puts Hronaut's profile in the roaming application data folder.
-if (-not $profileDirectory) { $profileDirectory = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'Hronaut' }
+# Electron puts Hronaut's profile in the roaming application data folder, named after the app's lowercase package name.
+if (-not $profileDirectory) { $profileDirectory = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'hronaut' }
 
 $token = ''
 try {

@@ -59,6 +59,7 @@ describe('the Claude Code plugin in this repository', () => {
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-plugin-version-'))
     try {
       await cp('plugins/hronaut/.claude-plugin', join(directory, 'plugins/hronaut/.claude-plugin'), { recursive: true })
+      await cp('extensions/vscode/package.json', join(directory, 'extensions/vscode/package.json'))
       const version = (await json<PluginManifest>('plugins/hronaut/.claude-plugin/plugin.json')).version
       const check = (VERSION: string) => spawnSync('bash', ['-c', script], { cwd: directory, encoding: 'utf8', env: { PATH: process.env.PATH, VERSION } })
       expect(check(version).status).toBe(0)
@@ -118,8 +119,12 @@ async function writeToken(directory: string, content: string): Promise<void> {
 describe.skipIf(process.platform === 'win32')('the plugin’s headers helper', () => {
   let home: string
   let bin: string
+  let folder: string
 
   beforeEach(async () => {
+    // Electron names the profile folder after the packaged app's productName, or its name, which is lowercase.
+    const app = await json<{ name: string; productName?: string }>('package.json')
+    folder = app.productName ?? app.name
     home = await mkdtemp(join(tmpdir(), 'hronaut-plugin-'))
     bin = join(home, 'bin')
     await mkdir(bin)
@@ -148,18 +153,18 @@ describe.skipIf(process.platform === 'win32')('the plugin’s headers helper', (
   }
 
   it('sends the token from the profile Hronaut uses on Linux, macOS and Windows', async () => {
-    await writeToken(join(home, '.config', 'Hronaut'), `${TOKEN}\n`)
+    await writeToken(join(home, '.config', folder), `${TOKEN}\n`)
     expect(await headers({}, 'Linux')).toEqual({ Authorization: `Bearer ${TOKEN}` })
 
-    await writeToken(join(home, 'xdg', 'Hronaut'), `${TOKEN}x\r\n`)
+    await writeToken(join(home, 'xdg', folder), `${TOKEN}x\r\n`)
     expect(await headers({ XDG_CONFIG_HOME: join(home, 'xdg') }, 'Linux')).toEqual({ Authorization: `Bearer ${TOKEN}x` })
 
-    await writeToken(join(home, 'Library', 'Application Support', 'Hronaut'), `${TOKEN}m\n`)
+    await writeToken(join(home, 'Library', 'Application Support', folder), `${TOKEN}m\n`)
     expect(await headers({}, 'Darwin')).toEqual({ Authorization: `Bearer ${TOKEN}m` })
 
     // Git Bash gives %APPDATA% as a Windows path, which cygpath turns into its own.
     await fakeCygpath()
-    await writeToken(join(home, 'converted', 'Hronaut'), `${TOKEN}w\r\n`)
+    await writeToken(join(home, 'converted', folder), `${TOKEN}w\r\n`)
     const appData = { APPDATA: 'C:\\Users\\person\\AppData\\Roaming' }
     for (const system of ['MINGW64_NT-10.0-26100', 'MSYS_NT-10.0-26100', 'UCRT64_NT-10.0-26100', 'CLANGARM64_NT-10.0-26100', 'CYGWIN_NT-10.0-26100']) {
       expect(await headers(appData, system)).toEqual({ Authorization: `Bearer ${TOKEN}w` })
@@ -167,18 +172,18 @@ describe.skipIf(process.platform === 'win32')('the plugin’s headers helper', (
   })
 
   it('takes %APPDATA% as it is where there is no cygpath', async () => {
-    await writeToken(join(home, 'roaming', 'Hronaut'), `${TOKEN}\n`)
+    await writeToken(join(home, 'roaming', folder), `${TOKEN}\n`)
     expect(await headers({ APPDATA: join(home, 'roaming') }, 'MINGW64_NT-10.0-26100')).toEqual({ Authorization: `Bearer ${TOKEN}` })
   })
 
   it('uses the profile HRONAUT_USER_DATA_DIR names, as Hronaut does', async () => {
     await writeToken(join(home, 'custom'), `${TOKEN}\n`)
-    await writeToken(join(home, '.config', 'Hronaut'), `${TOKEN}other\n`)
+    await writeToken(join(home, '.config', folder), `${TOKEN}other\n`)
     expect(await headers({ HRONAUT_USER_DATA_DIR: join(home, 'custom') }, 'Linux')).toEqual({ Authorization: `Bearer ${TOKEN}` })
   })
 
   it('reads the token file as Hronaut does, trimming it', async () => {
-    await writeToken(join(home, '.config', 'Hronaut'), `\uFEFF ${TOKEN}\t \r\n\n`)
+    await writeToken(join(home, '.config', folder), `\uFEFF ${TOKEN}\t \r\n\n`)
     expect(await headers({}, 'Linux')).toEqual({ Authorization: `Bearer ${TOKEN}` })
   })
 
@@ -187,13 +192,13 @@ describe.skipIf(process.platform === 'win32')('the plugin’s headers helper', (
     expect(await headers({}, 'Linux')).toEqual({})
     expect(await headers({}, 'Linux', { withHome: false })).toEqual({})
     for (const content of ['short-token\n', `${TOKEN}"}\n`, `${TOKEN} ${TOKEN}\n`, `${TOKEN}\n${TOKEN}\n`, '']) {
-      await writeToken(join(home, '.config', 'Hronaut'), content)
+      await writeToken(join(home, '.config', folder), content)
       expect(await headers({}, 'Linux')).toEqual({})
     }
   })
 
   it('sends the token only to a numbered port on this computer', async () => {
-    await writeToken(join(home, '.config', 'Hronaut'), `${TOKEN}\n`)
+    await writeToken(join(home, '.config', folder), `${TOKEN}\n`)
     expect(await headers({ HRONAUT_MCP_PORT: '48000' }, 'Linux')).toEqual({ Authorization: `Bearer ${TOKEN}` })
     // Claude Code puts the variable into the address as it is, so these would send the header to another host or port 80.
     for (const port of ['1@attacker.example:8080', '48000/x', '']) {
