@@ -1,5 +1,4 @@
-import { readFile, rm } from 'node:fs/promises'
-import { join } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import { z } from 'zod'
 import { WalletDescriptorSchema, type WalletDescriptor, type WalletSecretFormat } from '../../shared/wallet.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
@@ -72,22 +71,6 @@ const PersistedVaultSchema = PersistedVaultBodySchema.extend({
   version: z.literal(2),
   authority: EncryptedSecretSchema
 }).strict()
-export async function discardObsoleteWalletData(directory: string): Promise<void> {
-  const path = join(directory, 'vault.json')
-  try {
-    const value = JSON.parse(await readFile(path, 'utf8')) as { version?: unknown } | null
-    if (value?.version === 0 || value?.version === 1) {
-      await rm(path, { force: true })
-      await rm(join(directory, 'requests.json'), { force: true })
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
-  }
-  for (const name of ['policies.json', 'permissions.json', 'policy-usage.json']) {
-    await rm(join(directory, name), { force: true })
-  }
-}
-
 export async function readWalletVaultProtectionMode(path: string): Promise<PersistedWalletKeyProtection['mode']> {
   try {
     return PersistedVaultSchema.parse(JSON.parse(await readFile(path, 'utf8'))).keyProtection.mode

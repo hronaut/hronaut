@@ -3,7 +3,6 @@ import type { TaskRunSummary } from './task-run-store.js'
 
 export interface TaskReviewMetric {
   taskRunId: string
-  state: TaskRunSummary['state']
   outcome: TaskRunSummary['outcome']
   completed: boolean
   interruptions: number
@@ -18,7 +17,7 @@ export interface TaskReviewMetric {
 
 export interface TaskReviewMetricsReport {
   workspaceId: string
-  totals: Omit<TaskReviewMetric, 'taskRunId' | 'state' | 'outcome' | 'completed'> & {
+  totals: Omit<TaskReviewMetric, 'taskRunId' | 'outcome' | 'completed'> & {
     taskCount: number
     completedTasks: number
     interruptedTasks: number
@@ -44,7 +43,6 @@ function reviewMetric(run: TaskRunSummary, records: HumanWaitingRecord[]): TaskR
   const totalDecisionTimeMs = decisionTimes.reduce((total, value) => total + value, 0)
   return {
     taskRunId: run.id,
-    state: run.state,
     outcome: run.outcome,
     completed: run.outcome !== 'running',
     interruptions: records.length,

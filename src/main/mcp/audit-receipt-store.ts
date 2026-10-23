@@ -23,8 +23,7 @@ const writeLeaseSchema = z.object({
 const stateSchema = z.object({
   tabId: identifier.nullable(),
   navigationGeneration: z.number().int().nonnegative().safe(),
-  // Optional while reading journals written before observation fencing shipped.
-  observationGeneration: z.number().int().nonnegative().safe().optional(),
+  observationGeneration: z.number().int().nonnegative().safe(),
   humanInteractionGeneration: z.number().int().nonnegative().safe().optional(),
   controlRevision: z.number().int().nonnegative().safe().optional(),
   runtimeId: identifier.optional(),
@@ -90,7 +89,6 @@ const eventSchema = z.discriminatedUnion('phase', [
     actionId: identifier,
     toolName: z.string().regex(/^browser_[a-z_]+$/),
     decision: z.enum(['allowed', 'denied']),
-    // Optional so retained journals from before authorization lineage remain readable.
     authorization: authorizationSchema.optional(),
     evidenceExpected: z.boolean().optional(),
     state: stateSchema.nullable()
@@ -112,8 +110,7 @@ const eventSchema = z.discriminatedUnion('phase', [
     // Failure or cancellation does not establish that a write was rolled back.
     effects: z.enum(['none', 'possible', 'confirmed']),
     siteAccessDropped: z.number().int().nonnegative().safe(),
-    // Optional while reading journals written before evidence coverage shipped.
-    evidenceDropped: z.number().int().nonnegative().safe().optional(),
+    evidenceDropped: z.number().int().nonnegative().safe(),
     evidenceDropReason: z.enum(['capacity', 'observation-failed', 'persistence-failed']).optional(),
     state: stateSchema.nullable()
   }).strict()

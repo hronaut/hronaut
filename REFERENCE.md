@@ -96,7 +96,7 @@ The website inventory combines history, open tabs, bookmarks, saved accounts, an
 
 For the current page, open **Site controls** at the left of the address. It shows cookies from that tab's isolated workspace, exact-origin history, and the saved permission decisions that apply to that tab: its workspace's decisions for the page's website and for websites embedded in the page, which show their own origin and are named "on" the page's website, and decisions for the page's website saved before Hronaut kept them per workspace, marked **All workspaces**, unless the workspace has its own. Changing an **All workspaces** decision there saves a decision of the tab's workspace that replaces it in that workspace only; Site controls does not offer to reset one, since that would forget it in every workspace, so **Settings → Site permissions** manages them. A tab outside a workspace gets no permission, so Site controls lists none for it. **Site storage** opens the inspector for that workspace. Use its website-data controls to clear cookies, local storage, IndexedDB, service workers, caches, or other site storage within that workspace.
 
-Obsolete base-profile browser data, workspaces without isolated storage, and tab snapshots older than version 3 are deleted at startup. Supported isolated workspaces retain their identities and storage. Explicit workspace deletion clears website data immediately and records pending file cleanup in the workspace-state snapshot. On a later startup, before workspace sessions open, Hronaut removes only those recorded partition directories whose ownership and paths can be verified. Active, archived, ambiguously referenced, recovery-blocked, and unsafe linked profiles are preserved. Existing unreferenced directories are not swept. Removal does not guarantee secure erasure from disks, backups, or filesystem snapshots. No legacy profile migration or Default-workspace aliases are available.
+Workspaces without isolated storage are dropped at startup. A workspace-state snapshot of any version other than 3 stops startup and is left unchanged; Hronaut does not upgrade or clean up data from earlier versions. Supported isolated workspaces retain their identities and storage. Explicit workspace deletion clears website data immediately and records pending file cleanup in the workspace-state snapshot. On a later startup, before workspace sessions open, Hronaut removes only those recorded partition directories whose ownership and paths can be verified. Active, archived, ambiguously referenced, recovery-blocked, and unsafe linked profiles are preserved. Existing unreferenced directories are not swept. Removal does not guarantee secure erasure from disks, backups, or filesystem snapshots. No legacy profile migration or Default-workspace aliases are available.
 
 ## Portable workspace templates
 
@@ -596,17 +596,16 @@ HTTP(S) origin to match the exact origin supplied at start, or require a retaine
 action-audit run to be stopped without a persistence failure. Expected origins
 are stored as SHA-256 fingerprints and are not returned. A `SUCCEEDED` claim
 requires at least one check. Hronaut durably records an intermediate verification
-admission, then every check must pass again before success is published. A failed check becomes `BLOCKED`; unavailable evidence becomes
-`OUTCOME_UNKNOWN`; evidence drift while success is saved becomes
-`OUTCOME_UNKNOWN` with `COMPLETION_CONTEXT_CHANGED`.
+admission, then every check must pass again before success is published. A failed check becomes `verifier-rejected`; unavailable evidence becomes
+`outcome-unknown`; evidence drift while success is saved becomes
+`outcome-unknown` with `COMPLETION_CONTEXT_CHANGED`.
 
-Missing heartbeats or the overall deadline produce `TIMED_OUT` with a fixed
+Missing heartbeats or the overall deadline produce `timed-out` with a fixed
 reason. An unfinished run restored after application restart becomes
-`OUTCOME_UNKNOWN`; Hronaut never resumes work or infers success. Callers may
+`outcome-unknown`; Hronaut never resumes work or infers success. Callers may
 also explicitly finish with `FAILED`, `CANCELLED`, `BLOCKED`, or
-`OUTCOME_UNKNOWN`. Every summary adds a stable lowercase `outcome`, bounded
-`reasonCode`, and `evidenceSource` while retaining `state` and `terminalReason`
-for compatibility. `effects` remains `not-established`: stopping a run does not
+`OUTCOME_UNKNOWN`. Every summary reports a stable lowercase `outcome`, a bounded
+`reasonCode`, and `evidenceSource`. `effects` remains `not-established`: stopping a run does not
 prove that earlier browser effects were rolled back. The
 profile retains at most 100 runs and evicts only the oldest terminal record when
 full. Corrupt or oversized history makes the service unavailable rather than
@@ -618,7 +617,7 @@ for interruptions, interruptions per completed task, approvals, rejections,
 completed tasks, ambiguous outcomes, and decision time. `errorsCaught` counts machine-check failures and approved
 actions invalidated before dispatch; it does not treat every prompt or rejection
 as an error. Unknown correlation IDs are ignored. The report contains only
-opaque IDs, bounded states, counts, and millisecond durations, and is available
+opaque IDs, bounded outcomes, counts, and millisecond durations, and is available
 to read-only capability profiles.
 
 Saved-task files contain the bounded task name and intent, input schema, step

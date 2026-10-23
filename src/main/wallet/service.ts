@@ -36,7 +36,7 @@ import { WalletPermissionStore } from './permissions.js'
 import { isMainnetAgentAutomationPolicy, isMainnetWebsiteSignInPolicy, isWalletNetworkEligibleForAutomation } from './policy.js'
 import { WalletPolicyStore } from './policy-store.js'
 import { WalletPolicyUsageStore } from './policy-usage.js'
-import { discardObsoleteWalletData, readWalletVaultProtectionMode, WalletVault, type WalletSecret } from './vault.js'
+import { readWalletVaultProtectionMode, WalletVault, type WalletSecret } from './vault.js'
 import { WalletWatchOnlyStore } from './watch-only-store.js'
 import { LocalizedError } from '../localized-error.js'
 
@@ -128,7 +128,6 @@ export class WalletService {
 
   async initialize(): Promise<void> {
     await mkdir(this.options.directory, { recursive: true, mode: 0o700 })
-    await discardObsoleteWalletData(this.options.directory)
     const storeResults = await Promise.allSettled([
       this.watchOnly.load(), this.approvals.load(this.now()), this.audit.verify()
     ])

@@ -115,19 +115,12 @@ const savedTaskSchema = z.object({
   if (task.updatedAt < task.createdAt) context.addIssue({ code: 'custom', path: ['updatedAt'], message: 'Invalid saved-task update time' })
 })
 
-const currentSnapshotSchema = z.object({
+export const taskRunSnapshotSchema = z.object({
   version: z.literal(2),
   savedAt: z.number().int().safe(),
   records: z.array(storedRecordSchema).max(1000),
   tasks: z.array(savedTaskSchema).max(50)
 }).strict()
-
-export const taskRunSnapshotSchema = z.preprocess(value => {
-  if (value && typeof value === 'object' && 'version' in value && value.version === 1) {
-    return { ...value, version: 2, tasks: [] }
-  }
-  return value
-}, currentSnapshotSchema)
 
 export type TaskRunCheckDefinition = z.infer<typeof checkDefinitionSchema>
 type StoredRecord = z.infer<typeof storedRecordSchema>
@@ -145,10 +138,7 @@ export interface TaskRunSummary {
   id: string
   revision: string
   workspaceId: string
-  state: TaskRunState
-  terminalReason: TerminalReason | null
-  /** Stable presentation taxonomy. Existing state and terminalReason fields are
-   * retained for backward compatibility. */
+  /** Stable presentation taxonomy derived from the stored state and reason. */
   outcome: TaskRunOutcome
   reasonCode: TerminalReason | null
   evidenceSource: 'caller-supplied' | 'hronaut-observed'
@@ -503,8 +493,6 @@ export class TaskRunStore {
       id: record.id,
       revision: record.revision,
       workspaceId: record.workspaceId,
-      state: record.state,
-      terminalReason: record.terminalReason,
       outcome,
       reasonCode: record.terminalReason,
       evidenceSource,

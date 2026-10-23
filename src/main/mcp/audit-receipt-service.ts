@@ -168,8 +168,8 @@ export class AuditReceiptService {
           'Null observations or completeness fields are unknown. Omitted site evidence is counted; interrupted actions are not replayed.',
           'Live evidence references expire after process, control, navigation, observation, or tab changes; they locate existing bounded tools rather than immutable snapshots.',
           'Origin identifiers are opaque and stable only within one live run. The hash chain is not authentication against local file rewriting.',
-          'Authorization lineage contains only root-to-leaf capability profile IDs and revisions. Older retained decisions may omit it.',
-          'Write-lease evidence contains only privacy-safe mode, holder state, expiry, and the current owner generation. Foreign generations and transport identities are omitted; older retained observations may omit it.',
+          'Authorization lineage contains only root-to-leaf capability profile IDs and revisions.',
+          'Write-lease evidence contains only privacy-safe mode, holder state, expiry, and the current owner generation. Foreign generations and transport identities are omitted.',
           'Retention is three runs per workspace, each capped at 1000 entries and 1 MiB.'
         ]
       }

@@ -154,7 +154,7 @@ describe('persistent audit receipt service', () => {
     const verificationId = randomUUID()
     await store.append({ phase: 'decision', scope: 'workspace', actionId, toolName: 'browser_click', decision: 'allowed', state: null })
     await store.append({ phase: 'verification', actionId, verificationId, maxAttempts: 3, attempt: 0, status: 'pending', reason: 'awaiting-read' })
-    await store.append({ phase: 'outcome', actionId, status: 'succeeded', effects: 'possible', siteAccessDropped: 0, state: null })
+    await store.append({ phase: 'outcome', actionId, status: 'succeeded', effects: 'possible', siteAccessDropped: 0, evidenceDropped: 0, state: null })
 
     const reopened = new AuditReceiptService(root, toolNames)
     const first = await reopened.read(workspaceId, run.id)

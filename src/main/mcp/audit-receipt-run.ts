@@ -84,7 +84,7 @@ export class AuditReceiptRun {
           try {
             await this.store.append({
               phase: 'outcome', actionId, status: 'failed', effects: 'none',
-              siteAccessDropped: 0, state: observe()
+              siteAccessDropped: 0, evidenceDropped: 0, state: observe()
             })
           } catch {
             this.persistenceFailed = true

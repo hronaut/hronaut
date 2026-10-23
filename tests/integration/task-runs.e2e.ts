@@ -86,7 +86,7 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
       workspaceId: workspace.id, action: 'get', taskRunId: run.id
     })).isError).toBe(true)
 
-    const succeeded = await call<{ state: string; terminalReason: string | null; checks: unknown[] }>(owner, 'browser_task_runs', {
+    const succeeded = await call<{ outcome: string; reasonCode: string | null; checks: unknown[] }>(owner, 'browser_task_runs', {
       workspaceId: workspace.id,
       action: 'complete',
       taskRunId: run.id,
@@ -94,7 +94,7 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
       outcome: 'SUCCEEDED'
     })
     expect(succeeded).toMatchObject({
-      state: 'SUCCEEDED', terminalReason: null,
+      outcome: 'succeeded', reasonCode: null,
       checks: [
         { id: 'page', type: 'page-settled', status: 'PASS', tabId: opened.activeTabId },
         { id: 'origin', type: 'expected-origin', status: 'PASS', tabId: opened.activeTabId }
@@ -123,7 +123,7 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
       revision: artifactRun.revision,
       outcome: 'SUCCEEDED'
     })).toMatchObject({
-      state: 'SUCCEEDED',
+      outcome: 'succeeded',
       checks: [{ id: 'audit', type: 'audit-run', artifactId: audit.id, status: 'PASS' }]
     })
 
@@ -133,14 +133,14 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
       checks: [{ id: 'origin', type: 'expected-origin', tabId: opened.activeTabId, expectedOrigin: origin }]
     })
     await call(owner, 'browser_navigate', { workspaceId: workspace.id, tabId: opened.activeTabId, url: changedOrigin })
-    const blocked = await call<{ state: string; terminalReason: string }>(owner, 'browser_task_runs', {
+    const blocked = await call<{ outcome: string; reasonCode: string }>(owner, 'browser_task_runs', {
       workspaceId: workspace.id,
       action: 'complete',
       taskRunId: changed.id,
       revision: changed.revision,
       outcome: 'SUCCEEDED'
     })
-    expect(blocked).toMatchObject({ state: 'BLOCKED', terminalReason: 'COMPLETION_CHECK_FAILED' })
+    expect(blocked).toMatchObject({ outcome: 'verifier-rejected', reasonCode: 'COMPLETION_CHECK_FAILED' })
 
     const unchecked = await call<{ id: string; revision: string }>(owner, 'browser_task_runs', {
       workspaceId: workspace.id, action: 'start'
@@ -155,7 +155,7 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
       workspaceId: workspace.id, action: 'complete', taskRunId: unchecked.id,
       revision: unchecked.revision, outcome: 'OUTCOME_UNKNOWN'
     })).toMatchObject({
-      state: 'OUTCOME_UNKNOWN', terminalReason: 'CALLER_REPORTED_UNKNOWN', outcome: 'outcome-unknown',
+      outcome: 'outcome-unknown',
       reasonCode: 'CALLER_REPORTED_UNKNOWN', evidenceSource: 'caller-supplied', effects: 'not-established'
     })
 
@@ -166,7 +166,7 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
       workspaceId: workspace.id, action: 'complete', taskRunId: cancellable.id,
       revision: cancellable.revision, outcome: 'CANCELLED'
     })).toMatchObject({
-      state: 'CANCELLED', terminalReason: 'CALLER_REPORTED_CANCELLED', outcome: 'cancelled',
+      outcome: 'cancelled',
       reasonCode: 'CALLER_REPORTED_CANCELLED', evidenceSource: 'caller-supplied', effects: 'not-established'
     })
 
@@ -308,7 +308,7 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
       taskRunId: firstReusableRun.id,
       revision: firstReusableRun.revision
     })).toMatchObject({
-      state: 'BLOCKED', terminalReason: 'TASK_CONTEXT_STALE', outcome: 'stale-context'
+      outcome: 'stale-context', reasonCode: 'TASK_CONTEXT_STALE'
     })
 
     const secondTarget = await call<{ activeTabId: string }>(owner, 'browser_new_tab', {
@@ -347,7 +347,7 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
       revision: secondReusableRun.revision,
       outcome: 'SUCCEEDED'
     })).toMatchObject({
-      state: 'SUCCEEDED',
+      outcome: 'succeeded',
       taskDefinition: { id: definition.id, revision: definition.revision },
       receipt: {
         formatVersion: 1,
@@ -392,7 +392,7 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
       taskRunId: reconnectRun.id,
       revision: reconnectRun.revision
     })).toMatchObject({
-      state: 'OUTCOME_UNKNOWN', terminalReason: 'TASK_CONTEXT_UNAVAILABLE', outcome: 'reconciliation-required'
+      outcome: 'reconciliation-required', reasonCode: 'TASK_CONTEXT_UNAVAILABLE'
     })
     const persisted = await readFile(join(profileDirectory, 'task-runs.json'), 'utf8')
     for (const privateValue of [
@@ -444,14 +444,14 @@ test('restores unfinished task runs as unknown and durably records heartbeat exp
     })
     expect(await call(second, 'browser_task_runs', {
       workspaceId: workspace.id, action: 'get', taskRunId: active.id
-    })).toMatchObject({ state: 'OUTCOME_UNKNOWN', terminalReason: 'RESTART' })
+    })).toMatchObject({ outcome: 'outcome-unknown', reasonCode: 'RESTART' })
 
     const expiring = await call<{ id: string }>(second, 'browser_task_runs', {
       workspaceId: workspace.id, action: 'start', deadlineMs: 60_000, heartbeatTimeoutMs: 1_000
     })
-    await expect.poll(async () => (await call<Array<{ id: string; state: string }>>(second, 'browser_task_runs', {
+    await expect.poll(async () => (await call<Array<{ id: string; outcome: string }>>(second, 'browser_task_runs', {
       workspaceId: workspace.id, action: 'list'
-    })).find(run => run.id === expiring.id)?.state).toBe('TIMED_OUT')
+    })).find(run => run.id === expiring.id)?.outcome).toBe('timed-out')
     const saved = JSON.parse(await readFile(join(profileDirectory, 'task-runs.json'), 'utf8')) as {
       records: Array<{ id: string; state: string; terminalReason: string }>
     }

@@ -64,7 +64,7 @@ describe('durable task-run owner', () => {
       allowed = false
       return { results: [{ id: 'page', status: 'PASS' }], contextToken: 'before' }
     })).rejects.toThrow('revoked')
-    expect((await service.get(WORKSPACE_ID, run.id, authorize)).state).toBe('RUNNING')
+    expect((await service.get(WORKSPACE_ID, run.id, authorize)).outcome).toBe('running')
   })
 
   it('reclassifies a saved success when its browser evidence changes before return', async () => {
@@ -74,7 +74,7 @@ describe('durable task-run owner', () => {
     expect(await service.complete(WORKSPACE_ID, run.id, run.revision, 'SUCCEEDED', authorize, async () => ({
       results: [{ id: 'page', status: 'PASS' }],
       contextToken: `context-${++evaluation}`
-    }))).toMatchObject({ state: 'OUTCOME_UNKNOWN', terminalReason: 'COMPLETION_CONTEXT_CHANGED' })
+    }))).toMatchObject({ outcome: 'outcome-unknown', reasonCode: 'COMPLETION_CONTEXT_CHANGED' })
   })
 
   it('revalidates a saved-task context after persisting its heartbeat', async () => {
@@ -93,7 +93,7 @@ describe('durable task-run owner', () => {
         contextToken: `context-${evaluation}`
       }
     })).toMatchObject({
-      state: 'BLOCKED', terminalReason: 'TASK_CONTEXT_STALE', outcome: 'stale-context'
+      outcome: 'stale-context', reasonCode: 'TASK_CONTEXT_STALE'
     })
   })
 
@@ -114,10 +114,10 @@ describe('durable task-run owner', () => {
     const service = new TaskRunService({ load: async () => null, save }, store)
     const run = await service.create({ ...request, heartbeatTimeoutMs: 1_000 }, authorize)
     now = 1_000
-    expect(await service.get(WORKSPACE_ID, run.id, authorize)).toMatchObject({ state: 'TIMED_OUT' })
+    expect(await service.get(WORKSPACE_ID, run.id, authorize)).toMatchObject({ outcome: 'timed-out' })
     const restored = new TaskRunStore({ monotonicNow: () => 0, wallNow: () => 1_001_000 })
     restored.restore(saved)
-    expect(restored.get(run.id)).toMatchObject({ state: 'TIMED_OUT', terminalReason: 'HEARTBEAT_EXPIRED' })
+    expect(restored.get(run.id)).toMatchObject({ outcome: 'timed-out', reasonCode: 'HEARTBEAT_EXPIRED' })
   })
 
   it('persists explicit cancellation and returns its bounded outcome classification', async () => {
@@ -129,12 +129,12 @@ describe('durable task-run owner', () => {
     const run = await service.create(request, authorize)
     const cancelled = await service.complete(WORKSPACE_ID, run.id, run.revision, 'CANCELLED', authorize)
     expect(cancelled).toMatchObject({
-      state: 'CANCELLED', outcome: 'cancelled', reasonCode: 'CALLER_REPORTED_CANCELLED',
+      outcome: 'cancelled', reasonCode: 'CALLER_REPORTED_CANCELLED',
       evidenceSource: 'caller-supplied', effects: 'not-established'
     })
     const restored = new TaskRunStore()
     restored.restore(saved)
-    expect(restored.get(run.id)).toMatchObject({ state: 'CANCELLED', outcome: 'cancelled' })
+    expect(restored.get(run.id)).toMatchObject({ outcome: 'cancelled' })
   })
 
   it('persists a second expiry observed after an earlier timeout save', async () => {
@@ -156,8 +156,8 @@ describe('durable task-run owner', () => {
     now = 1_000
     advanceDuringSave = true
     expect(await service.list(WORKSPACE_ID, authorize)).toEqual([
-      expect.objectContaining({ state: 'TIMED_OUT', terminalReason: 'HEARTBEAT_EXPIRED' }),
-      expect.objectContaining({ state: 'TIMED_OUT', terminalReason: 'HEARTBEAT_EXPIRED' })
+      expect.objectContaining({ outcome: 'timed-out', reasonCode: 'HEARTBEAT_EXPIRED' }),
+      expect.objectContaining({ outcome: 'timed-out', reasonCode: 'HEARTBEAT_EXPIRED' })
     ])
     expect(saved?.records).toEqual([
       expect.objectContaining({ state: 'TIMED_OUT' }),

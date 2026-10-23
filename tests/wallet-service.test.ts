@@ -562,59 +562,23 @@ describe('WalletService', () => {
     await expect(restored.initialize()).rejects.toThrow('Wallet vault authentication failed')
   })
 
-  it.each([0, 1])('discards obsolete wallets and plaintext authority without migration (version=%s)', async version => {
+  it.each([0, 1])('rejects an earlier vault format without deleting or upgrading it (version=%s)', async version => {
     const path = await directory()
     const created = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
     await created.initialize()
-    const generated = await created.generate({
-      name: 'Legacy authority wallet', chainFamily: 'evm', network, workspaceIds: ['workspace-1']
-    })
-    const policy = await created.setPolicy({
-      id: 'legacy-policy', name: 'Legacy allowance', mode: 'bounded-auto', walletId: generated.wallet.id,
-      workspaceId: 'workspace-1', networkIds: ['31337'], origins: ['https://dapp.example'],
-      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
-      dailySpendLimit: '1', expiresAt: '2099-08-29T12:00:00.000Z', maximumOperationCount: 1,
-      requireSuccessfulSimulation: true, allowMessageSigning: false
-    })
-    await created.policyUsage.reserve(policy, '1', new Date('2026-08-30T12:00:00.000Z'))
+    await created.generate({ name: 'Earlier format wallet', chainFamily: 'evm', network, workspaceIds: ['workspace-1'] })
     created.dispose()
 
     const vaultPath = join(path, 'vault.json')
-    const legacyVault = JSON.parse(await readFile(vaultPath, 'utf8')) as { version: number; authority?: unknown }
-    legacyVault.version = version
-    delete legacyVault.authority
-    await writeFile(vaultPath, `${JSON.stringify(legacyVault, null, 2)}\n`, 'utf8')
-    await writeFile(join(path, 'policies.json'), `${JSON.stringify({ version: 1, policies: [
-      { ...policy, maxNativeAmount: '1000', maximumOperationCount: 10_000 }
-    ] }, null, 2)}\n`, 'utf8')
-    await writeFile(join(path, 'permissions.json'), `${JSON.stringify({
-      version: 1,
-      permissions: [{
-        id: 'forged-grant', walletId: generated.wallet.id, workspaceId: 'workspace-1',
-        origin: 'https://dapp.example', account: generated.wallet.publicAddress, chainFamily: 'evm',
-        networkId: '31337', capabilities: ['read', 'sign', 'send'],
-        createdAt: '2026-08-30T12:00:00.000Z', expiresAt: '2099-08-30T12:00:00.000Z'
-      }]
-    }, null, 2)}\n`, 'utf8')
-    await writeFile(join(path, 'policy-usage.json'), `${JSON.stringify({
-      version: 1,
-      entries: [{ policyId: policy.id, operationCount: 0, dailyDate: '2026-08-30', dailySpend: '0' }]
-    }, null, 2)}\n`, 'utf8')
+    const earlier = JSON.parse(await readFile(vaultPath, 'utf8')) as { version: number; authority?: unknown }
+    earlier.version = version
+    delete earlier.authority
+    const bytes = `${JSON.stringify(earlier, null, 2)}\n`
+    await writeFile(vaultPath, bytes, 'utf8')
 
     const restored = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
-    await restored.initialize()
-
-    expect(restored.policies.list()).toEqual([])
-    expect(restored.list()).toEqual([])
-    for (const name of ['policies.json', 'permissions.json', 'policy-usage.json']) {
-      await expect(readFile(join(path, name))).rejects.toMatchObject({ code: 'ENOENT' })
-    }
-    expect(restored.permissions.list()).toEqual([])
-    expect(restored.policyUsage.snapshot(policy.id, new Date('2026-08-30T12:30:00.000Z'))).toMatchObject({
-      operationCount: 0,
-      dailySpend: '0'
-    })
-    expect(JSON.parse(await readFile(vaultPath, 'utf8'))).toMatchObject({ version: 2, authority: { algorithm: 'xchacha20-poly1305' } })
+    await expect(restored.initialize()).rejects.toThrow('Wallet vault file is invalid')
+    expect(await readFile(vaultPath, 'utf8')).toBe(bytes)
   })
 
   it('preserves supported encrypted wallets with authenticated historical metadata', async () => {

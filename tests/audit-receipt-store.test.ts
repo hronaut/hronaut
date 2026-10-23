@@ -26,14 +26,14 @@ async function fixture(limits: { maxEntries?: number; maxBytes?: number } = {}) 
 function decision(actionId = randomUUID()): Extract<AuditReceiptEvent, { phase: 'decision' }> {
   return {
     phase: 'decision', scope: 'workspace', actionId, toolName: 'browser_click', decision: 'allowed',
-    state: { tabId: randomUUID(), navigationGeneration: 1, originChanged: false }
+    state: { tabId: randomUUID(), navigationGeneration: 1, observationGeneration: 0, originChanged: false }
   }
 }
 
 function outcome(actionId: string): Extract<AuditReceiptEvent, { phase: 'outcome' }> {
   return {
-    phase: 'outcome', actionId, status: 'cancelled', effects: 'possible', siteAccessDropped: 0,
-    state: { tabId: null, navigationGeneration: 2, originChanged: true }
+    phase: 'outcome', actionId, status: 'cancelled', effects: 'possible', siteAccessDropped: 0, evidenceDropped: 0,
+    state: { tabId: null, navigationGeneration: 2, observationGeneration: 0, originChanged: true }
   }
 }
 
@@ -47,6 +47,17 @@ function evidence(actionId: string): Extract<AuditReceiptEvent, { phase: 'eviden
 }
 
 describe('action audit receipt journal', () => {
+  it('requires observation generation and evidence coverage on every entry', async () => {
+    const { store } = await fixture()
+    const start = decision()
+    const { observationGeneration: _observation, ...unfenced } = start.state!
+    await expect(store.append({ ...start, state: unfenced } as AuditReceiptEvent)).rejects.toThrow()
+    await store.append(start)
+    const { evidenceDropped: _dropped, ...uncovered } = outcome(start.actionId)
+    await expect(store.append(uncovered as AuditReceiptEvent)).rejects.toThrow()
+    expect(await store.read()).toHaveLength(1)
+  })
+
   it('distinguishes workspace admission, correlated site denials and an unavailable final state', async () => {
     const { store, options } = await fixture()
     const start = decision()
@@ -92,7 +103,7 @@ describe('action audit receipt journal', () => {
     await expect(store.append({
       ...decision(),
       state: {
-        tabId: randomUUID(), navigationGeneration: 1, originChanged: false,
+        tabId: randomUUID(), navigationGeneration: 1, observationGeneration: 0, originChanged: false,
         writeLease: {
           status: 'busy', holder: 'other', mode: 'exclusive-write',
           expiresAt: '2026-09-21T00:00:00.000Z', generation: foreignGeneration
@@ -102,7 +113,7 @@ describe('action audit receipt journal', () => {
     await expect(store.append({
       ...decision(),
       state: {
-        tabId: randomUUID(), navigationGeneration: 1, originChanged: false,
+        tabId: randomUUID(), navigationGeneration: 1, observationGeneration: 0, originChanged: false,
         writeLease: {
           status: 'unclaimed', holder: 'none', mode: 'exclusive-write', ownerId: 'private-session-canary'
         }
@@ -336,7 +347,7 @@ describe('action audit receipt journal', () => {
     expect(await readFile(options.path, 'utf8')).toBe(damaged)
   })
 
-  it.each([{ maxEntries: 2 }, { maxBytes: 1100 }])('stops at explicit capacity without truncating history: %j', async (limits) => {
+  it.each([{ maxEntries: 2 }, { maxBytes: 1150 }])('stops at explicit capacity without truncating history: %j', async (limits) => {
     const { store, options } = await fixture(limits)
     // Denials need no outcome reservation and can fill the physical capacity.
     await store.append({ ...decision(), decision: 'denied' } as AuditReceiptEvent)
