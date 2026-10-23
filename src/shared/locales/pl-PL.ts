@@ -3609,6 +3609,8 @@ export const plPL = {
       "print": "Drukuj…",
       "showFullHistory": "Pokaż całą historię",
       "viewSource": "Wyświetl źródło strony",
+      "viewFrameSource": "Wyświetl źródło ramki",
+      "reloadFrame": "Odśwież ramkę",
       "searchFor": "Szukaj w {engine}: „{text}”",
       "goTo": "Przejdź do {text}",
       "savePage": "Zapisz jako…"

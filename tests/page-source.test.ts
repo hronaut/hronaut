@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { pageSourceAddress, viewPageSource, viewShownPageSource } from '../src/main/browser/page-source/page-source.js'
+import { pageSourceAddress, viewFrameSource, viewPageSource, viewShownPageSource } from '../src/main/browser/page-source/page-source.js'
 
 // Hronaut had no View Page Source: Ctrl+U and Cmd+Option+U did nothing, and neither menu offered it.
 
@@ -63,5 +63,23 @@ describe('View Page Source', () => {
     const refused = new Error('This workspace does not allow that address.')
     access.createTab.mockRejectedValueOnce(refused)
     await expect(viewPageSource(access, { id: 'shop', url: 'https://shop.example/' })).rejects.toBe(refused)
+  })
+
+  it('opens a frame\'s source in a new tab beside its page, for a frame showing a web page and not behind Hronaut\'s dialogs', async () => {
+    const tab = { id: 'shop', url: 'https://shop.example/checkout', mcpGroupId: 'client-a' }
+    const access = sourceAccess()
+    await expect(viewFrameSource(access, tab, 'https://pay.example/card')).resolves.toBe(true)
+    expect(access.createTab).toHaveBeenCalledExactlyOnceWith({
+      url: 'view-source:https://pay.example/card',
+      active: true,
+      mcpGroupId: 'client-a',
+      openedFrom: { tabId: 'shop', background: false }
+    })
+
+    const covered = sourceAccess(undefined, true)
+    await expect(viewFrameSource(covered, tab, 'https://pay.example/card')).resolves.toBe(false)
+    await expect(viewFrameSource(access, tab, 'about:srcdoc')).resolves.toBe(false)
+    expect(covered.createTab).not.toHaveBeenCalled()
+    expect(access.createTab).toHaveBeenCalledOnce()
   })
 })

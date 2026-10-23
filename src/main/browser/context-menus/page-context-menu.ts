@@ -12,13 +12,14 @@ const EMOJI_FIELDS: ReadonlySet<ContextMenuParams['formControlType']> = new Set(
 /**
  * Shows the native context menu for a right-click in the page: link, image,
  * editing and selection actions for what was clicked, with a search for the
- * selected text or a visit to a selected address, then page navigation, copy address, save, print, view source and
- * inspect. Each action checks that its tab is still open.
+ * selected text or a visit to a selected address, then page navigation, copy address, save, print, view source, the
+ * source and reload of a frame inside the page, and inspect. Each action checks that its tab is still open.
  */
 export function showContextMenu<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, params: ContextMenuParams): void {
   const webContents = tab.webContents
   if (webContents.isDestroyed()) return
   const groups: MenuItemConstructorOptions[][] = []
+  const frame = subframe(params.frame)
   const reportActionFailure = (action: string, error: unknown): void => {
     console.error(`[browser] Could not ${action} from page context menu:`, error)
     access.options().onActionFailed?.(action, error)
@@ -288,6 +289,26 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
         void access.viewSource(tab).catch((error) => reportActionFailure('view page source', error))
       })
     }] : [],
+    // A right-click inside a frame of the page offers, as in Chrome, the frame's own source, for a frame showing a web
+    // page, and a reload of the frame alone.
+    ...frame && !isHronautHomeUrl(tab.url) ? [
+      ...pageSourceAddress(params.frameURL) ? [{
+        id: 'view-frame-source',
+        label: access.text('native.context.viewFrameSource'),
+        click: withLiveContents('view frame source', () => {
+          void access.viewFrameSource(tab, params.frameURL).catch((error) => reportActionFailure('view frame source', error))
+        })
+      }] : [],
+      {
+        id: 'reload-frame',
+        label: access.text('native.context.reloadFrame'),
+        click: withLiveContents('reload the frame', () => {
+          // A frame the page removed while the menu was open has nothing to reload, as in Chrome.
+          if (frame.isDestroyed() || frame.detached) return
+          frame.reload()
+        })
+      }
+    ] : [],
     // Hronaut Home has no Developer Tools, as F12 and Ctrl+Shift+I already refuse there: its page holds Hronaut's
     // privileged Home bridge.
     ...isHronautHomeUrl(tab.url) ? [] : [{
@@ -334,6 +355,16 @@ function emailAddress(linkURL: string): string {
     }
   })
   return [...decoded].map(character => HIDDEN_CHARACTER.test(character) ? encodeURIComponent(character) : character).join('')
+}
+
+/** The frame inside the page the menu is for: none for the page itself, or for a frame that is already gone. */
+function subframe(frame: WebFrameMain | null | undefined): WebFrameMain | undefined {
+  if (!frame) return undefined
+  try {
+    return frame.parent ? frame : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function hasOpaqueOrigin(frame: WebFrameMain | null | undefined): boolean {

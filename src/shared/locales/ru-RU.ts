@@ -3609,6 +3609,8 @@ export const ruRU = {
       "print": "Печать…",
       "showFullHistory": "Показать всю историю",
       "viewSource": "Просмотр кода страницы",
+      "viewFrameSource": "Просмотр кода фрейма",
+      "reloadFrame": "Перезагрузить фрейм",
       "searchFor": "Найти «{text}» в {engine}",
       "goTo": "Перейти на {text}",
       "savePage": "Сохранить как…"

@@ -3609,6 +3609,8 @@ export const esES = {
       "print": "Imprimir…",
       "showFullHistory": "Mostrar historial completo",
       "viewSource": "Ver código fuente de la página",
+      "viewFrameSource": "Ver código fuente del marco",
+      "reloadFrame": "Recargar marco",
       "searchFor": "Buscar «{text}» en {engine}",
       "goTo": "Ir a {text}",
       "savePage": "Guardar como…"

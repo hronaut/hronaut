@@ -3609,6 +3609,8 @@ export const deDE = {
       "print": "Drucken…",
       "showFullHistory": "Gesamten Verlauf anzeigen",
       "viewSource": "Seitenquelltext anzeigen",
+      "viewFrameSource": "Frame-Quelltext anzeigen",
+      "reloadFrame": "Frame neu laden",
       "searchFor": "{engine} nach „{text}“ durchsuchen",
       "goTo": "Gehe zu {text}",
       "savePage": "Speichern unter…"

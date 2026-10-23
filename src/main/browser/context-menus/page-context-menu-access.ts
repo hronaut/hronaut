@@ -43,6 +43,8 @@ export interface PageContextMenuAccess<Tab extends PageContextMenuTab> {
   print(tab: Tab): Promise<void>
   /** Opens the page's source in a new tab beside it, for a web page. */
   viewSource(tab: Tab): Promise<boolean>
+  /** Opens the source of a frame in the page in a new tab beside it, for a frame showing a web page. */
+  viewFrameSource(tab: Tab, frameUrl: string): Promise<boolean>
   /** Opens the save dialog for the tab's page and saves it where the person chooses. */
   savePage(tab: Tab): Promise<boolean>
   /** The search engine the address bar uses, which searches the selected text. */
