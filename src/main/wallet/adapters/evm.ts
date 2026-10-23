@@ -254,24 +254,95 @@ function broadcastError(error: unknown): unknown {
   return new Error(`EVM RPC error (code ${serverErrorCode(rpc.code)}): the node refused the transaction: ${refusal[1]}`)
 }
 
+/** Blocks in which a sent transaction's nonce was used by something else, by wallet, network and transaction. */
+type NonceBlocks = Map<string, { number: bigint; hash: Hash }>
+const MAX_NONCE_BLOCKS = 256
+
 /**
- * Whether another transaction from the account took this one's nonce: the
- * account's mined transaction count is past its nonce and the node no longer
- * holds it. The count comes first, so a transaction that is merely pending
- * costs one extra read. A node that cannot answer throws, so the caller asks
- * again later instead of counting the check either way.
+ * Whether something else took this transaction's nonce, such as another
+ * transaction from the account or an EIP-7702 authorization. The node no
+ * longer holding it while the account's mined count is past its nonce is not
+ * enough: a load-balanced node can answer from a backend that lags behind,
+ * and a node that pruned old transactions forgets mined ones too. So it counts
+ * only once the block in which the account used the nonce is found and does
+ * not hold this transaction. As backends behind one address can disagree, the
+ * search's answer is checked against the found block itself, by its hash. The
+ * count comes first, so a transaction that is merely pending costs one extra
+ * read. The block found is kept in `found`, so
+ * a later check reads only that block, even once the node keeps no account
+ * state that old. A node that cannot answer, including one that keeps no
+ * account state for that block, throws, so the caller asks again later
+ * instead of counting the check either way.
  */
-async function nonceTakenByAnother(client: EvmClient, wallet: WalletDescriptor, hash: Hash, nonce: string | undefined): Promise<boolean> {
+async function nonceTakenByAnother(
+  client: EvmClient,
+  wallet: WalletDescriptor,
+  hash: Hash,
+  nonce: string | undefined,
+  found: NonceBlocks
+): Promise<boolean> {
   if (nonce === undefined || !/^\d{1,16}$/.test(nonce) || !isAddress(wallet.publicAddress)) return false
-  const mined = await client.getTransactionCount({ address: getAddress(wallet.publicAddress), blockTag: 'latest' })
-  if (BigInt(mined) <= BigInt(nonce)) return false
+  const address = getAddress(wallet.publicAddress)
+  const used = BigInt(nonce)
+  if (BigInt(await client.getTransactionCount({ address, blockTag: 'latest' })) <= used) return false
   try {
     await client.getTransaction({ hash })
     return false
   } catch (error) {
-    if (error instanceof TransactionNotFoundError) return true
-    throw error
+    if (!(error instanceof TransactionNotFoundError)) throw error
   }
+  const key = `${wallet.id}\n${wallet.network.id}\n${hash.toLowerCase()}`
+  const known = found.get(key)
+  if (known) {
+    // The same block still, unless the chain replaced it since.
+    if ((await client.getBlock({ blockNumber: known.number })).hash?.toLowerCase() === known.hash) return true
+    found.delete(key)
+  }
+  const usedBy = async (blockNumber: bigint): Promise<boolean> => BigInt(await client.getTransactionCount({ address, blockNumber })) > used
+  // Read directly: viem's cached block number keeps an entry for every client, and each check has its own.
+  const latest = hexToBigInt(await client.request({ method: 'eth_blockNumber' }))
+  // A backend that has not seen the block yet proves nothing.
+  if (!(await usedBy(latest))) return false
+  const number = await blockThatUsedNonce(latest, usedBy)
+  const block = await client.getBlock({ blockNumber: number })
+  if (block.transactions.some((entry) => entry.toLowerCase() === hash.toLowerCase())) return false
+  // The account used the nonce in this very block of the chain and not before it (EIP-1898), whichever backend
+  // answered the search.
+  const countAt = async (blockHash: Hash): Promise<bigint> =>
+    BigInt(await client.getTransactionCount({ address, blockHash, requireCanonical: true }))
+  if (!block.hash || await countAt(block.hash) <= used || await countAt(block.parentHash) > used) {
+    throw new Error('EVM node answered inconsistently about the block that used the nonce')
+  }
+  found.set(key, { number, hash: block.hash.toLowerCase() as Hash })
+  if (found.size > MAX_NONCE_BLOCKS) found.delete(found.keys().next().value!)
+  return true
+}
+
+/**
+ * The block in which the account used the nonce, `usedBy` being false before
+ * it and true from it on: steps back from the latest block in doubling steps,
+ * so a recent block costs few reads, then halves the range left. A node that
+ * shows the nonce used from the first block, such as one ignoring the block it
+ * is asked about, shows no such block.
+ */
+async function blockThatUsedNonce(latest: bigint, usedBy: (blockNumber: bigint) => Promise<boolean>): Promise<bigint> {
+  let used = latest
+  let unused = -1n
+  for (let step = 1n; used > 0n; step *= 2n) {
+    const probe = used > step ? used - step : 0n
+    if (!(await usedBy(probe))) {
+      unused = probe
+      break
+    }
+    used = probe
+  }
+  if (unused < 0n) throw new Error('EVM node shows the nonce used from the first block')
+  while (used - unused > 1n) {
+    const middle = unused + (used - unused) / 2n
+    if (await usedBy(middle)) used = middle
+    else unused = middle
+  }
+  return used
 }
 
 function readRpcError(error: unknown): Error {
@@ -294,6 +365,8 @@ export class EvmWalletAdapter implements WalletChainAdapter {
   readonly tokenAllowances = true
   /** Why gas estimation reverted, for transactions prepared with the fallback gas limit. */
   private readonly estimationReverts = new WeakMap<WalletNormalizedTransaction, WalletSimulationRevert>()
+  /** Blocks found to have used a sent transaction's nonce without it, for the checks that follow. */
+  private readonly nonceBlocks: NonceBlocks = new Map()
 
   constructor(private readonly clientFor = (wallet: WalletDescriptor): EvmClient => createPublicClient({
     // A contract's CCIP-Read (EIP-3668) revert names URLs that viem would fetch
@@ -434,7 +507,7 @@ export class EvmWalletAdapter implements WalletChainAdapter {
       receipt = await client.getTransactionReceipt({ hash: transactionHash as Hash })
     } catch (error) {
       if (!(error instanceof TransactionReceiptNotFoundError)) throw error
-      const replaced = await nonceTakenByAnother(client, wallet, transactionHash as Hash, nonce)
+      const replaced = await nonceTakenByAnother(client, wallet, transactionHash as Hash, nonce, this.nonceBlocks)
       return { confirmed: false, failed: false, ...(replaced ? { replaced: true } : {}) }
     }
     return {
