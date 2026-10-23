@@ -455,11 +455,27 @@ describe('Hronaut’s wallet recovery phrase dialog', () => {
     expect(api.respond).toHaveBeenCalledExactlyOnceWith('recovery', 0)
   })
 
-  it('answers Escape as Not yet', async () => {
+  it('takes the phrase off the screen as soon as the person answers, before main closes the dialog', async () => {
     const { api, show, settle } = mountDialog()
     await show(walletRecovery('recovery'))
     await settle()
-    await fireEvent.keyDown(screen.getByRole('button', { name: 'Not yet' }), { key: 'Escape' })
+    await fireEvent.click(screen.getByRole('button', { name: 'I saved it' }))
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('recovery', 0)
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Recovery phrase' })).toBeNull()
+    expect(screen.getByRole('alertdialog').textContent).not.toContain('abandon')
+  })
+
+  it('never answers I saved it from an Enter held since before it opened, and answers Escape as Not yet', async () => {
+    const { api, show, settle } = mountDialog()
+    await show(walletRecovery('recovery'))
+    await settle()
+    const notYet = screen.getByRole('button', { name: 'Not yet' })
+    const heldEnter = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    notYet.dispatchEvent(heldEnter)
+    expect(heldEnter.defaultPrevented).toBe(true)
+    expect(api.respond).not.toHaveBeenCalled()
+    await fireEvent.keyDown(notYet, { key: 'Escape' })
     expect(api.respond).toHaveBeenCalledExactlyOnceWith('recovery', 1)
   })
 

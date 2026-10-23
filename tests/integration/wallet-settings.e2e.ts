@@ -418,14 +418,16 @@ test('discards a generated wallet when recovery material is not confirmed', asyn
   const generated = generateWallet(appWindow, 'Discarded wallet')
   await expect(trustedDialog(appWindow)).toHaveAttribute('data-variant', 'wallet-recovery')
   await answerTrustedDialog(appWindow, 'Not yet')
-  expect(await generated).toEqual({ error: 'Wallet creation cancelled before recovery confirmation' })
+  // The renderer reads the error with Electron's "Error invoking remote method" prefix.
+  expect(await generated).toEqual({ error: expect.stringContaining('Wallet creation cancelled before recovery confirmation') })
   await expect.poll(() => appWindow.evaluate('window.hronautWallets.list()')).toEqual([])
   expect(await systemDialogs(electronApp)).toEqual([])
 })
 
-test('asks for recovery confirmation in the interface language', async ({ appWindow }) => {
+test('asks for recovery confirmation in the interface language', async ({ appWindow, electronApp }) => {
   // The recovery phrase dialog, its warning and its buttons were in English whatever the interface language.
   await readyWalletVault(appWindow)
+  await recordSystemDialogs(electronApp)
   await appWindow.evaluate("window.hronautSettings.setLanguagePreference('uk-UA')")
   await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
   const generated = generateWallet(appWindow, 'Discarded wallet')
@@ -435,8 +437,9 @@ test('asks for recovery confirmation in the interface language', async ({ appWin
   await expect(dialog).toContainText('Hronaut не зможе відновити цю фразу. Ніколи не передавайте її вебсайту чи агенту програмування.')
   await expect(dialog.locator('.ui-dialog__footer').getByRole('button')).toHaveText(['Фразу збережено', 'Ще ні'])
   await answerTrustedDialog(appWindow, 'Ще ні')
-  expect(await generated).toEqual({ error: 'Створення гаманця скасовано до підтвердження фрази відновлення.' })
+  expect(await generated).toEqual({ error: expect.stringContaining('Створення гаманця скасовано до підтвердження фрази відновлення.') })
   await expect.poll(() => appWindow.evaluate('window.hronautWallets.list()')).toEqual([])
+  expect(await systemDialogs(electronApp)).toEqual([])
 })
 
 test('shows a selectable wallet list and readable tabs across themes and translated layouts', async ({ appWindow }, testInfo) => {

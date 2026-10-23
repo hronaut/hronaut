@@ -150,7 +150,7 @@ export const trustedDialogMessages = {
       headline: 'Notieren Sie die Wiederherstellungsphrase für {wallet}',
       phrase: 'Wiederherstellungsphrase',
       keep: 'Schreiben Sie diese Wörter in dieser Reihenfolge auf und bewahren Sie sie offline auf. Wer sie kennt, kontrolliert die Wallet.',
-      added: 'Hronaut fügt die Wallet hinzu, sobald Sie bestätigen, dass Sie sie gesichert haben.'
+      added: 'Hronaut fügt die Wallet hinzu, sobald Sie bestätigen, dass Sie die Wörter gesichert haben.'
     },
     sitePermission: {
       embeddedIn: 'Eingebettet in {site}',

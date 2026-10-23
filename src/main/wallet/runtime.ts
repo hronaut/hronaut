@@ -133,10 +133,15 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
 
   /** How many recovery phrases each window shows or holds now, and whether Hronaut turned its capture protection on. */
   const recoveryPhrasesShown = new WeakMap<BrowserWindow, { count: number, protectedByHronaut: boolean }>()
+  /**
+   * How long the protection outlasts the answer: main resolves the dialog as it tells the shell to close it, and the
+   * shell draws the window without the phrase only a few frames later.
+   */
+  const RECOVERY_PROTECTION_LINGER_MS = 1000
 
   /**
    * Keeps the window out of screen recordings and screen sharing while a recovery phrase is on it, where the system
-   * supports it, until the last phrase it shows is answered; a window protected before stays protected.
+   * supports it, until a moment after the last phrase it shows is answered; a window protected before stays protected.
    */
   function protectWhileRecoveryShown(owner: BrowserWindow): () => void {
     let shown = recoveryPhrasesShown.get(owner)
@@ -152,9 +157,12 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
     const entry = shown
     return () => {
       entry.count -= 1
-      if (entry.count > 0 || !entry.protectedByHronaut) return
-      entry.protectedByHronaut = false
-      if (!owner.isDestroyed()) owner.setContentProtection(false)
+      setTimeout(() => {
+        // Another phrase shown meanwhile keeps the protection until it is answered too.
+        if (entry.count > 0 || !entry.protectedByHronaut) return
+        entry.protectedByHronaut = false
+        if (!owner.isDestroyed()) owner.setContentProtection(false)
+      }, RECOVERY_PROTECTION_LINGER_MS)
     }
   }
 

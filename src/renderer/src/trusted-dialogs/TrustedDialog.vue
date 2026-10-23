@@ -137,7 +137,8 @@ function buttonVariant(index: number): 'primary' | 'secondary' {
       <template v-if="copy">{{ copy.headline.before }}<strong v-if="copy.headline.emphasis" class="trusted-dialog__origin">{{ copy.headline.emphasis }}</strong>{{ copy.headline.after }}</template>
     </template>
     <div v-if="copy && (copy.quoted || copy.phrase || copy.lines.length || copy.workspaceLine)" class="trusted-dialog__details">
-      <ol v-if="copy.phrase" class="trusted-dialog__phrase" :aria-label="copy.phrase.label" data-testid="trusted-dialog-phrase">
+      <!-- The phrase leaves the screen as soon as the person answers, before main closes the dialog. -->
+      <ol v-if="copy.phrase && !controller.answering.value" class="trusted-dialog__phrase" :aria-label="copy.phrase.label" data-testid="trusted-dialog-phrase">
         <li v-for="(word, index) in copy.phrase.words" :key="index">
           <span class="trusted-dialog__phrase-number" aria-hidden="true">{{ index + 1 }}</span>
           <span>{{ word }}</span>

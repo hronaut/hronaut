@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserWindow, MessageBoxReturnValue } from 'electron'
 import type { TrustedDialogOptions } from '../src/main/trusted-dialogs/trusted-dialogs.js'
 import type { WalletCreateInput, WalletDescriptor } from '../src/shared/wallet.js'
@@ -62,6 +62,17 @@ function runtime(owner: BrowserWindow) {
   return { wallets, service, showDialog, answer: (index: number, response: number) => answers[index]!(response) }
 }
 
+/** The protection outlasts an answer for a moment, while the shell draws the window without the phrase. */
+const LINGER_MS = 1000
+
+beforeEach(() => {
+  vi.useFakeTimers()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 describe('a generated wallet’s recovery phrase', () => {
   it('is shown in Hronaut’s own dialog on the main window, word by word, and the wallet is kept on I saved it', async () => {
     const owner = mainWindow()
@@ -84,7 +95,7 @@ describe('a generated wallet’s recovery phrase', () => {
     expect(service.remove).not.toHaveBeenCalled()
   })
 
-  it('keeps the window out of screen capture only while the phrase is on it', async () => {
+  it('keeps the window out of screen capture while the phrase is on it, and until the shell has drawn it away', async () => {
     const owner = mainWindow()
     const { wallets, service, showDialog, answer } = runtime(owner.window)
     const generated = wallets.generateWallet(input)
@@ -93,6 +104,9 @@ describe('a generated wallet’s recovery phrase', () => {
     answer(0, 1)
     await expect(generated).rejects.toThrow('Wallet creation cancelled before recovery confirmation')
     expect(service.remove).toHaveBeenCalledWith(wallet.id)
+    await vi.advanceTimersByTimeAsync(LINGER_MS - 1)
+    expect(owner.isProtected()).toBe(true)
+    await vi.advanceTimersByTimeAsync(1)
     expect(owner.isProtected()).toBe(false)
     expect(owner.protectionChanges).toEqual([true, false])
   })
@@ -105,9 +119,29 @@ describe('a generated wallet’s recovery phrase', () => {
     await vi.waitFor(() => expect(showDialog).toHaveBeenCalledTimes(2))
     answer(0, 0)
     await expect(first).resolves.toMatchObject({ recoveryConfirmed: true })
+    await vi.advanceTimersByTimeAsync(LINGER_MS)
     expect(owner.isProtected()).toBe(true)
     answer(1, 0)
     await expect(second).resolves.toMatchObject({ recoveryConfirmed: true })
+    await vi.advanceTimersByTimeAsync(LINGER_MS)
+    expect(owner.isProtected()).toBe(false)
+    expect(owner.protectionChanges).toEqual([true, false])
+  })
+
+  it('stays protected when the next phrase shows while the last one leaves the screen', async () => {
+    const owner = mainWindow()
+    const { wallets, showDialog, answer } = runtime(owner.window)
+    const first = wallets.generateWallet(input)
+    await vi.waitFor(() => expect(showDialog).toHaveBeenCalledOnce())
+    answer(0, 0)
+    await first
+    const second = wallets.generateWallet({ ...input, name: 'Operations' })
+    await vi.waitFor(() => expect(showDialog).toHaveBeenCalledTimes(2))
+    await vi.advanceTimersByTimeAsync(LINGER_MS)
+    expect(owner.isProtected()).toBe(true)
+    answer(1, 0)
+    await second
+    await vi.advanceTimersByTimeAsync(LINGER_MS)
     expect(owner.isProtected()).toBe(false)
     expect(owner.protectionChanges).toEqual([true, false])
   })
@@ -119,6 +153,7 @@ describe('a generated wallet’s recovery phrase', () => {
     await vi.waitFor(() => expect(showDialog).toHaveBeenCalledOnce())
     answer(0, 0)
     await generated
+    await vi.advanceTimersByTimeAsync(LINGER_MS)
     expect(owner.isProtected()).toBe(true)
     expect(owner.protectionChanges).toEqual([])
   })
@@ -129,6 +164,7 @@ describe('a generated wallet’s recovery phrase', () => {
     showDialog.mockRejectedValueOnce(new Error('The dialog could not be shown'))
     await expect(wallets.generateWallet(input)).rejects.toThrow()
     expect(service.remove).toHaveBeenCalledWith(wallet.id)
+    await vi.advanceTimersByTimeAsync(LINGER_MS)
     expect(owner.isProtected()).toBe(false)
   })
 })
