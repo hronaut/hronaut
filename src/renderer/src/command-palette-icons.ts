@@ -1,5 +1,5 @@
 import type { Component } from 'vue'
-import IconHomeOutlineRounded from '~icons/material-symbols/home-outline-rounded'
+import IconSpaceDashboardOutlineRounded from '~icons/material-symbols/space-dashboard-outline-rounded'
 import IconTabNewRightOutlineRounded from '~icons/material-symbols/tab-new-right-outline-rounded'
 import IconTabSearchRounded from '~icons/material-symbols/tab-search-rounded'
 import IconWorkspacesOutline from '~icons/material-symbols/workspaces-outline'
@@ -51,7 +51,7 @@ import type { CommandPaletteCommandId } from '../../shared/command-palette.js'
 
 /** The icon drawn beside each command in the command palette. */
 export const COMMAND_PALETTE_ICONS: Record<CommandPaletteCommandId, Component> = {
-  home: IconHomeOutlineRounded,
+  home: IconSpaceDashboardOutlineRounded,
   'new-tab': IconTabNewRightOutlineRounded,
   'search-tabs': IconTabSearchRounded,
   'switch-workspace': IconWorkspacesOutline,
