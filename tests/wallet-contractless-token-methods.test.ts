@@ -59,9 +59,17 @@ describe('withoutContractlessTokenMethods', () => {
   it('drops only the token methods when the policy still approves something else', () => {
     expect(withoutContractlessTokenMethods(policy({ methods: ['native-transfer', 'erc20.approve'] })))
       .toEqual({ action: 'update', policy: policy({ methods: ['native-transfer'] }) })
-    // Website sign-in does not use the methods, so a sign-in policy stays with none.
+    // Website sign-in does not use the methods, so a sign-in policy stays with none, and with no transaction target.
     expect(withoutContractlessTokenMethods(policy({ methods: ['erc20.transfer'], allowWebsiteSignIn: true })))
-      .toEqual({ action: 'update', policy: policy({ methods: [], allowWebsiteSignIn: true }) })
+      .toEqual({ action: 'update', policy: policy({ methods: [], destinations: [], allowWebsiteSignIn: true }) })
+    // A mainnet one with Bypass Approve keeps signing in, but no longer claims a Bypass Approve rule it cannot meet.
+    const mainnet = policy({
+      networkIds: ['1'], methods: ['erc20.transfer'], allowMainnetAgentAutomation: true,
+      allowWebsiteSignIn: true, allowMainnetWebsiteSignIn: true
+    })
+    const cleaned = withoutContractlessTokenMethods(mainnet)
+    expect(cleaned).toMatchObject({ action: 'update', policy: { methods: [], destinations: [], allowWebsiteSignIn: true, allowMainnetWebsiteSignIn: true } })
+    expect(cleaned.action === 'update' && 'allowMainnetAgentAutomation' in cleaned.policy).toBe(false)
   })
 })
 
@@ -138,6 +146,8 @@ describe('WalletService saved policies from 2.45.0 and earlier', () => {
 
     expect(restored.status().managedWallets).toBe('ready')
     expect(restored.policies.list().map((entry) => entry.id)).toEqual(['native', 'sign-in', 'token-only'])
+    expect(restored.list()[0]?.policyIds).toContain('token-only')
+    expect(restored.authority.snapshot().policyUsage.map((entry) => entry.policyId)).toEqual(['token-only'])
     expect(logged).toHaveBeenCalledWith('[wallet] Failed to drop token methods without a token contract from a saved wallet policy')
     restored.dispose()
   })

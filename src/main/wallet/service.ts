@@ -615,7 +615,8 @@ export class WalletService {
           }, this.now().toISOString())
         }
       } catch {
-        // The policy stays as saved, still unable to approve a token call, and the next unlock tries again.
+        // A failed policy write leaves the policy as saved, still unable to approve a token call, for the next unlock
+        // to try again; a failed audit write leaves the change without its history entry, as setPolicy would.
         console.error('[wallet] Failed to drop token methods without a token contract from a saved wallet policy')
       }
     }
