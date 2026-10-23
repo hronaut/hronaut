@@ -7,13 +7,13 @@ import { useI18n } from 'vue-i18n'
 import IconPause from '~icons/material-symbols/pause-rounded'
 import IconPlay from '~icons/material-symbols/play-arrow-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
-import type { McpStatusController } from '../composables/useMcpStatusController'
+import type { McpStatusControlsController } from '../composables/useMcpStatusController'
 import { vTooltip } from '../ui/tooltip.js'
 import { agentStatus } from '../../../shared/agent-status.js'
 import { mcpPortProblem } from '../../../shared/mcp-port.js'
 
 const props = defineProps<{
-  controller: McpStatusController
+  controller: McpStatusControlsController
 }>()
 
 const { t } = useI18n({ useScope: 'global' })

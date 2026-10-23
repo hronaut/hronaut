@@ -1,0 +1,15 @@
+/* The tab rail opened over the page, in a view of its own box. It uses the shell's stylesheet, so it looks as the
+   shell's own open rail does; these rules only place it in that box. */
+
+/* The view starts below the shell's title bar, so the rail has no title bar room of its own. Its surface wash is laid
+   out for the shell's window, whose top left corner is above the view. */
+:root.sidebar-overlay-document {
+  --shell-wash: radial-gradient(ellipse calc(var(--sidebar-overlay-shell-width, 100vw) * 0.75) calc(var(--sidebar-overlay-shell-height, 100vh) * 0.9) at 0 calc(var(--sidebar-overlay-top, 0px) * -1), color-mix(in srgb, var(--workspace-tint) var(--shell-wash-strength), transparent), transparent);
+}
+:root.sidebar-overlay-document.sidebar-overlay-settling { transition: none; }
+.sidebar-overlay-document .shell.sidebar-overlay-shell { min-height: 0; }
+.sidebar-overlay-document .sidebar-overlay-shell .topbar {
+  padding-top: 0;
+  /* The view is the rail's box, so the rail needs no shadow over the page. */
+  box-shadow: none;
+}

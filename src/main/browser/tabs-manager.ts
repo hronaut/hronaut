@@ -199,6 +199,7 @@ import {
   type LoadURLOptions,
   type MenuItemConstructorOptions,
   type NavigationEntry,
+  type Input,
   type Rectangle,
   type Session,
   type WebContents,
@@ -207,7 +208,7 @@ import {
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import type { PageKeyboardEventsAccess } from './tab-events/page-keyboard-events-access.js'
 import { attachPageKeyboardEvents } from './tab-events/page-keyboard-events.js'
-import { trackShellHeldKeys } from './tab-events/shell-held-keys.js'
+import { noteShellHeldKey, trackShellHeldKeys } from './tab-events/shell-held-keys.js'
 import { MAX_BROWSER_TABS } from '../../shared/types.js'
 import type { PageFindAccess } from './page-find/page-find-access.js'
 import { findInPage, stopFindInPage } from './page-find/page-find.js'
@@ -853,6 +854,8 @@ export interface TabsManagerOptions {
   onPageVisited?: (visit: { url: string; title: string }) => void
   onPageTitleUpdated?: (page: { url: string; title: string }) => void
   onStateChanged?: (state: BrowserState) => void
+  /** A page took or left full screen, which nothing of the shell's is drawn over. */
+  onPageFullscreenChanged?: () => void
   onWorkspaceNavigationDecision?: (workspaceId: string, decision: WorkspaceNavigationDecision, source: BrowserWorkspaceNavigationAuditSource) => void
   onWorkspaceClosed?: (workspaceId: string) => void
   onDownloadsChanged?: (downloads: BrowserDownloadState[]) => void
@@ -2631,10 +2634,11 @@ export class BrowserTabsManager {
     return workspaceContextMenuItems(this.workspaceContextMenuAccess(), group)
   }
 
-  showWorkspaceContextMenu(groupId: string): void {
+  /** Opens a workspace's menu where the pointer is; `onClosed` runs once it closes. */
+  showWorkspaceContextMenu(groupId: string, onClosed?: () => void): void {
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}` })
-    Menu.buildFromTemplate(this.workspaceContextMenuItems(group)).popup({ window: this.window })
+    Menu.buildFromTemplate(this.workspaceContextMenuItems(group)).popup({ window: this.window, ...(onClosed ? { callback: onClosed } : {}) })
   }
 
   /**
@@ -2680,8 +2684,9 @@ export class BrowserTabsManager {
     }
   }
 
-  showTabContextMenu(tabId: string): void {
-    showTabContextMenu(this.tabContextMenuAccess(), tabId)
+  /** Opens a tab's menu where the pointer is; `onClosed` runs once it closes, or at once when the tab has none. */
+  showTabContextMenu(tabId: string, onClosed?: () => void): void {
+    showTabContextMenu(this.tabContextMenuAccess(), tabId, onClosed)
   }
 
   /**
@@ -5125,13 +5130,27 @@ export class BrowserTabsManager {
       contentAreaBounds: () => contentAreaBounds(this.windowLayoutAccess()),
       personFullScreen: () => this.personFullScreen,
       writePersonFullScreen: (fullScreen) => { this.personFullScreen = fullScreen },
-      layout: () => this.layout()
+      layout: () => this.layout(),
+      pageFullscreenChanged: () => this.options.onPageFullscreenChanged?.()
     }
   }
 
   /** Whether the window shows a page in full screen, such as a video, which Follow agents does not switch away from. */
   private pageFullscreenShown(): boolean {
     return shownPageFullscreenTab(this.windowLayoutAccess()) !== undefined
+  }
+
+  /** Whether the window shows a page in full screen, which nothing of the shell's is drawn over. */
+  showsPageFullscreen(): boolean {
+    return this.pageFullscreenShown()
+  }
+
+  /**
+   * A key pressed or released in another view of the shell's own, such as the tab rail opened over the page: held
+   * there, it does not repeat into a page that view hands the focus to, as for a key held in the shell.
+   */
+  noteShellKey(input: Pick<Input, 'code' | 'isAutoRepeat' | 'type'>): void {
+    noteShellHeldKey(this.shellHeldKeys, input)
   }
 
   /** Asks the page in full screen, if any, to leave it so the browser's own controls show. */

@@ -1,5 +1,6 @@
 import { nativeTheme } from 'electron'
 import type { ToastOverlay } from '../toast-overlay.js'
+import type { SidebarOverlay } from '../sidebar-overlay.js'
 import type { AddressSuggestionOverlay } from './address-suggestion-overlay.js'
 import type { MainWindowRefs } from './main-window.js'
 import type { PanelWindowRefs } from './panel-window.js'
@@ -39,6 +40,8 @@ interface WindowAppearanceHost {
   addressSuggestionOverlay: Pick<AddressSuggestionOverlay, 'setZoomFactor'>
   /** The toast view, which sits at the bottom of the page area and moves when the scale changes it. */
   toastOverlay: Pick<ToastOverlay, 'relayout'>
+  /** The tab rail opened over the page, which the scale resizes. */
+  sidebarOverlay: Pick<SidebarOverlay, 'relayout'>
   sendToShellWindows(channel: string, ...args: unknown[]): void
   currentRendererSettingsState(): RendererSettingsState
 }
@@ -68,6 +71,7 @@ export function createWindowAppearance(host: WindowAppearanceHost): {
     host.addressSuggestionOverlay.setZoomFactor(scale)
     host.applyMainWindowTitleBarOverlay()
     host.toastOverlay.relayout()
+    host.sidebarOverlay.relayout()
   }
 
   /** Repaints both windows and tells both shells when the system's appearance changes; startup calls it once. */

@@ -11,9 +11,12 @@ import type { TabContextMenuAccess, TabContextMenuTab } from './tab-context-menu
  * menu, moving and closing tabs, and reopening a closed one. Hronaut Home has
  * no tab menu. A failed action is logged and reported, never thrown.
  */
-export function showTabContextMenu<Tab extends TabContextMenuTab>(access: TabContextMenuAccess<Tab>, tabId: string): void {
+export function showTabContextMenu<Tab extends TabContextMenuTab>(access: TabContextMenuAccess<Tab>, tabId: string, onClosed?: () => void): void {
   const tab = access.getTab(tabId)
-  if (isHronautHomeUrl(tab.url)) return
+  if (isHronautHomeUrl(tab.url)) {
+    onClosed?.()
+    return
+  }
   const websiteTabs = access.orderedTabs().filter((candidate) => !isHronautHomeUrl(candidate.url))
   const workspaceTabs = websiteTabs.filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId)
   const workspaceIndex = workspaceTabs.indexOf(tab)
@@ -233,5 +236,5 @@ export function showTabContextMenu<Tab extends TabContextMenuTab>(access: TabCon
       click: () => runAction('reopen a closed tab', () => access.reopenClosedTab())
     }
   ])
-  menu.popup({ window: access.window() })
+  menu.popup({ window: access.window(), ...(onClosed ? { callback: onClosed } : {}) })
 }

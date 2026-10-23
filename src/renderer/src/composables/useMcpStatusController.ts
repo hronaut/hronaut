@@ -213,3 +213,8 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
 }
 
 export type McpStatusController = ReturnType<typeof useMcpStatusController>
+
+/** What the rail's MCP pill and pause button read and do. */
+export type McpStatusControlsController = Pick<McpStatusController,
+  | 'endpoint' | 'state' | 'copied' | 'refreshFailed' | 'pauseBusy' | 'portBusy' | 'portFailed' | 'canTogglePaused'
+  | 'summaryOpen' | 'refresh' | 'copyEndpoint' | 'togglePaused' | 'moveToSuggestedPort'>

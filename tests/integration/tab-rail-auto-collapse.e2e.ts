@@ -1,8 +1,10 @@
 import { execFile } from 'node:child_process'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { writeFile } from 'node:fs/promises'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { expect, test } from './fixtures.js'
+import { evaluateInSidebarOverlay, sidebarOverlayShown, sidebarOverlayView } from './sidebar-overlay-view.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -61,33 +63,36 @@ test('preserves a deliberately scrolled tab list when the rail expands', async (
   await expect(appWindow.getByRole('tab', { name: /^Later rail tab 19/ })).toHaveCount(1)
   const strip = appWindow.locator('.tabs-strip')
   await strip.evaluate(element => { element.scrollTop = element.scrollHeight })
-  const anchor = () => strip.evaluate(element => {
-    const viewport = element.getBoundingClientRect()
-    return [...element.querySelectorAll<HTMLElement>('[role=tab]')].find(tab => {
+  // The first tab wholly in view, below the top 32 px of the list.
+  const anchor = `(() => {
+    const strip = document.querySelector('.tabs-strip')
+    const viewport = strip.getBoundingClientRect()
+    return [...strip.querySelectorAll('[role=tab]')].find(tab => {
       const bounds = tab.getBoundingClientRect()
       return bounds.top >= viewport.top + 32 && bounds.bottom <= viewport.bottom
     })?.dataset.tabId
-  })
-  const before = await anchor()
+  })()`
+  const before = await appWindow.evaluate(anchor)
   expect(before).toBeTruthy()
+  // The pointer opens the rail over the page, in main's view, while the shell's own rail stays folded beside it.
   await appWindow.locator('.app-home-button').hover()
-  await expect(appWindow.locator('.topbar')).toHaveCSS('width', '280px')
-  await expect.poll(anchor).toBe(before)
+  await expect.poll(() => sidebarOverlayShown(electronApp)).toBe(true)
+  await expect(appWindow.locator('.topbar')).toHaveCSS('width', '56px')
+  await expect.poll(() => evaluateInSidebarOverlay(electronApp, anchor)).toBe(before)
 })
 
 test('revealing the rail preserves the vertical position of its tab targets', async ({ appWindow, electronApp }, testInfo) => {
   await prepareAutoRail(appWindow, electronApp)
   // The pin and Create workspace move into the header rows once the rail opens; everything below keeps its row.
-  const targets = appWindow.locator('.app-home-button, .tab-group-label, .tab, .workspace-new-tab')
-  const positions = () => targets.evaluateAll(elements => elements.map(element => ({
+  const positions = `[...document.querySelectorAll('.app-home-button, .tab-group-label, .tab, .workspace-new-tab')].map(element => ({
     label: element.getAttribute('aria-label'),
     y: element.getBoundingClientRect().y,
     height: element.getBoundingClientRect().height
-  })))
+  }))`
   const home = appWindow.locator('.app-home-button')
   const pin = appWindow.locator('.tab-rail-pin')
   const create = appWindow.getByRole('button', { name: 'Create workspace', exact: true })
-  const collapsed = await positions()
+  const collapsed = await appWindow.evaluate(positions) as Array<{ label: string | null; y: number; height: number }>
   // Folded, the rail keeps every command it showed before: the pin under Home and Create workspace at the end.
   await expect(pin).toBeVisible()
   await expect(create).toBeVisible()
@@ -96,24 +101,49 @@ test('revealing the rail preserves the vertical position of its tab targets', as
   expect((await pin.boundingBox())!.y).toBeGreaterThanOrEqual(foldedHome.y + foldedHome.height)
   expect(await appWindow.locator('.tabs-strip .new-workspace').count()).toBe(1)
   await appWindow.locator('.topbar').screenshot({ path: testInfo.outputPath('rail-collapsed.png') })
+  // The rail opens over the page, in main's view, which starts below the title bar: its rows are offset by that much.
   await home.hover()
-  await expect(appWindow.locator('.topbar')).toHaveCSS('width', '280px')
-  const expanded = await positions()
-  await appWindow.locator('.topbar').screenshot({ path: testInfo.outputPath('rail-expanded.png') })
+  await expect.poll(() => sidebarOverlayShown(electronApp)).toBe(true)
+  const overlay = (await sidebarOverlayView(electronApp))!
+  const offset = overlay.bounds.y / overlay.zoom
+  const expanded = (await evaluateInSidebarOverlay<Array<{ label: string | null; y: number; height: number }>>(electronApp, positions))
+    .map(position => ({ ...position, y: position.y + offset }))
+  const shot = await electronApp.evaluate(async ({ webContents }) => {
+    const contents = webContents.getAllWebContents().find(candidate => candidate.getURL().endsWith('sidebar-overlay.html'))!
+    return (await contents.capturePage()).toPNG().toString('base64')
+  })
+  await writeFile(testInfo.outputPath('rail-expanded.png'), Buffer.from(shot, 'base64'))
   // Open, the pin sits on Home's row, and the Workspaces header holds the workspace switcher and Create workspace.
-  const openHome = (await home.boundingBox())!
-  const openPin = (await pin.boundingBox())!
-  expect(Math.abs(openPin.y - openHome.y)).toBeLessThanOrEqual(1)
-  expect(openPin.x).toBeGreaterThanOrEqual(openHome.x + openHome.width)
-  const header = appWindow.locator('.workspace-rail-header')
-  await expect(header.getByRole('button', { name: 'Switch workspace', exact: true })).toBeVisible()
-  await expect(header.getByRole('button', { name: 'Create workspace', exact: true })).toBeVisible()
-  expect(await appWindow.locator('.tabs-strip .new-workspace').count()).toBe(0)
+  const open = await evaluateInSidebarOverlay<{
+    home: { x: number; y: number; width: number }
+    pin: { x: number; y: number }
+    switcher: boolean
+    create: boolean
+    strayCreate: number
+  }>(electronApp, `(() => {
+    const box = element => { const { x, y, width } = element.getBoundingClientRect(); return { x, y, width } }
+    const shown = element => !!element && element.getBoundingClientRect().width > 0 && getComputedStyle(element).visibility !== 'hidden'
+    const header = document.querySelector('.workspace-rail-header')
+    return {
+      home: box(document.querySelector('.app-home-button')),
+      pin: box(document.querySelector('.tab-rail-pin')),
+      switcher: shown(header?.querySelector('[aria-label="Switch workspace"]')),
+      create: shown(header?.querySelector('[aria-label="Create workspace"]')),
+      strayCreate: document.querySelectorAll('.tabs-strip .new-workspace').length
+    }
+  })()`)
+  expect(Math.abs(open.pin.y - open.home.y)).toBeLessThanOrEqual(1)
+  expect(open.pin.x).toBeGreaterThanOrEqual(open.home.x + open.home.width)
+  expect(open.switcher).toBe(true)
+  expect(open.create).toBe(true)
+  expect(open.strayCreate).toBe(0)
   expect(expanded.map(({ label }) => label)).toEqual(collapsed.map(({ label }) => label))
   for (let index = 0; index < collapsed.length; index += 1) {
     expect(Math.abs(expanded[index]!.y - collapsed[index]!.y), collapsed[index]!.label ?? 'Rail control').toBeLessThanOrEqual(1)
     expect(expanded[index]!.height).toBe(collapsed[index]!.height)
   }
+  // The shell's own rail stays folded beside the page meanwhile.
+  await expect(appWindow.locator('.topbar')).toHaveCSS('width', '56px')
 })
 
 test('a dialog opened from the rail returns focus to Home after the rail folds behind it', async ({ appWindow, electronApp }) => {

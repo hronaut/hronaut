@@ -3,6 +3,7 @@ import type { AppQuitState } from './app-lifecycle.js'
 import type { FollowSuspensionState } from './agent-card-overlay.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { ToastOverlay } from './toast-overlay.js'
+import type { SidebarOverlay } from './sidebar-overlay.js'
 import { scaleShellMetric } from '../shared/interface-scale.js'
 import { parseScrimColor, type ScrimColor } from '../shared/title-bar.js'
 
@@ -29,6 +30,8 @@ interface ShellIpcHost {
   windowFromWebContents(webContents: WebContents): Pick<BrowserWindow, 'isFocused'> | null
   tabs(): ShellIpcTabs | null
   toastOverlay(): Pick<ToastOverlay, 'relayout'>
+  /** The tab rail opened over the page, which a dialog over the page closes. */
+  sidebarOverlay(): Pick<SidebarOverlay, 'occlusionChanged'>
   /** The backdrop of the dialog open in the main window, laid over the native window controls, or null. */
   setWindowControlsScrim(scrim: ScrimColor | null): void
   /** Restyles the native window controls for the current theme and scrim. */
@@ -84,6 +87,7 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     host.assertMainShellSender(event)
     if (typeof occluded !== 'boolean') throw new TypeError('Invalid browser content occlusion state')
     host.tabs()?.setBrowserContentOccluded(occluded)
+    host.sidebarOverlay().occlusionChanged(occluded)
   })
   ipcMain.on('browser:occlusion-snapshot-presented', (event, id: unknown) => {
     if (host.workspaceStartupFailure()) return

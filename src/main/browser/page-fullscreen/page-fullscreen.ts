@@ -39,7 +39,9 @@ function requestPageFullscreenExit(tab: PageFullscreenTab): void {
  * tabs, is asked to leave full screen, and so is one that takes it while
  * hidden; when it leaves, it gets the page card's size back. A page closed
  * while it holds full screen never leaves it, so the window then leaves full
- * screen itself unless the person had put it there.
+ * screen itself unless the person had put it there. What the shell draws over
+ * the pages follows each change, since the window may report its own full
+ * screen before the page's, or not at all when it already was in full screen.
  */
 export function attachPageFullscreenEvents<Tab extends PageFullscreenTab>(
   access: PageFullscreenAccess<Tab>,
@@ -51,6 +53,7 @@ export function attachPageFullscreenEvents<Tab extends PageFullscreenTab>(
     tab.pageFullscreenExitRequested = false
     if (!access.isShown(tab.id)) requestPageFullscreenExit(tab)
     access.layout()
+    access.pageFullscreenChanged()
   })
   webContents.on('leave-html-full-screen', () => {
     tab.pageFullscreen = false
@@ -61,6 +64,7 @@ export function attachPageFullscreenEvents<Tab extends PageFullscreenTab>(
       && !access.offscreenCaptureTabIds().has(tab.id) && !access.window().contentView.children.includes(tab.view)
     ) tab.view.setBounds(access.tabViewBounds(tab, access.contentAreaBounds()))
     access.layout()
+    access.pageFullscreenChanged()
   })
   webContents.once('destroyed', () => {
     if (!tab.pageFullscreen) return
@@ -68,6 +72,7 @@ export function attachPageFullscreenEvents<Tab extends PageFullscreenTab>(
     if (access.isDestroyed() || access.window().isDestroyed() || pageFullscreenHolder(access)) return
     if (!access.personFullScreen() && access.window().isFullScreen()) access.window().setFullScreen(false)
     access.layout()
+    access.pageFullscreenChanged()
   })
 }
 

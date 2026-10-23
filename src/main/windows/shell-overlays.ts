@@ -1,14 +1,16 @@
-import { webContents as allWebContents, type WebContentsView } from 'electron'
+import { screen, webContents as allWebContents, type WebContentsView } from 'electron'
 import { join } from 'node:path'
 import { ShellOverlayView } from '../shell-overlay-view.js'
 import { AgentCardOverlay, type AgentCardSurface, type FollowSuspensionState } from '../agent-card-overlay.js'
 import { ToastOverlay, type ToastOverlaySurface } from '../toast-overlay.js'
 import { ShellTooltipOverlay, type ShellTooltipSurface } from '../shell-tooltip-overlay.js'
+import { SidebarOverlay, type SidebarOverlaySurface } from '../sidebar-overlay.js'
 import type { TabRuntimeState } from '../tab-runtime-startup.js'
 import type { AddressSuggestionOverlay } from './address-suggestion-overlay.js'
 import type { MainWindowRefs } from './main-window.js'
 import type { AgentCardEvent } from '../../shared/agent-card.js'
 import type { ToastOverlayEvent } from '../../shared/toast-overlay.js'
+import type { SidebarOverlayEvent } from '../../shared/sidebar-overlay.js'
 
 interface ShellOverlaysHost {
   /** Whether a frame's address is the expected trusted page, with or without a fragment; each view admits only its own. */
@@ -28,11 +30,13 @@ interface ShellOverlaysHost {
   ensureToastOverlaySurface(): Promise<ToastOverlaySurface>
   trustedTooltipOverlayUrl(): string
   ensureTooltipSurface(): Promise<ShellTooltipSurface>
+  trustedSidebarOverlayUrl(): string
+  ensureSidebarOverlaySurface(): Promise<SidebarOverlaySurface>
 }
 
 /**
- * The shell's overlays above the page views: the tooltip, the agent card and the toast, each a controller and the
- * transparent view it draws through. The views load their documents on first use, and the surfaces come from the host
+ * The shell's overlays above the page views: the tooltip, the agent card, the toast and the tab rail opened over the
+ * page, each a controller and the view it draws through. The views load their documents on first use, and the surfaces come from the host
  * because they are built from these views. `__dirname` is the bundled main entry's directory, as for the other main
  * modules.
  */
@@ -43,6 +47,8 @@ export function createShellOverlays(host: ShellOverlaysHost): {
   toastOverlayView: ShellOverlayView
   toastOverlay: ToastOverlay
   shellTooltips: ShellTooltipOverlay
+  sidebarOverlayView: ShellOverlayView
+  sidebarOverlay: SidebarOverlay
 } {
   const tooltipView = new ShellOverlayView({
     name: 'tooltip',
@@ -116,7 +122,7 @@ export function createShellOverlays(host: ShellOverlaysHost): {
         if (!focused || !toastOverlayView.owns(focused)) return
         const previous = owner as Electron.WebContents | null
         const overlay = !!previous && (toastOverlayView.owns(previous) || agentCardView.owns(previous) || tooltipView.owns(previous)
-          || host.addressSuggestionOverlay.owns(previous))
+          || sidebarOverlayView.owns(previous) || host.addressSuggestionOverlay.owns(previous))
         // Back to a page only while it still shows; from an overlay that has since closed, or a page that went, the shell.
         const page = previous && !previous.isDestroyed() && !overlay && window.contentView.children.some((child) => (
           child.getVisible() && 'webContents' in child && (child as WebContentsView).webContents === previous
@@ -134,12 +140,93 @@ export function createShellOverlays(host: ShellOverlaysHost): {
     }
   })
 
+  const sidebarOverlayView = new ShellOverlayView({
+    name: 'sidebar',
+    preload: join(__dirname, '../preload/sidebarOverlay.cjs'),
+    url: () => host.trustedSidebarOverlayUrl(),
+    window: () => host.mainWindowRefs.window,
+    urlMatches: (actual, expected) => host.trustedUrlMatches(actual, expected),
+    onLost: () => sidebarOverlay.surfaceLost(),
+    // The rail opens over the page; a toast, the agent card, a tooltip and address suggestions open over the rail.
+    keepAbove: () => [
+      toastOverlayView.currentView(),
+      agentCardView.currentView(),
+      tooltipView.currentView(),
+      host.addressSuggestionOverlay.currentView()
+    ].filter((view) => !!view)
+  })
+  const sidebarOverlay = new SidebarOverlay({
+    surface: () => host.ensureSidebarOverlaySurface(),
+    layout: () => {
+      const window = host.mainWindowRefs.window
+      if (host.tabRuntime.startupFailure || !window || window.isDestroyed() || window.webContents.isDestroyed()) return null
+      if (!window.isVisible() || window.isMinimized()) return null
+      const tabs = host.tabRuntime.tabs
+      // Nothing of the shell's is drawn over a page in full screen, nor before the saved workspaces are up.
+      if (!tabs || host.tabRuntime.initializedTabs !== tabs || tabs.showsPageFullscreen()) return null
+      const [width = 0, height = 0] = window.getContentSize()
+      return { content: { width, height }, zoom: window.webContents.getZoomFactor() }
+    },
+    emit: (event: SidebarOverlayEvent) => {
+      const window = host.mainWindowRefs.window
+      if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send('sidebar-overlay:event', event)
+    },
+    cursor: () => {
+      const window = host.mainWindowRefs.window
+      if (!window || window.isDestroyed()) return null
+      const point = screen.getCursorScreenPoint()
+      const content = window.getContentBounds()
+      return { x: point.x - content.x, y: point.y - content.y }
+    },
+    showMenu: (menu, closed) => {
+      const tabs = host.tabRuntime.tabs
+      if (!tabs) return false
+      if (menu.kind === 'tab') tabs.showTabContextMenu(menu.tabId, closed)
+      else tabs.showWorkspaceContextMenu(menu.workspaceId, closed)
+      return true
+    },
+    focusShell: () => {
+      // Focus moves to the view while a click there lands; moving it in the same task does not stick.
+      setImmediate(() => {
+        const window = host.mainWindowRefs.window
+        // Focusing a view also brings its window forward; a window in the background or minimized keeps its place.
+        if (!window || window.isDestroyed() || window.webContents.isDestroyed() || !window.isFocused() || window.isMinimized()) return
+        window.webContents.focus()
+      })
+    },
+    focusOwner: () => {
+      const focused = allWebContents.getFocusedWebContents()
+      return focused && !sidebarOverlayView.owns(focused) ? focused : null
+    },
+    restoreFocus: (owner) => {
+      setImmediate(() => {
+        const window = host.mainWindowRefs.window
+        if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return
+        // Nothing has focus in a window in the background or minimized either; focusing a view would bring it forward.
+        if (!window.isFocused() || window.isMinimized()) return
+        const focused = allWebContents.getFocusedWebContents()
+        // Only while the view taken down or nothing has it: what the person did meanwhile may have moved it on purpose.
+        if (focused && !sidebarOverlayView.owns(focused)) return
+        const previous = owner as Electron.WebContents | null
+        const overlay = !!previous && (sidebarOverlayView.owns(previous) || toastOverlayView.owns(previous) || agentCardView.owns(previous)
+          || tooltipView.owns(previous) || host.addressSuggestionOverlay.owns(previous))
+        // Back to a page only while it still shows; from an overlay, or a page that went, the shell.
+        const page = previous && !previous.isDestroyed() && !overlay && window.contentView.children.some((child) => (
+          child.getVisible() && 'webContents' in child && (child as WebContentsView).webContents === previous
+        )) ? previous : null
+        ;(page ?? window.webContents).focus()
+      })
+    }
+  })
+
   return {
     tooltipView,
     agentCardView,
     agentCards,
     toastOverlayView,
     toastOverlay,
-    shellTooltips
+    shellTooltips,
+    sidebarOverlayView,
+    sidebarOverlay
   }
 }

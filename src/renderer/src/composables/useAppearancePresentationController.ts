@@ -30,7 +30,8 @@ export function useAppearancePresentationController(options: AppearancePresentat
   const verticalTabRailPinned = ref(storedVerticalTabRailPinned())
   const interaction = useTabRailInteractionController({
     enabled: computed(() => !options.detachedWindow && options.settings.value.tabPosition === 'left'),
-    onNativeBlur: () => collapseMotion.settle()
+    onNativeBlur: () => collapseMotion.settle(),
+    folded: () => verticalTabRailCollapsed.value
   })
   const verticalTabRailRevealed = interaction.revealed
   const setVerticalTabRailRevealed = interaction.setRevealed
@@ -47,10 +48,29 @@ export function useAppearancePresentationController(options: AppearancePresentat
     && options.settings.value.tabPosition === 'left'
     && viewportWidth.value < COMPACT_VERTICAL_TAB_RAIL_MAX_WIDTH
   ))
+  // With the rail collapsed when not in use, the pointer opens it over the page, in main's own view, as in Zen browser:
+  // the page keeps its size and place and goes on running under it, and the shell's own rail stays folded. The shell
+  // offers it while main can draw it there. Main can refuse one opening, which then shows beside the page as before;
+  // so does a rail that keyboard focus opens, or one that stays expanded.
+  const tabRailOverlayAvailable = ref(false)
+  const tabRailOverlayRefused = ref(false)
+  const verticalTabRailOverlaid = computed(() => (
+    tabRailOverlayAvailable.value
+    && !tabRailOverlayRefused.value
+    && !options.detachedWindow
+    && options.settings.value.tabPosition === 'left'
+    && !verticalTabRailPinned.value
+    && !tabRailResize.resizing.value
+    && verticalTabRailRevealed.value
+    && interaction.revealedBy.value === 'pointer'
+  ))
+  // A refusal holds for the one opening; the next one asks main again.
+  watch(verticalTabRailRevealed, (revealed) => { if (!revealed) tabRailOverlayRefused.value = false }, { flush: 'sync' })
+  const verticalTabRailRevealedInShell = computed(() => verticalTabRailRevealed.value && !verticalTabRailOverlaid.value)
   const targetRailCollapsed = computed(() => (
     !tabRailResize.resizing.value
-    && ((compactVerticalTabRail.value && !verticalTabRailRevealed.value)
-      || (!verticalTabRailPinned.value && !verticalTabRailRevealed.value))
+    && ((compactVerticalTabRail.value && !verticalTabRailRevealedInShell.value)
+      || (!verticalTabRailPinned.value && !verticalTabRailRevealedInShell.value))
   ))
   const collapseMotion = useTabRailCollapseMotion({
     collapsed: targetRailCollapsed,
@@ -94,6 +114,16 @@ export function useAppearancePresentationController(options: AppearancePresentat
     viewportWidth.value = width
   }
 
+  /** Whether main can draw the open rail over the page now. */
+  function setVerticalTabRailOverlayAvailable(available: boolean): void {
+    tabRailOverlayAvailable.value = available
+  }
+
+  /** Main cannot draw this opening of the rail over the page, so it opens beside the page instead. */
+  function refuseVerticalTabRailOverlay(): void {
+    if (verticalTabRailRevealed.value) tabRailOverlayRefused.value = true
+  }
+
   watch(
     [options.settings, options.systemTheme],
     () => applySettings(options.settings.value),
@@ -118,6 +148,11 @@ export function useAppearancePresentationController(options: AppearancePresentat
     verticalTabRailCollapsed,
     verticalTabRailPinned,
     verticalTabRailRevealed,
+    verticalTabRailOverlaid,
+    setVerticalTabRailOverlayAvailable,
+    refuseVerticalTabRailOverlay,
+    delegateVerticalTabRail: interaction.delegate,
+    setVerticalTabRailOverlayPointer: interaction.overlayPointer,
     applySettings,
     playAttentionSound,
     toggleVerticalTabRailPinned,

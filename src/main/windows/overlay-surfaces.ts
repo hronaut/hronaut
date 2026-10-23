@@ -5,6 +5,9 @@ import type { AgentCardOverlay, AgentCardSurface } from '../agent-card-overlay.j
 import type { ShellOverlayView } from '../shell-overlay-view.js'
 import type { ShellTooltipSurface } from '../shell-tooltip-overlay.js'
 import type { ToastOverlay, ToastOverlaySurface } from '../toast-overlay.js'
+import { SIDEBAR_OVERLAY_TOOLTIP_ID_OFFSET, type SidebarOverlay, type SidebarOverlaySurface } from '../sidebar-overlay.js'
+import { attachSidebarOverlayKeyboard, type SidebarOverlayKeyboardHost } from '../sidebar-overlay-keyboard.js'
+import type { ShellTooltipOverlay } from '../shell-tooltip-overlay.js'
 
 interface OverlaySurfacesHost {
   /** The trusted shell document; the overlay documents are its siblings. */
@@ -17,11 +20,17 @@ interface OverlaySurfacesHost {
   toastOverlay: Pick<ToastOverlay, 'pointerActivity' | 'viewFocused'>
   /** The transparent view that draws the shell's tooltips above the page views. */
   tooltipView: Pick<ShellOverlayView, 'ensure' | 'present' | 'withdraw'>
+  /** The view that draws the open tab rail over the page, and the tooltips its controls show. */
+  sidebarOverlayView: Pick<ShellOverlayView, 'ensure' | 'present' | 'withdraw'>
+  sidebarOverlay: Pick<SidebarOverlay, 'pointerActivity'>
+  /** The keys pressed in that view, which work as in the shell. */
+  sidebarOverlayKeyboard: SidebarOverlayKeyboardHost
+  shellTooltips: Pick<ShellTooltipOverlay, 'shownId' | 'hide'>
 }
 
 /**
- * The trusted documents of the agent card, toast and tooltip overlay views, and the surfaces their controllers draw
- * through once a view has loaded. `__dirname` is the bundled main entry's directory, as for the other main modules.
+ * The trusted documents of the agent card, toast, tooltip and open rail overlay views, and the surfaces their
+ * controllers draw through once a view has loaded. `__dirname` is the bundled main entry's directory, as for the other main modules.
  */
 export function createOverlaySurfaces(host: OverlaySurfacesHost): {
   trustedAgentCardUrl(): string
@@ -30,6 +39,8 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
   ensureToastOverlaySurface(): Promise<ToastOverlaySurface>
   trustedTooltipOverlayUrl(): string
   ensureTooltipSurface(): Promise<ShellTooltipSurface>
+  trustedSidebarOverlayUrl(): string
+  ensureSidebarOverlaySurface(): Promise<SidebarOverlaySurface>
 } {
   function trustedAgentCardUrl(): string {
     if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
@@ -110,12 +121,48 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
     }
   }
 
+  function trustedSidebarOverlayUrl(): string {
+    if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
+      return new URL('sidebar-overlay.html', host.trustedShellUrl()).href
+    }
+    return pathToFileURL(join(__dirname, '../renderer/sidebar-overlay.html')).href
+  }
+
+  /** One view, created the first time the rail opens over the page, draws the open rail there. */
+  const sidebarOverlayWatched = new WeakSet<Electron.WebContents>()
+
+  async function ensureSidebarOverlaySurface(): Promise<SidebarOverlaySurface> {
+    const { view, webContents } = await host.sidebarOverlayView.ensure()
+    if (!sidebarOverlayWatched.has(webContents)) {
+      sidebarOverlayWatched.add(webContents)
+      // Who has keyboard focus before a click in the rail takes it gets it back when the rail goes.
+      webContents.on('before-mouse-event', () => host.sidebarOverlay.pointerActivity())
+      attachSidebarOverlayKeyboard(webContents, host.sidebarOverlayKeyboard)
+    }
+    return {
+      send: (state) => { if (!webContents.isDestroyed()) webContents.send('sidebar-overlay-view:state', state) },
+      setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
+      setBounds: (bounds) => view.setBounds(bounds),
+      present: () => host.sidebarOverlayView.present(),
+      withdraw: () => {
+        host.sidebarOverlayView.withdraw()
+        // A tooltip of the rail's controls goes with the rail.
+        const tooltip = host.shellTooltips.shownId
+        if (tooltip !== undefined && tooltip > SIDEBAR_OVERLAY_TOOLTIP_ID_OFFSET) host.shellTooltips.hide(tooltip)
+      },
+      isFocused: () => !webContents.isDestroyed() && webContents.isFocused(),
+      isDestroyed: () => webContents.isDestroyed()
+    }
+  }
+
   return {
     trustedAgentCardUrl,
     ensureAgentCardSurface,
     trustedToastOverlayUrl,
     ensureToastOverlaySurface,
     trustedTooltipOverlayUrl,
-    ensureTooltipSurface
+    ensureTooltipSurface,
+    trustedSidebarOverlayUrl,
+    ensureSidebarOverlaySurface
   }
 }

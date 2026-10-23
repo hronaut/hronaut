@@ -8,6 +8,7 @@ import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 import { launchRejected, quitNotice, type Scope } from './workspace-metadata-fixtures.js'
+import { evaluateInSidebarOverlay, sidebarOverlayShown, sidebarOverlayView } from './sidebar-overlay-view.js'
 
 const UUID_V7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const WORKSPACE_RESUME_KEY_PATTERN = /^hrw1_[A-Za-z0-9_-]{43}$/
@@ -383,25 +384,31 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   })
   await expect(verticalNavigation.locator('.tab:not(.active) .tab-active-indicator')).toHaveCount(0)
 
+  // The pointer opens the rail over the page, in main's view, with its footer commands; the shell's own rail stays
+  // folded and the page keeps its place beside it.
   await verticalNavigation.hover()
-  await expect(verticalNavigation).not.toHaveClass(/rail-collapsed/)
-  await expect(appWindow.locator('.topbar')).not.toHaveClass(/rail-collapsed/)
-  await expect(appWindow.locator('.topbar-actions')).toBeVisible()
-  expect(await appWindow.locator('.topbar-actions button').evaluateAll((buttons) => {
-    const rail = document.querySelector<HTMLElement>('.topbar')?.getBoundingClientRect()
-    if (!rail) return false
+  await expect.poll(() => sidebarOverlayShown(electronApp)).toBe(true)
+  await expect(verticalNavigation).toHaveClass(/rail-collapsed/)
+  await expect(appWindow.locator('.topbar')).toHaveClass(/rail-collapsed/)
+  const openRail = (await sidebarOverlayView(electronApp))!
+  expect(openRail.bounds).toMatchObject({ x: 0, width: 280 })
+  expect(await evaluateInSidebarOverlay<boolean>(electronApp, `(() => {
+    const rail = document.querySelector('.topbar')?.getBoundingClientRect()
+    const buttons = [...document.querySelectorAll('.topbar-actions button')]
+    if (!rail || !buttons.length) return false
     return buttons.every((button) => {
       const bounds = button.getBoundingClientRect()
-      return bounds.left >= rail.left && bounds.right <= rail.right && bounds.bottom <= rail.bottom
+      return bounds.width > 0 && bounds.left >= rail.left && bounds.right <= rail.right && bounds.bottom <= rail.bottom
     })
-  })).toBe(true)
+  })()`)).toBe(true)
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0]
     const websiteView = window?.contentView.children[0]
     return websiteView?.getBounds().x
-  })).toBe(280)
+  })).toBe(56)
 
   await appWindow.getByRole('combobox', { name: 'Address' }).hover()
+  await expect.poll(() => sidebarOverlayShown(electronApp)).toBe(false)
   await expect(verticalNavigation).toHaveClass(/rail-collapsed/)
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0]
