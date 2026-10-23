@@ -600,10 +600,12 @@ are stored as SHA-256 fingerprints and are not returned. A `SUCCEEDED` claim
 requires at least one check. Hronaut durably records an intermediate verification
 admission, then every check must pass again before success is published. A failed check becomes `verifier-rejected`; unavailable evidence becomes
 `outcome-unknown`; evidence drift while success is saved becomes
-`outcome-unknown` with `COMPLETION_CONTEXT_CHANGED`.
+`outcome-unknown` with `COMPLETION_CONTEXT_CHANGED`. A claim made in time is
+published even when that second look ends after the heartbeat or the deadline.
 
 Missing heartbeats or the overall deadline produce `timed-out` with a fixed
-reason. An unfinished run restored after application restart becomes
+reason, also for a claim left in its verification admission, such as when the
+connection loses permission while the claim is saved. An unfinished run restored after application restart becomes
 `outcome-unknown`; Hronaut never resumes work or infers success. Callers may
 also explicitly finish with `FAILED`, `CANCELLED`, `BLOCKED`, or
 `OUTCOME_UNKNOWN`. Every summary reports a stable lowercase `outcome`, a bounded
@@ -656,8 +658,12 @@ entries. Starting a fourth run retires the oldest whole run. Accepted actions
 reserve space for their outcomes; site observations have a bounded write queue,
 and omitted observations are counted. An interrupted run is reported as such and
 never automatically resumed or replayed. An interrupted run whose journal no
-longer verifies, such as one saved by an earlier version, cannot be read and is
-retired whole when the next run starts. Failed metadata persistence leaves the
+longer verifies, such as one saved by an earlier version, one cut off when
+Hronaut stopped while writing it, or one changed since, cannot be read. When the
+next run starts, it leaves the list and its journal is kept beside the others as
+`<run id>.jsonl.unverified`; it is never deleted and does not count toward the
+three runs. If Hronaut stops after setting the journal aside and before the list
+changes, the next start finishes it. Failed metadata persistence leaves the
 run in a stopping state until stop succeeds. Unindexed journals are preserved for
 recovery instead of silently discarded.
 

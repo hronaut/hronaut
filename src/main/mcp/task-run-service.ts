@@ -144,18 +144,23 @@ export class TaskRunService {
       authorize()
       this.requireWorkspace(workspaceId, id)
       let result = this.store.complete(id, revision, requested, evaluation.results)
-      await this.saveStable()
-      authorize()
-      // A passing success claim stays running while the evidence is observed again.
-      if (result.outcome === 'running') {
-        const fresh = await evaluate(checks)
-        authorize()
-        if (fresh.contextToken !== evaluation.contextToken
-          || fresh.results.some(check => check.status !== 'PASS')) {
-          result = this.store.invalidateVerification(result.id, result.revision)
-        } else result = this.store.confirmSuccess(result.id, result.revision)
+      try {
         await this.saveStable()
         authorize()
+        // A passing success claim stays running while the evidence is observed again.
+        if (result.outcome === 'running') {
+          const fresh = await evaluate(checks)
+          authorize()
+          if (fresh.contextToken !== evaluation.contextToken
+            || fresh.results.some(check => check.status !== 'PASS')) {
+            result = this.store.invalidateVerification(result.id, result.revision)
+          } else result = this.store.confirmSuccess(result.id, result.revision)
+          await this.saveStable()
+          authorize()
+        }
+      } finally {
+        // A success claim this call no longer observes, as when it loses access, times out with the run's heartbeat.
+        this.store.releaseVerification(id)
       }
       return this.requireWorkspace(workspaceId, result.id)
     })

@@ -56,6 +56,7 @@ function createHarness(history: BrowserHistoryEntry[] = []) {
       <form ref="form" @submit.prevent="submit" @focusout="handleFocusOut">
         <input ref="input" v-model="address" aria-label="Address" @focus="handleFocus" @input="handleInput" @paste="handlePaste" @dragstart="handleDragStart" @dragend="handleDragEnd" @drop="handleDrop" @keydown="handleKeydown" />
       </form>
+      <button>Page</button>
     `
   })
   render(Harness)
@@ -127,6 +128,20 @@ describe('dropping text on the address field', () => {
     await nextTick()
     expect(rendered.input.value).toBe('alert(1)')
     expect(rendered.onNavigate).not.toHaveBeenCalled()
+  })
+
+  // The field said it was focused and kept its suggestions open while the keyboard stayed where the text came from, so
+  // Enter went to the page and no focus change ever closed the suggestions.
+  it('gives the field the keyboard with the dropped text selected, as Chrome does', async () => {
+    const rendered = createHarness()
+    const page = screen.getByRole('button', { name: 'Page' })
+    page.focus()
+
+    expect(drop(rendered.input, 'javascript:alert(1)')).toBe(false)
+    await nextTick()
+    expect(document.activeElement).toBe(rendered.input)
+    expect([rendered.input.selectionStart, rendered.input.selectionEnd]).toEqual([0, 'alert(1)'.length])
+    expect(rendered.controller.focused.value).toBe(true)
   })
 
   it('leaves clean text, an empty drop and text dragged within the field to the field itself', async () => {
