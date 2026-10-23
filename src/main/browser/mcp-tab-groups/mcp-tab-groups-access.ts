@@ -24,6 +24,7 @@ export interface McpTabGroupsTab extends BrowserNetworkRecordingState {
   /** The tab's own mute, not the browser-wide one. */
   tabMuted: boolean
   navigationGeneration: number
+  walletNavigationGeneration: number
   visualComparisonGeneration: number
   mcpGroupId?: string
 }
