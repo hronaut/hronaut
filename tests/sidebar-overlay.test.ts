@@ -200,6 +200,9 @@ interface Harness {
   cursor: { current: { x: number; y: number } | null }
   menus: Array<{ menu: SidebarOverlayMenu; closed: () => void }>
   focusShell: ReturnType<typeof vi.fn>
+  /** Who has keyboard focus, other than the view. */
+  focus: { owner: string | null }
+  restoreFocus: ReturnType<typeof vi.fn>
   fail: { surface: boolean }
   flush: () => Promise<void>
 }
@@ -226,6 +229,8 @@ function harness(): Harness {
   const cursor: Harness['cursor'] = { current: null }
   const menus: Harness['menus'] = []
   const focusShell = vi.fn()
+  const focus: Harness['focus'] = { owner: null }
+  const restoreFocus = vi.fn()
   const fail = { surface: false }
   const overlay = new SidebarOverlay({
     surface: async () => {
@@ -239,9 +244,11 @@ function harness(): Harness {
       menus.push({ menu, closed })
       return true
     },
-    focusShell
+    focusShell,
+    focusOwner: () => focus.owner,
+    restoreFocus
   })
-  return { overlay, surface, events, layout, cursor, menus, focusShell, fail, flush: () => new Promise((resolve) => setTimeout(resolve, 0)) }
+  return { overlay, surface, events, layout, cursor, menus, focusShell, focus, restoreFocus, fail, flush: () => new Promise((resolve) => setTimeout(resolve, 0)) }
 }
 
 async function shown(overrides: Partial<SidebarOverlayModel> = {}, id = 1): Promise<Harness> {
@@ -447,7 +454,7 @@ describe('SidebarOverlay', () => {
     expect(surface.presented).toBe(2)
   })
 
-  it('forgets the rail of a shell document that went, and focuses the shell when it takes a focused view down', async () => {
+  it('forgets the rail of a shell document that went, and gives back the keyboard focus a view it takes down had', async () => {
     const test = await shown()
     test.overlay.shellReset()
     expect(test.surface.withdrawn).toBe(1)
@@ -455,7 +462,164 @@ describe('SidebarOverlay', () => {
     const other = await shown()
     other.surface.focused = true
     other.overlay.dismiss('window')
-    expect(other.focusShell).toHaveBeenCalledOnce()
+    expect(other.restoreFocus).toHaveBeenCalledOnce()
+    // A dialog over the page takes it from the shell; a window that lost focus keeps its own.
+    const covered = await shown()
+    covered.surface.focused = true
+    covered.overlay.occlusionChanged(true)
+    expect(covered.focusShell).toHaveBeenCalledOnce()
+    expect(covered.restoreFocus).not.toHaveBeenCalled()
+    const blurred = await shown()
+    blurred.surface.focused = true
+    blurred.overlay.dismiss('blur')
+    expect(blurred.focusShell).not.toHaveBeenCalled()
+    expect(blurred.restoreFocus).not.toHaveBeenCalled()
+  })
+
+  it('does not bring back a rail it took down when the shell\'s update for it arrives after', async () => {
+    // The shell keeps sending what the rail shows until it hears main took it down: here, the window lost focus.
+    const test = await shown()
+    test.overlay.dismiss('blur')
+    expect(test.events.at(-1)).toEqual({ id: 1, kind: 'hidden', reason: 'blur' })
+    test.overlay.show({ id: 1, model: model({ width: 300 }) })
+    await test.flush()
+    expect(test.surface.sent).toHaveLength(1)
+    test.overlay.rendered({ revision: 2 })
+    expect(test.surface.presented).toBe(1)
+    expect(test.overlay.shownId).toBeUndefined()
+    // Nor once the window shows again after it was minimized.
+    const minimized = await shown()
+    minimized.overlay.dismiss('window')
+    minimized.overlay.show({ id: 1, model: model({ width: 300 }) })
+    minimized.overlay.relayout()
+    await minimized.flush()
+    expect(minimized.surface.sent).toHaveLength(1)
+    expect(minimized.overlay.shownId).toBeUndefined()
+    expect(minimized.events.filter((event) => event.kind === 'shown')).toHaveLength(1)
+  })
+
+  it('keeps a rail the shell opens beside the page down when the window changes', async () => {
+    // Refused: the shell opens its own rail and never closes this one.
+    const refused = harness()
+    refused.overlay.show({ id: 1, model: model() })
+    await refused.flush()
+    refused.overlay.refused(1)
+    expect(refused.events).toEqual([{ id: 1, kind: 'unavailable' }])
+    refused.overlay.relayout()
+    await refused.flush()
+    expect(refused.surface.sent).toHaveLength(1)
+    refused.overlay.rendered({ revision: 1 })
+    refused.overlay.rendered({ revision: 2 })
+    expect(refused.surface.presented).toBe(0)
+    // The view drew it, but the window had no room for it by then.
+    const crowded = harness()
+    crowded.overlay.show({ id: 1, model: model() })
+    await crowded.flush()
+    crowded.layout.current = { content: { width: 1200, height: 40 }, zoom: 1 }
+    crowded.overlay.rendered({ revision: 1 })
+    expect(crowded.events).toEqual([{ id: 1, kind: 'unavailable' }])
+    crowded.layout.current = { content: { width: 1200, height: 800 }, zoom: 1 }
+    crowded.overlay.relayout()
+    await crowded.flush()
+    expect(crowded.surface.sent).toHaveLength(1)
+    crowded.overlay.rendered({ revision: 2 })
+    expect(crowded.surface.presented).toBe(0)
+    // The view failed to load.
+    const failed = harness()
+    failed.fail.surface = true
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    failed.overlay.show({ id: 1, model: model() })
+    await failed.flush()
+    error.mockRestore()
+    failed.fail.surface = false
+    failed.overlay.relayout()
+    await failed.flush()
+    expect(failed.surface.sent).toEqual([])
+  })
+
+  it('starts the view afresh for a new shell document\'s first reveal, whose id the shell numbers from 1 again', async () => {
+    const test = await shown()
+    const first = test.surface.sent[0]!.session
+    test.overlay.shellReset()
+    test.overlay.show({ id: 1, model: model() })
+    await test.flush()
+    expect(test.surface.sent).toHaveLength(2)
+    expect(test.surface.sent[1]!.session).not.toBe(first)
+    test.overlay.rendered({ revision: test.surface.sent[1]!.revision })
+    expect(test.overlay.shownId).toBe(1)
+  })
+
+  it('gives the keyboard focus back where it was when the shell closes a rail that took it', async () => {
+    const test = harness()
+    test.focus.owner = 'page'
+    test.overlay.show({ id: 1, model: model() })
+    await test.flush()
+    test.overlay.rendered({ revision: 1 })
+    // As after a right-click menu, a click on the rail's scrollbar or on its blank space: the view keeps the focus.
+    test.surface.focused = true
+    test.overlay.hide(1)
+    expect(test.restoreFocus).toHaveBeenCalledExactlyOnceWith('page')
+    // Who had it as the pointer came onto the rail; the view itself never counts.
+    test.surface.focused = false
+    test.focus.owner = 'shell'
+    test.overlay.show({ id: 2, model: model() })
+    await test.flush()
+    test.overlay.rendered({ revision: 2 })
+    test.focus.owner = 'other page'
+    test.overlay.pointerActivity()
+    test.focus.owner = null
+    test.overlay.pointerActivity()
+    test.surface.focused = true
+    // Another opening takes the place of this one.
+    test.overlay.show({ id: 3, model: model() })
+    expect(test.restoreFocus).toHaveBeenLastCalledWith('other page')
+    // A view without the focus leaves it where it is.
+    await test.flush()
+    test.overlay.rendered({ revision: 3 })
+    test.surface.focused = false
+    test.overlay.hide(3)
+    expect(test.restoreFocus).toHaveBeenCalledTimes(2)
+    expect(test.focusShell).not.toHaveBeenCalled()
+  })
+
+  it('keeps the rail open under a still pointer when one of its menus closes', async () => {
+    const test = await shown()
+    test.overlay.pointer({ hovered: true, held: false })
+    test.overlay.received({ kind: 'tab-context-menu', tabId: 'beta' })
+    // The native menu takes the pointer, and the view hears it leave though it stays on the rail.
+    test.overlay.pointer({ hovered: false, held: false })
+    expect(test.events.at(-1)).toEqual({ id: 1, kind: 'pointer', hovered: false, held: true })
+    test.cursor.current = { x: 30, y: 400 }
+    test.menus[0]!.closed()
+    expect(test.events.at(-1)).toEqual({ id: 1, kind: 'pointer', hovered: true, held: false })
+    // Off the rail when it closes, the rail folds.
+    test.overlay.received({ kind: 'tab-context-menu', tabId: 'alpha' })
+    test.cursor.current = { x: 600, y: 400 }
+    test.menus[1]!.closed()
+    expect(test.events.at(-1)).toEqual({ id: 1, kind: 'pointer', hovered: false, held: false })
+  })
+
+  it('lets the rail fold when a drag from it ends off the rail, where the view heard nothing', async () => {
+    const test = await shown()
+    test.overlay.pointer({ hovered: true, held: true })
+    test.cursor.current = { x: 600, y: 400 }
+    // The view still thinks the pointer is over it once the drag ends.
+    test.overlay.pointer({ hovered: true, held: false })
+    expect(test.events.at(-1)).toEqual({ id: 1, kind: 'pointer', hovered: false, held: false })
+    // One that ends on the rail keeps it open.
+    test.overlay.pointer({ hovered: true, held: true })
+    test.cursor.current = { x: 30, y: 400 }
+    test.overlay.pointer({ hovered: true, held: false })
+    expect(test.events.at(-1)).toEqual({ id: 1, kind: 'pointer', hovered: true, held: false })
+  })
+
+  it('takes the rail down rather than raise it over a page that went full screen meanwhile', async () => {
+    const test = await shown()
+    test.layout.current = null
+    test.overlay.restack()
+    expect(test.surface.presented).toBe(1)
+    expect(test.surface.withdrawn).toBe(1)
+    expect(test.events.at(-1)).toEqual({ id: 1, kind: 'hidden', reason: 'window' })
   })
 })
 

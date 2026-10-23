@@ -152,7 +152,7 @@ export interface SidebarOverlayRequest {
 /** What main sends the view: the model, and a revision the view reports back once it has drawn it. */
 export interface SidebarOverlayState {
   revision: number
-  /** The reveal it belongs to; a new one starts at the shell's scroll position again. */
+  /** Main's number for the reveal it belongs to, never used again; a new one starts at the shell's scroll position again. */
   session: number
   model: SidebarOverlayModel
 }
@@ -204,8 +204,11 @@ export type SidebarOverlayIntent =
   | { kind: 'dismiss' }
   | { kind: 'footer'; action: SidebarOverlayFooterAction }
 
-/** Why main took the open rail down by itself. */
-export type SidebarOverlayHiddenReason = 'blur' | 'window' | 'occluded' | 'fullscreen' | 'lost'
+/**
+ * Why main took the open rail down by itself: the window lost focus; the window cannot show it, as when it is minimized
+ * or hidden or shows a page in full screen; a dialog covers the page; or its view is gone.
+ */
+export type SidebarOverlayHiddenReason = 'blur' | 'window' | 'occluded' | 'lost'
 
 /**
  * What the shell hears about the reveal with this id: the view shows it, the view cannot show it (the shell then opens

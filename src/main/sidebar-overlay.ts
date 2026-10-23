@@ -45,6 +45,13 @@ export interface SidebarOverlayPorts {
   showMenu(menu: SidebarOverlayMenu, closed: () => void): boolean
   /** Gives keyboard focus to the shell, which runs what the person did in the rail. */
   focusShell(): void
+  /** Which page or shell view has keyboard focus now, other than the rail's own view; null when none or unknown. */
+  focusOwner(): unknown
+  /**
+   * Gives keyboard focus back to `owner`, the page or the shell that had it before the view took it, or to the shell
+   * when that is gone or unknown; only while the view, now taken down, or nothing has it.
+   */
+  restoreFocus(owner: unknown): void
 }
 
 /** Ids main gives the view's tooltips in the tooltip view, apart from the shell's own, which count up from 1. */
@@ -52,6 +59,8 @@ export const SIDEBAR_OVERLAY_TOOLTIP_ID_OFFSET = 2 ** 40
 
 interface Reveal {
   id: number
+  /** Main's own number for this reveal, which the view starts afresh for; unlike the shell's ids, it never repeats. */
+  session: number
   model: SidebarOverlayModel
   /** The state sent to the view last; a report of any other is dropped. 0 while none is due. */
   revision: number
@@ -67,6 +76,8 @@ interface Reveal {
   menus: number
   /** What the shell last heard about the pointer. */
   pointer?: string
+  /** Who had keyboard focus before a click in the view took it, which gets it back when the view goes. */
+  focusBefore: unknown
 }
 
 /**
@@ -96,6 +107,12 @@ export class SidebarOverlay {
   private reveal: Reveal | null = null
   private current: SidebarOverlaySurface | null = null
   private revision = 0
+  private sessions = 0
+  /**
+   * The newest reveal that ended: the shell closed it, main took it down, or it could not be drawn. The shell's updates
+   * for it can still be on their way, and must not bring it back where nothing would close it.
+   */
+  private finished = 0
   private occluded = false
   private disposed = false
 
@@ -108,10 +125,9 @@ export class SidebarOverlay {
 
   /** Shows the open rail for this reveal, or updates what the shown one draws. */
   show(request: SidebarOverlayRequest): void {
-    if (this.disposed) return
+    if (this.disposed || this.stale(request.id)) return
     const previous = this.reveal
     if (previous && previous.id !== request.id) this.hide(previous.id)
-    if (this.reveal?.id === request.id && this.reveal.reported === 'unavailable') return
     // A dialog over the page covers the rail too; the shell opens its own, which the dialog already covers.
     if (this.occluded) {
       this.refused(request.id)
@@ -119,13 +135,15 @@ export class SidebarOverlay {
     }
     const reveal: Reveal = this.reveal ?? {
       id: request.id,
+      session: ++this.sessions,
       model: request.model,
       revision: 0,
       zoom: 1,
       presented: false,
       view: { hovered: false, held: false },
       cursorInside: false,
-      menus: 0
+      menus: 0,
+      focusBefore: this.ports.focusOwner()
     }
     reveal.model = request.model
     this.reveal = reveal
@@ -134,16 +152,24 @@ export class SidebarOverlay {
 
   /** The shell closed the rail of this reveal. */
   hide(id: number): void {
+    this.finish(id)
     const reveal = this.reveal
-    if (!reveal || reveal.id !== id) return
+    if (!reveal || reveal.id > id) return
     this.reveal = null
-    if (reveal.presented) this.withdraw()
+    this.takeDown(reveal, 'restore')
   }
 
   /** The shell could not describe this reveal within the contract, or main cannot draw it: the shell opens its own rail. */
   refused(id: number): void {
-    if (this.reveal?.id === id) this.unavailable(this.reveal)
-    else this.ports.emit({ id, kind: 'unavailable' })
+    const reveal = this.reveal
+    if (reveal?.id === id) {
+      this.unavailable(reveal)
+      return
+    }
+    if (this.stale(id)) return
+    if (reveal) this.hide(reveal.id)
+    this.finish(id)
+    this.ports.emit({ id, kind: 'unavailable' })
   }
 
   /** The view drew this revision; place it and show it. */
@@ -176,9 +202,21 @@ export class SidebarOverlay {
   pointer(pointer: SidebarOverlayPointer): void {
     const reveal = this.reveal
     if (this.disposed || !reveal?.presented) return
+    const released = reveal.view.held && !pointer.held
     reveal.view = pointer
     reveal.cursorInside = false
+    // A drag that ends, or a press released, with the pointer off the rail leaves the view sure the pointer is still
+    // over it: it hears nothing more until the pointer comes back.
+    if (released && pointer.hovered && this.cursorOver(reveal) === false) reveal.view = { ...pointer, hovered: false }
     this.report(reveal)
+  }
+
+  /** The pointer moved or pressed in the view: remember who has keyboard focus, before a click there takes it. */
+  pointerActivity(): void {
+    const reveal = this.reveal
+    if (this.disposed || !reveal?.presented) return
+    const owner = this.ports.focusOwner()
+    if (owner !== null && owner !== undefined) reveal.focusBefore = owner
   }
 
   /** What the person did in the view; only for the shown rail and the tabs and workspaces it shows. */
@@ -218,18 +256,26 @@ export class SidebarOverlay {
       this.dismiss(reveal.presented ? 'window' : undefined)
       return
     }
-    if (layout.zoom !== reveal.zoom || reveal.revision === 0) {
+    if (layout.zoom !== reveal.zoom) {
       this.lay(reveal)
       return
     }
     if (reveal.presented && this.current && !this.current.isDestroyed()) this.present(reveal, this.current, bounds)
   }
 
-  /** A page view attached meanwhile would cover the rail; put it back above the pages. */
+  /**
+   * A page view attached meanwhile would cover the rail; put it back above the pages, unless the window can no longer
+   * show it there, as when the page went full screen meanwhile.
+   */
   restack(): void {
     const surface = this.current
     const reveal = this.reveal
     if (!reveal?.presented || !surface || surface.isDestroyed()) return
+    const layout = this.ports.layout()
+    if (!layout || !sidebarOverlayBounds(reveal.model, layout)) {
+      this.dismiss('window')
+      return
+    }
     this.present(reveal, surface)
   }
 
@@ -239,13 +285,12 @@ export class SidebarOverlay {
     if (!reveal) return
     // A menu opened from the rail can take the window's focus while it is open; the rail stays under it.
     if (reason === 'blur' && reveal.menus > 0) return
-    const focused = this.current?.isFocused() === true
     this.reveal = null
-    if (reveal.presented) this.withdraw()
+    this.finish(reveal.id)
+    // A window that lost focus keeps its own; a dialog over the page takes it from the shell.
+    this.takeDown(reveal, reason === 'blur' ? 'keep' : reason === 'occluded' ? 'shell' : 'restore')
     if (reveal.presented || reason) this.ports.emit({ id: reveal.id, kind: 'hidden', reason: reason ?? 'window' })
     else this.ports.emit({ id: reveal.id, kind: 'unavailable' })
-    // Typing goes on in the shell rather than in a view that is gone; a window that lost focus keeps its own.
-    if (focused && reason !== 'blur') this.ports.focusShell()
   }
 
   /** Trusted chrome, such as a dialog, covers the page and the rail; the rail stays down while it does. */
@@ -254,12 +299,13 @@ export class SidebarOverlay {
     if (occluded) this.dismiss('occluded')
   }
 
-  /** A new shell document has no open rail, whatever the previous one showed. */
+  /** A new shell document has no open rail, whatever the previous one showed, and numbers its reveals from the start again. */
   shellReset(): void {
     const reveal = this.reveal
     this.reveal = null
+    this.finished = 0
     this.occluded = false
-    if (reveal?.presented) this.withdraw()
+    if (reveal) this.takeDown(reveal, 'restore')
   }
 
   /** The view is gone, such as after its renderer exited; the shell opens its own rail. */
@@ -269,6 +315,7 @@ export class SidebarOverlay {
     if (!reveal) return
     if (reveal.presented) {
       this.reveal = null
+      this.finish(reveal.id)
       this.ports.emit({ id: reveal.id, kind: 'hidden', reason: 'lost' })
       return
     }
@@ -295,7 +342,7 @@ export class SidebarOverlay {
       if (this.disposed || this.reveal !== reveal || reveal.revision !== revision || surface.isDestroyed()) return
       this.current = surface
       surface.setZoomFactor(reveal.zoom)
-      surface.send({ revision, session: reveal.id, model: reveal.model })
+      surface.send({ revision, session: reveal.session, model: reveal.model })
     }).catch((error: unknown) => {
       console.error('[sidebar overlay] Failed to open the rail over the page:', error)
       if (this.reveal === reveal && reveal.revision === revision) this.unavailable(reveal)
@@ -311,12 +358,12 @@ export class SidebarOverlay {
       open = false
       reveal.menus -= 1
       if (this.reveal !== reveal) return
-      // The pointer may have left the rail while the menu was open; the view hears nothing until it moves.
-      const layout = this.ports.layout()
-      const bounds = layout && sidebarOverlayBounds(reveal.model, layout)
-      if (bounds && !inside(this.ports.cursor(), bounds)) {
-        reveal.view = { ...reveal.view, hovered: false }
-        reveal.cursorInside = false
+      // The pointer may have left the rail while the menu was open, or the view may have heard it leave for the menu
+      // while it stayed on the rail; the view hears nothing more until it moves.
+      const over = this.cursorOver(reveal)
+      if (over !== undefined) {
+        reveal.cursorInside = over
+        if (!over) reveal.view = { ...reveal.view, hovered: false }
       }
       this.report(reveal)
     }
@@ -351,17 +398,46 @@ export class SidebarOverlay {
     }
   }
 
+  /** The shell opens its own rail for this reveal, which ends here: neither a report nor an update brings it back. */
   private unavailable(reveal: Reveal): void {
-    // A report still on its way must not bring it back.
-    reveal.revision = 0
-    if (reveal.presented) {
-      reveal.presented = false
-      this.withdraw()
-    }
+    if (this.reveal === reveal) this.reveal = null
+    this.finish(reveal.id)
+    this.takeDown(reveal, 'restore')
+    reveal.presented = false
     if (reveal.reported !== 'unavailable') {
       reveal.reported = 'unavailable'
       this.ports.emit({ id: reveal.id, kind: 'unavailable' })
     }
+  }
+
+  /** An update or report for this reveal comes too late: it ended, or a newer one took its place. */
+  private stale(id: number): boolean {
+    return id <= this.finished || (this.reveal !== null && id < this.reveal.id)
+  }
+
+  private finish(id: number): void {
+    this.finished = Math.max(this.finished, id)
+  }
+
+  /** Whether the pointer is over the view's box now; undefined when that is unknown. */
+  private cursorOver(reveal: Reveal): boolean | undefined {
+    const layout = this.ports.layout()
+    const bounds = layout && sidebarOverlayBounds(reveal.model, layout)
+    const cursor = this.ports.cursor()
+    return bounds && cursor ? inside(cursor, bounds) : undefined
+  }
+
+  /**
+   * Takes the reveal's view out of the window. Keyboard focus it had would go nowhere: it goes back to the page or the
+   * shell that had it before, or to the shell, or stays with a window that lost it.
+   */
+  private takeDown(reveal: Reveal, focus: 'restore' | 'shell' | 'keep'): void {
+    if (!reveal.presented) return
+    const focused = this.current?.isFocused() === true
+    this.withdraw()
+    if (!focused || focus === 'keep') return
+    if (focus === 'shell') this.ports.focusShell()
+    else this.ports.restoreFocus(reveal.focusBefore)
   }
 
   private withdraw(): void {

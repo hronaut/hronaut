@@ -619,6 +619,16 @@ const {
   toastOverlay,
   tooltipView,
   sidebarOverlayView,
+  sidebarOverlay,
+  sidebarOverlayKeyboard: {
+    noteKey: (input) => tabRuntime.tabs?.noteShellKey(input),
+    // The rail is the shell's own: the shell takes the keyboard and runs the shortcut, as if it was pressed there.
+    runShortcut: (action) => {
+      const window = mainWindowRefs.window
+      if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.focus()
+      runPageShortcut(action)
+    }
+  },
   shellTooltips
 })
 
@@ -1075,6 +1085,8 @@ async function createWindow(startMinimized = false): Promise<void> {
       toastOverlay.restack()
       agentCards.restack()
     },
+    // The rail opened over the page comes down over a page in full screen, which the window may not report itself.
+    onPageFullscreenChanged: () => sidebarOverlay.relayout(),
     onDownloadsChanged: (downloads) => sendToPanelWindow('browser:downloads-changed', downloads),
     confirmBeforeUnloadClose: async () => {
       const { response } = await showMessageBox({

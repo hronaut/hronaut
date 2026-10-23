@@ -720,4 +720,5 @@ const sidebarOverlayApi: HronautSidebarOverlayApi = {
     return () => ipcRenderer.removeListener('sidebar-overlay:event', handler)
   }
 }
-contextBridge.exposeInMainWorld('hronautSidebarOverlay', sidebarOverlayApi)
+// Only the main window's shell opens its tab rail over the page; a detached panel's window has no rail.
+if (process.argv.includes('--hronaut-window-kind=main')) contextBridge.exposeInMainWorld('hronautSidebarOverlay', sidebarOverlayApi)

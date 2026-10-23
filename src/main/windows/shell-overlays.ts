@@ -191,6 +191,27 @@ export function createShellOverlays(host: ShellOverlaysHost): {
         const window = host.mainWindowRefs.window
         if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.focus()
       })
+    },
+    focusOwner: () => {
+      const focused = allWebContents.getFocusedWebContents()
+      return focused && !sidebarOverlayView.owns(focused) ? focused : null
+    },
+    restoreFocus: (owner) => {
+      setImmediate(() => {
+        const window = host.mainWindowRefs.window
+        if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return
+        const focused = allWebContents.getFocusedWebContents()
+        // Only while the view taken down or nothing has it: what the person did meanwhile may have moved it on purpose.
+        if (focused && !sidebarOverlayView.owns(focused)) return
+        const previous = owner as Electron.WebContents | null
+        const overlay = !!previous && (sidebarOverlayView.owns(previous) || toastOverlayView.owns(previous) || agentCardView.owns(previous)
+          || tooltipView.owns(previous) || host.addressSuggestionOverlay.owns(previous))
+        // Back to a page only while it still shows; from an overlay, or a page that went, the shell.
+        const page = previous && !previous.isDestroyed() && !overlay && window.contentView.children.some((child) => (
+          child.getVisible() && 'webContents' in child && (child as WebContentsView).webContents === previous
+        )) ? previous : null
+        ;(page ?? window.webContents).focus()
+      })
     }
   })
 

@@ -40,4 +40,6 @@ export interface PageFullscreenAccess<Tab extends PageFullscreenTab> {
   writePersonFullScreen(fullScreen: boolean): void
   /** Places the pages again. */
   layout(): void
+  /** A page took or left full screen; what the shell draws over the pages, such as the tab rail, follows. */
+  pageFullscreenChanged(): void
 }

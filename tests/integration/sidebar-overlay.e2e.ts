@@ -163,3 +163,38 @@ test('a dialog opened from the open rail takes the rail down', async ({ appWindo
   await appWindow.keyboard.press('Escape')
   await expect(appWindow.getByRole('dialog', { name: 'Commands' })).toBeHidden()
 })
+
+/** Who has keyboard focus: the shell, the open rail's view, or a page by its title. */
+function focusedContents(electronApp: ElectronApplication): Promise<string | null> {
+  return electronApp.evaluate(({ BrowserWindow, webContents }) => {
+    const focused = webContents.getFocusedWebContents()
+    if (!focused) return null
+    if (focused === BrowserWindow.getAllWindows()[0]!.webContents) return 'shell'
+    return focused.getURL().endsWith('sidebar-overlay.html') ? 'rail' : focused.getTitle()
+  })
+}
+
+test('the open rail gives back the keyboard a click there took when it folds, and takes browser shortcuts meanwhile', async ({ appWindow, electronApp }) => {
+  const { input } = await prepare(appWindow, electronApp)
+  // Typing goes on in the page.
+  await electronApp.evaluate(({ webContents }, title) => webContents.getAllWebContents().find((contents) => contents.getTitle() === title)!.focus(), PAGE)
+  await expect.poll(() => focusedContents(electronApp)).toBe(PAGE)
+  await reveal(input, electronApp)
+  // A click on the rail's blank space below its tabs takes the keyboard, and the rail keeps it.
+  await input(30, 600, '--click')
+  await expect.poll(() => focusedContents(electronApp)).toBe('rail')
+  // Off the rail, it folds, and typing goes on in the page rather than nowhere.
+  await input((await sidebarOverlayView(electronApp))!.bounds.width + 300, 400, '--move')
+  await expect.poll(() => sidebarOverlayShown(electronApp)).toBe(false)
+  await expect.poll(() => focusedContents(electronApp)).toBe(PAGE)
+
+  // A browser shortcut pressed while the rail has the keyboard opens a new tab, as in the shell.
+  const tabCount = async () => (await appWindow.evaluate(() => (window as unknown as { hronaut: OverlayPageApi }).hronaut.getState())).tabs.length
+  const before = await tabCount()
+  await reveal(input, electronApp)
+  await input(30, 600, '--click')
+  await expect.poll(() => focusedContents(electronApp)).toBe('rail')
+  await input(30, 600, '--shortcut=Control_L+t')
+  await expect.poll(tabCount).toBe(before + 1)
+  await expect.poll(() => focusedContents(electronApp)).not.toBe('rail')
+})

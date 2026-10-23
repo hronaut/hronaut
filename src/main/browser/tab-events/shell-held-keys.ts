@@ -1,4 +1,4 @@
-import type { BrowserWindow } from 'electron'
+import type { BrowserWindow, Input } from 'electron'
 
 /**
  * The physical keys held down in the shell. A shell control pressed with a key can hand the keyboard focus to a page,
@@ -9,10 +9,16 @@ import type { BrowserWindow } from 'electron'
 export function trackShellHeldKeys(window: BrowserWindow): Set<string> {
   const held = new Set<string>()
   window.on('blur', () => held.clear())
-  window.webContents.on('before-input-event', (_event, input) => {
-    if (!input.code || input.isAutoRepeat) return
-    if (input.type === 'keyUp') held.delete(input.code)
-    else if (input.type === 'keyDown' || input.type === 'rawKeyDown') held.add(input.code)
-  })
+  window.webContents.on('before-input-event', (_event, input) => noteShellHeldKey(held, input))
   return held
+}
+
+/**
+ * Notes a key pressed or released in the shell, or in another view of the shell's own, such as the tab rail opened
+ * over the page, whose controls hand the focus on as the shell's do.
+ */
+export function noteShellHeldKey(held: Set<string>, input: Pick<Input, 'code' | 'isAutoRepeat' | 'type'>): void {
+  if (!input.code || input.isAutoRepeat) return
+  if (input.type === 'keyUp') held.delete(input.code)
+  else if (input.type === 'keyDown' || input.type === 'rawKeyDown') held.add(input.code)
 }

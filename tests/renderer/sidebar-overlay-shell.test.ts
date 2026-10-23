@@ -100,6 +100,29 @@ describe('the shell side of the rail over the page', () => {
       expect(h.session.shownId).toBeUndefined()
     } finally { h.dispose() }
   })
+
+  it('closes an opening main shows after this shell closed it, as when an update crossed main taking it down', () => {
+    const h = harness()
+    try {
+      h.overlaid.value = true
+      h.emit({ id: 1, kind: 'shown' })
+      h.emit({ id: 1, kind: 'hidden', reason: 'blur' })
+      expect(h.hidden).toHaveBeenCalledOnce()
+      expect(h.hide).not.toHaveBeenCalled()
+      h.emit({ id: 1, kind: 'shown' })
+      expect(h.hide).toHaveBeenCalledExactlyOnceWith(1)
+      expect(h.session.shownId).toBeUndefined()
+      // And one older than the opening that shows now.
+      h.overlaid.value = false
+      h.overlaid.value = true
+      h.emit({ id: 1, kind: 'shown' })
+      expect(h.hide).toHaveBeenLastCalledWith(1)
+      expect(h.session.shownId).toBeUndefined()
+      h.emit({ id: 2, kind: 'shown' })
+      expect(h.session.shownId).toBe(2)
+      expect(h.hide).toHaveBeenCalledTimes(2)
+    } finally { h.dispose() }
+  })
 })
 
 describe('viewport rules in the rail over the page', () => {

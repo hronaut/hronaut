@@ -86,7 +86,12 @@ export function useSidebarOverlay(options: SidebarOverlayOptions): { readonly sh
 
   const stopEvents = api?.onEvent((event) => {
     const current = session
-    if (!current || event.id !== current.id) return
+    if (!current || event.id !== current.id) {
+      // Main shows an opening this shell already closed, as when an update for it crossed main taking it down: nothing
+      // here would close it.
+      if (event.kind === 'shown') api.hide(event.id)
+      return
+    }
     switch (event.kind) {
       case 'shown':
         current.shown = true

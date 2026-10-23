@@ -5,7 +5,8 @@ import type { AgentCardOverlay, AgentCardSurface } from '../agent-card-overlay.j
 import type { ShellOverlayView } from '../shell-overlay-view.js'
 import type { ShellTooltipSurface } from '../shell-tooltip-overlay.js'
 import type { ToastOverlay, ToastOverlaySurface } from '../toast-overlay.js'
-import { SIDEBAR_OVERLAY_TOOLTIP_ID_OFFSET, type SidebarOverlaySurface } from '../sidebar-overlay.js'
+import { SIDEBAR_OVERLAY_TOOLTIP_ID_OFFSET, type SidebarOverlay, type SidebarOverlaySurface } from '../sidebar-overlay.js'
+import { attachSidebarOverlayKeyboard, type SidebarOverlayKeyboardHost } from '../sidebar-overlay-keyboard.js'
 import type { ShellTooltipOverlay } from '../shell-tooltip-overlay.js'
 
 interface OverlaySurfacesHost {
@@ -21,6 +22,9 @@ interface OverlaySurfacesHost {
   tooltipView: Pick<ShellOverlayView, 'ensure' | 'present' | 'withdraw'>
   /** The view that draws the open tab rail over the page, and the tooltips its controls show. */
   sidebarOverlayView: Pick<ShellOverlayView, 'ensure' | 'present' | 'withdraw'>
+  sidebarOverlay: Pick<SidebarOverlay, 'pointerActivity'>
+  /** The keys pressed in that view, which work as in the shell. */
+  sidebarOverlayKeyboard: SidebarOverlayKeyboardHost
   shellTooltips: Pick<ShellTooltipOverlay, 'shownId' | 'hide'>
 }
 
@@ -125,8 +129,16 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
   }
 
   /** One view, created the first time the rail opens over the page, draws the open rail there. */
+  const sidebarOverlayWatched = new WeakSet<Electron.WebContents>()
+
   async function ensureSidebarOverlaySurface(): Promise<SidebarOverlaySurface> {
     const { view, webContents } = await host.sidebarOverlayView.ensure()
+    if (!sidebarOverlayWatched.has(webContents)) {
+      sidebarOverlayWatched.add(webContents)
+      // Who has keyboard focus before a click in the rail takes it gets it back when the rail goes.
+      webContents.on('before-mouse-event', () => host.sidebarOverlay.pointerActivity())
+      attachSidebarOverlayKeyboard(webContents, host.sidebarOverlayKeyboard)
+    }
     return {
       send: (state) => { if (!webContents.isDestroyed()) webContents.send('sidebar-overlay-view:state', state) },
       setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },

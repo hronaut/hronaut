@@ -20,10 +20,12 @@ class FakeView {
   setVisible(visible: boolean): void { this.visible = visible }
 }
 
+const focus = vi.hoisted(() => ({ current: null as unknown }))
+
 vi.mock('electron', () => ({
   WebContentsView: FakeView,
   screen: { getCursorScreenPoint: () => ({ x: 130, y: 500 }) },
-  webContents: { getFocusedWebContents: () => null }
+  webContents: { getFocusedWebContents: () => focus.current }
 }))
 
 const { createShellOverlays } = await import('../src/main/windows/shell-overlays.js')
@@ -53,7 +55,7 @@ function setup() {
   }
   const fullscreen = { page: false }
   const tabs = { showsPageFullscreen: () => fullscreen.page, showTabContextMenu: vi.fn(), showWorkspaceContextMenu: vi.fn(), pageArea: () => null }
-  const surface = { send: vi.fn(), setZoomFactor: vi.fn(), setBounds: vi.fn(), present: vi.fn(), withdraw: vi.fn(), isFocused: () => false, isDestroyed: () => false }
+  const surface = { focused: false, send: vi.fn(), setZoomFactor: vi.fn(), setBounds: vi.fn(), present: vi.fn(), withdraw: vi.fn(), isFocused() { return this.focused }, isDestroyed: () => false }
   const overlays = createShellOverlays({
     trustedUrlMatches: (actual, expected) => actual === expected,
     mainWindowRefs: { window: window as never },
@@ -124,5 +126,50 @@ describe('the open rail over the page', () => {
     fullscreen.page = true
     overlays.sidebarOverlay.relayout()
     expect(sent.at(-1)).toEqual(['sidebar-overlay:event', { id: 3, kind: 'hidden', reason: 'window' }])
+  })
+
+  it('gives keyboard focus a click in the rail took back to the page that had it, or to the shell once that page went', async () => {
+    const { overlays, window, children, surface } = setup()
+    const page = { focus: vi.fn(), isDestroyed: () => false }
+    children.push({ getVisible: () => true, webContents: page })
+    const open = async (id: number) => {
+      overlays.sidebarOverlay.show({ id, model: { width: 280, top: 48 } as never })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      const [state] = surface.send.mock.calls.at(-1) as [{ revision: number }]
+      overlays.sidebarOverlay.rendered({ revision: state.revision })
+    }
+    const settled = () => new Promise((resolve) => setImmediate(resolve))
+    try {
+      focus.current = page
+      await open(1)
+      // The click lands in the view, which keeps the focus, as after one of its menus; then the pointer leaves.
+      focus.current = null
+      surface.focused = true
+      overlays.sidebarOverlay.hide(1)
+      await settled()
+      expect(page.focus).toHaveBeenCalledOnce()
+      expect(window.webContents.focus).not.toHaveBeenCalled()
+      // The page is no longer in the window: the shell gets it.
+      surface.focused = false
+      focus.current = page
+      await open(2)
+      children.splice(children.findIndex((child) => (child as { webContents?: unknown }).webContents === page), 1)
+      focus.current = null
+      surface.focused = true
+      overlays.sidebarOverlay.hide(2)
+      await settled()
+      expect(window.webContents.focus).toHaveBeenCalledOnce()
+      // Something else took it meanwhile, on purpose: it stays there.
+      surface.focused = false
+      await open(3)
+      surface.focused = true
+      overlays.sidebarOverlay.hide(3)
+      focus.current = { isDestroyed: () => false }
+      await settled()
+      expect(window.webContents.focus).toHaveBeenCalledOnce()
+      expect(page.focus).toHaveBeenCalledOnce()
+    } finally {
+      focus.current = null
+    }
   })
 })

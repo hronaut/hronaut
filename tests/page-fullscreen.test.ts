@@ -57,7 +57,8 @@ function layoutFixture(split = false) {
     publishPageGeometry: vi.fn(),
     focusTabOrTrustedChrome: vi.fn(),
     changed: vi.fn(),
-    getState: () => ({})
+    getState: () => ({}),
+    options: { onPageFullscreenChanged: vi.fn() }
   }) as BrowserTabsManager
   return { manager, first, second }
 }
@@ -82,6 +83,7 @@ function fullscreenFixture(options: { shown?: string[], windowFullScreen?: boole
   let personFullScreen = false
   const shown = new Set(options.shown ?? ['video'])
   const layout = vi.fn()
+  const pageFullscreenChanged = vi.fn()
   const access: PageFullscreenAccess<PageFullscreenTab> = {
     isDestroyed: () => false,
     window: () => window as never,
@@ -92,7 +94,8 @@ function fullscreenFixture(options: { shown?: string[], windowFullScreen?: boole
     contentAreaBounds: () => ({ x: 280, y: 60, width: 1150, height: 830 }),
     personFullScreen: () => personFullScreen,
     writePersonFullScreen: (fullScreen) => { personFullScreen = fullScreen },
-    layout
+    layout,
+    pageFullscreenChanged
   }
   for (const tab of tabs.values()) attachPageFullscreenEvents(access, tab as unknown as PageFullscreenTab, tab.webContents as never)
   watchWindowFullScreen(access)
@@ -101,7 +104,7 @@ function fullscreenFixture(options: { shown?: string[], windowFullScreen?: boole
     if (!window.fullScreen) window.setFullScreen(true)
     tabs.get(id)!.webContents.emit('enter-html-full-screen')
   }
-  return { window, tabs, shown, layout, access, enter, personFullScreen: () => personFullScreen }
+  return { window, tabs, shown, layout, pageFullscreenChanged, access, enter, personFullScreen: () => personFullScreen }
 }
 
 const nextTurn = () => new Promise((resolve) => setImmediate(resolve))
@@ -163,6 +166,13 @@ describe('page full screen layout', () => {
     internals.setEmulationViewSize(agent, undefined)
     expect(agent.view.setBounds).toHaveBeenLastCalledWith({ x: 280, y: 60, width: 1150, height: 830 })
     expect(first.view.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 0, width: 1440, height: 900 })
+  })
+
+  it('has the tab rail opened over the page follow a page taking full screen', () => {
+    const { manager, first } = layoutFixture()
+    attachPageFullscreenEvents((manager as unknown as { pageFullscreenAccess(): PageFullscreenAccess<PageFullscreenTab> }).pageFullscreenAccess(), first as never, first.webContents as never)
+    first.webContents.emit('enter-html-full-screen')
+    expect((manager as unknown as { options: { onPageFullscreenChanged: () => void } }).options.onPageFullscreenChanged).toHaveBeenCalledOnce()
   })
 
   it('gives a page that leaves full screen after the person switched away from it its page card\'s size back', () => {
@@ -255,6 +265,20 @@ describe('page full screen lifecycle', () => {
     expect(tabs.get('video')!.pageFullscreen).toBe(false)
     expect(layout).toHaveBeenCalledTimes(2)
     expect(tabs.get('video')!.webContents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
+  })
+
+  it('tells what the shell draws over the pages each time a page takes or leaves full screen, after laying them out', () => {
+    // A window already in full screen reports nothing of the page's, and on Windows it reports before the page does.
+    const { window, tabs, layout, pageFullscreenChanged } = fullscreenFixture({ windowFullScreen: true })
+    pageFullscreenChanged.mockImplementation(() => expect(layout).toHaveBeenCalledTimes(pageFullscreenChanged.mock.calls.length))
+    tabs.get('video')!.webContents.emit('enter-html-full-screen')
+    expect(window.setFullScreen).not.toHaveBeenCalled()
+    expect(pageFullscreenChanged).toHaveBeenCalledTimes(1)
+    tabs.get('video')!.webContents.emit('leave-html-full-screen')
+    expect(pageFullscreenChanged).toHaveBeenCalledTimes(2)
+    tabs.get('video')!.webContents.emit('enter-html-full-screen')
+    tabs.get('video')!.webContents.emit('destroyed')
+    expect(pageFullscreenChanged).toHaveBeenCalledTimes(4)
   })
 
   it('asks a page that takes full screen while hidden to leave it at once', () => {
