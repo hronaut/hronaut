@@ -26,6 +26,16 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.loading = webContents.isLoading()
     access.changed()
   }
+  // A wallet request belongs to the document that made it, so its requests and network end when another document,
+  // a page or an error page, replaces it. A navigation that never commits, such as a download or a response with no
+  // content, keeps the page and its requests. Each replacement begins a page of its own, also when a newer navigation
+  // has already started by then.
+  const walletDocumentReplaced = (): void => {
+    tab.walletNavigationGeneration += 1
+    access.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
+      access.options().onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
+    ))
+  }
   const recordPendingHistory = (): void => {
     if (tab.suppressInitialHistory || tab.pendingHistoryUrl !== tab.url) return
     tab.title = normalizeTabTitle(webContents.getTitle(), tab.title)
@@ -90,13 +100,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.navigationGeneration += 1
     retireNetworkPriorityObservations(tab)
     access.invalidateTabOverviewPreview(tab)
-    if (!isSameDocument) {
-      tab.documentGeneration += 1
-      tab.walletNavigationGeneration = tab.navigationGeneration
-      access.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
-        access.options().onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
-      ))
-    }
+    if (!isSameDocument) tab.documentGeneration += 1
     if (isSameDocument) {
       tab.performanceDocumentRouted = true
       return
@@ -159,6 +163,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     // Reset only when a new main-frame document commits, never on a failed load.
     tab.performanceDocumentRouted = false
     tab.documentGeneration += 1
+    walletDocumentReplaced()
     access.trackWorkspaceOrigin(tab, url)
     tab.memoryBaseline = undefined
     const previousUrl = tab.url
@@ -200,6 +205,13 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       tab.pendingHistoryUrl = null
     }
     access.scheduleTabOverviewPreview(tab)
+  })
+  // Electron reports an error page that replaced the document here, before did-fail-load. did-fail-load also reports a
+  // document that committed and then failed to receive the rest of its content, such as after a reset connection, and
+  // that document stays.
+  webContents.on('did-fail-provisional-load', (_event, _errorCode, _errorDescription, _validatedURL, isMainFrame) => {
+    if (tab.sleeping || !isMainFrame) return
+    walletDocumentReplaced()
   })
   webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     // A newer navigation can start before the one it replaced reports its failure.
