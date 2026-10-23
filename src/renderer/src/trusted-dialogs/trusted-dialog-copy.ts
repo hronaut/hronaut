@@ -28,6 +28,7 @@ import IconEditNoteOutlineRounded from '~icons/material-symbols/edit-note-outlin
 import IconDownloadRounded from '~icons/material-symbols/download-rounded'
 import IconMoveToInboxOutlineRounded from '~icons/material-symbols/move-to-inbox-outline-rounded'
 import IconLanOutlineRounded from '~icons/material-symbols/lan-outline-rounded'
+import IconAccountBalanceWalletOutlineRounded from '~icons/material-symbols/account-balance-wallet-outline-rounded'
 import { sitePermissionName } from '../../../shared/site-permission-names.js'
 import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
 import type {
@@ -35,7 +36,8 @@ import type {
   SitePermissionDialogVariant,
   TrustedDialogRequest,
   TrustedDialogTopic,
-  TrustedDialogType
+  TrustedDialogType,
+  WalletRecoveryDialogVariant
 } from '../../../shared/trusted-dialogs.js'
 
 type Translate = (key: MessageKey, parameters?: MessageParameters) => string
@@ -53,6 +55,8 @@ export interface TrustedDialogCopy {
   quoted?: string
   /** What the quoted text is, such as the access asked for a file. */
   quotedLabel?: string
+  /** A new wallet's recovery phrase, word by word, with the name its numbered list reads as. */
+  phrase?: { label: string, words: string[] }
   /** Hronaut's own explanation, one paragraph each. */
   lines: string[]
   /** The line naming the workspace a choice is remembered in, shown with its own mark. */
@@ -97,13 +101,22 @@ const TOPIC_ICONS: Readonly<Record<TrustedDialogTopic, Component>> = {
   'agent-connection': IconLanOutlineRounded
 }
 
-/** A message with `{origin}` split around the origin, which a website chooses and so must read as a name. */
-function emphasized(t: Translate, key: MessageKey, origin: string, parameters: MessageParameters = {}): TrustedDialogCopy['headline'] {
+/**
+ * A message split around one of its parameters, `{origin}` unless named: an origin a website chooses, which must read
+ * as a name, or another name the headline is about.
+ */
+function emphasized(
+  t: Translate,
+  key: MessageKey,
+  value: string,
+  parameters: MessageParameters = {},
+  name = 'origin'
+): TrustedDialogCopy['headline'] {
   const marker = '\u0000'
-  const text = t(key, { ...parameters, origin: marker })
+  const text = t(key, { ...parameters, [name]: marker })
   const at = text.indexOf(marker)
-  if (at < 0) return { before: t(key, { ...parameters, origin }), emphasis: '', after: '' }
-  return { before: text.slice(0, at), emphasis: origin, after: text.slice(at + marker.length) }
+  if (at < 0) return { before: t(key, { ...parameters, [name]: value }), emphasis: '', after: '' }
+  return { before: text.slice(0, at), emphasis: value, after: text.slice(at + marker.length) }
 }
 
 /** What a site permission request asks for, and its mark: a camera-only request names the camera, not both devices. */
@@ -173,11 +186,28 @@ function savePasswordCopy(variant: SavePasswordDialogVariant, t: Translate): Tru
   }
 }
 
+/** Shows a new wallet's recovery phrase as a numbered list of its words, with what keeping it means. */
+function walletRecoveryCopy(variant: WalletRecoveryDialogVariant, t: Translate): TrustedDialogCopy {
+  return {
+    icon: IconAccountBalanceWalletOutlineRounded,
+    tone: 'warning',
+    eyebrow: t('trustedDialogs.walletRecovery.eyebrow'),
+    headline: emphasized(t, 'trustedDialogs.walletRecovery.headline', variant.walletName, {}, 'wallet'),
+    phrase: { label: t('trustedDialogs.walletRecovery.phrase'), words: [...variant.words] },
+    lines: [
+      t('trustedDialogs.walletRecovery.keep'),
+      t('native.dialog.walletRecoveryWarning'),
+      t('trustedDialogs.walletRecovery.added')
+    ]
+  }
+}
+
 /** The words and mark of a dialog: its own design for a known variant, or its message and detail as given. */
 export function trustedDialogCopy(request: TrustedDialogRequest, t: Translate): TrustedDialogCopy {
   const { variant } = request
   if (variant.kind === 'site-permission') return sitePermissionCopy(variant, t)
   if (variant.kind === 'save-password') return savePasswordCopy(variant, t)
+  if (variant.kind === 'wallet-recovery') return walletRecoveryCopy(variant, t)
   if (variant.kind === 'protected-file-access') {
     const folder = variant.target === 'folder'
     return {

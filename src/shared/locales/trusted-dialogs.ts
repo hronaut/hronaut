@@ -13,6 +13,13 @@ export const trustedDialogMessages = {
       noUsername: 'The page sent no username with it.',
       stored: 'Hronaut encrypts it with your operating system’s secure storage. Saved passwords are never exposed through MCP.'
     },
+    walletRecovery: {
+      eyebrow: 'New wallet',
+      headline: 'Write down the recovery phrase for {wallet}',
+      phrase: 'Recovery phrase',
+      keep: 'Write these words down in order and keep them offline. Anyone who has them controls the wallet.',
+      added: 'Hronaut adds the wallet once you confirm you saved them.'
+    },
     sitePermission: {
       embeddedIn: 'Embedded in {site}',
       wants: {
@@ -49,6 +56,13 @@ export const trustedDialogMessages = {
       username: 'Ім’я користувача',
       noUsername: 'Сторінка не надіслала імені користувача.',
       stored: 'Hronaut шифрує його за допомогою захищеного сховища операційної системи. Збережені паролі ніколи не передаються через MCP.'
+    },
+    walletRecovery: {
+      eyebrow: 'Новий гаманець',
+      headline: 'Запишіть фразу відновлення для {wallet}',
+      phrase: 'Фраза відновлення',
+      keep: 'Запишіть ці слова по порядку й зберігайте їх офлайн. Хто має ці слова, той керує гаманцем.',
+      added: 'Hronaut додасть гаманець, щойно ви підтвердите, що зберегли їх.'
     },
     sitePermission: {
       embeddedIn: 'Вбудовано на {site}',
@@ -87,6 +101,13 @@ export const trustedDialogMessages = {
       noUsername: 'Страница не отправила имя пользователя.',
       stored: 'Hronaut шифрует его с помощью защищённого хранилища операционной системы. Сохранённые пароли никогда не передаются через MCP.'
     },
+    walletRecovery: {
+      eyebrow: 'Новый кошелёк',
+      headline: 'Запишите фразу восстановления для {wallet}',
+      phrase: 'Фраза восстановления',
+      keep: 'Запишите эти слова по порядку и храните их офлайн. У кого эти слова, тот управляет кошельком.',
+      added: 'Hronaut добавит кошелёк, как только вы подтвердите, что сохранили их.'
+    },
     sitePermission: {
       embeddedIn: 'Встроено на {site}',
       wants: {
@@ -123,6 +144,13 @@ export const trustedDialogMessages = {
       username: 'Benutzername',
       noUsername: 'Die Seite hat keinen Benutzernamen mitgesendet.',
       stored: 'Hronaut verschlüsselt es mit dem sicheren Speicher des Betriebssystems. Gespeicherte Passwörter werden niemals über MCP offengelegt.'
+    },
+    walletRecovery: {
+      eyebrow: 'Neue Wallet',
+      headline: 'Notieren Sie die Wiederherstellungsphrase für {wallet}',
+      phrase: 'Wiederherstellungsphrase',
+      keep: 'Schreiben Sie diese Wörter in dieser Reihenfolge auf und bewahren Sie sie offline auf. Wer sie kennt, kontrolliert die Wallet.',
+      added: 'Hronaut fügt die Wallet hinzu, sobald Sie bestätigen, dass Sie sie gesichert haben.'
     },
     sitePermission: {
       embeddedIn: 'Eingebettet in {site}',
@@ -161,6 +189,13 @@ export const trustedDialogMessages = {
       noUsername: 'La page n’a envoyé aucun nom d’utilisateur.',
       stored: 'Hronaut le chiffre avec le stockage sécurisé du système d’exploitation. Les mots de passe enregistrés ne sont jamais exposés via MCP.'
     },
+    walletRecovery: {
+      eyebrow: 'Nouveau portefeuille',
+      headline: 'Notez la phrase de récupération de {wallet}',
+      phrase: 'Phrase de récupération',
+      keep: 'Notez ces mots dans l’ordre et conservez-les hors ligne. Quiconque les possède contrôle le portefeuille.',
+      added: 'Hronaut ajoute le portefeuille dès que vous confirmez les avoir notés.'
+    },
     sitePermission: {
       embeddedIn: 'Intégré dans {site}',
       wants: {
@@ -198,6 +233,13 @@ export const trustedDialogMessages = {
       noUsername: 'La página no envió ningún nombre de usuario.',
       stored: 'Hronaut la cifra con el almacenamiento seguro del sistema operativo. Las contraseñas guardadas nunca se exponen mediante MCP.'
     },
+    walletRecovery: {
+      eyebrow: 'Nuevo monedero',
+      headline: 'Anota la frase de recuperación de {wallet}',
+      phrase: 'Frase de recuperación',
+      keep: 'Anota estas palabras en orden y guárdalas sin conexión. Quien las tenga controla el monedero.',
+      added: 'Hronaut añadirá el monedero en cuanto confirmes que las has guardado.'
+    },
     sitePermission: {
       embeddedIn: 'Insertado en {site}',
       wants: {
@@ -234,6 +276,13 @@ export const trustedDialogMessages = {
       username: 'Nazwa użytkownika',
       noUsername: 'Strona nie wysłała nazwy użytkownika.',
       stored: 'Hronaut szyfruje je za pomocą bezpiecznej pamięci systemu operacyjnego. Zapisane hasła nigdy nie są udostępniane przez MCP.'
+    },
+    walletRecovery: {
+      eyebrow: 'Nowy portfel',
+      headline: 'Zapisz frazę odzyskiwania portfela {wallet}',
+      phrase: 'Fraza odzyskiwania',
+      keep: 'Zapisz te słowa w tej kolejności i przechowuj je offline. Kto je zna, ten kontroluje portfel.',
+      added: 'Hronaut doda portfel, gdy potwierdzisz ich zapisanie.'
     },
     sitePermission: {
       embeddedIn: 'Osadzono w {site}',
