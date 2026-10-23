@@ -171,6 +171,18 @@ it('rejects incomplete visibility walks without a whole-page fallback', () => {
   root.innerHTML = '<span style="display:contents"></span>'.repeat(1001)
   expect(capture('#target')).toEqual({ scopeError: 'visibility-limit' })
 })
+it('redacts the signature of a SharePoint or Discord download link in the snapshot', () => {
+  // `tempauth` and `hm` sign these download links, which kept working for whoever read the snapshot.
+  fixture()
+  document.querySelector('#target')!.innerHTML = `
+    <a href="https://contoso.sharepoint.com/_layouts/15/download.aspx?UniqueId=1d2c&tempauth=SECRET">Shared file</a>
+    <a href="https://cdn.discordapp.com/attachments/1/2/a.pdf?ex=6720f3a1&hm=SECRET">Attachment</a>
+  `
+  const text = capture('#target').text
+  expect(text).not.toContain('SECRET')
+  expect(text).toContain('UniqueId=1d2c')
+  expect(text).toContain('ex=6720f3a1')
+})
 it('redacts the signature of a signed link in the snapshot', () => {
   // A "Download invoice" link kept its signature, so the snapshot gave an agent a working signed link.
   fixture()

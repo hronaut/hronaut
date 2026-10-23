@@ -17,7 +17,11 @@ describe('network detail redaction', () => {
     ['release asset', 'https://release-assets.example/asset?sp=r&sig=SECRET&jwt=SECRET', ['sp']],
     ['Tencent COS', 'https://bucket.cos.ap-beijing.myqcloud.com/report.pdf?q-sign-algorithm=sha1&q-ak=AK&q-signature=SECRET', ['q-sign-algorithm', 'q-ak']],
     ['Akamai token', 'https://video.example/master.m3u8?hdnts=SECRET', []],
-    ['Alibaba OSS', 'https://bucket.oss-cn-hangzhou.aliyuncs.com/report.pdf?x-oss-signature-version=OSS4-HMAC-SHA256&x-oss-signature=SECRET', ['x-oss-signature-version']]
+    ['Alibaba OSS', 'https://bucket.oss-cn-hangzhou.aliyuncs.com/report.pdf?x-oss-signature-version=OSS4-HMAC-SHA256&x-oss-signature=SECRET', ['x-oss-signature-version']],
+    ['SharePoint', 'https://contoso.sharepoint.com/sites/team/_layouts/15/download.aspx?UniqueId=1d2c&Translate=false&tempauth=SECRET&ApiVersion=2.0', ['UniqueId', 'Translate', 'ApiVersion']],
+    ['Discord attachment', 'https://cdn.discordapp.com/attachments/1/2/report.pdf?ex=6720f3a1&is=671fa221&hm=SECRET&', ['ex', 'is']],
+    ['Shopify', 'https://shop.example/apps/files/report.pdf?shop=demo.myshopify.com&timestamp=1790000000&hmac=SECRET', ['shop', 'timestamp']],
+    ['nginx secure', 'https://media.example/videos/demo.mp4?md5=SECRET&expires=1790000000', ['expires']]
   ])('redacts the signature of a signed %s link', (_label, url, kept) => {
     // The signature stayed in download records and network results, so the link kept working for whoever read them.
     const redacted = redactNetworkUrl(url)
