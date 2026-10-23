@@ -139,6 +139,27 @@
 .ui-tooltip--right .ui-tooltip__content { @apply top-1/2 left-[calc(100%+7px)] translate-x-[-3px] translate-y-[-50%]; }
 .ui-tooltip--left .ui-tooltip__content { @apply top-1/2 right-[calc(100%+7px)] translate-x-[3px] translate-y-[-50%]; }
 
+/*
+ * The shell's tooltip, drawn in its own page in a panel window (in-window-tooltips.ts). It mirrors the tooltip main
+ * draws in the main window (tooltip-overlay.css): at most 320 px wide and 12 lines, each line in its own direction.
+ */
+.shell-window-tooltip {
+  /* Above everything in the page, toasts (z-index 500) included, as main's tooltip view is above the window. */
+  @apply pointer-events-none fixed [z-index:600] [top:0] [left:0];
+  @apply [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:12] overflow-hidden [unicode-bidi:plaintext];
+  @apply [width:max-content] [max-width:320px] [padding:6px_8px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-1)];
+  @apply text-copy bg-surface-raised [box-shadow:var(--elevation-1)] [font-family:var(--font-ui)] [font-size:var(--type-micro-size)] [line-height:1.35];
+  @apply [white-space:pre-line] [overflow-wrap:anywhere] [animation:shell-window-tooltip-in_var(--motion-instant)_var(--motion-ease-out)];
+}
+
+@keyframes shell-window-tooltip-in {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-window-tooltip { @apply [animation:none]; }
+}
+
 .ui-popover { @apply relative inline-flex; }
 
 .ui-menu { @apply relative inline-flex; }

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createInWindowTooltipPort } from '../../src/renderer/src/composables/in-window-tooltips.js'
 import { installShellTooltips, SHELL_TOOLTIP_DELAY_MS, SHELL_TOOLTIP_SETTLE_MS, SHELL_TOOLTIP_WARM_MS } from '../../src/renderer/src/composables/shell-tooltips.js'
 import { vTooltip } from '../../src/renderer/src/ui/tooltip.js'
 import type { ShellTooltipRequest } from '../../src/shared/shell-tooltip.js'
@@ -32,6 +33,7 @@ beforeEach(() => {
 afterEach(() => {
   uninstall?.()
   uninstall = undefined
+  vi.restoreAllMocks()
   vi.useRealTimers()
   document.body.replaceChildren()
   delete document.documentElement.dataset.theme
@@ -132,14 +134,33 @@ describe('shell tooltips', () => {
     }
   })
 
-  it('falls back to a native title without a port, as in a detached panel window, only while the pointer is on the control', () => {
-    uninstall = installShellTooltips(null)
+  // A panel in its own window showed the operating system's tooltip, from a native title, instead of the themed one.
+  it('draws the themed tooltip in the page itself in a panel window, never as a native title', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 100, height: 24 } as DOMRect)
+    uninstall = installShellTooltips(createInWindowTooltipPort())
     const button = control('Clear console')
     pointer('pointerover', button)
-    expect(button.title).toBe('Clear console')
-    // The control may lose its tooltip later; a stale title must not stay behind as its tooltip and description.
-    pointer('pointerout', button, document.body)
+    expect(document.querySelector('.shell-window-tooltip')).toBeNull()
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
+
+    const tooltip = document.querySelector<HTMLElement>('.shell-window-tooltip')
+    expect(tooltip?.textContent).toBe('Clear console')
+    expect(tooltip?.style).toMatchObject({ left: '566px', top: '46px', visibility: '' })
     expect(button.hasAttribute('title')).toBe(false)
+    pointer('pointerout', button, document.body)
+    expect(document.querySelector('.shell-window-tooltip')).toBeNull()
+  })
+
+  // A panel window that maximized or snapped kept its tooltip where the control had been.
+  it('hides when the window resizes', () => {
+    const port = tooltipPort()
+    uninstall = installShellTooltips(port)
+    const button = control('Clear console')
+    pointer('pointerover', button)
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
+    expect(port.showTooltip).toHaveBeenCalledOnce()
+    window.dispatchEvent(new Event('resize'))
+    expect(port.hideTooltip).toHaveBeenCalledExactlyOnceWith(1)
   })
 
   it('hides for a scroll that moves the control, not for one in an unrelated list', () => {
