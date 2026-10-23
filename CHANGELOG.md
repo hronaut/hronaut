@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - **General** is now the first section in **Settings**, and Settings and the command palette's **Settings** command open on it, as other apps' settings do. Before, Settings listed and opened **Appearance** first.
+- Right-clicking a video or audio on a page now offers **Open Video in New Tab**, **Save Video** and **Copy Video Address** (or the same for audio), as Chrome does. The menu had nothing for them, so a video or audio could not be opened or saved by itself. As in Chrome, a stream the page builds itself, which Chromium cannot save, keeps Open and Save unavailable, and as for an image, only an http or https address opens or saves.
 
 ## [3.5.0] - 2026-10-22
 

@@ -155,6 +155,33 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     ])
   }
 
+  // A video or audio, as in Chrome: open it in a new tab, save it or copy its address. Chromium cannot save a stream a
+  // page builds itself, such as one from a MediaSource, and Chrome then neither saves nor opens it, so neither does this.
+  // As for an image, only an http or https address opens or saves.
+  if ((params.mediaType === 'video' || params.mediaType === 'audio') && params.srcURL) {
+    const video = params.mediaType === 'video'
+    const savable = isWebUrl(params.srcURL) && params.mediaFlags.canSave
+    groups.push([
+      {
+        id: video ? 'open-video-new-tab' : 'open-audio-new-tab',
+        label: access.text(video ? 'native.context.openVideo' : 'native.context.openAudio'),
+        enabled: savable,
+        click: () => openBackgroundTab(params.srcURL)
+      },
+      {
+        id: video ? 'save-video' : 'save-audio',
+        label: access.text(video ? 'native.context.saveVideo' : 'native.context.saveAudio'),
+        enabled: savable,
+        click: withLiveContents(video ? 'save video' : 'save audio', () => download(params.srcURL))
+      },
+      {
+        id: video ? 'copy-video-address' : 'copy-audio-address',
+        label: access.text(video ? 'native.context.copyVideoAddress' : 'native.context.copyAudioAddress'),
+        click: () => copyText(params.srcURL)
+      }
+    ])
+  }
+
   if (params.isEditable) {
     if (params.misspelledWord) {
       const spellingItems: MenuItemConstructorOptions[] = params.dictionarySuggestions.slice(0, 5).map((suggestion, index) => ({
