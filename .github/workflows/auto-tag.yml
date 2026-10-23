@@ -74,7 +74,7 @@ jobs:
           set -euo pipefail
           # Installed plugins update to the version their manifest names, and a pushed tag is never moved, so a
           # release bump that missed one stops here, before the tag. Fix it on main, then run this workflow by hand.
-          for manifest in plugins/hronaut/.claude-plugin/plugin.json; do
+          for manifest in plugins/hronaut/.claude-plugin/plugin.json extensions/vscode/package.json; do
             manifest_version="$(node -p "require('./' + process.argv[1]).version" "$manifest")"
             if [[ "$manifest_version" != "$VERSION" ]]; then
               echo "$manifest names version $manifest_version; the release bump must set it to $VERSION too." >&2

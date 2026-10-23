@@ -59,6 +59,7 @@ describe('the Claude Code plugin in this repository', () => {
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-plugin-version-'))
     try {
       await cp('plugins/hronaut/.claude-plugin', join(directory, 'plugins/hronaut/.claude-plugin'), { recursive: true })
+      await cp('extensions/vscode/package.json', join(directory, 'extensions/vscode/package.json'))
       const version = (await json<PluginManifest>('plugins/hronaut/.claude-plugin/plugin.json')).version
       const check = (VERSION: string) => spawnSync('bash', ['-c', script], { cwd: directory, encoding: 'utf8', env: { PATH: process.env.PATH, VERSION } })
       expect(check(version).status).toBe(0)

@@ -1,0 +1,38 @@
+name: VS Code extension
+
+# Builds the Hronaut extension for VS Code and Open VSX as a .vsix artifact. Publishing it to the
+# VS Code Marketplace or Open VSX is done from the publisher's own account.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # vsce-sign's install script only downloads the signing tool, which packaging does not use.
+      - name: Install vsce
+        run: npm install --global --ignore-scripts @vscode/vsce@4.0.0
+
+      - name: Package the extension
+        working-directory: extensions/vscode
+        run: vsce package --no-dependencies --out "hronaut-vscode-$(node -p "require('./package.json').version").vsix"
+
+      - name: Upload the extension
+        uses: actions/upload-artifact@v7
+        with:
+          name: hronaut-vscode
+          path: extensions/vscode/*.vsix
+          if-no-files-found: error

@@ -1,0 +1,47 @@
+{
+  "name": "hronaut",
+  "displayName": "Hronaut",
+  "description": "Connects your coding agent to Hronaut — a visible desktop browser it can drive over MCP. Watch every step, pause and take over, keep logins between sessions. Requires the Hronaut app (free 10-day trial at hronaut.dev).",
+  "version": "3.7.0",
+  "publisher": "hronaut",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "icon": "icon.png",
+  "homepage": "https://hronaut.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hronaut/hronaut.git",
+    "directory": "extensions/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/hronaut/hronaut/issues"
+  },
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "categories": ["AI", "Testing"],
+  "keywords": ["mcp", "browser", "agent", "copilot", "localhost", "qa"],
+  "extensionKind": ["ui"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "files": ["extension.js", "connection.js", "icon.png", "LICENSE.md", "README.md"],
+  "contributes": {
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "hronaut",
+        "label": "Hronaut"
+      }
+    ],
+    "configuration": {
+      "title": "Hronaut",
+      "properties": {
+        "hronaut.mcpPort": {
+          "type": "integer",
+          "default": 47812,
+          "minimum": 1,
+          "maximum": 65535,
+          "markdownDescription": "The port of Hronaut's MCP server. Change it only if you changed it in Hronaut's **Settings → MCP security**."
+        }
+      }
+    }
+  }
+}
