@@ -6,6 +6,7 @@ import type { SearchEngineName } from '../src/shared/search-engine.js'
 const built = vi.hoisted(() => ({ templates: [] as MenuItemConstructorOptions[][], closed: false }))
 
 vi.mock('electron', () => ({
+  app: { isEmojiPanelSupported: () => false },
   Menu: {
     buildFromTemplate: (template: MenuItemConstructorOptions[]) => {
       built.templates.push(template)

@@ -1,9 +1,26 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ContextMenuParams, MenuItemConstructorOptions } from 'electron'
 
-vi.mock('electron', () => ({ Menu: { buildFromTemplate: () => ({ popup: () => undefined }) } }))
+const shown = vi.hoisted(() => ({
+  templates: [] as MenuItemConstructorOptions[][],
+  emojiPanelSupported: false,
+  showEmojiPanel: (() => undefined) as () => void
+}))
 
-const { shellEditContextMenuItems } = await import('../src/main/windows/shell-edit-context-menu.js')
+vi.mock('electron', () => ({
+  app: {
+    isEmojiPanelSupported: () => shown.emojiPanelSupported,
+    showEmojiPanel: () => shown.showEmojiPanel()
+  },
+  Menu: {
+    buildFromTemplate: (template: MenuItemConstructorOptions[]) => {
+      shown.templates.push(template)
+      return { popup: () => undefined }
+    }
+  }
+}))
+
+const { attachShellEditContextMenu, shellEditContextMenuItems } = await import('../src/main/windows/shell-edit-context-menu.js')
 
 // A right-click in the license key field in Settings, or any other field of Hronaut's own window, opened no menu,
 // so a key could be pasted only with the keyboard.
@@ -18,7 +35,7 @@ function contents(destroyed = false) {
 }
 
 function params(overrides: Partial<ContextMenuParams>): ContextMenuParams {
-  return { isEditable: false, selectionText: '', editFlags: allowed, ...overrides } as ContextMenuParams
+  return { isEditable: false, selectionText: '', editFlags: allowed, formControlType: 'input-text', ...overrides } as ContextMenuParams
 }
 
 function click(items: MenuItemConstructorOptions[] | undefined, id: string): void {
@@ -60,6 +77,61 @@ describe('the editing menu in Hronaut\'s own window', () => {
     expect(target.copy).toHaveBeenCalledOnce()
 
     expect(shellEditContextMenuItems(params({}), target, (key) => key)).toBeUndefined()
+  })
+
+  it('opens the emoji picker first in a text field where the system has one, as Chrome\'s address bar does', () => {
+    const open = vi.fn()
+    const target = contents()
+    const items = shellEditContextMenuItems(params({ isEditable: true }), target, (key) => key, { label: 'native.context.emoji', open })
+    expect(items?.slice(0, 3).map((item) => item.id ?? item.type)).toEqual(['emoji', 'separator', 'undo'])
+    expect(items?.[0]?.label).toBe('native.context.emoji')
+    click(items, 'emoji')
+    expect(open).toHaveBeenCalledOnce()
+
+    expect(shellEditContextMenuItems(params({ selectionText: 'Hronaut' }), target, (key) => key, { label: 'native.context.emoji', open })
+      ?.map((item) => item.id)).toEqual(['copy-selection'])
+    click(shellEditContextMenuItems(params({ isEditable: true }), contents(true), (key) => key, { label: 'native.context.emoji', open }), 'emoji')
+    expect(open).toHaveBeenCalledOnce()
+  })
+
+  it('leaves the emoji picker out of number, telephone and date fields, as Chrome does', () => {
+    const picker = { label: 'native.context.emoji' as const, open: vi.fn() }
+    for (const field of ['input-number', 'input-telephone', 'input-date'] as const) {
+      expect(shellEditContextMenuItems(params({ isEditable: true, formControlType: field }), contents(), (key) => key, picker)?.[0]?.id, field).toBe('undo')
+    }
+    expect(shellEditContextMenuItems(params({ isEditable: true, formControlType: 'text-area' }), contents(), (key) => key, picker)?.[0]?.id).toBe('emoji')
+  })
+
+  it('opens the system\'s emoji picker from a right-click in the window where the system has one', () => {
+    const platform = process.platform
+    let onContextMenu: ((event: unknown, params: ContextMenuParams) => void) | undefined
+    const window = {
+      isDestroyed: () => false,
+      webContents: { ...contents(), on: (_name: string, listener: typeof onContextMenu) => { onContextMenu = listener } }
+    }
+    const showEmojiPanel = vi.fn()
+    shown.showEmojiPanel = showEmojiPanel
+    const text = (key: string) => key === 'native.context.emojiSymbols' ? 'Emoji & Symbols' : key
+    attachShellEditContextMenu(window as never, text as never)
+    try {
+      shown.emojiPanelSupported = true
+      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+      onContextMenu!({}, params({ isEditable: true }))
+      expect(shown.templates.at(-1)?.[0]).toMatchObject({ id: 'emoji', label: 'Emoji && Symbols' })
+      click(shown.templates.at(-1), 'emoji')
+      expect(showEmojiPanel).toHaveBeenCalledOnce()
+
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+      onContextMenu!({}, params({ isEditable: true }))
+      expect(shown.templates.at(-1)?.[0]).toMatchObject({ id: 'emoji', label: 'native.context.emoji' })
+
+      shown.emojiPanelSupported = false
+      onContextMenu!({}, params({ isEditable: true }))
+      expect(shown.templates.at(-1)?.map((item) => item.id)).not.toContain('emoji')
+    } finally {
+      Object.defineProperty(process, 'platform', { value: platform, configurable: true })
+      shown.emojiPanelSupported = false
+    }
   })
 
   it('does nothing once the window has closed', () => {

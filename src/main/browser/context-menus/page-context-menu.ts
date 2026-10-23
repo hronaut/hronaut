@@ -1,9 +1,13 @@
-import { Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebFrameMain } from 'electron'
+import { app, Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebFrameMain } from 'electron'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import { pageSourceAddress } from '../page-source/page-source.js'
 import { searchEngineLabel, selectionAddressKept, selectionGoToUrl, selectionSearchLabelText, selectionSearchQuery, selectionSearchUrl } from '../selection-search/selection-search.js'
 import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
 import { openedResourceReferrer, savedResourceReferrer } from './page-context-menu-referrer.js'
+
+// The fields Chrome offers the emoji picker in: an editable element, which has no form control, a text, search,
+// address, email or password input, or a text area. A number, telephone or date field takes no emoji.
+const EMOJI_FIELDS: ReadonlySet<ContextMenuParams['formControlType']> = new Set(['none', 'input-text', 'input-search', 'input-url', 'input-email', 'input-password', 'text-area'])
 
 /**
  * Shows the native context menu for a right-click in the page: link, image,
@@ -183,6 +187,15 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   }
 
   if (params.isEditable) {
+    // Windows and macOS open their emoji picker from a text field's menu, as Chrome does, unless the menu suggests
+    // spellings; Linux has no picker. A menu takes an ampersand as an access key, so "Emoji & Symbols" doubles it.
+    if (!params.misspelledWord && EMOJI_FIELDS.has(params.formControlType) && app.isEmojiPanelSupported()) {
+      groups.push([{
+        id: 'emoji',
+        label: access.text(process.platform === 'darwin' ? 'native.context.emojiSymbols' : 'native.context.emoji').replaceAll('&', '&&'),
+        click: withLiveContents('open the emoji picker', () => app.showEmojiPanel())
+      }])
+    }
     if (params.misspelledWord) {
       const spellingItems: MenuItemConstructorOptions[] = params.dictionarySuggestions.slice(0, 5).map((suggestion, index) => ({
         id: `spelling-suggestion-${index}`,

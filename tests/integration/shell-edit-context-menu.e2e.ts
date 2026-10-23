@@ -47,8 +47,10 @@ test('a right-click in a text field of the window offers its editing actions, an
   await expect(key).toBeEnabled()
   await forgetMenus()
   await key.click({ button: 'right' })
+  // The emoji picker comes first where the system has one, as in Chrome's address bar; Linux has none.
+  const emojiPicker = await electronApp.evaluate(({ app }) => app.isEmojiPanelSupported() ? [process.platform === 'darwin' ? 'Emoji && Symbols' : 'Emoji'] : [])
   await expect.poll(async () => (await lastMenu())?.map(item => item.label))
-    .toEqual(['Undo', 'Redo', 'Cut', 'Copy', 'Paste', 'Delete', 'Select All'])
+    .toEqual([...emojiPicker, 'Undo', 'Redo', 'Cut', 'Copy', 'Paste', 'Delete', 'Select All'])
   expect((await lastMenu())!.find(item => item.id === 'paste')!.enabled).toBe(true)
   await choose('paste')
   await expect(key).toHaveValue('ABCD-EFGH-IJKL-MNOP')

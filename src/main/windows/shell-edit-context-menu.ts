@@ -1,21 +1,32 @@
-import { Menu, type BrowserWindow, type ContextMenuParams, type MenuItemConstructorOptions, type WebContents } from 'electron'
+import { app, Menu, type BrowserWindow, type ContextMenuParams, type MenuItemConstructorOptions, type WebContents } from 'electron'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 
 type EditContents = Pick<WebContents, 'isDestroyed' | 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'delete' | 'selectAll'>
 
+// The fields Chrome offers the emoji picker in: an editable element, which has no form control, a text, search,
+// address, email or password input, or a text area. A number, telephone or date field takes no emoji.
+const EMOJI_FIELDS: ReadonlySet<ContextMenuParams['formControlType']> = new Set(['none', 'input-text', 'input-search', 'input-url', 'input-email', 'input-password', 'text-area'])
+
 /**
  * The menu for a right-click in Hronaut's own window: in a text field, such as the address bar, Find or the license
  * key in Settings, the editing actions a page's text field has; on selected text elsewhere, Copy. Electron opens no
- * menu of its own there, so pasting a key took the keyboard. Undefined when there is nothing to offer.
+ * menu of its own there, so pasting a key took the keyboard. Where the system has an emoji picker, a text field's menu
+ * opens it first, as Chrome's address bar does. Undefined when there is nothing to offer.
  */
 export function shellEditContextMenuItems(
-  params: Pick<ContextMenuParams, 'isEditable' | 'selectionText' | 'editFlags'>,
+  params: Pick<ContextMenuParams, 'isEditable' | 'selectionText' | 'editFlags' | 'formControlType'>,
   contents: EditContents,
-  text: (key: MessageKey, parameters?: MessageParameters) => string
+  text: (key: MessageKey, parameters?: MessageParameters) => string,
+  emojiPicker?: { label: MessageKey; open: () => void }
 ): MenuItemConstructorOptions[] | undefined {
   const run = (action: () => void) => () => { if (!contents.isDestroyed()) action() }
   if (params.isEditable) {
     return [
+      // A menu takes an ampersand as an access key, so "Emoji & Symbols" doubles it.
+      ...emojiPicker && EMOJI_FIELDS.has(params.formControlType) ? [
+        { id: 'emoji', label: text(emojiPicker.label).replaceAll('&', '&&'), click: run(emojiPicker.open) },
+        { type: 'separator' as const }
+      ] : [],
       { id: 'undo', label: text('native.context.undo'), enabled: params.editFlags.canUndo, click: run(() => contents.undo()) },
       { id: 'redo', label: text('native.context.redo'), enabled: params.editFlags.canRedo, click: run(() => contents.redo()) },
       { type: 'separator' },
@@ -34,7 +45,11 @@ export function shellEditContextMenuItems(
 /** Opens the editing menu on right-clicks in the window's own interface. A click the shell blocks opens none. */
 export function attachShellEditContextMenu(window: BrowserWindow, text: (key: MessageKey, parameters?: MessageParameters) => string): void {
   window.webContents.on('context-menu', (_event, params) => {
-    const items = shellEditContextMenuItems(params, window.webContents, text)
+    // Windows and macOS have an emoji picker; Linux has none.
+    const emojiPicker = app.isEmojiPanelSupported()
+      ? { label: process.platform === 'darwin' ? 'native.context.emojiSymbols' as const : 'native.context.emoji' as const, open: () => app.showEmojiPanel() }
+      : undefined
+    const items = shellEditContextMenuItems(params, window.webContents, text, emojiPicker)
     if (items && !window.isDestroyed()) Menu.buildFromTemplate(items).popup({ window })
   })
 }
