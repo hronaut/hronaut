@@ -9,11 +9,14 @@ const STEP = { back: -1, reload: 0, forward: 1 } as const
  * Opens the page Back or Forward goes to, or for Reload the page the tab shows, in a new tab beside the tab, with the
  * tab's history, as Chrome does for a middle-click on its toolbar buttons, or a Ctrl+click (⌘-click on a Mac) on Back
  * and Forward. The tab stays on its page. The new tab opens behind unless `active`, in the tab's workspace and under
- * its navigation policy. Nothing opens when the tab has no page that way, or for Hronaut Home.
+ * its navigation policy. It takes the entry next to the shown one, as the list Back and Forward show does, and loads
+ * it as Duplicate loads a copy, which Chromium may fill from its cache. Nothing opens when the tab has no page that
+ * way, while a sleeping tab wakes (its history is then the placeholder page's), or for Hronaut Home.
  */
 export async function openNavigationInNewTab<Tab extends NavigationNewTabTab>(access: NavigationNewTabAccess<Tab>, tabId: string,
   target: keyof typeof STEP, active: boolean): Promise<BrowserState> {
   const tab = access.getTab(tabId)
+  if (tab.wakePromise) return access.getState()
   const { entries, index } = access.navigationHistorySnapshot(tab)
   const targetIndex = index + STEP[target]
   const entry = index < 0 ? undefined : entries[targetIndex]

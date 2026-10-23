@@ -58,8 +58,8 @@ test('a middle-click or Ctrl+click on Back, Forward or Reload opens that page in
     await expect.poll(async () => (await besideSource()).map(tab => tab.path)).toEqual(['/two', '/three', '/two'])
     const before = reloads.length
     await reload.click({ modifiers: ['Shift'] })
-    await expect.poll(() => reloads.length).toBe(before + 1)
-    expect(reloads.at(-1)).toBe('no-cache')
+    // The new tab's own load of the page may still come in meanwhile.
+    await expect.poll(() => reloads.slice(before)).toContain('no-cache')
     expect((await source()).active).toBe(true)
   } finally {
     await closeFixtureServer(server)

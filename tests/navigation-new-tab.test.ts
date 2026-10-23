@@ -6,7 +6,7 @@ import type { BrowserState } from '../src/shared/types.js'
 // A middle-click or Ctrl+click on Back, Forward or Reload went back, forward or reloaded in the tab itself, where Chrome
 // opens that page in a new tab beside it.
 
-type Tab = { id: string; url: string; mcpGroupId?: string }
+type Tab = { id: string; url: string; mcpGroupId?: string; wakePromise?: Promise<void> }
 
 const STATE = { tabs: [] } as unknown as BrowserState
 const PAGES: NavigationEntry[] = [
@@ -50,7 +50,7 @@ describe('opening the page Back, Forward or Reload goes to in a new tab', () => 
     ])
   })
 
-  it('opens nothing where the tab has no page that way, for a tab with no history yet, or for Hronaut Home', async () => {
+  it('opens nothing where the tab has no page that way, for a tab with no history yet, while a sleeping tab wakes, or for Hronaut Home', async () => {
     const first = navigationAccess({ id: 'shop', url: 'https://shop.example/' }, { entries: PAGES, index: 0 })
     await expect(openNavigationInNewTab(first, 'shop', 'back', false)).resolves.toBe(STATE)
     const last = navigationAccess({ id: 'checkout', url: 'https://shop.example/checkout' }, { entries: PAGES, index: 2 })
@@ -63,7 +63,12 @@ describe('opening the page Back, Forward or Reload goes to in a new tab', () => 
       { entries: [{ url: 'hronaut://home/', title: 'Home' } as NavigationEntry, PAGES[0]!], index: 1 })
     await openNavigationInNewTab(backToHome, 'shop', 'back', false)
 
-    for (const access of [first, last, empty, home, backToHome]) expect(access.createTab).not.toHaveBeenCalled()
+    // A waking tab's history is its placeholder page's until its own page is back.
+    const waking = navigationAccess({ id: 'cart', url: 'https://shop.example/cart', mcpGroupId: 'client-a', wakePromise: new Promise(() => undefined) },
+      { entries: [...PAGES.slice(0, 2), { url: 'data:text/html,Sleeping%20tab', title: 'Sleeping tab' } as NavigationEntry], index: 2 })
+    for (const target of ['back', 'reload'] as const) await openNavigationInNewTab(waking, 'cart', target, false)
+
+    for (const access of [first, last, empty, home, backToHome, waking]) expect(access.createTab).not.toHaveBeenCalled()
   })
 
   it('passes on a tab that could not open, such as for a page the workspace refuses', async () => {

@@ -6,6 +6,8 @@ export interface NavigationNewTabTab {
   id: string
   url: string
   mcpGroupId?: string
+  /** Set while a sleeping tab wakes, when its history is the placeholder page's rather than its own. */
+  wakePromise?: Promise<void>
 }
 
 /**
