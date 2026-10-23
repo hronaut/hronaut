@@ -3,6 +3,7 @@ import type { EmulationFrameGeometry, HronautEmulationFrameApi } from '../shared
 import type { HronautPageCardApi, PageCardGeometry } from '../shared/page-card.js'
 import type { AgentCardEvent, HronautAgentCardApi } from '../shared/agent-card.js'
 import type { HronautToastOverlayApi, ToastOverlayEvent } from '../shared/toast-overlay.js'
+import type { HronautSidebarOverlayApi, SidebarOverlayEvent } from '../shared/sidebar-overlay.js'
 import type { AgentPresenceSnapshot, AgentTakeOverOffer, HronautAgentPresenceApi } from '../shared/agent-presence.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import { createPanelRequestBuffer } from './panel-requests.js'
@@ -709,3 +710,14 @@ const toastOverlayApi: HronautToastOverlayApi = {
   }
 }
 contextBridge.exposeInMainWorld('hronautToastOverlay', toastOverlayApi)
+
+const sidebarOverlayApi: HronautSidebarOverlayApi = {
+  show: (request) => ipcRenderer.send('sidebar-overlay:show', request),
+  hide: (id) => ipcRenderer.send('sidebar-overlay:hide', id),
+  onEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: SidebarOverlayEvent): void => listener(event)
+    ipcRenderer.on('sidebar-overlay:event', handler)
+    return () => ipcRenderer.removeListener('sidebar-overlay:event', handler)
+  }
+}
+contextBridge.exposeInMainWorld('hronautSidebarOverlay', sidebarOverlayApi)

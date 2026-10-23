@@ -2633,10 +2633,11 @@ export class BrowserTabsManager {
     return workspaceContextMenuItems(this.workspaceContextMenuAccess(), group)
   }
 
-  showWorkspaceContextMenu(groupId: string): void {
+  /** Opens a workspace's menu where the pointer is; `onClosed` runs once it closes. */
+  showWorkspaceContextMenu(groupId: string, onClosed?: () => void): void {
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new LocalizedError('appErrors.workspace.unavailable', undefined, { message: `Unknown workspace: ${groupId}` })
-    Menu.buildFromTemplate(this.workspaceContextMenuItems(group)).popup({ window: this.window })
+    Menu.buildFromTemplate(this.workspaceContextMenuItems(group)).popup({ window: this.window, ...(onClosed ? { callback: onClosed } : {}) })
   }
 
   /**
@@ -2682,8 +2683,9 @@ export class BrowserTabsManager {
     }
   }
 
-  showTabContextMenu(tabId: string): void {
-    showTabContextMenu(this.tabContextMenuAccess(), tabId)
+  /** Opens a tab's menu where the pointer is; `onClosed` runs once it closes, or at once when the tab has none. */
+  showTabContextMenu(tabId: string, onClosed?: () => void): void {
+    showTabContextMenu(this.tabContextMenuAccess(), tabId, onClosed)
   }
 
   /**
@@ -5134,6 +5136,11 @@ export class BrowserTabsManager {
   /** Whether the window shows a page in full screen, such as a video, which Follow agents does not switch away from. */
   private pageFullscreenShown(): boolean {
     return shownPageFullscreenTab(this.windowLayoutAccess()) !== undefined
+  }
+
+  /** Whether the window shows a page in full screen, which nothing of the shell's is drawn over. */
+  showsPageFullscreen(): boolean {
+    return this.pageFullscreenShown()
   }
 
   /** Asks the page in full screen, if any, to leave it so the browser's own controls show. */

@@ -2,7 +2,7 @@
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { useI18n } from 'vue-i18n'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { applicationHasFocus } from '../composables/useModalDialogFocus.js'
 import type {
   BrowserState,
@@ -24,6 +24,10 @@ import type { AppTabRuntimeFeatureController } from '../composables/useAppTabRun
 import type { BrowserTabActionsController } from '../composables/useBrowserTabActionsController.js'
 import type { SiteDataSummaryController } from '../composables/useSiteDataSummaryController.js'
 import type { FullPageView } from '../composables/useFullPageView.js'
+import { useAgentPresence } from '../composables/useAgentPresence.js'
+import { sidebarOverlayModel } from '../composables/sidebar-overlay-model.js'
+import { useSidebarOverlay } from '../composables/useSidebarOverlay.js'
+import type { SidebarOverlayIntent } from '../../../shared/sidebar-overlay.js'
 import IconFullscreenExit from '~icons/material-symbols/fullscreen-exit-rounded'
 import UiButton from '../ui/UiButton.vue'
 import { vTooltip } from '../ui/tooltip.js'
@@ -98,11 +102,17 @@ const pageToolsOpen = defineModel<boolean>('pageToolsOpen', { required: true })
 interface BrowserTabsBarHandle {
   expandTabGroup: (groupId: string) => void
   expandTabGroupForTab: (tab: BrowserTabState) => void
+  toggleTabGroup?: (groupId: string) => void
+  collapsedTabGroupIds?: ReadonlySet<string>
+  tabListScrollTop?: () => number
+  scrollTabListTo?: (top: number) => void
+  stopWorkerCapture?: (tabId: string) => Promise<void>
 }
 
 const browserTabsBar = ref<BrowserTabsBarHandle | null>(null)
 const {
   overlayEnabled: customTitleBar,
+  setVerticalTabRailRevealed,
   tabOrientation,
   compactVerticalTabRail,
   verticalTabRailCollapsed,
@@ -340,6 +350,137 @@ function startTabDrag(): void {
   tabSearchOpen.value = false
 }
 
+// With the rail collapsed when not in use, the pointer opens it over the page in main's own view; this rail stays
+// folded, so the page keeps its place. The view draws what this rail would show and hands back what the person does,
+// which runs here as a click in this rail would. Without main's channel the rail opens beside the page as before.
+const topbar = ref<HTMLElement | null>(null)
+const sidebarOverlayApi = window.hronautSidebarOverlay
+if (sidebarOverlayApi) {
+  const shell = props.shellController
+  watch(fullPageActive, (active) => shell.setVerticalTabRailOverlayAvailable(!active), { immediate: true })
+  const root = document.documentElement
+  const readAppearance = (): { theme: string | undefined; tint: string } => ({ theme: root.dataset.theme, tint: root.style.getPropertyValue('--workspace-tint') })
+  const appearance = ref(readAppearance())
+  const appearanceObserver = new MutationObserver(() => { appearance.value = readAppearance() })
+  appearanceObserver.observe(root, { attributes: true, attributeFilter: ['data-theme', 'style'] })
+  const viewport = ref({ width: window.innerWidth, height: window.innerHeight })
+  const updateViewport = (): void => { viewport.value = { width: window.innerWidth, height: window.innerHeight } }
+  window.addEventListener('resize', updateViewport)
+  const presence = window.hronautAgentPresence ? useAgentPresence(window.hronautAgentPresence) : undefined
+  onBeforeUnmount(() => {
+    appearanceObserver.disconnect()
+    window.removeEventListener('resize', updateViewport)
+    presence?.dispose()
+  })
+  const { state: mcpState, endpoint: mcpEndpoint, pauseBusy: mcpPauseBusy } = mcpStatusController
+  useSidebarOverlay({
+    api: sidebarOverlayApi,
+    overlaid: shell.verticalTabRailOverlaid,
+    model: () => sidebarOverlayModel({
+      theme: appearance.value.theme,
+      locale: props.locale,
+      platform: window.hronautShell?.windowChrome.platform ?? 'linux',
+      width: shell.expandedTabRailWidth.value,
+      // The rail starts below a title bar the shell draws over it.
+      top: topbar.value ? Number.parseFloat(getComputedStyle(topbar.value).paddingTop) || 0 : 0,
+      viewport: viewport.value,
+      tint: appearance.value.tint,
+      state: props.state,
+      settingsActive: settingsOpen.value,
+      workspaceSwitcherOpen: props.workspaceSwitcherOpen === true,
+      userAttention: props.userAttention,
+      collapsedWorkspaceIds: browserTabsBar.value?.collapsedTabGroupIds ?? [],
+      agents: presence?.snapshot.value.workspaces ?? {},
+      scrollTop: browserTabsBar.value?.tabListScrollTop?.() ?? 0,
+      mcpActivityByTab: mcpActivityByTab.value,
+      tabTooltip,
+      describeEmulation: describeTabEmulation,
+      footer: {
+        commandPaletteOpen: commandPaletteOpen.value && !props.workspaceSwitcherOpen,
+        tabSearchOpen: tabSearchOpen.value,
+        downloadsOpen: downloadsOpen.value,
+        historyOpen: historyOpen.value,
+        settingsOpen: settingsOpen.value,
+        downloads: downloads.value,
+        activeDownloads: activeDownloads.value,
+        downloadButtonLabel: downloadButtonLabel.value,
+        hasWebsiteTabs: websiteTabs.value.length > 0,
+        allTabsMuted: allTabsMuted.value,
+        allInteractionLocked: props.state.allHumanInteractionLocked,
+        allInteractionLockLabel: allInteractionLockLabel.value,
+        interactionPending: isTogglePending('interaction'),
+        audioPending: isTogglePending('audio'),
+        followAgentActivity: settings.value.followAgentActivity,
+        showUpdateStatus: showUpdateStatusPill.value,
+        updateState: updateState.value,
+        licenseReminderShown: licenseAskController.reminderShown.value,
+        mcpEndpoint: mcpEndpoint.value,
+        mcpState: mcpState.value,
+        mcpPauseBusy: mcpPauseBusy.value
+      }
+    }),
+    delegate: shell.delegateVerticalTabRail,
+    pointer: shell.setVerticalTabRailOverlayPointer,
+    refused: shell.refuseVerticalTabRailOverlay,
+    hidden: () => setVerticalTabRailRevealed(false),
+    intent: runSidebarOverlayIntent
+  })
+}
+
+/** What the person did in the rail over the page, run as the same click in this rail. */
+function runSidebarOverlayIntent(intent: SidebarOverlayIntent): void {
+  switch (intent.kind) {
+    case 'open-home': void props.runAction(props.actions.openHome); return
+    case 'select-tab': selectTab(intent.tabId); return
+    case 'close-tab': void props.runAction(() => closeTab(intent.tabId)); return
+    case 'toggle-tab-muted': {
+      const tab = props.state.tabs.find((candidate) => candidate.id === intent.tabId)
+      if (tab) void props.runAction(() => toggleTabMuted(tab))
+      return
+    }
+    case 'stop-worker-capture': void browserTabsBar.value?.stopWorkerCapture?.(intent.tabId); return
+    case 'reorder-tab': {
+      const { tabId, targetTabId, placement } = intent
+      void props.runAction(() => reorderTab({ tabId, targetTabId, placement }))
+      return
+    }
+    case 'new-tab': void props.runAction(() => props.actions.newTabInWorkspace(intent.workspaceId)); return
+    case 'toggle-workspace': browserTabsBar.value?.toggleTabGroup?.(intent.workspaceId); return
+    case 'create-workspace': void props.runAction(props.actions.openNewWorkspaceEditor); return
+    case 'switch-workspace': void props.runAction(props.actions.toggleWorkspaceSwitcher); return
+    case 'stay-here': setFollowAgentActivity(false); return
+    case 'toggle-rail-pinned': toggleVerticalTabRailPinned(); return
+    case 'drag-start': startTabDrag(); return
+    case 'scroll': browserTabsBar.value?.scrollTabListTo?.(intent.top); return
+    case 'dismiss': setVerticalTabRailRevealed(false); return
+    case 'tab-context-menu':
+    case 'workspace-context-menu':
+      // Main opens these menus itself, so the rail stays open while one is.
+      return
+    case 'footer': runSidebarOverlayFooterAction(intent.action)
+  }
+}
+
+function runSidebarOverlayFooterAction(action: Extract<SidebarOverlayIntent, { kind: 'footer' }>['action']): void {
+  switch (action) {
+    case 'command-palette': void props.runAction(props.actions.toggleCommandPalette); return
+    case 'tab-search': void props.runAction(props.actions.toggleTabSearch); return
+    case 'downloads': void props.runAction(toggleDownloads); return
+    case 'history': void props.runAction(toggleVisitHistory); return
+    case 'all-tabs-muted': void props.runAction(toggleAllTabsMuted); return
+    case 'all-interaction': void props.runAction(toggleAllHumanInteraction); return
+    case 'follow-agent-activity': void props.runAction(toggleFollowAgentActivity); return
+    case 'update-settings': void props.runAction(openUpdateSettings); return
+    case 'license-settings': void props.runAction(props.actions.openLicenseSettings); return
+    case 'settings': void props.runAction(toggleSettings); return
+    case 'mcp-pause': void props.runAction(() => mcpStatusController.togglePaused()); return
+    case 'mcp-summary':
+      // The summary opens from this rail's pill, so this rail opens beside the page for it.
+      props.shellController.refuseVerticalTabRailOverlay()
+      void nextTick(() => { mcpStatusController.summaryOpen.value = true })
+  }
+}
+
 defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent })
 </script>
 
@@ -370,6 +511,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
       :draggable="customTitleBar"
     />
     <div
+      ref="topbar"
       class="topbar"
       :class="{
         'rail-collapsing': verticalTabRailCollapsing,

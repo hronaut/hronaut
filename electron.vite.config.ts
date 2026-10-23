@@ -16,7 +16,8 @@ export default defineConfig({
           addressOverlay: resolve('src/preload/address-overlay.ts'),
           tooltipOverlay: resolve('src/preload/tooltip-overlay.ts'),
           agentCard: resolve('src/preload/agent-card.ts'),
-          toastOverlay: resolve('src/preload/toast-overlay.ts')
+          toastOverlay: resolve('src/preload/toast-overlay.ts'),
+          sidebarOverlay: resolve('src/preload/sidebar-overlay.ts')
         },
         output: {
           format: 'cjs',
@@ -43,7 +44,8 @@ export default defineConfig({
           addressOverlay: resolve('src/renderer/address-overlay.html'),
           tooltipOverlay: resolve('src/renderer/tooltip-overlay.html'),
           agentCard: resolve('src/renderer/agent-card.html'),
-          toastOverlay: resolve('src/renderer/toast-overlay.html')
+          toastOverlay: resolve('src/renderer/toast-overlay.html'),
+          sidebarOverlay: resolve('src/renderer/sidebar-overlay.html')
         },
         preserveEntrySignatures: 'exports-only'
       }

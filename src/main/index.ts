@@ -187,7 +187,9 @@ const {
   agentCards,
   toastOverlayView,
   toastOverlay,
-  shellTooltips
+  shellTooltips,
+  sidebarOverlayView,
+  sidebarOverlay
 } = createShellOverlays({
   trustedUrlMatches,
   mainWindowRefs,
@@ -199,7 +201,9 @@ const {
   trustedToastOverlayUrl: () => trustedToastOverlayUrl(),
   ensureToastOverlaySurface: () => ensureToastOverlaySurface(),
   trustedTooltipOverlayUrl: () => trustedTooltipOverlayUrl(),
-  ensureTooltipSurface: () => ensureTooltipSurface()
+  ensureTooltipSurface: () => ensureTooltipSurface(),
+  trustedSidebarOverlayUrl: () => trustedSidebarOverlayUrl(),
+  ensureSidebarOverlaySurface: () => ensureSidebarOverlaySurface()
 })
 const workspaceStartupReads = new WorkspaceStartupReads()
 let requireExistingWorkspaceMetadata = false
@@ -558,6 +562,7 @@ const { applyTheme, applyInterfaceScale, followSystemTheme } = createWindowAppea
   applyMainWindowTitleBarOverlay,
   addressSuggestionOverlay,
   toastOverlay,
+  sidebarOverlay,
   sendToShellWindows,
   currentRendererSettingsState
 })
@@ -604,14 +609,18 @@ const {
   trustedToastOverlayUrl,
   ensureToastOverlaySurface,
   trustedTooltipOverlayUrl,
-  ensureTooltipSurface
+  ensureTooltipSurface,
+  trustedSidebarOverlayUrl,
+  ensureSidebarOverlaySurface
 } = createOverlaySurfaces({
   trustedShellUrl,
   agentCardView,
   agentCards,
   toastOverlayView,
   toastOverlay,
-  tooltipView
+  tooltipView,
+  sidebarOverlayView,
+  shellTooltips
 })
 
 const { detachedPanelTitle, openPanelWindow, closePanelWindow } = createPanelWindow({
@@ -685,7 +694,9 @@ function registerIpc(): void {
     toastOverlay: () => toastOverlay,
     agentCardView: () => agentCardView,
     toastOverlayView: () => toastOverlayView,
-    tooltipView: () => tooltipView
+    tooltipView: () => tooltipView,
+    sidebarOverlay: () => sidebarOverlay,
+    sidebarOverlayView: () => sidebarOverlayView
   })
   registerAddressOverlayIpc(hronautIpcMain, {
     assertMainShellSender,
@@ -765,6 +776,7 @@ function registerIpc(): void {
     windowFromWebContents: (webContents) => BrowserWindow.fromWebContents(webContents),
     tabs: () => tabRuntime.tabs,
     toastOverlay: () => toastOverlay,
+    sidebarOverlay: () => sidebarOverlay,
     setWindowControlsScrim: (scrim) => { mainWindowRefs.controlsScrim = scrim },
     applyMainWindowTitleBarOverlay,
     followSuspension
@@ -1058,8 +1070,9 @@ async function createWindow(startMinimized = false): Promise<void> {
       reconcileUserAttention(state)
       sendToPanelWindow('browser:state-changed', state)
       scheduleAgentPresencePublish()
-      // A page view attached meanwhile goes on top of the toast's and the card's views; put them back above it, the
-      // card above the toast.
+      // A page view attached meanwhile goes on top of the open rail's, the toast's and the card's views; put them back
+      // above it, the toast above the rail and the card above the toast.
+      sidebarOverlay.restack()
       toastOverlay.restack()
       agentCards.restack()
     },
@@ -1109,11 +1122,15 @@ async function createWindow(startMinimized = false): Promise<void> {
     shellTooltips.hide()
     agentCards.shellReset()
     toastOverlay.shellReset()
+    sidebarOverlay.shellReset()
     // Its Undo toast is gone with the shell.
     void undoOffers.end()
   })
   // The previous shell document can still ask for a toast until the new one commits; the new one has none.
-  mainWindowRefs.window.webContents.on('did-navigate', () => toastOverlay.shellReset())
+  mainWindowRefs.window.webContents.on('did-navigate', () => {
+    toastOverlay.shellReset()
+    sidebarOverlay.shellReset()
+  })
   // A new shell document has no dialog or toast open, whatever the previous one reported.
   mainWindowRefs.window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) {
@@ -1121,6 +1138,7 @@ async function createWindow(startMinimized = false): Promise<void> {
       shellTooltips.hide()
       agentCards.shellReset()
       toastOverlay.shellReset()
+      sidebarOverlay.shellReset()
       void undoOffers.end()
     }
   })
@@ -1136,6 +1154,13 @@ async function createWindow(startMinimized = false): Promise<void> {
   // The toast stays at the bottom of the page area, which moves with the window's size.
   for (const change of ['resize', 'maximize', 'unmaximize', 'restore', 'show', 'enter-full-screen', 'leave-full-screen'] as const) {
     mainWindowRefs.window.on(change as 'resize', () => toastOverlay.relayout())
+    // The rail opened over the page runs down to the window's bottom edge, and comes down over a page in full screen.
+    mainWindowRefs.window.on(change as 'resize', () => sidebarOverlay.relayout())
+  }
+  // The rail opened over the page belongs to a window in front; the shell opens it again when the pointer comes back.
+  mainWindowRefs.window.on('blur', () => sidebarOverlay.dismiss('blur'))
+  for (const change of ['minimize', 'hide'] as const) {
+    mainWindowRefs.window.on(change as 'minimize', () => sidebarOverlay.dismiss('window'))
   }
   mainWindowRefs.window.on('resize', scheduleWindowStateSave)
   mainWindowRefs.window.on('move', scheduleWindowStateSave)
@@ -1164,6 +1189,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     agentCardView.close()
     toastOverlay.hide()
     toastOverlayView.close()
+    sidebarOverlay.shellReset()
+    sidebarOverlayView.close()
     mainWindowRefs.controlsScrim = null
     mainWindowRefs.window = null
   })

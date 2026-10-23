@@ -64,6 +64,20 @@ const props = defineProps<{
   formatNumber: (value: number) => string
   tabTooltip: (tab: BrowserTabState) => string
   describeEmulation: (tab: BrowserTabState) => string
+  /**
+   * The folded workspaces, when another rail owns them, as the shell's own rail does for the copy main draws over the
+   * page; folding one then asks with toggleTabGroup. Without it the rail folds them itself.
+   */
+  collapsedTabGroupIds?: readonly string[]
+  /** The desktop platform, which names the workspace keys; the shell's own when left out. */
+  platform?: 'darwin' | 'win32' | 'linux'
+  /** Stops a tab's worker capture; the shell's own command when left out. */
+  stopTabWorkerCapture?: (tabId: string) => Promise<unknown>
+  /**
+   * Where the tab list starts scrolled, in CSS pixels, as for the copy main draws over the page, which starts where the
+   * shell's own list is; without it the list scrolls its active tab into view.
+   */
+  initialScrollTop?: number
 }>()
 
 const emit = defineEmits<{
@@ -82,12 +96,27 @@ const emit = defineEmits<{
   switchWorkspace: []
   /** Stop following agents and stay on the tab in view. */
   stayHere: []
+  /** Fold or unfold a workspace whose folds another rail owns. */
+  toggleTabGroup: [groupId: string]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const homeTab = computed(() => props.state.tabs.find((tab) => isHronautHomeUrl(tab.url)))
 const regularTabs = computed(() => props.state.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
-const { collapsedTabGroupIds, isTabGroupCollapsed, toggleTabGroup, expandTabGroup, forgetMissingTabGroups } = useCollapsedTabGroups()
+const ownTabGroups = useCollapsedTabGroups()
+const collapsedTabGroupIds = computed(() => props.collapsedTabGroupIds ? new Set(props.collapsedTabGroupIds) : ownTabGroups.collapsedTabGroupIds.value)
+const isTabGroupCollapsed = (groupId: string): boolean => collapsedTabGroupIds.value.has(groupId)
+function toggleTabGroup(groupId: string): void {
+  if (props.collapsedTabGroupIds) emit('toggleTabGroup', groupId)
+  else ownTabGroups.toggleTabGroup(groupId)
+}
+// The rail that owns the folds opens a workspace and forgets a closed one; this copy only shows them.
+function expandTabGroup(groupId: string): void {
+  if (!props.collapsedTabGroupIds) ownTabGroups.expandTabGroup(groupId)
+}
+function forgetMissingTabGroups(groupIds: readonly string[]): void {
+  if (!props.collapsedTabGroupIds) ownTabGroups.forgetMissingTabGroups(groupIds)
+}
 const focusedTabId = ref<string | null>(null)
 const vertical = computed(() => props.orientation === 'vertical')
 // The shell owns reveal timing and focus/pointer coordination. This component
@@ -191,7 +220,7 @@ function tabGroupAgentsDescription(workspaceId: string): string {
 
 // The first nine pinned workspaces in the rail have a key each: Alt with their number, Control on macOS.
 const pinnedWorkspaceKeys = computed(() => {
-  const modifier = window.hronautShell?.windowChrome.platform === 'darwin' ? 'Control' : 'Alt'
+  const modifier = (props.platform ?? window.hronautShell?.windowChrome.platform) === 'darwin' ? 'Control' : 'Alt'
   return new Map(keyedPinnedWorkspaces(props.state.mcpTabGroups).map((group, index) => [group.id, `${modifier}+${index + 1}`]))
 })
 
@@ -395,9 +424,14 @@ onMounted(async () => {
   }
   const active = visibleTabs.value.find((tab) => tab.id === props.state.activeTabId)
   if (active) focusedTabId.value = active.id
-  revealActiveTab()
+  if (props.initialScrollTop === undefined || !tabsStrip.value) revealActiveTab()
   updateTabOverflow()
   observeStrip()
+  if (props.initialScrollTop !== undefined && tabsStrip.value) {
+    tabsStrip.value.scrollTop = props.initialScrollTop
+    // A later layout pass keeps the active tab in view only if it is in view at that position.
+    handleTabStripScroll()
+  }
 })
 
 onBeforeUnmount(() => {
@@ -425,7 +459,15 @@ watch(
   }
 )
 
-defineExpose({ expandTabGroup, expandTabGroupForTab })
+/** How far the tab list is scrolled, in CSS pixels. */
+function tabListScrollTop(): number {
+  return tabsStrip.value?.scrollTop ?? 0
+}
+
+function scrollTabListTo(top: number): void {
+  if (tabsStrip.value) tabsStrip.value.scrollTop = top
+}
+
 /** Why stopping a tab's worker capture failed, shown on that tab's Stop button until a stop works or the capture ends. */
 const workerCaptureErrors = ref(new Map<string, string>())
 const capturingTabIds = (): string[] => props.state.tabs.filter((tab) => tab.pwaLifecycleActive).map((tab) => tab.id)
@@ -434,11 +476,13 @@ watch(capturingTabIds, (capturing) => {
 })
 async function stopWorkerCapture(tabId: string): Promise<void> {
   workerCaptureErrors.value.delete(tabId)
-  try { await window.hronaut.pwaLifecycle({ tabId, action: 'stop' }) }
+  try { await (props.stopTabWorkerCapture ? props.stopTabWorkerCapture(tabId) : window.hronaut.pwaLifecycle({ tabId, action: 'stop' })) }
   catch (error) {
     if (capturingTabIds().includes(tabId)) workerCaptureErrors.value.set(tabId, friendlyUiError(error, ''))
   }
 }
+
+defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTabGroupIds, tabListScrollTop, scrollTabListTo, stopWorkerCapture })
 </script>
 
 <template>

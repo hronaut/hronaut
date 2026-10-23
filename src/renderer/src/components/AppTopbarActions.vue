@@ -16,7 +16,7 @@ import IconVisibility from '~icons/material-symbols/visibility-rounded'
 import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
 import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
 import type { AppUpdateState, BrowserDownloadState } from '../../../shared/types.js'
-import type { McpStatusController } from '../composables/useMcpStatusController.js'
+import type { McpStatusControlsController } from '../composables/useMcpStatusController.js'
 import McpStatusControls from './McpStatusControls.vue'
 import UpdateNotification from './UpdateNotification.vue'
 import { vTooltip } from '../ui/tooltip.js'
@@ -42,7 +42,7 @@ const props = defineProps<{
   /** Agent access has ended and the license card under the toolbar was closed. */
   licenseReminderShown?: boolean
   updateState: AppUpdateState
-  mcpStatusController: McpStatusController
+  mcpStatusController: McpStatusControlsController
 }>()
 
 const emit = defineEmits<{

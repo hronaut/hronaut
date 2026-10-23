@@ -56,6 +56,11 @@ export class ShellTooltipOverlay {
 
   constructor(private readonly ports: ShellTooltipOverlayPorts) {}
 
+  /** The id of the tooltip shown or about to show, if any. */
+  get shownId(): number | undefined {
+    return this.pending?.id
+  }
+
   /** `zoom` is the shell's zoom factor, which turns its CSS pixels into window coordinates. */
   show(request: ShellTooltipRequest, zoom: number): void {
     if (this.disposed) return
