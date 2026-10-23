@@ -131,6 +131,7 @@ test('keeps the vertical rail on the left and confines Home and navigation surfa
   electronApp
 }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('button', { name: /^Appearance/ }).click()
   await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('left')
   await appWindow.getByRole('button', { name: 'Close settings', exact: true }).click()
 
@@ -363,6 +364,7 @@ test('persists the system-title-bar fallback across restart on every platform', 
   mcpPort
 }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('button', { name: /^Appearance/ }).click()
   await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('left')
   const fallback = appWindow.getByRole('checkbox', { name: 'Use system title bar' })
   await expect(fallback).not.toBeChecked()
@@ -414,6 +416,7 @@ test('persists the system-title-bar fallback across restart on every platform', 
     }
 
     await restarted.window.getByRole('button', { name: 'Settings' }).click()
+    await restarted.window.getByRole('button', { name: /^Appearance/ }).click()
     await expect(restarted.window.getByRole('checkbox', { name: 'Use system title bar' })).toBeChecked()
     await expect(restarted.window.getByRole('status').filter({ hasText: 'Restart Hronaut' })).toHaveCount(0)
   } finally {

@@ -4,6 +4,7 @@ import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 test('selects Cyberpunk Turbo and applies it to chrome, Home and address suggestions', async ({ appWindow, electronApp }, testInfo) => {
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
+  await appWindow.getByRole('button', { name: /^Appearance/ }).click()
   const settings = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
   const turbo = settings.getByRole('radio', { name: /^Cyberpunk Turbo/ })
   await turbo.click()

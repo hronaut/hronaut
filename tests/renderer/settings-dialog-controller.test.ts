@@ -3,6 +3,7 @@ import {
   useSettingsDialogController,
   type SettingsSection
 } from '../../src/renderer/src/composables/useSettingsDialogController.js'
+import { SETTINGS_NAVIGATION } from '../../src/renderer/src/settings-navigation.js'
 
 function deferred() {
   let resolve!: () => void
@@ -27,6 +28,13 @@ function createController(options: {
 }
 
 describe('settings dialog controller', () => {
+  // Settings listed Appearance first and opened on it; General comes first in other apps' settings.
+  it('lists General first and opens on it', () => {
+    expect(SETTINGS_NAVIGATION[0]?.section).toBe('general')
+    const { controller } = createController()
+    expect(controller.section.value).toBe('general')
+  })
+
   it('keeps one Settings tab and restores its section after switching away', () => {
     const { beforeOpen, controller } = createController()
 

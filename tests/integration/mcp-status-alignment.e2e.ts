@@ -39,6 +39,7 @@ test('vertically centres the MCP status and pause labels in both tab layouts', a
   await expect(appWindow.locator('.mcp-pause-label')).toBeVisible()
   await check('top')
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('button', { name: /^Appearance/ }).click()
   await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('left')
   await expect(appWindow.locator('.shell')).toHaveClass(/vertical-tabs-shell/)
   await appWindow.keyboard.press('Escape')

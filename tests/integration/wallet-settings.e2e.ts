@@ -123,6 +123,7 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await appWindow.getByRole('button', { name: /Block human page input/ }).click()
   await expect(appWindow.getByRole('button', { name: /Allow human page input/ })).toHaveAttribute('aria-pressed', 'true')
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('button', { name: /^Appearance/ }).click()
   const dialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
   await dialog.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
   await dialog.getByRole('combobox', { name: 'Tab position' }).selectOption('left')

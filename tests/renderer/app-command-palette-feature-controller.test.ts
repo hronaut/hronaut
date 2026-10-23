@@ -159,7 +159,7 @@ describe('useAppCommandPaletteFeatureController', () => {
     ])
     expect(methods.toggleElementPicker.mock.calls).toEqual([['screenshot'], ['context']])
     expect(methods.capturePageScreenshot.mock.calls).toEqual([['viewport'], ['full-page']])
-    expect(methods.openSection.mock.calls).toEqual([['appearance'], ['permissions'], ['mcp']])
+    expect(methods.openSection.mock.calls).toEqual([['general'], ['permissions'], ['mcp']])
     expect(methods.openHelp).toHaveBeenCalledOnce()
     expect(methods.openHelp).toHaveBeenCalledWith('shortcuts')
 

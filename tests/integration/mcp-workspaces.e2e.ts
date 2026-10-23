@@ -259,6 +259,7 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)`)).toBe('Overflow tab 11')
 
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('button', { name: /^Appearance/ }).click()
   await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('left')
   await appWindow.getByRole('button', { name: 'Close settings', exact: true }).click()
   const verticalNavigation = appWindow.getByRole('navigation', { name: 'Tab navigation' })
