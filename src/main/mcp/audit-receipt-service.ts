@@ -72,7 +72,7 @@ export class AuditReceiptService {
       for (const previous of [...index.runs]) {
         // A run whose journal was set aside below but whose list change did not land, such as when the disk filled or
         // Hronaut stopped between the two, leaves the list now.
-        let setAside = await this.journalSetAside(id, previous.id)
+        let setAside = previous.status === 'recording' && await this.journalSetAside(id, previous.id)
         if (!setAside) {
           try {
             await this.finalizeInterruptedVerifications(id, previous)
@@ -102,10 +102,11 @@ export class AuditReceiptService {
         }
       }
       if (index.runs.length === 3) {
+        // The journal goes before the list changes, so a crash between the two leaves no journal that the list does not
+        // name, which would keep every later recording from starting; the next start retires the run again instead.
         const retired = index.runs.shift()!
-        await this.saveIndex(id, index)
-        // The list no longer names it, so a journal already gone leaves nothing to remove.
         await rm(this.journalPath(id, retired.id), { force: true })
+        await this.saveIndex(id, index)
       }
       const metadata: Metadata = {
         id: randomUUID(), startedAt: new Date().toISOString(), stoppedAt: null,

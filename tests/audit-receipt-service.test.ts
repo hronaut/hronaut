@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuditReceiptService } from '../src/main/mcp/audit-receipt-service.js'
 import { AuditReceiptStore } from '../src/main/mcp/audit-receipt-store.js'
 
-const diskFault = vi.hoisted(() => ({ failTemporaryWrite: false, failTemporaryWriteAfterSetAside: false }))
+const diskFault = vi.hoisted(() => ({ failTemporaryWrite: false, failTemporaryWriteAfterSetAside: false, failJournalRemoval: false }))
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
   return {
@@ -21,6 +21,13 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     rename: async (...args: Parameters<typeof actual.rename>) => {
       await actual.rename(...args)
       if (diskFault.failTemporaryWriteAfterSetAside && String(args[1]).endsWith('.unverified')) diskFault.failTemporaryWrite = true
+    },
+    rm: async (...args: Parameters<typeof actual.rm>) => {
+      if (diskFault.failJournalRemoval && String(args[0]).endsWith('.jsonl')) {
+        diskFault.failJournalRemoval = false
+        throw new Error('Injected journal removal failure')
+      }
+      return actual.rm(...args)
     }
   }
 })
@@ -29,6 +36,7 @@ const directories: string[] = []
 afterEach(async () => {
   diskFault.failTemporaryWrite = false
   diskFault.failTemporaryWriteAfterSetAside = false
+  diskFault.failJournalRemoval = false
   await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true })))
 })
 async function fixture() {
@@ -310,6 +318,23 @@ describe('persistent audit receipt service', () => {
       await service.stop(workspaceId)
     }
     await rm(join(root, workspaceId, `${ids[0]}.jsonl`))
+    const next = await service.start(workspaceId)
+    expect((await service.list(workspaceId)).map(run => run.id)).toEqual([...ids.slice(1), next.id])
+    await service.stop(workspaceId)
+  })
+
+  // The list dropped the oldest run before its journal was removed, so a failure or a crash between the two left a
+  // journal the list did not name, and every later start refused it as unindexed evidence.
+  it('starts again after removing the oldest run\'s journal fails', async () => {
+    const { service, workspaceId } = await fixture()
+    const ids: string[] = []
+    for (let index = 0; index < 3; index += 1) {
+      ids.push((await service.start(workspaceId)).id)
+      await service.stop(workspaceId)
+    }
+    diskFault.failJournalRemoval = true
+    await expect(service.start(workspaceId)).rejects.toThrow('Injected journal removal failure')
+    expect((await service.list(workspaceId)).map(run => run.id)).toEqual(ids)
     const next = await service.start(workspaceId)
     expect((await service.list(workspaceId)).map(run => run.id)).toEqual([...ids.slice(1), next.id])
     await service.stop(workspaceId)
