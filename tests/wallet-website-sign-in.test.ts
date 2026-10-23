@@ -128,8 +128,10 @@ function settle<T>(promise: Promise<T>): Promise<{ status: 'fulfilled'; value: T
   return promise.then((value) => ({ status: 'fulfilled' as const, value }), (reason: unknown) => ({ status: 'rejected' as const, reason }))
 }
 
+// A request reaches a person only after the policy, the vault and the request store have each had their turn, which
+// took over the 1 s default while the whole unit suite ran in parallel in CI.
 async function awaitingHuman(broker: WalletBroker) {
-  await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+  await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true), { timeout: 10_000 })
   return broker.listPending().find((request) => request.status === 'awaiting-human')!
 }
 
