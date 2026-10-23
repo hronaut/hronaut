@@ -1,4 +1,6 @@
 import { createServer } from 'node:http'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
@@ -112,6 +114,8 @@ test('a restored tab counts the page a link opens while the page it restored is 
     first = await launchHronaut(profileDirectory, mcpPort)
     await first.window.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(shop)}, active: true })`)
     await expect.poll(async () => (await historyEntry(first!.window, shop))?.visitCount).toBe(1)
+    // The tab is saved for the restart before Hronaut quits.
+    await expect.poll(async () => (await readFile(join(profileDirectory, 'tabs.json'), 'utf8').catch(() => '')).includes(shop)).toBe(true)
     await closeHronaut(first.app)
     first = undefined
 

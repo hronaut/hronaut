@@ -105,8 +105,9 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     access.changed()
   })
   webContents.on('did-start-loading', () => {
-    if (tab.sleeping) return
+    // The sleeping page's load starts here too, so a tab woken while that page still loads keeps the page it wakes to.
     suppressedDocumentCommitted = false
+    if (tab.sleeping) return
     tab.loading = true
     tab.sleeping = false
     tab.lastActiveAt = Date.now()
@@ -249,6 +250,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     access.trackWorkspaceOrigin(tab, url)
     // A frame's hash or history change does not represent another visit to
     // the tab's top-level page, though it can add an entry.
+    const previousEntry = committedEntry
     committedEntry = activeEntry()
     if (!isMainFrame) return
     // No title update follows a change within the page. Chromium names an untitled page by its new address after
@@ -270,6 +272,12 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       // still waiting for its page to be ready, such as one a hash router gives `#/` first, is recorded now, as a visit.
       const visitPending = tab.pendingHistoryUrl === previousUrl
       const samePage = withoutFragment(url) === withoutFragment(previousUrl) && (!visitPending || pendingHistoryReload)
+      // A route the page a tab loaded again pushes, such as through a link while an image still loads, is a page opened
+      // from it. The page's own change of its address, such as a router replacing it or adding `#/`, is still that page.
+      if (tab.suppressInitialHistory && committedEntry.index > previousEntry.index
+        && withoutFragment(url) !== withoutFragment(previousUrl)) {
+        tab.suppressInitialHistory = false
+      }
       if (!tab.suppressInitialHistory) access.recordVisit(tab, samePage)
       tab.pendingHistoryUrl = null
       // A route of a single-page app is a page of its own, whose title the app sets once it has shown it, such as after

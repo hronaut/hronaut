@@ -105,6 +105,17 @@ function tabPage(options: { restored?: boolean } = {}) {
   const abortNavigation = (url: string) => { contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', url, true) }
   /** Waking the tab loads its page again. */
   const wake = () => { tab.suppressInitialHistory = true }
+  /** Memory Saver puts the loaded tab to sleep, which loads its sleeping page into another history entry. */
+  const fallAsleep = () => {
+    tab.sleeping = true
+    commit('data:text/html,sleeping', contents.entryIndex + 1, 'Sleeping', false)
+  }
+  /** The person selects the tab while its sleeping page still loads, and it goes back to its page. */
+  const wakeWhileAsleepLoads = (url: string, entryIndex: number, title: string) => {
+    tab.sleeping = false
+    tab.suppressInitialHistory = true
+    commit(url, entryIndex, title)
+  }
   /** A wake whose page shows but goes on loading ends for its callers, as for the history: the next page is a visit. */
   const stopWaitingForWake = () => {
     tab.suppressInitialHistory = false
@@ -112,7 +123,7 @@ function tabPage(options: { restored?: boolean } = {}) {
   }
   return {
     visits, titles, commit, ready, load, stopLoading, loadFrame, setTitle, changeWithinPage, setEntryCount, navigateFrame,
-    removeEarlierEntry, abortNavigation, wake, stopWaitingForWake
+    removeEarlierEntry, abortNavigation, wake, stopWaitingForWake, fallAsleep, wakeWhileAsleepLoads
   }
 }
 
@@ -233,6 +244,26 @@ describe('visits a tab gives the history', () => {
     page.wake()
     page.load('https://chat.example/', 0, 'Chat')
     expect(page.visits).toEqual([])
+  })
+
+  it('does not count the page a tab wakes to while its sleeping page still loads', () => {
+    // The tab still took the page it restored as loaded again, so the page it woke to counted as a new visit.
+    const page = tabPage({ restored: true })
+    page.load('https://chat.example/', 0, 'Chat')
+    page.fallAsleep()
+    page.wakeWhileAsleepLoads('https://chat.example/', 0, 'Chat')
+    page.stopLoading()
+    expect(page.visits).toEqual([])
+  })
+
+  it('counts a route a restored page pushes before it finishes loading, and not the page changing its own address', () => {
+    const page = tabPage({ restored: true })
+    page.commit('https://app.example/', 0, 'App')
+    page.changeWithinPage('https://app.example/#/', 1)
+    page.changeWithinPage('https://app.example/home', 1)
+    page.changeWithinPage('https://app.example/orders', 2)
+    page.stopLoading()
+    expect(page.visits).toEqual([{ url: 'https://app.example/orders', samePage: false }])
   })
 
   it('keeps a link to a section of the page one visit, as the history leaves fragments out', () => {
