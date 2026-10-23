@@ -136,6 +136,15 @@ describe('typed data in the trusted approval', () => {
     }, wallet)).toMatchObject({ tokenAccess: { allowances: [{ token, amount: belowLimit }] }, warnings: ['token-permit'] })
   })
 
+  it('marks a permit for the 96-bit maximum, which UNI and COMP treat as unlimited, as unlimited', () => {
+    const uint96Max = (2n ** 96n - 1n).toString()
+    const display = typedDataDisplay({
+      domain: usdc, primaryType: 'Permit', types: erc2612Types, message: { ...erc2612Message, value: uint96Max }
+    }, wallet)
+    expect(display?.tokenAccess?.allowances).toEqual([{ token, amount: uint96Max, unlimited: true }])
+    expect(display?.warnings).toEqual(['token-permit', 'unlimited-amount'])
+  })
+
   it('treats a DAI-style permit as all or nothing', () => {
     expect(typedDataDisplay({ domain: usdc, primaryType: 'Permit', types: daiTypes, message: daiMessage }, wallet))
       .toMatchObject({ tokenAccess: { spender, allowances: [{ token, unlimited: true }], neverExpires: true }, warnings: ['token-permit', 'unlimited-amount', 'no-expiry'] })

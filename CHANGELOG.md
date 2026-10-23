@@ -16,6 +16,7 @@ All notable changes to Hronaut are documented in this file.
 
 - Pasting into the address bar, by key or from its menu, now drops a leading `javascript:` and joins an address split over lines, as Chrome's address bar does, and so does dropping such text on it from a page, which then replaces the field's text, as in Chrome. The text went in as copied, so `javascript:` text copied from a page, pasted and entered, ran as script in the tab.
 - While a notification such as **Tab closed** shows at the bottom of the page, the page now gets clicks and wheel scrolling right beside it. The notification's view kept about 10 px of transparent room around it for a shadow, and that room took the page's clicks and wheel. The notification has no outer shadow now.
+- An approval or allowance of exactly 2^96 − 1 or 2^128 − 1 now counts as unlimited, as tokens such as UNI and COMP that store allowances in fewer bits treat it: the approval dialog and typed-data permits warn about it, a wallet policy no longer signs it without a person, and `wallet_balance` marks the allowance `unlimited`. Only amounts of at least 2^160 − 1 counted before, so such a token's maximum approval read as a large, limited amount.
 
 ## [3.6.0] - 2026-10-23
 

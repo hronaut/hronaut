@@ -169,6 +169,12 @@ describe('TronWalletAdapter', () => {
     await expect(adapter.normalizeTransaction(wallet(), trc20('095ea7b3', 2n ** 160n - 2n))).resolves.toMatchObject({
       decoded: { method: 'trc20.approve', unlimitedAllowance: false }
     })
+    await expect(adapter.normalizeTransaction(wallet(), trc20('095ea7b3', 2n ** 96n - 1n))).resolves.toMatchObject({
+      decoded: { method: 'trc20.approve', unlimitedAllowance: true }
+    })
+    await expect(adapter.normalizeTransaction(wallet(), trc20('095ea7b3', 2n ** 96n - 2n))).resolves.toMatchObject({
+      decoded: { method: 'trc20.approve', unlimitedAllowance: false }
+    })
     await expect(adapter.normalizeTransaction(wallet(), trc20('a9059cbb', 5n))).resolves.toMatchObject({
       decoded: { method: 'trc20.transfer', contract: destination }
     })
