@@ -209,7 +209,11 @@ export class HistoryStore {
     })
   }
 
-  async record(value: { url: string; title: string }): Promise<BrowserHistoryEntry | null> {
+  /**
+   * Records a visit to a page. The page a tab shows already, opened again by a reload or by a change of only its
+   * fragment, which the history leaves out, moves to the top and takes its title, but its count stays, as in Chrome.
+   */
+  async record(value: { url: string; title: string; samePage?: boolean }): Promise<BrowserHistoryEntry | null> {
     const url = normalizeHistoryUrl(value.url)
     if (!url) return null
     return this.queueMutation(async () => {
@@ -221,7 +225,7 @@ export class HistoryStore {
         url,
         title: normalizeTitle(value.title, url, value.url),
         visitedAt: new Date(this.now()).toISOString(),
-        visitCount: Math.min((existing?.visitCount ?? 0) + 1, Number.MAX_SAFE_INTEGER)
+        visitCount: existing && value.samePage ? existing.visitCount : Math.min((existing?.visitCount ?? 0) + 1, Number.MAX_SAFE_INTEGER)
       }
       if (existing) nextEntries.delete(existing.id)
       nextEntries.set(entry.id, entry)

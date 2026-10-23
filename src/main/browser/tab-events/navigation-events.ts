@@ -11,6 +11,16 @@ import { isStaleAddressTitle, untitledPageTitle } from './untitled-page-title.js
 const ABORTED_LOAD_ERROR = -3
 
 /**
+ * As in Chrome, the history keeps the titles a page sets until its main frame finishes loading and in the 5 s after,
+ * at most 10 for each page. A title a page sets later to get attention, such as a count of unread messages, a chat
+ * message or a timer, stays out of the history, which a page changing its title every second no longer rewrites.
+ */
+const HISTORY_TITLE_WINDOW_MS = 5_000
+const HISTORY_TITLE_CHANGES = 10
+/** Chromium's limit of history entries for a tab, at which a new last entry takes the last index again. */
+const MAX_TAB_HISTORY_ENTRIES = 50
+
+/**
  * Follows the page's title, loading and navigation: title updates, loading
  * start, the workspace navigation policy for main-frame navigations and
  * redirects, the fresh document a main-frame navigation starts, favicons,
@@ -36,10 +46,42 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       access.options().onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
     ))
   }
+  // The history entry the page shows, and whether the document that committed last opened that entry again at its
+  // address: a reload, or a navigation to the address the tab shows, which Chromium turns into one. Chrome does not
+  // count a reload as another visit.
+  let committedEntry = { index: -1, count: 0 }
+  let pendingHistoryReload = false
+  const withoutFragment = (address: string): string => address.split('#', 1)[0] ?? address
+  const activeEntry = (): { index: number; count: number } => {
+    try {
+      return { index: webContents.navigationHistory.getActiveIndex(), count: webContents.navigationHistory.length() }
+    } catch {
+      return { index: -1, count: 0 }
+    }
+  }
+  // Whether the active entry is the one the page committed last. Only removing entries changes the history without a
+  // navigation, such as Hronaut removing the sleeping page of a woken tab, which moves the entry one place back for
+  // each entry removed before it. A tab with as many entries as Chromium keeps gives a new last entry the last index
+  // again, so there only another address tells it from a reload.
+  const committedEntryActive = (entry: { index: number; count: number }): boolean => {
+    const removed = committedEntry.count - entry.count
+    return entry.index >= 0 && removed >= 0 && entry.index <= committedEntry.index && entry.index >= committedEntry.index - removed
+      && (entry.count < MAX_TAB_HISTORY_ENTRIES || entry.index < entry.count - 1)
+  }
+  // Title changes the history took for the page; whether its main frame is loading, as Chrome counts a change within
+  // the page to another address too; and when the 5 s after it finished loading end.
+  let historyTitleChanges = 0
+  let mainFrameLoading = false
+  let historyTitleWindowEnd = 0
+  const mainFrameLoaded = (): void => {
+    if (!mainFrameLoading) return
+    mainFrameLoading = false
+    historyTitleWindowEnd = Date.now() + HISTORY_TITLE_WINDOW_MS
+  }
   const recordPendingHistory = (): void => {
     if (tab.suppressInitialHistory || tab.pendingHistoryUrl !== tab.url) return
     tab.title = normalizeTabTitle(webContents.getTitle(), tab.title)
-    access.recordVisit(tab)
+    access.recordVisit(tab, pendingHistoryReload)
     tab.pendingHistoryUrl = null
   }
   webContents.on('page-title-updated', (_event, title, explicitSet) => {
@@ -48,7 +90,9 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     const nextTitle = normalizeTabTitle(title, tab.title)
     const titleChanged = nextTitle !== tab.title
     tab.title = nextTitle
-    if (titleChanged) {
+    if (titleChanged && historyTitleChanges < HISTORY_TITLE_CHANGES
+      && (mainFrameLoading || Date.now() < historyTitleWindowEnd)) {
+      historyTitleChanges += 1
       access.options().onPageTitleUpdated?.({
         url: webContents.getURL() || tab.url,
         title: nextTitle
@@ -176,6 +220,13 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       tab.faviconDataUrl = undefined
     }
     if (previousUrl !== url) tab.faviconDataUrl = undefined
+    // A reload before the page it reloads was recorded is still its first visit.
+    const entry = activeEntry()
+    const sameEntry = committedEntryActive(entry) && url === previousUrl
+    pendingHistoryReload = sameEntry && (tab.pendingHistoryUrl !== previousUrl || pendingHistoryReload)
+    committedEntry = entry
+    historyTitleChanges = 0
+    mainFrameLoading = true
     tab.pendingHistoryUrl = isWebUrl(url) ? url : null
     syncNavigation()
     access.reproRecorder().navigated(tab, url, false)
@@ -184,7 +235,8 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     if (tab.sleeping) return
     access.trackWorkspaceOrigin(tab, url)
     // A frame's hash or history change does not represent another visit to
-    // the tab's top-level page.
+    // the tab's top-level page, though it can add an entry.
+    committedEntry = activeEntry()
     if (!isMainFrame) return
     // No title update follows a change within the page. Chromium names an untitled page by its new address after
     // `history.pushState`, but after `history.replaceState` it keeps the old address, whose fragment can hold a
@@ -201,8 +253,16 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     // within a few seconds; Hronaut never counts it. The first visit is still recorded when the document is ready.
     // This relies on tab.url holding the last committed address, which only syncNavigation sets here.
     if (url !== previousUrl) {
-      if (!tab.suppressInitialHistory) access.recordVisit(tab)
+      // The history leaves out fragments, so a link to a section of a page it holds is not another visit to it. A visit
+      // still waiting for its page to be ready, such as one a hash router gives `#/` first, is recorded now, as a visit.
+      const visitPending = tab.pendingHistoryUrl === previousUrl
+      const samePage = withoutFragment(url) === withoutFragment(previousUrl) && (!visitPending || pendingHistoryReload)
+      if (!tab.suppressInitialHistory) access.recordVisit(tab, samePage)
       tab.pendingHistoryUrl = null
+      // A route of a single-page app is a page of its own, whose title the app sets once it has shown it, such as after
+      // a slow request. As in Chrome, its titles count as set while it loads, until a document finishes loading.
+      historyTitleChanges = 0
+      mainFrameLoading = true
     }
     access.scheduleTabOverviewPreview(tab)
   })
@@ -219,6 +279,8 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     if (tab.sleeping) return
     const previousUrl = tab.url
     syncNavigation()
+    // A navigation that never commits, such as a download, aborts its load and leaves the page loading.
+    if (isMainFrame && (errorCode !== ABORTED_LOAD_ERROR || validatedURL === webContents.getURL())) mainFrameLoaded()
     if (!isMainFrame || errorCode === ABORTED_LOAD_ERROR) return
     tab.authNavigationPending = false
     tab.documentGeneration += 1
@@ -239,6 +301,14 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     }, 'lifecycle')
     access.changed()
     access.scheduleTabOverviewPreview(tab)
+  })
+  webContents.on('did-frame-navigate', (_event, _url, _httpResponseCode, _httpStatusText, isMainFrame) => {
+    // A frame that loads another document after its first one adds an entry to the tab's history.
+    if (!isMainFrame && !tab.sleeping) committedEntry = activeEntry()
+  })
+  webContents.on('did-finish-load', () => {
+    // Electron reports the main frame's load only.
+    if (!tab.sleeping) mainFrameLoaded()
   })
   webContents.on('dom-ready', () => {
     // A page can remain loading indefinitely because of a slow image,

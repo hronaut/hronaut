@@ -42,7 +42,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   publishVisitHistory(): BrowserHistoryEntry[]
   openBookmarks(): Promise<BrowserBookmark[]>
   openVisitHistory(): Promise<BrowserHistoryEntry[]>
-  recordPageVisit(visit: { url: string; title: string }): void
+  recordPageVisit(visit: { url: string; title: string; samePage: boolean }): void
   updatePageTitle(page: { url: string; title: string }): void
   offerBookmarkRestore(removed: RemovedBookmark): void
   historyCleared(): void
@@ -75,9 +75,9 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     return host.state.history.load()
   }
 
-  /** Records a page a tab visited and publishes the history once the visit is saved. */
-  function recordPageVisit({ url, title }: { url: string; title: string }): void {
-    void host.state.history?.record({ url, title })
+  /** Records a page a tab visited, or opened again, and publishes the history once the visit is saved. */
+  function recordPageVisit({ url, title, samePage }: { url: string; title: string; samePage: boolean }): void {
+    void host.state.history?.record({ url, title, samePage })
       .then(() => publishVisitHistory())
       .catch((error) => console.error('[history] Failed to record visit:', error))
   }

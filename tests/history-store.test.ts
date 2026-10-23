@@ -236,6 +236,35 @@ describe('HistoryStore', () => {
     expect(JSON.parse(await readFile(path, 'utf8')).entries[0].visitCount).toBe(Number.MAX_SAFE_INTEGER)
   })
 
+  it('moves a page opened again to the top with its title, without counting another visit', async () => {
+    // A reload counted a visit each time, so a page a developer reloaded 20 times showed "21 visits" and led the list.
+    let now = Date.UTC(2026, 7, 13)
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-history-'))
+    directories.push(directory)
+    const path = join(directory, 'history.json')
+    const store = new HistoryStore(path, () => now)
+    await store.record({ url: 'https://example.com/dashboard', title: 'Dashboard' })
+    now += 60_000
+    await store.record({ url: 'https://example.com/other', title: 'Other' })
+    now += 60_000
+
+    await expect(store.record({ url: 'https://example.com/dashboard', title: 'Dashboard, 3 alerts', samePage: true }))
+      .resolves.toMatchObject({ title: 'Dashboard, 3 alerts', visitCount: 1, visitedAt: new Date(now).toISOString() })
+    expect(store.list().map((entry) => [entry.url, entry.visitCount])).toEqual([
+      ['https://example.com/dashboard', 1],
+      ['https://example.com/other', 1]
+    ])
+    const restored = new HistoryStore(path, () => now)
+    await restored.load()
+    expect(restored.list()).toEqual(store.list())
+  })
+
+  it('counts a page opened again as a visit when the history no longer holds it', async () => {
+    const { store } = await storeAt()
+    await expect(store.record({ url: 'https://example.com/cleared', title: 'Cleared', samePage: true }))
+      .resolves.toMatchObject({ visitCount: 1 })
+  })
+
   it('updates a recorded page title without counting another visit', async () => {
     const { path, store } = await storeAt()
     await store.record({ url: 'https://example.com/dashboard#loading', title: 'Loading account' })
