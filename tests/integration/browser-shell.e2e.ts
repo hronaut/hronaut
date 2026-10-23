@@ -244,6 +244,8 @@ test("keeps the compact What's new reader usable at desktop and minimum window s
   await expect(releaseHistory).toBeVisible()
   await expect.poll(websiteBounds).toEqual({ ...initialWebsiteBounds, visible: false })
   await expect(releaseHistory).toHaveAttribute('aria-busy', 'false', { timeout: 15_000 })
+  // The reader springs in a little past its full size, so it is measured once its entrance ends.
+  await settleShellMotion(appWindow)
   const desktopBounds = await releaseHistory.boundingBox()
   expect(desktopBounds).not.toBeNull()
   expect(desktopBounds!.width).toBeLessThanOrEqual(560)
