@@ -20,10 +20,10 @@ export interface McpTabActivity {
   activityId: string
   tabId: string
   toolName: string
+  /** The lifecycle step: a call started, or finished or failed. History pairs a start with its end by `activityId`. */
   phase: 'started' | 'finished' | 'failed'
   occurredAt: number
-  /** Optional bounded settlement detail. The phase remains for compatibility
-   * with presentation listeners that only need start/finish lifecycle. */
+  /** Bounded settlement detail on the end of a call, when the dispatcher classified it. */
   result?: McpActivityResult
 }
 

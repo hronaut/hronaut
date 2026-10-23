@@ -81,7 +81,7 @@ it.each([['verified', 'storage'], ['failed', 'storage'], ['cleanup', 'storage'],
     expect(manager.click).toHaveBeenCalledOnce()
     expect(server.getDashboardState()).toMatchObject({
       completedToolCalls: 1,
-      recentActivity: [{ toolName: 'browser_click', outcome: 'failed', result: { outcome: phase === 'cleanup' ? 'outcome-unknown' : 'failed', dispatch: 'dispatched', effects: 'possible' } }]
+      recentActivity: [{ toolName: 'browser_click', result: { outcome: phase === 'cleanup' ? 'outcome-unknown' : 'failed', dispatch: 'dispatched', effects: 'possible' } }]
     })
     if (phase === 'cleanup') {
       if (failure === 'authorization') {

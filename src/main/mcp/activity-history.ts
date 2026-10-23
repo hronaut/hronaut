@@ -7,8 +7,6 @@ export interface McpToolActivity {
   startedAt: string
   completedAt: string
   durationMs: number
-  /** Legacy broad outcome retained for existing dashboard consumers. */
-  outcome: 'finished' | 'failed'
   result: McpActivityResult
 }
 
@@ -72,7 +70,6 @@ export class McpActivityHistory {
       startedAt: new Date(started.occurredAt).toISOString(),
       completedAt,
       durationMs,
-      outcome: activity.phase,
       result: { ...result }
     }
     this.completedToolCalls += 1

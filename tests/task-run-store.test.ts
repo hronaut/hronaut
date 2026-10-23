@@ -78,7 +78,7 @@ describe('bounded browser task-run contracts', () => {
     })
     const stale = store.heartbeat(changed.id, changed.revision, [{ id: 'task_context', status: 'FAIL' }])
     expect(stale).toMatchObject({
-      state: 'BLOCKED', terminalReason: 'TASK_CONTEXT_STALE', outcome: 'stale-context',
+      outcome: 'stale-context', reasonCode: 'TASK_CONTEXT_STALE',
       taskDefinition: { id: '018f4d10-7b4a-7000-8000-000000000010', approvalRequired: true },
       receipt: {
         formatVersion: 1,
@@ -101,7 +101,7 @@ describe('bounded browser task-run contracts', () => {
     expect(store.heartbeat(unavailable.id, unavailable.revision, [
       { id: 'task_context', status: 'UNAVAILABLE' }
     ])).toMatchObject({
-      state: 'OUTCOME_UNKNOWN', terminalReason: 'TASK_CONTEXT_UNAVAILABLE', outcome: 'reconciliation-required'
+      outcome: 'reconciliation-required', reasonCode: 'TASK_CONTEXT_UNAVAILABLE'
     })
   })
 
@@ -120,8 +120,8 @@ describe('bounded browser task-run contracts', () => {
 
     expect(created).toMatchObject({
       workspaceId: WORKSPACE_ID,
-      state: 'RUNNING',
-      terminalReason: null,
+      outcome: 'running',
+      reasonCode: null,
       checks: [
         { id: 'page', type: 'page-settled', tabId: TAB_ID, status: 'PENDING' },
         { id: 'origin', type: 'expected-origin', tabId: TAB_ID, status: 'PENDING' }
@@ -133,7 +133,7 @@ describe('bounded browser task-run contracts', () => {
       { id: 'page', status: 'PASS' },
       { id: 'origin', status: 'FAIL' }
     ])
-    expect(blocked).toMatchObject({ state: 'BLOCKED', terminalReason: 'COMPLETION_CHECK_FAILED' })
+    expect(blocked).toMatchObject({ outcome: 'verifier-rejected', reasonCode: 'COMPLETION_CHECK_FAILED' })
     expect(blocked.checks).toEqual([
       { id: 'page', type: 'page-settled', tabId: TAB_ID, status: 'PASS' },
       { id: 'origin', type: 'expected-origin', tabId: TAB_ID, status: 'FAIL' }
@@ -151,7 +151,7 @@ describe('bounded browser task-run contracts', () => {
     })
 
     const result = store.complete(run.id, run.revision, 'SUCCEEDED', [{ id: 'audit', status: 'UNAVAILABLE' }])
-    expect(result).toMatchObject({ state: 'OUTCOME_UNKNOWN', terminalReason: 'COMPLETION_EVIDENCE_UNAVAILABLE' })
+    expect(result).toMatchObject({ outcome: 'outcome-unknown', reasonCode: 'COMPLETION_EVIDENCE_UNAVAILABLE' })
     expect(result.checks).toEqual([{ id: 'audit', type: 'audit-run', status: 'UNAVAILABLE', artifactId: '018f4d10-7b4a-7000-8000-000000000099' }])
   })
 
@@ -164,8 +164,8 @@ describe('bounded browser task-run contracts', () => {
       checks: [{ id: 'page', type: 'page-settled', tabId: TAB_ID }]
     })
     const verifying = store.complete(run.id, run.revision, 'SUCCEEDED', [{ id: 'page', status: 'PASS' }])
-    expect(verifying.state).toBe('VERIFYING')
-    expect(store.confirmSuccess(verifying.id, verifying.revision)).toMatchObject({ state: 'SUCCEEDED', terminalReason: null })
+    expect(verifying.outcome).toBe('running')
+    expect(store.confirmSuccess(verifying.id, verifying.revision)).toMatchObject({ outcome: 'succeeded', reasonCode: null })
   })
 
   it('times out a run when its heartbeat expires without extending the overall deadline', () => {
@@ -174,15 +174,15 @@ describe('bounded browser task-run contracts', () => {
     const run = store.create({ workspaceId: WORKSPACE_ID, deadlineMs: 25_000, heartbeatTimeoutMs: 10_000, checks: [] })
     time.advance(9_000)
     const heartbeat = store.heartbeat(run.id, run.revision)
-    expect(heartbeat).toMatchObject({ state: 'RUNNING', heartbeatDueAt: run.createdAt + 19_000 })
+    expect(heartbeat).toMatchObject({ outcome: 'running', heartbeatDueAt: run.createdAt + 19_000 })
     time.advance(10_000)
-    expect(store.get(run.id)).toMatchObject({ state: 'TIMED_OUT', terminalReason: 'HEARTBEAT_EXPIRED' })
+    expect(store.get(run.id)).toMatchObject({ outcome: 'timed-out', reasonCode: 'HEARTBEAT_EXPIRED' })
 
     const second = store.create({ workspaceId: WORKSPACE_ID, deadlineMs: 12_000, heartbeatTimeoutMs: 10_000, checks: [] })
     time.advance(9_000)
     expect(store.heartbeat(second.id, second.revision).heartbeatDueAt).toBe(second.deadlineAt)
     time.advance(3_000)
-    expect(store.get(second.id)).toMatchObject({ state: 'TIMED_OUT', terminalReason: 'DEADLINE_REACHED' })
+    expect(store.get(second.id)).toMatchObject({ outcome: 'timed-out', reasonCode: 'DEADLINE_REACHED' })
   })
 
   it('rejects stale revisions and never changes a terminal outcome', () => {
@@ -191,7 +191,7 @@ describe('bounded browser task-run contracts', () => {
     const heartbeat = store.heartbeat(run.id, run.revision)
     expect(() => store.complete(run.id, run.revision, 'FAILED', [])).toThrow('unavailable or stale')
     const failed = store.complete(run.id, heartbeat.revision, 'FAILED', [])
-    expect(failed).toMatchObject({ state: 'FAILED', terminalReason: 'CALLER_REPORTED_FAILURE' })
+    expect(failed).toMatchObject({ outcome: 'failed', reasonCode: 'CALLER_REPORTED_FAILURE' })
     expect(() => store.heartbeat(run.id, failed.revision)).toThrow('unavailable or stale')
   })
 
@@ -209,14 +209,14 @@ describe('bounded browser task-run contracts', () => {
       outcome: 'failed', reasonCode: 'CALLER_REPORTED_FAILURE', evidenceSource: 'caller-supplied', effects: 'not-established'
     })
     expect(store.complete(cancelled.id, cancelled.revision, 'CANCELLED', [])).toMatchObject({
-      state: 'CANCELLED', outcome: 'cancelled', reasonCode: 'CALLER_REPORTED_CANCELLED',
+      outcome: 'cancelled', reasonCode: 'CALLER_REPORTED_CANCELLED',
       evidenceSource: 'caller-supplied', effects: 'not-established'
     })
     expect(store.complete(blocked.id, blocked.revision, 'BLOCKED', [])).toMatchObject({
       outcome: 'blocked', reasonCode: 'CALLER_REPORTED_BLOCKED', evidenceSource: 'caller-supplied'
     })
     expect(store.complete(rejected.id, rejected.revision, 'SUCCEEDED', [{ id: 'page', status: 'FAIL' }])).toMatchObject({
-      state: 'BLOCKED', outcome: 'verifier-rejected', reasonCode: 'COMPLETION_CHECK_FAILED',
+      outcome: 'verifier-rejected', reasonCode: 'COMPLETION_CHECK_FAILED',
       evidenceSource: 'hronaut-observed', effects: 'not-established'
     })
     expect(JSON.stringify(store.snapshot())).not.toContain('caller-supplied')
@@ -227,7 +227,7 @@ describe('bounded browser task-run contracts', () => {
     const store = new TaskRunStore({ monotonicNow: time.monotonicNow, wallNow: time.wallNow })
     const run = store.create({ workspaceId: WORKSPACE_ID, deadlineMs: 60_000, heartbeatTimeoutMs: 10_000, checks: [] })
     time.rollback()
-    expect(store.get(run.id)).toMatchObject({ state: 'OUTCOME_UNKNOWN', terminalReason: 'CLOCK_INVALID' })
+    expect(store.get(run.id)).toMatchObject({ outcome: 'outcome-unknown', reasonCode: 'CLOCK_INVALID' })
     expect(() => store.snapshot()).not.toThrow()
   })
 
@@ -240,7 +240,7 @@ describe('bounded browser task-run contracts', () => {
 
     const heartbeat = store.heartbeat(run.id, run.revision)
     expect(heartbeat).toMatchObject({
-      state: 'RUNNING',
+      outcome: 'running',
       updatedAt: run.createdAt + 1_000,
       heartbeatDueAt: run.createdAt + 11_000
     })
@@ -255,7 +255,7 @@ describe('bounded browser task-run contracts', () => {
     expect(() => store.heartbeat(heartbeatRun.id, heartbeatRun.revision)).toThrow('clock unavailable')
     expect(store.get(heartbeatRun.id)).toMatchObject({
       revision: heartbeatRun.revision,
-      state: 'RUNNING',
+      outcome: 'running',
       heartbeatDueAt: heartbeatRun.heartbeatDueAt
     })
 
@@ -263,7 +263,7 @@ describe('bounded browser task-run contracts', () => {
     const outcomeRun = store.create({ workspaceId: WORKSPACE_ID, deadlineMs: 60_000, heartbeatTimeoutMs: 10_000, checks: [] })
     wall = Number.NaN
     expect(() => store.complete(outcomeRun.id, outcomeRun.revision, 'FAILED', [])).toThrow('clock unavailable')
-    expect(store.get(outcomeRun.id)).toMatchObject({ revision: outcomeRun.revision, state: 'RUNNING', terminalReason: null })
+    expect(store.get(outcomeRun.id)).toMatchObject({ revision: outcomeRun.revision, outcome: 'running', reasonCode: null })
   })
 
   it('restores active runs as unknown and preserves terminal history', () => {
@@ -275,22 +275,18 @@ describe('bounded browser task-run contracts', () => {
 
     const restored = new TaskRunStore({ monotonicNow: time.monotonicNow, wallNow: time.wallNow })
     restored.restore(original.snapshot())
-    expect(restored.get(active.id)).toMatchObject({ state: 'OUTCOME_UNKNOWN', terminalReason: 'RESTART' })
-    expect(restored.get(terminal.id)).toMatchObject({ state: 'BLOCKED', terminalReason: 'CALLER_REPORTED_BLOCKED' })
+    expect(restored.get(active.id)).toMatchObject({ outcome: 'outcome-unknown', reasonCode: 'RESTART' })
+    expect(restored.get(terminal.id)).toMatchObject({ outcome: 'blocked', reasonCode: 'CALLER_REPORTED_BLOCKED' })
   })
 
-  it('migrates version-one run history with an empty saved-task collection', () => {
+  it('rejects version-one run history instead of upgrading it', () => {
     const original = new TaskRunStore()
-    const run = original.create({
-      workspaceId: WORKSPACE_ID, deadlineMs: 60_000, heartbeatTimeoutMs: 10_000, checks: []
-    })
+    const run = original.create({ workspaceId: WORKSPACE_ID, deadlineMs: 60_000, heartbeatTimeoutMs: 10_000, checks: [] })
+    // Summaries report outcome and reasonCode only; state is storage detail.
+    expect(run).not.toHaveProperty('state')
+    expect(run).not.toHaveProperty('terminalReason')
     const current = original.snapshot()
-    const legacy = { version: 1, savedAt: current.savedAt, records: current.records }
-    const restored = new TaskRunStore()
-    restored.restore(legacy)
-    expect(restored.get(run.id)).toMatchObject({ state: 'OUTCOME_UNKNOWN', terminalReason: 'RESTART' })
-    expect(restored.listTasks(WORKSPACE_ID)).toEqual([])
-    expect(restored.snapshot().version).toBe(2)
+    expect(() => new TaskRunStore().restore({ version: 1, savedAt: current.savedAt, records: current.records })).toThrow()
   })
 
   it('restores an interrupted verification as an unknown outcome', () => {
@@ -305,7 +301,7 @@ describe('bounded browser task-run contracts', () => {
 
     const restored = new TaskRunStore()
     restored.restore(original.snapshot())
-    expect(restored.get(active.id)).toMatchObject({ state: 'OUTCOME_UNKNOWN', terminalReason: 'RESTART' })
+    expect(restored.get(active.id)).toMatchObject({ outcome: 'outcome-unknown', reasonCode: 'RESTART' })
   })
 
   it('evicts only the oldest terminal run at capacity', () => {

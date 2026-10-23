@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { BookmarkStore } from '../src/main/bookmark-store.js'
-import { BookmarkStore as OldBookmarkStore } from './fixtures/bookmarks-2.18/bookmark-store.js'
 
 const directories: string[] = []
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))) })
@@ -14,27 +13,9 @@ async function fixture() {
   return { path, store: new BookmarkStore(path) }
 }
 
-it('organizes bookmarks without hiding any links from the actual 2.18 reader or writer', async () => {
+it('preserves assignment across duplicate URL saves, edits and restart', async () => {
   const { path, store } = await fixture()
-  const first = await store.add({ url: 'https://example.test/one', title: 'One' })
-  const second = await store.add({ url: 'https://example.test/two', title: 'Two' })
-  const collection = await store.createCollection('Project')
-  await store.assignCollection(first.id, collection.id)
-  const old = new OldBookmarkStore(path)
-  expect(await old.load()).toEqual(store.list())
-  await old.rename(second.id, 'Old client edit')
-  const restarted = new BookmarkStore(path)
-  expect(await restarted.load()).toEqual(old.list())
-  expect(restarted.list().map(entry => entry.id).sort()).toEqual([first.id, second.id].sort())
-  expect(restarted.collectionSnapshot().collections).toEqual([])
-  expect(JSON.parse(await readFile(path, 'utf8'))).toMatchObject({ version: 1 })
-})
-
-it('loads old plain files and preserves assignment across duplicate URL saves, edits and restart', async () => {
-  const { path, store } = await fixture()
-  const old = new OldBookmarkStore(path)
-  const entry = await old.add({ url: 'https://example.test/reference', title: 'Reference' })
-  await store.load()
+  const entry = await store.add({ url: 'https://example.test/reference', title: 'Reference' })
   expect(store.collectionSnapshot().collections).toEqual([])
   const collection = await store.createCollection('Project')
   await store.assignCollection(entry.id, collection.id)

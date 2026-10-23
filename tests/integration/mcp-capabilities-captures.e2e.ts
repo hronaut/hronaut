@@ -169,12 +169,12 @@ test('exports bounded screenshots and PDFs and records downloads and activity', 
     return home.executeJavaScript(`fetch('/api/status').then((response) => response.json())`)
   }) as {
     completedToolCalls: number
-    recentActivity: Array<{ toolName: string; outcome: string; durationMs: number }>
+    recentActivity: Array<{ toolName: string; result: { outcome: string }; durationMs: number }>
     toolMetrics: Array<{ toolName: string; count: number }>
   }
   expect(activity.completedToolCalls).toBeGreaterThan(10)
   expect(activity.recentActivity).toEqual(expect.arrayContaining([
-    expect.objectContaining({ toolName: 'browser_screenshot', outcome: 'finished' })
+    expect.objectContaining({ toolName: 'browser_screenshot', result: expect.objectContaining({ outcome: 'succeeded' }) })
   ]))
   expect(activity.recentActivity.every((entry) => entry.durationMs >= 0)).toBe(true)
   expect(activity.toolMetrics).toEqual(expect.arrayContaining([

@@ -157,14 +157,14 @@ test('runs pinned local browser failure scenarios and exports privacy-safe evide
     const cancelledRun = decode<{ id: string; revision: string }>(await call(client, 'browser_task_runs', {
       workspaceId: workspace.id, action: 'start', deadlineMs: 60_000, heartbeatTimeoutMs: 10_000
     }))
-    expect(decode<{ state: string; terminalReason: string; effects: string }>(await call(client, 'browser_task_runs', {
+    expect(decode<{ outcome: string; reasonCode: string; effects: string }>(await call(client, 'browser_task_runs', {
       workspaceId: workspace.id,
       action: 'complete',
       taskRunId: cancelledRun.id,
       revision: cancelledRun.revision,
       outcome: 'CANCELLED'
     }))).toMatchObject({
-      state: 'CANCELLED', terminalReason: 'CALLER_REPORTED_CANCELLED', effects: 'not-established'
+      outcome: 'cancelled', reasonCode: 'CALLER_REPORTED_CANCELLED', effects: 'not-established'
     })
 
     const readWorkspace = decode<{ id: string }>(await call(client, 'browser_workspaces', {

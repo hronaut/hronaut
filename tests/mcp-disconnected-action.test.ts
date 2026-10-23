@@ -86,7 +86,7 @@ it.each([
     const expectedReason = replaceEndpoint ? 'REQUEST_CANCELLED' : 'CONTEXT_CHANGED'
     expect(currentServer.getDashboardState().recentActivity).toMatchObject([
       {
-        toolName: 'browser_select_tab', tabId, outcome: 'failed',
+        toolName: 'browser_select_tab', tabId,
         result: {
           outcome: expectedOutcome, reasonCode: expectedReason, dispatch: 'dispatched',
           effects: 'possible', evidenceSource: 'hronaut-observed'

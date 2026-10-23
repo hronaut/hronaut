@@ -308,7 +308,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     element('support-recommend').hidden = !successful; element('support-welcome').hidden = successful > 0; element('support-recommend-privacy').hidden = !successful
     const outcomes = { succeeded: messages.activity.done, failed: messages.activity.failed, cancelled: messages.activity.cancelled, blocked: messages.activity.blocked, 'timed-out': messages.activity.timedOut, interrupted: messages.activity.interrupted, 'outcome-unknown': messages.activity.unknown }
     element('activity-list').innerHTML = dashboard.recentActivity.length ? dashboard.recentActivity.slice(0, 8).map(activity => {
-      const outcome = activity.result?.outcome ?? (activity.outcome === 'failed' ? 'failed' : 'succeeded')
+      const outcome = activity.result.outcome
       // Plain words, as in the live activity: what was done, or what was tried when it did not succeed. The tool's name
       // and timing stay in the row's tooltip.
       const technical = `${activity.toolName} · ${new Intl.NumberFormat(locale).format(activity.durationMs)} ms`
