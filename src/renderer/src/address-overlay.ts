@@ -75,8 +75,10 @@ function suggestionButton(
   button.append(icon, copy, meta)
   button.addEventListener('pointerdown', (event) => {
     event.preventDefault()
-    // Only the primary button chooses a row, as in Chrome: a right or middle click opened it in the tab.
+    // The primary button chooses a row and a middle-click opens it in a new tab behind, as in Chrome, whatever keys are
+    // held; a right click chooses nothing.
     if (event.button === 0) selectSuggestion({ sessionId, suggestionId: suggestion.id })
+    else if (event.button === 1) selectSuggestion({ sessionId, suggestionId: suggestion.id, disposition: 'new-background-tab' })
   })
   button.addEventListener('click', (event) => {
     event.preventDefault()

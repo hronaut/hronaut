@@ -33,6 +33,8 @@ declare global {
     hronautAddressOverlay: {
       show(request: AddressSuggestionOverlayRequest): void
       hide(): void
+      /** Gives the keyboard back to the address field after a middle-click on a suggestion took it. */
+      returnFocus(): void
       onSelected(listener: (selection: AddressSuggestionSelection) => void): () => void
       onDismissed(listener: (sessionId: number) => void): () => void
     }

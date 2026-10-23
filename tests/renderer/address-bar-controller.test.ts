@@ -43,6 +43,7 @@ function createHarness(options: {
   const onFocusLeft = vi.fn()
   const onRemoveVisit = vi.fn(options.onRemoveVisit ?? (async () => undefined))
   const onRemoveVisitFailed = vi.fn()
+  const onOpenInNewTab = vi.fn(async (_address: string, _background: boolean) => undefined)
   let selectedListener: ((selection: AddressSuggestionSelection) => void) | undefined
   let dismissedListener: ((sessionId: number) => void) | undefined
   const unsubscribeSelected = vi.fn(options.selectedUnsubscribe ?? (() => undefined))
@@ -50,6 +51,7 @@ function createHarness(options: {
   const overlay = {
     show: vi.fn<(request: AddressSuggestionOverlayRequest) => void>(),
     hide: vi.fn(),
+    returnFocus: vi.fn(),
     onSelected: vi.fn((listener: (selection: AddressSuggestionSelection) => void) => {
       selectedListener = listener
       return unsubscribeSelected
@@ -79,7 +81,7 @@ function createHarness(options: {
         formatNumber: String,
         onOpen,
         onNavigate,
-        onOpenInNewTab: vi.fn(async () => undefined),
+        onOpenInNewTab,
         onRemoveVisit,
         onRemoveVisitFailed,
         onFocusLeft
@@ -102,12 +104,16 @@ function createHarness(options: {
     overlay,
     onOpen,
     onNavigate,
+    onOpenInNewTab,
     onFocusLeft,
     onRemoveVisit,
     onRemoveVisitFailed,
     unsubscribeSelected,
     unsubscribeDismissed,
     selectOverlay: (suggestionId: string, sessionId = overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0) => selectedListener?.({ sessionId, suggestionId }),
+    middleClickOverlay: (suggestionId: string, sessionId = overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0) => selectedListener?.({
+      sessionId, suggestionId, disposition: 'new-background-tab'
+    }),
     dismissOverlay: (sessionId = overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0) => dismissedListener?.(sessionId)
   }
 }
@@ -473,6 +479,97 @@ describe('address bar controller', () => {
 
     expect(rendered.onNavigate).not.toHaveBeenCalled()
     expect(input).toHaveValue('https://second.example/unsaved-form')
+  })
+
+  it('opens a suggestion in a new tab behind for a middle-click on its row, and gives the field the keyboard back', async () => {
+    const saved: BrowserBookmark = {
+      id: 'saved',
+      title: 'Saved page',
+      url: 'https://saved.example/',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }
+    const rendered = createHarness({ bookmarks: [saved] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    const hidden = rendered.overlay.hide.mock.calls.length
+
+    rendered.middleClickOverlay('bookmark:saved')
+    await Promise.resolve()
+    expect(rendered.onOpenInNewTab).toHaveBeenCalledExactlyOnceWith('https://saved.example/', true)
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+    // The press gave the suggestions view the keyboard; the field takes it back with the typed text and its
+    // suggestions, as Chrome keeps the address bar's own after opening a tab behind.
+    expect(rendered.overlay.returnFocus).toHaveBeenCalledOnce()
+    expect(input).toHaveValue('saved')
+    expect(rendered.overlay.hide).toHaveBeenCalledTimes(hidden)
+  })
+
+  it('opens a middle-clicked row behind when the view took focus first, and shows the suggestions again on refocus', async () => {
+    const saved: BrowserBookmark = {
+      id: 'saved',
+      title: 'Saved page',
+      url: 'https://saved.example/',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }
+    const rendered = createHarness({ bookmarks: [saved] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    const session = rendered.overlay.show.mock.calls.at(-1)![0].sessionId
+
+    // The press on the row gives the suggestions view the keyboard before its pick arrives.
+    await fireEvent.focusOut(input, { relatedTarget: null })
+    expect(rendered.overlay.hide).toHaveBeenCalled()
+    rendered.middleClickOverlay('bookmark:saved', session)
+    await Promise.resolve()
+    expect(rendered.onOpenInNewTab).toHaveBeenCalledExactlyOnceWith('https://saved.example/', true)
+    expect(rendered.overlay.returnFocus).toHaveBeenCalledOnce()
+
+    await fireEvent.focus(input)
+    await waitFor(() => expect(rendered.overlay.show.mock.calls.at(-1)?.[0].sessionId).toBeGreaterThan(session))
+    expect(rendered.overlay.show.mock.calls.at(-1)?.[0].suggestions.map(suggestion => suggestion.id)).toEqual(['bookmark:saved'])
+    expect(input).toHaveValue('saved')
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+  })
+
+  it('gives the field the keyboard back after a middle-click on a row that no longer opens', async () => {
+    const rendered = createHarness({ bookmarks: [{
+      id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z'
+    }] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    const session = rendered.overlay.show.mock.calls.at(-1)![0].sessionId
+    rendered.middleClickOverlay('bookmark:gone', session)
+    rendered.middleClickOverlay('bookmark:gone', session - 1)
+    expect(rendered.overlay.returnFocus).toHaveBeenCalledTimes(2)
+    expect(rendered.onOpenInNewTab).not.toHaveBeenCalled()
+  })
+
+  it('opens a row once when its pick arrives twice, as its click follows its press', async () => {
+    const saved: BrowserBookmark = {
+      id: 'saved',
+      title: 'Saved page',
+      url: 'https://saved.example/',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }
+    const rendered = createHarness({ bookmarks: [saved] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    rendered.selectOverlay('bookmark:saved')
+    rendered.selectOverlay('bookmark:saved')
+    await waitFor(() => expect(rendered.onNavigate).toHaveBeenCalledWith('https://saved.example/'))
+    expect(rendered.onNavigate).toHaveBeenCalledOnce()
+    expect(rendered.onOpenInNewTab).not.toHaveBeenCalled()
   })
 
   it.each(['within the page', 'in a redirect'] as const)('opens a picked suggestion after the tab\'s page moves its address %s', async (change) => {

@@ -13,7 +13,7 @@ interface AddressOverlayIpcHost {
   /** Why saved workspaces could not start, if they could not; read on every message. */
   workspaceStartupFailure(): Error | undefined
   /** The suggestions view and its state, which the main window's closing resets too. */
-  addressOverlay(): Pick<AddressSuggestionOverlay, 'assertAddressOverlaySender' | 'show' | 'hide' | 'measured' | 'select'>
+  addressOverlay(): Pick<AddressSuggestionOverlay, 'assertAddressOverlaySender' | 'show' | 'hide' | 'measured' | 'select' | 'returnFocus'>
 }
 
 function validAddressSuggestion(value: unknown): value is AddressSuggestion {
@@ -97,6 +97,11 @@ export function registerAddressOverlayIpc(ipcMain: Pick<IpcMain, 'on'>, host: Ad
     host.assertMainShellSender(event)
     host.addressOverlay().hide()
   })
+  ipcMain.on('address-overlay:return-focus', (event) => {
+    if (host.workspaceStartupFailure()) return
+    host.assertMainShellSender(event)
+    host.addressOverlay().returnFocus()
+  })
   ipcMain.on('address-overlay:measured', (event, value: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.addressOverlay().assertAddressOverlaySender(event)
@@ -110,9 +115,12 @@ export function registerAddressOverlayIpc(ipcMain: Pick<IpcMain, 'on'>, host: Ad
     }
     const selection = value as AddressSuggestionSelection
     if (!Number.isSafeInteger(selection.sessionId) || selection.sessionId < 1
-      || typeof selection.suggestionId !== 'string' || selection.suggestionId.length < 1 || selection.suggestionId.length > 512) {
+      || typeof selection.suggestionId !== 'string' || selection.suggestionId.length < 1 || selection.suggestionId.length > 512
+      || (selection.disposition !== undefined && selection.disposition !== 'new-background-tab')) {
       throw new TypeError('Invalid address suggestion selection')
     }
-    host.addressOverlay().select(selection)
+    // Only the known fields go on to the shell.
+    const { sessionId, suggestionId, disposition } = selection
+    host.addressOverlay().select(disposition ? { sessionId, suggestionId, disposition } : { sessionId, suggestionId })
   })
 }

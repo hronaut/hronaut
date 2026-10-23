@@ -64,8 +64,9 @@ describe('native address overlay renderer', () => {
     expect(select).toHaveBeenNthCalledWith(2, { sessionId: 2, suggestionId: 'history:google' })
   })
 
-  it('chooses a row with the primary button only', async () => {
-    // A right or middle click on a row opened it in the tab, where Chrome leaves the tab as it is.
+  it('chooses a row with the primary button, opens it in a new tab behind with the middle one, and ignores the right', async () => {
+    // A right or middle click on a row opened it in the tab. In Chrome a right click leaves the tab as it is and a
+    // middle-click opens the row in a new tab behind.
     document.body.innerHTML = '<div id="address-overlay-root"></div>'
     const select = vi.fn()
     let receiveState!: (state: AddressSuggestionOverlayState) => void
@@ -83,14 +84,20 @@ describe('native address overlay renderer', () => {
       locale: 'en-US'
     })
     const row = document.querySelector<HTMLButtonElement>('[role=option]')!
-    for (const button of [1, 2]) {
-      const press = new PointerEvent('pointerdown', { button, bubbles: true, cancelable: true })
-      row.dispatchEvent(press)
-      // Focus stays in the address field all the same.
-      expect(press.defaultPrevented).toBe(true)
-    }
+    const right = new PointerEvent('pointerdown', { button: 2, bubbles: true, cancelable: true })
+    row.dispatchEvent(right)
+    // The row's button does not take focus within the view all the same.
+    expect(right.defaultPrevented).toBe(true)
     expect(select).not.toHaveBeenCalled()
-    row.dispatchEvent(new PointerEvent('pointerdown', { button: 0, bubbles: true, cancelable: true }))
-    expect(select).toHaveBeenCalledWith({ sessionId: 1, suggestionId: 'history:google' })
+    const middle = new PointerEvent('pointerdown', { button: 1, shiftKey: true, bubbles: true, cancelable: true })
+    row.dispatchEvent(middle)
+    expect(middle.defaultPrevented).toBe(true)
+    expect(select).toHaveBeenLastCalledWith({ sessionId: 1, suggestionId: 'history:google', disposition: 'new-background-tab' })
+    // The same row is picked once for one press, so the next press waits a moment.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    // Chrome opens a row in the tab for a click with Ctrl, ⌘ or Shift held, as for a plain one.
+    row.dispatchEvent(new PointerEvent('pointerdown', { button: 0, ctrlKey: true, metaKey: true, shiftKey: true, bubbles: true, cancelable: true }))
+    expect(select).toHaveBeenLastCalledWith({ sessionId: 1, suggestionId: 'history:google' })
+    expect(select).toHaveBeenCalledTimes(2)
   })
 })

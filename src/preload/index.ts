@@ -578,6 +578,7 @@ contextBridge.exposeInMainWorld('hronautPanelWindow', panelWindowApi)
 contextBridge.exposeInMainWorld('hronautAddressOverlay', {
   show: (request: AddressSuggestionOverlayRequest) => ipcRenderer.send('address-overlay:show', request),
   hide: () => ipcRenderer.send('address-overlay:hide'),
+  returnFocus: () => ipcRenderer.send('address-overlay:return-focus'),
   onSelected: (listener: (selection: AddressSuggestionSelection) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, selection: AddressSuggestionSelection): void => listener(selection)
     ipcRenderer.on('address-overlay:selected', handler)
