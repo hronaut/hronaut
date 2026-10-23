@@ -86,7 +86,10 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (typeof occluded !== 'boolean') throw new TypeError('Invalid browser content occlusion state')
-    host.tabs()?.setBrowserContentOccluded(occluded)
+    const tabs = host.tabs()
+    if (tabs) tabs.setBrowserContentOccluded(occluded)
+    // Without the tab runtime no page is on screen, and the shell waits for this report before a question takes answers.
+    else if (occluded && !event.sender.isDestroyed()) event.sender.send('browser:occlusion-pages-hidden')
     host.sidebarOverlay().occlusionChanged(occluded)
   })
   ipcMain.on('browser:occlusion-snapshot-presented', (event, id: unknown) => {

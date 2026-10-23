@@ -25,7 +25,7 @@ function fixture() {
     tabOverviewPreviewableTabs: new Set(),
     occludedEmulationFrames: [],
     mcpActivityFollower: { setOccluded: vi.fn() },
-    occlusionSnapshot: { begin: vi.fn(), end: vi.fn() },
+    occlusionSnapshot: { begin: vi.fn(), end: vi.fn(), confirmPagesHidden: vi.fn() },
     layout: vi.fn()
   }) as BrowserTabsManager
   return { manager, internals: manager as unknown as PageFocusInternals, shell, page, tab }
@@ -66,4 +66,14 @@ it('drops the pending focus when another tab became active during the exit', () 
   manager.setBrowserContentOccluded(false)
   expect(page.focus).not.toHaveBeenCalled()
   expect(shell.listenerCount('input-event')).toBe(0)
+})
+
+it('says once more that the pages are off the screen when asked to cover pages it already covers', () => {
+  // The shell's question over the pages, such as a permission dialog, takes answers only after this report.
+  const { manager } = fixture()
+  const snapshot = (manager as unknown as { occlusionSnapshot: { begin: ReturnType<typeof vi.fn>; confirmPagesHidden: ReturnType<typeof vi.fn> } })
+    .occlusionSnapshot
+  manager.setBrowserContentOccluded(true)
+  expect(snapshot.confirmPagesHidden).toHaveBeenCalledOnce()
+  expect(snapshot.begin).not.toHaveBeenCalled()
 })

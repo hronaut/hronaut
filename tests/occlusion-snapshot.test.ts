@@ -65,6 +65,19 @@ describe('occlusion snapshot', () => {
     expect(sent).toEqual([sent[0], null])
   })
 
+  it('says the pages are off the screen again when asked, unless they still wait for their snapshot', async () => {
+    const { snapshot, capture, sent, ports } = setup()
+    snapshot.begin()
+    snapshot.confirmPagesHidden()
+    expect(ports.pagesHidden).not.toHaveBeenCalled()
+    capture.resolve(image(1600))
+    await vi.waitFor(() => expect(sent).toHaveLength(1))
+    snapshot.present(1)
+    expect(ports.pagesHidden).toHaveBeenCalledOnce()
+    snapshot.confirmPagesHidden()
+    expect(ports.pagesHidden).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps device pixels on high-density screens and only shrinks larger captures', async () => {
     const sharp = setup({ deviceScale: () => 2 })
     const exact = image(1600)

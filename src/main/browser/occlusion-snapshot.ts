@@ -73,6 +73,14 @@ export class OcclusionSnapshot {
     void this.capture(id, panes)
   }
 
+  /**
+   * Trusted chrome asked again to cover pages it already covers: says once more that they are off the screen, unless
+   * they still wait for their snapshot, which says so when it ends.
+   */
+  confirmPagesHidden(): void {
+    if (!this.holdingPages) this.ports.pagesHidden()
+  }
+
   /** The shell shows the snapshot with this ID, so the pages can leave the screen. */
   present(id: number): void {
     this.finish(id)

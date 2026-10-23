@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
-import { nextTick } from 'vue'
+import { computed, defineComponent, h, nextTick, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TrustedDialog from '../../src/renderer/src/trusted-dialogs/TrustedDialog.vue'
 import { useTrustedDialogController } from '../../src/renderer/src/trusted-dialogs/useTrustedDialogController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import { holdOverlayEntrance, releaseOverlayEntrance, resetOverlayMotion } from '../../src/renderer/src/composables/overlay-motion.js'
+import { holdOverlayEntrance, releaseOverlayEntrance, reportPageViewsHidden, resetOverlayMotion } from '../../src/renderer/src/composables/overlay-motion.js'
+import { useShellOverlayCoordinationController } from '../../src/renderer/src/composables/useShellOverlayCoordinationController.js'
 import type { SupportedLocale } from '../../src/shared/locale.js'
 import type { HronautTrustedDialogsApi, TrustedDialogRequest } from '../../src/shared/trusted-dialogs.js'
 
@@ -152,22 +153,85 @@ describe('Hronaut’s permission dialog', () => {
     expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 0)
   })
 
-  it('starts its moment on screen only once the page has left the screen', async () => {
+  it('starts its moment on screen only once main reports that the page has left the screen', async () => {
     // Main keeps the page on screen until it has a picture of it. A dialog that counted that time could take a click
     // the instant the page left, the click a website timed for its page.
     const { api, show, settle } = mountDialog()
     holdOverlayEntrance()
     await show(sitePermission('one'))
-    await vi.advanceTimersByTimeAsync(400)
+    // The entrance may start before main acts, from the shell's own picture or the hold's time limit; answers may not.
+    releaseOverlayEntrance()
+    await vi.advanceTimersByTimeAsync(3_000)
     await nextTick()
     expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
-    releaseOverlayEntrance()
+    reportPageViewsHidden()
     await nextTick()
     await vi.advanceTimersByTimeAsync(400)
     await nextTick()
     expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
     await fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     expect(api.respond).not.toHaveBeenCalled()
+    await settle()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'true')
+  })
+
+  it('waits for the page to leave the screen when its own request covers the page', async () => {
+    // The shell starts covering the page from the request itself, before the dialog could start its moment on screen.
+    let publish: (request: TrustedDialogRequest | null) => void = () => undefined
+    const api: HronautTrustedDialogsApi = { ready: vi.fn(), respond: vi.fn(), onChanged: (listener) => { publish = listener; return () => undefined } }
+    const covered: boolean[] = []
+    const Shell = defineComponent({
+      setup() {
+        const controller = useTrustedDialogController(api)
+        useShellOverlayCoordinationController({
+          activePanel: ref(null), splitMenu: ref(false), layoutSources: [], competingOverlayStates: [], preservedPanels: [],
+          fullModalOpen: computed(() => controller.open.value),
+          keepsSeparatePanelOpen: () => false, closePanelsExcept: () => undefined, closeAddressSuggestions: () => undefined,
+          setBrowserContentOccluded: (occluded) => {
+            covered.push(occluded)
+            if (occluded) holdOverlayEntrance()
+            else releaseOverlayEntrance()
+          },
+          reportLayout: () => undefined
+        })
+        return () => h(TrustedDialog, { controller })
+      }
+    })
+    render(Shell, { global: { plugins: [createHronautI18n('en-US')] } })
+    publish(sitePermission('one'))
+    await nextTick()
+    await nextTick()
+    expect(covered).toEqual([true])
+    await vi.advanceTimersByTimeAsync(900)
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    reportPageViewsHidden()
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(600)
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'true')
+  })
+
+  it('waits for the window to come forward when it asks in the background, and while the window is hidden', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    const { show, settle } = mountDialog()
+    await show(sitePermission('one'))
+    await settle()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    window.dispatchEvent(new FocusEvent('focus'))
+    await settle()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'true')
+
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    visibility.mockReturnValue('visible')
+    document.dispatchEvent(new Event('visibilitychange'))
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(400)
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
     await settle()
     expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'true')
   })

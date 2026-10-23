@@ -47,6 +47,9 @@ export function setBrowserContentOccluded<Tab extends TrustedChromeOcclusionTab>
     access.occlusionSnapshot().begin()
   } else if (!occluded) {
     access.occlusionSnapshot().end()
+  } else {
+    // The shell waits for this report before a question over the pages takes answers.
+    access.occlusionSnapshot().confirmPagesHidden()
   }
   access.layout()
   if (leavingTrustedChrome) {

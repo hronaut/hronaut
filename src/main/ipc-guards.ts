@@ -64,7 +64,7 @@ export function createIpcGuards(host: IpcGuardsHost): {
 } {
   /**
    * Whether a message came from the shell of the main window or of the detached panel, whether or not saved workspaces
-   * started; for answers that must still arrive when they did not, such as to the dialog that says so.
+   * started; for answers that must still arrive when they did not, such as to a dialog shown while they initialized.
    */
   function isShellWindowSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean {
     const actual = event.senderFrame?.url

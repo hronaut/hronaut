@@ -77,7 +77,8 @@ export interface TrustedDialogs<Window extends TrustedDialogWindow = TrustedDial
     ipcMain: Pick<IpcMain, 'on'>
     /**
      * Whether the message came from the shell document of the main or the detached panel window. Unlike the checks of
-     * browser changes, it admits the shell after saved workspaces failed to start, so a dialog about that is answered.
+     * browser changes, it admits the shell after saved workspaces failed to start, so a dialog shown while they
+     * initialized is still answered.
      */
     isTrustedShellSender(event: IpcMainEvent): boolean
   }): void

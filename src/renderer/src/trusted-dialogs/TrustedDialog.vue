@@ -5,7 +5,7 @@ import IconWorkspacesOutline from '~icons/material-symbols/workspaces-outline'
 import UiButton from '../ui/UiButton.vue'
 import UiDialog from '../ui/UiDialog.vue'
 import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
-import { overlayEntranceHeld } from '../composables/overlay-motion.js'
+import { pageViewsHidden } from '../composables/overlay-motion.js'
 import { trustedDialogCopy } from './trusted-dialog-copy.js'
 import type { TrustedDialogController } from './useTrustedDialogController.js'
 
@@ -23,8 +23,9 @@ const headlineText = computed(() => {
 /**
  * A dialog takes no answer until it has been on screen for a moment: a website can time a request so that a click
  * or key aimed at its page lands on Allow the instant the dialog appears. The moment starts only once the person can
- * see and use the dialog: the page views have left the screen, and the window shows and has the focus. So neither a
- * click on a page still on screen while main takes its picture nor the click that brings the window back answers.
+ * see and use the dialog: main has reported that the page views left the screen, and the window shows and has the
+ * focus. So neither a click on a page still on screen while main takes its picture, however long main takes, nor the
+ * click that brings the window back answers.
  */
 const ARM_DELAY_MS = 500
 const armedId = ref<string>()
@@ -34,7 +35,7 @@ const documentVisible = ref(document.visibilityState === 'visible')
 const windowFocused = ref(document.hasFocus())
 /** The request the person can see and use now, whose moment on screen runs. */
 const presentedId = computed(() => (
-  request.value && documentVisible.value && windowFocused.value && !overlayEntranceHeld.value ? request.value.id : undefined
+  request.value && documentVisible.value && windowFocused.value && pageViewsHidden.value ? request.value.id : undefined
 ))
 
 const defaultButton = ref<{ focus(options?: { preventScroll?: boolean }): void } | null>(null)
