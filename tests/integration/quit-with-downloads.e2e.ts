@@ -72,8 +72,11 @@ test('asks before Quit cancels a download in progress, and keeps it when asked t
 
       const exited = new Promise((resolve) => child.once('exit', resolve))
       await chooseQuit()
-      // Hronaut quits as soon as the answer arrives, which can close the window under the click.
-      await answerTrustedDialog(appWindow, 'Quit').catch(() => undefined)
+      const answered = await answerTrustedDialog(appWindow, 'Quit').then(() => undefined, (error: unknown) => error)
+      // Hronaut quits as soon as the answer arrives, which can close the window under the click; any other failure counts.
+      if (answered !== undefined) {
+        await Promise.race([exited, new Promise((_resolve, reject) => setTimeout(() => reject(answered), 10_000))])
+      }
       await exited
     } finally {
       for (const response of held) response.destroy()

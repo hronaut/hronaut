@@ -19,16 +19,18 @@ function confirmation(
 ) {
   const parent = { isDestroyed: () => false, isVisible: () => true, isMinimized: () => false, ...window } as unknown as BrowserWindow
   const asked: Array<{ window: BrowserWindow | null | undefined; options: TrustedDialogOptions<BrowserWindow> }> = []
+  const showWindow = vi.fn()
   const confirm = createQuitWithDownloadsConfirmation({
     downloads: typeof downloads === 'function' ? downloads : () => downloads,
     window: () => parent,
+    showWindow,
     showDialog: vi.fn((options: TrustedDialogOptions<BrowserWindow>) => {
       asked.push({ window: options.window, options })
       return answer()
     }),
     text: (key, parameters) => translate(locale, key, parameters)
   })
-  return { confirm, asked, window: parent }
+  return { confirm, asked, window: parent, showWindow }
 }
 
 describe('quitting with downloads in progress', () => {
@@ -58,12 +60,14 @@ describe('quitting with downloads in progress', () => {
     await expect(confirm()).resolves.toBe(true)
   })
 
-  it('asks once for requests made while the question is open', async () => {
+  it('asks once for requests made while the question is open, bringing the window back for each', async () => {
     let answer!: (value: MessageBoxReturnValue) => void
-    const { confirm, asked } = confirmation([download('progressing')], () => new Promise((resolve) => { answer = resolve }))
+    const { confirm, asked, showWindow } = confirmation([download('progressing')], () => new Promise((resolve) => { answer = resolve }))
     const first = confirm()
     const second = confirm()
     expect(asked).toHaveLength(1)
+    // The window may have been hidden or minimized since it asked; a second Quit from the tray shows the question again.
+    expect(showWindow).toHaveBeenCalledTimes(2)
     expect(asked[0]!.options.message).toBe('A download is in progress.')
     expect(asked[0]!.options.detail).toBe('Quitting now cancels it and deletes the unfinished file.')
     answer({ response: 1, checkboxChecked: false })
@@ -71,13 +75,21 @@ describe('quitting with downloads in progress', () => {
   })
 
   it.each([
+    ['behind other apps', {}],
     ['hidden in the tray', { isVisible: () => false }],
-    ['minimized', { isMinimized: () => true }],
-    ['closed', { isDestroyed: () => true }]
-  ] as const)('shows the question on its own while the window is %s', async (_label, window) => {
-    const { confirm, asked } = confirmation([download('progressing')], async () => ({ response: 1, checkboxChecked: false }), window)
+    ['minimized', { isMinimized: () => true }]
+  ] as const)('brings the window forward to ask there while it is %s', async (_label, window) => {
+    // Quit from the tray put the question in a window no one was looking at.
+    const { confirm, asked, window: parent, showWindow } = confirmation([download('progressing')], async () => ({ response: 1, checkboxChecked: false }), window)
     await confirm()
-    // No window: the system dialog asks on its own, since Hronaut's dialog would be drawn where no one sees it.
+    expect(showWindow).toHaveBeenCalledOnce()
+    expect(asked[0]!.window).toBe(parent)
+  })
+
+  it('asks in a system dialog of its own once the window is closed', async () => {
+    const { confirm, asked, showWindow } = confirmation([download('progressing')], async () => ({ response: 1, checkboxChecked: false }), { isDestroyed: () => true })
+    await expect(confirm()).resolves.toBe(true)
+    expect(showWindow).not.toHaveBeenCalled()
     expect(asked[0]!.window).toBeNull()
   })
 

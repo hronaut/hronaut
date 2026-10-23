@@ -4925,6 +4925,7 @@ test('keeps an edited page open until the user confirms its beforeunload close',
     await expect.poll(() => appWindow.evaluate((id) => (
       window as unknown as { hronaut: HronautApi }
     ).hronaut.getState().then((current) => current.tabs.some((tab) => tab.id === id)), tabId)).toBe(true)
+    await expect(trustedDialog(appWindow)).toHaveCount(0)
 
     await closeButton.click()
     expect(await trustedDialogRequestId(appWindow)).not.toBe(firstQuestion)

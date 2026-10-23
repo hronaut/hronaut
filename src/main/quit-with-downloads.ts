@@ -7,8 +7,10 @@ import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
 export interface QuitWithDownloadsHost {
   /** Every download Hronaut lists, read when a quit is requested. */
   downloads(): readonly BrowserDownloadState[]
-  /** The main window, which the question is asked in while it is shown. */
+  /** The main window, which the question is asked in while it is open. */
   window(): BrowserWindow | undefined
+  /** Restores, shows and focuses the main window, so a question asked there is seen. */
+  showWindow(): void
   /** Asks in Hronaut's own dialog over the given window's pages, or in the system dialog, with no window for `null`. */
   showDialog(options: TrustedDialogOptions<BrowserWindow>): Promise<{ response: number }>
   text(key: MessageKey, parameters?: MessageParameters): string
@@ -22,13 +24,25 @@ export interface QuitWithDownloadsHost {
  */
 export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost): () => Promise<boolean> {
   let pending: Promise<boolean> | undefined
+  /** Whether the open question is in the main window rather than in a system dialog of its own. */
+  let askedInWindow = false
   // A question that cannot be shown must not leave Hronaut impossible to quit.
   const quitAnyway = (error: unknown): boolean => {
     console.error('[quit] Could not ask about downloads in progress:', error)
     return true
   }
   return () => {
-    if (pending) return pending
+    if (pending) {
+      // The window may have been hidden or minimized since it asked; bring the question back where it waits.
+      if (askedInWindow) {
+        try {
+          host.showWindow()
+        } catch (error) {
+          console.error('[quit] Could not show the question about downloads in progress:', error)
+        }
+      }
+      return pending
+    }
     let count: number
     let options: TrustedDialogOptions<BrowserWindow>
     try {
@@ -36,6 +50,11 @@ export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost)
       count = host.downloads().filter((download) => download.state === 'progressing').length
       if (count === 0) return Promise.resolve(true)
       const window = host.window()
+      // Quit from the tray or the menu can come while the window is behind other apps, minimized or hidden in the
+      // tray, so it comes forward to ask; only without a window does the system dialog ask on its own.
+      const open = window && !window.isDestroyed() ? window : null
+      if (open) host.showWindow()
+      askedInWindow = open !== null
       options = {
         type: 'warning',
         title: host.text('native.dialog.quitDownloadsTitle'),
@@ -47,8 +66,7 @@ export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost)
         cancelId: 0,
         noLink: true,
         variant: { kind: 'message', topic: 'downloads' },
-        // A dialog on a window hidden in the tray or minimized would not be seen, so the system dialog asks on its own.
-        window: window && !window.isDestroyed() && window.isVisible() && !window.isMinimized() ? window : null
+        window: open
       }
     } catch (error) {
       return Promise.resolve(quitAnyway(error))

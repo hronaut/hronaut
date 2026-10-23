@@ -48,7 +48,7 @@ export const trustedDialogMessages = {
       update: 'Оновити збережений пароль для {origin}?',
       username: 'Ім’я користувача',
       noUsername: 'Сторінка не надіслала імені користувача.',
-      stored: 'Hronaut шифрує його безпечним сховищем операційної системи. Збережені паролі ніколи не доступні через MCP.'
+      stored: 'Hronaut шифрує його за допомогою захищеного сховища операційної системи. Збережені паролі ніколи не передаються через MCP.'
     },
     sitePermission: {
       embeddedIn: 'Вбудовано на {site}',
@@ -85,7 +85,7 @@ export const trustedDialogMessages = {
       update: 'Обновить сохранённый пароль для {origin}?',
       username: 'Имя пользователя',
       noUsername: 'Страница не отправила имя пользователя.',
-      stored: 'Hronaut шифрует его безопасным хранилищем операционной системы. Сохранённые пароли никогда не доступны через MCP.'
+      stored: 'Hronaut шифрует его с помощью защищённого хранилища операционной системы. Сохранённые пароли никогда не передаются через MCP.'
     },
     sitePermission: {
       embeddedIn: 'Встроено на {site}',
@@ -159,7 +159,7 @@ export const trustedDialogMessages = {
       update: 'Mettre à jour le mot de passe enregistré pour {origin} ?',
       username: 'Nom d’utilisateur',
       noUsername: 'La page n’a envoyé aucun nom d’utilisateur.',
-      stored: 'Hronaut le chiffre avec le stockage sécurisé du système d’exploitation. Les mots de passe enregistrés ne sont jamais exposés par MCP.'
+      stored: 'Hronaut le chiffre avec le stockage sécurisé du système d’exploitation. Les mots de passe enregistrés ne sont jamais exposés via MCP.'
     },
     sitePermission: {
       embeddedIn: 'Intégré dans {site}',
@@ -233,7 +233,7 @@ export const trustedDialogMessages = {
       update: 'Zaktualizować zapisane hasło dla {origin}?',
       username: 'Nazwa użytkownika',
       noUsername: 'Strona nie wysłała nazwy użytkownika.',
-      stored: 'Hronaut szyfruje je bezpieczną pamięcią systemu operacyjnego. Zapisane hasła nigdy nie są udostępniane przez MCP.'
+      stored: 'Hronaut szyfruje je za pomocą bezpiecznej pamięci systemu operacyjnego. Zapisane hasła nigdy nie są udostępniane przez MCP.'
     },
     sitePermission: {
       embeddedIn: 'Osadzono w {site}',

@@ -26,6 +26,7 @@ function fakeWindow() {
 }
 
 function harness() {
+  const quit = { quitting: false }
   const listeners = new Map<string, Listener>()
   const main = fakeWindow()
   const panel = fakeWindow()
@@ -36,7 +37,8 @@ function harness() {
   }))
   const dialogs = createTrustedDialogs<typeof main.window>({
     mainWindow: () => main.window,
-    showNativeMessageBox
+    showNativeMessageBox,
+    quitting: () => quit.quitting
   })
   dialogs.registerIpc({
     ipcMain: { on: (channel: string, listener: Listener) => { listeners.set(channel, listener) } } as never,
@@ -55,6 +57,7 @@ function harness() {
     untrusted,
     native,
     showNativeMessageBox,
+    quit,
     ready: (window: { contents: unknown } = main) => send(window, TRUSTED_DIALOG_CHANNELS.ready),
     respond: (window: { contents: unknown }, id: unknown, response: unknown) => send(window, TRUSTED_DIALOG_CHANNELS.respond, id, response)
   }
@@ -217,6 +220,22 @@ describe('Hronaut’s own dialogs', () => {
     await vi.waitFor(() => expect(native).toHaveLength(5))
     native[4]!.answer(1)
     await expect(beforeError).resolves.toMatchObject({ response: 1 })
+  })
+
+  it('answers with the cancel button instead of a system dialog once Hronaut is quitting', async () => {
+    // A question in a closing window came back as a system dialog with no window, and on macOS could hold up the quit.
+    const { dialogs, main, native, quit, ready } = harness()
+    ready()
+    const shown = dialogs.show({ ...permission, message: 'shown' })
+    const waiting = dialogs.show({ ...permission, cancelId: 1, message: 'waiting' })
+    quit.quitting = true
+    main.contents.destroyed = true
+    main.contents.emit('destroyed')
+    await expect(shown).resolves.toMatchObject({ response: 0 })
+    await expect(waiting).resolves.toMatchObject({ response: 1 })
+    main.window.destroyed = true
+    await expect(dialogs.show(permission)).resolves.toMatchObject({ response: 0 })
+    expect(native).toHaveLength(0)
   })
 
   it('keeps the dialog in the shell until another document replaces it, so the shell can still answer it', async () => {

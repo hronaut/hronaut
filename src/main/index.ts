@@ -170,6 +170,7 @@ const {
 // Hronaut's own dialogs over the shell, such as a website's permission request; the system dialog while none can show.
 const trustedDialogs = createTrustedDialogs({
   mainWindow: () => mainWindowRefs.window,
+  quitting: () => appQuitState.quitting,
   showNativeMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options)
 })
 const addressSuggestionOverlay = createAddressSuggestionOverlay({
@@ -260,6 +261,7 @@ const appQuitState: AppQuitState = { quitting: false }
 const confirmQuitWithDownloads = createQuitWithDownloadsConfirmation({
   downloads: () => tabRuntime.tabs?.listDownloads() ?? [],
   window: () => mainWindowRefs.window ?? undefined,
+  showWindow: () => showWindow(),
   showDialog: (options) => trustedDialogs.show(options),
   text: (key, parameters) => text(key, parameters)
 })
