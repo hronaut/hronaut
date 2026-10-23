@@ -28,10 +28,10 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
   }
   // A wallet request belongs to the document that made it, so its requests and network end when another document,
   // a page or an error page, replaces it. A navigation that never commits, such as a download or a response with no
-  // content, keeps the page and its requests.
+  // content, keeps the page and its requests. Each replacement begins a page of its own, also when a newer navigation
+  // has already started by then.
   const walletDocumentReplaced = (): void => {
-    if (tab.walletNavigationGeneration === tab.navigationGeneration) return
-    tab.walletNavigationGeneration = tab.navigationGeneration
+    tab.walletNavigationGeneration += 1
     access.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
       access.options().onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
     ))
@@ -206,6 +206,13 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     }
     access.scheduleTabOverviewPreview(tab)
   })
+  // Electron reports an error page that replaced the document here, before did-fail-load. did-fail-load also reports a
+  // document that committed and then failed to receive the rest of its content, such as after a reset connection, and
+  // that document stays.
+  webContents.on('did-fail-provisional-load', (_event, _errorCode, _errorDescription, _validatedURL, isMainFrame) => {
+    if (tab.sleeping || !isMainFrame) return
+    walletDocumentReplaced()
+  })
   webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     // A newer navigation can start before the one it replaced reports its failure.
     if (isMainFrame && validatedURL === tab.pendingMainFrameUrl) tab.pendingMainFrameUrl = undefined
@@ -215,7 +222,6 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     if (!isMainFrame || errorCode === ABORTED_LOAD_ERROR) return
     tab.authNavigationPending = false
     tab.documentGeneration += 1
-    walletDocumentReplaced()
     const failedUrl = validatedURL || tab.url
     tab.loading = false
     if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined
