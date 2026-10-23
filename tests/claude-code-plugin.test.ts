@@ -202,8 +202,10 @@ describe.skipIf(process.platform === 'win32')('the plugin’s headers helper', (
   })
 
   it('is what the plugin’s command runs on macOS and Linux', async () => {
-    await writeToken(join(home, '.config', 'Hronaut'), `${TOKEN}\n`)
-    const { stdout, stderr } = await runCommand(headersHelperCommand(), { shell: '/bin/sh', env: { PATH: '/usr/bin:/bin', HOME: home } })
+    // This runs the system's own uname, so the profile is named rather than found.
+    await writeToken(join(home, 'profile'), `${TOKEN}\n`)
+    const environment = { PATH: '/usr/bin:/bin', HOME: home, HRONAUT_USER_DATA_DIR: join(home, 'profile') }
+    const { stdout, stderr } = await runCommand(headersHelperCommand(), { shell: '/bin/sh', env: environment })
     expect(stderr).toBe('')
     expect(JSON.parse(stdout)).toEqual({ Authorization: `Bearer ${TOKEN}` })
   })
