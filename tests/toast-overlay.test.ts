@@ -72,10 +72,11 @@ describe('toast overlay placement', () => {
     expect(toastOverlayWidth(191)).toBe(0)
   })
 
-  it('centers the toast at the bottom of the page area with room for its shadow', () => {
-    // A page area below a 96 px toolbar, beside a 248 px rail, in a 1320 x 900 window.
-    expect(placeToastOverlay({ x: 248, y: 96, width: 1072, height: 804 }, { width: 560, height: 40 }, 16, 10))
-      .toEqual({ x: 248 + 256 - 10, y: 900 - 16 - 40 - 10, width: 580, height: 60 })
+  it('centers the toast at the bottom of the page area in a view of its own box', () => {
+    // A page area below a 96 px toolbar, beside a 248 px rail, in a 1320 x 900 window. The view kept 10 px of
+    // transparent room around the toast for its shadow, where the page got no clicks or wheel.
+    expect(placeToastOverlay({ x: 248, y: 96, width: 1072, height: 804 }, { width: 560, height: 40 }, 16))
+      .toEqual({ x: 248 + 256, y: 900 - 16 - 40, width: 560, height: 40 })
   })
 })
 
@@ -128,13 +129,13 @@ describe('ToastOverlay', () => {
     expect(surface.sent).toEqual([{ revision: 1, toast: request(1).toast, focus: null, theme: 'dark', width: 560 }])
     expect(surface.presented).toBe(0)
     overlay.measured({ revision: 1, height: 42 })
-    expect(surface.bounds).toEqual([{ x: 210, y: 100 + 700 - 16 - 42 - 10, width: 580, height: 62 }])
+    expect(surface.bounds).toEqual([{ x: 220, y: 100 + 700 - 16 - 42, width: 560, height: 42 }])
     expect(surface.presented).toBe(1)
     expect(events).toEqual([{ id: 1, kind: 'shown' }])
     expect(overlay.shownId).toBe(1)
     // A view never covers more than a toast's largest box, whatever it reports.
     overlay.measured({ revision: 1, height: 900 })
-    expect(surface.bounds.at(-1)?.height).toBe(64 + 20)
+    expect(surface.bounds.at(-1)?.height).toBe(64)
     expect(events).toHaveLength(1)
   })
 
@@ -146,7 +147,7 @@ describe('ToastOverlay', () => {
     expect(surface.setZoomFactor).toHaveBeenCalledWith(1.5)
     expect(surface.sent[0]?.width).toBe(560)
     overlay.measured({ revision: 1, height: 40 })
-    expect(surface.bounds).toEqual([{ x: 750 - 420 - 15, y: 150 + 1050 - 24 - 60 - 15, width: 870, height: 90 }])
+    expect(surface.bounds).toEqual([{ x: 750 - 420, y: 150 + 1050 - 24 - 60, width: 840, height: 60 }])
   })
 
   it('drops a measurement of an older layout, and of a toast that has gone', async () => {
@@ -208,16 +209,16 @@ describe('ToastOverlay', () => {
     // A taller window: same width, so the toast just moves down.
     layout.current = { area: { x: 0, y: 100, width: 1000, height: 900 }, zoom: 1 }
     overlay.relayout()
-    expect(surface.bounds.at(-1)).toEqual({ x: 210, y: 100 + 900 - 16 - 40 - 10, width: 580, height: 60 })
+    expect(surface.bounds.at(-1)).toEqual({ x: 220, y: 100 + 900 - 16 - 40, width: 560, height: 40 })
     expect(surface.sent).toHaveLength(1)
     // A narrower one: laid out again at the new width, and moved at once at its last height so it stays over the page.
     layout.current = { area: { x: 240, y: 100, width: 400, height: 900 }, zoom: 1 }
     overlay.relayout()
-    expect(surface.bounds.at(-1)).toEqual({ x: 240 + 16 - 10, y: 100 + 900 - 16 - 40 - 10, width: 388, height: 60 })
+    expect(surface.bounds.at(-1)).toEqual({ x: 240 + 16, y: 100 + 900 - 16 - 40, width: 368, height: 40 })
     await flush()
     expect(surface.sent.at(-1)).toMatchObject({ revision: 2, width: 368 })
     overlay.measured({ revision: 2, height: 52 })
-    expect(surface.bounds.at(-1)).toEqual({ x: 240 + 16 - 10, y: 100 + 900 - 16 - 52 - 10, width: 388, height: 72 })
+    expect(surface.bounds.at(-1)).toEqual({ x: 240 + 16, y: 100 + 900 - 16 - 52, width: 368, height: 52 })
     // Too narrow for a toast: it goes, and the shell shows its own copy.
     layout.current = { area: { x: 240, y: 100, width: 180, height: 900 }, zoom: 1 }
     overlay.relayout()
@@ -235,13 +236,13 @@ describe('ToastOverlay', () => {
 
   it('hands the toast to the shell where the page area is too short for it, as at a high interface scale', async () => {
     const { overlay, surface, events, layout, flush } = harness()
-    // 64 px of toast, 16 px above the bottom edge and 10 px of shadow room: 90 CSS px at the least.
-    layout.current = { area: { x: 0, y: 100, width: 1000, height: 89 * 1.25 }, zoom: 1.25 }
+    // 64 px of toast and 16 px above the bottom edge: 80 CSS px at the least.
+    layout.current = { area: { x: 0, y: 100, width: 1000, height: 79 * 1.25 }, zoom: 1.25 }
     overlay.show(request(1))
     await flush()
     expect(surface.sent).toEqual([])
     expect(events).toEqual([{ id: 1, kind: 'unavailable' }])
-    layout.current = { area: { x: 0, y: 100, width: 1000, height: 90 * 1.25 }, zoom: 1.25 }
+    layout.current = { area: { x: 0, y: 100, width: 1000, height: 80 * 1.25 }, zoom: 1.25 }
     overlay.relayout()
     await flush()
     overlay.measured({ revision: 1, height: 64 })
