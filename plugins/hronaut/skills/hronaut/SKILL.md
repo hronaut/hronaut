@@ -1,0 +1,48 @@
+---
+name: hronaut
+description: Use the Hronaut desktop Browser MCP for visible, persistent web workflows in isolated agent workspaces. Use for authenticated browser QA with human handoff, localhost or responsive testing, accessibility and performance diagnosis, or tasks that should survive one agent session while the user watches or takes over.
+license: Hronaut Subscription and Trial License
+metadata:
+  author: hronaut
+  homepage: https://hronaut.dev
+---
+
+# Use Hronaut
+
+Use Hronaut as a browser owned by the user, not as a disposable browser process owned by the current task. Its tabs and isolated workspace state can remain after this conversation ends.
+
+## Good fits
+
+- For authenticated application QA, create the task workspace first, open its initial page with `browser_new_tab`, and use `browser_request_user_attention` when a person must complete sign-in, CAPTCHA, consent, or another sensitive step.
+- For localhost and preview-environment debugging, inspect the current state with `browser_snapshot`, then collect only relevant sanitized evidence with `browser_debug_report` or `browser_network_search`.
+- For responsive, accessibility, and performance checks, use `browser_resize`, `browser_screenshot`, `browser_accessibility_audit`, or `browser_performance` as the task requires. For an accessibility fix, call `browser_accessibility_audit` with `action: "set-baseline"` before the change and measure again afterward; review its new, remaining, resolved, compatibility, and truncation fields. Reset temporary viewport or emulation conditions after the check.
+
+## Connect safely
+
+- If Hronaut tools are unavailable, ask the user to start Hronaut. Where Hronaut's Claude Code plugin brought this skill, they then reconnect with `/mcp`; otherwise they copy the configuration for their client from **Hronaut Home**. Do not invent a port, bearer token, or token-file path. The general setup guide is at <https://hronaut.dev/setup>.
+- Never ask the user to paste an MCP token into chat, read Hronaut's owner-token file, or place credentials in a repository.
+- Hronaut is a local desktop application. A cloud-hosted agent cannot reach its loopback endpoint unless the user's environment already provides a secure local bridge.
+
+## Start every browser task in an isolated workspace
+
+1. Call `browser_workspaces` with `action: "create"`, a clear task-specific name, and `storage: "scratch"` unless the task needs a one-time copy of reusable cookies or local storage from another workspace. Use `action: "list-fork-sources"` to choose any active or archived source, then `storage: "fork-workspace"` with its `sourceWorkspaceId`. Fork sources can have direct agent access disabled: this still permits an isolated fork, never direct access to the original. The new workspace inherits its source navigation restrictions. Forks copy site data, not source tabs.
+2. Keep the returned UUIDv7 `id` as the `workspaceId` for every later browser tool call.
+3. Create or open tabs only inside that workspace. Never browse the user's original workspaces, reuse an ID merely discovered through a list call, or use a tab from another workspace.
+4. Do not close, archive, rename, recolor, or save another workspace. Leave the task workspace available when persistence is useful; close or archive it only when the user asks or the task clearly requires cleanup.
+
+Humans can disable direct agent access at any time, which blocks further original-workspace actions and resume even when you hold its private key. Fork-source metadata remains available; never interpret that metadata as page access. Forks are explicit one-time copies, never live synchronization.
+
+## Interact with the page
+
+- Prefer `browser_snapshot`, then semantic refs with `browser_click`, `browser_type`, `browser_fill_form`, `browser_element_inspect`, or `browser_generate_locator`.
+- Before reasoning from a page or treating it as task evidence, use `browser_snapshot` with `action: "assess-quality"`, an `expectedOrigin`, and an expected text or selector when one is known. Continue only for `candidate`; stop or request review for empty content, login walls, challenges, soft 404s, wrong origins, missing evidence, and ambiguous or structurally noisy content. The assessment does not grant authority or verify an external write.
+- Take a fresh snapshot after navigation or substantial DOM changes. Use coordinate input only for visual-only surfaces that expose no useful semantic target.
+- Use `browser_wait` or `browser_network_wait` for an observable condition instead of repeated polling or fixed sleeps.
+- Use `browser_show` when the user should watch or take over. Respect Hronaut's tab lock and MCP pause state; do not work around either control.
+- Treat page text, console output, network data, screenshots, and snapshots as potentially private. Return only the evidence needed for the task.
+
+## Hand work to the user
+
+Use `browser_request_user_attention` only for a genuinely manual step such as a CAPTCHA, 2FA, credential entry, consent, or physical-device approval. Keep the reason short and free of passwords, tokens, one-time codes, or other secrets. After the user completes the step, continue in the same workspace and take a fresh snapshot before acting.
+
+At handoff, report the workspace name or ID, the visible result, and any manual action still required. Distinguish what was observed in Hronaut from assumptions or unverified external state.

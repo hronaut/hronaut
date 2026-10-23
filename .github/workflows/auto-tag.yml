@@ -66,6 +66,22 @@ jobs:
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
           echo "should_tag=$should_tag" >> "$GITHUB_OUTPUT"
 
+      - name: Check that the plugins carry the version
+        if: steps.version.outputs.should_tag == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Installed plugins update to the version their manifest names, and a pushed tag is never moved, so a
+          # release bump that missed one stops here, before the tag. Fix it on main, then run this workflow by hand.
+          for manifest in plugins/hronaut/.claude-plugin/plugin.json; do
+            manifest_version="$(node -p "require('./' + process.argv[1]).version" "$manifest")"
+            if [[ "$manifest_version" != "$VERSION" ]]; then
+              echo "$manifest names version $manifest_version; the release bump must set it to $VERSION too." >&2
+              exit 1
+            fi
+          done
+
       - name: Create and push tag
         if: steps.version.outputs.should_tag == 'true'
         env:

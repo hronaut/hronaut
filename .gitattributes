@@ -1,0 +1,3 @@
+# The Claude Code plugin's headers helpers run as checked out, including from clones on Windows.
+plugins/hronaut/scripts/*.sh text eol=lf
+plugins/hronaut/scripts/*.cmd text eol=crlf
