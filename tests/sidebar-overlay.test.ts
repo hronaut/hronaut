@@ -613,6 +613,90 @@ describe('SidebarOverlay', () => {
     expect(test.events.at(-1)).toEqual({ id: 1, kind: 'pointer', hovered: true, held: false })
   })
 
+  // The view heard the pointer leave for the menu, so a pointer that then left the rail before moving over the view
+  // left it nothing to report, and the rail stayed open over the page.
+  it('follows a pointer that leaves the rail at once after one of its menus closes', async () => {
+    const test = await shown()
+    vi.useFakeTimers()
+    try {
+      test.overlay.pointer({ hovered: true, held: false })
+      test.overlay.received({ kind: 'tab-context-menu', tabId: 'beta' })
+      test.overlay.pointer({ hovered: false, held: false })
+      test.cursor.current = { x: 270, y: 400 }
+      test.menus[0]!.closed()
+      expect(test.events.at(-1)).toEqual({ id: 1, kind: 'pointer', hovered: true, held: false })
+      test.cursor.current = { x: 600, y: 400 }
+      vi.advanceTimersByTime(100)
+      expect(test.events.at(-1)).toEqual({ id: 1, kind: 'pointer', hovered: false, held: false })
+      // Once the view speaks again, it is the one that knows.
+      test.overlay.pointer({ hovered: true, held: false })
+      const count = test.events.length
+      test.cursor.current = { x: 30, y: 400 }
+      test.overlay.pointer({ hovered: false, held: false })
+      vi.advanceTimersByTime(500)
+      expect(test.events.length).toBe(count + 1)
+      expect(test.events.at(-1)).toEqual({ id: 1, kind: 'pointer', hovered: false, held: false })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // The view still thought the pointer was over it, so it said nothing when the pointer came back, and the rail folded
+  // under it.
+  it('keeps the rail open when the pointer comes back after a drag ended off it', async () => {
+    const test = await shown()
+    vi.useFakeTimers()
+    try {
+      test.overlay.pointer({ hovered: true, held: true })
+      test.cursor.current = { x: 600, y: 400 }
+      test.overlay.pointer({ hovered: true, held: false })
+      expect(test.events.at(-1)).toEqual({ id: 1, kind: 'pointer', hovered: false, held: false })
+      test.cursor.current = { x: 30, y: 400 }
+      vi.advanceTimersByTime(100)
+      expect(test.events.at(-1)).toEqual({ id: 1, kind: 'pointer', hovered: true, held: false })
+      // Leaving again, the view hears it.
+      test.overlay.pointer({ hovered: false, held: false })
+      expect(test.events.at(-1)).toEqual({ id: 1, kind: 'pointer', hovered: false, held: false })
+      // Nothing is read once the rail is gone.
+      test.overlay.pointer({ hovered: true, held: true })
+      test.cursor.current = { x: 600, y: 400 }
+      test.overlay.pointer({ hovered: true, held: false })
+      test.overlay.hide(1)
+      const count = test.events.length
+      test.cursor.current = { x: 30, y: 400 }
+      vi.advanceTimersByTime(500)
+      expect(test.events.length).toBe(count)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // Escape gave the keyboard to the shell before the shell closed the rail, so it never went back to the page.
+  it('gives the keyboard back to the page that had it when Escape closes a focused rail', async () => {
+    const test = harness()
+    test.focus.owner = 'page'
+    test.overlay.show({ id: 1, model: model() })
+    await test.flush()
+    test.overlay.rendered({ revision: 1 })
+    test.surface.focused = true
+    test.overlay.received({ kind: 'dismiss' })
+    expect(test.events.at(-1)).toEqual({ id: 1, kind: 'intent', intent: { kind: 'dismiss' } })
+    expect(test.focusShell).not.toHaveBeenCalled()
+    test.overlay.hide(1)
+    expect(test.restoreFocus).toHaveBeenCalledExactlyOnceWith('page')
+  })
+
+  it('gives the keyboard back when the shown view is lost', async () => {
+    const test = harness()
+    test.focus.owner = 'page'
+    test.overlay.show({ id: 1, model: model() })
+    await test.flush()
+    test.overlay.rendered({ revision: 1 })
+    test.overlay.surfaceLost()
+    expect(test.restoreFocus).toHaveBeenCalledExactlyOnceWith('page')
+    expect(test.events.at(-1)).toEqual({ id: 1, kind: 'hidden', reason: 'lost' })
+  })
+
   it('takes the rail down rather than raise it over a page that went full screen meanwhile', async () => {
     const test = await shown()
     test.layout.current = null
@@ -684,6 +768,9 @@ describe('sidebar overlay IPC', () => {
     failed.send('sidebar-overlay:show', failed.fromShell, { id: 3, model: model() })
     expect(failed.overlay.refused).toHaveBeenCalledWith(3)
     expect(failed.overlay.show).not.toHaveBeenCalled()
+    // Another sender's id ends nothing, which could keep the shell's later reveals from opening.
+    expect(() => failed.send('sidebar-overlay:show', failed.fromPage, { id: 1_000_000, model: model() })).toThrow('Rejected IPC from a non-shell renderer')
+    expect(failed.overlay.refused).toHaveBeenCalledTimes(1)
   })
 
   it('shows the view\'s tooltips at its zoom, and hides only its own', () => {

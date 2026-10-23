@@ -115,6 +115,8 @@ export class SidebarOverlay {
   private finished = 0
   private occluded = false
   private disposed = false
+  /** Reads the pointer for the reveal while main knows more about it than the view, which hears nothing until it moves. */
+  private cursorWatch: { reveal: Reveal; timer: ReturnType<typeof setInterval> } | undefined
 
   constructor(private readonly ports: SidebarOverlayPorts) {}
 
@@ -205,9 +207,13 @@ export class SidebarOverlay {
     const released = reveal.view.held && !pointer.held
     reveal.view = pointer
     reveal.cursorInside = false
+    this.stopCursorWatch()
     // A drag that ends, or a press released, with the pointer off the rail leaves the view sure the pointer is still
-    // over it: it hears nothing more until the pointer comes back.
-    if (released && pointer.hovered && this.cursorOver(reveal) === false) reveal.view = { ...pointer, hovered: false }
+    // over it: it hears nothing more until the pointer comes back, and nothing when it comes back.
+    if (released && pointer.hovered && this.cursorOver(reveal) === false) {
+      reveal.view = { ...pointer, hovered: false }
+      this.watchCursor(reveal)
+    }
     this.report(reveal)
   }
 
@@ -231,7 +237,10 @@ export class SidebarOverlay {
       return
     }
     // The shell runs the command as it runs a click in its own rail, and keeps keyboard focus as that click would.
-    if (intent.kind !== 'scroll' && intent.kind !== 'drag-start' && this.current?.isFocused()) this.ports.focusShell()
+    // Escape only closes the rail, which gives focus back to whoever had it before.
+    if (intent.kind !== 'scroll' && intent.kind !== 'drag-start' && intent.kind !== 'dismiss' && this.current?.isFocused()) {
+      this.ports.focusShell()
+    }
     this.ports.emit({ id: reveal.id, kind: 'intent', intent })
   }
 
@@ -316,6 +325,8 @@ export class SidebarOverlay {
     if (reveal.presented) {
       this.reveal = null
       this.finish(reveal.id)
+      // Focus the view had went with it; restoring backs off when something else has it.
+      this.ports.restoreFocus(reveal.focusBefore)
       this.ports.emit({ id: reveal.id, kind: 'hidden', reason: 'lost' })
       return
     }
@@ -327,6 +338,7 @@ export class SidebarOverlay {
     if (reveal) this.hide(reveal.id)
     this.disposed = true
     this.current = null
+    this.stopCursorWatch()
   }
 
   private lay(reveal: Reveal): void {
@@ -364,6 +376,8 @@ export class SidebarOverlay {
       if (over !== undefined) {
         reveal.cursorInside = over
         if (!over) reveal.view = { ...reveal.view, hovered: false }
+        // A pointer that leaves at once, before the view hears it move, leaves the view nothing to report.
+        if (over) this.watchCursor(reveal)
       }
       this.report(reveal)
     }
@@ -374,6 +388,35 @@ export class SidebarOverlay {
       console.error('[sidebar overlay] Failed to open a menu from the rail:', error)
     }
     if (!shown) closed()
+  }
+
+  /**
+   * Reads the pointer every 100 ms until the view reports it again or the reveal ends, after main corrected what the
+   * view believes: the view hears no pointer that leaves it before moving over it, or comes back while it thinks the
+   * pointer never left.
+   */
+  private watchCursor(reveal: Reveal): void {
+    if (this.cursorWatch?.reveal === reveal) return
+    this.stopCursorWatch()
+    const timer = setInterval(() => {
+      if (this.disposed || this.reveal !== reveal) {
+        this.stopCursorWatch()
+        return
+      }
+      const over = this.cursorOver(reveal)
+      if (over === undefined || over === (reveal.view.hovered || reveal.cursorInside)) return
+      reveal.cursorInside = over
+      if (!over) reveal.view = { ...reveal.view, hovered: false }
+      this.report(reveal)
+    }, 100)
+    timer.unref?.()
+    this.cursorWatch = { reveal, timer }
+  }
+
+  private stopCursorWatch(): void {
+    if (!this.cursorWatch) return
+    clearInterval(this.cursorWatch.timer)
+    this.cursorWatch = undefined
   }
 
   private report(reveal: Reveal): void {

@@ -189,7 +189,9 @@ export function createShellOverlays(host: ShellOverlaysHost): {
       // Focus moves to the view while a click there lands; moving it in the same task does not stick.
       setImmediate(() => {
         const window = host.mainWindowRefs.window
-        if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.focus()
+        // Focusing a view also brings its window forward; a window in the background or minimized keeps its place.
+        if (!window || window.isDestroyed() || window.webContents.isDestroyed() || !window.isFocused() || window.isMinimized()) return
+        window.webContents.focus()
       })
     },
     focusOwner: () => {
@@ -200,6 +202,8 @@ export function createShellOverlays(host: ShellOverlaysHost): {
       setImmediate(() => {
         const window = host.mainWindowRefs.window
         if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return
+        // Nothing has focus in a window in the background or minimized either; focusing a view would bring it forward.
+        if (!window.isFocused() || window.isMinimized()) return
         const focused = allWebContents.getFocusedWebContents()
         // Only while the view taken down or nothing has it: what the person did meanwhile may have moved it on purpose.
         if (focused && !sidebarOverlayView.owns(focused)) return

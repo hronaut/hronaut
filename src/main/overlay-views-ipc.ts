@@ -147,12 +147,13 @@ export function registerOverlayViewsIpc(ipcMain: Pick<IpcMain, 'on'>, host: Over
       const id = sidebarOverlayRequestId(value)
       if (id !== undefined) host.sidebarOverlay().refused(id)
     }
+    // Only the main window's shell numbers reveals; another sender's id could end one that is still to come.
+    host.assertMainShellSender(event)
     // Nothing is drawn while startup has stopped; the shell opens its own rail beside the page.
     if (host.workspaceStartupFailure()) {
       refuse()
       return
     }
-    host.assertMainShellSender(event)
     let request: SidebarOverlayRequest
     try {
       request = parseSidebarOverlayRequest(value)

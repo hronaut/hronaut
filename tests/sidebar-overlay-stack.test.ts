@@ -35,7 +35,9 @@ function setup() {
   const sent: Array<[string, unknown]> = []
   const window = {
     minimized: false,
+    focused: true,
     isDestroyed: () => false,
+    isFocused() { return this.focused },
     isVisible: () => true,
     isMinimized() { return this.minimized },
     getContentSize: () => [1200, 800],
@@ -168,6 +170,38 @@ describe('the open rail over the page', () => {
       await settled()
       expect(window.webContents.focus).toHaveBeenCalledOnce()
       expect(page.focus).toHaveBeenCalledOnce()
+    } finally {
+      focus.current = null
+    }
+  })
+
+  // Focusing a view brings its window forward, so a rail taken down after the person switched away or minimized the
+  // window brought Hronaut back in front.
+  it('leaves the keyboard alone in a window in the background or minimized', async () => {
+    const { overlays, window, children, surface } = setup()
+    const page = { focus: vi.fn(), isDestroyed: () => false }
+    children.push({ getVisible: () => true, webContents: page })
+    const settled = () => new Promise((resolve) => setImmediate(resolve))
+    try {
+      focus.current = page
+      for (const [id, away] of [[1, 'background'], [2, 'minimized']] as const) {
+        overlays.sidebarOverlay.show({ id, model: { width: 280, top: 48 } as never })
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        const [state] = surface.send.mock.calls.at(-1) as [{ revision: number }]
+        overlays.sidebarOverlay.rendered({ revision: state.revision })
+        surface.focused = true
+        focus.current = null
+        if (away === 'background') window.focused = false
+        else window.minimized = true
+        overlays.sidebarOverlay.hide(id)
+        await settled()
+        window.focused = true
+        window.minimized = false
+        surface.focused = false
+        focus.current = page
+      }
+      expect(page.focus).not.toHaveBeenCalled()
+      expect(window.webContents.focus).not.toHaveBeenCalled()
     } finally {
       focus.current = null
     }
