@@ -8,7 +8,11 @@ import type { TrustedChromeOcclusionAccess, TrustedChromeOcclusionTab } from './
  * ends it and focuses the page that waited for trusted chrome to close.
  * Either change invalidates native input begun before it.
  */
-export function setBrowserContentOccluded<Tab extends TrustedChromeOcclusionTab>(access: TrustedChromeOcclusionAccess<Tab>, occluded: boolean): void {
+export function setBrowserContentOccluded<Tab extends TrustedChromeOcclusionTab>(
+  access: TrustedChromeOcclusionAccess<Tab>,
+  occluded: boolean,
+  request: number
+): void {
   if (access.isDestroyed() || access.window().isDestroyed()) return
   if (occluded !== access.browserContentOccluded()) {
     for (const tab of access.tabs()) tab.nativeInputEnvironmentGeneration += 1
@@ -44,12 +48,12 @@ export function setBrowserContentOccluded<Tab extends TrustedChromeOcclusionTab>
     }
     // Keys typed into trusted chrome must not reach the page while it stays on screen for its snapshot.
     if (access.window().isFocused()) access.window().webContents.focus()
-    access.occlusionSnapshot().begin()
+    access.occlusionSnapshot().begin(request)
   } else if (!occluded) {
     access.occlusionSnapshot().end()
   } else {
     // The shell waits for this report before a question over the pages takes answers.
-    access.occlusionSnapshot().confirmPagesHidden()
+    access.occlusionSnapshot().confirmPagesHidden(request)
   }
   access.layout()
   if (leavingTrustedChrome) {

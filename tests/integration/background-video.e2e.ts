@@ -131,9 +131,9 @@ test('background capture pauses for hidden chrome, hidden window and suspend wit
     await expect.poll(() => electronApp.evaluate(() => (globalThis as SleepCaptureGlobal).__sleepCapture?.held)).toBe(true)
     await expect(appWindow.evaluate(id => (window as unknown as TestWindow).hronaut.setTabSleeping(id, true), tabId)).rejects.toThrow('recording video')
     await electronApp.evaluate(() => (globalThis as SleepCaptureGlobal).__sleepCapture?.restore())
-    await appWindow.evaluate(() => (window as unknown as TestWindow).hronautShell.setBrowserContentOccluded(true))
+    await appWindow.evaluate(() => (window as unknown as TestWindow).hronautShell.setBrowserContentOccluded(true, 0))
     await expect.poll(async () => (await video('get')).status).toBe('paused')
-    await appWindow.evaluate(() => (window as unknown as TestWindow).hronautShell.setBrowserContentOccluded(false))
+    await appWindow.evaluate(() => (window as unknown as TestWindow).hronautShell.setBrowserContentOccluded(false, 0))
     expect((await video('get')).status).toBe('paused')
     await video('resume')
     await windowHandle.evaluate(window => window.hide())
@@ -181,7 +181,7 @@ test('background capture pauses for hidden chrome, hidden window and suspend wit
       probe.__sleepCapture?.restore()
       delete probe.__sleepCapture
     })
-    await appWindow.evaluate(() => (window as unknown as TestWindow).hronautShell.setBrowserContentOccluded(false))
+    await appWindow.evaluate(() => (window as unknown as TestWindow).hronautShell.setBrowserContentOccluded(false, 0))
     await windowHandle.evaluate(window => {
       const probe = window as typeof window & { __restoreVideoMinimize?: () => void }
       probe.__restoreVideoMinimize?.(); delete probe.__restoreVideoMinimize

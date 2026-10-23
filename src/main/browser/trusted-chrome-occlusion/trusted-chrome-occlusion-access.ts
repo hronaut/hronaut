@@ -68,7 +68,7 @@ export interface TrustedChromeOcclusionAccess<Tab extends TrustedChromeOcclusion
   /** Dismisses the tab's website dialog, which trusted chrome would hide. */
   dismissWebsiteDialogForTrustedChrome(tab: Tab): Promise<void>
   /** The still image of the pages shown under trusted chrome. */
-  occlusionSnapshot(): { begin(): void; end(): void; confirmPagesHidden(): void }
+  occlusionSnapshot(): { begin(request: number): void; end(): void; confirmPagesHidden(request: number): void }
   /** The native frame captures, with the one in flight for a page. */
   nativePreviewCapture(): { settled(contents: object): Promise<void> | undefined }
   /** Places and shows the pages in view. */

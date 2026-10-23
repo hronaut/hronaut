@@ -33,8 +33,11 @@ export interface OcclusionSnapshotPorts {
   send(snapshot: BrowserOcclusionSnapshot | null): void
   /** Lay the page views out again, which hides them once nothing holds them on screen. */
   relayout(): void
-  /** The page views are off the screen under trusted chrome, with or without a snapshot. */
-  pagesHidden(): void
+  /**
+   * The page views are off the screen under trusted chrome, with or without a snapshot, as the shell asked in its
+   * request with this number.
+   */
+  pagesHidden(request: number): void
   timeoutMs?: number
 }
 
@@ -45,7 +48,7 @@ export interface OcclusionSnapshotPorts {
  * deadline passes.
  */
 export class OcclusionSnapshot {
-  private pending: { id: number; layout: string; timer: ReturnType<typeof setTimeout> } | null = null
+  private pending: { id: number; request: number; layout: string; timer: ReturnType<typeof setTimeout> } | null = null
   private shown: { layout: string } | null = null
   private sequence = 0
   // A page whose capture never settles, such as a hung renderer, is not captured again on every dialog.
@@ -59,26 +62,28 @@ export class OcclusionSnapshot {
   /** A snapshot is on its way or on screen. */
   get active(): boolean { return this.pending !== null || this.shown !== null }
 
-  begin(): void {
+  /** Starts covering the pages for the shell's request with this number, which the report that they left names. */
+  begin(request: number): void {
     this.end()
     const panes = this.ports.panes().filter((pane) => !this.capturing.has(pane.contents))
     if (!panes.length) {
       // Nothing to capture, such as a sleeping or minimized page: the views leave the screen at once.
-      this.ports.pagesHidden()
+      this.ports.pagesHidden(request)
       return
     }
     const id = ++this.sequence
     const timer = setTimeout(() => this.finish(id), this.ports.timeoutMs ?? OCCLUSION_SNAPSHOT_TIMEOUT_MS)
-    this.pending = { id, layout: this.ports.layout(), timer }
+    this.pending = { id, request, layout: this.ports.layout(), timer }
     void this.capture(id, panes)
   }
 
   /**
-   * Trusted chrome asked again to cover pages it already covers: says once more that they are off the screen, unless
-   * they still wait for their snapshot, which says so when it ends.
+   * Trusted chrome asked again to cover pages it already covers, such as after the shell reloaded: says once more that
+   * they are off the screen, for this request, unless they still wait for their snapshot, which then says so for it.
    */
-  confirmPagesHidden(): void {
-    if (!this.holdingPages) this.ports.pagesHidden()
+  confirmPagesHidden(request: number): void {
+    if (this.pending) this.pending.request = request
+    else this.ports.pagesHidden(request)
   }
 
   /** The shell shows the snapshot with this ID, so the pages can leave the screen. */
@@ -107,10 +112,11 @@ export class OcclusionSnapshot {
 
   private finish(id: number): void {
     if (this.pending?.id !== id) return
+    const { request } = this.pending
     clearTimeout(this.pending.timer)
     this.pending = null
     this.ports.relayout()
-    this.ports.pagesHidden()
+    this.ports.pagesHidden(request)
   }
 
   private async capture(id: number, panes: OcclusionSnapshotPane[]): Promise<void> {

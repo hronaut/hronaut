@@ -174,7 +174,7 @@ test('follows agent activity passively, independently from input lock, and defer
   } finally {
     await appWindow.evaluate('window.hronautSettings.setFollowAgentActivity(false)').catch(() => undefined)
     await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(false)').catch(() => undefined)
-    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(false)').catch(() => undefined)
+    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(false, 0)').catch(() => undefined)
     await appWindow.evaluate('window.hronautShell.setFollowAgentActivitySuspended(false)').catch(() => undefined)
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)
@@ -2552,7 +2552,7 @@ test('dismisses website dialogs before and during trusted chrome occlusion', asy
       state.tabs.find((entry) => entry.id === ${JSON.stringify(tab.id)})?.dialog?.message
     ))`)).toBe('Imitate trusted approval')
 
-    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(true)')
+    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(true, 0)')
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
       state.tabs.find((entry) => entry.id === ${JSON.stringify(tab.id)})?.dialog ?? null
     ))`)).toBeNull()
@@ -2578,7 +2578,7 @@ test('dismisses website dialogs before and during trusted chrome occlusion', asy
       state.tabs.find((entry) => entry.id === ${JSON.stringify(tab.id)})?.dialog ?? null
     ))`)).toBeNull()
   } finally {
-    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(false)').catch(() => undefined)
+    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(false, 0)').catch(() => undefined)
     await closeFixtureServer(server)
   }
 })

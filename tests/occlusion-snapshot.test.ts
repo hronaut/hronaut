@@ -45,7 +45,7 @@ afterEach(() => { vi.useRealTimers() })
 describe('occlusion snapshot', () => {
   it('holds the pages on screen until the shell confirms this snapshot', async () => {
     const { snapshot, page, capture, sent, ports } = setup()
-    snapshot.begin()
+    snapshot.begin(1)
     expect(snapshot.holdingPages).toBe(true)
     // A hidden page must not be woken or counted as visible by the capture.
     expect(page.capturePage).toHaveBeenCalledWith(undefined, { stayHidden: true, stayAwake: false })
@@ -60,35 +60,51 @@ describe('occlusion snapshot', () => {
     expect(snapshot.holdingPages).toBe(false)
     expect(ports.relayout).toHaveBeenCalledOnce()
     // The shell starts overlay entrances held back until the pages are off the screen.
-    expect(ports.pagesHidden).toHaveBeenCalledOnce()
+    expect(ports.pagesHidden).toHaveBeenCalledExactlyOnceWith(1)
     snapshot.end()
     expect(sent).toEqual([sent[0], null])
   })
 
   it('says the pages are off the screen again when asked, unless they still wait for their snapshot', async () => {
     const { snapshot, capture, sent, ports } = setup()
-    snapshot.begin()
-    snapshot.confirmPagesHidden()
+    snapshot.begin(1)
+    // A reloaded shell asks again under a new number while the pages still wait; the report then answers that one.
+    snapshot.confirmPagesHidden(2)
     expect(ports.pagesHidden).not.toHaveBeenCalled()
     capture.resolve(image(1600))
     await vi.waitFor(() => expect(sent).toHaveLength(1))
     snapshot.present(1)
-    expect(ports.pagesHidden).toHaveBeenCalledOnce()
-    snapshot.confirmPagesHidden()
+    expect(ports.pagesHidden).toHaveBeenCalledExactlyOnceWith(2)
+    snapshot.confirmPagesHidden(3)
     expect(ports.pagesHidden).toHaveBeenCalledTimes(2)
+    expect(ports.pagesHidden).toHaveBeenLastCalledWith(3)
+  })
+
+  it('names the request each report answers, so a report for an earlier one is told apart', async () => {
+    vi.useFakeTimers()
+    const { snapshot, ports } = setup()
+    snapshot.begin(4)
+    // The deadline for request 4 passes before main sees the shell drop it and ask again.
+    await vi.advanceTimersByTimeAsync(OCCLUSION_SNAPSHOT_TIMEOUT_MS)
+    expect(ports.pagesHidden).toHaveBeenCalledExactlyOnceWith(4)
+    snapshot.end()
+    // The page still being captured for request 4 is not captured again, so request 5 is answered at once.
+    snapshot.begin(5)
+    expect(ports.pagesHidden).toHaveBeenCalledTimes(2)
+    expect(ports.pagesHidden).toHaveBeenLastCalledWith(5)
   })
 
   it('keeps device pixels on high-density screens and only shrinks larger captures', async () => {
     const sharp = setup({ deviceScale: () => 2 })
     const exact = image(1600)
-    sharp.snapshot.begin()
+    sharp.snapshot.begin(1)
     sharp.capture.resolve(exact)
     await vi.waitFor(() => expect(sharp.sent).toHaveLength(1))
     expect(exact.resized).toEqual([])
 
     const oversized = setup({ deviceScale: () => 1, cssScale: () => 1.25 })
     const large = image(1600)
-    oversized.snapshot.begin()
+    oversized.snapshot.begin(1)
     oversized.capture.resolve(large)
     await vi.waitFor(() => expect(oversized.sent).toHaveLength(1))
     expect(large.resized).toEqual([800])
@@ -98,7 +114,7 @@ describe('occlusion snapshot', () => {
   it('uncovers trusted chrome at the deadline when the shell never confirms', async () => {
     vi.useFakeTimers()
     const { snapshot, ports } = setup()
-    snapshot.begin()
+    snapshot.begin(1)
     await vi.advanceTimersByTimeAsync(OCCLUSION_SNAPSHOT_TIMEOUT_MS - 1)
     expect(snapshot.holdingPages).toBe(true)
     expect(ports.pagesHidden).not.toHaveBeenCalled()
@@ -110,7 +126,7 @@ describe('occlusion snapshot', () => {
 
   it('drops a capture that finishes after the dialog closed or the layout changed', async () => {
     const closed = setup()
-    closed.snapshot.begin()
+    closed.snapshot.begin(1)
     closed.snapshot.end()
     closed.capture.resolve(image())
     await Promise.resolve()
@@ -120,7 +136,7 @@ describe('occlusion snapshot', () => {
     expect(closed.ports.pagesHidden).not.toHaveBeenCalled()
 
     const moved = setup()
-    moved.snapshot.begin()
+    moved.snapshot.begin(1)
     moved.setLayout('window-b')
     moved.capture.resolve(image())
     await vi.waitFor(() => expect(moved.ports.relayout).toHaveBeenCalledOnce())
@@ -130,7 +146,7 @@ describe('occlusion snapshot', () => {
 
   it('withdraws a shown snapshot when the window layout changes', async () => {
     const { snapshot, capture, sent, setLayout } = setup()
-    snapshot.begin()
+    snapshot.begin(1)
     capture.resolve(image())
     await vi.waitFor(() => expect(sent).toHaveLength(1))
     snapshot.present(1)
@@ -145,24 +161,24 @@ describe('occlusion snapshot', () => {
   it('never stacks captures on a page whose capture has not settled', async () => {
     vi.useFakeTimers()
     const { snapshot, page, ports } = setup()
-    snapshot.begin()
+    snapshot.begin(1)
     snapshot.end()
-    snapshot.begin()
+    snapshot.begin(2)
     expect(page.capturePage).toHaveBeenCalledOnce()
     expect(snapshot.holdingPages).toBe(false)
-    expect(ports.pagesHidden).toHaveBeenCalledOnce()
+    expect(ports.pagesHidden).toHaveBeenCalledExactlyOnceWith(2)
   })
 
   it('uncovers trusted chrome at once when the capture fails or is empty', async () => {
     const failed = setup()
-    failed.snapshot.begin()
+    failed.snapshot.begin(1)
     failed.capture.reject(new Error('renderer gone'))
     await vi.waitFor(() => expect(failed.ports.relayout).toHaveBeenCalledOnce())
     expect(failed.sent).toEqual([])
     expect(failed.ports.pagesHidden).toHaveBeenCalledOnce()
 
     const empty = setup()
-    empty.snapshot.begin()
+    empty.snapshot.begin(1)
     empty.capture.resolve(image(1600, true))
     await vi.waitFor(() => expect(empty.ports.relayout).toHaveBeenCalledOnce())
     expect(empty.sent).toEqual([])
@@ -178,7 +194,7 @@ describe('occlusion snapshot', () => {
         { contents: { capturePage: vi.fn(() => healthy.promise) }, bounds: { x: 400, y: 100, width: 400, height: 450 } }
       ]
     })
-    snapshot.begin()
+    snapshot.begin(1)
     healthy.resolve(image(800))
     await vi.waitFor(() => expect(sent).toHaveLength(1))
     expect(sent[0]?.panes.map(pane => pane.bounds.x)).toEqual([400])
@@ -190,7 +206,7 @@ describe('occlusion snapshot', () => {
     const { snapshot, page, capture, sent, ports } = setup()
     const pane = ports.panes()[0]!
     ports.panes = () => [{ ...pane, busy: preview.promise }]
-    snapshot.begin()
+    snapshot.begin(1)
     await Promise.resolve()
     // Two native captures of one page must not overlap, and the page stays on screen meanwhile.
     expect(page.capturePage).not.toHaveBeenCalled()
@@ -206,7 +222,7 @@ describe('occlusion snapshot', () => {
     const closed = setup()
     const closedPane = closed.ports.panes()[0]!
     closed.ports.panes = () => [{ ...closedPane, busy: late.promise }]
-    closed.snapshot.begin()
+    closed.snapshot.begin(1)
     closed.snapshot.end()
     late.resolve()
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -217,12 +233,12 @@ describe('occlusion snapshot', () => {
   it('reports the pages hidden at once without a page to capture, and clears its deadline on dispose', () => {
     vi.useFakeTimers()
     const none = setup({ panes: () => [] })
-    none.snapshot.begin()
+    none.snapshot.begin(7)
     expect(none.snapshot.active).toBe(false)
     // A sleeping or minimized page leaves the screen at once, so held entrances start.
-    expect(none.ports.pagesHidden).toHaveBeenCalledOnce()
+    expect(none.ports.pagesHidden).toHaveBeenCalledExactlyOnceWith(7)
     const disposed = setup()
-    disposed.snapshot.begin()
+    disposed.snapshot.begin(1)
     disposed.snapshot.dispose()
     expect(vi.getTimerCount()).toBe(0)
   })
