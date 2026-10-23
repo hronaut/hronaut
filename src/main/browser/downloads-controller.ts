@@ -85,6 +85,8 @@ export class BrowserDownloadsController {
   private destroyed = false
   private readonly downloads = new Map<string, BrowserDownloadState>()
   private readonly downloadItems = new Map<string, DownloadItem>()
+  /** The session each download in progress runs in, which a closed workspace's storage keeps for it until it ends. */
+  private readonly downloadSessions = new Map<string, Session>()
   private readonly downloadWorkspaceIds = new Map<string, string | undefined>()
   /** Save paths handed to downloads that Chromium may not have created yet, keyed by `reservationKey`. */
   private readonly reservedDownloadPaths = new Set<string>()
@@ -101,6 +103,17 @@ export class BrowserDownloadsController {
 
   hasActiveDownload(tabId: string): boolean {
     return [...this.downloads.values()].some(download => download.tabId === tabId && isActiveDownload(download))
+  }
+
+  /**
+   * Settles once every download of this session that has not ended does, or is undefined when there is none. A paused
+   * download, or one Chromium stopped and can resume, has not ended either: as in Chrome, it can still be resumed.
+   */
+  downloadsEnd(browserSession: Session): Promise<void> | undefined {
+    const unfinished = [...this.downloadItems].filter(([id]) => this.downloadSessions.get(id) === browserSession)
+    if (!unfinished.length) return undefined
+    return Promise.all(unfinished.map(([, item]) => new Promise<void>((resolve) => { item.once('done', () => resolve()) })))
+      .then(() => undefined)
   }
 
   advanceWorkspaceObservationGeneration(workspaceId: string, observationGeneration: number): void {
@@ -124,6 +137,7 @@ export class BrowserDownloadsController {
     for (const detach of this.downloadItemListeners.values()) detach()
     this.downloadItemListeners.clear()
     this.downloadItems.clear()
+    this.downloadSessions.clear()
     this.downloadWorkspaceIds.clear()
     this.reservedDownloadPaths.clear()
     this.completedFileIdentities.clear()
@@ -156,6 +170,7 @@ export class BrowserDownloadsController {
         download.canResume = false
         download.completedAt ??= new Date().toISOString()
         this.downloadItems.delete(id)
+        this.downloadSessions.delete(id)
       }
     }
     return [...this.downloads.values()]
@@ -394,6 +409,7 @@ export class BrowserDownloadsController {
         download.filename = basename(suggestedPath)
         download.savePath = settings.askWhereToSaveDownloads ? '' : suggestedPath
         this.downloadItems.set(id, item)
+        this.downloadSessions.set(id, browserSession)
         const onUpdated = (_downloadEvent: Event, state: 'interrupted' | 'progressing') => {
           download.state = state === 'interrupted' ? 'interrupted' : 'progressing'
           download.receivedBytes = item.getReceivedBytes()
@@ -413,6 +429,7 @@ export class BrowserDownloadsController {
           download.completedAt = new Date().toISOString()
           if (state === 'completed' && download.savePath) this.recordCompletedFile(id, download.savePath)
           this.downloadItems.delete(id)
+          this.downloadSessions.delete(id)
           this.trimDownloadHistory()
           this.notifyDownloadsChanged(true)
         }
