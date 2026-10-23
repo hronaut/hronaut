@@ -22,6 +22,11 @@ All notable changes to Hronaut are documented in this file.
 - A page opened from a restored, duplicated or woken tab while the page it loaded again was still loading, such as through a link while an image of that page still loaded, now joins the browsing history. Such a tab left out of the history every page opened in it before a page finished loading.
 - A sent EVM transaction no longer turns `failed` as replaced when it was mined but the node has lost it, such as a load-balanced node answering from a backend that lags behind, or a node that pruned old transactions. Hronaut now counts a transaction replaced only once it finds the block in which the account used the nonce and that block does not hold the transaction.
 
+### Security
+
+- Hronaut now runs on Electron 44.9.3, which no longer trusts the compromised eMudhra intermediate certificates, so a website can't be impersonated with a certificate they issued.
+- The MCP server now parses requests with body-parser 2.4.0, which fixes a denial of service where bytes after a compressed request body kept the server busy.
+
 ## [3.7.0] - 2026-10-23
 
 ### Changed
