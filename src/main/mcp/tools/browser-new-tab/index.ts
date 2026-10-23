@@ -4,6 +4,7 @@ import { DEFAULT_FONT_SIZE_LIMITS } from '../../../../shared/default-font-size.j
 import { MAX_TAB_LABEL_INPUT_LENGTH, normalizeTabLabel } from '../../../../shared/tab-label.js'
 import { classifyMcpActivityResult, mcpWorkspaceState, textResult, toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { initialPageLoaded, STILL_LOADING_NEXT_ACTION } from './initial-page-load.js'
 import { type LabeledCreationSettlement, labeledCreationSettlement } from './labeled-creation-settlement.js'
 
 export function registerBrowserNewTab(context: McpToolContext): void {
@@ -18,10 +19,12 @@ export function registerBrowserNewTab(context: McpToolContext): void {
         active: z.boolean().optional().describe('Select the new tab within the agent workspace without taking the view: Follow agents may show it once you work in it, unless the person is busy; browser_show makes it visible.'),
         zoomIsolated: z.boolean().optional().describe('Give the new tab its own page zoom, starting at 100%, instead of sharing zoom with same-origin tabs. Set only at creation; it cannot be switched later.'),
         defaultFontSize: z.number().int().min(DEFAULT_FONT_SIZE_LIMITS.min).max(DEFAULT_FONT_SIZE_LIMITS.max).optional()
-          .describe(`Browser default (standard) font size in CSS px for this tab, ${DEFAULT_FONT_SIZE_LIMITS.min}–${DEFAULT_FONT_SIZE_LIMITS.max}; the browser default is ${DEFAULT_FONT_SIZE_LIMITS.browserDefault}. Changes text sized by the browser default and em/rem media queries, unlike page zoom or OS text scale. Set only at creation; open another tab for another size.`)
+          .describe(`Browser default (standard) font size in CSS px for this tab, ${DEFAULT_FONT_SIZE_LIMITS.min}–${DEFAULT_FONT_SIZE_LIMITS.max}; the browser default is ${DEFAULT_FONT_SIZE_LIMITS.browserDefault}. Changes text sized by the browser default and em/rem media queries, unlike page zoom or OS text scale. Set only at creation; open another tab for another size.`),
+        waitForLoad: z.boolean().optional().describe('With a url, answer only once its page stops loading, for up to 30 seconds as browser_navigate does (default true). false answers as soon as the tab exists, to watch the page while it loads.')
       }
     },
-    tool(async ({ workspaceId, url, active, label, zoomIsolated, defaultFontSize }: { workspaceId?: string; url?: string; active?: boolean; label?: string; zoomIsolated?: boolean; defaultFontSize?: number }, call: WorkspaceToolCall<LabeledCreationSettlement | undefined>) => {
+    tool(async ({ workspaceId, url, active, label, zoomIsolated, defaultFontSize, waitForLoad }: { workspaceId?: string; url?: string; active?: boolean; label?: string; zoomIsolated?: boolean; defaultFontSize?: number; waitForLoad?: boolean }, call: WorkspaceToolCall<LabeledCreationSettlement | undefined>) => {
+      const waitsForLoad = url !== undefined && waitForLoad !== false
       const construction = { ...(zoomIsolated ? { zoomIsolated: true } : {}), ...(defaultFontSize === undefined ? {} : { defaultFontSize }) }
       if (label !== undefined) {
         const creation = call.settlement!
@@ -38,8 +41,10 @@ export function registerBrowserNewTab(context: McpToolContext): void {
         }, creation.markAttempted)
         const knownNotSaved = saved.labelPersistence === 'not-saved'
         creation.recordLabelNotSaved(knownNotSaved)
+        const stillLoading = waitsForLoad && !await initialPageLoaded(manager, saved.createdTabId, call.signal)
         const outcome = { ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!), urlDetailOmitted(manager)), ...saved,
           status: knownNotSaved ? 'LABEL_NOT_SAVED' : 'CREATED', retrySafe: false,
+          ...(stillLoading ? { pageLoad: 'still-loading', nextAction: STILL_LOADING_NEXT_ACTION } : {}),
           ...(knownNotSaved ? { nextAction: 'The tab was created but its label was not saved. Inspect current state; do not repeat creation to retry the label.' } : {}) }
         return { ...textResult(outcome), structuredContent: { status: outcome.status }, ...(knownNotSaved ? { isError: true } : {}) }
       }
@@ -51,7 +56,9 @@ export function registerBrowserNewTab(context: McpToolContext): void {
         onTabActivity?.({ activityId, tabId: createdTab.id, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, workspaceId!)
         onTabActivity?.({ activityId, tabId: createdTab.id, toolName: 'browser_new_tab', phase: 'finished', occurredAt: Date.now() }, workspaceId!)
       }
-      return textResult(mcpWorkspaceState(manager.getMcpGroupState(workspaceId!), urlDetailOmitted(manager)))
+      const stillLoading = waitsForLoad && createdTab !== undefined && !await initialPageLoaded(manager, createdTab.id, call.signal)
+      return textResult({ ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!), urlDetailOmitted(manager)),
+        ...(stillLoading ? { pageLoad: 'still-loading', nextAction: STILL_LOADING_NEXT_ACTION } : {}) })
     }),
     {
       settlement: input => input.label !== undefined ? labeledCreationSettlement(manager, input) : undefined,

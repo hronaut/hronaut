@@ -16,6 +16,7 @@ function text(result: CallToolResult): string {
   return content?.type === 'text' ? content.text : ''
 }
 
+// Tabs open with waitForLoad: false, so each wait here can start while its page is still loading.
 test('keeps waiting for the main document when a subframe load fails', async ({
   appWindow,
   electronApp,
@@ -75,7 +76,7 @@ test('keeps waiting for the main document when a subframe load fails', async ({
 
     const opened = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: mainUrl, active: true }
+      arguments: { url: mainUrl, active: true, waitForLoad: false }
     }) as CallToolResult
     const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
     await Promise.all([mainRequested, frameRequested])
@@ -252,7 +253,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
 
     const disappearingTab = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: `http://127.0.0.1:${address.port}/text-disappears`, active: true }
+      arguments: { url: `http://127.0.0.1:${address.port}/text-disappears`, active: true, waitForLoad: false }
     }) as CallToolResult
     const disappearingTabId = (JSON.parse(text(disappearingTab)) as { activeTabId: string }).activeTabId
     const disappeared = await client.callTool({
@@ -264,7 +265,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
 
     const anyTextTab = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: `http://127.0.0.1:${address.port}/text-any`, active: true }
+      arguments: { url: `http://127.0.0.1:${address.port}/text-any`, active: true, waitForLoad: false }
     }) as CallToolResult
     const anyTextTabId = (JSON.parse(text(anyTextTab)) as { activeTabId: string }).activeTabId
     const anyText = await client.callTool({
@@ -281,7 +282,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
 
     const elementTab = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: `http://127.0.0.1:${address.port}/element-states`, active: true }
+      arguments: { url: `http://127.0.0.1:${address.port}/element-states`, active: true, waitForLoad: false }
     }) as CallToolResult
     const elementTabId = (JSON.parse(text(elementTab)) as { activeTabId: string }).activeTabId
     const elementTools = await client.listTools()
@@ -366,7 +367,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
 
     const urlTab = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: `http://127.0.0.1:${address.port}/url-wait`, active: true }
+      arguments: { url: `http://127.0.0.1:${address.port}/url-wait`, active: true, waitForLoad: false }
     }) as CallToolResult
     const urlTabId = (JSON.parse(text(urlTab)) as { activeTabId: string }).activeTabId
     const urlTools = await client.listTools()
@@ -390,7 +391,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
 
     const documentUrlTab = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: `http://127.0.0.1:${address.port}/url-navigation`, active: true }
+      arguments: { url: `http://127.0.0.1:${address.port}/url-navigation`, active: true, waitForLoad: false }
     }) as CallToolResult
     const documentUrlTabId = (JSON.parse(text(documentUrlTab)) as { activeTabId: string }).activeTabId
     const matchedDocumentUrl = await client.callTool({
@@ -465,7 +466,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
 
     const persistentTab = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: `http://127.0.0.1:${address.port}/text-stays`, active: true }
+      arguments: { url: `http://127.0.0.1:${address.port}/text-stays`, active: true, waitForLoad: false }
     }) as CallToolResult
     const persistentTabId = (JSON.parse(text(persistentTab)) as { activeTabId: string }).activeTabId
     const persistentUrl = `http://127.0.0.1:${address.port}/text-stays`
@@ -541,7 +542,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
 
     const opened = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: `http://127.0.0.1:${address.port}/never-finishes`, active: true }
+      arguments: { url: `http://127.0.0.1:${address.port}/never-finishes`, active: true, waitForLoad: false }
     }) as CallToolResult
     const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.loading)`)).toBe(true)
@@ -564,7 +565,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
 
     const openedCrashTab = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: `http://127.0.0.1:${address.port}/page-wait-renderer-crash`, active: true }
+      arguments: { url: `http://127.0.0.1:${address.port}/page-wait-renderer-crash`, active: true, waitForLoad: false }
     }) as CallToolResult
     const crashTabId = (JSON.parse(text(openedCrashTab)) as { activeTabId: string }).activeTabId
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(crashTabId)})?.loading)`)).toBe(true)
@@ -668,7 +669,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
 
     const openedUrlCrashTab = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: `http://127.0.0.1:${address.port}/url-wait-renderer-crash`, active: true }
+      arguments: { url: `http://127.0.0.1:${address.port}/url-wait-renderer-crash`, active: true, waitForLoad: false }
     }) as CallToolResult
     const urlCrashTabId = (JSON.parse(text(openedUrlCrashTab)) as { activeTabId: string }).activeTabId
     await expect.poll(() => electronApp.evaluate(({ webContents }, requestedPath) => (
@@ -704,7 +705,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
 
     const openedTextTab = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: `http://127.0.0.1:${address.port}/never-finds-text`, active: true }
+      arguments: { url: `http://127.0.0.1:${address.port}/never-finds-text`, active: true, waitForLoad: false }
     }) as CallToolResult
     const textTabId = (JSON.parse(text(openedTextTab)) as { activeTabId: string }).activeTabId
     const waitingForText = client.callTool({
@@ -728,7 +729,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
     ): Promise<void> => {
       const openedNetworkTab = await client.callTool({
         name: 'browser_new_tab',
-        arguments: { url: `http://127.0.0.1:${address.port}${path}`, active: true }
+        arguments: { url: `http://127.0.0.1:${address.port}${path}`, active: true, waitForLoad: false }
       }) as CallToolResult
       const networkTabId = (JSON.parse(text(openedNetworkTab)) as { activeTabId: string }).activeTabId
       await expect.poll(() => electronApp.evaluate(({ webContents }, requestedPath) => (
@@ -777,7 +778,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
 
     const openedTimeoutTab = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: `http://127.0.0.1:${address.port}/never-finishes-before-timeout`, active: true }
+      arguments: { url: `http://127.0.0.1:${address.port}/never-finishes-before-timeout`, active: true, waitForLoad: false }
     }) as CallToolResult
     const timeoutTabId = (JSON.parse(text(openedTimeoutTab)) as { activeTabId: string }).activeTabId
     const timeoutResult = await client.callTool({
@@ -790,7 +791,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
 
     const openedTextTimeoutTab = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: `http://127.0.0.1:${address.port}/text-never-finishes-before-timeout`, active: true }
+      arguments: { url: `http://127.0.0.1:${address.port}/text-never-finishes-before-timeout`, active: true, waitForLoad: false }
     }) as CallToolResult
     const textTimeoutTabId = (JSON.parse(text(openedTextTimeoutTab)) as { activeTabId: string }).activeTabId
     const textTimeoutResult = await client.callTool({
