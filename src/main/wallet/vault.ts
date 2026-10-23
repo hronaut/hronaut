@@ -71,9 +71,13 @@ const PersistedVaultSchema = PersistedVaultBodySchema.extend({
   version: z.literal(2),
   authority: EncryptedSecretSchema
 }).strict()
+
 export async function readWalletVaultProtectionMode(path: string): Promise<PersistedWalletKeyProtection['mode']> {
+  // A file that cannot be read, such as one without permission, is not a sign of
+  // tampering, so only its content can fail the integrity check.
+  const text = await readFile(path, 'utf8')
   try {
-    return PersistedVaultSchema.parse(JSON.parse(await readFile(path, 'utf8'))).keyProtection.mode
+    return PersistedVaultSchema.parse(JSON.parse(text)).keyProtection.mode
   } catch {
     throw new Error('Wallet vault file is invalid')
   }

@@ -28,7 +28,7 @@ const stateSchema = z.object({
   controlRevision: z.number().int().nonnegative().safe().optional(),
   runtimeId: identifier.optional(),
   // Foreign lease generations and transport/client identifiers are never retained.
-  writeLease: writeLeaseSchema.optional(),
+  writeLease: writeLeaseSchema,
   originChanged: z.boolean(),
   operationClass: z.enum(['navigation', 'page-interaction', 'browser-state', 'site-data', 'network', 'external-request']).optional(),
   targetKind: z.enum(['tab', 'element-ref', 'selector', 'coordinates', 'drag', 'form', 'origin', 'script', 'request']).optional(),
@@ -89,7 +89,7 @@ const eventSchema = z.discriminatedUnion('phase', [
     actionId: identifier,
     toolName: z.string().regex(/^browser_[a-z_]+$/),
     decision: z.enum(['allowed', 'denied']),
-    authorization: authorizationSchema.optional(),
+    authorization: authorizationSchema,
     evidenceExpected: z.boolean().optional(),
     state: stateSchema.nullable()
   }).strict(),
@@ -129,6 +129,14 @@ export type AuditReceiptEvent = z.infer<typeof eventSchema>
 export type AuditReceiptAuthorization = z.infer<typeof authorizationSchema>
 export type AuditObservedState = z.infer<typeof stateSchema> | null
 export type AuditReceipt = z.infer<typeof entrySchema>
+
+/** A stored journal that does not verify: content this version cannot read, a
+ * broken hash chain or a partly written last line. */
+export class AuditReceiptHistoryInvalidError extends Error {
+  constructor() {
+    super('Audit receipt history verification failed')
+  }
+}
 
 export interface AuditReceiptStoreOptions {
   path: string
@@ -383,7 +391,7 @@ export class AuditReceiptStore {
       }
       return { entries, bytes, actions }
     } catch {
-      throw new Error('Audit receipt history verification failed')
+      throw new AuditReceiptHistoryInvalidError()
     } finally {
       await handle.close()
     }

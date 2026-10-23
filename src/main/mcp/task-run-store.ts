@@ -448,7 +448,9 @@ export class TaskRunStore {
       }
     } else {
       for (const entry of this.records.values()) {
-        if (entry.record.state !== 'RUNNING') continue
+        // A success claim still being verified keeps the heartbeat it had while running,
+        // so a verification that never finishes times out instead of running forever.
+        if (entry.record.state !== 'RUNNING' && entry.record.state !== 'VERIFYING') continue
         if (monotonic >= entry.deadlineMonotonic) this.transition(entry.record, 'TIMED_OUT', 'DEADLINE_REACHED')
         else if (monotonic >= entry.heartbeatDueMonotonic) this.transition(entry.record, 'TIMED_OUT', 'HEARTBEAT_EXPIRED')
       }

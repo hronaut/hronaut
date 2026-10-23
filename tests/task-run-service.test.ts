@@ -64,7 +64,28 @@ describe('durable task-run owner', () => {
       allowed = false
       return { results: [{ id: 'page', status: 'PASS' }], contextToken: 'before' }
     })).rejects.toThrow('revoked')
-    expect((await service.get(WORKSPACE_ID, run.id, authorize)).outcome).toBe('running')
+    // Unchanged revision: the revoked claim never reached the store.
+    expect(await service.get(WORKSPACE_ID, run.id, authorize)).toMatchObject({ outcome: 'running', revision: run.revision })
+  })
+
+  it('times out a success claim left verifying when authorization is revoked while it is saved', async () => {
+    let now = 0
+    let allowed = true
+    const store = new TaskRunStore({ monotonicNow: () => now, wallNow: () => 1_000_000 + now })
+    const service = new TaskRunService({
+      load: async () => null,
+      save: async snapshot => { if (snapshot.records.some(record => record.state === 'VERIFYING')) allowed = false }
+    }, store)
+    const run = await service.create(request, authorize)
+    const check = () => { if (!allowed) throw new Error('revoked') }
+    const evaluate = vi.fn(async () => ({ results: [{ id: 'page', status: 'PASS' as const }], contextToken: 'same' }))
+    await expect(service.complete(WORKSPACE_ID, run.id, run.revision, 'SUCCEEDED', check, evaluate)).rejects.toThrow('revoked')
+    expect(evaluate).toHaveBeenCalledTimes(1)
+    expect(await service.get(WORKSPACE_ID, run.id, authorize)).toMatchObject({ outcome: 'running' })
+    now = request.heartbeatTimeoutMs
+    expect(await service.get(WORKSPACE_ID, run.id, authorize)).toMatchObject({
+      outcome: 'timed-out', reasonCode: 'HEARTBEAT_EXPIRED'
+    })
   })
 
   it('reclassifies a saved success when its browser evidence changes before return', async () => {

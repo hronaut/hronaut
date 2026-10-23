@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { BrowserWorkspaceNavigationAuditSource } from '../../shared/types.js'
 import type { WorkspaceNavigationDecision } from '../browser/workspace-navigation-policy.js'
 import { AuditReceiptRun, type AuditReceiptActionOptions } from './audit-receipt-run.js'
-import { AuditReceiptStore, type AuditReceiptEvent } from './audit-receipt-store.js'
+import { AuditReceiptHistoryInvalidError, AuditReceiptStore, type AuditReceiptEvent } from './audit-receipt-store.js'
 
 const idSchema = z.uuid().transform(value => value.toLowerCase())
 const metadataSchema = z.object({
@@ -69,7 +69,19 @@ export class AuditReceiptService {
         return { ...current.metadata }
       }
       const index = await this.readIndex(id)
-      for (const previous of index.runs) await this.finalizeInterruptedVerifications(id, previous)
+      for (const previous of [...index.runs]) {
+        try {
+          await this.finalizeInterruptedVerifications(id, previous)
+        } catch (error) {
+          if (!(error instanceof AuditReceiptHistoryInvalidError)) throw error
+          // An interrupted run whose journal does not verify, such as one an earlier
+          // version saved, can be neither read nor closed, so it is retired whole.
+          index.runs.splice(index.runs.indexOf(previous), 1)
+          await this.saveIndex(id, index)
+          await rm(this.journalPath(id, previous.id), { force: true })
+          console.warn('[audit] Retired an interrupted audit run whose journal could not be verified.')
+        }
+      }
       const directory = this.workspacePath(id)
       await mkdir(directory, { recursive: true, mode: 0o700 })
       const known = new Set(index.runs.map(run => `${run.id}.jsonl`))

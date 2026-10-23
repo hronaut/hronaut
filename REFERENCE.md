@@ -653,7 +653,9 @@ Each workspace retains at most three runs, each capped at 1 MiB and 1,000 journa
 entries. Starting a fourth run retires the oldest whole run. Accepted actions
 reserve space for their outcomes; site observations have a bounded write queue,
 and omitted observations are counted. An interrupted run is reported as such and
-never automatically resumed or replayed. Failed metadata persistence leaves the
+never automatically resumed or replayed. An interrupted run whose journal no
+longer verifies, such as one saved by an earlier version, cannot be read and is
+retired whole when the next run starts. Failed metadata persistence leaves the
 run in a stopping state until stop succeeds. Unindexed journals are preserved for
 recovery instead of silently discarded.
 
@@ -664,8 +666,7 @@ contract. Native page events may have no action correlation. Unavailable state i
 `null`, and possible effects after failure or cancellation do not imply rollback.
 Handoff-invalidated reads have outcome status `stale-observation`; uncertain
 writes have `outcome-unknown`, including when their transport was cancelled.
-Format version 4 observations include privacy-safe write-lease evidence; older
-retained observations remain readable and may omit it.
+Format version 4 observations include privacy-safe write-lease evidence.
 These statuses do not authorize a retry or establish whether a write took effect.
 Site identities are opaque and stable only within one live run. Reports contain
 no raw URLs, titles, tool arguments, tool results, error text, form values, page
