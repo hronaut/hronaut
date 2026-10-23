@@ -11,6 +11,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - The address bar's suggestions now stay on screen while they change, as Chrome's do, such as when a page finishes loading in another tab and its visit joins them. They hid and shrank to a line until the new ones were drawn, so the list blinked, and a click on a row in that moment missed it.
+- The signatures and keys of more shared and signed links are now redacted wherever Hronaut redacts signed links: SharePoint and OneDrive for work downloads (`tempauth`), personal OneDrive shares (`authkey`), Dropbox shares (`rlkey`), Google Drive shares (`resourcekey`), Discord attachments (`hm`), Facebook, Instagram and Messenger files (`oh`), links signed with `hmac`, such as Shopify's, and nginx secure links (`md5`). Download records and `browser_downloads`, network requests, HAR and cURL copies, and the links of snapshots and frames kept them, so whoever read them could fetch the file.
 
 ## [3.7.0] - 2026-10-23
 
