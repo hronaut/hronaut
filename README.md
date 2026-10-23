@@ -227,6 +227,17 @@ The skill teaches the agent to create its own isolated workspace, prefer semanti
 
 After trying it, share a short [setup report](https://github.com/hronaut/hronaut/issues/new?template=setup-feedback.yml)—successful connections are useful too. The structured form asks for the client, operating system, Hronaut version, and outcome. Never include credentials, MCP tokens, private page data, or personal browser-session information in a public issue.
 
+### Claude Code plugin
+
+Claude Code users can install the Hronaut MCP server and the Hronaut Agent Skill together as a plugin from this repository:
+
+```text
+/plugin marketplace add hronaut/hronaut
+/plugin install hronaut@hronaut
+```
+
+On Claude Code 2.1.275 or later, `/plugin install hronaut --marketplace hronaut/hronaut` does both in one step. Start Hronaut first; `/mcp` then shows Hronaut as connected. The plugin connects to `http://127.0.0.1:47812/mcp` and reads Hronaut's owner token from the token file in Hronaut's profile each time it connects, so the token is never written to Claude Code's settings or shown to the agent. If you changed Hronaut's MCP port, set `HRONAUT_MCP_PORT` for Claude Code too; if Hronaut uses another profile folder, set `HRONAUT_USER_DATA_DIR`. A profile that Hronaut only ever started with `HRONAUT_MCP_TOKEN` has no token file, so give Claude Code the same variable. If you added Hronaut with `claude mcp add` before, remove that server with `claude mcp remove hronaut --scope user`, so the agent does not get Hronaut's tools twice.
+
 ### First successful run
 
 After your client reports Hronaut as connected, paste this into the coding agent:
