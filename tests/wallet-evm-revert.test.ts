@@ -8,6 +8,7 @@ import {
   simulationRevertFromStored,
   storedSimulationRevert
 } from '../src/main/wallet/evm-revert.js'
+import type { WalletSimulationRevert } from '../src/shared/wallet.js'
 
 const ERRORS = parseAbi([
   'error Error(string)',
@@ -85,7 +86,7 @@ describe('EVM revert reasons', () => {
     expect(decodeRevertData('0x1234')).toEqual({ kind: 'no-reason' })
   })
 
-  it('stores a reason in text older versions accept, and names known errors when it is read back', () => {
+  it('stores only the decoded reason, and names known errors when it is read back', () => {
     const stored = (data: Hex) => simulationRevertFromStored(storedSimulationRevert(decodeRevertData(data)))
     expect(stored(panic(0x11n))).toEqual({ kind: 'panic', code: '0x11', meaning: 'arithmetic overflow or underflow' })
     expect(stored(panic(0x99n))).toEqual({ kind: 'panic', code: '0x99' })
@@ -94,16 +95,16 @@ describe('EVM revert reasons', () => {
     expect(stored(encodeErrorResult({ abi: ERRORS, errorName: 'Unlisted', args: [1n] }))).toEqual({ kind: 'custom-error', selector: expect.stringMatching(/^0x[0-9a-f]{8}$/) })
     expect(stored(errorString('Too little received'))).toEqual({ kind: 'message', message: 'Too little received' })
 
-    // The longest message, made of characters JSON must escape, still fits the 512-character simulation error.
-    const quoted = storedSimulationRevert(decodeRevertData(errorString('"\\'.repeat(400))))
-    expect(quoted?.length).toBeLessThanOrEqual(512)
-    expect(simulationRevertFromStored(quoted)).toMatchObject({ kind: 'message', truncated: true })
+    // Names are added on read, never kept in the record.
+    expect(storedSimulationRevert({ kind: 'panic', code: '0x11', meaning: 'arithmetic overflow or underflow' })).toEqual({ kind: 'panic', code: '0x11' })
+    expect(storedSimulationRevert({ kind: 'custom-error', selector: '0xfb8f41b2', name: 'ERC20InsufficientAllowance' }))
+      .toEqual({ kind: 'custom-error', selector: '0xfb8f41b2' })
 
-    // Other simulation errors, including those older versions stored, have no revert reason.
-    expect(simulationRevertFromStored('Wallet transaction simulation failed')).toBeUndefined()
-    expect(simulationRevertFromStored('revert:{"kind":"message"}')).toBeUndefined()
-    expect(simulationRevertFromStored('revert:not json')).toBeUndefined()
-    expect(simulationRevertFromStored('revert:{"kind":"custom-error","selector":"0xfb8f41b2","url":"https://rpc.example"}')).toBeUndefined()
+    // A reason that does not match the schema is neither stored nor read back.
+    const malformed = { kind: 'custom-error', selector: '0xfb8f41b2', url: 'https://rpc.example' } as unknown as WalletSimulationRevert
+    expect(storedSimulationRevert(malformed)).toBeUndefined()
+    expect(simulationRevertFromStored(malformed)).toBeUndefined()
+    expect(simulationRevertFromStored({ kind: 'message' } as unknown as WalletSimulationRevert)).toBeUndefined()
     expect(simulationRevertFromStored(undefined)).toBeUndefined()
   })
 })

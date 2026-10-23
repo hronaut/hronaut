@@ -4,9 +4,6 @@ import { revealHiddenMessageCharacters } from './hidden-characters.js'
 
 /** Revert data longer than this is not decoded; the selector is still read. */
 const MAX_REVERT_DATA_HEX_LENGTH = 16_386
-/** Simulation errors that hold a revert reason start with this; the rest is its JSON. */
-const STORED_REVERT_PREFIX = 'revert:'
-const MAX_STORED_SIMULATION_ERROR_LENGTH = 512
 const MAX_ERROR_CAUSE_DEPTH = 8
 
 const ERROR_STRING_SELECTOR = '0x08c379a0'
@@ -112,31 +109,24 @@ export function decodeRevertData(data: Hex): WalletSimulationRevert {
 }
 
 /**
- * The revert reason stored in an approval record's simulation error, which
- * older versions read as plain text. Undefined when the reason does not fit.
+ * The revert reason as an approval record stores it: only what was read from
+ * the revert data, without the names Hronaut adds when it is read back.
+ * Undefined when the reason does not match the schema.
  */
-export function storedSimulationRevert(revert: WalletSimulationRevert): string | undefined {
+export function storedSimulationRevert(revert: WalletSimulationRevert): WalletSimulationRevert | undefined {
   const parsed = WalletSimulationRevertSchema.safeParse(revert)
   if (!parsed.success) return undefined
   const { name: _name, meaning: _meaning, ...stored } = parsed.data as WalletSimulationRevert & { name?: string; meaning?: string }
-  const text = `${STORED_REVERT_PREFIX}${JSON.stringify(stored)}`
-  return text.length <= MAX_STORED_SIMULATION_ERROR_LENGTH ? text : undefined
+  return stored as WalletSimulationRevert
 }
 
 /**
  * Reads a stored revert reason back and names a known custom error or panic
- * code. Undefined for any other simulation error, including those of older
- * versions, which never start with the revert prefix.
+ * code. Undefined when there is none or it does not match the schema.
  */
-export function simulationRevertFromStored(error: string | undefined): WalletSimulationRevert | undefined {
-  if (!error?.startsWith(STORED_REVERT_PREFIX) || error.length > MAX_STORED_SIMULATION_ERROR_LENGTH) return undefined
-  let value: unknown
-  try {
-    value = JSON.parse(error.slice(STORED_REVERT_PREFIX.length))
-  } catch {
-    return undefined
-  }
-  const parsed = WalletSimulationRevertSchema.safeParse(value)
+export function simulationRevertFromStored(stored: WalletSimulationRevert | undefined): WalletSimulationRevert | undefined {
+  if (!stored) return undefined
+  const parsed = WalletSimulationRevertSchema.safeParse(stored)
   if (!parsed.success) return undefined
   const revert = parsed.data
   if (revert.kind === 'panic') {

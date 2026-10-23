@@ -756,7 +756,10 @@ describe('WalletBroker', () => {
     })
 
     const persisted = await readFile(join(directory, 'requests.json'), 'utf8')
-    expect(persisted).toContain('revert:')
+    // The reason is stored as its own field, never encoded into the error text.
+    const stored = (JSON.parse(persisted) as { requests: Array<{ simulation?: { error?: string; revert?: unknown } }> }).requests
+      .map((request) => request.simulation).filter((simulation) => simulation?.revert)
+    expect(stored).toContainEqual({ attempted: true, success: false, error: 'Wallet transaction simulation failed', revert: { kind: 'message', message: reason } })
     expect(persisted).not.toMatch(/rpc\.example|rpc-user|rpc-password|rpc-query-secret/)
     expect(JSON.stringify(broker.listPending())).not.toMatch(/rpc\.example|rpc-user|rpc-password|rpc-query-secret/)
     await broker.reject(pending.id)

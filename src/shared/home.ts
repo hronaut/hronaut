@@ -38,7 +38,7 @@ export interface HomeDashboard {
   feed?: HomeFeedEntry[]
   /** Clients seen recently, without their session or credential ids. */
   clients: { name: string; version?: string; lastSeenAt: string; requestCount: number; activeRequests: number; initializedAt?: string; readinessProbe?: { outcome: 'verified' | 'failed' } }[]
-  recentActivity: { activityId: string; tabId: string; toolName: string; startedAt: string; completedAt: string; durationMs: number; outcome: 'finished' | 'failed'; result?: McpActivityResult }[]
+  recentActivity: { activityId: string; tabId: string; toolName: string; startedAt: string; completedAt: string; durationMs: number; result: McpActivityResult }[]
   toolMetrics: { toolName: string; failures: number }[]
   outcomeTotals?: Partial<Record<McpActivityOutcome, number>>
   tools: { name: string; category: string; description: string }[]

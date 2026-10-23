@@ -56,9 +56,9 @@ test('keeps activity from a disconnected command that settles after changing the
       if (!home) return null
       try { return await home.executeJavaScript("fetch('/api/status').then(response => response.json()).then(state => state.recentActivity)") } catch { return null }
     })).toEqual(expect.arrayContaining([
-      expect.objectContaining({ toolName: 'browser_new_tab', outcome: 'finished' }),
+      expect.objectContaining({ toolName: 'browser_new_tab' }),
       expect.objectContaining({
-        toolName: 'browser_wait', outcome: 'failed',
+        toolName: 'browser_wait',
         result: {
           outcome: 'timed-out', reasonCode: 'TIMEOUT', dispatch: 'dispatched',
           effects: 'none', evidenceSource: 'hronaut-observed'
@@ -67,7 +67,7 @@ test('keeps activity from a disconnected command that settles after changing the
       // Replacing the endpoint aborts the old server's in-flight command. Keep
       // that explicit cancellation visible in the shared activity history.
       expect.objectContaining({
-        toolName: 'browser_evaluate', outcome: 'failed',
+        toolName: 'browser_evaluate',
         result: {
           outcome: 'cancelled', reasonCode: 'REQUEST_CANCELLED', dispatch: 'dispatched',
           effects: 'possible', evidenceSource: 'hronaut-observed'
