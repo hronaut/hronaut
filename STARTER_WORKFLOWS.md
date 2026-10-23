@@ -60,7 +60,7 @@ Continue in the same authorized Hronaut workspace. Use `browser_snapshot` to ins
 Use this to collect a bounded, reproducible first-pass report from a local development server.
 
 ```text
-Using Hronaut, follow these instructions. Create a fresh scratch workspace named "Localhost QA" with `browser_workspaces`. Use only your task workspace. Open TARGET_LOCAL_URL in that workspace with `browser_new_tab`. Reproduce TARGET_PROBLEM, inspect the current page with `browser_snapshot`, then run `browser_accessibility_audit`, `browser_quality_audit`, and `browser_debug_report`. Use `browser_network_search` only for requests related to the failure. Do not request network bodies unless the failure requires them. Capture the failing state with `browser_screenshot`, then summarize exact reproduction steps and evidence without including secrets or unrelated page content.
+Using Hronaut, follow these instructions. Create a fresh scratch workspace named "Localhost QA" with `browser_workspaces`. Use only your task workspace. Open TARGET_LOCAL_URL in that workspace with `browser_new_tab` and wait for it to load with `browser_wait`. Reproduce TARGET_PROBLEM, inspect the current page with `browser_snapshot`, then run `browser_accessibility_audit`, `browser_quality_audit`, and `browser_debug_report`. Use `browser_network_search` only for requests related to the failure. Do not request network bodies unless the failure requires them. Capture the failing state with `browser_screenshot`, then summarize exact reproduction steps and evidence without including secrets or unrelated page content.
 ```
 
 Network and page evidence can contain private application data even after automatic filtering. Limit the target and evidence requested, and review the result before sharing it.
@@ -70,7 +70,7 @@ Network and page evidence can contain private application data even after automa
 Use this for a focused layout check rather than an open-ended visual crawl.
 
 ```text
-Using Hronaut, follow these instructions. Create a fresh scratch workspace named "Responsive review" with `browser_workspaces`. Use only your task workspace. Open TARGET_URL in that workspace with `browser_new_tab`. Use `browser_resize` to check TARGET_PHONE_WIDTH and TARGET_DESKTOP_WIDTH. At each size, use `browser_snapshot`, `browser_screenshot`, and `browser_design_overview` to inspect TARGET_COMPONENT. Report observable overflow, clipping, unreadable contrast, or missing controls. Reset `browser_resize` to restore the normal viewport when finished.
+Using Hronaut, follow these instructions. Create a fresh scratch workspace named "Responsive review" with `browser_workspaces`. Use only your task workspace. Open TARGET_URL in that workspace with `browser_new_tab` and wait for it to load with `browser_wait`. Use `browser_resize` to check TARGET_PHONE_WIDTH and TARGET_DESKTOP_WIDTH. At each size, use `browser_snapshot`, `browser_screenshot`, and `browser_design_overview` to inspect TARGET_COMPONENT. Report observable overflow, clipping, unreadable contrast, or missing controls. Reset `browser_resize` to restore the normal viewport when finished.
 ```
 
 Use `browser_emulate` only when the task requires a specific locale, media preference, network condition, device environment, or diagnostic overlay. Reset the emulation after the check so the tab does not retain surprising conditions.

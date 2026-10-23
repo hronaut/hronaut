@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- `browser_new_tab`'s description now tells agents it answers while the new tab's page may still be loading, and to wait for it with `browser_wait` before clicking, pressing keys or reading the page, which an action meeting the first load's commit is rejected for. The starter workflows that open a page and then inspect it now wait for it the same way.
+
 ### Fixed
 
 - The address bar's suggestions now stay on screen while they change, as Chrome's do, such as when a page finishes loading in another tab and its visit joins them. They hid and shrank to a line until the new ones were drawn, so the list blinked, and a click on a row in that moment missed it.
