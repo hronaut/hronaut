@@ -1,6 +1,6 @@
 import type { WalletDecodedOperation, WalletSimulationResult } from '../policy.js'
 import type { WalletDescriptor, WalletSimulationRevert } from '../../../shared/wallet.js'
-import { UNLIMITED_TOKEN_AMOUNT } from '../transaction-display.js'
+import { isUnlimitedTokenAmount } from '../transaction-display.js'
 import type { WalletSecret } from '../vault.js'
 
 export interface WalletNormalizedTransaction {
@@ -31,7 +31,7 @@ export interface WalletTokenAllowance {
   spender: string
   amount: string
   rawAmount: string
-  /** At or above the amount Hronaut treats as an unlimited approval. */
+  /** An amount Hronaut treats as an unlimited approval, as `isUnlimitedTokenAmount` reads it. */
   unlimited?: true
 }
 
@@ -60,7 +60,7 @@ export function tokenAllowance(spender: string, raw: bigint, decimals: number): 
     spender,
     amount: formatTokenUnits(raw, decimals),
     rawAmount: raw.toString(),
-    ...(raw >= UNLIMITED_TOKEN_AMOUNT ? { unlimited: true as const } : {})
+    ...(isUnlimitedTokenAmount(raw) ? { unlimited: true as const } : {})
   }
 }
 
