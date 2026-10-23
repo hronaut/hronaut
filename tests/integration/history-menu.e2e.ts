@@ -1,8 +1,18 @@
+import { execFile } from 'node:child_process'
 import { createServer } from 'node:http'
+import { join } from 'node:path'
+import { promisify } from 'node:util'
 import { closeFixtureServer } from './fixtures.js'
 import { expect, test } from './capability-fixtures.js'
 
-type CapturedMenus = { original: typeof Electron.Menu.buildFromTemplate; menus: Electron.Menu[]; popups: unknown[] }
+const exec = promisify(execFile)
+
+type CapturedMenus = {
+  original: typeof Electron.Menu.buildFromTemplate
+  menus: Electron.Menu[]
+  states: Array<{ shown: boolean; closed: boolean }>
+  popups: unknown[]
+}
 
 test('Back and Forward list the pages they go through when right-clicked or held, as in Chrome', async ({ capabilities, appWindow, electronApp }) => {
   const { tabId } = capabilities
@@ -19,13 +29,17 @@ test('Back and Forward list the pages they go through when right-clicked or held
   await electronApp.evaluate(({ Menu }) => {
     const scope = globalThis as typeof globalThis & { __hronautHistoryMenus?: CapturedMenus }
     const original = Menu.buildFromTemplate
-    scope.__hronautHistoryMenus = { original, menus: [], popups: [] }
+    scope.__hronautHistoryMenus = { original, menus: [], states: [], popups: [] }
     Object.defineProperty(Menu, 'buildFromTemplate', {
       configurable: true,
       value: (template: Electron.MenuItemConstructorOptions[]) => {
         const menu = original.call(Menu, template)
         if (template.some((item) => item.id === 'show-full-history')) {
           scope.__hronautHistoryMenus!.menus.push(menu)
+          const state = { shown: false, closed: false }
+          scope.__hronautHistoryMenus!.states.push(state)
+          menu.once('menu-will-show', () => { state.shown = true })
+          menu.once('menu-will-close', () => { state.closed = true })
           const popup = menu.popup.bind(menu)
           menu.popup = (options?: Electron.PopupOptions) => {
             const { x, y } = options ?? {}
@@ -41,15 +55,25 @@ test('Back and Forward list the pages they go through when right-clicked or held
     const scope = globalThis as typeof globalThis & { __hronautHistoryMenus?: CapturedMenus }
     return scope.__hronautHistoryMenus!.menus.map((menu) => menu.items.map((item) => item.type === 'separator' ? '---' : item.label))
   })
+  const lastState = () => electronApp.evaluate(() => (globalThis as typeof globalThis & { __hronautHistoryMenus?: CapturedMenus }).__hronautHistoryMenus!.states.at(-1)!)
+  // Closes the last list once it is open with Escape pressed through the X server, as the person closes it, and goes on
+  // once it is closing. Closing a list from the main process with closePopup() now and then aborted the app's main
+  // process inside Electron's native menu code on Linux (SIGABRT, a std::length_error), which Hronaut never does.
+  const closeLast = async () => {
+    await expect.poll(async () => (await lastState()).shown).toBe(true)
+    await exec('python3', [join(process.cwd(), 'tests/integration/x11-input.py'), '0', '0', '--shortcut=Escape'])
+    await expect.poll(async () => (await lastState()).closed).toBe(true)
+  }
   // Picks an item of the last list, as the person's click on it does, once the list is closed.
-  const pick = (label: string) => electronApp.evaluate((_electron, label) => {
-    const scope = globalThis as typeof globalThis & { __hronautHistoryMenus?: CapturedMenus }
-    const menu = scope.__hronautHistoryMenus!.menus.at(-1)!
-    menu.closePopup()
-    const item = menu.items.find((candidate) => candidate.label === label)
-    if (!item) throw new Error(`No ${label} in the list`)
-    item.click()
-  }, label)
+  const pick = async (label: string) => {
+    await closeLast()
+    await electronApp.evaluate((_electron, label) => {
+      const scope = globalThis as typeof globalThis & { __hronautHistoryMenus?: CapturedMenus }
+      const item = scope.__hronautHistoryMenus!.menus.at(-1)!.items.find((candidate) => candidate.label === label)
+      if (!item) throw new Error(`No ${label} in the list`)
+      item.click()
+    }, label)
+  }
   try {
     const path = async () => {
       const state = await appWindow.evaluate(`window.hronaut.getState()`) as { tabs: Array<{ id: string, url: string }> }
@@ -110,7 +134,7 @@ test('Back and Forward list the pages they go through when right-clicked or held
     await appWindow.keyboard.press('Shift+F10')
     await expect.poll(menus).toHaveLength(4)
     expect((await menus())[3]).toEqual(['Two', 'Three', '---', 'Show Full History'])
-    await electronApp.evaluate(() => (globalThis as typeof globalThis & { __hronautHistoryMenus?: CapturedMenus }).__hronautHistoryMenus!.menus.at(-1)!.closePopup())
+    await closeLast()
 
     // A plain click still goes forward.
     await forward.click()
@@ -120,7 +144,8 @@ test('Back and Forward list the pages they go through when right-clicked or held
       const scope = globalThis as typeof globalThis & { __hronautHistoryMenus?: CapturedMenus }
       const control = scope.__hronautHistoryMenus
       if (control) {
-        for (const menu of control.menus) menu.closePopup()
+        // Only a list a failed step left open.
+        control.menus.forEach((menu, index) => { if (!control.states[index]?.closed) menu.closePopup() })
         Object.defineProperty(Menu, 'buildFromTemplate', { configurable: true, value: control.original })
       }
       delete scope.__hronautHistoryMenus
