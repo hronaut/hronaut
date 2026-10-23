@@ -1,4 +1,7 @@
-import type { MessageBoxOptions, Session } from 'electron'
+import type { Session } from 'electron'
+import type { TrustedDialogOptions } from '../src/main/trusted-dialogs/trusted-dialogs.js'
+
+type MessageBoxOptions = Omit<TrustedDialogOptions, 'window'>
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { translate } from '../src/shared/i18n.js'
@@ -39,7 +42,7 @@ async function request(
   const browserSession = createBrowserSession({
     text: (key, parameters) => translate(locale, key, parameters),
     effectiveDownloadDirectory: () => '',
-    showMessageBox: async (options) => {
+    showDialog: async (options) => {
       shown.push(options)
       return { response: answer === 'allow' ? 1 : 0, checkboxChecked: false }
     },
@@ -76,6 +79,22 @@ describe('site permission prompt', () => {
     expect((await prompt('de-DE', 'clipboard-read')).message).toBe('https://files.example fordert die Berechtigung „Zwischenablage lesen“ an.')
     expect((await prompt('uk-UA', 'pointerLock')).message).toBe('Сайт https://files.example запитує дозвіл «Блокування вказівника миші».')
     expect((await prompt('fr-FR', 'screen-wake-lock')).message).toBe('https://files.example demande l’autorisation « Garder l’écran allumé ».')
+  })
+
+  it('hands Hronaut’s dialog the request as data, with Deny focused and Allow as the main action', async () => {
+    // The shell designs the prompt from these fields instead of the system dialog's text, so each must say what main checked.
+    const location = await prompt('en-US', 'geolocation', {}, 'Client A')
+    expect(location).toMatchObject({ defaultId: 0, cancelId: 0, primaryId: 1, type: 'question', buttons: ['Deny', 'Allow'] })
+    expect(location.variant).toEqual({
+      kind: 'site-permission', origin: 'https://files.example', permission: 'geolocation', workspaceName: 'Client A', freshConsent: false
+    })
+    expect((await prompt('en-US', 'media', { mediaTypes: ['video'] })).variant)
+      .toEqual({ kind: 'site-permission', origin: 'https://files.example', permission: 'media', mediaTypes: ['video'], freshConsent: true })
+    expect((await prompt('en-US', 'fileSystem', { fileAccessType: 'writable', filePath: '/home/notes.txt' })).variant).toMatchObject({
+      permission: 'fileSystem', freshConsent: true, file: { path: '/home/notes.txt', access: 'writable' }
+    })
+    expect((await prompt('en-US', 'openExternal', { externalURL: 'zoommtg://zoom.us/join?confno=1' })).variant)
+      .toMatchObject({ permission: 'openExternal', externalScheme: 'zoommtg:' })
   })
 
   it('names only the device a camera-only or microphone-only request asks for', async () => {

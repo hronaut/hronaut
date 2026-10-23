@@ -12,7 +12,7 @@ interface Harness {
   controller: AppShellLayoutFeatureController
   wrapper: VueWrapper
   dock: Ref<PanelDock>
-  modals: Record<'settings' | 'commandPalette' | 'helpDialog' | 'releaseHistory' | 'workspaceEditor' | 'credentialPicker' | 'walletApproval' | 'agentSteps', Ref<boolean>>
+  modals: Record<'settings' | 'commandPalette' | 'helpDialog' | 'releaseHistory' | 'workspaceEditor' | 'credentialPicker' | 'walletApproval' | 'trustedDialog' | 'agentSteps', Ref<boolean>>
   overlays: {
     updateNotice: Ref<boolean>
     find: Ref<boolean>
@@ -64,6 +64,7 @@ function createHarness(detachedWindow = false): Harness {
     workspaceEditor: ref(false),
     credentialPicker: ref(false),
     walletApproval: ref(false),
+    trustedDialog: ref(false),
     agentSteps: ref(false)
   }
   const overlays = {

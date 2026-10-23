@@ -4,6 +4,7 @@ import type { HronautPageCardApi, PageCardGeometry } from '../shared/page-card.j
 import type { AgentCardEvent, HronautAgentCardApi } from '../shared/agent-card.js'
 import type { HronautToastOverlayApi, ToastOverlayEvent } from '../shared/toast-overlay.js'
 import type { HronautSidebarOverlayApi, SidebarOverlayEvent } from '../shared/sidebar-overlay.js'
+import { TRUSTED_DIALOG_CHANNELS, type HronautTrustedDialogsApi, type TrustedDialogRequest } from '../shared/trusted-dialogs.js'
 import type { AgentPresenceSnapshot, AgentTakeOverOffer, HronautAgentPresenceApi } from '../shared/agent-presence.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import { createPanelRequestBuffer } from './panel-requests.js'
@@ -700,6 +701,18 @@ const agentCardApi: HronautAgentCardApi = {
   }
 }
 contextBridge.exposeInMainWorld('hronautAgentCard', agentCardApi)
+
+// Hronaut's own dialogs, such as a website's permission request; main checks that this shell document answers.
+const trustedDialogsApi: HronautTrustedDialogsApi = {
+  ready: () => ipcRenderer.send(TRUSTED_DIALOG_CHANNELS.ready),
+  respond: (id, response) => ipcRenderer.send(TRUSTED_DIALOG_CHANNELS.respond, id, response),
+  onChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, request: TrustedDialogRequest | null): void => listener(request)
+    ipcRenderer.on(TRUSTED_DIALOG_CHANNELS.changed, handler)
+    return () => ipcRenderer.removeListener(TRUSTED_DIALOG_CHANNELS.changed, handler)
+  }
+}
+contextBridge.exposeInMainWorld('hronautTrustedDialogs', trustedDialogsApi)
 
 const toastOverlayApi: HronautToastOverlayApi = {
   show: (request) => ipcRenderer.send('toast-overlay:show', request),

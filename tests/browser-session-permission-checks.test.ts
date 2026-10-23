@@ -29,7 +29,7 @@ function createHarness(answers: Array<'allow' | 'deny'> = [], saveFiles: () => b
   const browserSession = createBrowserSession({
     text: (key, parameters) => translate('en-US', key, parameters),
     effectiveDownloadDirectory: () => '',
-    showMessageBox: async (options) => {
+    showDialog: async (options) => {
       shown.push(options)
       return { response: answers.shift() === 'allow' ? 1 : 0, checkboxChecked: false }
     },

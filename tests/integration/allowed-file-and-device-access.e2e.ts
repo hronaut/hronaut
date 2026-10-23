@@ -1,9 +1,10 @@
 import { createServer } from 'node:http'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { ElectronApplication } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { answerEveryTrustedDialog, answeredTrustedDialogs } from './trusted-dialog-fixture.js'
 import { closeFixtureServer, closeHronaut, launchHronaut } from './fixtures.js'
 
 // Electron asks Hronaut's permission check, not the request's answer, whether a page may still use what the person
@@ -11,21 +12,8 @@ import { closeFixtureServer, closeHronaut, launchHronaut } from './fixtures.js'
 // the person allowed read its camera and microphone as "denied", with no names.
 
 /** Answers every permission prompt with Allow and records what each one said. */
-async function allowEveryPrompt(app: ElectronApplication): Promise<void> {
-  await app.evaluate(({ dialog }) => {
-    const prompts: string[] = []
-    ;(globalThis as typeof globalThis & { __permissionPrompts?: string[] }).__permissionPrompts = prompts
-    dialog.showMessageBox = async (...args: unknown[]) => {
-      const options = args.at(-1) as Electron.MessageBoxOptions
-      prompts.push(`${options.message} ${options.detail ?? ''}`)
-      return { response: 1, checkboxChecked: false }
-    }
-  })
-}
-
-const prompts = (app: ElectronApplication): Promise<string[]> => app.evaluate(() => (
-  globalThis as typeof globalThis & { __permissionPrompts?: string[] }
-).__permissionPrompts ?? [])
+const allowEveryPrompt = (window: Page): Promise<void> => answerEveryTrustedDialog(window, 'Allow')
+const prompts = (window: Page): Promise<string[]> => answeredTrustedDialogs(window)
 
 // A drop zone that keeps the dropped file's handle, as editors that save back to the file do.
 const DROP_ZONE = `(() => {
@@ -40,7 +28,7 @@ const DROP_ZONE = `(() => {
   return true;
 })()`
 
-test('reads a dropped file, and never writes it, since Electron cannot ask first', async ({ capabilities, electronApp, profileDirectory }) => {
+test('reads a dropped file, and never writes it, since Electron cannot ask first', async ({ appWindow, capabilities, electronApp, profileDirectory }) => {
   const { client, tabId, fixtureUrl } = capabilities
   const folder = join(profileDirectory, 'file-access')
   await mkdir(folder, { recursive: true })
@@ -49,7 +37,7 @@ test('reads a dropped file, and never writes it, since Electron cannot ask first
   const onPage = <T>(script: string): Promise<T> => electronApp.evaluate(({ webContents }, { url, script }) => (
     webContents.getAllWebContents().find((contents) => contents.getURL() === url)!.executeJavaScript(script, true)
   ), { url: fixtureUrl, script }) as Promise<T>
-  await allowEveryPrompt(electronApp)
+  await allowEveryPrompt(appWindow)
   await onPage(DROP_ZONE)
   const drop = await client.callTool({ name: 'browser_file_drop', arguments: { tabId, selector: '#zone', paths: [notes] } }) as CallToolResult
   expect(JSON.parse(text(drop))).toMatchObject({ status: 'DROPPED', files: 1 })
@@ -59,7 +47,7 @@ test('reads a dropped file, and never writes it, since Electron cannot ask first
     const handle = await window.dropped;
     return [await handle.queryPermission({ mode: 'read' }), await (await handle.getFile()).text(), await handle.queryPermission({ mode: 'readwrite' })];
   })()`)).toEqual(['granted', 'First draft', 'denied'])
-  expect(await prompts(electronApp)).toEqual([])
+  expect(await prompts(appWindow)).toEqual([])
 
   // Chromium asks a single file's write access of the check alone, which cannot ask the person, so it stays refused.
   expect(await onPage(`(async () => {
@@ -69,7 +57,7 @@ test('reads a dropped file, and never writes it, since Electron cannot ask first
     return [asked, written];
   })()`)).toEqual(['denied', 'NotAllowedError'])
   expect(await readFile(notes, 'utf8')).toBe('First draft')
-  expect(await prompts(electronApp)).toEqual([])
+  expect(await prompts(appWindow)).toEqual([])
 })
 
 test('reports a camera and microphone the person allowed as allowed, with their names, until the page reloads', async ({ profileDirectory, mcpPort }) => {
@@ -85,7 +73,7 @@ test('reports a camera and microphone the person allowed as allowed, with their 
   try {
     await window.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(origin)}, active: true })`)
     await expect.poll(() => app.evaluate(({ webContents }) => webContents.getAllWebContents().some((contents) => contents.getTitle() === 'Call'))).toBe(true)
-    await allowEveryPrompt(app)
+    await allowEveryPrompt(window)
     const onPage = <T>(script: string): Promise<T> => app.evaluate(({ webContents }, script) => (
       webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Call')!.executeJavaScript(script, true)
     ), script) as Promise<T>
@@ -106,7 +94,7 @@ test('reports a camera and microphone the person allowed as allowed, with their 
     expect(await onPage(`navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => stream.getTracks().map((track) => track.kind), (error) => error.name)`)).toEqual(['audio'])
     expect(await onPage(devices)).toEqual({ camera: 'granted', microphone: 'granted', named: ['audioinput', 'audiooutput', 'videoinput'] })
     // Every request still asks.
-    expect(await prompts(app)).toHaveLength(2)
+    expect(await prompts(window)).toHaveLength(2)
 
     await app.evaluate(({ webContents }) => webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Call')!.reload())
     await expect.poll(() => onPage<string>(`document.readyState`).catch(() => 'loading')).toBe('complete')

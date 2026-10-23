@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { closeFixtureServer, expect, test } from './fixtures.js'
+import { answerEveryTrustedDialog } from './trusted-dialog-fixture.js'
 
 const TITLE = 'Fullscreen video'
 
@@ -16,9 +17,7 @@ async function openVideoPage(appWindow: Page, electronApp: ElectronApplication):
     webContents.getAllWebContents().some((contents) => contents.getTitle() === title && !contents.isLoading())
   ), TITLE)).toBe(true)
   // The person allows the site's full screen request.
-  await electronApp.evaluate(({ dialog }) => {
-    dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
-  })
+  await answerEveryTrustedDialog(appWindow, 'Allow')
   return { server }
 }
 

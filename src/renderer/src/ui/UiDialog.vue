@@ -2,15 +2,23 @@
 import { nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 import UiIconButton from './UiIconButton.vue'
 
+defineOptions({ inheritAttrs: false })
+
 const props = withDefaults(defineProps<{
   open: boolean
   title: string
   description?: string
   closeLabel?: string
   dismissible?: boolean
+  /** Whether a press on the backdrop closes a dismissible dialog; a question that must be answered keeps it off. */
+  closeOnBackdrop?: boolean
+  /** `alertdialog` for a question that interrupts the person, such as a permission request. */
+  role?: 'dialog' | 'alertdialog'
 }>(), {
   closeLabel: 'Close',
-  dismissible: true
+  dismissible: true,
+  closeOnBackdrop: true,
+  role: 'dialog'
 })
 const emit = defineEmits<{ 'update:open': [open: boolean] }>()
 const panel = ref<HTMLElement | null>(null)
@@ -22,15 +30,22 @@ function close(): void {
   if (props.dismissible) emit('update:open', false)
 }
 
+function closeFromBackdrop(): void {
+  if (props.closeOnBackdrop) close()
+}
+
 function focusFirst(): void {
-  const focusable = panel.value?.querySelector<HTMLElement>('[autofocus], button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')
+  // A control marked autofocus wins over the close button before it, such as a question's safe answer.
+  const focusable = panel.value?.querySelector<HTMLElement>('[autofocus]')
+    ?? panel.value?.querySelector<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')
   ;(focusable ?? panel.value)?.focus()
 }
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape' && props.dismissible) {
     event.preventDefault()
-    close()
+    // A held Escape repeats; only its first press closes, so a key held from before the dialog opened does not.
+    if (!event.repeat) close()
     return
   }
   if (event.key !== 'Tab' || !panel.value) return
@@ -67,11 +82,12 @@ onBeforeUnmount(() => document.body.classList.remove('ui-dialog-open'))
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="ui-dialog__backdrop" @mousedown.self="close">
+    <div v-if="open" class="ui-dialog__backdrop" @mousedown.self="closeFromBackdrop">
       <section
+        v-bind="$attrs"
         ref="panel"
         class="ui-dialog"
-        role="dialog"
+        :role="role"
         aria-modal="true"
         :aria-labelledby="titleId"
         :aria-describedby="description ? descriptionId : undefined"
@@ -79,10 +95,15 @@ onBeforeUnmount(() => document.body.classList.remove('ui-dialog-open'))
         @keydown="onKeydown"
       >
         <header class="ui-dialog__header">
-          <div><h2 :id="titleId">{{ title }}</h2><p v-if="description" :id="descriptionId">{{ description }}</p></div>
+          <span v-if="$slots.icon" class="ui-dialog__icon" aria-hidden="true"><slot name="icon" /></span>
+          <div class="ui-dialog__heading">
+            <slot name="eyebrow" />
+            <h2 :id="titleId"><slot name="title">{{ title }}</slot></h2>
+            <p v-if="description" :id="descriptionId">{{ description }}</p>
+          </div>
           <UiIconButton v-if="dismissible" :label="closeLabel" @click="close">×</UiIconButton>
         </header>
-        <div class="ui-dialog__body"><slot /></div>
+        <div v-if="$slots.default" class="ui-dialog__body"><slot /></div>
         <footer v-if="$slots.footer" class="ui-dialog__footer"><slot name="footer" :close="close" /></footer>
       </section>
     </div>

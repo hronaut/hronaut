@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { AppSettingsFeatureController } from '../composables/useAppSettingsFeatureController.js'
 import type { HelpDialogController } from '../composables/useHelpDialogController.js'
+import TrustedDialog from '../trusted-dialogs/TrustedDialog.vue'
+import type { TrustedDialogController } from '../trusted-dialogs/useTrustedDialogController.js'
 import HelpDialog from './HelpDialog.vue'
 import SettingsDialog from './SettingsDialog.vue'
 import WalletApprovalDialog from './WalletApprovalDialog.vue'
@@ -9,6 +11,8 @@ import WhatsNewDialog from './WhatsNewDialog.vue'
 const props = defineProps<{
   settingsController: AppSettingsFeatureController
   helpController: HelpDialogController
+  /** Main's own questions, such as a website's permission request; drawn above every other dialog. */
+  trustedDialogController: TrustedDialogController
   workspaces: Array<{ id: string; name: string }>
   dataWorkspaces: Array<{ id: string; name: string; archived: boolean; tabCount: number; storageOriginCount: number }>
   formatBytes: (bytes: number) => string
@@ -85,4 +89,5 @@ const { state: updateState } = updateSettingsController
     :release-history-controller="releaseHistoryController"
     :report-layout="reportLayout"
   />
+  <TrustedDialog :controller="trustedDialogController" />
 </template>

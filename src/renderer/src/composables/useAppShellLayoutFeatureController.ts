@@ -30,6 +30,8 @@ export interface AppShellLayoutFeatureControllerOptions {
     workspaceEditor: BooleanState
     credentialPicker: BooleanState
     walletApproval: BooleanState
+    /** Main's own question, such as a website's permission request: the page views hide under it. */
+    trustedDialog: BooleanState
     agentSteps: BooleanState
   }
   overlays: {
@@ -80,6 +82,7 @@ export function useAppShellLayoutFeatureController(
     modals.workspaceEditor,
     modals.credentialPicker,
     modals.walletApproval,
+    modals.trustedDialog,
     modals.agentSteps,
     overlays.tabSearch,
     ...(overlays.mcpReadiness ? [overlays.mcpReadiness] : [])
@@ -110,6 +113,7 @@ export function useAppShellLayoutFeatureController(
       modals.workspaceEditor,
       modals.credentialPicker,
       modals.walletApproval,
+      modals.trustedDialog,
       modals.agentSteps
     ],
     competingOverlayStates: [
