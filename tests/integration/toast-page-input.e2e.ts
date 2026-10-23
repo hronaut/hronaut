@@ -39,15 +39,19 @@ test('leaves the page its clicks and wheel right beside the toast', async ({ app
   const toast = await electronApp.evaluate(async ({ BrowserWindow }) => {
     const overlay = BrowserWindow.getAllWindows().flatMap((window) => window.contentView.children)
       .find((child) => 'webContents' in child && (child as Electron.WebContentsView).webContents.getURL().endsWith('toast-overlay.html')) as Electron.WebContentsView
-    const rect = await overlay.webContents.executeJavaScript(`(() => {
+    // Once it has grown in: while it does, it is drawn smaller, inside its view's edges.
+    const rect = await overlay.webContents.executeJavaScript(`(async () => {
+      await Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined)))
       const { left, top, width, height } = document.querySelector('.toast-overlay').getBoundingClientRect()
       return { left, top, width, height }
     })()`) as { left: number; top: number; width: number; height: number }
     const zoom = overlay.webContents.getZoomFactor()
     const bounds = overlay.getBounds()
-    return { x: bounds.x + rect.left * zoom, y: bounds.y + rect.top * zoom, width: rect.width * zoom, height: rect.height * zoom }
+    return { x: bounds.x + rect.left * zoom, y: bounds.y + rect.top * zoom, width: rect.width * zoom, height: rect.height * zoom, view: bounds }
   })
   expect(toast.width).toBeGreaterThan(0)
+  // The view holds the whole toast, down to its bottom border, though it is measured while the toast grows in.
+  expect(toast.view.y + toast.view.height).toBeGreaterThanOrEqual(Math.floor(toast.y + toast.height))
   const origin = await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')!.getContentBounds())
   const pageState = () => electronApp.evaluate(({ webContents }) => {
     const contents = webContents.getAllWebContents().find((candidate) => candidate.getTitle() === 'Under the toast')!

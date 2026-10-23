@@ -59,10 +59,12 @@ function send(kind: ToastOverlayMessage['kind']): void {
   if (currentId) api.send({ id: currentId, kind })
 }
 
-function measure(revision: number, toast: HTMLElement): void {
+function measure(revision: number): void {
   if (revision !== currentRevision) return
   // Reading the box performs layout while the view is still hidden; a hidden view may never produce a frame.
-  const height = Math.ceil(toast.getBoundingClientRect().height)
+  // The root's box, not the toast's: a new toast grows in with a scale, and its own box is the scaled one, which would
+  // leave the view short of the toast's bottom edge.
+  const height = Math.ceil(overlayRoot.getBoundingClientRect().height)
   const key = `${revision}:${height}`
   if (key === reported || height < 1) return
   reported = key
@@ -108,9 +110,9 @@ function render(state: ToastOverlayState): void {
   element.append(dismiss)
 
   overlayRoot.replaceChildren(element)
-  measure(state.revision, element)
+  measure(state.revision)
   // The first toast can lay out before the bundled font has loaded; report its final size too.
-  void document.fonts?.ready.then(() => measure(state.revision, element))
+  void document.fonts?.ready.then(() => measure(state.revision))
 }
 
 api.onState(render)

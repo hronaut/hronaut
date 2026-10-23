@@ -60,6 +60,18 @@ describe('toast overlay view', () => {
     expect(view.measured).toEqual([{ revision: 1, height: 41 }, { revision: 2, height: 41 }])
   })
 
+  // A new toast grows in from a smaller scale, and its own box is the scaled one. Measured that way, a 46 px toast
+  // reported 45 px, and the view, now no larger than the toast, cut off its bottom border.
+  it('reports the toast\'s height as laid out, not as scaled while it grows in', async () => {
+    const view = await loadView()
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return { height: this.classList.contains('toast-overlay') ? 44.62 : 46 } as DOMRect
+    })
+    view.render(state())
+    expect(view.toast().dataset.opening).toBe('true')
+    expect(view.measured).toEqual([{ revision: 1, height: 46 }])
+  })
+
   it('rings the button that has keyboard focus in the shell copy', async () => {
     const view = await loadView()
     view.render(state({ focus: 'action' }))
