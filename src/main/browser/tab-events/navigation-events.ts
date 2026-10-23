@@ -26,6 +26,16 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.loading = webContents.isLoading()
     access.changed()
   }
+  // A wallet request belongs to the document that made it, so its requests and network end when another document,
+  // a page or an error page, replaces it. A navigation that never commits, such as a download or a response with no
+  // content, keeps the page and its requests.
+  const walletDocumentReplaced = (): void => {
+    if (tab.walletNavigationGeneration === tab.navigationGeneration) return
+    tab.walletNavigationGeneration = tab.navigationGeneration
+    access.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
+      access.options().onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
+    ))
+  }
   const recordPendingHistory = (): void => {
     if (tab.suppressInitialHistory || tab.pendingHistoryUrl !== tab.url) return
     tab.title = normalizeTabTitle(webContents.getTitle(), tab.title)
@@ -90,13 +100,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     tab.navigationGeneration += 1
     retireNetworkPriorityObservations(tab)
     access.invalidateTabOverviewPreview(tab)
-    if (!isSameDocument) {
-      tab.documentGeneration += 1
-      tab.walletNavigationGeneration = tab.navigationGeneration
-      access.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
-        access.options().onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
-      ))
-    }
+    if (!isSameDocument) tab.documentGeneration += 1
     if (isSameDocument) {
       tab.performanceDocumentRouted = true
       return
@@ -159,6 +163,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     // Reset only when a new main-frame document commits, never on a failed load.
     tab.performanceDocumentRouted = false
     tab.documentGeneration += 1
+    walletDocumentReplaced()
     access.trackWorkspaceOrigin(tab, url)
     tab.memoryBaseline = undefined
     const previousUrl = tab.url
@@ -210,6 +215,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     if (!isMainFrame || errorCode === ABORTED_LOAD_ERROR) return
     tab.authNavigationPending = false
     tab.documentGeneration += 1
+    walletDocumentReplaced()
     const failedUrl = validatedURL || tab.url
     tab.loading = false
     if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined

@@ -18,6 +18,7 @@ All notable changes to Hronaut are documented in this file.
 - While a notification such as **Tab closed** shows at the bottom of the page, the page now gets clicks and wheel scrolling right beside it. The notification's view kept about 10 px of transparent room around it for a shadow, and that room took the page's clicks and wheel. The notification has no outer shadow now.
 - A panel opened in its own window, such as **Console** or **Network**, now shows Hronaut's themed tooltips on its controls, as the main window does. It showed the operating system's tooltips instead, in the system's colors and font.
 - An approval or allowance of exactly 2^96 − 1 or 2^128 − 1, the maximum of a 96- or 128-bit allowance, now counts as unlimited, as tokens such as UNI and COMP, which store allowances in 96 bits, treat it: the approval dialog and typed-data permits warn about it, a wallet policy sends such an approval transaction to a person, and `wallet_balance` marks the allowance `unlimited`. Only amounts of at least 2^160 − 1 counted before, so such a token's maximum approval read as a large, limited amount.
+- A link or form on a dApp that starts a download, or that the server answers with no content, no longer cancels the page's pending wallet requests or returns it to its default network. The page stays, so its requests and network now stay too, and they end only when another document, or an error page, replaces it.
 
 ## [3.6.0] - 2026-10-23
 

@@ -91,3 +91,42 @@ test('keeps a dApp\'s pending wallet approval across its own route change, for t
   }, fixtureOrigin)
   await expect.poll(statuses).toEqual(['cancelled'])
 })
+
+test('keeps a dApp\'s pending wallet approval and network when a link starts a download or gets no content', async ({ capabilities, appWindow, electronApp }) => {
+  const { client, workspace, fixtureUrl, fixtureOrigin, counters } = capabilities
+  await importWallets(appWindow, workspace.workspaceId, [LOCAL, SEPOLIA])
+  const page = pageScript(electronApp, fixtureOrigin)
+  const statuses = async () => (await appWindow.evaluate('window.hronautWallets.listRequests()') as Array<{ status: string }>)
+    .map((request) => request.status)
+  const settled = () => electronApp.evaluate(({ webContents }, origin) => {
+    const contents = webContents.getAllWebContents().find((entry) => entry.getURL().startsWith(`${origin}/`))
+    return contents ? { loading: contents.isLoading(), url: contents.getURL() } : null
+  }, fixtureOrigin)
+
+  expect(await page(`window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0xaa36a7' }] })`)).toBeNull()
+  await page(`(window.walletDownloadConnection = window.ethereum.request({ method: 'eth_requestAccounts' })
+    .then((accounts) => ({ accounts: accounts.length }), (error) => ({ code: error.code })), 'requested')`)
+  await expect.poll(statuses).toEqual(['awaiting-human'])
+
+  // A navigation that the server answers with a file to save never replaces the page.
+  await page(`(location.assign('/download'), 'navigating')`)
+  await expect.poll(async () => {
+    const result = await client.callTool({ name: 'browser_downloads', arguments: {} }) as CallToolResult
+    return (JSON.parse(text(result)) as Array<{ state: string }>).map(({ state }) => state)
+  }).toEqual(['completed'])
+  await expect.poll(settled).toEqual({ loading: false, url: fixtureUrl })
+  // Nor does one the server answers with no content.
+  await page(`(location.assign('/memory-saver-tick'), 'navigating')`)
+  await expect.poll(() => counters.memorySaverTicks).toBe(1)
+  await expect.poll(settled).toEqual({ loading: false, url: fixtureUrl })
+
+  expect(await statuses()).toEqual(['awaiting-human'])
+  expect(await page(`Promise.race([window.walletDownloadConnection, Promise.resolve('waiting')])`)).toBe('waiting')
+  expect(await page(`window.ethereum.request({ method: 'eth_chainId' })`)).toBe('0xaa36a7')
+
+  // Loading another document still cancels it, and the next page starts on the default network.
+  await page(`(location.assign('/no-js'), 'navigating')`)
+  await expect.poll(statuses).toEqual(['cancelled'])
+  await expect.poll(settled).toEqual({ loading: false, url: `${fixtureOrigin}/no-js` })
+  expect(await page(`window.ethereum.request({ method: 'eth_chainId' })`)).toBe('0x7a69')
+})
