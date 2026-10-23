@@ -56,7 +56,7 @@ test('keeps activity from a disconnected command that settles after changing the
       if (!home) return null
       try { return await home.executeJavaScript("fetch('/api/status').then(response => response.json()).then(state => state.recentActivity)") } catch { return null }
     })).toEqual(expect.arrayContaining([
-      expect.objectContaining({ toolName: 'browser_new_tab' }),
+      expect.objectContaining({ toolName: 'browser_new_tab', result: expect.objectContaining({ outcome: 'succeeded' }) }),
       expect.objectContaining({
         toolName: 'browser_wait',
         result: {
