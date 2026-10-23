@@ -3,7 +3,7 @@ import type { BrowserPdfPageSize } from '../shared/types.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 
 type NavigationIpcTabs = Pick<BrowserTabsManager,
-  | 'toggleDevTools' | 'navigate' | 'back' | 'forward' | 'showHistoryMenu' | 'reload' | 'reloadIgnoringCache' | 'stop'
+  | 'toggleDevTools' | 'navigate' | 'back' | 'forward' | 'showHistoryMenu' | 'openNavigationInNewTab' | 'reload' | 'reloadIgnoringCache' | 'stop'
   | 'findInPage' | 'stopFindInPage' | 'setZoom' | 'savePdf'>
 
 interface NavigationIpcHost {
@@ -31,6 +31,15 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     const { tabId, direction, anchor } = options as Record<string, unknown>
     if (typeof tabId !== 'string' || (direction !== 'back' && direction !== 'forward')) throw new TypeError('Invalid history list options')
     return host.tabs()!.showHistoryMenu(tabId, direction, validAnchor(anchor))
+  })
+  host.handleBrowserIpc('browser:open-navigation-in-new-tab', (event, options: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof options !== 'object' || options === null) throw new TypeError('Invalid new tab options')
+    const { tabId, target, active } = options as Record<string, unknown>
+    if (typeof tabId !== 'string' || (target !== 'back' && target !== 'forward' && target !== 'reload') || typeof active !== 'boolean') {
+      throw new TypeError('Invalid new tab options')
+    }
+    return host.tabs()!.openNavigationInNewTab(tabId, target, active)
   })
   host.handleBrowserIpc('browser:reload', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.reload(tabId) })
   host.handleBrowserIpc('browser:reload-ignoring-cache', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.reloadIgnoringCache(tabId) })

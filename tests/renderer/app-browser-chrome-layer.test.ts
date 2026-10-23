@@ -211,7 +211,7 @@ const BrowserNavigationControlsStub = defineComponent({
     currentBookmark: Boolean,
     formatPercent: Function
   },
-  emits: ['back', 'forward', 'reload', 'stop', 'find', 'toggleZoom', 'toggleBookmarks'],
+  emits: ['back', 'forward', 'reload', 'reloadIgnoringCache', 'openInNewTab', 'stop', 'find', 'toggleZoom', 'toggleBookmarks'],
   setup(_props, { slots }) {
     return () => h('div', { 'data-testid': 'navigation' }, [slots.default?.(), slots.leading?.(), slots.commands?.()])
   }
@@ -285,6 +285,8 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
     back: vi.fn(async () => browserState),
     forward: vi.fn(async () => browserState),
     reload: vi.fn(async () => browserState),
+    reloadIgnoringCache: vi.fn(async () => browserState),
+    openNavigationInNewTab: vi.fn(async (_options: { tabId: string; target: 'back' | 'forward' | 'reload'; active: boolean }) => browserState),
     stop: vi.fn(async () => browserState),
     setTabAgentPaused: vi.fn(async (_tabId: string, _paused: boolean) => browserState),
     setTabPageLifecycle: vi.fn(async () => browserState),
@@ -992,7 +994,8 @@ describe('AppBrowserChromeLayer', () => {
     topbar.vm.$emit('openLicenseSettings')
     topbar.vm.$emit('toggleSettings')
 
-    for (const event of ['back', 'forward', 'reload', 'stop'] as const) navigation.vm.$emit(event)
+    for (const event of ['back', 'forward', 'reload', 'reloadIgnoringCache', 'stop'] as const) navigation.vm.$emit(event)
+    navigation.vm.$emit('openInNewTab', 'back', false)
     navigation.vm.$emit('find')
     navigation.vm.$emit('toggleZoom')
     navigation.vm.$emit('toggleBookmarks')
@@ -1029,7 +1032,10 @@ describe('AppBrowserChromeLayer', () => {
     expect(harness.browser.forward).toHaveBeenCalledOnce()
     expect(harness.browser.reload).toHaveBeenCalledOnce()
     expect(harness.browser.stop).toHaveBeenCalledOnce()
-    expect(harness.syncState).toHaveBeenCalledTimes(4)
+    expect(harness.browser.reloadIgnoringCache).toHaveBeenCalledOnce()
+    // A middle-click on Back opens the page it goes to in a new tab beside the tab the toolbar shows.
+    expect(harness.browser.openNavigationInNewTab).toHaveBeenCalledExactlyOnceWith({ tabId: 'tab-1', target: 'back', active: false })
+    expect(harness.syncState).toHaveBeenCalledTimes(6)
     expect(harness.actions.openFind).toHaveBeenCalledOnce()
     expect(harness.actions.toggleZoom).toHaveBeenCalledOnce()
     expect(harness.collectionActions.toggleBookmarks).toHaveBeenCalledOnce()

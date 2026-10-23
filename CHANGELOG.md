@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 - **Shift+Delete** (**Shift+Fn+Delete** on a Mac laptop) on a visit highlighted in the address bar's suggestions now forgets that visit, as removing it in History does, and highlights the suggestion in its place, as in Chrome. The address bar kept suggesting every visit until it was removed in History. A highlighted bookmark stays.
 - Right-clicking an email link on a page now offers **Copy Email Address**, which copies the address alone, as Chrome does. **Copy Link Address** copied the whole link, with `mailto:`, any subject or body and its escaped characters, such as `mailto:support%40example.com?subject=Hi` for support@example.com.
 - Right-clicking inside a frame of a page, such as an embedded payment form, now offers **View Frame Source** and **Reload Frame**, as Chrome does. The menu offered only the page's own source and reload, so a frame could not be reloaded or its source viewed by itself.
+- A middle-click on the toolbar's **Back**, **Forward** or **Reload** now opens that page in a new tab behind the current one, with the tab's history, and so does **Ctrl+click** (**Cmd+click** on a Mac) on Back or Forward, or in front with **Shift** added, as in Chrome. **Shift+click** or **Ctrl+click** on Reload now reloads without the cache. These clicks went back, forward or reloaded in the current tab, so the page could not be opened beside the one shown.
 
 ## [3.5.0] - 2026-10-22
 
