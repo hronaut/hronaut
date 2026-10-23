@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os'
 import { afterEach, expect, it, vi } from 'vitest'
 import { TabStateStore, WorkspaceMetadataError, type PersistedBrowserState } from '../src/main/browser/tab-store.js'
 import { writeTextFileAtomically } from '../src/main/atomic-file.js'
-import { discardObsoleteBrowserData } from '../src/main/obsolete-profile-data.js'
 import { cleanExplicitlyDeletedWorkspaceStorage } from '../src/main/browser/workspace-storage-deletion.js'
 
 vi.mock('node:fs/promises', async original => {
@@ -24,9 +23,9 @@ async function fixture() {
   return { root, path, store: new TabStateStore(path) }
 }
 
-it.each(['invalid-json', 'unsupported', 'non-record', 'invalid-schema', 'legacy', 'missing', 'valid-empty', 'read-error'])('preserves metadata baseline: %s', async fault => {
+it.each(['invalid-json', 'unsupported', 'non-record', 'invalid-schema', 'missing', 'valid-empty', 'read-error'])('preserves metadata baseline: %s', async fault => {
   const { path, store } = await fixture()
-  const bytes = fault === 'invalid-json' ? '{synthetic-private-marker' : fault === 'non-record' ? 'null' : JSON.stringify({ ...empty, version: fault === 'unsupported' ? 999 : fault === 'legacy' ? 2 : 3, ...(fault === 'invalid-schema' ? { tabs: 'bad' } : {}) })
+  const bytes = fault === 'invalid-json' ? '{synthetic-private-marker' : fault === 'non-record' ? 'null' : JSON.stringify({ ...empty, version: fault === 'unsupported' ? 999 : 3, ...(fault === 'invalid-schema' ? { tabs: 'bad' } : {}) })
   if (fault === 'read-error') {
     await mkdir(path)
     await expect(store.load()).rejects.toMatchObject({ reason: 'unreadable' })
@@ -97,24 +96,25 @@ it('checks rejection again at the atomic commit boundary', async () => {
   expect(await readFile(path, 'utf8')).toBe('{private-invalid')
 })
 
-it('validates the complete schema before obsolete or explicit deletion can run', async () => {
-  const { root, path } = await fixture()
+it('validates the complete schema before explicit deletion can run', async () => {
+  const { root, path, store } = await fixture()
   const id = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'
-  for (const name of ['hronaut', `hronaut-workspace-${id}`]) {
-    await mkdir(join(root, 'Partitions', name), { recursive: true })
-    await writeFile(join(root, 'Partitions', name, 'marker'), 'synthetic-only')
-  }
+  const marker = join(root, 'Partitions', `hronaut-workspace-${id}`, 'marker')
+  await mkdir(join(marker, '..'), { recursive: true })
+  await writeFile(marker, 'synthetic-only')
   const bytes = JSON.stringify({ ...empty, tabs: [{ id: 'invalid' }], deletedWorkspaceStorageIds: [id] })
   await writeFile(path, bytes)
-  await expect(discardObsoleteBrowserData(root)).rejects.toMatchObject({ reason: 'invalid-schema' })
-  for (const name of ['hronaut', `hronaut-workspace-${id}`]) expect(await readFile(join(root, 'Partitions', name, 'marker'), 'utf8')).toBe('synthetic-only')
+  await expect(store.load({ persistRepairs: false })).rejects.toMatchObject({ reason: 'invalid-schema' })
+  expect(await readFile(marker, 'utf8')).toBe('synthetic-only')
   expect(await readFile(path, 'utf8')).toBe(bytes)
 })
 
 it('validates without repairing, then rereads retired intent before persisting repair', async () => {
   const { root, path, store } = await fixture()
   const id = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'
-  const bytes = JSON.stringify({ ...empty, defaultHumanGroupId: 'repair', deletedWorkspaceStorageIds: [id] })
+  // A description over its limit is repaired, so this load has something to write back.
+  const workspace = { id: '01912345-6789-7abc-8def-0123456789ab', contextClass: 'standard', name: 'Personal', description: 'x'.repeat(1001), color: 'gray', createdAt: '2026-08-20T09:00:00.000Z', lastUsedAt: '2026-08-20T09:00:00.000Z', storageId: 'bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb', navigationPolicy: { mode: 'unrestricted', rules: [] } }
+  const bytes = JSON.stringify({ ...empty, mcpTabGroups: [workspace], deletedWorkspaceStorageIds: [id] })
   await writeFile(path, bytes)
   await store.load({ persistRepairs: false })
   expect(await readFile(path, 'utf8')).toBe(bytes)

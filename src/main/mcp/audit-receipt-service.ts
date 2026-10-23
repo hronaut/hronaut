@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { BrowserWorkspaceNavigationAuditSource } from '../../shared/types.js'
 import type { WorkspaceNavigationDecision } from '../browser/workspace-navigation-policy.js'
 import { AuditReceiptRun, type AuditReceiptActionOptions } from './audit-receipt-run.js'
-import { AuditReceiptStore, type AuditReceiptEvent } from './audit-receipt-store.js'
+import { AuditReceiptHistoryInvalidError, AuditReceiptStore, type AuditReceiptEvent } from './audit-receipt-store.js'
 
 const idSchema = z.uuid().transform(value => value.toLowerCase())
 const metadataSchema = z.object({
@@ -69,7 +69,19 @@ export class AuditReceiptService {
         return { ...current.metadata }
       }
       const index = await this.readIndex(id)
-      for (const previous of index.runs) await this.finalizeInterruptedVerifications(id, previous)
+      for (const previous of [...index.runs]) {
+        try {
+          await this.finalizeInterruptedVerifications(id, previous)
+        } catch (error) {
+          if (!(error instanceof AuditReceiptHistoryInvalidError)) throw error
+          // An interrupted run whose journal does not verify, such as one an earlier
+          // version saved, can be neither read nor closed, so it is retired whole.
+          index.runs.splice(index.runs.indexOf(previous), 1)
+          await this.saveIndex(id, index)
+          await rm(this.journalPath(id, previous.id), { force: true })
+          console.warn('[audit] Retired an interrupted audit run whose journal could not be verified.')
+        }
+      }
       const directory = this.workspacePath(id)
       await mkdir(directory, { recursive: true, mode: 0o700 })
       const known = new Set(index.runs.map(run => `${run.id}.jsonl`))
@@ -168,8 +180,8 @@ export class AuditReceiptService {
           'Null observations or completeness fields are unknown. Omitted site evidence is counted; interrupted actions are not replayed.',
           'Live evidence references expire after process, control, navigation, observation, or tab changes; they locate existing bounded tools rather than immutable snapshots.',
           'Origin identifiers are opaque and stable only within one live run. The hash chain is not authentication against local file rewriting.',
-          'Authorization lineage contains only root-to-leaf capability profile IDs and revisions. Older retained decisions may omit it.',
-          'Write-lease evidence contains only privacy-safe mode, holder state, expiry, and the current owner generation. Foreign generations and transport identities are omitted; older retained observations may omit it.',
+          'Authorization lineage contains only root-to-leaf capability profile IDs and revisions.',
+          'Write-lease evidence contains only privacy-safe mode, holder state, expiry, and the current owner generation. Foreign generations and transport identities are omitted.',
           'Retention is three runs per workspace, each capped at 1000 entries and 1 MiB.'
         ]
       }

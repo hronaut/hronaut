@@ -3,11 +3,10 @@ import { statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
-import { normalizeSitePermissionOrigin, SitePermissionStore } from './site-permission-store.js'
+import { FRESH_CONSENT_PERMISSIONS, normalizeSitePermissionOrigin, SitePermissionStore } from './site-permission-store.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import { sitePermissionName } from '../shared/site-permission-names.js'
-import { plainWorkspaceName } from '../shared/plain-workspace-name.js'
-import type { SitePermissionDecision, SitePermissionEntry } from '../shared/types.js'
+import type { SitePermissionDecision } from '../shared/types.js'
 
 /**
  * The profile's persistent browser session and the site permissions the person chose, created once by index.ts and
@@ -40,31 +39,16 @@ interface BrowserSessionHost {
 }
 
 /**
- * Permissions Hronaut never remembers: camera and microphone, file access and opening a link in another app ask every
- * time. A decision an earlier version saved for one of them is not used, and the shell does not show it.
- */
-const FRESH_CONSENT_PERMISSIONS: ReadonlySet<string> = new Set(['media', 'fileSystem', 'openExternal'])
-
-/**
- * The saved decisions the shell shows and counts. A decision an earlier version saved for a permission Hronaut never
- * remembers stays in the file but has no effect, so Settings must not list it as if it did.
- */
-export function rememberedSitePermissions(entries: readonly SitePermissionEntry[]): SitePermissionEntry[] {
-  return entries.filter((entry) => !FRESH_CONSENT_PERMISSIONS.has(entry.permission))
-}
-
-/**
- * A workspace's name as a permission prompt shows it, or undefined for a workspace Hronaut does not know. An agent can
- * name its workspace, so the name is shown plain, as Hronaut keeps names now, since one saved earlier could add a
- * paragraph to the prompt or reverse its words; and when another workspace reads the same, such as the person's own,
- * it ends with part of its id, as Settings shows it.
+ * A workspace's name as a permission prompt shows it, or undefined for a workspace Hronaut does not know. Hronaut keeps
+ * names plain (see `plainWorkspaceName`), so an agent's name cannot add a paragraph to the prompt or reverse its words;
+ * and when another workspace reads the same, such as the person's own, it ends with part of its id, as Settings shows it.
  */
 export function promptWorkspaceName(workspaceId: string, workspaces: ReadonlyArray<{ id: string, name: string }>): string | undefined {
   // Joiners, direction marks and runs of spaces do not change how a name reads, nor a letter and its accent written
   // apart, which they could keep apart.
-  const reading = (name: string): string => plainWorkspaceName(name).replace(/[\u200C-\u200F\u061C]/gu, '').normalize('NFC').replace(/\s+/gu, ' ')
+  const reading = (name: string): string => name.replace(/[\u200C-\u200F\u061C]/gu, '').normalize('NFC').replace(/\s+/gu, ' ')
   const own = workspaces.find((workspace) => workspace.id === workspaceId)
-  const name = own ? plainWorkspaceName(own.name) : ''
+  const name = own?.name ?? ''
   if (!own || !name) return undefined
   const readsAlike = workspaces.some((workspace) => workspace.id !== workspaceId && reading(workspace.name) === reading(own.name))
   return readsAlike ? `${name} · ${workspaceId.replaceAll('-', '').slice(-6)}` : name
@@ -645,12 +629,12 @@ export function createBrowserSession(host: BrowserSessionHost): {
 
   /** Tells both shell windows the site permissions the person chose. */
   function publishSitePermissions(): void {
-    host.sendToShellWindows('permissions:changed', rememberedSitePermissions(host.state.sitePermissionStore?.list() ?? []))
+    host.sendToShellWindows('permissions:changed', host.state.sitePermissionStore?.list() ?? [])
   }
 
   /**
    * Forgets the decisions made in a workspace the person closed or deleted for good, not one they archived, and tells
-   * the shell windows. Decisions saved before decisions belonged to a workspace stay.
+   * the shell windows.
    */
   async function forgetWorkspaceSitePermissions(workspaceId: string): Promise<void> {
     const store = host.state.sitePermissionStore

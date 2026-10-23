@@ -17,7 +17,6 @@ import { createAgentPresence } from './agent-presence.js'
 import { registerAgentPresenceIpc } from './agent-presence-ipc.js'
 import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
-import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { createTrayAttention, type UserAttentionState } from './tray-attention.js'
 import { join } from 'node:path'
 import { createIpcGuards, trustedShellUrl, trustedUrlMatches } from './ipc-guards.js'
@@ -39,7 +38,7 @@ import { enableNativeWebMcp } from './native-webmcp-switch.js'
 import { createAppUpdates, type AppUpdatesState } from './app-updates.js'
 import { registerPageInspectionIpc } from './page-inspection-ipc.js'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
-import { WorkspaceMetadataError } from './browser/tab-store.js'
+import { TabStateStore, WorkspaceMetadataError } from './browser/tab-store.js'
 import { createTabRuntimeStartup, type TabRuntimeState } from './tab-runtime-startup.js'
 import { createWalletRuntime, type WalletRuntimeState } from './wallet/runtime.js'
 import { walletStartupFailureStatus } from './wallet/startup-status.js'
@@ -1346,7 +1345,10 @@ async function startRuntime(): Promise<void> {
   installApplicationMenu()
   const startMinimized = shouldStartMinimized(settingsState.current, { platform: process.platform, argv: process.argv, wasOpenedAtLogin: startupLaunchManager.wasOpenedAtLogin() })
   try {
-    requireExistingWorkspaceMetadata = await discardObsoleteBrowserData(app.getPath('userData'))
+    // Validate workspace metadata before any window, session or MCP server opens.
+    // A snapshot accepted here must still exist when the tabs load.
+    requireExistingWorkspaceMetadata = await new TabStateStore(join(app.getPath('userData'), 'tabs.json'))
+      .load({ persistRepairs: false }) !== null
     await configurePersistentSession()
     registerHomeProtocol()
     await createWindow(startMinimized)

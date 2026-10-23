@@ -14,9 +14,9 @@ import { MAX_TAB_TITLE_CHARS, normalizeTabTitle } from './tab-metadata.js'
 import { isAgentWorkspaceNavigationUrl } from './url.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
 import { UNTITLED_TAB_TITLE } from '../../shared/tab-title.js'
+import { plainWorkspaceName } from '../../shared/plain-workspace-name.js'
 import {
   evaluateWorkspaceNavigation,
-  normalizeSavedWorkspaceNavigationPolicy,
   normalizeWorkspaceNavigationPolicy
 } from './workspace-navigation-policy.js'
 import type {
@@ -46,7 +46,7 @@ export interface PersistedTabGroup {
   hiddenFromSidebar?: boolean
   deletionProtected?: boolean
   agentAccess?: boolean
-  contextClass?: BrowserWorkspaceContextClass
+  contextClass: BrowserWorkspaceContextClass
   id: string
   name: string
   description?: string
@@ -56,7 +56,7 @@ export interface PersistedTabGroup {
   activeTabId?: string | null
   storageId: string
   origins?: string[]
-  navigationPolicy?: BrowserWorkspaceNavigationPolicy
+  navigationPolicy: BrowserWorkspaceNavigationPolicy
   navigationAudit?: BrowserWorkspaceNavigationAuditEntry[]
   pinnedAt?: string
 }
@@ -65,7 +65,7 @@ export interface PersistedSavedTabGroup {
   hiddenFromSidebar?: boolean
   deletionProtected?: boolean
   agentAccess?: boolean
-  contextClass?: BrowserWorkspaceContextClass
+  contextClass: BrowserWorkspaceContextClass
   id: string
   name: string
   description?: string
@@ -73,7 +73,7 @@ export interface PersistedSavedTabGroup {
   savedAt: string
   storageId: string
   origins?: string[]
-  navigationPolicy?: BrowserWorkspaceNavigationPolicy
+  navigationPolicy: BrowserWorkspaceNavigationPolicy
   navigationAudit?: BrowserWorkspaceNavigationAuditEntry[]
   tabs: Array<Pick<PersistedTab, 'title' | 'url' | 'pinned' | 'label' | 'zoomIsolated' | 'defaultFontSize' | 'muted' | 'tabAgentPaused' | 'humanInteractionLocked'>>
   /** Which of its tabs was shown when it was archived. */
@@ -128,12 +128,11 @@ function persistedWorkspaceStorageId(value: unknown): string | undefined {
 }
 
 /**
- * A public observer is limited to one HTTP(S) origin. An origin with a misplaced `*`, which earlier versions accepted
- * and which never matched a site, is dropped when it loads, so that observer is kept limited to no site at all.
+ * A public observer is limited to one HTTP(S) origin. A subdomain wildcard such as `https://*.example.com` parses as an
+ * origin too, but allows every subdomain.
  */
 function isPublicObserverPolicy(policy: BrowserWorkspaceNavigationPolicy): boolean {
-  if (policy.mode === 'restricted' && policy.rules.length === 0) return true
-  if (policy.mode !== 'restricted' || policy.rules.length !== 1) return false
+  if (policy.mode !== 'restricted' || policy.rules.length !== 1 || policy.rules[0]!.includes('*')) return false
   try {
     const parsed = new URL(policy.rules[0]!)
     return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
@@ -366,22 +365,16 @@ export class TabStateStore {
       const usedWorkspaceIds = new Set<string>()
       const activeWorkspaceIds = new Set<string>()
       const usedStorageIds = new Set<string>()
-      let repairedPersistedState = 'defaultHumanGroupId' in data
+      let repairedPersistedState = false
       const currentTime = Date.now()
-      const discardedWorkspaceIds = new Set<string>()
       const mcpTabGroups: PersistedTabGroup[] = []
       for (const candidate of data.mcpTabGroups) {
         if (!isRecord(candidate)) throw this.reject('invalid-schema')
-        if (candidate.storageId === undefined && typeof candidate.id === 'string') {
-          discardedWorkspaceIds.add(candidate.id)
-          repairedPersistedState = true
-          continue
-        }
         const storageId = persistedWorkspaceStorageId(candidate.storageId)
         let navigationPolicy: BrowserWorkspaceNavigationPolicy
         let navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
         try {
-          navigationPolicy = normalizeSavedWorkspaceNavigationPolicy(candidate.navigationPolicy)
+          navigationPolicy = normalizeWorkspaceNavigationPolicy(candidate.navigationPolicy)
           navigationAudit = persistedWorkspaceNavigationAudit(candidate.navigationAudit)
         } catch {
           throw this.reject('invalid-schema')
@@ -391,13 +384,12 @@ export class TabStateStore {
           || !isUuidV7(candidate.id)
           || usedWorkspaceIds.has(candidate.id)
           || typeof candidate.name !== 'string'
-          || candidate.name !== candidate.name.trim().normalize('NFC')
+          || candidate.name !== plainWorkspaceName(candidate.name)
           || !candidate.name
           || candidate.name.length > MAX_WORKSPACE_NAME_LENGTH
           || (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean')
-          || (candidate.contextClass !== undefined
-            && candidate.contextClass !== 'standard'
-            && candidate.contextClass !== 'public-observer')
+          || (candidate.contextClass !== 'standard' && candidate.contextClass !== 'public-observer')
+          || candidate.navigationPolicy === undefined
           || !isBrowserTabGroupColor(candidate.color)
           || typeof candidate.createdAt !== 'string'
           || typeof candidate.lastUsedAt !== 'string'
@@ -431,7 +423,7 @@ export class TabStateStore {
           hiddenFromSidebar: candidate.hiddenFromSidebar === true,
           deletionProtected: candidate.deletionProtected === true,
           ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
-          contextClass: candidate.contextClass ?? 'standard',
+          contextClass: candidate.contextClass,
           name: candidate.name,
           description,
           color: candidate.color,
@@ -444,25 +436,19 @@ export class TabStateStore {
           navigationAudit,
           ...(pinnedAt ? { pinnedAt } : {})
         })
-        if (JSON.stringify(candidate.navigationPolicy ?? { mode: 'unrestricted', rules: [] }) !== JSON.stringify(navigationPolicy)) {
+        if (JSON.stringify(candidate.navigationPolicy) !== JSON.stringify(navigationPolicy)) {
           repairedPersistedState = true
         }
-        if (candidate.contextClass === undefined) repairedPersistedState = true
       }
 
       const savedTabGroups: PersistedSavedTabGroup[] = []
       for (const candidate of data.savedTabGroups) {
         if (!isRecord(candidate) || !Array.isArray(candidate.tabs)) throw this.reject('invalid-schema')
-        if (candidate.storageId === undefined && typeof candidate.id === 'string') {
-          discardedWorkspaceIds.add(candidate.id)
-          repairedPersistedState = true
-          continue
-        }
         const storageId = persistedWorkspaceStorageId(candidate.storageId)
         let navigationPolicy: BrowserWorkspaceNavigationPolicy
         let navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
         try {
-          navigationPolicy = normalizeSavedWorkspaceNavigationPolicy(candidate.navigationPolicy)
+          navigationPolicy = normalizeWorkspaceNavigationPolicy(candidate.navigationPolicy)
           navigationAudit = persistedWorkspaceNavigationAudit(candidate.navigationAudit)
         } catch {
           throw this.reject('invalid-schema')
@@ -472,13 +458,12 @@ export class TabStateStore {
           || !isUuidV7(candidate.id)
           || usedWorkspaceIds.has(candidate.id)
           || typeof candidate.name !== 'string'
-          || candidate.name !== candidate.name.trim().normalize('NFC')
+          || candidate.name !== plainWorkspaceName(candidate.name)
           || !candidate.name
           || candidate.name.length > MAX_WORKSPACE_NAME_LENGTH
           || (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean')
-          || (candidate.contextClass !== undefined
-            && candidate.contextClass !== 'standard'
-            && candidate.contextClass !== 'public-observer')
+          || (candidate.contextClass !== 'standard' && candidate.contextClass !== 'public-observer')
+          || candidate.navigationPolicy === undefined
           || !isBrowserTabGroupColor(candidate.color)
           || typeof candidate.savedAt !== 'string'
           || !storageId
@@ -510,7 +495,7 @@ export class TabStateStore {
           hiddenFromSidebar: candidate.hiddenFromSidebar === true,
           deletionProtected: candidate.deletionProtected === true,
           ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
-          contextClass: candidate.contextClass ?? 'standard',
+          contextClass: candidate.contextClass,
           name: candidate.name,
           description,
           color: candidate.color,
@@ -549,20 +534,14 @@ export class TabStateStore {
           }),
           ...(shownTabIndex !== undefined ? { shownTabIndex } : {})
         })
-        if (JSON.stringify(candidate.navigationPolicy ?? { mode: 'unrestricted', rules: [] }) !== JSON.stringify(navigationPolicy)) {
+        if (JSON.stringify(candidate.navigationPolicy) !== JSON.stringify(navigationPolicy)) {
           repairedPersistedState = true
         }
-        if (candidate.contextClass === undefined) repairedPersistedState = true
       }
 
       const usedTabIds = new Set<string>()
       const tabs: PersistedTab[] = []
-      const discardedTabIds = new Set<string>()
       for (const candidate of data.tabs) {
-        if (isRecord(candidate) && typeof candidate.mcpGroupId === 'string' && discardedWorkspaceIds.has(candidate.mcpGroupId)) {
-          if (typeof candidate.id === 'string') discardedTabIds.add(candidate.id)
-          continue
-        }
         const url = isRecord(candidate) ? normalizePersistedTabUrl(candidate.url) : null
         if (
           !isRecord(candidate)
@@ -607,16 +586,12 @@ export class TabStateStore {
           ...(typeof candidate.mcpGroupId === 'string' ? { mcpGroupId: candidate.mcpGroupId } : {})
         })
       }
-      const activeTabId = typeof data.activeTabId === 'string' && !discardedTabIds.has(data.activeTabId) ? data.activeTabId : null
+      const activeTabId = typeof data.activeTabId === 'string' ? data.activeTabId : null
       if (activeTabId !== null && !usedTabIds.has(activeTabId)) throw this.reject('invalid-schema')
       for (const group of mcpTabGroups) {
         if (group.activeTabId && !tabs.some((tab) => tab.id === group.activeTabId && tab.mcpGroupId === group.id)) throw this.reject('invalid-schema')
       }
 
-      if (isRecord(data.splitView) && (
-        discardedTabIds.has(String(data.splitView.firstTabId))
-        || discardedTabIds.has(String(data.splitView.secondTabId))
-      )) delete data.splitView
       const splitView = isRecord(data.splitView)
         && typeof data.splitView.firstTabId === 'string'
         && typeof data.splitView.secondTabId === 'string'

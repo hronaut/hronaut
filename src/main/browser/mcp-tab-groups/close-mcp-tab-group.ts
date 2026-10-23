@@ -54,7 +54,9 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
     zoomIsolated: tab.zoomIsolated,
     defaultFontSize: tab.defaultFontSize,
     muted: tab.tabMuted,
-    navigationGeneration: tab.navigationGeneration,
+    // A restored tab starts past every page the closed one showed, wallet pages included, so none of their wallet
+    // requests counts as the restored tab's.
+    navigationGeneration: Math.max(tab.navigationGeneration, tab.walletNavigationGeneration),
     navigationHistory: access.navigationHistorySnapshot(tab)
   }))
   // Closing each tab remembers it among the recently closed tabs, whose bounded list would then push out the oldest

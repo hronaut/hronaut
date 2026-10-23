@@ -2,8 +2,7 @@ import { computed, ref } from 'vue'
 import type {
   HronautPermissionsApi,
   SitePermissionDecision,
-  SitePermissionEntry,
-  SitePermissionScope
+  SitePermissionEntry
 } from '../../../shared/types.js'
 import { sitePermissionName } from '../../../shared/site-permission-names.js'
 import { sitePermissionKey, sitePermissionScopeOf } from '../../../shared/site-permission-scope.js'
@@ -43,17 +42,9 @@ function sortedEntries(entries: SitePermissionEntry[]): SitePermissionEntry[] {
   return [...entries].sort((left, right) => (
     left.origin.localeCompare(right.origin)
     || left.permission.localeCompare(right.permission)
-    || (left.workspaceId ?? '').localeCompare(right.workspaceId ?? '')
+    || left.workspaceId.localeCompare(right.workspaceId)
     || (left.embeddedIn ?? '').localeCompare(right.embeddedIn ?? '')
   ))
-}
-
-/**
- * The scope the permissions bridge names a decision by: none for a decision saved before decisions belonged to a
- * workspace, so such a change or Forget is the same request it always was.
- */
-function scopeArguments(entry: SitePermissionEntry): [] | [SitePermissionScope] {
-  return entry.workspaceId === undefined ? [] : [sitePermissionScopeOf(entry)]
 }
 
 export function useSitePermissionsController(options: SitePermissionsControllerOptions) {
@@ -102,18 +93,16 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
   })
 
   /**
-   * Where a decision applies, in words: its workspace's name, "All workspaces" for one saved before decisions belonged
-   * to a workspace, a removed workspace with part of its id, and for a website embedded in another website's page, "on"
-   * that website. Until the workspaces have loaded, a workspace is only said to be loading, never removed.
+   * Where a decision applies, in words: its workspace's name, a removed workspace with part of its id, and for a website
+   * embedded in another website's page, "on" that website. Until the workspaces have loaded, a workspace is only said
+   * to be loading, never removed.
    */
   function scopeLabel(entry: SitePermissionEntry): string {
     const labels = workspaceLabels.value
-    const workspace = entry.workspaceId === undefined
-      ? options.translate('settings.permissions.allWorkspaces')
-      : !labels
-        ? options.translate('settings.permissions.loadingWorkspace')
-        : labels.get(entry.workspaceId)
-          ?? options.translate('settings.permissions.removedWorkspace', { id: shortWorkspaceId(entry.workspaceId) })
+    const workspace = !labels
+      ? options.translate('settings.permissions.loadingWorkspace')
+      : labels.get(entry.workspaceId)
+        ?? options.translate('settings.permissions.removedWorkspace', { id: shortWorkspaceId(entry.workspaceId) })
     return entry.embeddedIn
       ? `${workspace} · ${options.translate('settings.permissions.embeddedIn', { site: entry.embeddedIn })}`
       : workspace
@@ -167,7 +156,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     const operation = begin(entry)
     if (!operation) return false
     try {
-      const saved = await options.api.set(entry.origin, entry.permission, decision, ...scopeArguments(entry))
+      const saved = await options.api.set(entry.origin, entry.permission, decision, sitePermissionScopeOf(entry))
       if (operation.generation !== generation) return false
       if (operation.revision === revision) {
         entries.value = sortedEntries([
@@ -187,7 +176,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
     const operation = begin(entry)
     if (!operation) return false
     try {
-      await options.api.remove(entry.origin, entry.permission, ...scopeArguments(entry))
+      await options.api.remove(entry.origin, entry.permission, sitePermissionScopeOf(entry))
       if (operation.generation !== generation) return false
       if (operation.revision === revision) {
         entries.value = entries.value.filter((candidate) => permissionKey(candidate) !== operation.key)

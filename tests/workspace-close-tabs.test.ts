@@ -44,7 +44,7 @@ function page(id: string, mcpGroupId: string, sleeping = false) {
   return {
     id, mcpGroupId, url: `https://example.test/${id.slice(-2)}`, title: id.slice(-2), pinned: false, sleeping, tabMuted: false,
     humanInteractionLocked: false, tabAgentPaused: false, lastActiveAt: 0, navigationGeneration: 0,
-    view: { id: `view-${id}` },
+    walletNavigationGeneration: 0, view: { id: `view-${id}` },
     webContents: { id: Number.parseInt(id.slice(-2), 16), isDestroyed: () => false, close: vi.fn() }
   }
 }
@@ -180,6 +180,21 @@ describe('closing a whole workspace', () => {
     // Reopened as they were, the tab's own mute included; it came back with sound.
     expect(internals.createTab).toHaveBeenCalledWith(expect.objectContaining({ id: SHOWN, muted: true }))
     expect(internals.createTab).toHaveBeenCalledWith(expect.objectContaining({ id: ASLEEP, muted: false }))
+  })
+
+  it('brings its tabs back past every wallet page they showed when deleting its storage fails', async () => {
+    const { manager, internals, release } = await browser()
+    release()
+    // A page can replace another while the tab's own navigation count does not see it, as when a tab wakes while it
+    // is still going to sleep; the restored tab must not take the generation of a page the closed tab showed.
+    Object.assign(internals.tabs.get(SHOWN)!, { navigationGeneration: 4, walletNavigationGeneration: 5 })
+    const onWalletTabRestored = vi.fn()
+    Object.assign(manager, { options: { onWalletTabRestored } })
+    internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
+    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
+    expect(onWalletTabRestored).toHaveBeenCalledWith(SHOWN, 6)
+    expect(internals.createTab).toHaveBeenCalledWith(expect.objectContaining({ id: SHOWN, navigationGeneration: 6 }))
+    expect(onWalletTabRestored).toHaveBeenCalledWith(ASLEEP, 1)
   })
 
   it('keeps a tab the person selects while deleting its storage fails', async () => {

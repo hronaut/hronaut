@@ -75,7 +75,8 @@ describe('app events controller', () => {
     const permission: SitePermissionEntry = {
       origin: 'https://example.test',
       permission: 'geolocation',
-      decision: 'allow'
+      decision: 'allow',
+      workspaceId: '01912345-6789-7abc-8def-0123456789ab'
     }
     const credential: CredentialSummary = {
       id: 'credential-1',

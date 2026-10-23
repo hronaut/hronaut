@@ -246,15 +246,15 @@ export class HumanWaitingStore {
    * it takes for the history, with room for every kept decision (and `incoming`) to finish, to stay within what its
    * persistence owner saves. Undefined when retiring every finished decision is not enough.
    */
-  private retirementsFor(incoming?: WaitingRecord): string[] | undefined {
+  private retirementsFor(incoming: WaitingRecord): string[] | undefined {
     const retirable = [...this.records].filter(([, entry]) => terminal(entry.record.state) && !activeReview(entry.record))
     const retired: string[] = []
-    if (incoming && this.records.size >= this.capacity) {
+    if (this.records.size >= this.capacity) {
       const oldest = retirable.shift()
       if (!oldest) return undefined
       retired.push(oldest[0])
     }
-    let historyBytes = HISTORY_ENVELOPE_BYTES + (incoming ? savedRecordBudget(incoming) : 0)
+    let historyBytes = HISTORY_ENVELOPE_BYTES + savedRecordBudget(incoming)
     for (const [id, entry] of this.records) if (!retired.includes(id)) historyBytes += savedRecordBudget(entry.record)
     while (historyBytes > HUMAN_WAITING_HISTORY_MAX_BYTES) {
       const oldest = retirable.shift()
@@ -298,9 +298,6 @@ export class HumanWaitingStore {
       return { record, createdMonotonic: now, deadlineMonotonic: now + Math.max(0, Math.min(86_400_000, remaining)) }
     })
     for (const entry of restored) this.records.set(entry.record.id, entry)
-    // A history saved before its size was budgeted can sit just under the limit, and restoring adds a receipt to every
-    // review it ends, so the oldest finished decisions make room for it to be saved again.
-    for (const id of this.retirementsFor() ?? []) this.records.delete(id)
     this.lastMonotonic = now
   }
 

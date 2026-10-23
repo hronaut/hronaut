@@ -430,7 +430,6 @@ export const ruRU = {
       "block": "Заблокировать",
       "forget": "Забыть решение",
       "help": "После удаления решения Hronaut снова спросит разрешение при следующем запросе сайта.",
-      "allWorkspaces": "Все рабочие пространства",
       "archivedWorkspace": "{name} (в архиве)",
       "removedWorkspace": "Удалённое рабочее пространство {id}",
       "loadingWorkspace": "Загрузка рабочего пространства…",
@@ -1248,7 +1247,6 @@ export const ruRU = {
     },
     "permission": {
       "aria": "Разрешение «{permission}» для {origin}",
-      "forgetAria": "Забыть разрешение «{permission}» для {origin}",
       "resetAria": "Сбросить разрешение «{permission}» для {origin}",
       "scopedAria": "Разрешение «{permission}» для {origin} ({scope})",
       "scopedForgetAria": "Забыть разрешение «{permission}» для {origin} ({scope})",

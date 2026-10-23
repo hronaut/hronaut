@@ -30,7 +30,10 @@ async function fixture() {
 }
 
 function action<T>(operation: () => Promise<T>) {
-  return { toolName: 'browser_click', readOnly: false, observeState: () => null, operation, isErrorResult: () => false }
+  return {
+    toolName: 'browser_click', readOnly: false, authorization: { kind: 'full-access' as const },
+    observeState: () => null, operation, isErrorResult: () => false
+  }
 }
 
 function verification(verify: NonNullable<Parameters<AuditReceiptRun['execute']>[0]['verification']>['verify']) {
@@ -47,7 +50,8 @@ describe('audit receipt run lifecycle', () => {
       ...action(async () => result),
       observeEvidence: () => ({
         state: { tabId, navigationGeneration: 4, observationGeneration: 6,
-          humanInteractionGeneration: 1, controlRevision: 8, originChanged: false },
+          humanInteractionGeneration: 1, controlRevision: 8, originChanged: false,
+          writeLease: { status: 'unclaimed', holder: 'none', mode: 'exclusive-write' } },
         artifacts: [
           { source: 'diagnostic', status: 'available', reason: 'retained', referenceId },
           { source: 'reproduction', status: 'not-collected', reason: 'recorder-inactive', referenceId: null }

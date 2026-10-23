@@ -24,15 +24,11 @@ export function normalizeCollectionTitle(
 ): string {
   const matchesSource = value === sourceUrl
     || (value.length === policy.maxLength && sourceUrl.startsWith(value))
-  // Legacy titles may have been capped before the credential separator, even
-  // when the stored address was sanitized by a subsequent write.
-  const truncatedUrlAuthority = value.length === policy.maxLength
-    && /^https?:\/\/[^/?#\s@]+$/iu.test(value)
   const isUrlFallback = policy.urlFallbacks === 'all'
     ? matchesSource || policy.normalizeUrl(value) === url
     : matchesSource && hasEmbeddedHttpCredentials(sourceUrl)
   let safeValue = value
-  if (isUrlFallback || truncatedUrlAuthority) safeValue = policy.normalizeUrl(sourceUrl) ?? value
+  if (isUrlFallback) safeValue = policy.normalizeUrl(sourceUrl) ?? value
   else if (hasEmbeddedHttpCredentials(value)) safeValue = policy.normalizeUrl(value) ?? url
   const title = truncateText(safeValue.replace(/\s+/g, ' ').trim(), policy.maxLength)
   return title || truncateText(new URL(url).hostname, policy.maxLength)

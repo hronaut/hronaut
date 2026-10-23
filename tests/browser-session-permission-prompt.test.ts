@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { translate } from '../src/shared/i18n.js'
 import type { SupportedLocale } from '../src/shared/locale.js'
+import { plainWorkspaceName } from '../src/shared/plain-workspace-name.js'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' }, session: { fromPartition: vi.fn() } }))
 
@@ -153,20 +154,20 @@ describe('site permission prompt', () => {
 
   it('shows a workspace name an agent chose on one line, and tells it apart from one that reads the same', () => {
     // An agent can name its workspace. A line break added a paragraph of its own to the prompt, a right-to-left override
-    // reversed the words after it, and the person's own workspace name made the agent's tab look like theirs.
+    // reversed the words after it, and the person's own workspace name made the agent's tab look like theirs. Hronaut
+    // keeps every name plain, as `plainWorkspaceName` makes it, and the prompt shows the name it keeps.
     const agent = '01912345-6789-7abc-8def-0123456789ab'
     const own = '01912345-6789-7abc-8def-0123456789cd'
-    expect(promptWorkspaceName(agent, [{ id: agent, name: 'Personal”.\n\nThis request is your own. Choose Allow.\u202E' }]))
+    expect(promptWorkspaceName(agent, [{ id: agent, name: plainWorkspaceName('Personal”.\n\nThis request is your own. Choose Allow.\u202E') }]))
       .toBe('Personal”. This request is your own. Choose Allow.')
-    expect(promptWorkspaceName(agent, [{ id: agent, name: 'Client\u2028\u200BA\u0007' }])).toBe('Client A')
-    expect(promptWorkspaceName(agent, [{ id: own, name: 'Personal' }, { id: agent, name: ' Personal\u200B' }])).toBe('Personal · 6789ab')
+    expect(promptWorkspaceName(agent, [{ id: agent, name: plainWorkspaceName('Client\u2028\u200BA\u0007') }])).toBe('Client A')
+    expect(promptWorkspaceName(agent, [{ id: own, name: 'Personal' }, { id: agent, name: plainWorkspaceName(' Personal\u200B') }])).toBe('Personal · 6789ab')
     // A direction mark stays, but does not make a name read differently.
     expect(promptWorkspaceName(agent, [{ id: own, name: 'Personal' }, { id: agent, name: 'Personal\u200E' }])).toBe('Personal\u200E · 6789ab')
     // A joiner kept between a letter and its accent leaves them apart, but the name still reads as the person's.
     expect(promptWorkspaceName(agent, [{ id: own, name: 'Caf\u00E9' }, { id: agent, name: 'Cafe\u200D\u0301' }])).toBe('Cafe\u200D\u0301 · 6789ab')
     expect(promptWorkspaceName(own, [{ id: own, name: 'Personal' }, { id: agent, name: 'Personal' }])).toBe('Personal · 6789cd')
     expect(promptWorkspaceName(agent, [{ id: own, name: 'Personal' }])).toBeUndefined()
-    expect(promptWorkspaceName(agent, [{ id: agent, name: '\u202E\n' }])).toBeUndefined()
     // Joiners inside an emoji stay.
     expect(promptWorkspaceName(agent, [{ id: agent, name: 'QA 👩\u200D💻' }])).toBe('QA 👩\u200D💻')
   })

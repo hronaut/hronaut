@@ -77,7 +77,6 @@ describe('extracted shell components', () => {
       activeOrigin: ref('https://example.test'),
       activeHostname: ref('example.test'),
       activeSitePermissions: ref([permission]),
-      sitePermissionTarget: (entry: SitePermissionEntry) => entry,
       activeAddressKind: ref('Secure HTTPS connection'),
       activeTabUsesDefaultProfile: ref(true)
     } as unknown as ActiveTabPresentationController
@@ -162,7 +161,6 @@ describe('extracted shell components', () => {
       activeOrigin: ref('https://example.test'),
       activeHostname: ref('example.test'),
       activeSitePermissions: ref([permission]),
-      sitePermissionTarget: (entry: SitePermissionEntry) => entry,
       activeAddressKind: ref('Secure HTTPS connection'),
       activeTabUsesDefaultProfile: ref(true)
     } as unknown as ActiveTabPresentationController
@@ -245,9 +243,8 @@ describe('extracted shell components', () => {
     newerTarget.remove()
   })
 
-  it('changes a decision for all workspaces in Site controls only for the tab’s workspace', async () => {
-    // Site controls saved the change to the decision for all workspaces, so it reached every workspace.
-    const legacy: SitePermissionEntry = { origin: 'https://example.test', permission: 'geolocation', decision: 'allow' }
+  it('changes exactly the tab’s workspace decision in Site controls', async () => {
+    const saved: SitePermissionEntry = { origin: 'https://example.test', permission: 'geolocation', decision: 'allow', workspaceId: WORKSPACE }
     const i18n = createHronautI18n('en-US')
     const activeTab = ref<BrowserTabState | undefined>({ ...tab(), mcpGroupId: WORKSPACE })
     let finishSave!: (entry: SitePermissionEntry) => void
@@ -265,7 +262,7 @@ describe('extracted shell components', () => {
       fileSaving: { enabled: () => false, set: async () => undefined },
       onError: vi.fn()
     })
-    sitePermissionsController.replace([legacy])
+    sitePermissionsController.replace([saved])
     const activeTabPresentation = useActiveTabPresentationController({
       state: ref({ tabs: [activeTab.value!], closedTabs: [], activeTabId: 'tab-1', allHumanInteractionLocked: false, mcpUrl: '', profilePath: '', mcpTabGroups: [], savedTabGroups: [] }),
       activeTab,
@@ -323,19 +320,16 @@ describe('extracted shell components', () => {
       }
     })
     const user = userEvent.setup()
-    const control = screen.getByRole('combobox', { name: 'Location permission for https://example.test (All workspaces)' })
-    expect(screen.queryByRole('button', { name: /^Reset Location/ })).not.toBeInTheDocument()
+    const control = screen.getByRole('combobox', { name: 'Location permission for https://example.test' })
     await user.selectOptions(control, 'deny')
     expect(api.set).toHaveBeenCalledExactlyOnceWith('https://example.test', 'geolocation', 'deny', { workspaceId: WORKSPACE })
     expect(control).toBeDisabled()
 
-    finishSave({ ...legacy, decision: 'deny', workspaceId: WORKSPACE })
-    // The workspace's own decision takes the row's place, and the decision for all workspaces stays as it was.
-    await vi.waitFor(() => expect(screen.getByRole('combobox', { name: 'Location permission for https://example.test' })).toBe(control))
-    expect(control).not.toBeDisabled()
+    finishSave({ ...saved, decision: 'deny' })
+    await vi.waitFor(() => expect(control).not.toBeDisabled())
     expect(control).toHaveValue('deny')
     expect(screen.getByRole('button', { name: 'Reset Location permission for https://example.test' })).toBeVisible()
-    expect(sitePermissionsController.entries.value).toEqual([legacy, { ...legacy, decision: 'deny', workspaceId: WORKSPACE }])
+    expect(sitePermissionsController.entries.value).toEqual([{ ...saved, decision: 'deny' }])
   })
 
   it('shows an active forced CSS state in the address bar and lets the person end it', async () => {
@@ -373,7 +367,6 @@ describe('extracted shell components', () => {
         activeOrigin: ref('https://example.test'),
         activeHostname: ref('example.test'),
         activeSitePermissions: ref([]),
-        sitePermissionTarget: (entry: SitePermissionEntry) => entry,
         activeAddressKind: ref('Secure HTTPS connection'),
         activeTabUsesDefaultProfile: ref(true)
       } as unknown as ActiveTabPresentationController,

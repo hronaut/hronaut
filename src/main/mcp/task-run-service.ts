@@ -118,7 +118,7 @@ export class TaskRunService {
       let result = this.store.heartbeat(id, revision, evaluation.results)
       await this.saveStable()
       authorize()
-      if (checks.length && result.state === 'RUNNING') {
+      if (checks.length && result.outcome === 'running') {
         const fresh = await evaluate(checks)
         authorize()
         this.requireWorkspace(workspaceId, result.id)
@@ -146,7 +146,8 @@ export class TaskRunService {
       let result = this.store.complete(id, revision, requested, evaluation.results)
       await this.saveStable()
       authorize()
-      if (result.state === 'VERIFYING') {
+      // A passing success claim stays running while the evidence is observed again.
+      if (result.outcome === 'running') {
         const fresh = await evaluate(checks)
         authorize()
         if (fresh.contextToken !== evaluation.contextToken

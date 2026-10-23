@@ -26,14 +26,15 @@ async function fixture(limits: { maxEntries?: number; maxBytes?: number } = {}) 
 function decision(actionId = randomUUID()): Extract<AuditReceiptEvent, { phase: 'decision' }> {
   return {
     phase: 'decision', scope: 'workspace', actionId, toolName: 'browser_click', decision: 'allowed',
-    state: { tabId: randomUUID(), navigationGeneration: 1, originChanged: false }
+    authorization: { kind: 'full-access' },
+    state: { tabId: randomUUID(), navigationGeneration: 1, observationGeneration: 0, originChanged: false, writeLease: { status: 'unclaimed', holder: 'none', mode: 'exclusive-write' } }
   }
 }
 
 function outcome(actionId: string): Extract<AuditReceiptEvent, { phase: 'outcome' }> {
   return {
-    phase: 'outcome', actionId, status: 'cancelled', effects: 'possible', siteAccessDropped: 0,
-    state: { tabId: null, navigationGeneration: 2, originChanged: true }
+    phase: 'outcome', actionId, status: 'cancelled', effects: 'possible', siteAccessDropped: 0, evidenceDropped: 0,
+    state: { tabId: null, navigationGeneration: 2, observationGeneration: 0, originChanged: true, writeLease: { status: 'unclaimed', holder: 'none', mode: 'exclusive-write' } }
   }
 }
 
@@ -42,11 +43,26 @@ function evidence(actionId: string): Extract<AuditReceiptEvent, { phase: 'eviden
     phase: 'evidence', actionId,
     artifacts: [{ source: 'diagnostic', status: 'available', reason: 'retained', referenceId: randomUUID() }],
     state: { tabId: randomUUID(), navigationGeneration: 1, observationGeneration: 2,
-      humanInteractionGeneration: 0, controlRevision: 3, originChanged: false }
+      humanInteractionGeneration: 0, controlRevision: 3, originChanged: false, writeLease: { status: 'unclaimed', holder: 'none', mode: 'exclusive-write' } }
   }
 }
 
 describe('action audit receipt journal', () => {
+  it('requires observation generation, write-lease evidence, authorization and evidence coverage on every entry', async () => {
+    const { store } = await fixture()
+    const start = decision()
+    const { observationGeneration: _observation, ...unfenced } = start.state!
+    await expect(store.append({ ...start, state: unfenced } as AuditReceiptEvent)).rejects.toThrow()
+    const { writeLease: _lease, ...unleased } = start.state!
+    await expect(store.append({ ...start, state: unleased } as AuditReceiptEvent)).rejects.toThrow()
+    const { authorization: _authorization, ...unauthorized } = start
+    await expect(store.append(unauthorized as AuditReceiptEvent)).rejects.toThrow()
+    await store.append(start)
+    const { evidenceDropped: _dropped, ...uncovered } = outcome(start.actionId)
+    await expect(store.append(uncovered as AuditReceiptEvent)).rejects.toThrow()
+    expect(await store.read()).toHaveLength(1)
+  })
+
   it('distinguishes workspace admission, correlated site denials and an unavailable final state', async () => {
     const { store, options } = await fixture()
     const start = decision()
@@ -92,7 +108,7 @@ describe('action audit receipt journal', () => {
     await expect(store.append({
       ...decision(),
       state: {
-        tabId: randomUUID(), navigationGeneration: 1, originChanged: false,
+        tabId: randomUUID(), navigationGeneration: 1, observationGeneration: 0, originChanged: false,
         writeLease: {
           status: 'busy', holder: 'other', mode: 'exclusive-write',
           expiresAt: '2026-09-21T00:00:00.000Z', generation: foreignGeneration
@@ -102,7 +118,7 @@ describe('action audit receipt journal', () => {
     await expect(store.append({
       ...decision(),
       state: {
-        tabId: randomUUID(), navigationGeneration: 1, originChanged: false,
+        tabId: randomUUID(), navigationGeneration: 1, observationGeneration: 0, originChanged: false,
         writeLease: {
           status: 'unclaimed', holder: 'none', mode: 'exclusive-write', ownerId: 'private-session-canary'
         }
@@ -190,7 +206,7 @@ describe('action audit receipt journal', () => {
   })
 
   it('reserves enough bytes for the largest pending outcome while rejecting new decisions', async () => {
-    const { store, options } = await fixture({ maxBytes: 2300 })
+    const { store, options } = await fixture({ maxBytes: 2532 })
     const start = decision()
     await store.append(start)
     // A denial is terminal but must not consume a running action's reservation.
@@ -205,12 +221,12 @@ describe('action audit receipt journal', () => {
     end.state = {
       tabId: randomUUID(), navigationGeneration: Number.MAX_SAFE_INTEGER,
       observationGeneration: Number.MAX_SAFE_INTEGER, humanInteractionGeneration: Number.MAX_SAFE_INTEGER,
-      originChanged: false,
+      originChanged: false, writeLease: { status: 'unclaimed', holder: 'none', mode: 'exclusive-write' },
       operationClass: 'page-interaction', targetKind: 'coordinates', targetId: randomUUID(),
       authorityReason: 'EXPECTED_STATE_CHANGED'
     }
     await store.append(end)
-    expect((await stat(options.path)).size).toBeLessThanOrEqual(2300)
+    expect((await stat(options.path)).size).toBeLessThanOrEqual(2532)
     expect((await store.read()).at(-1)!.event).toEqual(end)
   })
 
@@ -336,7 +352,7 @@ describe('action audit receipt journal', () => {
     expect(await readFile(options.path, 'utf8')).toBe(damaged)
   })
 
-  it.each([{ maxEntries: 2 }, { maxBytes: 1100 }])('stops at explicit capacity without truncating history: %j', async (limits) => {
+  it.each([{ maxEntries: 2 }, { maxBytes: 1382 }])('stops at explicit capacity without truncating history: %j', async (limits) => {
     const { store, options } = await fixture(limits)
     // Denials need no outcome reservation and can fill the physical capacity.
     await store.append({ ...decision(), decision: 'denied' } as AuditReceiptEvent)

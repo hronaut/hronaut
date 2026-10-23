@@ -88,13 +88,15 @@ test('preserves persisted tabs when --quit arrives before browser restoration st
     allHumanInteractionLocked: true,
     mcpTabGroups: [{
       id: defaultWorkspaceId,
+      contextClass: 'standard',
       name: 'Personal',
       storageId: '77777777-1111-4111-8111-111111111111',
       color: 'gray',
       createdAt: '2026-08-20T09:00:00.000Z',
       lastUsedAt: '2026-08-20T09:01:00.000Z',
       activeTabId: websiteTabId,
-      origins: []
+      origins: [],
+      navigationPolicy: { mode: 'unrestricted', rules: [] }
     }],
     savedTabGroups: [],
     tabs: [

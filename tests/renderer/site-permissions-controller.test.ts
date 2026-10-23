@@ -6,7 +6,8 @@ import type { SitePermissionEntry } from '../../src/shared/types.js'
 const permission = (decision: 'allow' | 'deny'): SitePermissionEntry => ({
   origin: 'https://example.test',
   permission: 'geolocation',
-  decision
+  decision,
+  workspaceId: '01912345-6789-7abc-8def-0123456789ab'
 })
 
 function deferred<Value>() {
