@@ -106,15 +106,13 @@ export class BrowserDownloadsController {
   }
 
   /**
-   * Settles once every download receiving data in this session ends, or is undefined when none is. A paused download
-   * or one Chromium stopped and could resume, which no data reaches, is not waited for.
+   * Settles once every download of this session that has not ended does, or is undefined when there is none. A paused
+   * download, or one Chromium stopped and can resume, has not ended either: as in Chrome, it can still be resumed.
    */
   downloadsEnd(browserSession: Session): Promise<void> | undefined {
-    const receiving = [...this.downloadItems].filter(([id, item]) => (
-      this.downloadSessions.get(id) === browserSession && item.getState() === 'progressing' && !item.isPaused()
-    ))
-    if (!receiving.length) return undefined
-    return Promise.all(receiving.map(([, item]) => new Promise<void>((resolve) => { item.once('done', () => resolve()) })))
+    const unfinished = [...this.downloadItems].filter(([id]) => this.downloadSessions.get(id) === browserSession)
+    if (!unfinished.length) return undefined
+    return Promise.all(unfinished.map(([, item]) => new Promise<void>((resolve) => { item.once('done', () => resolve()) })))
       .then(() => undefined)
   }
 

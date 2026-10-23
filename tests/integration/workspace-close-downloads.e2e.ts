@@ -16,43 +16,44 @@ test('a workspace closed while it downloads lets the download finish and deletes
   // Closing the workspace closed every connection of its storage, so its download over HTTP/2, as most websites serve
   // files, failed halfway, and a resumable one was cancelled with its partial file.
   const certificates = await mkdtemp(join(tmpdir(), 'hronaut-download-tls-'))
-  await exec('openssl', [
-    'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=127.0.0.1',
-    '-addext', 'subjectAltName=IP:127.0.0.1', '-keyout', join(certificates, 'key.pem'), '-out', join(certificates, 'cert.pem')
-  ])
   let release = false
   let fileRequests = 0
-  const server = createSecureServer({
-    key: await readFile(join(certificates, 'key.pem')),
-    cert: await readFile(join(certificates, 'cert.pem'))
-  }, (request, response) => {
-    if (request.url !== '/report.bin') {
-      response.writeHead(200, { 'content-type': 'text/html', 'set-cookie': 'session=signed-in; Path=/' })
-      response.end('<title>Workspace download</title><main>Workspace download</main>')
-      return
-    }
-    fileRequests += 1
-    response.writeHead(200, {
-      'content-type': 'application/octet-stream',
-      'content-disposition': 'attachment; filename="report.bin"',
-      'content-length': payload.length
-    })
-    response.write(payload.subarray(0, offset))
-    const timer = setInterval(() => {
-      if (!release) return
-      clearInterval(timer)
-      response.end(payload.subarray(offset))
-    }, 50)
-    response.on('close', () => clearInterval(timer))
-  })
+  let server: ReturnType<typeof createSecureServer> | undefined
   // An HTTP/2 server keeps its sessions open until they close, which Chromium may never do on its own.
   const sessions = new Set<import('node:http2').ServerHttp2Session>()
-  server.on('session', (session) => {
-    sessions.add(session)
-    session.on('close', () => sessions.delete(session))
-  })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   try {
+    await exec('openssl', [
+      'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=127.0.0.1',
+      '-addext', 'subjectAltName=IP:127.0.0.1', '-keyout', join(certificates, 'key.pem'), '-out', join(certificates, 'cert.pem')
+    ])
+    server = createSecureServer({
+      key: await readFile(join(certificates, 'key.pem')),
+      cert: await readFile(join(certificates, 'cert.pem'))
+    }, (request, response) => {
+      if (request.url !== '/report.bin') {
+        response.writeHead(200, { 'content-type': 'text/html', 'set-cookie': 'session=signed-in; Path=/' })
+        response.end('<title>Workspace download</title><main>Workspace download</main>')
+        return
+      }
+      fileRequests += 1
+      response.writeHead(200, {
+        'content-type': 'application/octet-stream',
+        'content-disposition': 'attachment; filename="report.bin"',
+        'content-length': payload.length
+      })
+      response.write(payload.subarray(0, offset))
+      const timer = setInterval(() => {
+        if (!release) return
+        clearInterval(timer)
+        response.end(payload.subarray(offset))
+      }, 50)
+      response.on('close', () => clearInterval(timer))
+    })
+    server.on('session', (session) => {
+      sessions.add(session)
+      session.on('close', () => sessions.delete(session))
+    })
+    await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve))
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Download fixture port is unavailable')
     const origin = `https://127.0.0.1:${address.port}`
@@ -100,9 +101,11 @@ test('a workspace closed while it downloads lets the download finish and deletes
     expect(await readFile(finished!.savePath!)).toEqual(payload)
     // One request from start to end: the transfer was never cut and restarted.
     expect(fileRequests).toBe(1)
+    // Once its download ended, the rest of the closed workspace's storage is deleted, with every connection.
+    await expect.poll(() => sessions.size).toBe(0)
   } finally {
     for (const session of sessions) session.destroy()
-    await closeFixtureServer(server)
+    if (server?.listening) await closeFixtureServer(server)
     await rm(certificates, { recursive: true, force: true })
   }
 })

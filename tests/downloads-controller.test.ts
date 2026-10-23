@@ -675,26 +675,30 @@ it('names transfer failures for the panel while agents keep reading the same mes
   expect(translate('de-DE', notActive.key)).toBe('Dieser Download ist bereits beendet oder abgebrochen.')
 })
 
-it('settles when the downloads receiving data in a session end, for a closed workspace to delete the rest of its storage', async () => {
+it('settles when the downloads of a session that have not ended do, for a closed workspace to delete the rest of its storage', async () => {
   const { controller, session, download } = await fixture()
   const otherSession = new EventEmitter()
   controller.attachSession(otherSession as Session)
   expect(controller.downloadsEnd(session as Session)).toBeUndefined()
 
-  const first = download()
-  const second = download(2)
-  const paused = download()
+  download().complete()
+  expect(controller.downloadsEnd(session as Session)).toBeUndefined()
+  const receiving = download()
+  const paused = download(2)
   paused.pause()
   const interrupted = download()
   interrupted.interrupt()
-  // Only the two receiving data are waited for, and not in another session.
+  // A paused download, and one Chromium can resume, can still be resumed, so they are waited for too; another
+  // session's are not.
   expect(controller.downloadsEnd(otherSession as Session)).toBeUndefined()
   let ended = false
   const end = controller.downloadsEnd(session as Session)!.then(() => { ended = true })
-  first.complete()
-  await Promise.resolve()
+  const turn = () => new Promise<void>((resolve) => { setImmediate(resolve) })
+  receiving.complete()
+  paused.cancel()
+  await turn()
   expect(ended).toBe(false)
-  second.cancel()
+  interrupted.cancel()
   await end
   expect(ended).toBe(true)
   expect(controller.downloadsEnd(session as Session)).toBeUndefined()

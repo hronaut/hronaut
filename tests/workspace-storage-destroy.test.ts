@@ -28,9 +28,36 @@ it('lets the downloads of a closed workspace finish, deleting its site data now 
   // which cancelled the ones Chromium could resume.
   let endDownloads!: () => void
   const downloadsEnd = new Promise<void>((resolve) => { endDownloads = resolve })
-  await destroyWorkspaceStorage('persist:workspace-a', undefined, () => downloadsEnd)
+  const unfinished: Array<Promise<void>> = [downloadsEnd]
+  await destroyWorkspaceStorage('persist:workspace-a', undefined, () => unfinished.shift())
   expect(calls).toEqual(['clear backgroundFetch cache cookies fileSystems indexedDB localStorage serviceWorkers webSQL', 'flush'])
 
   endDownloads()
   await vi.waitFor(() => expect(calls.slice(2)).toEqual(['close connections', 'clear everything', 'flush']))
+})
+
+it('waits for a download that starts in a closed workspace while it waits for the others', async () => {
+  let endFirst!: () => void
+  let endSecond!: () => void
+  const first = new Promise<void>((resolve) => { endFirst = resolve })
+  const second = new Promise<void>((resolve) => { endSecond = resolve })
+  const downloads = [first, second]
+  await destroyWorkspaceStorage('persist:workspace-a', undefined, () => downloads.shift())
+  endFirst()
+  await new Promise<void>((resolve) => { setImmediate(resolve) })
+  expect(calls).toHaveLength(2)
+  endSecond()
+  await vi.waitFor(() => expect(calls.slice(2)).toEqual(['close connections', 'clear everything', 'flush']))
+})
+
+it('gives the caller a failure to delete the site data of a closed workspace, and deletes nothing later', async () => {
+  const { session } = await import('electron')
+  const clearData = vi.fn(async () => { throw new Error('clear failed') })
+  vi.spyOn(session, 'fromPartition').mockReturnValueOnce({ clearData, closeAllConnections: vi.fn() } as never)
+  let endDownloads!: () => void
+  await expect(destroyWorkspaceStorage('persist:workspace-a', undefined, () => new Promise<void>((resolve) => { endDownloads = resolve })))
+    .rejects.toThrow('clear failed')
+  endDownloads()
+  await new Promise<void>((resolve) => { setImmediate(resolve) })
+  expect(clearData).toHaveBeenCalledOnce()
 })
