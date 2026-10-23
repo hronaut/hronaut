@@ -4,14 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
-### Added
-
-- Hronaut is now a Claude Code plugin: `/plugin marketplace add hronaut/hronaut`, then `/plugin install hronaut@hronaut`, adds Hronaut's MCP server and the Hronaut skill. It reads Hronaut's owner token from its profile each time it connects, so the token is never written to Claude Code's settings.
-
 ### Changed
 
 - A website's permission request, such as for your location, camera or notifications, now appears as a Hronaut dialog over the page instead of a system dialog. It speaks the interface language, follows your theme, shows what the website asks for with an icon, the website it is embedded in and the workspace your choice is remembered in, and keeps **Deny** focused, so **Enter** and **Escape** never allow. The notice that a website can't use a protected file or folder, such as your home folder, is a Hronaut dialog too. While Hronaut's window is hidden or minimized, the system dialog still asks.
 - `browser_new_tab`'s description now tells agents it answers while the new tab's page may still be loading, and to wait for it with `browser_wait` before clicking, pressing keys or reading the page, which an action meeting the first load's commit is rejected for. The starter workflows that open a page and then inspect it now wait for it the same way.
+- Claude Code can install Hronaut as a plugin from this repository: `/plugin marketplace add hronaut/hronaut`, then `/plugin install hronaut@hronaut`, adds Hronaut's MCP server and the Hronaut skill, instead of copying a `claude mcp add` command from Home, which stored the owner token in Claude Code's settings. The plugin reads the token from Hronaut's profile each time it connects.
 
 ### Fixed
 

@@ -19,7 +19,7 @@ Use Hronaut as a browser owned by the user, not as a disposable browser process 
 
 ## Connect safely
 
-- If Hronaut tools are unavailable, ask the user to start Hronaut and copy the configuration for their client from **Hronaut Home**. Do not invent a port, bearer token, or token-file path. The general setup guide is at <https://hronaut.dev/setup>.
+- If Hronaut tools are unavailable, ask the user to start Hronaut. Where Hronaut's Claude Code plugin brought this skill, they then reconnect with `/mcp`; otherwise they copy the configuration for their client from **Hronaut Home**. Do not invent a port, bearer token, or token-file path. The general setup guide is at <https://hronaut.dev/setup>.
 - Never ask the user to paste an MCP token into chat, read Hronaut's owner-token file, or place credentials in a repository.
 - Hronaut is a local desktop application. A cloud-hosted agent cannot reach its loopback endpoint unless the user's environment already provides a secure local bridge.
 

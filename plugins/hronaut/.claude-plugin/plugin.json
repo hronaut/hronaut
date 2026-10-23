@@ -19,7 +19,7 @@
       "headers": {
         "Authorization": "Bearer ${HRONAUT_MCP_TOKEN:-}"
       },
-      "headersHelper": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hronaut-headers.sh\""
+      "headersHelper": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hronaut-headers.sh\" || \"${CLAUDE_PLUGIN_ROOT}/scripts/hronaut-headers.cmd\""
     }
   }
 }
