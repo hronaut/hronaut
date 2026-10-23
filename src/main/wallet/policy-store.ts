@@ -1,5 +1,16 @@
-import { WalletPolicySchema, type WalletPolicy } from '../../shared/wallet.js'
+import { isWalletTokenMethod, WalletPolicySchema, type WalletPolicy } from '../../shared/wallet.js'
 import type { WalletAuthorityPersistence } from './authority-state.js'
+
+/**
+ * An automatic policy saved by 2.45.0 or earlier that lists a token method without its token contract, or Allow any
+ * token contract, which policies have needed since. It can never approve a token call, so it is not kept.
+ */
+function namesTokenMethodWithoutContract(policy: WalletPolicy): boolean {
+  return policy.mode === 'bounded-auto'
+    && policy.methods.some(isWalletTokenMethod)
+    && !policy.contracts?.length
+    && policy.allowAnyTokenContract !== true
+}
 
 export class WalletPolicyStore {
   private readonly policies = new Map<string, WalletPolicy>()
@@ -9,10 +20,18 @@ export class WalletPolicyStore {
 
   async load(): Promise<WalletPolicy[]> {
     this.policies.clear()
+    const loaded = new Map<string, WalletPolicy>()
+    let dropped = false
     for (const policy of this.authority.snapshot().policies) {
-      if (this.policies.has(policy.id)) throw new Error('Wallet policy store is invalid')
-      this.policies.set(policy.id, structuredClone(policy))
+      if (loaded.has(policy.id)) throw new Error('Wallet policy store is invalid')
+      if (namesTokenMethodWithoutContract(policy)) {
+        dropped = true
+        continue
+      }
+      loaded.set(policy.id, structuredClone(policy))
     }
+    if (dropped) await this.persist(loaded)
+    this.replace(loaded)
     return this.list()
   }
 

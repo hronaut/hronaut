@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- A wallet policy saved by 2.45.0 or earlier that lists a token method (`erc20.`, `trc20.` or `nft.`) without a token contract or **Allow any token contract** is now removed when Hronaut loads wallet policies. Such a policy could never approve a token call, so it stayed in the list while every token call still asked for a click. Add it again with its token contract, or with **Allow any token contract**.
 - A middle-click or **Ctrl+click** (**Cmd+click** on a Mac) on a bookmark in **Bookmarks** or a page in **Browsing history** now opens it in a new tab behind and keeps the panel open, as in Chrome, and with **Shift** held opens it in front. These clicks opened it in front and closed the panel like a plain click, so opening several took the **Open in background tab** button each time.
 - Right-clicking the address bar now offers **Paste and Go to** the copied address after **Paste**, or **Paste and Search for** copied text that is not an address, as Chrome does, which opens it in the current tab as Enter would. The text is read as Chrome's address bar reads a paste: an address split over lines opens whole, lines of words keep a space between them, and a leading `javascript:` is dropped, so pasted script is searched for and never run. With nothing on the clipboard to open, the item reads **Paste and Go** and is disabled.
 
