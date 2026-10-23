@@ -23,13 +23,12 @@ const writeLeaseSchema = z.object({
 const stateSchema = z.object({
   tabId: identifier.nullable(),
   navigationGeneration: z.number().int().nonnegative().safe(),
-  // Optional while reading journals written before observation fencing shipped.
-  observationGeneration: z.number().int().nonnegative().safe().optional(),
+  observationGeneration: z.number().int().nonnegative().safe(),
   humanInteractionGeneration: z.number().int().nonnegative().safe().optional(),
   controlRevision: z.number().int().nonnegative().safe().optional(),
   runtimeId: identifier.optional(),
   // Foreign lease generations and transport/client identifiers are never retained.
-  writeLease: writeLeaseSchema.optional(),
+  writeLease: writeLeaseSchema,
   originChanged: z.boolean(),
   operationClass: z.enum(['navigation', 'page-interaction', 'browser-state', 'site-data', 'network', 'external-request']).optional(),
   targetKind: z.enum(['tab', 'element-ref', 'selector', 'coordinates', 'drag', 'form', 'origin', 'script', 'request']).optional(),
@@ -90,8 +89,7 @@ const eventSchema = z.discriminatedUnion('phase', [
     actionId: identifier,
     toolName: z.string().regex(/^browser_[a-z_]+$/),
     decision: z.enum(['allowed', 'denied']),
-    // Optional so retained journals from before authorization lineage remain readable.
-    authorization: authorizationSchema.optional(),
+    authorization: authorizationSchema,
     evidenceExpected: z.boolean().optional(),
     state: stateSchema.nullable()
   }).strict(),
@@ -112,8 +110,7 @@ const eventSchema = z.discriminatedUnion('phase', [
     // Failure or cancellation does not establish that a write was rolled back.
     effects: z.enum(['none', 'possible', 'confirmed']),
     siteAccessDropped: z.number().int().nonnegative().safe(),
-    // Optional while reading journals written before evidence coverage shipped.
-    evidenceDropped: z.number().int().nonnegative().safe().optional(),
+    evidenceDropped: z.number().int().nonnegative().safe(),
     evidenceDropReason: z.enum(['capacity', 'observation-failed', 'persistence-failed']).optional(),
     state: stateSchema.nullable()
   }).strict()
@@ -132,6 +129,14 @@ export type AuditReceiptEvent = z.infer<typeof eventSchema>
 export type AuditReceiptAuthorization = z.infer<typeof authorizationSchema>
 export type AuditObservedState = z.infer<typeof stateSchema> | null
 export type AuditReceipt = z.infer<typeof entrySchema>
+
+/** A stored journal that does not verify: content this version cannot read, a
+ * broken hash chain or a partly written last line. */
+export class AuditReceiptHistoryInvalidError extends Error {
+  constructor() {
+    super('Audit receipt history verification failed')
+  }
+}
 
 export interface AuditReceiptStoreOptions {
   path: string
@@ -386,7 +391,7 @@ export class AuditReceiptStore {
       }
       return { entries, bytes, actions }
     } catch {
-      throw new Error('Audit receipt history verification failed')
+      throw new AuditReceiptHistoryInvalidError()
     } finally {
       await handle.close()
     }

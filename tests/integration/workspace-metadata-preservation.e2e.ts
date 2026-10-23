@@ -6,14 +6,13 @@ import { join } from 'node:path'
 import { test, expect, launchHronaut, closeHronaut, closeFixtureServer } from './fixtures.js'
 
 const empty = { version: 3, activeTabId: null, tabs: [], mcpTabGroups: [], savedTabGroups: [] }
-for (const fault of ['invalid-json', 'null-metadata', 'unsupported-version', 'invalid-schema', 'legacy-undefined', 'legacy-0', 'legacy-1', 'legacy-2', 'read-error', 'late-rejection', 'natural-quit', 'dialog-failure'] as const) {
+for (const fault of ['invalid-json', 'null-metadata', 'unsupported-version', 'invalid-schema', 'missing-version', 'read-error', 'late-rejection', 'natural-quit', 'dialog-failure'] as const) {
   test(`preserves rejected workspace metadata through startup and quit: ${fault}`, async ({ profileDirectory, mcpPort }) => {
     const metadata = join(profileDirectory, 'tabs.json')
-    const obsolete = join(profileDirectory, 'Partitions', 'hronaut', 'marker')
     const partition = join(profileDirectory, 'Partitions', 'hronaut-workspace-aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa', 'marker')
-    for (const path of [obsolete, partition]) { await mkdir(join(path, '..'), { recursive: true }); await writeFile(path, 'synthetic-retained') }
+    await mkdir(join(partition, '..'), { recursive: true }); await writeFile(partition, 'synthetic-retained')
     const bytes = fault === 'invalid-json' || fault === 'natural-quit' || fault === 'dialog-failure' ? `{${privateMarker}` : fault === 'null-metadata' ? 'null\n' : JSON.stringify({ ...empty,
-      version: fault === 'unsupported-version' ? 999 : fault === 'legacy-undefined' ? undefined : fault.startsWith('legacy-') ? Number(fault.slice(7)) : 3,
+      version: fault === 'unsupported-version' ? 999 : fault === 'missing-version' ? undefined : 3,
       ...(fault === 'invalid-schema' ? { tabs: [{ id: 'invalid' }], deletedWorkspaceStorageIds: ['aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'] } : {}), privateMarker })
     if (fault === 'read-error') await mkdir(metadata)
     else await writeFile(metadata, bytes)
@@ -38,9 +37,6 @@ for (const fault of ['invalid-json', 'null-metadata', 'unsupported-version', 'in
       await quitNotice(app, fault === 'natural-quit')
       if (fault === 'read-error') expect((await lstat(metadata)).isDirectory()).toBe(true)
       if (fault !== 'read-error') expect(await readFile(metadata, 'utf8')).toBe(fault === 'late-rejection' ? `{${privateMarker}` : bytes)
-      // Accepted preflight may remove the obsolete shared partition before a
-      // later external mutation; isolated storage must still remain untouched.
-      if (fault !== 'late-rejection') expect(await readFile(obsolete, 'utf8')).toBe('synthetic-retained')
       expect(await readFile(partition, 'utf8')).toBe('synthetic-retained')
     } finally { await app.close().catch(() => undefined) }
   })

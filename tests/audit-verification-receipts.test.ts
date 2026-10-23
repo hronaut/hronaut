@@ -12,9 +12,9 @@ async function setup(maxEntries = 100, maxBytes = 1_048_576) {
   const options = { path: join(directory, 'events.jsonl'), workspaceId: randomUUID(), runId: randomUUID(), toolNames: new Set(['browser_click']), maxEntries, maxBytes }
   const store = new AuditReceiptStore(options)
   const actionId = randomUUID()
-  await store.append({ phase: 'decision', scope: 'workspace', actionId, toolName: 'browser_click', decision: 'allowed', state: null })
+  await store.append({ phase: 'decision', scope: 'workspace', actionId, toolName: 'browser_click', decision: 'allowed', authorization: { kind: 'full-access' }, state: null })
   const start = { phase: 'verification' as const, actionId, verificationId: randomUUID(), maxAttempts: 3, attempt: 0, status: 'pending' as const, reason: 'awaiting-read' as const }
-  const outcome = { phase: 'outcome' as const, actionId, status: 'succeeded' as const, effects: 'possible' as const, siteAccessDropped: 0, state: null }
+  const outcome = { phase: 'outcome' as const, actionId, status: 'succeeded' as const, effects: 'possible' as const, siteAccessDropped: 0, evidenceDropped: 0, state: null }
   return { store, options, start, outcome }
 }
 
@@ -76,7 +76,7 @@ it('preserves byte reservations across reopen when site evidence fills available
     }
   }
   expect(exhausted).toBe(true)
-  await reopened.append({ ...outcome, siteAccessDropped: Number.MAX_SAFE_INTEGER, state: { tabId: randomUUID(), navigationGeneration: Number.MAX_SAFE_INTEGER, originChanged: false } })
+  await reopened.append({ ...outcome, siteAccessDropped: Number.MAX_SAFE_INTEGER, state: { tabId: randomUUID(), navigationGeneration: Number.MAX_SAFE_INTEGER, observationGeneration: 0, originChanged: false, writeLease: { status: 'unclaimed', holder: 'none', mode: 'exclusive-write' } } })
   await reopened.append({ ...start, status: 'verified', reason: 'postcondition-matched', attempt: 1 })
   expect((await new AuditReceiptStore(options).read()).at(-1)?.event).toMatchObject({ phase: 'verification', status: 'verified' })
 })
