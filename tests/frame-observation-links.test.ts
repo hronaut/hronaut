@@ -20,6 +20,8 @@ it('redacts keys, session ids and signatures in the links of a same-origin frame
   expect(safeUrl('https://store.example/invoice.pdf?sig=SECRET&subscription-key=SECRET&access-key=SECRET')).not.toContain('SECRET')
   expect(safeUrl('https://contoso.sharepoint.com/_layouts/15/download.aspx?UniqueId=1d2c&tempauth=SECRET&hm=SECRET&hmac=SECRET&md5=SECRET'))
     .toBe('https://contoso.sharepoint.com/_layouts/15/download.aspx?UniqueId=1d2c&tempauth=%5BREDACTED%5D&hm=%5BREDACTED%5D&hmac=%5BREDACTED%5D&md5=%5BREDACTED%5D')
+  expect(safeUrl('https://cdn.fbsbx.com/v/report.pdf?oh=SECRET&oe=6720F3A1&authkey=SECRET&rlkey=SECRET&resourcekey=SECRET'))
+    .toBe('https://cdn.fbsbx.com/v/report.pdf?oh=%5BREDACTED%5D&oe=6720F3A1&authkey=%5BREDACTED%5D&rlkey=%5BREDACTED%5D&resourcekey=%5BREDACTED%5D')
   expect(safeUrl('https://forum.example/login.php?id=ada&pw=SECRET&pass=SECRET')).toBe('https://forum.example/login.php?id=ada&pw=%5BREDACTED%5D&pass=%5BREDACTED%5D')
   expect(safeUrl('https://cms.example/user?user%5Bpass%5D=SECRET&pass1=SECRET&current_pass=SECRET&passwrd=SECRET&pass_rate=high'))
     .toBe('https://cms.example/user?user%5Bpass%5D=%5BREDACTED%5D&pass1=%5BREDACTED%5D&current_pass=%5BREDACTED%5D&passwrd=%5BREDACTED%5D&pass_rate=high')

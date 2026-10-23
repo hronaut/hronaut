@@ -6,14 +6,16 @@ const MAX_JSON_REDACTION_DEPTH = 100
 const SENSITIVE_NAME = /(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passwrd|passcode|passphrase|pwd|secret|session|token)/i
 // A signed storage or download link carries its signature in one of these query parameters (Azure SAS, CloudFront,
 // S3, Google Cloud Storage, Alibaba OSS, Tencent COS, Akamai tokens, GitHub release assets' `sig` and `jwt`,
-// SharePoint and OneDrive downloads' `tempauth`, Discord attachments' `hm`, `hmac` as Shopify and others sign links,
-// nginx secure links' `md5`), and the link works for anyone until it expires. Matched whole, since `sig` and `hm` are
-// parts of many ordinary names. The in-page snapshot scripts repeat this pattern.
-const SIGNED_URL_PARAMETER = /^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-signature|hdnt[sla]|tempauth|hm|hmac|md5)$/i
+// SharePoint and OneDrive for work downloads' `tempauth`, Discord attachments' `hm`, Facebook, Instagram and Messenger
+// files' `oh`, `hmac` as Shopify and others sign links, nginx secure links' `md5`), and the link works for anyone until
+// it expires. Matched whole, since `sig`, `hm` and `oh` are parts of many ordinary names. The in-page snapshot scripts
+// repeat this pattern.
+const SIGNED_URL_PARAMETER = /^(?:sig|signature|jwt|q-signature|x-[a-z0-9]+-signature|hdnt[sla]|tempauth|hm|hmac|md5|oh)$/i
 // A link or form can carry a key, a sign-in or a session in one of these parameters (a Google API `key`, `access_key`,
-// an Azure API Management `subscription-key`, `auth`, a PHP session's `PHPSESSID` or `sid`). Matched whole, since `key`, `auth` and `sid` are parts of many
+// an Azure API Management `subscription-key`, `auth`, the key of a personal OneDrive share's `authkey`, a Dropbox
+// share's `rlkey` or a Google Drive share's `resourcekey`, a PHP session's `PHPSESSID` or `sid`). Matched whole, since `key`, `auth` and `sid` are parts of many
 // ordinary names. The in-page snapshot scripts repeat this pattern.
-const KEY_URL_PARAMETER = /^(?:key|access[-_]?key|subscription[-_]?key|auth|sid|phpsessid)$/i
+const KEY_URL_PARAMETER = /^(?:key|access[-_]?key|subscription[-_]?key|auth|authkey|rlkey|resourcekey|sid|phpsessid)$/i
 // A password field named `pass` or `pw`, with a digit for a new password's two fields, whole, as the last word of a
 // name or as one part of a bracketed form name: Drupal's `pass`, `pass[pass1]` and `current_pass`, WordPress's `pass1`
 // and `pass2` when a password is set, Roundcube's `_pass`, Horde's `horde_pass`, and `pw` on many other sites. Names

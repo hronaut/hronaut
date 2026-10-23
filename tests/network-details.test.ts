@@ -21,7 +21,11 @@ describe('network detail redaction', () => {
     ['SharePoint', 'https://contoso.sharepoint.com/sites/team/_layouts/15/download.aspx?UniqueId=1d2c&Translate=false&tempauth=SECRET&ApiVersion=2.0', ['UniqueId', 'Translate', 'ApiVersion']],
     ['Discord attachment', 'https://cdn.discordapp.com/attachments/1/2/report.pdf?ex=6720f3a1&is=671fa221&hm=SECRET&', ['ex', 'is']],
     ['Shopify', 'https://shop.example/apps/files/report.pdf?shop=demo.myshopify.com&timestamp=1790000000&hmac=SECRET', ['shop', 'timestamp']],
-    ['nginx secure', 'https://media.example/videos/demo.mp4?md5=SECRET&expires=1790000000', ['expires']]
+    ['nginx secure', 'https://media.example/videos/demo.mp4?md5=SECRET&expires=1790000000', ['expires']],
+    ['Messenger file', 'https://cdn.fbsbx.com/v/t59.2708-21/1_n.pdf/report.pdf?_nc_cat=1&oh=SECRET&oe=6720F3A1&dl=1', ['_nc_cat', 'oe', 'dl']],
+    ['personal OneDrive', 'https://onedrive.live.com/download?cid=C1D2&resid=C1D2%21123&authkey=SECRET', ['cid', 'resid']],
+    ['Dropbox share', 'https://www.dropbox.com/scl/fi/abc/report.pdf?rlkey=SECRET&dl=1', ['dl']],
+    ['Google Drive share', 'https://drive.google.com/file/d/abc/view?resourcekey=SECRET&usp=sharing', ['usp']]
   ])('redacts the signature of a signed %s link', (_label, url, kept) => {
     // The signature stayed in download records and network results, so the link kept working for whoever read them.
     const redacted = redactNetworkUrl(url)

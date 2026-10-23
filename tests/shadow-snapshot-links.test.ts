@@ -15,6 +15,7 @@ it('redacts keys, session ids and signatures in the links of a shadow root', () 
     <a href="https://shop.example/cart;jsessionid=SECRET?PHPSESSID=SECRET&step=2">Cart</a>
     <a href="https://store.blob.core.windows.net/invoice.pdf?sv=1&sig=SECRET">Invoice</a>
     <a href="https://cdn.discordapp.com/attachments/1/2/a.pdf?ex=6720f3a1&hm=SECRET&tempauth=SECRET">Attachment</a>
+    <a href="https://onedrive.live.com/download?cid=C1D2&authkey=SECRET&oh=SECRET">Shared file</a>
     <a href="https://forum.example/login.php?id=ada&pw=SECRET&pass=SECRET">Forum</a>
     <a href="https://cms.example/user?id=ada&user%5Bpass%5D=SECRET&pass1=SECRET&current_pass=SECRET&passwrd=SECRET&pass_rate=high">Account</a>
   `

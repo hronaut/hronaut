@@ -177,6 +177,7 @@ it('redacts the signature of a SharePoint or Discord download link in the snapsh
   document.querySelector('#target')!.innerHTML = `
     <a href="https://contoso.sharepoint.com/_layouts/15/download.aspx?UniqueId=1d2c&tempauth=SECRET">Shared file</a>
     <a href="https://cdn.discordapp.com/attachments/1/2/a.pdf?ex=6720f3a1&hm=SECRET">Attachment</a>
+    <a href="https://www.dropbox.com/scl/fi/abc/report.pdf?rlkey=SECRET&dl=1">Dropbox file</a>
   `
   const text = capture('#target').text
   expect(text).not.toContain('SECRET')
