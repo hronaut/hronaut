@@ -513,6 +513,9 @@ test('leaves an agent\'s own Ctrl+. to its page', async ({ appWindow, electronAp
     const tabId = (opened.tabs as Array<{ id: string }>)[0]!.id
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await expect(appWindow.getByRole('button', { name: /^Claude Code, / })).toBeVisible()
+    // The new tab can still be loading its page. A press while the page commits is reported as an unknown outcome,
+    // so the key goes to the page once it has loaded.
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)} && !tab.loading)?.title ?? null)`)).toBe('Editor')
     succeeded(await client.callTool({ name: 'browser_press', arguments: { key: 'Control+.', tabId } }) as CallToolResult)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.title)')).toBe('Quick fix')
     expect(await cardView(electronApp)).toBeNull()
