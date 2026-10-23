@@ -430,7 +430,6 @@ export const deDE = {
       "block": "Blockieren",
       "forget": "Entscheidung vergessen",
       "help": "Nach dem Entfernen fragt Hronaut beim nächsten Berechtigungsbedarf erneut.",
-      "allWorkspaces": "Alle Arbeitsbereiche",
       "archivedWorkspace": "{name} (archiviert)",
       "removedWorkspace": "Entfernter Arbeitsbereich {id}",
       "loadingWorkspace": "Arbeitsbereich wird geladen…",

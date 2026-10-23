@@ -1,5 +1,4 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import { rememberedSitePermissions } from './browser-session.js'
 import {
   isSitePermissionDecision,
   normalizeSitePermissionOrigin,
@@ -16,8 +15,7 @@ interface PermissionsIpcHost {
 
 /**
  * The decision a change or a Forget names: an HTTP or HTTPS website, a permission name, and the scope of exactly one
- * saved decision, which is a workspace id and, for an embedded website, the other website it was embedded in. No scope
- * names a decision saved before decisions belonged to a workspace.
+ * saved decision, which is a workspace id and, for an embedded website, the other website it was embedded in.
  */
 function requestedDecision(origin: unknown, permission: unknown, scope: unknown): {
   origin: string
@@ -36,7 +34,7 @@ function requestedDecision(origin: unknown, permission: unknown, scope: unknown)
 export function registerPermissionsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: PermissionsIpcHost): void {
   ipcMain.handle('permissions:list', (event) => {
     host.assertTrustedSender(event)
-    return rememberedSitePermissions(host.sitePermissionStore()!.list())
+    return host.sitePermissionStore()!.list()
   })
   ipcMain.handle(
     'permissions:set',
@@ -44,11 +42,7 @@ export function registerPermissionsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: P
       host.assertTrustedSender(event)
       if (!isSitePermissionDecision(decision)) throw new TypeError('Invalid site permission')
       const requested = requestedDecision(origin, permission, scope)
-      // A new decision always belongs to a workspace. One for all workspaces, which only an earlier version made, can be
-      // changed in Settings but never created, so no request makes a website's decision apply in every workspace.
-      const entry = await host.sitePermissionStore()!.set(requested.origin, requested.permission, decision, requested.scope, {
-        onlyIfSaved: requested.scope.workspaceId === undefined
-      })
+      const entry = await host.sitePermissionStore()!.set(requested.origin, requested.permission, decision, requested.scope)
       host.publishSitePermissions()
       return entry
     }

@@ -97,33 +97,25 @@ describe('SiteControlsPanel', () => {
     expect(setPermission).toHaveBeenCalledWith(cameraPermission, 'deny')
   })
 
-  it('tells a website embedded in the page and a decision for all workspaces apart from the page’s own', async () => {
+  it('tells a website embedded in the page apart from the page’s own', async () => {
     // The controls' names never said so, since each name replaced its label, which did.
     const embedded = { origin: 'https://widget.test', permission: 'geolocation', decision: 'allow' as const, workspaceId: WORKSPACE, embeddedIn: 'https://example.test' }
     const { setPermission } = renderPanel({ permissions: [
       cameraPermission,
-      { origin: 'https://example.test', permission: 'geolocation', decision: 'deny' },
+      { origin: 'https://example.test', permission: 'geolocation', decision: 'deny', workspaceId: WORKSPACE },
       embedded
     ] })
     const user = userEvent.setup()
-    expect(screen.getByText('All workspaces')).toBeVisible()
     expect(screen.getByText('https://widget.test')).toBeVisible()
     expect(screen.getByRole('combobox', { name: 'Camera permission for https://example.test' })).toBeVisible()
-    const ownLocation = screen.getByRole('combobox', { name: 'Location permission for https://example.test (All workspaces)' })
+    const ownLocation = screen.getByRole('combobox', { name: 'Location permission for https://example.test' })
     const widgetLocation = screen.getByRole('combobox', { name: 'Location permission for https://widget.test (on https://example.test)' })
     expect(ownLocation.id).not.toBe(widgetLocation.id)
     expect(screen.getByLabelText(/Location\s+https:\/\/widget\.test/)).toBe(widgetLocation)
+    expect(screen.getByRole('button', { name: 'Reset Location permission for https://example.test' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Reset Location permission for https://widget.test (on https://example.test)' })).toBeVisible()
     await user.selectOptions(widgetLocation, 'deny')
     expect(setPermission).toHaveBeenCalledWith(embedded, 'deny')
-  })
-
-  it('does not offer to forget a decision for all workspaces, which would forget it in every one', () => {
-    // Reset on a row for all workspaces forgot the decision in every workspace.
-    const { resetPermission } = renderPanel({ permissions: [{ origin: 'https://example.test', permission: 'geolocation', decision: 'deny' }] })
-    expect(screen.getByRole('combobox', { name: 'Location permission for https://example.test (All workspaces)' })).toBeVisible()
-    expect(screen.queryByRole('button', { name: /^Reset / })).not.toBeInTheDocument()
-    expect(resetPermission).not.toHaveBeenCalled()
   })
 
   it('counts the custom decisions in the interface language', () => {
