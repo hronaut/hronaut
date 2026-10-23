@@ -6,15 +6,18 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Home's title bar now shows the Home button's icon in the same badge as Settings' title, instead of Hronaut's logo, and the command palette's Home command uses that icon too instead of a house, so Home looks the same everywhere it appears.
 - A middle-click or **Ctrl+click** (**Cmd+click** on a Mac) on a bookmark in **Bookmarks** or a page in **Browsing history** now opens it in a new tab behind and keeps the panel open, as in Chrome, and with **Shift** held opens it in front. These clicks opened it in front and closed the panel like a plain click, so opening several took the **Open in background tab** button each time.
 - Right-clicking the address bar now offers **Paste and Go to** the copied address after **Paste**, or **Paste and Search for** copied text that is not an address, as Chrome does, which opens it in the current tab as Enter would. The text is read as Chrome's address bar reads a paste: an address split over lines opens whole, lines of words keep a space between them, and a leading `javascript:` is dropped, so pasted script is searched for and never run. With nothing on the clipboard to open, the item reads **Paste and Go** and is disabled.
 - A middle-click on a row of the address bar's suggestions now opens it in a new tab behind the current one, as in Chrome, where it only closed the suggestions. The address field keeps the keyboard, the typed text and its suggestions, to open another row behind or edit the text, and so does **Alt+Shift+Enter** (**Cmd+Return** on a Mac), which closed the suggestions.
+- A wallet policy saved by 2.45.0 or earlier that lists a token method (`erc20.`, `trc20.`, `nft.` or `spl.`) without a token contract or **Allow any token contract** now loses those methods when the wallet vault opens, and is removed, as removing it by hand would, when nothing else in it can approve; the wallet's history records the change. Such a method could never approve a token call, so the policy stayed in the list while every token call still asked for a click. Add the method again with its token contract, or with **Allow any token contract**.
 - Workspaces, tabs and titles saved by early versions of Hronaut are no longer repaired or upgraded when Hronaut starts. A saved workspace without its own site data, without a kind, with a name that has line breaks or invisible formatting, or with a **Site access** rule whose `*` is misplaced now stops startup with the saved-workspaces notice, leaving the file and site data as they are, instead of being dropped or fixed quietly. A bookmark or history title cut inside a sign-in name and password by an early version is no longer replaced with the page address. Profiles saved by this version are not affected.
 
 ### Fixed
 
 - Pasting into the address bar, by key or from its menu, now drops a leading `javascript:` and joins an address split over lines, as Chrome's address bar does, and so does dropping such text on it from a page, which then replaces the field's text, as in Chrome. The text went in as copied, so `javascript:` text copied from a page, pasted and entered, ran as script in the tab.
 - While a notification such as **Tab closed** shows at the bottom of the page, the page now gets clicks and wheel scrolling right beside it. The notification's view kept about 10 px of transparent room around it for a shadow, and that room took the page's clicks and wheel. The notification has no outer shadow now.
+- A panel opened in its own window, such as **Console** or **Network**, now shows Hronaut's themed tooltips on its controls, as the main window does. It showed the operating system's tooltips instead, in the system's colors and font.
 
 ## [3.6.0] - 2026-10-23
 

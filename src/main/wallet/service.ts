@@ -25,6 +25,7 @@ import { generateWalletRecovery, deriveWalletAccount, validateWatchOnlyWalletAdd
 import { WalletApprovalStore } from './approvals.js'
 import { WalletAuditStore, type WalletAuditEntry } from './audit.js'
 import { emptyWalletAuthorityState, encodeWalletAuthorityState, WalletAuthorityPersistence } from './authority-state.js'
+import { withoutContractlessTokenMethods } from './contractless-token-methods.js'
 import {
   PassphraseWalletKeyWrapper,
   SafeStorageWalletKeyWrapper,
@@ -160,6 +161,7 @@ export class WalletService {
       else await this.vault.initialize(undefined, encodeWalletAuthorityState(emptyWalletAuthorityState()))
       await this.loadAuthorityStores()
       this.statusValue = { managedWallets: 'ready', backend: detectedProtection.backend, watchOnlyAvailable: true }
+      await this.dropContractlessTokenMethods()
     } else if (detectedProtection.mode === 'passphrase-required') {
       this.protection = detectedProtection
       this.vault = new WalletVault(this.vaultPath, new PassphraseWalletKeyWrapper(PASSPHRASE_PARAMETERS))
@@ -214,6 +216,7 @@ export class WalletService {
         throw error
       }
       this.statusValue = { managedWallets: 'ready', backend: this.statusValue.backend, watchOnlyAvailable: true }
+      await this.dropContractlessTokenMethods()
       this.publish()
       return this.status()
     } finally {
@@ -596,6 +599,27 @@ export class WalletService {
     if (removed) await this.audit.append('policy-removed', { policyId, walletId: policy.walletId }, this.now().toISOString())
     this.publish()
     return removed
+  }
+
+  /** Cleans up the saved policies of 2.45.0 and earlier, as withoutContractlessTokenMethods says, once the vault is ready. */
+  private async dropContractlessTokenMethods(): Promise<void> {
+    for (const saved of this.policies.list()) {
+      const cleanup = withoutContractlessTokenMethods(saved)
+      try {
+        if (cleanup.action === 'remove') {
+          await this.removePolicy(saved.id)
+        } else if (cleanup.action === 'update') {
+          await this.policies.set(cleanup.policy)
+          await this.audit.append('policy-updated', {
+            policyId: saved.id, walletId: saved.walletId, workspaceId: saved.workspaceId, mode: saved.mode
+          }, this.now().toISOString())
+        }
+      } catch {
+        // A failed policy write leaves the policy as saved, still unable to approve a token call, for the next unlock
+        // to try again; a failed audit write leaves the change without its history entry, as setPolicy would.
+        console.error('[wallet] Failed to drop token methods without a token contract from a saved wallet policy')
+      }
+    }
   }
 
   async auditHistory(): Promise<WalletAuditEntry[]> {
