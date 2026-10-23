@@ -53,6 +53,8 @@ export interface AddressSuggestionOverlayRequest extends AddressSuggestionOverla
 export interface AddressSuggestionSelection {
   sessionId: number
   suggestionId: string
+  /** A middle-click on the row opens it in a new tab behind the current one, as in Chrome. */
+  disposition?: 'new-background-tab'
 }
 
 function parseQuery(rawQuery: string): { scope: AddressSuggestionScope; terms: string[] } {

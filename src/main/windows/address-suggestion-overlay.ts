@@ -1,4 +1,4 @@
-import { app, WebContentsView, type IpcMainEvent, type WebContents } from 'electron'
+import { app, WebContentsView, webContents as electronWebContents, type IpcMainEvent, type WebContents } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { scaleShellMetric } from '../../shared/interface-scale.js'
@@ -38,8 +38,10 @@ export interface AddressSuggestionOverlay {
   hide(): void
   /** Sizes the shown suggestions to the height their page measured. */
   measured(value: unknown, sender: Pick<WebContents, 'getZoomFactor'>): void
-  /** Hands a suggestion picked in the view to the shell, when it belongs to the current typing session. */
+  /** Hands the shell a pick from the current typing session, and hides the view unless the row opens behind. */
   select(selection: AddressSuggestionSelection): void
+  /** Gives the keyboard back to the shell's address field after a middle-click on a row took it to the view. */
+  returnFocus(): void
   /** The suggestions view while one exists, which a toast keeps below it. */
   currentView(): WebContentsView | undefined
   /** True for the suggestions view's own contents. */
@@ -244,8 +246,20 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
     if (host.mainWindowRefs.window && !host.mainWindowRefs.window.isDestroyed() && !host.mainWindowRefs.window.webContents.isDestroyed()) {
       host.mainWindowRefs.window.webContents.send('address-overlay:selected', selection)
     }
+    // A row opened behind leaves the suggestions open, as in Chrome; the shell hides them itself if its field lost focus.
+    if (selection.disposition) return
     addressSuggestionOverlayGeneration += 1
     hideAddressSuggestionOverlay()
+  }
+
+  function returnFocus(): void {
+    const window = host.mainWindowRefs.window
+    if (!window || window.isDestroyed() || window.webContents.isDestroyed() || !window.isFocused()) return
+    // Only from the suggestions view, which the press on its row focused, or from nowhere once the view hid; focus that
+    // has moved to a page or a panel since stays there.
+    const focused = electronWebContents.getFocusedWebContents()
+    if (focused && focused !== addressSuggestionSurface?.webContents) return
+    window.webContents.focus()
   }
 
   function currentView(): WebContentsView | undefined {
@@ -273,5 +287,5 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
     addressSuggestionOverlayDismissalPending = false
   }
 
-  return { assertAddressOverlaySender, show, hide, measured, select, currentView, owns, setZoomFactor, mainWindowClosed }
+  return { assertAddressOverlaySender, show, hide, measured, select, returnFocus, currentView, owns, setZoomFactor, mainWindowClosed }
 }

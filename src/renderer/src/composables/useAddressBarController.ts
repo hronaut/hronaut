@@ -18,6 +18,7 @@ export const ADDRESS_FIELD_COMFORT_WIDTH = 520
 interface AddressOverlayApi {
   show(request: AddressSuggestionOverlayRequest): void
   hide(): void
+  returnFocus(): void
   onSelected(listener: (selection: AddressSuggestionSelection) => void): () => void
   onDismissed(listener: (sessionId: number) => void): () => void
 }
@@ -249,16 +250,16 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   }
 
   async function openInNewTab(target: string, background: boolean): Promise<void> {
-    cancelBlur()
-    close()
     if (!background) {
       // The new tab takes over, and this tab's field shows its own address again when the person comes back to it.
+      cancelBlur()
+      close()
       editing.value = false
       dirty.value = false
       restoreActiveAddress()
       input.value?.blur()
     }
-    // A background tab keeps the typed text in the field, as in Chrome, to edit and open again.
+    // A tab opened behind leaves the typed text and its suggestions open, as in Chrome, to open another or edit it.
     await options.onOpenInNewTab(target, background)
   }
 
@@ -459,15 +460,25 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const overlay = options.overlay
   if (overlay) {
     registrations.push(
-      () => overlay.onSelected(({ sessionId, suggestionId }) => {
-        if (disposed || sessionId !== overlaySessionId) return
+      () => overlay.onSelected(({ sessionId, suggestionId, disposition }) => {
+        if (disposed) return
+        // A middle press gave the suggestions view the keyboard. The field takes it back, and shows its suggestions
+        // again, whether or not the row still opens.
+        if (disposition) overlay.returnFocus()
+        if (sessionId !== overlaySessionId) return
         const activeTab = options.activeTab.value
         // A row picked for another tab does nothing. A pick for this tab opens even when the tab's own page has changed
         // its address since, as a page still loading or one that moves its address to the section in view does, just as
         // Enter on the row opens it. Such a click did nothing before.
         if (!activeTab || activeTab.id !== presentedSuggestionOwner?.id) return
         const suggestion = presentedSuggestions.find((candidate) => candidate.id === suggestionId)
-        if (suggestion) void chooseSuggestion(suggestion)
+        if (!suggestion) return
+        if (!disposition) {
+          void chooseSuggestion(suggestion)
+          return
+        }
+        // A middle-click opens the row in a new tab behind, as Alt+Shift+Enter on it does.
+        void openInNewTab(suggestion.url, true)
       }),
       () => overlay.onDismissed((sessionId) => {
         if (disposed || sessionId !== overlaySessionId) return
