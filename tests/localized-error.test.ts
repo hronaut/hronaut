@@ -115,6 +115,27 @@ describe('isHronautPageSender', () => {
     expect(isHronautPageSender(invokeEvent('https://site.example/', mainContents))).toBe(false)
     expect(isHronautPageSender(invokeEvent(SHELL_URL, {}))).toBe(false)
   })
+
+  it('still admits the shell, and only the shell, for answers after saved workspaces failed to start', () => {
+    const mainContents = {}
+    const failure = new LocalizedError('appErrors.startup.unavailable')
+    const { assertTrustedShellSender, isShellWindowSender } = createIpcGuards({
+      ipcMain: fakeIpcMain().ipcMain,
+      workspaceStartupFailure: () => failure,
+      tabsInitializationPromise: () => null,
+      tabs: () => null,
+      initializedTabs: () => null,
+      mainWindowRefs: { window: { webContents: mainContents } as never },
+      panelWindowRefs: { window: null, url: null },
+      workspaceStartupReads: { run: vi.fn() as never }
+    })
+
+    // Browser changes stay refused, but a dialog the shell shows, such as about that failure, can still be answered.
+    expect(() => assertTrustedShellSender(invokeEvent(SHELL_URL, mainContents))).toThrow(failure)
+    expect(isShellWindowSender(invokeEvent(SHELL_URL, mainContents))).toBe(true)
+    expect(isShellWindowSender(invokeEvent('https://site.example/', mainContents))).toBe(false)
+    expect(isShellWindowSender(invokeEvent(SHELL_URL, {}))).toBe(false)
+  })
 })
 
 describe('failures the main process sends to the shell', () => {

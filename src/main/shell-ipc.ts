@@ -82,11 +82,16 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     })
     host.toastOverlay().relayout()
   })
-  ipcMain.on('browser:content-occluded', (event, occluded: unknown) => {
+  ipcMain.on('browser:content-occluded', (event, occluded: unknown, request: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (typeof occluded !== 'boolean') throw new TypeError('Invalid browser content occlusion state')
-    host.tabs()?.setBrowserContentOccluded(occluded)
+    // The report that the pages left the screen names this request, so the shell can tell it from one for an earlier request.
+    if (typeof request !== 'number' || !Number.isSafeInteger(request) || request < 0) throw new TypeError('Invalid browser content occlusion request')
+    const tabs = host.tabs()
+    if (tabs) tabs.setBrowserContentOccluded(occluded, request)
+    // Without the tab runtime no page is on screen, and the shell waits for this report before a question takes answers.
+    else if (occluded && !event.sender.isDestroyed()) event.sender.send('browser:occlusion-pages-hidden', request)
     host.sidebarOverlay().occlusionChanged(occluded)
   })
   ipcMain.on('browser:occlusion-snapshot-presented', (event, id: unknown) => {

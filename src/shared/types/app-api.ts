@@ -178,14 +178,15 @@ export interface HronautShellApi {
   confirm(message: string): boolean
   setToolbarHeight(height: number): void
   setContentInsets(insets: { top: number; right: number; bottom: number; left: number }): void
-  setBrowserContentOccluded(occluded: boolean): void
+  /** Hides or shows the page views under trusted chrome; main's report that they left the screen names `request`. */
+  setBrowserContentOccluded(occluded: boolean, request: number): void
   onOcclusionSnapshot(listener: (snapshot: BrowserOcclusionSnapshot | null) => void): () => void
   /** The snapshot is on screen, so main can hide the page views under trusted chrome. */
   presentOcclusionSnapshot(id: number): void
   /** The computed backdrop color of the open dialog, or null, so the native window controls dim with it. */
   setWindowControlsScrim(color: string | null): void
-  /** Main has hidden the page views under trusted chrome, with or without a snapshot. */
-  onOcclusionPagesHidden(listener: () => void): () => void
+  /** Main has hidden the page views under trusted chrome, with or without a snapshot, for the request with this number. */
+  onOcclusionPagesHidden(listener: (request: number) => void): () => void
   /** Shows a themed tooltip above the page views; main places it beside the control's box. */
   showTooltip(request: import('../shell-tooltip.js').ShellTooltipRequest): void
   /** Hides the tooltip with this id, or any tooltip when none is given. */

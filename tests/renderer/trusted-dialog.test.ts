@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from '@testing-library/vue'
-import { nextTick } from 'vue'
+import userEvent from '@testing-library/user-event'
+import { computed, defineComponent, h, nextTick, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TrustedDialog from '../../src/renderer/src/trusted-dialogs/TrustedDialog.vue'
 import { useTrustedDialogController } from '../../src/renderer/src/trusted-dialogs/useTrustedDialogController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import { holdOverlayEntrance, occludeBrowserContent, overlayEntranceEpoch, releaseOverlayEntrance, reportPageViewsHidden, resetOverlayMotion } from '../../src/renderer/src/composables/overlay-motion.js'
+import { useShellOverlayCoordinationController } from '../../src/renderer/src/composables/useShellOverlayCoordinationController.js'
 import type { SupportedLocale } from '../../src/shared/locale.js'
 import type { HronautTrustedDialogsApi, TrustedDialogRequest } from '../../src/shared/trusted-dialogs.js'
 
@@ -55,9 +58,12 @@ function mountDialog(locale: SupportedLocale = 'en-US') {
 
 beforeEach(() => {
   vi.useFakeTimers()
+  vi.spyOn(document, 'hasFocus').mockReturnValue(true)
 })
 
 afterEach(() => {
+  resetOverlayMotion()
+  vi.restoreAllMocks()
   vi.useRealTimers()
 })
 
@@ -142,11 +148,145 @@ describe('Hronaut’s permission dialog', () => {
     const { api, show, settle } = mountDialog()
     await show(sitePermission('one'))
     await settle()
-    // A real Enter on a focused button clicks it; the button with the focus is Deny.
-    const focused = document.activeElement as HTMLElement
-    expect(focused).toHaveTextContent('Deny')
-    await fireEvent.click(focused)
+    expect(document.activeElement).toHaveTextContent('Deny')
+    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).keyboard('{Enter}')
     expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 0)
+  })
+
+  it('starts its moment on screen only once main reports that the page has left the screen', async () => {
+    // Main keeps the page on screen until it has a picture of it. A dialog that counted that time could take a click
+    // the instant the page left, the click a website timed for its page.
+    const { api, show, settle } = mountDialog()
+    holdOverlayEntrance()
+    await show(sitePermission('one'))
+    // The entrance may start before main acts, from the shell's own picture or the hold's time limit; answers may not.
+    releaseOverlayEntrance()
+    await vi.advanceTimersByTimeAsync(3_000)
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    reportPageViewsHidden(overlayEntranceEpoch())
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(400)
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    await fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(api.respond).not.toHaveBeenCalled()
+    await settle()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'true')
+  })
+
+  it('waits for the page to leave the screen when its own request covers the page', async () => {
+    // The shell starts covering the page from the request itself, before the dialog could start its moment on screen.
+    let publish: (request: TrustedDialogRequest | null) => void = () => undefined
+    const api: HronautTrustedDialogsApi = { ready: vi.fn(), respond: vi.fn(), onChanged: (listener) => { publish = listener; return () => undefined } }
+    const covered: Array<[boolean, number]> = []
+    const shellApi = { setBrowserContentOccluded: (occluded: boolean, request: number) => { covered.push([occluded, request]) } }
+    const Shell = defineComponent({
+      setup() {
+        const controller = useTrustedDialogController(api)
+        useShellOverlayCoordinationController({
+          activePanel: ref(null), splitMenu: ref(false), layoutSources: [], competingOverlayStates: [], preservedPanels: [],
+          fullModalOpen: computed(() => controller.open.value),
+          keepsSeparatePanelOpen: () => false, closePanelsExcept: () => undefined, closeAddressSuggestions: () => undefined,
+          setBrowserContentOccluded: (occluded) => occludeBrowserContent(shellApi, occluded),
+          reportLayout: () => undefined
+        })
+        return () => h(TrustedDialog, { controller })
+      }
+    })
+    render(Shell, { global: { plugins: [createHronautI18n('en-US')] } })
+    publish(sitePermission('one'))
+    await nextTick()
+    await nextTick()
+    expect(covered).toEqual([[true, overlayEntranceEpoch()]])
+    await vi.advanceTimersByTimeAsync(900)
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    reportPageViewsHidden(covered[0][1])
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(600)
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'true')
+  })
+
+  it('takes no answer on a report main sent for an earlier request, while it may still keep the page on screen', async () => {
+    const sent: Array<[boolean, number]> = []
+    const shellApi = { setBrowserContentOccluded: (occluded: boolean, request: number) => { sent.push([occluded, request]) } }
+    const { api, show, settle } = mountDialog()
+    // A website drops its first question and asks again at once.
+    occludeBrowserContent(shellApi, true)
+    occludeBrowserContent(shellApi, false)
+    occludeBrowserContent(shellApi, true)
+    await show(sitePermission('two'))
+    expect(sent.map(([occluded]) => occluded)).toEqual([true, false, true])
+    // Main's report for the first request crosses the second one on its way.
+    reportPageViewsHidden(sent[0][1])
+    await vi.advanceTimersByTimeAsync(3_000)
+    await nextTick()
+    await fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    expect(api.respond).not.toHaveBeenCalled()
+    reportPageViewsHidden(sent[2][1])
+    await nextTick()
+    await settle()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'true')
+  })
+
+  it('waits for the window to come forward when it asks in the background, and while the window is hidden', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    const { show, settle } = mountDialog()
+    await show(sitePermission('one'))
+    await settle()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    window.dispatchEvent(new FocusEvent('focus'))
+    await settle()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'true')
+
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    visibility.mockReturnValue('visible')
+    document.dispatchEvent(new Event('visibilitychange'))
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(400)
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    await settle()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'true')
+  })
+
+  it('takes no answer while the window is in the background, nor for a moment after it comes back', async () => {
+    const { api, show, settle } = mountDialog()
+    await show(sitePermission('one'))
+    await settle()
+    window.dispatchEvent(new FocusEvent('blur'))
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    await settle()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    // The click that brings the window back lands right after it has the focus.
+    window.dispatchEvent(new FocusEvent('focus'))
+    await nextTick()
+    await fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(api.respond).not.toHaveBeenCalled()
+    await settle()
+    await fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 1)
+  })
+
+  it('gives the focus back to Deny when it starts taking answers, and moves it for no held key', async () => {
+    // Keys meant for the page, such as Tab and then Enter, could move the focus to Allow and press it.
+    const { api, show, settle } = mountDialog()
+    await show(sitePermission('one'))
+    const deny = screen.getByRole('button', { name: 'Deny' })
+    const heldTab = new KeyboardEvent('keydown', { key: 'Tab', repeat: true, bubbles: true, cancelable: true })
+    deny.dispatchEvent(heldTab)
+    expect(heldTab.defaultPrevented).toBe(true)
+    screen.getByRole('button', { name: 'Allow' }).focus()
+    await settle()
+    expect(deny).toHaveFocus()
+    expect(api.respond).not.toHaveBeenCalled()
   })
 
   it('moves the focus to the next dialog’s Deny and settles it again when the queue moves on', async () => {

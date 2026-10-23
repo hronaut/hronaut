@@ -1,4 +1,5 @@
-import { computed, shallowReactive } from 'vue'
+import { computed, readonly, shallowReactive, shallowRef } from 'vue'
+import type { HronautShellApi } from '../../../shared/types/app-api.js'
 
 /**
  * Main reports when the page views leave the screen, with or without a
@@ -17,6 +18,16 @@ const holdingExits = shallowReactive(new Map<Element, ReturnType<typeof setTimeo
 let pageSnapshotOnScreen = false
 let entranceTimer: ReturnType<typeof setTimeout> | undefined
 let entranceEpoch = 0
+const pageViewsLeftScreen = shallowRef(true)
+
+/**
+ * False from the moment an overlay asks main to hide the page views until main reports that it has, for that request;
+ * true otherwise, including before any overlay and in the separate panel window, which has no page views under it.
+ * The end of an entrance's hold can come before main has acted, from the shell's own picture of the pages or the
+ * hold's time limit; only main's report says the pages are gone, such as for a question a click aimed at a page must
+ * not answer. It does not turn false when the pages come back: the next overlay over them asks again.
+ */
+export const pageViewsHidden = readonly(pageViewsLeftScreen)
 
 /**
  * A closing overlay keeps the page views hidden while it plays its exit over
@@ -104,6 +115,7 @@ export const overlayTransitionHooks = {
 export function holdOverlayEntrance(): void {
   if (entranceTimer !== undefined) clearTimeout(entranceTimer)
   entranceEpoch += 1
+  pageViewsLeftScreen.value = false
   document.documentElement.setAttribute(ENTRANCE_HELD_ATTRIBUTE, '')
   entranceTimer = setTimeout(releaseOverlayEntrance, OVERLAY_ENTRANCE_HOLD_MS)
 }
@@ -119,9 +131,32 @@ export function releaseOverlayEntrance(): void {
   document.documentElement.removeAttribute(ENTRANCE_HELD_ATTRIBUTE)
 }
 
+/**
+ * Asks main to hide the page views under trusted chrome, or to show them again. An overlay's entrance waits for main's
+ * report that they left the screen, which names this request.
+ */
+export function occludeBrowserContent(shellApi: Pick<HronautShellApi, 'setBrowserContentOccluded'>, occluded: boolean): void {
+  // Once the pages return, nothing is left to wait for.
+  if (occluded) holdOverlayEntrance()
+  else releaseOverlayEntrance()
+  shellApi.setBrowserContentOccluded(occluded, entranceEpoch)
+}
+
+/**
+ * Main reports that the page views left the screen for the shell's request with this number, so overlays start their
+ * entrance if they still wait. Main may send a report for an earlier request before it sees the latest one, while it
+ * still keeps the pages on screen for that one; such a report changes nothing.
+ */
+export function reportPageViewsHidden(request: number): void {
+  if (request !== entranceEpoch) return
+  pageViewsLeftScreen.value = true
+  releaseOverlayEntrance()
+}
+
 /** Clears module state between tests. */
 export function resetOverlayMotion(): void {
   releaseOverlayEntrance()
+  pageViewsLeftScreen.value = true
   pageSnapshotOnScreen = false
   releaseHeldExits()
 }

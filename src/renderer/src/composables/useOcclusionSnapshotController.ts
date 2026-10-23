@@ -1,6 +1,6 @@
 import { nextTick, onScopeDispose, shallowRef } from 'vue'
 import type { BrowserOcclusionSnapshot, HronautShellApi } from '../../../shared/types.js'
-import { overlayEntranceEpoch, releaseOverlayEntrance, setPageSnapshotOnScreen } from './overlay-motion.js'
+import { overlayEntranceEpoch, releaseOverlayEntrance, reportPageViewsHidden, setPageSnapshotOnScreen } from './overlay-motion.js'
 
 type OcclusionSnapshotApi = Pick<HronautShellApi, 'onOcclusionSnapshot' | 'presentOcclusionSnapshot'>
   & Partial<Pick<HronautShellApi, 'onOcclusionPagesHidden'>>
@@ -84,7 +84,7 @@ export function useOcclusionSnapshotController(api: OcclusionSnapshotApi | undef
     else void clear(current)
   })
   // Main also hides the pages without a snapshot, such as for a sleeping page or after its deadline.
-  const unsubscribePagesHidden = api?.onOcclusionPagesHidden?.(releaseOverlayEntrance)
+  const unsubscribePagesHidden = api?.onOcclusionPagesHidden?.(reportPageViewsHidden)
 
   onScopeDispose(() => {
     disposed = true

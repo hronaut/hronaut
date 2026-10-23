@@ -1313,8 +1313,8 @@ export class BrowserTabsManager {
       if (!this.window.isDestroyed() && !this.window.webContents.isDestroyed()) this.window.webContents.send('browser:occlusion-snapshot', snapshot)
     },
     relayout: () => this.layout(),
-    pagesHidden: () => {
-      if (!this.window.isDestroyed() && !this.window.webContents.isDestroyed()) this.window.webContents.send('browser:occlusion-pages-hidden')
+    pagesHidden: (request) => {
+      if (!this.window.isDestroyed() && !this.window.webContents.isDestroyed()) this.window.webContents.send('browser:occlusion-pages-hidden', request)
     },
     timeoutMs: occlusionSnapshotTimeoutMs()
   })
@@ -5018,8 +5018,8 @@ export class BrowserTabsManager {
     }
   }
 
-  setBrowserContentOccluded(occluded: boolean): void {
-    setBrowserContentOccluded(this.trustedChromeOcclusionAccess(), occluded)
+  setBrowserContentOccluded(occluded: boolean, request: number): void {
+    setBrowserContentOccluded(this.trustedChromeOcclusionAccess(), occluded, request)
   }
 
   /**

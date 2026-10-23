@@ -5,6 +5,7 @@ import IconWorkspacesOutline from '~icons/material-symbols/workspaces-outline'
 import UiButton from '../ui/UiButton.vue'
 import UiDialog from '../ui/UiDialog.vue'
 import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
+import { pageViewsHidden } from '../composables/overlay-motion.js'
 import { trustedDialogCopy } from './trusted-dialog-copy.js'
 import type { TrustedDialogController } from './useTrustedDialogController.js'
 
@@ -21,13 +22,26 @@ const headlineText = computed(() => {
 
 /**
  * A dialog takes no answer until it has been on screen for a moment: a website can time a request so that a click
- * or key aimed at its page lands on Allow the instant the dialog appears. The window must be visible meanwhile, so
- * the click that brings a hidden window back does not answer either.
+ * or key aimed at its page lands on Allow the instant the dialog appears. The moment starts only once the person can
+ * see and use the dialog: main has reported that the page views left the screen, and the window shows and has the
+ * focus. So neither a click on a page still on screen while main takes its picture, however long main takes, nor the
+ * click that brings the window back answers.
  */
 const ARM_DELAY_MS = 500
 const armedId = ref<string>()
 let armTimer: ReturnType<typeof setTimeout> | undefined
 const armed = computed(() => Boolean(request.value && armedId.value === request.value.id))
+const documentVisible = ref(document.visibilityState === 'visible')
+const windowFocused = ref(document.hasFocus())
+/** The request the person can see and use now, whose moment on screen runs. */
+const presentedId = computed(() => (
+  request.value && documentVisible.value && windowFocused.value && pageViewsHidden.value ? request.value.id : undefined
+))
+
+const defaultButton = ref<{ focus(options?: { preventScroll?: boolean }): void } | null>(null)
+function setButtonRef(index: number, element: unknown): void {
+  if (index === request.value?.defaultId) defaultButton.value = element as typeof defaultButton.value
+}
 
 function disarm(): void {
   if (armTimer !== undefined) clearTimeout(armTimer)
@@ -35,23 +49,23 @@ function disarm(): void {
   armedId.value = undefined
 }
 
-function arm(): void {
+watch(presentedId, (id) => {
   disarm()
-  const id = request.value?.id
-  if (!id || document.visibilityState !== 'visible') return
+  if (!id) return
   armTimer = setTimeout(() => {
     armTimer = undefined
-    if (request.value?.id === id) armedId.value = id
+    if (presentedId.value !== id) return
+    armedId.value = id
+    // A key meant for the page, such as Tab, may have moved the focus to another answer meanwhile; the safe one takes
+    // it back, so the next key meant for the page does not press that answer either.
+    const dialog = document.querySelector('.trusted-dialog')
+    if (!document.activeElement || document.activeElement === document.body || dialog?.contains(document.activeElement)) {
+      defaultButton.value?.focus({ preventScroll: true })
+    }
   }, ARM_DELAY_MS)
-}
-
-const defaultButton = ref<{ focus(options?: { preventScroll?: boolean }): void } | null>(null)
-function setButtonRef(index: number, element: unknown): void {
-  if (index === request.value?.defaultId) defaultButton.value = element as typeof defaultButton.value
-}
+}, { immediate: true })
 
 watch(() => request.value?.id, async (id) => {
-  arm()
   if (!id) return
   // The next dialog in the queue replaces this one in place, so the focus moves to its safe button too.
   await nextTick()
@@ -59,21 +73,29 @@ watch(() => request.value?.id, async (id) => {
 }, { immediate: true })
 
 function visibilityChanged(): void {
-  if (document.visibilityState === 'visible') arm()
-  else disarm()
+  documentVisible.value = document.visibilityState === 'visible'
+}
+function windowFocusChanged(event: FocusEvent): void {
+  windowFocused.value = event.type === 'focus'
 }
 document.addEventListener('visibilitychange', visibilityChanged)
+window.addEventListener('focus', windowFocusChanged)
+window.addEventListener('blur', windowFocusChanged)
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', visibilityChanged)
+  window.removeEventListener('focus', windowFocusChanged)
+  window.removeEventListener('blur', windowFocusChanged)
   disarm()
 })
 
-/** A key held since before the dialog opened, such as Enter on the page, repeats; it never presses a button here. */
+/**
+ * A key held since before the dialog opened, such as Enter or Tab on the page, repeats; it never presses a button or
+ * moves the focus here. Escape's first press still denies.
+ */
 function ignoreHeldKeys(event: KeyboardEvent): void {
-  if (event.repeat && (event.key === 'Enter' || event.key === ' ')) {
-    event.preventDefault()
-    event.stopPropagation()
-  }
+  if (!event.repeat) return
+  event.preventDefault()
+  event.stopPropagation()
 }
 
 function choose(index: number): void {
