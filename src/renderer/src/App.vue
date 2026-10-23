@@ -46,6 +46,7 @@ import { useAppTransientShellLayerController } from './composables/useAppTransie
 import { useSettingsWorkspaceActionsController } from './composables/useSettingsWorkspaceActionsController'
 import { useAppBrowserChromeFeatureController } from './composables/useAppBrowserChromeFeatureController'
 import type { TransientPanelsCloseOptions } from './composables/useTransientPanelsController'
+import { createInWindowTooltipPort } from './composables/in-window-tooltips'
 import { useShellTooltips } from './composables/shell-tooltips'
 import { useWorkspaceShellTint } from './composables/useWorkspaceShellTint'
 import { useFullPageView } from './composables/useFullPageView'
@@ -600,8 +601,8 @@ const {
     t('runtime.toast.startupRecoveredDescription')
   )
 })
-// A detached panel window has no tooltip view above its own pages; its controls get native titles.
-useShellTooltips(isDetachedPanelWindow ? null : window.hronautShell)
+// A panel window has no page views over the shell, so it draws its tooltips itself.
+useShellTooltips(isDetachedPanelWindow ? createInWindowTooltipPort() : window.hronautShell)
 const { dispose: disposeAppEventsController } = useAppEventsController({
   browserApi: browser,
   permissionsApi: window.hronautPermissions,
