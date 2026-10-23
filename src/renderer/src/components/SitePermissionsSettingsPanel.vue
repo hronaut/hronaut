@@ -84,14 +84,11 @@ watch(() => filteredGroups.value.flatMap(group => group.permissions.map(entry =>
 }, { flush: 'pre' })
 
 /**
- * The accessible name of a row's control. A decision saved before decisions belonged to a workspace keeps the name it
- * always had; one with a workspace also names where it applies, since one website can have a row in each workspace.
+ * The accessible name of a row's control, which names where the decision applies, since one website can have a row in
+ * each workspace.
  */
 function controlLabel(entry: SitePermissionEntry, kind: 'select' | 'forget'): string {
   const permission = permissionLabel(entry.permission)
-  if (entry.workspaceId === undefined) {
-    return t(kind === 'select' ? 'runtimeActions.permission.aria' : 'runtimeActions.permission.forgetAria', { permission, origin: entry.origin })
-  }
   return t(kind === 'select' ? 'runtimeActions.permission.scopedAria' : 'runtimeActions.permission.scopedForgetAria', {
     permission,
     origin: entry.origin,

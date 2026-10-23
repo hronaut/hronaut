@@ -32,7 +32,7 @@ import type {
   WalletTransactionSimulation
 } from './types.js'
 import { formatTokenUnits, tokenAllowance } from './types.js'
-import { UNLIMITED_TOKEN_AMOUNT } from '../transaction-display.js'
+import { isUnlimitedTokenAmount } from '../transaction-display.js'
 
 const HexSchema = z.string().regex(/^0x(?:[a-fA-F0-9]{2})*$/).max(2_000_002)
 const QuantitySchema = z.union([
@@ -136,7 +136,7 @@ function decodeOperation(to: Address | undefined, data: Hex, value: bigint, sign
         method: `erc20.${decoded.functionName}`,
         nativeAmount: formatEther(value),
         tokenAmount: decoded.args[1].toString(),
-        unlimitedAllowance: decoded.args[1] >= UNLIMITED_TOKEN_AMOUNT,
+        unlimitedAllowance: isUnlimitedTokenAmount(decoded.args[1]),
         newContractOrProgram: false,
         blindMessage: false
       }

@@ -14,7 +14,7 @@ describe('buildBrowsingDataWebsiteInventory', () => {
       ],
       bookmarks: [{ id: 'bookmark', url: 'https://docs.example.test/reference', title: 'Reference', createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z' }],
       credentials: [{ id: 'credential', origin: 'https://example.test', username: 'owner', createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z' }],
-      permissions: [{ origin: 'https://camera.test', permission: 'media', decision: 'deny' }],
+      permissions: [{ origin: 'https://camera.test', permission: 'geolocation', decision: 'deny', workspaceId: '01912345-6789-7abc-8def-0123456789ab' }],
       tabs: [{ id: 'tab', title: 'Open tab', url: 'https://open.test/path', loading: false, navigationGeneration: 0, canGoBack: false, canGoForward: false, active: true, pinned: false, sleeping: false, humanInteractionLocked: false, preserveDiagnosticLogs: true, zoomPercent: 100, audible: false, muted: false, devToolsOpen: false }]
     })
 

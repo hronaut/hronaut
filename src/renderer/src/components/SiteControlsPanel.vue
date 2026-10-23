@@ -48,32 +48,20 @@ watch(dock, (next, previous) => {
   if (open.value && previous === 'window' && next !== 'window' && !props.keepsSeparatePanelOpen() && !props.summary && props.state === 'idle') void props.refresh()
 })
 
-/**
- * What tells a decision apart from the page's own decisions in this workspace: a website embedded in the page shows
- * its origin, and a decision saved before decisions belonged to a workspace says it applies in all of them.
- */
+/** What tells a decision apart from the page's own decisions in this workspace: a website embedded in the page shows its origin. */
 function permissionDetail(entry: SitePermissionEntry): string {
-  if (entry.embeddedIn) return entry.origin
-  return entry.workspaceId === undefined ? t('settings.permissions.allWorkspaces') : ''
+  return entry.embeddedIn ? entry.origin : ''
 }
 
-/**
- * A row's place in the list: its website, permission and embedding site. A row for all workspaces keeps its place, and
- * its control its focus, when a change replaces it with the workspace's own decision.
- */
+/** A row's place in the list: its website, permission and embedding site. */
 function rowKey(entry: SitePermissionEntry): string {
   return [entry.origin, entry.permission, entry.embeddedIn ?? ''].join('\u0000')
 }
 
-/**
- * The accessible name of a row's control, which also says where the decision applies when the row says so: for all
- * workspaces, or for a website embedded in this page.
- */
+/** The accessible name of a row's control, which also says when the decision is for a website embedded in this page. */
 function controlLabel(entry: SitePermissionEntry, kind: 'select' | 'reset'): string {
   const permission = props.permissionLabel(entry.permission)
-  const scope = entry.embeddedIn
-    ? t('settings.permissions.embeddedIn', { site: entry.embeddedIn })
-    : entry.workspaceId === undefined ? t('settings.permissions.allWorkspaces') : ''
+  const scope = entry.embeddedIn ? t('settings.permissions.embeddedIn', { site: entry.embeddedIn }) : ''
   if (!scope) {
     return t(kind === 'select' ? 'runtimeActions.permission.aria' : 'runtimeActions.permission.resetAria', { permission, origin: entry.origin })
   }
@@ -144,8 +132,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             <option value="allow">{{ t('shell.siteControls.allow') }}</option>
             <option value="deny">{{ t('shell.siteControls.block') }}</option>
           </select>
-          <!-- Forgetting a decision for all workspaces would forget it in every one, so only Settings offers that. -->
-          <UiButton v-if="permission.workspaceId !== undefined" appearance="application" type="button" :aria-label="controlLabel(permission, 'reset')" v-tooltip="t('shell.siteControls.reset')" :disabled="permissionPending(permission)" @click="resetPermission(permission)"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" type="button" :aria-label="controlLabel(permission, 'reset')" v-tooltip="t('shell.siteControls.reset')" :disabled="permissionPending(permission)" @click="resetPermission(permission)"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </div>
       <p v-else>{{ t('shell.siteControls.empty') }}</p>

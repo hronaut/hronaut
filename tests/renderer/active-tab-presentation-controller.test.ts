@@ -67,8 +67,8 @@ function create(active = tab()) {
   const browserState = ref(state(active))
   const activeTab = ref<BrowserTabState | undefined>(active)
   const sitePermissions = ref<SitePermissionEntry[]>([
-    { origin: 'https://example.test', permission: 'camera', decision: 'allow' },
-    { origin: 'https://other.test', permission: 'camera', decision: 'deny' }
+    { origin: 'https://example.test', permission: 'camera', decision: 'allow', workspaceId: 'isolated' },
+    { origin: 'https://other.test', permission: 'camera', decision: 'deny', workspaceId: 'isolated' }
   ])
   const credentials = ref<CredentialSummary[]>([
     { id: 'credential', origin: 'https://example.test', username: 'person', createdAt: '', updatedAt: '' },
@@ -109,23 +109,19 @@ describe('active tab presentation controller', () => {
     expect(controller.currentBookmark.value?.id).toBe('bookmark')
   })
 
-  it('shows Site controls only the decisions for the tab’s workspace and page, and older ones it did not replace', () => {
+  it('shows Site controls only the decisions for the tab’s workspace and page', () => {
     // Site controls listed every decision for the website, from every workspace and every page that embedded it.
     const { controller, sitePermissions, activeTab } = create(tab({ mcpGroupId: 'isolated' }))
     const page = 'https://example.test'
     sitePermissions.value = [
-      { origin: page, permission: 'geolocation', decision: 'allow' },
-      { origin: page, permission: 'notifications', decision: 'allow' },
       { origin: page, permission: 'notifications', decision: 'deny', workspaceId: 'isolated' },
       { origin: page, permission: 'geolocation', decision: 'deny', workspaceId: 'other' },
       { origin: page, permission: 'camera', decision: 'allow', workspaceId: 'isolated', embeddedIn: 'https://other.test' },
       { origin: 'https://widget.test', permission: 'geolocation', decision: 'allow', workspaceId: 'isolated', embeddedIn: page },
       { origin: 'https://widget.test', permission: 'geolocation', decision: 'deny', workspaceId: 'isolated', embeddedIn: 'https://other.test' },
-      { origin: 'https://widget.test', permission: 'geolocation', decision: 'allow', workspaceId: 'other', embeddedIn: page },
-      { origin: 'https://widget.test', permission: 'notifications', decision: 'allow' }
+      { origin: 'https://widget.test', permission: 'geolocation', decision: 'allow', workspaceId: 'other', embeddedIn: page }
     ]
     expect(controller.activeSitePermissions.value).toEqual([
-      { origin: page, permission: 'geolocation', decision: 'allow' },
       { origin: page, permission: 'notifications', decision: 'deny', workspaceId: 'isolated' },
       { origin: 'https://widget.test', permission: 'geolocation', decision: 'allow', workspaceId: 'isolated', embeddedIn: page }
     ])
@@ -133,25 +129,16 @@ describe('active tab presentation controller', () => {
     // The other workspace's tab sees its own decisions instead.
     activeTab.value = tab({ mcpGroupId: 'other' })
     expect(controller.activeSitePermissions.value).toEqual([
-      { origin: page, permission: 'notifications', decision: 'allow' },
       { origin: page, permission: 'geolocation', decision: 'deny', workspaceId: 'other' },
       { origin: 'https://widget.test', permission: 'geolocation', decision: 'allow', workspaceId: 'other', embeddedIn: page }
     ])
   })
 
-  it('changes a decision for all workspaces from Site controls as the tab’s workspace’s own', () => {
-    // Site controls changed such a decision itself, so a change made for one tab reached every workspace.
-    const { controller, sitePermissions, activeTab } = create(tab({ mcpGroupId: 'isolated' }))
-    const legacy: SitePermissionEntry = { origin: 'https://example.test', permission: 'geolocation', decision: 'allow' }
-    const own: SitePermissionEntry = { ...legacy, decision: 'deny', workspaceId: 'isolated' }
-    sitePermissions.value = [legacy]
-    expect(controller.sitePermissionTarget(legacy)).toEqual({ ...legacy, workspaceId: 'isolated' })
-    expect(controller.sitePermissionTarget(own)).toBe(own)
-    // The workspace's own decision then replaces the row.
-    sitePermissions.value = [legacy, own]
-    expect(controller.activeSitePermissions.value).toEqual([own])
-
+  it('shows Site controls no decision for a tab outside a workspace', () => {
     // A tab outside a workspace gets no permission, so Site controls shows it no decision to change.
+    const { controller, sitePermissions, activeTab } = create(tab({ mcpGroupId: 'isolated' }))
+    sitePermissions.value = [{ origin: 'https://example.test', permission: 'geolocation', decision: 'deny', workspaceId: 'isolated' }]
+    expect(controller.activeSitePermissions.value).toHaveLength(1)
     activeTab.value = tab()
     expect(controller.activeSitePermissions.value).toEqual([])
   })
