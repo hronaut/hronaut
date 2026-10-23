@@ -17,7 +17,8 @@ export type McpCapabilityOperationClass = typeof MCP_CAPABILITY_OPERATION_CLASSE
  * Tools that reach local files or sign-in credentials for places the person named, so only a capability profile
  * listing the exact allowed values of one argument may call them: no full-access credential, preset or profile
  * without that constraint does. `message` explains a refused profile. Saved profiles that fail this check are
- * dropped when they load, so add only tools no released profile could already allow, or migrate saved profiles first.
+ * dropped when they load: adding a tool here revokes any saved profile that allows it without the constraint, and
+ * never lets such a profile keep calling it unconstrained. Keep that check; it is what enforces this list.
  */
 export const MCP_REQUIRED_ARGUMENT_CONSTRAINTS: Readonly<Record<string, { path: string; message: string }>> = {
   browser_evaluate_file: { path: 'browser_evaluate_file.source', message: 'File evaluation requires an exact source tuple constraint' },

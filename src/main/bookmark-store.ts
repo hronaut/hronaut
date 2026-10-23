@@ -146,7 +146,7 @@ export class BookmarkStore {
       let repairedPersistedBookmarks = validBookmarks.length !== value.bookmarks.length
       const currentTimestamp = new Date().toISOString()
       const currentTime = Date.parse(currentTimestamp)
-      // Saved files can be out of order after migration or partial repair.
+      // Saved files can be out of order after partial repair or an outside edit.
       // Apply deduplication and the size cap to the newest entries first.
       const newestFirst = validBookmarks.sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
       for (const entry of newestFirst) {
