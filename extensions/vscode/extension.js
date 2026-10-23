@@ -11,10 +11,10 @@ const PROVIDER_ID = 'hronaut'
 const LABEL = 'Hronaut'
 
 /** The provider for the editor's `vscode` API; separate from `activate` so it is tested without the editor. */
-function createProvider(vscode, version, readToken = ownerToken) {
+function createProvider(vscode, version, readToken = ownerToken, environment = process.env) {
   const changed = new vscode.EventEmitter()
-  // Only a port set in the editor counts; its default leaves HRONAUT_MCP_PORT and Hronaut's own default to apply.
-  const port = () => mcpPort(vscode.workspace.getConfiguration('hronaut').inspect('mcpPort')?.globalValue)
+  // Only a port set in the user's own settings counts, which the setting's application scope keeps to this computer.
+  const port = () => mcpPort(vscode.workspace.getConfiguration('hronaut').inspect('mcpPort')?.globalValue, environment)
   const provider = {
     onDidChangeMcpServerDefinitions: changed.event,
     provideMcpServerDefinitions: () => [new vscode.McpHttpServerDefinition(LABEL, vscode.Uri.parse(mcpEndpoint(port())), {}, version)],

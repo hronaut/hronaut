@@ -17,7 +17,7 @@ const connection = require('../extensions/vscode/connection.js') as {
 }
 const extension = require('../extensions/vscode/extension.js') as {
   activate(context: { extension: { packageJSON: { version: string } }; subscriptions: Array<{ dispose(): void }> }, vscode: unknown): void
-  createProvider(vscode: unknown, version: string, readToken?: () => Promise<string | undefined>): {
+  createProvider(vscode: unknown, version: string, readToken?: () => Promise<string | undefined>, environment?: Record<string, string | undefined>): {
     provider: {
       onDidChangeMcpServerDefinitions: (listener: () => void) => void
       provideMcpServerDefinitions(): Array<{ label: string; uri: string; headers: Record<string, string>; version: string }>
@@ -42,12 +42,15 @@ interface ExtensionManifest {
   pricing: string
   contributes: {
     mcpServerDefinitionProviders: Array<{ id: string; label: string }>
-    configuration: { properties: Record<string, { default: unknown; minimum: number; scope: string }> }
+    configuration: { properties: Record<string, { default: unknown; minimum: number; scope: string; ignoreSync: boolean }> }
   }
 }
 
-/** The parts of the editor's `vscode` API the extension uses, recording what it was given. */
-function fakeEditor(port: unknown) {
+/**
+ * The parts of the editor's `vscode` API the extension uses, recording what it was given. `port` is set in the user's
+ * settings and `workspacePort` in a workspace's or folder's.
+ */
+function fakeEditor(port: unknown, workspacePort?: unknown) {
   const listeners: Array<(event: { affectsConfiguration(section: string): boolean }) => void> = []
   class EventEmitter {
     listeners: Array<() => void> = []
@@ -63,9 +66,11 @@ function fakeEditor(port: unknown) {
       constructor(public label: string, public uri: string, public headers: Record<string, string>, public version: string) {}
     },
     workspace: {
-      // A port set in the user's settings; the setting's default is not a value set there.
+      // The setting's default is not a value set anywhere.
       getConfiguration: (section: string) => ({
-        inspect: (key: string) => (section === 'hronaut' && key === 'mcpPort' ? { defaultValue: 47812, globalValue: port } : undefined)
+        inspect: (key: string) => (section === 'hronaut' && key === 'mcpPort'
+          ? { defaultValue: 47812, globalValue: port, workspaceValue: workspacePort, workspaceFolderValue: workspacePort }
+          : undefined)
       }),
       onDidChangeConfiguration: (listener: (typeof listeners)[number]) => {
         listeners.push(listener)
@@ -90,8 +95,9 @@ describe('the VS Code extension in this repository', () => {
     // Hronaut and its token file are on the person's computer, not on a remote host the editor is connected to.
     expect(manifest.extensionKind).toEqual(['ui'])
     expect(manifest.contributes.configuration.properties['hronaut.mcpPort']).toMatchObject({ default: DEFAULT_MCP_PORT, minimum: MIN_MCP_PORT })
-    // The token goes to this port, so a repository's settings or another computer's synced ones must not choose it.
-    expect(manifest.contributes.configuration.properties['hronaut.mcpPort']?.scope).toBe('machine')
+    // The token goes to this port, so only this computer's user settings choose it: not a workspace's, nor a remote
+    // host's or a dev container's, which a machine scope would read in a remote window, nor another computer's synced ones.
+    expect(manifest.contributes.configuration.properties['hronaut.mcpPort']).toMatchObject({ scope: 'application', ignoreSync: true })
     // Hronaut needs a subscription after its trial.
     expect(manifest.pricing).toBe('Trial')
     expect(connection.DEFAULT_MCP_PORT).toBe(DEFAULT_MCP_PORT)
@@ -138,7 +144,7 @@ describe('the VS Code extension in this repository', () => {
   it('offers Hronaut’s local endpoint on the configured port and adds the owner token when the editor starts it', async () => {
     const editor = fakeEditor(48123)
     const readToken = vi.fn(async (): Promise<string | undefined> => TOKEN)
-    const { provider } = extension.createProvider(editor, '3.7.0', readToken)
+    const { provider } = extension.createProvider(editor, '3.7.0', readToken, {})
     const [server, ...others] = provider.provideMcpServerDefinitions()
     expect(others).toEqual([])
     expect(server).toMatchObject({ label: 'Hronaut', uri: 'uri:http://127.0.0.1:48123/mcp', headers: {}, version: '3.7.0' })
@@ -172,7 +178,7 @@ describe('the VS Code extension in this repository', () => {
 
   it('starts the server without a header while there is no token, and offers it again when the port setting changes', async () => {
     const editor = fakeEditor(undefined)
-    const { provider, dispose } = extension.createProvider(editor, '3.7.0', async () => undefined)
+    const { provider, dispose } = extension.createProvider(editor, '3.7.0', async () => undefined, {})
     const [server] = provider.provideMcpServerDefinitions()
     expect(server?.uri).toBe(`uri:http://127.0.0.1:${DEFAULT_MCP_PORT}/mcp`)
     expect((await provider.resolveMcpServerDefinition(server!)).headers).toEqual({})
@@ -187,6 +193,16 @@ describe('the VS Code extension in this repository', () => {
     expect(provider.provideMcpServerDefinitions()[0]?.uri).toBe('uri:http://127.0.0.1:47999/mcp')
     dispose()
     expect(editor.settingsListeners).toEqual([])
+  })
+
+  it('takes the port from the user’s settings only, after HRONAUT_MCP_PORT as Hronaut does', () => {
+    const uri = (editor: ReturnType<typeof fakeEditor>, environment: Record<string, string | undefined>) =>
+      extension.createProvider(editor, '3.7.0', async () => undefined, environment).provider.provideMcpServerDefinitions()[0]?.uri
+    // A repository's settings cannot send the token to another port.
+    expect(uri(fakeEditor(undefined, 3000), {})).toBe(`uri:http://127.0.0.1:${DEFAULT_MCP_PORT}/mcp`)
+    expect(uri(fakeEditor(undefined), { HRONAUT_MCP_PORT: '48500' })).toBe('uri:http://127.0.0.1:48500/mcp')
+    expect(uri(fakeEditor(48001), { HRONAUT_MCP_PORT: '48500' })).toBe('uri:http://127.0.0.1:48500/mcp')
+    expect(uri(fakeEditor(48001), { HRONAUT_MCP_PORT: '80' })).toBe('uri:http://127.0.0.1:48001/mcp')
   })
 })
 
@@ -206,6 +222,8 @@ describe('where the VS Code extension finds Hronaut', () => {
     const app = JSON.parse(await readFile('package.json', 'utf8')) as { name: string; productName?: string }
     const folder = app.productName ?? app.name
     expect(connection.PROFILE_FOLDER).toBe(folder)
+    // electron-builder writes only extraMetadata into the packaged package.json, never its own productName.
+    expect(await readFile('electron-builder.yml', 'utf8')).not.toMatch(/^extraMetadata:/m)
     expect(connection.profileDirectory({}, 'linux', '/home/person')).toBe(`/home/person/.config/${folder}`)
     expect(connection.profileDirectory({ XDG_CONFIG_HOME: '/xdg' }, 'linux', '/home/person')).toBe(`/xdg/${folder}`)
     expect(connection.profileDirectory({}, 'darwin', '/Users/person')).toBe(`/Users/person/Library/Application Support/${folder}`)
@@ -214,10 +232,11 @@ describe('where the VS Code extension finds Hronaut', () => {
     expect(connection.profileDirectory({ HRONAUT_USER_DATA_DIR: '/profiles/client-a' }, 'darwin', '/Users/person')).toBe('/profiles/client-a')
   })
 
-  it('connects to the port set in the editor, else the one HRONAUT_MCP_PORT names, else the default', () => {
+  it('connects to the port HRONAUT_MCP_PORT names, else the one set in the editor, else the default', () => {
     expect(connection.mcpEndpoint(48000)).toBe('http://127.0.0.1:48000/mcp')
     for (const port of [undefined, 0, 1023, 65536, 1.5, '48000']) expect(connection.mcpEndpoint(port)).toBe(`http://127.0.0.1:${DEFAULT_MCP_PORT}/mcp`)
-    expect(connection.mcpPort(48001, { HRONAUT_MCP_PORT: '48002' })).toBe(48001)
+    expect(connection.mcpPort(48001, { HRONAUT_MCP_PORT: '48002' })).toBe(48002)
+    expect(connection.mcpPort(48001, { HRONAUT_MCP_PORT: '80' })).toBe(48001)
     expect(connection.mcpPort(undefined, { HRONAUT_MCP_PORT: '48002' })).toBe(48002)
     for (const variable of ['', '80', '48002x', '1@other.example:80']) expect(connection.mcpPort(undefined, { HRONAUT_MCP_PORT: variable })).toBe(DEFAULT_MCP_PORT)
     expect(connection.mcpPort(undefined, {})).toBe(DEFAULT_MCP_PORT)

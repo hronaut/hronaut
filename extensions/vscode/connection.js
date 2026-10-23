@@ -33,13 +33,13 @@ function isValidPort(port) {
 }
 
 /**
- * The port Hronaut's MCP server listens on: the one set in the editor, or else the one HRONAUT_MCP_PORT names, as
- * Hronaut uses it, or else its default.
+ * The port Hronaut's MCP server listens on, chosen as Hronaut chooses it: the one HRONAUT_MCP_PORT names, which
+ * Hronaut puts before its saved setting, or else the one set in the editor, or else the default.
  */
 function mcpPort(configured, environment = process.env) {
-  if (isValidPort(configured)) return configured
   const fromEnvironment = Number(environment.HRONAUT_MCP_PORT)
-  return environment.HRONAUT_MCP_PORT !== undefined && isValidPort(fromEnvironment) ? fromEnvironment : DEFAULT_MCP_PORT
+  if (environment.HRONAUT_MCP_PORT !== undefined && isValidPort(fromEnvironment)) return fromEnvironment
+  return isValidPort(configured) ? configured : DEFAULT_MCP_PORT
 }
 
 /** The address of Hronaut's MCP server on this computer. */

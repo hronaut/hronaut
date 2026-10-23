@@ -40,8 +40,9 @@
           "default": 47812,
           "minimum": 1024,
           "maximum": 65535,
-          "scope": "machine",
-          "markdownDescription": "The port of Hronaut's MCP server on this computer. Set it only if you changed it in Hronaut's **Settings → MCP security**; unset, the extension uses `HRONAUT_MCP_PORT` if the editor has it, or else the default."
+          "scope": "application",
+          "ignoreSync": true,
+          "markdownDescription": "The port of Hronaut's MCP server on this computer. Set it only if you changed it in Hronaut's **Settings → MCP security**. As in Hronaut, `HRONAUT_MCP_PORT` comes first if the editor has it."
         }
       }
     }
