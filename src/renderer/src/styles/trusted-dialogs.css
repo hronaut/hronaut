@@ -4,8 +4,10 @@
 .trusted-dialog--arming .ui-dialog__footer { pointer-events: none; }
 .trusted-dialog .ui-dialog__header { @apply items-start gap-[14px] border-b-0 pb-1.5; }
 .trusted-dialog .ui-dialog__header h2 { @apply mt-[3px] [font-size:var(--type-title-size)] leading-[1.35] [overflow-wrap:anywhere]; }
+/* A website's address can be one long word; it wraps instead of widening the dialog. */
+.trusted-dialog .ui-dialog__header p { @apply [overflow-wrap:anywhere]; }
 .trusted-dialog__eyebrow { @apply block text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] [letter-spacing:.04em] uppercase; }
-.trusted-dialog__origin { @apply [font-weight:var(--weight-strong)] text-copy; }
+.trusted-dialog__origin { @apply [font-weight:var(--weight-strong)] text-copy [unicode-bidi:isolate]; }
 .trusted-dialog__icon { @apply size-[22px]; }
 .trusted-dialog--warning .ui-dialog__icon,
 .trusted-dialog--error .ui-dialog__icon { @apply text-copy [background:color-mix(in_srgb,_var(--warning,_#b45309)_16%,_transparent)]; }
@@ -14,7 +16,7 @@
 .trusted-dialog--error .ui-dialog__icon > svg { @apply text-danger; }
 .trusted-dialog .ui-dialog__body { @apply pt-2 pl-[74px]; }
 .trusted-dialog__details { @apply grid gap-2.5; }
-.trusted-dialog__details p { @apply m-0 [font-size:var(--type-small-size)] leading-[1.5] text-muted; }
+.trusted-dialog__details p { @apply m-0 [font-size:var(--type-small-size)] leading-[1.5] text-muted [overflow-wrap:anywhere]; }
 .trusted-dialog__workspace { @apply flex items-start gap-2; }
 .trusted-dialog__details .trusted-dialog__workspace { @apply text-copy; }
 .trusted-dialog__workspace > svg { @apply mt-px size-4 flex-none text-muted; }

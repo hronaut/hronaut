@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import type { ElectronApplication } from '@playwright/test'
 import { closeFixtureServer, expect, test } from './fixtures.js'
-import { answerTrustedDialog, trustedDialog, trustedDialogRequestId } from './trusted-dialog-fixture.js'
+import { answerTrustedDialog, sendLateTrustedDialogAnswer, trustedDialog, trustedDialogRequestId } from './trusted-dialog-fixture.js'
 
 async function askForLocation(electronApp: ElectronApplication, title: string, frameUrlEnd?: string): Promise<void> {
   await electronApp.evaluate(async ({ webContents }, target) => {
@@ -54,6 +54,8 @@ test('closes a permission prompt once its page reloads or its frame is removed, 
     await appWindow.evaluate(`window.hronaut.reload(${JSON.stringify(reloading)})`)
     // The reloaded page's dialog closes and the waiting one takes its place.
     await expect.poll(() => trustedDialogRequestId(appWindow)).not.toBe(reloadingPrompt)
+    // An Allow meant for the closed dialog does not answer the one that took its place.
+    await sendLateTrustedDialogAnswer(appWindow, reloadingPrompt, 1)
     await answerTrustedDialog(appWindow, 'Deny')
     await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([
       expect.objectContaining({ origin, permission: 'geolocation', decision: 'deny' })

@@ -75,8 +75,11 @@ export interface TrustedDialogs<Window extends TrustedDialogWindow = TrustedDial
   /** Admits the shell's answers; only the shell document of the window a dialog is shown in may answer it. */
   registerIpc(ipc: {
     ipcMain: Pick<IpcMain, 'on'>
-    /** Throws unless the message came from the shell document of the main or the detached panel window. */
-    assertTrustedShellSender(event: IpcMainEvent): void
+    /**
+     * Whether the message came from the shell document of the main or the detached panel window. Unlike the checks of
+     * browser changes, it admits the shell after saved workspaces failed to start, so a dialog about that is answered.
+     */
+    isTrustedShellSender(event: IpcMainEvent): boolean
   }): void
 }
 
@@ -173,8 +176,11 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     watched.add(contents)
     contents.on('destroyed', () => handOff(contents))
     contents.on('render-process-gone', () => handOff(contents))
-    contents.on('did-start-navigation', (details: { isMainFrame?: boolean, isSameDocument?: boolean }) => {
-      if (details?.isMainFrame && !details.isSameDocument) handOff(contents)
+    // A navigation that starts can still be refused or cancelled, leaving the document that shows the dialog; only one
+    // that replaces it, with another document or an error page, takes the dialog away.
+    contents.on('did-navigate', () => handOff(contents))
+    contents.on('did-fail-provisional-load', (_event: unknown, _code: number, _description: string, _url: string, isMainFrame: boolean) => {
+      if (isMainFrame) handOff(contents)
     })
   }
 
@@ -215,8 +221,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
   function registerIpc(ipc: Parameters<TrustedDialogs<Window>['registerIpc']>[0]): void {
     function trusted(event: IpcMainEvent): boolean {
       try {
-        ipc.assertTrustedShellSender(event)
-        return true
+        return ipc.isTrustedShellSender(event)
       } catch {
         return false
       }

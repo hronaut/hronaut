@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from '@testing-library/vue'
+import userEvent from '@testing-library/user-event'
 import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TrustedDialog from '../../src/renderer/src/trusted-dialogs/TrustedDialog.vue'
 import { useTrustedDialogController } from '../../src/renderer/src/trusted-dialogs/useTrustedDialogController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import { holdOverlayEntrance, releaseOverlayEntrance, resetOverlayMotion } from '../../src/renderer/src/composables/overlay-motion.js'
 import type { SupportedLocale } from '../../src/shared/locale.js'
 import type { HronautTrustedDialogsApi, TrustedDialogRequest } from '../../src/shared/trusted-dialogs.js'
 
@@ -55,9 +57,12 @@ function mountDialog(locale: SupportedLocale = 'en-US') {
 
 beforeEach(() => {
   vi.useFakeTimers()
+  vi.spyOn(document, 'hasFocus').mockReturnValue(true)
 })
 
 afterEach(() => {
+  resetOverlayMotion()
+  vi.restoreAllMocks()
   vi.useRealTimers()
 })
 
@@ -142,11 +147,62 @@ describe('Hronaut’s permission dialog', () => {
     const { api, show, settle } = mountDialog()
     await show(sitePermission('one'))
     await settle()
-    // A real Enter on a focused button clicks it; the button with the focus is Deny.
-    const focused = document.activeElement as HTMLElement
-    expect(focused).toHaveTextContent('Deny')
-    await fireEvent.click(focused)
+    expect(document.activeElement).toHaveTextContent('Deny')
+    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).keyboard('{Enter}')
     expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 0)
+  })
+
+  it('starts its moment on screen only once the page has left the screen', async () => {
+    // Main keeps the page on screen until it has a picture of it. A dialog that counted that time could take a click
+    // the instant the page left, the click a website timed for its page.
+    const { api, show, settle } = mountDialog()
+    holdOverlayEntrance()
+    await show(sitePermission('one'))
+    await vi.advanceTimersByTimeAsync(400)
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    releaseOverlayEntrance()
+    await nextTick()
+    await vi.advanceTimersByTimeAsync(400)
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    await fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(api.respond).not.toHaveBeenCalled()
+    await settle()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'true')
+  })
+
+  it('takes no answer while the window is in the background, nor for a moment after it comes back', async () => {
+    const { api, show, settle } = mountDialog()
+    await show(sitePermission('one'))
+    await settle()
+    window.dispatchEvent(new FocusEvent('blur'))
+    await nextTick()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    await settle()
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('data-armed', 'false')
+    // The click that brings the window back lands right after it has the focus.
+    window.dispatchEvent(new FocusEvent('focus'))
+    await nextTick()
+    await fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(api.respond).not.toHaveBeenCalled()
+    await settle()
+    await fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 1)
+  })
+
+  it('gives the focus back to Deny when it starts taking answers, and moves it for no held key', async () => {
+    // Keys meant for the page, such as Tab and then Enter, could move the focus to Allow and press it.
+    const { api, show, settle } = mountDialog()
+    await show(sitePermission('one'))
+    const deny = screen.getByRole('button', { name: 'Deny' })
+    const heldTab = new KeyboardEvent('keydown', { key: 'Tab', repeat: true, bubbles: true, cancelable: true })
+    deny.dispatchEvent(heldTab)
+    expect(heldTab.defaultPrevented).toBe(true)
+    screen.getByRole('button', { name: 'Allow' }).focus()
+    await settle()
+    expect(deny).toHaveFocus()
+    expect(api.respond).not.toHaveBeenCalled()
   })
 
   it('moves the focus to the next dialog’s Deny and settles it again when the queue moves on', async () => {

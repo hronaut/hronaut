@@ -52,6 +52,7 @@ interface IpcGuardsHost {
  */
 export function createIpcGuards(host: IpcGuardsHost): {
   assertTrustedShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
+  isShellWindowSender(event: IpcMainInvokeEvent | IpcMainEvent): boolean
   assertMainShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
   assertPanelShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
   isHronautPageSender(event: IpcMainInvokeEvent): boolean
@@ -61,7 +62,10 @@ export function createIpcGuards(host: IpcGuardsHost): {
   runWorkspaceRead<T>(event: IpcMainInvokeEvent, assertSender: (event: IpcMainInvokeEvent) => void, read: () => T): Promise<T>
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
 } {
-  /** Whether a message came from the shell of the main window or of the detached panel. */
+  /**
+   * Whether a message came from the shell of the main window or of the detached panel, whether or not saved workspaces
+   * started; for answers that must still arrive when they did not, such as to the dialog that says so.
+   */
   function isShellWindowSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean {
     const actual = event.senderFrame?.url
     const fromMain = Boolean(host.mainWindowRefs.window && event.sender === host.mainWindowRefs.window.webContents && trustedUrlMatches(actual, trustedShellUrl()))
@@ -138,6 +142,7 @@ export function createIpcGuards(host: IpcGuardsHost): {
 
   return {
     assertTrustedShellSender,
+    isShellWindowSender,
     assertMainShellSender,
     assertPanelShellSender,
     isHronautPageSender,

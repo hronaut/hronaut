@@ -1,4 +1,4 @@
-import { computed, shallowReactive } from 'vue'
+import { computed, readonly, shallowReactive, shallowRef } from 'vue'
 
 /**
  * Main reports when the page views leave the screen, with or without a
@@ -17,6 +17,10 @@ const holdingExits = shallowReactive(new Map<Element, ReturnType<typeof setTimeo
 let pageSnapshotOnScreen = false
 let entranceTimer: ReturnType<typeof setTimeout> | undefined
 let entranceEpoch = 0
+const entranceHeld = shallowRef(false)
+
+/** Whether overlays still wait at their first frame for the page views to leave the screen; see `holdOverlayEntrance`. */
+export const overlayEntranceHeld = readonly(entranceHeld)
 
 /**
  * A closing overlay keeps the page views hidden while it plays its exit over
@@ -104,6 +108,7 @@ export const overlayTransitionHooks = {
 export function holdOverlayEntrance(): void {
   if (entranceTimer !== undefined) clearTimeout(entranceTimer)
   entranceEpoch += 1
+  entranceHeld.value = true
   document.documentElement.setAttribute(ENTRANCE_HELD_ATTRIBUTE, '')
   entranceTimer = setTimeout(releaseOverlayEntrance, OVERLAY_ENTRANCE_HOLD_MS)
 }
@@ -116,6 +121,7 @@ export function overlayEntranceEpoch(): number {
 export function releaseOverlayEntrance(): void {
   if (entranceTimer !== undefined) clearTimeout(entranceTimer)
   entranceTimer = undefined
+  entranceHeld.value = false
   document.documentElement.removeAttribute(ENTRANCE_HELD_ATTRIBUTE)
 }
 
