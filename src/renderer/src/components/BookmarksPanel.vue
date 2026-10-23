@@ -16,6 +16,7 @@ import IconStarOutline from '~icons/material-symbols/star-outline-rounded'
 import type { BrowserBookmark, HronautBookmarkCollectionsApi, PanelDock } from '../../../shared/types.js'
 import { useBookmarksPanelController } from '../composables/useBookmarksPanelController.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
+import { asMiddleClick, openClickTab } from '../open-click.js'
 import BookmarkCollectionsToolbar from './BookmarkCollectionsToolbar.vue'
 import { useBookmarkCollectionsController } from '../composables/useBookmarkCollectionsController.js'
 import PanelDockPicker from './PanelDockPicker.vue'
@@ -85,6 +86,31 @@ const {
   openBookmarkInBackground: props.openBookmarkInBackground,
   translate: (key) => t(key)
 })
+
+const mac = window.hronautShell?.windowChrome?.platform === 'darwin'
+
+/**
+ * A middle-click or Ctrl+click (⌘-click on a Mac) on a bookmark opens it in a new tab behind and keeps the list open,
+ * as in Chrome; with Shift it opens in front, as a click does. The bookmark is disabled until it has opened, and
+ * Chromium then drops its focus, so it gets the focus back, or Search or Close when it can no longer be used, unless you
+ * have moved the focus, gone to the website or another app, or closed the panel meanwhile.
+ */
+async function clickBookmark(event: MouseEvent, bookmark: BrowserBookmark): Promise<void> {
+  if (openClickTab(event, mac) !== 'new-background-tab') return openEntry(bookmark)
+  const generation = focusGeneration
+  const panel = panelRoot.value
+  const focused = event.currentTarget instanceof HTMLElement && document.activeElement === event.currentTarget
+    ? event.currentTarget : null
+  await openInBackground(bookmark)
+  await nextTick()
+  if (!focused || !panel || generation !== focusGeneration || !open.value || panel !== panelRoot.value || !panel.isConnected) return
+  if (!document.hasFocus() || (document.activeElement !== document.body && document.activeElement !== focused)) return
+  const target = [focused,
+    panel.querySelector<HTMLInputElement>('.bookmark-search-field input'),
+    panel.querySelector<HTMLButtonElement>('.panel-close')
+  ].find(element => element?.isConnected && !element.matches(':disabled'))
+  target?.focus()
+}
 
 const collectionController = useBookmarkCollectionsController({
   api: props.collectionsApi, open, blocked: computed(() => pendingAction.value !== null), translate: (key) => t(key)
@@ -344,7 +370,8 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
             <span>{{ editingDestination ? bookmark.title : bookmark.url }}</span>
           </span>
         </div>
-        <UiButton appearance="application" v-else class="bookmark-open" type="button" v-tooltip="bookmark.url" :disabled="anyPending" @click="openEntry(bookmark)">
+        <UiButton appearance="application" v-else class="bookmark-open" type="button" v-tooltip="bookmark.url" :disabled="anyPending"
+          @keydown="ignoreHeldEnter" @click="clickBookmark($event, bookmark)" @auxclick="asMiddleClick($event, (click) => clickBookmark(click, bookmark))">
           <span class="bookmark-site-icon" aria-hidden="true"><IconLanguage /></span>
           <span class="bookmark-copy">
             <strong>{{ bookmark.title }}</strong>

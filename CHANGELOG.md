@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- A middle-click or **Ctrl+click** (**Cmd+click** on a Mac) on a bookmark in **Bookmarks** or a page in **Browsing history** now opens it in a new tab behind and keeps the panel open, as in Chrome, and with **Shift** held opens it in front. These clicks opened it in front and closed the panel like a plain click, so opening several took the **Open in background tab** button each time.
+
 ## [3.6.0] - 2026-10-23
 
 ### Changed
