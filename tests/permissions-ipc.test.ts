@@ -18,13 +18,12 @@ afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
-/** The permissions bridge over a store that holds one widget decision of each scope. */
+/** The permissions bridge over a store that holds a widget decision for its own page and one embedded in a page. */
 async function createBridge() {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-permissions-ipc-test-'))
   temporaryDirectories.push(directory)
   const store = new SitePermissionStore(join(directory, 'site-permissions.json'))
   await store.load()
-  await store.set(origin, 'geolocation', 'allow')
   await store.set(origin, 'geolocation', 'allow', { workspaceId: WORK })
   await store.set(origin, 'geolocation', 'allow', { workspaceId: WORK, embeddedIn: page })
   const handlers = new Map<string, (...args: unknown[]) => unknown>()
@@ -43,22 +42,19 @@ describe('permissions bridge', () => {
     const { store, invoke } = await createBridge()
     await expect(invoke('permissions:set', origin, 'geolocation', 'deny', { workspaceId: WORK, embeddedIn: `${page}/room?id=7` }))
       .resolves.toEqual({ origin, permission: 'geolocation', decision: 'deny', workspaceId: WORK, embeddedIn: page })
-    expect(store.list().map((entry) => entry.decision)).toEqual(['allow', 'allow', 'deny'])
+    expect(store.list().map((entry) => entry.decision)).toEqual(['allow', 'deny'])
 
     await expect(invoke('permissions:remove', origin, 'geolocation', { workspaceId: WORK })).resolves.toBe(true)
-    expect(store.list()).toEqual([
-      { origin, permission: 'geolocation', decision: 'allow' },
-      { origin, permission: 'geolocation', decision: 'deny', workspaceId: WORK, embeddedIn: page }
-    ])
-    // No scope names the decision saved before decisions had one, as the bridge always did.
-    await expect(invoke('permissions:remove', origin, 'geolocation')).resolves.toBe(true)
     expect(store.list()).toEqual([{ origin, permission: 'geolocation', decision: 'deny', workspaceId: WORK, embeddedIn: page }])
+    await expect(invoke('permissions:list')).resolves.toEqual(store.list())
   })
 
   it.each([
     ['a scope that is not an object', 'workspace'],
     ['a list', [WORK]],
+    ['no scope', undefined],
     ['null', null],
+    ['an empty scope', {}],
     ['an unknown field', { workspaceId: WORK, tabId: 'tab' }],
     ['a workspace id of another form', { workspaceId: 'work' }],
     ['a workspace id that is not a version 7 UUID', { workspaceId: '01912345-6789-4abc-8def-0123456789ab' }],
@@ -68,7 +64,7 @@ describe('permissions bridge', () => {
     ['an embedding site that is not a website', { workspaceId: WORK, embeddedIn: 'file:///home/person/page.html' }],
     ['an embedding site that is not text', { workspaceId: WORK, embeddedIn: { origin: page } }]
   ])('refuses %s without changing any decision', async (_name, scope) => {
-    // The bridge used to ignore anything after the decision, so a malformed scope changed the legacy decision.
+    // Every decision belongs to a workspace, so a change or Forget that names none, or a malformed one, names no decision.
     const { store, invoke, publishSitePermissions } = await createBridge()
     const before = store.list()
     await expect(invoke('permissions:set', origin, 'geolocation', 'deny', scope)).rejects.toThrow(TypeError)
@@ -81,24 +77,17 @@ describe('permissions bridge', () => {
     const { store, invoke } = await createBridge()
     const before = store.list()
     await expect(invoke('permissions:set', 'hronaut://home', 'geolocation', 'deny', { workspaceId: WORK })).rejects.toThrow('HTTP or HTTPS origin')
-    await expect(invoke('permissions:set', origin, 7, 'deny')).rejects.toThrow(TypeError)
+    await expect(invoke('permissions:set', origin, 7, 'deny', { workspaceId: WORK })).rejects.toThrow(TypeError)
+    await expect(invoke('permissions:set', origin, 'media', 'allow', { workspaceId: WORK })).rejects.toThrow('permission name')
     await expect(invoke('permissions:set', origin, 'geolocation', 'always', { workspaceId: WORK })).rejects.toThrow(TypeError)
-    await expect(invoke('permissions:remove', 'javascript:alert(1)', 'geolocation')).rejects.toThrow('HTTP or HTTPS origin')
+    await expect(invoke('permissions:remove', 'javascript:alert(1)', 'geolocation', { workspaceId: WORK })).rejects.toThrow('HTTP or HTTPS origin')
     expect(store.list()).toEqual(before)
   })
 
-  it('changes a decision for all workspaces but never creates one', async () => {
-    // A change that named no workspace saved a decision that applied in every workspace, even when none was saved.
-    const { store, invoke, publishSitePermissions } = await createBridge()
-    await expect(invoke('permissions:set', origin, 'geolocation', 'deny')).resolves.toEqual({ origin, permission: 'geolocation', decision: 'deny' })
-    expect(publishSitePermissions).toHaveBeenCalledOnce()
-    const before = store.list()
-    await expect(invoke('permissions:set', origin, 'notifications', 'allow')).rejects.toThrow('no longer saved')
-    await expect(invoke('permissions:set', page, 'geolocation', 'allow', undefined)).rejects.toThrow('no longer saved')
-    expect(store.list()).toEqual(before)
-    expect(publishSitePermissions).toHaveBeenCalledOnce()
-    // A decision for a workspace is created as before, as Site controls does for the tab's workspace.
+  it('creates a decision for the workspace a change names', async () => {
+    const { invoke, publishSitePermissions } = await createBridge()
     await expect(invoke('permissions:set', origin, 'notifications', 'allow', { workspaceId: WORK }))
       .resolves.toEqual({ origin, permission: 'notifications', decision: 'allow', workspaceId: WORK })
+    expect(publishSitePermissions).toHaveBeenCalledOnce()
   })
 })
