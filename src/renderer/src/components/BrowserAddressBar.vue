@@ -70,6 +70,10 @@ const {
   suggestionMeta,
   handleFocus,
   handleInput,
+  handlePaste,
+  handleDragStart,
+  handleDragEnd,
+  handleDrop,
   handleFocusOut,
   handleKeydown,
   submit
@@ -179,6 +183,10 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       :placeholder="t('shell.toolbar.addressPlaceholder')"
       @focus="handleFocus"
       @input="handleInput"
+      @paste="handlePaste"
+      @dragstart="handleDragStart"
+      @dragend="handleDragEnd"
+      @drop="handleDrop"
       @keydown="handleKeydown"
     />
     <span v-if="activeTab?.emulationState" class="emulation-pill" role="status" v-tooltip="t('emulationApplication.help')">

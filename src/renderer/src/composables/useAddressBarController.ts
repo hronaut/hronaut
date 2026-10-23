@@ -1,5 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, type ComputedRef, type Ref } from 'vue'
 import { useResizeObserver } from '@vueuse/core'
+import { addressPasteText } from '../../../shared/address-paste.js'
 import type { AddressSuggestion, AddressSuggestionOverlayRequest, AddressSuggestionOverlayTheme, AddressSuggestionSelection } from '../../../shared/address-suggestions.js'
 import { buildLocalAddressSuggestions, historySuggestionEntryId } from '../../../shared/address-suggestions.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
@@ -89,6 +90,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     address: string
   } | null = null
   let disposed = false
+  let draggingFromField = false
 
   function suggestionId(suggestion: AddressSuggestion): string {
     return `address-suggestion-${suggestion.id}`
@@ -159,6 +161,42 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     editing.value = true
     dirty.value = true
     openSuggestions()
+  }
+
+  // A paste reads as Chrome's address bar reads one (see address-paste.ts): an address split over lines arrives whole,
+  // and a leading javascript: is dropped, so text copied from a page never runs as script from the address bar.
+  function handlePaste(event: ClipboardEvent): void {
+    const pasted = event.clipboardData?.getData('text/plain') ?? ''
+    const text = addressPasteText(pasted)
+    const field = input.value
+    if (disposed || text === pasted || !field) return
+    event.preventDefault()
+    if (!text) return
+    // insertText keeps the paste on the field's undo stack and reports it as input, as a plain paste does.
+    if (typeof document.execCommand === 'function' && document.execCommand('insertText', false, text)) return
+    field.setRangeText(text, field.selectionStart ?? field.value.length, field.selectionEnd ?? field.value.length, 'end')
+    field.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+
+  // Text dragged within the field is its own, so it moves as the field moves it.
+  function handleDragStart(): void {
+    draggingFromField = true
+  }
+
+  function handleDragEnd(): void {
+    draggingFromField = false
+  }
+
+  // Text dropped from elsewhere is read as a paste. Text that needs nothing dropped lands where the field puts it; other
+  // text replaces the field's text, as a drop does in Chrome's address bar, so a dropped javascript: never runs.
+  function handleDrop(event: DragEvent): void {
+    const dropped = event.dataTransfer?.getData('text/plain') ?? ''
+    const text = addressPasteText(dropped)
+    if (disposed || draggingFromField || text === dropped) return
+    event.preventDefault()
+    if (!text) return
+    address.value = text
+    handleInput()
   }
 
   function finishBlur(): void {
@@ -479,6 +517,10 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     close,
     handleFocus,
     handleInput,
+    handlePaste,
+    handleDragStart,
+    handleDragEnd,
+    handleDrop,
     handleFocusOut,
     handleKeydown,
     submit,
