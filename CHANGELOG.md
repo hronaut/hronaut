@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-10-23
+
 ### Changed
 
 - `browser_new_tab`'s description now tells agents it answers while the new tab's page may still be loading, and to wait for it with `browser_wait` before clicking, pressing keys or reading the page, which an action meeting the first load's commit is rejected for. The starter workflows that open a page and then inspect it now wait for it the same way.
