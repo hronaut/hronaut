@@ -674,3 +674,32 @@ it('names transfer failures for the panel while agents keep reading the same mes
   expect([notActive.key, notActive.message]).toEqual(['appErrors.downloads.notActive', `Active download not found: ${id}`])
   expect(translate('de-DE', notActive.key)).toBe('Dieser Download ist bereits beendet oder abgebrochen.')
 })
+
+it('settles when the downloads of a session that have not ended do, for a closed workspace to delete the rest of its storage', async () => {
+  const { controller, session, download } = await fixture()
+  const otherSession = new EventEmitter()
+  controller.attachSession(otherSession as Session)
+  expect(controller.downloadsEnd(session as Session)).toBeUndefined()
+
+  download().complete()
+  expect(controller.downloadsEnd(session as Session)).toBeUndefined()
+  const receiving = download()
+  const paused = download(2)
+  paused.pause()
+  const interrupted = download()
+  interrupted.interrupt()
+  // A paused download, and one Chromium can resume, can still be resumed, so they are waited for too; another
+  // session's are not.
+  expect(controller.downloadsEnd(otherSession as Session)).toBeUndefined()
+  let ended = false
+  const end = controller.downloadsEnd(session as Session)!.then(() => { ended = true })
+  const turn = () => new Promise<void>((resolve) => { setImmediate(resolve) })
+  receiving.complete()
+  paused.cancel()
+  await turn()
+  expect(ended).toBe(false)
+  interrupted.cancel()
+  await end
+  expect(ended).toBe(true)
+  expect(controller.downloadsEnd(session as Session)).toBeUndefined()
+})
