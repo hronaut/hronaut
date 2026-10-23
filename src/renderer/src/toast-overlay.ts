@@ -74,7 +74,7 @@ function render(state: ToastOverlayState): void {
   currentId = state.toast.id
   currentRevision = state.revision
   document.documentElement.dataset.theme = state.theme
-  overlayRoot.style.width = `${state.width + 20}px`
+  overlayRoot.style.width = `${state.width}px`
 
   const { toast, focus } = state
   const element = document.createElement('div')

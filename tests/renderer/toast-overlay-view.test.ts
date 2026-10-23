@@ -47,8 +47,8 @@ describe('toast overlay view', () => {
     expect(toast.querySelector('svg path')?.getAttribute('fill')).toBe('currentColor')
     expect(toast.dataset.opening).toBe('true')
     expect(document.documentElement.dataset.theme).toBe('dark')
-    // The toast plus 10 px of shadow room on each side.
-    expect(document.querySelector<HTMLElement>('#toast-overlay-root')?.style.width).toBe('580px')
+    // The toast's own width: the view has no room around it, where the page got no clicks.
+    expect(document.querySelector<HTMLElement>('#toast-overlay-root')?.style.width).toBe('560px')
     expect(view.measured).toEqual([{ revision: 1, height: 41 }])
     // Only the shell's copy is in the accessibility tree and keyboard order.
     expect(document.querySelector('#toast-overlay-root')?.getAttribute('aria-hidden')).toBe('true')

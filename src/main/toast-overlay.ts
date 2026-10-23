@@ -3,7 +3,6 @@ import {
   TOAST_OVERLAY_MAX_HEIGHT,
   TOAST_OVERLAY_MAX_WIDTH,
   TOAST_OVERLAY_MIN_WIDTH,
-  TOAST_OVERLAY_SHADOW_ROOM,
   type ToastOverlayEvent,
   type ToastOverlayMeasurement,
   type ToastOverlayMessage,
@@ -66,27 +65,22 @@ export function toastOverlayWidth(areaWidth: number): number {
 /** The toast's width in this layout, in CSS pixels; 0 when the page area is too narrow or too short for it. */
 function fit(layout: ToastOverlayLayout | null): number {
   if (!layout) return 0
-  if (layout.area.height / layout.zoom < TOAST_OVERLAY_MAX_HEIGHT + TOAST_OVERLAY_EDGE + TOAST_OVERLAY_SHADOW_ROOM) return 0
+  if (layout.area.height / layout.zoom < TOAST_OVERLAY_MAX_HEIGHT + TOAST_OVERLAY_EDGE) return 0
   return toastOverlayWidth(layout.area.width / layout.zoom)
 }
 
 /**
- * The view's box for a toast of `size` centered at the bottom of `area`, `edge` above its bottom edge, with `room`
- * around the toast for its shadow. All in window coordinates.
+ * The view's box for a toast of `size` centered at the bottom of `area`, `edge` above its bottom edge, all in window
+ * coordinates. The view is the toast's own box and no larger: the page around it keeps its clicks and wheel.
  */
-export function placeToastOverlay(area: ShellTooltipRect, size: { width: number; height: number }, edge: number, room: number): ShellTooltipRect {
+export function placeToastOverlay(area: ShellTooltipRect, size: { width: number; height: number }, edge: number): ShellTooltipRect {
   const x = area.x + (area.width - size.width) / 2
   const y = area.y + area.height - edge - size.height
-  return {
-    x: Math.round(x - room),
-    y: Math.round(y - room),
-    width: Math.ceil(size.width + room * 2),
-    height: Math.ceil(size.height + room * 2)
-  }
+  return { x: Math.round(x), y: Math.round(y), width: Math.ceil(size.width), height: Math.ceil(size.height) }
 }
 
 /**
- * Shows the shell's one toast at the bottom of the page area, in a transparent native view above the page views, so
+ * Shows the shell's one toast at the bottom of the page area, in a native view of its own box above the page views, so
  * it covers no tab, toolbar command or address field. The shell sends the toast; the view lays it out at the width
  * main picks and measures it; main places it and reports back what the person does with it.
  */
@@ -249,13 +243,11 @@ export class ToastOverlay {
       this.unavailable(shown)
       return
     }
-    const room = TOAST_OVERLAY_SHADOW_ROOM * layout.zoom
     // The size the view laid the toast out at; a newer page area that needs another width is laid out again first.
     const bounds = placeToastOverlay(
       layout.area,
       { width: shown.width * shown.zoom, height: shown.height * shown.zoom },
-      TOAST_OVERLAY_EDGE * layout.zoom,
-      room
+      TOAST_OVERLAY_EDGE * layout.zoom
     )
     if (!this.present(shown, surface, bounds)) return
     shown.presented = true

@@ -209,11 +209,11 @@ for (const width of [1320, 960, 760]) {
     expect(view.topmost).toBe(true)
     expect(chrome.toolbar).toBeGreaterThan(chrome.strip)
     expect(view.bounds.y).toBeGreaterThanOrEqual(chrome.toolbar)
-    // 16 px above the page area's bottom edge, less the 10 px of shadow room, and centered over it.
+    // 16 px above the page area's bottom edge and centered over it, in a view no larger than the toast.
     const page = await activePageBounds(electronApp, appWindow)
-    expect(view.bounds.y + view.bounds.height).toBe(page.y + page.height - 6)
+    expect(view.bounds.y + view.bounds.height).toBe(page.y + page.height - 16)
     expect(Math.abs(view.bounds.x + view.bounds.width / 2 - (page.x + page.width / 2))).toBeLessThanOrEqual(1)
-    expect(view.bounds.width).toBe(Math.min(560, page.width - 32) + 20)
+    expect(view.bounds.width).toBe(Math.min(560, page.width - 32))
     await appWindow.getByRole('tab', { name: /^Strip first/ }).click()
     await expect.poll(async () => (await state(appWindow)).tabs.find((tab) => tab.active)?.url).toContain('first')
     // Typing in the page goes on there after a click on the toast.
@@ -272,12 +272,12 @@ test('shows the toast beside the tab rail, scaled with the interface, and in the
     const view = (await toastView(app))!
     const rail = await appWindow.evaluate(() => document.querySelector('.topbar')!.getBoundingClientRect().right * 1.25)
     const page = await activePageBounds(app, appWindow)
-    // Right of the rail, centered over the page, at the interface scale: 560 CSS px plus room is 725 window px.
+    // Right of the rail, centered over the page, at the interface scale: 560 CSS px is 700 window px.
     expect(page.x).toBeGreaterThanOrEqual(rail)
     expect(view.bounds.x).toBeGreaterThanOrEqual(page.x)
-    expect(view.bounds.width).toBe(Math.ceil((560 + 20) * 1.25))
+    expect(view.bounds.width).toBe(Math.ceil(560 * 1.25))
     expect(Math.abs(view.bounds.x + view.bounds.width / 2 - (page.x + page.width / 2))).toBeLessThanOrEqual(1)
-    expect(Math.abs(view.bounds.y + view.bounds.height - (page.y + page.height - 6 * 1.25))).toBeLessThanOrEqual(1)
+    expect(Math.abs(view.bounds.y + view.bounds.height - (page.y + page.height - 16 * 1.25))).toBeLessThanOrEqual(1)
 
     // Focus goes back to a page only while it shows: after a switch to another tab under the pointer, a click on the
     // toast leaves it with the page shown now or with Hronaut's own controls, never with the hidden one.

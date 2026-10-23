@@ -19,8 +19,6 @@ export type ToastOverlayMessageKind = 'act' | 'dismiss' | 'retain' | 'release'
 export const TOAST_OVERLAY_MAX_WIDTH = 560
 /** Tallest toast main draws, in CSS pixels; the view caps its own box to the same height. */
 export const TOAST_OVERLAY_MAX_HEIGHT = 64
-/** Transparent room the view keeps around the toast for its shadow, in CSS pixels. */
-export const TOAST_OVERLAY_SHADOW_ROOM = 10
 /** Distance from the bottom and sides of the page area, in CSS pixels. */
 export const TOAST_OVERLAY_EDGE = 16
 /** The narrowest page area a toast still fits in, in CSS pixels. */
@@ -51,7 +49,7 @@ export interface ToastOverlayState {
   toast: ToastOverlayToast
   focus: ToastOverlayFocus | null
   theme: ResolvedThemeName
-  /** CSS pixels, without the shadow room. */
+  /** CSS pixels; the view is exactly as wide as the toast. */
   width: number
 }
 
