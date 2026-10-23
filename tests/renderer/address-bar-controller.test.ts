@@ -31,6 +31,7 @@ function createHarness(options: {
   bookmarks?: BrowserBookmark[]
   history?: BrowserHistoryEntry[]
   onNavigate?: (address: string) => Promise<void>
+  onRemoveVisit?: (entryId: string) => Promise<unknown>
   selectedUnsubscribe?: () => void
   dismissedRegistrationError?: Error
 } = {}) {
@@ -40,6 +41,8 @@ function createHarness(options: {
   const onOpen = vi.fn()
   const onNavigate = vi.fn(options.onNavigate ?? (async () => undefined))
   const onFocusLeft = vi.fn()
+  const onRemoveVisit = vi.fn(options.onRemoveVisit ?? (async () => undefined))
+  const onRemoveVisitFailed = vi.fn()
   let selectedListener: ((selection: AddressSuggestionSelection) => void) | undefined
   let dismissedListener: ((sessionId: number) => void) | undefined
   const unsubscribeSelected = vi.fn(options.selectedUnsubscribe ?? (() => undefined))
@@ -77,6 +80,8 @@ function createHarness(options: {
         onOpen,
         onNavigate,
         onOpenInNewTab: vi.fn(async () => undefined),
+        onRemoveVisit,
+        onRemoveVisitFailed,
         onFocusLeft
       })
       return controller
@@ -98,6 +103,8 @@ function createHarness(options: {
     onOpen,
     onNavigate,
     onFocusLeft,
+    onRemoveVisit,
+    onRemoveVisitFailed,
     unsubscribeSelected,
     unsubscribeDismissed,
     selectOverlay: (suggestionId: string, sessionId = overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0) => selectedListener?.({ sessionId, suggestionId }),
@@ -106,6 +113,23 @@ function createHarness(options: {
 }
 
 afterEach(() => vi.useRealTimers())
+
+function visit(id: string): BrowserHistoryEntry {
+  return { id, title: `Page ${id}`, url: `https://${id}.example/`, visitedAt: '2026-09-28T00:00:00.000Z', visitCount: 1 }
+}
+
+function shiftDelete(init: KeyboardEventInit = {}): KeyboardEvent {
+  return new KeyboardEvent('keydown', { key: 'Delete', shiftKey: true, cancelable: true, ...init })
+}
+
+/** Opens the suggestions for an empty address and highlights the row this many Down presses reach. */
+async function highlight(presses: number): Promise<HTMLElement> {
+  const input = screen.getByRole('textbox', { name: 'Address' })
+  await fireEvent.focus(input)
+  await fireEvent.update(input, '')
+  for (let press = 0; press < presses; press++) await fireEvent.keyDown(input, { key: 'ArrowDown' })
+  return input
+}
 
 describe('address bar controller', () => {
   it('keeps the selected destination when live history reorders suggestions', async () => {
@@ -142,6 +166,134 @@ describe('address bar controller', () => {
     rendered.history.value = [{ ...entry, id: 'replacement' }]
     expect(rendered.controller.selection.value).toBe(-1)
     expect(rendered.controller.selected.value).toBeUndefined()
+  })
+
+  it('forgets the highlighted visit with Shift+Delete and highlights the row in its place at once, as in Chrome', async () => {
+    // Chrome's address bar forgets a suggested visit with Shift+Delete; Hronaut's kept every visit it suggested.
+    const rendered = createHarness({ history: [visit('first'), visit('second'), visit('third')] })
+    await highlight(2)
+    expect(rendered.controller.selected.value?.id).toBe('history:second')
+
+    const forget = shiftDelete()
+    rendered.controller.handleKeydown(forget)
+    expect(forget.defaultPrevented).toBe(true)
+    expect(rendered.onRemoveVisit).toHaveBeenCalledExactlyOnceWith('second')
+    // The row leaves before history saves the change, so Enter opens the row in its place.
+    expect(rendered.controller.suggestions.value.map(suggestion => suggestion.id)).toEqual(['history:first', 'history:third'])
+    expect(rendered.controller.selected.value?.id).toBe('history:third')
+    rendered.history.value = [visit('first'), visit('third')]
+    expect(rendered.controller.selected.value?.id).toBe('history:third')
+    rendered.controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }))
+    await nextTick()
+    expect(rendered.onNavigate).toHaveBeenCalledWith('https://third.example/')
+  })
+
+  it('forgets one visit for a held key and leaves the text alone while it repeats', async () => {
+    const bookmark: BrowserBookmark = { id: 'saved', title: 'Page saved', url: 'https://saved.example/', createdAt: '2026-09-28T00:00:00.000Z', updatedAt: '2026-09-28T00:00:00.000Z' }
+    const rendered = createHarness({ history: [visit('first')], bookmarks: [bookmark] })
+    await highlight(1)
+    rendered.controller.handleKeydown(shiftDelete())
+    // The bookmark takes the visit's place; the key's repeats neither forget more nor cut the text.
+    expect(rendered.controller.selected.value?.id).toBe('bookmark:saved')
+    const repeat = shiftDelete({ repeat: true })
+    rendered.controller.handleKeydown(repeat)
+    expect(repeat.defaultPrevented).toBe(true)
+    expect(rendered.onRemoveVisit).toHaveBeenCalledOnce()
+
+    // A repeat of a key that forgot nothing edits the text as usual.
+    const fresh = shiftDelete()
+    rendered.controller.handleKeydown(fresh)
+    const repeatAfterBookmark = shiftDelete({ repeat: true })
+    rendered.controller.handleKeydown(repeatAfterBookmark)
+    expect([fresh.defaultPrevented, repeatAfterBookmark.defaultPrevented]).toEqual([false, false])
+  })
+
+  it('swallows the repeats once the last visit is forgotten and the list closes', async () => {
+    const rendered = createHarness({ history: [visit('only')] })
+    await highlight(1)
+    rendered.controller.handleKeydown(shiftDelete())
+    expect(rendered.controller.suggestions.value).toEqual([])
+    expect(rendered.controller.selection.value).toBe(-1)
+    const repeat = shiftDelete({ repeat: true })
+    rendered.controller.handleKeydown(repeat)
+    expect(repeat.defaultPrevented).toBe(true)
+  })
+
+  it('keeps the highlight on the row in place of the forgotten visit when a new visit arrives first', async () => {
+    let settle!: () => void
+    const rendered = createHarness({
+      history: [visit('first'), visit('second'), visit('third')],
+      onRemoveVisit: () => new Promise<void>(resolve => { settle = resolve })
+    })
+    await highlight(2)
+    rendered.controller.handleKeydown(shiftDelete())
+    // An agent's visit lands while history saves the change, and then the change itself.
+    rendered.history.value = [visit('new'), visit('first'), visit('second'), visit('third')]
+    expect(rendered.controller.selected.value?.id).toBe('history:third')
+    rendered.history.value = [visit('new'), visit('first'), visit('third')]
+    settle()
+    await nextTick()
+    expect(rendered.controller.selected.value?.id).toBe('history:third')
+  })
+
+  it('keeps bookmarks, unhighlighted rows, plain Delete and other modifiers for editing the address', async () => {
+    const bookmark: BrowserBookmark = { id: 'saved', title: 'Page saved', url: 'https://saved.example/', createdAt: '2026-09-28T00:00:00.000Z', updatedAt: '2026-09-28T00:00:00.000Z' }
+    const rendered = createHarness({ history: [visit('first')], bookmarks: [bookmark] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, '')
+    const unhighlighted = shiftDelete()
+    rendered.controller.handleKeydown(unhighlighted)
+    await fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(rendered.controller.selected.value?.id).toBe('history:first')
+    const kept = [
+      new KeyboardEvent('keydown', { key: 'Delete', cancelable: true }),
+      new KeyboardEvent('keydown', { key: 'Backspace', shiftKey: true, cancelable: true }),
+      shiftDelete({ ctrlKey: true }),
+      shiftDelete({ altKey: true }),
+      shiftDelete({ metaKey: true })
+    ]
+    for (const event of kept) rendered.controller.handleKeydown(event)
+    await fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(rendered.controller.selected.value?.id).toBe('bookmark:saved')
+    const onBookmark = shiftDelete()
+    rendered.controller.handleKeydown(onBookmark)
+    expect([unhighlighted, ...kept, onBookmark].map(event => event.defaultPrevented)).toEqual([false, false, false, false, false, false, false])
+    expect(rendered.onRemoveVisit).not.toHaveBeenCalled()
+    expect(rendered.controller.suggestions.value).toHaveLength(2)
+  })
+
+  it('brings a visit it could not forget back and reports it, keeping the highlight the person moved to', async () => {
+    const failure = new Error('history file is read-only')
+    let fail!: () => void
+    const rendered = createHarness({
+      history: [visit('first'), visit('kept'), visit('third')],
+      onRemoveVisit: () => new Promise<void>((_resolve, reject) => { fail = () => reject(failure) })
+    })
+    const input = await highlight(2)
+    rendered.controller.handleKeydown(shiftDelete())
+    expect(rendered.controller.selected.value?.id).toBe('history:third')
+    await fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(rendered.controller.selected.value?.id).toBe('history:first')
+
+    fail()
+    await waitFor(() => expect(rendered.onRemoveVisitFailed).toHaveBeenCalledWith(failure))
+    expect(rendered.controller.suggestions.value.map(suggestion => suggestion.id)).toEqual(['history:first', 'history:kept', 'history:third'])
+    expect(rendered.controller.selected.value?.id).toBe('history:first')
+  })
+
+  it('reports nothing for a visit it could not forget once the address bar is gone', async () => {
+    let fail!: () => void
+    const rendered = createHarness({
+      history: [visit('first')],
+      onRemoveVisit: () => new Promise<void>((_resolve, reject) => { fail = () => reject(new Error('late')) })
+    })
+    await highlight(1)
+    rendered.controller.handleKeydown(shiftDelete())
+    rendered.view.unmount()
+    fail()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(rendered.onRemoveVisitFailed).not.toHaveBeenCalled()
   })
 
   it('keeps a submitted address visible until the current tab commits navigation', async () => {

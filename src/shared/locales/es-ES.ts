@@ -865,6 +865,7 @@ export const esES = {
       "addressNewTab": "Abrir lo escrito en la barra de direcciones en una pestaña nueva",
       "addressBackgroundTab": "Abrir lo escrito en la barra de direcciones en una pestaña nueva en segundo plano",
       "addressWwwCom": "Añadir www. y .com al nombre del sitio escrito en la barra de direcciones y abrirlo",
+      "addressForgetVisit": "Quitar la visita resaltada de las sugerencias de la barra de direcciones y del historial",
       "viewSource": "Ver el código fuente de la página",
       "back": "Volver a la página anterior",
       "forward": "Ir a la página siguiente",

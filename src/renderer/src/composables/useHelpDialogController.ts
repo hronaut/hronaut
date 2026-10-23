@@ -27,6 +27,7 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.addressNewTab'), keys: mac ? ['Option', 'Return'] : ['Alt', 'Enter'] },
     { label: options.translate('runtime.shortcuts.addressBackgroundTab'), keys: mac ? ['Cmd', 'Return'] : ['Alt', 'Shift', 'Enter'] },
     { label: options.translate('runtime.shortcuts.addressWwwCom'), keys: mac ? ['Control', 'Return'] : ['Ctrl', 'Enter'] },
+    { label: options.translate('runtime.shortcuts.addressForgetVisit'), keys: mac ? ['Shift', 'Fn', 'Delete'] : ['Shift', 'Delete'] },
     { label: options.translate('runtime.shortcuts.back'), keys: mac ? ['Cmd', '['] : ['Alt', '←'] },
     { label: options.translate('runtime.shortcuts.forward'), keys: mac ? ['Cmd', ']'] : ['Alt', '→'] },
     { label: options.translate('runtime.shortcuts.reload'), keys: ['Ctrl/Cmd', 'R'] },

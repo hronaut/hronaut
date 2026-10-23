@@ -865,6 +865,7 @@ export const plPL = {
       "addressNewTab": "Otwórz tekst wpisany w pasku adresu w nowej karcie",
       "addressBackgroundTab": "Otwórz tekst wpisany w pasku adresu w nowej karcie w tle",
       "addressWwwCom": "Dodaj www. i .com do nazwy witryny wpisanej w pasku adresu i ją otwórz",
+      "addressForgetVisit": "Usuń wyróżnioną wizytę z podpowiedzi paska adresu i z historii",
       "viewSource": "Wyświetl źródło strony",
       "back": "Wróć do poprzedniej strony",
       "forward": "Przejdź do następnej strony",

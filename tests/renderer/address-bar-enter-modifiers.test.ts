@@ -46,6 +46,8 @@ function createHarness(history: BrowserHistoryEntry[] = []) {
         onOpen: vi.fn(),
         onNavigate,
         onOpenInNewTab,
+        onRemoveVisit: vi.fn(async () => undefined),
+        onRemoveVisitFailed: vi.fn(),
         onFocusLeft: vi.fn()
       })
       return controller
