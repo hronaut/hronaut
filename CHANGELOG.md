@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 
 - Pasting into the address bar, by key or from its menu, now drops a leading `javascript:` and joins an address split over lines, as Chrome's address bar does, and so does dropping such text on it from a page, which then replaces the field's text, as in Chrome. The text went in as copied, so `javascript:` text copied from a page, pasted and entered, ran as script in the tab.
 - While a notification such as **Tab closed** shows at the bottom of the page, the page now gets clicks and wheel scrolling right beside it. The notification's view kept about 10 px of transparent room around it for a shadow, and that room took the page's clicks and wheel. The notification has no outer shadow now.
+- A panel opened in its own window, such as **Console** or **Network**, now shows Hronaut's themed tooltips on its controls, as the main window does. It showed the operating system's tooltips instead, in the system's colors and font.
 
 ## [3.6.0] - 2026-10-23
 
