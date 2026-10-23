@@ -146,26 +146,6 @@ export function normalizeWorkspaceNavigationPolicy(value: unknown): BrowserWorks
   return { mode: 'restricted', rules }
 }
 
-/**
- * A policy read back from the profile. A rule with a misplaced `*` was accepted before it was refused, and never matched
- * a site, so it is dropped instead of making every saved workspace unreadable; any other invalid rule still fails.
- */
-export function normalizeSavedWorkspaceNavigationPolicy(value: unknown): BrowserWorkspaceNavigationPolicy {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return normalizeWorkspaceNavigationPolicy(value)
-  const candidate = value as Record<string, unknown>
-  if (!Array.isArray(candidate.rules)) return normalizeWorkspaceNavigationPolicy(value)
-  const rules = candidate.rules.filter((rule) => {
-    if (typeof rule !== 'string') return true
-    try {
-      canonicalizeWorkspaceNavigationRule(rule)
-      return true
-    } catch (error) {
-      return !(error instanceof LocalizedError && error.key === 'appErrors.siteAccess.wildcardPlacement')
-    }
-  })
-  return normalizeWorkspaceNavigationPolicy({ ...candidate, rules })
-}
-
 function parseNavigationTarget(value: string): NavigationTarget | null {
   const viewSourcePrefix = 'view-source:'
   const blobPrefix = 'blob:'

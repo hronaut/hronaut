@@ -464,25 +464,6 @@ describe('HistoryStore', () => {
     expect(await readFile(path, 'utf8')).not.toContain('legacy-history-secret')
   })
 
-  it('repairs a truncated credential URL title when the saved address was already sanitized', async () => {
-    const now = Date.UTC(2026, 7, 13)
-    const { path, store } = await storeAt(now)
-    const url = 'https://example.com/private'
-    const privateUrl = `https://person:${'private-history-token-'.repeat(12)}@example.com/private`
-    const credentialTitle = privateUrl.slice(0, 200)
-    expect(normalizeHistoryUrl(privateUrl)).toBe(url)
-    await writeFile(path, JSON.stringify({
-      version: 1,
-      entries: [{
-        id: 'sanitized-address', url, title: credentialTitle,
-        visitedAt: new Date(now).toISOString(), visitCount: 1
-      }]
-    }), 'utf8')
-
-    expect(await store.load()).toEqual([expect.objectContaining({ url, title: url })])
-    expect(await readFile(path, 'utf8')).not.toContain('private-history-token')
-  })
-
   it('supports individual removal and clearing without touching another store', async () => {
     const { path, store } = await storeAt()
     const first = await store.record({ url: 'https://one.example/', title: 'One' })

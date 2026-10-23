@@ -551,48 +551,27 @@ describe('TabStateStore', () => {
     await expect(store.load()).rejects.toBeInstanceOf(WorkspaceMetadataError)
   })
 
-  it('drops saved Site access rules with a misplaced wildcard instead of refusing the saved workspaces', async () => {
+  it.each([
+    ['an open workspace', (state: PersistedBrowserState) => {
+      state.mcpTabGroups![1]!.navigationPolicy = { mode: 'restricted', rules: ['https://shop.example', 'http://*.localhost:*'] }
+    }],
+    ['an archived workspace', (state: PersistedBrowserState) => {
+      state.savedTabGroups![0]!.navigationPolicy = { mode: 'restricted', rules: ['https://a.*.example.com', 'https://docs.example'] }
+    }],
+    ['a public observer', (state: PersistedBrowserState) => {
+      state.mcpTabGroups![1]!.contextClass = 'public-observer'
+      state.mcpTabGroups![1]!.navigationPolicy = { mode: 'restricted', rules: ['https://a.*.example.com'] }
+    }]
+  ])('refuses saved Site access rules with a misplaced wildcard in %s, leaving the file as it is', async (_label, corrupt) => {
     const { path, store } = await createStore()
     const state = currentState()
-    // Rules like these were accepted as written before they were refused, and never matched a site.
-    state.mcpTabGroups![1]!.navigationPolicy = {
-      mode: 'restricted',
-      rules: ['https://shop.example', 'http://*.localhost:*']
-    }
-    state.savedTabGroups![0]!.navigationPolicy = {
-      mode: 'restricted',
-      rules: ['https://a.*.example.com', 'https://docs.example']
-    }
+    corrupt(state)
     await mkdir(join(path, '..'), { recursive: true })
-    await writeFile(path, JSON.stringify(state), 'utf8')
+    const bytes = JSON.stringify(state)
+    await writeFile(path, bytes, 'utf8')
 
-    const loaded = await store.load()
-    expect(loaded?.mcpTabGroups?.[1]?.navigationPolicy).toEqual({ mode: 'restricted', rules: ['https://shop.example'] })
-    expect(loaded?.savedTabGroups?.[0]?.navigationPolicy).toEqual({ mode: 'restricted', rules: ['https://docs.example'] })
-    expect(loaded?.savedTabGroups?.[0]?.tabs).toEqual([{ title: 'Orders', url: 'https://docs.example/orders', pinned: true }])
-    expect(loaded?.tabs.find((tab) => tab.id === ACTIVE_TAB_ID)?.url).toBe('https://shop.example/checkout')
-    // The repair is written back, so the next start reads the rules without them.
-    const rewritten = JSON.parse(await readFile(path, 'utf8')) as PersistedBrowserState
-    expect(rewritten.mcpTabGroups?.[1]?.navigationPolicy?.rules).toEqual(['https://shop.example'])
-    expect(rewritten.savedTabGroups?.[0]?.navigationPolicy?.rules).toEqual(['https://docs.example'])
-  })
-
-  it('keeps a public observer whose saved origin had a misplaced wildcard, limited to no site', async () => {
-    const { path, store } = await createStore()
-    const state = currentState()
-    // An agent could create an observer for this origin, and its one rule never matched a site.
-    state.mcpTabGroups![1]!.contextClass = 'public-observer'
-    state.mcpTabGroups![1]!.navigationPolicy = { mode: 'restricted', rules: ['https://a.*.example.com'] }
-    state.savedTabGroups![0]!.contextClass = 'public-observer'
-    state.savedTabGroups![0]!.navigationPolicy = { mode: 'restricted', rules: ['http://local*host:8080'] }
-    await mkdir(join(path, '..'), { recursive: true })
-    await writeFile(path, JSON.stringify(state), 'utf8')
-
-    // Dropping the rule used to leave the observer without its one origin, which stopped Hronaut from starting.
-    for (const loaded of [await store.load(), await new TabStateStore(path).load()]) {
-      expect(loaded?.mcpTabGroups?.[1]).toMatchObject({ contextClass: 'public-observer', navigationPolicy: { mode: 'restricted', rules: [] } })
-      expect(loaded?.savedTabGroups?.[0]).toMatchObject({ contextClass: 'public-observer', navigationPolicy: { mode: 'restricted', rules: [] } })
-    }
+    await expect(store.load()).rejects.toMatchObject({ reason: 'invalid-schema' })
+    expect(await readFile(path, 'utf8')).toBe(bytes)
   })
 
   it('persists only bounded origin-level denied-navigation audit entries', async () => {
@@ -794,7 +773,7 @@ describe('workspace direct agent access persistence', () => {
   })
 })
 
-describe('discarded obsolete workspace data', () => {
+describe('workspace data from older versions', () => {
   it.each([undefined, 0, 1, 2])('preserves unsupported tab snapshots (version=%s)', async version => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
@@ -803,31 +782,36 @@ describe('discarded obsolete workspace data', () => {
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(JSON.parse(JSON.stringify({ ...currentState(), version })))
   })
 
-  it.each([false, true])('drops base-profile workspaces and tabs while preserving isolated storage (archived=%s)', async archived => {
+  it.each([false, true])('refuses a workspace without its own storage, leaving the file as it is (archived=%s)', async archived => {
     const { path, store } = await createStore()
     const state = currentState()
-    const owner = state.mcpTabGroups![0]!
-    const obsolete = { ...owner, storageId: undefined }
-    if (archived) {
-      state.mcpTabGroups!.shift()
-      state.savedTabGroups!.push({ ...obsolete, savedAt: owner.lastUsedAt, tabs: [{ title: 'Old tab', url: 'https://old.example' }] } as never)
-    } else {
-      state.mcpTabGroups![0] = obsolete as never
-      state.tabs.push({ id: SAVED_WORKSPACE_ID, mcpGroupId: owner.id, title: 'Old tab', url: 'https://old.example' })
-      state.activeTabId = SAVED_WORKSPACE_ID
-      state.splitView = { firstTabId: ACTIVE_TAB_ID, secondTabId: SAVED_WORKSPACE_ID, orientation: 'horizontal', ratio: 0.5 }
-    }
+    if (archived) delete (state.savedTabGroups![0] as { storageId?: string }).storageId
+    else delete (state.mcpTabGroups![1] as { storageId?: string }).storageId
     await mkdir(join(path, '..'), { recursive: true })
-    await writeFile(path, JSON.stringify({ ...state, defaultHumanGroupId: owner.id }))
-    const loaded = await store.load()
-    expect(loaded).not.toBeNull()
-    expect(loaded?.mcpTabGroups?.map(group => group.id)).toEqual([ACTIVE_WORKSPACE_ID])
-    expect(loaded?.savedTabGroups?.map(group => group.id)).toEqual([SAVED_WORKSPACE_ID])
-    expect(loaded?.mcpTabGroups?.[0]?.storageId).toBe(ACTIVE_STORAGE_ID)
-    expect(loaded?.tabs.every(tab => tab.mcpGroupId !== owner.id)).toBe(true)
-    expect(loaded).not.toHaveProperty('defaultHumanGroupId')
-    expect(await store.load()).toEqual(loaded)
-    expect(await readFile(path, 'utf8')).not.toContain('old.example')
+    const bytes = JSON.stringify(state)
+    await writeFile(path, bytes)
+    await expect(store.load()).rejects.toMatchObject({ reason: 'invalid-schema' })
+    expect(await readFile(path, 'utf8')).toBe(bytes)
+  })
+
+  it.each([false, true])('refuses a workspace without a context class (archived=%s)', async archived => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    if (archived) delete state.savedTabGroups![0]!.contextClass
+    else delete state.mcpTabGroups![1]!.contextClass
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state))
+    await expect(store.load()).rejects.toMatchObject({ reason: 'invalid-schema' })
+  })
+
+  it.each([false, true])('refuses a workspace name that is not kept plain (archived=%s)', async archived => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    if (archived) state.savedTabGroups![0]!.name = 'Saved\u2028research'
+    else state.mcpTabGroups![1]!.name = 'Checkout\u202E debugging'
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state))
+    await expect(store.load()).rejects.toMatchObject({ reason: 'invalid-schema' })
   })
 })
 
@@ -856,7 +840,12 @@ describe('continuity checkpoint persistence', () => {
 it('persists cleanup blocking in the repair snapshot before initialization can crash', async () => {
   const { path, store } = await createStore()
   await mkdir(join(path, '..'), { recursive: true })
-  await writeFile(path, JSON.stringify({ version: 3, activeTabId: null, tabs: [], mcpTabGroups: [], savedTabGroups: [], defaultHumanGroupId: 'legacy-repair-trigger', deletedWorkspaceStorageIds: [ACTIVE_STORAGE_ID] }))
+  const state = currentState()
+  state.tabs = [state.tabs[0]!]
+  state.activeTabId = null
+  state.mcpTabGroups = [{ ...state.mcpTabGroups![0]!, description: 'x'.repeat(1001) }]
+  state.savedTabGroups = []
+  await writeFile(path, JSON.stringify({ ...state, deletedWorkspaceStorageIds: [ACTIVE_STORAGE_ID] }))
   await store.load({ blockStorageCleanup: true })
   const repaired = JSON.parse(await readFile(path, 'utf8'))
   expect(repaired.workspaceStorageCleanupBlocked).toBe(true)

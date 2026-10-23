@@ -45,11 +45,10 @@ describe('workspace names', () => {
     expect(normalizedWorkspaceName(`${'a'.repeat(80)}\u200B`)).toBe('a'.repeat(80))
   })
 
-  it('keeps a name saved before names were plain while the workspace editor sends it back with other changes', () => {
-    // The editor sends the name with every change. Made plain, it was the name of another workspace, so turning off
-    // agent access or changing the color was refused until the person renamed the workspace.
+  it('does not check the name the workspace editor sends back unchanged with other changes', () => {
+    // The editor sends the name with every change.
     const group = {
-      id: 'agent', name: 'Personal\u200B', description: '', color: 'blue', agentAccess: true, lastUsedAt: '',
+      id: 'agent', name: 'Personal', description: '', color: 'blue', agentAccess: true, lastUsedAt: '',
       origins: [], navigationPolicy: { mode: 'all', rules: [] }
     }
     const taken = vi.fn(() => { throw new Error('That workspace name is already used.') })
@@ -62,11 +61,11 @@ describe('workspace names', () => {
       changed: () => undefined
     }
     updateMcpTabGroup(access as never, 'agent', { name: 'Personal\u200B', color: 'red', agentAccess: false })
-    expect(group).toMatchObject({ name: 'Personal\u200B', color: 'red', agentAccess: false })
+    expect(group).toMatchObject({ name: 'Personal', color: 'red', agentAccess: false })
     expect(taken).not.toHaveBeenCalled()
     // A changed name is made plain and checked.
-    expect(() => updateMcpTabGroup(access as never, 'agent', { name: 'Personal\u2066' })).toThrow('already used')
-    expect(taken).toHaveBeenCalledWith('Personal', 'agent', undefined, false)
+    expect(() => updateMcpTabGroup(access as never, 'agent', { name: 'Client\u2066 A' })).toThrow('already used')
+    expect(taken).toHaveBeenCalledWith('Client A', 'agent', undefined, false)
   })
 
   it('finds a template workspace whose plain name another workspace has before importing it', () => {

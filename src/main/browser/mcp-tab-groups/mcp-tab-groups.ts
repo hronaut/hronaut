@@ -71,13 +71,9 @@ export function updateMcpTabGroup<Tab extends McpTabGroupsTab>(
   const group = access.mcpTabGroups().get(groupId)
   if (!group) throw unknownWorkspace(groupId)
   access.assertWorkspaceIdle(groupId)
-  // The workspace editor sends the name with every change, so a name saved before names were kept plain stays as it is
-  // until the person changes it, instead of refusing the other changes when its plain form is another workspace's name.
-  if (updates.name !== undefined && updates.name !== group.name) {
+  if (updates.name !== undefined) {
     const name = normalizedWorkspaceName(updates.name)
-    if (name !== group.name) {
-      access.assertWorkspaceNameAvailable(name, group.id, undefined, allowDuplicateName)
-    }
+    if (name !== group.name) access.assertWorkspaceNameAvailable(name, group.id, undefined, allowDuplicateName)
     group.name = name
   }
   if (updates.description !== undefined) group.description = normalizeWorkspaceDescription(updates.description)
