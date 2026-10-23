@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
 
 // Find in page ends its search when the tab's document generation changes. A Find opened while the next page was still

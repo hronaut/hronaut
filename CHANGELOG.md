@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-10-23
+
 ### Changed
 
 - Home's title bar now shows the Home button's icon in the same badge as Settings' title, instead of Hronaut's logo, and the command palette's Home command uses that icon too instead of a house, so Home looks the same everywhere it appears.
@@ -26,6 +28,10 @@ All notable changes to Hronaut are documented in this file.
 - A link or form on a dApp that starts a download, or that the server answers with no content, no longer cancels the page's pending wallet requests or returns it to its default network. The page stays, so its requests and network now stay too, and they end only when another document, or an error page, replaces it. A connection that breaks after the page appeared keeps them as well, and a request the page makes while the next page is still loading now ends when that page replaces it, instead of carrying over to the next page.
 - An action-audit recording whose journal was cut off when Hronaut stopped while writing it no longer keeps every later recording in its workspace from starting. When the next recording starts, the cut-off one leaves the list and its journal, with every receipt saved before the cut, is kept beside the others as `<run id>.jsonl.unverified`. Retiring the oldest of three recordings no longer leaves its journal behind, unlisted, when removing it fails or Hronaut stops meanwhile, which also kept every later recording from starting.
 - The address bar's suggestions now stay on screen while they change, as Chrome's do, such as when a page finishes loading in another tab and its visit joins them. They hid and shrank to a line until the new ones were drawn, so the list blinked, and a click on a row in that moment missed it.
+
+### Known issues
+
+- An EVM node that lags behind for more than a minute, or has pruned old transactions, can make a mined transaction look replaced, so Hronaut reports it as failed.
 
 ## [3.6.0] - 2026-10-23
 
