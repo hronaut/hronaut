@@ -95,6 +95,7 @@ import { registerPageGeometryIpc } from './page-geometry-ipc.js'
 import { DEFAULT_MCP_PORT } from '../shared/mcp-port.js'
 import { registerShellIpc } from './shell-ipc.js'
 import { registerConfirmDialogIpc } from './confirm-dialog-ipc.js'
+import { createTrustedDialogs } from './trusted-dialogs/trusted-dialogs.js'
 import { createClipboardOperations } from './clipboard-operations.js'
 import { createPanelWindow, type PanelWindowRefs } from './windows/panel-window.js'
 import { createApplicationMenu } from './windows/application-menu.js'
@@ -165,6 +166,11 @@ const {
   panelWindowRefs,
   workspaceStartupFailure: () => tabRuntime.startupFailure,
   text: (key, parameters) => text(key, parameters)
+})
+// Hronaut's own dialogs over the shell, such as a website's permission request; the system dialog while none can show.
+const trustedDialogs = createTrustedDialogs({
+  mainWindow: () => mainWindowRefs.window,
+  showNativeMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options)
 })
 const addressSuggestionOverlay = createAddressSuggestionOverlay({
   trustedShellUrl,
@@ -329,7 +335,7 @@ const {
 } = createBrowserSession({
   text,
   effectiveDownloadDirectory,
-  showMessageBox,
+  showDialog: (options) => trustedDialogs.show(options),
   workspaces: () => tabRuntime.tabs ? [...tabRuntime.tabs.listMcpTabGroups(), ...tabRuntime.tabs.listSavedTabGroups()] : [],
   state: browserSessionState,
   sendToShellWindows,
@@ -765,6 +771,7 @@ function registerIpc(): void {
     agentPresenceSnapshot,
     mcpServer: () => mcpRuntime.server
   })
+  trustedDialogs.registerIpc({ ipcMain: hronautIpcMain, assertTrustedShellSender })
   registerConfirmDialogIpc({
     ipcMain: hronautIpcMain,
     assertTrustedShellSender,

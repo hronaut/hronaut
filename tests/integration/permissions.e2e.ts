@@ -1,87 +1,26 @@
 import { createServer } from 'node:http'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { ElectronApplication } from '@playwright/test'
+import type { ElectronApplication, Page } from '@playwright/test'
 import { closeFixtureServer, blockFileDestination, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { answerTrustedDialog, trustedDialog, trustedDialogHeadline } from './trusted-dialog-fixture.js'
 
-async function delayPermissionDialog(electronApp: ElectronApplication): Promise<void> {
-  await electronApp.evaluate(({ dialog }) => {
-    ;(globalThis as typeof globalThis & {
-      __resolveHronautPermissionDialog?: (value: Electron.MessageBoxReturnValue) => void
-    }).__resolveHronautPermissionDialog = undefined
-    dialog.showMessageBox = () => new Promise((resolve) => {
-      ;(globalThis as typeof globalThis & {
-        __resolveHronautPermissionDialog?: (value: Electron.MessageBoxReturnValue) => void
-      }).__resolveHronautPermissionDialog = resolve
-    })
-  })
-}
-
-async function requestGeolocationPermission(electronApp: ElectronApplication): Promise<void> {
+async function requestGeolocationPermission(electronApp: ElectronApplication, appWindow: Page): Promise<void> {
   await electronApp.evaluate(async ({ webContents }) => {
     const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Permission race')
     if (!page) throw new Error('Permission fixture web contents was not found')
     await page.executeJavaScript(`navigator.geolocation.getCurrentPosition(() => undefined, () => undefined)`)
   })
-  await expect.poll(() => electronApp.evaluate(() => Boolean(
-    (globalThis as typeof globalThis & { __resolveHronautPermissionDialog?: unknown })
-      .__resolveHronautPermissionDialog
-  ))).toBe(true)
+  await expect(trustedDialog(appWindow)).toBeVisible()
 }
 
-async function allowDelayedPermission(electronApp: ElectronApplication): Promise<void> {
-  await electronApp.evaluate(() => {
-    const resolve = (globalThis as typeof globalThis & {
-      __resolveHronautPermissionDialog?: (value: Electron.MessageBoxReturnValue) => void
-    }).__resolveHronautPermissionDialog
-    if (!resolve) throw new Error('Permission dialog resolver was not captured')
-    resolve({ response: 1, checkboxChecked: false })
-  })
-}
-
-interface PermissionDialogProbe {
-  calls: number
-  active: number
-  maxActive: number
-  pending: Array<(value: Electron.MessageBoxReturnValue) => void>
-}
-
-async function installPermissionDialogProbe(electronApp: ElectronApplication): Promise<void> {
-  await electronApp.evaluate(({ dialog }) => {
-    const globals = globalThis as typeof globalThis & { __permissionDialogProbe?: PermissionDialogProbe }
-    const probe: PermissionDialogProbe = { calls: 0, active: 0, maxActive: 0, pending: [] }
-    globals.__permissionDialogProbe = probe
-    dialog.showMessageBox = () => {
-      probe.calls += 1
-      probe.active += 1
-      probe.maxActive = Math.max(probe.maxActive, probe.active)
-      return new Promise((resolve) => {
-        probe.pending.push((value) => {
-          probe.active -= 1
-          resolve(value)
-        })
-      })
-    }
-  })
-}
-
-async function permissionDialogStats(electronApp: ElectronApplication): Promise<Omit<PermissionDialogProbe, 'pending'>> {
-  return electronApp.evaluate(() => {
-    const probe = (globalThis as typeof globalThis & { __permissionDialogProbe?: PermissionDialogProbe })
-      .__permissionDialogProbe
-    if (!probe) throw new Error('Permission dialog probe was not installed')
-    return { calls: probe.calls, active: probe.active, maxActive: probe.maxActive }
-  })
-}
-
-async function resolveNextPermissionDialog(electronApp: ElectronApplication, response: 0 | 1): Promise<void> {
-  await electronApp.evaluate((_electron, selectedResponse) => {
-    const probe = (globalThis as typeof globalThis & { __permissionDialogProbe?: PermissionDialogProbe })
-      .__permissionDialogProbe
-    const resolve = probe?.pending.shift()
-    if (!resolve) throw new Error('No queued permission dialog is available')
-    resolve({ response: selectedResponse, checkboxChecked: false })
-  }, response)
+/** Asks for the location from the page with this title. */
+async function requestLocationOn(electronApp: ElectronApplication, title: string): Promise<void> {
+  await electronApp.evaluate(async ({ webContents }, pageTitle) => {
+    const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === pageTitle)
+    if (!page) throw new Error(`${pageTitle} was not found`)
+    await page.executeJavaScript('navigator.geolocation.getCurrentPosition(() => undefined, () => undefined)')
+  }, title)
 }
 
 async function listen(server: ReturnType<typeof createServer>): Promise<number> {
@@ -94,17 +33,14 @@ async function listen(server: ReturnType<typeof createServer>): Promise<number> 
   return address.port
 }
 
-async function requestIframeGeolocationPermission(electronApp: ElectronApplication): Promise<void> {
+async function requestIframeGeolocationPermission(electronApp: ElectronApplication, appWindow: Page): Promise<void> {
   await electronApp.evaluate(async ({ webContents }) => {
     const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Iframe permission host')
     const child = page?.mainFrame.framesInSubtree.find((frame) => frame.url.endsWith('/child'))
     if (!child) throw new Error('Permission fixture iframe was not found')
     await child.executeJavaScript(`navigator.geolocation.getCurrentPosition(() => undefined, () => undefined)`)
   })
-  await expect.poll(() => electronApp.evaluate(() => Boolean(
-    (globalThis as typeof globalThis & { __resolveHronautPermissionDialog?: unknown })
-      .__resolveHronautPermissionDialog
-  ))).toBe(true)
+  await expect(trustedDialog(appWindow)).toBeVisible()
 }
 
 test('manages and persists per-website permission decisions', async ({
@@ -204,37 +140,19 @@ test('serializes concurrent permission prompts and preserves their decisions', a
       webContents.getAllWebContents().some((contents) => contents.getTitle() === 'Permission queue second')
     ])).toEqual([true, true])
 
-    await installPermissionDialogProbe(electronApp)
-    await electronApp.evaluate(async ({ webContents }) => {
-      const first = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Permission queue first')
-      if (!first) throw new Error('First permission fixture was not found')
-      await first.executeJavaScript('navigator.geolocation.getCurrentPosition(() => undefined, () => undefined)')
-    })
-    await expect.poll(() => permissionDialogStats(electronApp)).toEqual({
-      calls: 1,
-      active: 1,
-      maxActive: 1
-    })
+    // One dialog at a time: the second website waits behind the first.
+    await requestLocationOn(electronApp, 'Permission queue first')
+    await expect.poll(() => trustedDialogHeadline(appWindow)).toBe(`${firstOrigin} wants to know your location`)
+    await requestLocationOn(electronApp, 'Permission queue second')
+    await electronApp.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)))
+    await expect(trustedDialog(appWindow)).toHaveCount(1)
+    expect(await trustedDialogHeadline(appWindow)).toBe(`${firstOrigin} wants to know your location`)
 
-    await electronApp.evaluate(async ({ webContents }) => {
-      const second = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Permission queue second')
-      if (!second) throw new Error('Second permission fixture was not found')
-      await second.executeJavaScript('navigator.geolocation.getCurrentPosition(() => undefined, () => undefined)')
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    })
-    expect(await permissionDialogStats(electronApp)).toEqual({
-      calls: 1,
-      active: 1,
-      maxActive: 1
-    })
-
-    await resolveNextPermissionDialog(electronApp, 1)
-    await expect.poll(() => permissionDialogStats(electronApp)).toEqual({
-      calls: 2,
-      active: 1,
-      maxActive: 1
-    })
-    await resolveNextPermissionDialog(electronApp, 0)
+    await answerTrustedDialog(appWindow, 'Allow')
+    await expect.poll(() => trustedDialogHeadline(appWindow)).toBe(`${secondOrigin} wants to know your location`)
+    await expect(trustedDialog(appWindow)).toHaveCount(1)
+    await answerTrustedDialog(appWindow, 'Deny')
+    await expect(trustedDialog(appWindow)).toHaveCount(0)
 
     await expect.poll(async () => {
       const entries = await appWindow.evaluate('window.hronautPermissions.list()') as Array<{
@@ -290,42 +208,21 @@ test('drops a queued permission request when its tab closes before presentation'
       webContents.getAllWebContents().some((contents) => contents.getTitle() === 'Permission queue stale')
     ])).toEqual([true, true])
 
-    await installPermissionDialogProbe(electronApp)
-    await electronApp.evaluate(async ({ webContents }) => {
-      const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Permission queue blocker')
-      if (!page) throw new Error('Blocking permission fixture was not found')
-      await page.executeJavaScript('navigator.geolocation.getCurrentPosition(() => undefined, () => undefined)')
-    })
-    await expect.poll(() => permissionDialogStats(electronApp)).toEqual({
-      calls: 1,
-      active: 1,
-      maxActive: 1
-    })
-
-    await electronApp.evaluate(async ({ webContents }) => {
-      const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Permission queue stale')
-      if (!page) throw new Error('Stale permission fixture was not found')
-      await page.executeJavaScript('navigator.geolocation.getCurrentPosition(() => undefined, () => undefined)')
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    })
-    expect(await permissionDialogStats(electronApp)).toEqual({
-      calls: 1,
-      active: 1,
-      maxActive: 1
-    })
+    await requestLocationOn(electronApp, 'Permission queue blocker')
+    await expect.poll(() => trustedDialogHeadline(appWindow)).toBe(`${blockingOrigin} wants to know your location`)
+    await requestLocationOn(electronApp, 'Permission queue stale')
+    await electronApp.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)))
+    expect(await trustedDialogHeadline(appWindow)).toBe(`${blockingOrigin} wants to know your location`)
 
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(staleState.activeTabId)})`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) =>
       state.tabs.some((tab) => tab.id === ${JSON.stringify(staleState.activeTabId)})
     )`)).toBe(false)
-    await resolveNextPermissionDialog(electronApp, 1)
+    await answerTrustedDialog(appWindow, 'Allow')
     await electronApp.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 250)))
 
-    expect(await permissionDialogStats(electronApp)).toEqual({
-      calls: 1,
-      active: 0,
-      maxActive: 1
-    })
+    // The closed tab's request never shows.
+    await expect(trustedDialog(appWindow)).toHaveCount(0)
     await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([{
       origin: blockingOrigin,
       permission: 'geolocation',
@@ -365,14 +262,14 @@ test('does not persist a stale permission decision after the requesting tab navi
       state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.title
     )`)).toBe('Permission race')
 
-    await delayPermissionDialog(electronApp)
-    await requestGeolocationPermission(electronApp)
+    await requestGeolocationPermission(electronApp, appWindow)
 
     await appWindow.evaluate(`window.hronaut.navigate({
       tabId: ${JSON.stringify(tabId)},
       url: 'about:blank'
     })`)
-    await allowDelayedPermission(electronApp)
+    // The dialog closes as Deny would: its answer no longer counts for the page that asked.
+    await expect(trustedDialog(appWindow)).toHaveCount(0)
 
     await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([])
   } finally {
@@ -405,14 +302,13 @@ test('does not persist a stale permission decision after the requesting tab clos
       state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.title
     )`)).toBe('Permission race')
 
-    await delayPermissionDialog(electronApp)
-    await requestGeolocationPermission(electronApp)
+    await requestGeolocationPermission(electronApp, appWindow)
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(tabId)})`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) =>
       state.tabs.some((tab) => tab.id === ${JSON.stringify(tabId)})
     )`)).toBe(false)
 
-    await allowDelayedPermission(electronApp)
+    await expect(trustedDialog(appWindow)).toHaveCount(0)
     await electronApp.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 100)))
     expect(await appWindow.evaluate('window.hronautPermissions.list()')).toEqual([])
     await expect(appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)'))
@@ -451,9 +347,9 @@ test('persists a permission decision for a still-live cross-origin iframe', asyn
       .some((contents) => contents.mainFrame.framesInSubtree.some((frame) => frame.url.endsWith('/child')))))
       .toBe(true)
 
-    await delayPermissionDialog(electronApp)
-    await requestIframeGeolocationPermission(electronApp)
-    await allowDelayedPermission(electronApp)
+    await requestIframeGeolocationPermission(electronApp, appWindow)
+    await expect(trustedDialog(appWindow)).toContainText(`Embedded in http://127.0.0.1:${hostPort}`)
+    await answerTrustedDialog(appWindow, 'Allow')
 
     // The decision belongs to the page the frame was embedded in.
     await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([{
@@ -499,8 +395,7 @@ test('does not persist an iframe permission after the requesting frame navigates
       .some((contents) => contents.mainFrame.framesInSubtree.some((frame) => frame.url.endsWith('/child')))))
       .toBe(true)
 
-    await delayPermissionDialog(electronApp)
-    await requestIframeGeolocationPermission(electronApp)
+    await requestIframeGeolocationPermission(electronApp, appWindow)
     await electronApp.evaluate(async ({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Iframe permission host')
       const child = page?.mainFrame.framesInSubtree.find((frame) => frame.url.endsWith('/child'))
@@ -510,7 +405,7 @@ test('does not persist an iframe permission after the requesting frame navigates
     await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getAllWebContents()
       .some((contents) => contents.mainFrame.framesInSubtree.some((frame) => frame.url.endsWith('/child')))))
       .toBe(false)
-    await allowDelayedPermission(electronApp)
+    await expect(trustedDialog(appWindow)).toHaveCount(0)
 
     await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([])
   } finally {
@@ -537,27 +432,18 @@ test('names the requested permission in the prompt the way Settings does, in the
     await expect.poll(() => electronApp.evaluate(({ webContents }) => (
       webContents.getAllWebContents().some((contents) => contents.getTitle() === 'Permission name')
     ))).toBe(true)
-    await electronApp.evaluate(({ dialog }) => {
-      dialog.showMessageBox = async (...args: unknown[]) => {
-        const options = args.at(-1) as Electron.MessageBoxOptions
-        ;(globalThis as typeof globalThis & { __permissionPrompt?: unknown }).__permissionPrompt = {
-          title: options.title, message: options.message, buttons: options.buttons
-        }
-        return { response: 0, checkboxChecked: false }
-      }
-    })
     await electronApp.evaluate(async ({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Permission name')
       if (!page) throw new Error('Permission fixture web contents was not found')
       await page.executeJavaScript('navigator.geolocation.getCurrentPosition(() => undefined, () => undefined)')
     })
-    await expect.poll(() => electronApp.evaluate(() => (
-      globalThis as typeof globalThis & { __permissionPrompt?: unknown }
-    ).__permissionPrompt)).toEqual({
-      title: 'Дозвіл сайту',
-      message: `Сайт ${origin} запитує дозвіл «Розташування».`,
-      buttons: ['Заборонити', 'Дозволити']
-    })
+    const dialog = trustedDialog(appWindow)
+    await expect(dialog).toBeVisible()
+    expect(await trustedDialogHeadline(appWindow)).toBe(`Сайт ${origin} хоче знати ваше розташування`)
+    await expect(dialog).toContainText('Дозвіл сайту')
+    await expect(dialog.locator('.ui-dialog__footer button')).toHaveText(['Заборонити', 'Дозволити'])
+    await answerTrustedDialog(appWindow, 'Заборонити')
+    await expect(dialog).toHaveCount(0)
   } finally {
     await closeFixtureServer(server)
   }
@@ -578,30 +464,22 @@ test('names the permissions games, music and media pages ask for instead of show
     await expect.poll(() => electronApp.evaluate(({ webContents }) => (
       webContents.getAllWebContents().some((contents) => contents.getTitle() === 'Permission names')
     ))).toBe(true)
-    await electronApp.evaluate(({ dialog }) => {
-      const prompts: string[] = []
-      ;(globalThis as typeof globalThis & { __permissionPrompts?: string[] }).__permissionPrompts = prompts
-      dialog.showMessageBox = async (...args: unknown[]) => {
-        prompts.push(String((args.at(-1) as Electron.MessageBoxOptions).message))
-        return { response: 0, checkboxChecked: false }
-      }
-    })
     const requests = [
-      ['document.getElementById("target").requestPointerLock()', 'Mouse pointer lock'],
-      ['navigator.keyboard.lock()', 'Keyboard lock'],
-      ['navigator.requestMIDIAccess({ sysex: true })', 'MIDI device control'],
-      ['navigator.storage.persist()', 'Persistent storage'],
-      ['navigator.wakeLock.request("screen")', 'Keep screen on']
+      ['document.getElementById("target").requestPointerLock()', 'lock and hide your mouse pointer'],
+      ['navigator.keyboard.lock()', 'capture your keyboard shortcuts'],
+      ['navigator.requestMIDIAccess({ sysex: true })', 'control and reprogram your MIDI devices'],
+      ['navigator.storage.persist()', 'store data permanently on this device'],
+      ['navigator.wakeLock.request("screen")', 'keep your screen on']
     ] as const
-    for (const [index, [script, name]] of requests.entries()) {
+    for (const [script, wants] of requests) {
       await electronApp.evaluate(async ({ webContents }, request) => {
         const page = webContents.getAllWebContents().find((contents) => contents.getTitle() === 'Permission names')
         if (!page) throw new Error('Permission fixture web contents was not found')
         await page.executeJavaScript(`Promise.resolve().then(() => ${request}).catch(() => undefined); true`, true)
       }, script)
-      await expect.poll(() => electronApp.evaluate((_electron, position) => (
-        globalThis as typeof globalThis & { __permissionPrompts?: string[] }
-      ).__permissionPrompts?.[position], index)).toBe(`${origin} requests “${name}” permission.`)
+      await expect.poll(() => trustedDialogHeadline(appWindow).catch(() => '')).toBe(`${origin} wants to ${wants}`)
+      await answerTrustedDialog(appWindow, 'Deny')
+      await expect(trustedDialog(appWindow)).toHaveCount(0)
     }
   } finally {
     await closeFixtureServer(server)
@@ -624,14 +502,6 @@ test('refuses a screen sharing request without asking about the camera and micro
     await expect.poll(() => electronApp.evaluate(({ webContents }) => (
       webContents.getAllWebContents().some((contents) => contents.getTitle() === 'Screen sharing')
     ))).toBe(true)
-    await electronApp.evaluate(({ dialog }) => {
-      const prompts: string[] = []
-      ;(globalThis as typeof globalThis & { __permissionPrompts?: string[] }).__permissionPrompts = prompts
-      dialog.showMessageBox = async (...args: unknown[]) => {
-        prompts.push(String((args.at(-1) as Electron.MessageBoxOptions).message))
-        return { response: 1, checkboxChecked: false }
-      }
-    })
     for (const capture of [
       'navigator.mediaDevices.getDisplayMedia({ video: true })',
       'navigator.mediaDevices.getUserMedia({ audio: false, video: { mandatory: { chromeMediaSource: "desktop" } } })'
@@ -646,9 +516,8 @@ test('refuses a screen sharing request without asking about the camera and micro
       }, capture)
       expect(outcome, capture).toBe('NotAllowedError')
     }
-    expect(await electronApp.evaluate(() => (
-      globalThis as typeof globalThis & { __permissionPrompts?: string[] }
-    ).__permissionPrompts)).toEqual([])
+    // Neither request asks the person.
+    await expect(trustedDialog(appWindow)).toHaveCount(0)
   } finally {
     await closeFixtureServer(server)
   }
@@ -679,10 +548,8 @@ test('asks again in another workspace and forgets a workspace’s decisions when
     }
     const ownWorkspaceId = own.tabs.find((tab) => tab.url === `${origin}/own`)!.mcpGroupId!
     await titleShown('Workspace permission own')
-    await installPermissionDialogProbe(electronApp)
     await requestLocation('Workspace permission own')
-    await expect.poll(() => permissionDialogStats(electronApp)).toMatchObject({ calls: 1 })
-    await resolveNextPermissionDialog(electronApp, 1)
+    await answerTrustedDialog(appWindow, 'Allow')
     await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([
       { origin, permission: 'geolocation', decision: 'allow', workspaceId: ownWorkspaceId }
     ])
@@ -696,8 +563,8 @@ test('asks again in another workspace and forgets a workspace’s decisions when
     await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(clientTabId)}, url: ${JSON.stringify(`${origin}/client`)} })`)
     await titleShown('Workspace permission client')
     await requestLocation('Workspace permission client')
-    await expect.poll(() => permissionDialogStats(electronApp)).toMatchObject({ calls: 2 })
-    await resolveNextPermissionDialog(electronApp, 0)
+    await expect(trustedDialog(appWindow)).toContainText('“Permission client” workspace')
+    await answerTrustedDialog(appWindow, 'Deny')
     await expect.poll(async () => (await appWindow.evaluate('window.hronautPermissions.list()') as Array<{ workspaceId?: string, decision: string }>)
       .map((entry) => [entry.workspaceId, entry.decision]).sort())
       .toEqual([[clientWorkspaceId, 'deny'], [ownWorkspaceId, 'allow']].sort())

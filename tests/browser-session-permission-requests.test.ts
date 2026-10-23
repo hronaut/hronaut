@@ -64,7 +64,7 @@ async function createHarness(locale: SupportedLocale = 'en-US') {
   const browserSession = createBrowserSession({
     text: (key, parameters) => translate(locale, key, parameters),
     effectiveDownloadDirectory: () => '',
-    showMessageBox: async (options) => {
+    showDialog: async (options) => {
       shown.push(options)
       // Electron closes the box as if it were cancelled once its signal aborts.
       const closed = new Promise<Answer>((resolve) => { options.signal?.addEventListener('abort', () => resolve('deny')) })

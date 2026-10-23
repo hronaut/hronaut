@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ElectronApplication } from '@playwright/test'
 import { expect, test } from './capability-fixtures.js'
+import { answerTrustedDialog, trustedDialog, trustedDialogHeadline } from './trusted-dialog-fixture.js'
 
 // A website never heard back when the person gave it a location Chromium protects, such as Hronaut's own profile or a
 // whole personal folder: Electron asked Hronaut what to do and waited, and its picker or dropped folder never settled.
@@ -41,51 +42,41 @@ async function dropFolder(app: ElectronApplication, url: string, folder: string)
   }, { url, folder })
 }
 
-/** Answers each prompt with `response` and records what it said. */
-async function answerPrompts(app: ElectronApplication, response: number): Promise<void> {
-  await app.evaluate(({ dialog }, response) => {
-    const prompts: string[] = []
-    ;(globalThis as typeof globalThis & { __prompts?: string[] }).__prompts = prompts
-    dialog.showMessageBox = async (...args: unknown[]) => {
-      const options = args.at(-1) as Electron.MessageBoxOptions
-      prompts.push(`${options.message} | ${(options.buttons ?? []).join(', ')}`)
-      return { response, checkboxChecked: false }
-    }
-  }, response)
-}
-
-test('tells the person a website cannot have a protected folder, and the website hears back', async ({ capabilities, electronApp, profileDirectory }) => {
+test('tells the person a website cannot have a protected folder, and the website hears back', async ({ appWindow, capabilities, electronApp, profileDirectory }) => {
   const { fixtureUrl, fixtureOrigin } = capabilities
   const onPage = <T>(script: string): Promise<T> => electronApp.evaluate(({ webContents }, { url, script }) => (
     webContents.getAllWebContents().find((contents) => contents.getURL() === url)!.executeJavaScript(script, true)
   ), { url: fixtureUrl, script }) as Promise<T>
-  const prompts = (): Promise<string[]> => electronApp.evaluate(() => (
-    globalThis as typeof globalThis & { __prompts?: string[] }
-  ).__prompts ?? [])
   // Hronaut's own profile is one of the locations Chromium protects.
   const protectedFolder = join(profileDirectory, 'protected-folder')
   await mkdir(protectedFolder, { recursive: true })
   const plainFolder = await mkdtemp(join(tmpdir(), 'hronaut-plain-folder-'))
   try {
-    await answerPrompts(electronApp, 1)
     await onPage(DROP_ZONE)
     await dropFolder(electronApp, fixtureUrl, protectedFolder)
+    const dialog = trustedDialog(appWindow)
+    await expect(dialog).toBeVisible()
+    await expect(dialog).toHaveAttribute('data-variant', 'protected-file-access')
+    expect(await trustedDialogHeadline(appWindow)).toBe(`${fixtureOrigin} can't use this folder`)
+    await expect(dialog.locator('.ui-dialog__footer button')).toHaveText(['Cancel', 'Choose another folder'])
+    // Cancel has the focus, so a held Enter from the picker refuses rather than reopening it.
+    await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused()
+    await answerTrustedDialog(appWindow, 'Choose another folder')
     // The website hears that it did not get the folder instead of waiting forever.
     await expect.poll(() => onPage('window.dropped')).toBe('AbortError')
-    expect(await prompts()).toEqual([`${fixtureOrigin} can't use this folder | Cancel, Choose another folder`])
+    await expect(dialog).toHaveCount(0)
 
-    await answerPrompts(electronApp, 0)
     await onPage(DROP_ZONE)
     await dropFolder(electronApp, fixtureUrl, protectedFolder)
+    await answerTrustedDialog(appWindow, 'Cancel')
     await expect.poll(() => onPage('window.dropped')).toBe('AbortError')
-    expect(await prompts()).toHaveLength(1)
+    await expect(dialog).toHaveCount(0)
 
     // A folder nothing protects is given without a prompt, as before.
-    await answerPrompts(electronApp, 1)
     await onPage(DROP_ZONE)
     await dropFolder(electronApp, fixtureUrl, plainFolder)
     await expect.poll(() => onPage('window.dropped')).toMatch(/^directory:hronaut-plain-folder-/)
-    expect(await prompts()).toEqual([])
+    await expect(dialog).toHaveCount(0)
   } finally {
     await rm(plainFolder, { recursive: true, force: true })
   }

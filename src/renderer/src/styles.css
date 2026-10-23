@@ -104,6 +104,7 @@
 @import './styles/collections.css' layer(application);
 @import './styles/workspaces.css' layer(application);
 @import './styles/dialogs.css' layer(application);
+@import './styles/trusted-dialogs.css' layer(application);
 @import './styles/settings.css' layer(application);
 @import './styles/panels.css' layer(application);
 /* Themed native controls follow the application layer; see controls.css. */

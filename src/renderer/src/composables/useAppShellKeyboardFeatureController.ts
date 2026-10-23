@@ -44,6 +44,8 @@ export interface AppShellKeyboardFeatureControllerOptions {
   commandPalette: Ref<boolean>
   modals: {
     walletApproval: AppShellKeyboardSurface
+    /** Main's own question, such as a website's permission request; it sits above every other dialog. */
+    trustedDialog: AppShellKeyboardSurface
     agentSteps: AppShellKeyboardSurface
     workspaceEditor: AppShellKeyboardSurface
     credentialPicker: Ref<boolean>
@@ -101,6 +103,7 @@ export function useAppShellKeyboardFeatureController(
     allInteractionLocked: options.allInteractionLocked,
     commandPalette: refSurface(options.commandPalette),
     modalSurfaces: [
+      customSurface(modals.trustedDialog),
       customSurface(modals.walletApproval),
       customSurface(modals.agentSteps),
       customSurface(modals.workspaceEditor),

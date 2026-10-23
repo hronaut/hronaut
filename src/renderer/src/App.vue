@@ -17,6 +17,7 @@ import EmulationFrame from './components/EmulationFrame.vue'
 import PageSnapshot from './components/PageSnapshot.vue'
 import PageCard from './components/PageCard.vue'
 import AppTrustedDialogsLayer from './components/AppTrustedDialogsLayer.vue'
+import { useTrustedDialogController } from './trusted-dialogs/useTrustedDialogController.js'
 import AppTransientShellLayer from './components/AppTransientShellLayer.vue'
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
@@ -292,6 +293,9 @@ const { active: fullPageActive, concealed: fullPageConcealed } = fullPageView
 // A hidden rail gives the page its room; the tabs keep their vertical layout for when it shows again.
 const pageRailWidth = computed(() => fullPageConcealed.value ? 0 : tabRailWidth.value)
 const walletApprovalOpen = computed(() => walletsController.awaitingApproval.value.length > 0)
+// Main's own questions, such as a website's permission request, drawn over the page instead of a system dialog.
+const trustedDialogController = useTrustedDialogController(window.hronautTrustedDialogs)
+const trustedDialogSurface = { open: trustedDialogController.open, close: trustedDialogController.cancel }
 const { walletWorkspaces, dataWorkspaces } = useSettingsWorkspaceLists(state)
 
 const {
@@ -537,6 +541,7 @@ const {
     help: { open: helpDialogOpen, close: closeHelpDialog, openDialog: showHelpDialog },
     releaseHistory: { open: releaseHistoryOpen, close: closeReleaseHistory },
     walletApproval: walletApprovalOpen,
+    trustedDialog: trustedDialogSurface,
     agentSteps: { open: agentStepsOpen, close: closeAgentSteps },
     siteStorage: siteStorageOpen,
     siteControls: siteControlsOpen,
@@ -652,6 +657,7 @@ const {
     workspaceEditor: workspaceEditorOpen,
     credentialPicker: credentialPickerOpen,
     walletApproval: walletApprovalOpen,
+    trustedDialog: trustedDialogController.open,
     agentSteps: agentStepsOpen
   },
   overlays: {
@@ -814,7 +820,8 @@ useAppLifecycleController({
     disposeAppSettingsFeatureController,
     disposeAppBrowserCollectionsFeatureController,
     disposeUndoToasts,
-    disposeAppToastController
+    disposeAppToastController,
+    trustedDialogController.dispose
   ]
 })
 </script>
@@ -984,6 +991,7 @@ useAppLifecycleController({
     <AppTrustedDialogsLayer
       :settings-controller="appSettingsFeatureController"
       :help-controller="helpDialogController"
+      :trusted-dialog-controller="trustedDialogController"
       :workspaces="walletWorkspaces"
       :data-workspaces="dataWorkspaces"
       :format-bytes="formatBytes"

@@ -1,29 +1,17 @@
 import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ElectronApplication } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { answerEveryTrustedDialog, answeredTrustedDialogs } from './trusted-dialog-fixture.js'
 
 // A website's Save dialog empties the file the person picks before the website writes to it, and Hronaut then refused
 // the write, so saving over a file left it empty. Saving to a file the person opened or dropped waits for their switch.
 
 /** Records what every permission prompt said, answering each with Allow. */
-async function recordPrompts(app: ElectronApplication): Promise<void> {
-  await app.evaluate(({ dialog }) => {
-    const prompts: string[] = []
-    ;(globalThis as typeof globalThis & { __savingPrompts?: string[] }).__savingPrompts = prompts
-    dialog.showMessageBox = async (...args: unknown[]) => {
-      const options = args.at(-1) as Electron.MessageBoxOptions
-      prompts.push(`${options.message} ${options.detail ?? ''}`)
-      return { response: 1, checkboxChecked: false }
-    }
-  })
-}
-
-const prompts = (app: ElectronApplication): Promise<string[]> => app.evaluate(() => (
-  globalThis as typeof globalThis & { __savingPrompts?: string[] }
-).__savingPrompts ?? [])
+const recordPrompts = (window: Page): Promise<void> => answerEveryTrustedDialog(window, 'Allow')
+const prompts = (window: Page): Promise<string[]> => answeredTrustedDialogs(window)
 
 // A drop zone that keeps the last dropped file's handle, as editors that save back to the file do.
 const DROP_ZONE = `(() => {
@@ -50,7 +38,7 @@ const save = (content: string): string => `(async () => {
   }
 })()`
 
-test('saves to a file just emptied, as a website\'s Save dialog leaves it, and to no other file, as in Chrome', async ({ capabilities, electronApp, profileDirectory }) => {
+test('saves to a file just emptied, as a website\'s Save dialog leaves it, and to no other file, as in Chrome', async ({ appWindow, capabilities, electronApp, profileDirectory }) => {
   const { client, tabId, fixtureUrl } = capabilities
   const onPage = <T>(script: string): Promise<T> => electronApp.evaluate(({ webContents }, { url, script }) => (
     webContents.getAllWebContents().find((contents) => contents.getURL() === url)!.executeJavaScript(script, true)
@@ -72,7 +60,7 @@ test('saves to a file just emptied, as a website\'s Save dialog leaves it, and t
   await writeFile(oldEmpty, '', 'utf8')
   const lastYear = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
   await utimes(oldEmpty, lastYear, lastYear)
-  await recordPrompts(electronApp)
+  await recordPrompts(appWindow)
 
   await drop(picked)
   expect(await onPage(save('Saved'))).toBe('saved')
@@ -87,7 +75,7 @@ test('saves to a file just emptied, as a website\'s Save dialog leaves it, and t
   await drop(oldEmpty)
   expect(await onPage(save('Overwritten'))).toBe('NotAllowedError')
   expect(await readFile(oldEmpty, 'utf8')).toBe('')
-  expect(await prompts(electronApp)).toEqual([])
+  expect(await prompts(appWindow)).toEqual([])
 })
 
 test('saves to a file the person opened or dropped only while their switch is on', async ({ appWindow, capabilities, electronApp }) => {
@@ -102,7 +90,7 @@ test('saves to a file the person opened or dropped only while their switch is on
     await writeFile(notes, 'First draft', 'utf8')
     const sibling = join(folder, 'sibling.txt')
     await writeFile(sibling, 'Sibling', 'utf8')
-    await recordPrompts(electronApp)
+    await recordPrompts(appWindow)
     await onPage(DROP_ZONE)
     const dropped = await client.callTool({ name: 'browser_file_drop', arguments: { tabId, selector: '#zone', paths: [notes] } }) as CallToolResult
     expect(JSON.parse(text(dropped))).toMatchObject({ status: 'DROPPED', files: 1 })
@@ -121,7 +109,7 @@ test('saves to a file the person opened or dropped only while their switch is on
     await appWindow.evaluate('window.hronautSettings.setAllowWebsiteFileSaving(true)')
     expect(await onPage(rename)).toBe('moved')
     expect(await readFile(sibling, 'utf8')).toBe('Second draft')
-    expect(await prompts(electronApp)).toEqual([])
+    expect(await prompts(appWindow)).toEqual([])
   } finally {
     await appWindow.evaluate('window.hronautSettings.setAllowWebsiteFileSaving(false)')
     await rm(folder, { recursive: true, force: true })
@@ -130,7 +118,7 @@ test('saves to a file the person opened or dropped only while their switch is on
 
 // A file the website held was taken for one its Save dialog gave it once it was empty for a moment, as while another
 // program saves it in place, and the website then kept saving over what the person wrote there.
-test('saves to a file the person dropped only while it is empty, not once it holds their text again', async ({ capabilities, electronApp }) => {
+test('saves to a file the person dropped only while it is empty, not once it holds their text again', async ({ appWindow, capabilities, electronApp }) => {
   const { client, tabId, fixtureUrl } = capabilities
   const onPage = <T>(script: string): Promise<T> => electronApp.evaluate(({ webContents }, { url, script }) => (
     webContents.getAllWebContents().find((contents) => contents.getURL() === url)!.executeJavaScript(script, true)
@@ -139,7 +127,7 @@ test('saves to a file the person dropped only while it is empty, not once it hol
   try {
     const notes = join(folder, 'notes.txt')
     await writeFile(notes, 'First draft', 'utf8')
-    await recordPrompts(electronApp)
+    await recordPrompts(appWindow)
     await onPage(DROP_ZONE)
     const dropped = await client.callTool({ name: 'browser_file_drop', arguments: { tabId, selector: '#zone', paths: [notes] } }) as CallToolResult
     expect(JSON.parse(text(dropped))).toMatchObject({ status: 'DROPPED', files: 1 })
@@ -152,7 +140,7 @@ test('saves to a file the person dropped only while it is empty, not once it hol
     await writeFile(notes, 'Second draft, saved in another app', 'utf8')
     expect(await onPage(save('Overwritten'))).toBe('NotAllowedError')
     expect(await readFile(notes, 'utf8')).toBe('Second draft, saved in another app')
-    expect(await prompts(electronApp)).toEqual([])
+    expect(await prompts(appWindow)).toEqual([])
   } finally {
     await rm(folder, { recursive: true, force: true })
   }

@@ -21,6 +21,7 @@ describe('AppTrustedDialogsLayer', () => {
       walletsController: { id: 'wallets' }
     }
     const helpController = { id: 'help-dialog' }
+    const trustedDialogController = { id: 'trusted-dialog' }
     const workspaces = [{ id: 'workspace-1', name: 'Primary' }]
     const dataWorkspaces = [{ id: 'workspace-1', name: 'Primary', archived: false, tabCount: 2, storageOriginCount: 1 }]
     const formatBytes = vi.fn(String)
@@ -38,6 +39,7 @@ describe('AppTrustedDialogsLayer', () => {
       props: {
         settingsController: controllers as never,
         helpController: helpController as never,
+        trustedDialogController: trustedDialogController as never,
         workspaces,
         dataWorkspaces,
         formatBytes,
@@ -82,6 +84,7 @@ describe('AppTrustedDialogsLayer', () => {
       controller: controllers.walletsController,
       workspaces
     })
+    expect(propsOf('TrustedDialog')).toMatchObject({ controller: trustedDialogController })
     expect(propsOf('HelpDialog')).toMatchObject({
       controller: helpController,
       currentVersion: '1.9.11',

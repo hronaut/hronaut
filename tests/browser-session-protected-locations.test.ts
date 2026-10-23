@@ -40,7 +40,7 @@ function createHarness(responses: Array<number | 'reject'> = [], workspaceId: st
   const browserSession = createBrowserSession({
     text: (key, parameters) => translate('en-US', key, parameters),
     effectiveDownloadDirectory: () => '',
-    showMessageBox: async (options) => {
+    showDialog: async (options) => {
       shown.push(options)
       const response = responses.shift()
       if (response === 'reject') throw new Error('The prompt failed')

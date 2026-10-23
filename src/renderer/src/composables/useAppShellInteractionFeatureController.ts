@@ -156,6 +156,8 @@ export interface AppShellInteractionFeatureControllerOptions {
     help: HelpSurface
     releaseHistory: ToggleSurface
     walletApproval: Readonly<Ref<boolean>>
+    /** Main's own question, such as a website's permission request; Escape answers it as Cancel does. */
+    trustedDialog: { open: Readonly<Ref<boolean>>, close: () => void }
     /** An agent's "All steps". */
     agentSteps: ToggleSurface
     siteStorage: Ref<boolean>
@@ -283,6 +285,7 @@ export function useAppShellInteractionFeatureController(
       surfaces.releaseHistory.open,
       surfaces.agentSteps.open,
       surfaces.walletApproval,
+      surfaces.trustedDialog.open,
       features.collections.downloadsOpen,
       features.collections.historyOpen,
       features.collections.bookmarksOpen
@@ -347,6 +350,7 @@ export function useAppShellInteractionFeatureController(
           || surfaces.releaseHistory.open.value
           || surfaces.agentSteps.open.value
           || surfaces.walletApproval.value
+          || surfaces.trustedDialog.open.value
           || (action !== 'downloads' && surfaces.settings.open.value)
         )
       }
@@ -357,6 +361,7 @@ export function useAppShellInteractionFeatureController(
         || transient.credentialPickerOpen.value
         || surfaces.help.open.value
         || surfaces.settings.open.value
+        || surfaces.trustedDialog.open.value
       )
     },
     openNewTab: async () => { await tabNavigation.openNewTab() },
@@ -384,6 +389,7 @@ export function useAppShellInteractionFeatureController(
     commandPalette: transient.commandPaletteOpen,
     modals: {
       walletApproval: { open: surfaces.walletApproval, close: () => undefined },
+      trustedDialog: surfaces.trustedDialog,
       agentSteps: surfaces.agentSteps,
       workspaceEditor: { open: transient.workspaceEditorOpen, close: transient.closeWorkspace },
       credentialPicker: transient.credentialPickerOpen,

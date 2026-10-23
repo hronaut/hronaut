@@ -1,4 +1,4 @@
-import { app, session, type MessageBoxOptions, type MessageBoxReturnValue, type Session, type WebContents } from 'electron'
+import { app, session, type Session, type WebContents } from 'electron'
 import { statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
@@ -7,6 +7,8 @@ import { FRESH_CONSENT_PERMISSIONS, normalizeSitePermissionOrigin, SitePermissio
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import { sitePermissionName } from '../shared/site-permission-names.js'
 import type { SitePermissionDecision } from '../shared/types.js'
+import type { SitePermissionDialogVariant } from '../shared/trusted-dialogs.js'
+import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
 
 /**
  * The profile's persistent browser session and the site permissions the person chose, created once by index.ts and
@@ -25,8 +27,11 @@ interface BrowserSessionHost {
   text(key: MessageKey, parameters?: MessageParameters): string
   /** The download folder the current settings choose; read whenever a session is configured. */
   effectiveDownloadDirectory(): string
-  /** Asks on the main window, or on its own while there is none. */
-  showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>
+  /**
+   * Asks the person in Hronaut's own dialog over the main window's pages, where every tab is shown, or in the system
+   * dialog while that window cannot show it; resolves with the chosen button as `dialog.showMessageBox` does.
+   */
+  showDialog(options: Omit<TrustedDialogOptions, 'window'>): Promise<{ response: number }>
   /** The open and archived workspaces, read when a permission prompt names the one it asks in. */
   workspaces(): ReadonlyArray<{ id: string, name: string }>
   /** The persistent session and the site permissions; index.ts creates the record, and other features read it too. */
@@ -56,6 +61,10 @@ export function promptWorkspaceName(workspaceId: string, workspaces: ReadonlyArr
 
 /** The most characters of a link's scheme a prompt shows; a page chooses the scheme, so it can be very long. */
 const SHOWN_SCHEME_LENGTH = 64
+/** A link's scheme as a prompt shows it. */
+function shownScheme(scheme: string): string {
+  return scheme.length > SHOWN_SCHEME_LENGTH ? `${scheme.slice(0, SHOWN_SCHEME_LENGTH - 1)}…` : scheme
+}
 /** How often a permission prompt checks that the frame that asked is still there, since Electron reports no removed frame. */
 const STALE_PROMPT_CHECK_MS = 500
 
@@ -450,9 +459,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
           return lasts ? `${requested} ${host.text(lasts)}` : requested
         }
         if (externalLink) {
-          const { scheme } = externalLink
-          const shown = scheme.length > SHOWN_SCHEME_LENGTH ? `${scheme.slice(0, SHOWN_SCHEME_LENGTH - 1)}…` : scheme
-          return host.text('native.dialog.requestedExternalApp', { scheme: shown })
+          return host.text('native.dialog.requestedExternalApp', { scheme: shownScheme(externalLink.scheme) })
         }
         return null
       })()
@@ -492,9 +499,24 @@ export function createBrowserSession(host: BrowserSessionHost): {
         webContents.on('destroyed', closeWhenStale)
         const staleCheck = setInterval(closeWhenStale, STALE_PROMPT_CHECK_MS)
         staleCheck.unref()
+        // What the shell draws: the same request, as data, so its dialog can name the device and the workspace itself.
+        const variant: SitePermissionDialogVariant = {
+          kind: 'site-permission',
+          origin,
+          ...(embeddedIn ? { embeddedIn } : {}),
+          permission,
+          ...(permission === 'media' ? { mediaTypes: [...mediaTypes] } : {}),
+          ...(workspace ? { workspaceName: workspace } : {}),
+          freshConsent: requiresFreshConsent,
+          ...(permission === 'fileSystem' && 'filePath' in details
+            ? { file: { path: details.filePath ?? '', access: details.fileAccessType === 'readable' || details.fileAccessType === 'writable' ? details.fileAccessType : 'unspecified' } }
+            : {}),
+          ...(externalLink ? { externalScheme: shownScheme(externalLink.scheme) } : {})
+        }
         let response: number
         try {
-          ({ response } = await host.showMessageBox({
+          ({ response } = await host.showDialog({
+            variant,
             signal: promptClosing.signal,
             type: 'question',
             title: host.text('native.dialog.sitePermission'),
@@ -505,8 +527,10 @@ export function createBrowserSession(host: BrowserSessionHost): {
               ? host.text('native.dialog.permissionAskAgain', { detail: permissionDetail }).trim()
               : host.text('native.dialog.permissionSettings', { detail: permissionDetail }),
             buttons: [host.text('native.dialog.deny'), host.text('native.dialog.allow')],
+            // Enter, or a key still held from the page, refuses: Deny takes the focus and Allow is the main action.
             defaultId: 0,
-            cancelId: 0
+            cancelId: 0,
+            primaryId: 1
           }))
         } finally {
           clearInterval(staleCheck)
@@ -598,7 +622,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
         // Electron reports no removed frame, so the prompt also checks while it shows.
         staleCheck = setInterval(closeWhenStale, STALE_PROMPT_CHECK_MS)
         staleCheck.unref()
-        const { response } = await host.showMessageBox({
+        const { response } = await host.showDialog({
+          variant: { kind: 'protected-file-access', origin, target: details.isDirectory ? 'folder' : 'file' },
           signal: closing.signal,
           type: 'warning',
           title: host.text('native.dialog.sitePermission'),
@@ -607,7 +632,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
           buttons: [host.text('native.dialog.cancel'), host.text(`native.dialog.chooseAnother${kind}`)],
           // As in every permission prompt, a held Enter from the picker refuses rather than reopening it.
           defaultId: 0,
-          cancelId: 0
+          cancelId: 0,
+          primaryId: 1
         })
         if (response === 1 && !closing.signal.aborted && isCurrent()) action = 'tryAgain'
       } finally {
