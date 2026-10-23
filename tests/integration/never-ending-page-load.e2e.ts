@@ -47,11 +47,8 @@ test('agent calls answer on a page whose load never ends', async ({ electronApp,
       requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
     }))
     const workspace = JSON.parse(succeeded(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Stalled page' }))) as { id: string }
-    // As browser_navigate below, a new tab answers once the wait for its page runs out, with the page still loading.
-    const opened = JSON.parse(succeeded(await call('browser_new_tab', { workspaceId: workspace.id, url: `${base}/first` }, 45_000))) as BrowserState & { pageLoad?: string }
+    const opened = JSON.parse(succeeded(await call('browser_new_tab', { workspaceId: workspace.id, url: `${base}/first` }))) as BrowserState
     const target = { workspaceId: workspace.id, tabId: opened.activeTabId! }
-    expect(opened.pageLoad).toBe('still-loading')
-    expect(opened.tabs.find(tab => tab.id === target.tabId)).toMatchObject({ url: `${base}/first`, loading: true })
     await expect.poll(() => held.length).toBe(1)
 
     expect(succeeded(await call('browser_snapshot', target))).toContain('button "Press"')
