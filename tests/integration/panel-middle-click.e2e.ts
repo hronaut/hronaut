@@ -31,7 +31,7 @@ test('a middle-click or Ctrl+click on a bookmark or a visit opens it in a new ta
     await expect(bookmarks).toBeVisible()
 
     // Ctrl+click on a visit in History does the same.
-    await appWindow.getByRole('button', { name: 'Browsing history' }).click()
+    await appWindow.getByRole('button', { name: 'Browsing history', exact: true }).click()
     const history = appWindow.getByRole('dialog', { name: 'Browsing history' })
     await history.getByRole('searchbox').fill('visited')
     await history.getByRole('button', { name: /^Fixture \/visited/ }).click({ modifiers: ['ControlOrMeta'] })

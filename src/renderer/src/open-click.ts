@@ -8,7 +8,7 @@ export function openClickTab(event: MouseEvent, mac: boolean): 'new-tab' | 'new-
   return event.shiftKey ? 'new-tab' : 'new-background-tab'
 }
 
-/** Takes a middle-click on an enabled button as a click, as Chrome does for a link, and keeps it from scrolling or pasting. */
+/** Takes a middle-click on an enabled button as a click, as Chrome does for a link, and keeps it from also pasting, as on Linux. */
 export function asMiddleClick(event: MouseEvent, click: (event: MouseEvent) => void): void {
   if (event.button !== 1 || (event.currentTarget instanceof HTMLButtonElement && event.currentTarget.disabled)) return
   event.preventDefault()

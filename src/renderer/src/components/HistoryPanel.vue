@@ -155,10 +155,6 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
   ].find(element => element?.isConnected && !element.matches(':disabled'))
   target?.focus()
 }
-// Opening an entry and Clear all disable the control you used until they finish, and Chromium then drops its focus.
-// When the panel is still open afterwards, as after a failure or once Clear all has emptied History, that control gets
-// the focus back, or Search or Close when it can no longer be used, unless you have moved the focus, gone to the
-// website or another app, or closed the panel meanwhile.
 const mac = window.hronautShell?.windowChrome?.platform === 'darwin'
 
 /**
@@ -169,6 +165,10 @@ function openVisit(event: MouseEvent, entry: BrowserHistoryEntry): Promise<void>
   return openClickTab(event, mac) === 'new-background-tab' ? openInBackground(entry) : openEntry(entry)
 }
 
+// Opening an entry and Clear all disable the control you used until they finish, and Chromium then drops its focus.
+// When the panel is still open afterwards, as after a failure or once Clear all has emptied History, that control gets
+// the focus back, or Search or Close when it can no longer be used, unless you have moved the focus, gone to the
+// website or another app, or closed the panel meanwhile.
 async function keepFocusThrough(event: Event, action: () => Promise<unknown>): Promise<void> {
   const generation = focusGeneration
   const panel = panelRoot.value
@@ -258,6 +258,7 @@ async function clearOrigin(event: Event): Promise<void> {
     <div v-else class="history-list">
       <article v-for="entry in filteredEntries" :key="entry.id" class="history-item">
         <UiButton appearance="application" class="history-open" type="button" v-tooltip="entry.url" :disabled="pendingAction !== null"
+          @keydown="ignoreHeldEnter"
           @click="keepFocusThrough($event, () => openVisit($event, entry))"
           @auxclick="asMiddleClick($event, (click) => keepFocusThrough(click, () => openVisit(click, entry)))">
           <span class="history-site-icon" aria-hidden="true"><IconLanguage /></span>

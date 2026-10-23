@@ -969,7 +969,29 @@ describe('opening a bookmark behind with a middle-click or Ctrl+click, as in Chr
     expect(openBookmark).toHaveBeenCalledExactlyOnceWith(bookmark('alpha', 'Alpha docs'))
   })
 
-  it('opens nothing while another bookmark action is under way', async () => {
+  it('keeps the keyboard focus on a bookmark opened behind with Ctrl+Enter, and ignores a held Enter', async () => {
+    let finish!: () => void
+    const openBookmarkInBackground = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    renderPanel({ openBookmarkInBackground })
+    const alpha = screen.getByRole('button', { name: /^Alpha docs/ })
+    alpha.focus()
+    // Chromium's click for Enter carries the keys held with it.
+    await fireEvent.click(alpha, { ctrlKey: true, detail: 0 })
+    expect(openBookmarkInBackground).toHaveBeenCalledExactlyOnceWith(bookmark('alpha', 'Alpha docs'))
+    // The bookmark is disabled while it opens, and Chromium drops the focus of a disabled control.
+    await vi.waitFor(() => expect(alpha).toBeDisabled())
+    alpha.blur()
+    finish()
+    await flushPromises()
+    expect(alpha).toHaveFocus()
+    expect(screen.getByRole('dialog')).toBeVisible()
+
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, repeat: true, bubbles: true, cancelable: true })
+    alpha.dispatchEvent(repeat)
+    expect(repeat.defaultPrevented).toBe(true)
+  })
+
+  it('opens nothing from a bookmark disabled while another bookmark action is under way', async () => {
     let finish!: () => void
     const openBookmarkInBackground = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
     renderPanel({ openBookmarkInBackground })
