@@ -8,8 +8,11 @@ interface HistoryEntry { url: string; title: string; visitedAt: string; visitCou
 async function website(): Promise<{ server: ReturnType<typeof createServer>; pageUrl: (path: string) => string }> {
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
-    const name = request.url === '/' ? 'Home' : request.url?.slice(1) ?? 'Page'
-    response.end(`<!doctype html><title>${name}</title><main>${name}</main>`)
+    const [path, retitle] = (request.url ?? '/').split('?retitle=')
+    const name = path === '/' ? 'Home' : path?.slice(1) ?? 'Page'
+    // A page can give itself another title once it has loaded.
+    const script = retitle ? `<script>addEventListener('load', () => setTimeout(() => { document.title = decodeURIComponent(${JSON.stringify(retitle)}) }, 500))</script>` : ''
+    response.end(`<!doctype html><title>${name}</title><main>${name}</main>${script}`)
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -62,10 +65,9 @@ test('a reload moves the page to the top of the history without counting another
 test('the history keeps the title a page sets as it loads, and not one it sets long after to get attention', async ({ appWindow, electronApp }) => {
   const { server, pageUrl } = await website()
   try {
-    const inbox = pageUrl('/Inbox')
+    const inbox = pageUrl('/Inbox?retitle=Inbox%20-%20Mail')
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(inbox)}, active: true })`)
-    await expect.poll(async () => (await historyEntry(appWindow, inbox))?.title).toBe('Inbox')
-    await inPage(electronApp, inbox, "document.title = 'Inbox - Mail'")
+    // The title it gives itself half a second after it loaded.
     await expect.poll(async () => (await historyEntry(appWindow, inbox))?.title).toBe('Inbox - Mail')
 
     await appWindow.waitForTimeout(5_500)

@@ -87,7 +87,23 @@ function tabPage() {
     contents.emit('did-navigate-in-page', {}, url, true)
   }
   const setEntryCount = (count: number) => { contents.entryCount = count }
-  return { visits, titles, commit, ready, load, stopLoading, loadFrame, setTitle, changeWithinPage, setEntryCount }
+  /** An embedded frame loads another document, which adds an entry to the tab's history. */
+  const navigateFrame = (url: string) => {
+    contents.entryIndex += 1
+    contents.entryCount = contents.entryIndex + 1
+    contents.emit('did-frame-navigate', {}, url, 200, 'OK', false, 1, 2)
+  }
+  /** Hronaut removes an entry before the active one, which moves the active entry one place back. */
+  const removeEarlierEntry = () => {
+    contents.entryCount = (contents.entryCount || contents.entryIndex + 1) - 1
+    contents.entryIndex -= 1
+  }
+  /** A navigation that never commits, such as a download, aborts its load. */
+  const abortNavigation = (url: string) => { contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', url, true) }
+  return {
+    visits, titles, commit, ready, load, stopLoading, loadFrame, setTitle, changeWithinPage, setEntryCount, navigateFrame,
+    removeEarlierEntry, abortNavigation
+  }
 }
 
 describe('visits a tab gives the history', () => {
@@ -147,6 +163,31 @@ describe('visits a tab gives the history', () => {
     expect(page.visits.map((visit) => visit.samePage)).toEqual([false, false])
   })
 
+  it('counts a reload after an embedded frame added an entry, or after an earlier entry was removed, as the same page', () => {
+    // An embedded editor or ad that loaded another document moved the tab to another entry, so a reload looked like a
+    // visit to it, as did one after the sleeping page of a woken tab left the history.
+    const framed = tabPage()
+    framed.load('https://docs.example/edit', 0)
+    framed.navigateFrame('https://ads.example/2')
+    framed.load('https://docs.example/edit', 1)
+    expect(framed.visits.map((visit) => visit.samePage)).toEqual([false, true])
+
+    const woken = tabPage()
+    woken.load('https://news.example/', 0)
+    woken.load('https://news.example/story', 1)
+    woken.removeEarlierEntry()
+    woken.load('https://news.example/story', 0)
+    expect(woken.visits.map((visit) => visit.samePage)).toEqual([false, false, true])
+  })
+
+  it('counts a reload of an earlier entry in a tab with as many entries as Chromium keeps as the same page', () => {
+    const page = tabPage()
+    page.setEntryCount(50)
+    page.load('https://admin.example/item/1', 48)
+    page.load('https://admin.example/item/1', 48)
+    expect(page.visits.map((visit) => visit.samePage)).toEqual([false, true])
+  })
+
   it('keeps a link to a section of the page one visit, as the history leaves fragments out', () => {
     const page = tabPage()
     page.load('https://docs.example/guide', 0)
@@ -189,6 +230,15 @@ describe('titles a tab gives the history', () => {
     page.commit('https://timer.example/done', 1, 'Done')
     page.setTitle('Finished')
     expect(page.titles.at(-1)).toBe('Finished')
+  })
+
+  it('keeps the titles a loading page sets after a download it started, which does not end its load', () => {
+    const page = tabPage()
+    page.commit('https://reports.example/', 0, 'Reports')
+    page.abortNavigation('https://reports.example/export.csv')
+    vi.advanceTimersByTime(6_000)
+    page.setTitle('Reports - 12 ready')
+    expect(page.titles).toEqual(['Reports - 12 ready'])
   })
 
   it('does not take a title set long after the page loaded while an embedded frame loads', () => {
