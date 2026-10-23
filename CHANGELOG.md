@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- The address bar's suggestions now stay on screen while they change, as Chrome's do, such as when a page finishes loading in another tab and its visit joins them. They hid and shrank to a line until the new ones were drawn, so the list blinked, and a click on a row in that moment missed it.
+
 ## [3.7.0] - 2026-10-23
 
 ### Changed
@@ -27,7 +31,6 @@ All notable changes to Hronaut are documented in this file.
 - A `browser_task_runs` success claim left in its verification, as when the connection loses permission while the claim is saved, now times out like a running task when its heartbeat or deadline passes. It kept reporting `running` with a heartbeat deadline in the past. A claim made in time still succeeds when Hronaut's second look at its evidence ends after the heartbeat or the deadline.
 - A link or form on a dApp that starts a download, or that the server answers with no content, no longer cancels the page's pending wallet requests or returns it to its default network. The page stays, so its requests and network now stay too, and they end only when another document, or an error page, replaces it. A connection that breaks after the page appeared keeps them as well, and a request the page makes while the next page is still loading now ends when that page replaces it, instead of carrying over to the next page.
 - An action-audit recording whose journal was cut off when Hronaut stopped while writing it no longer keeps every later recording in its workspace from starting. When the next recording starts, the cut-off one leaves the list and its journal, with every receipt saved before the cut, is kept beside the others as `<run id>.jsonl.unverified`. Retiring the oldest of three recordings no longer leaves its journal behind, unlisted, when removing it fails or Hronaut stops meanwhile, which also kept every later recording from starting.
-- The address bar's suggestions now stay on screen while they change, as Chrome's do, such as when a page finishes loading in another tab and its visit joins them. They hid and shrank to a line until the new ones were drawn, so the list blinked, and a click on a row in that moment missed it.
 
 ### Known issues
 
