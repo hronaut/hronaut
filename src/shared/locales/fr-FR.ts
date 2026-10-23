@@ -3577,6 +3577,7 @@ export const frFR = {
       "reopenClosed": "Rouvrir l’onglet fermé",
       "openLink": "Ouvrir le lien dans un nouvel onglet",
       "copyLink": "Copier l’adresse du lien",
+      "copyEmail": "Copier l’adresse e-mail",
       "saveLink": "Enregistrer le lien",
       "openImage": "Ouvrir l’image dans un nouvel onglet",
       "copyImage": "Copier l’image",

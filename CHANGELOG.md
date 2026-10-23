@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 - Right-clicking a video or audio on a page now offers **Open Video in New Tab**, **Save Video** and **Copy Video Address** (or the same for audio), as Chrome does. The menu had nothing for them, so a video or audio could not be opened or saved by itself. As in Chrome, a stream the page builds itself, which Chromium cannot save, keeps Open and Save unavailable, and as for an image, only an http or https address opens or saves.
 - On Windows and macOS, right-clicking a text field on a page or in Hronaut's own window, such as the address bar, now offers **Emoji** (**Emoji & Symbols** on macOS) first, which opens the system's emoji picker, as Chrome does. Linux has no system emoji picker, so its menus are unchanged.
 - **Shift+Delete** (**Shift+Fn+Delete** on a Mac laptop) on a visit highlighted in the address bar's suggestions now forgets that visit, as removing it in History does, and highlights the suggestion in its place, as in Chrome. The address bar kept suggesting every visit until it was removed in History. A highlighted bookmark stays.
+- Right-clicking an email link on a page now offers **Copy Email Address**, which copies the address alone, as Chrome does. **Copy Link Address** copied the whole link, with `mailto:`, any subject or body and its escaped characters, such as `mailto:support%40example.com?subject=Hi` for support@example.com.
 
 ## [3.5.0] - 2026-10-22
 

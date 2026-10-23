@@ -3577,6 +3577,7 @@ export const deDE = {
       "reopenClosed": "Geschlossenen Tab erneut öffnen",
       "openLink": "Link in neuem Tab öffnen",
       "copyLink": "Linkadresse kopieren",
+      "copyEmail": "E-Mail-Adresse kopieren",
       "saveLink": "Link speichern",
       "openImage": "Bild in neuem Tab öffnen",
       "copyImage": "Bild kopieren",
