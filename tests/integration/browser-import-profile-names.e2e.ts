@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test, expect } from './fixtures.js'
+import { answerTrustedDialog, trustedDialogHeadline } from './trusted-dialog-fixture.js'
 import { removeTestDirectory } from '../helpers/remove-test-directory.js'
 import type { HronautApi } from '../../src/shared/types.js'
 
@@ -25,19 +26,15 @@ test('shows browser display names and preserves the selected duplicate-name prof
     await mkdir(join(firefox, 'fixture'), { recursive: true })
     await writeFile(join(firefox, 'fixture/cookies.sqlite'), 'not a cookie database')
     await writeFile(join(firefox, 'profiles.ini'), '[Profile0]\nName=個人 🚀\nIsRelative=1\nPath=fixture\n')
-    previousHome = await electronApp.evaluate(({ dialog }, home) => {
+    previousHome = await electronApp.evaluate((_electron, home) => {
       const previous = process.env.HOME
       process.env.HOME = home
-      const scope = globalThis as typeof globalThis & { profileNameConsent?: string; profileNameConfigHome?: string; profileNameChromeConfigHome?: string }
+      const scope = globalThis as typeof globalThis & { profileNameConfigHome?: string; profileNameChromeConfigHome?: string }
       // A configuration folder the runner names would list its real Firefox and Chrome profiles; without one, HOME's is read.
       scope.profileNameConfigHome = process.env.XDG_CONFIG_HOME
       delete process.env.XDG_CONFIG_HOME
       scope.profileNameChromeConfigHome = process.env.CHROME_CONFIG_HOME
       delete process.env.CHROME_CONFIG_HOME
-      dialog.showMessageBox = async (...args: unknown[]) => {
-        scope.profileNameConsent = JSON.stringify(args.at(-1))
-        return { response: 0, checkboxChecked: false }
-      }
       return previous
     }, fixtureHome)
     homeChanged = true
@@ -58,7 +55,8 @@ test('shows browser display names and preserves the selected duplicate-name prof
     await picker.selectOption({ label: 'Google Chrome · Avery · Profile 10' })
     await appWindow.screenshot({ path: testInfo.outputPath('profile-display-names.png') })
     await panel.getByRole('button', { name: 'Continue', exact: true }).click()
-    await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { profileNameConsent?: string }).profileNameConsent)).toContain('Avery · Profile 10')
+    await expect.poll(() => trustedDialogHeadline(appWindow)).toContain('Avery · Profile 10')
+    await answerTrustedDialog(appWindow, 'Cancel')
     await expect(panel.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
     expect(await panel.textContent()).not.toContain('private-account@example.test')
     expect(await panel.textContent()).not.toContain(fixtureHome)

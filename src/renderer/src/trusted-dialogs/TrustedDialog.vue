@@ -125,6 +125,7 @@ function buttonVariant(index: number): 'primary' | 'secondary' {
     :class="[`trusted-dialog--${copy?.tone ?? 'info'}`, { 'trusted-dialog--arming': !armed }]"
     data-testid="trusted-dialog"
     :data-variant="request?.variant.kind"
+    :data-topic="request?.variant.kind === 'message' ? request.variant.topic : undefined"
     :data-request-id="request?.id"
     :data-armed="armed ? 'true' : 'false'"
     @update:open="openChanged"

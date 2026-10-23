@@ -12,6 +12,7 @@ import type { BrowserEnvironmentSettings, BrowserState, BrowserStorageResult, Br
 import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, settleShellMotion, test } from './fixtures.js'
 import { answerConfirmations } from './confirmation-fixture.js'
+import { answerTrustedDialog, trustedDialog, trustedDialogHeadline, trustedDialogRequestId } from './trusted-dialog-fixture.js'
 
 const execFileAsync = promisify(execFile)
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -944,6 +945,13 @@ test('shows an error status when the MCP port is already in use', async ({
   let conflictingApp: Awaited<ReturnType<typeof launchHronaut>> | undefined
   try {
     conflictingApp = await launchHronaut(profileDirectory, mcpPort)
+    // Startup says so in Hronaut's own dialog over the window, offering a free port.
+    const startupDialog = trustedDialog(conflictingApp.window)
+    await expect(startupDialog).toHaveAttribute('data-topic', 'agent-connection')
+    expect(await trustedDialogHeadline(conflictingApp.window)).toBe(`Another app is using port ${mcpPort}`)
+    await expect(startupDialog.getByRole('button', { name: /^Use port \d+$/ })).toBeFocused()
+    await answerTrustedDialog(conflictingApp.window, 'Not now')
+    await expect(startupDialog).toBeHidden()
     const statusPill = conflictingApp.window.getByRole('button', { name: 'Agents can’t connect' })
     await expect(statusPill).toBeVisible()
     // Plain words and a free port to move to; the raw error stays in the state for the diagnostic.
@@ -4887,92 +4895,50 @@ test('keeps an edited page open until the user confirms its beforeunload close',
       return page?.executeJavaScript("document.querySelector('#draft').value")
     }, url)).toBe('x')
 
-    await electronApp.evaluate(({ dialog }) => {
-      let releaseFirst!: () => void
-      const firstResponse = new Promise<void>((resolve) => { releaseFirst = resolve })
-      const control = {
-        original: dialog.showMessageBox.bind(dialog),
-        responses: [0, 1],
-        calls: [] as Electron.MessageBoxOptions[],
-        firstResponse,
-        releaseFirst
-      }
-      ;(globalThis as typeof globalThis & { __hronautBeforeUnloadDialog?: typeof control }).__hronautBeforeUnloadDialog = control
-      Object.defineProperty(dialog, 'showMessageBox', {
-        configurable: true,
-        value: async (...args: unknown[]) => {
-          const options = args.at(-1) as Electron.MessageBoxOptions
-          control.calls.push(options)
-          if (control.calls.length === 1) await control.firstResponse
-          return { response: control.responses.shift() ?? 0, checkboxChecked: false }
-        }
-      })
-    })
     // Electron resolves a WebContents beforeunload request through its own
     // will-prevent-unload event. Keep Playwright from also auto-dismissing the
     // transient CDP dialog, which would race Electron's native handling.
     for (const page of electronApp.context().pages()) page.on('dialog', () => undefined)
 
     const closeButton = appWindow.locator(`[data-tab-id="${tabId}"] .tab-close`)
-    await closeButton.click()
-    await closeButton.click()
-    await expect.poll(() => electronApp.evaluate(() => (
-      (globalThis as typeof globalThis & {
-        __hronautBeforeUnloadDialog?: { calls: Electron.MessageBoxOptions[] }
-      }).__hronautBeforeUnloadDialog?.calls.length ?? 0
-    ))).toBe(1)
-    await electronApp.evaluate(() => {
-      (globalThis as typeof globalThis & {
-        __hronautBeforeUnloadDialog?: { releaseFirst: () => void }
-      }).__hronautBeforeUnloadDialog?.releaseFirst()
+    // Two clicks before the page answers ask once, in Hronaut's own dialog with Keep editing focused.
+    await closeButton.evaluate((button) => {
+      (button as HTMLElement).click()
+      ;(button as HTMLElement).click()
     })
+    const firstQuestion = await trustedDialogRequestId(appWindow)
+    await expect(trustedDialog(appWindow)).toHaveAttribute('data-topic', 'unsaved-changes')
+    expect(await trustedDialogHeadline(appWindow)).toBe('This page asked Hronaut to confirm before closing.')
+    await expect(trustedDialog(appWindow)).toContainText('Close this tab?')
+    await expect(trustedDialog(appWindow).locator('.ui-dialog__footer button')).toHaveText(['Keep editing', 'Discard changes'])
+    await expect(trustedDialog(appWindow).getByRole('button', { name: 'Keep editing', exact: true })).toBeFocused()
+    await answerTrustedDialog(appWindow, 'Keep editing')
+    // No second question follows, and the page kept its draft.
+    await expect(trustedDialog(appWindow)).toBeHidden()
     await expect.poll(() => electronApp.evaluate(async ({ webContents }, input) => {
-      const control = (globalThis as typeof globalThis & {
-        __hronautBeforeUnloadDialog?: { calls: Electron.MessageBoxOptions[] }
-      }).__hronautBeforeUnloadDialog
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === input.url)
       return {
-        dialogCalls: control?.calls.length ?? 0,
         beforeUnloadCount: await page?.executeJavaScript('window.beforeUnloadCount'),
         value: await page?.executeJavaScript("document.querySelector('#draft').value")
       }
-    }, { url })).toEqual({ dialogCalls: 1, beforeUnloadCount: 1, value: 'x' })
+    }, { url })).toEqual({ beforeUnloadCount: 1, value: 'x' })
     await expect.poll(() => appWindow.evaluate((id) => (
       window as unknown as { hronaut: HronautApi }
     ).hronaut.getState().then((current) => current.tabs.some((tab) => tab.id === id)), tabId)).toBe(true)
 
     await closeButton.click()
+    expect(await trustedDialogRequestId(appWindow)).not.toBe(firstQuestion)
+    await answerTrustedDialog(appWindow, 'Discard changes')
     await expect.poll(() => appWindow.evaluate((id) => (
       window as unknown as { hronaut: HronautApi }
     ).hronaut.getState().then((current) => ({
       present: current.tabs.some((tab) => tab.id === id),
       closedEntries: current.closedTabs.filter((tab) => tab.title === 'Beforeunload close fixture').length
     })), tabId)).toEqual({ present: false, closedEntries: 1 })
-    expect(await electronApp.evaluate(() => {
-      const calls = (globalThis as typeof globalThis & {
-        __hronautBeforeUnloadDialog?: { calls: Electron.MessageBoxOptions[] }
-      }).__hronautBeforeUnloadDialog?.calls ?? []
-      return calls.map((call) => ({ title: call.title, buttons: call.buttons, defaultId: call.defaultId, cancelId: call.cancelId }))
-    })).toEqual([
-      expect.objectContaining({ buttons: ['Keep editing', 'Discard changes'], defaultId: 0, cancelId: 0 }),
-      expect.objectContaining({ buttons: ['Keep editing', 'Discard changes'], defaultId: 0, cancelId: 0 })
-    ])
     expect(await electronApp.evaluate(({ webContents }, requestedUrl) => (
       webContents.getAllWebContents().some((contents) => contents.getURL() === requestedUrl)
     ), url)).toBe(false)
   } finally {
-    await electronApp.evaluate(({ dialog }) => {
-      const scope = globalThis as typeof globalThis & {
-        __hronautBeforeUnloadDialog?: { original: typeof dialog.showMessageBox }
-      }
-      if (scope.__hronautBeforeUnloadDialog) {
-        Object.defineProperty(dialog, 'showMessageBox', {
-          configurable: true,
-          value: scope.__hronautBeforeUnloadDialog.original
-        })
-      }
-      delete scope.__hronautBeforeUnloadDialog
-    })
     await closeFixtureServer(server)
   }
 })

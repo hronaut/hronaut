@@ -3,6 +3,7 @@ import { createServer } from 'node:http'
 import { join } from 'node:path'
 import { credentialFillPageScript, type CredentialFillPageResult } from '../../src/main/browser/credential-fill-page.js'
 import { blockFileDestination, closeFixtureServer, expect, test } from './fixtures.js'
+import { answerTrustedDialog, trustedDialog } from './trusted-dialog-fixture.js'
 import type { BrowserState, CredentialStorageStatus, CredentialSummary } from '../../src/shared/types.js'
 
 test('exposes metadata-only password controls and fails closed without secure storage', async ({ appWindow }) => {
@@ -58,9 +59,14 @@ test('imports a confirmed browser CSV without exposing plaintext outside the mai
 
   await electronApp.evaluate(({ dialog }, selectedPath) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selectedPath] })
-    dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false })
   }, csvPath)
-  expect(await appWindow.evaluate('window.hronautCredentials.importFromCsv()')).toEqual({
+  // Hronaut asks in its own dialog over the page, with what the file holds, before it imports anything.
+  const canceledImport = appWindow.evaluate('window.hronautCredentials.importFromCsv()')
+  await expect(trustedDialog(appWindow)).toHaveAttribute('data-topic', 'passwords')
+  await expect(trustedDialog(appWindow)).toContainText('Import 2 saved accounts into Hronaut?')
+  await expect(trustedDialog(appWindow)).toContainText('New: 2 · updates: 0 · skipped: 2')
+  await answerTrustedDialog(appWindow, 'Cancel')
+  expect(await canceledImport).toEqual({
     canceled: true,
     added: 0,
     updated: 0,
@@ -68,10 +74,9 @@ test('imports a confirmed browser CSV without exposing plaintext outside the mai
   })
   expect(await appWindow.evaluate('window.hronautCredentials.list()')).toEqual([])
 
-  await electronApp.evaluate(({ dialog }) => {
-    dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
-  })
-  expect(await appWindow.evaluate('window.hronautCredentials.importFromCsv()')).toEqual({
+  const acceptedImport = appWindow.evaluate('window.hronautCredentials.importFromCsv()')
+  await answerTrustedDialog(appWindow, 'Import passwords')
+  expect(await acceptedImport).toEqual({
     canceled: false,
     added: 2,
     updated: 0,

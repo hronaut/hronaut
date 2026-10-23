@@ -1,4 +1,3 @@
-import type { MessageBoxOptions, MessageBoxReturnValue } from 'electron'
 import { stageMcpRuntimeCandidate, synchronizeMcpRuntimeCandidate } from './mcp-runtime-candidate.js'
 import { DEFAULT_MCP_TOOL_SET } from '../shared/mcp-tool-sets.js'
 import { mcpLocalHost } from '../shared/mcp-network.js'
@@ -8,6 +7,7 @@ import type { McpPauseState } from './mcp-pause-state.js'
 import type { McpPortRecovery } from './mcp-port-suggestion.js'
 import type { McpHttpServer } from './mcp/server.js'
 import type { McpTokenConfiguration } from './mcp-token-store.js'
+import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import { LocalizedError } from './localized-error.js'
 import type { AppSettings, McpControlState, McpServerStatus } from '../shared/types.js'
@@ -57,8 +57,8 @@ interface McpRuntimeHost {
   tabs(): Pick<BrowserTabsManager, 'setMcpUrl'> | null
   /** Translates into the current interface language; read on every use because the language can change. */
   text(key: MessageKey, parameters?: MessageParameters): string
-  /** Asks on the main window, or on its own while there is none. */
-  showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>
+  /** Asks in Hronaut's own dialog over the main window's pages, or in the system dialog while that window cannot show it. */
+  showDialog(options: Omit<TrustedDialogOptions, 'window'>): Promise<{ response: number }>
 }
 
 /**
@@ -80,7 +80,7 @@ export function createMcpRuntime(host: McpRuntimeHost): {
       const failure = host.mcpPortRecovery.failure
       const problem = failure && failure.code !== 'other' ? failure : undefined
       const signal = host.mcpPortRecovery.signal
-      const { response } = await host.showMessageBox({
+      const { response } = await host.showDialog({
         type: 'error',
         title: host.text('native.dialog.mcpFailedTitle'),
         message: problem
@@ -90,18 +90,26 @@ export function createMcpRuntime(host: McpRuntimeHost): {
           ? (problem.suggestedPort ? host.text('native.dialog.mcpPortSuggestion', { port: problem.suggestedPort }) : host.text('native.dialog.mcpPortNoneFree'))
           : host.state.startupError,
         signal,
+        variant: { kind: 'message', topic: 'agent-connection' },
         ...(problem?.suggestedPort ? {
           buttons: [host.text('native.dialog.notNow'), host.text('native.dialog.mcpUsePort', { port: problem.suggestedPort })],
           defaultId: 1,
           cancelId: 0,
+          primaryId: 1,
           noLink: true
-        } : {})
+        } : { buttons: [host.text('native.dialog.confirmOk')] })
       })
       // A port the person changed meanwhile, from Home or Settings, wins over this older answer.
       if (signal.aborted || response !== 1 || !problem?.suggestedPort || host.mcpPortRecovery.failure !== failure) return
       const result = await host.mcpPortRecovery.move(problem.suggestedPort)
       if (result.outcome === 'failed') {
-        await host.showMessageBox({ type: 'error', title: host.text('native.dialog.mcpFailedTitle'), message: host.text('native.dialog.mcpFailedMessage', { host: host.state.host, port: result.port }) })
+        await host.showDialog({
+          type: 'error',
+          title: host.text('native.dialog.mcpFailedTitle'),
+          message: host.text('native.dialog.mcpFailedMessage', { host: host.state.host, port: result.port }),
+          buttons: [host.text('native.dialog.confirmOk')],
+          variant: { kind: 'message', topic: 'agent-connection' }
+        })
       }
       if (result.outcome !== 'taken') return
     }

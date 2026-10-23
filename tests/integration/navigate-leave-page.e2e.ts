@@ -1,11 +1,10 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { answerTrustedDialog, trustedDialog, trustedDialogHeadline } from './trusted-dialog-fixture.js'
 
 // A page that asks before it is left, as an editor with unsaved changes does, kept itself open when an agent or a
 // person loaded another address, and nothing said so: browser_navigate reported success and the address bar did
 // nothing. Chrome asks "Leave site?".
-
-type LeaveDialogControl = { original: Electron.Dialog['showMessageBox']; responses: number[]; calls: Electron.MessageBoxOptions[] }
 
 test('a page that asks before it is left stops browser_navigate with an error and asks a person', async ({ capabilities, appWindow, electronApp }) => {
   const { client, tabId, fixtureOrigin } = capabilities
@@ -38,43 +37,26 @@ test('a page that asks before it is left stops browser_navigate with an error an
   expect(text(navigated)).toContain('so it stayed open and nothing was loaded')
   expect(await evaluate('location.href')).toBe(start)
 
-  await electronApp.evaluate(({ dialog, webContents }, start) => {
-    const control: LeaveDialogControl = { original: dialog.showMessageBox.bind(dialog), responses: [0, 1], calls: [] }
-    ;(globalThis as typeof globalThis & { __leaveDialog?: LeaveDialogControl }).__leaveDialog = control
-    Object.defineProperty(dialog, 'showMessageBox', {
-      configurable: true,
-      value: async (...args: unknown[]) => {
-        control.calls.push(args.at(-1) as Electron.MessageBoxOptions)
-        const response = control.responses.shift() ?? 0
-        // As an editor's autosave while the question is open, the page changes its address within itself.
-        if (response === 1) {
-          const page = webContents.getAllWebContents().find(candidate => candidate.getURL() === start)
-          await page?.executeJavaScript(`history.replaceState(null, '', location.href + '&saved=1')`, false)
-        }
-        return { response, checkboxChecked: false }
-      }
-    })
+  const personNavigates = () => appWindow.evaluate(`window.hronaut.navigate(${JSON.stringify({ url: destination, tabId })}).then(() => true)`)
+  // A person is asked in Hronaut's own dialog over the page, with Keep editing focused; keeping the page leaves it as it was.
+  const kept = personNavigates()
+  await expect(trustedDialog(appWindow)).toHaveAttribute('data-topic', 'unsaved-changes')
+  expect(await trustedDialogHeadline(appWindow)).toBe('This page asked Hronaut to confirm before leaving it.')
+  await expect(trustedDialog(appWindow)).toContainText('Leave this page?')
+  await expect(trustedDialog(appWindow).getByRole('button', { name: 'Keep editing', exact: true })).toBeFocused()
+  await answerTrustedDialog(appWindow, 'Keep editing')
+  await kept
+  expect(await evaluate('location.href')).toBe(start)
+
+  // Leaving loads the address, even after the page changed its address within itself while the question was open, as an
+  // editor's autosave does.
+  const left = personNavigates()
+  await expect(trustedDialog(appWindow)).toBeVisible()
+  await electronApp.evaluate(async ({ webContents }, start) => {
+    const page = webContents.getAllWebContents().find(candidate => candidate.getURL() === start)
+    await page?.executeJavaScript(`history.replaceState(null, '', location.href + '&saved=1')`, false)
   }, start)
-  try {
-    const personNavigates = () => appWindow.evaluate(`window.hronaut.navigate(${JSON.stringify({ url: destination, tabId })}).then(() => true)`)
-    // Keeping the page leaves it as it was.
-    await personNavigates()
-    expect(await evaluate('location.href')).toBe(start)
-    // Leaving loads the address, even after the page changed its address within itself.
-    await personNavigates()
-    await expect.poll(() => evaluate('location.href')).toBe(destination)
-    expect(await electronApp.evaluate(() => {
-      const calls = (globalThis as typeof globalThis & { __leaveDialog?: LeaveDialogControl }).__leaveDialog?.calls ?? []
-      return calls.map((options) => ({ title: options.title, buttons: options.buttons, defaultId: options.defaultId, cancelId: options.cancelId }))
-    })).toEqual([
-      { title: 'Leave this page?', buttons: ['Keep editing', 'Leave page'], defaultId: 0, cancelId: 0 },
-      { title: 'Leave this page?', buttons: ['Keep editing', 'Leave page'], defaultId: 0, cancelId: 0 }
-    ])
-  } finally {
-    await electronApp.evaluate(({ dialog }) => {
-      const scope = globalThis as typeof globalThis & { __leaveDialog?: LeaveDialogControl }
-      if (scope.__leaveDialog) Object.defineProperty(dialog, 'showMessageBox', { configurable: true, value: scope.__leaveDialog.original })
-      delete scope.__leaveDialog
-    })
-  }
+  await answerTrustedDialog(appWindow, 'Leave page')
+  await left
+  await expect.poll(() => evaluate('location.href')).toBe(destination)
 })

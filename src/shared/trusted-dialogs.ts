@@ -36,12 +36,32 @@ export interface ProtectedFileAccessDialogVariant {
   target: 'file' | 'folder'
 }
 
+/** A page submitted a password Hronaut can save, or one it saved for that account before. */
+export interface SavePasswordDialogVariant {
+  kind: 'save-password'
+  /** The website the password is for, as an origin. */
+  origin: string
+  /** The username the page submitted with it; empty when it sent none. */
+  username: string
+  /** True when Hronaut has a password for this username and website already. */
+  updating: boolean
+}
+
+/** What one of Hronaut's own questions is about, for the mark its dialog shows. */
+export type TrustedDialogTopic = 'unsaved-changes' | 'downloads' | 'browser-import' | 'passwords' | 'agent-connection'
+
 /** A dialog with no design of its own: the message, detail and buttons as given. */
 export interface MessageDialogVariant {
   kind: 'message'
+  /** What it is about, for its mark; the mark of its `type` when omitted. */
+  topic?: TrustedDialogTopic
 }
 
-export type TrustedDialogVariant = SitePermissionDialogVariant | ProtectedFileAccessDialogVariant | MessageDialogVariant
+export type TrustedDialogVariant =
+  | SitePermissionDialogVariant
+  | ProtectedFileAccessDialogVariant
+  | SavePasswordDialogVariant
+  | MessageDialogVariant
 
 /** The one dialog main shows a shell window, as that window draws it. */
 export interface TrustedDialogRequest {

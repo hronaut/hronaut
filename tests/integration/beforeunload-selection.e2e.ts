@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import type { HronautApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
+import { answerTrustedDialog } from './trusted-dialog-fixture.js'
 
 for (const canceled of [true, false]) {
   for (const scenario of ['replacement', 'other', 'reordered', ...(canceled ? ['other-delayed-input' as const] : [])] as const) {
@@ -36,7 +37,7 @@ for (const canceled of [true, false]) {
         await expect.poll(() => appWindow.evaluate(() => (
           window as unknown as { hronaut: HronautApi }
         ).hronaut.getState().then(state => state.tabs.every(tab => !tab.loading)))).toBe(true)
-        const draftDocument = await electronApp.evaluate(async ({ webContents, dialog }, { url, delayedInput }) => {
+        const draftDocument = await electronApp.evaluate(async ({ webContents }, { url, delayedInput }) => {
           const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
           if (!page) throw new Error('Draft page missing')
           page.focus()
@@ -44,14 +45,12 @@ for (const canceled of [true, false]) {
           const deliverInput = () => page.sendInputEvent({ type: 'char', keyCode: 'x' })
           if (!delayedInput) deliverInput()
           const originalClose = page.close.bind(page)
-          const originalDialog = dialog.showMessageBox
           const control = {
             started: false,
             deliverInput,
             release: undefined as (() => void) | undefined,
             restore: () => {
               if (!page.isDestroyed()) Object.defineProperty(page, 'close', { configurable: true, value: originalClose })
-              Object.defineProperty(dialog, 'showMessageBox', { configurable: true, value: originalDialog })
             }
           }
           ;(globalThis as typeof globalThis & { __delayedClose?: typeof control }).__delayedClose = control
@@ -59,7 +58,6 @@ for (const canceled of [true, false]) {
             control.started = true
             control.release = () => originalClose(options)
           } })
-          Object.defineProperty(dialog, 'showMessageBox', { configurable: true, value: async () => ({ response: 0, checkboxChecked: false }) })
           return documentCreatedAt
         }, { url: `${base}/draft`, delayedInput })
         // sendInputEvent queues native input; it is not an acknowledgement that the field changed.
@@ -100,6 +98,8 @@ for (const canceled of [true, false]) {
         await electronApp.evaluate(() => (globalThis as typeof globalThis & {
           __delayedClose?: { release?: () => void }
         }).__delayedClose?.release?.())
+        // The page asked to confirm, so Hronaut asks in its own dialog; keeping the page cancels the close.
+        if (canceled) await answerTrustedDialog(appWindow, 'Keep editing')
         await appWindow.evaluate(() => (window as unknown as { __closeResult?: Promise<unknown> }).__closeResult)
         const afterClose = await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
         expect(afterClose.activeTabId).toBe(ids[expectedSelection])

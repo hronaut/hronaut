@@ -1,14 +1,16 @@
-import type { BrowserWindow, MessageBoxOptions, MessageBoxReturnValue } from 'electron'
+import type { BrowserWindow } from 'electron'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import type { BrowserDownloadState } from '../shared/types.js'
 import type { AppQuitState } from './app-lifecycle.js'
+import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
 
 export interface QuitWithDownloadsHost {
   /** Every download Hronaut lists, read when a quit is requested. */
   downloads(): readonly BrowserDownloadState[]
-  /** The main window, which the question is attached to while it is shown. */
+  /** The main window, which the question is asked in while it is shown. */
   window(): BrowserWindow | undefined
-  showMessageBox(window: BrowserWindow | undefined, options: MessageBoxOptions): Promise<MessageBoxReturnValue>
+  /** Asks in Hronaut's own dialog over the given window's pages, or in the system dialog, with no window for `null`. */
+  showDialog(options: TrustedDialogOptions<BrowserWindow>): Promise<{ response: number }>
   text(key: MessageKey, parameters?: MessageParameters): string
 }
 
@@ -28,15 +30,12 @@ export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost)
   return () => {
     if (pending) return pending
     let count: number
-    let options: MessageBoxOptions
-    let parent: BrowserWindow | undefined
+    let options: TrustedDialogOptions<BrowserWindow>
     try {
       // A paused download is still in progress; an interrupted one has already stopped.
       count = host.downloads().filter((download) => download.state === 'progressing').length
       if (count === 0) return Promise.resolve(true)
       const window = host.window()
-      // A sheet on a window hidden in the tray or minimized would not be seen.
-      parent = window && !window.isDestroyed() && window.isVisible() && !window.isMinimized() ? window : undefined
       options = {
         type: 'warning',
         title: host.text('native.dialog.quitDownloadsTitle'),
@@ -46,13 +45,16 @@ export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost)
         buttons: [host.text('native.dialog.quitDownloadsKeep'), host.text('native.dialog.quitDownloadsQuit')],
         defaultId: 0,
         cancelId: 0,
-        noLink: true
+        noLink: true,
+        variant: { kind: 'message', topic: 'downloads' },
+        // A dialog on a window hidden in the tray or minimized would not be seen, so the system dialog asks on its own.
+        window: window && !window.isDestroyed() && window.isVisible() && !window.isMinimized() ? window : null
       }
     } catch (error) {
       return Promise.resolve(quitAnyway(error))
     }
     try {
-      pending = host.showMessageBox(parent, options)
+      pending = host.showDialog(options)
         .then(({ response }) => response === 1, quitAnyway)
         .finally(() => { pending = undefined })
     } catch (error) {

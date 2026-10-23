@@ -5,6 +5,14 @@
 export const trustedDialogMessages = {
   'en-US': {
     close: 'Close',
+    savePassword: {
+      eyebrow: 'Saved passwords',
+      save: 'Save your password for {origin}?',
+      update: 'Update your saved password for {origin}?',
+      username: 'Username',
+      noUsername: 'The page sent no username with it.',
+      stored: 'Hronaut encrypts it with your operating system’s secure storage. Saved passwords are never exposed through MCP.'
+    },
     sitePermission: {
       embeddedIn: 'Embedded in {site}',
       wants: {
@@ -34,6 +42,14 @@ export const trustedDialogMessages = {
   },
   'uk-UA': {
     close: 'Закрити',
+    savePassword: {
+      eyebrow: 'Збережені паролі',
+      save: 'Зберегти пароль для {origin}?',
+      update: 'Оновити збережений пароль для {origin}?',
+      username: 'Ім’я користувача',
+      noUsername: 'Сторінка не надіслала імені користувача.',
+      stored: 'Hronaut шифрує його безпечним сховищем операційної системи. Збережені паролі ніколи не доступні через MCP.'
+    },
     sitePermission: {
       embeddedIn: 'Вбудовано на {site}',
       wants: {
@@ -63,6 +79,14 @@ export const trustedDialogMessages = {
   },
   'ru-RU': {
     close: 'Закрыть',
+    savePassword: {
+      eyebrow: 'Сохранённые пароли',
+      save: 'Сохранить пароль для {origin}?',
+      update: 'Обновить сохранённый пароль для {origin}?',
+      username: 'Имя пользователя',
+      noUsername: 'Страница не отправила имя пользователя.',
+      stored: 'Hronaut шифрует его безопасным хранилищем операционной системы. Сохранённые пароли никогда не доступны через MCP.'
+    },
     sitePermission: {
       embeddedIn: 'Встроено на {site}',
       wants: {
@@ -92,6 +116,14 @@ export const trustedDialogMessages = {
   },
   'de-DE': {
     close: 'Schließen',
+    savePassword: {
+      eyebrow: 'Gespeicherte Passwörter',
+      save: 'Passwort für {origin} speichern?',
+      update: 'Gespeichertes Passwort für {origin} aktualisieren?',
+      username: 'Benutzername',
+      noUsername: 'Die Seite hat keinen Benutzernamen mitgesendet.',
+      stored: 'Hronaut verschlüsselt es mit dem sicheren Speicher des Betriebssystems. Gespeicherte Passwörter werden niemals über MCP offengelegt.'
+    },
     sitePermission: {
       embeddedIn: 'Eingebettet in {site}',
       wants: {
@@ -121,6 +153,14 @@ export const trustedDialogMessages = {
   },
   'fr-FR': {
     close: 'Fermer',
+    savePassword: {
+      eyebrow: 'Mots de passe enregistrés',
+      save: 'Enregistrer votre mot de passe pour {origin} ?',
+      update: 'Mettre à jour le mot de passe enregistré pour {origin} ?',
+      username: 'Nom d’utilisateur',
+      noUsername: 'La page n’a envoyé aucun nom d’utilisateur.',
+      stored: 'Hronaut le chiffre avec le stockage sécurisé du système d’exploitation. Les mots de passe enregistrés ne sont jamais exposés par MCP.'
+    },
     sitePermission: {
       embeddedIn: 'Intégré dans {site}',
       wants: {
@@ -150,6 +190,14 @@ export const trustedDialogMessages = {
   },
   'es-ES': {
     close: 'Cerrar',
+    savePassword: {
+      eyebrow: 'Contraseñas guardadas',
+      save: '¿Guardar tu contraseña para {origin}?',
+      update: '¿Actualizar la contraseña guardada para {origin}?',
+      username: 'Nombre de usuario',
+      noUsername: 'La página no envió ningún nombre de usuario.',
+      stored: 'Hronaut la cifra con el almacenamiento seguro del sistema operativo. Las contraseñas guardadas nunca se exponen mediante MCP.'
+    },
     sitePermission: {
       embeddedIn: 'Insertado en {site}',
       wants: {
@@ -179,6 +227,14 @@ export const trustedDialogMessages = {
   },
   'pl-PL': {
     close: 'Zamknij',
+    savePassword: {
+      eyebrow: 'Zapisane hasła',
+      save: 'Zapisać hasło dla {origin}?',
+      update: 'Zaktualizować zapisane hasło dla {origin}?',
+      username: 'Nazwa użytkownika',
+      noUsername: 'Strona nie wysłała nazwy użytkownika.',
+      stored: 'Hronaut szyfruje je bezpieczną pamięcią systemu operacyjnego. Zapisane hasła nigdy nie są udostępniane przez MCP.'
+    },
     sitePermission: {
       embeddedIn: 'Osadzono w {site}',
       wants: {

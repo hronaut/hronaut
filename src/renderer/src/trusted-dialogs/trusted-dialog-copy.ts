@@ -23,9 +23,20 @@ import IconInfoOutlineRounded from '~icons/material-symbols/info-outline-rounded
 import IconWarningOutlineRounded from '~icons/material-symbols/warning-outline-rounded'
 import IconErrorOutlineRounded from '~icons/material-symbols/error-outline-rounded'
 import IconHelpOutlineRounded from '~icons/material-symbols/help-outline-rounded'
+import IconKeyOutlineRounded from '~icons/material-symbols/key-outline-rounded'
+import IconEditNoteOutlineRounded from '~icons/material-symbols/edit-note-outline-rounded'
+import IconDownloadRounded from '~icons/material-symbols/download-rounded'
+import IconMoveToInboxOutlineRounded from '~icons/material-symbols/move-to-inbox-outline-rounded'
+import IconLanOutlineRounded from '~icons/material-symbols/lan-outline-rounded'
 import { sitePermissionName } from '../../../shared/site-permission-names.js'
 import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
-import type { SitePermissionDialogVariant, TrustedDialogRequest, TrustedDialogType } from '../../../shared/trusted-dialogs.js'
+import type {
+  SavePasswordDialogVariant,
+  SitePermissionDialogVariant,
+  TrustedDialogRequest,
+  TrustedDialogTopic,
+  TrustedDialogType
+} from '../../../shared/trusted-dialogs.js'
 
 type Translate = (key: MessageKey, parameters?: MessageParameters) => string
 
@@ -75,6 +86,15 @@ const TYPE_ICONS: Readonly<Record<TrustedDialogType, Component>> = {
   question: IconHelpOutlineRounded,
   warning: IconWarningOutlineRounded,
   error: IconErrorOutlineRounded
+}
+
+/** The mark of a question about one of these, in place of its type's. */
+const TOPIC_ICONS: Readonly<Record<TrustedDialogTopic, Component>> = {
+  'unsaved-changes': IconEditNoteOutlineRounded,
+  downloads: IconDownloadRounded,
+  'browser-import': IconMoveToInboxOutlineRounded,
+  passwords: IconKeyOutlineRounded,
+  'agent-connection': IconLanOutlineRounded
 }
 
 /** A message with `{origin}` split around the origin, which a website chooses and so must read as a name. */
@@ -138,10 +158,26 @@ function sitePermissionCopy(variant: SitePermissionDialogVariant, t: Translate):
   }
 }
 
+/** Offers to keep a password a page submitted: the website stands out, and the username, which the page sent, is quoted. */
+function savePasswordCopy(variant: SavePasswordDialogVariant, t: Translate): TrustedDialogCopy {
+  return {
+    icon: IconKeyOutlineRounded,
+    tone: 'question',
+    eyebrow: t('trustedDialogs.savePassword.eyebrow'),
+    headline: emphasized(t, variant.updating ? 'trustedDialogs.savePassword.update' : 'trustedDialogs.savePassword.save', variant.origin),
+    ...(variant.username ? { quoted: variant.username, quotedLabel: t('trustedDialogs.savePassword.username') } : {}),
+    lines: [
+      ...(variant.username ? [] : [t('trustedDialogs.savePassword.noUsername')]),
+      t('trustedDialogs.savePassword.stored')
+    ]
+  }
+}
+
 /** The words and mark of a dialog: its own design for a known variant, or its message and detail as given. */
 export function trustedDialogCopy(request: TrustedDialogRequest, t: Translate): TrustedDialogCopy {
   const { variant } = request
   if (variant.kind === 'site-permission') return sitePermissionCopy(variant, t)
+  if (variant.kind === 'save-password') return savePasswordCopy(variant, t)
   if (variant.kind === 'protected-file-access') {
     const folder = variant.target === 'folder'
     return {
@@ -152,8 +188,9 @@ export function trustedDialogCopy(request: TrustedDialogRequest, t: Translate): 
       lines: [t(folder ? 'native.dialog.protectedFolderDetail' : 'native.dialog.protectedFileDetail')]
     }
   }
+  const { topic } = variant
   return {
-    icon: TYPE_ICONS[request.type],
+    icon: topic && Object.hasOwn(TOPIC_ICONS, topic) ? TOPIC_ICONS[topic] : TYPE_ICONS[request.type],
     tone: request.type === 'warning' || request.type === 'error' ? request.type : request.type === 'question' ? 'question' : 'info',
     eyebrow: request.title ?? '',
     headline: { before: request.message, emphasis: '', after: '' },

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { chromium, firefox } from '@playwright/test'
 import { test, expect, closeFixtureServer } from './fixtures.js'
+import { answerTrustedDialog, trustedDialog, trustedDialogHeadline } from './trusted-dialog-fixture.js'
 import { removeTestDirectory } from '../helpers/remove-test-directory.js'
 
 for (const sourceBrowser of ['chromium', 'firefox'] as const) {
@@ -43,14 +44,12 @@ for (const sourceBrowser of ['chromium', 'firefox'] as const) {
       if (sourceBrowser === 'firefox') await writeFile(join(home, '.mozilla/firefox/profiles.ini'), '[Profile0]\nName=Fixture profile\nIsRelative=1\nPath=fixture\n')
       const databasePath = sourceBrowser === 'firefox' ? join(sourceRoot, 'cookies.sqlite') : join(sourceRoot, 'Default/Cookies')
       const originalDatabase = await readFile(databasePath)
-      previousHome = await electronApp.evaluate(({ dialog }, fixtureHome) => {
+      previousHome = await electronApp.evaluate((_electron, fixtureHome) => {
         const previous = process.env.HOME ?? ''; process.env.HOME = fixtureHome
-        const scope = globalThis as typeof globalThis & { importConsent?: boolean; importConfigHome?: string; importChromeConfigHome?: string }
+        const scope = globalThis as typeof globalThis & { importConfigHome?: string; importChromeConfigHome?: string }
         // A configuration folder the runner names would list its real Firefox and Chrome profiles; without one, HOME's is read.
         scope.importConfigHome = process.env.XDG_CONFIG_HOME; delete process.env.XDG_CONFIG_HOME
         scope.importChromeConfigHome = process.env.CHROME_CONFIG_HOME; delete process.env.CHROME_CONFIG_HOME
-        scope.importConsent = false
-        dialog.showMessageBox = async () => ({ response: scope.importConsent ? 1 : 0, checkboxChecked: false })
         return previous
       }, home)
       const target = await appWindow.evaluate(async () => {
@@ -74,11 +73,16 @@ for (const sourceBrowser of ['chromium', 'firefox'] as const) {
       await expect(panel).toBeVisible()
       await expect(panel.getByLabel('Browser and profile')).toContainText(sourceBrowser === 'chromium' ? 'Chromium' : 'Fixture profile')
       await expect(panel.locator('#browser-import-profile option')).toHaveText(sourceBrowser === 'chromium' ? ['Chromium · Avery · Default'] : ['Firefox · Fixture profile · fixture'])
+      // Hronaut asks in its own dialog before it reads the other browser's cookies; Cancel reads nothing.
       await panel.getByRole('button', { name: 'Continue', exact: true }).click()
+      await expect(trustedDialog(appWindow)).toHaveAttribute('data-topic', 'browser-import')
+      expect(await trustedDialogHeadline(appWindow)).toBe(sourceBrowser === 'chromium' ? 'Let Hronaut read cookies from Chromium · Avery · Default?' : 'Let Hronaut read cookies from Firefox · Fixture profile · fixture?')
+      await answerTrustedDialog(appWindow, 'Cancel')
+      await expect(trustedDialog(appWindow)).toBeHidden()
       await expect(panel.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
       await expect(panel.getByText('Choose sites', { exact: true })).toHaveCount(0)
-      await electronApp.evaluate(() => { (globalThis as typeof globalThis & { importConsent: boolean }).importConsent = true })
       await panel.getByRole('button', { name: 'Continue', exact: true }).click()
+      await answerTrustedDialog(appWindow, 'Continue')
       await expect(panel.getByText('Choose sites', { exact: true })).toBeVisible()
       if (sourceBrowser === 'chromium') {
         await expect(panel.getByText('0 of 777 sites selected', { exact: true })).toBeVisible()

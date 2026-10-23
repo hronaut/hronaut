@@ -7,6 +7,7 @@ import type { McpControlState } from '../../src/shared/types.js'
 import { removeTestDirectory } from '../helpers/remove-test-directory.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test, type HronautInstance } from './fixtures.js'
 import { BUSY_PORT_BLOCK, integrationBusyMcpPort } from './port-allocation.js'
+import { answerTrustedDialog, trustedDialog, trustedDialogHeadline } from './trusted-dialog-fixture.js'
 
 async function homePage(app: ElectronApplication): Promise<Page> {
   await expect.poll(() => app.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
@@ -202,6 +203,16 @@ async function offeredPort(instance: HronautInstance, busyPort: number): Promise
   return suggestedPort!
 }
 
+/** Startup offers the free port in Hronaut's own dialog over the window; Not now leaves the offer to Home and the popover. */
+async function dismissStartupPortDialog(instance: HronautInstance, busyPort: number, suggested: number): Promise<void> {
+  const dialog = trustedDialog(instance.window)
+  await expect(dialog).toHaveAttribute('data-topic', 'agent-connection')
+  expect(await trustedDialogHeadline(instance.window)).toBe(`Another app is using port ${busyPort}`)
+  await expect(dialog.getByRole('button', { name: `Use port ${suggested}`, exact: true })).toBeVisible()
+  await answerTrustedDialog(instance.window, 'Not now')
+  await expect(dialog).toBeHidden()
+}
+
 async function expectListeningOn(instance: HronautInstance, profileDirectory: string, port: number): Promise<void> {
   await expect.poll(() => instance.window.evaluate('window.hronautMcp.getState().then(state => state.status)')).toBe('ready')
   await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).mcpPort).toBe(port)
@@ -217,6 +228,7 @@ test('moves the MCP listener to the free port Home offers when its port is busy'
   try {
     instance = await launchHronaut(profileDirectory, busyPort)
     const suggested = await offeredPort(instance, busyPort)
+    await dismissStartupPortDialog(instance, busyPort, suggested)
     const page = await homePage(instance.app)
     const problem = page.getByRole('alert').filter({ hasText: `Another app is using port ${busyPort}` })
     await expect(problem).toBeVisible()
@@ -243,6 +255,7 @@ test('moves the MCP listener to the free port offered in the agent status popove
     instance = await launchHronaut(profileDirectory, busyPort)
     const { window } = instance
     const suggested = await offeredPort(instance, busyPort)
+    await dismissStartupPortDialog(instance, busyPort, suggested)
     await window.getByRole('button', { name: 'Agents can’t connect', exact: true }).click()
     const problem = window.getByRole('alert').filter({ hasText: `Another app is using port ${busyPort}` })
     await expect(problem).toBeVisible()

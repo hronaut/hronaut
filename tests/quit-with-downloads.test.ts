@@ -1,6 +1,7 @@
-import type { BrowserWindow, MessageBoxOptions, MessageBoxReturnValue } from 'electron'
+import type { BrowserWindow, MessageBoxReturnValue } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createQuitRequest, createQuitWithDownloadsConfirmation } from '../src/main/quit-with-downloads.js'
+import type { TrustedDialogOptions } from '../src/main/trusted-dialogs/trusted-dialogs.js'
 import { translate } from '../src/shared/i18n.js'
 import type { BrowserDownloadState, SupportedLocale } from '../src/shared/types.js'
 
@@ -17,12 +18,12 @@ function confirmation(
   locale: SupportedLocale = 'en-US'
 ) {
   const parent = { isDestroyed: () => false, isVisible: () => true, isMinimized: () => false, ...window } as unknown as BrowserWindow
-  const asked: Array<{ window: BrowserWindow | undefined; options: MessageBoxOptions }> = []
+  const asked: Array<{ window: BrowserWindow | null | undefined; options: TrustedDialogOptions<BrowserWindow> }> = []
   const confirm = createQuitWithDownloadsConfirmation({
     downloads: typeof downloads === 'function' ? downloads : () => downloads,
     window: () => parent,
-    showMessageBox: vi.fn((parent: BrowserWindow | undefined, options: MessageBoxOptions) => {
-      asked.push({ window: parent, options })
+    showDialog: vi.fn((options: TrustedDialogOptions<BrowserWindow>) => {
+      asked.push({ window: options.window, options })
       return answer()
     }),
     text: (key, parameters) => translate(locale, key, parameters)
@@ -49,7 +50,8 @@ describe('quitting with downloads in progress', () => {
         detail: 'Quitting now cancels them and deletes the unfinished files.',
         buttons: ['Keep downloading', 'Quit'],
         defaultId: 0,
-        cancelId: 0
+        cancelId: 0,
+        variant: { kind: 'message', topic: 'downloads' }
       })
     })
     response = 1
@@ -75,7 +77,8 @@ describe('quitting with downloads in progress', () => {
   ] as const)('shows the question on its own while the window is %s', async (_label, window) => {
     const { confirm, asked } = confirmation([download('progressing')], async () => ({ response: 1, checkboxChecked: false }), window)
     await confirm()
-    expect(asked[0]!.window).toBeUndefined()
+    // No window: the system dialog asks on its own, since Hronaut's dialog would be drawn where no one sees it.
+    expect(asked[0]!.window).toBeNull()
   })
 
   it('says files in Russian for 21 downloads, which Russian counts like one', async () => {
