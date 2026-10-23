@@ -34,7 +34,10 @@ async function fixture() {
   return { root, toolNames, workspaceId: randomUUID(), service: new AuditReceiptService(root, toolNames) }
 }
 function action<T>(operation: () => Promise<T>) {
-  return { toolName: 'browser_click', readOnly: false, observeState: () => null, operation, isErrorResult: () => false }
+  return {
+    toolName: 'browser_click', readOnly: false, authorization: { kind: 'full-access' as const },
+    observeState: () => null, operation, isErrorResult: () => false
+  }
 }
 function deferred() {
   let resolve!: () => void
@@ -52,7 +55,8 @@ describe('persistent audit receipt service', () => {
       ...action(async () => 'done'),
       observeEvidence: () => ({
         state: { tabId, navigationGeneration: 2, observationGeneration: 3,
-          humanInteractionGeneration: 0, controlRevision: 5, originChanged: false },
+          humanInteractionGeneration: 0, controlRevision: 5, originChanged: false,
+          writeLease: { status: 'unclaimed', holder: 'none', mode: 'exclusive-write' } },
         artifacts: [
           { source: 'diagnostic', status: 'available', reason: 'retained', referenceId },
           { source: 'storage-changes', status: 'not-collected', reason: 'baseline-missing', referenceId: null }
@@ -144,6 +148,31 @@ describe('persistent audit receipt service', () => {
     await reopened.stop(workspaceId)
   })
 
+  it('retires an interrupted run whose journal no longer verifies instead of refusing every later start', async () => {
+    const { service, root, toolNames, workspaceId } = await fixture()
+    const interrupted = await service.start(workspaceId)
+    await service.execute(workspaceId, action(async () => 'done'))
+    // A journal saved by an earlier version, before decisions recorded their authorization.
+    const journal = join(root, workspaceId, `${interrupted.id}.jsonl`)
+    const saved = await readFile(journal, 'utf8')
+    expect(saved).toContain('"authorization":{"kind":"full-access"},')
+    await writeFile(journal, saved.replaceAll('"authorization":{"kind":"full-access"},', ''))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      const reopened = new AuditReceiptService(root, toolNames)
+      await expect(reopened.read(workspaceId, interrupted.id)).rejects.toThrow('verification failed')
+      const fresh = await reopened.start(workspaceId)
+      expect(fresh.id).not.toBe(interrupted.id)
+      expect((await reopened.list(workspaceId)).map(run => run.id)).toEqual([fresh.id])
+      await expect(stat(journal)).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(warn.mock.calls[0]).toEqual(['[audit] Retired an interrupted audit run whose journal could not be verified.'])
+      await reopened.stop(workspaceId)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
   it('durably resolves verification left pending by a process restart as unknown', async () => {
     const { service, root, toolNames, workspaceId } = await fixture()
     const run = await service.start(workspaceId)
@@ -152,9 +181,12 @@ describe('persistent audit receipt service', () => {
     })
     const actionId = randomUUID()
     const verificationId = randomUUID()
-    await store.append({ phase: 'decision', scope: 'workspace', actionId, toolName: 'browser_click', decision: 'allowed', state: null })
+    await store.append({
+      phase: 'decision', scope: 'workspace', actionId, toolName: 'browser_click', decision: 'allowed',
+      authorization: { kind: 'full-access' }, state: null
+    })
     await store.append({ phase: 'verification', actionId, verificationId, maxAttempts: 3, attempt: 0, status: 'pending', reason: 'awaiting-read' })
-    await store.append({ phase: 'outcome', actionId, status: 'succeeded', effects: 'possible', siteAccessDropped: 0, state: null })
+    await store.append({ phase: 'outcome', actionId, status: 'succeeded', effects: 'possible', siteAccessDropped: 0, evidenceDropped: 0, state: null })
 
     const reopened = new AuditReceiptService(root, toolNames)
     const first = await reopened.read(workspaceId, run.id)
@@ -178,7 +210,7 @@ describe('persistent audit receipt service', () => {
     const actionId = randomUUID()
     await store.append({
       phase: 'decision', scope: 'workspace', actionId, toolName: 'browser_click',
-      decision: 'allowed', evidenceExpected: true, state: null
+      decision: 'allowed', authorization: { kind: 'full-access' }, evidenceExpected: true, state: null
     })
     await store.append({
       phase: 'outcome', actionId, status: 'outcome-unknown', effects: 'possible', siteAccessDropped: 0,

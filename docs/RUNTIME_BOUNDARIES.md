@@ -56,8 +56,9 @@ than the entire browser runtime.
   modules, `MainWindowRefs` in `main/windows/main-window.ts` and `PanelWindowRefs` in
   `main/windows/panel-window.ts`, whose module and IPC take the record itself.
   The only loose variable left in index.ts is whether saved workspace metadata must
-  already exist, which its `startRuntime` learns while discarding obsolete browser
-  data and its `createWindow` reads; no other feature touches it.
+  already exist, which its `startRuntime` learns by validating that metadata before
+  any window, session or MCP server opens and its `createWindow` reads; no other
+  feature touches it.
   What the MCP server offers agents is built by the feature that owns it: agents'
   wallets in `main/wallet/runtime.ts`, site data in `main/site-data.ts`, bookmarks
   and history in `main/bookmarks-and-history.ts`, the automation license checks in

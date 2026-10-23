@@ -69,7 +69,7 @@ The browser mute button works from Home before any website tabs exist. It silenc
 
 Choose **Archive** when you finish a task. Tabs and sign-ins remain saved, and **Undo archive** restores an accidental archive immediately. Use **Restore workspace** in the Archived view to pick up where you left off. Permanent deletion asks for confirmation and removes the workspace’s website data.
 
-Hronaut starts on Home without creating a Default workspace. Opening your first tab creates an isolated workspace. Obsolete base-profile data and unsupported persistence formats are discarded.
+Hronaut starts on Home without creating a Default workspace. Opening your first tab creates an isolated workspace. Workspace state saved in an unsupported format stops startup instead of being upgraded.
 
 - **Fork a workspace** to reuse its cookies and local storage in an independent profile. Choose any active or archived source; the fork starts with a blank tab and keeps the source's site restrictions, or only some of its listed sites if you choose them.
 - **Disable direct agent access** when a workspace should stay under your control. Agents can still fork it, but cannot browse or change its original tabs. The fork receives a copy of its site data, so this setting does not prevent agents from reusing copied sign-ins.

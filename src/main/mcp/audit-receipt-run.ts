@@ -25,7 +25,7 @@ export interface AuditReceiptVerificationOptions {
 export interface AuditReceiptActionOptions<T> {
   toolName: string
   readOnly: boolean
-  authorization?: AuditReceiptAuthorization
+  authorization: AuditReceiptAuthorization
   observeState: () => ObservedState
   operation: () => Promise<T>
   isErrorResult: (result: T) => boolean
@@ -69,7 +69,7 @@ export class AuditReceiptRun {
       // browser operation starts. Failure here cannot trigger an implicit retry.
       await this.store.append({
         phase: 'decision', scope: 'workspace', actionId, toolName: options.toolName,
-        decision: 'allowed', ...(options.authorization ? { authorization: structuredClone(options.authorization) } : {}),
+        decision: 'allowed', authorization: structuredClone(options.authorization),
         ...(options.observeEvidence ? { evidenceExpected: true } : {}), state: observe()
       })
       if (options.verification) {
@@ -84,7 +84,7 @@ export class AuditReceiptRun {
           try {
             await this.store.append({
               phase: 'outcome', actionId, status: 'failed', effects: 'none',
-              siteAccessDropped: 0, state: observe()
+              siteAccessDropped: 0, evidenceDropped: 0, state: observe()
             })
           } catch {
             this.persistenceFailed = true
