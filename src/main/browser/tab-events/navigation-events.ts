@@ -11,12 +11,14 @@ import { isStaleAddressTitle, untitledPageTitle } from './untitled-page-title.js
 const ABORTED_LOAD_ERROR = -3
 
 /**
- * As Chrome, the history keeps a title a page sets while it loads or in the 5 s after, and at most 5 of them for each
- * page. A title a page sets later to get attention, such as a count of unread messages, a chat message or a timer,
- * stays out of the history, which a page changing its title every second no longer rewrites each time.
+ * As in Chrome, the history keeps the titles a page sets until its main frame finishes loading and in the 5 s after,
+ * at most 10 for each page. A title a page sets later to get attention, such as a count of unread messages, a chat
+ * message or a timer, stays out of the history, which a page changing its title every second no longer rewrites.
  */
 const HISTORY_TITLE_WINDOW_MS = 5_000
-const HISTORY_TITLE_CHANGES = 5
+const HISTORY_TITLE_CHANGES = 10
+/** Chromium's limit of history entries for a tab, at which a new entry takes the last index again. */
+const MAX_TAB_HISTORY_ENTRIES = 50
 
 /**
  * Follows the page's title, loading and navigation: title updates, loading
@@ -44,21 +46,29 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       access.options().onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
     ))
   }
-  // The history entry the page shows, and whether the document that committed last opened that entry again: a reload,
-  // which Chrome does not count as another visit, as it counts no navigation to the address the tab shows already.
+  // The history entry the page shows, and whether the document that committed last opened that entry again at its
+  // address: a reload, or a navigation to the address the tab shows, which Chromium turns into one. Chrome does not
+  // count a reload as another visit.
   let committedEntryIndex = -1
   let pendingHistoryReload = false
   const withoutFragment = (address: string): string => address.split('#', 1)[0] ?? address
-  const activeEntryIndex = (): number => {
+  const activeEntry = (): { index: number; count: number } => {
     try {
-      return webContents.navigationHistory.getActiveIndex()
+      return { index: webContents.navigationHistory.getActiveIndex(), count: webContents.navigationHistory.length() }
     } catch {
-      return -1
+      return { index: -1, count: 0 }
     }
   }
-  // Title changes the history took for the page, and when the page stopped loading.
+  // Title changes the history took for the page; whether its main frame is loading, as Chrome counts a change within
+  // the page to another address too; and when the 5 s after it finished loading end.
   let historyTitleChanges = 0
+  let mainFrameLoading = false
   let historyTitleWindowEnd = 0
+  const mainFrameLoaded = (): void => {
+    if (!mainFrameLoading) return
+    mainFrameLoading = false
+    historyTitleWindowEnd = Date.now() + HISTORY_TITLE_WINDOW_MS
+  }
   const recordPendingHistory = (): void => {
     if (tab.suppressInitialHistory || tab.pendingHistoryUrl !== tab.url) return
     tab.title = normalizeTabTitle(webContents.getTitle(), tab.title)
@@ -72,7 +82,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     const titleChanged = nextTitle !== tab.title
     tab.title = nextTitle
     if (titleChanged && historyTitleChanges < HISTORY_TITLE_CHANGES
-      && (webContents.isLoading() || Date.now() < historyTitleWindowEnd)) {
+      && (mainFrameLoading || Date.now() < historyTitleWindowEnd)) {
       historyTitleChanges += 1
       access.options().onPageTitleUpdated?.({
         url: webContents.getURL() || tab.url,
@@ -167,7 +177,6 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       tab.pendingMainFrameUrl = undefined
     }
     if (tab.sleeping) return
-    historyTitleWindowEnd = Date.now() + HISTORY_TITLE_WINDOW_MS
     access.reconcileTabPresentation(tab)
     syncNavigation()
     access.reproRecorder().refreshReproScrollPosition(tab)
@@ -202,10 +211,16 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       tab.faviconDataUrl = undefined
     }
     if (previousUrl !== url) tab.faviconDataUrl = undefined
-    const entryIndex = activeEntryIndex()
-    pendingHistoryReload = entryIndex >= 0 && entryIndex === committedEntryIndex && url === previousUrl
-    committedEntryIndex = entryIndex
+    // A tab with as many entries as Chromium keeps gives a new one the last index again, so there only another address
+    // tells it from a reload, and the visit counts. A reload before the page it reloads was recorded is still its first
+    // visit.
+    const entry = activeEntry()
+    const sameEntry = entry.index >= 0 && entry.index === committedEntryIndex && url === previousUrl
+      && entry.count < MAX_TAB_HISTORY_ENTRIES
+    pendingHistoryReload = sameEntry && (tab.pendingHistoryUrl !== previousUrl || pendingHistoryReload)
+    committedEntryIndex = entry.index
     historyTitleChanges = 0
+    mainFrameLoading = true
     tab.pendingHistoryUrl = isWebUrl(url) ? url : null
     syncNavigation()
     access.reproRecorder().navigated(tab, url, false)
@@ -216,7 +231,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     // A frame's hash or history change does not represent another visit to
     // the tab's top-level page.
     if (!isMainFrame) return
-    committedEntryIndex = activeEntryIndex()
+    committedEntryIndex = activeEntry().index
     // No title update follows a change within the page. Chromium names an untitled page by its new address after
     // `history.pushState`, but after `history.replaceState` it keeps the old address, whose fragment can hold a
     // sign-in token, so the tab takes the new one. A title the page set itself stays.
@@ -232,12 +247,16 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     // within a few seconds; Hronaut never counts it. The first visit is still recorded when the document is ready.
     // This relies on tab.url holding the last committed address, which only syncNavigation sets here.
     if (url !== previousUrl) {
-      // The history leaves out fragments, so a link to a section of the page is not another visit to it.
-      if (!tab.suppressInitialHistory) access.recordVisit(tab, withoutFragment(url) === withoutFragment(previousUrl))
+      // The history leaves out fragments, so a link to a section of a page it holds is not another visit to it. A visit
+      // still waiting for its page to be ready, such as one a hash router gives `#/` first, is recorded now, as a visit.
+      const visitPending = tab.pendingHistoryUrl === previousUrl
+      const samePage = withoutFragment(url) === withoutFragment(previousUrl) && (!visitPending || pendingHistoryReload)
+      if (!tab.suppressInitialHistory) access.recordVisit(tab, samePage)
       tab.pendingHistoryUrl = null
-      // A route of a single-page app is a page of its own, whose title the app sets once it shows it.
+      // A route of a single-page app is a page of its own, whose title the app sets once it has shown it, such as after
+      // a slow request. As in Chrome, its titles count as set while it loads, until a document finishes loading.
       historyTitleChanges = 0
-      historyTitleWindowEnd = Date.now() + HISTORY_TITLE_WINDOW_MS
+      mainFrameLoading = true
     }
     access.scheduleTabOverviewPreview(tab)
   })
@@ -254,6 +273,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     if (tab.sleeping) return
     const previousUrl = tab.url
     syncNavigation()
+    if (isMainFrame) mainFrameLoaded()
     if (!isMainFrame || errorCode === ABORTED_LOAD_ERROR) return
     tab.authNavigationPending = false
     tab.documentGeneration += 1
@@ -274,6 +294,10 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     }, 'lifecycle')
     access.changed()
     access.scheduleTabOverviewPreview(tab)
+  })
+  webContents.on('did-finish-load', () => {
+    // Electron reports the main frame's load only.
+    if (!tab.sleeping) mainFrameLoaded()
   })
   webContents.on('dom-ready', () => {
     // A page can remain loading indefinitely because of a slow image,

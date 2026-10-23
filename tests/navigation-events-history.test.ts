@@ -22,12 +22,13 @@ function tabPage() {
     title: '',
     loading: false,
     entryIndex: -1,
+    entryCount: 0,
     getURL: () => contents.url,
     getTitle: () => contents.title,
     isLoading: () => contents.loading,
     isLoadingMainFrame: () => contents.loading,
     isDestroyed: () => false,
-    navigationHistory: { getActiveIndex: () => contents.entryIndex }
+    navigationHistory: { getActiveIndex: () => contents.entryIndex, length: () => contents.entryCount || contents.entryIndex + 1 }
   })
   const tab = {
     id: 'tab', url: 'about:blank', title: 'New Tab', loading: false, sleeping: false,
@@ -46,17 +47,27 @@ function tabPage() {
   const access = new Proxy({}, { get: (_target, key) => answers[key] ?? fallback[key] })
   attachNavigationEvents(access as never, tab as never, contents as never)
 
-  /** Commits a document at an address and history entry, which then becomes ready and stays loading. */
-  const commit = (url: string, entryIndex: number, title = 'Page') => {
+  /** Commits a document at an address and history entry, which stays loading and becomes ready unless told not to. */
+  const commit = (url: string, entryIndex: number, title = 'Page', ready = true) => {
     contents.url = url
     contents.title = title
     contents.entryIndex = entryIndex
     contents.loading = true
     contents.emit('did-start-loading')
     contents.emit('did-navigate', {}, url)
-    contents.emit('dom-ready')
+    if (ready) contents.emit('dom-ready')
   }
+  const ready = () => { contents.emit('dom-ready') }
+  /** The main frame finishes loading, and with it the page. */
   const stopLoading = () => {
+    contents.loading = false
+    contents.emit('did-finish-load')
+    contents.emit('did-stop-loading')
+  }
+  /** An embedded frame loads, which Electron reports as the page loading. */
+  const loadFrame = () => {
+    contents.loading = true
+    contents.emit('did-start-loading')
     contents.loading = false
     contents.emit('did-stop-loading')
   }
@@ -75,7 +86,8 @@ function tabPage() {
     contents.entryIndex = entryIndex
     contents.emit('did-navigate-in-page', {}, url, true)
   }
-  return { visits, titles, commit, load, stopLoading, setTitle, changeWithinPage }
+  const setEntryCount = (count: number) => { contents.entryCount = count }
+  return { visits, titles, commit, ready, load, stopLoading, loadFrame, setTitle, changeWithinPage, setEntryCount }
 }
 
 describe('visits a tab gives the history', () => {
@@ -113,6 +125,28 @@ describe('visits a tab gives the history', () => {
     ])
   })
 
+  it('counts a first visit that a reload or a hash router changes before the page is ready', () => {
+    // The page was not yet a visit, so marking it the same page again left it uncounted.
+    const reloaded = tabPage()
+    reloaded.commit('https://slow.example/', 0, 'Slow', false)
+    reloaded.load('https://slow.example/', 0, 'Slow')
+    expect(reloaded.visits).toEqual([{ url: 'https://slow.example/', samePage: false }])
+
+    const routed = tabPage()
+    routed.commit('https://app.example/', 0, 'App', false)
+    routed.changeWithinPage('https://app.example/#/', 1)
+    expect(routed.visits).toEqual([{ url: 'https://app.example/#/', samePage: false }])
+  })
+
+  it('counts a visit to the same address in a tab with as many entries as Chromium keeps, which reuses the last index', () => {
+    // A form that posts back to its page, in a tab with 50 entries, looked like a reload.
+    const page = tabPage()
+    page.setEntryCount(50)
+    page.load('https://admin.example/item/1', 49)
+    page.load('https://admin.example/item/1', 49)
+    expect(page.visits.map((visit) => visit.samePage)).toEqual([false, false])
+  })
+
   it('keeps a link to a section of the page one visit, as the history leaves fragments out', () => {
     const page = tabPage()
     page.load('https://docs.example/guide', 0)
@@ -147,22 +181,34 @@ describe('titles a tab gives the history', () => {
     expect(page.titles).toEqual(['Inbox', 'Inbox - mail.example'])
   })
 
-  it('keeps at most 5 titles of a page, and 5 more of the next one', () => {
+  it('keeps at most 10 titles of a page, and 10 more of the next one', () => {
     const page = tabPage()
     page.commit('https://timer.example/', 0, 'Timer')
-    for (let second = 10; second > 0; second -= 1) page.setTitle(`00:${String(second).padStart(2, '0')}`)
-    expect(page.titles).toEqual(['00:10', '00:09', '00:08', '00:07', '00:06'])
+    for (let second = 20; second > 0; second -= 1) page.setTitle(`00:${String(second).padStart(2, '0')}`)
+    expect(page.titles).toEqual(['00:20', '00:19', '00:18', '00:17', '00:16', '00:15', '00:14', '00:13', '00:12', '00:11'])
     page.commit('https://timer.example/done', 1, 'Done')
     page.setTitle('Finished')
     expect(page.titles.at(-1)).toBe('Finished')
   })
 
-  it('keeps the title a single-page app sets for a route it shows long after it loaded', () => {
+  it('does not take a title set long after the page loaded while an embedded frame loads', () => {
+    // Electron reports a frame's load as the page loading, so a chat page with a refreshing ad frame kept getting its
+    // unread counts into the history.
+    const page = tabPage()
+    page.load('https://chat.example/', 0, 'Chat')
+    vi.advanceTimersByTime(60_000)
+    page.loadFrame()
+    page.setTitle('(3) Chat')
+    expect(page.titles).toEqual([])
+  })
+
+  it('keeps the title a single-page app sets for a route it shows long after it loaded, even after a slow request', () => {
     const page = tabPage()
     page.load('https://app.example/inbox', 0, 'Inbox')
     vi.advanceTimersByTime(60_000)
     page.setTitle('(2) Inbox')
     page.changeWithinPage('https://app.example/settings', 1)
+    vi.advanceTimersByTime(8_000)
     page.setTitle('Settings')
     expect(page.titles).toEqual(['Settings'])
   })
