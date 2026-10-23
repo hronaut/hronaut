@@ -171,6 +171,11 @@ interface Entry {
   record: StoredRecord
   deadlineMonotonic: number
   heartbeatDueMonotonic: number
+  /**
+   * A success claim that the call which made it still observes again; it waits for that call, not for the heartbeat or
+   * the deadline. An invalid clock still settles it.
+   */
+  observingClaim?: boolean
 }
 
 const terminal = (state: TaskRunState): boolean => state !== 'RUNNING' && state !== 'VERIFYING'
@@ -347,6 +352,7 @@ export class TaskRunStore {
     } else {
       entry.record.state = 'VERIFYING'
       entry.record.terminalReason = null
+      entry.observingClaim = true
       this.touch(entry.record, wall)
     }
     return this.publicRecord(entry.record)
@@ -355,9 +361,12 @@ export class TaskRunStore {
   confirmSuccess(id: string, revision: string): TaskRunSummary {
     this.expire()
     const entry = this.records.get(idSchema.parse(id))
+    // A clock found invalid meanwhile settles even a claim its call still observes, and the call returns that outcome.
+    if (entry?.observingClaim && terminal(entry.record.state)) return this.publicRecord(entry.record)
     if (!entry || entry.record.state !== 'VERIFYING' || entry.record.revision !== idSchema.parse(revision)) {
       throw new Error('Verifying task run is unavailable or stale')
     }
+    entry.observingClaim = false
     this.transition(entry.record, 'SUCCEEDED', null)
     return this.publicRecord(entry.record)
   }
@@ -365,11 +374,20 @@ export class TaskRunStore {
   invalidateVerification(id: string, revision: string): TaskRunSummary {
     this.expire()
     const entry = this.records.get(idSchema.parse(id))
+    // A clock found invalid meanwhile settles even a claim its call still observes, and the call returns that outcome.
+    if (entry?.observingClaim && terminal(entry.record.state)) return this.publicRecord(entry.record)
     if (!entry || entry.record.state !== 'VERIFYING' || entry.record.revision !== idSchema.parse(revision)) {
       throw new Error('Verifying task run is unavailable or stale')
     }
+    entry.observingClaim = false
     this.transition(entry.record, 'OUTCOME_UNKNOWN', 'COMPLETION_CONTEXT_CHANGED')
     return this.publicRecord(entry.record)
+  }
+
+  /** Lets a success claim that its call no longer observes, as after the call lost access, time out like a running task. */
+  releaseVerification(id: string): void {
+    const entry = this.records.get(idSchema.parse(id))
+    if (entry) entry.observingClaim = false
   }
 
   get(id: string): TaskRunSummary {
@@ -448,9 +466,11 @@ export class TaskRunStore {
       }
     } else {
       for (const entry of this.records.values()) {
-        // A success claim still being verified keeps the heartbeat it had while running,
-        // so a verification that never finishes times out instead of running forever.
+        // A success claim left verifying keeps the heartbeat it had while running, so a claim
+        // whose call stopped observing it times out instead of running forever. The call that
+        // still observes it finishes it, however long the second look takes: the claim came in time.
         if (entry.record.state !== 'RUNNING' && entry.record.state !== 'VERIFYING') continue
+        if (entry.observingClaim) continue
         if (monotonic >= entry.deadlineMonotonic) this.transition(entry.record, 'TIMED_OUT', 'DEADLINE_REACHED')
         else if (monotonic >= entry.heartbeatDueMonotonic) this.transition(entry.record, 'TIMED_OUT', 'HEARTBEAT_EXPIRED')
       }

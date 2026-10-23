@@ -88,6 +88,62 @@ describe('durable task-run owner', () => {
     })
   })
 
+  // The claim came inside the heartbeat, so Hronaut's own second look at the evidence finishing after it does not time
+  // the run out. It failed with an internal "Verifying task run is unavailable or stale" error instead.
+  it('confirms a success claimed just before the heartbeat ends when checking it again takes past it', async () => {
+    let now = 0
+    const store = new TaskRunStore({ monotonicNow: () => now, wallNow: () => 1_000_000 + now })
+    const service = new TaskRunService({ load: async () => null, save: async () => undefined }, store)
+    const run = await service.create({ ...request, deadlineMs: 10_100 }, authorize)
+    now = 9_800
+    const evaluate = vi.fn(async () => {
+      now += 150
+      return { results: [{ id: 'page', status: 'PASS' as const }], contextToken: 'same' }
+    })
+    expect(await service.complete(WORKSPACE_ID, run.id, run.revision, 'SUCCEEDED', authorize, evaluate))
+      .toMatchObject({ outcome: 'succeeded' })
+    expect(evaluate).toHaveBeenCalledTimes(2)
+    expect(now).toBeGreaterThan(request.heartbeatTimeoutMs)
+  })
+
+  it('times out a success claim whose second check fails to run', async () => {
+    let now = 0
+    const store = new TaskRunStore({ monotonicNow: () => now, wallNow: () => 1_000_000 + now })
+    const service = new TaskRunService({ load: async () => null, save: async () => undefined }, store)
+    const run = await service.create(request, authorize)
+    let evaluations = 0
+    const evaluate = vi.fn(async () => {
+      if (++evaluations === 2) throw new Error('page gone')
+      return { results: [{ id: 'page', status: 'PASS' as const }], contextToken: 'same' }
+    })
+    await expect(service.complete(WORKSPACE_ID, run.id, run.revision, 'SUCCEEDED', authorize, evaluate)).rejects.toThrow('page gone')
+    expect(await service.get(WORKSPACE_ID, run.id, authorize)).toMatchObject({ outcome: 'running' })
+    now = request.heartbeatTimeoutMs
+    expect(await service.get(WORKSPACE_ID, run.id, authorize)).toMatchObject({
+      outcome: 'timed-out', reasonCode: 'HEARTBEAT_EXPIRED'
+    })
+  })
+
+  // Hronaut stops trusting its clock once it goes back, so a success claim checked again meanwhile is unknown, as every
+  // other running task is.
+  it('settles a success claim as unknown when the clock goes back while it is checked again', async () => {
+    let now = 1_000
+    let saved: ReturnType<TaskRunStore['snapshot']> | undefined
+    const store = new TaskRunStore({ monotonicNow: () => now, wallNow: () => 1_000_000 + now })
+    const service = new TaskRunService({ load: async () => null, save: async snapshot => { saved = structuredClone(snapshot) } }, store)
+    const run = await service.create(request, authorize)
+    const other = await service.create(request, authorize)
+    let evaluations = 0
+    const evaluate = vi.fn(async () => {
+      if (++evaluations === 2) now = 500
+      return { results: [{ id: 'page', status: 'PASS' as const }], contextToken: 'same' }
+    })
+    expect(await service.complete(WORKSPACE_ID, run.id, run.revision, 'SUCCEEDED', authorize, evaluate))
+      .toMatchObject({ outcome: 'outcome-unknown', reasonCode: 'CLOCK_INVALID' })
+    expect(saved?.records.find(record => record.id === run.id)).toMatchObject({ state: 'OUTCOME_UNKNOWN' })
+    expect(await service.get(WORKSPACE_ID, other.id, authorize)).toMatchObject({ outcome: 'outcome-unknown', reasonCode: 'CLOCK_INVALID' })
+  })
+
   it('reclassifies a saved success when its browser evidence changes before return', async () => {
     const service = new TaskRunService({ load: async () => null, save: async () => undefined })
     const run = await service.create(request, authorize)
