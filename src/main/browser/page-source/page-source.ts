@@ -22,6 +22,17 @@ export async function viewPageSource<Tab extends PageSourceTab>(access: PageSour
   return true
 }
 
+/**
+ * Chrome's View Frame Source, from the context menu of a frame inside the page: the frame's source in a new tab beside
+ * the page, as View Page Source opens the page's, for a frame showing a web page only.
+ */
+export async function viewFrameSource<Tab extends PageSourceTab>(access: PageSourceAccess<Tab>, tab: Tab, frameUrl: string): Promise<boolean> {
+  const url = pageSourceAddress(frameUrl)
+  if (!url || access.browserContentOccluded()) return false
+  await access.createTab({ url, active: true, mcpGroupId: tab.mcpGroupId, openedFrom: { tabId: tab.id, background: false } })
+  return true
+}
+
 /** View Page Source for the tab the window shows, from the View menu and its key; see viewPageSource. */
 export function viewShownPageSource<Tab extends PageSourceTab>(access: PageSourceAccess<Tab>): Promise<boolean> {
   const tab = access.shownTab()

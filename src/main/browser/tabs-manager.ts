@@ -438,7 +438,7 @@ import type { HistoryGestureAccess } from './history-gesture/history-gesture-acc
 import { printPage, printShownPage } from './page-print/page-print.js'
 import { savePageAs, saveShownPage } from './page-save/page-save.js'
 import type { PageSaveAccess } from './page-save/page-save-access.js'
-import { viewPageSource, viewShownPageSource } from './page-source/page-source.js'
+import { viewFrameSource, viewPageSource, viewShownPageSource } from './page-source/page-source.js'
 import type { PageSourceAccess } from './page-source/page-source-access.js'
 import type { PagePrintAccess } from './page-print/page-print-access.js'
 import { attachPageWheelZoom } from './page-zoom/page-wheel-zoom.js'
@@ -5949,6 +5949,7 @@ export class BrowserTabsManager {
       openDevTools: (tab) => this.openDevTools(tab),
       print: (tab) => printPage(this.pagePrintAccess(), tab),
       viewSource: (tab) => viewPageSource(this.pageSourceAccess(), tab),
+      viewFrameSource: (tab, frameUrl) => viewFrameSource(this.pageSourceAccess(), tab, frameUrl),
       savePage: (tab) => savePageAs(this.pageSaveAccess(), tab),
       searchEngine: () => this.options.getSearchEngine?.() ?? DEFAULT_SEARCH_ENGINE,
       browserContentOccluded: () => this.browserContentOccluded,

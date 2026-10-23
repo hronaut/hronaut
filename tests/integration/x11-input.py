@@ -6,7 +6,7 @@ import time
 
 def main() -> None:
     if len(sys.argv) != 4:
-        raise SystemExit("usage: x11-input.py <screen-x> <screen-y> <key|--wheel|--shortcut=key+key>")
+        raise SystemExit("usage: x11-input.py <screen-x> <screen-y> <key|--click|--right-click|--wheel|--shortcut=key+key>")
 
     x = int(sys.argv[1])
     y = int(sys.argv[2])
@@ -54,12 +54,13 @@ def main() -> None:
             x11.XSync(display, False)
             time.sleep(0.05)
             return
-        if action == "--click":
+        if action in ("--click", "--right-click"):
+            button = 3 if action == "--right-click" else 1
             xtst.XTestFakeMotionEvent(display, -1, x, y, 0)
             x11.XSync(display, False)
             time.sleep(0.05)
-            xtst.XTestFakeButtonEvent(display, 1, True, 0)
-            xtst.XTestFakeButtonEvent(display, 1, False, 0)
+            xtst.XTestFakeButtonEvent(display, button, True, 0)
+            xtst.XTestFakeButtonEvent(display, button, False, 0)
             x11.XSync(display, False)
             time.sleep(0.05)
             return

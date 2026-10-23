@@ -3609,6 +3609,8 @@ export const frFR = {
       "print": "Imprimer…",
       "showFullHistory": "Afficher l’historique complet",
       "viewSource": "Afficher le code source de la page",
+      "viewFrameSource": "Afficher le code source du cadre",
+      "reloadFrame": "Recharger le cadre",
       "searchFor": "Rechercher « {text} » sur {engine}",
       "goTo": "Accéder à {text}",
       "savePage": "Enregistrer sous…"
