@@ -116,8 +116,9 @@ function render(state: AddressSuggestionOverlayState): void {
   panel.append(list, footer)
   root.replaceChildren(panel)
 
-  // The native view stays hidden until this measurement arrives. Waiting for
-  // an animation frame can leave both sides waiting for the view to be shown.
+  // Suggestions opened again stay hidden until this measurement arrives, and
+  // shown ones take its height. Waiting for an animation frame can leave both
+  // sides waiting for the view to be shown.
   // Reading scrollHeight performs layout even when frames are suspended.
   const selected = panel.querySelector<HTMLElement>('.address-suggestion.selected')
   selected?.scrollIntoView({ block: 'nearest' })
