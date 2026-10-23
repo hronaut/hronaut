@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- The address bar's suggestions now stay on screen while they change, as Chrome's do, such as when a page finishes loading in another tab and its visit joins them. They hid and shrank to a line until the new ones were drawn, so the list blinked, and a click on a row in that moment missed it.
+
 ## [3.7.0] - 2026-10-23
 
 ### Changed
