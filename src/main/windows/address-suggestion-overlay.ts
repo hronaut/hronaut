@@ -201,8 +201,11 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
       ) return
       addressSuggestionOverlayVisible = true
       addressSuggestionOverlayBounds = bounds
-      view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: 1 })
-      view.setVisible(false)
+      // Suggestions on screen stay there until the view has measured the new ones, as Chrome's list updates in place.
+      // Hiding them for each update, as a visit or a bookmark saved meanwhile brings, made the list blink, and a click
+      // on it then went nowhere. Only a hidden view waits for its first measurement.
+      const height = view.getVisible() ? Math.min(view.getBounds().height, bounds.maxHeight) : 1
+      view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: Math.max(1, height) })
       host.mainWindowRefs.window.contentView.addChildView(view)
       webContents.send('address-overlay:state', state)
     }).catch((error) => console.error('[address-overlay] Failed to show suggestions:', error))

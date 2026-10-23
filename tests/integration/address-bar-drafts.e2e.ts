@@ -216,23 +216,28 @@ test('suggests a previously visited Google hostname in the visible native popup'
       return contents?.executeJavaScript("document.querySelector('[role=option]')?.textContent")
     })).toContain('https://www.google.com/')
 
-    // Native views may not receive animation frames while hidden. The popup
-    // starts each update hidden until it reports its measured content height.
+    // Native views may not receive animation frames while hidden. Suggestions
+    // opened again start hidden until the popup reports its measured content
+    // height, so Escape closes them first and typing opens them again.
     await electronApp.evaluate(async ({ webContents }) => {
       const contents = webContents.getAllWebContents().find(candidate => candidate.getURL().includes('address-overlay.html'))
       if (!contents) throw new Error('Address popup was not found')
       await contents.executeJavaScript('window.requestAnimationFrame = () => 0; undefined')
     })
-    await address.fill('google.com')
-    await expect.poll(() => electronApp.evaluate(async ({ BrowserWindow, webContents }) => {
+    const popupView = () => electronApp.evaluate(async ({ BrowserWindow, webContents }) => {
       const contents = webContents.getAllWebContents().find(candidate => candidate.getURL().includes('address-overlay.html'))
       if (!contents) return null
       const main = BrowserWindow.getAllWindows().find(window => window.getTitle() === 'Hronaut')
       const view = main?.contentView.children.find(child => (
         (child as unknown as { webContents?: { id: number } }).webContents?.id === contents.id
       ))
-      return { visible: view?.getVisible(), height: view?.getBounds().height }
-    })).toMatchObject({ visible: true, height: expect.any(Number) })
+      return { visible: view?.getVisible() ?? false, height: view?.getBounds().height }
+    })
+    await address.press('Escape')
+    await expect(address).toHaveAttribute('aria-expanded', 'false')
+    await expect.poll(async () => (await popupView())?.visible).toBe(false)
+    await address.fill('google.com')
+    await expect.poll(popupView).toMatchObject({ visible: true, height: expect.any(Number) })
     await expect(address).toBeFocused()
 
   } finally {
