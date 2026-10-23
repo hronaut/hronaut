@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import type { ElectronApplication, Page } from '@playwright/test'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 interface HistoryEntry { url: string; title: string; visitedAt: string; visitCount: number }
 
@@ -81,6 +81,52 @@ test('the history keeps the title a page sets as it loads, and not one it sets l
     await expect.poll(async () => (await historyEntry(appWindow, other))?.visitCount).toBe(1)
     expect(await historyEntry(appWindow, inbox)).toMatchObject({ title: 'Inbox - Mail', visitCount: 1 })
   } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('a restored tab counts the page a link opens while the page it restored is still loading', async ({ profileDirectory, mcpPort }) => {
+  // A restored, duplicated or waking tab loads its page again, which is not another visit. While that page went on
+  // loading, such as for an image its server is slow to send, the tab recorded no page a link in it opened.
+  let imageRequests = 0
+  const images: Array<import('node:http').ServerResponse> = []
+  const server = createServer((request, response) => {
+    if (request.url === '/slow.png') {
+      imageRequests += 1
+      images.push(response)
+      return
+    }
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+    response.end(request.url === '/Cart'
+      ? '<!doctype html><title>Cart</title><main>Cart</main>'
+      : '<!doctype html><title>Shop</title><main><a href="/Cart">Cart</a><img src="/slow.png" alt=""></main>')
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  let first: Awaited<ReturnType<typeof launchHronaut>> | undefined
+  let second: Awaited<ReturnType<typeof launchHronaut>> | undefined
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('History fixture port is unavailable')
+    const shop = `http://127.0.0.1:${address.port}/Shop`
+    const cart = `http://127.0.0.1:${address.port}/Cart`
+    first = await launchHronaut(profileDirectory, mcpPort)
+    await first.window.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(shop)}, active: true })`)
+    await expect.poll(async () => (await historyEntry(first!.window, shop))?.visitCount).toBe(1)
+    await closeHronaut(first.app)
+    first = undefined
+
+    second = await launchHronaut(profileDirectory, mcpPort)
+    await expect.poll(() => imageRequests).toBe(2)
+    expect(await second.window.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.url === ${JSON.stringify(shop)}))`)).toMatchObject({
+      loading: true
+    })
+    await inPage(second.app, shop, "document.querySelector('a').click()")
+    await expect.poll(async () => (await historyEntry(second!.window, cart))?.visitCount).toBe(1)
+    expect(await historyEntry(second.window, shop)).toMatchObject({ visitCount: 1 })
+  } finally {
+    for (const image of images) image.destroy()
+    if (first) await closeHronaut(first.app)
+    if (second) await closeHronaut(second.app)
     await closeFixtureServer(server)
   }
 })

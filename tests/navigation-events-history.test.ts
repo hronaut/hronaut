@@ -16,7 +16,7 @@ function anything(): unknown {
  * A tab whose page the case loads, reloads and retitles, with the history entry Electron reports as active, and what
  * the tab gives the history: its visits, each opening another page or the same one again, and its title updates.
  */
-function tabPage() {
+function tabPage(options: { restored?: boolean } = {}) {
   const contents = Object.assign(new EventEmitter(), {
     url: 'about:blank',
     title: '',
@@ -33,7 +33,7 @@ function tabPage() {
   const tab = {
     id: 'tab', url: 'about:blank', title: 'New Tab', loading: false, sleeping: false,
     discoveryTitle: new TabDiscoveryTitle(), navigationGeneration: 0, faviconRequestId: 0, pendingHistoryUrl: null,
-    suppressInitialHistory: false, navigationPolicyDenialSequence: 0, emulationContextGeneration: 0,
+    suppressInitialHistory: options.restored === true, navigationPolicyDenialSequence: 0, emulationContextGeneration: 0,
     documentGeneration: 0, walletNavigationGeneration: 0
   }
   const visits: Array<{ url: string; samePage: boolean }> = []
@@ -47,13 +47,16 @@ function tabPage() {
   const access = new Proxy({}, { get: (_target, key) => answers[key] ?? fallback[key] })
   attachNavigationEvents(access as never, tab as never, contents as never)
 
-  /** Commits a document at an address and history entry, which stays loading and becomes ready unless told not to. */
+  /**
+   * Commits a document at an address and history entry, which stays loading and becomes ready unless told not to. As in
+   * Electron, a tab that is loading already does not start loading again.
+   */
   const commit = (url: string, entryIndex: number, title = 'Page', ready = true) => {
     contents.url = url
     contents.title = title
     contents.entryIndex = entryIndex
+    if (!contents.loading) contents.emit('did-start-loading')
     contents.loading = true
-    contents.emit('did-start-loading')
     contents.emit('did-navigate', {}, url)
     if (ready) contents.emit('dom-ready')
   }
@@ -100,9 +103,16 @@ function tabPage() {
   }
   /** A navigation that never commits, such as a download, aborts its load. */
   const abortNavigation = (url: string) => { contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', url, true) }
+  /** Waking the tab loads its page again. */
+  const wake = () => { tab.suppressInitialHistory = true }
+  /** A wake whose page shows but goes on loading ends for its callers, as for the history: the next page is a visit. */
+  const stopWaitingForWake = () => {
+    tab.suppressInitialHistory = false
+    tab.pendingHistoryUrl = null
+  }
   return {
     visits, titles, commit, ready, load, stopLoading, loadFrame, setTitle, changeWithinPage, setEntryCount, navigateFrame,
-    removeEarlierEntry, abortNavigation
+    removeEarlierEntry, abortNavigation, wake, stopWaitingForWake
   }
 }
 
@@ -186,6 +196,43 @@ describe('visits a tab gives the history', () => {
     page.load('https://admin.example/item/1', 48)
     page.load('https://admin.example/item/1', 48)
     expect(page.visits.map((visit) => visit.samePage)).toEqual([false, true])
+  })
+
+  it('does not count the page a restored tab loads again, and counts the next one', () => {
+    const page = tabPage({ restored: true })
+    page.load('https://news.example/', 0)
+    page.load('https://news.example/story', 1)
+    expect(page.visits).toEqual([{ url: 'https://news.example/story', samePage: false }])
+  })
+
+  it('counts a page a restored tab opens before the page it loads again finishes loading', () => {
+    // A restored page that went on loading, such as for a slow image, kept the tab from recording the page a link in it
+    // opened, until a page finished loading.
+    const page = tabPage({ restored: true })
+    page.commit('https://shop.example/', 0, 'Shop')
+    page.load('https://shop.example/cart', 1, 'Cart')
+    page.load('https://shop.example/checkout', 2, 'Checkout')
+    expect(page.visits).toEqual([
+      { url: 'https://shop.example/cart', samePage: false },
+      { url: 'https://shop.example/checkout', samePage: false }
+    ])
+  })
+
+  it('counts a reload of the page a restored tab loads again as the same page', () => {
+    const page = tabPage({ restored: true })
+    page.commit('https://slow.example/', 0, 'Slow')
+    page.load('https://slow.example/', 0, 'Slow')
+    expect(page.visits).toEqual([{ url: 'https://slow.example/', samePage: true }])
+  })
+
+  it('does not count the page a tab loads again when it wakes once more after a wake that stopped waiting', () => {
+    const page = tabPage({ restored: true })
+    page.commit('https://chat.example/', 0, 'Chat')
+    page.stopWaitingForWake()
+    page.stopLoading()
+    page.wake()
+    page.load('https://chat.example/', 0, 'Chat')
+    expect(page.visits).toEqual([])
   })
 
   it('keeps a link to a section of the page one visit, as the history leaves fragments out', () => {

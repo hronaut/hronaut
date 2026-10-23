@@ -78,6 +78,10 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
     mainFrameLoading = false
     historyTitleWindowEnd = Date.now() + HISTORY_TITLE_WINDOW_MS
   }
+  // A restored, duplicated or waking tab loads its page again, which is not another visit. Only the first document that
+  // load commits is that page: a page opened before the load ends, such as through a link while an image of the
+  // restored page still loads, is a visit. Electron reports no other start of loading until this load stops.
+  let suppressedDocumentCommitted = false
   const recordPendingHistory = (): void => {
     if (tab.suppressInitialHistory || tab.pendingHistoryUrl !== tab.url) return
     tab.title = normalizeTabTitle(webContents.getTitle(), tab.title)
@@ -102,6 +106,7 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
   })
   webContents.on('did-start-loading', () => {
     if (tab.sleeping) return
+    suppressedDocumentCommitted = false
     tab.loading = true
     tab.sleeping = false
     tab.lastActiveAt = Date.now()
@@ -220,6 +225,14 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       tab.faviconDataUrl = undefined
     }
     if (previousUrl !== url) tab.faviconDataUrl = undefined
+    if (tab.suppressInitialHistory) {
+      // The page it loaded again was not a visit waiting to be recorded, so reloading it is not its first visit either.
+      if (suppressedDocumentCommitted) {
+        tab.suppressInitialHistory = false
+        tab.pendingHistoryUrl = null
+      }
+      suppressedDocumentCommitted = true
+    }
     // A reload before the page it reloads was recorded is still its first visit.
     const entry = activeEntry()
     const sameEntry = committedEntryActive(entry) && url === previousUrl
