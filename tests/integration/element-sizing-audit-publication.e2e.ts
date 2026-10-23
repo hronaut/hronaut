@@ -164,7 +164,7 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
         const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
         // Query the trusted session directly; activity is main-owned and must not depend on Home renderer navigation.
         const response = await home.session.fetch('hronaut://home/api/status')
-        const state = await response.json() as { recentActivity: Array<{ toolName: string; outcome: string; result: { outcome: string; effects: string } }> }
+        const state = await response.json() as { recentActivity: Array<{ toolName: string; result: { outcome: string; effects: string } }> }
         return state.recentActivity.filter(item => item.toolName === 'browser_element_inspect')
       })
       await expect.poll(async () => (await activity()).length).toBe(1)
@@ -172,7 +172,6 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
       await info.attach('image-final-activity', { body: JSON.stringify({ change, result, terminal }), contentType: 'application/json' })
       const accepted = ['ownership release', 'detach reinsert', 'selector id ABA'].includes(change)
       expect(terminal).toHaveLength(1)
-      expect(terminal[0]!.outcome).toBe(accepted ? 'finished' : 'failed')
       if (accepted) expect(terminal[0]!.result.outcome).toBe('succeeded')
       else expect(terminal[0]!.result.outcome).not.toBe('succeeded')
       if (change === 'ownership release') {

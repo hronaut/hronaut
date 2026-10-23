@@ -3719,7 +3719,7 @@ export const deDE = {
       "permissionSettings": "{detail} Sie können dies später unter Einstellungen → Website-Berechtigungen ändern.",
       "workspaceRecoveryTitle": "Gespeicherte Arbeitsbereiche konnten nicht geöffnet werden",
       "workspaceRecoveryMessage": "Der Start wurde gestoppt, um gespeicherte Arbeitsbereiche nicht zu ersetzen.",
-      "workspaceRecoveryDetail": "Beenden Sie Hronaut. Verwenden Sie eine mit dem Profil kompatible Version oder stellen Sie bei geschlossener App eine intakte tabs.json-Sicherung im Hronaut-Profil wieder her. Bewahren Sie vorhandene Dateien auf; setzen Sie das Profil nicht zurück.",
+      "workspaceRecoveryDetail": "Beenden Sie Hronaut. Stellen Sie bei geschlossener App eine intakte tabs.json-Sicherung im Hronaut-Profil wieder her. Bewahren Sie vorhandene Dateien auf; setzen Sie das Profil nicht zurück.",
       "mcpFailedTitle": "MCP-Server konnte nicht gestartet werden",
       "mcpFailedMessage": "{host}:{port} konnte nicht abgehört werden", "claudeSetupTitle": "Claude Code einrichten", "claudeSetupMessage": "Hronaut zu Claude Code hinzufügen?", "claudeSetupDetail": "Datei: {path}\n\nNeuer Eintrag in \"mcpServers\":\n\"hronaut\": {after}\n\n{token}{replaces}Zuerst wird eine Kopie der Datei als {backup} gespeichert.", "claudeSetupReplaces": "Er ersetzt:\n\"hronaut\": {before}\n\n", "claudeSetupToken": "Hronaut trägt das tatsächliche MCP-Token dort ein, wo ••• steht.\n\n", "claudeSetupConfirm": "Zu Claude Code hinzufügen", "confirmOk": "OK",
       "savePasswordTitle": "Passwort speichern?",
