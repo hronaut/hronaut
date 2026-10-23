@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - A middle-click or **Ctrl+click** (**Cmd+click** on a Mac) on a bookmark in **Bookmarks** or a page in **Browsing history** now opens it in a new tab behind and keeps the panel open, as in Chrome, and with **Shift** held opens it in front. These clicks opened it in front and closed the panel like a plain click, so opening several took the **Open in background tab** button each time.
+- Right-clicking the address bar now offers **Paste and Go to** the copied address after **Paste**, or **Paste and Search for** copied text that is not an address, as Chrome does, which opens it in the current tab as Enter would. The text is read as Chrome's address bar reads a paste: an address split over lines opens whole, lines of words keep a space between them, and a leading `javascript:` is dropped, so pasted script is searched for and never run. With nothing on the clipboard to open, the item reads **Paste and Go** and is disabled.
 
 ## [3.6.0] - 2026-10-23
 

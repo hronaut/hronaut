@@ -303,6 +303,13 @@ const api: HronautApi = {
     const handler = (): void => listener()
     ipcRenderer.on('browser:visit-history-requested', handler)
     return () => ipcRenderer.removeListener('browser:visit-history-requested', handler)
+  },
+  onAddressPasteAndGo: (listener: (text: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, text: unknown): void => {
+      if (typeof text === 'string') listener(text)
+    }
+    ipcRenderer.on('browser:address-paste-and-go', handler)
+    return () => ipcRenderer.removeListener('browser:address-paste-and-go', handler)
   }
 }
 

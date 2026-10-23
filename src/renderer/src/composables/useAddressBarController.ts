@@ -246,6 +246,13 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     await navigateTo(address.value)
   }
 
+  // Paste and Go in the field's menu shows the clipboard text in the field and opens it as Enter would, as in Chrome.
+  async function pasteAndGo(text: string): Promise<void> {
+    if (disposed || !text.trim()) return
+    address.value = text
+    await navigateTo(text)
+  }
+
   async function chooseSuggestion(suggestion: AddressSuggestion): Promise<void> {
     if (disposed) return
     address.value = suggestion.url
@@ -475,6 +482,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     handleFocusOut,
     handleKeydown,
     submit,
+    pasteAndGo,
     handleResize,
     dispose
   }
