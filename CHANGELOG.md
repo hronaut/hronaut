@@ -6,6 +6,12 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- A middle-click or **Ctrl+click** (**Cmd+click** on a Mac) on a bookmark in **Bookmarks** or a page in **Browsing history** now opens it in a new tab behind and keeps the panel open, as in Chrome, and with **Shift** held opens it in front. These clicks opened it in front and closed the panel like a plain click, so opening several took the **Open in background tab** button each time.
+
+## [3.6.0] - 2026-10-23
+
+### Changed
+
 - **General** is now the first section in **Settings**, and Settings and the command palette's **Settings** command open on it, as other apps' settings do. Before, Settings listed and opened **Appearance** first.
 - Right-clicking a video or audio on a page now offers **Open Video in New Tab**, **Save Video** and **Copy Video Address** (or the same for audio), as Chrome does. The menu had nothing for them, so a video or audio could not be opened or saved by itself. As in Chrome, a stream the page builds itself, which Chromium cannot save, keeps Open and Save unavailable, and as for an image, only an http or https address opens or saves.
 - On Windows and macOS, right-clicking a text field on a page or in Hronaut's own window, such as the address bar, now offers **Emoji** (**Emoji & Symbols** on macOS) first, which opens the system's emoji picker, as Chrome does. Linux has no system emoji picker, so its menus are unchanged.
@@ -13,7 +19,19 @@ All notable changes to Hronaut are documented in this file.
 - Right-clicking an email link on a page now offers **Copy Email Address**, which copies the address alone, as Chrome does. **Copy Link Address** copied the whole link, with `mailto:`, any subject or body and its escaped characters, such as `mailto:support%40example.com?subject=Hi` for support@example.com.
 - Right-clicking inside a frame of a page, such as an embedded payment form, now offers **View Frame Source** and **Reload Frame**, as Chrome does. The menu offered only the page's own source and reload, so a frame could not be reloaded or its source viewed by itself.
 - A middle-click on the toolbar's **Back**, **Forward** or **Reload** now opens that page in a new tab behind the current one, with the tab's history, as in Chrome. So does **Ctrl+click** (**Cmd+click** on a Mac) on Back or Forward, and with **Shift** held Back and Forward open it in front. **Shift+click** or **Ctrl+click** on Reload now reloads without the cache, and **Cmd+click** on a Mac opens the page in a new tab behind. These clicks went back, forward or reloaded in the current tab, so the page could not be opened beside the one shown.
-- A middle-click or **Ctrl+click** (**Cmd+click** on a Mac) on a bookmark in **Bookmarks** or a page in **Browsing history** now opens it in a new tab behind and keeps the panel open, as in Chrome, and with **Shift** held opens it in front. These clicks opened it in front and closed the panel like a plain click, so opening several took the **Open in background tab** button each time.
+
+### Known issues
+
+- A panel opened in its own window keeps the operating system's tooltips instead of the themed ones.
+- While a notification such as **Tab closed** shows at the bottom of the page, the page does not get clicks or wheel scrolling in the area just around the notification, about 10 px on each side.
+- `wallet_sendCalls` batches are not atomic: when a later call is rejected, fails or reverts, the earlier calls stay on chain, as separate transactions would. A dApp that requires an atomic batch gets error code 5760. A batch whose transaction the network dropped while its nonce is still unused stays pending, and `wallet_showCallsStatus` is not supported.
+- An EVM node that lags behind for more than a minute, or has pruned old transactions, can make a mined transaction look replaced, so Hronaut reports it as failed.
+- A link or form on a dApp that starts a download, or that the server answers with no content, counts as leaving the page for wallet requests: Hronaut cancels the page's open wallet requests and returns it to its default network without a `chainChanged` event, although the page stays.
+- `wallet_balance` marks an allowance `unlimited` only at 2^160 − 1 or more, so a token that stores allowances in 96 bits, such as UNI, shows its maximum approval as a large amount.
+- Typed-data meta-transactions are recognized by type name, by a `bytes` call-data field named `data`, `callData`, `calldata` or `functionSignature`, or as a MetaMask delegation. One that uses another name and another field name is still signed on mainnet when **Also sign typed data on mainnet** is on, so that switch is not a general spending limit.
+- Wallet policies saved by 2.45.0 or earlier that list a token method (`erc20.`, `trc20.` or `nft.`) do not sign token calls without a click. Remove such a policy and add it again with its token contract, or with **Allow any token contract**.
+- Websites' raw `eth_sign`, Solana and TRON requests still need a person to approve, even under a website sign-in policy, and typed data is signed without a click only by a dedicated agent wallet with the typed-data switch on.
+- Hronaut does not inject `window.tronLink` or `window.tronWeb` as a full TronWeb instance; Tron dApps that require TronLink specifically will not detect it.
 
 ## [3.5.0] - 2026-10-22
 
