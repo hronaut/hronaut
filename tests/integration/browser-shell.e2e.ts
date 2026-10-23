@@ -1814,7 +1814,8 @@ test('closes Find when Page Tools opens', async ({ appWindow }) => {
     if (!address || typeof address === 'string') throw new Error('Page Tools transition fixture did not expose a TCP port')
     const url = `http://127.0.0.1:${address.port}/page-tools-transition`
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toBe(url)
+    // Find closes when the next page commits, so it opens once the fixture page is shown.
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Page tools transition fixture')
 
     const find = appWindow.getByRole('search', { name: 'Find in page' })
     await appWindow.getByRole('button', { name: 'Find in page' }).click()
@@ -1845,7 +1846,8 @@ test('keeps Find, Zoom, Tab Search, and the Split view menu mutually exclusive',
     const secondUrl = `http://127.0.0.1:${address.port}/split-second`
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(firstUrl)}, active: true })`)
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(secondUrl)}, active: true })`)
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toBe(secondUrl)
+    // Find closes when the next page commits, so it opens once the fixture page is shown.
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('/split-second')
 
     const find = appWindow.getByRole('search', { name: 'Find in page' })
     await appWindow.getByRole('button', { name: 'Find in page' }).click()
@@ -1903,7 +1905,8 @@ test('does not open Site Controls underneath Settings after delayed Find cleanup
     if (!address || typeof address === 'string') throw new Error('Site Controls race fixture did not expose a TCP port')
     const url = `http://127.0.0.1:${address.port}/site-controls-race`
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toBe(url)
+    // Find closes when the next page commits, so it opens once the fixture page is shown.
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Site controls race fixture')
     await appWindow.getByRole('button', { name: 'Find in page' }).click()
     await expect(appWindow.getByRole('search', { name: 'Find in page' })).toBeVisible()
 
@@ -1954,7 +1957,8 @@ test('opens Privacy immediately and keeps a newer close authoritative after dela
     if (!address || typeof address === 'string') throw new Error('Privacy race fixture did not expose a TCP port')
     const url = `http://127.0.0.1:${address.port}/privacy-race`
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toBe(url)
+    // Find closes when the next page commits, so it opens once the fixture page is shown.
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Privacy race fixture')
     await appWindow.getByRole('button', { name: 'Find in page' }).click()
     await expect(appWindow.getByRole('search', { name: 'Find in page' })).toBeVisible()
 
