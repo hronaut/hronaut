@@ -1,5 +1,5 @@
 import axe from 'axe-core'
-import { expect, test } from './fixtures.js'
+import { expect, settleShellMotion, test } from './fixtures.js'
 import { RESOLVED_THEME_NAMES } from '../../src/shared/theme.js'
 
 interface AxeFinding {
@@ -10,6 +10,8 @@ interface AxeFinding {
 }
 
 async function auditShell(appWindow: import('@playwright/test').Page): Promise<AxeFinding[]> {
+  // Mid-entrance, a fading surface blends its colors with what is behind it, which axe reads as low contrast.
+  await settleShellMotion(appWindow)
   await appWindow.evaluate(axe.source)
   return appWindow.evaluate(`(async () => {
     const wcagResults = await globalThis.axe.run(document, {
@@ -45,6 +47,7 @@ test('keeps primary shell states free of accessibility violations', async ({ app
   findings.website = await auditShell(appWindow)
 
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
   findings.settings = await auditShell(appWindow)
 
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
