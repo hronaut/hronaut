@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-10-23
+
 ### Changed
 
 - `browser_new_tab`'s description now tells agents it answers while the new tab's page may still be loading, and to wait for it with `browser_wait` before clicking, pressing keys or reading the page, which an action meeting the first load's commit is rejected for. The starter workflows that open a page and then inspect it now wait for it the same way.
@@ -19,6 +21,11 @@ All notable changes to Hronaut are documented in this file.
 - The browsing history now counts visits and keeps titles as Chrome does. Reloading a page, or following a link to a section of it, moves it to the top without counting another visit, so a page reloaded 20 times no longer shows "21 visits" and leads the list. The history also keeps only the titles a page sets until it finishes loading or in the 5 seconds after, at most 10 for each page, and a single-page app's route gets its own. So a title a page sets after it loaded to get attention, such as an unread count, a chat message or a timer, no longer replaces its name, and such a page no longer rewrites the history file every second. As in Chrome, a single-page app that changes its address can still give each address up to 10 titles.
 - A page opened from a restored, duplicated or woken tab while the page it loaded again was still loading, such as through a link while an image of that page still loaded, now joins the browsing history. Such a tab left out of the history every page opened in it before a page finished loading.
 - A sent EVM transaction no longer turns `failed` as replaced when it was mined but the node has lost it, such as a load-balanced node answering from a backend that lags behind, or a node that pruned old transactions. Hronaut now counts a transaction replaced only once it finds the block in which the account used the nonce and that block does not hold the transaction.
+
+### Security
+
+- Hronaut now runs on Electron 44.9.3, which no longer trusts the compromised eMudhra intermediate certificates, so a website can't be impersonated with a certificate they issued.
+- The MCP server now parses requests with body-parser 2.4.0, which fixes a denial of service where bytes after a compressed request body kept the server busy.
 
 ## [3.7.0] - 2026-10-23
 

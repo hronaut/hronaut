@@ -1,6 +1,6 @@
 {
   "name": "hronaut",
-  "version": "3.7.0",
+  "version": "3.8.0",
   "description": "A visible local Browser MCP for coding agents with persistent tabs and isolated workspaces",
   "desktopName": "Hronaut",
   "author": "Hronaut",
@@ -129,7 +129,7 @@
     "@vue/test-utils": "^2.5.1",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
-    "electron": "44.9.0",
+    "electron": "44.9.3",
     "electron-builder": "^26.15.3",
     "electron-vite": "^6.0.0",
     "eslint": "^10.12.0",
