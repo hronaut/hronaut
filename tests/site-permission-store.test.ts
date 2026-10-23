@@ -129,7 +129,7 @@ describe('SitePermissionStore', () => {
     expect(await new SitePermissionStore(path).load()).toEqual(before)
   })
 
-  it('ignores a file of another version and leaves it until a decision changes', async () => {
+  it('ignores a file of another version and replaces it with an empty one', async () => {
     const { path, store } = await createStore()
     await mkdir(dirname(path), { recursive: true })
     const saved = `${JSON.stringify({
@@ -139,7 +139,7 @@ describe('SitePermissionStore', () => {
     await writeFile(path, saved, 'utf8')
     expect(await store.load()).toEqual([])
     expect(store.decisionFor(firstSite, 'notifications', WORK)).toBeUndefined()
-    expect(await readFile(path, 'utf8')).toBe(saved)
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ version: 2, permissions: [] })
 
     await store.set(widget, 'geolocation', 'deny', { workspaceId: CLIENT })
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({

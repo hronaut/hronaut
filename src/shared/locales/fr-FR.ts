@@ -1247,7 +1247,6 @@ export const frFR = {
     },
     "permission": {
       "aria": "Autorisation {permission} pour {origin}",
-      "forgetAria": "Oublier l’autorisation {permission} pour {origin}",
       "resetAria": "Réinitialiser l’autorisation {permission} pour {origin}",
       "scopedAria": "Autorisation {permission} pour {origin} ({scope})",
       "scopedForgetAria": "Oublier l’autorisation {permission} pour {origin} ({scope})",

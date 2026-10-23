@@ -9,7 +9,7 @@ import { getByTooltip } from './helpers/tooltip.js'
 const WORKSPACE = '01912345-6789-7abc-8def-0123456789ab'
 const cameraPermission: SitePermissionEntry = {
   origin: 'https://example.test',
-  permission: 'media',
+  permission: 'idle-detection',
   decision: 'allow',
   workspaceId: WORKSPACE
 }

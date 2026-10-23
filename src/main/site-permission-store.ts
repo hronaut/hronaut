@@ -109,7 +109,11 @@ export class SitePermissionStore {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
       const value = parsed as { version?: unknown, permissions?: unknown }
-      if (value.version !== 2 || !Array.isArray(value.permissions)) return []
+      // A file of another version holds no decision this store reads; it is replaced so its origins do not stay on disk.
+      if (value.version !== 2 || !Array.isArray(value.permissions)) {
+        await this.persist([])
+        return []
+      }
       let repairedPersistedPermissions = false
       for (const entry of value.permissions as unknown[]) {
         // An entry the store would not save, such as one without a workspace, is dropped and the file rewritten.
@@ -229,7 +233,6 @@ export class SitePermissionStore {
 
   async clear(): Promise<void> {
     await this.queueMutation(async () => {
-      if (!this.entries.size) return
       await this.persist([])
       this.entries.clear()
     })

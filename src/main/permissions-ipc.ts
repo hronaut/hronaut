@@ -38,7 +38,7 @@ export function registerPermissionsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: P
   })
   ipcMain.handle(
     'permissions:set',
-    async (event, origin: unknown, permission: unknown, decision: unknown, scope?: unknown) => {
+    async (event, origin: unknown, permission: unknown, decision: unknown, scope: unknown) => {
       host.assertTrustedSender(event)
       if (!isSitePermissionDecision(decision)) throw new TypeError('Invalid site permission')
       const requested = requestedDecision(origin, permission, scope)
@@ -47,7 +47,7 @@ export function registerPermissionsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: P
       return entry
     }
   )
-  ipcMain.handle('permissions:remove', async (event, origin: unknown, permission: unknown, scope?: unknown) => {
+  ipcMain.handle('permissions:remove', async (event, origin: unknown, permission: unknown, scope: unknown) => {
     host.assertTrustedSender(event)
     const requested = requestedDecision(origin, permission, scope)
     const removed = await host.sitePermissionStore()!.remove(requested.origin, requested.permission, requested.scope)

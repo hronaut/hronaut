@@ -94,7 +94,8 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
 
   /**
    * Where a decision applies, in words: its workspace's name, a removed workspace with part of its id, and for a website
-   * embedded in another website's page, "on" that website. Until the workspaces have loaded, a workspace is only said to be loading, never removed.
+   * embedded in another website's page, "on" that website. Until the workspaces have loaded, a workspace is only said
+   * to be loading, never removed.
    */
   function scopeLabel(entry: SitePermissionEntry): string {
     const labels = workspaceLabels.value

@@ -132,7 +132,6 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             <option value="allow">{{ t('shell.siteControls.allow') }}</option>
             <option value="deny">{{ t('shell.siteControls.block') }}</option>
           </select>
-          <!-- Forgetting a decision for all workspaces would forget it in every one, so only Settings offers that. -->
           <UiButton appearance="application" type="button" :aria-label="controlLabel(permission, 'reset')" v-tooltip="t('shell.siteControls.reset')" :disabled="permissionPending(permission)" @click="resetPermission(permission)"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </div>

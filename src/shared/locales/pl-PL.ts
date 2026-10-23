@@ -1247,7 +1247,6 @@ export const plPL = {
     },
     "permission": {
       "aria": "Uprawnienie {permission} dla {origin}",
-      "forgetAria": "Zapomnij uprawnienie {permission} dla {origin}",
       "resetAria": "Zresetuj uprawnienie {permission} dla {origin}",
       "scopedAria": "Uprawnienie {permission} dla {origin} ({scope})",
       "scopedForgetAria": "Zapomnij uprawnienie {permission} dla {origin} ({scope})",

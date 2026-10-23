@@ -1247,7 +1247,6 @@ export const ruRU = {
     },
     "permission": {
       "aria": "Разрешение «{permission}» для {origin}",
-      "forgetAria": "Забыть разрешение «{permission}» для {origin}",
       "resetAria": "Сбросить разрешение «{permission}» для {origin}",
       "scopedAria": "Разрешение «{permission}» для {origin} ({scope})",
       "scopedForgetAria": "Забыть разрешение «{permission}» для {origin} ({scope})",

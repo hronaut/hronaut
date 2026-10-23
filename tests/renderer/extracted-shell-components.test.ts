@@ -367,7 +367,7 @@ describe('extracted shell components', () => {
         activeOrigin: ref('https://example.test'),
         activeHostname: ref('example.test'),
         activeSitePermissions: ref([]),
-          activeAddressKind: ref('Secure HTTPS connection'),
+        activeAddressKind: ref('Secure HTTPS connection'),
         activeTabUsesDefaultProfile: ref(true)
       } as unknown as ActiveTabPresentationController,
       emulationController: {

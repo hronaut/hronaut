@@ -1247,7 +1247,6 @@ export const deDE = {
     },
     "permission": {
       "aria": "Berechtigung „{permission}“ für {origin}",
-      "forgetAria": "Berechtigung „{permission}“ für {origin} vergessen",
       "resetAria": "Berechtigung „{permission}“ für {origin} zurücksetzen",
       "scopedAria": "Berechtigung „{permission}“ für {origin} ({scope})",
       "scopedForgetAria": "Berechtigung „{permission}“ für {origin} ({scope}) vergessen",

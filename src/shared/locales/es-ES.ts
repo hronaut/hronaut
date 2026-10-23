@@ -1247,7 +1247,6 @@ export const esES = {
     },
     "permission": {
       "aria": "Permiso {permission} para {origin}",
-      "forgetAria": "Olvidar el permiso {permission} para {origin}",
       "resetAria": "Restablecer el permiso {permission} para {origin}",
       "scopedAria": "Permiso {permission} para {origin} ({scope})",
       "scopedForgetAria": "Olvidar el permiso {permission} para {origin} ({scope})",
