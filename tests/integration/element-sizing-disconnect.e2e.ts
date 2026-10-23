@@ -75,11 +75,11 @@ test('actual sizing client disconnect retains native work and cleanup ownership'
     const activity = await electronApp.evaluate(async ({ webContents }) => {
       const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
       const response = await home.session.fetch('hronaut://home/api/status')
-      const state = await response.json() as { recentActivity: Array<{ toolName: string; outcome: string; result: { outcome: string; effects: string } }> }
+      const state = await response.json() as { recentActivity: Array<{ toolName: string; result: { outcome: string; effects: string } }> }
       return state.recentActivity.filter(item => item.toolName === 'browser_element_inspect')
     })
     expect(activity).toHaveLength(11)
-    expect(activity.every(item => item.outcome === 'failed' && item.result.effects === 'none')).toBe(true)
+    expect(activity.every(item => item.result.outcome !== 'succeeded' && item.result.effects === 'none')).toBe(true)
     expect(activity.filter(item => item.result.outcome === 'cancelled')).toHaveLength(8)
     const cleanupProof = await electronApp.evaluate(async ({ webContents }, url) => {
       const page = webContents.getAllWebContents().find(p => p.getURL() === url)!

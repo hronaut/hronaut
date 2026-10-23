@@ -3717,7 +3717,7 @@ export const ruRU = {
       "permissionSettings": "{detail} Позже это можно изменить в Настройки → Разрешения сайтов.",
       "workspaceRecoveryTitle": "Не удалось открыть сохранённые пространства",
       "workspaceRecoveryMessage": "Запуск остановлен, чтобы не заменить сохранённые пространства.",
-      "workspaceRecoveryDetail": "Закройте Hronaut. Используйте совместимую с профилем версию или восстановите исправную копию tabs.json в профиле Hronaut при закрытом приложении. Сохраните существующие файлы; не сбрасывайте профиль.",
+      "workspaceRecoveryDetail": "Закройте Hronaut. Восстановите исправную копию tabs.json в профиле Hronaut при закрытом приложении. Сохраните существующие файлы; не сбрасывайте профиль.",
       "mcpFailedTitle": "Не удалось запустить сервер MCP",
       "mcpFailedMessage": "Не удалось прослушивать {host}:{port}", "claudeSetupTitle": "Настроить Claude Code", "claudeSetupMessage": "Добавить Hronaut в Claude Code?", "claudeSetupDetail": "Файл: {path}\n\nНовая запись в \"mcpServers\":\n\"hronaut\": {after}\n\n{token}{replaces}Сначала копия файла сохранится как {backup}.", "claudeSetupReplaces": "Она заменит:\n\"hronaut\": {before}\n\n", "claudeSetupToken": "Hronaut запишет настоящий токен MCP на место •••.\n\n", "claudeSetupConfirm": "Добавить в Claude Code", "confirmOk": "ОК",
       "savePasswordTitle": "Сохранить пароль?",

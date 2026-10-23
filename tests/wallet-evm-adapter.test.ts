@@ -95,6 +95,10 @@ describe('EvmWalletAdapter', () => {
     })
     expect(await decode(approve(2n ** 160n - 1n))).toMatchObject({ unlimitedAllowance: true })
     expect(await decode(approve(2n ** 160n - 2n))).toMatchObject({ method: 'erc20.approve', unlimitedAllowance: false })
+    // UNI and COMP store allowances in 96 bits and treat that type's maximum as unlimited.
+    expect(await decode(approve(2n ** 96n - 1n))).toMatchObject({ method: 'erc20.approve', unlimitedAllowance: true })
+    expect(await decode(approve(2n ** 128n - 1n))).toMatchObject({ method: 'erc20.approve', unlimitedAllowance: true })
+    expect(await decode(approve(2n ** 96n - 2n))).toMatchObject({ method: 'erc20.approve', unlimitedAllowance: false })
     expect(await decode(encodeFunctionData({ abi: TOKEN_ABI, functionName: 'increaseAllowance', args: [spender, maxUint256] })))
       .toMatchObject({ understood: true, method: 'erc20.increaseAllowance', contract: getAddress(token), tokenAmount: maxUint256.toString(), unlimitedAllowance: true })
     expect(await decode(encodeFunctionData({ abi: TOKEN_ABI, functionName: 'transfer', args: [spender, 5n] })))
@@ -287,6 +291,11 @@ describe('EvmWalletAdapter', () => {
     // Permit2's unlimited amount is the threshold; one less is a large but limited approval.
     allowance = (1n << 160n) - 1n
     expect((await adapter.tokenBalance(wallet(), token, spender)).allowance).toMatchObject({ unlimited: true })
+    allowance -= 1n
+    expect((await adapter.tokenBalance(wallet(), token, spender)).allowance).not.toHaveProperty('unlimited')
+    // UNI and COMP report their unlimited allowance as the 96-bit maximum.
+    allowance = (1n << 96n) - 1n
+    expect((await adapter.tokenBalance(wallet(), token, spender)).allowance).toMatchObject({ unlimited: true, rawAmount: allowance.toString() })
     allowance -= 1n
     expect((await adapter.tokenBalance(wallet(), token, spender)).allowance).not.toHaveProperty('unlimited')
     allowance = 0n

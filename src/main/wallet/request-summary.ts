@@ -22,8 +22,8 @@ const SIMULATION_FAILED = 'Wallet transaction simulation failed'
 
 /**
  * The simulation as approval records keep it: adapter error text, which can
- * name the RPC endpoint, becomes a fixed message, or a revert reason read
- * from the revert data, stored in the error text older versions accept.
+ * name the RPC endpoint, becomes a fixed message, and a revert reason read
+ * from the revert data is kept as its own field.
  */
 export function sanitizedSimulation(simulation: WalletTransactionSimulation): WalletTransactionSimulation {
   const revert = !simulation.success && simulation.revert ? storedSimulationRevert(simulation.revert) : undefined
@@ -33,13 +33,14 @@ export function sanitizedSimulation(simulation: WalletTransactionSimulation): Wa
     ...(simulation.estimatedFee && /^\d+(?:\.\d+)?$/.test(simulation.estimatedFee)
       ? { estimatedFee: simulation.estimatedFee }
       : {}),
-    ...(revert ? { error: revert } : simulation.error ? { error: SIMULATION_FAILED } : {})
+    ...(revert || simulation.error ? { error: SIMULATION_FAILED } : {}),
+    ...(revert ? { revert } : {})
   }
 }
 
 /** A recorded simulation for an agent, with its revert reason read back. */
 export function agentSimulation(simulation: WalletTransactionSimulation): Record<string, unknown> {
-  const revert = simulation.success ? undefined : simulationRevertFromStored(simulation.error)
+  const revert = simulation.success ? undefined : simulationRevertFromStored(simulation.revert)
   return {
     attempted: simulation.attempted,
     success: simulation.success,
@@ -55,7 +56,7 @@ export function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor)
     ? restoreWalletJson(record.request.payload.normalized) as WalletNormalizedTransaction
     : undefined
   const warnings = normalized ? transactionWarnings(normalized.decoded) : []
-  const simulationRevert = record.simulation && !record.simulation.success ? simulationRevertFromStored(record.simulation.error) : undefined
+  const simulationRevert = record.simulation && !record.simulation.success ? simulationRevertFromStored(record.simulation.revert) : undefined
   return {
     id: record.id,
     walletId: record.request.walletId,

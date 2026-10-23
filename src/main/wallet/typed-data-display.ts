@@ -5,7 +5,7 @@ import {
   type WalletTypedDataWarning
 } from '../../shared/wallet.js'
 import { revealHiddenMessageCharacters } from './hidden-characters.js'
-import { UNLIMITED_TOKEN_AMOUNT } from './transaction-display.js'
+import { isUnlimitedTokenAmount } from './transaction-display.js'
 
 const MAX_TEXT = 256
 // Long enough for zero-padded uint256 values; anything longer is reported as unreadable.
@@ -157,7 +157,7 @@ function amount(token: unknown, field: Field | undefined): Allowance {
   return {
     ...(tokenText === undefined ? {} : { token: tokenText }),
     ...(amountText === undefined ? {} : { amount: amountText }),
-    ...(parsed !== undefined && parsed >= UNLIMITED_TOKEN_AMOUNT ? { unlimited: true as const } : {})
+    ...(parsed !== undefined && isUnlimitedTokenAmount(parsed) ? { unlimited: true as const } : {})
   }
 }
 

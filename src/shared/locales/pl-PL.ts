@@ -3717,7 +3717,7 @@ export const plPL = {
       "permissionSettings": "{detail} Możesz to później zmienić w Ustawienia → Uprawnienia witryn.",
       "workspaceRecoveryTitle": "Nie można otworzyć zapisanych przestrzeni",
       "workspaceRecoveryMessage": "Uruchamianie zatrzymano, aby nie zastąpić zapisanych przestrzeni.",
-      "workspaceRecoveryDetail": "Zamknij Hronaut. Użyj wersji zgodnej z profilem lub przy zamkniętej aplikacji przywróć poprawną kopię tabs.json w profilu Hronaut. Zachowaj istniejące pliki; nie resetuj profilu.",
+      "workspaceRecoveryDetail": "Zamknij Hronaut. Przy zamkniętej aplikacji przywróć poprawną kopię tabs.json w profilu Hronaut. Zachowaj istniejące pliki; nie resetuj profilu.",
       "mcpFailedTitle": "Nie udało się uruchomić serwera MCP",
       "mcpFailedMessage": "Nie udało się nasłuchiwać na {host}:{port}", "claudeSetupTitle": "Skonfiguruj Claude Code", "claudeSetupMessage": "Dodać Hronaut do Claude Code?", "claudeSetupDetail": "Plik: {path}\n\nNowy wpis w \"mcpServers\":\n\"hronaut\": {after}\n\n{token}{replaces}Najpierw kopia pliku zostanie zapisana jako {backup}.", "claudeSetupReplaces": "Zastąpi:\n\"hronaut\": {before}\n\n", "claudeSetupToken": "Hronaut wpisze prawdziwy token MCP w miejscu •••.\n\n", "claudeSetupConfirm": "Dodaj do Claude Code", "confirmOk": "OK",
       "savePasswordTitle": "Zapisać hasło?",

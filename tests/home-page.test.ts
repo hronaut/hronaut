@@ -284,7 +284,6 @@ api_key_format = "Bearer {token}"`)
         recentActivity: [{
           activityId: 'activity-1', tabId: 'tab-1', toolName: 'browser_click',
           startedAt: new Date(0).toISOString(), completedAt: new Date(10).toISOString(), durationMs: 10,
-          outcome: 'failed',
           result: {
             outcome: 'outcome-unknown', reasonCode: 'POSTCONDITION_NOT_VERIFIED', dispatch: 'dispatched',
             effects: 'possible', evidenceSource: 'hronaut-observed'

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
   WalletOperationRequestSchema,
   WalletRequestStatusSchema,
+  WalletSimulationRevertSchema,
   type WalletOperationRequest,
   type WalletRequestStatus
 } from '../../shared/wallet.js'
@@ -41,7 +42,8 @@ const ApprovalRecordSchema = z.object({
     success: z.boolean(),
     estimatedFee: z.string().max(256).optional(),
     error: z.string().max(512).optional(),
-    logs: z.array(z.string().max(1_024)).max(100).optional()
+    logs: z.array(z.string().max(1_024)).max(100).optional(),
+    revert: WalletSimulationRevertSchema.optional()
   }).strict().optional(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true })

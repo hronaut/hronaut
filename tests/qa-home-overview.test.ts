@@ -12,12 +12,12 @@ installHomeHooks()
 
 type Activity = HomeDashboard['recentActivity'][number]
 let activityId = 0
-const activity = (toolName: string, overrides: Partial<Activity> = {}): Activity => ({
-  activityId: `activity-${++activityId}`, tabId: 'tab', toolName, startedAt: isoMinutesAgo(3), completedAt: isoMinutesAgo(2),
-  durationMs: 120, outcome: 'finished', ...overrides
-})
 const result = (outcome: McpActivityResult['outcome']): McpActivityResult =>
   ({ outcome, reasonCode: 'COMPLETED', dispatch: 'dispatched', effects: 'possible', evidenceSource: 'hronaut-observed' })
+const activity = (toolName: string, overrides: Partial<Activity> = {}): Activity => ({
+  activityId: `activity-${++activityId}`, tabId: 'tab', toolName, startedAt: isoMinutesAgo(3), completedAt: isoMinutesAgo(2),
+  durationMs: 120, result: result('succeeded'), ...overrides
+})
 
 const items = () => [...byId('activity-list').querySelectorAll<HTMLElement>('.activity-item')].map(item => ({
   step: words(item.querySelector('.activity-step')),
@@ -33,9 +33,9 @@ describe('Overview recent actions in plain words (#873)', () => {
         ...baseDashboard, completedToolCalls: 7,
         recentActivity: [
           activity('browser_click', { durationMs: 1234 }),
-          activity('browser_snapshot', { outcome: 'failed' }),
+          activity('browser_snapshot', { result: result('failed') }),
           activity('browser_navigate', { result: result('blocked') }),
-          activity('browser_type', { outcome: 'failed', result: result('timed-out') }),
+          activity('browser_type', { result: result('timed-out') }),
           activity('browser_console'),
           activity('browser_made_up_tool'),
           activity('browser_wait', { result: result('outcome-unknown') })
