@@ -3577,6 +3577,7 @@ export const plPL = {
       "reopenClosed": "Otwórz ponownie zamkniętą kartę",
       "openLink": "Otwórz łącze w nowej karcie",
       "copyLink": "Kopiuj adres łącza",
+      "copyEmail": "Kopiuj adres e-mail",
       "saveLink": "Zapisz łącze",
       "openImage": "Otwórz obraz w nowej karcie",
       "copyImage": "Kopiuj obraz",

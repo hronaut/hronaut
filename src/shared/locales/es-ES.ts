@@ -3577,6 +3577,7 @@ export const esES = {
       "reopenClosed": "Volver a abrir pestaña cerrada",
       "openLink": "Abrir enlace en pestaña nueva",
       "copyLink": "Copiar dirección del enlace",
+      "copyEmail": "Copiar dirección de correo electrónico",
       "saveLink": "Guardar enlace",
       "openImage": "Abrir imagen en pestaña nueva",
       "copyImage": "Copiar imagen",

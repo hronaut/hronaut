@@ -110,6 +110,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
 
   if (params.linkURL) {
     const webLink = isWebUrl(params.linkURL)
+    const email = emailAddress(params.linkURL)
     groups.push([
       {
         id: 'open-link-new-tab',
@@ -119,8 +120,8 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       },
       {
         id: 'copy-link-address',
-        label: access.text('native.context.copyLink'),
-        click: () => copyText(params.linkURL)
+        label: access.text(email ? 'native.context.copyEmail' : 'native.context.copyLink'),
+        click: () => copyText(email || params.linkURL)
       },
       {
         id: 'save-link',
@@ -310,6 +311,29 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     window: access.window(),
     ...(params.frame ? { frame: params.frame } : {})
   })
+}
+
+// The characters Chrome keeps escaped when it writes out an address: spaces, controls and characters that show
+// nothing or could disguise the text, such as a bidi override or a Hangul filler.
+const HIDDEN_CHARACTER = /[\p{White_Space}\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}\p{Noncharacter_Code_Point}\u2800]/u
+
+/**
+ * The address of an email link, as Chrome copies it: what follows mailto: up to its subject or body, readable, with its
+ * escaped characters written out except a hidden one. Empty when the link is not an email link or names no address, as
+ * one that gives it only as a "to" field does.
+ */
+function emailAddress(linkURL: string): string {
+  // As Chromium reads an email link: everything before the "?", with no host and no fragment.
+  const address = /^mailto:([^?]*)/iu.exec(linkURL)?.[1] ?? ''
+  const decoded = address.replace(/(?:%[0-9a-f]{2})+/giu, (escaped) => {
+    try {
+      return decodeURIComponent(escaped)
+    } catch {
+      // Bytes that are not text stay escaped.
+      return escaped
+    }
+  })
+  return [...decoded].map(character => HIDDEN_CHARACTER.test(character) ? encodeURIComponent(character) : character).join('')
 }
 
 function hasOpaqueOrigin(frame: WebFrameMain | null | undefined): boolean {
