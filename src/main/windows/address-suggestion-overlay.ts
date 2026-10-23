@@ -38,7 +38,7 @@ export interface AddressSuggestionOverlay {
   hide(): void
   /** Sizes the shown suggestions to the height their page measured. */
   measured(value: unknown, sender: Pick<WebContents, 'getZoomFactor'>): void
-  /** Hands a suggestion picked in the view to the shell, when it belongs to the current typing session. */
+  /** Hands the shell a pick from the current typing session, and hides the view unless the row opens behind. */
   select(selection: AddressSuggestionSelection): void
   /** Gives the keyboard back to the shell's address field after a middle-click on a row took it to the view. */
   returnFocus(): void
@@ -246,6 +246,8 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
     if (host.mainWindowRefs.window && !host.mainWindowRefs.window.isDestroyed() && !host.mainWindowRefs.window.webContents.isDestroyed()) {
       host.mainWindowRefs.window.webContents.send('address-overlay:selected', selection)
     }
+    // A row opened behind leaves the suggestions open, as in Chrome; the shell hides them itself if its field lost focus.
+    if (selection.disposition) return
     addressSuggestionOverlayGeneration += 1
     hideAddressSuggestionOverlay()
   }

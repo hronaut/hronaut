@@ -86,7 +86,7 @@ describe('native address overlay renderer', () => {
     const row = document.querySelector<HTMLButtonElement>('[role=option]')!
     const right = new PointerEvent('pointerdown', { button: 2, bubbles: true, cancelable: true })
     row.dispatchEvent(right)
-    // Focus stays in the address field all the same.
+    // The row's button does not take focus within the view all the same.
     expect(right.defaultPrevented).toBe(true)
     expect(select).not.toHaveBeenCalled()
     const middle = new PointerEvent('pointerdown', { button: 1, shiftKey: true, bubbles: true, cancelable: true })

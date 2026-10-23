@@ -250,9 +250,9 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   }
 
   async function openInNewTab(target: string, background: boolean): Promise<void> {
-    cancelBlur()
     if (!background) {
       // The new tab takes over, and this tab's field shows its own address again when the person comes back to it.
+      cancelBlur()
       close()
       editing.value = false
       dirty.value = false
@@ -461,7 +461,11 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   if (overlay) {
     registrations.push(
       () => overlay.onSelected(({ sessionId, suggestionId, disposition }) => {
-        if (disposed || sessionId !== overlaySessionId) return
+        if (disposed) return
+        // A middle press gave the suggestions view the keyboard. The field takes it back, and shows its suggestions
+        // again, whether or not the row still opens.
+        if (disposition) overlay.returnFocus()
+        if (sessionId !== overlaySessionId) return
         const activeTab = options.activeTab.value
         // A row picked for another tab does nothing. A pick for this tab opens even when the tab's own page has changed
         // its address since, as a page still loading or one that moves its address to the section in view does, just as
@@ -473,10 +477,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
           void chooseSuggestion(suggestion)
           return
         }
-        // A middle-click opens the row in a new tab behind, as Alt+Shift+Enter on it does. The press gave the
-        // suggestions view the keyboard, so it comes back to the field, which shows the suggestions again.
+        // A middle-click opens the row in a new tab behind, as Alt+Shift+Enter on it does.
         void openInNewTab(suggestion.url, true)
-        overlay.returnFocus()
       }),
       () => overlay.onDismissed((sessionId) => {
         if (disposed || sessionId !== overlaySessionId) return
