@@ -56,6 +56,7 @@ test('keeps primary shell states free of accessibility violations', async ({ app
 
 test('keeps every theme picker free of color contrast violations', async ({ appWindow }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('button', { name: /^Appearance/ }).click()
   const findings: Record<string, AxeFinding[]> = {}
 
   for (const theme of RESOLVED_THEME_NAMES) {
