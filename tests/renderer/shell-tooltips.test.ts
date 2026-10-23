@@ -151,6 +151,18 @@ describe('shell tooltips', () => {
     expect(document.querySelector('.shell-window-tooltip')).toBeNull()
   })
 
+  // A panel window that maximized or snapped kept its tooltip where the control had been.
+  it('hides when the window resizes', () => {
+    const port = tooltipPort()
+    uninstall = installShellTooltips(port)
+    const button = control('Clear console')
+    pointer('pointerover', button)
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
+    expect(port.showTooltip).toHaveBeenCalledOnce()
+    window.dispatchEvent(new Event('resize'))
+    expect(port.hideTooltip).toHaveBeenCalledExactlyOnceWith(1)
+  })
+
   it('hides for a scroll that moves the control, not for one in an unrelated list', () => {
     const port = tooltipPort()
     uninstall = installShellTooltips(port)

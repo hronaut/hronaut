@@ -153,6 +153,8 @@ export function installShellTooltips(port: ShellTooltipPort, root: Document = do
   root.addEventListener('scroll', onScroll, true)
   root.addEventListener('visibilitychange', onVisibility)
   view.addEventListener('blur', onBlur)
+  // A window that resizes, maximizes or goes full screen moves the control away from its tooltip.
+  view.addEventListener('resize', onBlur)
 
   return () => {
     hide()
@@ -165,6 +167,7 @@ export function installShellTooltips(port: ShellTooltipPort, root: Document = do
     root.removeEventListener('scroll', onScroll, true)
     root.removeEventListener('visibilitychange', onVisibility)
     view.removeEventListener('blur', onBlur)
+    view.removeEventListener('resize', onBlur)
   }
 }
 

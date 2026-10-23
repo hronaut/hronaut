@@ -3,9 +3,10 @@ import { expect, test } from './fixtures.js'
 // A panel in its own window showed the operating system's tooltips, from native titles, instead of the themed ones.
 test('shows the themed tooltip beside a control in a panel opened in its own window', async ({ appWindow, electronApp }) => {
   await appWindow.getByRole('button', { name: 'New tab' }).click()
-  const opened = electronApp.waitForEvent('window')
   await appWindow.evaluate("window.hronautPanelWindow.open('console')")
-  const panel = await opened
+  // The new tab's page is a window to Playwright too, so find the panel's by its address.
+  await expect.poll(() => electronApp.windows().some((page) => page.url().includes('hronautPanel=console'))).toBe(true)
+  const panel = electronApp.windows().find((page) => page.url().includes('hronautPanel=console'))!
   const toggle = panel.locator('.preserve-logs-toggle')
   await expect(toggle).toBeVisible()
   const text = await toggle.getAttribute('data-tooltip')

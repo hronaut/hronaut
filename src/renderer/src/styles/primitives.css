@@ -144,7 +144,8 @@
  * draws in the main window (tooltip-overlay.css): at most 320 px wide and 12 lines, each line in its own direction.
  */
 .shell-window-tooltip {
-  @apply pointer-events-none fixed [z-index:140] [top:0] [left:0];
+  /* Above everything in the page, toasts (z-index 500) included, as main's tooltip view is above the window. */
+  @apply pointer-events-none fixed [z-index:600] [top:0] [left:0];
   @apply [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:12] overflow-hidden [unicode-bidi:plaintext];
   @apply [width:max-content] [max-width:320px] [padding:6px_8px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-1)];
   @apply text-copy bg-surface-raised [box-shadow:var(--elevation-1)] [font-family:var(--font-ui)] [font-size:var(--type-micro-size)] [line-height:1.35];
