@@ -5,6 +5,7 @@
   "version": "3.7.0",
   "publisher": "hronaut",
   "license": "SEE LICENSE IN LICENSE.md",
+  "pricing": "Trial",
   "icon": "icon.png",
   "homepage": "https://hronaut.dev",
   "repository": {
@@ -37,9 +38,10 @@
         "hronaut.mcpPort": {
           "type": "integer",
           "default": 47812,
-          "minimum": 1,
+          "minimum": 1024,
           "maximum": 65535,
-          "markdownDescription": "The port of Hronaut's MCP server. Change it only if you changed it in Hronaut's **Settings → MCP security**."
+          "scope": "machine",
+          "markdownDescription": "The port of Hronaut's MCP server on this computer. Set it only if you changed it in Hronaut's **Settings → MCP security**; unset, the extension uses `HRONAUT_MCP_PORT` if the editor has it, or else the default."
         }
       }
     }

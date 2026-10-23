@@ -11,18 +11,19 @@ case ${HRONAUT_MCP_PORT-47812} in
   '' | *[!0-9]*) printf '{}\n'; exit 0 ;;
 esac
 
+# Electron names the profile folder after the app's package name, which is lowercase.
 if [ -n "${HRONAUT_USER_DATA_DIR:-}" ]; then
   profile=$HRONAUT_USER_DATA_DIR
 else
   case "$(uname -s 2>/dev/null)" in
-    Darwin) profile="${HOME:-}/Library/Application Support/Hronaut" ;;
+    Darwin) profile="${HOME:-}/Library/Application Support/hronaut" ;;
     # Git Bash, MSYS2 and Cygwin on Windows.
     *_NT-*)
       appdata=${APPDATA:-}
       if [ -n "$appdata" ] && command -v cygpath >/dev/null 2>&1; then appdata=$(cygpath -u "$appdata"); fi
-      profile="$appdata/Hronaut"
+      profile="$appdata/hronaut"
       ;;
-    *) profile="${XDG_CONFIG_HOME:-${HOME:-}/.config}/Hronaut" ;;
+    *) profile="${XDG_CONFIG_HOME:-${HOME:-}/.config}/hronaut" ;;
   esac
 fi
 

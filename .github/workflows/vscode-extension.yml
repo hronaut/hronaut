@@ -26,9 +26,15 @@ jobs:
       - name: Install vsce
         run: npm install --global --ignore-scripts @vscode/vsce@4.0.0
 
+      # The store pages show the README from the package, so its relative links point at this commit's folder.
       - name: Package the extension
         working-directory: extensions/vscode
-        run: vsce package --no-dependencies --out "hronaut-vscode-$(node -p "require('./package.json').version").vsix"
+        env:
+          CONTENT_URL: https://github.com/${{ github.repository }}/blob/${{ github.sha }}/extensions/vscode
+          IMAGES_URL: https://github.com/${{ github.repository }}/raw/${{ github.sha }}/extensions/vscode
+        run: >-
+          vsce package --no-dependencies --baseContentUrl "$CONTENT_URL" --baseImagesUrl "$IMAGES_URL"
+          --out "hronaut-vscode-$(node -p "require('./package.json').version").vsix"
 
       - name: Upload the extension
         uses: actions/upload-artifact@v7

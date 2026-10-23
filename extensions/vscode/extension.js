@@ -5,7 +5,7 @@
  * without an mcp.json entry. The owner token is read when the editor starts the server, never stored in settings.
  */
 
-const { mcpEndpoint, ownerToken } = require('./connection.js')
+const { mcpEndpoint, mcpPort, ownerToken } = require('./connection.js')
 
 const PROVIDER_ID = 'hronaut'
 const LABEL = 'Hronaut'
@@ -13,13 +13,15 @@ const LABEL = 'Hronaut'
 /** The provider for the editor's `vscode` API; separate from `activate` so it is tested without the editor. */
 function createProvider(vscode, version, readToken = ownerToken) {
   const changed = new vscode.EventEmitter()
-  const port = () => vscode.workspace.getConfiguration('hronaut').get('mcpPort')
+  // Only a port set in the editor counts; its default leaves HRONAUT_MCP_PORT and Hronaut's own default to apply.
+  const port = () => mcpPort(vscode.workspace.getConfiguration('hronaut').inspect('mcpPort')?.globalValue)
   const provider = {
     onDidChangeMcpServerDefinitions: changed.event,
     provideMcpServerDefinitions: () => [new vscode.McpHttpServerDefinition(LABEL, vscode.Uri.parse(mcpEndpoint(port())), {}, version)],
     async resolveMcpServerDefinition(server) {
+      // The editor passes the same definition on every start, so a token from an earlier start must not stay on it.
       const token = await readToken()
-      if (token) server.headers = { ...server.headers, Authorization: `Bearer ${token}` }
+      server.headers = token ? { Authorization: `Bearer ${token}` } : {}
       return server
     }
   }
@@ -29,10 +31,15 @@ function createProvider(vscode, version, readToken = ownerToken) {
   return { provider, dispose: () => { watch.dispose(); changed.dispose() } }
 }
 
-function activate(context) {
-  const vscode = require('vscode')
+function activate(context, vscode = require('vscode')) {
+  // Some editors built on VS Code accept the extension without letting extensions add MCP servers.
+  if (typeof vscode.lm?.registerMcpServerDefinitionProvider !== 'function') {
+    void vscode.window.showWarningMessage('This editor does not let extensions add MCP servers. Add Hronaut from Hronaut Home instead.')
+    return
+  }
   const { provider, dispose } = createProvider(vscode, context.extension.packageJSON.version)
-  context.subscriptions.push({ dispose }, vscode.lm.registerMcpServerDefinitionProvider(PROVIDER_ID, provider))
+  context.subscriptions.push({ dispose })
+  context.subscriptions.push(vscode.lm.registerMcpServerDefinitionProvider(PROVIDER_ID, provider))
 }
 
 function deactivate() {}

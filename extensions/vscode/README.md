@@ -14,7 +14,7 @@ This extension adds Hronaut's MCP server to the editor, so agents such as GitHub
 
 The extension connects to `http://127.0.0.1:47812/mcp`, Hronaut's local endpoint. When the editor starts the server, the extension reads Hronaut's owner token from `HRONAUT_MCP_TOKEN` or from the token file in Hronaut's profile and sends it with the connection, so the token is never written to your settings. Hronaut accepts the connection without a token while its MCP authentication is off.
 
-- Changed Hronaut's MCP port? Set **Hronaut: Mcp Port** (`hronaut.mcpPort`) to the same port.
+- Changed Hronaut's MCP port? Set **Hronaut: Mcp Port** (`hronaut.mcpPort`) in your user settings to the same port, or start the editor with `HRONAUT_MCP_PORT` set as you do for Hronaut.
 - Hronaut uses another profile folder? Start the editor with `HRONAUT_USER_DATA_DIR` set as you do for Hronaut.
 - Added Hronaut to `mcp.json` before? Remove that entry, so the agent does not get Hronaut's tools twice.
 
