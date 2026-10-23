@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-10-22
+
 ### Changed
 
 - With **Collapse tab rail when not in use** on, the rail now slides closed over 300 ms, starting and ending gently, instead of shutting in 140 ms at full speed. The pause before it starts to close and opening it again are unchanged, and with reduced motion turned on in the system it still closes at once.
@@ -38,6 +40,19 @@ All notable changes to Hronaut are documented in this file.
 - **Clear history…** in **Settings → Workspaces & data** is now unavailable when there is no history, and no longer shows a count of the selected categories, such as “(1)”, after its name. **Sleep eligible tabs now** in **Settings → Performance** is unavailable when every website tab is already asleep. **Detect visible challenges** and **Hide URL details from agents** no longer start their description with “Off by default”, which their switch already shows.
 - An agent's click on a page's **Print** button no longer keeps the agent's workspace busy until you close the print dialog. The dialog holds the page until you print or cancel, so the click never returned and every other call in the workspace answered `WORKSPACE_BUSY`. Now the click ends with an error saying the page opened its print dialog, other calls on that tab say so at once without reaching the page until the dialog closes, closing the tab still works, and the workspace's other tabs keep working. The same goes for a page you are printing with **Print…**.
 - An agent's calls that run a script in the page, such as `browser_snapshot` and `browser_click`, now answer at once on a tab showing a page's source (a `view-source:` address), saying that page scripts never finish there and that nothing was sent. Before, they never answered, so the agent waited until its request timed out. A `browser_screenshot` of the view or the whole page, printing and DevTools keep working on such a tab, and the calls work again once the tab goes back to the page itself.
+
+### Known issues
+
+- A panel opened in its own window keeps the operating system's tooltips instead of the themed ones.
+- While a notification such as **Tab closed** shows at the bottom of the page, the page does not get clicks or wheel scrolling in the area just around the notification, about 10 px on each side.
+- `wallet_sendCalls` batches are not atomic: when a later call is rejected, fails or reverts, the earlier calls stay on chain, as separate transactions would. A dApp that requires an atomic batch gets error code 5760. A batch whose transaction the network dropped while its nonce is still unused stays pending, and `wallet_showCallsStatus` is not supported.
+- An EVM node that lags behind for more than a minute, or has pruned old transactions, can make a mined transaction look replaced, so Hronaut reports it as failed.
+- A link or form on a dApp that starts a download, or that the server answers with no content, counts as leaving the page for wallet requests: Hronaut cancels the page's open wallet requests and returns it to its default network without a `chainChanged` event, although the page stays.
+- `wallet_balance` marks an allowance `unlimited` only at 2^160 − 1 or more, so a token that stores allowances in 96 bits, such as UNI, shows its maximum approval as a large amount.
+- Typed-data meta-transactions are recognized by type name, by a `bytes` call-data field named `data`, `callData`, `calldata` or `functionSignature`, or as a MetaMask delegation. One that uses another name and another field name is still signed on mainnet when **Also sign typed data on mainnet** is on, so that switch is not a general spending limit.
+- Wallet policies saved by 2.45.0 or earlier that list a token method (`erc20.`, `trc20.` or `nft.`) do not sign token calls without a click. Remove such a policy and add it again with its token contract, or with **Allow any token contract**.
+- Websites' raw `eth_sign`, Solana and TRON requests still need a person to approve, even under a website sign-in policy, and typed data is signed without a click only by a dedicated agent wallet with the typed-data switch on.
+- Hronaut does not inject `window.tronLink` or `window.tronWeb` as a full TronWeb instance; Tron dApps that require TronLink specifically will not detect it.
 
 ## [3.4.0] - 2026-10-22
 

@@ -258,7 +258,10 @@ for (const action of ['hover', 'drag', 'press'] as const) {
               } else assertEffects(effects, expected)
             }
             if (change === 'unchanged' && action !== 'hover') expect(effects[action === 'drag' ? 'downs' : 'keys']).toBe(1)
-            expect(result.isError === true, text(result)).toBe(change !== 'unchanged')
+            // A key already down when the page changes its address is the press working, as after a click: a key that
+            // submits a form or follows a link changes the address too, so nothing is checked once the key is up.
+            const pressWorked = action === 'press' && phase === 'pressed' && change === 'route'
+            expect(result.isError === true, text(result)).toBe(change !== 'unchanged' && !pressWorked)
             if (control !== 'none' && control !== 'held-cleanup') {
               expect(result.structuredContent?.status).toBe('OUTCOME_UNKNOWN')
               expect(result.structuredContent?.retrySafe).toBe(false)
