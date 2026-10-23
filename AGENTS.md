@@ -186,8 +186,9 @@ Document user-visible changes under `CHANGELOG.md`'s Unreleased section. The
 release workflow builds from an immutable `v<package version>` tag and publishes
 only after validation and platform packaging succeed; do not hand-publish local
 artifacts. A version bump also sets the version in
-`plugins/hronaut/.claude-plugin/plugin.json`, which installed Claude Code
-plugins update to; auto-tag refuses to tag a bump that missed it.
+`plugins/hronaut/.claude-plugin/plugin.json` and
+`extensions/vscode/package.json`, which installed plugins and extensions
+update to; auto-tag refuses to tag a bump that missed one.
 
 The deployed commercial website is maintained separately in the sibling
 `../hronaut-page` repository. Changes there have independent tests, history,

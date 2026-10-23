@@ -26,7 +26,8 @@ unexecuted checks as untested. Required reviews, branch protections, and CodeQL
 checks still apply.
 
 Test execution is deferred to release preparation. A version bump on main, which
-also sets the version in `plugins/hronaut/.claude-plugin/plugin.json`, uses
+also sets the version in `plugins/hronaut/.claude-plugin/plugin.json` and
+`extensions/vscode/package.json`, uses
 the existing auto-tag pipeline; the immutable-tag release workflow runs the
 complete static, unit/component, Docker/Electron, native-dialog, and packaging
 gates before publication. A failed gate prevents publication. Do not overwrite
