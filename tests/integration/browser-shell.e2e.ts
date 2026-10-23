@@ -7106,6 +7106,9 @@ test('shows a native webpage context menu and suppresses it while human interact
       expect.objectContaining({ id: 'paste', label: 'Paste' }),
       expect.objectContaining({ id: 'select-all', label: 'Select All' })
     ]))
+    // The emoji picker comes first where the system has one, as in Chrome; Linux has none.
+    const emojiPicker = await electronApp.evaluate(({ app }) => app.isEmojiPanelSupported())
+    expect((await contextMenuItems()).findIndex(item => item.id === 'emoji')).toBe(emojiPicker ? 0 : -1)
 
     await rightClick('#image')
     await expect.poll(contextMenuItems).toEqual(expect.arrayContaining([

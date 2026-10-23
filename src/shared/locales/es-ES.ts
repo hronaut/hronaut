@@ -3596,6 +3596,8 @@ export const esES = {
       "pasteMatchStyle": "Pegar con el mismo estilo",
       "delete": "Eliminar",
       "selectAll": "Seleccionar todo",
+      "emoji": "Emojis",
+      "emojiSymbols": "Emojis y símbolos",
       "back": "Atrás",
       "forward": "Adelante",
       "reload": "Recargar",

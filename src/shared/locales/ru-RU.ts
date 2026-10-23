@@ -3596,6 +3596,8 @@ export const ruRU = {
       "pasteMatchStyle": "Вставить в том же стиле",
       "delete": "Удалить",
       "selectAll": "Выбрать всё",
+      "emoji": "Эмодзи",
+      "emojiSymbols": "Эмодзи и символы",
       "back": "Назад",
       "forward": "Вперёд",
       "reload": "Перезагрузить",

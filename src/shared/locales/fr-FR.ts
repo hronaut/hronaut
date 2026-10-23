@@ -3596,6 +3596,8 @@ export const frFR = {
       "pasteMatchStyle": "Coller en adaptant le style",
       "delete": "Supprimer",
       "selectAll": "Tout sélectionner",
+      "emoji": "Emoji",
+      "emojiSymbols": "Emoji et symboles",
       "back": "Précédent",
       "forward": "Suivant",
       "reload": "Recharger",

@@ -3596,6 +3596,8 @@ export const plPL = {
       "pasteMatchStyle": "Wklej i dopasuj styl",
       "delete": "Usuń",
       "selectAll": "Zaznacz wszystko",
+      "emoji": "Emoji",
+      "emojiSymbols": "Emoji i symbole",
       "back": "Wstecz",
       "forward": "Dalej",
       "reload": "Odśwież",

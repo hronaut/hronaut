@@ -3596,6 +3596,8 @@ export const deDE = {
       "pasteMatchStyle": "Einfügen und Stil anpassen",
       "delete": "Löschen",
       "selectAll": "Alles auswählen",
+      "emoji": "Emoji",
+      "emojiSymbols": "Emoji & Symbole",
       "back": "Zurück",
       "forward": "Vorwärts",
       "reload": "Neu laden",
