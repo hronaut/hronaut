@@ -24,12 +24,24 @@ test('a middle-click or Ctrl+click on an address suggestion opens it in a new ta
     const tabs = async () => (await appWindow.evaluate(async () => (await (window as unknown as TestWindow).hronaut.getState()).tabs))
       .map(tab => ({ id: tab.id, url: tab.url, active: tab.active }))
     const address = appWindow.getByRole('combobox', { name: 'Address' })
-    // Clicks the row in the suggestions view with real mouse input, as a person does.
+    // Clicks the row in the suggestions view with real mouse input, as a person does, once the view shows this search's
+    // rows: the rows of an earlier search stay in the hidden view's page until it shows new ones.
     const clickRow = async (button: 'left' | 'middle', modifiers: Array<'control' | 'shift' | 'meta'> = []) => {
-      await address.fill('Saved page')
-      await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+      await electronApp.evaluate(async ({ webContents }) => {
         const overlay = webContents.getAllWebContents().find(contents => contents.getURL().includes('address-overlay.html'))
-        return overlay?.executeJavaScript("document.querySelector('[role=option]')?.getAttribute('data-suggestion-id') ?? null")
+        await overlay?.executeJavaScript("window.__earlierRow = document.querySelector('[role=option]')")
+      })
+      await address.fill('')
+      await address.fill('Saved page')
+      await expect(address).toHaveAttribute('aria-expanded', 'true')
+      await expect.poll(() => electronApp.evaluate(async ({ BrowserWindow, webContents }) => {
+        const overlay = webContents.getAllWebContents().find(contents => contents.getURL().includes('address-overlay.html'))
+        const main = BrowserWindow.getAllWindows().find(window => window.getTitle() === 'Hronaut')
+        const shown = main?.contentView.children.some(child => (
+          (child as unknown as { webContents?: { id: number } }).webContents?.id === overlay?.id && child.getVisible()
+        ))
+        const row = await overlay?.executeJavaScript("(() => { const row = document.querySelector('[role=option]'); return row && row !== window.__earlierRow ? row.getAttribute('data-suggestion-id') : null })()") as string | null | undefined
+        return shown ? row ?? null : null
       })).toMatch(/^bookmark:/)
       await electronApp.evaluate(async ({ webContents }, click) => {
         const overlay = webContents.getAllWebContents().find(contents => contents.getURL().includes('address-overlay.html'))!
