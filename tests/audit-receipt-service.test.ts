@@ -148,7 +148,7 @@ describe('persistent audit receipt service', () => {
     await reopened.stop(workspaceId)
   })
 
-  it('retires an interrupted run whose journal no longer verifies instead of refusing every later start', async () => {
+  it('sets aside an interrupted run whose journal no longer verifies instead of refusing every later start', async () => {
     const { service, root, toolNames, workspaceId } = await fixture()
     const interrupted = await service.start(workspaceId)
     await service.execute(workspaceId, action(async () => 'done'))
@@ -156,7 +156,8 @@ describe('persistent audit receipt service', () => {
     const journal = join(root, workspaceId, `${interrupted.id}.jsonl`)
     const saved = await readFile(journal, 'utf8')
     expect(saved).toContain('"authorization":{"kind":"full-access"},')
-    await writeFile(journal, saved.replaceAll('"authorization":{"kind":"full-access"},', ''))
+    const earlier = saved.replaceAll('"authorization":{"kind":"full-access"},', '')
+    await writeFile(journal, earlier)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     try {
       const reopened = new AuditReceiptService(root, toolNames)
@@ -165,8 +166,34 @@ describe('persistent audit receipt service', () => {
       expect(fresh.id).not.toBe(interrupted.id)
       expect((await reopened.list(workspaceId)).map(run => run.id)).toEqual([fresh.id])
       await expect(stat(journal)).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(await readFile(`${journal}.unverified`, 'utf8')).toBe(earlier)
       expect(warn).toHaveBeenCalledTimes(1)
-      expect(warn.mock.calls[0]).toEqual(['[audit] Retired an interrupted audit run whose journal could not be verified.'])
+      expect(warn.mock.calls[0]).toEqual(['[audit] Set aside an interrupted audit run whose journal could not be verified.'])
+      await reopened.stop(workspaceId)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  // Before, the next start deleted such a journal, and with it every receipt saved before the last line was cut off.
+  it('keeps the receipts of a run whose last line was cut off when the process stopped, and starts the next run', async () => {
+    const { service, root, toolNames, workspaceId } = await fixture()
+    const interrupted = await service.start(workspaceId)
+    await service.execute(workspaceId, action(async () => 'one'))
+    await service.execute(workspaceId, action(async () => 'two'))
+    const journal = join(root, workspaceId, `${interrupted.id}.jsonl`)
+    const cutOff = `${await readFile(journal, 'utf8')}{"sequence":5,"workspaceId":"`
+    await writeFile(journal, cutOff)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      const reopened = new AuditReceiptService(root, toolNames)
+      const fresh = await reopened.start(workspaceId)
+      expect((await reopened.list(workspaceId)).map(run => run.id)).toEqual([fresh.id])
+      expect(await readFile(`${journal}.unverified`, 'utf8')).toBe(cutOff)
+      // A journal set aside is not unindexed evidence, so later runs start too.
+      await reopened.stop(workspaceId)
+      const next = await reopened.start(workspaceId)
+      expect((await reopened.list(workspaceId)).map(run => run.id)).toEqual([fresh.id, next.id])
       await reopened.stop(workspaceId)
     } finally {
       warn.mockRestore()

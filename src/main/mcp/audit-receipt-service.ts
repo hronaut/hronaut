@@ -74,12 +74,15 @@ export class AuditReceiptService {
           await this.finalizeInterruptedVerifications(id, previous)
         } catch (error) {
           if (!(error instanceof AuditReceiptHistoryInvalidError)) throw error
-          // An interrupted run whose journal does not verify, such as one an earlier
-          // version saved, can be neither read nor closed, so it is retired whole.
+          // An interrupted run whose journal does not verify, such as one an earlier version
+          // saved, one cut off while Hronaut wrote it or one changed since, can be neither read
+          // nor closed. It leaves the list so recordings can start again, and its journal stays
+          // beside the others as evidence. It is set aside before the list changes, so a crash
+          // between the two leaves no journal that the list does not name.
+          await rename(this.journalPath(id, previous.id), this.unverifiedJournalPath(id, previous.id))
           index.runs.splice(index.runs.indexOf(previous), 1)
           await this.saveIndex(id, index)
-          await rm(this.journalPath(id, previous.id), { force: true })
-          console.warn('[audit] Retired an interrupted audit run whose journal could not be verified.')
+          console.warn('[audit] Set aside an interrupted audit run whose journal could not be verified.')
         }
       }
       const directory = this.workspacePath(id)
@@ -371,6 +374,7 @@ export class AuditReceiptService {
 
   private workspacePath(workspaceId: string): string { return join(this.directory, workspaceId) }
   private journalPath(workspaceId: string, runId: string): string { return join(this.workspacePath(workspaceId), `${runId}.jsonl`) }
+  private unverifiedJournalPath(workspaceId: string, runId: string): string { return `${this.journalPath(workspaceId, runId)}.unverified` }
 
   private async readIndex(workspaceId: string): Promise<Index> {
     let handle

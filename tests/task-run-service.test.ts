@@ -88,6 +88,24 @@ describe('durable task-run owner', () => {
     })
   })
 
+  // The claim came inside the heartbeat, so Hronaut's own second look at the evidence finishing after it does not time
+  // the run out. It failed with an internal "Verifying task run is unavailable or stale" error instead.
+  it('confirms a success claimed just before the heartbeat ends when checking it again takes past it', async () => {
+    let now = 0
+    const store = new TaskRunStore({ monotonicNow: () => now, wallNow: () => 1_000_000 + now })
+    const service = new TaskRunService({ load: async () => null, save: async () => undefined }, store)
+    const run = await service.create({ ...request, deadlineMs: 10_100 }, authorize)
+    now = 9_800
+    const evaluate = vi.fn(async () => {
+      now += 150
+      return { results: [{ id: 'page', status: 'PASS' as const }], contextToken: 'same' }
+    })
+    expect(await service.complete(WORKSPACE_ID, run.id, run.revision, 'SUCCEEDED', authorize, evaluate))
+      .toMatchObject({ outcome: 'succeeded' })
+    expect(evaluate).toHaveBeenCalledTimes(2)
+    expect(now).toBeGreaterThan(request.heartbeatTimeoutMs)
+  })
+
   it('reclassifies a saved success when its browser evidence changes before return', async () => {
     const service = new TaskRunService({ load: async () => null, save: async () => undefined })
     const run = await service.create(request, authorize)
