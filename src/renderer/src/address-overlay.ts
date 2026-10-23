@@ -2,10 +2,8 @@ import './address-overlay.css'
 import type { AddressSuggestion, AddressSuggestionOverlayState, AddressSuggestionSelection } from '../../shared/address-suggestions.js'
 import { translate } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
-import { openClickTab } from './open-click.js'
 
 interface HronautAddressOverlayViewApi {
-  platform: string
   onState(listener: (state: AddressSuggestionOverlayState) => void): () => void
   select(selection: AddressSuggestionSelection): void
   measured(height: number): void
@@ -24,7 +22,6 @@ function requiredRoot(): HTMLElement {
 }
 
 const root = requiredRoot()
-const mac = window.hronautAddressOverlayView.platform === 'darwin'
 
 let selectedSuggestionId: string | null = null
 
@@ -33,11 +30,6 @@ function suggestionMeta(suggestion: AddressSuggestion, locale: SupportedLocale):
   return suggestion.visitCount && suggestion.visitCount > 1
     ? translate(locale, 'addressOverlay.historyVisits', { count: suggestion.visitCount })
     : translate(locale, 'addressOverlay.history')
-}
-
-function clickedSuggestion(event: MouseEvent, sessionId: number, suggestionId: string): AddressSuggestionSelection {
-  const disposition = openClickTab(event, mac)
-  return disposition ? { sessionId, suggestionId, disposition } : { sessionId, suggestionId }
 }
 
 function selectSuggestion(selection: AddressSuggestionSelection): void {
@@ -83,13 +75,14 @@ function suggestionButton(
   button.append(icon, copy, meta)
   button.addEventListener('pointerdown', (event) => {
     event.preventDefault()
-    // The primary button chooses a row, and a middle-click opens it in a new tab behind, as in Chrome; a right click
-    // chooses nothing.
-    if (event.button === 0 || event.button === 1) selectSuggestion(clickedSuggestion(event, sessionId, suggestion.id))
+    // The primary button chooses a row and a middle-click opens it in a new tab behind, as in Chrome, whatever keys are
+    // held; a right click chooses nothing.
+    if (event.button === 0) selectSuggestion({ sessionId, suggestionId: suggestion.id })
+    else if (event.button === 1) selectSuggestion({ sessionId, suggestionId: suggestion.id, disposition: 'new-background-tab' })
   })
   button.addEventListener('click', (event) => {
     event.preventDefault()
-    selectSuggestion(clickedSuggestion(event, sessionId, suggestion.id))
+    selectSuggestion({ sessionId, suggestionId: suggestion.id })
   })
   return button
 }

@@ -18,6 +18,7 @@ export const ADDRESS_FIELD_COMFORT_WIDTH = 520
 interface AddressOverlayApi {
   show(request: AddressSuggestionOverlayRequest): void
   hide(): void
+  returnFocus(): void
   onSelected(listener: (selection: AddressSuggestionSelection) => void): () => void
   onDismissed(listener: (sessionId: number) => void): () => void
 }
@@ -250,15 +251,15 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
 
   async function openInNewTab(target: string, background: boolean): Promise<void> {
     cancelBlur()
-    close()
     if (!background) {
       // The new tab takes over, and this tab's field shows its own address again when the person comes back to it.
+      close()
       editing.value = false
       dirty.value = false
       restoreActiveAddress()
       input.value?.blur()
     }
-    // A background tab keeps the typed text in the field, as in Chrome, to edit and open again.
+    // A tab opened behind leaves the typed text and its suggestions open, as in Chrome, to open another or edit it.
     await options.onOpenInNewTab(target, background)
   }
 
@@ -468,9 +469,14 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
         if (!activeTab || activeTab.id !== presentedSuggestionOwner?.id) return
         const suggestion = presentedSuggestions.find((candidate) => candidate.id === suggestionId)
         if (!suggestion) return
-        // A middle-click or Ctrl+click opens the row in a new tab, as Alt+Enter on it does.
-        if (disposition) void openInNewTab(suggestion.url, disposition === 'new-background-tab')
-        else void chooseSuggestion(suggestion)
+        if (!disposition) {
+          void chooseSuggestion(suggestion)
+          return
+        }
+        // A middle-click opens the row in a new tab behind, as Alt+Shift+Enter on it does. The press gave the
+        // suggestions view the keyboard, so it comes back to the field, which shows the suggestions again.
+        void openInNewTab(suggestion.url, true)
+        overlay.returnFocus()
       }),
       () => overlay.onDismissed((sessionId) => {
         if (disposed || sessionId !== overlaySessionId) return

@@ -51,6 +51,7 @@ function createHarness(options: {
   const overlay = {
     show: vi.fn<(request: AddressSuggestionOverlayRequest) => void>(),
     hide: vi.fn(),
+    returnFocus: vi.fn(),
     onSelected: vi.fn((listener: (selection: AddressSuggestionSelection) => void) => {
       selectedListener = listener
       return unsubscribeSelected
@@ -110,8 +111,8 @@ function createHarness(options: {
     unsubscribeSelected,
     unsubscribeDismissed,
     selectOverlay: (suggestionId: string, sessionId = overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0) => selectedListener?.({ sessionId, suggestionId }),
-    selectOverlayInNewTab: (suggestionId: string, disposition: 'new-tab' | 'new-background-tab') => selectedListener?.({
-      sessionId: overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0, suggestionId, disposition
+    middleClickOverlay: (suggestionId: string) => selectedListener?.({
+      sessionId: overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0, suggestionId, disposition: 'new-background-tab'
     }),
     dismissOverlay: (sessionId = overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0) => dismissedListener?.(sessionId)
   }
@@ -480,7 +481,7 @@ describe('address bar controller', () => {
     expect(input).toHaveValue('https://second.example/unsaved-form')
   })
 
-  it('opens a suggestion in a new tab for a middle-click or Ctrl+click on its row, as Alt+Enter on it does', async () => {
+  it('opens a suggestion in a new tab behind for a middle-click on its row, and gives the field the keyboard back', async () => {
     const saved: BrowserBookmark = {
       id: 'saved',
       title: 'Saved page',
@@ -493,23 +494,37 @@ describe('address bar controller', () => {
     await fireEvent.focus(input)
     await fireEvent.update(input, 'saved')
     await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
-    const shown = rendered.overlay.show.mock.calls.length
+    const hidden = rendered.overlay.hide.mock.calls.length
 
-    rendered.selectOverlayInNewTab('bookmark:saved', 'new-background-tab')
+    rendered.middleClickOverlay('bookmark:saved')
     await Promise.resolve()
     expect(rendered.onOpenInNewTab).toHaveBeenCalledExactlyOnceWith('https://saved.example/', true)
     expect(rendered.onNavigate).not.toHaveBeenCalled()
-    // A tab behind keeps the typed text in the field, to open again.
+    // The press gave the suggestions view the keyboard; the field takes it back with the typed text and its
+    // suggestions, as Chrome keeps the address bar's own after opening a tab behind.
+    expect(rendered.overlay.returnFocus).toHaveBeenCalledOnce()
     expect(input).toHaveValue('saved')
+    expect(rendered.overlay.hide).toHaveBeenCalledTimes(hidden)
+  })
 
-    await fireEvent.update(input, 'saved ')
-    await waitFor(() => expect(rendered.overlay.show.mock.calls.length).toBeGreaterThan(shown))
-    rendered.selectOverlayInNewTab('bookmark:saved', 'new-tab')
-    await Promise.resolve()
-    expect(rendered.onOpenInNewTab).toHaveBeenLastCalledWith('https://saved.example/', false)
-    // The tab in front takes over, and this tab's field shows its own address again.
-    expect(input).toHaveValue('https://example.test/first')
-    expect(rendered.onNavigate).not.toHaveBeenCalled()
+  it('opens a row once when its pick arrives twice, as its click follows its press', async () => {
+    const saved: BrowserBookmark = {
+      id: 'saved',
+      title: 'Saved page',
+      url: 'https://saved.example/',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }
+    const rendered = createHarness({ bookmarks: [saved] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    rendered.selectOverlay('bookmark:saved')
+    rendered.selectOverlay('bookmark:saved')
+    await waitFor(() => expect(rendered.onNavigate).toHaveBeenCalledWith('https://saved.example/'))
+    expect(rendered.onNavigate).toHaveBeenCalledOnce()
+    expect(rendered.onOpenInNewTab).not.toHaveBeenCalled()
   })
 
   it.each(['within the page', 'in a redirect'] as const)('opens a picked suggestion after the tab\'s page moves its address %s', async (change) => {

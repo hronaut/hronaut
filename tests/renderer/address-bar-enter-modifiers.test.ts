@@ -178,13 +178,16 @@ describe('Enter with modifier keys in the address field', () => {
     expect(rendered.onNavigate).not.toHaveBeenCalled()
   })
 
-  it('opens a new background tab on Alt+Shift+Enter and keeps the typed text', async () => {
+  it('opens a new background tab on Alt+Shift+Enter and keeps the typed text and its suggestions', async () => {
     const rendered = createHarness()
     await typeAddress(rendered.input, 'later.example')
+    expect(rendered.controller.open.value).toBe(true)
     expect(keydown(rendered.input, { altKey: true, shiftKey: true }).defaultPrevented).toBe(true)
     expect(rendered.onOpenInNewTab).toHaveBeenCalledWith('later.example', true)
     expect(rendered.controller.address.value).toBe('later.example')
     expect(document.activeElement).toBe(rendered.input)
+    // As in Chrome, the suggestions stay open to open another one behind.
+    expect(rendered.controller.open.value).toBe(true)
     expect(rendered.onNavigate).not.toHaveBeenCalled()
   })
 
