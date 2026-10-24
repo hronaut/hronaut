@@ -3,6 +3,7 @@ import type { ReactInspectionBootstrap } from '../shared/react-inspection.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import type { HomeWorkspaceAction } from '../shared/home-workspaces.js'
 import type { HronautHomeApi } from '../shared/home.js'
+import type { Confirmation } from '../shared/confirmation.js'
 import type { AgentGuideId } from '../shared/agent-guides.js'
 import type { WalletProviderEvent, WalletProviderRequest } from '../shared/wallet.js'
 import { installHronautWalletProviders } from './wallet-provider-bootstrap.js'
@@ -61,7 +62,7 @@ if (pageLocation?.protocol === 'hronaut:' && pageLocation.hostname === 'home') {
     getWorkspaces: () => ipcRenderer.invoke('hronaut-home:workspaces'),
     workspaceAction: (request: HomeWorkspaceAction) => ipcRenderer.invoke('hronaut-home:workspace-action', request),
     copyText: (text: string) => ipcRenderer.invoke('hronaut-home:copy-text', text),
-    confirm: (message: string) => ipcRenderer.sendSync('hronaut-home:confirm', message) === true,
+    confirm: async (question: Confirmation) => await ipcRenderer.invoke('hronaut-home:confirm', question) === true,
     openAgentGuide: (clientId: AgentGuideId) => ipcRenderer.invoke('hronaut-home:open-agent-guide', clientId),
     openVsCodeInstall: () => ipcRenderer.invoke('hronaut-home:open-vscode-install'),
     openSetupHelp: () => ipcRenderer.invoke('hronaut-home:open-setup-help'),

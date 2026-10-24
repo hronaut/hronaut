@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Hronaut's confirmations before a change it cannot undo, such as removing a wallet, clearing history or a website's cookies, deleting a workspace or turning MCP authentication off, now appear as Hronaut dialogs over the window instead of system dialogs. The question is the headline with what it means under it, in the interface language, and **Cancel** is focused, so **Enter** and **Escape** keep things as they are. A second click while the question waits asks nothing more.
+
+### Fixed
+
+- A Hronaut dialog that appears while **Edit workspace** or **Search tabs** is open, such as a website's permission request, now keeps the focus on its safe answer. The open panel took the focus back, so **Enter** pressed the panel's close button and **Tab** could not reach the dialog's other answer.
+
 ## [3.9.0] - 2026-10-24
 
 ### Changed

@@ -5,6 +5,7 @@ import type {
   BrowsingDataSummary,
   BrowsingDataWebsiteSummary
 } from '../../../shared/types.js'
+import { splitConfirmation, type Confirmation } from '../../../shared/confirmation.js'
 import { friendlyUiError } from './useAppToastController.js'
 
 type PrivacyBrowsingDataApi = Pick<HronautBrowsingDataApi, 'summary' | 'websites' | 'clear'>
@@ -19,7 +20,7 @@ const DEFAULT_CLEAR_OPTIONS: BrowsingDataClearOptions = {
 export interface PrivacySettingsControllerOptions {
   api: PrivacyBrowsingDataApi
   translate: Translate
-  confirm: (message: string) => boolean
+  confirm: (question: Confirmation) => Promise<boolean>
   formatNumber: (value: number) => string
 }
 
@@ -109,10 +110,12 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
     if (clearing.value) return
     const selected = selectedLabels(false)
     if (!selected.length) return
-    const confirmed = options.confirm(options.translate('runtimeActions.browsingData.confirm', {
+    // What the person confirms is what is cleared, whatever changes while the question waits.
+    const request = { ...clearOptions.value }
+    const confirmed = await options.confirm(splitConfirmation((parameters) => options.translate('runtimeActions.browsingData.confirm', parameters), {
       items: selected.map((item) => options.translate('runtimeActions.browsingData.item', { item })).join('\n')
     }))
-    if (!confirmed) return
+    if (!confirmed || clearing.value) return
     const summaryOperation = ++summaryGeneration
     const websiteOperation = ++websiteGeneration
     summaryState.value = 'clearing'
@@ -120,7 +123,7 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
     websiteState.value = 'idle'
     websiteMessage.value = ''
     try {
-      const nextSummary = await options.api.clear({ ...clearOptions.value })
+      const nextSummary = await options.api.clear(request)
       if (summaryOperation !== summaryGeneration || websiteOperation !== websiteGeneration) return
       summary.value = nextSummary
       summaryMessage.value = options.translate('runtime.browsingData.cleared', {}, selected.length)
@@ -148,11 +151,12 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
     if (clearing.value) return
     const selected = selectedLabels(true)
     if (!selected.length) return
-    const confirmed = options.confirm(options.translate('privacyActions.clearSiteConfirm', {
+    const request = { ...clearOptions.value, origin: site.origin }
+    const confirmed = await options.confirm(splitConfirmation((parameters) => options.translate('privacyActions.clearSiteConfirm', parameters), {
       origin: site.origin,
       items: selected.map((item) => options.translate('runtimeActions.browsingData.item', { item })).join('\n')
     }))
-    if (!confirmed) return
+    if (!confirmed || clearing.value) return
     const summaryOperation = ++summaryGeneration
     const websiteOperation = ++websiteGeneration
     websiteState.value = 'clearing'
@@ -161,7 +165,7 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
     summaryState.value = 'idle'
     summaryMessage.value = ''
     try {
-      const nextSummary = await options.api.clear({ ...clearOptions.value, origin: site.origin })
+      const nextSummary = await options.api.clear(request)
       if (summaryOperation !== summaryGeneration || websiteOperation !== websiteGeneration) return
       summary.value = nextSummary
     } catch (error) {

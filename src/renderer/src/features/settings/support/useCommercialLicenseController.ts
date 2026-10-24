@@ -5,7 +5,7 @@ type CommercialLicenseAction = 'idle' | 'activating' | 'refreshing' | 'deactivat
 
 export interface CommercialLicenseControllerOptions {
   api: HronautLicenseApi
-  confirmDeactivate: () => boolean
+  confirmDeactivate: () => Promise<boolean>
   emptyKeyMessage: () => string
   formatError: (error: unknown) => string
 }
@@ -126,8 +126,8 @@ export function useCommercialLicenseController(options: CommercialLicenseControl
     return run('refreshing', () => options.api.refresh())
   }
 
-  function deactivate(): Promise<boolean> {
-    if (busy.value || !options.confirmDeactivate()) return Promise.resolve(false)
+  async function deactivate(): Promise<boolean> {
+    if (busy.value || !await options.confirmDeactivate() || busy.value) return false
     return run('deactivating', () => options.api.deactivate())
   }
 

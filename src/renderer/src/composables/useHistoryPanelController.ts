@@ -22,7 +22,7 @@ export interface HistoryPanelControllerOptions {
   openHistoryEntryInBackground: (entry: BrowserHistoryEntry) => Promise<void>
   saveHistoryBookmark: (url: string, title: string) => Promise<void>
   copyHistoryAddress: (entry: BrowserHistoryEntry) => Promise<void>
-  confirmClear: () => boolean
+  confirmClear: () => Promise<boolean>
 }
 
 export function useHistoryPanelController(options: HistoryPanelControllerOptions) {
@@ -179,7 +179,8 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
   }
 
   async function clear(): Promise<void> {
-    if (!options.entries.value.length || pendingAction.value || !options.confirmClear()) return
+    if (!options.entries.value.length || pendingAction.value) return
+    if (!await options.confirmClear() || pendingAction.value) return
     await runAction('clear', options.clearHistory)
   }
 

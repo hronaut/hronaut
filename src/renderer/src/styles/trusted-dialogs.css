@@ -16,7 +16,7 @@
 .trusted-dialog--error .ui-dialog__icon > svg { @apply text-danger; }
 .trusted-dialog .ui-dialog__body { @apply pt-2 pl-[74px]; }
 .trusted-dialog__details { @apply grid gap-2.5; }
-.trusted-dialog__details p { @apply m-0 [font-size:var(--type-small-size)] leading-[1.5] text-muted [overflow-wrap:anywhere]; }
+.trusted-dialog__details p { @apply m-0 whitespace-pre-line [font-size:var(--type-small-size)] leading-[1.5] text-muted [overflow-wrap:anywhere]; }
 .trusted-dialog__workspace { @apply flex items-start gap-2; }
 .trusted-dialog__details .trusted-dialog__workspace { @apply text-copy; }
 .trusted-dialog__workspace > svg { @apply mt-px size-4 flex-none text-muted; }

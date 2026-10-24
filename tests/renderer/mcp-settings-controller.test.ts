@@ -58,7 +58,7 @@ function createController() {
     }
     return settings.value
   })
-  const confirmDisableAuthentication = vi.fn(() => true)
+  const confirmDisableAuthentication = vi.fn(async () => true)
   const onAuthenticationError = vi.fn()
   const createCapabilityProfile = vi.fn()
   const listCapabilityProfiles = vi.fn(async (): Promise<McpCapabilityProfileSummary[]> => [])

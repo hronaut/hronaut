@@ -44,7 +44,7 @@ function createController(locale?: SupportedLocale) {
     websites: vi.fn(async () => [website('current.test')]),
     clear: vi.fn(async () => summary(0))
   }
-  const confirm = vi.fn(() => true)
+  const confirm = vi.fn(async () => true)
   const controller = usePrivacySettingsController({
     api,
     confirm,
@@ -205,12 +205,29 @@ describe('privacy settings controller', () => {
     controller.dispose()
   })
 
+  it('clears what the person was asked about, even when the selection changes while the question waits', async () => {
+    const { api, confirm, controller } = createController()
+    let answer!: (value: boolean) => void
+    confirm.mockImplementationOnce(() => new Promise<boolean>((resolve) => { answer = resolve }))
+    const asked = { ...controller.clearOptions.value }
+
+    const clearing = controller.clearSelected()
+    expect(confirm).toHaveBeenCalledOnce()
+    controller.clearOptions.value = { ...controller.clearOptions.value, history: !asked.history }
+    answer(true)
+    await clearing
+    expect(api.clear).toHaveBeenCalledExactlyOnceWith(asked)
+    controller.dispose()
+  })
+
   it('rejects refresh work while a clear operation is pending', async () => {
     const pendingClear = deferred<BrowsingDataSummary>()
     const { api, controller } = createController()
     api.clear.mockImplementationOnce(() => pendingClear.promise)
 
     const clearing = controller.clearSelected()
+    // The clear starts once the confirmation answers.
+    await vi.waitFor(() => expect(controller.clearing.value).toBe(true))
     await controller.refreshSummary()
     await controller.refreshWebsites()
     controller.resetSelection()

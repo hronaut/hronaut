@@ -158,7 +158,7 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
     copyText: vi.fn(async () => true),
     translate: (key: string) => key,
     formatNumber: (value: number) => String(value),
-    confirm: vi.fn(() => true),
+    confirm: vi.fn(async () => true),
     showToast: vi.fn(),
     onSettingError: vi.fn()
   } satisfies AppSettingsFeatureControllerOptions

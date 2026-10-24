@@ -1,6 +1,6 @@
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 import { expect, test } from './fixtures.js'
-import { answerConfirmations } from './confirmation-fixture.js'
+import { answerEveryTrustedDialog, answeredTrustedDialogs } from './trusted-dialog-fixture.js'
 
 test('closes a workspace from Edit workspace while all tabs are locked, as Home Clear does', async ({ appWindow, electronApp }) => {
   const workspaceId = await appWindow.evaluate(async () => {
@@ -18,12 +18,12 @@ test('closes a workspace from Edit workspace while all tabs are locked, as Home 
   // 2.41.0 disabled this button under the global lock, with only a tooltip as explanation.
   await expect(close).toBeEnabled()
   // With room in the archive, closing offers Undo instead of asking first.
-  const asked = await answerConfirmations(electronApp, 'cancel')
+  await answerEveryTrustedDialog(appWindow, 'Cancel')
   await close.click()
   await expect.poll(() => appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.getState()
     .then(state => state.mcpTabGroups.some(group => group.id === id)), workspaceId)).toBe(false)
   await expect(dialog).toBeHidden()
-  expect(await asked()).toEqual([])
+  expect(await answeredTrustedDialogs(appWindow)).toEqual([])
   // The global lock itself stays on.
   expect(await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState().then(state => state.allHumanInteractionLocked))).toBe(true)
 })

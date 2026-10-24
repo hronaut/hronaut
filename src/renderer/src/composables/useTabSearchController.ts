@@ -12,6 +12,7 @@ import type {
   HronautApi,
   McpTabActivity
 } from '../../../shared/types.js'
+import { splitConfirmation, type Confirmation } from '../../../shared/confirmation.js'
 
 type TabSearchBrowserApi = Pick<
   HronautApi,
@@ -48,7 +49,7 @@ export interface TabSearchControllerOptions {
   formatNumber: (value: number) => string
   formatTime: (value: Date | number | string) => string
   describeEmulation: (tab: BrowserTabState) => string
-  confirm: (message: string) => boolean
+  confirm: (question: Confirmation) => Promise<boolean>
   formatError: (cause: unknown, fallback: string) => string
   showError: (title: string, message: string) => void
 }
@@ -459,11 +460,15 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
 
   async function deleteSavedGroup(event: MouseEvent, group: BrowserSavedTabGroupState): Promise<void> {
     event.stopPropagation()
-    if (!options.confirm(options.translate(
-      'runtimeActions.workspace.deleteConfirm',
-      { name: group.name, count: options.formatNumber(group.tabs.length) },
-      group.tabs.length
-    ))) return
+    const askedPresentation = presentationGeneration
+    const confirmed = await options.confirm(splitConfirmation(
+      (parameters) => options.translate('runtimeActions.workspace.deleteConfirm', parameters, group.tabs.length),
+      { name: group.name, count: options.formatNumber(group.tabs.length) }
+    ))
+    // Search tabs keeps running while the question waits: it may close, or an agent may restore, protect or delete the
+    // workspace. Only the archived workspace the person was asked about is deleted.
+    const current = options.state.value.savedTabGroups.find(candidate => candidate.id === group.id)
+    if (!confirmed || !isPresentationCurrent(askedPresentation) || !current || current.deletionProtected) return
     const action = beginAction()
     if (!action) return
     try {

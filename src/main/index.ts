@@ -781,7 +781,8 @@ function registerIpc(): void {
     assertTrustedShellSender,
     senderWindow: (event) => BrowserWindow.fromWebContents(event.sender),
     mainWindow: () => mainWindowRefs.window,
-    showMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options),
+    focusAskingPage: (event) => tabRuntime.tabs?.focusPageAfterQuestion(event.sender),
+    showDialog: (options) => trustedDialogs.show(options),
     text
   })
   registerShellIpc(hronautIpcMain, {

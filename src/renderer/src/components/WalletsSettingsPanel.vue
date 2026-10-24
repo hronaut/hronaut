@@ -16,6 +16,7 @@ import type { WalletPreparedImport } from '../../../shared/types.js'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import WalletNetworkFields from './WalletNetworkFields.vue'
 import { confirmAction } from '../confirm-action.js'
+import { splitConfirmation } from '../../../shared/confirmation.js'
 import { ignoreHeldEnter } from '../held-enter.js'
 import {
   isWalletTokenMethod,
@@ -516,7 +517,7 @@ function cancelWalletRpcEdit(): void {
 
 async function removeWallet(): Promise<void> {
   const wallet = selectedWallet.value
-  if (wallet && confirmAction(t('wallets.removeConfirm', { name: wallet.name }))) await props.controller.remove(wallet.id)
+  if (wallet && await confirmAction(splitConfirmation((parameters) => t('wallets.removeConfirm', parameters), { name: wallet.name }))) await props.controller.remove(wallet.id)
 }
 
 async function addPolicy(): Promise<void> {

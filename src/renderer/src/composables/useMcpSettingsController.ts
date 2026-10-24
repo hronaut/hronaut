@@ -39,7 +39,7 @@ export interface McpSettingsControllerOptions {
   createCapabilityProfile: (input: McpCapabilityProfileCreateInput) => Promise<McpCapabilityCredentialResult>
   rotateCapabilityProfile: (id: string) => Promise<McpCapabilityCredentialResult>
   revokeCapabilityProfile: (id: string) => Promise<McpCapabilityProfileSummary>
-  confirmDisableAuthentication: () => boolean
+  confirmDisableAuthentication: () => Promise<boolean>
   /** Copies a credential and itself tells the person when the copy fails. */
   copyText: CopyTextWithFeedback
   translate: (key: string, parameters?: Record<string, unknown>) => string
@@ -151,7 +151,8 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
 
   async function setAuthentication(enabled: boolean): Promise<boolean> {
     if (busy.value) return false
-    if (!enabled && !options.confirmDisableAuthentication()) return false
+    // Another change can start while the question waits; the one that started first goes on alone.
+    if (!enabled && (!await options.confirmDisableAuthentication() || busy.value)) return false
     const operationGeneration = generation
     operation.value = 'authentication'
     try {
