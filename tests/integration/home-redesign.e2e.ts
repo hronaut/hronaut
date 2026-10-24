@@ -14,22 +14,37 @@ async function homePage(app: ElectronApplication): Promise<Page> {
   return app.context().pages().find(page => page.url().startsWith('hronaut://home'))!
 }
 
-/** Answers Hronaut's native message boxes with `response` and keeps what each one asked, until the app closes. */
-async function answerMessageBoxes(app: ElectronApplication, response: number): Promise<void> {
-  await app.evaluate(({ dialog }, answer) => {
+/**
+ * Keeps what each system message box asked, answering Cancel, until the app closes: the setup asks in Hronaut's own
+ * dialog, so a test that sees one here caught it falling back.
+ */
+async function recordSystemDialogs(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ dialog }) => {
     const scope = globalThis as typeof globalThis & { messageBoxes?: Electron.MessageBoxOptions[] }
     scope.messageBoxes = []
     dialog.showMessageBox = (async (...args: unknown[]) => {
       scope.messageBoxes!.push(args.at(-1) as Electron.MessageBoxOptions)
-      return { response: answer, checkboxChecked: false }
+      return { response: 0, checkboxChecked: false }
     }) as typeof dialog.showMessageBox
-  }, response)
+  })
+}
+
+/** Hronaut's own dialog for the setup, once Apply asked it: the file, the entry it writes and the backup it saves. */
+async function expectClaudeSetupDialog(window: Page, path: string, entry: string, backup: string): Promise<void> {
+  const dialog = trustedDialog(window)
+  await expect(dialog).toHaveAttribute('data-variant', 'claude-setup')
+  expect(await trustedDialogHeadline(window)).toBe('Add Hronaut to Claude Code?')
+  await expect(dialog.getByTestId('trusted-dialog-change-path')).toHaveText(path)
+  await expect(dialog.getByTestId('trusted-dialog-change-added')).toHaveText(entry)
+  await expect(dialog).toContainText(`A copy of the file is saved first as ${backup}.`)
+  // Enter, or a key still held from Home, keeps the file as it is.
+  await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused()
 }
 
 const messageBoxes = (app: ElectronApplication): Promise<Electron.MessageBoxOptions[]> =>
   app.evaluate(() => (globalThis as typeof globalThis & { messageBoxes?: Electron.MessageBoxOptions[] }).messageBoxes ?? [])
 
-test('sets up Claude Code from Home after a native confirmation, keeping its other settings and a backup', async ({ profileDirectory, mcpPort }) => {
+test('sets up Claude Code from Home after a confirmation in the dialog main asks, keeping its other settings and a backup', async ({ profileDirectory, mcpPort }) => {
   // A stand-in home folder with Claude Code's settings file, written as Claude Code writes it.
   const home = await mkdtemp(join(tmpdir(), 'hronaut-claude-home-'))
   const configPath = join(home, '.claude.json')
@@ -81,29 +96,31 @@ test('sets up Claude Code from Home after a native confirmation, keeping its oth
     expect(await backups()).toEqual([])
 
     // Cancel in Hronaut's own dialog writes nothing either; the dialog repeats the file, the entry and the backup.
-    await answerMessageBoxes(app, 0)
+    await recordSystemDialogs(app)
     await setUp.click()
     await expect(preview).toBeVisible()
     const cancelledBackup = /as (\S+)\.$/u.exec(await page.locator('#claude-setup-backup').innerText())![1]!
     await preview.getByRole('button', { name: 'Apply change…', exact: true }).click()
+    await expectClaudeSetupDialog(instance.window, configPath, entry, cancelledBackup)
+    // A file without a Hronaut entry has nothing to replace.
+    await expect(trustedDialog(instance.window).getByTestId('trusted-dialog-change-removed')).toHaveCount(0)
+    await trustedDialog(instance.window).screenshot({ path: test.info().outputPath('claude-setup-dialog.png') })
+    await answerTrustedDialog(instance.window, 'Cancel')
+    await expect(trustedDialog(instance.window)).toBeHidden()
     await expect(status).toHaveText('Nothing was changed.')
-    const [asked] = await messageBoxes(app)
-    expect(asked).toMatchObject({ title: 'Set up Claude Code', message: 'Add Hronaut to Claude Code?', buttons: ['Cancel', 'Add to Claude Code'], defaultId: 0, cancelId: 0 })
-    expect(asked!.detail).toContain(`File: ${configPath}`)
-    expect(asked!.detail).toContain(entry)
-    expect(asked!.detail).toContain(`A copy of the file is saved first as ${cancelledBackup}.`)
     expect(await readFile(configPath, 'utf8')).toBe(original)
     expect(await backups()).toEqual([])
 
     // Confirming adds exactly the hronaut entry, keeps every other setting, its order and indentation, and the backup
     // holds the file's exact bytes.
-    await answerMessageBoxes(app, 1)
     await setUp.click()
     await expect(preview).toBeVisible()
     const backupName = /as (\S+)\.$/u.exec(await page.locator('#claude-setup-backup').innerText())![1]!
     await preview.getByRole('button', { name: 'Apply change…', exact: true }).click()
+    await expectClaudeSetupDialog(instance.window, configPath, entry, backupName)
+    await answerTrustedDialog(instance.window, 'Add to Claude Code')
     await expect(status).toHaveText(`Added. Restart Claude Code and it connects here. Backup: ${backupName}.`)
-    expect(await messageBoxes(app)).toHaveLength(1)
+    expect(await messageBoxes(app)).toEqual([])
     const expected = `${JSON.stringify({ ...settings, mcpServers: { ...settings.mcpServers, hronaut: { type: 'http', url: endpoint } } }, null, 2)}\n`
     expect(await readFile(configPath, 'utf8')).toBe(expected)
     expect(await backups()).toEqual([backupName])
@@ -161,14 +178,19 @@ test('on a new profile, requires the MCP token and sets up Claude Code with it',
     // The token itself never reaches Home.
     expect(await page.content()).not.toContain(token)
 
-    await answerMessageBoxes(app, 1)
+    await recordSystemDialogs(app)
     const backupName = /as (\S+)\.$/u.exec(await page.locator('#claude-setup-backup').innerText())![1]!
     await preview.getByRole('button', { name: 'Apply change…', exact: true }).click()
+    const shownEntry = `"hronaut": ${JSON.stringify({ type: 'http', url: endpoint, headers: { Authorization: 'Bearer •••' } }, null, 2)}`
+    await expectClaudeSetupDialog(instance.window, configPath, shownEntry, backupName)
+    const dialog = trustedDialog(instance.window)
+    await expect(dialog.getByTestId('trusted-dialog-change-removed')).toHaveText(`"hronaut": ${JSON.stringify({ type: 'http', url: endpoint }, null, 2)}`)
+    await expect(dialog).toContainText('Hronaut writes the actual MCP token where ••• appears.')
+    // The token never reaches the shell either.
+    expect(await instance.window.content()).not.toContain(token)
+    await answerTrustedDialog(instance.window, 'Add to Claude Code')
     await expect(status).toHaveText(`Added. Restart Claude Code and it connects here. Backup: ${backupName}.`)
-    const [asked] = await messageBoxes(app)
-    expect(asked!.detail).toContain('"Authorization": "Bearer •••"')
-    expect(asked!.detail).toContain('Hronaut writes the actual MCP token where ••• appears.')
-    expect(asked!.detail).not.toContain(token)
+    expect(await messageBoxes(app)).toEqual([])
     const written = JSON.parse(await readFile(configPath, 'utf8')) as { mcpServers: { hronaut: { headers: { Authorization: string } } } }
     expect(written).toEqual({ numStartups: 1, mcpServers: { hronaut: { type: 'http', url: endpoint, headers: { Authorization: `Bearer ${token}` } } } })
     // The file now holds the token, so it is for this account alone.

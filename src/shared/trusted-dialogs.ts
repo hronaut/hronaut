@@ -59,6 +59,24 @@ export interface WalletRecoveryDialogVariant {
   words: string[]
 }
 
+/**
+ * Hronaut's change to Claude Code's settings file, which Home showed and the person chose to apply: the file, the entry
+ * Hronaut writes and the one it replaces. Any token in them is already shown as •••.
+ */
+export interface ClaudeSetupDialogVariant {
+  kind: 'claude-setup'
+  /** The settings file Hronaut changes. */
+  path: string
+  /** The "hronaut" entry Hronaut writes, as JSON. */
+  after: string
+  /** The "hronaut" entry it replaces, as JSON, or null when the file has none. */
+  before: string | null
+  /** True when Hronaut writes the actual MCP token where the entry shows •••. */
+  tokenHidden: boolean
+  /** The name of the copy of the file Hronaut saves first. */
+  backupName: string
+}
+
 /** What one of Hronaut's own questions is about, for the mark its dialog shows. */
 export type TrustedDialogTopic = 'unsaved-changes' | 'downloads' | 'browser-import' | 'passwords' | 'agent-connection'
 
@@ -74,6 +92,7 @@ export type TrustedDialogVariant =
   | ProtectedFileAccessDialogVariant
   | SavePasswordDialogVariant
   | WalletRecoveryDialogVariant
+  | ClaudeSetupDialogVariant
   | MessageDialogVariant
 
 /** The one dialog main shows a shell window, as that window draws it. */

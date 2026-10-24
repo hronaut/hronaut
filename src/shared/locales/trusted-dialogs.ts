@@ -20,6 +20,11 @@ export const trustedDialogMessages = {
       keep: 'Write these words down in order and keep them offline. Anyone who has them controls the wallet.',
       added: 'Hronaut adds the wallet once you confirm you saved them.'
     },
+    claudeSetup: {
+      file: 'File',
+      added: 'New entry in "mcpServers"',
+      replaces: 'It replaces'
+    },
     sitePermission: {
       embeddedIn: 'Embedded in {site}',
       wants: {
@@ -63,6 +68,11 @@ export const trustedDialogMessages = {
       phrase: 'Фраза відновлення',
       keep: 'Запишіть ці слова по порядку й зберігайте їх офлайн. Хто має ці слова, той керує гаманцем.',
       added: 'Hronaut додасть гаманець, щойно ви підтвердите, що зберегли їх.'
+    },
+    claudeSetup: {
+      file: 'Файл',
+      added: 'Новий запис у "mcpServers"',
+      replaces: 'Він замінить'
     },
     sitePermission: {
       embeddedIn: 'Вбудовано на {site}',
@@ -108,6 +118,11 @@ export const trustedDialogMessages = {
       keep: 'Запишите эти слова по порядку и храните их офлайн. У кого эти слова, тот управляет кошельком.',
       added: 'Hronaut добавит кошелёк, как только вы подтвердите, что сохранили их.'
     },
+    claudeSetup: {
+      file: 'Файл',
+      added: 'Новая запись в "mcpServers"',
+      replaces: 'Она заменит'
+    },
     sitePermission: {
       embeddedIn: 'Встроено на {site}',
       wants: {
@@ -151,6 +166,11 @@ export const trustedDialogMessages = {
       phrase: 'Wiederherstellungsphrase',
       keep: 'Schreiben Sie diese Wörter in dieser Reihenfolge auf und bewahren Sie sie offline auf. Wer sie kennt, kontrolliert die Wallet.',
       added: 'Hronaut fügt die Wallet hinzu, sobald Sie bestätigen, dass Sie die Wörter gesichert haben.'
+    },
+    claudeSetup: {
+      file: 'Datei',
+      added: 'Neuer Eintrag in "mcpServers"',
+      replaces: 'Er ersetzt'
     },
     sitePermission: {
       embeddedIn: 'Eingebettet in {site}',
@@ -196,6 +216,11 @@ export const trustedDialogMessages = {
       keep: 'Notez ces mots dans l’ordre et conservez-les hors ligne. Quiconque les possède contrôle le portefeuille.',
       added: 'Hronaut ajoute le portefeuille dès que vous confirmez les avoir notés.'
     },
+    claudeSetup: {
+      file: 'Fichier',
+      added: 'Nouvelle entrée dans "mcpServers"',
+      replaces: 'Elle remplace'
+    },
     sitePermission: {
       embeddedIn: 'Intégré dans {site}',
       wants: {
@@ -240,6 +265,11 @@ export const trustedDialogMessages = {
       keep: 'Anota estas palabras en orden y guárdalas sin conexión. Quien las tenga controla el monedero.',
       added: 'Hronaut añadirá el monedero en cuanto confirmes que las has guardado.'
     },
+    claudeSetup: {
+      file: 'Archivo',
+      added: 'Nueva entrada en "mcpServers"',
+      replaces: 'Sustituye'
+    },
     sitePermission: {
       embeddedIn: 'Insertado en {site}',
       wants: {
@@ -283,6 +313,11 @@ export const trustedDialogMessages = {
       phrase: 'Fraza odzyskiwania',
       keep: 'Zapisz te słowa w tej kolejności i przechowuj je offline. Kto je zna, ten kontroluje portfel.',
       added: 'Hronaut doda portfel, gdy potwierdzisz ich zapisanie.'
+    },
+    claudeSetup: {
+      file: 'Plik',
+      added: 'Nowy wpis w "mcpServers"',
+      replaces: 'Zastąpi'
     },
     sitePermission: {
       embeddedIn: 'Osadzono w {site}',

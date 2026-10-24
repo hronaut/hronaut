@@ -27,6 +27,18 @@
 .trusted-dialog__phrase { @apply m-0 grid list-none grid-cols-3 gap-1.5 rounded-2 border border-border-soft bg-surface-muted p-2 [user-select:none]; }
 .trusted-dialog__phrase li { @apply flex items-baseline gap-2 rounded-1 bg-surface px-2 py-1.5 text-copy [font-family:var(--font-code)] [font-size:var(--type-small-size)]; }
 .trusted-dialog__phrase-number { @apply min-w-[2ch] text-right text-muted [font-variant-numeric:tabular-nums]; }
+/* A change to a file outside Hronaut, read as a diff: the file, the entry written (+) and the one it replaces (-). */
+.trusted-dialog__change { @apply m-0 grid gap-2 rounded-2 border border-border-soft bg-surface-muted p-2.5; }
+.trusted-dialog__change figcaption { @apply grid gap-0.5 text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] uppercase; }
+.trusted-dialog__change-path { @apply text-copy [font-size:var(--type-small-size)] [font-weight:normal] normal-case [overflow-wrap:anywhere]; }
+.trusted-dialog__change-entry { @apply grid gap-1 rounded-1 border-l-[3px] bg-surface px-2.5 py-2; }
+.trusted-dialog__change-entry--added { @apply [border-left-color:var(--success)]; }
+.trusted-dialog__change-entry--removed { @apply [border-left-color:var(--danger)]; }
+.trusted-dialog__change-label { @apply flex items-center gap-1.5 text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)]; }
+.trusted-dialog__change-mark { @apply min-w-[1ch] [font-family:var(--font-code)]; }
+.trusted-dialog__change-entry--added .trusted-dialog__change-mark { @apply [color:var(--success)]; }
+.trusted-dialog__change-entry--removed .trusted-dialog__change-mark { @apply text-danger; }
+.trusted-dialog__change pre { @apply m-0 max-h-48 overflow-auto rounded-1 text-copy [font-family:var(--font-code)] [font-size:var(--type-small-size)] leading-[1.45] whitespace-pre-wrap [overflow-wrap:anywhere]; }
 .trusted-dialog .ui-dialog__footer { @apply mt-2; }
 
 @media (max-width: 520px) {

@@ -1,4 +1,4 @@
-import type { BrowserWindow, IpcMain, IpcMainInvokeEvent, MessageBoxOptions, MessageBoxReturnValue } from 'electron'
+import type { BrowserWindow, IpcMain, IpcMainInvokeEvent } from 'electron'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
 import { openVsCodeMcpInstall } from './vscode-mcp-install.js'
 import { ClaudeCodeSetup, claudeCodeConfigPath } from './claude-code-setup.js'
@@ -6,6 +6,7 @@ import { detectAgentClients } from './agent-client-detection.js'
 import { agentGuideHandler, setupFeedbackHandler, setupHelpHandler } from './setup-feedback-links.js'
 import type { McpPortRecovery } from './mcp-port-suggestion.js'
 import type { McpTokenConfiguration } from './mcp-token-store.js'
+import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
 import type { HomeSetupState } from '../shared/claude-code-setup.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import type { AppSettings, McpPortMoveResult } from '../shared/types.js'
@@ -30,8 +31,11 @@ interface HomeIpcHost {
   mcpCredentialAccepted(bearer: string): boolean
   openExternal(url: string): Promise<void>
   mcpPortRecovery(): Pick<McpPortRecovery, 'move'>
-  /** Shows a native message box, on the main window when it is open. */
-  showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>
+  /**
+   * Asks in Hronaut's own dialog on the main window, which only the shell answers, never Home; the system dialog when
+   * the window cannot show it.
+   */
+  showDialog(options: Omit<TrustedDialogOptions, 'window'>): Promise<{ response: number }>
   text(key: MessageKey, parameters?: MessageParameters): string
 }
 
@@ -56,7 +60,10 @@ export function registerHomeIpc(host: HomeIpcHost): void {
   }
 
   let claudeCodeSetup: ClaudeCodeSetup | null = null
-  /** Adds Hronaut to Claude Code's settings after the person confirms the exact change in a native dialog. */
+  /**
+   * Adds Hronaut to Claude Code's settings after the person confirms the exact change in a dialog main asks, which Home
+   * cannot answer for them.
+   */
   function claudeCodeSetupService(): ClaudeCodeSetup {
     claudeCodeSetup ??= new ClaudeCodeSetup({
       path: claudeCodeConfigPath(),
@@ -70,7 +77,7 @@ export function registerHomeIpc(host: HomeIpcHost): void {
       },
       allowed: claudeCodeSetupAllowed,
       confirm: async (preview) => {
-        const { response } = await host.showMessageBox({
+        const { response } = await host.showDialog({
           type: 'question',
           title: host.text('native.dialog.claudeSetupTitle'),
           message: host.text('native.dialog.claudeSetupMessage'),
@@ -85,7 +92,16 @@ export function registerHomeIpc(host: HomeIpcHost): void {
           // Enter, or a key still held from Home, keeps the file as it is; the change takes a deliberate choice.
           defaultId: 0,
           cancelId: 0,
-          noLink: true
+          primaryId: 1,
+          noLink: true,
+          variant: {
+            kind: 'claude-setup',
+            path: preview.path,
+            after: preview.after,
+            before: preview.before,
+            tokenHidden: preview.tokenHidden,
+            backupName: preview.backupName
+          }
         })
         return response === 1
       }
