@@ -7,7 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - While files download, Hronaut's taskbar buttons on Windows, its Dock icon on macOS and its launcher icon on Linux desktops that show it, such as Ubuntu's, show how far the downloads have come (on macOS while every file's size is known), and on macOS and Linux how many are under way, as in Chrome.
-- A cancelled or failed download in **Downloads** now offers **Retry**, as in Chrome, which downloads it again in its workspace, with that workspace's cookies, as a new entry; the old one stays. It also works after a restart for a download whose address had nothing to redact, and agents can do the same with `retry` in `browser_downloads`.
+- A cancelled or failed download in **Downloads** now offers **Retry**, as in Chrome, which downloads it again in its workspace, with that workspace's cookies, as a new entry; the old one stays. It also works after a restart for a download whose address Hronaut kept in full, with nothing redacted or cut, and agents can do the same with `retry` in `browser_downloads`.
 
 ### Changed
 

@@ -765,9 +765,15 @@ describe('Downloads Retry', () => {
     expect(retry).toHaveFocus()
   })
 
-  it.each(['de-DE', 'es-ES', 'fr-FR', 'pl-PL', 'ru-RU', 'uk-UA'] as const)('names Retry in %s', locale => {
+  it.each([
+    ['de-DE', 'again.bin erneut herunterladen'],
+    ['es-ES', 'Reintentar again.bin'],
+    ['fr-FR', 'Réessayer again.bin'],
+    ['pl-PL', 'Ponów again.bin'],
+    ['ru-RU', 'Повторить загрузку again.bin'],
+    ['uk-UA', 'Повторити завантаження again.bin']
+  ] as const)('names Retry in %s', (locale, name) => {
     renderPanel({ downloads: [cancelled('again', true)] }, locale)
-    expect(screen.getAllByRole('button').some(button => button.getAttribute('aria-label')?.includes('again.bin')
-      && !/Retry/.test(button.getAttribute('aria-label') ?? '') && button.classList.contains('download-retry'))).toBe(true)
+    expect(screen.getByRole('button', { name })).toHaveClass('download-retry')
   })
 })
