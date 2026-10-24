@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- On Windows and Linux, **Ctrl+Shift+Page Down** and **Ctrl+Shift+Page Up** move the tab in view one place down or up among its workspace's tabs, as in Chrome, from the page or from Hronaut's window. Pinned tabs move among the pinned ones, and a tab at either end stays where it is.
+
 ### Changed
 
 - Hronaut's confirmations before a change it cannot undo, such as removing a wallet, clearing history or a website's cookies, deleting a workspace or turning MCP authentication off, now appear as Hronaut dialogs over the window instead of system dialogs. The question is the headline with what it means under it, in the interface language, and **Cancel** is focused, so **Enter** and **Escape** keep things as they are. A second click while the question waits asks nothing more.

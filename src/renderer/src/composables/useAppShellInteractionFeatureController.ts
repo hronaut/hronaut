@@ -39,6 +39,7 @@ type InteractionBrowserApi = Pick<
   | 'selectTab'
   | 'reload'
   | 'reloadIgnoringCache'
+  | 'reorderTab'
 >
 
 type TransientShell = Pick<

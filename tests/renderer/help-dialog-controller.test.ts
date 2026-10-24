@@ -47,6 +47,8 @@ describe('help dialog controller', () => {
     expect(mac.keys['runtime.shortcuts.addressBackgroundTab']).toEqual(['Cmd', 'Return'])
     expect(mac.keys['runtime.shortcuts.addressWwwCom']).toEqual(['Control', 'Return'])
     expect(mac.keys['runtime.shortcuts.addressForgetVisit']).toEqual(['Shift', 'Fn', 'Delete'])
+    expect(mac.keys['runtime.shortcuts.moveTabNext']).toBeUndefined()
+    expect(mac.keys['runtime.shortcuts.moveTabPrevious']).toBeUndefined()
     const linux = keysFor('linux')
     expect(linux.mac).toBe(false)
     expect(linux.keys['runtime.shortcuts.pick']).toEqual(['Ctrl', 'Shift', 'C'])
@@ -58,6 +60,8 @@ describe('help dialog controller', () => {
     expect(linux.keys['runtime.shortcuts.addressNewTab']).toEqual(['Alt', 'Enter'])
     expect(linux.keys['runtime.shortcuts.addressBackgroundTab']).toEqual(['Alt', 'Shift', 'Enter'])
     expect(linux.keys['runtime.shortcuts.addressWwwCom']).toEqual(['Ctrl', 'Enter'])
+    expect(linux.keys['runtime.shortcuts.moveTabNext']).toEqual(['Ctrl', 'Shift', 'Page Down'])
+    expect(linux.keys['runtime.shortcuts.moveTabPrevious']).toEqual(['Ctrl', 'Shift', 'Page Up'])
     // Every key is one key, so the dialog can write each in its platform's own way.
     for (const keys of Object.values(linux.keys)) for (const key of keys) expect(key === '+' || !/.\+./u.test(key)).toBe(true)
   })
@@ -129,7 +133,7 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.addressForgetVisit',
       keys: ['Shift', 'Delete']
     })
-    expect(controller.shortcuts.value).toHaveLength(36)
+    expect(controller.shortcuts.value).toHaveLength(38)
     controller.dispose()
   })
 })

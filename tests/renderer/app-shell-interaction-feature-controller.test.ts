@@ -85,7 +85,8 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = 
     reopenClosedTab: vi.fn(async () => state.value),
     selectTab: vi.fn(async () => state.value),
     reload: vi.fn(async () => state.value),
-    reloadIgnoringCache: vi.fn(async () => state.value)
+    reloadIgnoringCache: vi.fn(async () => state.value),
+    reorderTab: vi.fn(async () => state.value)
   }
   const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => {
     state.value = await operation

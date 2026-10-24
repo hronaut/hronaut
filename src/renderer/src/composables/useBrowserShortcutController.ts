@@ -10,7 +10,7 @@ import type {
 
 type ShortcutBrowserApi = Pick<
   HronautApi,
-  'closeTab' | 'reopenClosedTab' | 'selectTab' | 'reload' | 'reloadIgnoringCache' | 'newTab'
+  'closeTab' | 'reopenClosedTab' | 'selectTab' | 'reload' | 'reloadIgnoringCache' | 'newTab' | 'reorderTab'
 >
 
 type ShortcutCallback = () => void | Promise<void>
@@ -88,6 +88,28 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     const selection = tabSelectionQueue.then(() => performRelativeTabSelection(offset))
     tabSelectionQueue = selection.catch(() => undefined)
     return selection
+  }
+
+  /**
+   * Moves the website tab in view one place among its workspace's tabs, on its side of the pinned ones, as Chrome's
+   * Ctrl+Shift+Page Down and Page Up do. At either end it stays where it is.
+   */
+  async function performTabMove(offset: -1 | 1): Promise<void> {
+    if (disposed) return
+    const tab = options.activeTab.value
+    if (!tab || isHronautHomeUrl(tab.url)) return
+    const peers = websiteTabs().filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId && candidate.pinned === tab.pinned)
+    const index = peers.findIndex((candidate) => candidate.id === tab.id)
+    const target = index < 0 ? undefined : peers[index + offset]
+    if (!target) return
+    await options.syncState(options.browser.reorderTab(tab.id, target.id, offset > 0 ? 'after' : 'before'))
+  }
+
+  function moveTab(offset: -1 | 1): Promise<void> {
+    // After the tab changes that came before, so each press moves it from where the last one left it.
+    const move = tabSelectionQueue.then(() => performTabMove(offset))
+    tabSelectionQueue = move.catch(() => undefined)
+    return move
   }
 
   function directTabIndex(action: BrowserShortcutAction): number | null {
@@ -221,6 +243,12 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
       case 'previous-tab':
         await selectRelativeTab(-1)
         return
+      case 'move-tab-next':
+        await moveTab(1)
+        return
+      case 'move-tab-previous':
+        await moveTab(-1)
+        return
       case 'zoom-in':
         await options.setZoom('in')
         return
@@ -274,7 +302,8 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
       || !options.canRunAction(action)
       || (options.settingsOpen.value && [
         'reload', 'reload-ignoring-cache', 'find', 'find-next', 'find-previous', 'bookmark', 'pick-element',
-        'toggle-devtools', 'zoom-in', 'zoom-out', 'zoom-reset', 'agent-card', 'toggle-full-page', 'take-over'
+        'toggle-devtools', 'zoom-in', 'zoom-out', 'zoom-reset', 'agent-card', 'toggle-full-page', 'take-over',
+        'move-tab-next', 'move-tab-previous'
       ].includes(action))
     ) return false
     const operationGeneration = generation

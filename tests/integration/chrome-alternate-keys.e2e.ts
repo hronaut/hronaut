@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeFixtureServer } from './fixtures.js'
 import { expect, test, text } from './capability-fixtures.js'
 
-test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down work as in Chrome, and a website keeps F5 and Alt+D', async ({ capabilities, appWindow, electronApp }) => {
+test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down, with Shift to move the tab, work as in Chrome, and a website keeps F5 and Alt+D', async ({ capabilities, appWindow, electronApp }) => {
   test.skip(process.platform === 'darwin', 'Chrome has none of these keys on macOS but the tab keys, which the unit tests cover')
   const { client, tabId } = capabilities
   const loads: Array<{ path: string, cacheControl: string | undefined }> = []
@@ -92,6 +92,27 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down work as in Chrome, 
     await addressBar.focus()
     await appWindow.keyboard.press('Control+PageUp')
     await expect.poll(async () => (await state()).activeTabId).toBe(tabId)
+
+    // Ctrl+Shift+Page Down and Page Up move the tab in view among its workspace's tabs, from the page and from
+    // Hronaut's own window, and it stays in view with the keyboard where it was.
+    const order = async () => (await state()).tabs.filter(tab => tab.mcpGroupId === workspace).map(tab => tab.id)
+    // The workspace's own first tab comes before them.
+    const before = (await order()).slice(0, -2)
+    expect(await order()).toEqual([...before, tabId, next])
+    await keys(tabId, 'window.keys = []')
+    await press(tabId, 'PageDown', ['control', 'shift'])
+    await expect.poll(order).toEqual([...before, next, tabId])
+    expect((await state()).activeTabId).toBe(tabId)
+    await expect.poll(focusedPage).toBe(`${origin}/editor`)
+    // At the end it stays, and the page never gets the key.
+    await press(tabId, 'PageDown', ['control', 'shift'])
+    await appWindow.waitForTimeout(500)
+    expect(await order()).toEqual([...before, next, tabId])
+    expect(await keys(tabId)).toEqual([])
+    await addressBar.focus()
+    await appWindow.keyboard.press('Control+Shift+PageUp')
+    await expect.poll(order).toEqual([...before, tabId, next])
+    expect((await state()).activeTabId).toBe(tabId)
   } finally {
     await closeFixtureServer(server)
   }

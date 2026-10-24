@@ -7,6 +7,8 @@ export type BrowserShortcutAction =
   | 'reopen-closed-tab'
   | 'next-tab'
   | 'previous-tab'
+  | 'move-tab-next'
+  | 'move-tab-previous'
   | `select-tab-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}`
   | 'select-last-tab'
   | 'find'
@@ -59,7 +61,8 @@ function workspaceShortcut(input: BrowserShortcutInput): BrowserShortcutAction |
 
 /**
  * Chrome's other keys for changing tabs, which Chrome keeps from websites as it keeps Ctrl+Tab: Ctrl+Page Down and
- * Ctrl+Page Up elsewhere than macOS; on macOS, Cmd+Shift+] and Cmd+Shift+[ and Cmd+Option+Right and Cmd+Option+Left.
+ * Ctrl+Page Up elsewhere than macOS, with Shift to move the tab instead; on macOS, Cmd+Shift+] and Cmd+Shift+[ and
+ * Cmd+Option+Right and Cmd+Option+Left.
  */
 function chromeTabShortcut(input: BrowserShortcutInput, key: string): BrowserShortcutAction | null {
   if (input.mac) {
@@ -71,7 +74,8 @@ function chromeTabShortcut(input: BrowserShortcutInput, key: string): BrowserSho
     if (input.alt && !input.shift && key === 'arrowleft') return 'previous-tab'
     return null
   }
-  if (!input.control || input.meta || input.alt || input.shift) return null
+  if (!input.control || input.meta || input.alt) return null
+  if (input.shift) return key === 'pagedown' ? 'move-tab-next' : key === 'pageup' ? 'move-tab-previous' : null
   return key === 'pagedown' ? 'next-tab' : key === 'pageup' ? 'previous-tab' : null
 }
 

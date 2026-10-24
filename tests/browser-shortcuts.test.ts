@@ -254,13 +254,23 @@ describe('Chrome\'s other keys for changing tabs', () => {
   it('goes to the next and previous tab with Ctrl+Page Down and Ctrl+Page Up elsewhere than macOS', () => {
     expect(keys({ key: 'PageDown', control: true })).toBe('next-tab')
     expect(keys({ key: 'PageUp', control: true })).toBe('previous-tab')
-    // Ctrl+Shift with these keys moves the tab in Chrome; Page Down alone scrolls the page.
-    expect(keys({ key: 'PageDown', control: true, shift: true })).toBeNull()
+    // Page Down alone scrolls the page.
     expect(keys({ key: 'PageDown' })).toBeNull()
     expect(keys({ key: 'PageDown', meta: true })).toBeNull()
     expect(keys({ key: 'PageDown', control: true, repeat: true })).toBeNull()
     // Control with a key stays with the website or field on macOS.
     expect(keys({ key: 'PageDown', control: true, mac: true })).toBeNull()
+  })
+
+  it('moves the tab with Ctrl+Shift+Page Down and Ctrl+Shift+Page Up elsewhere than macOS, as Chrome does', () => {
+    expect(keys({ key: 'PageDown', control: true, shift: true })).toBe('move-tab-next')
+    expect(keys({ key: 'PageUp', control: true, shift: true })).toBe('move-tab-previous')
+    expect(keys({ key: 'PageDown', shift: true })).toBeNull()
+    expect(keys({ key: 'PageDown', control: true, shift: true, alt: true })).toBeNull()
+    expect(keys({ key: 'PageUp', control: true, shift: true, meta: true })).toBeNull()
+    expect(keys({ key: 'PageDown', control: true, shift: true, repeat: true })).toBeNull()
+    // As with Ctrl+Page Down, Control with these keys stays with the website or field on macOS.
+    expect(keys({ key: 'PageDown', control: true, shift: true, mac: true })).toBeNull()
   })
 
   it('goes to the next and previous tab with Cmd+Shift+] and Cmd+Shift+[ or Cmd+Option+Right and Left on macOS', () => {

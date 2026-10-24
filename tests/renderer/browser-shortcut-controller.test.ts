@@ -56,7 +56,15 @@ function createController(canRunAction = (_action: string) => true) {
     selectTab: vi.fn(async (_tabId: string) => state.value),
     reload: vi.fn(async (_tabId?: string) => state.value),
     reloadIgnoringCache: vi.fn(async (_tabId?: string) => state.value),
-    newTab: vi.fn(async (_options?: { mcpGroupId?: string; active?: boolean }) => state.value)
+    newTab: vi.fn(async (_options?: { mcpGroupId?: string; active?: boolean }) => state.value),
+    // Main's move, as reorderTab makes it: the tab goes just before or after the target.
+    reorderTab: vi.fn(async (tabId: string, targetTabId: string, placement: 'before' | 'after') => {
+      const moving = state.value.tabs.find((candidate) => candidate.id === tabId)!
+      const rest = state.value.tabs.filter((candidate) => candidate.id !== tabId)
+      rest.splice(rest.findIndex((candidate) => candidate.id === targetTabId) + (placement === 'after' ? 1 : 0), 0, moving)
+      state.value = { ...state.value, tabs: rest }
+      return state.value
+    })
   }
   const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => { await operation })
   const settingsOpen = ref(false)
@@ -97,6 +105,57 @@ function createController(canRunAction = (_action: string) => true) {
 }
 
 describe('browser shortcut controller', () => {
+  it('moves the tab in view one place with Ctrl+Shift+Page Down and Page Up, staying at either end, as Chrome does', async () => {
+    const { state, browser, syncState, controller } = createController()
+    const order = () => state.value.tabs.map((candidate) => candidate.id)
+    // Each press moves the tab from where the one before left it.
+    await Promise.all([controller.run('move-tab-next'), controller.run('move-tab-next')])
+    expect(order()).toEqual(['first', 'third', 'second'])
+    expect(browser.reorderTab).toHaveBeenCalledTimes(1)
+    expect(browser.reorderTab).toHaveBeenCalledWith('second', 'third', 'after')
+    await controller.run('move-tab-previous')
+    await controller.run('move-tab-previous')
+    expect(order()).toEqual(['second', 'first', 'third'])
+    expect(browser.reorderTab).toHaveBeenLastCalledWith('second', 'first', 'before')
+    await controller.run('move-tab-previous')
+    expect(browser.reorderTab).toHaveBeenCalledTimes(3)
+    expect(syncState).toHaveBeenCalledTimes(3)
+    // The tab never leaves the selection: it stays the one in view.
+    expect(browser.selectTab).not.toHaveBeenCalled()
+  })
+
+  it('moves a tab only among its own workspace\'s tabs on its side of the pinned ones', async () => {
+    const { state, activeTab, browser, controller } = createController()
+    const at = (id: string, changes: Partial<BrowserTabState>) => ({ ...state.value.tabs.find((candidate) => candidate.id === id)!, ...changes })
+    state.value = {
+      ...state.value,
+      tabs: [
+        { ...tab('home'), url: 'hronaut://home/' },
+        at('first', { pinned: true, mcpGroupId: 'work' }),
+        at('second', { mcpGroupId: 'work' }),
+        at('other', { mcpGroupId: 'personal' }),
+        at('third', { mcpGroupId: 'work' })
+      ].map((candidate) => candidate.id === 'other' ? { ...tab('other'), mcpGroupId: 'personal' } : candidate)
+    }
+    activeTab.value = state.value.tabs.find((candidate) => candidate.id === 'second')
+    // Past the pinned tab before it there is nowhere to go; the next one of its workspace is past the other workspace's.
+    await controller.run('move-tab-previous')
+    expect(browser.reorderTab).not.toHaveBeenCalled()
+    await controller.run('move-tab-next')
+    expect(browser.reorderTab).toHaveBeenCalledExactlyOnceWith('second', 'third', 'after')
+    // Hronaut Home stays where it is.
+    activeTab.value = state.value.tabs[0]
+    await controller.run('move-tab-next')
+    expect(browser.reorderTab).toHaveBeenCalledOnce()
+  })
+
+  it('moves no tab while Settings is in view', async () => {
+    const { browser, settingsOpen, controller } = createController()
+    settingsOpen.value = true
+    expect(await controller.run('move-tab-next')).toBe(false)
+    expect(browser.reorderTab).not.toHaveBeenCalled()
+  })
+
   it('closes Settings without closing the underlying website', async () => {
     const harness = createController()
     harness.settingsOpen.value = true

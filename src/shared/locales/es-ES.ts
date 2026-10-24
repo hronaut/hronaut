@@ -890,6 +890,8 @@ export const esES = {
       "devtools": "Mostrar u ocultar las herramientas de desarrollo",
       "nextTab": "Ir a la pestaña siguiente",
       "previousTab": "Ir a la pestaña anterior",
+      "moveTabNext": "Mover la pestaña un puesto hacia abajo",
+      "moveTabPrevious": "Mover la pestaña un puesto hacia arriba",
       "directTab": "Ir a la pestaña web 1–8",
       "lastTab": "Ir a la última pestaña web",
       "resetZoom": "Restablecer el zoom de la página",
