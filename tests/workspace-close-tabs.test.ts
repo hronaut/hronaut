@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined }, webContents: { getFocusedWebContents: () => null } }))
+vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }))
 vi.mock('../src/main/browser/workspace-storage.js', async (original) => ({
   ...await original<typeof import('../src/main/browser/workspace-storage.js')>(),
   destroyWorkspaceStorage: vi.fn(async () => undefined)

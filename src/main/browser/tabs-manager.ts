@@ -1276,7 +1276,10 @@ export class BrowserTabsManager {
     this.focusTabOrTrustedChrome(tab)
   }
 
-  /** The page that has the keyboard now, or takes it once trusted chrome closes; null while the person is elsewhere. */
+  /**
+   * The page that has the keyboard now, or that takes it once trusted chrome closes if it is still in view; null while
+   * the person is elsewhere.
+   */
   keyboardPage(): WebContents | null {
     const waiting = this.focusAfterTrustedChrome?.tab.webContents
     if (waiting && !waiting.isDestroyed()) return waiting
@@ -3061,8 +3064,6 @@ export class BrowserTabsManager {
   ): Promise<BrowserState> {
     const tab = this.getTab(tabId)
     const webContents = tab.webContents
-    // Taking the page out of view while it decides takes the keyboard from it, which it gets back only if it had it.
-    const pageHadKeyboard = this.keyboardPage() === webContents
     // A WebContentsView may be destroyed independently (renderer failure,
     // devtools teardown, or an Electron close race). Purge those stale siblings
     // before any child-view transition so they cannot poison selection/layout.
@@ -3085,6 +3086,8 @@ export class BrowserTabsManager {
     let stagedClose: ReturnType<BrowserTabsManager['stageBeforeUnloadClose']> | undefined
     if (respectBeforeUnload && !forceClose && !webContents.isDestroyed()) {
       const navigationGeneration = tab.navigationGeneration
+      // Taking the page out of view while it decides takes the keyboard from it, which it gets back only if it had it.
+      const pageHadKeyboard = this.keyboardPage() === webContents
       stagedClose = this.stageBeforeUnloadClose(tab)
       this.expectedTabClosures.add(webContents)
       let disposition: 'closed' | 'prevented'
@@ -3130,7 +3133,11 @@ export class BrowserTabsManager {
           || tab.webContents !== webContents
           || webContents.isDestroyed()
           || tab.navigationGeneration !== navigationGeneration
-        ) return this.getState()
+        ) {
+          // The page changed while the person decided, so it stays open as if they had kept it.
+          keepPage()
+          return this.getState()
+        }
         return this.performCloseTab(tabId, ensureReplacement, true, true, yieldsToNewerSelection)
       }
       if (this.tabs.get(tab.id) !== tab) {

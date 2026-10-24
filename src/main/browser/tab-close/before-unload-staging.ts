@@ -4,7 +4,8 @@ import type { BeforeUnloadStagingAccess, BeforeUnloadStagingTab } from './before
  * Takes the closing page out of view while its beforeunload handler runs: the
  * replacement page, if any, is shown in its place. Cleanup removes a
  * replacement the person did not keep selected; rollback also brings the
- * page back when its close was prevented, with the keyboard when focusPage.
+ * page back when its close was prevented or failed, and gives it the keyboard
+ * when focusPage and it is the active tab.
  */
 export function stageBeforeUnloadClose<Tab extends BeforeUnloadStagingTab>(access: BeforeUnloadStagingAccess<Tab>, tab: Tab): {
   targetDetached: boolean

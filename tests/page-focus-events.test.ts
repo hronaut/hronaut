@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { expect, it, vi } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 
 const electron = vi.hoisted(() => ({ focused: null as unknown }))
 vi.mock('electron', () => ({ webContents: { getFocusedWebContents: () => electron.focused } }))
@@ -28,6 +28,8 @@ function covered(options: { agentInput?: boolean } = {}) {
   return { access, shell, page }
 }
 
+afterEach(() => { electron.focused = null })
+
 const nextTurn = () => new Promise<void>((resolve) => setImmediate(resolve))
 
 it('reports a page that takes the keyboard under trusted chrome, as when the person comes back to the window, and gives it to the shell', async () => {
@@ -38,7 +40,6 @@ it('reports a page that takes the keyboard under trusted chrome, as when the per
   // A question over the page gives the keyboard back to it once it is answered.
   expect(access.coveredPageTookKeyboard).toHaveBeenCalledExactlyOnceWith(page)
   expect(shell.focus).toHaveBeenCalledOnce()
-  electron.focused = null
 })
 
 it('reports nothing for a page whose focus moved on, or that an agent focused', async () => {
@@ -54,5 +55,4 @@ it('reports nothing for a page whose focus moved on, or that an agent focused', 
   agent.page.emit('focus')
   await nextTurn()
   expect(agent.access.coveredPageTookKeyboard).not.toHaveBeenCalled()
-  electron.focused = null
 })

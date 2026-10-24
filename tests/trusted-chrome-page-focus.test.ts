@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { expect, it, vi } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 const electron = vi.hoisted(() => ({ focused: null as unknown }))
 vi.mock('electron', () => ({
   session: {},
@@ -10,6 +10,8 @@ vi.mock('electron', () => ({
   webContents: { getFocusedWebContents: () => electron.focused }
 }))
 import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+
+afterEach(() => { electron.focused = null })
 
 interface PageFocusInternals {
   focusTabOrTrustedChrome(tab: unknown): void
@@ -90,7 +92,6 @@ it('names the page that has the keyboard, or takes it once trusted chrome closes
   expect(manager.keyboardPage()).toBe(page)
   shell.emit('input-event', {}, { type: 'mouseDown' })
   expect(manager.keyboardPage()).toBeNull()
-  electron.focused = null
 })
 
 it('drops the pending focus when another tab became active during the exit', () => {

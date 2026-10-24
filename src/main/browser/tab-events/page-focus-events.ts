@@ -4,7 +4,8 @@ import type { PageFocusEventsAccess, PageFocusEventsTab } from './page-focus-eve
 /**
  * Follows focus moving into the page. While trusted chrome covers the pages,
  * the page gives keyboard focus back to the window on the next turn unless
- * an agent's input put it there. Otherwise the tab becomes recently active
+ * an agent's input put it there, and is reported so that a question over it
+ * can give it back once answered. Otherwise the tab becomes recently active
  * and wakes if it sleeps, and an agent focusing the other split pane makes
  * that pane the active tab.
  */

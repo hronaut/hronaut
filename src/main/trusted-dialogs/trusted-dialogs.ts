@@ -13,6 +13,7 @@ export interface TrustedDialogWindow {
   isDestroyed(): boolean
   isVisible(): boolean
   isMinimized(): boolean
+  isFocused(): boolean
 }
 
 /**
@@ -70,14 +71,15 @@ interface PendingDialog<Window extends TrustedDialogWindow> {
 }
 
 /**
- * What one shell window shows: whether its document listens, the dialog it draws, the ones waiting behind it and the
- * page that had the keyboard before the first of them opened.
+ * What one shell window shows: whether its document listens, the dialog it draws, the ones waiting behind it, the page
+ * that had the keyboard before the first of them opened and whether the person was in another app then.
  */
 interface ShellDialogs<Window extends TrustedDialogWindow> {
   ready: boolean
   visible: PendingDialog<Window> | null
   queue: Array<PendingDialog<Window>>
   keyboardPage: WebContents | null
+  awayWhenOpened: boolean
 }
 
 export interface TrustedDialogs<Window extends TrustedDialogWindow = TrustedDialogWindow> {
@@ -91,9 +93,9 @@ export interface TrustedDialogs<Window extends TrustedDialogWindow = TrustedDial
    */
   show(options: TrustedDialogOptions<Window>): Promise<MessageBoxReturnValue>
   /**
-   * Notes the page that takes the keyboard under the dialogs shown over it when none had it as they opened, such as
-   * when the person comes back to the window they left with the keyboard in that page; the last one answered gives it
-   * back.
+   * Notes the page that takes the keyboard under the dialogs shown over it when they opened while the person was in
+   * another app, as when the person comes back to the window they left with the keyboard in that page; the last one
+   * answered gives it back.
    */
   noteKeyboardPage(window: Window, page: WebContents): void
   /** Admits the shell's answers; only the shell document of the window a dialog is shown in may answer it. */
@@ -124,7 +126,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
   function shellOf(contents: WebContents): ShellDialogs<Window> {
     let shell = shells.get(contents)
     if (!shell) {
-      shell = { ready: false, visible: null, queue: [], keyboardPage: null }
+      shell = { ready: false, visible: null, queue: [], keyboardPage: null, awayWhenOpened: false }
       shells.set(contents, shell)
     }
     return shell
@@ -177,7 +179,10 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
       shell.queue = shell.queue.filter((candidate) => candidate !== pending)
     }
     const keyboardPage = shell && !shell.visible ? shell.keyboardPage : null
-    if (shell && !shell.visible) shell.keyboardPage = null
+    if (shell && !shell.visible) {
+      shell.keyboardPage = null
+      shell.awayWhenOpened = false
+    }
     pending.resolve({ response, checkboxChecked: false })
     // The shell keeps the focus a dialog over the pages took, on the control it held before, while the page the
     // person was in waits for the keyboard: typing went nowhere, and Delete closed the tab whose control it was. The
@@ -195,7 +200,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
 
   function noteKeyboardPage(window: Window, page: WebContents): void {
     const shell = shells.get(window.webContents)
-    if (shell && (shell.visible || shell.queue.length > 0) && !shell.keyboardPage) shell.keyboardPage = page
+    if (shell && (shell.visible || shell.queue.length > 0) && shell.awayWhenOpened && !shell.keyboardPage) shell.keyboardPage = page
   }
 
   /** The shell document is gone or reloading: every dialog it showed or held goes to the system dialog instead. */
@@ -208,6 +213,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     shell.queue = []
     // The system dialogs that ask instead leave the keyboard with the window they close over.
     shell.keyboardPage = null
+    shell.awayWhenOpened = false
     for (const dialog of pending) {
       dialog.release()
       void askNatively(dialog.options, dialog.window).then(dialog.resolve, () => dialog.resolve({
@@ -260,7 +266,10 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
       }
       options.signal?.addEventListener('abort', onAbort, { once: true })
       const shell = shellOf(window.webContents)
-      if (!shell.visible && shell.queue.length === 0) shell.keyboardPage = host.keyboardPage?.() ?? null
+      if (!shell.visible && shell.queue.length === 0) {
+        shell.keyboardPage = host.keyboardPage?.() ?? null
+        shell.awayWhenOpened = !window.isFocused()
+      }
       shell.queue.push(pending)
       showNext(window.webContents)
     })

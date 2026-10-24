@@ -17,10 +17,12 @@ function fakeWindow() {
     webContents: contents,
     visible: true,
     minimized: false,
+    focused: true,
     destroyed: false,
     isDestroyed() { return this.destroyed },
     isVisible() { return this.visible },
-    isMinimized() { return this.minimized }
+    isMinimized() { return this.minimized },
+    isFocused() { return this.focused }
   }
   return { window: window as typeof window & TrustedDialogWindow, contents, sent, shown: () => sent.at(-1) ?? null }
 }
@@ -285,22 +287,26 @@ describe('Hronaut’s own dialogs', () => {
     expect(returnKeyboard).toHaveBeenCalledOnce()
   })
 
-  it('gives the keyboard back to a page that took it under the dialogs when none had it as they opened', async () => {
+  it('gives the keyboard back to a page that took it under the dialogs when they opened while the person was away', async () => {
     const { dialogs, main, ready, respond, returnKeyboard } = harness()
     ready()
     const page = { isDestroyed: () => false } as never
     // Noted while no dialog shows, it is not kept for the next one.
     dialogs.noteKeyboardPage(main.window, page)
     // Asked while the person was in another app, so nothing in Hronaut had the keyboard.
+    main.window.focused = false
     const answer = dialogs.show(permission)
     // The person comes back to the window they left with the keyboard in the page.
+    main.window.focused = true
     dialogs.noteKeyboardPage(main.window, page)
     dialogs.noteKeyboardPage(main.window, { isDestroyed: () => false } as never)
     respond(main, main.shown()!.id, 0)
     await answer
     expect(returnKeyboard).toHaveBeenCalledExactlyOnceWith(page)
 
+    // Asked while the person was in Hronaut's own controls: a page focused under it is not theirs.
     const next = dialogs.show(permission)
+    dialogs.noteKeyboardPage(main.window, page)
     respond(main, main.shown()!.id, 0)
     await next
     expect(returnKeyboard).toHaveBeenCalledOnce()
