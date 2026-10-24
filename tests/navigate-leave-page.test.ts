@@ -23,6 +23,7 @@ function pageThatAsksToStay(confirmLeavePage: () => Promise<boolean> = async () 
     searchEngine: () => undefined,
     prepareDiagnosticNavigation: vi.fn(),
     confirmLeavePage: vi.fn(confirmLeavePage),
+    focusKeptPage: vi.fn(),
     getState: () => ({ ok: true })
   }
   return { tab, tabs, webContents, access, go: (byPerson?: boolean) => navigate(access as never, 'https://next.example/', undefined, { byPerson }) }
@@ -37,16 +38,25 @@ describe('loading an address from a page that asks before it is left', () => {
   })
 
   it('asks a person and keeps the page when they keep editing', async () => {
-    const { go, access, webContents } = pageThatAsksToStay(async () => false)
+    const { go, access, tab, webContents } = pageThatAsksToStay(async () => false)
     await expect(go(true)).resolves.toEqual({ ok: true })
     expect(access.confirmLeavePage).toHaveBeenCalledOnce()
     expect(webContents.loadURL).toHaveBeenCalledOnce()
+    // The address bar gave up the keyboard on Enter, which left it nowhere once the question closed.
+    expect(access.focusKeptPage).toHaveBeenCalledExactlyOnceWith(tab)
+  })
+
+  it('gives no keyboard to a page that went elsewhere while the person decided to stay', async () => {
+    const { go, access, tab } = pageThatAsksToStay(async () => { tab.documentGeneration++; return false })
+    await go(true)
+    expect(access.focusKeptPage).not.toHaveBeenCalled()
   })
 
   it('loads the address once a person chooses to leave, without asking again', async () => {
     const { go, access, webContents } = pageThatAsksToStay(async () => true)
     await expect(go(true)).resolves.toEqual({ ok: true })
     expect(access.confirmLeavePage).toHaveBeenCalledOnce()
+    expect(access.focusKeptPage).not.toHaveBeenCalled()
     expect(webContents.loadURL).toHaveBeenCalledTimes(2)
     expect(webContents.listenerCount('will-prevent-unload')).toBe(0)
   })

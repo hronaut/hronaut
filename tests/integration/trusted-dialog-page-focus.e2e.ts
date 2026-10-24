@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 import { trustedDialog } from './trusted-dialog-fixture.js'
 
-test('gives the keyboard back to the page whose close the person kept, and leaves it on the tab the close was asked from', async ({ appWindow, electronApp }) => {
+test('gives the keyboard back to the page the person kept, and leaves it on the tab a close was asked from', async ({ appWindow, electronApp }) => {
   test.skip(process.platform === 'darwin', 'The person presses Ctrl+W here; the macOS key is Cmd+W')
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
@@ -112,6 +112,18 @@ test('gives the keyboard back to the page whose close the person kept, and leave
     await expect.poll(pagesCovered).toBe(false)
     expect(await focusedUrl()).toBe(appWindow.url())
     await expect(draftTab).toBeFocused()
+
+    // Enter in the address bar gives up the keyboard there; keeping the page gives it to the page, as the address would
+    // have once loaded.
+    const addressBar = appWindow.getByRole('combobox', { name: 'Address', exact: true })
+    await addressBar.click()
+    await addressBar.fill(`${draftUrl}?next`)
+    await addressBar.press('Enter')
+    await expect(trustedDialog(appWindow)).toHaveAttribute('data-armed', 'true')
+    await pressInWindow('Escape')
+    await expect(trustedDialog(appWindow)).toBeHidden()
+    await expect.poll(focusedUrl).toBe(draftUrl)
+    expect((await pageState()).field).toBe('draft')
   } finally {
     await electronApp.evaluate(({ ipcMain }) => {
       const state = globalThis as typeof globalThis & { notePagesCovered?: (event: unknown, covered: boolean) => void }

@@ -3342,7 +3342,8 @@ export class BrowserTabsManager {
           this.options.onActionFailed?.('confirm leaving a page', error)
           return false
         }
-      }
+      },
+      focusKeptPage: (tab) => this.focusPageAfterQuestion(tab.webContents)
     }
   }
 

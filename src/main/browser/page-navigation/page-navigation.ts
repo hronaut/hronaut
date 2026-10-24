@@ -51,7 +51,13 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
   // still leaves it.
   const samePage = (): boolean => access.findTab(tab.id) === tab && tab.webContents === webContents
     && !webContents.isDestroyed() && tab.documentGeneration === documentGeneration
-  if (!samePage() || !await access.confirmLeavePage() || !samePage()) return access.getState()
+  if (!samePage()) return access.getState()
+  if (!await access.confirmLeavePage()) {
+    // The person keeps editing the page, which takes the keyboard as the page they asked for would have once loaded.
+    if (samePage()) access.focusKeptPage(tab)
+    return access.getState()
+  }
+  if (!samePage()) return access.getState()
   // The workspace's sites may have changed while the question was open.
   if (tab.mcpGroupId) access.assertWorkspaceNavigationAllowed(tab.mcpGroupId, normalized, 'direct')
   await loadAddress(access, tab, normalized, true)

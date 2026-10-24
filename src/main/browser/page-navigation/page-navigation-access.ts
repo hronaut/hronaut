@@ -47,4 +47,6 @@ export interface PageNavigationAccess<Tab extends PageNavigationTab> {
   getState(): BrowserState
   /** Asks the person whether to leave a page that asked to confirm before it is left; true leaves it, and a question that could not be asked keeps the page. */
   confirmLeavePage(): Promise<boolean>
+  /** Gives the keyboard to the page the person chose to keep, once the question over it has closed. */
+  focusKeptPage(tab: Tab): void
 }
