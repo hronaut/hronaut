@@ -9,6 +9,10 @@ All notable changes to Hronaut are documented in this file.
 - Hronaut's own questions now appear as Hronaut dialogs over the window instead of system dialogs: saving or updating a password a page submitted, leaving or closing a page that asks to confirm, quitting with downloads in progress, reading another browser's cookies to import them, importing a password file, and the MCP server failing to start. The password dialog names the website and shows the username the page sent apart from Hronaut's words. Quitting with downloads in progress brings the window forward to ask, even from the tray; the others still use the system dialog while Hronaut's window is hidden, minimized or not loaded yet, and none of them asks once Hronaut is quitting.
 - A new wallet's recovery phrase now appears in a Hronaut dialog over the window instead of a system dialog, as a numbered list of its words under the wallet's name, with what keeping it means. The words cannot be selected or copied, and while the phrase is on screen Hronaut asks the system to keep the window out of screen recordings and screen sharing, which Windows honors and macOS honors except for apps that record through ScreenCaptureKit. When the window is hidden or minimized, the system dialog still asks.
 
+### Fixed
+
+- Hronaut for Intel Macs starts again. Its download lacked the Intel build of `@node-rs/argon2`, which Hronaut loads at launch to protect wallet keys, so it stopped with "A JavaScript error occurred in the main process". The macOS release, which builds the Intel and the Apple silicon app on one Apple silicon Mac, now installs each Mac's native packages exactly as `package-lock.json` pins them before it builds, and fails when an app lacks one.
+
 ## [3.8.0] - 2026-10-23
 
 ### Changed
