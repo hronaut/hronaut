@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
-- On Windows and Linux, **Ctrl+Shift+Page Down** and **Ctrl+Shift+Page Up** move the tab in view one place down or up among its workspace's tabs, as in Chrome, from the page or from Hronaut's window. Pinned tabs move among the pinned ones, and a tab at either end stays where it is.
+- On Windows and Linux, **Ctrl+Shift+Page Down** and **Ctrl+Shift+Page Up** move the tab in view after the next or before the previous of its workspace's tabs, as in Chrome, from the page or from Hronaut's window. Pinned tabs move among the pinned ones, and a tab at either end stays where it is. A website that handles one of these keys itself, such as a web code editor moving its own editor tab, keeps it.
 
 ### Changed
 

@@ -95,7 +95,8 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
    * Ctrl+Shift+Page Down and Page Up do. At either end it stays where it is.
    */
   async function performTabMove(offset: -1 | 1): Promise<void> {
-    if (disposed) return
+    // Settings may have come into view while earlier tab changes ran, over the website the press was for.
+    if (disposed || options.settingsOpen.value) return
     const tab = options.activeTab.value
     if (!tab || isHronautHomeUrl(tab.url)) return
     const peers = websiteTabs().filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId && candidate.pinned === tab.pinned)

@@ -3,18 +3,19 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeFixtureServer } from './fixtures.js'
 import { expect, test, text } from './capability-fixtures.js'
 
-test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down, with Shift to move the tab, work as in Chrome, and a website keeps F5 and Alt+D', async ({ capabilities, appWindow, electronApp }) => {
+test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down, with Shift to move the tab, work as in Chrome, and a website keeps F5, Alt+D and the move keys', async ({ capabilities, appWindow, electronApp }) => {
   test.skip(process.platform === 'darwin', 'Chrome has none of these keys on macOS but the tab keys, which the unit tests cover')
   const { client, tabId } = capabilities
   const loads: Array<{ path: string, cacheControl: string | undefined }> = []
   const server = createServer((request, response) => {
     loads.push({ path: request.url ?? '', cacheControl: request.headers['cache-control'] })
     response.writeHead(200, { 'content-type': 'text/html' })
-    // Every page notes the keys it gets; /editor runs F5 and Alt+D itself, as a web editor or terminal does.
+    // Every page notes the keys it gets; /editor runs F5, Alt+D and Ctrl+Shift+Page Up itself, as a web editor or
+    // terminal does.
     const editor = request.url === '/editor'
     response.end(`<!doctype html><title>${request.url}</title><script>window.keys = []; addEventListener('keydown', (event) => {
       window.keys.push(event.key)
-      if (${editor} && (event.key === 'F5' || (event.altKey && event.key.toLowerCase() === 'd'))) event.preventDefault()
+      if (${editor} && (event.key === 'F5' || (event.altKey && event.key.toLowerCase() === 'd') || (event.ctrlKey && event.shiftKey && event.key === 'PageUp'))) event.preventDefault()
     })</script>`)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -93,8 +94,8 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down, with Shift to move
     await appWindow.keyboard.press('Control+PageUp')
     await expect.poll(async () => (await state()).activeTabId).toBe(tabId)
 
-    // Ctrl+Shift+Page Down and Page Up move the tab in view among its workspace's tabs, from the page and from
-    // Hronaut's own window, and it stays in view with the keyboard where it was.
+    // Ctrl+Shift+Page Down and Page Up move the tab in view among its workspace's tabs once the page leaves them alone,
+    // as in Chrome, and from Hronaut's own window, and it stays in view with the keyboard where it was.
     const order = async () => (await state()).tabs.filter(tab => tab.mcpGroupId === workspace).map(tab => tab.id)
     // The workspace's own first tab comes before them.
     const before = (await order()).slice(0, -2)
@@ -104,11 +105,16 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down, with Shift to move
     await expect.poll(order).toEqual([...before, next, tabId])
     expect((await state()).activeTabId).toBe(tabId)
     await expect.poll(focusedPage).toBe(`${origin}/editor`)
-    // At the end it stays, and the page never gets the key.
+    expect(await keys(tabId)).toEqual(['PageDown'])
+    // At the end it stays.
     await press(tabId, 'PageDown', ['control', 'shift'])
     await appWindow.waitForTimeout(500)
     expect(await order()).toEqual([...before, next, tabId])
-    expect(await keys(tabId)).toEqual([])
+    // The page runs Ctrl+Shift+Page Up itself, so it keeps the key and the tab stays.
+    await press(tabId, 'PageUp', ['control', 'shift'])
+    await expect.poll(() => keys(tabId)).toEqual(['PageDown', 'PageDown', 'PageUp'])
+    await appWindow.waitForTimeout(500)
+    expect(await order()).toEqual([...before, next, tabId])
     await addressBar.focus()
     await appWindow.keyboard.press('Control+Shift+PageUp')
     await expect.poll(order).toEqual([...before, tabId, next])

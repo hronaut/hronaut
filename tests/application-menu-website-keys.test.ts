@@ -28,7 +28,8 @@ describe('Chrome\'s keys a website may keep', () => {
     const { runShortcut, mainWindow, key } = menu('linux')
     for (const [accelerator, action] of [
       ['F5', 'reload'], ['Shift+F5', 'reload-ignoring-cache'], ['Ctrl+F5', 'reload-ignoring-cache'], ['Alt+D', 'focus-address'],
-      ['F3', 'find-next'], ['Shift+F3', 'find-previous']
+      ['F3', 'find-next'], ['Shift+F3', 'find-previous'],
+      ['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous']
     ] as const) {
       const item = key(accelerator)!
       expect(item.visible, accelerator).toBe(false)
@@ -39,6 +40,7 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(menu('darwin').key('F5')).toBeUndefined()
     expect(menu('darwin').key('Alt+D')).toBeUndefined()
     expect(menu('darwin').key('F3')).toBeUndefined()
+    expect(menu('darwin').key('Ctrl+Shift+PageDown')).toBeUndefined()
   })
 
   it('act only as keys of the main window', () => {

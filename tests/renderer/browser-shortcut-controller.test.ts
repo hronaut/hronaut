@@ -133,9 +133,9 @@ describe('browser shortcut controller', () => {
         { ...tab('home'), url: 'hronaut://home/' },
         at('first', { pinned: true, mcpGroupId: 'work' }),
         at('second', { mcpGroupId: 'work' }),
-        at('other', { mcpGroupId: 'personal' }),
+        { ...tab('other'), mcpGroupId: 'personal' },
         at('third', { mcpGroupId: 'work' })
-      ].map((candidate) => candidate.id === 'other' ? { ...tab('other'), mcpGroupId: 'personal' } : candidate)
+      ]
     }
     activeTab.value = state.value.tabs.find((candidate) => candidate.id === 'second')
     // Past the pinned tab before it there is nowhere to go; the next one of its workspace is past the other workspace's.
@@ -153,6 +153,20 @@ describe('browser shortcut controller', () => {
     const { browser, settingsOpen, controller } = createController()
     settingsOpen.value = true
     expect(await controller.run('move-tab-next')).toBe(false)
+    expect(browser.reorderTab).not.toHaveBeenCalled()
+  })
+
+  it('moves no tab when Settings comes into view while earlier tab changes run', async () => {
+    const { browser, settingsOpen, controller } = createController()
+    const selection = deferred<BrowserState>()
+    browser.selectTab.mockReturnValueOnce(selection.promise)
+    const selecting = controller.run('next-tab')
+    const moving = controller.run('move-tab-next')
+    // The press was for the website in view; Settings now covers it.
+    settingsOpen.value = true
+    selection.resolve(browserState('third'))
+    await selecting
+    await moving
     expect(browser.reorderTab).not.toHaveBeenCalled()
   })
 
