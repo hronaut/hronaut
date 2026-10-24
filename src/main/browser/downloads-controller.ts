@@ -459,6 +459,10 @@ export class BrowserDownloadsController {
   }
 
   remapDownloadWorkspaceOwnership(sourceWorkspaceId: string, targetWorkspaceId: string): void {
+    // A retry that has not started downloading yet goes to the workspace too.
+    for (const pending of this.pendingRetries.values()) {
+      for (const retry of pending) if (retry.workspaceId === sourceWorkspaceId) retry.workspaceId = targetWorkspaceId
+    }
     for (const [downloadId, workspaceId] of this.downloadWorkspaceIds) {
       if (workspaceId !== sourceWorkspaceId) continue
       this.downloadWorkspaceIds.set(downloadId, targetWorkspaceId)

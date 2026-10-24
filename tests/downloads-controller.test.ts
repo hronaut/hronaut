@@ -857,3 +857,13 @@ it('gives a retry\'s workspace only to a download of its own address that no pag
   expect(controller.manageWorkspaceDownloads('first', 'list')).toHaveLength(2)
   expect(controller.manageWorkspaceDownloads('second', 'list')).toHaveLength(3)
 })
+
+it('gives a retry that has not started yet to the workspace its downloads move to', async () => {
+  const { controller, download } = await fixture()
+  download(1, false, 'https://download.example/file.txt').cancel()
+  controller.manageDownloads('retry', controller.listDownloads()[0]!.id)
+  controller.remapDownloadWorkspaceOwnership('first', 'second')
+  download(null, false, 'https://download.example/file.txt')
+  expect(controller.manageWorkspaceDownloads('first', 'list')).toEqual([])
+  expect(controller.manageWorkspaceDownloads('second', 'list').map(({ state }) => state).sort()).toEqual(['cancelled', 'progressing'])
+})
