@@ -87,6 +87,7 @@ import { registerTabsIpc } from './tabs-ipc.js'
 import { registerNavigationIpc } from './navigation-ipc.js'
 import { regionalPdfPageSize } from './browser/pdf-export/pdf-paper-size.js'
 import { createWindowAppearance, resolvedTheme, THEME_BACKGROUND } from './windows/appearance.js'
+import { showStartupNoticeWindow } from './windows/startup-notice-window.js'
 import { createInterfaceLanguage } from './interface-language.js'
 import { registerEmulationIpc } from './emulation-ipc.js'
 import { registerVirtualPasskeyIpc } from './virtual-passkey-ipc.js'
@@ -216,6 +217,10 @@ let requireExistingWorkspaceMetadata = false
 const { runNativeBrowserAction, showWorkspaceRecoveryNotice } = createTabRuntimeStartup({
   state: tabRuntime,
   text: (key, parameters) => text(key, parameters),
+  showStartupNotice: (notice) => {
+    const theme = resolvedTheme(settingsState.current.theme)
+    return showStartupNoticeWindow(notice, { theme, background: THEME_BACKGROUND[theme], locale: settingsState.resolvedLocale })
+  },
   showMessageBox,
   reportBrowserActionFailure
 })

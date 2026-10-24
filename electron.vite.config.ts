@@ -45,7 +45,8 @@ export default defineConfig({
           tooltipOverlay: resolve('src/renderer/tooltip-overlay.html'),
           agentCard: resolve('src/renderer/agent-card.html'),
           toastOverlay: resolve('src/renderer/toast-overlay.html'),
-          sidebarOverlay: resolve('src/renderer/sidebar-overlay.html')
+          sidebarOverlay: resolve('src/renderer/sidebar-overlay.html'),
+          startupNotice: resolve('src/renderer/startup-notice.html')
         },
         preserveEntrySignatures: 'exports-only'
       }

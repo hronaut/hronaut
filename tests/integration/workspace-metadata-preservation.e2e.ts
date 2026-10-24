@@ -1,22 +1,23 @@
+import { _electron as electron } from '@playwright/test'
 import { createServer } from 'node:http'
 import type { HronautApi } from '../../src/shared/types.js'
-import { launchRejected, quitNotice, privateMarker, type Scope } from './workspace-metadata-fixtures.js'
+import { hronautWindowCount, launchRejected, quitNotice, privateMarker, type Scope } from './workspace-metadata-fixtures.js'
 import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test, expect, launchHronaut, closeHronaut, closeFixtureServer } from './fixtures.js'
 
 const empty = { version: 3, activeTabId: null, tabs: [], mcpTabGroups: [], savedTabGroups: [] }
-for (const fault of ['invalid-json', 'null-metadata', 'unsupported-version', 'invalid-schema', 'missing-version', 'read-error', 'late-rejection', 'natural-quit', 'dialog-failure'] as const) {
+for (const fault of ['invalid-json', 'null-metadata', 'unsupported-version', 'invalid-schema', 'missing-version', 'read-error', 'late-rejection', 'natural-quit', 'window-failure', 'dialog-failure'] as const) {
   test(`preserves rejected workspace metadata through startup and quit: ${fault}`, async ({ profileDirectory, mcpPort }) => {
     const metadata = join(profileDirectory, 'tabs.json')
     const partition = join(profileDirectory, 'Partitions', 'hronaut-workspace-aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa', 'marker')
     await mkdir(join(partition, '..'), { recursive: true }); await writeFile(partition, 'synthetic-retained')
-    const bytes = fault === 'invalid-json' || fault === 'natural-quit' || fault === 'dialog-failure' ? `{${privateMarker}` : fault === 'null-metadata' ? 'null\n' : JSON.stringify({ ...empty,
+    const bytes = fault === 'invalid-json' || fault === 'natural-quit' || fault === 'window-failure' || fault === 'dialog-failure' ? `{${privateMarker}` : fault === 'null-metadata' ? 'null\n' : JSON.stringify({ ...empty,
       version: fault === 'unsupported-version' ? 999 : fault === 'missing-version' ? undefined : 3,
       ...(fault === 'invalid-schema' ? { tabs: [{ id: 'invalid' }], deletedWorkspaceStorageIds: ['aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'] } : {}), privateMarker })
     if (fault === 'read-error') await mkdir(metadata)
     else await writeFile(metadata, bytes)
-    const app = await launchRejected(profileDirectory, mcpPort, fault === 'late-rejection', fault === 'dialog-failure')
+    const app = await launchRejected(profileDirectory, mcpPort, fault === 'late-rejection', fault === 'window-failure' ? 'window' : fault === 'dialog-failure' ? 'window-and-dialog' : undefined)
     try {
       await expect.poll(() => app.evaluate(() => Boolean((globalThis as Scope).metadataFixture.notice))).toBe(true)
       const notice = await app.evaluate(() => (globalThis as Scope).metadataFixture.notice!)
@@ -24,9 +25,11 @@ for (const fault of ['invalid-json', 'null-metadata', 'unsupported-version', 'in
       expect(notice.message).toContain('Startup stopped')
       expect(notice.detail).toContain('tabs.json')
       expect(JSON.stringify(notice)).not.toContain(privateMarker)
-      expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(fault === 'late-rejection' ? 1 : 0)
+      // Hronaut's own window tells the person; the system dialog only when that window cannot.
+      expect(await app.evaluate(() => (globalThis as Scope).metadataFixture.source)).toBe(fault === 'window-failure' || fault === 'dialog-failure' ? 'dialog' : 'window')
+      expect(await hronautWindowCount(app)).toBe(fault === 'late-rejection' ? 1 : 0)
       if (fault === 'late-rejection') {
-        const page = app.windows()[0]!
+        const page = app.windows().find((candidate) => !candidate.url().includes('startup-notice.html'))!
         const result = await page.evaluate(async () => {
           const api = (window as unknown as { hronaut: { createWorkspace(input: unknown): Promise<unknown>; getState(): Promise<unknown> } }).hronaut
           return Promise.all([api.createWorkspace({ name: 'Must not exist', storage: 'scratch' }), api.getState()].map(p => p.then(() => 'fulfilled', () => 'rejected')))
@@ -59,7 +62,7 @@ test('rejects mutations while metadata validation is held, then preserves a reje
   const metadata = join(profileDirectory, 'tabs.json')
   const original = JSON.stringify(empty)
   await writeFile(metadata, original)
-  const app = await launchRejected(profileDirectory, mcpPort, false, false, true)
+  const app = await launchRejected(profileDirectory, mcpPort, false, undefined, true)
   try {
     await expect.poll(() => app.evaluate(() => Boolean((globalThis as Scope).metadataFixture.held))).toBe(true)
     const countBefore = await app.evaluate(({ webContents }) => webContents.getAllWebContents().length)
@@ -130,7 +133,7 @@ for (const phase of ['before', 'after'] as const) test(`initial save failure ${p
   const metadata = join(profileDirectory, 'tabs.json')
   const original = JSON.stringify(empty)
   await writeFile(metadata, original)
-  const app = await launchRejected(profileDirectory, mcpPort, false, false, false, phase)
+  const app = await launchRejected(profileDirectory, mcpPort, false, undefined, false, phase)
   try {
     await expect.poll(() => app.evaluate(() => Boolean((globalThis as Scope).metadataFixture.notice))).toBe(true)
     const retained = await readFile(metadata, 'utf8')
@@ -154,7 +157,7 @@ test('blocks delegated browser operations while the final startup save is held',
   } finally { await closeHronaut(seeded.app) }
   const metadata = join(profileDirectory, 'tabs.json')
   const original = await readFile(metadata, 'utf8')
-  const app = await launchRejected(profileDirectory, mcpPort, false, false, false, 'held')
+  const app = await launchRejected(profileDirectory, mcpPort, false, undefined, false, 'held')
   try {
     await expect.poll(() => app.evaluate(() => Boolean((globalThis as Scope).metadataFixture.held))).toBe(true)
     const page = await app.firstWindow()
@@ -175,5 +178,39 @@ test('blocks delegated browser operations while the final startup save is held',
     await expect.poll(() => app.evaluate(() => Boolean((globalThis as Scope).metadataFixture.notice))).toBe(true)
     await quitNotice(app)
     expect(await readFile(metadata, 'utf8')).toBe(original)
+  } finally { await app.close().catch(() => undefined) }
+})
+
+test('tells the person in Hronaut\'s own window why startup stopped, and quits from it', async ({ profileDirectory, mcpPort }, testInfo) => {
+  const metadata = join(profileDirectory, 'tabs.json')
+  const rejected = `{${privateMarker}`
+  await writeFile(metadata, rejected)
+  const app = await electron.launch({ args: ['.'], cwd: process.cwd(), env: {
+    ...process.env, HRONAUT_USER_DATA_DIR: profileDirectory, HRONAUT_DOWNLOAD_DIR: profileDirectory, HRONAUT_MCP_PORT: String(mcpPort), HRONAUT_MCP_HOST: '127.0.0.1'
+  } })
+  try {
+    const notice = await app.firstWindow()
+    expect(notice.url()).toContain('startup-notice.html')
+    await expect(notice.getByRole('alertdialog', { name: 'Saved workspaces could not be opened' })).toBeVisible()
+    await expect(notice.locator('#startup-notice-message')).toHaveText('Startup stopped to avoid replacing saved workspaces.')
+    await expect(notice.locator('#startup-notice-detail')).toContainText('tabs.json backup')
+    await expect(notice.locator('html')).toHaveAttribute('data-theme', 'cyberpunk')
+    const quit = notice.getByRole('button', { name: 'Quit', exact: true })
+    await expect(quit).toBeFocused()
+    expect(await notice.content()).not.toContain(privateMarker)
+    // Only the notice: no browser window, page or MCP listener opened.
+    expect(await hronautWindowCount(app)).toBe(0)
+    await expect(fetch(`http://127.0.0.1:${mcpPort}/mcp`)).rejects.toThrow()
+    // The whole notice fits the window, at its own size and with nothing cut off.
+    expect(await notice.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true)
+    const shot = testInfo.outputPath('startup-notice.png')
+    await notice.screenshot({ path: shot })
+    await testInfo.attach('startup-notice', { path: shot, contentType: 'image/png' })
+
+    const exited = new Promise<{ code: number | null; signal: string | null }>(resolve => app.process().once('exit', (code, signal) => resolve({ code, signal })))
+    // The page goes with its window as Enter quits, so the key's release can find it gone.
+    await notice.keyboard.press('Enter').catch(() => undefined)
+    expect(await exited).toEqual({ code: 0, signal: null })
+    expect(await readFile(metadata, 'utf8')).toBe(rejected)
   } finally { await app.close().catch(() => undefined) }
 })
