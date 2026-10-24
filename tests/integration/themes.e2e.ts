@@ -295,17 +295,29 @@ test('resets every Appearance preference including interface size, and only thos
   await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('top')
   // The last change's own update reaches the window first, so the probe below counts only the reset's.
   await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.tabPosition)')).toBe('top')
-  await appWindow.evaluate(() => {
+  await appWindow.evaluate(async () => {
     const page = window as typeof window & {
       hronautSettings: {
-        onChanged: (listener: () => void) => () => void
+        get: () => Promise<unknown>
+        onChanged: (listener: (settings: unknown) => void) => () => void
       }
       __appearanceResetProbe?: { count: () => number, dispose: () => void }
     }
+    // Startup finishing, such as the MCP listener coming up, sends the same settings again; only a change counts.
+    let last = JSON.stringify(await page.hronautSettings.get())
     let count = 0
-    const dispose = page.hronautSettings.onChanged(() => { count += 1 })
+    const dispose = page.hronautSettings.onChanged((settings) => {
+      const next = JSON.stringify(settings)
+      if (next !== last) count += 1
+      last = next
+    })
     page.__appearanceResetProbe = { count: () => count, dispose }
   })
+  // As startup finishing does whenever it gets there on a slow machine, main sends the same settings again.
+  const unchanged = await appWindow.evaluate('window.hronautSettings.get()')
+  await electronApp.evaluate(({ BrowserWindow }, settings) => {
+    BrowserWindow.getAllWindows()[0]!.webContents.send('settings:changed', settings)
+  }, unchanged)
 
   await appWindow.locator('.settings-header .secondary-button').click()
 
