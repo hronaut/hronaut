@@ -29,6 +29,7 @@ export type BrowserShortcutAction =
   | 'command-palette'
   | 'pick-element'
   | 'toggle-devtools'
+  | 'open-console'
   | 'agent-card'
   | 'toggle-full-page'
   | 'take-over'
@@ -164,6 +165,10 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
     (key === 'c' && !input.mac && input.control && input.shift && !input.meta && !input.alt)
     || (input.meta && input.alt && !input.control && !input.shift && optionLetter(input, 'c'))
   ) return 'pick-element'
+  if (
+    (key === 'j' && !input.mac && input.control && input.shift && !input.meta && !input.alt)
+    || (input.meta && input.alt && !input.control && !input.shift && optionLetter(input, 'j'))
+  ) return 'open-console'
   const workspace = workspaceShortcut(input)
   if (workspace) return workspace
   const tab = chromeTabShortcut(input, key)

@@ -890,6 +890,7 @@ export const esES = {
       "savePage": "Guardar la página",
       "clearData": "Borrar datos de navegación",
       "devtools": "Mostrar u ocultar las herramientas de desarrollo",
+      "console": "Abrir la consola de las herramientas de desarrollo",
       "nextTab": "Ir a la pestaña siguiente",
       "previousTab": "Ir a la pestaña anterior",
       "moveTabNext": "Mover la pestaña detrás de la siguiente",

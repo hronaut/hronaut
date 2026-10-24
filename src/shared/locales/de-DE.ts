@@ -890,6 +890,7 @@ export const deDE = {
       "savePage": "Seite speichern",
       "clearData": "Browserdaten löschen",
       "devtools": "Entwicklertools umschalten",
+      "console": "Konsole in den Entwicklertools öffnen",
       "nextTab": "Zum nächsten Tab wechseln",
       "previousTab": "Zum vorherigen Tab wechseln",
       "moveTabNext": "Tab hinter den nächsten verschieben",

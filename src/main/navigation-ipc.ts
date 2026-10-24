@@ -3,7 +3,7 @@ import type { BrowserPdfPageSize } from '../shared/types.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 
 type NavigationIpcTabs = Pick<BrowserTabsManager,
-  | 'toggleDevTools' | 'navigate' | 'back' | 'forward' | 'showHistoryMenu' | 'openNavigationInNewTab' | 'reload' | 'reloadIgnoringCache' | 'stop'
+  | 'toggleDevTools' | 'showDevToolsConsole' | 'navigate' | 'back' | 'forward' | 'showHistoryMenu' | 'openNavigationInNewTab' | 'reload' | 'reloadIgnoringCache' | 'stop'
   | 'findInPage' | 'stopFindInPage' | 'setZoom' | 'savePdf'>
 
 interface NavigationIpcHost {
@@ -21,6 +21,11 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     return host.tabs()!.toggleDevTools(tabId)
+  })
+  host.handleBrowserIpc('browser:show-devtools-console', (event, tabId: unknown) => {
+    host.assertTrustedSender(event)
+    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
+    return host.tabs()!.showDevToolsConsole(tabId)
   })
   host.handleBrowserIpc('browser:navigate', (event, options) => { host.assertTrustedSender(event); return host.tabs()!.navigate(options.url, options.tabId, { byPerson: true }) })
   host.handleBrowserIpc('browser:back', (event, tabId) => { host.assertTrustedSender(event); return host.tabs()!.back(tabId) })

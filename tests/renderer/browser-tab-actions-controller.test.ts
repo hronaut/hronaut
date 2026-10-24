@@ -65,7 +65,8 @@ function createHarness() {
     setTabPageLifecycle: vi.fn(async (_tabId: string, _lifecycle: 'active' | 'frozen') => state.value),
     setTabMuted: vi.fn(async (_tabId: string, _muted: boolean) => state.value),
     showWorkspaceContextMenu: vi.fn(async (_groupId: string) => undefined),
-    toggleDevTools: vi.fn(async (_tabId?: string) => true)
+    toggleDevTools: vi.fn(async (_tabId?: string) => true),
+    showDevToolsConsole: vi.fn(async (_tabId?: string) => true)
   }
   const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => {
     state.value = await operation
@@ -518,6 +519,25 @@ describe('browser tab actions controller', () => {
     await harness.controller.toggleDeveloperTools()
     expect(harness.beforeToggleDeveloperTools).toHaveBeenCalledOnce()
     expect(harness.browser.toggleDevTools).toHaveBeenCalledWith('active')
+  })
+
+  it('opens the Console of Developer Tools as the toggle opens them, not on Home or a locked tab', async () => {
+    const harness = createHarness()
+    harness.home.value = true
+    await harness.controller.showDeveloperToolsConsole()
+    harness.home.value = false
+    harness.activeTab.value = tab({ humanInteractionInputLocked: true })
+    harness.state.value.tabs = [harness.activeTab.value]
+    await harness.controller.showDeveloperToolsConsole()
+    expect(harness.browser.showDevToolsConsole).not.toHaveBeenCalled()
+    expect(harness.beforeToggleDeveloperTools).not.toHaveBeenCalled()
+
+    harness.activeTab.value = tab()
+    harness.state.value.tabs = [harness.activeTab.value]
+    await harness.controller.showDeveloperToolsConsole()
+    expect(harness.beforeToggleDeveloperTools).toHaveBeenCalledOnce()
+    expect(harness.browser.showDevToolsConsole).toHaveBeenCalledWith('active')
+    expect(harness.browser.toggleDevTools).not.toHaveBeenCalled()
   })
 
   it('allows Developer Tools for an effective per-tab global-lock exception', async () => {

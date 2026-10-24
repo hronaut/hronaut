@@ -26,6 +26,24 @@ export async function toggleDevTools<Tab extends DevToolsTab>(access: DevToolsAc
 }
 
 /**
+ * Opens Developer Tools for the person's tab on its Console, or turns open ones to it, as Chrome's Ctrl+Shift+J does,
+ * and reports whether they show it. Hronaut Home has none, and a locked tab gets none.
+ */
+export async function showDevToolsConsole<Tab extends DevToolsTab>(access: DevToolsAccess<Tab>, tabId?: string): Promise<boolean> {
+  const tab = access.getTab(tabId)
+  await access.wakeTab(tab.id)
+  if (isHronautHomeUrl(tab.url) || access.isHumanInteractionLocked(tab)) return false
+  await openDevTools(access, tab)
+  const devTools = tab.webContents.isDestroyed() ? null : tab.webContents.devToolsWebContents
+  if (!devTools || devTools.isDestroyed()) return false
+  // The front end's own call for a panel, which Chrome makes for this key. Electron runs it once the front end has
+  // loaded, and the Console then has the keyboard in its prompt.
+  await devTools.executeJavaScript("DevToolsAPI.showPanel('console')")
+  if (!devTools.isDestroyed()) devTools.focus()
+  return true
+}
+
+/**
  * Hands the tab's page to a detached Developer Tools window after clearing
  * its request routes and waiting for dialog monitoring and queued debugger
  * commands. It throws when the tab, its page or its debugger changed, or its

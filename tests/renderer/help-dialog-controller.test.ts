@@ -40,6 +40,7 @@ describe('help dialog controller', () => {
     expect(mac.keys['runtime.shortcuts.history']).toEqual(['Cmd', 'Y'])
     expect(mac.keys['runtime.shortcuts.downloads']).toEqual(['Cmd', 'Option', 'L'])
     expect(mac.keys['runtime.shortcuts.devtools']).toEqual(['Cmd', 'Option', 'I'])
+    expect(mac.keys['runtime.shortcuts.console']).toEqual(['Cmd', 'Option', 'J'])
     expect(mac.keys['runtime.shortcuts.viewSource']).toEqual(['Cmd', 'Option', 'U'])
     expect(mac.keys['runtime.shortcuts.back']).toEqual(['Cmd', '['])
     expect(mac.keys['runtime.shortcuts.forward']).toEqual(['Cmd', ']'])
@@ -58,6 +59,7 @@ describe('help dialog controller', () => {
     expect(linux.keys['runtime.shortcuts.history']).toEqual(['Ctrl', 'H'])
     expect(linux.keys['runtime.shortcuts.downloads']).toEqual(['Ctrl', 'J'])
     expect(linux.keys['runtime.shortcuts.devtools']).toEqual(['F12'])
+    expect(linux.keys['runtime.shortcuts.console']).toEqual(['Ctrl', 'Shift', 'J'])
     expect(linux.keys['runtime.shortcuts.back']).toEqual(['Alt', '←'])
     expect(linux.keys['runtime.shortcuts.forward']).toEqual(['Alt', '→'])
     expect(linux.keys['runtime.shortcuts.addressNewTab']).toEqual(['Alt', 'Enter'])
@@ -139,7 +141,7 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.addressForgetVisit',
       keys: ['Shift', 'Delete']
     })
-    expect(controller.shortcuts.value).toHaveLength(41)
+    expect(controller.shortcuts.value).toHaveLength(42)
     controller.dispose()
   })
 })

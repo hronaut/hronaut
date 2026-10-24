@@ -186,6 +186,7 @@ export interface AppShellInteractionFeatureControllerOptions {
     expandTabGroup: (groupId: string) => void
     togglePageTools: () => unknown
     toggleDeveloperTools: () => void | Promise<void>
+    showDeveloperToolsConsole: () => void | Promise<void>
     /** Opens the agent card for the workspace in view; nothing happens when it has no agents. */
     openAgentCard?: () => unknown
     /** Hides or shows the tabs, rail and toolbar over a website. */
@@ -381,6 +382,7 @@ export function useAppShellInteractionFeatureController(
     toggleWorkspaceSwitcher: () => commandPalette.toggle('workspaces'),
     toggleElementPicker: () => features.pageTools.toggleElementPicker('context'),
     toggleDeveloperTools: navigation.toggleDeveloperTools,
+    showDeveloperToolsConsole: navigation.showDeveloperToolsConsole,
     ...(navigation.openAgentCard ? { openAgentCard: async () => { await navigation.openAgentCard?.() } } : {}),
     ...(navigation.toggleFullPageView ? { toggleFullPageView: () => { navigation.toggleFullPageView?.() } } : {}),
     ...(navigation.takeOverFromAgent ? { takeOverFromAgent: () => { navigation.takeOverFromAgent?.() } } : {}),

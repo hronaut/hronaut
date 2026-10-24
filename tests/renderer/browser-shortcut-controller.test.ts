@@ -87,6 +87,7 @@ function createController(canRunAction = (_action: string) => true) {
     toggleCommandPalette: vi.fn(async () => undefined),
     toggleElementPicker: vi.fn(async () => undefined),
     toggleDeveloperTools: vi.fn(async () => undefined),
+    showDeveloperToolsConsole: vi.fn(async () => undefined),
     openAgentCard: vi.fn(async () => undefined),
     toggleFullPageView: vi.fn(async () => undefined),
     takeOverFromAgent: vi.fn(async () => undefined),
@@ -170,6 +171,17 @@ describe('browser shortcut controller', () => {
     expect(await controller.run('open-home')).toBe(true)
     expect(callbacks.openHome).toHaveBeenCalledTimes(2)
     expect(callbacks.focusAddress).not.toHaveBeenCalled()
+  })
+
+  // Ctrl+Shift+J went to the website, where Chrome opens Developer Tools on its Console.
+  it('opens the Console of Developer Tools for the website in view, but not while Settings covers it', async () => {
+    const { settingsOpen, callbacks, controller } = createController()
+    expect(await controller.run('open-console')).toBe(true)
+    expect(callbacks.showDeveloperToolsConsole).toHaveBeenCalledOnce()
+    expect(callbacks.toggleDeveloperTools).not.toHaveBeenCalled()
+    settingsOpen.value = true
+    expect(await controller.run('open-console')).toBe(false)
+    expect(callbacks.showDeveloperToolsConsole).toHaveBeenCalledOnce()
   })
 
   it('moves no tab while Settings is in view', async () => {

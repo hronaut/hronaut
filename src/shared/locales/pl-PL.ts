@@ -890,6 +890,7 @@ export const plPL = {
       "savePage": "Zapisz stronę",
       "clearData": "Wyczyść dane przeglądania",
       "devtools": "Pokaż lub ukryj narzędzia deweloperskie",
+      "console": "Otwórz konsolę w narzędziach deweloperskich",
       "nextTab": "Przejdź do następnej karty",
       "previousTab": "Przejdź do poprzedniej karty",
       "moveTabNext": "Przenieś kartę za następną",

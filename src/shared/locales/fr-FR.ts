@@ -890,6 +890,7 @@ export const frFR = {
       "savePage": "Enregistrer la page",
       "clearData": "Effacer les données de navigation",
       "devtools": "Afficher ou masquer les outils de développement",
+      "console": "Ouvrir la console des outils de développement",
       "nextTab": "Passer à l’onglet suivant",
       "previousTab": "Passer à l’onglet précédent",
       "moveTabNext": "Déplacer l’onglet après le suivant",
