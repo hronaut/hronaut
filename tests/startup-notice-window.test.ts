@@ -41,7 +41,8 @@ const fake = vi.hoisted(() => {
   }
   return { Window }
 })
-vi.mock('electron', () => ({ app: { isPackaged: true }, BrowserWindow: fake.Window }))
+const electronApp = vi.hoisted(() => ({ isPackaged: true }))
+vi.mock('electron', () => ({ app: electronApp, BrowserWindow: fake.Window }))
 
 import { showStartupNoticeWindow } from '../src/main/windows/startup-notice-window.js'
 
@@ -53,6 +54,8 @@ const settle = () => new Promise<void>((resolve) => setImmediate(resolve))
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.unstubAllEnvs()
+  electronApp.isPackaged = true
 })
 
 describe('startup notice window', () => {
@@ -126,6 +129,25 @@ describe('startup notice window', () => {
       await expect(shown).resolves.toBeUndefined()
       expect(window.show).not.toHaveBeenCalled()
     }
+  })
+
+  it('loads from the development server only on a loopback host', async () => {
+    electronApp.isPackaged = false
+    vi.stubEnv('ELECTRON_RENDERER_URL', 'http://example.test:5173/')
+    const refused = showStartupNoticeWindow(notice, options)
+    await expect(refused).rejects.toThrow('loopback')
+    expect(fake.Window.last.destroyed).toBe(true)
+    expect(fake.Window.last.loadURL).not.toHaveBeenCalled()
+
+    vi.stubEnv('ELECTRON_RENDERER_URL', 'http://127.0.0.1:5173/')
+    const shown = showStartupNoticeWindow(notice, options)
+    const window = fake.Window.last
+    await settle()
+    const address = new URL(window.loadURL.mock.calls[0]![0])
+    expect(`${address.origin}${address.pathname}`).toBe('http://127.0.0.1:5173/startup-notice.html')
+    expect(Object.fromEntries(address.searchParams)).toEqual({ theme: 'cyberpunk', lang: 'en-US', ...notice })
+    window.close()
+    await shown
   })
 
   it('fails when the window cannot load the notice, and closes the window', async () => {

@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import { join } from 'node:path'
+import { trustedShellUrl } from '../ipc-guards.js'
 import type { ResolvedThemeName } from '../../shared/theme.js'
 
 /** A notice for a failure before the main window can show anything, already in the interface language. */
@@ -28,7 +29,8 @@ const LOAD_TIMEOUT_MS = 10_000
 function noticeAddress(notice: StartupNotice, options: StartupNoticeWindowOptions): { file: string; query: Record<string, string> } | { url: string } {
   const query = { theme: options.theme, lang: options.locale, ...notice }
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-    const url = new URL('startup-notice.html', process.env.ELECTRON_RENDERER_URL)
+    // The development server only on a loopback host, as for the shell.
+    const url = new URL('startup-notice.html', trustedShellUrl())
     url.search = new URLSearchParams(query).toString()
     return { url: url.href }
   }
