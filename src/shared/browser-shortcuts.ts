@@ -41,6 +41,11 @@ export interface BrowserShortcutInput {
   key: string
   /** The physical key, such as Digit1; workspace keys go by it so they work in every keyboard layout. */
   code?: string
+  /**
+   * Chromium's code for the key in the person's keyboard layout, as `KeyboardEvent.keyCode` gives it; the application
+   * menu's keys go by it elsewhere than macOS.
+   */
+  keyCode?: number
   control: boolean
   meta: boolean
   alt: boolean
@@ -50,6 +55,10 @@ export interface BrowserShortcutInput {
   /** On macOS the workspace keys use Control, since Option with a digit types a character. */
   mac?: boolean
 }
+
+/** Chromium's codes, named as on Windows, for the keys that type = and +, and / and ? on a US keyboard. */
+const VKEY_OEM_PLUS = 187
+const VKEY_OEM_2 = 191
 
 /**
  * Whether a key pressed with Option, or Alt, is the given letter. On macOS Option changes the character a key types,
@@ -123,7 +132,8 @@ export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserS
  * The keys of Hronaut's application menu that are not browser shortcuts above, which act on the page in view or open
  * another of Hronaut's dialogs: Print, Save Page As, View Page Source, Downloads, Back, Forward and Keyboard shortcuts,
  * on macOS Find Next and Find Previous, which elsewhere are website-kept keys, and elsewhere Escape, which stops the
- * page in focus loading once it leaves the key alone, as in Chrome. A key Hronaut's window leaves alone reaches the
+ * page in focus loading once it leaves the key alone, as in Chrome. Elsewhere than macOS, Zoom In's and Keyboard
+ * shortcuts' keys also go by the key's code, as the menu matches them. A key Hronaut's window leaves alone reaches the
  * menu, so under its own dialogs and the command palette the window keeps these from the menu as well.
  */
 export function applicationMenuKey(input: BrowserShortcutInput): boolean {
@@ -139,6 +149,10 @@ export function applicationMenuKey(input: BrowserShortcutInput): boolean {
   if (input.meta) return false
   if (input.alt) return !input.control && !input.shift && (key === 'arrowleft' || key === 'arrowright')
   if (!input.control) return !input.shift && key === 'escape'
+  // There the menu goes by Chromium's code for the key in the layout, so Zoom In's Ctrl+Shift+= and Keyboard
+  // shortcuts' Ctrl+Shift+/ are also Ctrl+Shift with the + key and with the # key of a German keyboard, which have
+  // those codes and type * and ' with Shift.
+  if (input.shift && (input.keyCode === VKEY_OEM_PLUS || input.keyCode === VKEY_OEM_2)) return true
   if (input.shift) return slash
   return key === 'p' || key === 's' || key === 'u' || key === 'j'
 }
