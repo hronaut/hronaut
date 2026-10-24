@@ -7,6 +7,8 @@ import type { RenderableTab, RenderableTabAccess } from './renderable-tab-access
 const OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS = 1_000
 /** How long a hidden page may take to present a frame. */
 const OFFSCREEN_PRESENTATION_TIMEOUT_MS = 15_000
+/** How long the page's redraw for a capture may hold its debugger. */
+const OFFSCREEN_REDRAW_TIMEOUT_MS = 5_000
 
 /**
  * Runs an operation that needs the tab's page rendered, one at a time per
@@ -84,7 +86,7 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
         // Electron's print pipeline does not consume a compositor screenshot.
         // Waiting for a subscribed frame before printToPDF can stall forever
         // under renderer pressure even though PDF generation is ready.
-        if (mode === 'presented-frame') await waitForPresentation(webContents)
+        if (mode === 'presented-frame') await waitForPresentation(webContents, () => access.withDebugger(webContents, () => redrawPage(webContents)))
         return await operation()
       } finally {
         access.offscreenCaptureTabIds().delete(tab.id)
@@ -136,11 +138,27 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
 }
 
 /**
- * Waits, within a bounded time, until the page presents a compositor frame,
- * requesting fresh frames and falling back to capture probes when the frame
- * subscription misses.
+ * Makes the page draw again and capture what it drew, as Developer Tools'
+ * screenshots do, within a bounded time.
  */
-async function waitForPresentation(webContents: WebContents): Promise<void> {
+async function redrawPage(webContents: WebContents): Promise<void> {
+  let timer: NodeJS.Timeout | undefined
+  try {
+    await Promise.race([
+      webContents.debugger.sendCommand('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width: 1, height: 1, scale: 1 }, fromSurface: true }),
+      new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error('Page redraw timed out')), OFFSCREEN_REDRAW_TIMEOUT_MS) })
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Waits, within a bounded time, until the page presents a compositor frame,
+ * requesting fresh frames and, when the frame subscription misses, a redraw
+ * of the page and capture probes.
+ */
+async function waitForPresentation(webContents: WebContents, redraw: () => Promise<void>): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     let finished = false
     let invalidateTimer: NodeJS.Timeout | undefined
@@ -223,6 +241,10 @@ async function waitForPresentation(webContents: WebContents): Promise<void> {
       }
       captureProbeTimer = setTimeout(() => {
         endFrameSubscription()
+        // An idle page shown in this window can stay unpresented for good, so no frame arrives and a capture of it
+        // waits until the page draws again. A page that drew again on request has presented. One that refuses, as
+        // while its Developer Tools are open, is left to the probes.
+        redraw().then(() => finish(), () => undefined)
         void probeCapture()
       }, OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS)
       captureProbeTimer.unref()

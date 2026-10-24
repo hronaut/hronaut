@@ -12,7 +12,7 @@ export interface RenderableTab {
  * What presenting a tab's page for captures and printing needs from the tab
  * manager, which keeps its destroyed flag, the window, the tabs, the render
  * queues, the offscreen capture set, the active tab, the split view, layout,
- * view bounds and presentation repair private. The queues and the capture set
+ * view bounds, presentation repair and the debugger queue private. The queues and the capture set
  * stay manager fields because sleeping, layout and closing the browser read
  * or clear them too; they are read and written in place.
  */
@@ -39,4 +39,6 @@ export interface RenderableTabAccess<Tab extends RenderableTab> {
   contentAreaBounds(): Rectangle
   /** Repairs the tab's presentation, unless its lifecycle is held. */
   reconcileTabPresentation(tab: Tab): void
+  /** Runs a debugger operation on the page in its turn. */
+  withDebugger<T>(webContents: WebContents, operation: () => Promise<T>): Promise<T>
 }
