@@ -1,4 +1,4 @@
-import { lstat, readFile } from 'node:fs/promises'
+import { lstat, readFile, rm } from 'node:fs/promises'
 import type { NavigationEntry } from 'electron'
 import { normalizeDefaultFontSize } from '../../../shared/default-font-size.js'
 import { restoreTabLabel } from '../../../shared/tab-label.js'
@@ -21,21 +21,31 @@ const MAX_CLOSED_TAB_PAGES = 13
 const MAX_CLOSED_TABS_FILE_BYTES = 256 * 1024 * 1024
 const CLOSED_TABS_VERSION = 1
 
-/** A recently closed tab as the file keeps it: what Recently closed lists, and the history reopening it restores. */
+/**
+ * A recently closed tab as the file keeps it: what Recently closed lists, the history reopening it restores, and
+ * whether History counted its page, so reopening it is not another visit.
+ */
 export interface SavedClosedTab {
   closed: BrowserClosedTabState
   history?: NavigationHistorySnapshot
+  visited?: true
 }
 
 /** What saving Recently closed needs from the tab manager. */
 export interface SavedClosedTabsAccess {
   /** The recently closed tabs, oldest first. */
   closedTabs(): readonly BrowserClosedTabState[]
-  /** The history a closed tab restores when it reopens, if it has one. */
-  closedTabHistory(closed: BrowserClosedTabState): NavigationHistorySnapshot | undefined
-  /** The Site access rules of an open workspace, or undefined when it is not open. */
+  /** The history a closed tab restores when it reopens, and whether History counted its page. */
+  closedTabHistory(closed: BrowserClosedTabState): { pages?: NavigationHistorySnapshot; visited: boolean } | undefined
+  /** The Site access rules of an open workspace, or undefined when it is not open or is being deleted. */
   navigationPolicy(workspaceId: string): BrowserWorkspaceNavigationPolicy | undefined
 }
+
+/**
+ * Each closed tab as last saved, with the history and rules it was saved from: a closed tab changes only when clearing
+ * the history forgets its pages or the rules change, so a save in between reads none of its pages again.
+ */
+const savedForms = new WeakMap<BrowserClosedTabState, { pages: NavigationHistorySnapshot | undefined; visited: boolean; policy: string; saved: SavedClosedTab }>()
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -55,8 +65,17 @@ export function savedClosedTabs(access: SavedClosedTabsAccess): SavedClosedTab[]
   for (const closed of access.closedTabs().slice(-MAX_SAVED_CLOSED_TABS)) {
     const policy = closed.mcpGroupId ? access.navigationPolicy(closed.mcpGroupId) : undefined
     if (!policy || !reopenableAddress(closed.url, policy)) continue
-    const history = savedTabHistory(access.closedTabHistory(closed), closed.url, policy)
-    saved.push({ closed: { ...closed }, ...(history ? { history } : {}) })
+    const { pages, visited = false } = access.closedTabHistory(closed) ?? {}
+    const rules = JSON.stringify(policy)
+    const before = savedForms.get(closed)
+    if (before && before.pages === pages && before.visited === visited && before.policy === rules) {
+      saved.push(before.saved)
+      continue
+    }
+    const history = savedTabHistory(pages, closed.url, policy)
+    const form: SavedClosedTab = { closed: { ...closed }, ...(history ? { history } : {}), ...(visited ? { visited: true as const } : {}) }
+    savedForms.set(closed, { pages, visited, policy: rules, saved: form })
+    saved.push(form)
   }
   return saved
 }
@@ -70,11 +89,11 @@ export function restoredClosedTabs(
   navigationPolicy: (workspaceId: string) => BrowserWorkspaceNavigationPolicy | undefined
 ): SavedClosedTab[] {
   const restored: SavedClosedTab[] = []
-  for (const { closed, history } of saved) {
+  for (const { closed, history, visited } of saved) {
     const policy = closed.mcpGroupId ? navigationPolicy(closed.mcpGroupId) : undefined
     if (!policy || !reopenableAddress(closed.url, policy)) continue
     const pages = savedTabHistory(history, closed.url, policy)
-    restored.push({ closed, ...(pages ? { history: pages } : {}) })
+    restored.push({ closed, ...(pages ? { history: pages } : {}), ...(visited ? { visited } : {}) })
   }
   return restored.slice(-MAX_SAVED_CLOSED_TABS)
 }
@@ -119,16 +138,19 @@ function parsedClosedTab(value: unknown): SavedClosedTab | undefined {
     ...(humanInteractionLocked === true ? { humanInteractionLocked: true } : {}),
     ...(place !== undefined ? { place } : {})
   }
-  return { closed, ...(history ? { history } : {}) }
+  return { closed, ...(history ? { history } : {}), ...(value.visited === true ? { visited: true as const } : {}) }
 }
 
 /**
  * Recently closed, kept for the next start in the profile beside the saved tabs, as Chrome keeps it. A file that is
- * missing or cannot be read only loses it.
+ * missing or cannot be read only loses it, and one that cannot be written is removed, so a tab whose history was
+ * cleared since does not come back.
  */
 export class ClosedTabsStore {
   private saveQueue: Promise<void> = Promise.resolve()
   private written: string | undefined
+  /** The closed tabs the file holds, as last saved, which a save of the same ones does not write again. */
+  private savedTabs: readonly SavedClosedTab[] | undefined
 
   constructor(private readonly path: string) {}
 
@@ -161,15 +183,41 @@ export class ClosedTabsStore {
    * saved when none are given, as once the browser closes.
    */
   save(closedTabs: () => readonly SavedClosedTab[] | undefined): Promise<void> {
-    const operation = this.saveQueue.then(async () => {
+    return this.queue(async () => {
       const current = closedTabs()
-      if (!current) return
+      if (!current || (this.savedTabs && sameTabs(current, this.savedTabs))) return
       const contents = `${JSON.stringify({ version: CLOSED_TABS_VERSION, closedTabs: current })}\n`
-      if (contents === this.written) return
-      await writeTextFileAtomically(this.path, contents, 0o600)
-      this.written = contents
+      if (contents !== this.written) {
+        try {
+          await writeTextFileAtomically(this.path, contents, 0o600)
+        } catch (error) {
+          await this.remove()
+          throw error
+        }
+        this.written = contents
+      }
+      this.savedTabs = current
     })
+  }
+
+  /** Removes the saved Recently closed, as when its history was cleared while it could not be saved. */
+  discard(): Promise<void> {
+    return this.queue(() => this.remove())
+  }
+
+  private async remove(): Promise<void> {
+    this.written = undefined
+    this.savedTabs = undefined
+    await rm(this.path, { force: true })
+  }
+
+  private queue(task: () => Promise<void>): Promise<void> {
+    const operation = this.saveQueue.then(task)
     this.saveQueue = operation.catch(() => undefined)
     return operation
   }
+}
+
+function sameTabs(current: readonly SavedClosedTab[], saved: readonly SavedClosedTab[]): boolean {
+  return current.length === saved.length && current.every((tab, index) => tab === saved[index])
 }

@@ -48,6 +48,8 @@ test('a restart keeps Recently closed, and a closed tab reopens with its Back hi
     await before.window.evaluate((id) => (window as unknown as RestartWindow).hronaut.closeTab(id), id)
     await expect.poll(() => tab(before!.window)).toBeUndefined()
     await expect.poll(async () => (await state(before!.window)).closedTabs.map((closed) => closed.url)).toEqual([second])
+    // Saved within a few seconds of the close, as an open tab's history is, not only when Hronaut quits.
+    await expect.poll(() => readFile(closedTabsPath, 'utf8').catch(() => ''), { timeout: 15_000 }).toContain(second)
     await closeHronaut(before.app)
     before = undefined
 

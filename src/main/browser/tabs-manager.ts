@@ -563,7 +563,7 @@ import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
 import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import type { TabReopeningAccess } from './tab-reopening/tab-reopening-access.js'
-import { closedTabPages, duplicateTabAfterLabelSave, forgetClosedTabs, forgetWorkspaceClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
+import { closedTabHistory, duplicateTabAfterLabelSave, forgetClosedTabs, forgetWorkspaceClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
 import { forgetTabHistoryPages, holdTabHistory } from './tab-history-pages/forget-tab-history-pages.js'
 import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
 import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
@@ -1555,8 +1555,8 @@ export class BrowserTabsManager {
     this.initialized = true
     // The saved history leaves out tabs that did not come back; from then on it is saved every few seconds, with
     // Recently closed.
-    void this.saveTabHistory()
-    this.tabHistoryTimer = setInterval(() => { void this.saveTabHistory() }, TAB_HISTORY_SAVE_MS)
+    void this.saveForNextStart()
+    this.tabHistoryTimer = setInterval(() => { void this.saveForNextStart() }, TAB_HISTORY_SAVE_MS)
     this.tabHistoryTimer.unref()
     if (this.activeTabId) {
       const activeTab = this.tabs.get(this.activeTabId)
@@ -2455,11 +2455,13 @@ export class BrowserTabsManager {
     const closedTabsForgotten = forgetClosedTabs(this.tabReopeningAccess(), matches, workspaceId)
     const tabs = [...this.tabs.values()].filter((tab) => workspaceId === undefined || tab.mcpGroupId === workspaceId)
     const openTabPagesForgotten = forgetTabHistoryPages(tabs, matches)
-    // Recently closed and open tabs' history are saved for the next start without the pages at once, also for a tab
-    // whose history cannot be read then and keeps what was saved before.
     if (closedTabsForgotten || openTabPagesForgotten) this.changed(false)
+    // The open tabs' history saved before forgets the pages too, for a tab whose history cannot be read when it is saved
+    // next and keeps what was saved before. Both are saved without the pages at once; before the saved tabs are back,
+    // Recently closed cannot be saved yet, so the saved one goes.
     this.tabHistoryStore?.forgetPages(matches, workspaceId === undefined ? undefined : new Set(tabs.map((tab) => tab.id)))
-    void this.saveTabHistory()
+    if (!this.initialized) void this.closedTabsStore?.discard().catch((error: unknown) => console.error('[browser] Failed to remove recently closed tabs:', error))
+    void this.saveForNextStart()
   }
 
   /**
@@ -5435,14 +5437,15 @@ export class BrowserTabsManager {
   }
 
   async flushPersist(): Promise<void> {
-    await Promise.all([flushPersist(this.quitFlushAccess()), this.saveTabHistory()])
+    await Promise.all([flushPersist(this.quitFlushAccess()), this.saveForNextStart()])
   }
 
   /**
    * Saves the tabs' Back and Forward history and Recently closed for the next start, once the saved tabs are back and
-   * until the browser closes; a failure is logged, as the tabs then only restart at their addresses.
+   * until the browser closes. A failure is logged: the tabs then restart at their addresses, and Recently closed starts
+   * empty.
    */
-  private async saveTabHistory(): Promise<void> {
+  private async saveForNextStart(): Promise<void> {
     if (!this.initialized) return
     await Promise.all([
       this.tabHistoryStore?.save((previous) => this.destroyed ? undefined : savedTabHistories(this.savedTabHistoryAccess(), previous))
@@ -5456,8 +5459,9 @@ export class BrowserTabsManager {
   private savedClosedTabsAccess(): SavedClosedTabsAccess {
     return {
       closedTabs: () => this.closedTabs,
-      closedTabHistory: closedTabPages,
-      navigationPolicy: (workspaceId) => this.mcpTabGroups.get(workspaceId)?.navigationPolicy
+      closedTabHistory,
+      // A workspace being deleted keeps its tabs in Recently closed only until the deletion ends.
+      navigationPolicy: (workspaceId) => this.workspacesBeingDeleted.has(workspaceId) ? undefined : this.mcpTabGroups.get(workspaceId)?.navigationPolicy
     }
   }
 

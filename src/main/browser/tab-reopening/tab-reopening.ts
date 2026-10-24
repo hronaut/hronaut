@@ -11,9 +11,12 @@ const MAX_CLOSED_TABS = MAX_TABS
 /** The pages a closed tab keeps on each side of the one it showed, as Chrome's sessions keep (gMaxPersistNavigationCount). */
 const MAX_CLOSED_TAB_PAGES_EACH_SIDE = 6
 
-/** What a remembered closed tab had shown: its back and forward pages, and whether History counted its page yet. */
-interface ClosedTabHistory {
-  pages: NavigationHistorySnapshot
+/**
+ * What a remembered closed tab had shown: its back and forward pages, if it keeps them, and whether History counted its
+ * page yet.
+ */
+export interface ClosedTabHistory {
+  pages?: NavigationHistorySnapshot
   visited: boolean
 }
 
@@ -62,7 +65,8 @@ export async function reopenClosedTabEntry<Tab extends TabReopeningTab>(access: 
       title: closed.title,
       label: closed.label,
       pinned: closed.pinned,
-      ...(history ? { navigationHistory: copyHistory(history.pages), suppressInitialHistory: history.visited } : {}),
+      ...(history?.pages ? { navigationHistory: copyHistory(history.pages) } : {}),
+      ...(history ? { suppressInitialHistory: history.visited } : {}),
       active,
       mcpGroupId: closed.mcpGroupId,
       zoomIsolated: closed.zoomIsolated === true,
@@ -193,7 +197,7 @@ export function rememberClosedTab<Tab extends TabReopeningTab>(
     ...(tab.humanInteractionLocked ? { humanInteractionLocked: true } : {}),
     ...(place >= 0 ? { place } : {})
   }
-  const pages = closedTabHistory(navigationHistory, tab.url)
+  const pages = closedTabPages(navigationHistory, tab.url)
   // A page closed before it was ready had no visit yet, which it gets when it reopens.
   const visited = tab.suppressInitialHistory === true || tab.pendingHistoryUrl !== tab.url
   if (pages) closedTabHistories.set(closed, { pages, visited })
@@ -201,19 +205,19 @@ export function rememberClosedTab<Tab extends TabReopeningTab>(
   if (access.closedTabs().length > MAX_CLOSED_TABS) access.closedTabs().shift()
 }
 
-/** The back and forward history a remembered closed tab restores when it reopens, if it has one. */
-export function closedTabPages(closed: BrowserClosedTabState): NavigationHistorySnapshot | undefined {
-  return closedTabHistories.get(closed)?.pages
+/** What a remembered closed tab restores when it reopens: its back and forward history, and whether it is a visit. */
+export function closedTabHistory(closed: BrowserClosedTabState): ClosedTabHistory | undefined {
+  return closedTabHistories.get(closed)
 }
 
 /**
  * Remembers the closed tabs Recently closed kept when Hronaut last closed, oldest first, ahead of those closed since,
- * with the history each restores, as Chrome does after a restart. History counted their pages then, so reopening one
- * is not another visit.
+ * with the history each restores, as Chrome does after a restart; reopening one whose page History had counted then is
+ * not another visit.
  */
 export function rememberSavedClosedTabs(closedTabs: BrowserClosedTabState[], saved: readonly SavedClosedTab[]): void {
-  closedTabs.unshift(...saved.map(({ closed, history }) => {
-    if (history) closedTabHistories.set(closed, { pages: copyHistory(history), visited: true })
+  closedTabs.unshift(...saved.map(({ closed, history, visited }) => {
+    if (history || visited) closedTabHistories.set(closed, { ...(history ? { pages: copyHistory(history) } : {}), visited: visited === true })
     return closed
   }))
   if (closedTabs.length > MAX_CLOSED_TABS) closedTabs.splice(0, closedTabs.length - MAX_CLOSED_TABS)
@@ -223,7 +227,7 @@ export function rememberSavedClosedTabs(closedTabs: BrowserClosedTabState[], sav
  * The history a closed tab keeps: up to six pages on each side of the one it showed. None when the tab's history does
  * not show its own address, as before its first page commits, so it reopens at its address.
  */
-function closedTabHistory(snapshot: NavigationHistorySnapshot, url: string): NavigationHistorySnapshot | undefined {
+function closedTabPages(snapshot: NavigationHistorySnapshot, url: string): NavigationHistorySnapshot | undefined {
   if (snapshot.entries[snapshot.index]?.url !== url) return undefined
   const first = Math.max(0, snapshot.index - MAX_CLOSED_TAB_PAGES_EACH_SIDE)
   return copyHistory({
@@ -243,7 +247,7 @@ function copyHistory(history: NavigationHistorySnapshot): NavigationHistorySnaps
  */
 function forgetHistoryPages(closed: BrowserClosedTabState, matches: (url: string) => boolean): void {
   const history = closedTabHistories.get(closed)
-  if (!history) return
+  if (!history?.pages) return
   const { entries, index } = history.pages
   const kept = entries.filter((entry, entryIndex) => entryIndex === index || !matches(entry.url))
   if (kept.length === entries.length) return

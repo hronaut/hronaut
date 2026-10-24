@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NavigationEntry } from 'electron'
 import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
 import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs, type SavedClosedTab, type SavedClosedTabsAccess } from '../src/main/browser/saved-closed-tabs/saved-closed-tabs.js'
-import { closedTabPages, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabEntry } from '../src/main/browser/tab-reopening/tab-reopening.js'
+import { closedTabHistory, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabEntry } from '../src/main/browser/tab-reopening/tab-reopening.js'
 import type { TabReopeningAccess, TabReopeningCreation, TabReopeningTab } from '../src/main/browser/tab-reopening/tab-reopening-access.js'
 import type { NavigationHistorySnapshot } from '../src/main/browser/navigation-history.js'
 import type { BrowserClosedTabState, BrowserWorkspaceNavigationPolicy } from '../src/shared/types.js'
@@ -44,7 +44,7 @@ function browser(policies: Record<string, BrowserWorkspaceNavigationPolicy> = { 
     detachedClosedTabs: () => new Set(),
     tabCount: () => 0,
     orderedTabs: () => [],
-    getTab: () => undefined,
+    getTab: () => { throw new Error('Not used to close or reopen a tab') },
     navigationHistorySnapshot: () => history,
     createTab: async (options) => {
       created.push(options)
@@ -55,7 +55,7 @@ function browser(policies: Record<string, BrowserWorkspaceNavigationPolicy> = { 
   }
   const saving: SavedClosedTabsAccess = {
     closedTabs: () => closedTabs,
-    closedTabHistory: closedTabPages,
+    closedTabHistory,
     navigationPolicy: (workspaceId) => policies[workspaceId]
   }
   return {
@@ -137,11 +137,45 @@ describe('the recently closed tabs a restart keeps', () => {
     const tabs = browser()
     for (let index = 0; index < 60; index += 1) tabs.close([address(`p${index}`)], 0)
     const saved = savedClosedTabs(tabs.saving)
-    expect(saved).toHaveLength(50)
+    expect(saved.map(({ closed }) => closed.url)).toEqual(Array.from({ length: 50 }, (_value, index) => address(`p${index + 10}`)))
     const later = browser()
-    rememberSavedClosedTabs(later.closedTabs, [...saved, ...saved.slice(0, 5)])
+    later.close([address('since-1')], 0)
+    later.close([address('since-2')], 0)
+    rememberSavedClosedTabs(later.closedTabs, saved)
+    // The tabs closed since the start are the newest, so the oldest saved ones go.
     expect(later.closedTabs).toHaveLength(50)
-    expect(later.closedTabs.at(-1)!.url).toBe(address('p14'))
+    expect(later.closedTabs[0]!.url).toBe(address('p12'))
+    expect(later.closedTabs.slice(-2).map((closed) => closed.url)).toEqual([address('since-1'), address('since-2')])
+  })
+
+  it('counts a visit on reopening only for a page History had not counted before the restart', async () => {
+    // A page that keeps no history, as one a form posted to, came back after a restart as another visit.
+    const posted = Buffer.concat([Buffer.from([1, 0, 0, 0]), Buffer.from(`${address('posted')}application/x-www-form-urlencoded`, 'utf16le')]).toString('base64')
+    const before = browser()
+    before.close([address('loading')], 0, 'work', { pendingHistoryUrl: address('loading') })
+    before.close([address('posted')], 0)
+    const saved = savedClosedTabs(before.saving)
+    expect(saved.map(({ visited }) => visited)).toEqual([undefined, true])
+
+    const after = browser()
+    rememberSavedClosedTabs(after.closedTabs, [{ ...saved[0]! }, { closed: saved[1]!.closed, visited: true }])
+    expect(await after.reopen()).toMatchObject({ url: address('posted'), suppressInitialHistory: true })
+    expect(after.created[0]).not.toHaveProperty('navigationHistory')
+    const loading = await after.reopen()
+    expect(loading.url).toBe(address('loading'))
+    expect(loading.suppressInitialHistory).toBe(false)
+    expect(posted).not.toBe('')
+  })
+
+  it('keeps no saved state of a page a form posted to, whose fields it holds, passwords included', () => {
+    const tabs = browser()
+    const posted = Buffer.concat([Buffer.from([1, 0, 0, 0]), Buffer.from(`${address('b')}application/x-www-form-urlencoded password=hunter2`, 'utf16le')]).toString('base64')
+    tabs.close([address('a'), address('b')], 1)
+    const [closed] = tabs.closedTabs
+    closedTabHistory(closed!)!.pages!.entries[1]!.pageState = posted
+    const [saved] = savedClosedTabs(tabs.saving)
+    expect(saved!.history!.entries[1]).toEqual({ url: address('b'), title: 'b' })
+    expect(JSON.stringify(saved)).not.toContain(posted)
   })
 })
 
@@ -234,6 +268,7 @@ describe('the tab manager saving Recently closed', () => {
       detachedClosedTabs: new Set(),
       tabs: new Map(),
       mcpTabGroups: new Map([['work', { navigationPolicy: anywhere }]]),
+      workspacesBeingDeleted: new Map(),
       initialized: true,
       destroyed: false,
       changed: vi.fn(),
@@ -242,5 +277,57 @@ describe('the tab manager saving Recently closed', () => {
     manager.forgetHistoryPages((url) => url === address('cleared'))
     await vi.waitFor(() => expect(saved).toHaveLength(1))
     expect(saved[0]!.map(({ closed }) => closed.url)).toEqual([address('a')])
+  })
+
+  it('saves a kept closed tab without the Back pages whose history was cleared', async () => {
+    const tabs = browser()
+    tabs.close([address('cleared'), address('kept')], 1)
+    const saved: (readonly SavedClosedTab[] | undefined)[] = []
+    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+      closedTabs: tabs.closedTabs,
+      detachedClosedTabs: new Set(),
+      tabs: new Map(),
+      mcpTabGroups: new Map([['work', { navigationPolicy: anywhere }]]),
+      workspacesBeingDeleted: new Map(),
+      initialized: true,
+      destroyed: false,
+      changed: vi.fn(),
+      closedTabsStore: { save: async (closedTabs: () => readonly SavedClosedTab[] | undefined) => { saved.push(closedTabs()) } }
+    }) as BrowserTabsManager
+    // Saved once with the page, as every few seconds, and then once its history is cleared.
+    await (manager as unknown as { saveForNextStart(): Promise<void> }).saveForNextStart()
+    manager.forgetHistoryPages((url) => url === address('cleared'))
+    await vi.waitFor(() => expect(saved).toHaveLength(2))
+    expect(JSON.stringify(saved[0])).toContain(address('cleared'))
+    expect(saved[1]!.map(({ closed }) => closed.url)).toEqual([address('kept')])
+    expect(JSON.stringify(saved[1])).not.toContain(address('cleared'))
+  })
+
+  it('removes the saved Recently closed when the history is cleared before the saved tabs are back', async () => {
+    const discard = vi.fn(async () => undefined)
+    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+      closedTabs: [],
+      detachedClosedTabs: new Set(),
+      tabs: new Map(),
+      mcpTabGroups: new Map(),
+      initialized: false,
+      destroyed: false,
+      changed: vi.fn(),
+      closedTabsStore: { discard, save: vi.fn() }
+    }) as BrowserTabsManager
+    manager.forgetHistoryPages(() => true)
+    expect(discard).toHaveBeenCalledOnce()
+  })
+
+  it('leaves out the closed tabs of a workspace being deleted', () => {
+    const tabs = browser()
+    tabs.close([address('a')], 0)
+    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+      closedTabs: tabs.closedTabs,
+      mcpTabGroups: new Map([['work', { navigationPolicy: anywhere }]]),
+      workspacesBeingDeleted: new Map([['work', {}]])
+    }) as BrowserTabsManager
+    const access = (manager as unknown as { savedClosedTabsAccess(): SavedClosedTabsAccess }).savedClosedTabsAccess()
+    expect(savedClosedTabs(access)).toEqual([])
   })
 })

@@ -8,7 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - **Ctrl/Cmd+Shift+T**, a **Recently closed** entry and **Undo** after closing a tab bring the tab back with its **Back** and **Forward** pages, scrolled to where it was, as in Chrome, and loading it again no longer counts another visit in History.
 - After a restart, tabs come back with their **Back** and **Forward** pages, scrolled to where they were and with what was typed into their forms, as in Chrome; password fields are never saved.
-- **Recently closed** and **Ctrl/Cmd+Shift+T** now keep the tabs closed before a restart, as in Chrome, and such a tab reopens with its **Back** and **Forward** pages.
+- **Recently closed** and **Ctrl/Cmd+Shift+T** now keep the tabs closed before a restart, as in Chrome, and such a tab reopens with its **Back** and **Forward** pages, scrolled to where it was.
 
 ### Fixed
 
