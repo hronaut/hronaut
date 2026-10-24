@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createInWindowTooltipPort } from '../../src/renderer/src/composables/in-window-tooltips.js'
-import { installShellTooltips, SHELL_TOOLTIP_DELAY_MS, SHELL_TOOLTIP_SETTLE_MS, SHELL_TOOLTIP_WARM_MS } from '../../src/renderer/src/composables/shell-tooltips.js'
+import {
+  installShellTooltips,
+  SHELL_TOOLTIP_DELAY_MS,
+  SHELL_TOOLTIP_SETTLE_MS,
+  SHELL_TOOLTIP_WARM_MS,
+  type ShellTooltips
+} from '../../src/renderer/src/composables/shell-tooltips.js'
 import { vTooltip } from '../../src/renderer/src/ui/tooltip.js'
 import type { ShellTooltipRequest } from '../../src/shared/shell-tooltip.js'
 
@@ -15,8 +21,13 @@ function control(text: string, label?: string): HTMLButtonElement {
   return button
 }
 
-function pointer(type: 'pointerover' | 'pointerout' | 'pointerdown', target: Element, relatedTarget: Element | null = null): void {
-  target.dispatchEvent(new MouseEvent(type, { bubbles: true, relatedTarget }))
+function pointer(
+  type: 'pointerover' | 'pointerout' | 'pointerdown' | 'pointermove',
+  target: Element,
+  relatedTarget: Element | null = null,
+  at = { x: 0, y: 0 }
+): void {
+  target.dispatchEvent(new MouseEvent(type, { bubbles: true, relatedTarget, clientX: at.x, clientY: at.y }))
 }
 
 function tooltipPort() {
@@ -42,7 +53,7 @@ afterEach(() => {
 describe('shell tooltips', () => {
   it('shows the tooltip of the control the pointer rests on, with its box, side and theme', () => {
     const port = tooltipPort()
-    uninstall = installShellTooltips(port)
+    uninstall = installShellTooltips(port).dispose
     const rail = document.createElement('nav')
     rail.dataset.tooltipPlacement = 'right'
     document.body.append(rail)
@@ -68,7 +79,7 @@ describe('shell tooltips', () => {
 
   it('shows the next control at once while warm, and nothing for a control left before the delay', () => {
     const port = tooltipPort()
-    uninstall = installShellTooltips(port)
+    uninstall = installShellTooltips(port).dispose
     const first = control('Commands')
     const second = control('Search tabs')
     const third = control('Downloads')
@@ -87,28 +98,85 @@ describe('shell tooltips', () => {
     expect(port.showTooltip).toHaveBeenCalledTimes(2)
   })
 
-  it('hides on a click and keeps the clicked control quiet until the pointer leaves it', () => {
+  it('hides on a click and keeps the clicked control quiet until the pointer leaves it, also after a key press', () => {
     const port = tooltipPort()
-    uninstall = installShellTooltips(port)
+    uninstall = installShellTooltips(port).dispose
     const button = control('Mute all tabs')
-    pointer('pointerover', button)
+    pointer('pointerover', button, null, { x: 10, y: 10 })
     vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
-    pointer('pointerdown', button)
+    pointer('pointerdown', button, null, { x: 10, y: 10 })
     expect(port.hideTooltip).toHaveBeenCalledWith(1)
-    pointer('pointerover', button.firstElementChild!)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    // The pointer moves on within the control, into its icon.
+    pointer('pointerout', button, button.firstElementChild, { x: 14, y: 12 })
+    pointer('pointerover', button.firstElementChild!, button, { x: 14, y: 12 })
+    pointer('pointermove', button.firstElementChild!, null, { x: 15, y: 12 })
     vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
     expect(port.showTooltip).toHaveBeenCalledOnce()
 
-    pointer('pointerout', button, document.body)
+    pointer('pointerout', button, document.body, { x: 40, y: 0 })
     vi.advanceTimersByTime(SHELL_TOOLTIP_WARM_MS)
-    pointer('pointerover', button)
+    pointer('pointerover', button, null, { x: 10, y: 10 })
     vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
     expect(port.showTooltip).toHaveBeenCalledTimes(2)
   })
 
+  // Clicking Search tabs opened its panel under the resting pointer, and the URL tooltip of the tab row that landed
+  // beneath it appeared over the panel.
+  it.each<[string, (button: Element, tooltips: ShellTooltips) => void]>([
+    ['a click', (button) => pointer('pointerdown', button, null, { x: 10, y: 10 })],
+    ['a key press', () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))],
+    // Main runs a shortcut pressed in the page here, and this document never sees its key press.
+    ['a shortcut from main', (_, tooltips) => tooltips.hold()]
+  ])('shows nothing for a control that opens under the pointer after %s, until the pointer moves', (_, press) => {
+    const port = tooltipPort()
+    const tooltips = installShellTooltips(port)
+    uninstall = tooltips.dispose
+    const button = control('Search tabs')
+    pointer('pointerover', button, null, { x: 10, y: 10 })
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
+    press(button, tooltips)
+    expect(port.hideTooltip).toHaveBeenCalledWith(1)
+
+    // The panel opens over the button; the browser moves the hover to its row without the pointer moving.
+    const row = control('https://example.test/')
+    pointer('pointerout', button, row.firstElementChild, { x: 10, y: 10 })
+    pointer('pointerover', row.firstElementChild!, button, { x: 10, y: 10 })
+    pointer('pointermove', row.firstElementChild!, null, { x: 10, y: 10 })
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS * 2)
+    expect(port.showTooltip).toHaveBeenCalledOnce()
+
+    // The first move crosses from the row's icon into the row itself.
+    pointer('pointerout', row.firstElementChild!, row, { x: 14, y: 11 })
+    pointer('pointerover', row, row.firstElementChild, { x: 14, y: 11 })
+    pointer('pointermove', row, null, { x: 14, y: 11 })
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
+    expect(port.showTooltip).toHaveBeenLastCalledWith(expect.objectContaining({ id: 2, text: 'https://example.test/' }))
+  })
+
+  it('holds tooltips from where the pointer shows up when it rested elsewhere, such as over the page', () => {
+    const port = tooltipPort()
+    const tooltips = installShellTooltips(port)
+    uninstall = tooltips.dispose
+    const button = control('Search tabs')
+    pointer('pointerover', button, null, { x: 10, y: 10 })
+    pointer('pointerout', button, null, { x: 10, y: 60 })
+    // A shortcut in the page opens a panel; when main hides the page, the shell finds a row under the pointer.
+    tooltips.hold()
+    const row = control('https://example.test/')
+    pointer('pointerover', row, null, { x: 300, y: 200 })
+    pointer('pointermove', row, null, { x: 300, y: 200 })
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS * 2)
+    expect(port.showTooltip).not.toHaveBeenCalled()
+
+    pointer('pointermove', row, null, { x: 302, y: 201 })
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
+    expect(port.showTooltip).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ text: 'https://example.test/' }))
+  })
+
   it('follows a control whose text changes and hides when it leaves the page, a key is pressed or the window blurs', async () => {
     const port = tooltipPort()
-    uninstall = installShellTooltips(port)
+    uninstall = installShellTooltips(port).dispose
     const button = control('Reload')
     pointer('pointerover', button)
     vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
@@ -119,17 +187,18 @@ describe('shell tooltips', () => {
     button.remove()
     await vi.waitFor(() => expect(port.hideTooltip).toHaveBeenLastCalledWith(2))
 
-    for (const end of [
+    for (const [index, end] of [
       () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true })),
       () => window.dispatchEvent(new Event('blur'))
-    ]) {
+    ].entries()) {
       const next = control('Settings')
-      pointer('pointerover', next)
+      pointer('pointerover', next, null, { x: 10 + index * 40, y: 10 })
       vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
       const shown = port.showTooltip.mock.lastCall![0].id
+      expect(shown).toBe(index + 3)
       end()
       expect(port.hideTooltip).toHaveBeenLastCalledWith(shown)
-      pointer('pointerout', next, document.body)
+      pointer('pointerout', next, document.body, { x: 30 + index * 40, y: 10 })
       next.remove()
     }
   })
@@ -137,7 +206,7 @@ describe('shell tooltips', () => {
   // A panel in its own window showed the operating system's tooltip, from a native title, instead of the themed one.
   it('draws the themed tooltip in the page itself in a panel window, never as a native title', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 100, height: 24 } as DOMRect)
-    uninstall = installShellTooltips(createInWindowTooltipPort())
+    uninstall = installShellTooltips(createInWindowTooltipPort()).dispose
     const button = control('Clear console')
     pointer('pointerover', button)
     expect(document.querySelector('.shell-window-tooltip')).toBeNull()
@@ -154,7 +223,7 @@ describe('shell tooltips', () => {
   // A panel window that maximized or snapped kept its tooltip where the control had been.
   it('hides when the window resizes', () => {
     const port = tooltipPort()
-    uninstall = installShellTooltips(port)
+    uninstall = installShellTooltips(port).dispose
     const button = control('Clear console')
     pointer('pointerover', button)
     vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
@@ -165,7 +234,7 @@ describe('shell tooltips', () => {
 
   it('hides for a scroll that moves the control, not for one in an unrelated list', () => {
     const port = tooltipPort()
-    uninstall = installShellTooltips(port)
+    uninstall = installShellTooltips(port).dispose
     const toolbar = document.createElement('div')
     const list = document.createElement('div')
     document.body.append(toolbar, list)
@@ -190,7 +259,7 @@ describe('shell tooltips', () => {
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
     try {
       const port = tooltipPort()
-      uninstall = installShellTooltips(port)
+      uninstall = installShellTooltips(port).dispose
       const tab = control('Checkout · Acme Store')
       pointer('pointerover', tab)
       vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
@@ -216,7 +285,7 @@ describe('shell tooltips', () => {
 
   it('stops listening once uninstalled', () => {
     const port = tooltipPort()
-    installShellTooltips(port)()
+    installShellTooltips(port).dispose()
     pointer('pointerover', control('Commands'))
     vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
     expect(port.showTooltip).not.toHaveBeenCalled()

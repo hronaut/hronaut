@@ -607,7 +607,7 @@ const {
   )
 })
 // A panel window has no page views over the shell, so it draws its tooltips itself.
-useShellTooltips(isDetachedPanelWindow ? createInWindowTooltipPort() : window.hronautShell)
+const shellTooltips = useShellTooltips(isDetachedPanelWindow ? createInWindowTooltipPort() : window.hronautShell)
 const { dispose: disposeAppEventsController } = useAppEventsController({
   browserApi: browser,
   permissionsApi: window.hronautPermissions,
@@ -615,7 +615,12 @@ const { dispose: disposeAppEventsController } = useAppEventsController({
   updatesApi: window.hronautUpdates,
   shellApi: window.hronautShell,
   onUserAttention: testAttentionSound,
-  onShortcut: runBrowserShortcut,
+  // Main runs a shortcut pressed in a page or another view here; like a key pressed here, it keeps tooltips away from
+  // a panel it opens under the resting pointer.
+  onShortcut: (action) => {
+    shellTooltips.hold()
+    return runBrowserShortcut(action)
+  },
   onTabGroupEdit: openTabGroupEditor,
   // New Tab in a tab's or workspace's menu opens the tab as the + button does, with the cursor in the address field.
   onNewTab: newTabInWorkspace,
