@@ -8,9 +8,12 @@ import { redactNetworkUrl } from '../../shared/network-details.js'
 import { isWindowsReservedFilename } from '../../shared/portable-filename.js'
 import type { BrowserDownloadAction, BrowserDownloadState } from '../../shared/types.js'
 import { LocalizedError } from '../localized-error.js'
+import { savedDownloads, type DownloadHistoryStore, type SavedDownload } from './download-history/download-history.js'
 import { SavedLinkNames, savedLinkFilename, staysOnOrigin } from './saved-link-names.js'
 
 const MAX_DOWNLOAD_HISTORY = 200
+/** How soon after a change the download history is saved for the next start. */
+const HISTORY_SAVE_MS = 1_000
 const MAX_DOWNLOAD_URL_CHARS = 4_096
 
 /**
@@ -106,8 +109,70 @@ export class BrowserDownloadsController {
   private fileCheckRunning = false
   private fileCheckRequested = false
   private readonly savedLinkNames = new SavedLinkNames()
+  /** Where the download history is kept for the next start, once the history it kept is back, so no save loses it. */
+  private history: DownloadHistoryStore | undefined
+  private historySaveTimer: NodeJS.Timeout | null = null
+  /**
+   * Workspaces deleted with their data: their downloads stay in the list until Hronaut quits but are not kept for the
+   * next start, as Recently closed drops their tabs.
+   */
+  private readonly deletedWorkspaceIds = new Set<string>()
 
   constructor(private readonly host: BrowserDownloadsHost, private readonly platform = process.platform) {}
+
+  /**
+   * Brings back the downloads kept from before the restart, as Chrome's Downloads page lists them, each with its
+   * workspace, and keeps the history in that store from now on. Their files are checked when the Downloads panel
+   * opens, as for a download of this run, and their addresses are redacted again, as a record keeps them.
+   */
+  restoreHistory(saved: readonly SavedDownload[], history: DownloadHistoryStore): void {
+    for (const { workspaceId, ...download } of saved.slice(0, MAX_DOWNLOAD_HISTORY)) {
+      if (this.downloads.has(download.id)) continue
+      this.downloads.set(download.id, {
+        ...download,
+        url: retainedDownloadUrl(download.url),
+        paused: false,
+        canResume: false,
+        fromEarlierRun: true,
+        ...(workspaceId ? { observationGeneration: this.host.workspaceObservationGeneration(workspaceId) } : {})
+      })
+      this.downloadWorkspaceIds.set(download.id, workspaceId)
+    }
+    this.history = history
+  }
+
+  /**
+   * Saves the download history for the next start now, as when Hronaut quits, without the downloads of workspaces
+   * deleted with their data. A failure is logged; a save after a change does not write again what just failed.
+   */
+  async saveHistory(retryFailedWrite = true): Promise<void> {
+    if (this.historySaveTimer) clearTimeout(this.historySaveTimer)
+    this.historySaveTimer = null
+    if (!this.history) return
+    await this.history.save(() => {
+      if (this.destroyed) return undefined
+      const kept = this.listDownloads().filter((download) => {
+        const workspaceId = this.downloadWorkspaceIds.get(download.id)
+        return !workspaceId || !this.deletedWorkspaceIds.has(workspaceId)
+      })
+      return savedDownloads(kept, (downloadId) => this.downloadWorkspaceIds.get(downloadId))
+    }, retryFailedWrite).catch((error: unknown) => console.error('[downloads] Failed to save the download history:', error))
+  }
+
+  private scheduleHistorySave(): void {
+    if (!this.history || this.destroyed || this.historySaveTimer) return
+    this.historySaveTimer = setTimeout(() => {
+      this.historySaveTimer = null
+      void this.saveHistory(false)
+    }, HISTORY_SAVE_MS)
+  }
+
+  /** Leaves the downloads of a workspace deleted with its data out of the history kept for the next start. */
+  forgetWorkspace(workspaceId: string): void {
+    if (this.destroyed) return
+    this.deletedWorkspaceIds.add(workspaceId)
+    this.scheduleHistorySave()
+  }
 
   hasActiveDownload(tabId: string): boolean {
     return [...this.downloads.values()].some(download => download.tabId === tabId && isActiveDownload(download))
@@ -140,6 +205,8 @@ export class BrowserDownloadsController {
   destroy(): void {
     this.destroyed = true
     this.clearPendingNotification()
+    if (this.historySaveTimer) clearTimeout(this.historySaveTimer)
+    this.historySaveTimer = null
     for (const detach of this.downloadHookSessions.values()) detach()
     this.downloadHookSessions.clear()
     for (const detach of this.downloadItemListeners.values()) detach()
@@ -148,6 +215,7 @@ export class BrowserDownloadsController {
     this.awaitingSavePath.clear()
     this.downloadSessions.clear()
     this.downloadWorkspaceIds.clear()
+    this.deletedWorkspaceIds.clear()
     this.reservedDownloadPaths.clear()
     this.completedFileIdentities.clear()
     this.fileChecks.clear()
@@ -339,6 +407,10 @@ export class BrowserDownloadsController {
       && download?.observationGeneration === this.host.workspaceObservationGeneration(workspaceId)
     if (!download || !inScope()) throw new Error(notFound)
     if (download.state !== 'completed' || !download.savePath) throw new Error('Only a completed download can be copied.')
+    // Read only as a download completes in this run, so one kept from before the restart has none.
+    if (!this.completedFileIdentities.has(downloadId)) {
+      throw new Error('This download finished before Hronaut restarted, so Hronaut cannot check that its file is unchanged and will not copy it. Download the file again to copy it.')
+    }
     const identity = await this.completedFileIdentities.get(downloadId)
     // The record may have been cleared or handed to another workspace while its identity was read.
     if (!inScope()) throw new Error(notFound)
@@ -585,5 +657,6 @@ export class BrowserDownloadsController {
 
   private sendDownloadsChanged(downloads: BrowserDownloadState[]): void {
     this.host.publish(downloads)
+    this.scheduleHistorySave()
   }
 }

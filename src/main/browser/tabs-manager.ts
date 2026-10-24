@@ -132,6 +132,7 @@ import {
 } from './network-conditions/network-conditions.js'
 import { cancelHeldResponse, disposeHeldResponses, failAllHeldResponses, heldResponseSummaries, releaseHeldResponse, type HeldResponses } from './network-conditions/held-responses.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
+import type { DownloadHistoryStore, SavedDownload } from './download-history/download-history.js'
 import type { DownloadCopyAccess } from './download-copy/download-copy-access.js'
 import { copyDownload, type DownloadCopyProgress, type DownloadCopyRequest, type DownloadCopyResult } from './download-copy/download-copy.js'
 import { BrowserProfilingController, type BrowserProfilingState } from './profiling-controller.js'
@@ -848,6 +849,8 @@ export interface TabsManagerOptions {
   tabHistoryPath?: string
   /** Where Recently closed is kept for the next start; without it, Recently closed starts empty. */
   closedTabsPath?: string
+  /** The download history kept for the next start and what it held at this start; without it, Downloads starts empty. */
+  downloadHistory?: { store: DownloadHistoryStore; saved: readonly SavedDownload[] }
   /** Where each workspace's zoom for each site is kept for the next start; without it, sites start at 100%. */
   siteZoomPath?: string
   requireExistingMetadata?: boolean
@@ -983,9 +986,10 @@ export class BrowserTabsManager {
     return beginWorkspaceContinuityAction(this.workspaceContinuityAccess(), workspaceId, readOnly)
   }
 
-  /** Forgets a workspace deleted with its data: its continuity, and its sites' zoom kept for the next start. */
+  /** Forgets a workspace deleted with its data: its continuity, and its downloads and sites' zoom kept for the next start. */
   private retireWorkspaceContinuity(workspaceId: string): void {
     retireWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId)
+    this.downloadController.forgetWorkspace(workspaceId)
     this.scheduleSiteZoomSave()
   }
 
@@ -1422,6 +1426,8 @@ export class BrowserTabsManager {
     this.store = new TabStateStore(options.storePath)
     this.tabHistoryStore = options.tabHistoryPath ? new TabHistoryStore(options.tabHistoryPath) : undefined
     this.closedTabsStore = options.closedTabsPath ? new ClosedTabsStore(options.closedTabsPath) : undefined
+    // Before the shell first lists the downloads, so it never takes the kept ones for new downloads.
+    if (options.downloadHistory) this.downloadController.restoreHistory(options.downloadHistory.saved, options.downloadHistory.store)
     this.siteZoomStore = options.siteZoomPath ? new SiteZoomStore(options.siteZoomPath) : undefined
     this.toolbarHeight = options.toolbarHeight ?? 104
     this.mcpUrl = options.mcpUrl
@@ -5487,7 +5493,7 @@ export class BrowserTabsManager {
   }
 
   async flushPersist(): Promise<void> {
-    await Promise.all([flushPersist(this.quitFlushAccess()), this.saveForNextStart()])
+    await Promise.all([flushPersist(this.quitFlushAccess()), this.saveForNextStart(), this.downloadController.saveHistory()])
   }
 
   /**

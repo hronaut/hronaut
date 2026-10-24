@@ -14,7 +14,7 @@ function fixture() {
   const listeners = new Map<string, Listener>()
   const bookmarks = { collectionSnapshot: vi.fn(() => ({ revision: 0, collections: [] })), createCollection: vi.fn(), renameCollection: vi.fn(), removeCollection: vi.fn(), assignCollection: vi.fn(), list: vi.fn(() => []), add: vi.fn(), addIfMissing: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), removeRestorably: vi.fn() }
   const history = { list: vi.fn(() => []), remove: vi.fn(), clear: vi.fn() }
-  const downloads = { removeFinishedDownload: vi.fn(() => []), listDownloadsCheckingFiles: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn() }
+  const downloads = { removeFinishedDownload: vi.fn(() => []), listDownloads: vi.fn(() => []), listDownloadsCheckingFiles: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn() }
   const host = {
     assertTrustedSender: vi.fn(),
     async runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T> { host.assertTrustedSender(event); return read() },
@@ -88,7 +88,13 @@ it('registers lazily and publishes a bookmark mutation only after persistence su
 
 it('routes download actions and publishes completed history mutations', async () => {
   const { invoke, downloads, history, host } = fixture()
+  // The shell's list at startup checks no files; the Downloads panel opening does, as Chrome's downloads page.
   await invoke('downloads:list')
+  expect(downloads.listDownloads).toHaveBeenCalledOnce()
+  expect(downloads.listDownloadsCheckingFiles).not.toHaveBeenCalled()
+  await invoke('downloads:list', 'yes')
+  expect(downloads.listDownloadsCheckingFiles).not.toHaveBeenCalled()
+  await invoke('downloads:list', true)
   await invoke('downloads:pause', 'transfer')
   await invoke('downloads:resume', 'transfer')
   await invoke('downloads:cancel', 'transfer')

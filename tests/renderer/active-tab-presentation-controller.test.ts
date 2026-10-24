@@ -193,6 +193,18 @@ describe('active tab presentation controller', () => {
     expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.heading]')
   })
 
+  it('shows on the toolbar only downloads of this run, not those kept from before the restart', () => {
+    // After a restart the button showed a days-old download as just finished, with every kept one counted.
+    const { controller, downloads } = create()
+    const kept = { id: 'kept', url: 'https://example.test/old', filename: 'old.zip', state: 'completed' as const, receivedBytes: 2, totalBytes: 2, startedAt: '2026-08-20T00:00:00.000Z', fromEarlierRun: true }
+    downloads.value = [kept]
+    expect(controller.toolbarDownloads.value).toEqual([])
+    expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.heading]')
+    downloads.value = [{ ...kept, id: 'new', filename: 'new.zip', startedAt: '2026-08-22T00:00:00.000Z', fromEarlierRun: undefined }, kept]
+    expect(controller.toolbarDownloads.value.map(({ id }) => id)).toEqual(['new'])
+    expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.complete:new.zip]')
+  })
+
   it('includes protected tab state in tooltips and formats renderer failures', () => {
     const active = tab({
       title: '',

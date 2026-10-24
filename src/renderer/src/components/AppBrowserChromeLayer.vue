@@ -129,6 +129,7 @@ const {
   activeTabPresentationController,
   activeIsHome,
   activeDownloads,
+  toolbarDownloads,
   currentBookmark,
   downloadButtonLabel,
   effectiveHumanInteractionLocked,
@@ -164,7 +165,6 @@ watch(settingsDialogController.tabOpen, async (present, _previous, onCleanup) =>
   document.querySelector<HTMLElement>('[data-active-tab="true"], .app-home-button.active')?.focus({ preventScroll: true })
 })
 const {
-  downloads,
   downloadsOpen,
   bookmarksOpen,
   historyOpen,
@@ -375,7 +375,7 @@ useChromeSidebarOverlay({
       downloadsOpen: downloadsOpen.value,
       historyOpen: historyOpen.value,
       settingsOpen: settingsOpen.value,
-      downloads: downloads.value,
+      downloads: toolbarDownloads.value,
       activeDownloads: activeDownloads.value,
       downloadButtonLabel: downloadButtonLabel.value,
       hasWebsiteTabs: websiteTabs.value.length > 0,
@@ -509,7 +509,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         :downloads-open="downloadsOpen"
         :history-open="historyOpen"
         :settings-open="settingsOpen"
-        :downloads="downloads"
+        :downloads="toolbarDownloads"
         :active-downloads="activeDownloads"
         :download-button-label="downloadButtonLabel"
         :has-website-tabs="websiteTabs.length > 0"

@@ -38,6 +38,7 @@ import electronUpdater from 'electron-updater'
 import { enableNativeWebMcp } from './native-webmcp-switch.js'
 import { createAppUpdates, type AppUpdatesState } from './app-updates.js'
 import { registerPageInspectionIpc } from './page-inspection-ipc.js'
+import { DownloadHistoryStore } from './browser/download-history/download-history.js'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
 import { TabStateStore, WorkspaceMetadataError } from './browser/tab-store.js'
 import { createTabRuntimeStartup, type TabRuntimeState } from './tab-runtime-startup.js'
@@ -1054,12 +1055,15 @@ async function createWindow(startMinimized = false): Promise<void> {
 
   const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletRuntime.broker)
   await startAgentServices()
+  const downloadHistory = new DownloadHistoryStore(join(app.getPath('userData'), 'download-history.json'))
+  const savedDownloads = await downloadHistory.load()
   tabRuntime.tabs = new BrowserTabsManager(mainWindowRefs.window, {
     partition: PARTITION,
     sessionDataPath: app.getPath('sessionData'),
     storePath: join(app.getPath('userData'), 'tabs.json'),
     tabHistoryPath: join(app.getPath('userData'), 'tab-history.json'),
     closedTabsPath: join(app.getPath('userData'), 'closed-tabs.json'),
+    downloadHistory: { store: downloadHistory, saved: savedDownloads },
     siteZoomPath: join(app.getPath('userData'), 'site-zoom.json'),
     requireExistingMetadata: requireExistingWorkspaceMetadata,
     mcpUrl: mcpRuntime.url,
