@@ -3051,6 +3051,7 @@ export const frFR = {
     "summary": "{count} processus utilise {memory} | {count} processus utilisent {memory}"
   },
   "bookmarks": { sortOrder: "Trier les favoris", sortUpdated: "Récemment modifiés", sortTitle: "Titre", copyAddress: "Copier l’adresse", copyAddressAria: "Copier l’adresse de {title}", addressCopied: "Adresse copiée", copyFailed: "Impossible de copier l’adresse. Réessayez.",
+    file: { import: "Importer…", export: "Exporter…", importHint: "Importer des favoris depuis un fichier HTML, comme un fichier exporté de Chrome", exportHint: "Exporter les favoris dans un fichier HTML que Chrome et d’autres navigateurs peuvent importer", exported: "{count} favori exporté. | {count} favoris exportés.", imported: "{count} favori importé. | {count} favoris importés.", alreadySaved: "{count} était déjà enregistré. | {count} étaient déjà enregistrés.", notWebPages: "{count} lien n’est pas une page web et a été ignoré. | {count} liens ne sont pas des pages web et ont été ignorés.", overLimit: "Hronaut conserve jusqu’à {max} favoris, donc {count} a été ignoré. | Hronaut conserve jusqu’à {max} favoris, donc {count} ont été ignorés.", nothingNew: "Aucun nouveau favori n’a été importé." },
     "collection": "Collection",
     "collectionFilter": "Filtrer les favoris par collection",
     "allCollections": "Tous les favoris",
@@ -3783,6 +3784,10 @@ export const frFR = {
       "wavAudioFilter": "Audio PCM WAV",
       "chooseVideoAudio": "Choisir l’audio de la vidéo",
       "chooseAudio": "Choisir l’audio",
+      "exportBookmarksTitle": "Exporter les favoris",
+      "importBookmarksTitle": "Importer des favoris",
+      "bookmarksFileFilter": "Fichier HTML de favoris",
+      "importBookmarksButton": "Importer",
       "devToolsWindowTitle": "Outils de développement Hronaut — {title}",
       "savePageTitle": "Enregistrer la page sous",
       "webpageComplete": "Page Web, complète",

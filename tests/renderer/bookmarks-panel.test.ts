@@ -33,6 +33,9 @@ function panelProps(overrides: Record<string, unknown> = {}) {
     copyBookmarkAddress: vi.fn(async () => undefined),
     openBookmarkInBackground: vi.fn(async () => undefined),
     openBookmark: vi.fn(async () => undefined),
+    exportBookmarks: vi.fn(async () => null),
+    importBookmarks: vi.fn(async () => null),
+    formatNumber: (value: number) => value.toLocaleString('en-US'),
     ...overrides
   }
 }
@@ -1001,5 +1004,45 @@ describe('opening a bookmark behind with a middle-click or Ctrl+click, as in Chr
     await flushPromises()
     expect(openBookmarkInBackground).toHaveBeenCalledOnce()
     finish()
+  })
+})
+
+describe('bookmarks file', () => {
+  it('imports and exports a bookmarks file from the panel, as Chrome\'s bookmark manager, with nothing to export when empty', async () => {
+    const importBookmarks = vi.fn(async () => ({ added: 2, alreadySaved: 0, notWebPages: 0, overLimit: 0, limit: 500 }))
+    const exportBookmarks = vi.fn(async () => 2)
+    const view = renderPanel({ importBookmarks, exportBookmarks })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Export…' }))
+    await flushPromises()
+    expect(screen.getByRole('status')).toHaveTextContent('Exported 2 bookmarks.')
+    await view.rerender(panelProps({ importBookmarks, exportBookmarks, bookmarks: [], currentBookmark: undefined }))
+    expect(screen.getByRole('button', { name: 'Export…' })).toHaveAttribute('aria-disabled', 'true')
+    await user.click(screen.getByRole('button', { name: 'Import…' }))
+    await flushPromises()
+    expect(importBookmarks).toHaveBeenCalledOnce()
+    expect(screen.getByRole('status')).toHaveTextContent('Imported 2 bookmarks.')
+    expect(exportBookmarks).toHaveBeenCalledOnce()
+  })
+
+  it('opens no file dialog while a bookmark is being removed', async () => {
+    let finish!: (bookmarks: BrowserBookmark[]) => void
+    const importBookmarks = vi.fn(async () => null)
+    const exportBookmarks = vi.fn(async () => null)
+    renderPanel({ importBookmarks, exportBookmarks, removeBookmark: vi.fn(() => new Promise<BrowserBookmark[]>(resolve => { finish = resolve })) })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Remove Beta page' }))
+    const importButton = screen.getByRole('button', { name: 'Import…' })
+    expect(importButton).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('button', { name: 'Export…' })).toHaveAttribute('aria-disabled', 'true')
+    await user.click(importButton)
+    await user.click(screen.getByRole('button', { name: 'Export…' }))
+    expect(importBookmarks).not.toHaveBeenCalled()
+    expect(exportBookmarks).not.toHaveBeenCalled()
+    finish([bookmark('alpha', 'Alpha docs')])
+    await flushPromises()
+    expect(importButton).toHaveAttribute('aria-disabled', 'false')
+    await user.click(importButton)
+    expect(importBookmarks).toHaveBeenCalledOnce()
   })
 })

@@ -277,7 +277,11 @@ export const ukUAAppErrors: AppErrorMessages = {
     "collectionNameTaken": "Колекція закладок із такою назвою вже існує.",
     "collectionName": "Назва колекції має містити від 1 до 80 символів.",
     "storageUnavailable": "Сховище закладок недоступне.",
-    "historyUnavailable": "Історія відвідувань недоступна."
+    "historyUnavailable": "Історія відвідувань недоступна.",
+    "exportFailed": "Не вдалося зберегти файл закладок.",
+    "importTooLarge": "Цей файл завеликий для файлу закладок.",
+    "importUnreadable": "Не вдалося прочитати цей файл.",
+    "importEmpty": "У цьому файлі не знайдено закладок."
   },
   "pageTools": {
     "devToolsOpen": "Закрийте інструменти розробника для цієї вкладки й спробуйте ще раз.",

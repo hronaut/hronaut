@@ -93,6 +93,8 @@ function createHarness() {
     addIfMissing: vi.fn(async () => []),
     updateDestination: vi.fn(async () => []),
     remove: removeBookmark,
+    exportFile: vi.fn(async () => 2),
+    importFile: vi.fn(async () => ({ added: 1, alreadySaved: 1, notWebPages: 0, overLimit: 0, limit: 500 })),
     onChanged: onBookmarksChanged
   }
   const listHistory = vi.fn(async (): Promise<BrowserHistoryEntry[]> => [])
@@ -308,6 +310,12 @@ describe('useBrowserCollectionsController', () => {
     harness.emitBookmarks([bookmark('after-retry')])
     expect(harness.controller.bookmarks.value.map((item) => item.id)).toEqual(['after-retry'])
     harness.controller.dispose()
+  })
+
+  it('exports and imports a bookmarks file through main, whose published list then reaches the panel', async () => {
+    const harness = createHarness()
+    await expect(harness.controller.exportBookmarksFile()).resolves.toBe(2)
+    await expect(harness.controller.importBookmarksFile()).resolves.toEqual({ added: 1, alreadySaved: 1, notWebPages: 0, overLimit: 0, limit: 500 })
   })
 
   it('releases every collection listener when one unsubscriber throws', async () => {

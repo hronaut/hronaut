@@ -13,11 +13,12 @@ import IconLink from '~icons/material-symbols/link-rounded'
 import IconLanguage from '~icons/material-symbols/language-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconStarOutline from '~icons/material-symbols/star-outline-rounded'
-import type { BrowserBookmark, HronautBookmarkCollectionsApi, PanelDock } from '../../../shared/types.js'
+import type { BookmarkImportResult, BrowserBookmark, HronautBookmarkCollectionsApi, PanelDock } from '../../../shared/types.js'
 import { useBookmarksPanelController } from '../composables/useBookmarksPanelController.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { asMiddleClick, openClickTab } from '../open-click.js'
 import BookmarkCollectionsToolbar from './BookmarkCollectionsToolbar.vue'
+import BookmarksFileActions from './BookmarksFileActions.vue'
 import { useBookmarkCollectionsController } from '../composables/useBookmarkCollectionsController.js'
 import PanelDockPicker from './PanelDockPicker.vue'
 import { vTooltip } from '../ui/tooltip.js'
@@ -35,6 +36,9 @@ const props = defineProps<{
   openBookmark: (bookmark: BrowserBookmark) => Promise<void>
   copyBookmarkAddress: (bookmark: BrowserBookmark) => Promise<void>
   openBookmarkInBackground: (bookmark: BrowserBookmark) => Promise<void>
+  exportBookmarks: () => Promise<number | null>
+  importBookmarks: () => Promise<BookmarkImportResult | null>
+  formatNumber: (value: number) => string
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -401,6 +405,8 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
         </label>
       </article>
     </div>
+    <!-- As in Chrome's bookmark manager, bookmarks move to and from other browsers in an HTML bookmarks file. -->
+    <BookmarksFileActions :count="bookmarks.length" :blocked="anyPending" :export-bookmarks="exportBookmarks" :import-bookmarks="importBookmarks" :format-number="formatNumber" />
     <p v-if="copyFeedback === 'success'" class="bookmarks-feedback" role="status">{{ t('bookmarks.addressCopied') }}</p>
     <p v-if="copyFeedback === 'error'" class="bookmarks-error" role="alert">{{ t('bookmarks.copyFailed') }}</p>
     <p v-if="error" class="bookmarks-error" role="alert">{{ error }}</p>

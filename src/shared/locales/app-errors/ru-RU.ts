@@ -277,7 +277,11 @@ export const ruRUAppErrors: AppErrorMessages = {
     "collectionNameTaken": "Коллекция закладок с таким названием уже существует.",
     "collectionName": "Название коллекции должно содержать от 1 до 80 символов.",
     "storageUnavailable": "Хранилище закладок недоступно.",
-    "historyUnavailable": "История посещений недоступна."
+    "historyUnavailable": "История посещений недоступна.",
+    "exportFailed": "Не удалось сохранить файл закладок.",
+    "importTooLarge": "Этот файл слишком большой для файла закладок.",
+    "importUnreadable": "Не удалось прочитать этот файл.",
+    "importEmpty": "В этом файле не найдено закладок."
   },
   "pageTools": {
     "devToolsOpen": "Закройте инструменты разработчика для этой вкладки и повторите попытку.",

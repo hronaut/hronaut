@@ -40,6 +40,7 @@ import type { CredentialImportResult, CredentialStorageStatus, CredentialSummary
 import type { AppReleaseHistoryPage, AppUpdateState } from './updates.js'
 import type {
   BookmarkCollectionSnapshot,
+  BookmarkImportResult,
   BrowserBookmark,
   BrowserDownloadState,
   BrowserHistoryEntry,
@@ -104,6 +105,10 @@ export interface HronautBookmarksApi {
   rename(id: string, title: string): Promise<BrowserBookmark[]>
   updateDestination(id: string, url: string): Promise<BrowserBookmark[]>
   remove(id: string): Promise<BrowserBookmark[]>
+  /** Saves every bookmark to an HTML bookmarks file the person picks, as Chrome exports them: how many, or null when they cancel. */
+  exportFile(): Promise<number | null>
+  /** Adds the bookmarks of an HTML bookmarks file the person picks, as Chrome imports them, or null when they cancel. */
+  importFile(): Promise<BookmarkImportResult | null>
   onChanged(listener: (bookmarks: BrowserBookmark[]) => void): () => void
 }
 

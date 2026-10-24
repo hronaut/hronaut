@@ -277,7 +277,11 @@ export const deDEAppErrors: AppErrorMessages = {
     "collectionNameTaken": "Eine Lesezeichensammlung mit diesem Namen existiert bereits.",
     "collectionName": "Der Sammlungsname muss 1 bis 80 Zeichen enthalten.",
     "storageUnavailable": "Der Lesezeichenspeicher ist nicht verfügbar.",
-    "historyUnavailable": "Der Besuchsverlauf ist nicht verfügbar."
+    "historyUnavailable": "Der Besuchsverlauf ist nicht verfügbar.",
+    "exportFailed": "Die Lesezeichendatei konnte nicht gespeichert werden.",
+    "importTooLarge": "Diese Datei ist zu groß für eine Lesezeichendatei.",
+    "importUnreadable": "Diese Datei konnte nicht gelesen werden.",
+    "importEmpty": "In dieser Datei wurden keine Lesezeichen gefunden."
   },
   "pageTools": {
     "devToolsOpen": "Schließen Sie die Entwicklertools für diesen Tab und versuchen Sie es dann erneut.",
