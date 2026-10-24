@@ -2,6 +2,7 @@ import { session, type Cookie } from 'electron'
 import { BrowserImportError } from '../../browser-import/contracts.js'
 import type { ImportDestination } from '../../browser-import/service.js'
 import { writeImportedCookies } from '../../browser-import/write.js'
+import { keepSessionCookies } from '../session-cookies/saved-session-cookies.js'
 import { evaluateWorkspaceNavigation } from '../workspace-navigation-policy.js'
 import { normalizeWorkspaceStorageOrigins, workspacePartition } from '../workspace-storage.js'
 import type { WorkspaceDataAccess } from './workspace-data-access.js'
@@ -34,6 +35,8 @@ export async function importBrowserCookies(access: WorkspaceDataAccess, destinat
       const group = (access.mcpTabGroups().get(id) ?? access.savedTabGroups().get(id))!
       const target = session.fromPartition(workspacePartition(access.options().partition, group.storageId))
       access.options().configureSession?.(target)
+      // The sign-ins it saved at the last quit are back first, so the import sees them as the cookies a site has.
+      await keepSessionCookies(target)
       access.browserCookieImportSessions().add(target)
       try {
         const { origins, ...result } = await writeImportedCookies(target, cookies, group.origins,
