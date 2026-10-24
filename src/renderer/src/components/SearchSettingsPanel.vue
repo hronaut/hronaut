@@ -14,6 +14,8 @@ const { t } = useI18n({ useScope: 'global' })
 const { settings, busy, select } = props.controller
 
 function navigateEngine(event: KeyboardEvent): void {
+  // With Alt, Ctrl or Cmd these keys are the browser's, such as Alt+Home for Home and Alt+Left for Back.
+  if (event.altKey || event.ctrlKey || event.metaKey) return
   const current = event.currentTarget
   if (!(current instanceof HTMLButtonElement)) return
   const radios = [...(current.closest('[role="radiogroup"]')?.querySelectorAll<HTMLButtonElement>('[data-engine]') ?? [])]

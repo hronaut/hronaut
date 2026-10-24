@@ -75,6 +75,7 @@ function createController(canRunAction = (_action: string) => true) {
     closeSettingsTab: vi.fn(() => { settingsOpen.value = false; settingsTabOpen.value = false }),
     openNewTab: vi.fn(async () => undefined),
     focusAddress: vi.fn(async () => undefined),
+    openHome: vi.fn(async () => undefined),
     openFind: vi.fn(async () => undefined),
     findAgain: vi.fn(async (_again: 'next' | 'previous') => undefined),
     setZoom: vi.fn(async () => undefined),
@@ -158,6 +159,17 @@ describe('browser shortcut controller', () => {
     settingsOpen.value = true
     expect(await controller.run('focus-next-pane')).toBe(false)
     expect(browser.focusActivePage).toHaveBeenCalledOnce()
+  })
+
+  // Alt+Home did nothing, where Chrome opens the home page. It opens Hronaut Home as the Home button does, which also
+  // closes Settings.
+  it('opens Home from Alt+Home, also from Settings', async () => {
+    const { settingsOpen, callbacks, controller } = createController()
+    expect(await controller.run('open-home')).toBe(true)
+    settingsOpen.value = true
+    expect(await controller.run('open-home')).toBe(true)
+    expect(callbacks.openHome).toHaveBeenCalledTimes(2)
+    expect(callbacks.focusAddress).not.toHaveBeenCalled()
   })
 
   it('moves no tab while Settings is in view', async () => {

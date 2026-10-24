@@ -221,6 +221,8 @@ export function useSplitViewResizeController(api?: HronautSplitDividerApi) {
   function resizeWithKeyboard(event: KeyboardEvent): void {
     const current = geometry.value
     if (!current) return
+    // With Alt, Ctrl or Cmd these keys are the browser's, such as Alt+Home for Home and Alt+Left for Back.
+    if (event.altKey || event.ctrlKey || event.metaKey) return
     const keys = current.orientation === 'vertical' ? ['ArrowLeft', 'ArrowRight'] : ['ArrowUp', 'ArrowDown']
     const direction = event.key === keys[0] ? -1 : event.key === keys[1] ? 1 : 0
     if (!direction && !['Home', 'End', 'Enter'].includes(event.key)) return

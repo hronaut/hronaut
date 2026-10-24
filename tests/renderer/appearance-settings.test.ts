@@ -81,6 +81,16 @@ describe('AppearanceSettings', () => {
     await userEvent.setup().keyboard('{ArrowRight}')
     expect(system).toHaveFocus()
     expect(setTheme.mock.calls.map(([theme]) => theme)).toEqual(['light', 'system', 'galactic', 'system'])
+    // With Alt, Ctrl or Cmd these keys are the browser's: Alt+Home chose the first theme instead of opening Home.
+    for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      for (const key of ['Home', 'End', 'ArrowRight']) {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers })
+        system.dispatchEvent(event)
+        expect(event.defaultPrevented, key).toBe(false)
+      }
+    }
+    expect(system).toHaveFocus()
+    expect(setTheme).toHaveBeenCalledTimes(4)
   })
 
   it('renders accessible theme controls', () => {

@@ -368,6 +368,7 @@ export function useAppShellInteractionFeatureController(
     },
     openNewTab: async () => { await tabNavigation.openNewTab() },
     focusAddress: async () => { await tabNavigation.focusAddress() },
+    openHome: home.openHome,
     openFind: find.open,
     findAgain: find.findAgain,
     setZoom: transient.setZoom,

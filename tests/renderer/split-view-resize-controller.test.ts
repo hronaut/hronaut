@@ -105,6 +105,14 @@ describe('direct split divider resizing', () => {
     key('Home'); await flush(); expect(h.api.setRatio).toHaveBeenLastCalledWith(1, .25)
     key('End'); await flush(); expect(h.api.setRatio).toHaveBeenLastCalledWith(1, .75)
     key('Enter'); await flush(); expect(h.api.setRatio).toHaveBeenLastCalledWith(1, .5)
+    // With Alt, Ctrl or Cmd these keys are the browser's, such as Alt+Home for Home.
+    const calls = h.api.setRatio.mock.calls.length
+    for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      const event = new KeyboardEvent('keydown', { key: 'Home', cancelable: true, ...modifiers })
+      h.controller.resizeWithKeyboard(event)
+      expect(event.defaultPrevented).toBe(false)
+    }
+    await flush(); expect(h.api.setRatio).toHaveBeenCalledTimes(calls)
   })
   it('accumulates repeated keys and serializes their target against the acknowledged revision', async () => {
     const h = harness(); await flush()

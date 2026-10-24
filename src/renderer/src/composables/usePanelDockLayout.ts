@@ -199,6 +199,8 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
   function resizeWithKeyboard(event: KeyboardEvent): void {
     const dock = options.dock.value
     if (!isDockedPosition(dock)) return
+    // With Alt, Ctrl or Cmd these keys are the browser's, such as Alt+Home for Home and Alt+Left for Back.
+    if (event.altKey || event.ctrlKey || event.metaKey) return
     const horizontal = isHorizontalDock(dock)
     if (event.key === 'Home') {
       event.preventDefault()

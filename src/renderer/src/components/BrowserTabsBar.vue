@@ -312,6 +312,8 @@ function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
     if (!event.repeat) emit('toggleTabMuted', tab)
     return
   }
+  // With Alt, Ctrl or Cmd these keys are the browser's, such as Alt+Home for Home and Alt+Left for Back.
+  if (event.altKey || event.ctrlKey || event.metaKey) return
   const tabs = visibleTabs.value
   const currentIndex = tabs.findIndex((candidate) => candidate.id === tab.id)
   const previousKey = vertical.value ? 'ArrowUp' : 'ArrowLeft'

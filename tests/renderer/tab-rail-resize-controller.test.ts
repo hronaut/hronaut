@@ -127,6 +127,13 @@ describe('tab rail resizing', () => {
     expect(h.controller.width.value).toBe(200)
     h.keyboard('End')
     expect(h.controller.width.value).toBe(480)
+    // With Alt, Ctrl or Cmd these keys are the browser's: Alt+Home narrowed the rail instead of opening Home.
+    for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      const event = new KeyboardEvent('keydown', { key: 'Home', cancelable: true, ...modifiers })
+      h.controller.resizeWithKeyboard(event)
+      expect(event.defaultPrevented).toBe(false)
+    }
+    expect(h.controller.width.value).toBe(480)
     h.controller.resetSize()
     expect(h.controller.width.value).toBe(280)
     expect(values.has(key)).toBe(false)

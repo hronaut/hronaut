@@ -92,6 +92,8 @@ export function useTabRailResizeController(options: {
 
   function resizeWithKeyboard(event: KeyboardEvent): void {
     if (disposed || !options.enabled.value || resizing.value) return
+    // With Alt, Ctrl or Cmd these keys are the browser's, such as Alt+Home for Home and Alt+Left for Back.
+    if (event.altKey || event.ctrlKey || event.metaKey) return
     const direction = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0
     if (!direction && event.key !== 'Home' && event.key !== 'End') return
     event.preventDefault()

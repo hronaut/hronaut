@@ -9,6 +9,7 @@ All notable changes to Hronaut are documented in this file.
 - On Windows and Linux, **Ctrl+Shift+Page Down** and **Ctrl+Shift+Page Up** move the tab in view after the next or before the previous of its workspace's tabs, as in Chrome, from the page or from Hronaut's window. Pinned tabs move among the pinned ones, and a tab at either end stays where it is. A website that handles one of these keys itself, such as a web code editor moving its own editor tab, keeps it.
 - On Windows and Linux, **F6** and **Shift+F6** go from the page to the address bar and from Hronaut's window back to the page, as in Chrome, so the keyboard alone can return to the page from the address bar or the tab list. From Home, which has no address bar, they go to Hronaut's window. A website that handles the key itself keeps it.
 - On Windows and Linux, **Ctrl+F4** closes the tab in view, as **Ctrl+W** does and as in Chrome, from the page or from Hronaut's window.
+- On Windows and Linux, **Ctrl+E** goes to the address bar and **Alt+Home** opens Home, as in Chrome, from the page or from Hronaut's window. A website that handles one of these keys itself, such as a web document editor centring a paragraph with **Ctrl+E**, keeps it.
 
 ### Changed
 
@@ -20,6 +21,7 @@ All notable changes to Hronaut are documented in this file.
 
 - A Hronaut dialog that appears while **Edit workspace** or **Search tabs** is open, such as a website's permission request, now keeps the focus on its safe answer. The open panel took the focus back, so **Enter** pressed the panel's close button and **Tab** could not reach the dialog's other answer.
 - On Windows and Linux, browser keys now do nothing while a Hronaut dialog or the command palette is open, so they no longer act on the page behind it or take the dialog's place. **Ctrl+R** and **F5** reloaded the page, **Ctrl+Plus** and **Ctrl+Minus** zoomed it, **Alt+D** took the keyboard out of the dialog to the address bar, and **Ctrl+Shift+P** and **Ctrl+Shift+/** put the command palette or Keyboard shortcuts in the dialog's place. Quitting with **Ctrl+Q** still works there.
+- **Home**, **End** and the arrow keys pressed with **Alt**, **Ctrl** or **Cmd** no longer move the keyboard along the tabs, a settings choice such as the theme or the search engine, or a workspace's colors, nor resize a panel or the tab list, so they act as they do elsewhere in Hronaut's window. **Alt+Left** and **Alt+Right** on a tab moved the keyboard to the tab before or after instead of going back or forward, and **Alt+Left** on a theme chose another theme.
 
 ## [3.9.0] - 2026-10-24
 

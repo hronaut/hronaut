@@ -31,6 +31,7 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.addressForgetVisit'), keys: mac ? ['Shift', 'Fn', 'Delete'] : ['Shift', 'Delete'] },
     { label: options.translate('runtime.shortcuts.back'), keys: mac ? ['Cmd', '['] : ['Alt', '←'] },
     { label: options.translate('runtime.shortcuts.forward'), keys: mac ? ['Cmd', ']'] : ['Alt', '→'] },
+    ...(mac ? [] : [{ label: options.translate('shell.home.open'), keys: ['Alt', 'Home'] }]),
     { label: options.translate('runtime.shortcuts.reload'), keys: ['Ctrl/Cmd', 'R'] },
     { label: options.translate('runtime.shortcuts.reloadFresh'), keys: ['Ctrl/Cmd', 'Shift', 'R'] },
     { label: options.translate('runtime.shortcuts.newTab'), keys: ['Ctrl/Cmd', 'T'] },

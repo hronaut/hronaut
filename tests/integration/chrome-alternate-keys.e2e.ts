@@ -3,19 +3,19 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeFixtureServer } from './fixtures.js'
 import { expect, test, text } from './capability-fixtures.js'
 
-test('F5, Shift+F5, Ctrl+F5, Alt+D, F6, Ctrl+F4 and Ctrl+Page Up and Down, with Shift to move the tab, work as in Chrome, and a website keeps F5, Alt+D, F6 and the move keys', async ({ capabilities, appWindow, electronApp }) => {
+test('F5, Shift+F5, Ctrl+F5, Alt+D, Ctrl+E, Alt+Home, F6, Ctrl+F4 and Ctrl+Page Up and Down, with Shift to move the tab, work as in Chrome, and a website keeps F5, Alt+D, Ctrl+E, Alt+Home, F6 and the move keys', async ({ capabilities, appWindow, electronApp }) => {
   test.skip(process.platform === 'darwin', 'Chrome has none of these keys on macOS but the tab keys, which the unit tests cover')
   const { client, tabId } = capabilities
   const loads: Array<{ path: string, cacheControl: string | undefined }> = []
   const server = createServer((request, response) => {
     loads.push({ path: request.url ?? '', cacheControl: request.headers['cache-control'] })
     response.writeHead(200, { 'content-type': 'text/html' })
-    // Every page notes the keys it gets; /editor runs F5, Alt+D, F6, Ctrl+Shift+Page Up and Ctrl+F4 itself, as a web
-    // editor or terminal does.
+    // Every page notes the keys it gets; /editor runs F5, Alt+D, Ctrl+E, Alt+Home, F6, Ctrl+Shift+Page Up and Ctrl+F4
+    // itself, as a web editor or terminal does.
     const editor = request.url?.startsWith('/editor') === true
     response.end(`<!doctype html><title>${request.url}</title><script>window.keys = []; addEventListener('keydown', (event) => {
       window.keys.push(event.key)
-      if (${editor} && (event.key === 'F5' || event.key === 'F6' || (event.altKey && event.key.toLowerCase() === 'd') || (event.ctrlKey && event.shiftKey && event.key === 'PageUp') || (event.ctrlKey && event.key === 'F4'))) event.preventDefault()
+      if (${editor} && (event.key === 'F5' || event.key === 'F6' || (event.altKey && event.key.toLowerCase() === 'd') || (event.ctrlKey && event.key.toLowerCase() === 'e') || (event.altKey && event.key === 'Home') || (event.ctrlKey && event.shiftKey && event.key === 'PageUp') || (event.ctrlKey && event.key === 'F4'))) event.preventDefault()
     })</script>`)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -77,12 +77,18 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6, Ctrl+F4 and Ctrl+Page Up and Down, with 
     await expect(addressBar).toBeFocused()
     await pressInWindow('F6', ['shift'])
     await expect.poll(focusedPage).toBe(`${origin}/page`)
+    // Ctrl+E goes to the address bar too, as in Chrome.
+    await press(tabId, 'E', ['control'])
+    await expect.poll(focusedPage).toBe(appWindow.url())
+    await expect(addressBar).toBeFocused()
+    await pressInWindow('F6')
+    await expect.poll(focusedPage).toBe(`${origin}/page`)
     await press(tabId, 'F6')
     await expect.poll(focusedPage).toBe(appWindow.url())
     await expect(addressBar).toBeFocused()
-    // Over a Hronaut dialog F6, Alt+D, F5 and the application menu's keys leave the keyboard where it is in the dialog,
-    // and the tab where it is: Ctrl+R reloaded the page behind it, Ctrl+Plus and Ctrl+Minus zoomed it, and
-    // Ctrl+Shift+P and Ctrl+Shift+/ put the command palette and Keyboard shortcuts in the dialog's place.
+    // Over a Hronaut dialog F6, Alt+D, Ctrl+E, Alt+Home, F5 and the application menu's keys leave the keyboard where it
+    // is in the dialog, and the tab where it is: Ctrl+R reloaded the page behind it, Ctrl+Plus and Ctrl+Minus zoomed it,
+    // and Ctrl+Shift+P and Ctrl+Shift+/ put the command palette and Keyboard shortcuts in the dialog's place.
     await electronApp.evaluate(({ BrowserWindow }, url) => {
       BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents.send('help:open', 'about')
     }, appWindow.url())
@@ -97,6 +103,8 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6, Ctrl+F4 and Ctrl+Page Up and Down, with 
     const zoomBefore = await zoom()
     await pressInWindow('F6')
     await pressInWindow('D', ['alt'])
+    await pressInWindow('E', ['control'])
+    await pressInWindow('Home', ['alt'])
     await pressInWindow('F5')
     await pressInWindow('R', ['control'])
     await pressInWindow('R', ['control', 'shift'])
@@ -142,10 +150,12 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6, Ctrl+F4 and Ctrl+Page Up and Down, with 
     expect(loadsOf('/page')).toHaveLength(5)
     expect(await zoom()).toBe(zoomBefore)
 
-    // Home has no address bar, so F6 there goes to Hronaut's window without leaving Home, and back.
-    await appWindow.evaluate(`window.hronaut.openHome()`)
+    // Alt+Home opens Home from the page, as Chrome opens its home page, with the keyboard there.
+    await press(tabId, 'Home', ['alt'])
+    await expect.poll(async () => (await state()).activeTabId).not.toBe(tabId)
     const home = (await state()).activeTabId
-    expect(home).not.toBe(tabId)
+    expect(await pageOf(home)).toMatch(/^hronaut:\/\/home/)
+    // Home has no address bar, so F6 there goes to Hronaut's window without leaving Home, and back.
     await expect.poll(async () => (await focusedPage())?.startsWith('hronaut://home')).toBe(true)
     const homePage = (await focusedPage())!
     const tabsWithHome = (await state()).tabs.length
@@ -162,6 +172,15 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6, Ctrl+F4 and Ctrl+Page Up and Down, with 
     await expect.poll(focusedPage).toBe(homePage)
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await expect.poll(async () => (await state()).activeTabId).toBe(tabId)
+    // And from Hronaut's own window, also with the keyboard on a tab, where Home goes to the first tab.
+    for (const control of [addressBar, appWindow.getByRole('tab', { name: /^\/page/ })]) {
+      await control.focus()
+      await expect(control).toBeFocused()
+      await pressInWindow('Home', ['alt'])
+      await expect.poll(async () => (await state()).activeTabId).toBe(home)
+      await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+      await expect.poll(async () => (await state()).activeTabId).toBe(tabId)
+    }
 
     // An agent's F5 stays with the page, as in Chrome.
     await keys(tabId, 'window.keys = []')
@@ -171,15 +190,18 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6, Ctrl+F4 and Ctrl+Page Up and Down, with 
     await appWindow.waitForTimeout(500)
     expect(loadsOf('/page')).toHaveLength(5)
 
-    // A page that runs F5 and Alt+D itself keeps them.
+    // A page that runs F5, Alt+D, Ctrl+E, Alt+Home and F6 itself keeps them.
     await visit('/editor')
     await press(tabId, 'F5')
     await press(tabId, 'D', ['alt'])
+    await press(tabId, 'E', ['control'])
+    await press(tabId, 'Home', ['alt'])
     await press(tabId, 'F6')
-    await expect.poll(async () => (await keys(tabId)).map(key => key.toLowerCase())).toEqual(['f5', 'd', 'f6'])
+    await expect.poll(async () => (await keys(tabId)).map(key => key.toLowerCase())).toEqual(['f5', 'd', 'e', 'home', 'f6'])
     await appWindow.waitForTimeout(500)
     expect(loadsOf('/editor')).toHaveLength(1)
     expect(await focusedPage()).toBe(`${origin}/editor`)
+    expect((await state()).activeTabId).toBe(tabId)
 
     // Ctrl+Page Up and Ctrl+Page Down, from the page and from Hronaut's own window.
     const workspace = (await state()).tabs.find(tab => tab.id === tabId)!.mcpGroupId
@@ -252,6 +274,22 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6, Ctrl+F4 and Ctrl+Page Up and Down, with 
     await appWindow.waitForTimeout(500)
     expect(await isOpen(inView)).toBe(true)
     expect(await isOpen(tabId)).toBe(true)
+
+    // With the keyboard on a tab, Alt+Left and Alt+Right go back and forward, as from the rest of Hronaut's window,
+    // rather than moving the keyboard to the tab before or after.
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+    await expect.poll(async () => (await state()).activeTabId).toBe(tabId)
+    const editorTab = appWindow.getByRole('tab', { name: /^\/editor(?!\?)/ })
+    await editorTab.focus()
+    await expect(editorTab).toBeFocused()
+    await pressInWindow('Left', ['alt'])
+    await expect.poll(() => path(tabId)).toBe('/page')
+    const pageTab = appWindow.getByRole('tab', { name: /^\/page/ })
+    await pageTab.focus()
+    await expect(pageTab).toBeFocused()
+    await pressInWindow('Right', ['alt'])
+    await expect.poll(() => path(tabId)).toBe('/editor')
+    expect((await state()).activeTabId).toBe(tabId)
   } finally {
     await closeFixtureServer(server)
   }

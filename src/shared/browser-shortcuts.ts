@@ -3,6 +3,7 @@ import { shortcutKey } from './shortcut-key.js'
 export type BrowserShortcutAction =
   | 'focus-address'
   | 'focus-next-pane'
+  | 'open-home'
   | 'new-tab'
   | 'close-tab'
   | 'reopen-closed-tab'
@@ -90,12 +91,13 @@ function chromeTabShortcut(input: BrowserShortcutInput, key: string): BrowserSho
 
 /**
  * Chrome's keys a website may keep, elsewhere than macOS: F5 reloads, Shift+F5 or Ctrl+F5 reloads without the cache,
- * Alt+D goes to the address bar, F3 or Ctrl+G finds the next match, with Shift the previous one, Ctrl+Shift+Page Down
- * and Ctrl+Shift+Page Up move the tab, and F6 or Shift+F6 goes to the next pane: from a page to the address bar, and
- * from Hronaut's window back to the page. A website's own keys come first there, as in Chrome, where a web editor runs F5
- * as its debugger, Ctrl+G to go to a line and Ctrl+Shift+Page Down to move its own editor tab, and a web terminal reads
- * Alt+D, so they act only when the page in focus leaves them alone, and in Hronaut's own window as the
- * browser's keys at once. On macOS, Cmd+G and Cmd+Shift+G reach the Edit menu's Find Next and Find Previous.
+ * Alt+D and Ctrl+E go to the address bar, Alt+Home opens Home, F3 or Ctrl+G finds the next match, with Shift the
+ * previous one, Ctrl+Shift+Page Down and Ctrl+Shift+Page Up move the tab, and F6 or Shift+F6 goes to the next pane:
+ * from a page to the address bar, and from Hronaut's window back to the page. A website's own keys come first there, as
+ * in Chrome, where a web editor runs F5 as its debugger, Ctrl+G to go to a line and Ctrl+Shift+Page Down to move its
+ * own editor tab, and a web terminal reads Alt+D, so they act only when the page in focus leaves them alone, and in
+ * Hronaut's own window as the browser's keys at once. On macOS, Cmd+G and Cmd+Shift+G reach the Edit menu's Find Next
+ * and Find Previous.
  */
 export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
   if (input.mac || input.meta || input.repeat || input.composing) return null
@@ -105,6 +107,8 @@ export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserS
     if (input.control !== input.shift) return 'reload-ignoring-cache'
   }
   if (key === 'd' && input.alt && !input.control && !input.shift) return 'focus-address'
+  if (key === 'e' && input.control && !input.alt && !input.shift) return 'focus-address'
+  if (key === 'home' && input.alt && !input.control && !input.shift) return 'open-home'
   if (key === 'f6' && !input.alt && !input.control) return 'focus-next-pane'
   if (!input.alt && ((key === 'f3' && !input.control) || (key === 'g' && input.control))) return input.shift ? 'find-previous' : 'find-next'
   if (input.control && input.shift && !input.alt) {
