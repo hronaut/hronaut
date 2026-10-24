@@ -87,6 +87,7 @@ import { registerTabsIpc } from './tabs-ipc.js'
 import { registerNavigationIpc } from './navigation-ipc.js'
 import { regionalPdfPageSize } from './browser/pdf-export/pdf-paper-size.js'
 import { createWindowAppearance, resolvedTheme, THEME_BACKGROUND } from './windows/appearance.js'
+import { showStartupNoticeWindow } from './windows/startup-notice-window.js'
 import { createInterfaceLanguage } from './interface-language.js'
 import { registerEmulationIpc } from './emulation-ipc.js'
 import { registerVirtualPasskeyIpc } from './virtual-passkey-ipc.js'
@@ -216,6 +217,10 @@ let requireExistingWorkspaceMetadata = false
 const { runNativeBrowserAction, showWorkspaceRecoveryNotice } = createTabRuntimeStartup({
   state: tabRuntime,
   text: (key, parameters) => text(key, parameters),
+  showStartupNotice: (notice) => {
+    const theme = resolvedTheme(settingsState.current.theme)
+    return showStartupNoticeWindow(notice, { theme, background: THEME_BACKGROUND[theme], locale: settingsState.resolvedLocale })
+  },
   showMessageBox,
   reportBrowserActionFailure
 })
@@ -604,7 +609,8 @@ const { installApplicationMenu } = createApplicationMenu({
   text,
   showWindow,
   mainWindow: () => mainWindowRefs.window,
-  checkForUpdates,
+  // While startup is stopped there is no window to show updates in, and an update could restart Hronaut.
+  checkForUpdates: () => tabRuntime.startupFailure ? Promise.resolve({ ...appUpdates.current }) : checkForUpdates(),
   requestQuit,
   runNativeBrowserAction,
   runShortcut: (action) => runPageShortcut(action),

@@ -2,6 +2,7 @@ import { app, type MessageBoxOptions, type MessageBoxReturnValue } from 'electro
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { WorkspaceMetadataError } from './browser/tab-store.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
+import type { StartupNotice } from './windows/startup-notice-window.js'
 
 /**
  * The tab runtime and how far its saved workspaces got in starting, created once by index.ts. The main window's
@@ -25,6 +26,8 @@ interface TabRuntimeStartupHost {
   state: TabRuntimeState
   /** Translates into the current interface language; read on every use because the language can change. */
   text(key: MessageKey, parameters?: MessageParameters): string
+  /** Shows a notice in a Hronaut window of its own until the person closes it; rejects when the window cannot. */
+  showStartupNotice(notice: StartupNotice): Promise<void>
   /** Asks on the main window, or on its own while there is none. */
   showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>
   /** Tells the shell that a browser action failed. */
@@ -54,13 +57,22 @@ export function createTabRuntimeStartup(host: TabRuntimeStartupHost): {
     host.state.startupFailure = error
     // Do not publish raw metadata, paths or filesystem/parser errors.
     console.error(`[startup] Workspace metadata rejected: ${error.reason}`)
+    const notice = {
+      title: host.text('native.dialog.workspaceRecoveryTitle'),
+      message: host.text('native.dialog.workspaceRecoveryMessage'),
+      detail: host.text('native.dialog.workspaceRecoveryDetail'),
+      quit: host.text('native.menu.quit')
+    }
     try {
-      await host.showMessageBox({ type: 'error', title: host.text('native.dialog.workspaceRecoveryTitle'),
-        message: host.text('native.dialog.workspaceRecoveryMessage'),
-        detail: host.text('native.dialog.workspaceRecoveryDetail'),
-        buttons: [host.text('native.menu.quit')], defaultId: 0, cancelId: 0, noLink: true })
-    } catch { console.error('[startup] Could not display workspace recovery notice.') }
-    finally { app.quit() }
+      await host.showStartupNotice(notice)
+    } catch {
+      // The system dialog still tells the person when Hronaut's own window cannot.
+      console.error('[startup] Could not open the workspace recovery window; showing the system dialog instead.')
+      try {
+        await host.showMessageBox({ type: 'error', title: notice.title, message: notice.message, detail: notice.detail,
+          buttons: [notice.quit], defaultId: 0, cancelId: 0, noLink: true })
+      } catch { console.error('[startup] Could not display workspace recovery notice.') }
+    } finally { app.quit() }
   }
 
   return { runNativeBrowserAction, showWorkspaceRecoveryNotice }

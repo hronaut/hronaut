@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - Hronaut's confirmations before a change it cannot undo, such as removing a wallet, clearing history or a website's cookies, deleting a workspace or turning MCP authentication off, now appear as Hronaut dialogs over the window instead of system dialogs. The question is the headline with what it means under it, in the interface language, and **Cancel** is focused, so **Enter** and **Escape** keep things as they are. A second click while the question waits asks nothing more.
 - **Set up Claude Code** now asks you to confirm the change in a Hronaut dialog over the window instead of a system dialog. It shows the change as a diff: the settings file, the `hronaut` entry Hronaut writes, the entry it replaces, if any, and the name of the backup. The token still appears only as `•••`. Cancel stays focused, and a key still held from Home never confirms. Only Hronaut's window can answer the dialog, never Home. When the window is hidden, minimized or not loaded yet, a system dialog still asks.
+- When saved workspaces cannot be opened at startup, Hronaut now says so in a small window of its own, in the interface language and theme, instead of a system dialog. **Quit** is focused, and the keyboard quits only once the window has had the focus for a moment, so a key held from before it appeared does nothing. The system dialog is left for when that window cannot open or loses its page.
 
 ### Fixed
 
