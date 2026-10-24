@@ -1270,6 +1270,15 @@ export class BrowserTabsManager {
     this.focusTabOrTrustedChrome(tab)
   }
 
+  /**
+   * Gives the keyboard to the page in view, or the active pane of a split view, as F6 does from Chrome's toolbar. Under a
+   * lock on the person's input the shell keeps it, and under trusted chrome the page takes it once that closes.
+   */
+  focusActivePage(): void {
+    const tab = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
+    if (tab && !tab.webContents.isDestroyed()) this.focusTabOrTrustedChrome(tab)
+  }
+
   fixedDateBootstrap(page: WebContents, frameOrigin: string): FixedDateBootstrap {
     return this.fixedDateController.bootstrap(page, frameOrigin)
   }

@@ -863,6 +863,7 @@ export const esES = {
     "initializingStorage": "Inicializando el almacenamiento seguro.",
     "shortcuts": {
       "address": "Ir a la barra de direcciones",
+      "nextPane": "Cambiar entre la barra de direcciones y la página",
       "addressNewTab": "Abrir lo escrito en la barra de direcciones en una pestaña nueva",
       "addressBackgroundTab": "Abrir lo escrito en la barra de direcciones en una pestaña nueva en segundo plano",
       "addressWwwCom": "Añadir www. y .com al nombre del sitio escrito en la barra de direcciones y abrirlo",

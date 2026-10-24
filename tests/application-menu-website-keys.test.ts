@@ -29,7 +29,9 @@ describe('Chrome\'s keys a website may keep', () => {
     for (const [accelerator, action] of [
       ['F5', 'reload'], ['Shift+F5', 'reload-ignoring-cache'], ['Ctrl+F5', 'reload-ignoring-cache'], ['Alt+D', 'focus-address'],
       ['F3', 'find-next'], ['Shift+F3', 'find-previous'],
-      ['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous']
+      ['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous'],
+      // F6 reaches the menu only from a page, whose next pane is the address bar.
+      ['F6', 'focus-address'], ['Shift+F6', 'focus-address']
     ] as const) {
       const item = key(accelerator)!
       expect(item.visible, accelerator).toBe(false)
@@ -41,6 +43,7 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(menu('darwin').key('Alt+D')).toBeUndefined()
     expect(menu('darwin').key('F3')).toBeUndefined()
     expect(menu('darwin').key('Ctrl+Shift+PageDown')).toBeUndefined()
+    expect(menu('darwin').key('F6')).toBeUndefined()
   })
 
   it('act only as keys of the main window', () => {

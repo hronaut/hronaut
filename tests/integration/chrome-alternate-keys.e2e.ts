@@ -3,19 +3,19 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeFixtureServer } from './fixtures.js'
 import { expect, test, text } from './capability-fixtures.js'
 
-test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down, with Shift to move the tab, work as in Chrome, and a website keeps F5, Alt+D and the move keys', async ({ capabilities, appWindow, electronApp }) => {
+test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to move the tab, work as in Chrome, and a website keeps F5, Alt+D, F6 and the move keys', async ({ capabilities, appWindow, electronApp }) => {
   test.skip(process.platform === 'darwin', 'Chrome has none of these keys on macOS but the tab keys, which the unit tests cover')
   const { client, tabId } = capabilities
   const loads: Array<{ path: string, cacheControl: string | undefined }> = []
   const server = createServer((request, response) => {
     loads.push({ path: request.url ?? '', cacheControl: request.headers['cache-control'] })
     response.writeHead(200, { 'content-type': 'text/html' })
-    // Every page notes the keys it gets; /editor runs F5, Alt+D and Ctrl+Shift+Page Up itself, as a web editor or
+    // Every page notes the keys it gets; /editor runs F5, Alt+D, F6 and Ctrl+Shift+Page Up itself, as a web editor or
     // terminal does.
     const editor = request.url === '/editor'
     response.end(`<!doctype html><title>${request.url}</title><script>window.keys = []; addEventListener('keydown', (event) => {
       window.keys.push(event.key)
-      if (${editor} && (event.key === 'F5' || (event.altKey && event.key.toLowerCase() === 'd') || (event.ctrlKey && event.shiftKey && event.key === 'PageUp'))) event.preventDefault()
+      if (${editor} && (event.key === 'F5' || event.key === 'F6' || (event.altKey && event.key.toLowerCase() === 'd') || (event.ctrlKey && event.shiftKey && event.key === 'PageUp'))) event.preventDefault()
     })</script>`)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -47,6 +47,12 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down, with Shift to move
     }
     const addressBar = appWindow.getByRole('combobox', { name: 'Address', exact: true })
     const focusedPage = () => electronApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.getURL())
+    // The person's key in Hronaut's own window, as the keyboard sends it.
+    const pressInWindow = (keyCode: string, modifiers: Array<'shift'> = []) => electronApp.evaluate(({ BrowserWindow }, { url, keyCode, modifiers }) => {
+      const shell = BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents
+      shell.sendInputEvent({ type: 'keyDown', keyCode, modifiers })
+      shell.sendInputEvent({ type: 'keyUp', keyCode, modifiers })
+    }, { url: appWindow.url(), keyCode, modifiers })
 
     await visit('/page')
     await expect.poll(() => loadsOf('/page').length).toBe(1)
@@ -63,6 +69,32 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down, with Shift to move
     await expect.poll(focusedPage).toBe(appWindow.url())
     await expect(addressBar).toBeFocused()
 
+    // F6 and Shift+F6 go from Hronaut's window back to the page, and from the page to the address bar.
+    await pressInWindow('F6')
+    await expect.poll(focusedPage).toBe(`${origin}/page`)
+    await press(tabId, 'F6', ['shift'])
+    await expect.poll(focusedPage).toBe(appWindow.url())
+    await expect(addressBar).toBeFocused()
+    await pressInWindow('F6', ['shift'])
+    await expect.poll(focusedPage).toBe(`${origin}/page`)
+    await press(tabId, 'F6')
+    await expect.poll(focusedPage).toBe(appWindow.url())
+    await expect(addressBar).toBeFocused()
+    // Over a Hronaut dialog it stays in the dialog.
+    await electronApp.evaluate(({ BrowserWindow }, url) => {
+      BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents.send('help:open', 'shortcuts')
+    }, appWindow.url())
+    const shortcutsDialog = appWindow.getByRole('dialog', { name: 'Keyboard shortcuts' })
+    await expect(shortcutsDialog).toBeVisible()
+    await expect.poll(() => appWindow.evaluate(() => document.activeElement?.closest('[role="dialog"]') !== null)).toBe(true)
+    await pressInWindow('F6')
+    await appWindow.waitForTimeout(500)
+    expect(await focusedPage()).toBe(appWindow.url())
+    await expect(shortcutsDialog).toBeVisible()
+    expect(await appWindow.evaluate(() => document.activeElement?.closest('[role="dialog"]') !== null)).toBe(true)
+    await appWindow.keyboard.press('Escape')
+    await expect(shortcutsDialog).toBeHidden()
+
     // An agent's F5 stays with the page, as in Chrome.
     await keys(tabId, 'window.keys = []')
     const pressed = await client.callTool({ name: 'browser_press', arguments: { tabId, key: 'F5' } }) as CallToolResult
@@ -75,7 +107,8 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D and Ctrl+Page Up and Down, with Shift to move
     await visit('/editor')
     await press(tabId, 'F5')
     await press(tabId, 'D', ['alt'])
-    await expect.poll(async () => (await keys(tabId)).map(key => key.toLowerCase())).toEqual(['f5', 'd'])
+    await press(tabId, 'F6')
+    await expect.poll(async () => (await keys(tabId)).map(key => key.toLowerCase())).toEqual(['f5', 'd', 'f6'])
     await appWindow.waitForTimeout(500)
     expect(loadsOf('/editor')).toHaveLength(1)
     expect(await focusedPage()).toBe(`${origin}/editor`)

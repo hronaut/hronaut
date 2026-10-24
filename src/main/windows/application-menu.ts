@@ -78,6 +78,10 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
       item(host.text('native.menu.reloadWithoutCache'), 'Shift+F5', 'reload-ignoring-cache'),
       item(host.text('native.menu.reloadWithoutCache'), 'Ctrl+F5', 'reload-ignoring-cache'),
       item(host.text('runtime.shortcuts.address'), 'Alt+D', 'focus-address'),
+      // F6 reaches the menu only from a page, since Hronaut's window and its rail run it themselves, going to the page;
+      // from a page the next pane is the address bar, as in Chrome.
+      item(host.text('runtime.shortcuts.nextPane'), 'F6', 'focus-address'),
+      item(host.text('runtime.shortcuts.nextPane'), 'Shift+F6', 'focus-address'),
       item(host.text('native.menu.findNext'), 'F3', 'find-next'),
       item(host.text('native.menu.findPrevious'), 'Shift+F3', 'find-previous'),
       item(host.text('runtime.shortcuts.moveTabNext'), 'Ctrl+Shift+PageDown', 'move-tab-next'),

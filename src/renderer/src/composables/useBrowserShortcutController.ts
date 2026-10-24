@@ -10,7 +10,7 @@ import type {
 
 type ShortcutBrowserApi = Pick<
   HronautApi,
-  'closeTab' | 'reopenClosedTab' | 'selectTab' | 'reload' | 'reloadIgnoringCache' | 'newTab' | 'reorderTab'
+  'closeTab' | 'reopenClosedTab' | 'selectTab' | 'reload' | 'reloadIgnoringCache' | 'newTab' | 'reorderTab' | 'focusActivePage'
 >
 
 type ShortcutCallback = () => void | Promise<void>
@@ -208,6 +208,11 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
       case 'focus-address':
         await options.focusAddress()
         return
+      // Pressed in Hronaut's window or its rail, the next pane is the page; from a page, F6 reaches the menu's
+      // focus-address instead.
+      case 'focus-next-pane':
+        await options.browser.focusActivePage()
+        return
       case 'find':
         await options.openFind()
         return
@@ -304,7 +309,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
       || (options.settingsOpen.value && [
         'reload', 'reload-ignoring-cache', 'find', 'find-next', 'find-previous', 'bookmark', 'pick-element',
         'toggle-devtools', 'zoom-in', 'zoom-out', 'zoom-reset', 'agent-card', 'toggle-full-page', 'take-over',
-        'move-tab-next', 'move-tab-previous'
+        'move-tab-next', 'move-tab-previous', 'focus-next-pane'
       ].includes(action))
     ) return false
     const operationGeneration = generation

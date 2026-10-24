@@ -140,6 +140,7 @@ const api: HronautApi = {
   sleepInactiveTabs: () => ipcRenderer.invoke('browser:sleep-inactive-tabs'),
   reorderTab: (tabId: string, targetTabId: string, placement: 'before' | 'after') =>
     ipcRenderer.invoke('browser:reorder-tab', tabId, targetTabId, placement),
+  focusActivePage: () => ipcRenderer.invoke('browser:focus-active-page'),
   createWorkspace: (options: BrowserWorkspaceCreateOptions) => ipcRenderer.invoke('browser:create-workspace', options),
   openWorkspaceTemplateFile: () => ipcRenderer.invoke('browser:open-workspace-template-file'),
   saveWorkspaceTemplateFile: (reviewedText: string) => ipcRenderer.invoke('browser:save-workspace-template-file', reviewedText),

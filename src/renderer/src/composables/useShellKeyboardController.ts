@@ -60,7 +60,7 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
       composing,
       mac: window.hronautShell?.windowChrome.platform === 'darwin'
     }
-    // Hronaut's own window has no website to keep F5, Alt+D, F3 or Ctrl+G.
+    // Hronaut's own window has no website to keep F5, Alt+D, F3, Ctrl+G or F6.
     const shortcut = browserShortcutAction(input) ?? websiteKeptShortcutAction(input)
     guardInteraction(event)
     if (event.defaultPrevented || composing) return

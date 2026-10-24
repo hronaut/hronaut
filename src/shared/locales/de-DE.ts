@@ -863,6 +863,7 @@ export const deDE = {
     "initializingStorage": "Sicherer Speicher wird initialisiert.",
     "shortcuts": {
       "address": "Adressleiste fokussieren",
+      "nextPane": "Zwischen Adressleiste und Seite wechseln",
       "addressNewTab": "In der Adressleiste Eingegebenes in einem neuen Tab öffnen",
       "addressBackgroundTab": "In der Adressleiste Eingegebenes in einem neuen Hintergrund-Tab öffnen",
       "addressWwwCom": "www. und .com zum Websitenamen in der Adressleiste hinzufügen und öffnen",
