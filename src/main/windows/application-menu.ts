@@ -79,7 +79,9 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
       item(host.text('native.menu.reloadWithoutCache'), 'Ctrl+F5', 'reload-ignoring-cache'),
       item(host.text('runtime.shortcuts.address'), 'Alt+D', 'focus-address'),
       item(host.text('native.menu.findNext'), 'F3', 'find-next'),
-      item(host.text('native.menu.findPrevious'), 'Shift+F3', 'find-previous')
+      item(host.text('native.menu.findPrevious'), 'Shift+F3', 'find-previous'),
+      item(host.text('runtime.shortcuts.moveTabNext'), 'Ctrl+Shift+PageDown', 'move-tab-next'),
+      item(host.text('runtime.shortcuts.moveTabPrevious'), 'Ctrl+Shift+PageUp', 'move-tab-previous')
     ]
   }
 

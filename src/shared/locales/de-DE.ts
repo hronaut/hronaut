@@ -890,6 +890,8 @@ export const deDE = {
       "devtools": "Entwicklertools umschalten",
       "nextTab": "Zum nächsten Tab wechseln",
       "previousTab": "Zum vorherigen Tab wechseln",
+      "moveTabNext": "Tab hinter den nächsten verschieben",
+      "moveTabPrevious": "Tab vor den vorherigen verschieben",
       "directTab": "Zu Website-Tab 1–8 wechseln",
       "lastTab": "Zum letzten Website-Tab wechseln",
       "resetZoom": "Seitenzoom zurücksetzen",

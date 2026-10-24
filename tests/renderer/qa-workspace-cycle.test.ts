@@ -57,6 +57,7 @@ function harness(specs: WorkspaceSpec[], startIn: string) {
     selectTab: vi.fn(async (tabId: string) => show(tabId)),
     reload: vi.fn(async () => state.value),
     reloadIgnoringCache: vi.fn(async () => state.value),
+    reorderTab: vi.fn(async () => state.value),
     newTab: vi.fn(async (options?: { mcpGroupId?: string; active?: boolean }) => {
       const created = tab(`${options?.mcpGroupId}-new`, options!.mcpGroupId!)
       state.value = { ...state.value, tabs: [...state.value.tabs, created] }

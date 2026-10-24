@@ -890,6 +890,8 @@ export const plPL = {
       "devtools": "Pokaż lub ukryj narzędzia deweloperskie",
       "nextTab": "Przejdź do następnej karty",
       "previousTab": "Przejdź do poprzedniej karty",
+      "moveTabNext": "Przenieś kartę za następną",
+      "moveTabPrevious": "Przenieś kartę przed poprzednią",
       "directTab": "Przejdź do karty internetowej 1–8",
       "lastTab": "Przejdź do ostatniej karty internetowej",
       "resetZoom": "Zresetuj powiększenie strony",

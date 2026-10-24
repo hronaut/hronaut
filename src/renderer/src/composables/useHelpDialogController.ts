@@ -57,6 +57,11 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.viewSource'), keys: mac ? ['Cmd', 'Option', 'U'] : ['Ctrl', 'U'] },
     { label: options.translate('runtime.shortcuts.nextTab'), keys: ['Ctrl', 'Tab'] },
     { label: options.translate('runtime.shortcuts.previousTab'), keys: ['Ctrl', 'Shift', 'Tab'] },
+    // Chrome has no keys to move a tab on macOS, where Control with a key stays with the page.
+    ...(mac ? [] : [
+      { label: options.translate('runtime.shortcuts.moveTabNext'), keys: ['Ctrl', 'Shift', 'Page Down'] },
+      { label: options.translate('runtime.shortcuts.moveTabPrevious'), keys: ['Ctrl', 'Shift', 'Page Up'] }
+    ]),
     { label: options.translate('runtime.shortcuts.directTab'), keys: [tabKey, '1–8'] },
     { label: options.translate('runtime.shortcuts.lastTab'), keys: [tabKey, '9'] },
     { label: options.translate('runtime.shortcuts.resetZoom'), keys: [tabKey, '0'] }
