@@ -104,7 +104,9 @@ describe('closing a tab a download left empty', () => {
 
   it('leaves the tab out of Recently closed, as reopening it would download the file again', () => {
     const closedTabs: BrowserClosedTabState[] = []
-    const access = { closedTabs: () => closedTabs, orderedTabs: () => [] } as unknown as TabReopeningAccess<TabReopeningTab>
+    const access = {
+      closedTabs: () => closedTabs, orderedTabs: () => [], navigationHistorySnapshot: () => ({ entries: [], index: -1 })
+    } as unknown as TabReopeningAccess<TabReopeningTab>
     const tab: TabReopeningTab = {
       id: 'opened', url: 'https://download.example/report.pdf', title: '', pinned: false, zoomIsolated: false,
       tabMuted: false, tabAgentPaused: false, humanInteractionLocked: false

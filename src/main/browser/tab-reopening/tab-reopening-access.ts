@@ -1,9 +1,9 @@
-import type { NavigationEntry } from 'electron'
 import type { BrowserClosedTabState, BrowserState } from '../../../shared/types.js'
+import type { NavigationHistorySnapshot } from '../navigation-history.js'
 
 /**
  * The tab fields remembering, reopening and duplicating tabs read: its address, titles, pin, workspace, zoom settings,
- * and its own mute, agent pause and input lock.
+ * its own mute, agent pause and input lock, and whether History counted its page yet.
  */
 export interface TabReopeningTab {
   id: string
@@ -17,6 +17,10 @@ export interface TabReopeningTab {
   tabMuted: boolean
   tabAgentPaused: boolean
   humanInteractionLocked: boolean
+  /** Set while a restored or reopened tab loads its page again, which History counted already. */
+  suppressInitialHistory?: boolean
+  /** The page History counts once it is ready, while it is not yet. */
+  pendingHistoryUrl?: string | null
   /** Set for a tab a download it opened closed, which reopening would only download again. */
   leftEmptyByDownload?: boolean
 }
@@ -29,7 +33,7 @@ export interface TabReopeningCreation {
   pinned?: boolean
   suppressInitialHistory?: boolean
   active: boolean
-  navigationHistory?: { entries: NavigationEntry[]; index: number }
+  navigationHistory?: NavigationHistorySnapshot
   mcpGroupId?: string
   zoomIsolated?: boolean
   defaultFontSize?: number
@@ -60,8 +64,8 @@ export interface TabReopeningAccess<Tab extends TabReopeningTab> {
   orderedTabs(): Tab[]
   /** The tab with this id, or the active tab; it throws when there is none. */
   getTab(tabId?: string): Tab
-  /** A tab's back and forward history, which a duplicate restores. */
-  navigationHistorySnapshot(tab: Tab): { entries: NavigationEntry[]; index: number }
+  /** A tab's back and forward history, which a duplicate and a reopened closed tab restore. */
+  navigationHistorySnapshot(tab: Tab): NavigationHistorySnapshot
   /** Opens a tab. */
   createTab(options: TabReopeningCreation): Promise<Tab>
   /** Moves the tab before or after another tab of its workspace, pinned or not as it is. */

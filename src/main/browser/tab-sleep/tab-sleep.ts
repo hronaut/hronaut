@@ -4,6 +4,7 @@ import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { liveRegionRecordingKeepsTabAwake } from '../live-region-recorder.js'
 import { localizedLoadFailure } from '../load-failure-error.js'
+import type { NavigationHistorySnapshot } from '../navigation-history.js'
 import { settledWithin } from '../page-waits/page-load-limit.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
@@ -23,6 +24,19 @@ function isAbortedLoad(error: unknown): boolean {
 
 /** The page a sleeping tab shows in place of its own, which holds no site content. */
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
+
+/**
+ * The tab's history without the sleeping page, which a tab that wakes keeps after its own page until that page loads,
+ * so Back and Forward, Duplicate and Reopen closed tab never lead to it. The page the tab shows stays.
+ */
+export function withoutSleepingPage(history: NavigationHistorySnapshot): NavigationHistorySnapshot {
+  const kept = (entry: { url: string }) => entry.url !== SLEEPING_PAGE_URL
+  if (history.entries.every(kept)) return history
+  return {
+    entries: history.entries.filter((entry, index) => index === history.index || kept(entry)),
+    index: history.entries.slice(0, history.index).filter(kept).length
+  }
+}
 
 /**
  * Goes back from the sleeping page to the page the tab slept on, so the tab keeps the pages before it in its history:
