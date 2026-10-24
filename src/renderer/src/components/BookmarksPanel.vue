@@ -223,6 +223,8 @@ async function assignCollection(bookmarkId: string, event: Event): Promise<void>
 // fails, that control gets the focus back, or Close when it cannot be used, unless you have moved the focus, gone to
 // the website or another app, or closed the panel meanwhile.
 async function toggleCurrentPage(): Promise<void> {
+  // As the button is, the shortcut is unavailable while another bookmark change, such as Open all, is under way.
+  if (anyPending.value) return
   const generation = focusGeneration
   const panel = panelRoot.value
   const active = document.activeElement
@@ -290,6 +292,9 @@ async function remove(bookmarkId: string, event: MouseEvent): Promise<void> {
 }
 
 function handleEscape(): void {
+  // Open all's question has the keyboard while it asks, so it goes first unless the keyboard went elsewhere since.
+  const question = panelRoot.value?.querySelector('.bookmarks-open-all-ask')
+  if (question?.contains(document.activeElement) && openAll.cancel()) return
   if (collectionController.editor.value) collectionsToolbar.value?.cancelEdit()
   else if (editingBookmarkId.value) cancelRename()
   else if (!openAll.cancel()) handlePanelEscape()
@@ -400,7 +405,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
           :aria-disabled="anyPending"
           :aria-label="t('bookmarks.backgroundAria', { title: bookmark.title })"
           v-tooltip="t('bookmarks.background')"
-          @click="openInBackground(bookmark)"><IconBackground aria-hidden="true" /></UiButton>
+          @click="!anyPending && openInBackground(bookmark)"><IconBackground aria-hidden="true" /></UiButton>
         <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-copy-address" type="button"
           :aria-disabled="anyPending"
           :aria-label="t('bookmarks.copyAddressAria', { title: bookmark.title })"

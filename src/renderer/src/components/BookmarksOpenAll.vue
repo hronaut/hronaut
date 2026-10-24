@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from '../ui/UiButton.vue'
-import { nextTick, ref, useId, watch } from 'vue'
+import { nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { BookmarksOpenAllController } from '../composables/useBookmarksOpenAll.js'
 import { ignoreHeldEnter } from '../held-enter.js'
@@ -25,6 +25,8 @@ function counted(key: string, count: number): string {
   return t(key, { count: props.formatNumber(count) }, count)
 }
 
+const dropped = () => document.hasFocus() && (!document.activeElement || document.activeElement === document.body)
+
 /**
  * The question takes the keyboard to Cancel, so it is heard and a held Enter answers nothing: every button here
  * ignores the key's repeats. Once it is answered or dropped, the keyboard goes back to Open all rather than to the page.
@@ -32,8 +34,22 @@ function counted(key: string, count: number): string {
 watch(asking, async isAsking => {
   await nextTick()
   if (isAsking) question.value?.querySelector<HTMLElement>('.bookmarks-open-all-cancel')?.focus()
-  else if (!document.activeElement || document.activeElement === document.body) row.value?.querySelector('button')?.focus()
+  else if (dropped()) row.value?.querySelector('button')?.focus()
 }, { flush: 'post' })
+
+// The list can empty while the keyboard is here, and these controls then go: the keyboard goes to the panel's search,
+// or to Close, as when a focused bookmark goes.
+onBeforeUnmount(() => {
+  const panel = row.value?.closest('.bookmarks-panel')
+  const focused = document.activeElement
+  if (!panel || !focused || !(row.value?.contains(focused) || question.value?.contains(focused))) return
+  void nextTick(() => {
+    if (!panel.isConnected || !dropped()) return
+    const target = [panel.querySelector<HTMLElement>('.bookmark-search-field input'), panel.querySelector<HTMLElement>('.panel-close')]
+      .find(element => element?.isConnected && !element.matches(':disabled'))
+    target?.focus()
+  })
+})
 </script>
 
 <template>
@@ -41,7 +57,7 @@ watch(asking, async isAsking => {
     <UiButton
       appearance="application"
       type="button"
-      :aria-disabled="pending || blocked"
+      :aria-disabled="pending || blocked || asking"
       v-tooltip="t('bookmarks.openAll.hint')"
       @keydown="ignoreHeldEnter"
       @click="controller.request"

@@ -35,7 +35,14 @@ export function useBookmarksOpenAll(options: BookmarksOpenAllOptions) {
     opened.value = 0
     error.value = ''
   }, { flush: 'sync' })
-  watch(options.open, isOpen => { if (!isOpen) asking.value = false }, { flush: 'sync' })
+  // Closing the panel drops the question, and what the last run did unless it is still opening tabs.
+  watch(options.open, isOpen => {
+    if (isOpen) return
+    asking.value = false
+    if (pending.value) return
+    opened.value = 0
+    error.value = ''
+  }, { flush: 'sync' })
 
   const available = () => !pending.value && !options.blocked.value && options.bookmarks.value.length > 0
 

@@ -80,6 +80,7 @@ describe('BookmarksOpenAll', () => {
     await flushPromises()
     expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
     // Asking again asks nothing more.
+    expect(button).toHaveAttribute('aria-disabled', 'true')
     await user.click(button)
     expect(screen.getAllByRole('group')).toEqual([question])
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -165,6 +166,21 @@ describe('BookmarksOpenAll', () => {
     }
     expect(openInBackground).toHaveBeenCalledTimes(3)
     expect(screen.getByRole('status')).toHaveTextContent('Opened 3 tabs.')
+  })
+
+  it('forgets what the last run did once the panel closes', async () => {
+    const openInBackground = vi.fn<Open>(async () => undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('Tab limit reached (50)'))
+    const { view, user } = renderOpenAll({ bookmarks: bookmarks(3), openInBackground })
+    await user.click(screen.getByRole('button', { name: 'Open all (3)' }))
+    await flushPromises()
+    expect(screen.getByRole('status')).toHaveTextContent('Opened 1 tab.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Tab limit reached (50)')
+    await view.rerender({ open: false })
+    await view.rerender({ open: true })
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('drops its question when the panel closes', async () => {
