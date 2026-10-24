@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NavigationEntry } from 'electron'
 import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
-import { savedTabHistories, savedTabHistory, TabHistoryStore } from '../src/main/browser/saved-tab-history/saved-tab-history.js'
+import { historyAroundShownPage, savedTabHistories, savedTabHistory, TabHistoryStore } from '../src/main/browser/saved-tab-history/saved-tab-history.js'
 import type { NavigationHistorySnapshot } from '../src/main/browser/navigation-history.js'
 import type { BrowserWorkspaceNavigationPolicy } from '../src/shared/types.js'
 
@@ -27,9 +27,9 @@ async function directory(): Promise<string> {
 
 const anywhere: BrowserWorkspaceNavigationPolicy = { mode: 'unrestricted', rules: [] }
 const page = (name: string) => `https://example.test/${name}`
-/** A page's scroll and form state as Chromium encodes it, here any bytes, with the text in UTF-16 as Chromium writes it. */
-const pageState = (text = 'scrolled') => Buffer.concat([Buffer.from([1, 0, 0, 0]), Buffer.from(text, 'utf16le')]).toString('base64')
-const entry = (name: string, state = pageState(name)): NavigationEntry => ({ url: page(name), title: name, pageState: state })
+/** A page's scroll and form state as Chromium encodes it, here any bytes, with its address and text in UTF-16 as Chromium writes them. */
+const pageState = (url: string, text = '') => Buffer.concat([Buffer.from([1, 0, 0, 0]), Buffer.from(url + text, 'utf16le')]).toString('base64')
+const entry = (name: string, state = pageState(page(name))): NavigationEntry => ({ url: page(name), title: name, pageState: state })
 const history = (names: string[], index: number): NavigationHistorySnapshot => ({ entries: names.map((name) => entry(name)), index })
 const TAB_ID = '019a1b2c-3d4e-7f00-8a00-000000000001'
 const OTHER_TAB_ID = '019a1b2c-3d4e-7f00-8a00-000000000002'
@@ -61,11 +61,11 @@ describe('the history a restart keeps of a tab', () => {
 
   it('leaves out the state of a page a form posted to, whose fields it holds, passwords included', () => {
     // The page a sign-in form posted to kept the form's fields in its state, which a restart would write to the disk.
-    const posted = Buffer.concat([Buffer.from('application/x-www-form-urlencoded', 'utf16le'), Buffer.from('password=hunter2')]).toString('base64')
-    const multipart = Buffer.from('multipart/form-data; boundary=x', 'utf16le').toString('base64')
-    const plain = Buffer.from('text/plain').toString('base64')
+    const posted = Buffer.concat([Buffer.from(page('login') + 'application/x-www-form-urlencoded', 'utf16le'), Buffer.from('password=hunter2')]).toString('base64')
+    const multipart = pageState(page('upload'), 'multipart/form-data; boundary=x')
+    const plain = Buffer.concat([Buffer.from(page('note'), 'utf16le'), Buffer.from('text/plain')]).toString('base64')
     const saved = savedTabHistory({ entries: [entry('form'), entry('login', posted), entry('upload', multipart), entry('note', plain), entry('next')], index: 4 }, page('next'), anywhere)!
-    expect(saved.entries.map((candidate) => candidate.pageState)).toEqual([pageState('form'), undefined, undefined, undefined, pageState('next')])
+    expect(saved.entries.map((candidate) => candidate.pageState)).toEqual([pageState(page('form')), undefined, undefined, undefined, pageState(page('next'))])
     expect(saved.entries.map((candidate) => candidate.url)).toEqual(['form', 'login', 'upload', 'note', 'next'].map(page))
   })
 
@@ -78,6 +78,36 @@ describe('the history a restart keeps of a tab', () => {
     expect(saved.entries).toEqual([{ url: page('a'), title: 'a' }, { url: page('b'), title: 'b' }, entry('c')])
   })
 
+  it('leaves out a state that names another page, which Electron would open in the page\'s place', () => {
+    const elsewhere = savedTabHistory({ entries: [entry('a', pageState('file:///etc/passwd')), entry('b')], index: 1 }, page('b'), anywhere)!
+    expect(elsewhere.entries).toEqual([{ url: page('a'), title: 'a' }, entry('b')])
+  })
+
+  it('reads only the pages a restart can keep, around the page the tab shows', () => {
+    const entries = Array.from({ length: 50 }, (_value, index) => entry(`p${index}`))
+    const read: number[] = []
+    const around = historyAroundShownPage({ length: () => entries.length, getActiveIndex: () => 40, getEntryAtIndex: (index) => { read.push(index); return entries[index] ?? null } })
+    expect(around).toEqual({ entries: entries.slice(34, 47), index: 6 })
+    expect(read).toEqual(Array.from({ length: 13 }, (_value, index) => 34 + index))
+    expect(historyAroundShownPage({ length: () => 0, getActiveIndex: () => -1, getEntryAtIndex: () => null })).toBeUndefined()
+    expect(historyAroundShownPage({ length: () => { throw new Error('destroyed') }, getActiveIndex: () => 0, getEntryAtIndex: () => null })).toBeUndefined()
+  })
+
+  it('keeps the history saved before of a tab going Back, whose history shows the page it goes to', () => {
+    // A save while a tab went Back, as at quit, left the tab without its history, so it restarted without Back.
+    const tabs = [{ id: TAB_ID, url: page('c'), mcpGroupId: 'workspace' }]
+    const before = new Map([[TAB_ID, history(['a', 'b', 'c'], 2)]])
+    const goingBack = savedTabHistories({ tabs: () => tabs, navigationHistory: () => history(['a', 'b', 'c'], 1), navigationPolicy: () => anywhere }, before)
+    expect(goingBack).toEqual(before)
+    const unreadable = savedTabHistories({ tabs: () => tabs, navigationHistory: () => undefined, navigationPolicy: () => anywhere }, before)
+    expect(unreadable).toEqual(before)
+    // Once it is on the page before, that is what is saved; a history saved for another page is not.
+    const back = [{ ...tabs[0]!, url: page('b') }]
+    expect(savedTabHistories({ tabs: () => back, navigationHistory: () => history(['a', 'b', 'c'], 1), navigationPolicy: () => anywhere }, before))
+      .toEqual(new Map([[TAB_ID, history(['a', 'b', 'c'], 1)]]))
+    expect(savedTabHistories({ tabs: () => back, navigationHistory: () => undefined, navigationPolicy: () => anywhere }, before)).toEqual(new Map())
+  })
+
   it('keeps the history of each open workspace tab, and none of Home or a tab whose workspace is gone', () => {
     const tabs = [
       { id: TAB_ID, url: page('b'), mcpGroupId: 'workspace' },
@@ -86,9 +116,9 @@ describe('the history a restart keeps of a tab', () => {
     ]
     const saved = savedTabHistories({
       tabs: () => tabs,
-      navigationHistorySnapshot: () => history(['a', 'b'], 1),
+      navigationHistory: () => history(['a', 'b'], 1),
       navigationPolicy: (workspaceId) => workspaceId === 'workspace' ? anywhere : undefined
-    })
+    }, new Map([[OTHER_TAB_ID, history(['a', 'b'], 1)]]))
     expect([...saved]).toEqual([[TAB_ID, history(['a', 'b'], 1)]])
   })
 })
@@ -129,6 +159,19 @@ describe('the saved tab history file', () => {
     expect(warn).toHaveBeenCalledTimes(3)
     // The messages name no page.
     expect(warn.mock.calls.flat().join(' ')).not.toContain('example.test')
+  })
+
+  it('forgets cleared pages in the history saved before, so a tab whose history cannot be read does not bring them back', async () => {
+    const path = join(await directory(), 'tab-history.json')
+    const store = new TabHistoryStore(path)
+    await store.save(() => new Map([[TAB_ID, history(['a', 'b', 'c'], 2)], [OTHER_TAB_ID, history(['a', 'b'], 1)]]))
+    store.forgetPages((url) => url === page('a') || url === page('c'), new Set([TAB_ID]))
+    let previous: ReadonlyMap<string, NavigationHistorySnapshot> | undefined
+    await store.save((before) => { previous = before; return before })
+    expect(previous).toEqual(new Map([[TAB_ID, history(['b', 'c'], 1)], [OTHER_TAB_ID, history(['a', 'b'], 1)]]))
+    store.forgetPages((url) => url === page('a'), undefined)
+    await store.save((before) => { previous = before; return before })
+    expect(previous).toEqual(new Map([[TAB_ID, history(['b', 'c'], 1)], [OTHER_TAB_ID, history(['b'], 0)]]))
   })
 
   it('skips a tab whose saved history is not one and keeps the others', async () => {
@@ -175,10 +218,15 @@ describe('the tab manager saving the tabs\' history', () => {
       initialized: true,
       destroyed: false,
       changed: vi.fn(),
-      tabHistoryStore: { save: async (histories: () => ReadonlyMap<string, NavigationHistorySnapshot> | undefined) => { saved.push(histories()) } }
+      tabHistoryStore: {
+        forgetPages: vi.fn(),
+        save: async (histories: (previous: ReadonlyMap<string, NavigationHistorySnapshot>) => ReadonlyMap<string, NavigationHistorySnapshot> | undefined) => { saved.push(histories(new Map())) }
+      }
     }) as BrowserTabsManager
     manager.forgetHistoryPages((url) => url === page('a'))
     await vi.waitFor(() => expect(saved).toHaveLength(1))
     expect(saved[0]).toEqual(new Map([[TAB_ID, history(['b'], 0)]]))
+    expect((manager as unknown as { tabHistoryStore: { forgetPages: ReturnType<typeof vi.fn> } }).tabHistoryStore.forgetPages)
+      .toHaveBeenCalledWith(expect.any(Function), undefined)
   })
 })

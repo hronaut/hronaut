@@ -9,7 +9,8 @@ interface RestartWindow {
     newTab(options: { url: string; active: boolean }): Promise<unknown>
     navigate(options: { tabId?: string; url: string }): Promise<unknown>
     back(tabId?: string): Promise<unknown>
-    getState(): Promise<{ tabs: Array<{ id: string; url: string; loading: boolean; canGoBack: boolean }> }>
+    forward(tabId?: string): Promise<unknown>
+    getState(): Promise<{ tabs: Array<{ id: string; url: string; loading: boolean; canGoBack: boolean; canGoForward: boolean }> }>
   }
 }
 
@@ -54,6 +55,11 @@ test('a restart brings tabs back with their Back history, scroll and form fields
     await window.evaluate((id) => (window as unknown as RestartWindow).hronaut.back(id), id)
     await expect.poll(() => showing(window, url)).toBe(true)
   }
+  const forward = async (window: Page, url: string) => {
+    const { id } = (await tab(window))!
+    await window.evaluate((id) => (window as unknown as RestartWindow).hronaut.forward(id), id)
+    await expect.poll(() => showing(window, url)).toBe(true)
+  }
   /** Scrolls the page and waits until its history entry holds the scroll, which Chromium saves a moment later. */
   const scroll = async (app: ElectronApplication, window: Page, url: string, top: number) => {
     let settled = await pageState(app, url)
@@ -70,6 +76,7 @@ test('a restart brings tabs back with their Back history, scroll and form fields
   }
   let first: Awaited<ReturnType<typeof launchHronaut>> | undefined
   let second: Awaited<ReturnType<typeof launchHronaut>> | undefined
+  let third: Awaited<ReturnType<typeof launchHronaut>> | undefined
   try {
     first = await launchHronaut(profileDirectory, mcpPort)
     await first.window.evaluate((url) => (window as unknown as RestartWindow).hronaut.newTab({ url, active: true }), form)
@@ -84,7 +91,7 @@ test('a restart brings tabs back with their Back history, scroll and form fields
     await navigate(first.window, next)
     await scroll(first.app, first.window, next, 700)
     const historyPath = join(profileDirectory, 'tab-history.json')
-    await expect.poll(async () => (await readFile(historyPath, 'utf8').catch(() => '')).includes(next)).toBe(true)
+    await expect.poll(async () => (await readFile(historyPath, 'utf8').catch(() => '')).includes(next), { timeout: 15_000 }).toBe(true)
     await closeHronaut(first.app)
     first = undefined
 
@@ -108,10 +115,21 @@ test('a restart brings tabs back with their Back history, scroll and form fields
     await back(second.window, form)
     await expect.poll(() => inPage(second!.app, form, '[document.querySelector("#user").value, document.querySelector("#secret").value]'))
       .toEqual(['visible-name', ''])
-    expect((await tab(second.window))?.canGoBack).toBe(false)
+    expect(await tab(second.window)).toMatchObject({ canGoBack: false, canGoForward: true })
+    await closeHronaut(second.app)
+    second = undefined
+
+    // Another restart brings the same history back, now with the pages Forward of the one the tab shows.
+    third = await launchHronaut(profileDirectory, mcpPort)
+    await expect.poll(() => showing(third!.window, form)).toBe(true)
+    expect(await tab(third.window)).toMatchObject({ canGoBack: false, canGoForward: true })
+    await forward(third.window, signedIn)
+    await forward(third.window, long)
+    await expect.poll(() => inPage(third!.app, long, 'window.scrollY')).toBe(1500)
   } finally {
     if (first) await closeHronaut(first.app)
     if (second) await closeHronaut(second.app)
+    if (third) await closeHronaut(third.app)
     await closeFixtureServer(server)
   }
 })
