@@ -23,6 +23,7 @@ All notable changes to Hronaut are documented in this file.
 - A link that opens a new tab, such as one with `target="_blank"`, a middle-click or **Open link in new tab**, and turns out to download a file no longer leaves an empty tab behind: the tab closes once the download has its file, as in Chrome, and the page it was opened from shows again.
 - Clearing the history or removing a page from it, in the **History** panel, in **Settings → Workspaces & data** or by an agent, also takes those pages out of the **Back** and **Forward** lists of open tabs, as in Chrome, so **Back** no longer leads to them; an agent clearing a website's history changes only its own workspace's tabs.
 - The **Downloads** panel shows a download at 99% until its last byte is in, as Chrome does, instead of at 100% while it still has bytes to go.
+- With **Ask where to save each file** on, a download is listed in **Downloads**, which then opens, once you choose where to save it, and cancelling the save dialog no longer leaves a **Cancelled** row behind, as in Chrome.
 
 ## [3.10.0] - 2026-10-24
 
