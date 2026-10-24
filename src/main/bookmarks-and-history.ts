@@ -26,8 +26,8 @@ interface BookmarksAndHistoryHost {
   sendToShellWindows(channel: string, ...args: unknown[]): void
   /** The MCP listener while it runs, whose Home feed goes when the person or an agent clears the history. */
   mcpServer(): Pick<McpHttpServer, 'forgetHomeFeed'> | null
-  /** The tabs once the window opens, whose Recently closed tabs go with the history that names them. */
-  tabs(): Pick<BrowserTabsManager, 'forgetClosedTabs'> | null
+  /** The tabs once the window opens, whose Recently closed tabs and Back and Forward pages go with the history. */
+  tabs(): Pick<BrowserTabsManager, 'forgetHistoryPages'> | null
   /** Offers the person's latest reversible action for Undo, replacing the previous offer. */
   offerUndo(action: UndoableAction): void
 }
@@ -105,17 +105,17 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   }
 
   /**
-   * The history was cleared, by the person or an agent. Home's feed names pages agents acted on, and Recently closed
-   * names pages tabs showed, so both go too, as Chrome forgets recently closed tabs with the history.
+   * The history was cleared, by the person or an agent. Home's feed names pages agents acted on, Recently closed names
+   * pages tabs showed and tabs' Back and Forward lists hold pages, so they all go too, as Chrome forgets them with it.
    */
   function historyCleared(): void {
     host.mcpServer()?.forgetHomeFeed()
-    host.tabs()?.forgetClosedTabs(() => true)
+    host.tabs()?.forgetHistoryPages(() => true)
   }
 
-  /** One page was removed from the history, so Recently closed forgets the tabs that showed it, as in Chrome. */
+  /** One page was removed from the history, so tabs forget it in Recently closed and Back and Forward, as in Chrome. */
   function historyEntryRemoved(url: string): void {
-    host.tabs()?.forgetClosedTabs((closedUrl) => normalizeHistoryUrl(closedUrl) === url)
+    host.tabs()?.forgetHistoryPages((pageUrl) => normalizeHistoryUrl(pageUrl) === url)
   }
 
   /**

@@ -560,6 +560,7 @@ import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import type { TabReopeningAccess } from './tab-reopening/tab-reopening-access.js'
 import { duplicateTabAfterLabelSave, forgetClosedTabs, forgetWorkspaceClosedTabs, rememberClosedTab, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
+import { forgetTabHistoryPages } from './tab-history-pages/forget-tab-history-pages.js'
 import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
 import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import { placeTabOpenedFromPage } from './link-tab-placement/link-tab-placement.js'
@@ -2399,10 +2400,15 @@ export class BrowserTabsManager {
     return this.withTabLabelLifecycle(() => reopenClosedTabAfterLabelSave(this.tabReopeningAccess(), closedTabId))
   }
 
-  /** Forgets the recently closed tabs whose address matches, when the history that names them is cleared. */
-  forgetClosedTabs(matches: (url: string) => boolean): void {
-    // Recently closed tabs are not saved with the tabs, so only the state is published.
-    if (forgetClosedTabs(this.tabReopeningAccess(), matches)) this.changed(false)
+  /**
+   * Forgets the pages whose history was cleared or removed, as Chrome does: the recently closed tabs showing them, which
+   * Recently closed names, and those pages in the Back and Forward lists of open and closed tabs.
+   */
+  forgetHistoryPages(matches: (url: string) => boolean): void {
+    const closedTabsForgotten = forgetClosedTabs(this.tabReopeningAccess(), matches)
+    const openTabPagesForgotten = forgetTabHistoryPages(this.tabs.values(), matches)
+    // Neither is saved with the tabs, so only the state is published.
+    if (closedTabsForgotten || openTabPagesForgotten) this.changed(false)
   }
 
   /**

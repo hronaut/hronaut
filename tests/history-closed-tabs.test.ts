@@ -44,7 +44,7 @@ function recentlyClosed(urls: string[]) {
     closedTabs,
     access,
     failOpening: (error: Error) => failOpening(error),
-    tabs: { forgetClosedTabs: vi.fn((matches: (url: string) => boolean) => { forgetClosedTabs(access, matches) }) }
+    tabs: { forgetHistoryPages: vi.fn((matches: (url: string) => boolean) => { forgetClosedTabs(access, matches) }) }
   }
 }
 
@@ -63,7 +63,7 @@ async function historyWith(urls: string[]): Promise<HistoryStore> {
 describe('recently closed tabs and the history', () => {
   it('forgets only the closed tabs whose address matches', () => {
     const { closedTabs, tabs } = recentlyClosed(['https://a.example/', 'https://b.example/x', 'https://a.example/y'])
-    tabs.forgetClosedTabs((url) => url.startsWith('https://a.example/'))
+    tabs.forgetHistoryPages((url) => url.startsWith('https://a.example/'))
     expect(closedTabs.map((tab) => tab.url)).toEqual(['https://b.example/x'])
   })
 
@@ -178,7 +178,7 @@ describe('recently closed tabs and the history', () => {
   it('keeps a closed tab forgotten when the history is cleared while it reopens and reopening it fails', async () => {
     const { closedTabs, access, failOpening, tabs } = recentlyClosed(['https://bank.example/statement', 'https://news.example/'])
     const reopening = reopenClosedTabEntry(access, closedTabs[0]!.id, true)
-    tabs.forgetClosedTabs(() => true)
+    tabs.forgetHistoryPages(() => true)
     failOpening(new Error('The tab could not be opened.'))
     await expect(reopening).rejects.toThrow('could not be opened')
     // The failed reopening used to put the statement back in Recently closed, after Clear all had forgotten it.
@@ -188,7 +188,7 @@ describe('recently closed tabs and the history', () => {
   it('remembers a closed tab again when reopening it fails and the history cleared meanwhile did not show it', async () => {
     const { closedTabs, access, failOpening, tabs } = recentlyClosed(['https://bank.example/statement', 'https://news.example/'])
     const reopening = reopenClosedTabEntry(access, closedTabs[0]!.id, true)
-    tabs.forgetClosedTabs((url) => url === 'https://news.example/')
+    tabs.forgetHistoryPages((url) => url === 'https://news.example/')
     failOpening(new Error('The tab could not be opened.'))
     await expect(reopening).rejects.toThrow('could not be opened')
     expect(closedTabs.map((tab) => tab.url)).toEqual(['https://bank.example/statement'])
@@ -202,18 +202,19 @@ describe('the tab manager forgetting recently closed tabs', () => {
     const internals = {
       closedTabs: [closedTab('https://news.example/'), closedTab('https://bank.example/')],
       detachedClosedTabs: new Set([reopening]),
+      tabs: new Map(),
       changed
     }
     const manager = Object.assign(Object.create(BrowserTabsManager.prototype), internals) as BrowserTabsManager
-    manager.forgetClosedTabs((url) => url.startsWith('https://mail.example/'))
+    manager.forgetHistoryPages((url) => url.startsWith('https://mail.example/'))
     expect(changed).not.toHaveBeenCalled()
 
     // A tab held aside while it reopens is forgotten too, so it cannot come back.
-    manager.forgetClosedTabs((url) => url === 'https://bank.example/statement')
+    manager.forgetHistoryPages((url) => url === 'https://bank.example/statement')
     expect(reopening).toEqual([])
     expect(changed).toHaveBeenCalledExactlyOnceWith(false)
 
-    manager.forgetClosedTabs((url) => url.startsWith('https://bank.example/'))
+    manager.forgetHistoryPages((url) => url.startsWith('https://bank.example/'))
     expect(internals.closedTabs.map((tab) => tab.url)).toEqual(['https://news.example/'])
     expect(changed).toHaveBeenCalledTimes(2)
     expect(changed).toHaveBeenLastCalledWith(false)
