@@ -31,8 +31,7 @@ import {
   nativeTheme,
   protocol,
   session,
-  shell,
-  webContents
+  shell
 } from 'electron'
 import electronUpdater from 'electron-updater'
 import { enableNativeWebMcp } from './native-webmcp-switch.js'
@@ -174,9 +173,9 @@ const trustedDialogs = createTrustedDialogs({
   mainWindow: () => mainWindowRefs.window,
   quitting: () => appQuitState.quitting,
   showNativeMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options),
-  focusedContents: () => webContents.getFocusedWebContents(),
+  keyboardPage: () => tabRuntime.tabs?.keyboardPage() ?? null,
   // Only a page in view gets it back; the shell keeps its own focus on the control it restores.
-  returnFocus: (contents) => tabRuntime.tabs?.focusPageAfterQuestion(contents)
+  returnKeyboard: (page) => tabRuntime.tabs?.focusPageAfterQuestion(page)
 })
 const addressSuggestionOverlay = createAddressSuggestionOverlay({
   trustedShellUrl,
@@ -1142,6 +1141,9 @@ async function createWindow(startMinimized = false): Promise<void> {
         variant: { kind: 'message', topic: 'unsaved-changes' }
       })
       return response === 1
+    },
+    onCoveredPageKeyboard: (page) => {
+      if (mainWindowRefs.window) trustedDialogs.noteKeyboardPage(mainWindowRefs.window, page)
     },
     ...walletLifecycleCallbacks,
     onPageVisited: recordPageVisit,

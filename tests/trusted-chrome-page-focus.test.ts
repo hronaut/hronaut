@@ -1,6 +1,14 @@
 import { EventEmitter } from 'node:events'
 import { expect, it, vi } from 'vitest'
-vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
+const electron = vi.hoisted(() => ({ focused: null as unknown }))
+vi.mock('electron', () => ({
+  session: {},
+  WebContentsView: class {},
+  nativeImage: {},
+  shell: {},
+  app: { getPath: () => '/tmp' },
+  webContents: { getFocusedWebContents: () => electron.focused }
+}))
 import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
 
 interface PageFocusInternals {
@@ -15,6 +23,7 @@ function fixture() {
     destroyed: false,
     window: { isDestroyed: () => false, isFocused: () => true, webContents: shell },
     tabs: new Map([[tab.id, tab]]),
+    webContentsToTab: new Map([[page.id, tab.id]]),
     activeTabId: tab.id,
     splitView: null,
     browserContentOccluded: true,
@@ -67,6 +76,21 @@ it('still focuses the page when the key that closed trusted chrome repeats while
 
   manager.setBrowserContentOccluded(false, 1)
   expect(page.focus).toHaveBeenCalledOnce()
+})
+
+it('names the page that has the keyboard, or takes it once trusted chrome closes, and no page while the shell has it', () => {
+  const { manager, internals, shell, page, tab } = fixture()
+  electron.focused = page
+  expect(manager.keyboardPage()).toBe(page)
+  electron.focused = shell
+  expect(manager.keyboardPage()).toBeNull()
+
+  // A second question asked while the first one's exit plays: the shell has the keyboard, which the page takes next.
+  internals.focusTabOrTrustedChrome(tab)
+  expect(manager.keyboardPage()).toBe(page)
+  shell.emit('input-event', {}, { type: 'mouseDown' })
+  expect(manager.keyboardPage()).toBeNull()
+  electron.focused = null
 })
 
 it('drops the pending focus when another tab became active during the exit', () => {

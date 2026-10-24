@@ -21,7 +21,11 @@ export function attachPageFocusEvents<Tab extends PageFocusEventsTab>(access: Pa
           && access.window().isFocused()
           && !webContents.isDestroyed()
           && electronWebContents.getFocusedWebContents()?.id === webContents.id
-        ) access.window().webContents.focus()
+        ) {
+          // Such as when the person comes back to the window they left in this page: a question over it gives it back.
+          access.coveredPageTookKeyboard(webContents)
+          access.window().webContents.focus()
+        }
       })
       return
     }

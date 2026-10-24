@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 import { trustedDialog } from './trusted-dialog-fixture.js'
 
-test('gives the keyboard back to the page whose close or navigation the person kept, and leaves it where it was otherwise', async ({ appWindow, electronApp }) => {
+test('gives the keyboard back to the page whose close the person kept, and leaves it on the tab the close was asked from', async ({ appWindow, electronApp }) => {
   test.skip(process.platform === 'darwin', 'The person presses Ctrl+W here; the macOS key is Cmd+W')
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
@@ -38,17 +38,30 @@ test('gives the keyboard back to the page whose close or navigation the person k
       page.sendInputEvent({ type: 'keyUp', keyCode, modifiers })
     }, { url: draftUrl, keyCode, modifiers })
     // The person's key in Hronaut's own window. A held key repeats, as the keyboard does, into whatever has the keyboard,
-    // until it is let go there.
+    // until it is let go there. Enter also types a carriage return, which is what presses a button or submits a form.
     const pressInWindow = (keyCode: string, holdMs = 0) => electronApp.evaluate(async ({ BrowserWindow, webContents }, { url, keyCode, holdMs }) => {
       const shell = BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents
       const focused = () => webContents.getFocusedWebContents() ?? shell
+      const typed = keyCode === 'Enter' ? '\r' : undefined
       shell.sendInputEvent({ type: 'keyDown', keyCode })
+      if (typed) shell.sendInputEvent({ type: 'char', keyCode: typed })
       await new Promise<void>((resolve) => {
-        const repeat = setInterval(() => focused().sendInputEvent({ type: 'keyDown', keyCode, modifiers: ['isautorepeat'] }), 30)
+        const repeat = setInterval(() => {
+          const contents = focused()
+          contents.sendInputEvent({ type: 'keyDown', keyCode, modifiers: ['isautorepeat'] })
+          if (typed) contents.sendInputEvent({ type: 'char', keyCode: typed, modifiers: ['isautorepeat'] })
+        }, 30)
         setTimeout(() => { clearInterval(repeat); resolve() }, holdMs)
       })
       focused().sendInputEvent({ type: 'keyUp', keyCode })
     }, { url: appWindow.url(), keyCode, holdMs })
+    // What the shell last told main about its chrome covering the pages.
+    await electronApp.evaluate(({ ipcMain }) => {
+      const state = globalThis as typeof globalThis & { pagesCovered?: boolean, notePagesCovered?: (event: unknown, covered: boolean) => void }
+      state.notePagesCovered = (_event, covered) => { state.pagesCovered = covered }
+      ipcMain.on('browser:content-occluded', state.notePagesCovered)
+    })
+    const pagesCovered = () => electronApp.evaluate(() => (globalThis as typeof globalThis & { pagesCovered?: boolean }).pagesCovered)
     const typeDraft = async (text: string) => {
       await electronApp.evaluate(async ({ webContents }, url) => {
         const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)!
@@ -67,7 +80,7 @@ test('gives the keyboard back to the page whose close or navigation the person k
     await expect.poll(focusedUrl).not.toBe(draftUrl)
     await pressInWindow('Escape')
     await expect(trustedDialog(appWindow)).toBeHidden()
-    // The keyboard stayed on the tab in the strip, so typing went nowhere and Delete would have closed the tab.
+    // The keyboard used to stay on the tab in the strip, so typing went nowhere and Delete closed the tab.
     await expect.poll(focusedUrl).toBe(draftUrl)
     expect((await pageState()).field).toBe('draft')
 
@@ -82,19 +95,28 @@ test('gives the keyboard back to the page whose close or navigation the person k
     expect((await pageState()).keys.length).toBe(keysBefore)
     expect((await pageState()).submitted).toBe(false)
 
-    // A navigation asked from the address bar keeps the keyboard in the address bar.
-    const addressBar = appWindow.getByRole('combobox', { name: 'Address', exact: true })
-    await addressBar.click()
-    await addressBar.fill(`${draftUrl}?next`)
-    await addressBar.press('Enter')
+    // Delete on the tab in the strip asks too, and Escape leaves the keyboard on that tab. The person moved the keyboard
+    // to the strip, as F6 and Tab do; a click on the tab would give its page the keyboard.
+    await electronApp.evaluate(({ BrowserWindow }, url) => {
+      BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents.focus()
+    }, appWindow.url())
+    await expect.poll(focusedUrl).toBe(appWindow.url())
+    await draftTab.focus()
+    await expect(draftTab).toBeFocused()
+    await pressInWindow('Delete')
     await expect(trustedDialog(appWindow)).toHaveAttribute('data-armed', 'true')
+    await expect.poll(pagesCovered).toBe(true)
     await pressInWindow('Escape')
     await expect(trustedDialog(appWindow)).toBeHidden()
-    // Nothing may move the keyboard once the dialog has gone.
-    await appWindow.waitForTimeout(500)
+    // A page waiting for the keyboard takes it when the shell says its chrome no longer covers the pages.
+    await expect.poll(pagesCovered).toBe(false)
     expect(await focusedUrl()).toBe(appWindow.url())
-    await expect(addressBar).toBeFocused()
+    await expect(draftTab).toBeFocused()
   } finally {
+    await electronApp.evaluate(({ ipcMain }) => {
+      const state = globalThis as typeof globalThis & { notePagesCovered?: (event: unknown, covered: boolean) => void }
+      if (state.notePagesCovered) ipcMain.removeListener('browser:content-occluded', state.notePagesCovered)
+    })
     await closeFixtureServer(server)
   }
 })
