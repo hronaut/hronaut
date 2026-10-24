@@ -12,7 +12,6 @@ function strip(tabs: { title: string; pinned?: boolean; workspace?: string }[]) 
   let created = 0
   const open: TabReopeningTab[] = tabs.map(({ title, pinned = false, workspace }) => tab(title, pinned, workspace))
   const closedTabs: BrowserClosedTabState[] = []
-  const closedTabHistories = new WeakMap()
   function tab(title: string, pinned: boolean, workspace?: string): TabReopeningTab {
     created += 1
     return {
@@ -28,7 +27,6 @@ function strip(tabs: { title: string; pinned?: boolean; workspace?: string }[]) 
   const access: TabReopeningAccess<TabReopeningTab> = {
     closedTabs: () => closedTabs,
     detachedClosedTabs: () => new Set(),
-    closedTabHistories: () => closedTabHistories,
     tabCount: () => open.length,
     orderedTabs,
     getTab: (tabId) => open.find((candidate) => candidate.id === tabId)!,

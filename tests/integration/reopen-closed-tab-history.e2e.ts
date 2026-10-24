@@ -50,12 +50,20 @@ test('reopens a closed tab with its back history and scroll, as Chrome, without 
     await expect.poll(() => showing(first)).toBe(true)
     await navigate(second)
     await expect.poll(() => visits(second)).toBe(1)
-    // The page saves its scroll to its history entry a moment after it moves, as in Chrome.
+    // The page saves its state to its history entry a moment after it changes, as in Chrome: once it holds still, the
+    // next change is the scroll's.
     const pageState = (url: string) => electronApp.evaluate(({ webContents }, url) => {
       const history = webContents.getAllWebContents().find((contents) => contents.getURL() === url)!.navigationHistory
       return history.getEntryAtIndex(history.getActiveIndex())?.pageState
     }, url)
-    const unscrolled = await pageState(second)
+    let unscrolled = await pageState(second)
+    await expect.poll(async () => {
+      await appWindow.waitForTimeout(1_500)
+      const latest = await pageState(second)
+      const still = latest === unscrolled
+      unscrolled = latest
+      return still
+    }, { timeout: 15_000 }).toBe(true)
     await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
       .find((contents) => contents.getURL() === url)!.executeJavaScript('window.scrollTo(0, 1500)'), second)
     await expect.poll(() => scrolled(second)).toBe(1500)

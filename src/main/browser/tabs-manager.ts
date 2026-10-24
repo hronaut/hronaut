@@ -537,7 +537,8 @@ import {
   sleepFallbackTab,
   sleepWorkspaceTabs,
   wakeTab,
-  watchUnsavedFormEdits
+  watchUnsavedFormEdits,
+  withoutSleepingPage
 } from './tab-sleep/tab-sleep.js'
 import type { MemorySaverAccess } from './tab-sleep/memory-saver-access.js'
 import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
@@ -1368,8 +1369,6 @@ export class BrowserTabsManager {
    * Forgetting closed tabs with the history reaches these too.
    */
   private readonly detachedClosedTabs = new Set<BrowserClosedTabState[]>()
-  /** The back and forward history of the recently closed tabs, which reopening them restores. */
-  private readonly closedTabHistories = new WeakMap<BrowserClosedTabState, NavigationHistorySnapshot>()
   private mcpUrl: string
 
   constructor(
@@ -2418,7 +2417,6 @@ export class BrowserTabsManager {
     return {
       closedTabs: () => this.closedTabs,
       detachedClosedTabs: () => this.detachedClosedTabs,
-      closedTabHistories: () => this.closedTabHistories,
       tabCount: () => this.tabs.size,
       orderedTabs: () => this.orderedTabs(),
       getTab: (tabId) => this.getTab(tabId),
@@ -6138,7 +6136,7 @@ export class BrowserTabsManager {
         index: tab.sleepNavigationHistory.index
       }
     }
-    return safeNavigationHistorySnapshot(tab.webContents)
+    return withoutSleepingPage(safeNavigationHistorySnapshot(tab.webContents))
   }
 
   private validateTarget(target: { ref?: string; selector?: string }): void {

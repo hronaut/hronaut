@@ -10,6 +10,19 @@ const MAX_CLOSED_TABS = MAX_TABS
 /** The pages a closed tab keeps on each side of the one it showed, as Chrome's sessions keep (gMaxPersistNavigationCount). */
 const MAX_CLOSED_TAB_PAGES_EACH_SIDE = 6
 
+/** What a remembered closed tab had shown: its back and forward pages, and whether History counted its page yet. */
+interface ClosedTabHistory {
+  pages: NavigationHistorySnapshot
+  visited: boolean
+}
+
+/**
+ * The history of each remembered closed tab that had one, which reopening restores. It stays here in the main process,
+ * out of the closed tabs the browser state publishes, as the pages' saved scroll and form state is in it, and it goes
+ * with the closed tab wherever the tab is held, such as an archived workspace's.
+ */
+const closedTabHistories = new WeakMap<BrowserClosedTabState, ClosedTabHistory>()
+
 /**
  * Reopens the most recently closed tab, or the one with this id, in its place among its workspace's tabs, and shows it,
  * once tab label saves have settled.
@@ -37,17 +50,18 @@ export async function reopenClosedTabEntry<Tab extends TabReopeningTab>(access: 
   const closed = held[0]
   if (!closed) return undefined
   access.detachedClosedTabs().add(held)
-  const navigationHistory = access.closedTabHistories().get(closed)
+  const history = closedTabHistories.get(closed)
   let tab: Tab
   try {
     // With its back and forward history, as Chrome reopens a tab; loading the page it showed again is not another
-    // visit. A tab closed before its first page came has none, and its page is a visit once it comes.
+    // visit, unless History had not counted it yet. A tab closed before its first page came has none, and its page is
+    // a visit once it comes.
     tab = await access.createTab({
       url: closed.url,
       title: closed.title,
       label: closed.label,
       pinned: closed.pinned,
-      ...(navigationHistory ? { navigationHistory: copyHistory(navigationHistory), suppressInitialHistory: true } : {}),
+      ...(history ? { navigationHistory: copyHistory(history.pages), suppressInitialHistory: history.visited } : {}),
       active,
       mcpGroupId: closed.mcpGroupId,
       zoomIsolated: closed.zoomIsolated === true,
@@ -118,7 +132,7 @@ export function forgetClosedTabs<Tab extends TabReopeningTab>(access: TabReopeni
     for (let index = closedTabs.length - 1; index >= 0; index -= 1) {
       const closed = closedTabs[index]!
       if (!matches(closed.url)) {
-        forgetHistoryPages(access, closed, matches)
+        forgetHistoryPages(closed, matches)
         continue
       }
       closedTabs.splice(index, 1)
@@ -139,7 +153,7 @@ export function forgetWorkspaceClosedTabs<Tab extends TabReopeningTab>(access: T
       const closed = closedTabs[index]!
       if (closed.mcpGroupId !== workspaceId) continue
       if (!matches(closed.url)) {
-        forgetHistoryPages(access, closed, matches)
+        forgetHistoryPages(closed, matches)
         continue
       }
       closedTabs.splice(index, 1)
@@ -176,8 +190,10 @@ export function rememberClosedTab<Tab extends TabReopeningTab>(
     ...(tab.humanInteractionLocked ? { humanInteractionLocked: true } : {}),
     ...(place >= 0 ? { place } : {})
   }
-  const history = closedTabHistory(navigationHistory, tab.url)
-  if (history) access.closedTabHistories().set(closed, history)
+  const pages = closedTabHistory(navigationHistory, tab.url)
+  // A page closed before it was ready had no visit yet, which it gets when it reopens.
+  const visited = tab.suppressInitialHistory === true || tab.pendingHistoryUrl !== tab.url
+  if (pages) closedTabHistories.set(closed, { pages, visited })
   access.closedTabs().push(closed)
   if (access.closedTabs().length > MAX_CLOSED_TABS) access.closedTabs().shift()
 }
@@ -204,11 +220,11 @@ function copyHistory(history: NavigationHistorySnapshot): NavigationHistorySnaps
  * Forgets the pages of a closed tab's back and forward history whose address matches, so a page whose history was
  * cleared does not come back with Back once the tab reopens; the page it showed is kept, as its address does not match.
  */
-function forgetHistoryPages<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, closed: BrowserClosedTabState, matches: (url: string) => boolean): void {
-  const history = access.closedTabHistories().get(closed)
+function forgetHistoryPages(closed: BrowserClosedTabState, matches: (url: string) => boolean): void {
+  const history = closedTabHistories.get(closed)
   if (!history) return
-  const kept = history.entries.filter((entry, index) => index === history.index || !matches(entry.url))
-  if (kept.length === history.entries.length) return
-  const index = history.entries.slice(0, history.index).filter((entry) => !matches(entry.url)).length
-  access.closedTabHistories().set(closed, { entries: kept, index })
+  const { entries, index } = history.pages
+  const kept = entries.filter((entry, entryIndex) => entryIndex === index || !matches(entry.url))
+  if (kept.length === entries.length) return
+  history.pages = { entries: kept, index: entries.slice(0, index).filter((entry) => !matches(entry.url)).length }
 }

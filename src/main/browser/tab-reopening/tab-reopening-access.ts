@@ -3,7 +3,7 @@ import type { NavigationHistorySnapshot } from '../navigation-history.js'
 
 /**
  * The tab fields remembering, reopening and duplicating tabs read: its address, titles, pin, workspace, zoom settings,
- * and its own mute, agent pause and input lock.
+ * its own mute, agent pause and input lock, and whether History counted its page yet.
  */
 export interface TabReopeningTab {
   id: string
@@ -17,6 +17,10 @@ export interface TabReopeningTab {
   tabMuted: boolean
   tabAgentPaused: boolean
   humanInteractionLocked: boolean
+  /** Set while a restored or reopened tab loads its page again, which History counted already. */
+  suppressInitialHistory?: boolean
+  /** The page History counts once it is ready, while it is not yet. */
+  pendingHistoryUrl?: string | null
 }
 
 /** What reopening or duplicating a tab asks the tab manager to open. */
@@ -52,11 +56,6 @@ export interface TabReopeningAccess<Tab extends TabReopeningTab> {
    * back. Forgetting closed tabs reaches these too, so one forgotten meanwhile does not come back.
    */
   detachedClosedTabs(): Set<BrowserClosedTabState[]>
-  /**
-   * The back and forward history of each remembered closed tab that had one, which reopening restores. It stays in the
-   * main process, out of the closed tabs the browser state publishes, as the pages' saved scroll and form state is in it.
-   */
-  closedTabHistories(): WeakMap<BrowserClosedTabState, NavigationHistorySnapshot>
   /** How many tabs are open. */
   tabCount(): number
   /** The open tabs in the order the strip and rail show them. */
