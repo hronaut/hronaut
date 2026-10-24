@@ -1056,6 +1056,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     partition: PARTITION,
     sessionDataPath: app.getPath('sessionData'),
     storePath: join(app.getPath('userData'), 'tabs.json'),
+    tabHistoryPath: join(app.getPath('userData'), 'tab-history.json'),
     requireExistingMetadata: requireExistingWorkspaceMetadata,
     mcpUrl: mcpRuntime.url,
     profilePath: app.getPath('userData'),
