@@ -596,7 +596,31 @@ describe('Home workspace hub', () => {
     if (!full) expect(document.activeElement).toBe(button('#workspace-undo'))
   })
 
-  it.each([false, true])('asks main natively, not window.confirm, before a clear that cannot be undone (confirmed=%s)', async confirmed => {
+  it.each([
+    ['protected', (group: typeof workspace) => [{ ...group, deletionProtected: true }]],
+    ['deleted', () => []]
+  ] as const)('clears nothing when the workspace was %s while the question waited', async (_change, change) => {
+    const archive = Array.from({ length: 50 }, (_, index) => ({ ...workspace, id: `archived-${index}`, savedAt: workspace.lastUsedAt, tabs: [] }))
+    const full = { ...inventory, savedTabGroups: archive }
+    const action = vi.fn().mockResolvedValue({ ...full, mcpTabGroups: [] })
+    const getWorkspaces = vi.fn().mockResolvedValue(full)
+    // An agent changes the workspace while the person reads the question.
+    const nativeConfirm = vi.fn(async () => {
+      getWorkspaces.mockResolvedValue({ ...full, mcpTabGroups: change(full.mcpTabGroups[0]!) })
+      return true
+    })
+    mount({ getWorkspaces, workspaceAction: action, confirm: nativeConfirm })
+    await settle()
+
+    button('[data-workspace-action="clear"]').click()
+    await settle()
+    await settle()
+
+    expect(nativeConfirm).toHaveBeenCalledOnce()
+    expect(action).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('asks main in Hronaut\'s dialog, not window.confirm, before a clear that cannot be undone (confirmed=%s)', async confirmed => {
     const archive = Array.from({ length: 50 }, (_, index) => ({ ...workspace, id: `archived-${index}`, savedAt: workspace.lastUsedAt, tabs: [] }))
     const full = { ...inventory, savedTabGroups: archive }
     const action = vi.fn().mockResolvedValue({ ...full, mcpTabGroups: [] })

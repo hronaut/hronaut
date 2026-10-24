@@ -1,4 +1,5 @@
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
+import type { SupportedLocale } from '../../src/shared/locale.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
 import { useSiteStorageController } from '../../src/renderer/src/composables/useSiteStorageController.js'
@@ -82,7 +83,12 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController(manageStorage = vi.fn(async () => storageResult()), copyTextOverride?: CopyTextWithFeedback) {
+function createController(
+  manageStorage = vi.fn(async () => storageResult()),
+  copyTextOverride?: CopyTextWithFeedback,
+  locale: SupportedLocale = 'en-US',
+  translate: (key: string, parameters?: Record<string, string | number>) => string = (key) => key
+) {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const open = ref(true)
   const confirm = vi.fn(async () => true)
@@ -97,9 +103,9 @@ function createController(manageStorage = vi.fn(async () => storageResult()), co
   const controller = useSiteStorageController({
     activeTab,
     open,
-    locale: ref('en-US'),
+    locale: ref(locale),
     browser,
-    translate: (key) => key,
+    translate,
     copyText,
     confirm,
     keepsSeparatePanelOpen: () => false
@@ -183,6 +189,52 @@ describe('site-storage controller', () => {
     await controller.clearKind()
     expect(confirm).toHaveBeenCalledOnce()
     expect(browser.manageStorage).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['another tab is shown', (context: ReturnType<typeof createController>) => { context.activeTab.value = tab('tab-2') }],
+    ['the tab shows another site', (context: ReturnType<typeof createController>) => { context.activeTab.value = { ...tab(), url: 'https://other.test/' } }],
+    ['another kind of storage is shown', (context: ReturnType<typeof createController>) => { context.controller.kind.value = 'session-storage' }]
+  ])('clears nothing after a yes when %s while the question waited', async (_case, change) => {
+    const context = createController()
+    const { browser, confirm, controller } = context
+    controller.result.value = storageResult()
+    let answer!: (value: boolean) => void
+    confirm.mockImplementationOnce(() => new Promise<boolean>((resolve) => { answer = resolve }))
+
+    const clearing = controller.clearKind()
+    expect(confirm).toHaveBeenCalledOnce()
+    change(context)
+    await nextTick()
+    browser.manageStorage.mockClear()
+    answer(true)
+    await clearing
+    expect(browser.manageStorage).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'clear' }))
+  })
+
+  it.each<[SupportedLocale, string]>([
+    ['en-US', 'Clear cookies for example.test?'],
+    ['de-DE', 'Cookies für example.test löschen?']
+  ])('names the kind it clears in the question as the language writes it mid-sentence (%s)', async (locale, message) => {
+    const words: Record<string, Record<string, string>> = {
+      'en-US': { 'runtime.storage.cookies': 'Cookies', 'runtimeDetails.clearStorage': 'Clear {kind} for {host}?{note}' },
+      'de-DE': { 'runtime.storage.cookies': 'Cookies', 'runtimeDetails.clearStorage': '{kind} für {host} löschen?{note}' }
+    }
+    const translate = (key: string, parameters: Record<string, string | number> = {}) => (words[locale][key] ?? '')
+      .replace(/\{(\w+)\}/gu, (_match, name: string) => String(parameters[name] ?? ''))
+    const { confirm, controller } = createController(undefined, undefined, locale, translate)
+    controller.kind.value = 'cookies'
+    controller.result.value = { ...storageResult(), kind: 'cookies' }
+    confirm.mockResolvedValue(false)
+    await controller.clearKind()
+    expect(confirm).toHaveBeenCalledExactlyOnceWith({ message })
+  })
+
+  it('clears what the person was asked about after a yes', async () => {
+    const { browser, controller } = createController()
+    controller.result.value = storageResult()
+    await controller.clearKind()
+    expect(browser.manageStorage).toHaveBeenCalledWith(expect.objectContaining({ tabId: 'tab-1', action: 'clear' }))
   })
 
   it('deletes only the cookie of the row, by its domain and path, not every cookie of its name', async () => {

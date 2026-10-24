@@ -591,7 +591,8 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     const askedHost = activeHostname.value
     const protectedNote = askedKind === 'cookies' ? options.translate('runtimeDetails.httpOnlyNote') : ''
     const confirmed = await options.confirm(splitConfirmation((parameters) => options.translate('runtimeDetails.clearStorage', parameters), {
-      kind: kindLabel.value.toLocaleLowerCase(options.locale.value),
+      // Mid-sentence the kind is lowercase, except in German, which capitalizes every noun.
+      kind: options.locale.value.startsWith('de') ? kindLabel.value : kindLabel.value.toLocaleLowerCase(options.locale.value),
       host: askedHost,
       note: protectedNote
     }))

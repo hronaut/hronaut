@@ -1,8 +1,8 @@
 import { createServer } from 'node:http'
 import { closeFixtureServer, expect, test } from './fixtures.js'
-import { answerEveryTrustedDialog } from './trusted-dialog-fixture.js'
+import { answerEveryTrustedDialog, answeredTrustedDialogs } from './trusted-dialog-fixture.js'
 
-test('keeps keyboard position when clearing retained website history', async ({ appWindow, electronApp }) => {
+test('keeps keyboard position when clearing retained website history', async ({ appWindow }) => {
   const servers = Array.from({ length: 3 }, () => createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end('<title>History focus fixture</title>')
@@ -44,6 +44,7 @@ test('keeps keyboard position when clearing retained website history', async ({ 
       else await expect(panel.getByRole('heading', { name: 'Global history', exact: true })).toBeFocused()
     }
     await expect(panel.getByText('No websites yet', { exact: true })).toBeVisible()
+    expect(await answeredTrustedDialogs(appWindow)).toEqual(steps.map(({ origin }) => `Clear browsing history for ${origin}?`))
   } finally {
     await Promise.all(servers.map(closeFixtureServer))
   }

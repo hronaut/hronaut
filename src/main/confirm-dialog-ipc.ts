@@ -14,6 +14,8 @@ interface ConfirmDialogIpcHost<Window extends TrustedDialogWindow> {
   senderWindow(event: IpcMainInvokeEvent): Window | null
   /** The main window, which Home's tab is shown in. */
   mainWindow(): Window | null
+  /** Gives the keyboard back to the page that asked once its question's dialog has closed. */
+  focusAskingPage(event: IpcMainInvokeEvent): void
   /** Asks in Hronaut's own dialog over the window, or in the system dialog when the window cannot show it. */
   showDialog(options: TrustedDialogOptions<Window>): Promise<MessageBoxReturnValue>
   text(key: MessageKey, parameters?: MessageParameters): string
@@ -96,8 +98,13 @@ export function registerConfirmDialogIpc<Window extends TrustedDialogWindow>(hos
     }
     return answer(event, value, () => host.senderWindow(event))
   })
-  host.ipcMain.handle('hronaut-home:confirm', (event, value: unknown) => {
-    if (!isHomeDocument(event)) return false
-    return answer(event, value, () => host.mainWindow())
+  host.ipcMain.handle('hronaut-home:confirm', async (event, value: unknown) => {
+    if (!isHomeDocument(event) || !confirmation(value)) return false
+    try {
+      return await answer(event, value, () => host.mainWindow())
+    } finally {
+      // The dialog is drawn by the shell, which took the keyboard from Home; Home's own focus goes back with it.
+      host.focusAskingPage(event)
+    }
   })
 }

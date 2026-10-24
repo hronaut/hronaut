@@ -58,7 +58,7 @@ test('filters retained storage across keys, values and cookie domains without ch
   }
 })
 
-test('deletes only the cookie row chosen and keeps HttpOnly cookies when clearing cookies', async ({ appWindow, electronApp }) => {
+test('deletes only the cookie row chosen and keeps HttpOnly cookies when clearing cookies', async ({ appWindow }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, {
       'content-type': 'text/html',

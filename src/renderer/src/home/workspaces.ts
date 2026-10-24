@@ -28,15 +28,23 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     return window.confirm(question.detail ? `${question.message}\n\n${question.detail}` : question.message)
   }
   /**
-   * Asks before a change to a workspace. No other action starts while the question waits, and a yes counts only while
-   * the workspace is still there and unprotected, since Home keeps running meanwhile.
+   * Asks before a change to a workspace. No other action or refresh starts while the question waits, and a yes counts
+   * only while the workspace is still there and unprotected: an agent may archive, restore, protect or delete it
+   * meanwhile, so Home reads the workspaces again after the yes.
    */
   async function confirmWorkspaceChange(template: string, group: { id: string; name: string }): Promise<boolean> {
     pending = true
     try {
       if (!await confirm(splitConfirmation((parameters) => interpolate(template, parameters), { name: group.name })) || signal.aborted) return false
-      const latest = [...state.mcpTabGroups, ...state.savedTabGroups].find(candidate => candidate.id === group.id)
-      return Boolean(latest && !latest.deletionProtected)
+      ++revision
+      const latest = await api.getWorkspaces()
+      if (signal.aborted) return false
+      state = latest; onStateChange?.(state); render()
+      const current = [...state.mcpTabGroups, ...state.savedTabGroups].find(candidate => candidate.id === group.id)
+      return Boolean(current && !current.deletionProtected)
+    } catch {
+      // Without the current workspaces the yes cannot be checked, so nothing changes.
+      return false
     } finally {
       pending = false
     }

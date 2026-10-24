@@ -781,6 +781,7 @@ function registerIpc(): void {
     assertTrustedShellSender,
     senderWindow: (event) => BrowserWindow.fromWebContents(event.sender),
     mainWindow: () => mainWindowRefs.window,
+    focusAskingPage: (event) => tabRuntime.tabs?.focusPageAfterQuestion(event.sender),
     showDialog: (options) => trustedDialogs.show(options),
     text
   })

@@ -1,6 +1,7 @@
 import { nextTick, ref, type Ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useWorkspaceEditorController } from '../../src/renderer/src/composables/useWorkspaceEditorController.js'
+import { MAX_ARCHIVED_WORKSPACES } from '../../src/shared/undo.js'
 import type {
   BrowserState,
   BrowserTabGroupState,
@@ -621,6 +622,33 @@ describe('workspace editor controller', () => {
       localStorageOriginCount: 1, localStorageItemCount: 1, origins: []
     })
     await transferring
+    controller.dispose()
+  })
+
+  it.each([
+    ['protected', (context: ReturnType<typeof createController>) => {
+      context.state.value = { ...context.state.value, mcpTabGroups: context.state.value.mcpTabGroups.map(group => group.id === 'agent' ? { ...group, deletionProtected: true } : group) }
+    }],
+    ['closed in the editor', (context: ReturnType<typeof createController>) => { context.controller.close() }]
+  ])('closes nothing after a yes when the workspace was %s while the question waited', async (_case, change) => {
+    // With the archive full, closing asks first and closes for good.
+    const full = browserState()
+    full.savedTabGroups = Array.from({ length: MAX_ARCHIVED_WORKSPACES }, (_, index) => ({
+      ...workspace(`archived-${index}`, `Archived ${index}`), savedAt: '2026-08-22T00:00:00.000Z', tabs: []
+    }))
+    const context = createController(full)
+    const { confirm, browser, controller } = context
+    let answer!: (value: boolean) => void
+    confirm.mockImplementationOnce(() => new Promise<boolean>((resolve) => { answer = resolve }))
+    await controller.openExisting('agent')
+
+    const closing = controller.closeWorkspace()
+    expect(confirm).toHaveBeenCalledOnce()
+    change(context)
+    await nextTick()
+    answer(true)
+    await closing
+    expect(browser.closeWorkspace).not.toHaveBeenCalled()
     controller.dispose()
   })
 

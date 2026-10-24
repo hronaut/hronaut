@@ -460,11 +460,15 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
 
   async function deleteSavedGroup(event: MouseEvent, group: BrowserSavedTabGroupState): Promise<void> {
     event.stopPropagation()
+    const askedPresentation = presentationGeneration
     const confirmed = await options.confirm(splitConfirmation(
       (parameters) => options.translate('runtimeActions.workspace.deleteConfirm', parameters, group.tabs.length),
       { name: group.name, count: options.formatNumber(group.tabs.length) }
     ))
-    if (!confirmed) return
+    // Search tabs keeps running while the question waits: it may close, or an agent may restore, protect or delete the
+    // workspace. Only the archived workspace the person was asked about is deleted.
+    const current = options.state.value.savedTabGroups.find(candidate => candidate.id === group.id)
+    if (!confirmed || !isPresentationCurrent(askedPresentation) || !current || current.deletionProtected) return
     const action = beginAction()
     if (!action) return
     try {

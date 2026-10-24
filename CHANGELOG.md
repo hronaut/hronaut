@@ -13,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - A workspace Hronaut was deleting when it stopped, such as in a crash or a power cut before the deletion finished, now comes back with its tabs at the next start. It came back without them.
+- A Hronaut dialog that appears while **Edit workspace** or **Search tabs** is open, such as a website's permission request, now keeps the focus on its safe answer. The open panel took the focus back, so **Enter** pressed the panel's close button and **Tab** could not reach the dialog's other answer.
 
 ## [3.8.0] - 2026-10-23
 

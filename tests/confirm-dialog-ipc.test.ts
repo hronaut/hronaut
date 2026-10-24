@@ -19,11 +19,13 @@ function harness(options: { trustedShell?: boolean } = {}) {
   const mainWindow = { id: 'main' } as unknown as TrustedDialogWindow
   let answer = deferred<{ response: number; checkboxChecked: boolean }>()
   const showDialog = vi.fn((_options: TrustedDialogOptions) => answer.promise)
+  const focusAskingPage = vi.fn()
   registerConfirmDialogIpc({
     ipcMain: { handle: (channel: string, handler: Handler) => { handlers.set(channel, handler) } } as never,
     assertTrustedShellSender: () => { if (options.trustedShell === false) throw new Error('Rejected IPC from an untrusted renderer') },
     senderWindow: () => shellWindow,
     mainWindow: () => mainWindow,
+    focusAskingPage,
     showDialog,
     text: (key) => ({ 'native.dialog.cancel': 'Abbrechen', 'native.dialog.confirmOk': 'OK', 'native.dialog.confirmTitle': 'Bitte bestätigen' } as Record<string, string>)[key] ?? key
   })
@@ -37,6 +39,7 @@ function harness(options: { trustedShell?: boolean } = {}) {
   return {
     ask,
     showDialog,
+    focusAskingPage,
     shellWindow,
     mainWindow,
     answer: (response: number) => answer.resolve({ response, checkboxChecked: false }),
@@ -131,8 +134,11 @@ describe('Hronaut\'s own confirmations', () => {
     const confirmations = harness()
     const home = confirmations.ask('hronaut-home:confirm', { message: 'Delete workspace "Client"?' })
     expect(confirmations.showDialog).toHaveBeenCalledWith(expect.objectContaining({ window: confirmations.mainWindow, defaultId: 0, cancelId: 0 }))
+    expect(confirmations.focusAskingPage).not.toHaveBeenCalled()
     confirmations.answer(1)
     await expect(home).resolves.toBe(true)
+    // Home gets the keyboard back from the shell that drew the dialog.
+    expect(confirmations.focusAskingPage).toHaveBeenCalledOnce()
 
     confirmations.showDialog.mockClear()
     for (const url of ['https://example.com/', 'hronaut://home/settings', 'hronaut://other/', 'not a url']) {
@@ -140,5 +146,15 @@ describe('Hronaut\'s own confirmations', () => {
     }
     await expect(confirmations.ask('hronaut-home:confirm', { message: 'Delete?' }, 'hronaut://home/', true)).resolves.toBe(false)
     expect(confirmations.showDialog).not.toHaveBeenCalled()
+    await expect(confirmations.ask('hronaut-home:confirm', { message: '' })).resolves.toBe(false)
+    expect(confirmations.focusAskingPage).toHaveBeenCalledOnce()
+  })
+
+  it('give the shell\'s own questions no page to focus afterwards: its dialog gives the focus back itself', async () => {
+    const confirmations = harness()
+    const asked = confirmations.ask('shell:confirm', { message: 'Clear history?' })
+    confirmations.answer(0)
+    await expect(asked).resolves.toBe(false)
+    expect(confirmations.focusAskingPage).not.toHaveBeenCalled()
   })
 })
