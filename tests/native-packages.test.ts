@@ -240,19 +240,22 @@ function linesIn(script: string, ...lines: string[]): number[] {
 
 describe('the packaging workflows', () => {
   it.each([
-    ['build-macos', 'mac', 'npx electron-builder --mac "$PACKAGE_TARGET" --x64 --arm64 --publish never'],
-    ['build-linux', 'linux', 'npx electron-builder --linux "$PACKAGE_TARGET" --x64 --arm64 --publish never']
-  ])('install both CPUs\' packages after npm ci and before the %s release build, and check the apps after it', async (job, system, build) => {
-    const step = (await workflow('release.yml')).jobs[job]!.steps.find(candidate => candidate.run?.includes(build))!
-    const order = linesIn(step.run!, 'npm ci', `node scripts/native-packages.ts install ${system}`, 'npm run build:app', build, `node scripts/native-packages.ts check ${system} dist`)
+    ['release.yml', 'build-macos', 'mac', 'npx electron-builder --mac "$PACKAGE_TARGET" --x64 --arm64 --publish never -c.mac.forceCodeSigning=true'],
+    ['release.yml', 'build-linux', 'linux', 'npx electron-builder --linux "$PACKAGE_TARGET" --x64 --arm64 --publish never'],
+    ['ci.yml', 'package-macos-release-candidate', 'mac', 'npx electron-builder --mac --publish never -c.mac.forceCodeSigning=true']
+  ])('install both CPUs\' packages after npm ci and before the %s %s build, and check the apps after it', async (file, job, system, build) => {
+    // The job's scripts in the order its steps run them.
+    const script = (await workflow(file)).jobs[job]!.steps.map(step => step.run ?? '').join('\n')
+    const order = linesIn(script, 'npm ci', `node scripts/native-packages.ts install ${system}`, 'npm run build:app', build, `node scripts/native-packages.ts check ${system} dist`)
     expect([...order].sort((a, b) => a - b)).toEqual(order)
+    // A Mac app without its packages stops before it is sent to Apple to notarize.
+    if (system === 'mac') expect(linesIn(script, 'bash scripts/notarize-and-verify-macos.sh')[0]).toBeGreaterThan(order.at(-1)!)
   })
 
-  it('do the same in the release rehearsal on the Mac and on Linux', async () => {
+  it('do the same in the release rehearsal\'s Linux packages', async () => {
     const job = (await workflow('ci.yml')).jobs['package-release-candidate']!
     expect(job.strategy?.matrix?.include?.map(entry => [entry.command, entry.native])).toEqual([
       ['package:linux', 'linux'],
-      ['package:mac', 'mac'],
       ['package:win', undefined]
     ])
     const at = (run: string) => {

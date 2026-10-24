@@ -18,9 +18,10 @@ npmRebuild: false
 
 # Electron Fuses, flipped in the packaged binary before signing (https://www.electronjs.org/docs/latest/tutorial/fuses).
 # Hronaut never runs its executable as Node, never needs NODE_OPTIONS or the Node inspector in a packaged build, and loads
-# its code only from app.asar, which macOS and Windows now check against the hash electron-builder records. Builds are
-# not code-signed yet, so the Apple Silicon binary gets a fresh ad-hoc signature after the flip. The manual native
-# preflights turn the inspector back on for their own candidate, because Playwright drives the packaged app through it.
+# its code only from app.asar, which macOS and Windows now check against the hash electron-builder records. Release
+# builds for macOS are signed after the flip; unsigned local and preflight builds still need the Apple Silicon binary's
+# fresh ad-hoc signature. The manual native preflights turn the inspector back on for their own candidate, because
+# Playwright drives the packaged app through it.
 electronFuses:
   runAsNode: false
   enableNodeOptionsEnvironmentVariable: false
@@ -57,12 +58,17 @@ mac:
   minimumSystemVersion: "13.0"
   icon: build/icon.png
   category: public.app-category.utilities
-  identity: null
-  hardenedRuntime: false
-  notarize: false
+  # Signed with the Developer ID certificate in CSC_LINK and notarized with the App Store Connect key in APPLE_API_KEY,
+  # APPLE_API_KEY_ID and APPLE_API_ISSUER (see release.yml). Without them, as with CSC_IDENTITY_AUTO_DISCOVERY=false,
+  # the build stays unsigned and skips notarization.
+  hardenedRuntime: true
+  notarize: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     NSCameraUsageDescription: Hronaut lets websites use the camera after user approval.
     NSMicrophoneUsageDescription: Hronaut lets websites use the microphone after user approval.
+    NSLocationUsageDescription: Hronaut lets websites use your location after user approval.
   target:
     - target: dmg
       arch:
@@ -75,6 +81,10 @@ mac:
 
 dmg:
   artifactName: hronaut-${version}-${arch}.${ext}
+  # The disk image carries the same signature as the app, so it can be notarized and stapled too.
+  sign: true
+  # Stapling changes the image after electron-builder would write its blockmap, and updates come from the zip.
+  writeUpdateInfo: false
 
 linux:
   icon: build/icons
