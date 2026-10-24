@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - The Bookmarks panel has **Open all (N)** above the list, as Chrome's **Open all** on a bookmark folder: it opens every bookmark the list shows, after the chosen collection and the search, in the list's order, each in a background tab. From 15 tabs on it first asks **Open N tabs?**, and opening stops at the first tab that cannot open, such as at the 50-tab limit, saying how many opened.
+- **Bookmark all tabs**, as in Chrome: **Ctrl/Cmd+Shift+D**, **Bookmark All Tabs…** in a tab's menu or the command palette asks in the Bookmarks panel what to call a new collection, suggesting the workspace's name, and saves the workspace's open tabs in it in the tab strip's order. A page already in another collection stays there, and the panel says what it added.
 
 ## [3.11.0] - 2026-10-24
 

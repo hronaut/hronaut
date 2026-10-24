@@ -170,6 +170,20 @@ describe('useBrowserCollectionsShellController', () => {
     expect(harness.historyPanel.value.toggle).toHaveBeenCalledOnce()
   })
 
+  it('closes competing UI, Settings too, before Bookmark all tabs asks for the name', async () => {
+    const harness = createController()
+    harness.downloadsOpen.value = true
+    harness.historyOpen.value = true
+
+    await harness.controller.bookmarkAllTabs('client', 'Client A')
+
+    expect(harness.settingsOpen.value).toBe(false)
+    expect(harness.downloadsOpen.value).toBe(false)
+    expect(harness.historyOpen.value).toBe(false)
+    expect(harness.tabSearchOpen.value).toBe(false)
+    expect(harness.bookmarksPanel.value.bookmarkAllTabs).toHaveBeenCalledExactlyOnceWith('client', 'Client A')
+  })
+
   it('opens the current-bookmark action without closing Settings', async () => {
     const harness = createController()
     harness.downloadsOpen.value = true

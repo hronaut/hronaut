@@ -53,7 +53,7 @@ function historyEntry(id: string): BrowserHistoryEntry {
   }
 }
 
-function createHarness() {
+function createHarness(tabsWorkspace?: (workspaceId?: string | null) => { id: string | null; name?: string } | undefined) {
   let downloadsChanged: (downloads: BrowserDownloadState[]) => void = () => undefined
   const unsubscribeDownloads = vi.fn()
   const unsubscribeBookmarks = vi.fn()
@@ -107,7 +107,8 @@ function createHarness() {
     historyApi,
     settingsOpen,
     tabSearchOpen,
-    syncState
+    syncState,
+    ...(tabsWorkspace ? { tabsWorkspace } : {})
   })
 
   return {
@@ -208,6 +209,26 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     await harness.controller.openHistoryEntry(visited)
     expect(harness.newTab).toHaveBeenLastCalledWith({ url: visited.url, active: true })
 
+    harness.controller.dispose()
+  })
+
+  it('bookmarks the tabs of the workspace named, or in view, and asks nothing when no tab is in view', async () => {
+    const tabsWorkspace = vi.fn((workspaceId?: string | null) => workspaceId === undefined ? undefined : workspaceId === 'client' ? { id: 'client', name: 'Client A' } : { id: workspaceId })
+    const harness = createHarness(tabsWorkspace)
+    const bookmarkAllTabs = vi.fn(async (_workspaceId: string | null, _suggestedName?: string) => undefined)
+    harness.controller.bookmarksPanel.value = { toggle: vi.fn(async () => undefined), toggleCurrent: vi.fn(async () => undefined), bookmarkAllTabs, handleEscape: vi.fn() }
+    harness.controller.historyOpen.value = true
+    await harness.controller.bookmarkAllTabs('client')
+    expect(bookmarkAllTabs).toHaveBeenLastCalledWith('client', 'Client A')
+    expect(harness.settingsOpen.value).toBe(false)
+    expect(harness.controller.historyOpen.value).toBe(false)
+    expect(harness.tabSearchOpen.value).toBe(false)
+    await harness.controller.bookmarkAllTabs(null)
+    expect(bookmarkAllTabs).toHaveBeenLastCalledWith(null, undefined)
+    // Home is in view: there are no tabs to bookmark, so the panel is not opened.
+    await harness.controller.bookmarkAllTabs()
+    expect(tabsWorkspace).toHaveBeenLastCalledWith(undefined)
+    expect(bookmarkAllTabs).toHaveBeenCalledTimes(2)
     harness.controller.dispose()
   })
 

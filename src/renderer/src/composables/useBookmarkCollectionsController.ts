@@ -109,8 +109,11 @@ export function useBookmarkCollectionsController(options: {
     const name = draft.value
     if (editing.startsWith('tabs:')) {
       const workspaceId = editing.slice(5) || null
-      let result: BookmarkTabsResult | null = null
+      // Set by the operation; TypeScript does not follow an assignment in a callback.
+      let result = null as BookmarkTabsResult | null
       const saved = await run(async () => {
+        // The name is on its way; a snapshot that comes first, such as this save's own, no longer renumbers it.
+        tabsSuggestion = null
         const outcome = await api.bookmarkTabs(workspaceId, name)
         result = outcome.result
         return outcome.snapshot

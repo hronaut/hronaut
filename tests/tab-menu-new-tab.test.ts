@@ -49,3 +49,24 @@ describe('New Tab in a tab\'s menu', () => {
     expect(send).toHaveBeenCalledExactlyOnceWith('browser:new-tab-requested', 'client')
   })
 })
+
+describe('Bookmark All Tabs in a tab\'s menu', () => {
+  it('asks the window to bookmark the tabs of the workspace of the tab whose menu it is', () => {
+    const { access: menuAccess, send } = access([tab('home', undefined, 'hronaut://home/'), tab('own', 'own'), tab('client', 'client'), tab('loose')], 'own')
+    showTabContextMenu(menuAccess, 'client')
+    const item = built.templates.at(-1)!.find((candidate) => candidate.id === 'bookmark-all-tabs')!
+    expect(item).toMatchObject({ label: 'native.context.bookmarkAllTabs', enabled: true })
+    ;(item.click as () => void)()
+    expect(send).toHaveBeenCalledExactlyOnceWith('browser:bookmark-all-tabs-requested', 'client')
+    // The tabs in no workspace are named by null.
+    showTabContextMenu(menuAccess, 'loose')
+    ;(built.templates.at(-1)!.find((candidate) => candidate.id === 'bookmark-all-tabs')!.click as () => void)()
+    expect(send).toHaveBeenLastCalledWith('browser:bookmark-all-tabs-requested', null)
+  })
+
+  it('is unavailable while none of the workspace\'s tabs shows a web page', () => {
+    const { access: menuAccess } = access([tab('blank', 'client', 'about:blank'), tab('site', 'other')], 'blank')
+    showTabContextMenu(menuAccess, 'blank')
+    expect(built.templates.at(-1)!.find((candidate) => candidate.id === 'bookmark-all-tabs')).toMatchObject({ enabled: false })
+  })
+})

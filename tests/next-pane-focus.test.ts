@@ -37,6 +37,24 @@ describe('F6 from a page', () => {
   })
 })
 
+describe('Bookmark all tabs from a page', () => {
+  it('moves the keyboard to Hronaut\'s window first, so the collection\'s name gets it, as Find does', () => {
+    const shell = { isDestroyed: () => false, focus: vi.fn(), send: vi.fn() }
+    const tabs = { isHomeTab: () => false, shownTabIsHome: () => false, listMcpTabGroups: () => [], exitPageFullscreen: vi.fn() }
+    const { runPageShortcut, pageShortcutAvailable } = createBrowserShortcutRouting({
+      takeOvers: { available: () => undefined, takeOverFromPage: vi.fn() },
+      tabs: () => tabs,
+      agentPresenceSnapshot: () => ({ workspaces: {} }) as never,
+      mainWindowRefs: { window: { webContents: shell } as never }
+    })
+    expect(pageShortcutAvailable('bookmark-all-tabs', 'client', 'tab')).toBe(true)
+    runPageShortcut('bookmark-all-tabs', { tabId: 'tab', workspaceId: 'client' })
+    expect(shell.focus).toHaveBeenCalledOnce()
+    expect(shell.send).toHaveBeenCalledExactlyOnceWith('browser:shortcut-requested', 'bookmark-all-tabs')
+    expect(shell.focus.mock.invocationCallOrder[0]).toBeLessThan(shell.send.mock.invocationCallOrder[0]!)
+  })
+})
+
 describe('F6 from Hronaut\'s window', () => {
   function manager() {
     const shell = { id: 1 }

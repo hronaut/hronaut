@@ -163,6 +163,17 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'O', control: true, shift: true, repeat: true }))).toBeNull()
   })
 
+  it('bookmarks all tabs with the primary modifier plus Shift+D, as Chrome does, leaving Bookmark on D', () => {
+    expect(browserShortcutAction(input({ key: 'D', control: true, shift: true }))).toBe('bookmark-all-tabs')
+    expect(browserShortcutAction(input({ key: 'D', meta: true, shift: true, mac: true }))).toBe('bookmark-all-tabs')
+    expect(browserShortcutAction(input({ key: 'd', control: true }))).toBe('bookmark')
+    expect(browserShortcutAction(input({ key: 'D', shift: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'D', control: true, shift: true, alt: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'D', control: true, shift: true, repeat: true }))).toBeNull()
+    // Under Hronaut's dialogs the window keeps it from the page behind them, as the other browser keys.
+    expect(isBrowserKey(input({ key: 'D', control: true, shift: true, repeat: true }))).toBe(true)
+  })
+
   it('switches workspace with the primary modifier plus K, and nothing else on K', () => {
     expect(browserShortcutAction(input({ key: 'k', control: true }))).toBe('switch-workspace')
     expect(browserShortcutAction(input({ key: 'K', meta: true }))).toBe('switch-workspace')
@@ -207,6 +218,7 @@ describe('browserShortcutAction', () => {
     ['К', 'KeyR', true, 'reload-ignoring-cache'],
     ['А', 'KeyF', true, 'toggle-full-page'],
     ['Щ', 'KeyO', true, 'take-over'],
+    ['В', 'KeyD', true, 'bookmark-all-tabs'],
     ['Ш', 'KeyI', true, 'toggle-devtools'],
     ['С', 'KeyC', true, 'pick-element'],
     ['О', 'KeyJ', true, 'open-console'],

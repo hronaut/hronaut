@@ -6,7 +6,7 @@ type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
   'downloads:list', 'downloads:cancel', 'downloads:pause', 'downloads:resume', 'downloads:retry', 'downloads:remove-finished', 'downloads:clear-finished', 'downloads:show-in-folder', 'downloads:start-drag',
   'bookmarks:list', 'bookmarks:add', 'bookmarks:add-if-missing', 'bookmarks:rename', 'bookmarks:update-destination', 'bookmarks:remove',
-  'bookmark-collections:list', 'bookmark-collections:create', 'bookmark-collections:rename', 'bookmark-collections:remove', 'bookmark-collections:assign',
+  'bookmark-collections:list', 'bookmark-collections:create', 'bookmark-collections:rename', 'bookmark-collections:remove', 'bookmark-collections:assign', 'bookmark-collections:bookmark-tabs',
   'visit-history:list', 'visit-history:remove', 'visit-history:clear'
 ]
 
@@ -41,6 +41,7 @@ it.each(channels)('rejects untrusted %s calls before looking up services', async
   expect(host.downloads).not.toHaveBeenCalled()
   expect(host.publishBookmarks).not.toHaveBeenCalled()
   expect(host.publishVisitHistory).not.toHaveBeenCalled()
+  expect(host.workspaceTabs).not.toHaveBeenCalled()
 })
 
 it.each([
@@ -48,6 +49,9 @@ it.each([
   ['bookmark-collections:rename', ['id', 7]],
   ['bookmark-collections:assign', ['id', undefined]],
   ['bookmark-collections:remove', [{}]],
+  ['bookmark-collections:bookmark-tabs', [undefined, 'Tabs']],
+  ['bookmark-collections:bookmark-tabs', [7, 'Tabs']],
+  ['bookmark-collections:bookmark-tabs', ['workspace-1', null]],
   ['downloads:remove-finished', [null]],
   ['downloads:remove-finished', ['']],
   ['downloads:cancel', [null]],
@@ -69,6 +73,31 @@ it.each([
   expect(host.bookmarks).not.toHaveBeenCalled()
   expect(host.history).not.toHaveBeenCalled()
   expect(host.downloads).not.toHaveBeenCalled()
+  expect(host.workspaceTabs).not.toHaveBeenCalled()
+})
+
+it('bookmarks the tabs main reads for the workspace named, and publishes only after they are saved', async () => {
+  const { host, bookmarks, invoke } = fixture()
+  const tabs = [{ url: 'https://one.test/', title: 'One' }]
+  host.workspaceTabs.mockReturnValue(tabs)
+  const result = { collectionId: 'new', saved: 1, inOtherCollections: 0, notWebPages: 0, overLimit: 0, limit: 500 }
+  const snapshot = { revision: 3, collections: [{ id: 'new', name: 'Client A', bookmarkIds: ['b1'] }] }
+  bookmarks.collectionSnapshot.mockReturnValue(snapshot as never)
+  let resolve: ((value: typeof result) => void) | undefined
+  bookmarks.bookmarkTabs.mockImplementation(() => new Promise(done => { resolve = done }))
+  const pending = invoke('bookmark-collections:bookmark-tabs', 'workspace-1', 'Client A')
+  await vi.waitFor(() => expect(bookmarks.bookmarkTabs).toHaveBeenCalledWith('Client A', tabs))
+  expect(host.workspaceTabs).toHaveBeenCalledWith('workspace-1')
+  expect(host.publishBookmarks).not.toHaveBeenCalled()
+  resolve!(result)
+  await expect(pending).resolves.toEqual({ snapshot, result })
+  expect(host.publishBookmarks).toHaveBeenCalledOnce()
+
+  // The tabs in no workspace are named by null; a failure publishes nothing.
+  bookmarks.bookmarkTabs.mockRejectedValueOnce(new Error('Nothing to save'))
+  await expect(invoke('bookmark-collections:bookmark-tabs', null, 'Open tabs')).rejects.toThrow('Nothing to save')
+  expect(host.workspaceTabs).toHaveBeenLastCalledWith(null)
+  expect(host.publishBookmarks).toHaveBeenCalledOnce()
 })
 
 it('registers lazily and publishes a bookmark mutation only after persistence succeeds', async () => {
