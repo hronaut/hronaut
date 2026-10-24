@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.9.0] - 2026-10-24
+
 ### Changed
 
 - Hronaut's own questions now appear as Hronaut dialogs over the window instead of system dialogs: saving or updating a password a page submitted, leaving or closing a page that asks to confirm, quitting with downloads in progress, reading another browser's cookies to import them, importing a password file, and the MCP server failing to start. The password dialog names the website and shows the username the page sent apart from Hronaut's words. Quitting with downloads in progress brings the window forward to ask, even from the tray; the others still use the system dialog while Hronaut's window is hidden, minimized or not loaded yet, and none of them asks once Hronaut is quitting.
@@ -14,6 +16,10 @@ All notable changes to Hronaut are documented in this file.
 - A workspace Hronaut was deleting when it stopped, such as in a crash or a power cut before the deletion finished, now comes back with its tabs at the next start. It came back without them.
 - Hronaut for Intel Macs and for arm64 Linux starts again. Their downloads lacked their build of `@node-rs/argon2`, which Hronaut loads at launch to protect wallet keys, so they stopped with "A JavaScript error occurred in the main process". The macOS and the Linux release each build the x64 and the arm64 app on one computer, where npm installs only that computer's native packages; they now install both CPUs' packages exactly as `package-lock.json` pins them before they build, and fail when an app lacks one built for its CPU.
 - Opening a panel with a click or a key, such as **Search tabs**, no longer shows the tooltip of whatever lands under the resting pointer, such as a tab's address over the panel. Tooltips come back once the pointer moves.
+
+### Security
+
+- fast-uri 3.1.8 → 3.1.9, which the MCP library (`@modelcontextprotocol/sdk`) loads through Ajv: it fixes four URI parsing and normalization advisories (GHSA-w74x-v6f9-j3xg, GHSA-xhq7-xmqj-769h, GHSA-wjr9-j795-jxcr, GHSA-333x-w4r6-6crp).
 
 ## [3.8.0] - 2026-10-23
 
