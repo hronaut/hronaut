@@ -7,6 +7,10 @@ import type { RenderableTab, RenderableTabAccess } from './renderable-tab-access
 const OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS = 1_000
 /** How long a hidden page may take to present a frame. */
 const OFFSCREEN_PRESENTATION_TIMEOUT_MS = 15_000
+/** How long a capture holds the page's debugger for its answer once it asked the page to draw again. */
+const OFFSCREEN_REDRAW_TIMEOUT_MS = 5_000
+/** The pages asked to draw again for a capture that have not answered yet, which are not asked again meanwhile. */
+const unansweredRedraws = new WeakSet<WebContents>()
 
 /**
  * Runs an operation that needs the tab's page rendered, one at a time per
@@ -84,7 +88,11 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
         // Electron's print pipeline does not consume a compositor screenshot.
         // Waiting for a subscribed frame before printToPDF can stall forever
         // under renderer pressure even though PDF generation is ready.
-        if (mode === 'presented-frame') await waitForPresentation(webContents)
+        if (mode === 'presented-frame') {
+          await waitForPresentation(webContents, (stillWaiting) => (
+            access.withDebugger(webContents, () => redrawPage(webContents, stillWaiting))
+          ))
+        }
         return await operation()
       } finally {
         access.offscreenCaptureTabIds().delete(tab.id)
@@ -136,11 +144,43 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
 }
 
 /**
- * Waits, within a bounded time, until the page presents a compositor frame,
- * requesting fresh frames and falling back to capture probes when the frame
- * subscription misses.
+ * Makes the page draw again, as a Developer Tools screenshot of its viewport
+ * does, and reports whether it drew within a bounded time. A capture that no
+ * longer waits, as when the page presented while this waited for the
+ * debugger, and a page that has not answered an earlier request are not
+ * asked.
  */
-async function waitForPresentation(webContents: WebContents): Promise<void> {
+async function redrawPage(webContents: WebContents, stillWaiting: () => boolean): Promise<boolean> {
+  if (!stillWaiting() || unansweredRedraws.has(webContents)) return false
+  unansweredRedraws.add(webContents)
+  // Without a clip, the screenshot leaves the page's emulated viewport and its view's size alone.
+  const screenshot = (async () => await webContents.debugger.sendCommand('Page.captureScreenshot', {
+    format: 'jpeg',
+    quality: 10,
+    fromSurface: true
+  }))()
+  const answered = (): void => { unansweredRedraws.delete(webContents) }
+  screenshot.then(answered, answered)
+  let timer: NodeJS.Timeout | undefined
+  try {
+    return await Promise.race([
+      screenshot.then(() => true),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), OFFSCREEN_REDRAW_TIMEOUT_MS)
+        timer.unref()
+      })
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Waits, within a bounded time, until the page presents a compositor frame,
+ * requesting fresh frames and, when the frame subscription misses, a redraw
+ * of the page and capture probes.
+ */
+async function waitForPresentation(webContents: WebContents, redraw: (stillWaiting: () => boolean) => Promise<boolean>): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     let finished = false
     let invalidateTimer: NodeJS.Timeout | undefined
@@ -223,6 +263,10 @@ async function waitForPresentation(webContents: WebContents): Promise<void> {
       }
       captureProbeTimer = setTimeout(() => {
         endFrameSubscription()
+        // An idle page shown in this window can stay unpresented for good, so no frame arrives and a capture of it
+        // waits until the page draws again. A page that drew again on request has presented. One that refuses, as
+        // while its Developer Tools are open, is left to the probes.
+        redraw(() => !finished).then((drew) => { if (drew) finish() }, () => undefined)
         void probeCapture()
       }, OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS)
       captureProbeTimer.unref()
