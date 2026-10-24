@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - While files download, Hronaut's taskbar buttons on Windows, its Dock icon on macOS and its launcher icon on Linux desktops that show it, such as Ubuntu's, show how far the downloads have come (on macOS while every file's size is known), and on macOS and Linux how many are under way, as in Chrome.
 - A cancelled or failed download in **Downloads** now offers **Retry**, as in Chrome, which downloads it again in its workspace, with that workspace's cookies, as a new entry; the old one stays. It also works after a restart for a download whose address Hronaut kept in full, with nothing redacted or cut, and agents can do the same with `retry` in `browser_downloads`.
+- **Task manager**, as in Chrome: **Shift+Esc** on Windows and Linux, **View → Task manager** or the command palette lists Hronaut's processes with the memory, CPU and process ID of each, refreshed every second, and the tabs, subframes and Developer Tools each page process runs. **End process** ends a tab's page process, and the tab then says the page process was terminated, with **Try again** to load it in a new one.
 
 ### Changed
 

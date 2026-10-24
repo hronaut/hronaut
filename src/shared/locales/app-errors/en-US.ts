@@ -266,6 +266,9 @@ export const enUSAppErrors = {
     "notCompleted": "Only a completed download can be shown in its folder.",
     "fileRemoved": "This file was moved or deleted, so it cannot be shown in its folder."
   },
+  "taskManager": {
+    "cannotEnd": "This process cannot be ended; it may have ended already."
+  },
   "bookmarks": {
     "invalidUrl": "Bookmark URL must be an HTTP or HTTPS address within 4,096 encoded characters",
     "limit": "Bookmark limit reached ({max})",

@@ -202,7 +202,7 @@ onBeforeUnmount(disposeComponent)
                   <small>{{ entry.command.description }}</small>
                 </span>
                 <span class="command-palette-meta">
-                  <span v-if="entry.command.shortcut" class="command-palette-keys"><kbd v-for="(key, keyIndex) in commandShortcutKeys(entry.command.shortcut, mac)" :key="keyIndex">{{ key }}</kbd></span>
+                  <span v-if="entry.command.shortcut && !(mac && entry.command.noMacShortcut)" class="command-palette-keys"><kbd v-for="(key, keyIndex) in commandShortcutKeys(entry.command.shortcut, mac)" :key="keyIndex">{{ key }}</kbd></span>
                 </span>
               </template>
               <template v-else>

@@ -12,7 +12,7 @@ interface Harness {
   controller: AppShellLayoutFeatureController
   wrapper: VueWrapper
   dock: Ref<PanelDock>
-  modals: Record<'settings' | 'commandPalette' | 'helpDialog' | 'releaseHistory' | 'workspaceEditor' | 'credentialPicker' | 'walletApproval' | 'trustedDialog' | 'agentSteps', Ref<boolean>>
+  modals: Record<'settings' | 'commandPalette' | 'helpDialog' | 'releaseHistory' | 'taskManager' | 'workspaceEditor' | 'credentialPicker' | 'walletApproval' | 'trustedDialog' | 'agentSteps', Ref<boolean>>
   overlays: {
     updateNotice: Ref<boolean>
     find: Ref<boolean>
@@ -61,6 +61,7 @@ function createHarness(detachedWindow = false): Harness {
     commandPalette: ref(false),
     helpDialog: ref(false),
     releaseHistory: ref(false),
+    taskManager: ref(false),
     workspaceEditor: ref(false),
     credentialPicker: ref(false),
     walletApproval: ref(false),
@@ -354,6 +355,17 @@ describe('useAppShellLayoutFeatureController', () => {
       bottom: 0,
       left: 0
     })
+    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
+  })
+
+  it('hides the website under the Task manager, as under the other dialogs', async () => {
+    const harness = createHarness()
+
+    harness.modals.taskManager.value = true
+    await nextTick()
+    await nextTick()
+
+    expect(harness.controller.fullModalOpen.value).toBe(true)
     expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
   })
 

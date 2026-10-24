@@ -655,6 +655,7 @@ export const esES = {
       "Application": "Aplicación"
     },
     "commands": {
+      "task-manager": { "label": "Abrir el Administrador de tareas", "description": "Ver la memoria y la CPU que usa cada pestaña y proceso" },
       "home": {
         "label": "Abrir inicio de Hronaut",
         "description": "Mostrar el panel de la aplicación"
@@ -862,6 +863,7 @@ export const esES = {
   "runtime": {
     "initializingStorage": "Inicializando el almacenamiento seguro.",
     "shortcuts": {
+      "taskManager": "Abrir el Administrador de tareas",
       "address": "Ir a la barra de direcciones",
       "nextPane": "Cambiar entre la barra de direcciones y la página",
       "addressNewTab": "Abrir lo escrito en la barra de direcciones en una pestaña nueva",
@@ -3016,6 +3018,38 @@ export const esES = {
     "interrupted": "Interrumpida",
     "fileRemoved": "Movido o eliminado"
   },
+  "taskManager": {
+    "title": "Administrador de tareas",
+    "close": "Cerrar el Administrador de tareas",
+    "loading": "Leyendo procesos…",
+    "unavailable": "No se pudieron leer los procesos",
+    "caption": "Procesos de Hronaut con su uso de memoria y CPU",
+    "columns": {
+      "task": "Tarea",
+      "memory": "Memoria",
+      "cpu": "CPU",
+      "pid": "ID de proceso",
+      "actions": "Acciones"
+    },
+    "task": {
+      "browser": "Navegador",
+      "gpu": "Proceso de GPU",
+      "utility": "Utilidad: {name}",
+      "utilityUnnamed": "Proceso de utilidad",
+      "interface": "Ventana de Hronaut",
+      "other": "Proceso de página sin pestaña",
+      "helper": "Auxiliar: {name}",
+      "tab": "Pestaña: {title}",
+      "sleepingTab": "Pestaña en reposo: {title}",
+      "subframe": "Submarco: {site}",
+      "subframeUnnamed": "Submarco",
+      "devTools": "DevTools: {title}"
+    },
+    "untitled": "Sin título",
+    "endProcess": "Finalizar proceso",
+    "endProcessAria": "Finalizar proceso: {task}",
+    "summary": "{count} proceso usa {memory} | {count} procesos usan {memory}"
+  },
   "bookmarks": { sortOrder: "Ordenar marcadores", sortUpdated: "Actualizados recientemente", sortTitle: "Título", copyAddress: "Copiar dirección", copyAddressAria: "Copiar dirección de {title}", addressCopied: "Dirección copiada", copyFailed: "No se pudo copiar la dirección. Inténtalo de nuevo.",
     "collection": "Colección",
     "collectionFilter": "Filtrar marcadores por colección",
@@ -3505,6 +3539,7 @@ export const esES = {
   },
   "native": {
     "menu": {
+      "taskManager": "Administrador de tareas",
       "show": "Mostrar",
       "checkUpdates": "Buscar actualizaciones…",
       "quit": "Salir",

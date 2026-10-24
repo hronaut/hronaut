@@ -42,6 +42,7 @@ function createHarness(canOpen = () => true) {
     openUpdateSettings: vi.fn(),
     openSection: vi.fn(),
     openHelp: vi.fn(),
+    openTaskManager: vi.fn(),
     toggleMcpPaused: vi.fn()
   }
   const open = ref(false)
@@ -105,6 +106,7 @@ function createHarness(canOpen = () => true) {
     settings: {
       openSection: methods.openSection,
       openHelp: methods.openHelp,
+      openTaskManager: methods.openTaskManager,
       toggleMcpPaused: methods.toggleMcpPaused
     }
   })

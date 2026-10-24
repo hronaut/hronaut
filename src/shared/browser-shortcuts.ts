@@ -24,6 +24,7 @@ export type BrowserShortcutAction =
   | 'bookmark'
   | 'visit-history'
   | 'downloads'
+  | 'task-manager'
   | 'search-tabs'
   | 'clear-browsing-data'
   | 'command-palette'
@@ -132,9 +133,10 @@ export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserS
  * The keys of Hronaut's application menu that are not browser shortcuts above, which act on the page in view or open
  * another of Hronaut's dialogs: Print, Save Page As, View Page Source, Downloads, Back, Forward and Keyboard shortcuts,
  * on macOS Find Next and Find Previous, which elsewhere are website-kept keys, and elsewhere Escape, which stops the
- * page in focus loading once it leaves the key alone, as in Chrome. Elsewhere than macOS, Zoom In's and Keyboard
- * shortcuts' keys also go by the key's code, as the menu matches them. A key Hronaut's window leaves alone reaches the
- * menu, so under its own dialogs and the command palette the window keeps these from the menu as well.
+ * page in focus loading once it leaves the key alone, as in Chrome, and Shift+Escape, which opens the Task manager.
+ * Elsewhere than macOS, Zoom In's and Keyboard shortcuts' keys also go by the key's code, as the menu matches them. A
+ * key Hronaut's window leaves alone reaches the menu, so under its own dialogs and the command palette the window keeps
+ * these from the menu as well.
  */
 export function applicationMenuKey(input: BrowserShortcutInput): boolean {
   if (input.repeat || input.composing) return false
@@ -148,7 +150,7 @@ export function applicationMenuKey(input: BrowserShortcutInput): boolean {
   }
   if (input.meta) return false
   if (input.alt) return !input.control && !input.shift && (key === 'arrowleft' || key === 'arrowright')
-  if (!input.control) return !input.shift && key === 'escape'
+  if (!input.control) return key === 'escape'
   // There the menu goes by Chromium's code for the key in the layout, so Zoom In's Ctrl+Shift+= and Keyboard
   // shortcuts' Ctrl+Shift+/ are also Ctrl+Shift with the + key and with the # key of a German keyboard, which have
   // those codes and type * and ' with Shift.

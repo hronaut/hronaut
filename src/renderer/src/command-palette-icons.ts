@@ -6,6 +6,7 @@ import IconWorkspacesOutline from '~icons/material-symbols/workspaces-outline'
 import IconDownloadRounded from '~icons/material-symbols/download-rounded'
 import IconBookmarksOutlineRounded from '~icons/material-symbols/bookmarks-outline-rounded'
 import IconHistoryRounded from '~icons/material-symbols/history-rounded'
+import IconBrowseActivityOutlineRounded from '~icons/material-symbols/browse-activity-outline-rounded'
 import IconFindInPageOutlineRounded from '~icons/material-symbols/find-in-page-outline-rounded'
 import IconRefreshRounded from '~icons/material-symbols/refresh-rounded'
 import IconSyncProblemRounded from '~icons/material-symbols/sync-problem-rounded'
@@ -58,6 +59,7 @@ export const COMMAND_PALETTE_ICONS: Record<CommandPaletteCommandId, Component> =
   downloads: IconDownloadRounded,
   bookmarks: IconBookmarksOutlineRounded,
   history: IconHistoryRounded,
+  'task-manager': IconBrowseActivityOutlineRounded,
   find: IconFindInPageOutlineRounded,
   reload: IconRefreshRounded,
   'reload-ignoring-cache': IconSyncProblemRounded,

@@ -262,6 +262,9 @@ export const deDEAppErrors: AppErrorMessages = {
     "notCompleted": "Nur ein abgeschlossener Download kann im Ordner angezeigt werden.",
     "fileRemoved": "Diese Datei wurde verschoben oder gelöscht und kann daher nicht im Ordner angezeigt werden."
   },
+  "taskManager": {
+    "cannotEnd": "Dieser Prozess kann nicht beendet werden; vielleicht wurde er bereits beendet."
+  },
   "bookmarks": {
     "invalidUrl": "Die Lesezeichenadresse muss eine HTTP- oder HTTPS-Adresse mit höchstens 4.096 codierten Zeichen sein.",
     "limit": "Lesezeichenlimit erreicht ({max}).",

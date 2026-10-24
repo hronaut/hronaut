@@ -18,6 +18,7 @@ import type {
 } from '../wallet.js'
 import type { CommercialLicenseState } from './license.js'
 import type { BrowserActionFailure } from './page-problems.js'
+import type { TaskManagerProcess } from './task-manager.js'
 import type {
   McpCapabilityCredentialResult,
   McpCapabilityProfileCreateInput,
@@ -83,6 +84,14 @@ export interface HronautDownloadsApi {
   clearFinished(): Promise<BrowserDownloadState[]>
   showInFolder(downloadId: string): Promise<void>
   onChanged(listener: (downloads: BrowserDownloadState[]) => void): () => void
+}
+
+/** The Task manager's view of Hronaut's processes, as Chrome's Task manager. */
+export interface HronautTaskManagerApi {
+  /** Every process with its memory and CPU use since the previous reading. */
+  list(): Promise<TaskManagerProcess[]>
+  /** Ends a page process the list lets end; its tabs show that their page was ended. */
+  endProcess(pid: number): Promise<void>
 }
 
 export interface HronautBookmarksApi {

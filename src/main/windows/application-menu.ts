@@ -177,6 +177,16 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
                 host.runShortcut('downloads')
               }
             },
+            {
+              label: host.text('native.menu.taskManager'),
+              // Chrome's key elsewhere than macOS, where Chrome gives it none. As the menu's key it reaches the menu only
+              // when the website or field in focus leaves it alone, and never from an agent.
+              ...(process.platform === 'darwin' ? {} : { accelerator: 'Shift+Escape' }),
+              click: () => {
+                host.showWindow()
+                host.runShortcut('task-manager')
+              }
+            },
             { type: 'separator' },
             {
               label: host.text('native.menu.back'),

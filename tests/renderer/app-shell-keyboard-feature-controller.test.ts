@@ -13,6 +13,7 @@ function createHarness() {
     credentialPicker: ref(false),
     helpDialog: ref(false),
     releaseHistory: ref(false),
+    taskManager: ref(false),
     settings: ref(false),
     siteStorage: ref(false),
     siteControls: ref(false),
@@ -52,6 +53,7 @@ function createHarness() {
     closeWorkspaceEditor: vi.fn(() => { surfaces.workspaceEditor.value = false }),
     closeHelpDialog: vi.fn(() => { surfaces.helpDialog.value = false }),
     closeReleaseHistory: vi.fn(() => { surfaces.releaseHistory.value = false }),
+    closeTaskManager: vi.fn(() => { surfaces.taskManager.value = false }),
     closeAgentSteps: vi.fn(() => { surfaces.agentSteps.value = false }),
     cancelTrustedDialog: vi.fn(() => { surfaces.trustedDialog.value = false }),
     closeSettings: vi.fn(() => { surfaces.settings.value = false }),
@@ -73,6 +75,7 @@ function createHarness() {
       credentialPicker: surfaces.credentialPicker,
       helpDialog: { open: surfaces.helpDialog, close: actions.closeHelpDialog },
       releaseHistory: { open: surfaces.releaseHistory, close: actions.closeReleaseHistory },
+      taskManager: { open: surfaces.taskManager, close: actions.closeTaskManager },
       settings: { open: surfaces.settings, close: actions.closeSettings }
     },
     overlays: {
@@ -336,6 +339,29 @@ describe('useAppShellKeyboardFeatureController', () => {
     expect(escape.defaultPrevented).toBe(true)
     expect(actions.closeReleaseHistory).toHaveBeenCalledOnce()
     expect(surfaces.releaseHistory.value).toBe(false)
+  })
+
+  it('keeps browser shortcuts behind the Task manager and closes it with Escape or Shift+Escape', () => {
+    const { controller, surfaces, actions } = createHarness()
+    surfaces.taskManager.value = true
+    const shortcut = new KeyboardEvent('keydown', { key: 'l', ctrlKey: true, cancelable: true })
+    // Shift+Escape is the menu's key for the Task manager elsewhere than macOS: under its dialog it closes it.
+    const menuKey = new KeyboardEvent('keydown', { key: 'Escape', shiftKey: true, cancelable: true })
+
+    controller.handleKeyDown(shortcut)
+    controller.handleKeyDown(menuKey)
+
+    expect(actions.runShortcut).not.toHaveBeenCalled()
+    expect(shortcut.defaultPrevented).toBe(true)
+    expect(menuKey.defaultPrevented).toBe(true)
+    expect(actions.closeTaskManager).toHaveBeenCalledOnce()
+    expect(surfaces.taskManager.value).toBe(false)
+
+    surfaces.taskManager.value = true
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+    controller.handleKeyDown(escape)
+    expect(actions.closeTaskManager).toHaveBeenCalledTimes(2)
+    expect(surfaces.taskManager.value).toBe(false)
   })
 
   it('keeps browser shortcuts behind an agent\'s All steps and closes it with Escape', () => {
