@@ -815,7 +815,8 @@ function registerIpc(): void {
     mcpCredentialAccepted: (bearer) => agentServices.capabilityProfiles?.authenticate(bearer) != null,
     openExternal: (url) => shell.openExternal(url),
     mcpPortRecovery: () => mcpPortRecovery,
-    showMessageBox,
+    showDialog: (options) => trustedDialogs.show(options),
+    focusAskingPage: (event) => tabRuntime.tabs?.focusPageAfterQuestion(event.sender),
     text
   })
   registerPageGeometryIpc({
