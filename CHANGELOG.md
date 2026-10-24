@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 - After a Hronaut dialog over a page, such as **Close this tab?** or **Leave this page?** answered with **Keep editing**, or a website's permission request, the keyboard is back on the page, as in Chrome, instead of on a control of Hronaut's window.
 - On Windows and Linux, with a keyboard layout such as German, **Ctrl+Shift** with the **+** key or the **#** key under a Hronaut dialog or the command palette no longer zooms the page behind it or opens **Keyboard shortcuts** in the dialog's place.
 - When the page changes while an agent saves its screenshot with `browser_screenshot_save` and the capture fails, the agent is told the page changed and to save again, instead of getting Chromium's own error, such as `UnknownVizError`.
+- A link that opens a new tab, such as one with `target="_blank"`, a middle-click or **Open link in new tab**, and turns out to download a file no longer leaves an empty tab behind: the tab closes once the download has its file, as in Chrome, and the page it was opened from shows again.
 
 ## [3.10.0] - 2026-10-24
 

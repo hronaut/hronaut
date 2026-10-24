@@ -21,6 +21,8 @@ export interface TabReopeningTab {
   suppressInitialHistory?: boolean
   /** The page History counts once it is ready, while it is not yet. */
   pendingHistoryUrl?: string | null
+  /** Set for a tab a download it opened closed, which reopening would only download again. */
+  leftEmptyByDownload?: boolean
 }
 
 /** What reopening or duplicating a tab asks the tab manager to open. */
