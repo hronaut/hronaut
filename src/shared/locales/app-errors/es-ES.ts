@@ -277,7 +277,11 @@ export const esESAppErrors: AppErrorMessages = {
     "collectionNameTaken": "Ya existe una colección de marcadores con este nombre.",
     "collectionName": "El nombre de la colección debe tener entre 1 y 80 caracteres.",
     "storageUnavailable": "El almacenamiento de marcadores no está disponible.",
-    "historyUnavailable": "El historial de visitas no está disponible."
+    "historyUnavailable": "El historial de visitas no está disponible.",
+    "exportFailed": "No se pudo guardar el archivo de marcadores.",
+    "importTooLarge": "Este archivo es demasiado grande para ser un archivo de marcadores.",
+    "importUnreadable": "No se pudo leer este archivo.",
+    "importEmpty": "No se encontraron marcadores en este archivo."
   },
   "pageTools": {
     "devToolsOpen": "Cierra las herramientas de desarrollo de esta pestaña y vuelve a intentarlo.",

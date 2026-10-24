@@ -3,6 +3,7 @@ import type {
   HronautBookmarksApi,
   HronautDownloadsApi,
   HronautHistoryApi,
+  BookmarkImportResult,
   BrowserBookmark,
   BrowserDownloadState,
   BrowserHistoryEntry
@@ -172,6 +173,15 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     return resolveBookmarks(() => options.bookmarksApi.remove(id))
   }
 
+  /** The file's bookmarks reach the list as main publishes them, as any other change does. */
+  function exportBookmarksFile(): Promise<number | null> {
+    return options.bookmarksApi.exportFile()
+  }
+
+  function importBookmarksFile(): Promise<BookmarkImportResult | null> {
+    return options.bookmarksApi.importFile()
+  }
+
   function refreshHistory(): Promise<BrowserHistoryEntry[]> {
     return resolveHistory(() => options.historyApi.list())
   }
@@ -223,6 +233,8 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     renameBookmark,
     updateBookmarkDestination,
     removeBookmark,
+    exportBookmarksFile,
+    importBookmarksFile,
     refreshHistory,
     removeHistoryEntry,
     clearHistory,

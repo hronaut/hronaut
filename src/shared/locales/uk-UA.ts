@@ -571,6 +571,7 @@ export const ukUA = {
     kicker: 'Файли браузера', heading: 'Завантаження', clearFinished: "Очистити всі завершені", close: 'Закрити завантаження', empty: 'Завантажень ще немає', emptyDescription: 'Завантажені файли зʼявляться тут.', downloading: 'Завантаження {filename}', cancelAria: 'Скасувати {filename}', cancel: 'Скасувати завантаження', showAria: 'Показати {filename} у папці', show: 'Показати в папці', received: '{received} із {total}', downloaded: 'Завантажено {received}', complete: '{size} · Завершено', cancelled: 'Скасовано', interrupted: 'Перервано', fileRemoved: 'Переміщено або видалено' },
   taskManager: { title: "Диспетчер завдань", close: "Закрити диспетчер завдань", loading: "Читаємо процеси…", unavailable: "Не вдалося прочитати процеси", caption: "Процеси Hronaut і скільки памʼяті та процесора вони використовують", columns: { task: "Завдання", memory: "Памʼять", cpu: "ЦП", pid: "ID процесу", actions: "Дії" }, task: { browser: "Браузер", gpu: "Процес GPU", utility: "Службовий процес: {name}", utilityUnnamed: "Службовий процес", interface: "Вікно Hronaut", other: "Процес сторінки без вкладки", helper: "Допоміжний процес: {name}", tab: "Вкладка: {title}", sleepingTab: "Спляча вкладка: {title}", subframe: "Підфрейм: {site}", subframeUnnamed: "Підфрейм", devTools: "DevTools: {title}" }, untitled: "Без назви", endProcess: "Завершити процес", endProcessAria: "Завершити процес: {task}", summary: "{count} процес використовує {memory} | {count} процеси використовують {memory} | {count} процесів використовують {memory}" },
   bookmarks: { sortOrder: "Порядок закладок", sortUpdated: "Нещодавно оновлені", sortTitle: "Назва", copyAddress: "Копіювати адресу", copyAddressAria: "Копіювати адресу «{title}»", addressCopied: "Адресу скопійовано", copyFailed: "Не вдалося скопіювати адресу. Спробуйте ще раз.",
+    file: { import: "Імпорт…", export: "Експорт…", importHint: "Імпортувати закладки з HTML-файлу, наприклад експортованого з Chrome", exportHint: "Експортувати закладки в HTML-файл, який можуть імпортувати Chrome та інші браузери", exported: "Експортовано {count} закладку. | Експортовано {count} закладки. | Експортовано {count} закладок.", imported: "Імпортовано {count} закладку. | Імпортовано {count} закладки. | Імпортовано {count} закладок.", alreadySaved: "{count} уже була збережена. | {count} уже були збережені. | {count} уже було збережено.", notWebPages: "{count} посилання не веде на вебсторінку, тому його пропущено. | {count} посилання не ведуть на вебсторінки, тому їх пропущено. | {count} посилань не ведуть на вебсторінки, тому їх пропущено.", overLimit: "Hronaut зберігає до {max} закладок, тому {count} пропущено. | Hronaut зберігає до {max} закладок, тому {count} пропущено. | Hronaut зберігає до {max} закладок, тому {count} пропущено.", nothingNew: "Нових закладок не імпортовано." },
     "collection": "Колекція",
     "collectionFilter": "Фільтрувати закладки за колекцією",
     "allCollections": "Усі закладки",
@@ -880,6 +881,10 @@ export const ukUA = {
       wavAudioFilter: "Аудіо PCM WAV",
       chooseVideoAudio: "Виберіть аудіо для відео",
       chooseAudio: "Вибрати аудіо",
+      exportBookmarksTitle: "Експорт закладок",
+      importBookmarksTitle: "Імпорт закладок",
+      bookmarksFileFilter: "HTML-файл закладок",
+      importBookmarksButton: "Імпортувати",
       devToolsWindowTitle: "Інструменти розробника Hronaut — {title}",
       savePageTitle: 'Зберегти сторінку як', webpageComplete: 'Вебсторінка повністю', webpageSingleFile: 'Вебсторінка, один файл'
     }

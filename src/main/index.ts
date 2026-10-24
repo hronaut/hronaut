@@ -15,6 +15,7 @@ import { createShellOverlays } from './windows/shell-overlays.js'
 import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
 import { registerPanelWindowIpc } from './panel-window-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
+import { registerBookmarksFileIpc } from './bookmarks-file-ipc.js'
 import { createAgentPresence } from './agent-presence.js'
 import { registerAgentPresenceIpc } from './agent-presence-ipc.js'
 import { TakeOverOffers } from './take-over-offers.js'
@@ -926,6 +927,34 @@ function registerIpc(): void {
     historyCleared,
     historyEntryRemoved,
     bookmarkRemoved: offerBookmarkRestore
+  })
+  registerBookmarksFileIpc(hronautIpcMain, {
+    assertTrustedSender: assertInitializedTrustedShellSender,
+    bookmarks: () => bookmarksAndHistory.bookmarks!,
+    pickExportFile: async (sender, suggestedName) => {
+      // Over the window that asked, which is a panel's own window once the panel is detached.
+      const window = BrowserWindow.fromWebContents(sender) ?? mainWindowRefs.window
+      if (!window || window.isDestroyed()) throw new LocalizedError('appErrors.settings.windowUnavailable')
+      const selection = await dialog.showSaveDialog(window, {
+        title: text('native.dialog.exportBookmarksTitle'),
+        defaultPath: join(app.getPath('downloads'), suggestedName),
+        filters: [{ name: text('native.dialog.bookmarksFileFilter'), extensions: ['html', 'htm'] }],
+        properties: ['showOverwriteConfirmation', 'createDirectory', 'dontAddToRecent']
+      })
+      return selection.canceled ? undefined : selection.filePath
+    },
+    pickImportFile: async (sender) => {
+      const window = BrowserWindow.fromWebContents(sender) ?? mainWindowRefs.window
+      if (!window || window.isDestroyed()) throw new LocalizedError('appErrors.settings.windowUnavailable')
+      const selection = await dialog.showOpenDialog(window, {
+        title: text('native.dialog.importBookmarksTitle'),
+        buttonLabel: text('native.dialog.importBookmarksButton'),
+        filters: [{ name: text('native.dialog.bookmarksFileFilter'), extensions: ['html', 'htm'] }],
+        properties: ['openFile', 'dontAddToRecent']
+      })
+      return selection.canceled ? undefined : selection.filePaths[0]
+    },
+    publishBookmarks
   })
   registerBrowsingDataIpc({
     assertTrustedSender: assertTrustedShellSender,

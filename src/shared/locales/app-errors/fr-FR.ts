@@ -277,7 +277,11 @@ export const frFRAppErrors: AppErrorMessages = {
     "collectionNameTaken": "Une collection de favoris portant ce nom existe déjà.",
     "collectionName": "Le nom de la collection doit contenir entre 1 et 80 caractères.",
     "storageUnavailable": "Le stockage des favoris est indisponible.",
-    "historyUnavailable": "L’historique des visites est indisponible."
+    "historyUnavailable": "L’historique des visites est indisponible.",
+    "exportFailed": "Impossible d’enregistrer le fichier de favoris.",
+    "importTooLarge": "Ce fichier est trop volumineux pour être un fichier de favoris.",
+    "importUnreadable": "Impossible de lire ce fichier.",
+    "importEmpty": "Aucun favori n’a été trouvé dans ce fichier."
   },
   "pageTools": {
     "devToolsOpen": "Fermez les outils de développement de cet onglet, puis réessayez.",

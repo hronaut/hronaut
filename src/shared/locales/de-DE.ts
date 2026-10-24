@@ -3051,6 +3051,7 @@ export const deDE = {
     "summary": "{count} Prozess nutzt {memory} | {count} Prozesse nutzen {memory}"
   },
   "bookmarks": { sortOrder: "Lesezeichen sortieren", sortUpdated: "Zuletzt aktualisiert", sortTitle: "Titel", copyAddress: "Adresse kopieren", copyAddressAria: "Adresse von {title} kopieren", addressCopied: "Adresse kopiert", copyFailed: "Adresse konnte nicht kopiert werden. Erneut versuchen.",
+    file: { import: "Importieren…", export: "Exportieren…", importHint: "Lesezeichen aus einer HTML-Datei importieren, z. B. einer aus Chrome exportierten", exportHint: "Lesezeichen in eine HTML-Datei exportieren, die Chrome und andere Browser importieren können", exported: "{count} Lesezeichen exportiert. | {count} Lesezeichen exportiert.", imported: "{count} Lesezeichen importiert. | {count} Lesezeichen importiert.", alreadySaved: "{count} war bereits gespeichert. | {count} waren bereits gespeichert.", notWebPages: "{count} Link ist keine Webseite und wurde ausgelassen. | {count} Links sind keine Webseiten und wurden ausgelassen.", overLimit: "Hronaut speichert bis zu {max} Lesezeichen, daher wurde {count} ausgelassen. | Hronaut speichert bis zu {max} Lesezeichen, daher wurden {count} ausgelassen.", nothingNew: "Es wurden keine neuen Lesezeichen importiert." },
     "collection": "Sammlung",
     "collectionFilter": "Lesezeichen nach Sammlung filtern",
     "allCollections": "Alle Lesezeichen",
@@ -3783,6 +3784,10 @@ export const deDE = {
       "wavAudioFilter": "PCM-WAV-Audio",
       "chooseVideoAudio": "Audio für das Video auswählen",
       "chooseAudio": "Audio auswählen",
+      "exportBookmarksTitle": "Lesezeichen exportieren",
+      "importBookmarksTitle": "Lesezeichen importieren",
+      "bookmarksFileFilter": "HTML-Lesezeichendatei",
+      "importBookmarksButton": "Importieren",
       "devToolsWindowTitle": "Hronaut-Entwicklertools — {title}",
       "savePageTitle": "Seite speichern unter",
       "webpageComplete": "Webseite, vollständig",

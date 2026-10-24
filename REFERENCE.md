@@ -417,6 +417,8 @@ The human Bookmarks panel can organize links into up to 50 single-level collecti
 
 Bookmarks are stored as `version: 1`: the bookmark array, with collection membership as optional metadata in the same atomic file. A bookmark without a collection is in Unfiled. Invalid or dangling collection assignments never remove valid bookmarks.
 
+As in Chrome's bookmark manager, **Export…** at the bottom of the Bookmarks panel saves every bookmark to an HTML bookmarks file you choose, named like `bookmarks_10_24_26.html`, with each collection as a folder; Chrome, Firefox, Safari and Edge import it. **Import…** adds the bookmarks of such a file, as those browsers export them: an address already bookmarked stays as it is, a new one goes in the collection named after its folder (a browser's own bookmarks bar, other bookmarks and Safari's Reading List are not collections; Safari's Favorites and Bookmarks Menu are, as other browsers import them), and links that are not web pages, such as bookmarklets, are left out. The panel then says what was imported. Importing stops at 500 bookmarks; once there are 50 collections, bookmarks from further folders are added without one. The file is read in the encoding it names, up to 16 MB, and nothing in it is run or loaded.
+
 ## Review local browsing history
 
 Human history search matches every whitespace-separated word, case-insensitively, across each saved title and address. Words may appear in either field and in any order; punctuation is literal. Search combines with the date range, exact-origin filter and sort order without changing stored visits or the MCP search contract.

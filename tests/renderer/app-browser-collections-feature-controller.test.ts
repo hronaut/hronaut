@@ -81,6 +81,8 @@ function createHarness() {
     addIfMissing: vi.fn(async () => []),
     updateDestination: vi.fn(async () => []),
     remove: vi.fn(async () => []),
+    exportFile: vi.fn(async () => null),
+    importFile: vi.fn(async () => null),
     onChanged: vi.fn(() => unsubscribeBookmarks)
   }
   const historyApi: HronautHistoryApi = {

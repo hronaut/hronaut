@@ -251,6 +251,12 @@
 }
 .bookmarks-header-actions > button:hover:not(:disabled) { @apply bg-hover; }
 .bookmarks-header-actions > button:disabled { @apply cursor-default [opacity:.35]; }
+.bookmarks-file-actions { @apply flex flex-none items-center [gap:5px] [padding:8px_12px] [border-top:1px_solid_var(--border-soft)]; }
+.bookmarks-file-actions > button {
+  @apply [padding:7px_9px] border-0 [border-radius:var(--corner-1)] text-accent-copy bg-transparent [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] cursor-pointer;
+}
+.bookmarks-file-actions > button:hover:not([aria-disabled="true"]) { @apply bg-hover; }
+.bookmarks-file-actions > button[aria-disabled="true"] { @apply cursor-default [opacity:.35]; }
 .bookmark-search-field {
   @apply flex [min-height:47px] flex-none items-center [gap:9px] [margin:10px_12px_6px] [padding:0_11px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] text-muted bg-surface-muted;
 }

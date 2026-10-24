@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { chmod, readFile, rename } from 'node:fs/promises'
-import type { BrowserBookmark, BrowserBookmarkCollection, BookmarkCollectionSnapshot } from '../shared/types.js'
+import type { BrowserBookmark, BrowserBookmarkCollection, BookmarkCollectionSnapshot, BookmarkImportResult } from '../shared/types.js'
+import { truncateText } from '../shared/text-boundaries.js'
+import type { ImportedBookmark } from './bookmarks-html.js'
 import { normalizeCollectionTitle } from './collection-title.js'
 import { writeTextFileAtomically } from './atomic-file.js'
 import { LocalizedError } from './localized-error.js'
@@ -87,6 +89,20 @@ function normalizeCollections(value: unknown, bookmarkIds: ReadonlySet<string>):
     collections.push({ id: candidate.id, name, bookmarkIds: ids })
   }
   return collections
+}
+
+/**
+ * The collection for bookmarks imported from a folder: the one already named so, ignoring case, or a new one while
+ * there is room; none for a folder whose name no collection can have.
+ */
+function importCollection(collections: BrowserBookmarkCollection[], folder: string): BrowserBookmarkCollection | undefined {
+  let name: string
+  try { name = collectionName(truncateText(folder, 80)) } catch { return undefined }
+  const existing = collections.find(collection => collection.name.toLowerCase() === name.toLowerCase())
+  if (existing || collections.length >= 50) return existing
+  const collection = { id: randomUUID(), name, bookmarkIds: [] as string[] }
+  collections.push(collection)
+  return collection
 }
 
 /** A removed bookmark and where it was in each collection. */
@@ -309,6 +325,46 @@ export class BookmarkStore {
       this.collections = nextCollections
       this.replaceEntries(nextEntries)
       return true
+    })
+  }
+
+  /**
+   * Adds the bookmarks read from a bookmarks file: an address already bookmarked stays as it was, and each new one goes
+   * in the collection named after its folder, made while there is room for one. All are saved at once, so a save that
+   * fails adds none.
+   */
+  importBookmarks(items: readonly ImportedBookmark[]): Promise<BookmarkImportResult> {
+    return this.queueMutation(async () => {
+      const result: BookmarkImportResult = { added: 0, alreadySaved: 0, notWebPages: 0, overLimit: 0, limit: MAX_BOOKMARKS }
+      const nextEntries = new Map(this.entries)
+      const urls = new Set([...nextEntries.values()].map(entry => entry.url))
+      const nextCollections = this.collections.map(collection => ({ ...collection, bookmarkIds: [...collection.bookmarkIds] }))
+      const now = new Date().toISOString()
+      for (const item of items) {
+        const url = normalizeBookmarkUrl(item.url)
+        if (!url) result.notWebPages += 1
+        else if (urls.has(url)) result.alreadySaved += 1
+        else if (nextEntries.size >= MAX_BOOKMARKS) result.overLimit += 1
+        else {
+          const added = item.addedAt === undefined ? Number.NaN : Date.parse(item.addedAt)
+          const entry: BrowserBookmark = {
+            id: randomUUID(),
+            url,
+            title: normalizeBookmarkTitle(item.title, url, item.url),
+            createdAt: Number.isFinite(added) && added <= Date.parse(now) ? new Date(added).toISOString() : now,
+            updatedAt: now
+          }
+          nextEntries.set(entry.id, entry)
+          urls.add(url)
+          result.added += 1
+          if (item.folder) importCollection(nextCollections, item.folder)?.bookmarkIds.push(entry.id)
+        }
+      }
+      if (result.added === 0) return result
+      await this.persist(nextEntries.values(), nextCollections)
+      this.collections = nextCollections
+      this.replaceEntries(nextEntries)
+      return result
     })
   }
 

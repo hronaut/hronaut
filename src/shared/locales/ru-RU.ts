@@ -3051,6 +3051,7 @@ export const ruRU = {
     "summary": "{count} процесс использует {memory} | {count} процесса используют {memory} | {count} процессов используют {memory}"
   },
   "bookmarks": { sortOrder: "Порядок закладок", sortUpdated: "Недавно обновлённые", sortTitle: "Название", copyAddress: "Копировать адрес", copyAddressAria: "Копировать адрес «{title}»", addressCopied: "Адрес скопирован", copyFailed: "Не удалось скопировать адрес. Повторите попытку.",
+    file: { import: "Импорт…", export: "Экспорт…", importHint: "Импортировать закладки из HTML-файла, например экспортированного из Chrome", exportHint: "Экспортировать закладки в HTML-файл, который могут импортировать Chrome и другие браузеры", exported: "Экспортирована {count} закладка. | Экспортированы {count} закладки. | Экспортировано {count} закладок.", imported: "Импортирована {count} закладка. | Импортированы {count} закладки. | Импортировано {count} закладок.", alreadySaved: "{count} уже была сохранена. | {count} уже были сохранены. | {count} уже было сохранено.", notWebPages: "{count} ссылка не ведёт на веб-страницу, поэтому пропущена. | {count} ссылки не ведут на веб-страницы, поэтому пропущены. | {count} ссылок не ведут на веб-страницы, поэтому пропущены.", overLimit: "Hronaut хранит до {max} закладок, поэтому {count} пропущена. | Hronaut хранит до {max} закладок, поэтому {count} пропущены. | Hronaut хранит до {max} закладок, поэтому {count} пропущено.", nothingNew: "Новых закладок не импортировано." },
     "collection": "Коллекция",
     "collectionFilter": "Фильтровать закладки по коллекции",
     "allCollections": "Все закладки",
@@ -3783,6 +3784,10 @@ export const ruRU = {
       "wavAudioFilter": "Аудио PCM WAV",
       "chooseVideoAudio": "Выберите аудио для видео",
       "chooseAudio": "Выбрать аудио",
+      "exportBookmarksTitle": "Экспорт закладок",
+      "importBookmarksTitle": "Импорт закладок",
+      "bookmarksFileFilter": "HTML-файл закладок",
+      "importBookmarksButton": "Импортировать",
       "devToolsWindowTitle": "Инструменты разработчика Hronaut — {title}",
       "savePageTitle": "Сохранить страницу как",
       "webpageComplete": "Веб-страница полностью",

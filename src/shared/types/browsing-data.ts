@@ -42,6 +42,19 @@ export interface BrowserBookmark {
   updatedAt: string
 }
 
+/** What importing a bookmarks file did, for the sentence the bookmarks panel says about it. */
+export interface BookmarkImportResult {
+  added: number
+  /** Addresses already bookmarked, which stay as they were. */
+  alreadySaved: number
+  /** Links that are not web pages, such as javascript: ones. */
+  notWebPages: number
+  /** Links left out because Hronaut keeps no more bookmarks. */
+  overLimit: number
+  /** The most bookmarks Hronaut keeps. */
+  limit: number
+}
+
 export interface BrowserHistoryEntry {
   id: string
   url: string

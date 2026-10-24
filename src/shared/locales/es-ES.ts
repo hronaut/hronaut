@@ -3051,6 +3051,7 @@ export const esES = {
     "summary": "{count} proceso usa {memory} | {count} procesos usan {memory}"
   },
   "bookmarks": { sortOrder: "Ordenar marcadores", sortUpdated: "Actualizados recientemente", sortTitle: "Título", copyAddress: "Copiar dirección", copyAddressAria: "Copiar dirección de {title}", addressCopied: "Dirección copiada", copyFailed: "No se pudo copiar la dirección. Inténtalo de nuevo.",
+    file: { import: "Importar…", export: "Exportar…", importHint: "Importar marcadores de un archivo HTML, como uno exportado desde Chrome", exportHint: "Exportar marcadores a un archivo HTML que Chrome y otros navegadores pueden importar", exported: "Se exportó {count} marcador. | Se exportaron {count} marcadores.", imported: "Se importó {count} marcador. | Se importaron {count} marcadores.", alreadySaved: "{count} ya estaba guardado. | {count} ya estaban guardados.", notWebPages: "{count} enlace no es una página web, así que se omitió. | {count} enlaces no son páginas web, así que se omitieron.", overLimit: "Hronaut guarda hasta {max} marcadores, así que se omitió {count}. | Hronaut guarda hasta {max} marcadores, así que se omitieron {count}.", nothingNew: "No se importaron marcadores nuevos." },
     "collection": "Colección",
     "collectionFilter": "Filtrar marcadores por colección",
     "allCollections": "Todos los marcadores",
@@ -3783,6 +3784,10 @@ export const esES = {
       "wavAudioFilter": "Audio PCM WAV",
       "chooseVideoAudio": "Elegir audio para el vídeo",
       "chooseAudio": "Elegir audio",
+      "exportBookmarksTitle": "Exportar marcadores",
+      "importBookmarksTitle": "Importar marcadores",
+      "bookmarksFileFilter": "Archivo HTML de marcadores",
+      "importBookmarksButton": "Importar",
       "devToolsWindowTitle": "Herramientas de desarrollo de Hronaut — {title}",
       "savePageTitle": "Guardar página como",
       "webpageComplete": "Página web completa",

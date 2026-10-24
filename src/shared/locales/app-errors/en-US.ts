@@ -281,7 +281,11 @@ export const enUSAppErrors = {
     "collectionNameTaken": "A bookmark collection with this name already exists",
     "collectionName": "Collection name must contain 1 to 80 characters",
     "storageUnavailable": "Bookmark storage is unavailable",
-    "historyUnavailable": "Visit history is unavailable"
+    "historyUnavailable": "Visit history is unavailable",
+    "exportFailed": "The bookmarks file could not be saved.",
+    "importTooLarge": "This file is too large to be a bookmarks file.",
+    "importUnreadable": "This file could not be read.",
+    "importEmpty": "No bookmarks were found in this file."
   },
   "pageTools": {
     "devToolsOpen": "Close Developer Tools for this tab, then try again.",

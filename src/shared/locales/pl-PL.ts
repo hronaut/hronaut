@@ -3051,6 +3051,7 @@ export const plPL = {
     "summary": "{count} proces używa {memory} | {count} procesy używają {memory} | {count} procesów używa {memory}"
   },
   "bookmarks": { sortOrder: "Sortuj zakładki", sortUpdated: "Ostatnio zaktualizowane", sortTitle: "Tytuł", copyAddress: "Kopiuj adres", copyAddressAria: "Kopiuj adres strony {title}", addressCopied: "Adres skopiowany", copyFailed: "Nie udało się skopiować adresu. Spróbuj ponownie.",
+    file: { import: "Importuj…", export: "Eksportuj…", importHint: "Importuj zakładki z pliku HTML, np. wyeksportowanego z Chrome", exportHint: "Eksportuj zakładki do pliku HTML, który Chrome i inne przeglądarki mogą zaimportować", exported: "Wyeksportowano {count} zakładkę. | Wyeksportowano {count} zakładki. | Wyeksportowano {count} zakładek.", imported: "Zaimportowano {count} zakładkę. | Zaimportowano {count} zakładki. | Zaimportowano {count} zakładek.", alreadySaved: "{count} była już zapisana. | {count} były już zapisane. | {count} było już zapisanych.", notWebPages: "{count} link nie jest stroną internetową, więc go pominięto. | {count} linki nie są stronami internetowymi, więc je pominięto. | {count} linków nie jest stronami internetowymi, więc je pominięto.", overLimit: "Hronaut przechowuje do {max} zakładek, więc pominięto {count}. | Hronaut przechowuje do {max} zakładek, więc pominięto {count}. | Hronaut przechowuje do {max} zakładek, więc pominięto {count}.", nothingNew: "Nie zaimportowano nowych zakładek." },
     "collection": "Kolekcja",
     "collectionFilter": "Filtruj zakładki według kolekcji",
     "allCollections": "Wszystkie zakładki",
@@ -3783,6 +3784,10 @@ export const plPL = {
       "wavAudioFilter": "Dźwięk PCM WAV",
       "chooseVideoAudio": "Wybierz dźwięk do filmu",
       "chooseAudio": "Wybierz dźwięk",
+      "exportBookmarksTitle": "Eksportuj zakładki",
+      "importBookmarksTitle": "Importuj zakładki",
+      "bookmarksFileFilter": "Plik HTML z zakładkami",
+      "importBookmarksButton": "Importuj",
       "devToolsWindowTitle": "Narzędzia deweloperskie Hronaut — {title}",
       "savePageTitle": "Zapisz stronę jako",
       "webpageComplete": "Strona internetowa, kompletna",

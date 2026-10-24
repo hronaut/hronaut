@@ -277,7 +277,11 @@ export const plPLAppErrors: AppErrorMessages = {
     "collectionNameTaken": "Kolekcja zakładek o tej nazwie już istnieje.",
     "collectionName": "Nazwa kolekcji musi mieć od 1 do 80 znaków.",
     "storageUnavailable": "Magazyn zakładek jest niedostępny.",
-    "historyUnavailable": "Historia odwiedzin jest niedostępna."
+    "historyUnavailable": "Historia odwiedzin jest niedostępna.",
+    "exportFailed": "Nie udało się zapisać pliku zakładek.",
+    "importTooLarge": "Ten plik jest zbyt duży, aby był plikiem zakładek.",
+    "importUnreadable": "Nie udało się odczytać tego pliku.",
+    "importEmpty": "W tym pliku nie znaleziono zakładek."
   },
   "pageTools": {
     "devToolsOpen": "Zamknij narzędzia deweloperskie tej karty i spróbuj ponownie.",

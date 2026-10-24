@@ -498,6 +498,7 @@ export const enUS = {
     kicker: 'Browser files', heading: 'Downloads', clearFinished: "Clear all finished", close: 'Close downloads', empty: 'No downloads yet', emptyDescription: 'Files you download will appear here.', downloading: 'Downloading {filename}', cancelAria: 'Cancel {filename}', cancel: 'Cancel download', showAria: 'Show {filename} in folder', show: 'Show in folder', received: '{received} of {total}', downloaded: '{received} downloaded', complete: '{size} · Complete', cancelled: 'Cancelled', interrupted: 'Interrupted', fileRemoved: 'Moved or deleted' },
   taskManager: { title: "Task manager", close: "Close Task manager", loading: "Reading processes…", unavailable: "Processes could not be read", caption: "Hronaut processes with their memory and CPU use", columns: { task: "Task", memory: "Memory", cpu: "CPU", pid: "Process ID", actions: "Actions" }, task: { browser: "Browser", gpu: "GPU process", utility: "Utility: {name}", utilityUnnamed: "Utility process", interface: "Hronaut window", other: "Page process without a tab", helper: "Helper: {name}", tab: "Tab: {title}", sleepingTab: "Sleeping tab: {title}", subframe: "Subframe: {site}", subframeUnnamed: "Subframe", devTools: "DevTools: {title}" }, untitled: "Untitled", endProcess: "End process", endProcessAria: "End process: {task}", summary: "{count} process using {memory} | {count} processes using {memory}" },
   bookmarks: { sortOrder: "Sort bookmarks", sortUpdated: "Recently updated", sortTitle: "Title", copyAddress: "Copy address", copyAddressAria: "Copy address for {title}", addressCopied: "Address copied", copyFailed: "Could not copy address. Try again.",
+    file: { import: "Import…", export: "Export…", importHint: "Import bookmarks from an HTML file, such as one exported from Chrome", exportHint: "Export bookmarks to an HTML file that Chrome and other browsers can import", exported: "Exported {count} bookmark. | Exported {count} bookmarks.", imported: "Imported {count} bookmark. | Imported {count} bookmarks.", alreadySaved: "{count} was already saved. | {count} were already saved.", notWebPages: "{count} link is not a web page, so it was left out. | {count} links are not web pages, so they were left out.", overLimit: "Hronaut keeps up to {max} bookmarks, so {count} was left out. | Hronaut keeps up to {max} bookmarks, so {count} were left out.", nothingNew: "No new bookmarks were imported." },
     "collection": "Collection",
     "collectionFilter": "Filter bookmarks by collection",
     "allCollections": "All bookmarks",
@@ -807,6 +808,10 @@ export const enUS = {
       wavAudioFilter: "PCM WAV audio",
       chooseVideoAudio: "Choose audio for the video",
       chooseAudio: "Choose audio",
+      exportBookmarksTitle: "Export bookmarks",
+      importBookmarksTitle: "Import bookmarks",
+      bookmarksFileFilter: "Bookmarks HTML file",
+      importBookmarksButton: "Import",
       devToolsWindowTitle: "Hronaut Developer Tools — {title}",
       savePageTitle: 'Save Page As', webpageComplete: 'Webpage, Complete', webpageSingleFile: 'Webpage, Single File'
     }
