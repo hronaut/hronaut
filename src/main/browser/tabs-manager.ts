@@ -239,6 +239,7 @@ import {
 } from '../../shared/snapshot-delta.js'
 import { safeNavigationHistorySnapshot, type NavigationHistorySnapshot } from './navigation-history.js'
 import { historyAroundShownPage, savedTabHistories, savedTabHistory, TabHistoryStore, type SavedTabHistoryAccess } from './saved-tab-history/saved-tab-history.js'
+import { keepSessionCookies } from './session-cookies/saved-session-cookies.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
 import type { KeyboardDebugger } from './native-keyboard.js'
 import type { PointerDebugger } from './native-pointer.js'
@@ -5730,11 +5731,16 @@ export class BrowserTabsManager {
       this.selectTab(id, { focus: options.focus })
     }
     if (options.navigationHistory) tab.discoveryTitle.restoring(options.navigationHistory.entries)
+    // A workspace's first page waits for its session cookies saved at the last quit, so its sites keep the sign-ins.
+    const cookiesBack = isHronautHomeUrl(url) ? Promise.resolve() : keepSessionCookies(view.webContents.session)
     const loading = options.adopt
       ? Promise.resolve()
-      : options.navigationHistory
-        ? restoreHistoryOrLoad(view.webContents, options.navigationHistory, url, options.loadOptions)
-        : view.webContents.loadURL(url, options.loadOptions)
+      : cookiesBack.then(() => {
+        if (view.webContents.isDestroyed()) return undefined
+        return options.navigationHistory
+          ? restoreHistoryOrLoad(view.webContents, options.navigationHistory, url, options.loadOptions)
+          : view.webContents.loadURL(url, options.loadOptions)
+      })
     void loading.catch((error: unknown) => {
       if (isAbortedLoad(error)) return
       if (tab.navigationPolicyDenialSequence > 0) {

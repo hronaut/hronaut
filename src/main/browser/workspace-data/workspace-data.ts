@@ -1,6 +1,7 @@
 import { session, type Session } from 'electron'
 import type { BrowserWorkspaceStorageTransferOptions, BrowserWorkspaceStorageTransferResult } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
+import { keepSessionCookies, saveSessionCookies } from '../session-cookies/saved-session-cookies.js'
 import { withWorkspaceMoveGuard } from '../workspace-move-guard.js'
 import {
   normalizeWorkspaceStorageOrigins,
@@ -31,7 +32,10 @@ export function workspaceSession(access: WorkspaceDataAccess, workspaceId: strin
   return browserSession
 }
 
-/** Runs a website data cleanup on an open workspace's session while it holds the workspace and every workspace's storage busy. */
+/**
+ * Runs a website data cleanup on an open workspace's session while it holds the workspace and every workspace's storage
+ * busy. Its saved session cookies are back first and saved again after, so cookies it clears do not come back.
+ */
 export async function withWorkspaceSiteDataCleanup<T>(
   access: WorkspaceDataAccess,
   workspaceId: string,
@@ -40,7 +44,15 @@ export async function withWorkspaceSiteDataCleanup<T>(
   return access.withWorkspaceStorageOperation(
     workspaceId,
     'clearing website data',
-    () => operation(workspaceSession(access, workspaceId)),
+    async () => {
+      const browserSession = workspaceSession(access, workspaceId)
+      await keepSessionCookies(browserSession)
+      try {
+        return await operation(browserSession)
+      } finally {
+        await saveSessionCookies(browserSession)
+      }
+    },
     true
   )
 }
