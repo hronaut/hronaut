@@ -3,7 +3,7 @@ import type { WebContents } from 'electron'
 /** The tab fields closing a tab a download left empty reads and sets. */
 export interface DownloadTabCloseTab {
   id: string
-  /** Set for a tab a page opened, from a link or a window it asked for, with no history of its own. */
+  /** Set for a tab a download that is all it opens closes, as opensFromPage tells. */
   openedFromPage?: boolean
   /** Set as a download closes the tab, so Recently closed does not list it. */
   leftEmptyByDownload?: boolean

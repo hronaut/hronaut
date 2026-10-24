@@ -47,9 +47,9 @@ interface BrowserDownloadsHost {
   }
   workspaceObservationGeneration(workspaceId: string): number
   /**
-   * Called once for each download Hronaut keeps, with the page it started from, when the download has its file: at
-   * once, or after the save dialog when Hronaut asks where to save, or when it ends before that, such as when the
-   * person cancels the dialog or the download folder cannot be written.
+   * Called once for each download, with the page it started from, when the download has its file: at once, or after
+   * the save dialog when Hronaut asks where to save, or when it ends before that, such as when the person cancels the
+   * dialog, the download folder cannot be written or a full download history refuses it.
    */
   downloadReady(webContentsId: number | undefined): void
   isAvailable(): boolean
@@ -365,6 +365,8 @@ export class BrowserDownloadsController {
         this.trimDownloadHistory()
         if (this.downloads.size >= MAX_DOWNLOAD_HISTORY) {
           event.preventDefault()
+          // Refused, as a download the person cancels, which leaves its tab as empty.
+          this.host.downloadReady(webContents?.id)
           return
         }
         const id = randomUUID()

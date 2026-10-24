@@ -1,9 +1,19 @@
 import type { DownloadTabCloseAccess, DownloadTabCloseTab } from './download-tab-close-access.js'
 
 /**
+ * Whether a new tab is one a download that is all it opens closes: a tab a page opened, from a link or a window it
+ * asked for that opens as a tab, with no history of its own. A page's popup with its own size or position, which Chrome
+ * opens as a window of its own and so never closes for a download, stays, as does a tab opened at a page of another
+ * tab's history, such as with a middle-click on Back.
+ */
+export function opensFromPage(options: { openedFrom?: { window?: boolean }; navigationHistory?: unknown }): boolean {
+  return options.openedFrom !== undefined && options.openedFrom.window !== true && options.navigationHistory === undefined
+}
+
+/**
  * Closes the tab a download started in when the download is all it opened, as Chrome does: a tab a page opened, from
- * a link such as one with target="_blank", Open link in new tab or a window the page asked for, whose first page
- * turned out to be a file to save, so no empty tab is left behind. It closes once the download has its file, after
+ * a link such as one with target="_blank", Open link in new tab or `window.open`, whose first page turned out to be a
+ * file to save, so no empty tab is left behind. It closes once the download has its file, after
  * the save dialog when Hronaut asks where to save, and the tab it was opened from shows again. A tab that showed a
  * page keeps it, so saving a page or a link from it leaves it open, as does the window's only tab. Recently closed
  * does not list it, as reopening it would download the file again.
@@ -19,7 +29,8 @@ export function closeTabLeftEmptyByDownload<Tab extends DownloadTabCloseTab>(acc
     tab.leftEmptyByDownload = true
     void access.closeTab(tab).catch((error: unknown) => {
       delete tab.leftEmptyByDownload
-      console.error('[browser] Could not close the tab a download left empty:', error)
+      // A tab the person closed meanwhile is no failure.
+      if (access.tabOfPage(webContentsId) === tab) console.error('[browser] Could not close the tab a download left empty:', error)
     })
   })
 }

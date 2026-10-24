@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { closeTabLeftEmptyByDownload } from '../src/main/browser/download-tab-close/download-tab-close.js'
+import { closeTabLeftEmptyByDownload, opensFromPage } from '../src/main/browser/download-tab-close/download-tab-close.js'
 import type { DownloadTabCloseAccess, DownloadTabCloseTab } from '../src/main/browser/download-tab-close/download-tab-close-access.js'
 import { rememberClosedTab } from '../src/main/browser/tab-reopening/tab-reopening.js'
 import type { TabReopeningAccess, TabReopeningTab } from '../src/main/browser/tab-reopening/tab-reopening-access.js'
@@ -90,6 +90,16 @@ describe('closing a tab a download left empty', () => {
     } finally {
       error.mockRestore()
     }
+  })
+
+  it('marks only tabs a page opened as tabs, with no history of their own', () => {
+    expect(opensFromPage({ openedFrom: { window: false } })).toBe(true)
+    expect(opensFromPage({ openedFrom: {} })).toBe(true)
+    // Chrome opens a popup with its own size or position as a window of its own, whose only tab it never closes.
+    expect(opensFromPage({ openedFrom: { window: true } })).toBe(false)
+    // A middle-click on Back opens that page with the tab's history, which a download there must not take away.
+    expect(opensFromPage({ openedFrom: {}, navigationHistory: { entries: [], index: 0 } })).toBe(false)
+    expect(opensFromPage({})).toBe(false)
   })
 
   it('leaves the tab out of Recently closed, as reopening it would download the file again', () => {

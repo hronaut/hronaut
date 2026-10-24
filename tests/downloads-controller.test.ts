@@ -726,4 +726,10 @@ it('tells the tab manager once that a download has its file, at once or after th
   expect(asking.ready).toEqual([1])
   asking.download(2).cancel()
   expect(asking.ready).toEqual([1, 2])
+
+  // A download a full history refuses leaves its tab as empty as one the person cancels.
+  const full = await fixture()
+  for (let index = 0; index < 200; index += 1) full.download(1, false, `https://download.example/${index}.txt`, `${index}.txt`)
+  expect(full.download(2).event.preventDefault).toHaveBeenCalled()
+  expect(full.ready.at(-1)).toBe(2)
 })

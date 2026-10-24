@@ -14,7 +14,7 @@ test('closes the tab a link opened when it turns out to be a download, as Chrome
       return
     }
     response.writeHead(200, { 'content-type': 'text/html' })
-    response.end(`<!doctype html><title>Page ${path}</title><p><a id="front" href="/report-front" target="_blank">Front</a> <a id="behind" href="/report-behind">Behind</a> <a id="page" href="/second" target="_blank">Second</a> <a id="save" href="/report-saved" download>Save</a></p>`)
+    response.end(`<!doctype html><title>Page ${path}</title><p><a id="front" href="/report-front" target="_blank">Front</a> <a id="behind" href="/report-behind">Behind</a> <a id="page" href="/second" target="_blank">Second</a> <a id="save" href="/report-saved" download>Save</a> <button id="opened" onclick="window.open('/report-opened')">Open</button> <button id="popup" onclick="window.open('/report-popup', 'popup', 'width=400,height=300')">Popup</button></p>`)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -55,15 +55,28 @@ test('closes the tab a link opened when it turns out to be a download, as Chrome
     await press('/app', '#behind', { button: 'middle' })
     await expect.poll(() => downloaded('report-behind')).toBe('synthetic report-behind\n')
     await expect.poll(order).toEqual(['/app*'])
+    // So does a tab the page opens with window.open.
+    await press('/app', '#opened', { button: 'left' })
+    await expect.poll(() => downloaded('report-opened')).toBe('synthetic report-opened\n')
+    await expect.poll(order).toEqual(['/app*'])
     // Reopening them would only download the files again.
-    expect((await state()).closedTabs.map(tab => new URL(tab.url).pathname)).not.toContain('/report-front')
-    expect((await state()).closedTabs.map(tab => new URL(tab.url).pathname)).not.toContain('/report-behind')
+    const reopenable = (await state()).closedTabs.map(tab => new URL(tab.url).pathname)
+    for (const path of ['/report-front', '/report-behind', '/report-opened']) expect(reopenable).not.toContain(path)
+
+    // A popup with its own size, which Chrome opens as a window of its own, stays.
+    await press('/app', '#popup', { button: 'left' })
+    await expect.poll(() => downloaded('report-popup')).toBe('synthetic report-popup\n')
+    await appWindow.waitForTimeout(500)
+    expect(await order()).toEqual(['/app', '/report-popup*'])
+    await appWindow.evaluate(`window.hronaut.getState().then((state) => window.hronaut.closeTab(state.tabs.find((tab) => tab.active).id))`)
+    await expect.poll(order).toEqual(['/app*'])
 
     // A tab that showed a page keeps it when the page downloads a file.
     await press('/app', '#page', { button: 'left' })
     await expect.poll(async () => (await state()).tabs.find(tab => tab.active)?.title).toBe('Page /second')
     await press('/second', '#save', { button: 'left' })
     await expect.poll(() => downloaded('report-saved')).toBe('synthetic report-saved\n')
+    // The tab would close within a moment of the download getting its file.
     await appWindow.waitForTimeout(500)
     expect(await order()).toEqual(['/app', '/second*'])
   } finally {

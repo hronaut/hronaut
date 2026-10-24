@@ -443,7 +443,7 @@ import type { PageSaveAccess } from './page-save/page-save-access.js'
 import { viewFrameSource, viewPageSource, viewShownPageSource } from './page-source/page-source.js'
 import type { PageSourceAccess } from './page-source/page-source-access.js'
 import { openNavigationInNewTab } from './navigation-new-tab/navigation-new-tab.js'
-import { closeTabLeftEmptyByDownload } from './download-tab-close/download-tab-close.js'
+import { closeTabLeftEmptyByDownload, opensFromPage } from './download-tab-close/download-tab-close.js'
 import type { DownloadTabCloseAccess } from './download-tab-close/download-tab-close-access.js'
 import type { NavigationNewTabAccess } from './navigation-new-tab/navigation-new-tab-access.js'
 import type { PagePrintAccess } from './page-print/page-print-access.js'
@@ -652,7 +652,7 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
    * shows that tab again when it closes, until Hronaut forgets it as Chrome does.
    */
   openedFromTabId?: string
-  /** Set for a tab a page opened, from a link or a window it asked for, with no history of its own. */
+  /** Set for a tab a download that is all it opens closes, as opensFromPage tells. */
   openedFromPage?: boolean
   /** Set as a download that was all the tab opened closes it, so Recently closed does not list it. */
   leftEmptyByDownload?: boolean
@@ -5627,7 +5627,7 @@ export class BrowserTabsManager {
       ...(options.mcpGroupId ? { mcpGroupId: options.mcpGroupId } : {}),
       ...(opener ? { openerTabId: opener.id } : {}),
       ...(options.openedFrom ? { openedFromTabId: options.openedFrom.tabId } : {}),
-      ...(options.openedFrom && !options.navigationHistory ? { openedFromPage: true } : {})
+      ...(opensFromPage(options) ? { openedFromPage: true } : {})
     }
     tab.webContents.setAudioMuted(tab.muted)
     // A page's tab opened in front starts a new task, so its workspace forgets which page opened its other tabs. A
