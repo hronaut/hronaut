@@ -438,6 +438,8 @@ import { back, forward, goToHistoryEntry, navigate, reload, reloadIgnoringCache,
 import type { PageZoomAccess } from './page-zoom/page-zoom-access.js'
 import { setZoom } from './page-zoom/page-zoom.js'
 import type { PageWheelZoomAccess } from './page-zoom/page-wheel-zoom-access.js'
+import { attachSiteZoom, rememberSiteZoom, SiteZoomStore } from './site-zoom/site-zoom.js'
+import type { SiteZoomAccess, SiteZoomLevels } from './site-zoom/site-zoom-access.js'
 import { historyGesture } from './history-gesture/history-gesture.js'
 import type { HistoryGestureAccess } from './history-gesture/history-gesture-access.js'
 import { printPage, printShownPage } from './page-print/page-print.js'
@@ -846,6 +848,8 @@ export interface TabsManagerOptions {
   tabHistoryPath?: string
   /** Where Recently closed is kept for the next start; without it, Recently closed starts empty. */
   closedTabsPath?: string
+  /** Where each workspace's zoom for each site is kept for the next start; without it, sites start at 100%. */
+  siteZoomPath?: string
   requireExistingMetadata?: boolean
   mcpUrl: string
   profilePath: string
@@ -979,8 +983,10 @@ export class BrowserTabsManager {
     return beginWorkspaceContinuityAction(this.workspaceContinuityAccess(), workspaceId, readOnly)
   }
 
+  /** Forgets a workspace deleted with its data: its continuity, and its sites' zoom kept for the next start. */
   private retireWorkspaceContinuity(workspaceId: string): void {
     retireWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId)
+    this.scheduleSiteZoomSave()
   }
 
   postWriteContextFingerprint(workspaceId: string, tabId: string, condition: BrowserPostcondition): string {
@@ -1173,6 +1179,9 @@ export class BrowserTabsManager {
   private persistTimer: NodeJS.Timeout | null = null
   private tabHistoryStore: TabHistoryStore | undefined
   private closedTabsStore: ClosedTabsStore | undefined
+  private siteZoomStore: SiteZoomStore | undefined
+  private siteZoomLevels: SiteZoomLevels | undefined
+  private siteZoomSaveTimer: NodeJS.Timeout | null = null
   private tabHistoryTimer: NodeJS.Timeout | null = null
   private stopPresentationWatcher: (() => void) | undefined
   private memorySaverTimer: NodeJS.Timeout | null = null
@@ -1413,6 +1422,7 @@ export class BrowserTabsManager {
     this.store = new TabStateStore(options.storePath)
     this.tabHistoryStore = options.tabHistoryPath ? new TabHistoryStore(options.tabHistoryPath) : undefined
     this.closedTabsStore = options.closedTabsPath ? new ClosedTabsStore(options.closedTabsPath) : undefined
+    this.siteZoomStore = options.siteZoomPath ? new SiteZoomStore(options.siteZoomPath) : undefined
     this.toolbarHeight = options.toolbarHeight ?? 104
     this.mcpUrl = options.mcpUrl
     this.memorySaverEnabled = options.memorySaverEnabled !== false
@@ -1469,6 +1479,8 @@ export class BrowserTabsManager {
     const persistedTabs = saved?.tabs ?? []
     const savedHistories = await this.tabHistoryStore?.load() ?? new Map<string, NavigationHistorySnapshot>()
     const savedClosed = await this.closedTabsStore?.load() ?? []
+    // Before the saved tabs load their pages, which then open at their sites' zoom.
+    this.siteZoomLevels = await this.siteZoomStore?.load() ?? new Map()
     for (const group of saved?.mcpTabGroups ?? []) {
       this.mcpTabGroups.set(group.id, {
         ...group,
@@ -3615,8 +3627,45 @@ export class BrowserTabsManager {
     return {
       getTab: (tabId) => this.getTab(tabId),
       changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
+      getState: () => this.getState(),
+      zoomed: (tab, percent) => { if (rememberSiteZoom(this.siteZoomAccess(), tab, percent)) this.scheduleSiteZoomSave() }
     }
+  }
+
+  /** The narrow view keeping each site's zoom gets of this manager's tabs, their workspaces' storage and the kept zoom. */
+  private siteZoomAccess(): SiteZoomAccess<BrowserTab> {
+    return {
+      findTab: (tabId) => this.tabs.get(tabId),
+      storageId: (tab) => tab.mcpGroupId ? canonicalStorageId(this.mcpTabGroups.get(tab.mcpGroupId)?.storageId) : undefined,
+      levels: () => (this.siteZoomLevels ??= new Map()),
+      changed: (persist) => this.changed(persist)
+    }
+  }
+
+  private scheduleSiteZoomSave(): void {
+    if (this.destroyed || this.siteZoomSaveTimer) return
+    this.siteZoomSaveTimer = setTimeout(() => {
+      this.siteZoomSaveTimer = null
+      void this.saveSiteZoom()
+    }, 1_000)
+  }
+
+  /**
+   * Saves the zoom kept for each site for the next start, once the saved tabs are back and until the browser closes,
+   * for the workspaces that keep their storage, open or archived: a workspace deleted with its data leaves its sites'
+   * zoom behind. A failure is logged.
+   */
+  private async saveSiteZoom(): Promise<void> {
+    if (this.siteZoomSaveTimer) clearTimeout(this.siteZoomSaveTimer)
+    this.siteZoomSaveTimer = null
+    if (!this.initialized) return
+    await this.siteZoomStore?.save(() => {
+      if (this.destroyed) return undefined
+      const storages = new Set<string | undefined>()
+      for (const [id, group] of this.mcpTabGroups) if (!this.workspacesBeingDeleted.has(id)) storages.add(canonicalStorageId(group.storageId))
+      for (const group of this.savedTabGroups.values()) storages.add(canonicalStorageId(group.storageId))
+      return new Map([...this.siteZoomLevels ?? []].filter(([storageId]) => storages.has(storageId)))
+    }).catch((error: unknown) => console.error('[browser] Failed to save site zoom:', error))
   }
 
   setZoom(options: { tabId?: string; action: 'in' | 'out' | 'reset' | 'set'; percent?: number }): BrowserState {
@@ -5452,7 +5501,8 @@ export class BrowserTabsManager {
       this.tabHistoryStore?.save((previous) => this.destroyed ? undefined : savedTabHistories(this.savedTabHistoryAccess(), previous))
         .catch((error: unknown) => console.error('[browser] Failed to save tab history:', error)),
       this.closedTabsStore?.save(() => this.destroyed ? undefined : savedClosedTabs(this.savedClosedTabsAccess()))
-        .catch((error: unknown) => console.error('[browser] Failed to save recently closed tabs:', error))
+        .catch((error: unknown) => console.error('[browser] Failed to save recently closed tabs:', error)),
+      this.saveSiteZoom()
     ])
   }
 
@@ -5499,6 +5549,8 @@ export class BrowserTabsManager {
     this.mcpActivityFollower.dispose()
     this.stopPresentationWatcher?.()
     if (this.persistTimer) clearTimeout(this.persistTimer)
+    if (this.siteZoomSaveTimer) clearTimeout(this.siteZoomSaveTimer)
+    this.siteZoomSaveTimer = null
     if (this.tabHistoryTimer) clearInterval(this.tabHistoryTimer)
     if (this.memorySaverTimer) clearInterval(this.memorySaverTimer)
     this.downloadController.clearPendingNotification()
@@ -5887,6 +5939,7 @@ export class BrowserTabsManager {
     attachPageKeyboardEvents(this.pageKeyboardEventsAccess(), tab, webContents)
     attachPagePointerEvents(this.pagePointerEventsAccess(), tab, webContents)
     attachPageWheelZoom(this.pageWheelZoomAccess(), tab, webContents)
+    attachSiteZoom(this.siteZoomAccess(), tab, webContents)
     attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
     attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
     this.frameObservation.track(webContents)

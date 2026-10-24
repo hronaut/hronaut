@@ -12,4 +12,6 @@ export interface PageZoomAccess<Tab extends PageZoomTab> {
   getTab(tabId?: string): Tab
   changed(persist?: boolean): void
   getState(): BrowserState
+  /** Keeps the page's new zoom for its site, as Chrome does, for the next start too. */
+  zoomed(tab: Tab, percent: number): void
 }

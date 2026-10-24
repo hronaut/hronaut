@@ -24,6 +24,7 @@ export function setZoom<Tab extends PageZoomTab>(access: PageZoomAccess<Tab>, op
     percent = options.percent
   }
   webContents.setZoomFactor(percent / 100)
+  access.zoomed(tab, percent)
   access.changed(false)
   return access.getState()
 }

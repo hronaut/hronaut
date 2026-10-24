@@ -1060,6 +1060,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     storePath: join(app.getPath('userData'), 'tabs.json'),
     tabHistoryPath: join(app.getPath('userData'), 'tab-history.json'),
     closedTabsPath: join(app.getPath('userData'), 'closed-tabs.json'),
+    siteZoomPath: join(app.getPath('userData'), 'site-zoom.json'),
     requireExistingMetadata: requireExistingWorkspaceMetadata,
     mcpUrl: mcpRuntime.url,
     profilePath: app.getPath('userData'),

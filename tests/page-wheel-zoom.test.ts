@@ -31,7 +31,7 @@ function attached(url: string, overrides: Partial<PageWheelZoomAccess<ZoomTab>> 
     agentInputWebContents: () => new Map(),
     nativeSelectionUnderWay: () => false,
     // The same step the zoom bar and Ctrl/Cmd with + or - take.
-    zoom: (tabId, direction) => { setZoom({ getTab: () => tab, changed, getState: () => ({}) as BrowserState }, { tabId, action: direction }) },
+    zoom: (tabId, direction) => { setZoom({ getTab: () => tab, changed, getState: () => ({}) as BrowserState, zoomed: () => undefined }, { tabId, action: direction }) },
     ...overrides
   }
   attachPageWheelZoom(access, tab, webContents)
