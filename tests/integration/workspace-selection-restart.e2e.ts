@@ -7,7 +7,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 import type { PersistedBrowserState } from '../../src/main/browser/tab-store.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
-import { launchRejected, quitNotice, type Scope } from './workspace-metadata-fixtures.js'
+import { hronautWindowCount, launchRejected, quitNotice, type Scope } from './workspace-metadata-fixtures.js'
 
 async function connect(profile: string, port: number): Promise<Client> {
   const token = (await readFile(join(profile, 'mcp-token'), 'utf8')).trim()
@@ -137,7 +137,7 @@ for (const selection of ['missing-workspace', 'missing-global', 'invalid-workspa
           const notice = await rejected.evaluate(() => (globalThis as Scope).metadataFixture.notice!)
           expect(notice.buttons).toEqual(['Quit'])
           expect(notice.message).toContain('Startup stopped')
-          expect(await rejected.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(0)
+          expect(await hronautWindowCount(rejected)).toBe(0)
           await expect(fetch(`http://127.0.0.1:${mcpPort}/mcp`)).rejects.toThrow()
           expect(await readFile(path, 'utf8')).toBe(bytes)
           for (const marker of markers) expect(await readFile(marker, 'utf8')).toBe('synthetic-selection-storage')
