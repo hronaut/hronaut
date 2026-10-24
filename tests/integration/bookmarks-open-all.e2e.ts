@@ -22,8 +22,8 @@ test('opens every listed bookmark in a background tab, asking first above 15, as
     await appWindow.getByRole('button', { name: 'Bookmarks', exact: true }).click()
     const panel = appWindow.getByRole('dialog', { name: 'Bookmarks' })
 
-    // A few at once open without a question.
-    await panel.getByRole('searchbox').fill('Saved page 1')
+    // A few at once open without a question: page-1 and page-10 to page-16.
+    await panel.getByRole('searchbox').fill('page-1')
     await panel.getByRole('button', { name: 'Open all (8)' }).click()
     await expect(panel.getByRole('status')).toHaveText('Opened 8 tabs.')
     expect((await state()).tabs).toHaveLength(before.tabs.length + 8)
