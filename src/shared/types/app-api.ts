@@ -72,7 +72,8 @@ export interface HronautPanelWindowApi {
 }
 
 export interface HronautDownloadsApi {
-  list(): Promise<BrowserDownloadState[]>
+  /** Every download; with `checkFiles`, as when the Downloads panel opens, also checks finished files are still there. */
+  list(checkFiles?: boolean): Promise<BrowserDownloadState[]>
   pause(downloadId: string): Promise<BrowserDownloadState[]>
   resume(downloadId: string): Promise<BrowserDownloadState[]>
   cancel(downloadId: string): Promise<BrowserDownloadState[]>

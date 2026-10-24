@@ -389,6 +389,7 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
       activeTabPresentationController: {},
       activeIsHome,
       activeDownloads: ref([]),
+      toolbarDownloads: ref([]),
       currentBookmark: ref(undefined),
       downloadButtonLabel: ref('Downloads'),
       effectiveHumanInteractionLocked: ref(false),

@@ -41,7 +41,8 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
 
   function acceptDownloads(next: BrowserDownloadState[], notify: boolean): void {
     if (disposed) return
-    const hasNewDownload = notify && next.some((download) => !knownDownloadIds.has(download.id))
+    // One kept from before the restart is not new, even when a change arrives before the first list.
+    const hasNewDownload = notify && next.some((download) => !download.fromEarlierRun && !knownDownloadIds.has(download.id))
     downloadsRevision += 1
     downloads.value = next
     replaceKnownDownloadIds(next)
@@ -110,8 +111,9 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     return initializePromise
   }
 
+  /** The downloads as the panel opening shows them, checking that finished files are still there. */
   function refreshDownloads(): Promise<BrowserDownloadState[]> {
-    return resolveDownloads(() => options.downloadsApi.list())
+    return resolveDownloads(() => options.downloadsApi.list(true))
   }
 
   function pauseDownload(downloadId: string): Promise<BrowserDownloadState[]> {

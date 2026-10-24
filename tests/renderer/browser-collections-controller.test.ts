@@ -165,6 +165,25 @@ describe('useBrowserCollectionsController', () => {
     harness.controller.dispose()
   })
 
+  it('does not open Downloads for downloads kept from before the restart, also before the first list', async () => {
+    // A change that came before the startup list made every kept download look new and opened the panel.
+    const harness = createHarness()
+    const startup = deferred<BrowserDownloadState[]>()
+    harness.listDownloads.mockReturnValueOnce(startup.promise)
+    const initializing = harness.controller.initialize()
+    expect(harness.listDownloads).toHaveBeenCalledWith()
+    harness.emitDownloads([{ ...download('kept'), fromEarlierRun: true }])
+    startup.resolve([{ ...download('kept'), fromEarlierRun: true }])
+    await initializing
+    expect(harness.openDownloads).not.toHaveBeenCalled()
+    harness.emitDownloads([download('new'), { ...download('kept'), fromEarlierRun: true }])
+    expect(harness.openDownloads).toHaveBeenCalledOnce()
+    // Opening the panel checks the finished files, as Chrome's downloads page does; the startup list does not.
+    await harness.controller.refreshDownloads()
+    expect(harness.listDownloads).toHaveBeenLastCalledWith(true)
+    harness.controller.dispose()
+  })
+
   it('keeps later IPC events authoritative over pending refresh and mutation responses', async () => {
     const harness = createHarness()
     await harness.controller.initialize()

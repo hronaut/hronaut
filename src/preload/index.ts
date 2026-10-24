@@ -320,7 +320,7 @@ const api: HronautApi = {
 
 contextBridge.exposeInMainWorld('hronaut', api)
 const downloadsApi: HronautDownloadsApi = {
-  list: () => ipcRenderer.invoke('downloads:list'),
+  list: (checkFiles?: boolean) => ipcRenderer.invoke('downloads:list', checkFiles === true),
   pause: (downloadId: string) => ipcRenderer.invoke('downloads:pause', downloadId),
   resume: (downloadId: string) => ipcRenderer.invoke('downloads:resume', downloadId),
   cancel: (downloadId: string) => ipcRenderer.invoke('downloads:cancel', downloadId),
