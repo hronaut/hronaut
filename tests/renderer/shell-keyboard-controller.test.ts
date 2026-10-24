@@ -47,6 +47,15 @@ describe('useShellKeyboardController', () => {
     expect(runShortcut).toHaveBeenCalledTimes(3)
   })
 
+  it('leaves Escape to Hronaut\'s own window, where it stops no page loading', () => {
+    // From a page Escape stops it loading; in the window it closes what is open, and with nothing open does nothing.
+    const { controller, runShortcut } = setup()
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', cancelable: true })
+    controller.handleKeyDown(escape)
+    expect(runShortcut).not.toHaveBeenCalled()
+    expect(escape.defaultPrevented).toBe(false)
+  })
+
   it('goes to the next and previous match of Find with F3 and Ctrl+G in Hronaut\'s own window', () => {
     // Typed in the Find field they did nothing, where Chrome goes to the next or previous match.
     const { controller, runShortcut } = setup()

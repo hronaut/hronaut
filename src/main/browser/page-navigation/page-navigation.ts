@@ -256,3 +256,13 @@ export function stop<Tab extends PageNavigationTab>(access: PageNavigationAccess
   access.getTab(tabId).webContents.stop()
   return access.getState()
 }
+
+/**
+ * Escape that the page with the keyboard left alone: as in Chrome, it stops that page while it loads. A page that has
+ * loaded keeps its own requests going, and Home, which Hronaut loads again by itself, is left alone.
+ */
+export function stopFocusedPageLoading<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>): void {
+  const webContents = access.focusedTab()?.webContents
+  if (!webContents || webContents.isDestroyed() || !webContents.isLoading() || isHronautHomeUrl(webContents.getURL())) return
+  webContents.stop()
+}

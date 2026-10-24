@@ -873,6 +873,7 @@ export const frFR = {
       "forward": "Aller à la page suivante",
       "reload": "Recharger le site actuel",
       "reloadFresh": "Recharger sans les fichiers en cache",
+      "stop": "Arrêter le chargement de la page",
       "newTab": "Ouvrir un nouvel onglet",
       "closeTab": "Fermer l’onglet actuel",
       "reopenTab": "Rouvrir le dernier onglet fermé",

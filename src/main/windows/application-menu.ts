@@ -19,7 +19,8 @@ interface ApplicationMenuHost {
   runShortcut(action: BrowserShortcutAction): void
   /** Goes to the pane after the page in focus, for an F6 the page left alone. */
   runPageNextPane(): void
-  tabs(): Pick<BrowserTabsManager, 'newTab' | 'back' | 'forward' | 'historyGesture' | 'reload' | 'reloadIgnoringCache' | 'printShownPage' | 'saveShownPage' | 'viewShownPageSource' | 'toggleDevTools' | 'setZoom'> | null
+  tabs(): Pick<BrowserTabsManager, 'newTab' | 'back' | 'forward' | 'historyGesture' | 'reload' | 'reloadIgnoringCache' | 'printShownPage' | 'saveShownPage' | 'viewShownPageSource' | 'toggleDevTools' | 'setZoom'
+    | 'stopFocusedPageLoading'> | null
 }
 
 /**
@@ -68,6 +69,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
   // menu's Find Next and Find Previous already show their main keys.
   function websiteKeptKeys(): MenuItemConstructorOptions[] {
     if (process.platform === 'darwin') return []
+    const stopFocusedPageLoading = (): void => host.runNativeBrowserAction('stop loading the page', () => host.tabs()?.stopFocusedPageLoading())
     const item = (label: string, accelerator: string, action: BrowserShortcutAction | (() => void)): MenuItemConstructorOptions => ({
       label,
       accelerator,
@@ -83,6 +85,9 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
       item(host.text('native.menu.reload'), 'F5', 'reload'),
       item(host.text('native.menu.reloadWithoutCache'), 'Shift+F5', 'reload-ignoring-cache'),
       item(host.text('native.menu.reloadWithoutCache'), 'Ctrl+F5', 'reload-ignoring-cache'),
+      // Escape runs here rather than in Hronaut's window: it stops the page that has the keyboard, and only while that
+      // page loads, so a page in full screen stays there.
+      item(host.text('runtime.shortcuts.stop'), 'Escape', stopFocusedPageLoading),
       item(host.text('runtime.shortcuts.address'), 'Alt+D', 'focus-address'),
       item(host.text('runtime.shortcuts.address'), 'Ctrl+E', 'focus-address'),
       item(host.text('shell.home.open'), 'Alt+Home', 'open-home'),
