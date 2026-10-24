@@ -1046,3 +1046,18 @@ describe('bookmarks file', () => {
     expect(importBookmarks).toHaveBeenCalledOnce()
   })
 })
+
+describe('open all', () => {
+  it('opens the bookmarks the list shows, and offers nothing to open when it shows none', async () => {
+    const openBookmarkInBackground = vi.fn(async () => undefined)
+    renderPanel({ openBookmarkInBackground })
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('searchbox'), 'Beta')
+    await user.click(screen.getByRole('button', { name: 'Open all (1)' }))
+    await flushPromises()
+    expect(openBookmarkInBackground).toHaveBeenCalledExactlyOnceWith(bookmark('beta', 'Beta page'))
+    await user.clear(screen.getByRole('searchbox'))
+    await user.type(screen.getByRole('searchbox'), 'Nothing like it')
+    expect(screen.queryByRole('button', { name: /^Open all/u })).toBeNull()
+  })
+})

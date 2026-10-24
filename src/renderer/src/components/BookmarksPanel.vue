@@ -19,6 +19,7 @@ import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { asMiddleClick, openClickTab } from '../open-click.js'
 import BookmarkCollectionsToolbar from './BookmarkCollectionsToolbar.vue'
 import BookmarksFileActions from './BookmarksFileActions.vue'
+import BookmarksOpenAll from './BookmarksOpenAll.vue'
 import { useBookmarkCollectionsController } from '../composables/useBookmarkCollectionsController.js'
 import PanelDockPicker from './PanelDockPicker.vue'
 import { vTooltip } from '../ui/tooltip.js'
@@ -335,6 +336,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
         <option value="title">{{ t('bookmarks.sortTitle') }}</option>
       </select>
     </label>
+    <BookmarksOpenAll v-if="visibleBookmarks.length" :bookmarks="visibleBookmarks" :blocked="anyPending" :open-in-background="openBookmarkInBackground" :format-number="formatNumber" />
     <div v-if="!bookmarks.length" class="bookmarks-empty">
       <IconStarOutline aria-hidden="true" />
       <strong>{{ t('bookmarks.empty') }}</strong>
