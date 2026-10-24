@@ -112,8 +112,10 @@ jobs:
         include:
           - os: ubuntu-latest
             command: package:linux
+            native: linux
           - os: macos-latest
             command: package:mac
+            native: mac
           - os: windows-latest
             command: package:win
     runs-on: ${{ matrix.os }}
@@ -138,5 +140,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # One runner packages the x64 and the arm64 app; npm installed only its own CPU's native packages.
+      - name: Install the native packages of both CPUs
+        if: matrix.native
+        run: node scripts/native-packages.ts install ${{ matrix.native }}
+
       - name: Build release packages
         run: npm run ${{ matrix.command }}
+
+      - name: Check each app carries its native packages
+        if: matrix.native
+        run: node scripts/native-packages.ts check ${{ matrix.native }} dist
