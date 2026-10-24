@@ -19,7 +19,9 @@ import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { asMiddleClick, openClickTab } from '../open-click.js'
 import BookmarkCollectionsToolbar from './BookmarkCollectionsToolbar.vue'
 import BookmarksFileActions from './BookmarksFileActions.vue'
+import BookmarksOpenAll from './BookmarksOpenAll.vue'
 import { useBookmarkCollectionsController } from '../composables/useBookmarkCollectionsController.js'
+import { useBookmarksOpenAll } from '../composables/useBookmarksOpenAll.js'
 import PanelDockPicker from './PanelDockPicker.vue'
 import { vTooltip } from '../ui/tooltip.js'
 
@@ -120,8 +122,16 @@ const collectionController = useBookmarkCollectionsController({
   api: props.collectionsApi, open, blocked: computed(() => pendingAction.value !== null), translate: (key) => t(key)
 })
 const { pending: collectionsPending, collections, selection } = collectionController
-const anyPending = computed(() => pendingAction.value !== null || collectionsPending.value)
 const visibleBookmarks = computed(() => filteredBookmarks.value.filter(bookmark => collectionController.includes(bookmark.id)))
+const openAll = useBookmarksOpenAll({
+  bookmarks: visibleBookmarks,
+  open,
+  blocked: computed(() => pendingAction.value !== null || collectionsPending.value),
+  openInBackground: props.openBookmarkInBackground,
+  translate: (key) => t(key)
+})
+const { pending: openAllPending } = openAll
+const anyPending = computed(() => pendingAction.value !== null || collectionsPending.value || openAllPending.value)
 const collectionsToolbar = ref<{ cancelEdit: () => void } | null>(null)
 watch(selection, () => { cancelRenameDraft(); resetCopyFeedback() }, { flush: 'sync' })
 watch(() => visibleBookmarks.value.map(bookmark => `${bookmark.id}:${bookmark.url}`).join('\n'), resetCopyFeedback, { flush: 'sync' })
@@ -213,6 +223,8 @@ async function assignCollection(bookmarkId: string, event: Event): Promise<void>
 // fails, that control gets the focus back, or Close when it cannot be used, unless you have moved the focus, gone to
 // the website or another app, or closed the panel meanwhile.
 async function toggleCurrentPage(): Promise<void> {
+  // As the button is, the shortcut is unavailable while another bookmark change, such as Open all, is under way.
+  if (anyPending.value) return
   const generation = focusGeneration
   const panel = panelRoot.value
   const active = document.activeElement
@@ -280,9 +292,12 @@ async function remove(bookmarkId: string, event: MouseEvent): Promise<void> {
 }
 
 function handleEscape(): void {
+  // Open all's question has the keyboard while it asks, so it goes first unless the keyboard went elsewhere since.
+  const question = panelRoot.value?.querySelector('.bookmarks-open-all-ask')
+  if (question?.contains(document.activeElement) && openAll.cancel()) return
   if (collectionController.editor.value) collectionsToolbar.value?.cancelEdit()
   else if (editingBookmarkId.value) cancelRename()
-  else handlePanelEscape()
+  else if (!openAll.cancel()) handlePanelEscape()
 }
 
 function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
@@ -335,6 +350,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
         <option value="title">{{ t('bookmarks.sortTitle') }}</option>
       </select>
     </label>
+    <BookmarksOpenAll v-if="visibleBookmarks.length" :controller="openAll" :count="visibleBookmarks.length" :blocked="anyPending" :format-number="formatNumber" />
     <div v-if="!bookmarks.length" class="bookmarks-empty">
       <IconStarOutline aria-hidden="true" />
       <strong>{{ t('bookmarks.empty') }}</strong>
@@ -389,7 +405,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
           :aria-disabled="anyPending"
           :aria-label="t('bookmarks.backgroundAria', { title: bookmark.title })"
           v-tooltip="t('bookmarks.background')"
-          @click="openInBackground(bookmark)"><IconBackground aria-hidden="true" /></UiButton>
+          @click="!anyPending && openInBackground(bookmark)"><IconBackground aria-hidden="true" /></UiButton>
         <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-copy-address" type="button"
           :aria-disabled="anyPending"
           :aria-label="t('bookmarks.copyAddressAria', { title: bookmark.title })"

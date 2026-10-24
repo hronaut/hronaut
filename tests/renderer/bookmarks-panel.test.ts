@@ -1046,3 +1046,106 @@ describe('bookmarks file', () => {
     expect(importBookmarks).toHaveBeenCalledOnce()
   })
 })
+
+describe('open all', () => {
+  it('opens the bookmarks the list shows, and offers nothing to open when it shows none', async () => {
+    const openBookmarkInBackground = vi.fn(async () => undefined)
+    renderPanel({ openBookmarkInBackground })
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('searchbox'), 'Beta')
+    await user.click(screen.getByRole('button', { name: 'Open all (1)' }))
+    await flushPromises()
+    expect(openBookmarkInBackground).toHaveBeenCalledExactlyOnceWith(bookmark('beta', 'Beta page'))
+    await user.clear(screen.getByRole('searchbox'))
+    await user.type(screen.getByRole('searchbox'), 'Nothing like it')
+    expect(screen.queryByRole('button', { name: /^Open all/u })).toBeNull()
+  })
+
+  it('opens a chosen collection\'s bookmarks in the order the list sorts them', async () => {
+    const openBookmarkInBackground = vi.fn(async (_bookmark: BrowserBookmark) => undefined)
+    const api = {
+      list: vi.fn(async () => ({ revision: 1, collections: [{ id: 'project', name: 'Project', bookmarkIds: ['beta', 'gamma'] }] })),
+      onChanged: vi.fn(() => vi.fn()),
+      create: vi.fn(), rename: vi.fn(), remove: vi.fn(), assign: vi.fn()
+    }
+    renderPanel({ openBookmarkInBackground, collectionsApi: api, bookmarks: [bookmark('alpha', 'Alpha docs'), bookmark('beta', 'Zeta page'), bookmark('gamma', 'Gamma page')] })
+    await flushPromises()
+    const user = userEvent.setup()
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter bookmarks by collection' }), 'c:project')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Sort bookmarks' }), 'title')
+    await user.click(screen.getByRole('button', { name: 'Open all (2)' }))
+    await flushPromises()
+    expect(openBookmarkInBackground.mock.calls.map(([opened]) => opened.id)).toEqual(['gamma', 'beta'])
+  })
+
+  it('keeps every other bookmark change waiting while it opens', async () => {
+    let finish!: () => void
+    const openBookmarkInBackground = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    const removeBookmark = vi.fn(async () => [])
+    const wrapper = mount(BookmarksPanel, { attachTo: document.body, global: { plugins: [createHronautI18n('en-US')] }, props: panelProps({ openBookmarkInBackground, removeBookmark }) })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Open all (2)' }))
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Remove Alpha docs' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Import…' })).toHaveAttribute('aria-disabled', 'true')
+    // Neither a bookmark's own Open in background tab nor the current page's shortcut acts meanwhile.
+    await user.click(screen.getByRole('button', { name: 'Open Beta page in background tab' }))
+    await (wrapper.vm as unknown as { toggleCurrent: () => Promise<void> }).toggleCurrent()
+    expect(openBookmarkInBackground).toHaveBeenCalledOnce()
+    expect(removeBookmark).not.toHaveBeenCalled()
+    finish()
+    await flushPromises()
+    finish()
+    await flushPromises()
+    expect(openBookmarkInBackground).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('button', { name: 'Remove Alpha docs' })).toBeEnabled()
+    expect(screen.getByRole('status')).toHaveTextContent('Opened 2 tabs.')
+    wrapper.unmount()
+  })
+
+  it('takes back its question with Escape before a rename it came after', async () => {
+    const many = Array.from({ length: 15 }, (_, index) => bookmark(`page-${index}`, `Page ${index}`))
+    const wrapper = mount(BookmarksPanel, { attachTo: document.body, global: { plugins: [createHronautI18n('en-US')] }, props: panelProps({ bookmarks: many, currentBookmark: undefined }) })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Rename Page 0' }))
+    await user.click(screen.getByRole('button', { name: 'Open all (15)' }))
+    await flushPromises()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    ;(wrapper.vm as unknown as { handleEscape: () => void }).handleEscape()
+    await flushPromises()
+    expect(screen.queryByRole('group')).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'Rename Page 0' })).toBeInTheDocument()
+    wrapper.unmount()
+  })
+
+  it('gives the keyboard to Search when the list empties under its question', async () => {
+    const many = Array.from({ length: 15 }, (_, index) => bookmark(`page-${index}`, `Page ${index}`))
+    const wrapper = mount(BookmarksPanel, { attachTo: document.body, global: { plugins: [createHronautI18n('en-US')] }, props: panelProps({ bookmarks: many, currentBookmark: undefined }) })
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('searchbox'), 'Page')
+    await user.click(screen.getByRole('button', { name: 'Open all (15)' }))
+    await flushPromises()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    // A live update leaves no bookmark the search matches.
+    await wrapper.setProps({ bookmarks: [bookmark('other', 'Unrelated')] })
+    await flushPromises()
+    expect(screen.queryByRole('group')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Open all/u })).toBeNull()
+    expect(screen.getByRole('searchbox')).toHaveFocus()
+    wrapper.unmount()
+  })
+
+  it('takes back its question with Escape before Escape closes the panel', async () => {
+    const many = Array.from({ length: 15 }, (_, index) => bookmark(`page-${index}`, `Page ${index}`))
+    const wrapper = mount(BookmarksPanel, { attachTo: document.body, global: { plugins: [createHronautI18n('en-US')] }, props: panelProps({ bookmarks: many, currentBookmark: undefined }) })
+    await wrapper.get('.bookmarks-open-all button').trigger('click')
+    expect(wrapper.find('[role="group"]').exists()).toBe(true)
+    ;(wrapper.vm as unknown as { handleEscape: () => void }).handleEscape()
+    await flushPromises()
+    expect(wrapper.find('[role="group"]').exists()).toBe(false)
+    expect(wrapper.emitted('update:open')).toBeUndefined()
+    ;(wrapper.vm as unknown as { handleEscape: () => void }).handleEscape()
+    expect(wrapper.emitted('update:open')).toEqual([[false]])
+    wrapper.unmount()
+  })
+})

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- The Bookmarks panel has **Open all (N)** above the list, as Chrome's **Open all** on a bookmark folder: it opens every bookmark the list shows, after the chosen collection and the search, in the list's order, each in a background tab. From 15 tabs on it first asks **Open N tabs?**, and opening stops at the first tab that cannot open, such as at the 50-tab limit, saying how many opened.
+
 ## [3.11.0] - 2026-10-24
 
 ### Added

@@ -619,6 +619,11 @@
 .bookmark-collection-editor input { @apply min-w-0 [flex:1_1_130px] [min-height:32px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-1)] bg-surface text-copy [padding:4px_8px]; }
 .bookmark-collection-assignment { @apply [grid-column:1_/_-1] [padding:0_8px_6px]; }
 .bookmark-collection-hint { @apply m-0 text-muted [font-size:var(--type-micro-size)]; }
+.bookmarks-open-all, .bookmarks-open-all-ask { @apply flex flex-none flex-wrap items-center [gap:5px] [margin:0_12px_6px]; }
+.bookmarks-open-all-ask p { @apply m-0 [flex:1_1_100%] text-copy [font-size:var(--type-small-size)]; }
+.bookmarks-open-all button, .bookmarks-open-all-ask button { @apply [min-height:32px] [padding:6px_9px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-1)] bg-surface text-copy [font-size:var(--type-small-size)] cursor-pointer; }
+.bookmarks-open-all button:hover:not([aria-disabled="true"]), .bookmarks-open-all-ask button:hover:not([aria-disabled="true"]) { @apply bg-hover; }
+.bookmarks-open-all button[aria-disabled="true"], .bookmarks-open-all-ask button[aria-disabled="true"] { @apply [opacity:.45] cursor-default; }
 
 .history-feedback, .bookmarks-feedback { @apply m-0 [padding:9px_14px] text-muted [font-size:var(--type-small-size)]; }
 

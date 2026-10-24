@@ -3052,6 +3052,7 @@ export const frFR = {
   },
   "bookmarks": { sortOrder: "Trier les favoris", sortUpdated: "Récemment modifiés", sortTitle: "Titre", copyAddress: "Copier l’adresse", copyAddressAria: "Copier l’adresse de {title}", addressCopied: "Adresse copiée", copyFailed: "Impossible de copier l’adresse. Réessayez.",
     file: { import: "Importer…", export: "Exporter…", importHint: "Importer des favoris depuis un fichier HTML, comme un fichier exporté de Chrome", exportHint: "Exporter les favoris dans un fichier HTML que Chrome et d’autres navigateurs peuvent importer", exported: "{count} favori exporté. | {count} favoris exportés.", imported: "{count} favori importé. | {count} favoris importés.", alreadySaved: "{count} était déjà enregistré. | {count} étaient déjà enregistrés.", notWebPages: "{count} lien n’est pas une page web et a été ignoré. | {count} liens ne sont pas des pages web et ont été ignorés.", overLimit: "Hronaut conserve jusqu’à {max} favoris, donc {count} a été ignoré. | Hronaut conserve jusqu’à {max} favoris, donc {count} ont été ignorés.", nothingNew: "Aucun nouveau favori n’a été importé." },
+    openAll: { button: "Tout ouvrir ({count})", hint: "Ouvrir chaque favori de la liste dans un onglet en arrière-plan", ask: "Ouvrir {count} onglet ? | Ouvrir {count} onglets ?", confirm: "Ouvrir {count} onglet | Ouvrir {count} onglets", cancel: "Annuler", opened: "{count} onglet ouvert. | {count} onglets ouverts." },
     "collection": "Collection",
     "collectionFilter": "Filtrer les favoris par collection",
     "allCollections": "Tous les favoris",
