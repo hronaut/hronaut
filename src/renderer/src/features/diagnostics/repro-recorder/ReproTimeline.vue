@@ -97,6 +97,8 @@ async function selectAndFocus(position: number): Promise<void> {
 }
 
 function moveSelection(event: KeyboardEvent, step: BrowserReproStep): void {
+  // With Alt, Ctrl or Cmd these keys are the browser's, such as Alt+Home for Home and Alt+Left for Back.
+  if (event.altKey || event.ctrlKey || event.metaKey) return
   const position = props.recording.steps.findIndex(candidate => candidate.index === step.index)
   if (position < 0) return
   if (event.key === 'ArrowDown' || event.key === 'ArrowRight') void selectAndFocus(position + 1)

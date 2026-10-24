@@ -1114,7 +1114,7 @@ describe('BrowserTabsBar', () => {
     expect(view.emitted('closeTab')).toBeUndefined()
   })
 
-  it('leaves Home, End and the arrows with Alt, Ctrl or Cmd to their shortcuts', () => {
+  it('leaves Home, End and the arrows with Alt, Ctrl or Cmd to their shortcuts', async () => {
     renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true }), tab('third')], activeTabId: 'second' }))
     const control = screen.getByRole('tab', { name: /Page second/ })
     control.focus()
@@ -1125,6 +1125,7 @@ describe('BrowserTabsBar', () => {
         // Alt+Home moved the keyboard to the first tab instead of opening Home, and Alt+Left to the tab before
         // instead of going back.
         expect(event.defaultPrevented, `${key} ${JSON.stringify(modifiers)}`).toBe(false)
+        await nextTick()
         expect(control).toHaveFocus()
       }
     }

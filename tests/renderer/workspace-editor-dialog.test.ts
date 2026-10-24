@@ -252,6 +252,10 @@ it.each([
     const initial = wrapper.get<HTMLButtonElement>(`[data-color="${start}"]`)
     await initial.trigger('click')
     initial.element.focus()
+    // With Alt, Ctrl or Cmd the key is the browser's and leaves the color as it is.
+    for (const modifier of ['altKey', 'ctrlKey', 'metaKey']) await initial.trigger('keydown', { key, [modifier]: true })
+    expect(initial.attributes('aria-checked')).toBe('true')
+    expect(document.activeElement).toBe(initial.element)
     await initial.trigger('keydown', { key })
     const selected = wrapper.get(`[data-color="${target}"]`)
     expect(selected.attributes('aria-checked')).toBe('true')

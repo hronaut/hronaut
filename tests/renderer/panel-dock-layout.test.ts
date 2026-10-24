@@ -204,6 +204,29 @@ describe('usePanelDockLayout', () => {
     harness.wrapper.unmount()
   })
 
+  it('leaves Home, End and the arrows with Alt, Ctrl or Cmd to the browser', () => {
+    const harness = mountHarness()
+    try {
+      harness.controller.reportShellHeight()
+      const before = harness.controller.size.value
+      // Alt+Home shrank the panel instead of opening Home.
+      for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+        for (const key of ['Home', 'End', 'ArrowLeft']) {
+          const event = new KeyboardEvent('keydown', { key, cancelable: true, ...modifiers })
+          harness.controller.resizeWithKeyboard(event)
+          expect(event.defaultPrevented, key).toBe(false)
+        }
+      }
+      expect(harness.controller.size.value).toBe(before)
+      const plain = new KeyboardEvent('keydown', { key: 'Home', cancelable: true })
+      harness.controller.resizeWithKeyboard(plain)
+      expect(plain.defaultPrevented).toBe(true)
+      expect(harness.controller.size.value).not.toBe(before)
+    } finally {
+      harness.wrapper.unmount()
+    }
+  })
+
   it('falls back to default dock sizes when local preference storage cannot be read', () => {
     const storage = memoryStorage()
     vi.spyOn(storage, 'getItem').mockImplementation(() => {

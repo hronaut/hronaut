@@ -66,6 +66,17 @@ describe('SearchSettingsPanel', () => {
     await userEvent.setup().keyboard('{Home}')
     expect(google).toHaveFocus()
     expect(google).toHaveAttribute('aria-checked', 'true')
+    // With Alt, Ctrl or Cmd these keys are the browser's: Alt+Home chose the first search engine instead of opening Home.
+    const chosen = setSearchEngine.mock.calls.length
+    for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      for (const key of ['End', 'ArrowRight']) {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers })
+        google.dispatchEvent(event)
+        expect(event.defaultPrevented, key).toBe(false)
+      }
+    }
+    expect(google).toHaveFocus()
+    expect(setSearchEngine).toHaveBeenCalledTimes(chosen)
     controller.dispose()
   })
 

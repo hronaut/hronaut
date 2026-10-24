@@ -274,6 +274,22 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, Ctrl+E, Alt+Home, F6, Ctrl+F4 and Ctrl+Page 
     await appWindow.waitForTimeout(500)
     expect(await isOpen(inView)).toBe(true)
     expect(await isOpen(tabId)).toBe(true)
+
+    // With the keyboard on a tab, Alt+Left and Alt+Right go back and forward, as from the rest of Hronaut's window,
+    // rather than moving the keyboard to the tab before or after.
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+    await expect.poll(async () => (await state()).activeTabId).toBe(tabId)
+    const editorTab = appWindow.getByRole('tab', { name: /^\/editor(?!\?)/ })
+    await editorTab.focus()
+    await expect(editorTab).toBeFocused()
+    await pressInWindow('Left', ['alt'])
+    await expect.poll(() => path(tabId)).toBe('/page')
+    const pageTab = appWindow.getByRole('tab', { name: /^\/page/ })
+    await pageTab.focus()
+    await expect(pageTab).toBeFocused()
+    await pressInWindow('Right', ['alt'])
+    await expect.poll(() => path(tabId)).toBe('/editor')
+    expect((await state()).activeTabId).toBe(tabId)
   } finally {
     await closeFixtureServer(server)
   }
