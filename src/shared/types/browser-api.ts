@@ -132,6 +132,8 @@ export interface HronautApi {
   setTabPageLifecycle(tabId: string, state: 'active' | 'frozen'): Promise<BrowserState>
   sleepInactiveTabs(): Promise<BrowserState>
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): Promise<BrowserState>
+  /** Gives the keyboard to the page in view, as F6 does from Chrome's toolbar. */
+  focusActivePage(): Promise<void>
   createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState>
   openWorkspaceTemplateFile(): Promise<string | null>
   saveWorkspaceTemplateFile(reviewedText: string): Promise<boolean>

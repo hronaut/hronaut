@@ -863,6 +863,7 @@ export const frFR = {
     "initializingStorage": "Initialisation du stockage sécurisé.",
     "shortcuts": {
       "address": "Activer la barre d’adresse",
+      "nextPane": "Passer de la barre d’adresse à la page et inversement",
       "addressNewTab": "Ouvrir le texte saisi dans la barre d’adresse dans un nouvel onglet",
       "addressBackgroundTab": "Ouvrir le texte saisi dans la barre d’adresse dans un nouvel onglet en arrière-plan",
       "addressWwwCom": "Ajouter www. et .com au nom de site saisi dans la barre d’adresse et l’ouvrir",

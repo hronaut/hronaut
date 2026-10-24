@@ -23,6 +23,7 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
   const tabKey = mac ? 'Cmd' : 'Ctrl'
   const shortcuts = computed<KeyboardShortcut[]>(() => [
     { label: options.translate('runtime.shortcuts.address'), keys: ['Ctrl/Cmd', 'L'] },
+    ...(mac ? [] : [{ label: options.translate('runtime.shortcuts.nextPane'), keys: ['F6'] }]),
     // In the address field, as in Chrome's address bar.
     { label: options.translate('runtime.shortcuts.addressNewTab'), keys: mac ? ['Option', 'Return'] : ['Alt', 'Enter'] },
     { label: options.translate('runtime.shortcuts.addressBackgroundTab'), keys: mac ? ['Cmd', 'Return'] : ['Alt', 'Shift', 'Enter'] },

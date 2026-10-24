@@ -15,7 +15,7 @@ function viewMenu(on: NodeJS.Platform) {
   const runShortcut = vi.fn()
   createApplicationMenu({
     text: (key) => key, showWindow, mainWindow: () => ({ id: 1, webContents: {} }) as never, checkForUpdates: vi.fn(), requestQuit: vi.fn(),
-    runNativeBrowserAction: vi.fn(), runShortcut, tabs: () => null
+    runNativeBrowserAction: vi.fn(), runShortcut, runPageNextPane: vi.fn(), tabs: () => null
   }).installApplicationMenu()
   const view = installed.template.find((menu) => menu.label === 'native.menu.view')!.submenu!
   return { runShortcut, showWindow, view, downloads: view.find((item) => item.label === 'native.menu.downloads')! }

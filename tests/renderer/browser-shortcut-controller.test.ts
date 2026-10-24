@@ -58,6 +58,7 @@ function createController(canRunAction = (_action: string) => true) {
     reloadIgnoringCache: vi.fn(async (_tabId?: string) => state.value),
     newTab: vi.fn(async (_options?: { mcpGroupId?: string; active?: boolean }) => state.value),
     // Main's move, as reorderTab makes it: the tab goes just before or after the target.
+    focusActivePage: vi.fn(async () => undefined),
     reorderTab: vi.fn(async (tabId: string, targetTabId: string, placement: 'before' | 'after') => {
       const moving = state.value.tabs.find((candidate) => candidate.id === tabId)!
       const rest = state.value.tabs.filter((candidate) => candidate.id !== tabId)
@@ -147,6 +148,16 @@ describe('browser shortcut controller', () => {
     activeTab.value = state.value.tabs[0]
     await controller.run('move-tab-next')
     expect(browser.reorderTab).toHaveBeenCalledOnce()
+  })
+
+  it('gives the keyboard to the page with F6 from Hronaut\'s window, but not while Settings covers it', async () => {
+    const { browser, settingsOpen, callbacks, controller } = createController()
+    expect(await controller.run('focus-next-pane')).toBe(true)
+    expect(browser.focusActivePage).toHaveBeenCalledOnce()
+    expect(callbacks.focusAddress).not.toHaveBeenCalled()
+    settingsOpen.value = true
+    expect(await controller.run('focus-next-pane')).toBe(false)
+    expect(browser.focusActivePage).toHaveBeenCalledOnce()
   })
 
   it('moves no tab while Settings is in view', async () => {

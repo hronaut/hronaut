@@ -29,7 +29,7 @@ export function attachSidebarOverlayKeyboard(contents: Pick<WebContents, 'on'>, 
       composing: input.isComposing,
       mac: process.platform === 'darwin'
     }
-    // Hronaut's own rail has no website to keep F5, Alt+D, F3 or Ctrl+G, as in the shell.
+    // Hronaut's own rail has no website to keep F5, Alt+D, F3, Ctrl+G or F6, as in the shell.
     const action = browserShortcutAction(shortcut) ?? websiteKeptShortcutAction(shortcut)
     if (!action) return
     event.preventDefault()

@@ -289,7 +289,7 @@ describe('Chrome\'s keys a website may keep', () => {
 
   it('are no browser keys a page loses before it sees them', () => {
     // A web editor runs F5 as its debugger and a web terminal reads Alt+D.
-    for (const key of [{ key: 'F5' }, { key: 'F5', shift: true }, { key: 'F5', control: true }, { key: 'd', code: 'KeyD', alt: true }]) {
+    for (const key of [{ key: 'F5' }, { key: 'F5', shift: true }, { key: 'F5', control: true }, { key: 'd', code: 'KeyD', alt: true }, { key: 'F6' }, { key: 'F6', shift: true }]) {
       expect(browserShortcutAction(input(key))).toBeNull()
     }
   })
@@ -314,6 +314,16 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(kept({ key: 'D', code: 'KeyD', alt: true, shift: true })).toBeNull()
     expect(kept({ key: 'd', code: 'KeyD' })).toBeNull()
     expect(kept({ key: '∂', code: 'KeyD', alt: true, mac: true })).toBeNull()
+  })
+
+  it('go to the next pane with F6 or Shift+F6 elsewhere than macOS', () => {
+    expect(kept({ key: 'F6' })).toBe('focus-next-pane')
+    expect(kept({ key: 'F6', shift: true })).toBe('focus-next-pane')
+    expect(kept({ key: 'F6', control: true })).toBeNull()
+    expect(kept({ key: 'F6', alt: true })).toBeNull()
+    expect(kept({ key: 'F6', meta: true })).toBeNull()
+    expect(kept({ key: 'F6', repeat: true })).toBeNull()
+    expect(kept({ key: 'F6', mac: true })).toBeNull()
   })
 
   it('find the next match with F3 or Ctrl+G, and the previous one with Shift, elsewhere than macOS', () => {

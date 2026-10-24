@@ -501,7 +501,7 @@ const takeOvers = new TakeOverOffers({
   onError: () => console.error('[take-over] Failed to change agent control for a tab.')
 })
 
-const { pageShortcutAvailable, runPageShortcut } = createBrowserShortcutRouting({
+const { pageShortcutAvailable, runPageShortcut, runPageNextPane } = createBrowserShortcutRouting({
   takeOvers,
   tabs: () => tabRuntime.tabs,
   agentPresenceSnapshot,
@@ -614,6 +614,7 @@ const { installApplicationMenu } = createApplicationMenu({
   requestQuit,
   runNativeBrowserAction,
   runShortcut: (action) => runPageShortcut(action),
+  runPageNextPane,
   tabs: () => tabRuntime.tabs
 })
 

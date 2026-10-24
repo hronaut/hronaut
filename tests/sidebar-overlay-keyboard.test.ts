@@ -95,8 +95,11 @@ describe('keys pressed in the tab rail opened over the page', () => {
       // The rail has no website to keep F5.
       expect(press(contents, { type: 'keyDown', key: 'F5', code: 'F5' })).toBe(true)
       expect(runShortcut).toHaveBeenLastCalledWith('reload')
+      // F6 goes on to the page, as in the shell.
+      expect(press(contents, { type: 'keyDown', key: 'F6', code: 'F6' })).toBe(true)
+      expect(runShortcut).toHaveBeenLastCalledWith('focus-next-pane')
     }
-    expect(runShortcut).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 2)
+    expect(runShortcut).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 3)
     for (const input of [
       { type: 'keyDown', key: 'Escape', code: 'Escape' },
       { type: 'keyDown', key: 'ArrowDown', code: 'ArrowDown' },
@@ -104,7 +107,7 @@ describe('keys pressed in the tab rail opened over the page', () => {
       { type: 'keyDown', key: 't', code: 'KeyT', control: true, meta: true, isAutoRepeat: true },
       { type: 'keyUp', key: 't', code: 'KeyT', control: true }
     ] as KeyInput[]) expect(press(contents, input)).toBe(false)
-    expect(runShortcut).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 2)
+    expect(runShortcut).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 3)
   })
 
   it('note who has keyboard focus as the pointer comes onto the rail', async () => {

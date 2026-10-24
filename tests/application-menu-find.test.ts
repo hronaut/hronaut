@@ -16,7 +16,7 @@ function menu(on: NodeJS.Platform) {
   const mainWindow = { id: 1, webContents: {} }
   createApplicationMenu({
     text: (key) => key, showWindow, mainWindow: () => mainWindow as never, checkForUpdates: vi.fn(), requestQuit: vi.fn(),
-    runNativeBrowserAction: vi.fn(), runShortcut, tabs: () => null
+    runNativeBrowserAction: vi.fn(), runShortcut, runPageNextPane: vi.fn(), tabs: () => null
   }).installApplicationMenu()
   const edit = installed.template.find((candidate) => candidate.label === 'native.menu.edit')!.submenu!
   const item = (label: string) => edit.find((candidate) => candidate.label === label)!

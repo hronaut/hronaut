@@ -1270,6 +1270,17 @@ export class BrowserTabsManager {
     this.focusTabOrTrustedChrome(tab)
   }
 
+  /**
+   * Gives the keyboard to the page in view, or the active pane of a split view, as F6 does from Chrome's toolbar, when
+   * this window's shell asks; a panel in its own window has no page beside it. Under a lock on the person's input the
+   * shell keeps it, and under trusted chrome the page takes it once that closes.
+   */
+  focusActivePage(shell: WebContents): void {
+    if (shell !== this.window.webContents) return
+    const tab = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
+    if (tab && !tab.webContents.isDestroyed()) this.focusTabOrTrustedChrome(tab)
+  }
+
   fixedDateBootstrap(page: WebContents, frameOrigin: string): FixedDateBootstrap {
     return this.fixedDateController.bootstrap(page, frameOrigin)
   }
@@ -2164,6 +2175,11 @@ export class BrowserTabsManager {
 
   getActiveTab(): BrowserTab {
     return this.getTab()
+  }
+
+  /** Whether the tab in view shows Hronaut Home. */
+  shownTabIsHome(): boolean {
+    return this.activeTabId !== null && this.isHomeTab(this.activeTabId)
   }
 
   /** Whether the tab shows Hronaut Home. */

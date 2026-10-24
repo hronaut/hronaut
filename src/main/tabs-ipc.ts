@@ -10,7 +10,7 @@ type TabsIpcTabs = Pick<BrowserTabsManager,
   | 'openHome' | 'newTab' | 'reopenClosedTab' | 'selectTabForPerson' | 'closeTabsForPerson'
   | 'openSplitViewAndWait' | 'updateSplitView' | 'closeSplitView'
   | 'setTabLabel' | 'setTabPinned' | 'setTabSleeping' | 'setTabPageLifecycle' | 'sleepInactiveTabs'
-  | 'reorderTab' | 'showTabContextMenu' | 'setTabMuted' | 'setAllTabsMuted'
+  | 'reorderTab' | 'focusActivePage' | 'showTabContextMenu' | 'setTabMuted' | 'setAllTabsMuted'
   | 'setTabHumanInteractionLocked' | 'setAllHumanInteractionLocked'>
 
 interface TabsIpcHost {
@@ -124,6 +124,10 @@ export function registerTabsIpc(host: TabsIpcHost): void {
       || (placement !== 'before' && placement !== 'after')
     ) throw new TypeError('Invalid tab reorder request')
     return host.tabs()!.reorderTab(tabId, targetTabId, placement)
+  })
+  host.handleBrowserIpc('browser:focus-active-page', (event) => {
+    host.assertTrustedSender(event)
+    host.tabs()!.focusActivePage(event.sender)
   })
   host.handleBrowserIpc('browser:show-tab-context-menu', (event, tabId: unknown) => {
     host.assertTrustedSender(event)
