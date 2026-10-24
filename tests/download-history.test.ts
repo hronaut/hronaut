@@ -85,6 +85,16 @@ describe('the downloads a restart keeps', () => {
     expect(savedDownloads([{ ...running, receivedBytes: 9 }], () => undefined)).toEqual(savedDownloads([running], () => undefined))
   })
 
+  it('marks a download that did not complete as retryable when its kept address is the one it came from', () => {
+    const cancelled = record({ state: 'cancelled', savePath: undefined })
+    const running = record({ id: '1b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', state: 'progressing', completedAt: undefined })
+    const completed = record({ id: '2b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b' })
+    expect(savedDownloads([cancelled, running, completed], () => 'work', () => true).map(({ retryable }) => retryable))
+      .toEqual([true, true, undefined])
+    expect(savedDownloads([cancelled], () => 'work', () => false)[0]).not.toHaveProperty('retryable')
+    expect(savedDownloads([cancelled], () => 'work')[0]).not.toHaveProperty('retryable')
+  })
+
   it('keeps the newest 200', () => {
     const downloads = Array.from({ length: 205 }, (_, index) => record({ id: `${String(index).padStart(8, '0')}-2c1d-4e3f-9a8b-7c6d5e4f3a2b` }))
     const forms = savedDownloads(downloads, () => undefined)
@@ -163,6 +173,20 @@ describe('the saved download history', () => {
     expect(await new DownloadHistoryStore(path).load()).toEqual([saved()])
   })
 
+  it('reads back the retryable mark only as true, and never on a completed download', async () => {
+    const root = await directory()
+    const path = join(root, 'download-history.json')
+    const cancelled = saved({ state: 'cancelled', savePath: undefined, retryable: true })
+    await writeFile(path, JSON.stringify({ version: 1, downloads: [
+      cancelled,
+      saved({ id: '1b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', retryable: true }),
+      { ...saved({ id: '2b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', state: 'cancelled' }), retryable: 'yes' }
+    ] }))
+    const loaded = await new DownloadHistoryStore(path).load()
+    expect(loaded.map(({ id, retryable }) => ({ id, retryable })))
+      .toEqual([{ id: cancelled.id, retryable: true }, { id: '1b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', retryable: undefined }])
+  })
+
   it('gives an interrupted download an end, so it never reads as still under way', async () => {
     const path = join(await directory(), 'download-history.json')
     await writeFile(path, JSON.stringify({ version: 1, downloads: [saved({ state: 'interrupted', completedAt: undefined })] }))
@@ -193,6 +217,8 @@ describe('the downloads controller keeping its history', () => {
       getSettings: () => ({ downloadDirectory: root, saveDialogTitle: 'Save', askWhereToSaveDownloads }),
       getSource: () => ({ tabId: 'tab', workspaceId: 'work', observationGeneration: 2 }),
       workspaceObservationGeneration: () => 2,
+      isWorkspaceOpen: (workspaceId) => workspaceId === 'work',
+      workspaceSession: () => session as Session,
       downloadReady: () => undefined,
       isAvailable: () => true,
       publish: (downloads) => { published.push(downloads) }
@@ -201,13 +227,13 @@ describe('the downloads controller keeping its history', () => {
     controller.attachSession(session as Session)
     const store = new DownloadHistoryStore(path)
     const fileDownloads = async () => (JSON.parse(await readFile(path, 'utf8')) as { downloads: SavedDownload[] }).downloads
-    function download(name: string) {
+    function download(name: string, query = '') {
       const item = new EventEmitter()
       let state: 'progressing' | 'completed' | 'cancelled' = 'progressing'
       let savePath = ''
       Object.assign(item, {
-        getURL: () => `https://download.example/${name}`,
-        getURLChain: () => [`https://download.example/${name}`],
+        getURL: () => `https://download.example/${name}${query}`,
+        getURLChain: () => [`https://download.example/${name}${query}`],
         getContentDisposition: () => '',
         getFilename: () => name,
         getState: () => state,
@@ -221,7 +247,7 @@ describe('the downloads controller keeping its history', () => {
         cancel: () => { state = 'cancelled'; item.emit('done', {}, state) }
       })
       session.emit('will-download', { preventDefault: vi.fn() }, item as DownloadItem, { id: 1 })
-      return { item, complete: () => { state = 'completed'; item.emit('done', {}, state) } }
+      return { item, complete: () => { state = 'completed'; item.emit('done', {}, state) }, cancel: () => (item as unknown as DownloadItem).cancel() }
     }
     return { controller, store, path, published, fileDownloads, download }
   }
@@ -246,6 +272,31 @@ describe('the downloads controller keeping its history', () => {
     const urls = controller.listDownloads().map(({ url }) => url)
     expect(urls[0]).not.toContain('secret')
     expect(urls[1]).toBe('data:text/csv,')
+  })
+
+  it('offers Retry for a kept download marked retryable whose address is the same once redacted again', async () => {
+    const { controller, store } = await fixture()
+    const ids = ['1b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', '2b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', '3b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', '4b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b']
+    controller.restoreHistory([
+      saved({ id: ids[0], state: 'cancelled', retryable: true }),
+      saved({ id: ids[1], state: 'cancelled' }),
+      // A file the earlier run did not redact, which it would now, is not downloaded again from its redacted address.
+      saved({ id: ids[2], state: 'cancelled', retryable: true, url: 'https://download.example/report.pdf?token=secret' }),
+      saved({ id: ids[3], state: 'cancelled', retryable: true, workspaceId: 'closed' })
+    ], store)
+    expect(Object.fromEntries(controller.listDownloads().map(({ id, canRetry }) => [id, canRetry])))
+      .toEqual({ [ids[0]!]: true, [ids[1]!]: undefined, [ids[2]!]: undefined, [ids[3]!]: undefined })
+  })
+
+  it('saves as retryable a download that did not complete only when nothing in its address was redacted', async () => {
+    const { controller, store, fileDownloads, download } = await fixture()
+    controller.restoreHistory([saved({ state: 'cancelled', retryable: true })], store)
+    download('plain.txt').cancel()
+    download('secret.txt', '?token=secret').cancel()
+    download('done.txt').complete()
+    await controller.saveHistory()
+    expect(Object.fromEntries((await fileDownloads()).map(({ filename, retryable }) => [filename, retryable])))
+      .toEqual({ 'report.pdf': true, 'plain.txt': true, 'secret.txt': undefined, 'done.txt': undefined })
   })
 
   it('saves a second after a change, with the kept downloads and a new one', async () => {

@@ -26,7 +26,7 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
   ipcMain.handle('downloads:list', (event, checkFiles: unknown) => host.runRead(event, () => (
     checkFiles === true ? host.downloads().listDownloadsCheckingFiles() : host.downloads().listDownloads()
   )))
-  for (const action of ['cancel', 'pause', 'resume'] as const) {
+  for (const action of ['cancel', 'pause', 'resume', 'retry'] as const) {
     ipcMain.handle(`downloads:${action}`, (event, downloadId: unknown) => {
       host.assertTrustedSender(event)
       if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')

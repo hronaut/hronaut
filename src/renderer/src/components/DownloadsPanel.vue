@@ -12,6 +12,7 @@ import IconFolderOpen from '~icons/material-symbols/folder-open-rounded'
 import IconPause from '~icons/material-symbols/pause-rounded'
 import IconResume from '~icons/material-symbols/play-arrow-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
+import IconRetry from '~icons/material-symbols/refresh-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
 import type { BrowserDownloadState } from '../../../shared/types.js'
 import { useDownloadsPanelController } from '../composables/useDownloadsPanelController.js'
@@ -23,6 +24,7 @@ const props = defineProps<{
   pauseDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
   resumeDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
   cancelDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
+  retryDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
   removeFinished: (downloadId: string) => Promise<BrowserDownloadState[]>
   clearFinished: () => Promise<BrowserDownloadState[]>
   showInFolder: (downloadId: string) => Promise<void>
@@ -49,6 +51,7 @@ const {
   pause,
   resume,
   cancel,
+  retry,
   remove,
   clear,
   reveal,
@@ -63,6 +66,7 @@ const {
   pauseDownload: props.pauseDownload,
   resumeDownload: props.resumeDownload,
   cancelDownload: props.cancelDownload,
+  retryDownload: props.retryDownload,
   removeFinished: props.removeFinished,
   clearFinished: props.clearFinished,
   showInFolder: props.showInFolder,
@@ -73,10 +77,10 @@ let actionFocusRow: Element | null = null
 let focusGeneration = 0
 const stopFocusSessionTracking = watch([open, query, statusFilter, sortOrder], () => { focusGeneration += 1 }, { flush: 'sync' })
 
-// Pause, Resume, Cancel, Remove and Show in folder disable the panel's controls until they settle, and Chromium then
-// drops the focus of the one you used, so each of them gives it back here.
+// Pause, Resume, Cancel, Retry, Remove and Show in folder disable the panel's controls until they settle, and Chromium
+// then drops the focus of the one you used, so each of them gives it back here.
 // Copy path only marks itself busy and keeps its focus.
-async function changeTransfer(action: 'pause' | 'resume' | 'cancel' | 'remove' | 'reveal', downloadId: string, event: MouseEvent): Promise<void> {
+async function changeTransfer(action: 'pause' | 'resume' | 'cancel' | 'retry' | 'remove' | 'reveal', downloadId: string, event: MouseEvent): Promise<void> {
   const generation = focusGeneration
   const focused = event.currentTarget instanceof HTMLButtonElement
     && document.activeElement === event.currentTarget ? event.currentTarget : null
@@ -88,7 +92,7 @@ async function changeTransfer(action: 'pause' | 'resume' | 'cancel' | 'remove' |
   // controls. Leave this action responsible for focus instead of the live-list watcher.
   if (row) actionFocusRow = row
   try {
-    await { pause, resume, cancel, remove, reveal }[action](downloadId)
+    await { pause, resume, cancel, retry, remove, reveal }[action](downloadId)
     await nextTick()
   } finally {
     if (actionFocusRow === row) actionFocusRow = null
@@ -208,6 +212,9 @@ onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVi
         <UiButton appearance="application" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.cancelAria', { filename: download.filename })" v-tooltip="t('downloads.cancel')" @click="changeTransfer('cancel', download.id, $event)"><IconClose aria-hidden="true" /></UiButton>
         </div>
         <div v-else class="download-actions">
+          <!-- As in Chrome, a cancelled or failed download can be downloaded again; the new download gets its own row. Retry
+               keeps the focus, so a held Enter must not start one download after another. -->
+          <UiButton appearance="application" v-if="download.canRetry" class="download-action download-retry" type="button" :disabled="pendingAction !== null" @keydown="ignoreHeldEnter" :aria-label="t('downloads.retryAria', { filename: download.filename })" v-tooltip="t('downloads.retry')" @click="changeTransfer('retry', download.id, $event)"><IconRetry aria-hidden="true" /></UiButton>
           <UiButton appearance="application" v-if="download.state === 'completed' && !download.fileRemoved" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.showAria', { filename: download.filename })" v-tooltip="t('downloads.show')" @click="changeTransfer('reveal', download.id, $event)"><IconFolderOpen aria-hidden="true" /></UiButton>
           <UiButton appearance="application" v-if="canCopyPath(download)" class="download-action download-copy-path" type="button"
             :aria-disabled="pendingAction !== null"

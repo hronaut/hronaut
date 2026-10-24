@@ -258,6 +258,7 @@ export const frFRAppErrors: AppErrorMessages = {
     "notActive": "Ce téléchargement est déjà terminé ou arrêté.",
     "notProgressing": "Seul un téléchargement en cours peut être mis en pause.",
     "notResumable": "Ce téléchargement ne peut pas être repris.",
+    "notRetryable": "Ce téléchargement ne peut pas être réessayé.",
     "notCompleted": "Seul un téléchargement terminé peut être affiché dans son dossier.",
     "fileRemoved": "Ce fichier a été déplacé ou supprimé : il ne peut donc pas être affiché dans son dossier."
   },

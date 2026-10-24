@@ -49,6 +49,7 @@ const {
     :pause-download="browserCollectionsController.pauseDownload"
     :resume-download="browserCollectionsController.resumeDownload"
     :cancel-download="browserCollectionsController.cancelDownload"
+    :retry-download="browserCollectionsController.retryDownload"
     :remove-finished="browserCollectionsController.removeFinishedDownload"
     :clear-finished="browserCollectionsController.clearFinishedDownloads"
     :show-in-folder="browserCollectionsController.revealDownload"

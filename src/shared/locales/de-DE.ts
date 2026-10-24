@@ -2994,6 +2994,8 @@ export const deDE = {
     "pauseAria": "{filename} pausieren",
     "resume": "Fortsetzen",
     "resumeAria": "{filename} fortsetzen",
+    "retry": "Wiederholen",
+    "retryAria": "{filename} erneut herunterladen",
     "paused": "Pausiert",
 
     "kicker": "Browserdateien",

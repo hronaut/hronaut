@@ -128,6 +128,10 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     return resolveDownloads(() => options.downloadsApi.cancel(downloadId))
   }
 
+  function retryDownload(downloadId: string): Promise<BrowserDownloadState[]> {
+    return resolveDownloads(() => options.downloadsApi.retry(downloadId))
+  }
+
   function removeFinishedDownload(downloadId: string): Promise<BrowserDownloadState[]> {
     return resolveDownloads(() => options.downloadsApi.removeFinished(downloadId))
   }
@@ -204,6 +208,7 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     pauseDownload,
     resumeDownload,
     cancelDownload,
+    retryDownload,
     clearFinishedDownloads,
     removeFinishedDownload,
     revealDownload,

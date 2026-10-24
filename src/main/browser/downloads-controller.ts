@@ -31,6 +31,21 @@ function retainedDownloadUrl(downloadUrl: string): string {
   return redacted.slice(0, MAX_DOWNLOAD_URL_CHARS)
 }
 
+/** Retry downloads an address again only over HTTP(S): a `blob:` address ends with its page and a `data:` one is not kept. */
+function isRetryableUrl(downloadUrl: string): boolean {
+  return /^https?:/i.test(downloadUrl)
+}
+
+/** A retry started in a session that has not started downloading yet, which has no page to name its workspace. */
+interface PendingRetry {
+  url: string
+  workspaceId: string
+  expiresAt: number
+}
+
+/** How long a retry waits for its download to start, as a server can take a while to answer. */
+const PENDING_RETRY_MS = 5 * 60_000
+
 /** A finished download's file, with its identity as Hronaut saw it when the download completed. */
 export interface CompletedDownloadFile {
   savePath: string
@@ -49,6 +64,10 @@ interface BrowserDownloadsHost {
     observationGeneration: number
   }
   workspaceObservationGeneration(workspaceId: string): number
+  /** Whether the workspace is open, so a download of it can be downloaded again there. */
+  isWorkspaceOpen(workspaceId: string): boolean
+  /** The open workspace's session, hooked as its pages' sessions are, which a retried download starts in. */
+  workspaceSession(workspaceId: string): Session
   /**
    * Called once for each download, with the page it started from, when the download has its file: at once, or after
    * the save dialog when Hronaut asks where to save, or when it ends before that, such as when the person cancels the
@@ -117,20 +136,30 @@ export class BrowserDownloadsController {
    * next start, as Recently closed drops their tabs.
    */
   private readonly deletedWorkspaceIds = new Set<string>()
+  /**
+   * The address each download can be downloaded again from, in full, as Chrome's Retry uses it, for HTTP(S) addresses
+   * only. Kept in memory and never listed, as a record's address is redacted; one kept from before the restart is its
+   * saved address, which the history marks as retryable only when nothing in it was redacted or cut.
+   */
+  private readonly retryUrls = new Map<string, string>()
+  private readonly pendingRetries = new Map<Session, PendingRetry[]>()
 
   constructor(private readonly host: BrowserDownloadsHost, private readonly platform = process.platform) {}
 
   /**
    * Brings back the downloads kept from before the restart, as Chrome's Downloads page lists them, each with its
    * workspace, and keeps the history in that store from now on. Their files are checked when the Downloads panel
-   * opens, as for a download of this run, and their addresses are redacted again, as a record keeps them.
+   * opens, as for a download of this run, and their addresses are redacted again, as a record keeps them. One saved as
+   * retryable can be downloaded again from its address while redacting it again changes nothing.
    */
   restoreHistory(saved: readonly SavedDownload[], history: DownloadHistoryStore): void {
-    for (const { workspaceId, ...download } of saved.slice(0, MAX_DOWNLOAD_HISTORY)) {
+    for (const { workspaceId, retryable, ...download } of saved.slice(0, MAX_DOWNLOAD_HISTORY)) {
       if (this.downloads.has(download.id)) continue
+      const url = retainedDownloadUrl(download.url)
+      if (retryable && url === download.url && isRetryableUrl(url)) this.retryUrls.set(download.id, url)
       this.downloads.set(download.id, {
         ...download,
-        url: retainedDownloadUrl(download.url),
+        url,
         paused: false,
         canResume: false,
         fromEarlierRun: true,
@@ -155,7 +184,12 @@ export class BrowserDownloadsController {
         const workspaceId = this.downloadWorkspaceIds.get(download.id)
         return !workspaceId || !this.deletedWorkspaceIds.has(workspaceId)
       })
-      return savedDownloads(kept, (downloadId) => this.downloadWorkspaceIds.get(downloadId))
+      return savedDownloads(
+        kept,
+        (downloadId) => this.downloadWorkspaceIds.get(downloadId),
+        // Only when the address it keeps is the one it downloads again from, so a restart can still retry it.
+        (download) => this.retryUrls.get(download.id) === download.url
+      )
     }, retryFailedWrite).catch((error: unknown) => console.error('[downloads] Failed to save the download history:', error))
   }
 
@@ -216,6 +250,8 @@ export class BrowserDownloadsController {
     this.downloadSessions.clear()
     this.downloadWorkspaceIds.clear()
     this.deletedWorkspaceIds.clear()
+    this.retryUrls.clear()
+    this.pendingRetries.clear()
     this.reservedDownloadPaths.clear()
     this.completedFileIdentities.clear()
     this.fileChecks.clear()
@@ -253,7 +289,30 @@ export class BrowserDownloadsController {
     return [...this.downloads.values()]
       .filter((download) => !this.awaitingSavePath.has(download.id))
       .sort((left, right) => right.startedAt.localeCompare(left.startedAt))
-      .map((download) => ({ ...download }))
+      .map((download) => (this.canRetry(download) ? { ...download, canRetry: true } : { ...download }))
+  }
+
+  /**
+   * Whether a download can be downloaded again, as Chrome's Retry offers it: one that was cancelled or failed for good,
+   * from an HTTP(S) address Hronaut still has in full, in a workspace that is open.
+   */
+  private canRetry(download: BrowserDownloadState): boolean {
+    const workspaceId = this.downloadWorkspaceIds.get(download.id)
+    return (download.state === 'cancelled' || download.state === 'interrupted') && !isActiveDownload(download)
+      && this.retryUrls.has(download.id) && workspaceId !== undefined && this.host.isWorkspaceOpen(workspaceId)
+  }
+
+  /** The oldest retry waiting in this session for a download of this address, which then stops waiting. */
+  private takeRetry(browserSession: Session, url: string): PendingRetry | undefined {
+    const pending = this.pendingRetries.get(browserSession)
+    if (!pending) return undefined
+    const now = Date.now()
+    const index = pending.findIndex((retry) => retry.expiresAt > now && retry.url === url)
+    const retry = pending[index]
+    const kept = pending.filter((candidate, position) => position !== index && candidate.expiresAt > now)
+    if (kept.length) this.pendingRetries.set(browserSession, kept)
+    else this.pendingRetries.delete(browserSession)
+    return retry
   }
 
   /** Every download, as `listDownloads`, after starting a check of finished files for the Downloads panel opening. */
@@ -322,6 +381,7 @@ export class BrowserDownloadsController {
     this.downloadWorkspaceIds.delete(downloadId)
     this.completedFileIdentities.delete(downloadId)
     this.fileChecks.delete(downloadId)
+    this.retryUrls.delete(downloadId)
     const downloads = this.listDownloads()
     this.sendDownloadsChanged(downloads)
     return downloads
@@ -368,6 +428,21 @@ export class BrowserDownloadsController {
         }
         item.resume()
       }
+    } else if (action === 'retry') {
+      if (!downloadId) throw new Error('downloadId is required to retry a download')
+      const download = this.downloads.get(downloadId)
+      const workspaceId = this.downloadWorkspaceIds.get(downloadId)
+      const url = this.retryUrls.get(downloadId)
+      if (!download || !inScope(download) || !this.canRetry(download) || !workspaceId || !url) {
+        throw new LocalizedError('appErrors.downloads.notRetryable', undefined, { message: `Download cannot be retried: ${downloadId}` })
+      }
+      const browserSession = this.host.workspaceSession(workspaceId)
+      const now = Date.now()
+      const pending = (this.pendingRetries.get(browserSession) ?? []).filter((retry) => retry.expiresAt > now)
+      pending.push({ url, workspaceId, expiresAt: now + PENDING_RETRY_MS })
+      this.pendingRetries.set(browserSession, pending)
+      // As Chrome's Retry: a new download of the address in the workspace's session, with its cookies, beside the old row.
+      browserSession.downloadURL(url)
     } else if (action === 'clear') {
       for (const [id, download] of this.downloads) {
         if (!inScope(download) || isActiveDownload(download)) continue
@@ -375,6 +450,7 @@ export class BrowserDownloadsController {
         this.downloadWorkspaceIds.delete(id)
         this.completedFileIdentities.delete(id)
         this.fileChecks.delete(id)
+        this.retryUrls.delete(id)
       }
     }
     const downloads = this.listDownloads()
@@ -438,6 +514,8 @@ export class BrowserDownloadsController {
         // Taken first, so a download refused below cannot leave its name for the next one.
         const urlChain = item.getURLChain()
         const linkName = this.savedLinkNames.take(webContents?.id, urlChain[0] ?? item.getURL())
+        // A retry starts from no page, so the retry names its workspace.
+        const retry = webContents ? undefined : this.takeRetry(browserSession, urlChain[0] ?? item.getURL())
         this.trimDownloadHistory()
         if (this.downloads.size >= MAX_DOWNLOAD_HISTORY) {
           event.preventDefault()
@@ -454,7 +532,9 @@ export class BrowserDownloadsController {
           readyReported = true
           this.host.downloadReady(sourceWebContentsId)
         }
-        const { tabId, workspaceId, observationGeneration } = this.host.getSource(sourceWebContentsId, downloadUrl)
+        const { tabId, workspaceId, observationGeneration } = retry
+          ? { tabId: undefined, workspaceId: retry.workspaceId, observationGeneration: this.host.workspaceObservationGeneration(retry.workspaceId) }
+          : this.host.getSource(sourceWebContentsId, downloadUrl)
         const settings = this.host.getSettings()
         // As for a click on the link, the name holds only while the download stays on the link's origin: Hronaut saves
         // without asking, so a redirect elsewhere must not get to name its file, such as a script saved as `update.bat`.
@@ -475,6 +555,7 @@ export class BrowserDownloadsController {
         }
         this.downloads.set(id, download)
         this.downloadWorkspaceIds.set(id, workspaceId)
+        if (isRetryableUrl(downloadUrl)) this.retryUrls.set(id, downloadUrl)
         let suggestedPath = ''
         try {
           suggestedPath = this.reserveAvailableDownloadPath(filename, settings.downloadDirectory)
@@ -520,6 +601,7 @@ export class BrowserDownloadsController {
             // Cancelled in the save dialog, so as in Chrome it leaves no Cancelled row behind.
             this.downloads.delete(id)
             this.downloadWorkspaceIds.delete(id)
+            this.retryUrls.delete(id)
             this.downloadItems.delete(id)
             this.downloadSessions.delete(id)
             reportReady()
@@ -533,6 +615,8 @@ export class BrowserDownloadsController {
           download.canResume = false
           download.completedAt = new Date().toISOString()
           if (state === 'completed' && download.savePath) this.recordCompletedFile(id, download.savePath)
+          // Only a download that did not complete is downloaded again, so a completed one's address is not kept.
+          if (state === 'completed') this.retryUrls.delete(id)
           this.downloadItems.delete(id)
           this.downloadSessions.delete(id)
           this.trimDownloadHistory()
@@ -637,6 +721,7 @@ export class BrowserDownloadsController {
       this.downloadWorkspaceIds.delete(id)
       this.completedFileIdentities.delete(id)
       this.fileChecks.delete(id)
+      this.retryUrls.delete(id)
     }
   }
 

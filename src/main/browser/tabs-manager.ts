@@ -1228,6 +1228,13 @@ export class BrowserTabsManager {
       }
     },
     workspaceObservationGeneration: (workspaceId) => this.workspaceObservationGeneration(workspaceId),
+    isWorkspaceOpen: (workspaceId) => this.mcpTabGroups.has(workspaceId),
+    workspaceSession: (workspaceId) => {
+      const browserSession = this.workspaceSession(workspaceId)
+      // A workspace whose pages are all asleep may not have hooked its session yet, so its downloads are tracked first.
+      this.installSessionHooks(browserSession)
+      return browserSession
+    },
     downloadReady: (webContentsId) => closeTabLeftEmptyByDownload(this.downloadTabCloseAccess(), webContentsId),
     isAvailable: () => !this.destroyed && !this.window.isDestroyed(),
     publish: (downloads) => {

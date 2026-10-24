@@ -2994,6 +2994,8 @@ export const plPL = {
     "pauseAria": "Wstrzymaj {filename}",
     "resume": "Wznów",
     "resumeAria": "Wznów {filename}",
+    "retry": "Ponów",
+    "retryAria": "Ponów {filename}",
     "paused": "Wstrzymano",
 
     "kicker": "Pliki przeglądarki",

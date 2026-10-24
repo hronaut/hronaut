@@ -2994,6 +2994,8 @@ export const esES = {
     "pauseAria": "Pausar {filename}",
     "resume": "Reanudar",
     "resumeAria": "Reanudar {filename}",
+    "retry": "Reintentar",
+    "retryAria": "Reintentar {filename}",
     "paused": "En pausa",
 
     "kicker": "Archivos del navegador",

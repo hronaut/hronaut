@@ -26,6 +26,8 @@ export interface SavedDownload {
   startedAt: string
   completedAt?: string
   workspaceId?: string
+  /** A download that did not complete, whose kept address is the one it is downloaded again from, as nothing was redacted. */
+  retryable?: true
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -51,7 +53,8 @@ function savedTime(value: string, now: number): string {
  */
 export function savedDownloads(
   downloads: readonly BrowserDownloadState[],
-  workspaceOf: (downloadId: string) => string | undefined
+  workspaceOf: (downloadId: string) => string | undefined,
+  retryable: (download: BrowserDownloadState) => boolean = () => false
 ): SavedDownload[] {
   return downloads.slice(0, MAX_SAVED_DOWNLOADS).map((download) => {
     const workspaceId = workspaceOf(download.id)
@@ -61,7 +64,8 @@ export function savedDownloads(
       filename: download.filename,
       ...(download.savePath ? { savePath: download.savePath } : {}),
       startedAt: download.startedAt,
-      ...(workspaceId ? { workspaceId } : {})
+      ...(workspaceId ? { workspaceId } : {}),
+      ...(download.state !== 'completed' && retryable(download) ? { retryable: true as const } : {})
     }
     if (isActiveDownload(download)) return { ...common, state: 'cancelled', receivedBytes: 0, totalBytes: 0 }
     return {
@@ -78,7 +82,7 @@ export function savedDownloads(
 /** A download as the file holds it, or undefined when it is not one. */
 function parsedDownload(value: unknown, now: number): SavedDownload | undefined {
   if (!isRecord(value)) return undefined
-  const { id, url, filename, savePath, state, failureReason, receivedBytes, totalBytes, startedAt, completedAt, workspaceId } = value
+  const { id, url, filename, savePath, state, failureReason, receivedBytes, totalBytes, startedAt, completedAt, workspaceId, retryable } = value
   if (typeof id !== 'string' || !DOWNLOAD_ID.test(id) || typeof url !== 'string' || url.length > MAX_DOWNLOAD_URL_CHARS
     || typeof filename !== 'string' || !filename || basename(filename) !== filename
     || (savePath !== undefined && (typeof savePath !== 'string' || !isAbsolute(savePath) || basename(savePath) !== filename))
@@ -86,7 +90,8 @@ function parsedDownload(value: unknown, now: number): SavedDownload | undefined 
     || (failureReason !== undefined && failureReason !== 'destination-unavailable')
     || !isByteCount(receivedBytes) || !isByteCount(totalBytes) || !isTime(startedAt)
     || (completedAt !== undefined && !isTime(completedAt))
-    || (workspaceId !== undefined && typeof workspaceId !== 'string')) return undefined
+    || (workspaceId !== undefined && typeof workspaceId !== 'string')
+    || (retryable !== undefined && retryable !== true)) return undefined
   // A completed download always had its file.
   if (state === 'completed' && !savePath) return undefined
   return {
@@ -101,7 +106,8 @@ function parsedDownload(value: unknown, now: number): SavedDownload | undefined 
     startedAt: savedTime(startedAt, now),
     // An interrupted download without an end would read as still under way.
     ...(completedAt || state === 'interrupted' ? { completedAt: savedTime(completedAt ?? startedAt, now) } : {}),
-    ...(workspaceId ? { workspaceId } : {})
+    ...(workspaceId ? { workspaceId } : {}),
+    ...(retryable && state !== 'completed' ? { retryable } : {})
   }
 }
 

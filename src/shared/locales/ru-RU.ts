@@ -2994,6 +2994,8 @@ export const ruRU = {
     "pauseAria": "Приостановить {filename}",
     "resume": "Продолжить",
     "resumeAria": "Продолжить {filename}",
+    "retry": "Повторить",
+    "retryAria": "Повторить загрузку {filename}",
     "paused": "Приостановлено",
 
     "kicker": "Файлы браузера",
