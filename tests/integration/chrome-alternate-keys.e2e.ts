@@ -80,8 +80,9 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     await press(tabId, 'F6')
     await expect.poll(focusedPage).toBe(appWindow.url())
     await expect(addressBar).toBeFocused()
-    // Over a Hronaut dialog F6, Alt+D, F5 and the application menu's keys, such as Ctrl+R, Alt+Left, Ctrl+U and
-    // Ctrl+Plus, leave the keyboard where it is in the dialog, and the tab where it is.
+    // Over a Hronaut dialog F6, Alt+D, F5 and the application menu's keys leave the keyboard where it is in the dialog,
+    // and the tab where it is: Ctrl+R reloaded the page behind it, Ctrl+Plus zoomed it, and Ctrl+Shift+P and
+    // Ctrl+Shift+/ put the command palette and Keyboard shortcuts in the dialog's place.
     await electronApp.evaluate(({ BrowserWindow }, url) => {
       BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents.send('help:open', 'about')
     }, appWindow.url())
@@ -99,17 +100,18 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     await pressInWindow('F5')
     await pressInWindow('R', ['control'])
     await pressInWindow('R', ['control', 'shift'])
-    await pressInWindow('Left', ['alt'])
-    await pressInWindow('U', ['control'])
-    await pressInWindow('=', ['control'])
+    await pressInWindow('=', ['control', 'shift'])
+    await pressInWindow('P', ['control', 'shift'])
+    await pressInWindow('/', ['control', 'shift'])
     await appWindow.waitForTimeout(500)
     expect(await focusedPage()).toBe(appWindow.url())
     await expect(contribute).toBeFocused()
     expect((await state()).activeTabId).toBe(tabId)
     expect((await state()).tabs).toHaveLength(tabsBefore)
-    expect(await path(tabId)).toBe('/page')
     expect(await zoom()).toBe(zoomBefore)
     expect(loadsOf('/page')).toHaveLength(4)
+    const shortcutsDialog = appWindow.getByRole('dialog', { name: 'Keyboard shortcuts' })
+    await expect(shortcutsDialog).toBeHidden()
     await appWindow.keyboard.press('Escape')
     await expect(aboutDialog).toBeHidden()
     // Nor over the command palette.
@@ -119,10 +121,12 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     const palette = appWindow.getByRole('dialog', { name: 'Commands' })
     await expect(palette).toBeVisible()
     await pressInWindow('R', ['control'])
-    await pressInWindow('Left', ['alt'])
+    await pressInWindow('=', ['control', 'shift'])
+    await pressInWindow('/', ['control', 'shift'])
     await appWindow.waitForTimeout(500)
     await expect(palette).toBeVisible()
-    expect(await path(tabId)).toBe('/page')
+    await expect(shortcutsDialog).toBeHidden()
+    expect(await zoom()).toBe(zoomBefore)
     expect(loadsOf('/page')).toHaveLength(4)
     await appWindow.keyboard.press('Escape')
     await expect(palette).toBeHidden()

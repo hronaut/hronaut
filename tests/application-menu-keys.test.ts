@@ -6,7 +6,7 @@ vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: Item[]) => te
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
 
 // Under a Hronaut dialog or the command palette, Hronaut's window leaves its keys alone, and a key it leaves alone
-// reaches the application menu, which acts on the page behind it: Ctrl+R reloaded it and Alt+Left went back there.
+// reaches the application menu, which acts on the page behind it: Ctrl+R reloaded it and Ctrl+Plus zoomed it.
 // The window keeps every key of the menu there, so a key added to the menu must be one it knows.
 
 const platform = process.platform

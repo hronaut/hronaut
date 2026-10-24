@@ -178,8 +178,8 @@ describe('useShellKeyboardController', () => {
   })
 
   it('keeps browser keys from the application menu under the palette or a dialog, which would act on the page behind', () => {
-    // Under a Hronaut dialog Ctrl+R reloaded the page behind it, Alt+Left went back there, Ctrl+U opened its source and
-    // Ctrl+P printed it, as the application menu's keys; a held key did the same past the palette.
+    // Under a Hronaut dialog or the palette Ctrl+R reloaded the page behind it and Ctrl+Plus zoomed it, as the
+    // application menu's keys, and Ctrl+Shift+/ put Keyboard shortcuts in the dialog's place. A held key is kept too.
     const browserKeys: KeyboardEventInit[] = [
       { key: 'r', code: 'KeyR', ctrlKey: true }, { key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true },
       { key: 'r', code: 'KeyR', ctrlKey: true, repeat: true }, { key: 'F5', code: 'F5' }, { key: 'd', code: 'KeyD', altKey: true },
