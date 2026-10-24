@@ -61,7 +61,7 @@ function browser() {
     contentInsets: { top: 0, right: 10, bottom: 10, left: 280 }, allTabsMuted: false,
     assertWorkspaceNavigationAllowed: vi.fn(), workspaceNavigationAllowed: () => true, workspaceObservationGeneration: () => 0,
     roundPageCorners: vi.fn(), installSessionHooks: vi.fn(), attachTabEvents: vi.fn(), layout: vi.fn(), changed: vi.fn(),
-    selectTab: vi.fn(), reorderTab: vi.fn(), navigationHistorySnapshot: () => undefined,
+    selectTab: vi.fn(), reorderTab: vi.fn(), navigationHistorySnapshot: () => ({ entries: [], index: -1 }),
     withTabLabelLifecycle: (run: () => Promise<unknown>) => run(), getState: () => ({}), text: (key: string) => key,
     orderedTabs(this: Manager) { return [...this.tabs.values()] },
     async closeTabInternal(this: Manager, tabId: string) {

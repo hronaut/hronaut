@@ -237,7 +237,7 @@ import {
   snapshotDeltaInvalidationReason,
   type BrowserSnapshotDeltaContext
 } from '../../shared/snapshot-delta.js'
-import { safeNavigationHistorySnapshot } from './navigation-history.js'
+import { safeNavigationHistorySnapshot, type NavigationHistorySnapshot } from './navigation-history.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
 import type { KeyboardDebugger } from './native-keyboard.js'
 import type { PointerDebugger } from './native-pointer.js'
@@ -537,7 +537,8 @@ import {
   sleepFallbackTab,
   sleepWorkspaceTabs,
   wakeTab,
-  watchUnsavedFormEdits
+  watchUnsavedFormEdits,
+  withoutSleepingPage
 } from './tab-sleep/tab-sleep.js'
 import type { MemorySaverAccess } from './tab-sleep/memory-saver-access.js'
 import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
@@ -3084,7 +3085,10 @@ export class BrowserTabsManager {
     if (!(await this.prepareActiveCloseReplacement(tab, yieldsToNewerSelection))) return this.getState()
     if (this.tabs.get(tab.id) !== tab) return this.getState()
     let stagedClose: ReturnType<BrowserTabsManager['stageBeforeUnloadClose']> | undefined
+    // A page that lets the tab close is gone once it answers, with its history, which Reopen closed tab restores.
+    let closingHistory: NavigationHistorySnapshot | undefined
     if (respectBeforeUnload && !forceClose && !webContents.isDestroyed()) {
+      closingHistory = this.navigationHistorySnapshot(tab)
       const navigationGeneration = tab.navigationGeneration
       // Taking the page out of view while it decides takes the keyboard from it, which it gets back only if it had it.
       const pageHadKeyboard = this.keyboardPage() === webContents
@@ -3151,7 +3155,7 @@ export class BrowserTabsManager {
     this.videoRecorder.clear(tab.id)
     this.cancelNativeSelectionSessions(tab)
     const { splitPartnerId, nextId } = this.closeTabTransition(tab)
-    this.rememberClosedTab(tab)
+    this.rememberClosedTab(tab, closingHistory)
 
     if (splitPartnerId) {
       const splitPartner = this.tabs.get(splitPartnerId)
@@ -3244,8 +3248,8 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  private rememberClosedTab(tab: BrowserTab): void {
-    rememberClosedTab(this.tabReopeningAccess(), tab)
+  private rememberClosedTab(tab: BrowserTab, history?: NavigationHistorySnapshot): void {
+    rememberClosedTab(this.tabReopeningAccess(), tab, history)
   }
 
   private removeTabRecord(tab: BrowserTab): void {
@@ -6132,7 +6136,7 @@ export class BrowserTabsManager {
         index: tab.sleepNavigationHistory.index
       }
     }
-    return safeNavigationHistorySnapshot(tab.webContents)
+    return withoutSleepingPage(safeNavigationHistorySnapshot(tab.webContents))
   }
 
   private validateTarget(target: { ref?: string; selector?: string }): void {
