@@ -280,6 +280,11 @@ describe('DownloadsPanel', () => {
     expect(screen.getByRole('progressbar', { name: /almost\.bin/ })).toHaveAttribute('aria-valuenow', '99')
   })
 
+  it('shows an exact share as it is, not a percent below it', () => {
+    renderPanel({ downloads: [download('exact', 'progressing', 29, 100)] })
+    expect(screen.getByText('29% · 29 B of 100 B')).toBeVisible()
+  })
+
   it('shows a paused transfer without a spinner and resumes it from the keyboard', async () => {
     const resumeDownload = vi.fn(async () => [])
     const view = renderPanel({ downloads: [{ ...download('paused', 'progressing', 25, 100), paused: true, canResume: true }], resumeDownload })

@@ -1,4 +1,4 @@
-import { app, type BrowserWindow } from 'electron'
+import { app, type BrowserWindow, type ProgressBarOptions } from 'electron'
 import type { BrowserDownloadState } from '../../shared/types.js'
 
 /** How far the downloads under way have come, as Chrome sums them up for its taskbar button and Dock icon. */
@@ -31,23 +31,66 @@ export function downloadsUnderWay(downloads: readonly BrowserDownloadState[]): D
 }
 
 /**
- * Shows the downloads under way on Hronaut's taskbar button or Dock icon, as Chrome does: on Windows a progress bar,
- * moving on its own while a size is unknown; on macOS their number on the icon and, while every size is known, a
- * progress bar; and on Linux desktops that show it, such as Ubuntu's, their number and progress on the launcher icon.
+ * The progress bar a window's icon shows for the downloads under way, as Chrome's: on Windows a bar, moving on its own
+ * while a size is unknown, until everything is in; on macOS a bar while every size is known; and on Linux a bar while
+ * some but not all of the bytes are in. -1 shows none.
  */
-export function showDownloadsUnderWay(window: BrowserWindow | null | undefined, downloads: readonly BrowserDownloadState[], platform = process.platform): void {
-  const { count, progress, known } = downloadsUnderWay(downloads)
-  if (platform === 'darwin' || platform === 'linux') app.setBadgeCount(count)
-  if (!window || window.isDestroyed()) return
+function progressBar({ count, progress, known }: DownloadsUnderWay, platform: NodeJS.Platform): [number, ProgressBarOptions?] {
+  if (count === 0) return [-1]
   if (platform === 'win32') {
-    if (count === 0 || progress === 1) window.setProgressBar(-1)
-    else if (!known) window.setProgressBar(2, { mode: 'indeterminate' })
-    else window.setProgressBar(progress)
-    return
+    if (progress === 1) return [-1]
+    return known ? [progress] : [2, { mode: 'indeterminate' }]
   }
-  if (platform === 'darwin') {
-    window.setProgressBar(count > 0 && known ? progress : -1)
-    return
+  if (platform === 'darwin') return [known ? progress : -1]
+  return [progress > 0 && progress < 1 ? progress : -1]
+}
+
+/**
+ * Shows the downloads under way on Hronaut's taskbar buttons, Dock icon or launcher icon, as Chrome does: on Windows a
+ * progress bar on each window's taskbar button; on macOS their number on the Dock icon and, while every size is known,
+ * a progress bar; and on Linux desktops that show it, such as Ubuntu's, their number and progress on the launcher icon.
+ * Each is changed only when it changes, so the count does not overwrite a badge a website set meanwhile for nothing.
+ */
+export class DownloadsUnderWayIcons {
+  private downloads: readonly BrowserDownloadState[] = []
+  /** The count the app icon shows, which is none when Hronaut starts. */
+  private badge = 0
+  /** The progress bar each window's icon shows, as last set. */
+  private readonly progress = new WeakMap<BrowserWindow, string>()
+
+  /**
+   * @param windows Hronaut's windows, the main one first: on macOS and Linux one progress bar shows on the app's icon,
+   * which the main window sets; on Windows each window's taskbar button shows one.
+   */
+  constructor(private readonly windows: () => ReadonlyArray<BrowserWindow | null | undefined>, private readonly platform = process.platform) {
+    // Windows forgets a taskbar button's progress when the button goes, as while the window hides in the tray.
+    app.on('browser-window-created', (_event, window) => {
+      window.on('show', () => {
+        this.progress.delete(window)
+        this.update()
+      })
+    })
   }
-  window.setProgressBar(count > 0 ? progress : -1)
+
+  /** Shows the downloads as they are now. */
+  show(downloads: readonly BrowserDownloadState[]): void {
+    this.downloads = downloads
+    this.update()
+  }
+
+  private update(): void {
+    const underWay = downloadsUnderWay(this.downloads)
+    if ((this.platform === 'darwin' || this.platform === 'linux') && underWay.count !== this.badge) {
+      app.setBadgeCount(underWay.count)
+      this.badge = underWay.count
+    }
+    const bar = progressBar(underWay, this.platform)
+    const shown = JSON.stringify(bar)
+    const windows = this.platform === 'win32' ? this.windows() : this.windows().slice(0, 1)
+    for (const window of windows) {
+      if (!window || window.isDestroyed() || this.progress.get(window) === shown) continue
+      window.setProgressBar(...bar)
+      this.progress.set(window, shown)
+    }
+  }
 }

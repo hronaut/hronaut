@@ -94,7 +94,7 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     if (download.state === 'completed') return 100
     if (download.totalBytes <= 0) return 0
     // As Chrome, which shows 99% until the last byte is in.
-    return Math.min(100, Math.max(0, Math.floor(download.receivedBytes / download.totalBytes * 100)))
+    return Math.min(100, Math.max(0, Math.floor(download.receivedBytes * 100 / download.totalBytes)))
   }
 
   function downloadMeta(download: BrowserDownloadState): string {

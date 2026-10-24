@@ -1,5 +1,5 @@
 import { WorkspaceStartupReads } from './workspace-startup-reads.js'
-import { showDownloadsUnderWay } from './download-progress/download-progress-icon.js'
+import { DownloadsUnderWayIcons } from './download-progress/download-progress-icon.js'
 import { UserAttentionLifecycle } from './user-attention-lifecycle.js'
 import { registerAttentionIpc } from './attention-ipc.js'
 import { registerIncidentPackageIpc } from './incident-package-ipc.js'
@@ -155,6 +155,7 @@ const panelWindowRefs: PanelWindowRefs = {
   stateStore: null,
   lastState: null
 }
+const downloadsUnderWayIcons = new DownloadsUnderWayIcons(() => [mainWindowRefs.window, panelWindowRefs.window])
 const {
   reportBrowserActionFailure,
   showWindow,
@@ -1114,7 +1115,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     onPageFullscreenChanged: () => sidebarOverlay.relayout(),
     onDownloadsChanged: (downloads) => {
       sendToPanelWindow('browser:downloads-changed', downloads)
-      showDownloadsUnderWay(mainWindowRefs.window, downloads)
+      downloadsUnderWayIcons.show(downloads)
     },
     confirmBeforeUnloadClose: async () => {
       const { response } = await trustedDialogs.show({

@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
-- While files download, Hronaut's taskbar button on Windows, its Dock icon on macOS and its launcher icon on Linux desktops that show it, such as Ubuntu's, show how far the downloads have come, and on macOS and Linux how many are under way, as in Chrome.
+- While files download, Hronaut's taskbar buttons on Windows, its Dock icon on macOS and its launcher icon on Linux desktops that show it, such as Ubuntu's, show how far the downloads have come (on macOS while every file's size is known), and on macOS and Linux how many are under way, as in Chrome.
 
 ### Changed
 
