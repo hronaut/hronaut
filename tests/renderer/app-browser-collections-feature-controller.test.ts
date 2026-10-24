@@ -68,6 +68,7 @@ function createHarness() {
     removeFinished: vi.fn(async () => []),
     clearFinished: vi.fn(async () => []),
     showInFolder: vi.fn(async () => undefined),
+    startDrag: vi.fn(async () => undefined),
     onChanged: vi.fn((listener: (downloads: BrowserDownloadState[]) => void) => {
       downloadsChanged = listener
       return unsubscribeDownloads

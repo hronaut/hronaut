@@ -75,6 +75,7 @@ function createHarness() {
     removeFinished: vi.fn(async () => []),
     clearFinished: clearFinishedDownloads,
     showInFolder: revealDownload,
+    startDrag: vi.fn(async () => undefined),
     onChanged: onDownloadsChanged
   }
   const listBookmarks = vi.fn(async (): Promise<BrowserBookmark[]> => [])

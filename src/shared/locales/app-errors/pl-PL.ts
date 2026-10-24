@@ -260,7 +260,9 @@ export const plPLAppErrors: AppErrorMessages = {
     "notResumable": "Tego pobierania nie można wznowić.",
     "notRetryable": "Tego pobierania nie można ponowić.",
     "notCompleted": "W folderze można pokazać tylko ukończone pobieranie.",
-    "fileRemoved": "Ten plik został przeniesiony lub usunięty, więc nie można go pokazać w folderze."
+    "fileRemoved": "Ten plik został przeniesiony lub usunięty, więc nie można go pokazać w folderze.",
+    "dragNotCompleted": "Przeciągnąć można tylko ukończone pobieranie.",
+    "dragFileRemoved": "Ten plik został przeniesiony lub usunięty, więc nie można go przeciągnąć."
   },
   "taskManager": {
     "cannotEnd": "Tego procesu nie można zakończyć; mógł już się zakończyć."

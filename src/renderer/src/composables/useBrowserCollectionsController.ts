@@ -144,6 +144,10 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     return options.downloadsApi.showInFolder(downloadId)
   }
 
+  function startDownloadDrag(downloadId: string): Promise<void> {
+    return options.downloadsApi.startDrag(downloadId)
+  }
+
   function refreshBookmarks(): Promise<BrowserBookmark[]> {
     return resolveBookmarks(() => options.bookmarksApi.list())
   }
@@ -212,6 +216,7 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     clearFinishedDownloads,
     removeFinishedDownload,
     revealDownload,
+    startDownloadDrag,
     refreshBookmarks,
     addBookmark,
     saveHistoryBookmark,

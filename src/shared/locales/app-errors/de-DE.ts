@@ -260,7 +260,9 @@ export const deDEAppErrors: AppErrorMessages = {
     "notResumable": "Dieser Download kann nicht fortgesetzt werden.",
     "notRetryable": "Dieser Download kann nicht wiederholt werden.",
     "notCompleted": "Nur ein abgeschlossener Download kann im Ordner angezeigt werden.",
-    "fileRemoved": "Diese Datei wurde verschoben oder gelöscht und kann daher nicht im Ordner angezeigt werden."
+    "fileRemoved": "Diese Datei wurde verschoben oder gelöscht und kann daher nicht im Ordner angezeigt werden.",
+    "dragNotCompleted": "Nur ein abgeschlossener Download kann gezogen werden.",
+    "dragFileRemoved": "Diese Datei wurde verschoben oder gelöscht und kann daher nicht gezogen werden."
   },
   "taskManager": {
     "cannotEnd": "Dieser Prozess kann nicht beendet werden; vielleicht wurde er bereits beendet."

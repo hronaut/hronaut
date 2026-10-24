@@ -260,7 +260,9 @@ export const esESAppErrors: AppErrorMessages = {
     "notResumable": "Esta descarga no se puede reanudar.",
     "notRetryable": "Esta descarga no se puede reintentar.",
     "notCompleted": "Solo se puede mostrar en su carpeta una descarga completada.",
-    "fileRemoved": "Este archivo se movió o se eliminó, así que no se puede mostrar en su carpeta."
+    "fileRemoved": "Este archivo se movió o se eliminó, así que no se puede mostrar en su carpeta.",
+    "dragNotCompleted": "Solo se puede arrastrar una descarga completada.",
+    "dragFileRemoved": "Este archivo se movió o se eliminó, así que no se puede arrastrar."
   },
   "taskManager": {
     "cannotEnd": "Este proceso no se puede finalizar; es posible que ya haya finalizado."

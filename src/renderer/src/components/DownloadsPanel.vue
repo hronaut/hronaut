@@ -28,6 +28,7 @@ const props = defineProps<{
   removeFinished: (downloadId: string) => Promise<BrowserDownloadState[]>
   clearFinished: () => Promise<BrowserDownloadState[]>
   showInFolder: (downloadId: string) => Promise<void>
+  startDrag: (downloadId: string) => Promise<void>
   copySavedPath: (path: string) => Promise<void>
 }>()
 
@@ -55,6 +56,8 @@ const {
   remove,
   clear,
   reveal,
+  canDrag,
+  drag,
   dispose
 } = useDownloadsPanelController({
   locale,
@@ -70,6 +73,7 @@ const {
   removeFinished: props.removeFinished,
   clearFinished: props.clearFinished,
   showInFolder: props.showInFolder,
+  startDrag: props.startDrag,
   copySavedPath: props.copySavedPath
 })
 
@@ -138,6 +142,14 @@ async function clearDownloads(event: MouseEvent): Promise<void> {
   target?.focus()
 }
 
+// A completed download's icon and name drag its file out, as in Chrome. Hronaut starts that drag with the file itself,
+// so the page's own drag, of the name's text, does not start.
+function dragFile(event: DragEvent, download: BrowserDownloadState): void {
+  if (!canDrag(download)) return
+  event.preventDefault()
+  void drag(download.id)
+}
+
 onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVisibleTracking(); dispose() })
 </script>
 
@@ -183,14 +195,16 @@ onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVi
     </div>
     <div v-else class="downloads-list">
       <article v-for="download in filteredDownloads" :key="download.id" class="download-item" :class="[download.state, { paused: download.paused, 'file-removed': download.fileRemoved }]">
-        <span class="download-state-icon" aria-hidden="true">
+        <!-- As on Chrome's downloads page, the file's icon and name drag it out; the rest of the row still selects text
+             and clicks its controls. -->
+        <span class="download-state-icon" aria-hidden="true" :draggable="canDrag(download) ? 'true' : undefined" @dragstart="dragFile($event, download)">
           <IconPause v-if="download.paused" />
           <IconProgress v-else-if="download.state === 'progressing'" class="state-spinner" />
           <IconDownloadDone v-else-if="download.state === 'completed' && !download.fileRemoved" />
           <IconWarning v-else />
         </span>
         <div class="download-copy">
-          <strong v-tooltip="download.filename">{{ download.filename }}</strong>
+          <strong v-tooltip="download.filename" :draggable="canDrag(download) ? 'true' : undefined" @dragstart="dragFile($event, download)">{{ download.filename }}</strong>
           <span>{{ downloadMeta(download) }}</span>
           <span v-if="downloadOrigin(download)" class="download-origin" v-tooltip="downloadOrigin(download)">{{ t('downloads.sourceOrigin', { origin: downloadOrigin(download) }) }}</span>
           <div v-if="download.state === 'progressing'" class="download-progress" role="progressbar" :aria-label="t('downloads.downloading', { filename: download.filename })" :aria-valuenow="download.totalBytes > 0 ? downloadProgress(download) : undefined" aria-valuemin="0" aria-valuemax="100">

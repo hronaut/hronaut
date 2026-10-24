@@ -15,7 +15,7 @@ interface CollectionIpcHost {
   historyCleared?(): void
   /** The person removed one page from their history, so anything else that names it goes too. */
   historyEntryRemoved?(url: string): void
-  downloads(): Pick<BrowserTabsManager, 'listDownloads' | 'listDownloadsCheckingFiles' | 'removeFinishedDownload' | 'manageDownloads' | 'showDownloadInFolder'>
+  downloads(): Pick<BrowserTabsManager, 'listDownloads' | 'listDownloadsCheckingFiles' | 'removeFinishedDownload' | 'manageDownloads' | 'showDownloadInFolder' | 'startDownloadDrag'>
   publishBookmarks(): BrowserBookmark[]
   publishVisitHistory(): BrowserHistoryEntry[]
 }
@@ -46,6 +46,12 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
     host.assertTrustedSender(event)
     if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
     await host.downloads().showDownloadInFolder(downloadId)
+  })
+  // The person drags a completed download out of the panel, so the drag starts from the window it is in.
+  ipcMain.handle('downloads:start-drag', async (event, downloadId: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
+    await host.downloads().startDownloadDrag(downloadId, event.sender)
   })
   ipcMain.handle('bookmarks:list', (event) => host.runRead(event, () => host.bookmarks().list()))
   ipcMain.handle('bookmarks:add', async (event, url: unknown, title: unknown) => {

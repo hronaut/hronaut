@@ -264,7 +264,9 @@ export const enUSAppErrors = {
     "notResumable": "This download cannot be resumed.",
     "notRetryable": "This download cannot be retried.",
     "notCompleted": "Only a completed download can be shown in its folder.",
-    "fileRemoved": "This file was moved or deleted, so it cannot be shown in its folder."
+    "fileRemoved": "This file was moved or deleted, so it cannot be shown in its folder.",
+    "dragNotCompleted": "Only a completed download can be dragged.",
+    "dragFileRemoved": "This file was moved or deleted, so it cannot be dragged."
   },
   "taskManager": {
     "cannotEnd": "This process cannot be ended; it may have ended already."

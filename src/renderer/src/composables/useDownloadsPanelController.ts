@@ -19,6 +19,8 @@ export interface DownloadsPanelControllerOptions {
   removeFinished: (downloadId: string) => Promise<BrowserDownloadState[]>
   clearFinished: () => Promise<BrowserDownloadState[]>
   showInFolder: (downloadId: string) => Promise<void>
+  /** Drags a completed download's file out of the panel; Hronaut starts the drag. */
+  startDrag: (downloadId: string) => Promise<void>
   copySavedPath: (path: string) => Promise<void>
 }
 
@@ -53,6 +55,26 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
 
   function canCopyPath(download: BrowserDownloadState): boolean {
     return download.state === 'completed' && !download.fileRemoved && typeof download.savePath === 'string' && download.savePath.length > 0
+  }
+
+  /** A completed download whose file is still there can be dragged out of the panel, as in Chrome. */
+  function canDrag(download: BrowserDownloadState): boolean {
+    return download.state === 'completed' && !download.fileRemoved && typeof download.savePath === 'string' && download.savePath.length > 0
+  }
+
+  /**
+   * Drags the download's file out, as from Chrome's downloads. It leaves the panel's controls as they are, since the
+   * person is still holding the pointer; a file found gone says so, as Show in folder does.
+   */
+  async function drag(downloadId: string): Promise<void> {
+    const generation = actionGeneration
+    resetError()
+    try {
+      await options.startDrag(downloadId)
+    } catch (cause) {
+      if (generation !== actionGeneration) return
+      error.value = friendlyUiError(cause, options.translate('runtime.toast.actionFailed'))
+    }
   }
 
   function resetCopyFeedback(): void {
@@ -207,6 +229,8 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     remove,
     clear,
     reveal,
+    canDrag,
+    drag,
     dispose
   }
 }

@@ -4,7 +4,7 @@ import { registerCollectionIpc } from '../src/main/collection-ipc.js'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
-  'downloads:list', 'downloads:cancel', 'downloads:pause', 'downloads:resume', 'downloads:retry', 'downloads:remove-finished', 'downloads:clear-finished', 'downloads:show-in-folder',
+  'downloads:list', 'downloads:cancel', 'downloads:pause', 'downloads:resume', 'downloads:retry', 'downloads:remove-finished', 'downloads:clear-finished', 'downloads:show-in-folder', 'downloads:start-drag',
   'bookmarks:list', 'bookmarks:add', 'bookmarks:add-if-missing', 'bookmarks:rename', 'bookmarks:update-destination', 'bookmarks:remove',
   'bookmark-collections:list', 'bookmark-collections:create', 'bookmark-collections:rename', 'bookmark-collections:remove', 'bookmark-collections:assign',
   'visit-history:list', 'visit-history:remove', 'visit-history:clear'
@@ -14,7 +14,7 @@ function fixture() {
   const listeners = new Map<string, Listener>()
   const bookmarks = { collectionSnapshot: vi.fn(() => ({ revision: 0, collections: [] })), createCollection: vi.fn(), renameCollection: vi.fn(), removeCollection: vi.fn(), assignCollection: vi.fn(), list: vi.fn(() => []), add: vi.fn(), addIfMissing: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), removeRestorably: vi.fn() }
   const history = { list: vi.fn(() => []), remove: vi.fn(), clear: vi.fn() }
-  const downloads = { removeFinishedDownload: vi.fn(() => []), listDownloads: vi.fn(() => []), listDownloadsCheckingFiles: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn() }
+  const downloads = { removeFinishedDownload: vi.fn(() => []), listDownloads: vi.fn(() => []), listDownloadsCheckingFiles: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn(), startDownloadDrag: vi.fn() }
   const host = {
     assertTrustedSender: vi.fn(),
     async runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T> { host.assertTrustedSender(event); return read() },
@@ -142,4 +142,13 @@ it('publishes a history bookmark only after persistence succeeds', async () => {
   bookmarks.addIfMissing.mockRejectedValueOnce(new Error('Persistence failed'))
   await expect(invoke('bookmarks:add-if-missing', 'https://example.test/', 'History title')).rejects.toThrow('Persistence failed')
   expect(host.publishBookmarks).toHaveBeenCalledOnce()
+})
+
+it('starts dragging a download out of the window it is dragged in, by its ID only', async () => {
+  const { invoke, downloads, event } = fixture()
+  await invoke('downloads:start-drag', 'finished')
+  // The window the person drags in, never one the renderer names.
+  expect(downloads.startDownloadDrag).toHaveBeenCalledExactlyOnceWith('finished', event.sender)
+  await expect(invoke('downloads:start-drag', { id: 'finished' })).rejects.toThrow('Invalid download ID')
+  expect(downloads.startDownloadDrag).toHaveBeenCalledOnce()
 })
