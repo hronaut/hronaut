@@ -252,6 +252,22 @@ describe('browserShortcutAction', () => {
   })
 })
 
+describe('Ctrl+F4', () => {
+  // It did nothing, where Chrome closes the tab on Windows and Linux as with Ctrl+W.
+  it('closes the tab elsewhere than macOS, and a held one closes only one', () => {
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', control: true }))).toBe('close-tab')
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', control: true, repeat: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', control: true, shift: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', control: true, meta: true }))).toBeNull()
+    // Alt+F4 closes the window, which the system does.
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', alt: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', control: true, alt: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4' }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', control: true, mac: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', meta: true, mac: true }))).toBeNull()
+  })
+})
+
 describe('Chrome\'s other keys for changing tabs', () => {
   // Ctrl+Page Down and, on macOS, Cmd+Shift+] or Cmd+Option+Right did nothing, where Chrome has them.
   const keys = (overrides: Partial<BrowserShortcutInput>) => browserShortcutAction(input(overrides))

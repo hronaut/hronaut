@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - On Windows and Linux, **Ctrl+Shift+Page Down** and **Ctrl+Shift+Page Up** move the tab in view after the next or before the previous of its workspace's tabs, as in Chrome, from the page or from Hronaut's window. Pinned tabs move among the pinned ones, and a tab at either end stays where it is. A website that handles one of these keys itself, such as a web code editor moving its own editor tab, keeps it.
 - On Windows and Linux, **F6** and **Shift+F6** go from the page to the address bar and from Hronaut's window back to the page, as in Chrome, so the keyboard alone can return to the page from the address bar or the tab list. From Home, which has no address bar, they go to Hronaut's window. A website that handles the key itself keeps it.
+- On Windows and Linux, **Ctrl+F4** closes the tab in view, as **Ctrl+W** does and as in Chrome, from the page or from Hronaut's window.
 
 ### Changed
 
