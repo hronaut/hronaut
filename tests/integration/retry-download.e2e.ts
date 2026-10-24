@@ -87,6 +87,13 @@ test('Retry downloads a cancelled download again in its workspace, from the pane
     await expect.poll(async () => (await list()).filter(({ state }) => state === 'completed').length, { timeout: 15_000 }).toBe(2)
     expect(await call('browser_downloads', { workspaceId: other.id })).toEqual([])
     expect(fileCookies).toHaveLength(3)
+
+    // Once the workspace's Site access no longer allows the address, a retry is refused before any request.
+    await appWindow.evaluate(`window.hronaut.updateWorkspaceNavigationPolicy(${JSON.stringify(workspace.id)}, { mode: 'restricted', rules: ['https://allowed.example'] })`)
+    const blocked = await client.callTool({ name: 'browser_downloads', arguments: { workspaceId: workspace.id, action: 'retry', downloadId: first!.id } }) as CallToolResult
+    expect(blocked.isError).toBe(true)
+    expect(resultText(blocked)).toContain('Download cannot be retried')
+    expect(fileCookies).toHaveLength(3)
   } finally {
     await client.close()
     await closeFixtureServer(server)
