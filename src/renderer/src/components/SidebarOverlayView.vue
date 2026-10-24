@@ -322,7 +322,7 @@ function onVisibilityChange(): void {
 
 onMounted(() => {
   stopState = props.api.onState((next) => { void receive(next) })
-  stopTooltips = installShellTooltips({ showTooltip: (request) => props.api.showTooltip(request), hideTooltip: (id) => props.api.hideTooltip(id) })
+  stopTooltips = installShellTooltips({ showTooltip: (request) => props.api.showTooltip(request), hideTooltip: (id) => props.api.hideTooltip(id) }).dispose
   document.addEventListener('pointerover', onPointerOver, true)
   document.addEventListener('pointermove', onPointerOver, true)
   document.addEventListener('pointerout', onPointerOut, true)

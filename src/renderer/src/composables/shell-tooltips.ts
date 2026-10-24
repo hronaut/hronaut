@@ -20,6 +20,15 @@ export interface ShellTooltipPort {
   hideTooltip(id?: number): void
 }
 
+export interface ShellTooltips {
+  /**
+   * Hides the tooltip and shows none until the pointer moves, as a key press in the document does. For a shortcut
+   * that main sends here, whose key press this document never sees.
+   */
+  hold: () => void
+  dispose: () => void
+}
+
 function triggerFor(node: EventTarget | null): HTMLElement | null {
   return node instanceof Element ? node.closest<HTMLElement>('[data-tooltip]') : null
 }
@@ -39,15 +48,17 @@ function placementFor(trigger: HTMLElement): ShellTooltipPlacement {
  * window, main draws it in a native view above the page, where the shell's DOM cannot reach; a
  * panel window draws it in its own page (in-window-tooltips.ts).
  */
-export function installShellTooltips(port: ShellTooltipPort, root: Document = document): () => void {
+export function installShellTooltips(port: ShellTooltipPort, root: Document = document): ShellTooltips {
   const view = root.defaultView ?? window
   let trigger: HTMLElement | null = null
   // A clicked control shows no tooltip again until the pointer leaves it.
   let suppressed: HTMLElement | null = null
-  // After a click or a key press, no control shows its tooltip until the pointer moves: a panel that opens under the
-  // resting pointer, such as Search tabs, would otherwise show the tooltip of whatever lands beneath it.
+  // Where the pointer is in this document; null while it is elsewhere, such as over the page, or not known yet.
   let pointerAt: { x: number; y: number } | null = null
-  let restingAt: { x: number; y: number } | null = null
+  // After a click, a key press or a shortcut, no control shows its tooltip until the pointer moves: a panel that opens
+  // under the resting pointer, such as Search tabs, would otherwise show the tooltip of whatever lands beneath it.
+  // `at` is where the pointer rests, or null until it first shows up here when it rested elsewhere.
+  let held: { at: { x: number; y: number } | null } | null = null
   let shownId = 0
   let nextId = 0
   let warmUntil = 0
@@ -115,11 +126,18 @@ export function installShellTooltips(port: ShellTooltipPort, root: Document = do
     resizer.observe(target)
   }
 
-  /** Notes where the pointer is, and whether it still rests where a click or a key press left it. */
-  function resting(event: PointerEvent): boolean {
-    pointerAt = { x: event.clientX, y: event.clientY }
-    if (restingAt && (Math.abs(pointerAt.x - restingAt.x) >= 1 || Math.abs(pointerAt.y - restingAt.y) >= 1)) restingAt = null
-    return restingAt !== null
+  /** Notes where the pointer is. Once it moves from where it rested, the control beneath it shows its tooltip. */
+  function track(event: PointerEvent): void {
+    const at = { x: event.clientX, y: event.clientY }
+    pointerAt = event.type === 'pointerout' && !event.relatedTarget ? null : at
+    if (!held) return
+    if (!held.at) {
+      held.at = pointerAt
+      return
+    }
+    if (Math.abs(at.x - held.at.x) < 1 && Math.abs(at.y - held.at.y) < 1) return
+    held = null
+    if (trigger && trigger !== suppressed && !shownId && timer === undefined) schedule(trigger)
   }
 
   function schedule(next: HTMLElement): void {
@@ -131,35 +149,30 @@ export function installShellTooltips(port: ShellTooltipPort, root: Document = do
     if (next === trigger) return
     hide()
     trigger = next
-    if (!next || next === suppressed || restingAt) return
+    if (!next || next === suppressed || held) return
     schedule(next)
   }
 
   function dismiss(): void {
     hide()
-    suppressed = trigger
+    // A key press right after a click keeps the clicked control quiet as well.
+    suppressed = trigger ?? suppressed
     trigger = null
-    restingAt = pointerAt
+    held = { at: pointerAt }
   }
 
   const onPointerOver = (event: PointerEvent): void => {
-    resting(event)
+    track(event)
     enter(triggerFor(event.target))
   }
   const onPointerOut = (event: PointerEvent): void => {
-    resting(event)
+    track(event)
     const next = triggerFor(event.relatedTarget)
     if (suppressed && next !== suppressed) suppressed = null
     if (next !== trigger) enter(next)
   }
-  // The pointer moved from where it rested: the control beneath it shows its tooltip as usual.
-  const onPointerMove = (event: PointerEvent): void => {
-    const held = restingAt !== null
-    if (resting(event) || !held || !trigger || trigger === suppressed || shownId || timer !== undefined) return
-    schedule(trigger)
-  }
   const onPointerDown = (event: PointerEvent): void => {
-    resting(event)
+    track(event)
     dismiss()
   }
   const onBlur = (): void => {
@@ -177,7 +190,7 @@ export function installShellTooltips(port: ShellTooltipPort, root: Document = do
 
   root.addEventListener('pointerover', onPointerOver, true)
   root.addEventListener('pointerout', onPointerOut, true)
-  root.addEventListener('pointermove', onPointerMove, { capture: true, passive: true })
+  root.addEventListener('pointermove', track, { capture: true, passive: true })
   root.addEventListener('pointerdown', onPointerDown, true)
   root.addEventListener('keydown', dismiss, true)
   root.addEventListener('wheel', onBlur, { capture: true, passive: true })
@@ -187,12 +200,12 @@ export function installShellTooltips(port: ShellTooltipPort, root: Document = do
   // A window that resizes, maximizes or goes full screen moves the control away from its tooltip.
   view.addEventListener('resize', onBlur)
 
-  return () => {
+  function dispose(): void {
     hide()
     trigger = null
     root.removeEventListener('pointerover', onPointerOver, true)
     root.removeEventListener('pointerout', onPointerOut, true)
-    root.removeEventListener('pointermove', onPointerMove, true)
+    root.removeEventListener('pointermove', track, true)
     root.removeEventListener('pointerdown', onPointerDown, true)
     root.removeEventListener('keydown', dismiss, true)
     root.removeEventListener('wheel', onBlur, true)
@@ -201,9 +214,13 @@ export function installShellTooltips(port: ShellTooltipPort, root: Document = do
     view.removeEventListener('blur', onBlur)
     view.removeEventListener('resize', onBlur)
   }
+
+  return { hold: dismiss, dispose }
 }
 
 /** Installs the shell's tooltips for the component's lifetime. */
-export function useShellTooltips(port: ShellTooltipPort): void {
-  onScopeDispose(installShellTooltips(port))
+export function useShellTooltips(port: ShellTooltipPort): Pick<ShellTooltips, 'hold'> {
+  const tooltips = installShellTooltips(port)
+  onScopeDispose(tooltips.dispose)
+  return { hold: tooltips.hold }
 }
