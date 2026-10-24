@@ -11,7 +11,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Hronaut for Intel Macs starts again. Its download lacked the Intel build of `@node-rs/argon2`, which Hronaut loads at launch to protect wallet keys, so it stopped with "A JavaScript error occurred in the main process". The macOS release, which builds the Intel and the Apple silicon app on one Apple silicon Mac, now installs each Mac's native packages exactly as `package-lock.json` pins them before it builds, and fails when an app lacks one.
+- Hronaut for Intel Macs and for arm64 Linux starts again. Their downloads lacked their build of `@node-rs/argon2`, which Hronaut loads at launch to protect wallet keys, so they stopped with "A JavaScript error occurred in the main process". The macOS and the Linux release each build the x64 and the arm64 app on one computer, where npm installs only that computer's native packages; they now install both CPUs' packages exactly as `package-lock.json` pins them before they build, and fail when an app lacks one built for its CPU.
 
 ## [3.8.0] - 2026-10-23
 

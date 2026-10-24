@@ -51,7 +51,7 @@ jobs:
           npm run build:app
           # Playwright drives the packaged app through the Node inspector, which release builds turn off with a fuse.
           npx --no-install electron-builder --mac dir "--$PACKAGE_ARCH" --publish never -c.electronFuses.enableNodeCliInspectArguments=true
-          node scripts/mac-native-bindings.ts check dist
+          node scripts/native-packages.ts check mac dist
       # Hosted runners ask for reduced transparency, which keeps the tab rail solid. Turning it off where the runner
       # allows it lets the screenshot show the vibrancy behind the rail; window-material.json records what applied.
       - name: Allow window transparency for the rail material
