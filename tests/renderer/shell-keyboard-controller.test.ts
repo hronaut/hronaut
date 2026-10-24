@@ -177,6 +177,39 @@ describe('useShellKeyboardController', () => {
     expect(commandPalette.close).not.toHaveBeenCalled()
   })
 
+  it('keeps browser keys from the application menu under the palette or a dialog, which would act on the page behind', () => {
+    // Under a Hronaut dialog or the palette Ctrl+R reloaded the page behind it and Ctrl+Plus zoomed it, as the
+    // application menu's keys, and Ctrl+Shift+/ put Keyboard shortcuts in the dialog's place. A held key is kept too.
+    const browserKeys: KeyboardEventInit[] = [
+      { key: 'r', code: 'KeyR', ctrlKey: true }, { key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true },
+      { key: 'r', code: 'KeyR', ctrlKey: true, repeat: true }, { key: 'F5', code: 'F5' }, { key: 'd', code: 'KeyD', altKey: true },
+      { key: 'ArrowLeft', code: 'ArrowLeft', altKey: true }, { key: 'ArrowRight', code: 'ArrowRight', altKey: true },
+      { key: 'p', code: 'KeyP', ctrlKey: true }, { key: 's', code: 'KeyS', ctrlKey: true }, { key: 'u', code: 'KeyU', ctrlKey: true },
+      { key: 'j', code: 'KeyJ', ctrlKey: true }, { key: '=', code: 'Equal', ctrlKey: true }, { key: '0', code: 'Digit0', ctrlKey: true },
+      { key: '?', code: 'Slash', ctrlKey: true, shiftKey: true }, { key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true, repeat: true }
+    ]
+    // The dialog's own keys, such as copying, selecting all, typing or moving the focus, stay with it.
+    const dialogKeys: KeyboardEventInit[] = [
+      { key: 'c', code: 'KeyC', ctrlKey: true }, { key: 'a', code: 'KeyA', ctrlKey: true }, { key: 'x', code: 'KeyX' },
+      { key: 'ArrowLeft', code: 'ArrowLeft', ctrlKey: true }, { key: 'Tab', code: 'Tab' }, { key: 'Tab', code: 'Tab', shiftKey: true },
+      { key: 'Enter', code: 'Enter' }, { key: ' ', code: 'Space' }
+    ]
+    for (const open of ['palette', 'dialog'] as const) {
+      const { controller, runShortcut } = setup(open === 'palette' ? { commandPalette: surface(true) } : { modalSurfaces: [surface(true)] })
+      for (const init of browserKeys) {
+        const event = new KeyboardEvent('keydown', { ...init, cancelable: true })
+        controller.handleKeyDown(event)
+        expect(event.defaultPrevented, `${open} ${JSON.stringify(init)}`).toBe(true)
+      }
+      for (const init of dialogKeys) {
+        const event = new KeyboardEvent('keydown', { ...init, cancelable: true })
+        controller.handleKeyDown(event)
+        expect(event.defaultPrevented, `${open} ${JSON.stringify(init)}`).toBe(false)
+      }
+      expect(runShortcut).not.toHaveBeenCalled()
+    }
+  })
+
   it('closes only the highest-priority modal or Escape surface', () => {
     const firstModal = surface(true)
     const secondModal = surface(true)

@@ -23,7 +23,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
   if (!address || typeof address === 'string') throw new Error('Missing fixture port')
   const origin = `http://127.0.0.1:${address.port}`
   try {
-    type State = { activeTabId: string, tabs: Array<{ id: string, url: string, mcpGroupId?: string }> }
+    type State = { activeTabId: string, tabs: Array<{ id: string, url: string, mcpGroupId?: string, zoomPercent: number }> }
     const state = () => appWindow.evaluate(`window.hronaut.getState()`) as Promise<State>
     const path = async (id: string) => new URL((await state()).tabs.find(tab => tab.id === id)!.url).pathname
     const loadsOf = (path: string) => loads.filter(load => load.path === path)
@@ -48,7 +48,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     const addressBar = appWindow.getByRole('combobox', { name: 'Address', exact: true })
     const focusedPage = () => electronApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.getURL())
     // The person's key in Hronaut's own window, as the keyboard sends it.
-    const pressInWindow = (keyCode: string, modifiers: Array<'shift' | 'alt'> = []) => electronApp.evaluate(({ BrowserWindow }, { url, keyCode, modifiers }) => {
+    const pressInWindow = (keyCode: string, modifiers: Array<'shift' | 'control' | 'alt'> = []) => electronApp.evaluate(({ BrowserWindow }, { url, keyCode, modifiers }) => {
       const shell = BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents
       shell.sendInputEvent({ type: 'keyDown', keyCode, modifiers })
       shell.sendInputEvent({ type: 'keyUp', keyCode, modifiers })
@@ -80,7 +80,9 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     await press(tabId, 'F6')
     await expect.poll(focusedPage).toBe(appWindow.url())
     await expect(addressBar).toBeFocused()
-    // Over a Hronaut dialog F6, Alt+D and F5 leave the keyboard where it is in the dialog, and the tab where it is.
+    // Over a Hronaut dialog F6, Alt+D, F5 and the application menu's keys leave the keyboard where it is in the dialog,
+    // and the tab where it is: Ctrl+R reloaded the page behind it, Ctrl+Plus and Ctrl+Minus zoomed it, and
+    // Ctrl+Shift+P and Ctrl+Shift+/ put the command palette and Keyboard shortcuts in the dialog's place.
     await electronApp.evaluate(({ BrowserWindow }, url) => {
       BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents.send('help:open', 'about')
     }, appWindow.url())
@@ -91,17 +93,54 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     await contribute.focus()
     await expect(contribute).toBeFocused()
     const tabsBefore = (await state()).tabs.length
+    const zoom = async () => (await state()).tabs.find(tab => tab.id === tabId)!.zoomPercent
+    const zoomBefore = await zoom()
     await pressInWindow('F6')
     await pressInWindow('D', ['alt'])
     await pressInWindow('F5')
+    await pressInWindow('R', ['control'])
+    await pressInWindow('R', ['control', 'shift'])
+    await pressInWindow('=', ['control', 'shift'])
+    await pressInWindow('-', ['control'])
+    await pressInWindow('P', ['control', 'shift'])
+    await pressInWindow('/', ['control', 'shift'])
     await appWindow.waitForTimeout(500)
     expect(await focusedPage()).toBe(appWindow.url())
     await expect(contribute).toBeFocused()
     expect((await state()).activeTabId).toBe(tabId)
     expect((await state()).tabs).toHaveLength(tabsBefore)
+    expect(await zoom()).toBe(zoomBefore)
     expect(loadsOf('/page')).toHaveLength(4)
+    const shortcutsDialog = appWindow.getByRole('dialog', { name: 'Keyboard shortcuts' })
+    await expect(shortcutsDialog).toBeHidden()
     await appWindow.keyboard.press('Escape')
     await expect(aboutDialog).toBeHidden()
+    // Nor over the command palette.
+    await electronApp.evaluate(({ BrowserWindow }, url) => {
+      BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents.send('browser:shortcut-requested', 'command-palette')
+    }, appWindow.url())
+    const palette = appWindow.getByRole('dialog', { name: 'Commands' })
+    await expect(palette).toBeVisible()
+    await pressInWindow('R', ['control'])
+    await pressInWindow('=', ['control', 'shift'])
+    await pressInWindow('/', ['control', 'shift'])
+    await appWindow.waitForTimeout(500)
+    await expect(palette).toBeVisible()
+    await expect(shortcutsDialog).toBeHidden()
+    expect(await zoom()).toBe(zoomBefore)
+    expect(loadsOf('/page')).toHaveLength(4)
+    await appWindow.keyboard.press('Escape')
+    await expect(palette).toBeHidden()
+    // With neither open, the same keys act at once, and nothing pressed before comes in late.
+    await pressInWindow('R', ['control'])
+    await expect.poll(() => loadsOf('/page').length).toBe(5)
+    await pressInWindow('=', ['control', 'shift'])
+    await expect.poll(zoom).toBeGreaterThan(zoomBefore)
+    await pressInWindow('0', ['control'])
+    await expect.poll(zoom).toBe(zoomBefore)
+    await appWindow.waitForTimeout(500)
+    expect(loadsOf('/page')).toHaveLength(5)
+    expect(await zoom()).toBe(zoomBefore)
 
     // Home has no address bar, so F6 there goes to Hronaut's window without leaving Home, and back.
     await appWindow.evaluate(`window.hronaut.openHome()`)
@@ -130,7 +169,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     expect(pressed.isError, text(pressed)).not.toBe(true)
     await expect.poll(() => keys(tabId)).toContain('F5')
     await appWindow.waitForTimeout(500)
-    expect(loadsOf('/page')).toHaveLength(4)
+    expect(loadsOf('/page')).toHaveLength(5)
 
     // A page that runs F5 and Alt+D itself keeps them.
     await visit('/editor')

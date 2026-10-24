@@ -18,7 +18,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - A Hronaut dialog that appears while **Edit workspace** or **Search tabs** is open, such as a website's permission request, now keeps the focus on its safe answer. The open panel took the focus back, so **Enter** pressed the panel's close button and **Tab** could not reach the dialog's other answer.
-- On Windows and Linux, **Alt+D**, **F5** and Chrome's other keys a website may keep now do nothing while a Hronaut dialog or the command palette is open in Hronaut's window. **Alt+D** took the keyboard out of the dialog to the address bar behind it, and **F5** reloaded the page under it.
+- On Windows and Linux, browser keys now do nothing while a Hronaut dialog or the command palette is open, so they no longer act on the page behind it or take the dialog's place. **Ctrl+R** and **F5** reloaded the page, **Ctrl+Plus** and **Ctrl+Minus** zoomed it, **Alt+D** took the keyboard out of the dialog to the address bar, and **Ctrl+Shift+P** and **Ctrl+Shift+/** put the command palette or Keyboard shortcuts in the dialog's place. Quitting with **Ctrl+Q** still works there.
 
 ## [3.9.0] - 2026-10-24
 
