@@ -51,6 +51,10 @@ export interface TrustedDialogsHost<Window extends TrustedDialogWindow> {
    * dialog, which would pop up with no window while the app closes, and on macOS could hold up the quit.
    */
   quitting?(): boolean
+  /** What has the keyboard now, when a dialog opens over the window's pages; null when nothing in Hronaut does. */
+  focusedContents?(): WebContents | null
+  /** Gives the keyboard back to what had it when the dialogs over the pages opened, once the last is answered. */
+  returnFocus?(contents: WebContents): void
 }
 
 interface PendingDialog<Window extends TrustedDialogWindow> {
@@ -62,18 +66,23 @@ interface PendingDialog<Window extends TrustedDialogWindow> {
   release(): void
 }
 
-/** What one shell window shows: whether its document listens, the dialog it draws and the ones waiting behind it. */
+/**
+ * What one shell window shows: whether its document listens, the dialog it draws, the ones waiting behind it and
+ * what had the keyboard before the first of them opened.
+ */
 interface ShellDialogs<Window extends TrustedDialogWindow> {
   ready: boolean
   visible: PendingDialog<Window> | null
   queue: Array<PendingDialog<Window>>
+  focusBefore: WebContents | null
 }
 
 export interface TrustedDialogs<Window extends TrustedDialogWindow = TrustedDialogWindow> {
   /**
    * Asks the person in Hronaut's own dialog on the shell window, drawn over its pages, and resolves with the chosen
    * button's index, as `dialog.showMessageBox` does. Dialogs on one window show one at a time, in the order asked.
-   * When no shell window can show it, because it is closed, hidden, not loaded yet or its document is gone, the
+   * As a system dialog does, the last one answered gives the keyboard back to what had it before the first opened,
+   * such as the page whose close it asks about. When no shell window can show it, because it is closed, hidden, not loaded yet or its document is gone, the
    * question goes to the system dialog instead, so it is always answered.
    */
   show(options: TrustedDialogOptions<Window>): Promise<MessageBoxReturnValue>
@@ -105,7 +114,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
   function shellOf(contents: WebContents): ShellDialogs<Window> {
     let shell = shells.get(contents)
     if (!shell) {
-      shell = { ready: false, visible: null, queue: [] }
+      shell = { ready: false, visible: null, queue: [], focusBefore: null }
       shells.set(contents, shell)
     }
     return shell
@@ -157,6 +166,11 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     } else if (shell) {
       shell.queue = shell.queue.filter((candidate) => candidate !== pending)
     }
+    // The shell keeps the focus a dialog over the pages took, on the control it held before, while the page the
+    // person was in waits for the keyboard: typing went nowhere, and Delete closed the tab whose control it was.
+    const focusBefore = shell && !shell.visible ? shell.focusBefore : null
+    if (shell && !shell.visible) shell.focusBefore = null
+    if (focusBefore && !focusBefore.isDestroyed()) host.returnFocus?.(focusBefore)
     pending.resolve({ response, checkboxChecked: false })
   }
 
@@ -168,6 +182,8 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     const pending = [...(shell.visible ? [shell.visible] : []), ...shell.queue]
     shell.visible = null
     shell.queue = []
+    // The system dialogs that ask instead give the keyboard back themselves.
+    shell.focusBefore = null
     for (const dialog of pending) {
       dialog.release()
       void askNatively(dialog.options, dialog.window).then(dialog.resolve, () => dialog.resolve({
@@ -219,7 +235,9 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
         release: () => options.signal?.removeEventListener('abort', onAbort)
       }
       options.signal?.addEventListener('abort', onAbort, { once: true })
-      shellOf(window.webContents).queue.push(pending)
+      const shell = shellOf(window.webContents)
+      if (!shell.visible && shell.queue.length === 0) shell.focusBefore = host.focusedContents?.() ?? null
+      shell.queue.push(pending)
       showNext(window.webContents)
     })
   }

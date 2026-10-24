@@ -58,6 +58,17 @@ it('keeps a click or key press in the shell during the exit instead of focusing 
   }
 })
 
+it('still focuses the page when the key that closed trusted chrome repeats while held', () => {
+  const { manager, internals, shell, page, tab } = fixture()
+  internals.focusTabOrTrustedChrome(tab)
+  // Enter held on a dialog's button: its repeats used to keep the page from getting the keyboard back.
+  for (const type of ['rawKeyDown', 'keyDown']) shell.emit('input-event', {}, { type, modifiers: ['isautorepeat'] })
+  expect(shell.listenerCount('input-event')).toBe(1)
+
+  manager.setBrowserContentOccluded(false, 1)
+  expect(page.focus).toHaveBeenCalledOnce()
+})
+
 it('drops the pending focus when another tab became active during the exit', () => {
   const { manager, internals, shell, page, tab } = fixture()
   internals.focusTabOrTrustedChrome(tab)

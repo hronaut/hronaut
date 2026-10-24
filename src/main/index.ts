@@ -31,7 +31,8 @@ import {
   nativeTheme,
   protocol,
   session,
-  shell
+  shell,
+  webContents
 } from 'electron'
 import electronUpdater from 'electron-updater'
 import { enableNativeWebMcp } from './native-webmcp-switch.js'
@@ -172,7 +173,10 @@ const {
 const trustedDialogs = createTrustedDialogs({
   mainWindow: () => mainWindowRefs.window,
   quitting: () => appQuitState.quitting,
-  showNativeMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options)
+  showNativeMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options),
+  focusedContents: () => webContents.getFocusedWebContents(),
+  // Only a page in view gets it back; the shell keeps its own focus on the control it restores.
+  returnFocus: (contents) => tabRuntime.tabs?.focusPageAfterQuestion(contents)
 })
 const addressSuggestionOverlay = createAddressSuggestionOverlay({
   trustedShellUrl,

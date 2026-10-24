@@ -4,13 +4,16 @@ import type { TrustedChromeFocusAccess, TrustedChromeFocusTab } from './trusted-
  * Trusted chrome keeps the page under it while its exit plays, so a page
  * focused then would take keys typed into the shell. The page takes focus
  * when trusted chrome closes instead, unless the human clicks or presses a
- * key in the shell first.
+ * key in the shell first. The repeats of a key still held from closing it,
+ * such as Enter on a dialog's button, are not a new key.
  */
 function focusTabAfterTrustedChrome<Tab extends TrustedChromeFocusTab>(access: TrustedChromeFocusAccess<Tab>, tab: Tab): void {
   cancelFocusAfterTrustedChrome(access)
   const shell = access.window().webContents
   const onInput = (_event: Electron.Event, input: Electron.InputEvent): void => {
-    if (input.type === 'mouseDown' || input.type === 'rawKeyDown' || input.type === 'keyDown') cancelFocusAfterTrustedChrome(access)
+    const newKey = (input.type === 'rawKeyDown' || input.type === 'keyDown')
+      && !input.modifiers?.some((modifier) => modifier.toLowerCase() === 'isautorepeat')
+    if (input.type === 'mouseDown' || newKey) cancelFocusAfterTrustedChrome(access)
   }
   shell.on('input-event', onInput)
   access.setFocusAfterTrustedChrome({

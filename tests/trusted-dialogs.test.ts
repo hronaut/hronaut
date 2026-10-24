@@ -35,10 +35,15 @@ function harness() {
   const showNativeMessageBox = vi.fn((window: unknown, options: MessageBoxOptions) => new Promise<MessageBoxReturnValue>((resolve) => {
     native.push({ window, options, answer: (response) => resolve({ response, checkboxChecked: false }) })
   }))
+  // What has the keyboard, as Electron reports it: a page, a shell, or nothing.
+  const focus: { contents: { isDestroyed(): boolean } | null } = { contents: null }
+  const returnFocus = vi.fn()
   const dialogs = createTrustedDialogs<typeof main.window>({
     mainWindow: () => main.window,
     showNativeMessageBox,
-    quitting: () => quit.quitting
+    quitting: () => quit.quitting,
+    focusedContents: () => focus.contents as never,
+    returnFocus
   })
   dialogs.registerIpc({
     ipcMain: { on: (channel: string, listener: Listener) => { listeners.set(channel, listener) } } as never,
@@ -58,6 +63,8 @@ function harness() {
     native,
     showNativeMessageBox,
     quit,
+    focus,
+    returnFocus,
     ready: (window: { contents: unknown } = main) => send(window, TRUSTED_DIALOG_CHANNELS.ready),
     respond: (window: { contents: unknown }, id: unknown, response: unknown) => send(window, TRUSTED_DIALOG_CHANNELS.respond, id, response)
   }
@@ -252,6 +259,64 @@ describe('Hronaut’s own dialogs', () => {
     const shown = main.shown()!
     respond(main, shown.id, 1)
     await expect(asked).resolves.toMatchObject({ response: 1 })
+  })
+
+  it('gives the keyboard back to what had it before the first dialog opened, once the last one is answered', async () => {
+    const { dialogs, main, ready, respond, focus, returnFocus } = harness()
+    ready()
+    const page = { isDestroyed: () => false }
+    focus.contents = page
+    const first = dialogs.show({ ...permission, message: 'first' })
+    // The shell took the keyboard for the first dialog when the second was asked.
+    focus.contents = main.contents
+    const second = dialogs.show({ ...permission, message: 'second' })
+    respond(main, main.shown()!.id, 0)
+    await first
+    expect(returnFocus).not.toHaveBeenCalled()
+    respond(main, main.shown()!.id, 0)
+    await second
+    // The person kept the page whose close the dialog asked about; the keyboard used to stay on a control in the shell.
+    expect(returnFocus).toHaveBeenCalledExactlyOnceWith(page)
+
+    // The next dialog notes what has the keyboard then.
+    focus.contents = main.contents
+    const third = dialogs.show(permission)
+    respond(main, main.shown()!.id, 1)
+    await third
+    expect(returnFocus).toHaveBeenLastCalledWith(main.contents)
+  })
+
+  it('gives the keyboard back when the last dialog closes because its signal aborted', async () => {
+    const { dialogs, ready, focus, returnFocus } = harness()
+    ready()
+    const page = { isDestroyed: () => false }
+    focus.contents = page
+    const controller = new AbortController()
+    const answer = dialogs.show({ ...permission, signal: controller.signal })
+    controller.abort()
+    await answer
+    expect(returnFocus).toHaveBeenCalledExactlyOnceWith(page)
+  })
+
+  it('gives nothing back to a page closed meanwhile, or when system dialogs ask instead', async () => {
+    const { dialogs, main, native, ready, respond, focus, returnFocus } = harness()
+    ready()
+    const closed = { destroyed: false, isDestroyed() { return this.destroyed } }
+    focus.contents = closed
+    const answer = dialogs.show(permission)
+    closed.destroyed = true
+    respond(main, main.shown()!.id, 1)
+    await answer
+    expect(returnFocus).not.toHaveBeenCalled()
+
+    // The shell document goes away: the system dialog that asks instead gives the keyboard back itself.
+    focus.contents = { isDestroyed: () => false }
+    const handedOff = dialogs.show(permission)
+    main.contents.emit('destroyed')
+    await vi.waitFor(() => expect(native).toHaveLength(1))
+    native[0]!.answer(0)
+    await handedOff
+    expect(returnFocus).not.toHaveBeenCalled()
   })
 
   it('defaults to the cancel button for focus and a plain message design', () => {
