@@ -127,7 +127,7 @@ On Windows x64, install the verified portable build and Start Menu shortcut with
 scoop install https://raw.githubusercontent.com/hronaut/hronaut/main/packaging/scoop/hronaut.json
 ```
 
-The macOS packages are signed with Hronaut's Developer ID and notarized by Apple, so Gatekeeper opens them without a warning. The Windows binary remains unsigned, so Windows SmartScreen may show a warning. Verify downloads with the published `hashes.txt` file and GitHub artifact attestations.
+The macOS packages are signed with Hronaut's Developer ID and notarized by Apple, so macOS no longer blocks them as coming from an unidentified developer. The Windows binary remains unsigned, so Windows SmartScreen may show a warning. Verify downloads with the published `hashes.txt` file and GitHub artifact attestations.
 
 ### Verify a download
 

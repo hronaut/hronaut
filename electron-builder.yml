@@ -68,6 +68,7 @@ mac:
   extendInfo:
     NSCameraUsageDescription: Hronaut lets websites use the camera after user approval.
     NSMicrophoneUsageDescription: Hronaut lets websites use the microphone after user approval.
+    NSLocationUsageDescription: Hronaut lets websites use your location after user approval.
   target:
     - target: dmg
       arch:
@@ -82,6 +83,8 @@ dmg:
   artifactName: hronaut-${version}-${arch}.${ext}
   # The disk image carries the same signature as the app, so it can be notarized and stapled too.
   sign: true
+  # Stapling changes the image after electron-builder would write its blockmap, and updates come from the zip.
+  writeUpdateInfo: false
 
 linux:
   icon: build/icons

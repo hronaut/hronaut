@@ -112,15 +112,11 @@ jobs:
         include:
           - os: ubuntu-latest
             command: package:linux
-          - os: macos-latest
-            command: package:mac
-            # Signed and notarized as its release is, so the rehearsal catches a signing failure before the tag.
-            signed: true
           - os: windows-latest
             command: package:win
     runs-on: ${{ matrix.os }}
     env:
-      CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.signed && 'true' || 'false' }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -141,11 +137,44 @@ jobs:
         run: npm ci
 
       - name: Build release packages
-        if: ${{ !matrix.signed }}
         run: npm run ${{ matrix.command }}
 
-      - name: Build signed and notarized release packages
-        if: ${{ matrix.signed }}
+  # The Mac packages are signed and notarized as the release's are, so the rehearsal catches a signing failure before
+  # the tag. The signing secrets belong in the macos-signing environment, which admits only release tags and branches.
+  package-macos-release-candidate:
+    if: github.event_name == 'workflow_dispatch' && startsWith(github.ref_name, 'release/')
+    needs:
+      - validate
+      - integration
+    runs-on: macos-latest
+    environment: macos-signing
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Check the macOS signing secrets
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: bash scripts/sign-check-macos.sh
+
+      # No secret reaches the install and build, where every dependency's scripts and build plugins run.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the app
+        run: npm run build:app
+
+      - name: Package, sign and notarize the Mac packages
         env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
@@ -154,9 +183,8 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
           set -euo pipefail
-          bash scripts/sign-check-macos.sh
           export APPLE_API_KEY="$RUNNER_TEMP/AuthKey.p8"
           trap 'rm -f "$APPLE_API_KEY"' EXIT
           (umask 077 && printf '%s\n' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY")
-          npm run ${{ matrix.command }}
+          npx electron-builder --mac --publish never -c.mac.forceCodeSigning=true
           bash scripts/notarize-and-verify-macos.sh

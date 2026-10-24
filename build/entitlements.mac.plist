@@ -11,5 +11,8 @@
     <true/>
     <key>com.apple.security.device.audio-input</key>
     <true/>
+    <!-- Websites ask for the location the same way; Info.plist carries its usage description too. -->
+    <key>com.apple.security.personal-information.location</key>
+    <true/>
   </dict>
 </plist>
