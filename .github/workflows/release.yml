@@ -276,9 +276,13 @@ jobs:
         env:
           PACKAGE_TARGET: ${{ matrix.target }}
         run: |
+          set -euo pipefail
           npm ci
+          # One x64 runner packages both apps; npm installed only its own CPU's native packages.
+          node scripts/native-packages.ts install linux
           npm run build:app
           npx electron-builder --linux "$PACKAGE_TARGET" --x64 --arm64 --publish never
+          node scripts/native-packages.ts check linux dist
       - name: Upload Linux ${{ matrix.target }} release assets
         uses: actions/upload-artifact@v7
         with:
@@ -331,6 +335,8 @@ jobs:
         run: |
           set -euo pipefail
           npm ci
+          # One Apple silicon runner packages both apps; npm installed only its own CPU's native packages.
+          node scripts/native-packages.ts install mac
           npm run build:app
       - name: Package, sign and notarize macOS ${{ matrix.target }} packages
         env:
@@ -348,6 +354,7 @@ jobs:
           (umask 077 && printf '%s\n' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY")
           # Stops instead of packaging unsigned when the certificate is not a Developer ID Application identity.
           npx electron-builder --mac "$PACKAGE_TARGET" --x64 --arm64 --publish never -c.mac.forceCodeSigning=true
+          node scripts/native-packages.ts check mac dist
           bash scripts/notarize-and-verify-macos.sh
       - name: Upload macOS ${{ matrix.target }} release assets
         uses: actions/upload-artifact@v7

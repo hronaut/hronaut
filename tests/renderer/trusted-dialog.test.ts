@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/vue'
+import { fireEvent, render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { computed, defineComponent, h, nextTick, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -408,5 +408,82 @@ describe('Hronaut’s save password dialog', () => {
     await show(savePassword('ru'))
     screen.getByRole('alertdialog', { name: 'Сохранить пароль для https://login.example?' })
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Имя пользователя')
+  })
+})
+
+const RECOVERY_WORDS = ['abandon', 'ability', 'able', 'about', 'above', 'absent', 'absorb', 'abstract', 'absurd', 'abuse', 'access', 'accident']
+
+function walletRecovery(id: string): TrustedDialogRequest {
+  return {
+    id,
+    type: 'warning',
+    title: 'Save wallet recovery material',
+    message: 'Write down this recovery phrase and store it offline.',
+    detail: `${RECOVERY_WORDS.join(' ')}\n\nHronaut cannot recover this phrase. Never share it with a website or coding agent.`,
+    buttons: ['I saved it', 'Not yet'],
+    defaultId: 1,
+    cancelId: 1,
+    primaryId: 0,
+    variant: { kind: 'wallet-recovery', walletName: 'Treasury', words: [...RECOVERY_WORDS] }
+  }
+}
+
+describe('Hronaut’s wallet recovery phrase dialog', () => {
+  it('lists the phrase as numbered words under the wallet’s name, with Not yet focused and I saved it as the main action', async () => {
+    const { api, show, settle } = mountDialog()
+    await show(walletRecovery('recovery'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Write down the recovery phrase for Treasury' })
+    expect(dialog).toHaveAttribute('data-variant', 'wallet-recovery')
+    expect(dialog.querySelector('.trusted-dialog__origin')).toHaveTextContent('Treasury')
+    expect(dialog).toHaveTextContent('New wallet')
+    const phrase = within(dialog).getByRole('list', { name: 'Recovery phrase' })
+    const items = within(phrase).getAllByRole('listitem')
+    expect(items.map((item) => [item.firstElementChild?.textContent, item.lastElementChild?.textContent]))
+      .toEqual(RECOVERY_WORDS.map((word, index) => [String(index + 1), word]))
+    // The numbers are for the eye; a screen reader announces each word's place in the list.
+    expect(items[0]?.firstElementChild).toHaveAttribute('aria-hidden', 'true')
+    // The words show once, in the list, and never as one of the dialog's paragraphs.
+    expect(dialog.textContent.split('abandon')).toHaveLength(2)
+    expect(dialog).toHaveTextContent('Anyone who has them controls the wallet.')
+    expect(dialog).toHaveTextContent('Never share it with a website or coding agent.')
+    expect(dialog).toHaveTextContent('Hronaut adds the wallet once you confirm you saved them.')
+    expect(screen.getByRole('button', { name: 'Not yet' })).toHaveFocus()
+    const saved = screen.getByRole('button', { name: 'I saved it' })
+    expect(saved).toHaveClass('ui-button--primary')
+    await settle()
+    await fireEvent.click(saved)
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('recovery', 0)
+  })
+
+  it('takes the phrase off the screen as soon as the person answers, before main closes the dialog', async () => {
+    const { api, show, settle } = mountDialog()
+    await show(walletRecovery('recovery'))
+    await settle()
+    await fireEvent.click(screen.getByRole('button', { name: 'I saved it' }))
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('recovery', 0)
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Recovery phrase' })).toBeNull()
+    expect(screen.getByRole('alertdialog').textContent).not.toContain('abandon')
+  })
+
+  it('never answers I saved it from an Enter held since before it opened, and answers Escape as Not yet', async () => {
+    const { api, show, settle } = mountDialog()
+    await show(walletRecovery('recovery'))
+    await settle()
+    const notYet = screen.getByRole('button', { name: 'Not yet' })
+    const heldEnter = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    notYet.dispatchEvent(heldEnter)
+    expect(heldEnter.defaultPrevented).toBe(true)
+    expect(api.respond).not.toHaveBeenCalled()
+    await fireEvent.keyDown(notYet, { key: 'Escape' })
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('recovery', 1)
+  })
+
+  it('speaks the interface language', async () => {
+    const { show } = mountDialog('uk-UA')
+    await show(walletRecovery('uk'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Запишіть фразу відновлення для Treasury' })
+    within(dialog).getByRole('list', { name: 'Фраза відновлення' })
+    expect(dialog).toHaveTextContent('Новий гаманець')
   })
 })

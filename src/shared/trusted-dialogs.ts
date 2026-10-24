@@ -47,6 +47,18 @@ export interface SavePasswordDialogVariant {
   updating: boolean
 }
 
+/**
+ * A new wallet's recovery phrase, shown once for the person to write down before Hronaut keeps the wallet. Only main
+ * and this dialog ever hold the words: no website, log, diagnostics report or agent sees them.
+ */
+export interface WalletRecoveryDialogVariant {
+  kind: 'wallet-recovery'
+  /** The name the person gave the new wallet. */
+  walletName: string
+  /** The recovery phrase, word by word in order. */
+  words: string[]
+}
+
 /** What one of Hronaut's own questions is about, for the mark its dialog shows. */
 export type TrustedDialogTopic = 'unsaved-changes' | 'downloads' | 'browser-import' | 'passwords' | 'agent-connection'
 
@@ -61,6 +73,7 @@ export type TrustedDialogVariant =
   | SitePermissionDialogVariant
   | ProtectedFileAccessDialogVariant
   | SavePasswordDialogVariant
+  | WalletRecoveryDialogVariant
   | MessageDialogVariant
 
 /** The one dialog main shows a shell window, as that window draws it. */

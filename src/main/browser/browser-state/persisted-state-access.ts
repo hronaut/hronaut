@@ -1,4 +1,5 @@
 import type { BrowserSplitViewState } from '../../../shared/split-view.js'
+import type { PersistedTab } from '../tab-store.js'
 import type { ActiveWorkspace, ArchivedWorkspace } from '../workspace-registry.js'
 
 /** The tab fields the saved browser state keeps: what the tab shows, its pin, mute, locks, zoom, font, favicon and workspace. */
@@ -17,13 +18,21 @@ export interface PersistedStateTab {
   mcpGroupId?: string
 }
 
+/** A workspace whose deletion has closed its tabs but not committed yet, as the saved session keeps it meanwhile. */
+export interface WorkspaceBeingDeleted {
+  /** The tab it showed before the close. */
+  activeTabId: string | null
+  /** Its tabs as they were saved before the close. */
+  tabs: PersistedTab[]
+}
+
 /**
  * What saving the browser state needs from the tab manager, which keeps
  * whether it is closing, the workspace storage awaiting deletion, the
  * guarded workspaces, the active tab, the split view and its divider, the
- * global mute and lock, the workspaces and the tabs in order private. Every
- * member reads the manager when called, so each save takes the state as it
- * is then.
+ * global mute and lock, the workspaces, the tabs in order and the
+ * workspaces being deleted private. Every member reads the manager when
+ * called, so each save takes the state as it is then.
  */
 export interface PersistedStateAccess<Tab extends PersistedStateTab> {
   /** Whether the browser is closing, when a save is canceled. */
@@ -50,4 +59,6 @@ export interface PersistedStateAccess<Tab extends PersistedStateTab> {
   savedTabGroups(): ReadonlyMap<string, ArchivedWorkspace>
   /** Every open tab in the order the rail and strip show them. */
   orderedTabs(): Tab[]
+  /** The open workspaces being deleted by id, which the saved session keeps with their tabs until the deletion commits. */
+  workspacesBeingDeleted(): ReadonlyMap<string, WorkspaceBeingDeleted>
 }

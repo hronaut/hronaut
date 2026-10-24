@@ -112,6 +112,7 @@ jobs:
         include:
           - os: ubuntu-latest
             command: package:linux
+            native: linux
           - os: windows-latest
             command: package:win
     runs-on: ${{ matrix.os }}
@@ -136,8 +137,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # One runner packages the x64 and the arm64 app; npm installed only its own CPU's native packages.
+      - name: Install the native packages of both CPUs
+        if: matrix.native
+        run: node scripts/native-packages.ts install ${{ matrix.native }}
+
       - name: Build release packages
         run: npm run ${{ matrix.command }}
+
+      - name: Check each app carries its native packages
+        if: matrix.native
+        run: node scripts/native-packages.ts check ${{ matrix.native }} dist
 
   # The Mac packages are signed and notarized as the release's are, so the rehearsal catches a signing failure before
   # the tag. The signing secrets belong in the macos-signing environment, which admits only release tags and branches.
@@ -171,6 +181,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # One Apple silicon runner packages both apps; npm installed only its own CPU's native packages.
+      - name: Install the native packages of both CPUs
+        run: node scripts/native-packages.ts install mac
+
       - name: Build the app
         run: npm run build:app
 
@@ -187,4 +201,5 @@ jobs:
           trap 'rm -f "$APPLE_API_KEY"' EXIT
           (umask 077 && printf '%s\n' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY")
           npx electron-builder --mac --publish never -c.mac.forceCodeSigning=true
+          node scripts/native-packages.ts check mac dist
           bash scripts/notarize-and-verify-macos.sh
