@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import type { HronautApi, HronautBookmarksApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-test('opens every listed bookmark in a background tab, asking first above 15, as Chrome\'s Open all', async ({ appWindow }) => {
+test('opens every listed bookmark in a background tab, asking first from 15, as Chrome\'s Open all', async ({ appWindow }) => {
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end(`<!doctype html><title>Fixture ${request.url}</title><h1>Synthetic open-all fixture</h1>`)
@@ -33,7 +33,7 @@ test('opens every listed bookmark in a background tab, asking first above 15, as
     await openAll.click()
     const question = panel.getByRole('group', { name: 'Open 17 tabs?' })
     await expect(question).toBeVisible()
-    await expect(openAll).toBeFocused()
+    await expect(question.getByRole('button', { name: 'Cancel' })).toBeFocused()
     expect((await state()).tabs).toHaveLength(before.tabs.length + 8)
     await question.getByRole('button', { name: 'Open 17 tabs' }).click()
     await expect(panel.getByRole('status')).toHaveText('Opened 17 tabs.')

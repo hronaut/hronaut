@@ -409,7 +409,7 @@ Choose **Copy address** beside a saved bookmark to copy its stored URL without o
 
 In **Bookmarks**, choose **Open in background tab** beside a saved page to load it without switching away from the current page or closing the panel. As in Chrome, a middle-click or **Ctrl+click** (**Cmd+click** on macOS) on the bookmark does the same, and with **Shift** held it opens in front. Normal bookmark opening still switches to the new tab.
 
-**Open all (N)** above the list opens every bookmark the list shows, in its order, each in a background tab, as Chrome's **Open all** does with a folder: choose a collection or search first to open just those. Above 15 tabs it first asks **Open N tabs?**, and a change to the list drops the question. Opening stops at the first tab that cannot open, such as at the 50-tab limit, and the panel says how many opened.
+**Open all (N)** above the list opens every bookmark the list shows, in its order, each in a background tab, as Chrome's **Open all** does with a folder: choose a collection or search first to open just those. From 15 tabs on it first asks **Open N tabs?**, with the keyboard on **Cancel**; Escape or a change to the list drops the question. Opening stops at the first tab that cannot open, such as at the 50-tab limit, and the panel says how many opened.
 
 In **Browsing history**, a middle-click or **Ctrl+click** (**Cmd+click** on macOS) on a page opens it in a new tab behind, as **Open in background tab** does, and keeps the panel open, as in Chrome; with **Shift** held it opens in front. Choose the bookmark button beside a page to save it without opening it. Already saved pages are marked; saving from history preserves an existing bookmark’s name and dates.
 

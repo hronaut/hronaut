@@ -1060,4 +1060,52 @@ describe('open all', () => {
     await user.type(screen.getByRole('searchbox'), 'Nothing like it')
     expect(screen.queryByRole('button', { name: /^Open all/u })).toBeNull()
   })
+
+  it('opens a chosen collection\'s bookmarks in the order the list sorts them', async () => {
+    const openBookmarkInBackground = vi.fn(async (_bookmark: BrowserBookmark) => undefined)
+    const api = {
+      list: vi.fn(async () => ({ revision: 1, collections: [{ id: 'project', name: 'Project', bookmarkIds: ['beta', 'gamma'] }] })),
+      onChanged: vi.fn(() => vi.fn()),
+      create: vi.fn(), rename: vi.fn(), remove: vi.fn(), assign: vi.fn()
+    }
+    renderPanel({ openBookmarkInBackground, collectionsApi: api, bookmarks: [bookmark('alpha', 'Alpha docs'), bookmark('beta', 'Zeta page'), bookmark('gamma', 'Gamma page')] })
+    await flushPromises()
+    const user = userEvent.setup()
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter bookmarks by collection' }), 'c:project')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Sort bookmarks' }), 'title')
+    await user.click(screen.getByRole('button', { name: 'Open all (2)' }))
+    await flushPromises()
+    expect(openBookmarkInBackground.mock.calls.map(([opened]) => opened.id)).toEqual(['gamma', 'beta'])
+  })
+
+  it('keeps every other bookmark change waiting while it opens', async () => {
+    let finish!: () => void
+    const openBookmarkInBackground = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    renderPanel({ openBookmarkInBackground })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Open all (2)' }))
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Remove Alpha docs' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Import…' })).toHaveAttribute('aria-disabled', 'true')
+    finish()
+    await flushPromises()
+    finish()
+    await flushPromises()
+    expect(screen.getByRole('button', { name: 'Remove Alpha docs' })).toBeEnabled()
+    expect(screen.getByRole('status')).toHaveTextContent('Opened 2 tabs.')
+  })
+
+  it('takes back its question with Escape before Escape closes the panel', async () => {
+    const many = Array.from({ length: 15 }, (_, index) => bookmark(`page-${index}`, `Page ${index}`))
+    const wrapper = mount(BookmarksPanel, { attachTo: document.body, global: { plugins: [createHronautI18n('en-US')] }, props: panelProps({ bookmarks: many, currentBookmark: undefined }) })
+    await wrapper.get('.bookmarks-open-all button').trigger('click')
+    expect(wrapper.find('[role="group"]').exists()).toBe(true)
+    ;(wrapper.vm as unknown as { handleEscape: () => void }).handleEscape()
+    await flushPromises()
+    expect(wrapper.find('[role="group"]').exists()).toBe(false)
+    expect(wrapper.emitted('update:open')).toBeUndefined()
+    ;(wrapper.vm as unknown as { handleEscape: () => void }).handleEscape()
+    expect(wrapper.emitted('update:open')).toEqual([[false]])
+    wrapper.unmount()
+  })
 })

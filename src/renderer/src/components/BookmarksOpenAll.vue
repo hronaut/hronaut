@@ -1,89 +1,57 @@
 <script setup lang="ts">
 import UiButton from '../ui/UiButton.vue'
-import { ref, watch } from 'vue'
+import { nextTick, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { BrowserBookmark } from '../../../shared/types.js'
-import { friendlyUiError } from '../composables/useAppToastController.js'
+import type { BookmarksOpenAllController } from '../composables/useBookmarksOpenAll.js'
 import { ignoreHeldEnter } from '../held-enter.js'
 import { vTooltip } from '../ui/tooltip.js'
 
-/** Chrome asks before opening more than this many bookmarks at once. */
-const OPEN_WITHOUT_ASKING = 15
-
 const props = defineProps<{
-  /** The bookmarks the list shows, in its order. */
-  bookmarks: readonly BrowserBookmark[]
+  controller: BookmarksOpenAllController
+  /** How many bookmarks the list shows. */
+  count: number
   /** Another bookmark change is under way. */
   blocked: boolean
-  openInBackground: (bookmark: BrowserBookmark) => Promise<void>
   formatNumber: (value: number) => string
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
-const pending = ref(false)
-/** The bookmarks Open all asks about before opening them, as the list showed them. */
-const asking = ref<readonly BrowserBookmark[] | null>(null)
-const status = ref('')
-const error = ref('')
-
-// A question about other bookmarks than those listed is not asked any more.
-watch(() => props.bookmarks.map(bookmark => bookmark.id).join('\n'), () => { asking.value = null })
+const { pending, asking, opened, error } = props.controller
+const questionId = `bookmarks-open-all-question-${useId()}`
+const row = ref<HTMLElement | null>(null)
+const question = ref<HTMLElement | null>(null)
 
 function counted(key: string, count: number): string {
   return t(key, { count: props.formatNumber(count) }, count)
 }
 
 /**
- * Opens every bookmark the list shows in a tab behind this one, in the list's order, as Chrome's Open all does with a
- * folder, after asking when that is more than 15 tabs. Opening stops at the first tab that cannot open, such as at
- * Hronaut's tab limit, and says how many did.
+ * The question takes the keyboard to Cancel, so it is heard and a held Enter answers nothing: every button here
+ * ignores the key's repeats. Once it is answered or dropped, the keyboard goes back to Open all rather than to the page.
  */
-async function openAll(bookmarks: readonly BrowserBookmark[]): Promise<void> {
-  if (pending.value || props.blocked || !bookmarks.length) return
-  status.value = ''
-  error.value = ''
-  if (!asking.value && bookmarks.length > OPEN_WITHOUT_ASKING) {
-    asking.value = bookmarks
-    return
-  }
-  asking.value = null
-  pending.value = true
-  let opened = 0
-  try {
-    for (const bookmark of bookmarks) {
-      await props.openInBackground(bookmark)
-      opened += 1
-    }
-  } catch (cause) {
-    error.value = friendlyUiError(cause, t('runtime.toast.actionFailed'))
-  } finally {
-    pending.value = false
-    if (opened) status.value = counted('bookmarks.openAll.opened', opened)
-  }
-}
-
-/** Open all asks once; while it asks, its own buttons answer. */
-function request(): void {
-  if (!asking.value) void openAll(props.bookmarks)
-}
+watch(asking, async isAsking => {
+  await nextTick()
+  if (isAsking) question.value?.querySelector<HTMLElement>('.bookmarks-open-all-cancel')?.focus()
+  else if (!document.activeElement || document.activeElement === document.body) row.value?.querySelector('button')?.focus()
+}, { flush: 'post' })
 </script>
 
 <template>
-  <div class="bookmarks-open-all">
+  <div ref="row" class="bookmarks-open-all">
     <UiButton
       appearance="application"
       type="button"
       :aria-disabled="pending || blocked"
       v-tooltip="t('bookmarks.openAll.hint')"
       @keydown="ignoreHeldEnter"
-      @click="request"
-    >{{ t('bookmarks.openAll.button', { count: formatNumber(bookmarks.length) }) }}</UiButton>
+      @click="controller.request"
+    >{{ t('bookmarks.openAll.button', { count: formatNumber(count) }) }}</UiButton>
   </div>
-  <div v-if="asking" class="bookmarks-open-all-ask" role="group" aria-labelledby="bookmarks-open-all-question">
-    <p id="bookmarks-open-all-question" role="status">{{ counted('bookmarks.openAll.ask', asking.length) }}</p>
-    <UiButton appearance="application" type="button" :aria-disabled="blocked" @keydown="ignoreHeldEnter" @click="openAll(asking)">{{ counted('bookmarks.openAll.confirm', asking.length) }}</UiButton>
-    <UiButton appearance="application" type="button" @keydown="ignoreHeldEnter" @click="asking = null">{{ t('bookmarks.openAll.cancel') }}</UiButton>
+  <div v-if="asking" ref="question" class="bookmarks-open-all-ask" role="group" :aria-labelledby="questionId">
+    <p :id="questionId">{{ counted('bookmarks.openAll.ask', count) }}</p>
+    <UiButton appearance="application" type="button" :aria-disabled="blocked" @keydown="ignoreHeldEnter" @click="controller.confirm">{{ counted('bookmarks.openAll.confirm', count) }}</UiButton>
+    <UiButton class="bookmarks-open-all-cancel" appearance="application" type="button" @keydown="ignoreHeldEnter" @click="controller.cancel">{{ t('bookmarks.openAll.cancel') }}</UiButton>
   </div>
-  <p v-if="status" class="bookmarks-feedback" role="status">{{ status }}</p>
+  <p v-if="opened" class="bookmarks-feedback" role="status">{{ counted('bookmarks.openAll.opened', opened) }}</p>
   <p v-if="error" class="bookmarks-error" role="alert">{{ error }}</p>
 </template>
