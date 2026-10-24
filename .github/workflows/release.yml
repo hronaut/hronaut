@@ -324,8 +324,11 @@ jobs:
         run: |
           set -euo pipefail
           npm ci
+          # One Apple silicon runner packages both apps; npm installed only its own CPU's native packages.
+          node scripts/mac-native-bindings.ts install
           npm run build:app
           npx electron-builder --mac "$PACKAGE_TARGET" --x64 --arm64 --publish never
+          node scripts/mac-native-bindings.ts check dist
       - name: Upload macOS ${{ matrix.target }} release assets
         uses: actions/upload-artifact@v7
         with:

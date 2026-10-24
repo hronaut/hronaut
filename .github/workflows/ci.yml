@@ -138,5 +138,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # One Apple silicon runner packages both Mac apps; npm installed only its own CPU's native packages.
+      - name: Install the native packages of both Mac CPUs
+        if: runner.os == 'macOS'
+        run: node scripts/mac-native-bindings.ts install
+
       - name: Build release packages
         run: npm run ${{ matrix.command }}
+
+      - name: Check each Mac app carries its native packages
+        if: runner.os == 'macOS'
+        run: node scripts/mac-native-bindings.ts check dist
