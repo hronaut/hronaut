@@ -227,6 +227,22 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'à', code: 'Digit0', control: true }))).toBe('zoom-reset')
   })
 
+  it('goes by the digit of a number-row key that types punctuation, as Chromium does', () => {
+    // AZERTY types & " ' ( - on the 1, 3, 4, 5 and 6 keys, so Ctrl+1 did nothing and Ctrl+6 zoomed out.
+    for (const [key, digit] of [['&', 1], ['"', 3], ["'", 4], ['(', 5], ['-', 6], ['_', 8]] as const) {
+      expect(browserShortcutAction(input({ key, code: `Digit${digit}`, control: true }))).toBe(`select-tab-${digit}`)
+    }
+    expect(browserShortcutAction(input({ key: 'ç', code: 'Digit9', control: true }))).toBe('select-last-tab')
+    // macOS's French layout types ! on the 8 key; its - is on the US = key, which still zooms out.
+    expect(browserShortcutAction(input({ key: '!', code: 'Digit8', meta: true, mac: true }))).toBe('select-tab-8')
+    expect(browserShortcutAction(input({ key: '-', code: 'Equal', meta: true, mac: true }))).toBe('zoom-out')
+    expect(browserShortcutAction(input({ key: '-', code: 'NumpadSubtract', control: true }))).toBe('zoom-out')
+    // Czech types + on the 1 key; German types = with Shift on the 0 key, which is no browser key there.
+    expect(browserShortcutAction(input({ key: '+', code: 'Digit1', control: true }))).toBe('select-tab-1')
+    expect(browserShortcutAction(input({ key: '=', code: 'Digit0', control: true, shift: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: '+', code: 'BracketRight', control: true }))).toBe('zoom-in')
+  })
+
   it('keeps the letters of a Latin layout and Control with a letter for the page on macOS', () => {
     // AZERTY types a on the US Q key and q on the US A key; Dvorak types l on the US P key.
     expect(browserShortcutAction(input({ key: 'A', code: 'KeyQ', control: true, shift: true }))).toBe('search-tabs')
@@ -257,6 +273,8 @@ describe('browserShortcutAction', () => {
     expect(shortcutKey({ key: 'ö', code: 'IntlBackslash' })).toBe('ö')
     expect(shortcutKey({ key: 'ı', code: 'KeyR' })).toBe('ı')
     expect(shortcutKey({ key: 'é', code: 'Digit2' })).toBe('2')
+    expect(shortcutKey({ key: '&', code: 'Digit1' })).toBe('1')
+    expect(shortcutKey({ key: '-', code: 'Minus' })).toBe('-')
     expect(shortcutKey({ key: 'ש', code: 'KeyA' })).toBe('a')
   })
 

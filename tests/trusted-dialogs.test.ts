@@ -10,7 +10,9 @@ function fakeWindow() {
   const sent: Array<TrustedDialogRequest | null> = []
   const contents = Object.assign(new EventEmitter(), {
     destroyed: false,
+    crashed: false,
     isDestroyed() { return this.destroyed },
+    isCrashed() { return this.crashed },
     send: (_channel: string, request: TrustedDialogRequest | null) => { sent.push(request) }
   })
   const window = {
@@ -177,16 +179,18 @@ describe('Hronaut’s own dialogs', () => {
 
   it('falls back to the system dialog when no shell window can show it, so the question is still answered', async () => {
     const { dialogs, main, native, ready } = harness()
-    // Not ready yet: the shell has not loaded.
-    const beforeReady = dialogs.show(permission)
+    main.window.visible = false
+    // A hidden window, as before Hronaut's window first shows.
+    const hidden = dialogs.show(permission)
     await vi.waitFor(() => expect(native).toHaveLength(1))
     expect(native[0]!.window).toBe(main.window)
     expect(native[0]!.options).not.toHaveProperty('variant')
     expect(native[0]!.options).not.toHaveProperty('primaryId')
     expect(native[0]!.options).toMatchObject({ message: permission.message, buttons: ['Deny', 'Allow'], defaultId: 0, cancelId: 0 })
     native[0]!.answer(1)
-    await expect(beforeReady).resolves.toMatchObject({ response: 1 })
+    await expect(hidden).resolves.toMatchObject({ response: 1 })
 
+    main.window.visible = true
     ready()
     main.window.minimized = true
     const minimized = dialogs.show(permission)
@@ -196,8 +200,56 @@ describe('Hronaut’s own dialogs', () => {
     expect(main.sent).toEqual([null])
   })
 
+  it('shows a question asked while the shell document starts once it listens, instead of in the system dialog', async () => {
+    // Asked just as Hronaut's window showed, such as Another app is using port 47812 at startup, the question came up in
+    // the system dialog, as the shell had not loaded its settings yet.
+    const { dialogs, main, native, ready, respond } = harness()
+    const asked = dialogs.show(permission)
+    expect(main.sent).toEqual([])
+    ready()
+    expect(main.shown()).toMatchObject({ message: permission.message, variant: permission.variant })
+    respond(main, main.shown()!.id, 1)
+    await expect(asked).resolves.toMatchObject({ response: 1 })
+    expect(native).toEqual([])
+  })
+
+  it('asks in the system dialog when the shell document does not start within 10 seconds, or crashed', async () => {
+    vi.useFakeTimers()
+    try {
+      const { dialogs, main, native, ready } = harness()
+      const asked = dialogs.show(permission)
+      await vi.advanceTimersByTimeAsync(9_999)
+      expect(native).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      expect(native).toHaveLength(1)
+      native[0]!.answer(1)
+      await expect(asked).resolves.toMatchObject({ response: 1 })
+      // A document that listens late shows only what is asked from then on.
+      ready()
+      expect(main.sent).toEqual([null])
+
+      main.contents.crashed = true
+      const afterCrash = dialogs.show(permission)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(native).toHaveLength(2)
+      native[1]!.answer(0)
+      await expect(afterCrash).resolves.toMatchObject({ response: 0 })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('moves a question waiting for the shell document to start to the system dialog when the document goes away', async () => {
+    const { dialogs, main, native } = harness()
+    const asked = dialogs.show(permission)
+    main.contents.emit('render-process-gone')
+    await vi.waitFor(() => expect(native).toHaveLength(1))
+    native[0]!.answer(0)
+    await expect(asked).resolves.toMatchObject({ response: 0 })
+  })
+
   it('moves a shown and a waiting dialog to the system dialog when the shell document goes away', async () => {
-    const { dialogs, main, native, ready } = harness()
+    const { dialogs, main, native, ready, respond } = harness()
     ready()
     const shown = dialogs.show({ ...permission, message: 'shown' })
     const waiting = dialogs.show({ ...permission, message: 'waiting' })
@@ -211,23 +263,27 @@ describe('Hronaut’s own dialogs', () => {
     native[1]!.answer(0)
     await expect(waiting).resolves.toMatchObject({ response: 0 })
 
-    // A reloading shell document is not ready until it says so again.
+    // A reloading shell document is not ready until it says so again, and shows what was asked meanwhile then.
     ready()
-    const afterReload = dialogs.show(permission)
+    const beforeReload = dialogs.show(permission)
     main.contents.emit('did-navigate', {}, 'http://127.0.0.1:5173/', 200, 'OK')
     await vi.waitFor(() => expect(native).toHaveLength(3))
     native[2]!.answer(0)
-    await expect(afterReload).resolves.toMatchObject({ response: 0 })
-    void dialogs.show(permission)
-    await vi.waitFor(() => expect(native).toHaveLength(4))
-    native[3]!.answer(0)
+    await expect(beforeReload).resolves.toMatchObject({ response: 0 })
+    const duringReload = dialogs.show({ ...permission, message: 'during reload' })
+    const sentBeforeReady = main.sent.length
+    ready()
+    expect(main.sent.length).toBe(sentBeforeReady + 1)
+    expect(main.shown()).toMatchObject({ message: 'during reload' })
+    respond(main, main.shown()!.id, 1)
+    await expect(duringReload).resolves.toMatchObject({ response: 1 })
+    expect(native).toHaveLength(3)
 
     // An error page that replaces the shell document takes its dialog away too.
-    ready()
     const beforeError = dialogs.show(permission)
     main.contents.emit('did-fail-provisional-load', {}, -102, 'ERR_CONNECTION_REFUSED', 'http://127.0.0.1:5173/', true)
-    await vi.waitFor(() => expect(native).toHaveLength(5))
-    native[4]!.answer(1)
+    await vi.waitFor(() => expect(native).toHaveLength(4))
+    native[3]!.answer(1)
     await expect(beforeError).resolves.toMatchObject({ response: 1 })
   })
 
