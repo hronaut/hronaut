@@ -81,8 +81,8 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     await expect.poll(focusedPage).toBe(appWindow.url())
     await expect(addressBar).toBeFocused()
     // Over a Hronaut dialog F6, Alt+D, F5 and the application menu's keys leave the keyboard where it is in the dialog,
-    // and the tab where it is: Ctrl+R reloaded the page behind it, Ctrl+Plus zoomed it, and Ctrl+Shift+P and
-    // Ctrl+Shift+/ put the command palette and Keyboard shortcuts in the dialog's place.
+    // and the tab where it is: Ctrl+R reloaded the page behind it, Ctrl+Plus and Ctrl+Minus zoomed it, and
+    // Ctrl+Shift+P and Ctrl+Shift+/ put the command palette and Keyboard shortcuts in the dialog's place.
     await electronApp.evaluate(({ BrowserWindow }, url) => {
       BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents.send('help:open', 'about')
     }, appWindow.url())
@@ -101,6 +101,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     await pressInWindow('R', ['control'])
     await pressInWindow('R', ['control', 'shift'])
     await pressInWindow('=', ['control', 'shift'])
+    await pressInWindow('-', ['control'])
     await pressInWindow('P', ['control', 'shift'])
     await pressInWindow('/', ['control', 'shift'])
     await appWindow.waitForTimeout(500)
@@ -130,6 +131,16 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     expect(loadsOf('/page')).toHaveLength(4)
     await appWindow.keyboard.press('Escape')
     await expect(palette).toBeHidden()
+    // With neither open, the same keys act at once, and nothing pressed before comes in late.
+    await pressInWindow('R', ['control'])
+    await expect.poll(() => loadsOf('/page').length).toBe(5)
+    await pressInWindow('=', ['control', 'shift'])
+    await expect.poll(zoom).toBeGreaterThan(zoomBefore)
+    await pressInWindow('0', ['control'])
+    await expect.poll(zoom).toBe(zoomBefore)
+    await appWindow.waitForTimeout(500)
+    expect(loadsOf('/page')).toHaveLength(5)
+    expect(await zoom()).toBe(zoomBefore)
 
     // Home has no address bar, so F6 there goes to Hronaut's window without leaving Home, and back.
     await appWindow.evaluate(`window.hronaut.openHome()`)
@@ -158,7 +169,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     expect(pressed.isError, text(pressed)).not.toBe(true)
     await expect.poll(() => keys(tabId)).toContain('F5')
     await appWindow.waitForTimeout(500)
-    expect(loadsOf('/page')).toHaveLength(4)
+    expect(loadsOf('/page')).toHaveLength(5)
 
     // A page that runs F5 and Alt+D itself keeps them.
     await visit('/editor')

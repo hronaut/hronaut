@@ -339,8 +339,8 @@ export function useAppShellInteractionFeatureController(
     closeSettingsTab: surfaces.settings.closeTab,
     canRunAction: (action) => {
       // Find Next and Find Previous do nothing over a dialog, as Ctrl/Cmd+F does: Find would search the page the dialog
-      // covers and fight it for focus. Their keys reach the menu from a dialog, which leaves them alone.
-      // The View menu's Downloads key reaches the menu from a dialog too: the panel would open behind the dialog, or
+      // covers and fight it for focus. Hronaut's window keeps their keys from the menu there, but the menu's items can
+      // still be chosen with the pointer. So can the View menu's Downloads: the panel would open behind the dialog, or
       // close Tab search, where Ctrl/Cmd+H does nothing. Over Settings it opens and closes Settings, as Ctrl/Cmd+H does.
       if (action === 'find-next' || action === 'find-previous' || action === 'downloads') {
         return !(

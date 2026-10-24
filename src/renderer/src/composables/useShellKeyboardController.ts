@@ -1,6 +1,6 @@
 import {
-  applicationMenuKey,
   browserShortcutAction,
+  isBrowserKey,
   websiteKeptShortcutAction,
   type BrowserShortcutAction,
   type BrowserShortcutInput
@@ -63,10 +63,9 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
     }
     // Hronaut's own window has no website to keep F5, Alt+D, F3, Ctrl+G or F6.
     const shortcut = browserShortcutAction(input) ?? websiteKeptShortcutAction(input)
-    // Left alone, a browser key, held or not, reaches the application menu, which acts on the page in view: under the
-    // palette or a dialog that is the page behind it, so there the key goes nowhere.
-    const pressed = { ...input, repeat: false }
-    const browserKey = (browserShortcutAction(pressed) ?? websiteKeptShortcutAction(pressed)) !== null || applicationMenuKey(pressed)
+    // A browser key left alone goes on to the application menu, which acts on the page in view. Under the palette or a
+    // dialog that page is behind them, so there the key goes nowhere.
+    const browserKey = isBrowserKey(input)
     guardInteraction(event)
     if (event.defaultPrevented || composing) return
     // A held Escape repeats. Only its first press closes anything, so holding it after closing one surface, such as

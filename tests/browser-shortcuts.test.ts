@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applicationMenuKey, browserShortcutAction, websiteKeptShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
+import { applicationMenuKey, browserShortcutAction, isBrowserKey, websiteKeptShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
 import { shortcutKey } from '../src/shared/shortcut-key.js'
 
 function input(overrides: Partial<BrowserShortcutInput> = {}): BrowserShortcutInput {
@@ -116,12 +116,17 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'F12' }))).toBe('toggle-devtools')
     expect(browserShortcutAction(input({ key: 'I', control: true, shift: true }))).toBe('toggle-devtools')
     expect(browserShortcutAction(input({ key: 'I', meta: true, alt: true }))).toBe('toggle-devtools')
+    // On macOS Option+I is a dead key, so it goes by the key's place.
+    expect(browserShortcutAction(input({ key: 'Dead', code: 'KeyI', meta: true, alt: true, mac: true }))).toBe('toggle-devtools')
+    expect(browserShortcutAction(input({ key: 'Dead', code: 'KeyU', meta: true, alt: true, mac: true }))).toBeNull()
     expect(browserShortcutAction(input({ key: 'I', control: true }))).toBeNull()
   })
 
   it('maps Chromium inspect-element shortcuts', () => {
     expect(browserShortcutAction(input({ key: 'C', control: true, shift: true }))).toBe('pick-element')
     expect(browserShortcutAction(input({ key: 'C', meta: true, alt: true }))).toBe('pick-element')
+    // On macOS Option+C types ç.
+    expect(browserShortcutAction(input({ key: 'ç', code: 'KeyC', meta: true, alt: true, mac: true }))).toBe('pick-element')
     expect(browserShortcutAction(input({ key: 'C', control: true }))).toBeNull()
     expect(browserShortcutAction(input({ key: 'C', meta: true, shift: true }))).toBeNull()
   })
@@ -398,12 +403,26 @@ describe('the application menu\'s other keys', () => {
     for (const key of [
       { key: 'p', code: 'KeyP', meta: true }, { key: 's', code: 'KeyS', meta: true }, { key: 'g', code: 'KeyG', meta: true },
       { key: 'G', code: 'KeyG', meta: true, shift: true }, { key: '¨', code: 'KeyU', meta: true, alt: true }, { key: '¬', code: 'KeyL', meta: true, alt: true },
-      { key: '[', code: 'BracketLeft', meta: true }, { key: ']', code: 'BracketRight', meta: true }, { key: '?', code: 'Slash', meta: true, shift: true }
+      { key: '[', code: 'BracketLeft', meta: true }, { key: ']', code: 'BracketRight', meta: true }, { key: '?', code: 'Slash', meta: true, shift: true },
+      // Option+U is a dead key, and the bracket key types a Cyrillic letter with a Russian layout on.
+      { key: 'Dead', code: 'KeyU', meta: true, alt: true }, { key: 'х', code: 'BracketLeft', meta: true }
     ]) expect(menuKey({ ...key, mac: true }), JSON.stringify(key)).toBe(true)
     for (const key of [
       { key: 'p', code: 'KeyP', control: true }, { key: 'p', code: 'KeyP', meta: true, control: true }, { key: 'u', code: 'KeyU', meta: true },
-      { key: 'ArrowLeft', code: 'ArrowLeft', alt: true }, { key: 'c', code: 'KeyC', meta: true }
+      { key: 'ArrowLeft', code: 'ArrowLeft', alt: true }, { key: 'c', code: 'KeyC', meta: true },
+      // A Latin letter on the bracket key, as German ü, stays the letter.
+      { key: 'ü', code: 'BracketLeft', meta: true }, { key: 'Dead', code: 'KeyE', meta: true, alt: true }
     ]) expect(menuKey({ ...key, mac: true }), JSON.stringify(key)).toBe(false)
+  })
+
+  it('are browser keys, with the shortcuts and the keys a website may keep, held or not', () => {
+    for (const key of [
+      { key: 'p', code: 'KeyP', control: true }, { key: 'r', code: 'KeyR', control: true, repeat: true }, { key: 'F5', repeat: true },
+      { key: 'ArrowLeft', code: 'ArrowLeft', alt: true, repeat: true }
+    ]) expect(isBrowserKey(input(key)), JSON.stringify(key)).toBe(true)
+    for (const key of [{ key: 'c', code: 'KeyC', control: true }, { key: 'x', code: 'KeyX' }, { key: 'r', code: 'KeyR', control: true, composing: true }]) {
+      expect(isBrowserKey(input(key)), JSON.stringify(key)).toBe(false)
+    }
   })
 
   it('are no browser shortcuts, which Hronaut\'s window runs itself', () => {

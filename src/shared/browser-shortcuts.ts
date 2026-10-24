@@ -50,6 +50,16 @@ export interface BrowserShortcutInput {
 }
 
 /**
+ * Whether a key pressed with Option, or Alt, is the given letter. On macOS Option changes the character a key types,
+ * such as ç for C, ¬ for L or a dead key for I and U, so a key that types no plain letter goes by its place on a US
+ * keyboard.
+ */
+function optionLetter(input: BrowserShortcutInput, letter: string): boolean {
+  const key = shortcutKey(input)
+  return key === letter || (!/^[a-z]$/u.test(key) && input.code === `Key${letter.toUpperCase()}`)
+}
+
+/**
  * Pinned workspaces 1 to 9, and the workspace used before this one, from the number row: Alt elsewhere, Control on
  * macOS. Ctrl/Cmd with a digit stays with the tabs, and Ctrl+Alt is AltGr on Windows, which types characters.
  */
@@ -116,9 +126,9 @@ export function applicationMenuKey(input: BrowserShortcutInput): boolean {
   const slash = input.code === 'Slash' || key === '/' || key === '?'
   if (input.mac) {
     if (!input.meta || input.control) return false
-    if (input.alt) return !input.shift && (key === 'u' || key === 'l')
+    if (input.alt) return !input.shift && (optionLetter(input, 'u') || optionLetter(input, 'l'))
     if (input.shift) return key === 'g' || slash
-    return key === 'p' || key === 's' || key === 'g' || input.key === '[' || input.key === ']'
+    return key === 'p' || key === 's' || key === 'g' || key === '[' || key === ']'
   }
   if (input.meta) return false
   if (input.alt) return !input.control && !input.shift && (key === 'arrowleft' || key === 'arrowright')
@@ -127,17 +137,27 @@ export function applicationMenuKey(input: BrowserShortcutInput): boolean {
   return key === 'p' || key === 's' || key === 'u' || key === 'j'
 }
 
+/**
+ * Whether a key press, held or not, is one of the browser's: a browser shortcut, a key a website may keep, or another
+ * key of the application menu. Under its own dialogs and the command palette, Hronaut's window keeps these from the
+ * menu, which would act on the page behind them.
+ */
+export function isBrowserKey(input: BrowserShortcutInput): boolean {
+  const firstPress = { ...input, repeat: false }
+  return (browserShortcutAction(firstPress) ?? websiteKeptShortcutAction(firstPress)) !== null || applicationMenuKey(firstPress)
+}
+
 export function browserShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
   const key = shortcutKey(input)
   if (input.repeat || input.composing) return null
   if (
     (key === 'f12' && !input.control && !input.meta && !input.alt && !input.shift)
     || (key === 'i' && !input.mac && input.control && input.shift && !input.meta && !input.alt)
-    || (key === 'i' && input.meta && input.alt && !input.control && !input.shift)
+    || (input.meta && input.alt && !input.control && !input.shift && optionLetter(input, 'i'))
   ) return 'toggle-devtools'
   if (
     (key === 'c' && !input.mac && input.control && input.shift && !input.meta && !input.alt)
-    || (key === 'c' && input.meta && input.alt && !input.control && !input.shift)
+    || (input.meta && input.alt && !input.control && !input.shift && optionLetter(input, 'c'))
   ) return 'pick-element'
   const workspace = workspaceShortcut(input)
   if (workspace) return workspace
