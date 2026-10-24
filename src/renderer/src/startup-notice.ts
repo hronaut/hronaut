@@ -23,11 +23,35 @@ fill('startup-notice-title', parameters.get('title'))
 fill('startup-notice-message', parameters.get('message'))
 fill('startup-notice-detail', parameters.get('detail'))
 const quit = fill('startup-notice-quit', parameters.get('quit'))
-quit.addEventListener('click', () => window.close())
+const notice = document.querySelector<HTMLElement>('.startup-notice')
 
+/**
+ * The keyboard can quit only once the window has had the focus for a moment, as in Hronaut's dialogs. A key held since
+ * before the window appeared, such as Enter from the launcher, repeats, and on Windows and Linux its first repeat here
+ * does not say so; it never quits unread.
+ */
+const ARM_DELAY_MS = 500
+let armed = false
+let arming: ReturnType<typeof setTimeout> | undefined
+function arm(): void {
+  armed = false
+  if (notice) notice.dataset.armed = 'false'
+  clearTimeout(arming)
+  arming = setTimeout(() => {
+    armed = true
+    if (notice) notice.dataset.armed = 'true'
+  }, ARM_DELAY_MS)
+}
+arm()
+window.addEventListener('focus', arm)
+
+quit.addEventListener('click', (event) => {
+  // A click from the keyboard has no pointer detail.
+  if (!armed && event.detail === 0) return
+  window.close()
+})
 document.addEventListener('keydown', (event) => {
-  // A key held since before the window appeared, such as Enter from the launcher, repeats; it never quits unread.
-  if (event.repeat) {
+  if (event.repeat || (!armed && ['Enter', ' ', 'Escape'].includes(event.key))) {
     event.preventDefault()
     return
   }

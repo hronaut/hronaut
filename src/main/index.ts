@@ -609,7 +609,8 @@ const { installApplicationMenu } = createApplicationMenu({
   text,
   showWindow,
   mainWindow: () => mainWindowRefs.window,
-  checkForUpdates,
+  // While startup is stopped there is no window to show updates in, and an update could restart Hronaut.
+  checkForUpdates: () => tabRuntime.startupFailure ? Promise.resolve({ ...appUpdates.current }) : checkForUpdates(),
   requestQuit,
   runNativeBrowserAction,
   runShortcut: (action) => runPageShortcut(action),

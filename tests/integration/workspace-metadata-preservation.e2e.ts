@@ -7,26 +7,35 @@ import { join } from 'node:path'
 import { test, expect, launchHronaut, closeHronaut, closeFixtureServer } from './fixtures.js'
 
 const empty = { version: 3, activeTabId: null, tabs: [], mcpTabGroups: [], savedTabGroups: [] }
-for (const fault of ['invalid-json', 'null-metadata', 'unsupported-version', 'invalid-schema', 'missing-version', 'read-error', 'late-rejection', 'natural-quit', 'window-failure', 'dialog-failure'] as const) {
+for (const fault of ['invalid-json', 'null-metadata', 'unsupported-version', 'invalid-schema', 'missing-version', 'read-error', 'late-rejection', 'natural-quit', 'window-failure', 'dialog-failure', 'crash-before-show', 'crash-after-show'] as const) {
   test(`preserves rejected workspace metadata through startup and quit: ${fault}`, async ({ profileDirectory, mcpPort }) => {
     const metadata = join(profileDirectory, 'tabs.json')
     const partition = join(profileDirectory, 'Partitions', 'hronaut-workspace-aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa', 'marker')
     await mkdir(join(partition, '..'), { recursive: true }); await writeFile(partition, 'synthetic-retained')
-    const bytes = fault === 'invalid-json' || fault === 'natural-quit' || fault === 'window-failure' || fault === 'dialog-failure' ? `{${privateMarker}` : fault === 'null-metadata' ? 'null\n' : JSON.stringify({ ...empty,
+    const noticeFault = fault === 'window-failure' || fault === 'dialog-failure' || fault === 'crash-before-show' || fault === 'crash-after-show'
+    const bytes = fault === 'invalid-json' || fault === 'natural-quit' || noticeFault ? `{${privateMarker}` : fault === 'null-metadata' ? 'null\n' : JSON.stringify({ ...empty,
       version: fault === 'unsupported-version' ? 999 : fault === 'missing-version' ? undefined : 3,
       ...(fault === 'invalid-schema' ? { tabs: [{ id: 'invalid' }], deletedWorkspaceStorageIds: ['aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'] } : {}), privateMarker })
     if (fault === 'read-error') await mkdir(metadata)
     else await writeFile(metadata, bytes)
-    const app = await launchRejected(profileDirectory, mcpPort, fault === 'late-rejection', fault === 'window-failure' ? 'window' : fault === 'dialog-failure' ? 'window-and-dialog' : undefined)
+    const app = await launchRejected(profileDirectory, mcpPort, fault === 'late-rejection', fault === 'window-failure' ? 'window' : fault === 'dialog-failure' ? 'window-and-dialog' : fault === 'crash-before-show' ? 'crash' : undefined)
     try {
       await expect.poll(() => app.evaluate(() => Boolean((globalThis as Scope).metadataFixture.notice))).toBe(true)
+      if (fault === 'crash-after-show') {
+        // The notice's page goes away once the person can see it: the system dialog says it instead.
+        await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()
+          .some((window) => window.isVisible() && window.webContents.getURL().includes('startup-notice.html')))).toBe(true)
+        await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()
+          .find((window) => window.webContents.getURL().includes('startup-notice.html'))!.webContents.forcefullyCrashRenderer())
+        await expect.poll(() => app.evaluate(() => (globalThis as Scope).metadataFixture.source)).toBe('dialog')
+      }
       const notice = await app.evaluate(() => (globalThis as Scope).metadataFixture.notice!)
       expect(notice.buttons).toEqual(['Quit'])
       expect(notice.message).toContain('Startup stopped')
       expect(notice.detail).toContain('tabs.json')
       expect(JSON.stringify(notice)).not.toContain(privateMarker)
       // Hronaut's own window tells the person; the system dialog only when that window cannot.
-      expect(await app.evaluate(() => (globalThis as Scope).metadataFixture.source)).toBe(fault === 'window-failure' || fault === 'dialog-failure' ? 'dialog' : 'window')
+      await expect.poll(() => app.evaluate(() => (globalThis as Scope).metadataFixture.source)).toBe(noticeFault ? 'dialog' : 'window')
       expect(await hronautWindowCount(app)).toBe(fault === 'late-rejection' ? 1 : 0)
       if (fault === 'late-rejection') {
         const page = app.windows().find((candidate) => !candidate.url().includes('startup-notice.html'))!
@@ -190,7 +199,9 @@ test('tells the person in Hronaut\'s own window why startup stopped, and quits f
   } })
   try {
     const notice = await app.firstWindow()
-    expect(notice.url()).toContain('startup-notice.html')
+    await expect(notice).toHaveURL(/startup-notice\.html/)
+    // The address carries only the notice's fixed text, never what was in the file.
+    expect(notice.url()).not.toContain(privateMarker)
     await expect(notice.getByRole('alertdialog', { name: 'Saved workspaces could not be opened' })).toBeVisible()
     await expect(notice.locator('#startup-notice-message')).toHaveText('Startup stopped to avoid replacing saved workspaces.')
     await expect(notice.locator('#startup-notice-detail')).toContainText('tabs.json backup')
@@ -200,6 +211,7 @@ test('tells the person in Hronaut\'s own window why startup stopped, and quits f
     expect(await notice.content()).not.toContain(privateMarker)
     // Only the notice: no browser window, page or MCP listener opened.
     expect(await hronautWindowCount(app)).toBe(0)
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
     await expect(fetch(`http://127.0.0.1:${mcpPort}/mcp`)).rejects.toThrow()
     // The whole notice fits the window, at its own size and with nothing cut off.
     expect(await notice.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true)
@@ -208,7 +220,9 @@ test('tells the person in Hronaut\'s own window why startup stopped, and quits f
     await testInfo.attach('startup-notice', { path: shot, contentType: 'image/png' })
 
     const exited = new Promise<{ code: number | null; signal: string | null }>(resolve => app.process().once('exit', (code, signal) => resolve({ code, signal })))
-    // The page goes with its window as Enter quits, so the key's release can find it gone.
+    // The keyboard quits once the window has had the focus for a moment. The page goes with its window as Enter
+    // quits, so the key's release can find it gone.
+    await expect(notice.locator('.startup-notice')).toHaveAttribute('data-armed', 'true')
     await notice.keyboard.press('Enter').catch(() => undefined)
     expect(await exited).toEqual({ code: 0, signal: null })
     expect(await readFile(metadata, 'utf8')).toBe(rejected)
