@@ -166,6 +166,8 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   if (input.alt) return null
 
   if (input.control && key === 'tab') return input.shift ? 'previous-tab' : 'next-tab'
+  // Chrome's other key for closing the tab elsewhere than macOS, which a website cannot keep either.
+  if (!input.mac && input.control && !input.meta && !input.shift && key === 'f4') return 'close-tab'
   // On macOS the browser keys use Command without Control, as in Chrome, and Developer Tools takes Command+Option
   // above. Control with a key belongs to the focused field or web app there: Control+F moves the caret, Control+D
   // deletes forward and Control+H backward, and a web terminal reads Control+W or Control+R itself.

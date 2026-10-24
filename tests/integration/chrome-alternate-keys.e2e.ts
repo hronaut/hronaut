@@ -3,19 +3,19 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeFixtureServer } from './fixtures.js'
 import { expect, test, text } from './capability-fixtures.js'
 
-test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to move the tab, work as in Chrome, and a website keeps F5, Alt+D, F6 and the move keys', async ({ capabilities, appWindow, electronApp }) => {
+test('F5, Shift+F5, Ctrl+F5, Alt+D, F6, Ctrl+F4 and Ctrl+Page Up and Down, with Shift to move the tab, work as in Chrome, and a website keeps F5, Alt+D, F6 and the move keys', async ({ capabilities, appWindow, electronApp }) => {
   test.skip(process.platform === 'darwin', 'Chrome has none of these keys on macOS but the tab keys, which the unit tests cover')
   const { client, tabId } = capabilities
   const loads: Array<{ path: string, cacheControl: string | undefined }> = []
   const server = createServer((request, response) => {
     loads.push({ path: request.url ?? '', cacheControl: request.headers['cache-control'] })
     response.writeHead(200, { 'content-type': 'text/html' })
-    // Every page notes the keys it gets; /editor runs F5, Alt+D, F6 and Ctrl+Shift+Page Up itself, as a web editor or
-    // terminal does.
-    const editor = request.url === '/editor'
+    // Every page notes the keys it gets; /editor runs F5, Alt+D, F6, Ctrl+Shift+Page Up and Ctrl+F4 itself, as a web
+    // editor or terminal does.
+    const editor = request.url?.startsWith('/editor') === true
     response.end(`<!doctype html><title>${request.url}</title><script>window.keys = []; addEventListener('keydown', (event) => {
       window.keys.push(event.key)
-      if (${editor} && (event.key === 'F5' || event.key === 'F6' || (event.altKey && event.key.toLowerCase() === 'd') || (event.ctrlKey && event.shiftKey && event.key === 'PageUp'))) event.preventDefault()
+      if (${editor} && (event.key === 'F5' || event.key === 'F6' || (event.altKey && event.key.toLowerCase() === 'd') || (event.ctrlKey && event.shiftKey && event.key === 'PageUp') || (event.ctrlKey && event.key === 'F4'))) event.preventDefault()
     })</script>`)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -220,6 +220,38 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     await appWindow.keyboard.press('Control+Shift+PageUp')
     await expect.poll(order).toEqual([...before, tabId, next])
     expect((await state()).activeTabId).toBe(tabId)
+
+    // Ctrl+F4 closes the tab in view, as Ctrl+W does, from the page and from Hronaut's own window, and a website that
+    // runs the key itself cannot keep it, as in Chrome.
+    const openTab = async (path: string) => {
+      await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(origin + path)}, mcpGroupId: ${JSON.stringify(workspace)}, active: true })`)
+      const id = (await state()).tabs.find(tab => tab.url === origin + path)!.id
+      await expect.poll(async () => (await state()).activeTabId).toBe(id)
+      await expect.poll(() => loads.some(load => load.path === path)).toBe(true)
+      // Its page is up and listening.
+      await expect.poll(() => keys(id)).toEqual([])
+      return id
+    }
+    const isOpen = async (id: string) => (await state()).tabs.some(tab => tab.id === id)
+    const closedFromPage = await openTab('/editor?page')
+    await press(closedFromPage, 'F4', ['control'])
+    await expect.poll(() => isOpen(closedFromPage)).toBe(false)
+    const closedFromWindow = await openTab('/editor?window')
+    await addressBar.focus()
+    await pressInWindow('F4', ['control'])
+    await expect.poll(() => isOpen(closedFromWindow)).toBe(false)
+    expect(await isOpen(tabId)).toBe(true)
+    // Ctrl+F4 and Ctrl+W an agent sends go to its page, as in Chrome, rather than closing the tab you are looking at.
+    const inView = await openTab('/editor?view')
+    await keys(tabId, 'window.keys = []')
+    for (const key of ['Control+F4', 'Control+w']) {
+      const pressedByAgent = await client.callTool({ name: 'browser_press', arguments: { tabId, key } }) as CallToolResult
+      expect(pressedByAgent.isError, text(pressedByAgent)).not.toBe(true)
+    }
+    await expect.poll(() => keys(tabId)).toEqual(['F4', 'w'])
+    await appWindow.waitForTimeout(500)
+    expect(await isOpen(inView)).toBe(true)
+    expect(await isOpen(tabId)).toBe(true)
   } finally {
     await closeFixtureServer(server)
   }
