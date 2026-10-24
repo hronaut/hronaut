@@ -228,6 +228,8 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6, Ctrl+F4 and Ctrl+Page Up and Down, with 
       const id = (await state()).tabs.find(tab => tab.url === origin + path)!.id
       await expect.poll(async () => (await state()).activeTabId).toBe(id)
       await expect.poll(() => loads.some(load => load.path === path)).toBe(true)
+      // Its page is up and listening.
+      await expect.poll(() => keys(id)).toEqual([])
       return id
     }
     const isOpen = async (id: string) => (await state()).tabs.some(tab => tab.id === id)
@@ -238,6 +240,17 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6, Ctrl+F4 and Ctrl+Page Up and Down, with 
     await addressBar.focus()
     await pressInWindow('F4', ['control'])
     await expect.poll(() => isOpen(closedFromWindow)).toBe(false)
+    expect(await isOpen(tabId)).toBe(true)
+    // Ctrl+F4 and Ctrl+W an agent sends go to its page, as in Chrome, rather than closing the tab you are looking at.
+    const inView = await openTab('/editor?view')
+    await keys(tabId, 'window.keys = []')
+    for (const key of ['Control+F4', 'Control+w']) {
+      const pressedByAgent = await client.callTool({ name: 'browser_press', arguments: { tabId, key } }) as CallToolResult
+      expect(pressedByAgent.isError, text(pressedByAgent)).not.toBe(true)
+    }
+    await expect.poll(() => keys(tabId)).toEqual(['F4', 'w'])
+    await appWindow.waitForTimeout(500)
+    expect(await isOpen(inView)).toBe(true)
     expect(await isOpen(tabId)).toBe(true)
   } finally {
     await closeFixtureServer(server)
