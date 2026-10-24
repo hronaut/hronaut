@@ -258,6 +258,7 @@ export const deDEAppErrors: AppErrorMessages = {
     "notActive": "Dieser Download ist bereits beendet oder abgebrochen.",
     "notProgressing": "Nur ein laufender Download kann pausiert werden.",
     "notResumable": "Dieser Download kann nicht fortgesetzt werden.",
+    "notRetryable": "Dieser Download kann nicht wiederholt werden.",
     "notCompleted": "Nur ein abgeschlossener Download kann im Ordner angezeigt werden.",
     "fileRemoved": "Diese Datei wurde verschoben oder gelöscht und kann daher nicht im Ordner angezeigt werden."
   },

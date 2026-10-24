@@ -1,4 +1,4 @@
-export type BrowserDownloadAction = 'list' | 'cancel' | 'clear' | 'pause' | 'resume'
+export type BrowserDownloadAction = 'list' | 'cancel' | 'clear' | 'pause' | 'resume' | 'retry'
 
 export interface BrowserDownloadState {
   failureReason?: 'destination-unavailable'
@@ -19,6 +19,8 @@ export interface BrowserDownloadState {
   fileRemoved?: boolean
   /** Kept from before Hronaut last started, as Chrome's download history keeps it: the toolbar counts only newer ones. */
   fromEarlierRun?: boolean
+  /** A cancelled or failed download that Retry can download again from its address, in its open workspace, as in Chrome. */
+  canRetry?: boolean
 }
 
 export interface BrowserBookmarkCollection {

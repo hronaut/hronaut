@@ -1228,6 +1228,17 @@ export class BrowserTabsManager {
       }
     },
     workspaceObservationGeneration: (workspaceId) => this.workspaceObservationGeneration(workspaceId),
+    isWorkspaceOpen: (workspaceId) => this.mcpTabGroups.has(workspaceId) && !this.workspacesBeingDeleted.has(workspaceId),
+    retrySession: (workspaceId) => {
+      if (!this.mcpTabGroups.has(workspaceId) || this.workspacesBeingDeleted.has(workspaceId)) return undefined
+      // Not while its data is being cleared, copied or moved, which a new download would race; the error says which.
+      this.assertWorkspaceIdle(workspaceId)
+      const browserSession = this.workspaceSession(workspaceId)
+      // A workspace whose pages are all asleep may not have hooked its session yet, so its downloads are tracked first.
+      this.installSessionHooks(browserSession)
+      return browserSession
+    },
+    allowsAddress: (workspaceId, url, source) => this.mcpTabGroups.has(workspaceId) && this.workspaceNavigationAllowed(workspaceId, url, source),
     downloadReady: (webContentsId) => closeTabLeftEmptyByDownload(this.downloadTabCloseAccess(), webContentsId),
     isAvailable: () => !this.destroyed && !this.window.isDestroyed(),
     publish: (downloads) => {

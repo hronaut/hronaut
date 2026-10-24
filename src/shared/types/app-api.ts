@@ -77,6 +77,8 @@ export interface HronautDownloadsApi {
   pause(downloadId: string): Promise<BrowserDownloadState[]>
   resume(downloadId: string): Promise<BrowserDownloadState[]>
   cancel(downloadId: string): Promise<BrowserDownloadState[]>
+  /** Downloads a cancelled or failed download's address again, as a new download in its workspace, as Chrome's Retry. */
+  retry(downloadId: string): Promise<BrowserDownloadState[]>
   removeFinished(downloadId: string): Promise<BrowserDownloadState[]>
   clearFinished(): Promise<BrowserDownloadState[]>
   showInFolder(downloadId: string): Promise<void>

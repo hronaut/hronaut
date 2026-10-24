@@ -4,7 +4,7 @@ import { registerCollectionIpc } from '../src/main/collection-ipc.js'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
-  'downloads:list', 'downloads:cancel', 'downloads:pause', 'downloads:resume', 'downloads:remove-finished', 'downloads:clear-finished', 'downloads:show-in-folder',
+  'downloads:list', 'downloads:cancel', 'downloads:pause', 'downloads:resume', 'downloads:retry', 'downloads:remove-finished', 'downloads:clear-finished', 'downloads:show-in-folder',
   'bookmarks:list', 'bookmarks:add', 'bookmarks:add-if-missing', 'bookmarks:rename', 'bookmarks:update-destination', 'bookmarks:remove',
   'bookmark-collections:list', 'bookmark-collections:create', 'bookmark-collections:rename', 'bookmark-collections:remove', 'bookmark-collections:assign',
   'visit-history:list', 'visit-history:remove', 'visit-history:clear'
@@ -52,6 +52,7 @@ it.each([
   ['downloads:cancel', [null]],
   ['downloads:pause', [null]],
   ['downloads:resume', [null]],
+  ['downloads:retry', [null]],
   ['downloads:show-in-folder', [7]],
   ['bookmarks:add-if-missing', [null, 'Title']],
   ['bookmarks:add-if-missing', ['https://example.test/', {}]],
@@ -98,12 +99,13 @@ it('routes download actions and publishes completed history mutations', async ()
   await invoke('downloads:pause', 'transfer')
   await invoke('downloads:resume', 'transfer')
   await invoke('downloads:cancel', 'transfer')
+  await invoke('downloads:retry', 'cancelled')
   await invoke('downloads:remove-finished', 'finished')
   expect(downloads.removeFinishedDownload).toHaveBeenCalledExactlyOnceWith('finished')
   await invoke('downloads:clear-finished')
   await invoke('downloads:show-in-folder', 'transfer')
   expect(downloads.listDownloadsCheckingFiles).toHaveBeenCalledOnce()
-  expect(downloads.manageDownloads.mock.calls).toEqual([['pause', 'transfer'], ['resume', 'transfer'], ['cancel', 'transfer'], ['clear']])
+  expect(downloads.manageDownloads.mock.calls).toEqual([['pause', 'transfer'], ['resume', 'transfer'], ['cancel', 'transfer'], ['retry', 'cancelled'], ['clear']])
   expect(downloads.showDownloadInFolder).toHaveBeenCalledWith('transfer')
   await invoke('visit-history:remove', 'visit')
   expect(history.remove).toHaveBeenCalledWith('visit')

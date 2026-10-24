@@ -38,6 +38,7 @@ function renderPanel(overrides: Record<string, unknown> = {}, locale: SupportedL
       pauseDownload: vi.fn(async () => []),
       resumeDownload: vi.fn(async () => []),
       cancelDownload: vi.fn(async () => []),
+      retryDownload: vi.fn(async () => []),
       removeFinished: vi.fn(async () => []),
     clearFinished: vi.fn(async () => []),
       showInFolder: vi.fn(async () => undefined),
@@ -729,4 +730,50 @@ it('keeps a held Enter from pressing Remove or Close again', () => {
     expect(press.defaultPrevented).toBe(false)
     expect(repeat.defaultPrevented).toBe(true)
   }
+})
+
+describe('Downloads Retry', () => {
+  const cancelled = (id: string, canRetry?: boolean): BrowserDownloadState => ({
+    ...download(id, 'cancelled', 10, 100),
+    completedAt: '2026-08-22T00:01:00.000Z',
+    ...(canRetry ? { canRetry } : {})
+  })
+
+  it('offers Retry only where main says a download can be downloaded again, and keeps its focus', async () => {
+    // As in Chrome, the new download gets its own row and the old one stays.
+    const retryDownload = vi.fn(async (id: string): Promise<BrowserDownloadState[]> => [download(`${id}-again`, 'progressing', 0, 100), cancelled(id, true)])
+    renderPanel({ downloads: [cancelled('again', true), cancelled('gone'), download('complete', 'completed', 100, 100)], retryDownload })
+    expect(screen.queryByRole('button', { name: 'Retry gone.bin' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry complete.bin' })).toBeNull()
+    const retry = screen.getByRole('button', { name: 'Retry again.bin' })
+    retry.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(retryDownload).toHaveBeenCalledExactlyOnceWith('again')
+    expect(await screen.findByRole('button', { name: 'Pause again-again.bin' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Retry again.bin' })).toHaveFocus()
+  })
+
+  it('shows why a retry failed and keeps a held Enter from starting another download', async () => {
+    renderPanel({ downloads: [cancelled('again', true)], retryDownload: vi.fn(async () => { throw new Error('This download cannot be retried.') }) })
+    const retry = screen.getByRole('button', { name: 'Retry again.bin' })
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    retry.dispatchEvent(repeat)
+    expect(repeat.defaultPrevented).toBe(true)
+    retry.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(await screen.findByRole('alert')).toHaveTextContent('This download cannot be retried.')
+    expect(retry).toHaveFocus()
+  })
+
+  it.each([
+    ['de-DE', 'again.bin erneut herunterladen'],
+    ['es-ES', 'Reintentar again.bin'],
+    ['fr-FR', 'Réessayer again.bin'],
+    ['pl-PL', 'Ponów again.bin'],
+    ['ru-RU', 'Повторить загрузку again.bin'],
+    ['uk-UA', 'Повторити завантаження again.bin']
+  ] as const)('names Retry in %s', (locale, name) => {
+    renderPanel({ downloads: [cancelled('again', true)] }, locale)
+    expect(screen.getByRole('button', { name })).toHaveClass('download-retry')
+  })
 })

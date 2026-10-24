@@ -2994,6 +2994,8 @@ export const frFR = {
     "pauseAria": "Mettre {filename} en pause",
     "resume": "Reprendre",
     "resumeAria": "Reprendre {filename}",
+    "retry": "Réessayer",
+    "retryAria": "Réessayer {filename}",
     "paused": "En pause",
 
     "kicker": "Fichiers du navigateur",

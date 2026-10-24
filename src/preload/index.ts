@@ -324,6 +324,7 @@ const downloadsApi: HronautDownloadsApi = {
   pause: (downloadId: string) => ipcRenderer.invoke('downloads:pause', downloadId),
   resume: (downloadId: string) => ipcRenderer.invoke('downloads:resume', downloadId),
   cancel: (downloadId: string) => ipcRenderer.invoke('downloads:cancel', downloadId),
+  retry: (downloadId: string) => ipcRenderer.invoke('downloads:retry', downloadId),
   removeFinished: (downloadId: string) => ipcRenderer.invoke('downloads:remove-finished', downloadId),
   clearFinished: () => ipcRenderer.invoke('downloads:clear-finished'),
   showInFolder: (downloadId: string) => ipcRenderer.invoke('downloads:show-in-folder', downloadId),

@@ -258,6 +258,7 @@ export const esESAppErrors: AppErrorMessages = {
     "notActive": "Esta descarga ya ha terminado o se ha detenido.",
     "notProgressing": "Solo se puede pausar una descarga en curso.",
     "notResumable": "Esta descarga no se puede reanudar.",
+    "notRetryable": "Esta descarga no se puede reintentar.",
     "notCompleted": "Solo se puede mostrar en su carpeta una descarga completada.",
     "fileRemoved": "Este archivo se movió o se eliminó, así que no se puede mostrar en su carpeta."
   },

@@ -27,6 +27,7 @@ function createController(initialDownloads = [download('complete', 'completed', 
   const cancelDownload = vi.fn(async (id: string) => [download(id, 'cancelled')])
   const pauseDownload = vi.fn(async (id: string): Promise<BrowserDownloadState[]> => [{ ...download(id), paused: true, canResume: true }])
   const resumeDownload = vi.fn(async (id: string): Promise<BrowserDownloadState[]> => [download(id)])
+  const retryDownload = vi.fn(async (id: string): Promise<BrowserDownloadState[]> => [download(`${id}-again`), download(id, 'cancelled')])
   const clearFinished = vi.fn(async () => [])
   const showInFolder = vi.fn(async () => undefined)
   const copySavedPath = vi.fn(async (_path: string): Promise<void> => undefined)
@@ -45,12 +46,13 @@ function createController(initialDownloads = [download('complete', 'completed', 
     pauseDownload,
     resumeDownload,
     cancelDownload,
+    retryDownload,
     removeFinished: vi.fn(async () => []),
     clearFinished,
     copySavedPath,
     showInFolder
   })
-  return { locale, open, downloads, pauseDownload, resumeDownload, cancelDownload, clearFinished, showInFolder, copySavedPath, controller }
+  return { locale, open, downloads, pauseDownload, resumeDownload, cancelDownload, retryDownload, clearFinished, showInFolder, copySavedPath, controller }
 }
 
 describe('downloads panel controller', () => {
@@ -403,4 +405,12 @@ describe('Downloads retained origin labels', () => {
     expect(controller.error.value).toBe('Could not clear download history')
     controller.dispose()
   })
+})
+
+it('retries a download and shows the list main answers with, the new download beside the old one', async () => {
+  const { controller, downloads, retryDownload } = createController([download('failed', 'cancelled')])
+  await controller.retry('failed')
+  expect(retryDownload).toHaveBeenCalledExactlyOnceWith('failed')
+  expect(downloads.value.map(({ id }) => id)).toEqual(['failed-again', 'failed'])
+  expect(controller.pendingAction.value).toBeNull()
 })

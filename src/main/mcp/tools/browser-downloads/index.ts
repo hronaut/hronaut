@@ -9,13 +9,13 @@ export function registerBrowserDownloads(context: McpToolContext): void {
     {
       description: toolDescription('browser_downloads'),
       inputSchema: {
-        action: z.enum(['list', 'cancel', 'clear', 'pause', 'resume']).optional(),
+        action: z.enum(['list', 'cancel', 'clear', 'pause', 'resume', 'retry']).optional(),
         downloadId: z.string().optional()
       }
     },
     tool(async ({ workspaceId, action, downloadId }: {
       workspaceId?: string
-      action?: 'list' | 'cancel' | 'clear' | 'pause' | 'resume'
+      action?: 'list' | 'cancel' | 'clear' | 'pause' | 'resume' | 'retry'
       downloadId?: string
     }) =>
       textResult(manager.manageWorkspaceDownloads(workspaceId!, action ?? 'list', downloadId))
