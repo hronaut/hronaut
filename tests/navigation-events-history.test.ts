@@ -23,12 +23,18 @@ function tabPage(options: { restored?: boolean } = {}) {
     loading: false,
     entryIndex: -1,
     entryCount: 0,
+    /** The addresses of the history entries, as far as the case gave them. */
+    entryUrls: [] as string[],
     getURL: () => contents.url,
     getTitle: () => contents.title,
     isLoading: () => contents.loading,
     isLoadingMainFrame: () => contents.loading,
     isDestroyed: () => false,
-    navigationHistory: { getActiveIndex: () => contents.entryIndex, length: () => contents.entryCount || contents.entryIndex + 1 }
+    navigationHistory: {
+      getActiveIndex: () => contents.entryIndex,
+      length: () => contents.entryCount || contents.entryIndex + 1,
+      getEntryAtIndex: (index: number) => contents.entryUrls[index] === undefined ? null : { url: contents.entryUrls[index], title: '' }
+    }
   })
   const tab = {
     id: 'tab', url: 'about:blank', title: 'New Tab', loading: false, sleeping: false,
@@ -55,6 +61,7 @@ function tabPage(options: { restored?: boolean } = {}) {
     contents.url = url
     contents.title = title
     contents.entryIndex = entryIndex
+    contents.entryUrls[entryIndex] = url
     if (!contents.loading) contents.emit('did-start-loading')
     contents.loading = true
     contents.emit('did-navigate', {}, url)
@@ -87,6 +94,7 @@ function tabPage(options: { restored?: boolean } = {}) {
   const changeWithinPage = (url: string, entryIndex: number) => {
     contents.url = url
     contents.entryIndex = entryIndex
+    contents.entryUrls[entryIndex] = url
     contents.emit('did-navigate-in-page', {}, url, true)
   }
   const setEntryCount = (count: number) => { contents.entryCount = count }
@@ -100,7 +108,10 @@ function tabPage(options: { restored?: boolean } = {}) {
   const removeEarlierEntry = () => {
     contents.entryCount = (contents.entryCount || contents.entryIndex + 1) - 1
     contents.entryIndex -= 1
+    contents.entryUrls.splice(0, 1)
   }
+  /** The pages a restored tab's history keeps before the page it loads again. */
+  const restoreEarlierEntries = (urls: string[]) => { contents.entryUrls.splice(0, urls.length, ...urls) }
   /** A navigation that never commits, such as a download, aborts its load. */
   const abortNavigation = (url: string) => { contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', url, true) }
   /** Waking the tab loads its page again. */
@@ -123,7 +134,7 @@ function tabPage(options: { restored?: boolean } = {}) {
   }
   return {
     visits, titles, commit, ready, load, stopLoading, loadFrame, setTitle, changeWithinPage, setEntryCount, navigateFrame,
-    removeEarlierEntry, abortNavigation, wake, stopWaitingForWake, fallAsleep, wakeWhileAsleepLoads
+    removeEarlierEntry, restoreEarlierEntries, abortNavigation, wake, stopWaitingForWake, fallAsleep, wakeWhileAsleepLoads
   }
 }
 
@@ -262,6 +273,19 @@ describe('visits a tab gives the history', () => {
     page.changeWithinPage('https://app.example/#/', 1)
     page.changeWithinPage('https://app.example/home', 1)
     page.changeWithinPage('https://app.example/orders', 2)
+    page.stopLoading()
+    expect(page.visits).toEqual([{ url: 'https://app.example/orders', samePage: false }])
+  })
+
+  it('counts a route a restored page pushes after clearing the history removed the pages before it', () => {
+    // Clearing the history moved the page back in its history, so the route it pushed next took the page's own place
+    // and was not counted.
+    const page = tabPage({ restored: true })
+    page.restoreEarlierEntries(['https://app.example/login', 'https://app.example/start'])
+    page.commit('https://app.example/', 2, 'App')
+    page.removeEarlierEntry()
+    page.removeEarlierEntry()
+    page.changeWithinPage('https://app.example/orders', 1)
     page.stopLoading()
     expect(page.visits).toEqual([{ url: 'https://app.example/orders', samePage: false }])
   })

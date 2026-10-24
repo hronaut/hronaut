@@ -45,7 +45,10 @@ function page(id: string, mcpGroupId: string, sleeping = false) {
     id, mcpGroupId, url: `https://example.test/${id.slice(-2)}`, title: id.slice(-2), pinned: false, sleeping, tabMuted: false,
     humanInteractionLocked: false, tabAgentPaused: false, lastActiveAt: 0, navigationGeneration: 0,
     walletNavigationGeneration: 0, view: { id: `view-${id}` },
-    webContents: { id: Number.parseInt(id.slice(-2), 16), isDestroyed: () => false, close: vi.fn() }
+    webContents: {
+      id: Number.parseInt(id.slice(-2), 16), isDestroyed: () => false, close: vi.fn(),
+      navigationHistory: { length: () => 1, getActiveIndex: () => 0, getEntryAtIndex: () => null, removeEntryAtIndex: () => false }
+    }
   }
 }
 
@@ -512,7 +515,7 @@ describe('recently closed tabs of other workspaces', () => {
     await vi.waitFor(() => expect(internals.assertStorageDeletionOwnership).toHaveBeenCalled())
     // The two oldest are held aside while the workspace's storage is deleted, and the person removes the page of the
     // oldest from the history meanwhile.
-    manager.forgetClosedTabs((url) => url === 'https://other.test/0')
+    manager.forgetHistoryPages((url) => url === 'https://other.test/0')
     deleteStorage()
     await closing
     // Closing the workspace used to put the held-aside tab back, its address with it.
@@ -528,7 +531,7 @@ describe('recently closed tabs of other workspaces', () => {
     internals.assertStorageDeletionOwnership.mockReturnValueOnce(new Promise<void>((_resolve, reject) => { refuse = reject }))
     const closing = manager.closeMcpTabGroup(CLOSING)
     await vi.waitFor(() => expect(internals.assertStorageDeletionOwnership).toHaveBeenCalled())
-    manager.forgetClosedTabs(() => true)
+    manager.forgetHistoryPages(() => true)
     refuse(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
     await expect(closing).rejects.toThrow('ambiguous ownership')
     expect(workspaceTabs(CLOSING)).toEqual([SHOWN, ASLEEP])
