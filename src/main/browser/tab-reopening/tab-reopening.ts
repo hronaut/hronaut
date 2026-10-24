@@ -3,6 +3,7 @@ import { LocalizedError } from '../../localized-error.js'
 import { uuidV7 } from '../../uuid-v7.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { NavigationHistorySnapshot } from '../navigation-history.js'
+import type { SavedClosedTab } from '../saved-closed-tabs/saved-closed-tabs.js'
 import type { TabReopeningAccess, TabReopeningTab } from './tab-reopening-access.js'
 
 const MAX_TABS = MAX_BROWSER_TABS
@@ -198,6 +199,24 @@ export function rememberClosedTab<Tab extends TabReopeningTab>(
   if (pages) closedTabHistories.set(closed, { pages, visited })
   access.closedTabs().push(closed)
   if (access.closedTabs().length > MAX_CLOSED_TABS) access.closedTabs().shift()
+}
+
+/** The back and forward history a remembered closed tab restores when it reopens, if it has one. */
+export function closedTabPages(closed: BrowserClosedTabState): NavigationHistorySnapshot | undefined {
+  return closedTabHistories.get(closed)?.pages
+}
+
+/**
+ * Remembers the closed tabs Recently closed kept when Hronaut last closed, oldest first, ahead of those closed since,
+ * with the history each restores, as Chrome does after a restart. History counted their pages then, so reopening one
+ * is not another visit.
+ */
+export function rememberSavedClosedTabs(closedTabs: BrowserClosedTabState[], saved: readonly SavedClosedTab[]): void {
+  closedTabs.unshift(...saved.map(({ closed, history }) => {
+    if (history) closedTabHistories.set(closed, { pages: copyHistory(history), visited: true })
+    return closed
+  }))
+  if (closedTabs.length > MAX_CLOSED_TABS) closedTabs.splice(0, closedTabs.length - MAX_CLOSED_TABS)
 }
 
 /**

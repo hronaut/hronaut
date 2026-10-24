@@ -239,6 +239,7 @@ import {
 } from '../../shared/snapshot-delta.js'
 import { safeNavigationHistorySnapshot, type NavigationHistorySnapshot } from './navigation-history.js'
 import { historyAroundShownPage, savedTabHistories, savedTabHistory, TabHistoryStore, type SavedTabHistoryAccess } from './saved-tab-history/saved-tab-history.js'
+import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs, type SavedClosedTabsAccess } from './saved-closed-tabs/saved-closed-tabs.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
 import type { KeyboardDebugger } from './native-keyboard.js'
 import type { PointerDebugger } from './native-pointer.js'
@@ -562,7 +563,7 @@ import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
 import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import type { TabReopeningAccess } from './tab-reopening/tab-reopening-access.js'
-import { duplicateTabAfterLabelSave, forgetClosedTabs, forgetWorkspaceClosedTabs, rememberClosedTab, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
+import { closedTabPages, duplicateTabAfterLabelSave, forgetClosedTabs, forgetWorkspaceClosedTabs, rememberClosedTab, rememberSavedClosedTabs, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
 import { forgetTabHistoryPages, holdTabHistory } from './tab-history-pages/forget-tab-history-pages.js'
 import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
 import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
@@ -842,6 +843,8 @@ export interface TabsManagerOptions {
   storePath: string
   /** Where the tabs' Back and Forward history is kept for the next start; without it, tabs restart at their addresses. */
   tabHistoryPath?: string
+  /** Where Recently closed is kept for the next start; without it, Recently closed starts empty. */
+  closedTabsPath?: string
   requireExistingMetadata?: boolean
   mcpUrl: string
   profilePath: string
@@ -1168,6 +1171,7 @@ export class BrowserTabsManager {
   private restoringLayout = false
   private persistTimer: NodeJS.Timeout | null = null
   private tabHistoryStore: TabHistoryStore | undefined
+  private closedTabsStore: ClosedTabsStore | undefined
   private tabHistoryTimer: NodeJS.Timeout | null = null
   private stopPresentationWatcher: (() => void) | undefined
   private memorySaverTimer: NodeJS.Timeout | null = null
@@ -1407,6 +1411,7 @@ export class BrowserTabsManager {
     powerMonitor.on('suspend', this.pauseVideoForSuspend)
     this.store = new TabStateStore(options.storePath)
     this.tabHistoryStore = options.tabHistoryPath ? new TabHistoryStore(options.tabHistoryPath) : undefined
+    this.closedTabsStore = options.closedTabsPath ? new ClosedTabsStore(options.closedTabsPath) : undefined
     this.toolbarHeight = options.toolbarHeight ?? 104
     this.mcpUrl = options.mcpUrl
     this.memorySaverEnabled = options.memorySaverEnabled !== false
@@ -1462,6 +1467,7 @@ export class BrowserTabsManager {
     this.allHumanInteractionLocked = saved?.allHumanInteractionLocked === true
     const persistedTabs = saved?.tabs ?? []
     const savedHistories = await this.tabHistoryStore?.load() ?? new Map<string, NavigationHistorySnapshot>()
+    const savedClosed = await this.closedTabsStore?.load() ?? []
     for (const group of saved?.mcpTabGroups ?? []) {
       this.mcpTabGroups.set(group.id, {
         ...group,
@@ -1489,6 +1495,8 @@ export class BrowserTabsManager {
         }))
       })
     }
+    // Recently closed comes back as Chrome's does, with the closed tabs of workspaces that are open again.
+    rememberSavedClosedTabs(this.closedTabs, restoredClosedTabs(savedClosed, (workspaceId) => this.mcpTabGroups.get(workspaceId)?.navigationPolicy))
     if (persistedTabs.length) {
       let restoredHome = false
       for (const tab of persistedTabs) {
@@ -1545,7 +1553,8 @@ export class BrowserTabsManager {
     this.restoringLayout = false
     await this.store.initializeState(() => this.persistedState())
     this.initialized = true
-    // The saved history leaves out tabs that did not come back; from then on it is saved every few seconds.
+    // The saved history leaves out tabs that did not come back; from then on it is saved every few seconds, with
+    // Recently closed.
     void this.saveTabHistory()
     this.tabHistoryTimer = setInterval(() => { void this.saveTabHistory() }, TAB_HISTORY_SAVE_MS)
     this.tabHistoryTimer.unref()
@@ -2446,8 +2455,8 @@ export class BrowserTabsManager {
     const closedTabsForgotten = forgetClosedTabs(this.tabReopeningAccess(), matches, workspaceId)
     const tabs = [...this.tabs.values()].filter((tab) => workspaceId === undefined || tab.mcpGroupId === workspaceId)
     const openTabPagesForgotten = forgetTabHistoryPages(tabs, matches)
-    // Recently closed is not saved, so only the state is published; open tabs' history is saved for the next start
-    // without the pages at once, also for a tab whose history cannot be read then and keeps what was saved before.
+    // Recently closed and open tabs' history are saved for the next start without the pages at once, also for a tab
+    // whose history cannot be read then and keeps what was saved before.
     if (closedTabsForgotten || openTabPagesForgotten) this.changed(false)
     this.tabHistoryStore?.forgetPages(matches, workspaceId === undefined ? undefined : new Set(tabs.map((tab) => tab.id)))
     void this.saveTabHistory()
@@ -5430,13 +5439,26 @@ export class BrowserTabsManager {
   }
 
   /**
-   * Saves the tabs' Back and Forward history for the next start, once the saved tabs are back and until the browser
-   * closes; a failure is logged, as the tabs then only restart at their addresses.
+   * Saves the tabs' Back and Forward history and Recently closed for the next start, once the saved tabs are back and
+   * until the browser closes; a failure is logged, as the tabs then only restart at their addresses.
    */
-  private saveTabHistory(): Promise<void> {
-    if (!this.tabHistoryStore || !this.initialized) return Promise.resolve()
-    return this.tabHistoryStore.save((previous) => this.destroyed ? undefined : savedTabHistories(this.savedTabHistoryAccess(), previous))
-      .catch((error: unknown) => console.error('[browser] Failed to save tab history:', error))
+  private async saveTabHistory(): Promise<void> {
+    if (!this.initialized) return
+    await Promise.all([
+      this.tabHistoryStore?.save((previous) => this.destroyed ? undefined : savedTabHistories(this.savedTabHistoryAccess(), previous))
+        .catch((error: unknown) => console.error('[browser] Failed to save tab history:', error)),
+      this.closedTabsStore?.save(() => this.destroyed ? undefined : savedClosedTabs(this.savedClosedTabsAccess()))
+        .catch((error: unknown) => console.error('[browser] Failed to save recently closed tabs:', error))
+    ])
+  }
+
+  /** The narrow view saving Recently closed gets of this manager's closed tabs, their history and the workspaces' rules. */
+  private savedClosedTabsAccess(): SavedClosedTabsAccess {
+    return {
+      closedTabs: () => this.closedTabs,
+      closedTabHistory: closedTabPages,
+      navigationPolicy: (workspaceId) => this.mcpTabGroups.get(workspaceId)?.navigationPolicy
+    }
   }
 
   /** The narrow view saving the tabs' history gets of this manager's tabs, their history and the workspaces' rules. */
