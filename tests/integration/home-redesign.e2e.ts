@@ -108,6 +108,8 @@ test('sets up Claude Code from Home after a confirmation in the dialog main asks
     await answerTrustedDialog(instance.window, 'Cancel')
     await expect(trustedDialog(instance.window)).toBeHidden()
     await expect(status).toHaveText('Nothing was changed.')
+    // The keyboard comes back to Home with the answer, as the dialog took it to the shell.
+    await expect.poll(() => app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(contents => contents.getURL() === url)?.isFocused(), page.url())).toBe(true)
     expect(await readFile(configPath, 'utf8')).toBe(original)
     expect(await backups()).toEqual([])
 
@@ -120,6 +122,7 @@ test('sets up Claude Code from Home after a confirmation in the dialog main asks
     await expectClaudeSetupDialog(instance.window, configPath, entry, backupName)
     await answerTrustedDialog(instance.window, 'Add to Claude Code')
     await expect(status).toHaveText(`Added. Restart Claude Code and it connects here. Backup: ${backupName}.`)
+    await expect.poll(() => app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(contents => contents.getURL() === url)?.isFocused(), page.url())).toBe(true)
     expect(await messageBoxes(app)).toEqual([])
     const expected = `${JSON.stringify({ ...settings, mcpServers: { ...settings.mcpServers, hronaut: { type: 'http', url: endpoint } } }, null, 2)}\n`
     expect(await readFile(configPath, 'utf8')).toBe(expected)
