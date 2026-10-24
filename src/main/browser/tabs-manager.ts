@@ -238,6 +238,7 @@ import {
   type BrowserSnapshotDeltaContext
 } from '../../shared/snapshot-delta.js'
 import { safeNavigationHistorySnapshot, type NavigationHistorySnapshot } from './navigation-history.js'
+import { historyAroundShownPage, savedTabHistories, savedTabHistory, TabHistoryStore, type SavedTabHistoryAccess } from './saved-tab-history/saved-tab-history.js'
 import { keepSessionCookies } from './session-cookies/saved-session-cookies.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
 import type { KeyboardDebugger } from './native-keyboard.js'
@@ -623,6 +624,8 @@ function workspaceNameKey(name: string): string {
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
 const ABORTED_LOAD_ERROR = -3
 const MEMORY_SAVER_SWEEP_MS = 30_000
+/** How often the tabs' history is saved, with their pages' scroll and form state, as Chrome saves its session a moment after each change. */
+const TAB_HISTORY_SAVE_MS = 5_000
 const require = createRequire(import.meta.url)
 const webVitalsPath = require.resolve('web-vitals/attribution')
 const webVitalsSource = readFileSync(webVitalsPath, 'utf8')
@@ -637,6 +640,19 @@ function isAbortedLoad(error: unknown): boolean {
     || details.errno === ABORTED_LOAD_ERROR
     || details.code === 'ERR_ABORTED'
     || /\bERR_ABORTED\b|\(-3\)\s+loading\b/.test(error.message)
+}
+
+/**
+ * Restores a tab's Back and Forward history and loads the page it shows, or, when Electron cannot take the history and
+ * the tab has none, loads its address instead.
+ */
+async function restoreHistoryOrLoad(webContents: WebContents, history: NavigationHistorySnapshot, url: string, loadOptions?: LoadURLOptions): Promise<void> {
+  try {
+    await webContents.navigationHistory.restore(history)
+  } catch (error) {
+    if (webContents.isDestroyed() || webContents.navigationHistory.length() > 0) throw error
+    await webContents.loadURL(url, loadOptions)
+  }
 }
 
 function pdfFilename(requested: string | undefined, title: string): string {
@@ -825,6 +841,8 @@ export interface TabsManagerOptions {
   partition: string
   sessionDataPath?: string
   storePath: string
+  /** Where the tabs' Back and Forward history is kept for the next start; without it, tabs restart at their addresses. */
+  tabHistoryPath?: string
   requireExistingMetadata?: boolean
   mcpUrl: string
   profilePath: string
@@ -1150,6 +1168,8 @@ export class BrowserTabsManager {
   private destroyed = false
   private restoringLayout = false
   private persistTimer: NodeJS.Timeout | null = null
+  private tabHistoryStore: TabHistoryStore | undefined
+  private tabHistoryTimer: NodeJS.Timeout | null = null
   private stopPresentationWatcher: (() => void) | undefined
   private memorySaverTimer: NodeJS.Timeout | null = null
   private initialized = false
@@ -1387,6 +1407,7 @@ export class BrowserTabsManager {
     this.shellHeldKeys = trackShellHeldKeys(window)
     powerMonitor.on('suspend', this.pauseVideoForSuspend)
     this.store = new TabStateStore(options.storePath)
+    this.tabHistoryStore = options.tabHistoryPath ? new TabHistoryStore(options.tabHistoryPath) : undefined
     this.toolbarHeight = options.toolbarHeight ?? 104
     this.mcpUrl = options.mcpUrl
     this.memorySaverEnabled = options.memorySaverEnabled !== false
@@ -1441,6 +1462,7 @@ export class BrowserTabsManager {
     this.allTabsMuted = saved?.allTabsMuted === true
     this.allHumanInteractionLocked = saved?.allHumanInteractionLocked === true
     const persistedTabs = saved?.tabs ?? []
+    const savedHistories = await this.tabHistoryStore?.load() ?? new Map<string, NavigationHistorySnapshot>()
     for (const group of saved?.mcpTabGroups ?? []) {
       this.mcpTabGroups.set(group.id, {
         ...group,
@@ -1476,6 +1498,9 @@ export class BrowserTabsManager {
           if (restoredHome) continue
           restoredHome = true
         }
+        // A workspace tab comes back with its Back and Forward history and the scroll of its pages, as in Chrome.
+        const workspacePolicy = tab.mcpGroupId && !isHronautHomeUrl(tab.url) ? this.mcpTabGroups.get(tab.mcpGroupId)?.navigationPolicy : undefined
+        const navigationHistory = workspacePolicy ? savedTabHistory(savedHistories.get(tab.id), tab.url, workspacePolicy) : undefined
         await this.createTab({
           id: tab.id,
           label: tab.label,
@@ -1491,6 +1516,7 @@ export class BrowserTabsManager {
           mcpGroupId: isHronautHomeUrl(tab.url)
             ? undefined
             : tab.mcpGroupId,
+          ...(navigationHistory ? { navigationHistory } : {}),
           suppressInitialHistory: true,
           active: false
         })
@@ -1520,6 +1546,10 @@ export class BrowserTabsManager {
     this.restoringLayout = false
     await this.store.initializeState(() => this.persistedState())
     this.initialized = true
+    // The saved history leaves out tabs that did not come back; from then on it is saved every few seconds.
+    void this.saveTabHistory()
+    this.tabHistoryTimer = setInterval(() => { void this.saveTabHistory() }, TAB_HISTORY_SAVE_MS)
+    this.tabHistoryTimer.unref()
     if (this.activeTabId) {
       const activeTab = this.tabs.get(this.activeTabId)
       if (activeTab) this.focusTabOrTrustedChrome(activeTab)
@@ -2417,8 +2447,11 @@ export class BrowserTabsManager {
     const closedTabsForgotten = forgetClosedTabs(this.tabReopeningAccess(), matches, workspaceId)
     const tabs = [...this.tabs.values()].filter((tab) => workspaceId === undefined || tab.mcpGroupId === workspaceId)
     const openTabPagesForgotten = forgetTabHistoryPages(tabs, matches)
-    // Neither is saved with the tabs, so only the state is published.
+    // Recently closed is not saved, so only the state is published; open tabs' history is saved for the next start
+    // without the pages at once, also for a tab whose history cannot be read then and keeps what was saved before.
     if (closedTabsForgotten || openTabPagesForgotten) this.changed(false)
+    this.tabHistoryStore?.forgetPages(matches, workspaceId === undefined ? undefined : new Set(tabs.map((tab) => tab.id)))
+    void this.saveTabHistory()
   }
 
   /**
@@ -5393,8 +5426,32 @@ export class BrowserTabsManager {
     }
   }
 
-  flushPersist(): Promise<void> {
-    return flushPersist(this.quitFlushAccess())
+  async flushPersist(): Promise<void> {
+    await Promise.all([flushPersist(this.quitFlushAccess()), this.saveTabHistory()])
+  }
+
+  /**
+   * Saves the tabs' Back and Forward history for the next start, once the saved tabs are back and until the browser
+   * closes; a failure is logged, as the tabs then only restart at their addresses.
+   */
+  private saveTabHistory(): Promise<void> {
+    if (!this.tabHistoryStore || !this.initialized) return Promise.resolve()
+    return this.tabHistoryStore.save((previous) => this.destroyed ? undefined : savedTabHistories(this.savedTabHistoryAccess(), previous))
+      .catch((error: unknown) => console.error('[browser] Failed to save tab history:', error))
+  }
+
+  /** The narrow view saving the tabs' history gets of this manager's tabs, their history and the workspaces' rules. */
+  private savedTabHistoryAccess(): SavedTabHistoryAccess<BrowserTab> {
+    return {
+      tabs: () => this.tabs.values(),
+      navigationHistory: (tab) => {
+        if (tab.sleepNavigationHistory) return tab.sleepNavigationHistory
+        if (tab.webContents.isDestroyed()) return undefined
+        const history = historyAroundShownPage(tab.webContents.navigationHistory)
+        return history && withoutSleepingPage(history)
+      },
+      navigationPolicy: (workspaceId) => this.mcpTabGroups.get(workspaceId)?.navigationPolicy
+    }
   }
 
   drainWorkspaceOperations(): Promise<void> {
@@ -5416,6 +5473,7 @@ export class BrowserTabsManager {
     this.mcpActivityFollower.dispose()
     this.stopPresentationWatcher?.()
     if (this.persistTimer) clearTimeout(this.persistTimer)
+    if (this.tabHistoryTimer) clearInterval(this.tabHistoryTimer)
     if (this.memorySaverTimer) clearInterval(this.memorySaverTimer)
     this.downloadController.clearPendingNotification()
     for (const timer of this.tabOverviewPreviewTimers.values()) clearTimeout(timer)
@@ -5680,7 +5738,7 @@ export class BrowserTabsManager {
       : cookiesBack.then(() => {
         if (view.webContents.isDestroyed()) return undefined
         return options.navigationHistory
-          ? view.webContents.navigationHistory.restore(options.navigationHistory)
+          ? restoreHistoryOrLoad(view.webContents, options.navigationHistory, url, options.loadOptions)
           : view.webContents.loadURL(url, options.loadOptions)
       })
     void loading.catch((error: unknown) => {
