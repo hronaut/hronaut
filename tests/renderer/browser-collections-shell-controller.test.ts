@@ -20,7 +20,8 @@ function createController() {
   const tabSearchOpen = ref(true)
   const bookmarksPanel = ref({
     toggle: vi.fn(async () => { bookmarksOpen.value = !bookmarksOpen.value }),
-    toggleCurrent: vi.fn(async () => { bookmarksOpen.value = true })
+    toggleCurrent: vi.fn(async () => { bookmarksOpen.value = true }),
+    bookmarkAllTabs: vi.fn(async (_workspaceId: string | null, _suggestedName?: string) => { bookmarksOpen.value = true })
   })
   const historyPanel = ref({
     toggle: vi.fn(async () => { historyOpen.value = !historyOpen.value })

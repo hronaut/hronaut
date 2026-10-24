@@ -12,7 +12,7 @@ const channels = [
 
 function fixture() {
   const listeners = new Map<string, Listener>()
-  const bookmarks = { collectionSnapshot: vi.fn(() => ({ revision: 0, collections: [] })), createCollection: vi.fn(), renameCollection: vi.fn(), removeCollection: vi.fn(), assignCollection: vi.fn(), list: vi.fn(() => []), add: vi.fn(), addIfMissing: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), removeRestorably: vi.fn() }
+  const bookmarks = { collectionSnapshot: vi.fn(() => ({ revision: 0, collections: [] })), createCollection: vi.fn(), renameCollection: vi.fn(), removeCollection: vi.fn(), assignCollection: vi.fn(), list: vi.fn(() => []), add: vi.fn(), addIfMissing: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), removeRestorably: vi.fn(), bookmarkTabs: vi.fn() }
   const history = { list: vi.fn(() => []), remove: vi.fn(), clear: vi.fn() }
   const downloads = { removeFinishedDownload: vi.fn(() => []), listDownloads: vi.fn(() => []), listDownloadsCheckingFiles: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn(), startDownloadDrag: vi.fn() }
   const host = {
@@ -21,6 +21,7 @@ function fixture() {
     bookmarks: vi.fn(() => bookmarks),
     history: vi.fn(() => history),
     downloads: vi.fn(() => downloads),
+    workspaceTabs: vi.fn((_workspaceId: string | null) => [] as { url: string; title: string }[]),
     publishBookmarks: vi.fn(() => []),
     publishVisitHistory: vi.fn(() => [])
   }

@@ -16,6 +16,7 @@ import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
 import { registerPanelWindowIpc } from './panel-window-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
 import { registerBookmarksFileIpc } from './bookmarks-file-ipc.js'
+import { isHronautHomeUrl } from '../shared/home-url.js'
 import { createAgentPresence } from './agent-presence.js'
 import { registerAgentPresenceIpc } from './agent-presence-ipc.js'
 import { TakeOverOffers } from './take-over-offers.js'
@@ -922,6 +923,9 @@ function registerIpc(): void {
     bookmarks: () => bookmarksAndHistory.bookmarks!,
     history: () => bookmarksAndHistory.history!,
     downloads: () => tabRuntime.tabs!,
+    workspaceTabs: (workspaceId) => (tabRuntime.tabs?.getState().tabs ?? [])
+      .filter(tab => (tab.mcpGroupId ?? null) === workspaceId && !isHronautHomeUrl(tab.url))
+      .map(tab => ({ url: tab.url, title: tab.title })),
     publishBookmarks,
     publishVisitHistory,
     historyCleared,

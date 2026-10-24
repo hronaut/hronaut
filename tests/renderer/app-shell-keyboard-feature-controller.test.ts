@@ -94,7 +94,8 @@ function createHarness() {
       bookmarksPanel: ref({
         handleEscape: actions.closeBookmarks,
         toggle: vi.fn(async () => undefined),
-        toggleCurrent: vi.fn(async () => undefined)
+        toggleCurrent: vi.fn(async () => undefined),
+        bookmarkAllTabs: vi.fn(async () => undefined)
       }),
       historyOpen: surfaces.history
     },

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { expect, it, vi } from 'vitest'
-import type { BookmarkCollectionSnapshot } from '../../src/shared/types.js'
+import type { BookmarkCollectionSnapshot, BookmarkTabsOutcome } from '../../src/shared/types.js'
 import { useBookmarkCollectionsController } from '../../src/renderer/src/composables/useBookmarkCollectionsController.js'
 
 function fixture() {
@@ -13,6 +13,9 @@ function fixture() {
     list: vi.fn(async () => initial), create: vi.fn(async (_name: string) => initial),
     rename: vi.fn(async (_id: string, _name: string) => initial), remove: vi.fn(async (_id: string) => initial),
     assign: vi.fn(async (_id: string, _collection: string | null) => initial),
+    bookmarkTabs: vi.fn(async (_workspaceId: string | null, _name: string): Promise<BookmarkTabsOutcome> => {
+      throw new Error('Not used')
+    }),
     onChanged: vi.fn((listener: typeof notify) => { notify = listener; return unsubscribe })
   }
   const controller = useBookmarkCollectionsController({ open, blocked, api, translate: key => `t:${key}` })

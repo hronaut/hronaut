@@ -656,6 +656,7 @@ export const plPL = {
     },
     "commands": {
       "task-manager": { "label": "Otwórz Menedżera zadań", "description": "Zobacz, ile pamięci i procesora używa każda karta i proces" },
+      "bookmark-all-tabs": { "label": "Dodaj wszystkie karty do zakładek", "description": "Zapisz otwarte karty widocznego obszaru roboczego jako kolekcję zakładek" },
       "home": {
         "label": "Otwórz stronę główną Hronaut",
         "description": "Pokaż pulpit aplikacji"
@@ -887,6 +888,7 @@ export const plPL = {
       "findPrevious": "Przejdź do poprzedniego wyniku na stronie",
       "print": "Drukuj stronę",
       "bookmark": "Dodaj bieżącą stronę do zakładek",
+      "bookmarkAllTabs": "Dodaj wszystkie otwarte karty do zakładek w nowej kolekcji",
       "history": "Otwórz historię przeglądania",
       "downloads": "Otwórz pobrane",
       "savePage": "Zapisz stronę",
@@ -3053,6 +3055,7 @@ export const plPL = {
   "bookmarks": { sortOrder: "Sortuj zakładki", sortUpdated: "Ostatnio zaktualizowane", sortTitle: "Tytuł", copyAddress: "Kopiuj adres", copyAddressAria: "Kopiuj adres strony {title}", addressCopied: "Adres skopiowany", copyFailed: "Nie udało się skopiować adresu. Spróbuj ponownie.",
     file: { import: "Importuj…", export: "Eksportuj…", importHint: "Importuj zakładki z pliku HTML, np. wyeksportowanego z Chrome", exportHint: "Eksportuj zakładki do pliku HTML, który Chrome i inne przeglądarki mogą zaimportować", exported: "Wyeksportowano {count} zakładkę. | Wyeksportowano {count} zakładki. | Wyeksportowano {count} zakładek.", imported: "Zaimportowano {count} zakładkę. | Zaimportowano {count} zakładki. | Zaimportowano {count} zakładek.", alreadySaved: "{count} była już zapisana. | {count} były już zapisane. | {count} było już zapisanych.", notWebPages: "{count} link nie jest stroną internetową, więc go pominięto. | {count} linki nie są stronami internetowymi, więc je pominięto. | {count} linków nie jest stronami internetowymi, więc je pominięto.", overLimit: "Hronaut przechowuje do {max} zakładek, więc pominięto {count}. | Hronaut przechowuje do {max} zakładek, więc pominięto {count}. | Hronaut przechowuje do {max} zakładek, więc pominięto {count}.", nothingNew: "Nie zaimportowano nowych zakładek." },
     openAll: { button: "Otwórz wszystkie ({count})", hint: "Otwórz każdą zakładkę z listy w karcie w tle", ask: "Otworzyć {count} kartę? | Otworzyć {count} karty? | Otworzyć {count} kart?", confirm: "Otwórz {count} kartę | Otwórz {count} karty | Otwórz {count} kart", cancel: "Anuluj", opened: "Otwarto {count} kartę. | Otwarto {count} karty. | Otwarto {count} kart." },
+    allTabs: { heading: "Dodaj wszystkie karty do zakładek", hint: "Otwarte karty trafią do nowej kolekcji o tej nazwie.", defaultName: "Otwarte karty", save: "Zapisz karty", cancel: "Anuluj", saved: "Dodano {count} stronę do {name}. | Dodano {count} strony do {name}. | Dodano {count} stron do {name}.", inOtherCollections: "{count} była już w innej kolekcji, więc tam została. | {count} były już w innych kolekcjach, więc tam zostały. | {count} było już w innych kolekcjach, więc tam zostało.", notWebPages: "{count} karta nie pokazuje strony internetowej, więc ją pominięto. | {count} karty nie pokazują strony internetowej, więc je pominięto. | {count} kart nie pokazuje strony internetowej, więc je pominięto.", overLimit: "Hronaut przechowuje do {max} zakładek, więc pominięto {count}. | Hronaut przechowuje do {max} zakładek, więc pominięto {count}. | Hronaut przechowuje do {max} zakładek, więc pominięto {count}." },
     "collection": "Kolekcja",
     "collectionFilter": "Filtruj zakładki według kolekcji",
     "allCollections": "Wszystkie zakładki",
@@ -3619,6 +3622,7 @@ export const plPL = {
       "closeBelow": "Zamknij karty poniżej",
       "closeDuplicates": "Zamknij zduplikowane karty",
       "reopenClosed": "Otwórz ponownie zamkniętą kartę",
+      "bookmarkAllTabs": "Dodaj wszystkie karty do zakładek…",
       "openLink": "Otwórz łącze w nowej karcie",
       "copyLink": "Kopiuj adres łącza",
       "copyEmail": "Kopiuj adres e-mail",

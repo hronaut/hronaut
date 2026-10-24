@@ -2,12 +2,14 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { BookmarkStore, RemovedBookmark } from './bookmark-store.js'
 import type { HistoryStore } from './history-store.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
-import type { BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
+import type { BookmarkTabsOutcome, BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
 
 interface CollectionIpcHost {
   runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T>
   assertTrustedSender(event: IpcMainInvokeEvent): void
-  bookmarks(): Pick<BookmarkStore, 'list' | 'add' | 'addIfMissing' | 'rename' | 'updateDestination' | 'removeRestorably' | 'collectionSnapshot' | 'createCollection' | 'renameCollection' | 'removeCollection' | 'assignCollection'>
+  bookmarks(): Pick<BookmarkStore, 'list' | 'add' | 'addIfMissing' | 'rename' | 'updateDestination' | 'removeRestorably' | 'collectionSnapshot' | 'createCollection' | 'renameCollection' | 'removeCollection' | 'assignCollection' | 'bookmarkTabs'>
+  /** The open tabs of a workspace, or of no workspace for null, in the tab strip's order; Home is not one of them. */
+  workspaceTabs(workspaceId: string | null): { url: string; title: string }[]
   /** The person removed a bookmark from Hronaut's own controls; Undo can put it back. */
   bookmarkRemoved?(removed: RemovedBookmark): void
   history(): Pick<HistoryStore, 'list' | 'remove' | 'clear'>
@@ -104,6 +106,17 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
       return store.collectionSnapshot()
     })
   }
+  // Bookmark all tabs: main reads the tabs, so the window names only whose and what to call the collection.
+  ipcMain.handle('bookmark-collections:bookmark-tabs', async (event, workspaceId: unknown, name: unknown): Promise<BookmarkTabsOutcome> => {
+    host.assertTrustedSender(event)
+    if ((workspaceId !== null && typeof workspaceId !== 'string') || typeof name !== 'string') {
+      throw new TypeError('Invalid bookmark collection arguments')
+    }
+    const store = host.bookmarks()
+    const result = await store.bookmarkTabs(name, host.workspaceTabs(workspaceId))
+    host.publishBookmarks()
+    return { snapshot: store.collectionSnapshot(), result }
+  })
   ipcMain.handle('visit-history:list', (event) => host.runRead(event, () => host.history().list()))
   ipcMain.handle('visit-history:remove', async (event, id: unknown) => {
     host.assertTrustedSender(event)

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { chmod, readFile, rename } from 'node:fs/promises'
-import type { BrowserBookmark, BrowserBookmarkCollection, BookmarkCollectionSnapshot, BookmarkImportResult } from '../shared/types.js'
+import type { BrowserBookmark, BrowserBookmarkCollection, BookmarkCollectionSnapshot, BookmarkImportResult, BookmarkTabsResult } from '../shared/types.js'
 import { truncateText } from '../shared/text-boundaries.js'
 import type { ImportedBookmark } from './bookmarks-html.js'
 import { normalizeCollectionTitle } from './collection-title.js'
@@ -361,6 +361,66 @@ export class BookmarkStore {
         }
       }
       if (result.added === 0) return result
+      await this.persist(nextEntries.values(), nextCollections)
+      this.collections = nextCollections
+      this.replaceEntries(nextEntries)
+      return result
+    })
+  }
+
+  /**
+   * Bookmark all tabs, as in Chrome: a new collection with this name holds the tabs' pages, in the tabs' order. A page
+   * not bookmarked yet is bookmarked, and one bookmarked in no collection joins it; one in another collection stays
+   * there, since a bookmark is in one collection at most. A page counts once however many tabs show it. Each new
+   * bookmark is a millisecond older than the one before, so the list, newest first, shows them in the tabs' order. All
+   * is saved at once, and nothing when no page can go in the collection.
+   */
+  bookmarkTabs(value: string, tabs: readonly { url: string; title: string }[]): Promise<BookmarkTabsResult> {
+    const name = collectionName(value)
+    return this.queueMutation(async () => {
+      if (this.collections.length >= 50) throw new LocalizedError('appErrors.bookmarks.collectionLimit')
+      this.assertCollectionNameAvailable(name)
+      const collection = { id: randomUUID(), name, bookmarkIds: [] as string[] }
+      const result: BookmarkTabsResult = {
+        collectionId: collection.id, saved: 0, inOtherCollections: 0, notWebPages: 0, overLimit: 0, limit: MAX_BOOKMARKS
+      }
+      const nextEntries = new Map(this.entries)
+      const bookmarked = new Map([...nextEntries.values()].map(entry => [entry.url, entry.id]))
+      const inCollections = new Set(this.collections.flatMap(existing => existing.bookmarkIds))
+      const pages = new Set<string>()
+      const now = Date.now()
+      let added = 0
+      for (const tab of tabs) {
+        const url = normalizeBookmarkUrl(tab.url)
+        if (!url) {
+          result.notWebPages += 1
+          continue
+        }
+        if (pages.has(url)) continue
+        pages.add(url)
+        const existing = bookmarked.get(url)
+        if (existing !== undefined) {
+          if (inCollections.has(existing)) result.inOtherCollections += 1
+          else {
+            collection.bookmarkIds.push(existing)
+            result.saved += 1
+          }
+        } else if (nextEntries.size >= MAX_BOOKMARKS) result.overLimit += 1
+        else {
+          const time = new Date(now - added).toISOString()
+          const entry: BrowserBookmark = { id: randomUUID(), url, title: normalizeBookmarkTitle(tab.title, url, tab.url), createdAt: time, updatedAt: time }
+          nextEntries.set(entry.id, entry)
+          collection.bookmarkIds.push(entry.id)
+          added += 1
+          result.saved += 1
+        }
+      }
+      if (!result.saved) {
+        throw result.overLimit
+          ? new LocalizedError('appErrors.bookmarks.limit', { max: MAX_BOOKMARKS })
+          : new LocalizedError('appErrors.bookmarks.tabsNothingToSave')
+      }
+      const nextCollections = [...this.collections, collection]
       await this.persist(nextEntries.values(), nextCollections)
       this.collections = nextCollections
       this.replaceEntries(nextEntries)

@@ -102,6 +102,7 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = 
     bookmarksPanel: ref(null),
     historyOpen: ref(false),
     toggleCurrentBookmark: asyncNoop,
+    bookmarkAllTabs: asyncNoop,
     toggleVisitHistory: asyncNoop,
     toggleDownloads: asyncNoop,
     toggleBookmarks: asyncNoop

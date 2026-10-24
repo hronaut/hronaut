@@ -1,17 +1,60 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { BookmarkTabsResult } from '../../../shared/types.js'
 import type { BookmarkCollectionsController } from '../composables/useBookmarkCollectionsController.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import UiButton from '../ui/UiButton.vue'
 import { vTooltip } from '../ui/tooltip.js'
 
-const props = defineProps<{ controller: BookmarkCollectionsController; blocked: boolean }>()
+const props = defineProps<{ controller: BookmarkCollectionsController; blocked: boolean; formatNumber: (value: number) => string }>()
 const { t } = useI18n({ useScope: 'global' })
-const { collections, selection, selected, pending, error, editor, draft } = props.controller
+const { collections, selection, selected, pending, error, editor, draft, tabsResult } = props.controller
 const nameInput = ref<HTMLInputElement | null>(null)
 const filter = ref<HTMLSelectElement | null>(null)
 const root = ref<HTMLElement | null>(null)
+const tabsQuestionId = `bookmark-all-tabs-${useId()}`
+const namingTabs = computed(() => editor.value?.startsWith('tabs:') === true)
+/** Where the keyboard was when Bookmark all tabs asked, while its name field waits for a change under way to end. */
+let tabsAskedFrom: Element | null | undefined
+
+function counted(key: string, count: number, values: Record<string, string> = {}): string {
+  return t(key, { ...values, count: props.formatNumber(count) }, count)
+}
+
+function tabsMessage(result: BookmarkTabsResult): string {
+  const name = collections.value.find(collection => collection.id === result.collectionId)?.name ?? ''
+  const sentences = [counted('bookmarks.allTabs.saved', result.saved, { name })]
+  if (result.inOtherCollections) sentences.push(counted('bookmarks.allTabs.inOtherCollections', result.inOtherCollections))
+  if (result.notWebPages) sentences.push(counted('bookmarks.allTabs.notWebPages', result.notWebPages))
+  if (result.overLimit) sentences.push(counted('bookmarks.allTabs.overLimit', result.overLimit, { max: props.formatNumber(result.limit) }))
+  return sentences.join(' ')
+}
+
+/**
+ * Bookmark all tabs takes the keyboard to the name, selected so typing replaces it, as Chrome's dialog does. While
+ * another change is under way the field waits, and then takes the keyboard only if it is still where it was.
+ */
+async function beginTabs(workspaceId: string | null, name: string): Promise<void> {
+  props.controller.beginTabs(workspaceId, name)
+  tabsAskedFrom = document.activeElement
+  await focusTabsName(true)
+}
+
+async function focusTabsName(asked = false): Promise<void> {
+  await nextTick()
+  const input = nameInput.value
+  if (tabsAskedFrom === undefined || !namingTabs.value || !input?.isConnected) return
+  if (input.disabled) return
+  const focused = document.activeElement
+  const moved = !asked && focused !== tabsAskedFrom && focused !== null && focused !== document.body
+  tabsAskedFrom = undefined
+  if (moved) return
+  input.focus()
+  input.select()
+}
+
+watch(() => props.blocked || pending.value, busy => { if (!busy) void focusTabsName() })
 
 async function begin(id?: string): Promise<void> {
   const element = root.value
@@ -32,7 +75,7 @@ async function finish(operation: () => void | Promise<unknown>): Promise<void> {
   else filter.value?.focus()
 }
 
-defineExpose({ cancelEdit: () => { void finish(props.controller.cancelEdit) } })
+defineExpose({ cancelEdit: () => { void finish(props.controller.cancelEdit) }, beginTabs })
 
 function keydown(event: KeyboardEvent): void {
   if (isImeCompositionEvent(event)) return
@@ -62,11 +105,13 @@ function keydown(event: KeyboardEvent): void {
       <UiButton v-if="selected" appearance="application" type="button" :disabled="blocked || pending" @click="begin(selected.id)">{{ t('bookmarks.renameCollection') }}</UiButton>
       <UiButton v-if="selected" appearance="application" type="button" :disabled="blocked || pending" v-tooltip="t('bookmarks.removeCollectionHint')" @click="finish(controller.remove)">{{ t('bookmarks.removeCollection') }}</UiButton>
     </div>
-    <div v-if="editor" class="bookmark-collection-editor">
+    <div v-if="editor" class="bookmark-collection-editor" :role="namingTabs ? 'group' : undefined" :aria-labelledby="namingTabs ? tabsQuestionId : undefined">
+      <p v-if="namingTabs" :id="tabsQuestionId"><strong>{{ t('bookmarks.allTabs.heading') }}</strong> {{ t('bookmarks.allTabs.hint') }}</p>
       <input ref="nameInput" v-model="draft" :aria-label="t('bookmarks.collectionName')" maxlength="80" :disabled="blocked || pending" @keydown="keydown" />
-      <UiButton appearance="application" type="button" :disabled="blocked || pending || !draft.trim()" @click="finish(controller.save)">{{ t('bookmarks.saveCollection') }}</UiButton>
-      <UiButton appearance="application" type="button" @click="finish(controller.cancelEdit)">{{ t('bookmarks.cancelCollection') }}</UiButton>
+      <UiButton appearance="application" type="button" :disabled="blocked || pending || !draft.trim()" @click="finish(controller.save)">{{ namingTabs ? t('bookmarks.allTabs.save') : t('bookmarks.saveCollection') }}</UiButton>
+      <UiButton appearance="application" type="button" @click="finish(controller.cancelEdit)">{{ namingTabs ? t('bookmarks.allTabs.cancel') : t('bookmarks.cancelCollection') }}</UiButton>
     </div>
+    <p v-if="tabsResult" class="bookmarks-feedback" role="status">{{ tabsMessage(tabsResult) }}</p>
     <p v-if="selected" class="bookmark-collection-hint">{{ t('bookmarks.removeCollectionHint') }}</p>
     <p v-if="error" class="bookmarks-error" role="alert">{{ error }}</p>
   </div>

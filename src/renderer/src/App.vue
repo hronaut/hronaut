@@ -333,7 +333,15 @@ const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureContr
   historyApi: window.hronautHistory,
   settingsOpen,
   tabSearchOpen,
-  syncState
+  syncState,
+  tabsWorkspace: (workspaceId) => {
+    const tab = activeTab.value
+    const id = workspaceId !== undefined ? workspaceId
+      : tab && !isHronautHomeUrl(tab.url) ? tab.mcpGroupId ?? null : undefined
+    if (id === undefined) return undefined
+    const name = id === null ? undefined : state.value.mcpTabGroups.find(group => group.id === id)?.name
+    return name ? { id, name } : { id }
+  }
 })
 const {
   downloads,
@@ -645,6 +653,7 @@ const { dispose: disposeAppEventsController } = useAppEventsController({
   // New Tab in a tab's or workspace's menu opens the tab as the + button does, with the cursor in the address field.
   onNewTab: newTabInWorkspace,
   onVisitHistory: browserCollectionsFeatureController.openVisitHistory,
+  onBookmarkAllTabs: browserCollectionsFeatureController.bookmarkAllTabs,
   onAddressPasteAndGo: addressBarController.pasteAndGo,
   onPermissionsChanged: replaceSitePermissions,
   onCredentialsChanged: replaceCredentials,

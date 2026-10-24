@@ -120,6 +120,7 @@ describe('recently closed tabs and the history', () => {
       bookmarks: () => { throw new Error('Not used') },
       history: () => history,
       downloads: () => { throw new Error('Not used') },
+      workspaceTabs: () => { throw new Error('Not used') },
       publishBookmarks: () => [],
       publishVisitHistory: () => [],
       historyCleared,

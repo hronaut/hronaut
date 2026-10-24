@@ -132,7 +132,7 @@ const openAll = useBookmarksOpenAll({
 })
 const { pending: openAllPending } = openAll
 const anyPending = computed(() => pendingAction.value !== null || collectionsPending.value || openAllPending.value)
-const collectionsToolbar = ref<{ cancelEdit: () => void } | null>(null)
+const collectionsToolbar = ref<{ cancelEdit: () => void; beginTabs: (workspaceId: string | null, name: string) => Promise<void> } | null>(null)
 watch(selection, () => { cancelRenameDraft(); resetCopyFeedback() }, { flush: 'sync' })
 watch(() => visibleBookmarks.value.map(bookmark => `${bookmark.id}:${bookmark.url}`).join('\n'), resetCopyFeedback, { flush: 'sync' })
 
@@ -238,7 +238,18 @@ async function toggleCurrentPage(): Promise<void> {
   target?.focus()
 }
 
-defineExpose({ toggle, toggleCurrent: toggleCurrentPage, handleEscape })
+/**
+ * Bookmark all tabs: the panel opens, if it is closed, to ask what to call the new collection, as Chrome's dialog asks
+ * for the folder's name.
+ */
+async function bookmarkAllTabs(workspaceId: string | null, suggestedName?: string): Promise<void> {
+  const opening = open.value ? Promise.resolve() : toggle()
+  await nextTick()
+  await collectionsToolbar.value?.beginTabs(workspaceId, suggestedName || t('bookmarks.allTabs.defaultName'))
+  await opening
+}
+
+defineExpose({ toggle, toggleCurrent: toggleCurrentPage, bookmarkAllTabs, handleEscape })
 
 async function finishRename(operation: () => void | Promise<void>): Promise<void> {
   const generation = focusGeneration
@@ -338,7 +349,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('bookmarks.close')" @keydown="ignoreHeldEnter" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
-    <BookmarkCollectionsToolbar v-if="collectionsApi" ref="collectionsToolbar" :controller="collectionController" :blocked="pendingAction !== null" />
+    <BookmarkCollectionsToolbar v-if="collectionsApi" ref="collectionsToolbar" :controller="collectionController" :blocked="pendingAction !== null" :format-number="formatNumber" />
     <div v-if="bookmarks.length" class="bookmark-search-field">
       <IconSearch aria-hidden="true" />
       <input v-model="query" type="search" :aria-label="t('bookmarks.search')" autocomplete="off" spellcheck="false" :placeholder="t('bookmarks.search')" />

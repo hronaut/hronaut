@@ -4,6 +4,8 @@ import type { BrowserBookmark, BrowserHistoryEntry } from '../../../shared/types
 export interface BookmarksShellPanel {
   toggle: () => Promise<void>
   toggleCurrent: () => Promise<void>
+  /** Opens the panel to name the new collection for the open tabs of a workspace, or of no workspace for null. */
+  bookmarkAllTabs: (workspaceId: string | null, suggestedName?: string) => Promise<void>
 }
 
 export interface HistoryShellPanel {
@@ -72,6 +74,15 @@ export function useBrowserCollectionsShellController(
     await options.bookmarksPanel.value?.toggleCurrent()
   }
 
+  /** Bookmark all tabs, as in Chrome: the panel asks what to call the collection the workspace's tabs go in. */
+  async function bookmarkAllTabs(workspaceId: string | null, suggestedName?: string): Promise<void> {
+    options.settingsOpen.value = false
+    closeDownloads()
+    options.historyOpen.value = false
+    options.tabSearchOpen.value = false
+    await options.bookmarksPanel.value?.bookmarkAllTabs(workspaceId, suggestedName)
+  }
+
   async function toggleVisitHistory(): Promise<void> {
     options.settingsOpen.value = false
     closeDownloads()
@@ -106,6 +117,7 @@ export function useBrowserCollectionsShellController(
     toggleDownloads,
     toggleBookmarks,
     toggleCurrentBookmark,
+    bookmarkAllTabs,
     toggleVisitHistory,
     openVisitHistory,
     openBookmark,

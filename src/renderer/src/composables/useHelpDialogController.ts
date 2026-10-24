@@ -52,6 +52,7 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.fullPage'), keys: ['Ctrl/Cmd', 'Shift', 'F'] },
     { label: options.translate('runtime.shortcuts.takeOver'), keys: ['Ctrl/Cmd', 'Shift', 'O'] },
     { label: options.translate('runtime.shortcuts.bookmark'), keys: ['Ctrl/Cmd', 'D'] },
+    { label: options.translate('runtime.shortcuts.bookmarkAllTabs'), keys: ['Ctrl/Cmd', 'Shift', 'D'] },
     { label: options.translate('runtime.shortcuts.history'), keys: mac ? ['Cmd', 'Y'] : ['Ctrl', 'H'] },
     { label: options.translate('runtime.shortcuts.downloads'), keys: mac ? ['Cmd', 'Option', 'L'] : ['Ctrl', 'J'] },
     // Chrome gives its Task manager no key on macOS.

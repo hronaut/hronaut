@@ -281,7 +281,8 @@ export const deDEAppErrors: AppErrorMessages = {
     "exportFailed": "Die Lesezeichendatei konnte nicht gespeichert werden.",
     "importTooLarge": "Diese Datei ist zu groß für eine Lesezeichendatei.",
     "importUnreadable": "Diese Datei konnte nicht gelesen werden.",
-    "importEmpty": "In dieser Datei wurden keine Lesezeichen gefunden."
+    "importEmpty": "In dieser Datei wurden keine Lesezeichen gefunden.",
+    "tabsNothingToSave": "Keiner dieser Tabs kann in eine neue Sammlung: Jeder zeigt keine Webseite oder ist schon in einer anderen Sammlung."
   },
   "pageTools": {
     "devToolsOpen": "Schließen Sie die Entwicklertools für diesen Tab und versuchen Sie es dann erneut.",

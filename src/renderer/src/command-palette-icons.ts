@@ -5,6 +5,7 @@ import IconTabSearchRounded from '~icons/material-symbols/tab-search-rounded'
 import IconWorkspacesOutline from '~icons/material-symbols/workspaces-outline'
 import IconDownloadRounded from '~icons/material-symbols/download-rounded'
 import IconBookmarksOutlineRounded from '~icons/material-symbols/bookmarks-outline-rounded'
+import IconBookmarkAddOutlineRounded from '~icons/material-symbols/bookmark-add-outline-rounded'
 import IconHistoryRounded from '~icons/material-symbols/history-rounded'
 import IconBrowseActivityOutlineRounded from '~icons/material-symbols/browse-activity-outline-rounded'
 import IconFindInPageOutlineRounded from '~icons/material-symbols/find-in-page-outline-rounded'
@@ -58,6 +59,7 @@ export const COMMAND_PALETTE_ICONS: Record<CommandPaletteCommandId, Component> =
   'switch-workspace': IconWorkspacesOutline,
   downloads: IconDownloadRounded,
   bookmarks: IconBookmarksOutlineRounded,
+  'bookmark-all-tabs': IconBookmarkAddOutlineRounded,
   history: IconHistoryRounded,
   'task-manager': IconBrowseActivityOutlineRounded,
   find: IconFindInPageOutlineRounded,

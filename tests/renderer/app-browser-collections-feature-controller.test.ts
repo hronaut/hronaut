@@ -175,6 +175,7 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     harness.controller.bookmarksPanel.value = {
       toggle: bookmarksToggle,
       toggleCurrent: currentBookmarkToggle,
+      bookmarkAllTabs: vi.fn(async () => undefined),
       handleEscape: vi.fn()
     }
     harness.controller.historyPanel.value = { toggle: historyToggle }

@@ -22,6 +22,7 @@ export type BrowserShortcutAction =
   | 'zoom-out'
   | 'zoom-reset'
   | 'bookmark'
+  | 'bookmark-all-tabs'
   | 'visit-history'
   | 'downloads'
   | 'task-manager'
@@ -213,6 +214,7 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   if (key === 't') return input.shift ? 'reopen-closed-tab' : 'new-tab'
   if (input.shift && key === 'f') return 'toggle-full-page'
   if (input.shift && key === 'o') return 'take-over'
+  if (input.shift && key === 'd') return 'bookmark-all-tabs'
   if (input.shift) return null
   if (key === 'l') return 'focus-address'
   if (key === 'w') return 'close-tab'

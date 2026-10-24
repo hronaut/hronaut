@@ -29,6 +29,11 @@ export interface AppBrowserCollectionsFeatureControllerOptions {
   settingsOpen: Ref<boolean>
   tabSearchOpen: Ref<boolean>
   syncState: (operation: Promise<BrowserState>) => Promise<void>
+  /**
+   * The workspace whose tabs Bookmark all tabs saves, null for the tabs in no workspace, with its name: the one asked
+   * for, or the one in view when none is; none while no website tab is in view.
+   */
+  tabsWorkspace?: (workspaceId?: string | null) => { id: string | null; name?: string } | undefined
 }
 
 export function useAppBrowserCollectionsFeatureController(
@@ -67,6 +72,11 @@ export function useAppBrowserCollectionsFeatureController(
     await options.syncState(options.browser.newTab({ url: entry.url, active: false, focus: false }))
   }
 
+  function bookmarkAllTabs(workspaceId?: string | null): Promise<void> {
+    const workspace = options.tabsWorkspace?.(workspaceId)
+    return workspace ? shellController.bookmarkAllTabs(workspace.id, workspace.name) : Promise.resolve()
+  }
+
   function copyDownloadPath(path: string): Promise<void> {
     return options.browser.copyText(path)
   }
@@ -101,6 +111,7 @@ export function useAppBrowserCollectionsFeatureController(
     toggleDownloads: shellController.toggleDownloads,
     toggleBookmarks: shellController.toggleBookmarks,
     toggleCurrentBookmark: shellController.toggleCurrentBookmark,
+    bookmarkAllTabs,
     toggleVisitHistory: shellController.toggleVisitHistory,
     openVisitHistory: shellController.openVisitHistory,
     openBookmark: shellController.openBookmark,

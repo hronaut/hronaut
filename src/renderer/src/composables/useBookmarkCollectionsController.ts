@@ -1,5 +1,5 @@
 import { computed, ref, watch, type Ref } from 'vue'
-import type { BookmarkCollectionSnapshot, HronautBookmarkCollectionsApi } from '../../../shared/types.js'
+import type { BookmarkCollectionSnapshot, BookmarkTabsResult, HronautBookmarkCollectionsApi } from '../../../shared/types.js'
 import { friendlyUiError } from './useAppToastController.js'
 
 export function useBookmarkCollectionsController(options: {
@@ -13,10 +13,15 @@ export function useBookmarkCollectionsController(options: {
   const selection = ref('all')
   const pending = ref(false)
   const error = ref('')
+  /** The name being edited: 'new', `edit:<id>`, or `tabs:<workspace id>` (`tabs:` alone for no workspace) for Bookmark all tabs. */
   const editor = ref<string | null>(null)
   const draft = ref('')
+  /** What the last Bookmark all tabs did, until another change. */
+  const tabsResult = ref<BookmarkTabsResult | null>(null)
   let generation = 0
   let editGeneration = 0
+  /** The name Bookmark all tabs suggested, kept up to date with the collections until the person changes it. */
+  let tabsSuggestion: { base: string; name: string } | null = null
   let selectionGeneration = 0
   let disposed = false
   const collections = computed(() => snapshot.value.collections)
@@ -28,6 +33,10 @@ export function useBookmarkCollectionsController(options: {
     snapshot.value = next
     if (selection.value.startsWith('c:') && !selected.value) selection.value = 'unfiled'
     if (editor.value?.startsWith('edit:') && !collections.value.some(collection => collection.id === editor.value!.slice(5))) cancelEdit()
+    if (editor.value?.startsWith('tabs:') && tabsSuggestion && draft.value === tabsSuggestion.name) {
+      tabsSuggestion.name = availableName(tabsSuggestion.base)
+      draft.value = tabsSuggestion.name
+    }
   }
 
   async function run(operation: () => Promise<BookmarkCollectionSnapshot>, feedbackCurrent: () => boolean = () => true): Promise<boolean> {
@@ -35,6 +44,7 @@ export function useBookmarkCollectionsController(options: {
     const expected = generation
     pending.value = true
     error.value = ''
+    tabsResult.value = null
     try {
       const next = await operation()
       if (expected !== generation) return false
@@ -52,6 +62,7 @@ export function useBookmarkCollectionsController(options: {
     editGeneration += 1
     editor.value = null
     draft.value = ''
+    tabsSuggestion = null
   }
 
   function beginEdit(id?: string): void {
@@ -60,16 +71,60 @@ export function useBookmarkCollectionsController(options: {
     editor.value = id === undefined ? 'new' : `edit:${id}`
     draft.value = collections.value.find(collection => collection.id === id)?.name ?? ''
     error.value = ''
+    tabsResult.value = null
+  }
+
+  /**
+   * Bookmark all tabs asks what to call the new collection, as Chrome asks for the folder's name: by the workspace's,
+   * or the suggested, name, numbered when a collection has it. Unlike the panel's own buttons it asks even while a
+   * change is under way, as its key or a tab's menu can come at any time; it saves once that is done.
+   */
+  function beginTabs(workspaceId: string | null, suggestedName: string): void {
+    if (disposed) return
+    cancelEdit()
+    editor.value = `tabs:${workspaceId ?? ''}`
+    tabsSuggestion = { base: suggestedName, name: availableName(suggestedName) }
+    draft.value = tabsSuggestion.name
+    error.value = ''
+    tabsResult.value = null
+  }
+
+  function availableName(suggested: string): string {
+    const base = suggested.trim().replace(/\s+/g, ' ').slice(0, 80)
+    const taken = new Set(collections.value.map(collection => collection.name.toLowerCase()))
+    if (!taken.has(base.toLowerCase())) return base
+    for (let number = 2; ; number += 1) {
+      const suffix = ` (${number})`
+      const name = `${base.slice(0, 80 - suffix.length)}${suffix}`
+      if (!taken.has(name.toLowerCase())) return name
+    }
   }
 
   async function save(): Promise<boolean> {
     const api = options.api
     const editing = editor.value
     if (!api || !editing) return false
-    const id = editing === 'new' ? null : editing.slice(5)
     const expected = editGeneration
     const expectedSelection = selectionGeneration
     const name = draft.value
+    if (editing.startsWith('tabs:')) {
+      const workspaceId = editing.slice(5) || null
+      let result: BookmarkTabsResult | null = null
+      const saved = await run(async () => {
+        const outcome = await api.bookmarkTabs(workspaceId, name)
+        result = outcome.result
+        return outcome.snapshot
+      }, () => expected === editGeneration)
+      if (!saved || expected !== editGeneration || !result) return false
+      const { collectionId } = result
+      if (expectedSelection === selectionGeneration && collections.value.some(collection => collection.id === collectionId)) {
+        selection.value = `c:${collectionId}`
+      }
+      cancelEdit()
+      tabsResult.value = result
+      return true
+    }
+    const id = editing === 'new' ? null : editing.slice(5)
     const saved = await run(() => id === null ? api.create(name) : api.rename(id, name), () => expected === editGeneration)
     if (!saved || expected !== editGeneration) return false
     const collection = collections.value.find(candidate => id === null
@@ -97,6 +152,7 @@ export function useBookmarkCollectionsController(options: {
     generation += 1
     pending.value = false
     error.value = ''
+    tabsResult.value = null
     cancelEdit()
     if (isOpen && options.api) void run(() => options.api!.list())
   }, { immediate: true, flush: 'sync' })
@@ -115,7 +171,7 @@ export function useBookmarkCollectionsController(options: {
     unsubscribe?.()
   }
 
-  return { collections, selection, selected, pending, error, editor, draft, beginEdit, cancelEdit, save, remove, assign, includes,
+  return { collections, selection, selected, pending, error, editor, draft, tabsResult, beginEdit, beginTabs, cancelEdit, save, remove, assign, includes,
     assignment: (bookmarkId: string) => assignments.value.get(bookmarkId) ?? '', dispose }
 }
 

@@ -14,6 +14,7 @@ type EventListeners = {
   tabGroupEdit?: (groupId: string) => void
   newTab?: (workspaceId: string | undefined) => void
   visitHistory?: () => void
+  bookmarkAllTabs?: (workspaceId: string | null) => void
   addressPasteAndGo?: (text: string) => void
   permissions?: (permissions: SitePermissionEntry[]) => void
   credentials?: (credentials: CredentialSummary[]) => void
@@ -25,7 +26,7 @@ type EventListeners = {
 
 function createHarness() {
   const listeners: EventListeners = {}
-  const unsubscribers = Array.from({ length: 12 }, () => vi.fn())
+  const unsubscribers = Array.from({ length: 13 }, () => vi.fn())
   const subscribe = <Key extends keyof EventListeners>(key: Key, index: number) => (
     listener: NonNullable<EventListeners[Key]>
   ) => {
@@ -39,6 +40,7 @@ function createHarness() {
       onTabGroupEditRequested: vi.fn(subscribe('tabGroupEdit', 2)),
       onNewTabRequested: vi.fn(subscribe('newTab', 9)),
       onVisitHistoryRequested: vi.fn(subscribe('visitHistory', 10)),
+      onBookmarkAllTabsRequested: vi.fn(subscribe('bookmarkAllTabs', 12)),
       onAddressPasteAndGo: vi.fn(subscribe('addressPasteAndGo', 11))
     },
     permissionsApi: { onChanged: vi.fn(subscribe('permissions', 3)) },
@@ -56,6 +58,7 @@ function createHarness() {
     onTabGroupEdit: vi.fn(),
     onNewTab: vi.fn(),
     onVisitHistory: vi.fn(),
+    onBookmarkAllTabs: vi.fn(),
     onAddressPasteAndGo: vi.fn(),
     onPermissionsChanged: vi.fn(),
     onCredentialsChanged: vi.fn(),
@@ -96,6 +99,8 @@ describe('app events controller', () => {
     harness.listeners.newTab?.('workspace-1')
     harness.listeners.newTab?.(undefined)
     harness.listeners.visitHistory?.()
+    harness.listeners.bookmarkAllTabs?.('workspace-1')
+    harness.listeners.bookmarkAllTabs?.(null)
     harness.listeners.addressPasteAndGo?.('example.com')
     harness.listeners.permissions?.([permission])
     harness.listeners.credentials?.([credential])
@@ -109,6 +114,7 @@ describe('app events controller', () => {
     expect(harness.callbacks.onTabGroupEdit).toHaveBeenCalledWith('group-1')
     expect(harness.callbacks.onNewTab.mock.calls).toEqual([['workspace-1'], [undefined]])
     expect(harness.callbacks.onVisitHistory).toHaveBeenCalledOnce()
+    expect(harness.callbacks.onBookmarkAllTabs.mock.calls).toEqual([['workspace-1'], [null]])
     expect(harness.callbacks.onAddressPasteAndGo).toHaveBeenCalledWith('example.com')
     expect(harness.callbacks.onPermissionsChanged).toHaveBeenCalledWith([permission])
     expect(harness.callbacks.onCredentialsChanged).toHaveBeenCalledWith([credential])
@@ -194,6 +200,7 @@ describe('app events controller', () => {
       onTabGroupEdit: vi.fn(),
       onNewTab: vi.fn(),
       onVisitHistory: vi.fn(),
+      onBookmarkAllTabs: vi.fn(),
       onAddressPasteAndGo: vi.fn(),
       onPermissionsChanged: vi.fn(),
       onCredentialsChanged: vi.fn(),
@@ -211,6 +218,7 @@ describe('app events controller', () => {
         onTabGroupEditRequested: vi.fn(() => { throw failure }),
         onNewTabRequested: laterSubscription,
         onVisitHistoryRequested: laterSubscription,
+        onBookmarkAllTabsRequested: laterSubscription,
         onAddressPasteAndGo: laterSubscription
       },
       permissionsApi: { onChanged: laterSubscription },

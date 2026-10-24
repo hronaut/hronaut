@@ -103,6 +103,7 @@ export function useAppCommandPaletteFeatureController<
       'switch-workspace': () => options.browser.runShortcut('switch-workspace'),
       downloads: options.collections.toggleDownloads,
       bookmarks: options.collections.toggleBookmarks,
+      'bookmark-all-tabs': () => options.browser.runShortcut('bookmark-all-tabs'),
       history: options.collections.toggleVisitHistory,
       'task-manager': options.settings.openTaskManager,
       find: options.browser.openFind,

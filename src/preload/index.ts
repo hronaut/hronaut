@@ -310,6 +310,11 @@ const api: HronautApi = {
     ipcRenderer.on('browser:visit-history-requested', handler)
     return () => ipcRenderer.removeListener('browser:visit-history-requested', handler)
   },
+  onBookmarkAllTabsRequested: (listener: (workspaceId: string | null) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, workspaceId: unknown): void => listener(typeof workspaceId === 'string' ? workspaceId : null)
+    ipcRenderer.on('browser:bookmark-all-tabs-requested', handler)
+    return () => ipcRenderer.removeListener('browser:bookmark-all-tabs-requested', handler)
+  },
   onAddressPasteAndGo: (listener: (text: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, text: unknown): void => {
       if (typeof text === 'string') listener(text)
@@ -349,6 +354,7 @@ const bookmarksApi: HronautBookmarksApi = {
     rename: (id, name) => ipcRenderer.invoke('bookmark-collections:rename', id, name),
     remove: (id) => ipcRenderer.invoke('bookmark-collections:remove', id),
     assign: (bookmarkId, collectionId) => ipcRenderer.invoke('bookmark-collections:assign', bookmarkId, collectionId),
+    bookmarkTabs: (workspaceId, name) => ipcRenderer.invoke('bookmark-collections:bookmark-tabs', workspaceId, name),
     onChanged: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, snapshot: import('../shared/types.js').BookmarkCollectionSnapshot): void => listener(snapshot)
       ipcRenderer.on('bookmark-collections:changed', handler)

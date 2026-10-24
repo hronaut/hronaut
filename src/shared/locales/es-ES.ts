@@ -656,6 +656,7 @@ export const esES = {
     },
     "commands": {
       "task-manager": { "label": "Abrir el Administrador de tareas", "description": "Ver la memoria y la CPU que usa cada pestaña y proceso" },
+      "bookmark-all-tabs": { "label": "Añadir todas las pestañas a marcadores", "description": "Guardar las pestañas abiertas del espacio de trabajo visible como una colección de marcadores" },
       "home": {
         "label": "Abrir inicio de Hronaut",
         "description": "Mostrar el panel de la aplicación"
@@ -887,6 +888,7 @@ export const esES = {
       "findPrevious": "Ir a la coincidencia anterior de la página",
       "print": "Imprimir la página",
       "bookmark": "Añadir la página actual a marcadores",
+      "bookmarkAllTabs": "Añadir todas las pestañas abiertas a marcadores en una colección nueva",
       "history": "Abrir el historial de navegación",
       "downloads": "Abrir descargas",
       "savePage": "Guardar la página",
@@ -3053,6 +3055,7 @@ export const esES = {
   "bookmarks": { sortOrder: "Ordenar marcadores", sortUpdated: "Actualizados recientemente", sortTitle: "Título", copyAddress: "Copiar dirección", copyAddressAria: "Copiar dirección de {title}", addressCopied: "Dirección copiada", copyFailed: "No se pudo copiar la dirección. Inténtalo de nuevo.",
     file: { import: "Importar…", export: "Exportar…", importHint: "Importar marcadores de un archivo HTML, como uno exportado desde Chrome", exportHint: "Exportar marcadores a un archivo HTML que Chrome y otros navegadores pueden importar", exported: "Se exportó {count} marcador. | Se exportaron {count} marcadores.", imported: "Se importó {count} marcador. | Se importaron {count} marcadores.", alreadySaved: "{count} ya estaba guardado. | {count} ya estaban guardados.", notWebPages: "{count} enlace no es una página web, así que se omitió. | {count} enlaces no son páginas web, así que se omitieron.", overLimit: "Hronaut guarda hasta {max} marcadores, así que se omitió {count}. | Hronaut guarda hasta {max} marcadores, así que se omitieron {count}.", nothingNew: "No se importaron marcadores nuevos." },
     openAll: { button: "Abrir todos ({count})", hint: "Abrir cada marcador de la lista en una pestaña en segundo plano", ask: "¿Abrir {count} pestaña? | ¿Abrir {count} pestañas?", confirm: "Abrir {count} pestaña | Abrir {count} pestañas", cancel: "Cancelar", opened: "Se abrió {count} pestaña. | Se abrieron {count} pestañas." },
+    allTabs: { heading: "Añadir todas las pestañas a marcadores", hint: "Las pestañas abiertas van a una colección nueva con este nombre.", defaultName: "Pestañas abiertas", save: "Guardar pestañas", cancel: "Cancelar", saved: "Se añadió {count} página a {name}. | Se añadieron {count} páginas a {name}.", inOtherCollections: "{count} ya estaba en otra colección y se queda allí. | {count} ya estaban en otras colecciones y se quedan allí.", notWebPages: "{count} pestaña no muestra una página web y se omitió. | {count} pestañas no muestran una página web y se omitieron.", overLimit: "Hronaut guarda hasta {max} marcadores, así que se omitió {count}. | Hronaut guarda hasta {max} marcadores, así que se omitieron {count}." },
     "collection": "Colección",
     "collectionFilter": "Filtrar marcadores por colección",
     "allCollections": "Todos los marcadores",
@@ -3619,6 +3622,7 @@ export const esES = {
       "closeBelow": "Cerrar pestañas inferiores",
       "closeDuplicates": "Cerrar pestañas duplicadas",
       "reopenClosed": "Volver a abrir pestaña cerrada",
+      "bookmarkAllTabs": "Añadir todas las pestañas a marcadores…",
       "openLink": "Abrir enlace en pestaña nueva",
       "copyLink": "Copiar dirección del enlace",
       "copyEmail": "Copiar dirección de correo electrónico",
