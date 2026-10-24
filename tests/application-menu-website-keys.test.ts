@@ -13,14 +13,17 @@ afterEach(() => { Object.defineProperty(process, 'platform', { value: platform }
 function menu(on: NodeJS.Platform) {
   Object.defineProperty(process, 'platform', { value: on })
   const runShortcut = vi.fn()
-  const mainWindow = { id: 1, webContents: {} }
+  const runPageNextPane = vi.fn()
+  // A page in the main window has the keyboard, rather than Hronaut's own window.
+  const shellFocused = { value: false }
+  const mainWindow = { id: 1, webContents: { isFocused: () => shellFocused.value } }
   createApplicationMenu({
     text: (key) => key, showWindow: vi.fn(), mainWindow: () => mainWindow as never, checkForUpdates: vi.fn(), requestQuit: vi.fn(),
-    runNativeBrowserAction: vi.fn(), runShortcut, tabs: () => null
+    runNativeBrowserAction: vi.fn(), runShortcut, runPageNextPane, tabs: () => null
   }).installApplicationMenu()
   const view = installed.template.find((candidate) => candidate.label === 'native.menu.view')!.submenu!
   const key = (accelerator: string) => view.find((item) => item.accelerator === accelerator)
-  return { runShortcut, mainWindow, view, key }
+  return { runShortcut, runPageNextPane, shellFocused, mainWindow, view, key }
 }
 
 describe('Chrome\'s keys a website may keep', () => {
@@ -29,9 +32,7 @@ describe('Chrome\'s keys a website may keep', () => {
     for (const [accelerator, action] of [
       ['F5', 'reload'], ['Shift+F5', 'reload-ignoring-cache'], ['Ctrl+F5', 'reload-ignoring-cache'], ['Alt+D', 'focus-address'],
       ['F3', 'find-next'], ['Shift+F3', 'find-previous'],
-      ['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous'],
-      // F6 reaches the menu only from a page, whose next pane is the address bar.
-      ['F6', 'focus-address'], ['Shift+F6', 'focus-address']
+      ['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous']
     ] as const) {
       const item = key(accelerator)!
       expect(item.visible, accelerator).toBe(false)
@@ -44,6 +45,29 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(menu('darwin').key('F3')).toBeUndefined()
     expect(menu('darwin').key('Ctrl+Shift+PageDown')).toBeUndefined()
     expect(menu('darwin').key('F6')).toBeUndefined()
+  })
+
+  it('go to the pane after the page with F6 and Shift+F6', () => {
+    const { runShortcut, runPageNextPane, mainWindow, key } = menu('linux')
+    for (const accelerator of ['F6', 'Shift+F6']) {
+      const item = key(accelerator)!
+      expect(item.visible, accelerator).toBe(false)
+      item.click!(item, mainWindow, { triggeredByAccelerator: true })
+    }
+    expect(runPageNextPane).toHaveBeenCalledTimes(2)
+    expect(runShortcut).not.toHaveBeenCalled()
+  })
+
+  it('do nothing for a key Hronaut\'s own window left alone, as under one of its dialogs', () => {
+    // Hronaut's window runs these keys itself; F6 under its dialog moved the keyboard out of the dialog to the address bar.
+    const { runShortcut, runPageNextPane, shellFocused, mainWindow, key } = menu('linux')
+    shellFocused.value = true
+    for (const accelerator of ['F5', 'Alt+D', 'F6', 'F3', 'Ctrl+Shift+PageDown']) {
+      const item = key(accelerator)!
+      item.click!(item, mainWindow, { triggeredByAccelerator: true })
+    }
+    expect(runShortcut).not.toHaveBeenCalled()
+    expect(runPageNextPane).not.toHaveBeenCalled()
   })
 
   it('act only as keys of the main window', () => {

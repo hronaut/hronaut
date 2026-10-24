@@ -19,6 +19,7 @@ function viewMenu(on: NodeJS.Platform) {
     text: (key) => key, showWindow, mainWindow: () => mainWindow as never, checkForUpdates: vi.fn(), requestQuit: vi.fn(),
     runNativeBrowserAction: (action, callback) => { actions.push(action); void callback() },
     runShortcut: vi.fn(),
+    runPageNextPane: vi.fn(),
     tabs: () => tabs as never
   }).installApplicationMenu()
   const view = installed.template.find((menu) => menu.label === 'native.menu.view')!.submenu!

@@ -48,7 +48,7 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     const addressBar = appWindow.getByRole('combobox', { name: 'Address', exact: true })
     const focusedPage = () => electronApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.getURL())
     // The person's key in Hronaut's own window, as the keyboard sends it.
-    const pressInWindow = (keyCode: string, modifiers: Array<'shift'> = []) => electronApp.evaluate(({ BrowserWindow }, { url, keyCode, modifiers }) => {
+    const pressInWindow = (keyCode: string, modifiers: Array<'shift' | 'alt'> = []) => electronApp.evaluate(({ BrowserWindow }, { url, keyCode, modifiers }) => {
       const shell = BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents
       shell.sendInputEvent({ type: 'keyDown', keyCode, modifiers })
       shell.sendInputEvent({ type: 'keyUp', keyCode, modifiers })
@@ -80,20 +80,49 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, F6 and Ctrl+Page Up and Down, with Shift to 
     await press(tabId, 'F6')
     await expect.poll(focusedPage).toBe(appWindow.url())
     await expect(addressBar).toBeFocused()
-    // Over a Hronaut dialog it stays in the dialog.
+    // Over a Hronaut dialog F6, Alt+D and F5 leave the keyboard where it is in the dialog, and the tab where it is.
     await electronApp.evaluate(({ BrowserWindow }, url) => {
-      BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents.send('help:open', 'shortcuts')
+      BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents.send('help:open', 'about')
     }, appWindow.url())
-    const shortcutsDialog = appWindow.getByRole('dialog', { name: 'Keyboard shortcuts' })
-    await expect(shortcutsDialog).toBeVisible()
-    await expect.poll(() => appWindow.evaluate(() => document.activeElement?.closest('[role="dialog"]') !== null)).toBe(true)
+    const aboutDialog = appWindow.getByRole('dialog', { name: 'About Hronaut' })
+    await expect(aboutDialog).toBeVisible()
+    // Not its first control, which a dialog's focus trap would go back to.
+    const contribute = aboutDialog.getByRole('button', { name: 'Contribute' })
+    await contribute.focus()
+    await expect(contribute).toBeFocused()
+    const tabsBefore = (await state()).tabs.length
     await pressInWindow('F6')
+    await pressInWindow('D', ['alt'])
+    await pressInWindow('F5')
     await appWindow.waitForTimeout(500)
     expect(await focusedPage()).toBe(appWindow.url())
-    await expect(shortcutsDialog).toBeVisible()
-    expect(await appWindow.evaluate(() => document.activeElement?.closest('[role="dialog"]') !== null)).toBe(true)
+    await expect(contribute).toBeFocused()
+    expect((await state()).activeTabId).toBe(tabId)
+    expect((await state()).tabs).toHaveLength(tabsBefore)
+    expect(loadsOf('/page')).toHaveLength(4)
     await appWindow.keyboard.press('Escape')
-    await expect(shortcutsDialog).toBeHidden()
+    await expect(aboutDialog).toBeHidden()
+
+    // Home has no address bar, so F6 there goes to Hronaut's window without leaving Home, and back.
+    await appWindow.evaluate(`window.hronaut.openHome()`)
+    const home = (await state()).activeTabId
+    expect(home).not.toBe(tabId)
+    await expect.poll(async () => (await focusedPage())?.startsWith('hronaut://home')).toBe(true)
+    const homePage = (await focusedPage())!
+    const tabsWithHome = (await state()).tabs.length
+    await electronApp.evaluate(({ webContents }) => {
+      const focused = webContents.getFocusedWebContents()!
+      focused.sendInputEvent({ type: 'keyDown', keyCode: 'F6' })
+      focused.sendInputEvent({ type: 'keyUp', keyCode: 'F6' })
+    })
+    await expect.poll(focusedPage).toBe(appWindow.url())
+    await appWindow.waitForTimeout(500)
+    expect((await state()).activeTabId).toBe(home)
+    expect((await state()).tabs).toHaveLength(tabsWithHome)
+    await pressInWindow('F6')
+    await expect.poll(focusedPage).toBe(homePage)
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+    await expect.poll(async () => (await state()).activeTabId).toBe(tabId)
 
     // An agent's F5 stays with the page, as in Chrome.
     await keys(tabId, 'window.keys = []')

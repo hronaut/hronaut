@@ -17,6 +17,8 @@ interface ApplicationMenuHost {
   runNativeBrowserAction(action: string, callback: () => unknown): void
   /** Runs a browser shortcut as a key the page in focus left alone does, in the shell or on its tab. */
   runShortcut(action: BrowserShortcutAction): void
+  /** Goes to the pane after the page in focus, for an F6 the page left alone. */
+  runPageNextPane(): void
   tabs(): Pick<BrowserTabsManager, 'newTab' | 'back' | 'forward' | 'historyGesture' | 'reload' | 'reloadIgnoringCache' | 'printShownPage' | 'saveShownPage' | 'viewShownPageSource' | 'toggleDevTools' | 'setZoom'> | null
 }
 
@@ -61,16 +63,20 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
 
   // Chrome's keys a website may keep (websiteKeptShortcutAction). As keys of the menu they reach it only when the
   // website or field in focus leaves them alone, and never from an agent; typed in a panel in its own window, they
-  // would act on a page out of view. Hidden, because Reload, the address bar and the Edit menu's Find Next and Find
-  // Previous already show their main keys.
+  // would act on a page out of view. Hronaut's window runs them itself, so one it leaves alone, as under one of its
+  // dialogs or the command palette, does nothing here either. Hidden, because Reload, the address bar and the Edit
+  // menu's Find Next and Find Previous already show their main keys.
   function websiteKeptKeys(): MenuItemConstructorOptions[] {
     if (process.platform === 'darwin') return []
-    const item = (label: string, accelerator: string, action: BrowserShortcutAction): MenuItemConstructorOptions => ({
+    const item = (label: string, accelerator: string, action: BrowserShortcutAction | (() => void)): MenuItemConstructorOptions => ({
       label,
       accelerator,
       visible: false,
       click: (_item, window, event) => {
-        if (event.triggeredByAccelerator && window !== undefined && window.id === host.mainWindow()?.id) host.runShortcut(action)
+        const main = host.mainWindow()
+        if (!event.triggeredByAccelerator || window === undefined || !main || window.id !== main.id || main.webContents.isFocused()) return
+        if (typeof action === 'function') action()
+        else host.runShortcut(action)
       }
     })
     return [
@@ -78,10 +84,9 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
       item(host.text('native.menu.reloadWithoutCache'), 'Shift+F5', 'reload-ignoring-cache'),
       item(host.text('native.menu.reloadWithoutCache'), 'Ctrl+F5', 'reload-ignoring-cache'),
       item(host.text('runtime.shortcuts.address'), 'Alt+D', 'focus-address'),
-      // F6 reaches the menu only from a page, since Hronaut's window and its rail run it themselves, going to the page;
-      // from a page the next pane is the address bar, as in Chrome.
-      item(host.text('runtime.shortcuts.nextPane'), 'F6', 'focus-address'),
-      item(host.text('runtime.shortcuts.nextPane'), 'Shift+F6', 'focus-address'),
+      // Hronaut's window and its rail run F6 themselves, going to the page; from a page it goes to the next pane.
+      item(host.text('runtime.shortcuts.nextPane'), 'F6', host.runPageNextPane),
+      item(host.text('runtime.shortcuts.nextPane'), 'Shift+F6', host.runPageNextPane),
       item(host.text('native.menu.findNext'), 'F3', 'find-next'),
       item(host.text('native.menu.findPrevious'), 'Shift+F3', 'find-previous'),
       item(host.text('runtime.shortcuts.moveTabNext'), 'Ctrl+Shift+PageDown', 'move-tab-next'),

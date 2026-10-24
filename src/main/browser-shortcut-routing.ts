@@ -9,7 +9,7 @@ interface BrowserShortcutRoutingHost {
   /** The take over offers, which a page's take over key asks and acts on. */
   takeOvers: Pick<TakeOverOffers, 'available' | 'takeOverFromPage'>
   /** The tab runtime, whose Home tab and workspaces decide which keys a page keeps; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'isHomeTab' | 'listMcpTabGroups' | 'exitPageFullscreen'> | null
+  tabs(): Pick<BrowserTabsManager, 'isHomeTab' | 'shownTabIsHome' | 'listMcpTabGroups' | 'exitPageFullscreen'> | null
   /** The agents in each workspace; a page keeps the agent card key while its workspace has none. */
   agentPresenceSnapshot(): AgentPresenceSnapshot
   /** The main window, whose shell runs a shortcut pressed in a page; read when the key is pressed. */
@@ -23,6 +23,7 @@ interface BrowserShortcutRoutingHost {
 export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): {
   pageShortcutAvailable(action: BrowserShortcutAction, workspaceId: string | undefined, tabId: string): boolean
   runPageShortcut(action: BrowserShortcutAction, page?: { tabId: string; workspaceId: string | undefined }): void
+  runPageNextPane(): void
 } {
   /** Whether the browser takes a shortcut pressed in a page; the page keeps the key otherwise. */
   function pageShortcutAvailable(action: BrowserShortcutAction, workspaceId: string | undefined, tabId: string): boolean {
@@ -58,5 +59,18 @@ export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): 
     }
   }
 
-  return { pageShortcutAvailable, runPageShortcut }
+  /**
+   * F6 or Shift+F6 that the page in focus left alone. The next pane is the address bar, as in Chrome. Home has none,
+   * and the address bar's keys leave Home for a website tab, so from Home it is Hronaut's window instead.
+   */
+  function runPageNextPane(): void {
+    if (!host.tabs()?.shownTabIsHome()) {
+      runPageShortcut('focus-address')
+      return
+    }
+    const window = host.mainWindowRefs.window
+    if (window && !window.webContents.isDestroyed()) window.webContents.focus()
+  }
+
+  return { pageShortcutAvailable, runPageShortcut, runPageNextPane }
 }

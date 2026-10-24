@@ -126,8 +126,8 @@ export function registerTabsIpc(host: TabsIpcHost): void {
     return host.tabs()!.reorderTab(tabId, targetTabId, placement)
   })
   host.handleBrowserIpc('browser:focus-active-page', (event) => {
-    host.assertMainShellSender(event)
-    host.tabs()!.focusActivePage()
+    host.assertTrustedSender(event)
+    host.tabs()!.focusActivePage(event.sender)
   })
   host.handleBrowserIpc('browser:show-tab-context-menu', (event, tabId: unknown) => {
     host.assertTrustedSender(event)

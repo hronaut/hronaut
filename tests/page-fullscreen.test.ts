@@ -400,7 +400,7 @@ describe('page full screen lifecycle', () => {
 describe('browser shortcuts from a page in full screen', () => {
   it('asks the page to leave full screen before the shell opens a control, but keeps it for zooming', () => {
     // Ctrl/Cmd+L focused the address field and opened its suggestions behind the page in full screen.
-    const tabs = { isHomeTab: () => false, listMcpTabGroups: () => [], exitPageFullscreen: vi.fn() }
+    const tabs = { isHomeTab: () => false, shownTabIsHome: () => false, listMcpTabGroups: () => [], exitPageFullscreen: vi.fn() }
     const shell = { isDestroyed: () => false, focus: vi.fn(), send: vi.fn() }
     const { runPageShortcut } = createBrowserShortcutRouting({
       takeOvers: { available: () => undefined, takeOverFromPage: vi.fn() },
