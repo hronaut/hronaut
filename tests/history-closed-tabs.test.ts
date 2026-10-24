@@ -33,10 +33,12 @@ function closedTab(url: string): BrowserClosedTabState {
 function recentlyClosed(urls: string[]) {
   const closedTabs = urls.map(closedTab)
   const detachedClosedTabs = new Set<BrowserClosedTabState[]>()
+  const closedTabHistories = new WeakMap()
   let failOpening!: (error: Error) => void
   const access = {
     closedTabs: () => closedTabs,
     detachedClosedTabs: () => detachedClosedTabs,
+    closedTabHistories: () => closedTabHistories,
     tabCount: () => 1,
     createTab: () => new Promise<never>((_resolve, reject) => { failOpening = reject })
   } as unknown as TabReopeningAccess<TabReopeningTab>
@@ -202,6 +204,7 @@ describe('the tab manager forgetting recently closed tabs', () => {
     const internals = {
       closedTabs: [closedTab('https://news.example/'), closedTab('https://bank.example/')],
       detachedClosedTabs: new Set([reopening]),
+      closedTabHistories: new WeakMap(),
       changed
     }
     const manager = Object.assign(Object.create(BrowserTabsManager.prototype), internals) as BrowserTabsManager
