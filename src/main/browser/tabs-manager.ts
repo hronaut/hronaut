@@ -1258,6 +1258,18 @@ export class BrowserTabsManager {
     tabIdOf: page => this.webContentsToTab.get(page.id)
   })
 
+  /**
+   * Gives the keyboard back to a page that asked one of Hronaut's questions, such as Home before deleting a workspace,
+   * once the question's dialog over it has closed, as a system dialog does. A click or key in the shell meanwhile keeps
+   * the focus where it went.
+   */
+  focusPageAfterQuestion(page: WebContents): void {
+    const tabId = this.webContentsToTab.get(page.id)
+    const tab = tabId ? this.tabs.get(tabId) : undefined
+    if (!tab || (tab.id !== this.activeTabId && !this.splitViewContains(tab.id))) return
+    this.focusTabOrTrustedChrome(tab)
+  }
+
   fixedDateBootstrap(page: WebContents, frameOrigin: string): FixedDateBootstrap {
     return this.fixedDateController.bootstrap(page, frameOrigin)
   }

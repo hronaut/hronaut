@@ -1,9 +1,10 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import type { BaseWindow, IpcMainEvent, MessageBoxOptions } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
 import { MAX_CONFIRMATION_MESSAGE_LENGTH, registerConfirmDialogIpc } from '../src/main/confirm-dialog-ipc.js'
+import type { TrustedDialogOptions, TrustedDialogWindow } from '../src/main/trusted-dialogs/trusted-dialogs.js'
 
-type Listener = (event: IpcMainEvent, value: unknown) => void
+type Handler = (event: IpcMainInvokeEvent, value: unknown) => boolean | Promise<boolean>
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -13,30 +14,32 @@ function deferred<T>() {
 }
 
 function harness(options: { trustedShell?: boolean } = {}) {
-  const listeners = new Map<string, Listener>()
-  const shellWindow = { id: 'shell' } as unknown as BaseWindow
-  const mainWindow = { id: 'main' } as unknown as BaseWindow
+  const handlers = new Map<string, Handler>()
+  const shellWindow = { id: 'shell' } as unknown as TrustedDialogWindow
+  const mainWindow = { id: 'main' } as unknown as TrustedDialogWindow
   let answer = deferred<{ response: number; checkboxChecked: boolean }>()
-  const showMessageBox = vi.fn((_window: BaseWindow | null, _options: MessageBoxOptions) => answer.promise)
+  const showDialog = vi.fn((_options: TrustedDialogOptions) => answer.promise)
+  const focusAskingPage = vi.fn()
   registerConfirmDialogIpc({
-    ipcMain: { on: (channel: string, listener: Listener) => { listeners.set(channel, listener) } } as never,
+    ipcMain: { handle: (channel: string, handler: Handler) => { handlers.set(channel, handler) } } as never,
     assertTrustedShellSender: () => { if (options.trustedShell === false) throw new Error('Rejected IPC from an untrusted renderer') },
     senderWindow: () => shellWindow,
     mainWindow: () => mainWindow,
-    showMessageBox,
-    text: (key) => ({ 'native.dialog.cancel': 'Abbrechen', 'native.dialog.confirmOk': 'OK' } as Record<string, string>)[key] ?? key
+    focusAskingPage,
+    showDialog,
+    text: (key) => ({ 'native.dialog.cancel': 'Abbrechen', 'native.dialog.confirmOk': 'OK', 'native.dialog.confirmTitle': 'Bitte bestätigen' } as Record<string, string>)[key] ?? key
   })
   let sender = new EventEmitter()
-  function send(channel: string, value: unknown, url = 'hronaut://home/', subframe = false): IpcMainEvent & { returnValue?: unknown } {
+  function ask(channel: string, value: unknown, url = 'hronaut://home/', subframe = false): Promise<boolean> {
     const mainFrame = { url }
     sender = Object.assign(new EventEmitter(), { mainFrame })
-    const event = { sender, senderFrame: subframe ? { url } : mainFrame } as unknown as IpcMainEvent
-    listeners.get(channel)!(event, value)
-    return event
+    const event = { sender, senderFrame: subframe ? { url } : mainFrame } as unknown as IpcMainInvokeEvent
+    return Promise.resolve(handlers.get(channel)!(event, value))
   }
   return {
-    send,
-    showMessageBox,
+    ask,
+    showDialog,
+    focusAskingPage,
     shellWindow,
     mainWindow,
     answer: (response: number) => answer.resolve({ response, checkboxChecked: false }),
@@ -48,87 +51,110 @@ function harness(options: { trustedShell?: boolean } = {}) {
   }
 }
 
-describe('native confirmations', () => {
-  it('asks on the shell\'s own window with Cancel as the default button, in the interface language', async () => {
+describe('Hronaut\'s own confirmations', () => {
+  it('ask in Hronaut\'s dialog on the shell\'s own window with Cancel focused, in the interface language', async () => {
     const confirmations = harness()
-    const event = confirmations.send('shell:confirm', 'Remove wallet “Main”?')
+    const asked = confirmations.ask('shell:confirm', { message: 'Remove wallet "Main"?', detail: 'Its keys leave this computer.' })
 
-    expect(confirmations.showMessageBox).toHaveBeenCalledExactlyOnceWith(confirmations.shellWindow, {
+    expect(confirmations.showDialog).toHaveBeenCalledExactlyOnceWith({
       type: 'question',
-      title: 'Hronaut',
-      message: 'Remove wallet “Main”?',
+      title: 'Bitte bestätigen',
+      message: 'Remove wallet "Main"?',
+      detail: 'Its keys leave this computer.',
       buttons: ['Abbrechen', 'OK'],
       defaultId: 0,
       cancelId: 0,
+      primaryId: 1,
       noLink: true,
-      signal: expect.any(AbortSignal)
+      signal: expect.any(AbortSignal),
+      variant: { kind: 'message' },
+      window: confirmations.shellWindow
     })
-    expect(event.returnValue).toBeUndefined()
     confirmations.answer(1)
-    await vi.waitFor(() => expect(event.returnValue).toBe(true))
+    await expect(asked).resolves.toBe(true)
   })
 
-  it('answers false for Cancel, Escape or a dialog that fails', async () => {
+  it('answer false for Cancel, Escape or a dialog that fails', async () => {
     const confirmations = harness()
-    const cancelled = confirmations.send('shell:confirm', 'Clear history?')
+    const cancelled = confirmations.ask('shell:confirm', { message: 'Clear history?' })
     confirmations.answer(0)
-    await vi.waitFor(() => expect(cancelled.returnValue).toBe(false))
+    await expect(cancelled).resolves.toBe(false)
 
     confirmations.reset()
-    const failed = confirmations.send('shell:confirm', 'Clear history?')
+    const failed = confirmations.ask('shell:confirm', { message: 'Clear history?' })
     confirmations.fail()
-    await vi.waitFor(() => expect(failed.returnValue).toBe(false))
+    await expect(failed).resolves.toBe(false)
   })
 
-  it('answers false without asking for an untrusted sender or a message that is not text', () => {
+  it('answer false without asking for an untrusted sender or a question that is not text', async () => {
     const untrusted = harness({ trustedShell: false })
-    expect(untrusted.send('shell:confirm', 'Remove wallet?').returnValue).toBe(false)
-    expect(untrusted.showMessageBox).not.toHaveBeenCalled()
+    await expect(untrusted.ask('shell:confirm', { message: 'Remove wallet?' })).resolves.toBe(false)
+    expect(untrusted.showDialog).not.toHaveBeenCalled()
 
     const confirmations = harness()
-    for (const value of [undefined, 1, '', '   ', { message: 'Remove?' }]) {
-      expect(confirmations.send('shell:confirm', value).returnValue).toBe(false)
+    for (const value of [undefined, 1, 'Remove?', { message: '' }, { message: '   ' }, { message: 1 }, { message: 'Remove?', detail: 1 }]) {
+      await expect(confirmations.ask('shell:confirm', value)).resolves.toBe(false)
     }
-    expect(confirmations.showMessageBox).not.toHaveBeenCalled()
+    expect(confirmations.showDialog).not.toHaveBeenCalled()
   })
 
-  it('cuts an overlong message instead of refusing it, never through the middle of a character', () => {
+  it('leave out an empty detail', () => {
     const confirmations = harness()
-    confirmations.send('shell:confirm', 'x'.repeat(MAX_CONFIRMATION_MESSAGE_LENGTH + 50))
-    const message = confirmations.showMessageBox.mock.calls[0]![1].message
+    void confirmations.ask('shell:confirm', { message: 'Clear history?', detail: '  ' })
+    expect(confirmations.showDialog.mock.calls[0]![0]).not.toHaveProperty('detail')
+  })
+
+  it('cut an overlong question or detail instead of refusing it, never through the middle of a character', () => {
+    const confirmations = harness()
+    void confirmations.ask('shell:confirm', { message: 'x'.repeat(MAX_CONFIRMATION_MESSAGE_LENGTH + 50), detail: 'y'.repeat(MAX_CONFIRMATION_MESSAGE_LENGTH + 1) })
+    const { message, detail } = confirmations.showDialog.mock.calls[0]![0]
     expect(message).toHaveLength(MAX_CONFIRMATION_MESSAGE_LENGTH)
     expect(message.endsWith('…')).toBe(true)
+    expect(detail).toHaveLength(MAX_CONFIRMATION_MESSAGE_LENGTH)
 
     // The emoji's two halves straddle the cut, so it goes whole.
-    confirmations.send('shell:confirm', `${'x'.repeat(MAX_CONFIRMATION_MESSAGE_LENGTH - 2)}🙂 and more`)
-    expect(confirmations.showMessageBox.mock.calls[1]![1].message).toBe(`${'x'.repeat(MAX_CONFIRMATION_MESSAGE_LENGTH - 2)}…`)
+    void confirmations.ask('shell:confirm', { message: `${'x'.repeat(MAX_CONFIRMATION_MESSAGE_LENGTH - 2)}🙂 and more` })
+    expect(confirmations.showDialog.mock.calls[1]![0].message).toBe(`${'x'.repeat(MAX_CONFIRMATION_MESSAGE_LENGTH - 2)}…`)
   })
 
-  it('closes the question and answers false when the asking page goes away, even if OK arrives after', async () => {
+  it('close the question and answer false when the asking page goes away, even if OK arrives after', async () => {
     const confirmations = harness()
-    const event = confirmations.send('shell:confirm', 'Clear history?')
-    const signal = confirmations.showMessageBox.mock.calls[0]![1].signal!
+    const asked = confirmations.ask('shell:confirm', { message: 'Clear history?' })
+    const signal = confirmations.showDialog.mock.calls[0]![0].signal!
     expect(signal.aborted).toBe(false)
 
     confirmations.destroySender()
     expect(signal.aborted).toBe(true)
     confirmations.answer(1)
-    await vi.waitFor(() => expect(event.returnValue).toBe(false))
+    await expect(asked).resolves.toBe(false)
     expect(confirmations.senderListeners()).toBe(0)
   })
 
-  it('asks for Home on the main window and refuses any other page or a frame inside Home', async () => {
+  it('ask for Home on the main window and refuse any other page or a frame inside Home', async () => {
     const confirmations = harness()
-    const home = confirmations.send('hronaut-home:confirm', 'Delete workspace “Client”?')
-    expect(confirmations.showMessageBox).toHaveBeenCalledWith(confirmations.mainWindow, expect.objectContaining({ defaultId: 0, cancelId: 0 }))
+    const home = confirmations.ask('hronaut-home:confirm', { message: 'Delete workspace "Client"?' })
+    expect(confirmations.showDialog).toHaveBeenCalledWith(expect.objectContaining({ window: confirmations.mainWindow, defaultId: 0, cancelId: 0 }))
+    expect(confirmations.focusAskingPage).not.toHaveBeenCalled()
     confirmations.answer(1)
-    await vi.waitFor(() => expect(home.returnValue).toBe(true))
+    await expect(home).resolves.toBe(true)
+    // Home gets the keyboard back from the shell that drew the dialog.
+    expect(confirmations.focusAskingPage).toHaveBeenCalledOnce()
 
-    confirmations.showMessageBox.mockClear()
+    confirmations.showDialog.mockClear()
     for (const url of ['https://example.com/', 'hronaut://home/settings', 'hronaut://other/', 'not a url']) {
-      expect(confirmations.send('hronaut-home:confirm', 'Delete?', url).returnValue).toBe(false)
+      await expect(confirmations.ask('hronaut-home:confirm', { message: 'Delete?' }, url)).resolves.toBe(false)
     }
-    expect(confirmations.send('hronaut-home:confirm', 'Delete?', 'hronaut://home/', true).returnValue).toBe(false)
-    expect(confirmations.showMessageBox).not.toHaveBeenCalled()
+    await expect(confirmations.ask('hronaut-home:confirm', { message: 'Delete?' }, 'hronaut://home/', true)).resolves.toBe(false)
+    expect(confirmations.showDialog).not.toHaveBeenCalled()
+    await expect(confirmations.ask('hronaut-home:confirm', { message: '' })).resolves.toBe(false)
+    expect(confirmations.focusAskingPage).toHaveBeenCalledOnce()
+  })
+
+  it('give the shell\'s own questions no page to focus afterwards: its dialog gives the focus back itself', async () => {
+    const confirmations = harness()
+    const asked = confirmations.ask('shell:confirm', { message: 'Clear history?' })
+    confirmations.answer(0)
+    await expect(asked).resolves.toBe(false)
+    expect(confirmations.focusAskingPage).not.toHaveBeenCalled()
   })
 })

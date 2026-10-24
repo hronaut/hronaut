@@ -124,6 +124,7 @@ function buttonVariant(index: number): 'primary' | 'secondary' {
     class="trusted-dialog"
     :class="[`trusted-dialog--${copy?.tone ?? 'info'}`, { 'trusted-dialog--arming': !armed }]"
     data-testid="trusted-dialog"
+    data-above-modals
     :data-variant="request?.variant.kind"
     :data-topic="request?.variant.kind === 'message' ? request.variant.topic : undefined"
     :data-request-id="request?.id"
@@ -136,7 +137,7 @@ function buttonVariant(index: number): 'primary' | 'secondary' {
     <template #title>
       <template v-if="copy">{{ copy.headline.before }}<strong v-if="copy.headline.emphasis" class="trusted-dialog__origin">{{ copy.headline.emphasis }}</strong>{{ copy.headline.after }}</template>
     </template>
-    <div v-if="copy && (copy.quoted || copy.phrase || copy.lines.length || copy.workspaceLine)" class="trusted-dialog__details">
+    <div v-if="copy && (copy.quoted || copy.phrase || copy.change || copy.lines.length || copy.workspaceLine)" class="trusted-dialog__details">
       <!-- The phrase leaves the screen as soon as the person answers, before main closes the dialog. -->
       <ol v-if="copy.phrase && !controller.answering.value" class="trusted-dialog__phrase" :aria-label="copy.phrase.label" data-testid="trusted-dialog-phrase">
         <li v-for="(word, index) in copy.phrase.words" :key="index">
@@ -144,6 +145,18 @@ function buttonVariant(index: number): 'primary' | 'secondary' {
           <span>{{ word }}</span>
         </li>
       </ol>
+      <figure v-if="copy.change" class="trusted-dialog__change" data-testid="trusted-dialog-change">
+        <figcaption>
+          <span>{{ copy.change.fileLabel }}</span>
+          <code class="trusted-dialog__change-path" data-testid="trusted-dialog-change-path">{{ copy.change.path }}</code>
+        </figcaption>
+        <div v-for="entry in copy.change.entries" :key="entry.kind" :class="['trusted-dialog__change-entry', `trusted-dialog__change-entry--${entry.kind}`]">
+          <span :id="`trusted-dialog-change-${entry.kind}-label`" class="trusted-dialog__change-label"><span class="trusted-dialog__change-mark" aria-hidden="true">{{ entry.kind === 'added' ? '+' : '-' }}</span>{{ entry.label }}</span>
+          <!-- Long entries scroll; the region takes the focus so the keyboard can scroll it too. -->
+          <pre role="region" tabindex="0" :aria-labelledby="`trusted-dialog-change-${entry.kind}-label`" :data-testid="`trusted-dialog-change-${entry.kind}`"><code>{{ entry.text }}</code></pre>
+          <p v-if="entry.note" class="trusted-dialog__change-note">{{ entry.note }}</p>
+        </div>
+      </figure>
       <figure v-if="copy.quoted" class="trusted-dialog__quoted">
         <figcaption v-if="copy.quotedLabel">{{ copy.quotedLabel }}</figcaption>
         <code data-testid="trusted-dialog-quoted">{{ copy.quoted }}</code>

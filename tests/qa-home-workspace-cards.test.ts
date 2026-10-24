@@ -430,9 +430,9 @@ describe('Undo after archive and clear (#872)', () => {
     const after = inventory({ mcpTabGroups: [docs], savedTabGroups: full })
     const workspaceAction = vi.fn().mockResolvedValue(after)
     vi.spyOn(window, 'confirm').mockReturnValue(true)
-    const home = mountTestHome({ workspaces: before, api: { workspaceAction } })
+    // Main still reports the workspace when Home reads the workspaces again after the yes; the clear returns the rest.
+    mountTestHome({ workspaces: before, api: { workspaceAction } })
     await flush()
-    home.setWorkspaces(after)
     query<HTMLButtonElement>('[data-workspace-action="clear"]', card('Acme Store')).click()
     await flush()
     expect(workspaceAction).toHaveBeenCalledWith({ view: 'clear', workspaceId: 'shop', undoable: false })

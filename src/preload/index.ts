@@ -1,3 +1,4 @@
+import type { Confirmation } from '../shared/confirmation.js'
 import type { HronautSplitDividerApi, SplitDividerGeometry } from '../shared/split-view.js'
 import type { EmulationFrameGeometry, HronautEmulationFrameApi } from '../shared/emulation-frame.js'
 import type { HronautPageCardApi, PageCardGeometry } from '../shared/page-card.js'
@@ -602,7 +603,7 @@ const shellApi: HronautShellApi = {
     mainWindow: process.argv.includes('--hronaut-window-kind=main')
   },
   isWindowFocused: () => ipcRenderer.invoke('shell:is-window-focused'),
-  confirm: (message: string) => ipcRenderer.sendSync('shell:confirm', message) === true,
+  confirm: async (question: Confirmation) => await ipcRenderer.invoke('shell:confirm', question) === true,
   setToolbarHeight: (height: number) => ipcRenderer.send('browser:toolbar-height', height),
   setContentInsets: (insets: { top: number; right: number; bottom: number; left: number }) =>
     ipcRenderer.send('browser:content-insets', insets),

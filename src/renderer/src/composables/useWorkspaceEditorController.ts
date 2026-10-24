@@ -7,6 +7,7 @@ import type {
   HronautApi
 } from '../../../shared/types.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../../shared/undo.js'
+import { splitConfirmation, type Confirmation } from '../../../shared/confirmation.js'
 import { suggestWorkspaceName } from '../workspace-names.js'
 import { createWorkspaceOriginLoader } from './useWorkspaceOriginLoader.js'
 import { friendlyUiError } from './useAppToastController.js'
@@ -32,7 +33,7 @@ export interface WorkspaceEditorControllerOptions {
   syncState: (next: Promise<BrowserState> | BrowserState) => Promise<void>
   translate: Translate
   formatNumber: (value: number) => string
-  confirm: (message: string) => boolean
+  confirm: (question: Confirmation) => Promise<boolean>
   canPresent: () => boolean
 }
 
@@ -351,11 +352,15 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     const currentSource = sourceWorkspaceId.value
     const currentTarget = targetWorkspaceId.value
     const currentMode = transferMode.value
-    if (currentMode === 'move' && !options.confirm(options.translate('workspaceEditor.moveConfirm', {
-      source: availableWorkspaces.value.find(group => group.id === currentSource)!.name,
-      target: availableWorkspaces.value.find(group => group.id === currentTarget)!.name
-    }))) return
     const currentOrigins = transferOrigins()
+    if (currentMode === 'move') {
+      const confirmed = await options.confirm(splitConfirmation((parameters) => options.translate('workspaceEditor.moveConfirm', parameters), {
+        source: availableWorkspaces.value.find(group => group.id === currentSource)!.name,
+        target: availableWorkspaces.value.find(group => group.id === currentTarget)!.name
+      }))
+      // The editor can close, or another transfer start, while the question waits.
+      if (!confirmed || !isPresentationCurrent(presentation) || storageState.value === 'saving') return
+    }
     storageState.value = 'saving'
     storageMessage.value = ''
     let result: Awaited<ReturnType<WorkspaceEditorBrowserApi['transferWorkspaceStorage']>>
@@ -417,8 +422,13 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     // archive meanwhile, so with the archive full it asks first and closes for good.
     if (!current || current.deletionProtected || actionPending.value || storageState.value === 'saving') return
     const undoable = options.state.value.savedTabGroups.length < MAX_ARCHIVED_WORKSPACES
-    if (!undoable && !options.confirm(options.translate('runtimeActions.workspace.closeConfirm', { name: current.name }))) return
     const presentation = presentationGeneration
+    if (!undoable) {
+      const confirmed = await options.confirm(splitConfirmation((parameters) => options.translate('runtimeActions.workspace.closeConfirm', parameters), { name: current.name }))
+      // It closes only the workspace the person was asked about, still open in this editor and still unprotected.
+      if (!confirmed || !isPresentationCurrent(presentation) || dismissBlocked.value) return
+      if (workspace.value?.id !== current.id || workspace.value.deletionProtected) return
+    }
     actionState.value = 'closing'
     error.value = ''
     try {

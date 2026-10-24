@@ -36,6 +36,7 @@ import { useUpdateNoticePresentationController } from './useUpdateNoticePresenta
 import { useUpdateSettingsController } from './useUpdateSettingsController.js'
 import { useWalletsController } from './useWalletsController.js'
 import { disposeAll } from './dispose-all.js'
+import { splitConfirmation, type Confirmation } from '../../../shared/confirmation.js'
 
 interface AppSettingsFeatureStore {
   resetAppearance(): Promise<RendererSettingsState>
@@ -99,7 +100,7 @@ export interface AppSettingsFeatureControllerOptions {
   copyText: McpStatusControllerOptions['copyText']
   translate: Translate
   formatNumber: (value: number) => string
-  confirm: (message: string) => boolean
+  confirm: (question: Confirmation) => Promise<boolean>
   showToast: (tone: AppToastTone, title: string, message: string) => void
   onSettingError: (error: unknown) => void
 }
@@ -184,7 +185,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
   })
   const commercialLicenseController = useCommercialLicenseController({
     api: options.apis.license,
-    confirmDeactivate: () => options.confirm(options.translate('runtimeDetails.deactivate')),
+    confirmDeactivate: () => options.confirm(splitConfirmation(() => options.translate('runtimeDetails.deactivate'))),
     emptyKeyMessage: () => options.translate('runtime.license.enterKey'),
     formatError: (error) => friendlyUiError(error, options.translate('runtime.toast.actionFailed'))
   })
@@ -249,7 +250,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     rotateCapabilityProfile: (id) => window.hronautSettings.rotateMcpCapabilityProfile(id),
     revokeCapabilityProfile: (id) => window.hronautSettings.revokeMcpCapabilityProfile(id),
     confirmDisableAuthentication: () => options.confirm(
-      options.translate('runtimeActions.mcp.disableConfirm')
+      splitConfirmation(() => options.translate('runtimeActions.mcp.disableConfirm'))
     ),
     copyText: options.copyText,
     translate: (key, parameters) => options.translate(key, parameters),

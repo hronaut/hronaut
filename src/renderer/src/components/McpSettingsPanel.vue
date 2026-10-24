@@ -10,6 +10,7 @@ import { isMcpToolSet } from '../../../shared/mcp-tool-sets'
 import type { McpSettingsController } from '../composables/useMcpSettingsController'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { confirmAction } from '../confirm-action.js'
+import { splitConfirmation } from '../../../shared/confirmation.js'
 import { ignoreHeldEnter } from '../held-enter.js'
 import IconAdd from '~icons/material-symbols/add-rounded'
 import type { McpCapabilityProfilePreset, SupportedLocale } from '../../../shared/types'
@@ -180,7 +181,7 @@ async function dismissCredential(): Promise<void> {
 }
 
 async function revokeProfile(id: string, name: string): Promise<void> {
-  if (confirmAction(t('settings.mcp.capabilities.revokeConfirm', { name }))) await revokeCapabilityProfile(id)
+  if (await confirmAction(splitConfirmation((parameters) => t('settings.mcp.capabilities.revokeConfirm', parameters), { name }))) await revokeCapabilityProfile(id)
 }
 
 onMounted(() => { void loadCapabilityProfiles() })

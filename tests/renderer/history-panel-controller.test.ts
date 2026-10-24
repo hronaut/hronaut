@@ -20,7 +20,7 @@ function createController(initialEntries = [entry('alpha')]) {
   const removeHistoryEntry = vi.fn(async (id: string) => entries.value.filter((item) => item.id !== id))
   const clearHistory = vi.fn(async () => [])
   const openHistoryEntry = vi.fn(async () => undefined)
-  const confirmClear = vi.fn(() => true)
+  const confirmClear = vi.fn(async () => true)
   const controller = useHistoryPanelController({
     open,
     entries,
@@ -264,7 +264,7 @@ describe('history panel controller', () => {
       entry('alpha', 'Alpha docs', 3),
       entry('beta', 'Beta page')
     ])
-    confirmClear.mockReturnValueOnce(false)
+    confirmClear.mockResolvedValueOnce(false)
 
     await controller.clear()
     expect(clearHistory).not.toHaveBeenCalled()

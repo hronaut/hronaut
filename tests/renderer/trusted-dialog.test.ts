@@ -8,6 +8,7 @@ import { useTrustedDialogController } from '../../src/renderer/src/trusted-dialo
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { holdOverlayEntrance, occludeBrowserContent, overlayEntranceEpoch, releaseOverlayEntrance, reportPageViewsHidden, resetOverlayMotion } from '../../src/renderer/src/composables/overlay-motion.js'
 import { useShellOverlayCoordinationController } from '../../src/renderer/src/composables/useShellOverlayCoordinationController.js'
+import { useModalDialogFocus } from '../../src/renderer/src/composables/useModalDialogFocus.js'
 import type { SupportedLocale } from '../../src/shared/locale.js'
 import type { HronautTrustedDialogsApi, TrustedDialogRequest } from '../../src/shared/trusted-dialogs.js'
 
@@ -338,6 +339,41 @@ describe('Hronaut’s permission dialog', () => {
     expect(dialog).not.toHaveAttribute('data-topic')
   })
 
+  it('keeps its safe answer focused over a modal that holds the focus, so Enter and Tab never reach the modal', async () => {
+    // The workspace editor and Search tabs keep the focus inside them while they are open.
+    const modalOpen = ref(true)
+    const modalPanel = ref<HTMLElement | null>(null)
+    const closeModal = vi.fn()
+    render(defineComponent({
+      setup() {
+        useModalDialogFocus({ open: modalOpen, panel: modalPanel })
+        return () => h('section', { ref: modalPanel, role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Edit workspace', tabindex: -1 }, [
+          h('button', { type: 'button', onClick: closeModal }, '×'),
+          h('button', { type: 'button' }, 'Close workspace')
+        ])
+      }
+    }))
+    await nextTick()
+    const { api, show, settle } = mountDialog()
+    await show({
+      id: 'close', type: 'question', title: 'Please confirm', message: 'Close workspace “Client”?', detail: 'Its pages close.',
+      buttons: ['Cancel', 'OK'], defaultId: 0, cancelId: 0, primaryId: 1, variant: { kind: 'message' }
+    })
+    const cancel = screen.getByRole('button', { name: 'Cancel' })
+    expect(cancel).toHaveFocus()
+    await settle()
+    expect(cancel).toHaveFocus()
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'OK' })).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(cancel).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(api.respond).toHaveBeenCalledWith('close', 0)
+    expect(closeModal).not.toHaveBeenCalled()
+  })
+
   it('marks one of Hronaut’s own questions by what it is about, keeping its words and the safe answer focused', async () => {
     const { api, show, settle } = mountDialog()
     await show({
@@ -485,5 +521,75 @@ describe('Hronaut’s wallet recovery phrase dialog', () => {
     const dialog = screen.getByRole('alertdialog', { name: 'Запишіть фразу відновлення для Treasury' })
     within(dialog).getByRole('list', { name: 'Фраза відновлення' })
     expect(dialog).toHaveTextContent('Новий гаманець')
+  })
+})
+
+const CLAUDE_AFTER = JSON.stringify({ type: 'http', url: 'http://127.0.0.1:47812/mcp', headers: { Authorization: 'Bearer •••' } }, null, 2)
+const CLAUDE_BEFORE = JSON.stringify({ type: 'http', url: 'http://127.0.0.1:47812/mcp' }, null, 2)
+
+function claudeSetup(id: string, overrides: Partial<Extract<TrustedDialogRequest['variant'], { kind: 'claude-setup' }>> = {}): TrustedDialogRequest {
+  return {
+    id,
+    type: 'question',
+    title: 'Set up Claude Code',
+    message: 'Add Hronaut to Claude Code?',
+    detail: 'File: /home/person/.claude.json',
+    buttons: ['Cancel', 'Add to Claude Code'],
+    defaultId: 0,
+    cancelId: 0,
+    primaryId: 1,
+    variant: { kind: 'claude-setup', path: '/home/person/.claude.json', after: CLAUDE_AFTER, before: CLAUDE_BEFORE, tokenHidden: true, backupName: '.claude.json.hronaut-backup-20261024T001500Z', ...overrides }
+  }
+}
+
+describe('Hronaut’s Claude Code setup dialog', () => {
+  it('shows the file, the entry Hronaut writes and the one it replaces, with Cancel focused and Add as the main action', async () => {
+    const { api, show, settle } = mountDialog()
+    await show(claudeSetup('setup'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Add Hronaut to Claude Code?' })
+    expect(dialog).toHaveAttribute('data-variant', 'claude-setup')
+    expect(dialog).toHaveTextContent('Set up Claude Code')
+    const change = within(dialog).getByTestId('trusted-dialog-change')
+    expect(within(change).getByTestId('trusted-dialog-change-path')).toHaveTextContent('/home/person/.claude.json')
+    expect(change).toHaveTextContent('File')
+    // The entries keep their JSON layout, as Home showed them, in diff order: written, then replaced.
+    const added = within(change).getByRole('region', { name: 'New entry in "mcpServers"' })
+    const removed = within(change).getByRole('region', { name: 'Entry it replaces' })
+    expect(added.textContent).toBe(`"hronaut": ${CLAUDE_AFTER}`)
+    expect(removed.textContent).toBe(`"hronaut": ${CLAUDE_BEFORE}`)
+    expect(added.compareDocumentPosition(removed) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(added.closest('.trusted-dialog__change-entry')).toHaveClass('trusted-dialog__change-entry--added')
+    expect(removed.closest('.trusted-dialog__change-entry')).toHaveClass('trusted-dialog__change-entry--removed')
+    // The token note belongs to the entry that will hold the token, not to the replaced one, whose ••• hide old values.
+    expect(within(added.closest('.trusted-dialog__change-entry')!).getByText('Hronaut writes the actual MCP token where ••• appears.')).toBeInTheDocument()
+    expect(removed.closest('.trusted-dialog__change-entry')).not.toHaveTextContent('Hronaut writes the actual MCP token')
+    expect(dialog).toHaveTextContent('A copy of the file is saved first as .claude.json.hronaut-backup-20261024T001500Z.')
+    expect(dialog).toHaveTextContent('If Claude Code is running, quit it first')
+    // The detail given for the system dialog is not repeated under Hronaut's own design.
+    expect(dialog).not.toHaveTextContent('File: /home/person/.claude.json')
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    const add = screen.getByRole('button', { name: 'Add to Claude Code' })
+    expect(add).toHaveClass('ui-button--primary')
+    await settle()
+    await fireEvent.click(add)
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('setup', 1)
+  })
+
+  it('shows only the new entry for a file without one, and no token line without a token', async () => {
+    const { show } = mountDialog()
+    await show(claudeSetup('fresh', { before: null, tokenHidden: false, after: CLAUDE_BEFORE }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Add Hronaut to Claude Code?' })
+    expect(within(dialog).getByRole('region', { name: 'New entry in "mcpServers"' }).textContent).toBe(`"hronaut": ${CLAUDE_BEFORE}`)
+    expect(within(dialog).queryByRole('region', { name: 'Entry it replaces' })).toBeNull()
+    expect(dialog).not.toHaveTextContent('•••')
+  })
+
+  it('speaks the interface language', async () => {
+    const { show } = mountDialog('uk-UA')
+    await show(claudeSetup('uk'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Додати Hronaut до Claude Code?' })
+    within(dialog).getByRole('region', { name: 'Новий запис у "mcpServers"' })
+    within(dialog).getByRole('region', { name: 'Запис, який він замінить' })
+    expect(dialog).toHaveTextContent('Hronaut запише справжній токен MCP на місце •••.')
   })
 })

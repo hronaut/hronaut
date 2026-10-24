@@ -665,7 +665,7 @@ function createEditor(archivedCount: number) {
     mcpTabGroups: [workspace('default', 'Default'), workspace('agent', 'Agent workspace')],
     savedTabGroups: Array.from({ length: archivedCount }, (_, index) => archived(index))
   })
-  const confirm = vi.fn(() => true)
+  const confirm = vi.fn(async () => true)
   const browser = {
     getState: vi.fn(async () => state.value),
     createWorkspace: vi.fn(async () => state.value),
@@ -705,9 +705,9 @@ describe('workspace editor close with a full archive', () => {
     const { controller, confirm, browser } = createEditor(MAX_ARCHIVED_WORKSPACES)
     await controller.openExisting('agent')
 
-    confirm.mockReturnValueOnce(false)
+    confirm.mockResolvedValueOnce(false)
     await controller.closeWorkspace()
-    expect(confirm).toHaveBeenCalledWith('runtimeActions.workspace.closeConfirm:{"name":"Agent workspace"}')
+    expect(confirm).toHaveBeenCalledWith({ message: 'runtimeActions.workspace.closeConfirm:{"name":"Agent workspace"}' })
     expect(browser.closeWorkspace).not.toHaveBeenCalled()
 
     await controller.closeWorkspace()

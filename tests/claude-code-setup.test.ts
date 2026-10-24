@@ -1,7 +1,7 @@
 import { chmod, link, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { ClaudeCodeSetup, claudeCodeConfigPath, claudeCodeSetupStatus } from '../src/main/claude-code-setup.js'
 import { claudeCodeSetupErrorCode } from '../src/shared/claude-code-setup.js'
 import { detectAgentClients } from '../src/main/agent-client-detection.js'
@@ -18,7 +18,7 @@ beforeEach(async () => {
 afterEach(async () => { await rm(directory, { recursive: true, force: true }) })
 
 const settings = (value: unknown, indent = 2): string => JSON.stringify(value, null, indent)
-const setup = (confirm = vi.fn(async () => true), now = () => Date.UTC(2026, 9, 17, 7, 30, 0), token?: string) =>
+const setup = (confirm: Mock<(preview: unknown, signal?: AbortSignal) => Promise<boolean>> = vi.fn(async () => true), now = () => Date.UTC(2026, 9, 17, 7, 30, 0), token?: string) =>
   ({ confirm, service: new ClaudeCodeSetup({ path, endpoint: () => endpoint, credential: () => token === undefined ? undefined : { token }, confirm, now, platform: 'linux' }) })
 const code = async (promise: Promise<unknown>) => claudeCodeSetupErrorCode(await promise.then(() => null, (error: unknown) => error))
 
@@ -57,7 +57,7 @@ describe('Claude Code setup', () => {
     expect(await readFile(path, 'utf8')).toBe(original)
 
     expect(await service.apply(preview.planId, 7)).toEqual({ outcome: 'applied', backupName: preview.backupName })
-    expect(confirm).toHaveBeenCalledWith(preview)
+    expect(confirm).toHaveBeenCalledWith(preview, undefined)
     expect(await readFile(join(directory, preview.backupName), 'utf8')).toBe(original)
     expect((await stat(join(directory, preview.backupName))).mode & 0o777).toBe(0o600)
     const written = await readFile(path, 'utf8')
@@ -155,7 +155,59 @@ describe('Claude Code setup', () => {
     const preview = await setup().service.prepare(1)
     expect(preview.before).not.toContain('abc')
     expect(preview.before).not.toContain('secret')
-    expect(JSON.parse(preview.before!)).toEqual({ type: 'http', url: 'http://127.0.0.1:1/mcp?•••', headers: { Authorization: '•••' }, env: { KEY: '•••' }, args: '•••' })
+    expect(JSON.parse(preview.before!)).toEqual({ type: 'http', url: 'http://•••@127.0.0.1:1/mcp?•••', headers: { Authorization: '•••' }, env: { KEY: '•••' }, args: '•••' })
+  })
+
+  it('never shows a token an old entry carries in its address, in any part of it or any kind of address', async () => {
+    const shown = new Map([
+      ['http://127.0.0.1:1/mcp#abc', 'http://127.0.0.1:1/mcp?•••'],
+      ['http://127.0.0.1:1/mcp/abc', 'http://127.0.0.1:1/•••'],
+      ['https://abc@example.test/', 'https://•••@example.test/'],
+      ['ws://127.0.0.1:1/mcp?key=abc#abc', 'ws://127.0.0.1:1/mcp?•••'],
+      ['data:text/plain,abc', '•••'],
+      ['javascript:abc', '•••'],
+      ['file:///home/abc/mcp', '•••'],
+      ['abc', '•••']
+    ])
+    for (const [url, expected] of shown) {
+      await writeFile(path, settings({ mcpServers: { hronaut: { type: 'abc', url } } }))
+      const preview = await setup().service.prepare(1)
+      expect(preview.before, url).not.toContain('abc')
+      expect(JSON.parse(preview.before!), url).toEqual({ type: '•••', url: expected })
+    }
+  })
+
+  it('cuts a long old entry short without splitting a character in two', async () => {
+    const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
+    let crossed = false
+    // Header names that put a character written as two UTF-16 units on each side of the preview's limit.
+    for (let length = 1_915; length <= 1_925; length += 1) {
+      const name = `${'a'.repeat(length)}😀😀`
+      const full = settings({ type: 'http', url: 'http://127.0.0.1:1/mcp', headers: { [name]: '•••' } })
+      crossed ||= /[\uD800-\uDBFF]/.test(full.charAt(1_999))
+      await writeFile(path, settings({ mcpServers: { hronaut: { type: 'http', url: 'http://127.0.0.1:1/mcp', headers: { [name]: 'x' } } } }))
+      const before = (await setup().service.prepare(1)).before!
+      expect(before.endsWith('…'), String(length)).toBe(true)
+      expect(before.length, String(length)).toBeLessThanOrEqual(2_001)
+      expect(before, String(length)).not.toMatch(lone)
+      expect(full.startsWith(before.slice(0, -1)), String(length)).toBe(true)
+    }
+    expect(crossed).toBe(true)
+  })
+
+  it('writes nothing when the page that asked goes away while the dialog asks, even after a yes', async () => {
+    await writeFile(path, settings({}))
+    const closed = new AbortController()
+    const { service, confirm } = setup(vi.fn(async (_preview: unknown, signal?: AbortSignal) => {
+      expect(signal).toBe(closed.signal)
+      closed.abort()
+      return true
+    }))
+    const preview = await service.prepare(1)
+    expect(await service.apply(preview.planId, 1, closed.signal)).toEqual({ outcome: 'cancelled' })
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(await readFile(path, 'utf8')).toBe(settings({}))
+    expect(await readdir(directory)).toEqual(['.claude.json'])
   })
 
   it('changes nothing when the address, authentication, the token or the file changes while the dialog is open', async () => {

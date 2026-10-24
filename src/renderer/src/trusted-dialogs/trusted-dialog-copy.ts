@@ -29,9 +29,11 @@ import IconDownloadRounded from '~icons/material-symbols/download-rounded'
 import IconMoveToInboxOutlineRounded from '~icons/material-symbols/move-to-inbox-outline-rounded'
 import IconLanOutlineRounded from '~icons/material-symbols/lan-outline-rounded'
 import IconAccountBalanceWalletOutlineRounded from '~icons/material-symbols/account-balance-wallet-outline-rounded'
+import IconTerminalRounded from '~icons/material-symbols/terminal-rounded'
 import { sitePermissionName } from '../../../shared/site-permission-names.js'
 import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
 import type {
+  ClaudeSetupDialogVariant,
   SavePasswordDialogVariant,
   SitePermissionDialogVariant,
   TrustedDialogRequest,
@@ -57,6 +59,13 @@ export interface TrustedDialogCopy {
   quotedLabel?: string
   /** A new wallet's recovery phrase, word by word, with the name its numbered list reads as. */
   phrase?: { label: string, words: string[] }
+  /** A change to a file outside Hronaut, read as a diff: the file, the entry written and the one it replaces. */
+  change?: {
+    fileLabel: string
+    path: string
+    /** `note` explains the entry, shown under it. */
+    entries: Array<{ kind: 'added' | 'removed', label: string, text: string, note?: string }>
+  }
   /** Hronaut's own explanation, one paragraph each. */
   lines: string[]
   /** The line naming the workspace a choice is remembered in, shown with its own mark. */
@@ -202,12 +211,41 @@ function walletRecoveryCopy(variant: WalletRecoveryDialogVariant, t: Translate):
   }
 }
 
+/** Shows the exact change to Claude Code's settings that Home showed, before Hronaut writes it. */
+function claudeSetupCopy(variant: ClaudeSetupDialogVariant, t: Translate): TrustedDialogCopy {
+  return {
+    icon: IconTerminalRounded,
+    tone: 'question',
+    eyebrow: t('native.dialog.claudeSetupTitle'),
+    headline: { before: t('native.dialog.claudeSetupMessage'), emphasis: '', after: '' },
+    change: {
+      fileLabel: t('trustedDialogs.claudeSetup.file'),
+      path: variant.path,
+      entries: [
+        {
+          kind: 'added',
+          label: t('trustedDialogs.claudeSetup.added'),
+          text: `"hronaut": ${variant.after}`,
+          // Under the entry it is about, not the replaced one, whose ••• hide its own old values.
+          ...(variant.tokenHidden ? { note: t('home.connect.claudeSetup.previewToken') } : {})
+        },
+        ...(variant.before === null ? [] : [{ kind: 'removed' as const, label: t('trustedDialogs.claudeSetup.replaces'), text: `"hronaut": ${variant.before}` }])
+      ]
+    },
+    lines: [
+      t('home.connect.claudeSetup.previewBackup', { name: variant.backupName }),
+      t('home.connect.claudeSetup.previewQuit')
+    ]
+  }
+}
+
 /** The words and mark of a dialog: its own design for a known variant, or its message and detail as given. */
 export function trustedDialogCopy(request: TrustedDialogRequest, t: Translate): TrustedDialogCopy {
   const { variant } = request
   if (variant.kind === 'site-permission') return sitePermissionCopy(variant, t)
   if (variant.kind === 'save-password') return savePasswordCopy(variant, t)
   if (variant.kind === 'wallet-recovery') return walletRecoveryCopy(variant, t)
+  if (variant.kind === 'claude-setup') return claudeSetupCopy(variant, t)
   if (variant.kind === 'protected-file-access') {
     const folder = variant.target === 'folder'
     return {
