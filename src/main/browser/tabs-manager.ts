@@ -6334,10 +6334,10 @@ export class BrowserTabsManager {
    * The narrow view rendering a hidden tab gets of this manager's private
    * destroyed flag, window, tabs, render queues, offscreen capture set, active
    * tab, split view, layout, view bounds, presentation repair and debugger
-   * queue. It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it. The delegate below
-   * returns the feature's promise directly, so callers see the same ticks as
-   * before.
+   * lease. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. The delegate
+   * below returns the feature's promise directly, so callers see the same
+   * ticks as before.
    */
   private renderableTabAccess(): RenderableTabAccess<BrowserTab> {
     return {
