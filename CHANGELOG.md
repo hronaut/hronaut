@@ -10,6 +10,10 @@ All notable changes to Hronaut are documented in this file.
 - A new wallet's recovery phrase now appears in a Hronaut dialog over the window instead of a system dialog, as a numbered list of its words under the wallet's name, with what keeping it means. The words cannot be selected or copied, and while the phrase is on screen Hronaut asks the system to keep the window out of screen recordings and screen sharing, which Windows honors and macOS honors except for apps that record through ScreenCaptureKit. When the window is hidden or minimized, the system dialog still asks.
 - Hronaut's confirmations before a change it cannot undo, such as removing a wallet, clearing history or a website's cookies, deleting a workspace or turning MCP authentication off, now appear as Hronaut dialogs over the window instead of system dialogs. The question is the headline with what it means under it, in the interface language, and **Cancel** is focused, so **Enter** and **Escape** keep things as they are. A second click while the question waits asks nothing more.
 
+### Fixed
+
+- A workspace Hronaut was deleting when it stopped, such as in a crash or a power cut before the deletion finished, now comes back with its tabs at the next start. It came back without them.
+
 ## [3.8.0] - 2026-10-23
 
 ### Changed

@@ -8,7 +8,7 @@ vi.mock('../src/main/browser/workspace-storage.js', async (original) => ({
   destroyWorkspaceStorage: vi.fn(async () => undefined)
 }))
 import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
-import { TabStateStore, type PersistedBrowserState } from '../src/main/browser/tab-store.js'
+import { MAX_TABS, TabStateStore, type PersistedBrowserState } from '../src/main/browser/tab-store.js'
 import { destroyWorkspaceStorage } from '../src/main/browser/workspace-storage.js'
 
 const CLOSING = '01912345-6789-7abc-8def-0123456789ab'
@@ -85,7 +85,7 @@ async function browser() {
     workspaceStorageOperation: null, pendingWorkspaceOperationPromises: new Set(), pendingTabLabels: new Set(),
     tabLabelLifecycleHolds: 0, tabLabelAdmissionClosed: false, pendingHumanTabCloses: new Map(), expectedTabClosures: new Set(), closedTabs: [],
     detachedClosedTabs: new Set(),
-    deletedWorkspaceStorageIds: new Set(), workspaceStorageCleanupBlocked: false,
+    deletedWorkspaceStorageIds: new Set(), workspacesBeingDeleted: new Map(), workspaceStorageCleanupBlocked: false,
     workspaceContinuity: { guardedWorkspaceIds: () => [] },
     allTabsMuted: false, allHumanInteractionLocked: false,
     activeTabId: SHOWN, splitView: null, tabSelectionGeneration: 0, options: {},
@@ -212,6 +212,106 @@ describe('closing a whole workspace', () => {
     expect(workspaceTabs(CLOSING)).toEqual([SHOWN, ASLEEP])
     // Putting the workspace's tabs back used to take the person away from the tab they chose.
     expect(internals.activeTabId).toBe(OTHER_AWAKE)
+  })
+
+  it('stays saved with its tabs until deleting its storage is done', async () => {
+    const { manager, internals, store, directory, release } = await browser()
+    release()
+    Object.assign(internals, { options: { partition: 'persist:hronaut' } })
+    let finish!: () => void
+    vi.mocked(destroyWorkspaceStorage).mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve }))
+    const deleting = manager.closeMcpTabGroup(CLOSING)
+    await vi.waitFor(() => expect(destroyWorkspaceStorage).toHaveBeenCalled())
+    // A save while the storage is deleted, which is what the next start finds when Hronaut stops here, as in a crash.
+    await store.save(internals.persistedState())
+    const interrupted = await new TabStateStore(join(directory, 'tabs.json')).load()
+    // It used to come back empty, its tabs gone and its storage kept.
+    expect(interrupted?.tabs.filter((tab) => tab.mcpGroupId === CLOSING).map((tab) => tab.id)).toEqual([SHOWN, ASLEEP])
+    expect(interrupted?.mcpTabGroups?.find((group) => group.id === CLOSING)).toMatchObject({ activeTabId: SHOWN })
+    finish()
+    await deleting
+    const deleted = await new TabStateStore(join(directory, 'tabs.json')).load()
+    expect(deleted?.mcpTabGroups?.some((group) => group.id === CLOSING)).toBe(false)
+    expect(deleted?.tabs.some((tab) => tab.mcpGroupId === CLOSING)).toBe(false)
+  })
+
+  it('is saved whole, each tab once, while a failed deletion reopens its tabs', async () => {
+    const { manager, internals, release } = await browser()
+    release()
+    internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
+    const reopen = internals.createTab.getMockImplementation() as (options: { id: string; mcpGroupId: string }) => Promise<Tab>
+    const savedWhileReopening: string[][] = []
+    internals.createTab.mockImplementation(async (options: { id: string; mcpGroupId: string }) => {
+      const tab = await reopen(options)
+      savedWhileReopening.push(internals.persistedState().tabs.map((saved) => saved.id))
+      return tab
+    })
+    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
+    expect(savedWhileReopening).toHaveLength(2)
+    for (const saved of savedWhileReopening) expect(saved.toSorted()).toEqual([SHOWN, ASLEEP, OTHER_ASLEEP, OTHER_AWAKE].toSorted())
+    // Once they are back, a tab the person then closes is not saved from before.
+    internals.tabs.delete(ASLEEP)
+    expect(internals.persistedState().tabs.map((saved) => saved.id)).not.toContain(ASLEEP)
+  })
+
+  it('stays saved with its tabs in their order while they close', async () => {
+    const { manager, internals, release } = await browser()
+    Object.assign(internals, { options: { partition: 'persist:hronaut' } })
+    // Its shown tab comes after its sleeping one, and closes last.
+    const shown = internals.tabs.get(SHOWN)!
+    internals.tabs.delete(SHOWN)
+    internals.tabs.set(SHOWN, shown)
+    const deleting = manager.closeMcpTabGroup(CLOSING)
+    await vi.waitFor(() => expect(internals.wakeTab).toHaveBeenCalled())
+    expect([...internals.tabs.keys()]).toContain(SHOWN)
+    expect([...internals.tabs.keys()]).not.toContain(ASLEEP)
+    // The tab closed first used to be saved after the one still closing.
+    expect(internals.persistedState().tabs.filter((tab) => tab.mcpGroupId === CLOSING).map((tab) => tab.id)).toEqual([ASLEEP, SHOWN])
+    release()
+    await deleting
+  })
+
+  it('keeps no more tabs saved than the next start takes while agents open tabs meanwhile', async () => {
+    const { manager, internals, store, directory, release } = await browser()
+    release()
+    Object.assign(internals, { options: { partition: 'persist:hronaut' } })
+    let finish!: () => void
+    vi.mocked(destroyWorkspaceStorage).mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve }))
+    const deleting = manager.closeMcpTabGroup(CLOSING)
+    await vi.waitFor(() => expect(destroyWorkspaceStorage).toHaveBeenCalled())
+    const load = async () => {
+      await store.save(internals.persistedState())
+      return new TabStateStore(join(directory, 'tabs.json')).load()
+    }
+    // Room for one of its two tabs beside the open ones: the first, which it showed.
+    const openAnother = (): void => {
+      const tab = page(`01912346-${internals.tabs.size.toString(16).padStart(4, '0')}-7abc-8def-0123456789ab`, OTHER)
+      internals.tabs.set(tab.id, tab)
+    }
+    while (internals.tabs.size < MAX_TABS - 1) openAnother()
+    const crowded = await load()
+    expect(crowded?.tabs).toHaveLength(MAX_TABS)
+    expect(crowded?.tabs.filter((tab) => tab.mcpGroupId === CLOSING).map((tab) => tab.id)).toEqual([SHOWN])
+    expect(crowded?.mcpTabGroups?.find((group) => group.id === CLOSING)).toMatchObject({ activeTabId: SHOWN })
+    // No room left: a session with more tabs would keep Hronaut from starting at all.
+    openAnother()
+    const full = await load()
+    expect(full?.tabs).toHaveLength(MAX_TABS)
+    expect(full?.tabs.some((saved) => saved.mcpGroupId === CLOSING)).toBe(false)
+    expect(full?.mcpTabGroups?.find((group) => group.id === CLOSING)).toMatchObject({ activeTabId: null })
+    finish()
+    await deleting
+  })
+
+  it('stops keeping its tabs saved when reopening them after a failed deletion fails too', async () => {
+    const { manager, internals, release } = await browser()
+    release()
+    internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
+    internals.createTab.mockRejectedValueOnce(new Error('Could not open the tab.'))
+    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow()
+    // The workspace stays, with the tabs that are open, and nothing saved names a tab that is not.
+    const saved = internals.persistedState().tabs.map((tab) => tab.id)
+    expect(saved.toSorted()).toEqual([...internals.tabs.keys()].toSorted())
   })
 })
 
