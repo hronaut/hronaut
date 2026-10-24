@@ -871,6 +871,11 @@ export interface TabsManagerOptions {
   /** Asks the person whether to leave a page that asked to confirm before it is left, for a load they started. */
   confirmBeforeUnloadLeave?: () => Promise<boolean>
   /**
+   * A page took the keyboard while trusted chrome covers it, and gave it back to the shell, as when the person comes
+   * back to the window they left with the keyboard in that page.
+   */
+  onCoveredPageKeyboard?: (page: WebContents) => void
+  /**
    * Prepares a browser session before a page uses it. A tab's session also names the workspace the tab belongs to,
    * whose site permission decisions its pages get; Home's names none.
    */
@@ -1269,6 +1274,17 @@ export class BrowserTabsManager {
     const tab = tabId ? this.tabs.get(tabId) : undefined
     if (!tab || (tab.id !== this.activeTabId && !this.splitViewContains(tab.id))) return
     this.focusTabOrTrustedChrome(tab)
+  }
+
+  /**
+   * The page that has the keyboard now, or that takes it once trusted chrome closes if it is still in view; null while
+   * the person is elsewhere.
+   */
+  keyboardPage(): WebContents | null {
+    const waiting = this.focusAfterTrustedChrome?.tab.webContents
+    if (waiting && !waiting.isDestroyed()) return waiting
+    const focused = electronWebContents.getFocusedWebContents()
+    return focused && this.webContentsToTab.has(focused.id) ? focused : null
   }
 
   /**
@@ -2949,7 +2965,7 @@ export class BrowserTabsManager {
   private stageBeforeUnloadClose(tab: BrowserTab): {
     targetDetached: boolean
     cleanup: () => void
-    rollback: () => void
+    rollback: (focusPage: boolean) => void
   } {
     return stageBeforeUnloadClose(this.beforeUnloadStagingAccess(), tab)
   }
@@ -3070,6 +3086,8 @@ export class BrowserTabsManager {
     let stagedClose: ReturnType<BrowserTabsManager['stageBeforeUnloadClose']> | undefined
     if (respectBeforeUnload && !forceClose && !webContents.isDestroyed()) {
       const navigationGeneration = tab.navigationGeneration
+      // Taking the page out of view while it decides takes the keyboard from it, which it gets back only if it had it.
+      const pageHadKeyboard = this.keyboardPage() === webContents
       stagedClose = this.stageBeforeUnloadClose(tab)
       this.expectedTabClosures.add(webContents)
       let disposition: 'closed' | 'prevented'
@@ -3081,7 +3099,7 @@ export class BrowserTabsManager {
         disposition = await this.attemptBeforeUnloadClose(webContents)
       } catch (error) {
         this.expectedTabClosures.delete(webContents)
-        stagedClose.rollback()
+        stagedClose.rollback(pageHadKeyboard)
         if (!webContents.isDestroyed() && this.tabs.get(tab.id) === tab) {
           await this.ensureDialogMonitoring(tab)
         }
@@ -3089,7 +3107,11 @@ export class BrowserTabsManager {
       }
       this.expectedTabClosures.delete(webContents)
       if (disposition === 'prevented') {
-        stagedClose.rollback()
+        // The question over the page takes the keyboard now; a page that had it gets it back once the person keeps it.
+        stagedClose.rollback(false)
+        const keepPage = (): void => {
+          if (pageHadKeyboard && !webContents.isDestroyed()) this.focusPageAfterQuestion(webContents)
+        }
         if (!webContents.isDestroyed() && this.tabs.get(tab.id) === tab) {
           await this.ensureDialogMonitoring(tab)
         }
@@ -3099,15 +3121,23 @@ export class BrowserTabsManager {
         } catch (error) {
           console.error('[browser] Could not confirm closing a page with unsaved changes:', error)
           this.options.onActionFailed?.('confirm closing a tab', error)
+          keepPage()
           return this.getState()
         }
-        if (!confirmed) return this.getState()
+        if (!confirmed) {
+          keepPage()
+          return this.getState()
+        }
         if (
           this.tabs.get(tab.id) !== tab
           || tab.webContents !== webContents
           || webContents.isDestroyed()
           || tab.navigationGeneration !== navigationGeneration
-        ) return this.getState()
+        ) {
+          // The page changed while the person decided, so it stays open as if they had kept it.
+          keepPage()
+          return this.getState()
+        }
         return this.performCloseTab(tabId, ensureReplacement, true, true, yieldsToNewerSelection)
       }
       if (this.tabs.get(tab.id) !== tab) {
@@ -3312,7 +3342,8 @@ export class BrowserTabsManager {
           this.options.onActionFailed?.('confirm leaving a page', error)
           return false
         }
-      }
+      },
+      focusKeptPage: (tab) => this.focusPageAfterQuestion(tab.webContents)
     }
   }
 
@@ -5835,7 +5866,8 @@ export class BrowserTabsManager {
       activeTabId: () => this.activeTabId,
       writeActiveTabId: (tabId) => this.writeActiveTabId(tabId),
       markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
-      changed: (persist) => this.changed(persist)
+      changed: (persist) => this.changed(persist),
+      coveredPageTookKeyboard: (page) => this.options.onCoveredPageKeyboard?.(page)
     }
   }
 

@@ -17,10 +17,12 @@ function fakeWindow() {
     webContents: contents,
     visible: true,
     minimized: false,
+    focused: true,
     destroyed: false,
     isDestroyed() { return this.destroyed },
     isVisible() { return this.visible },
-    isMinimized() { return this.minimized }
+    isMinimized() { return this.minimized },
+    isFocused() { return this.focused }
   }
   return { window: window as typeof window & TrustedDialogWindow, contents, sent, shown: () => sent.at(-1) ?? null }
 }
@@ -35,10 +37,15 @@ function harness() {
   const showNativeMessageBox = vi.fn((window: unknown, options: MessageBoxOptions) => new Promise<MessageBoxReturnValue>((resolve) => {
     native.push({ window, options, answer: (response) => resolve({ response, checkboxChecked: false }) })
   }))
+  // The page that has the keyboard, as the tabs report it; null while the person is in the shell or away.
+  const keyboard: { page: { isDestroyed(): boolean } | null } = { page: null }
+  const returnKeyboard = vi.fn()
   const dialogs = createTrustedDialogs<typeof main.window>({
     mainWindow: () => main.window,
     showNativeMessageBox,
-    quitting: () => quit.quitting
+    quitting: () => quit.quitting,
+    keyboardPage: () => keyboard.page as never,
+    returnKeyboard
   })
   dialogs.registerIpc({
     ipcMain: { on: (channel: string, listener: Listener) => { listeners.set(channel, listener) } } as never,
@@ -58,6 +65,8 @@ function harness() {
     native,
     showNativeMessageBox,
     quit,
+    keyboard,
+    returnKeyboard,
     ready: (window: { contents: unknown } = main) => send(window, TRUSTED_DIALOG_CHANNELS.ready),
     respond: (window: { contents: unknown }, id: unknown, response: unknown) => send(window, TRUSTED_DIALOG_CHANNELS.respond, id, response)
   }
@@ -252,6 +261,104 @@ describe('Hronaut’s own dialogs', () => {
     const shown = main.shown()!
     respond(main, shown.id, 1)
     await expect(asked).resolves.toMatchObject({ response: 1 })
+  })
+
+  it('gives the keyboard back to the page that had it before the first dialog opened, once the last one is answered', async () => {
+    const { dialogs, main, ready, respond, keyboard, returnKeyboard } = harness()
+    ready()
+    const page = { isDestroyed: () => false }
+    keyboard.page = page
+    const first = dialogs.show({ ...permission, message: 'first' })
+    // The shell took the keyboard for the first dialog when the second was asked.
+    keyboard.page = null
+    const second = dialogs.show({ ...permission, message: 'second' })
+    respond(main, main.shown()!.id, 0)
+    await first
+    expect(returnKeyboard).not.toHaveBeenCalled()
+    respond(main, main.shown()!.id, 0)
+    await second
+    // The person kept the page the dialog asked about; the keyboard used to stay on a control in the shell.
+    expect(returnKeyboard).toHaveBeenCalledExactlyOnceWith(page)
+
+    // The next dialog, asked while the person is in the shell, leaves the keyboard there.
+    const third = dialogs.show(permission)
+    respond(main, main.shown()!.id, 1)
+    await third
+    expect(returnKeyboard).toHaveBeenCalledOnce()
+  })
+
+  it('gives the keyboard back to a page that took it under the dialogs when they opened while the person was away', async () => {
+    const { dialogs, main, ready, respond, returnKeyboard } = harness()
+    ready()
+    const page = { isDestroyed: () => false } as never
+    // Noted while no dialog shows, it is not kept for the next one.
+    dialogs.noteKeyboardPage(main.window, page)
+    // Asked while the person was in another app, so nothing in Hronaut had the keyboard.
+    main.window.focused = false
+    const answer = dialogs.show(permission)
+    // The person comes back to the window they left with the keyboard in the page.
+    main.window.focused = true
+    dialogs.noteKeyboardPage(main.window, page)
+    dialogs.noteKeyboardPage(main.window, { isDestroyed: () => false } as never)
+    respond(main, main.shown()!.id, 0)
+    await answer
+    expect(returnKeyboard).toHaveBeenCalledExactlyOnceWith(page)
+
+    // Asked while the person was in Hronaut's own controls: a page focused under it is not theirs.
+    const next = dialogs.show(permission)
+    dialogs.noteKeyboardPage(main.window, page)
+    respond(main, main.shown()!.id, 0)
+    await next
+    expect(returnKeyboard).toHaveBeenCalledOnce()
+  })
+
+  it('answers the dialog when giving the keyboard back fails', async () => {
+    const { dialogs, main, ready, respond, keyboard, returnKeyboard } = harness()
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      ready()
+      keyboard.page = { isDestroyed: () => false }
+      returnKeyboard.mockImplementation(() => { throw new Error('gone') })
+      const answer = dialogs.show(permission)
+      respond(main, main.shown()!.id, 1)
+      await expect(answer).resolves.toMatchObject({ response: 1 })
+      expect(logged).toHaveBeenCalledOnce()
+    } finally {
+      logged.mockRestore()
+    }
+  })
+
+  it('gives the keyboard back when the last dialog closes because its signal aborted', async () => {
+    const { dialogs, ready, keyboard, returnKeyboard } = harness()
+    ready()
+    const page = { isDestroyed: () => false }
+    keyboard.page = page
+    const controller = new AbortController()
+    const answer = dialogs.show({ ...permission, signal: controller.signal })
+    controller.abort()
+    await answer
+    expect(returnKeyboard).toHaveBeenCalledExactlyOnceWith(page)
+  })
+
+  it('gives nothing back to a page closed meanwhile, or when system dialogs ask instead', async () => {
+    const { dialogs, main, native, ready, respond, keyboard, returnKeyboard } = harness()
+    ready()
+    const closed = { destroyed: false, isDestroyed() { return this.destroyed } }
+    keyboard.page = closed
+    const answer = dialogs.show(permission)
+    closed.destroyed = true
+    respond(main, main.shown()!.id, 1)
+    await answer
+    expect(returnKeyboard).not.toHaveBeenCalled()
+
+    // The shell document goes away, and the system dialog that asks instead leaves the keyboard with the window.
+    keyboard.page = { isDestroyed: () => false }
+    const handedOff = dialogs.show(permission)
+    main.contents.emit('destroyed')
+    await vi.waitFor(() => expect(native).toHaveLength(1))
+    native[0]!.answer(0)
+    await handedOff
+    expect(returnKeyboard).not.toHaveBeenCalled()
   })
 
   it('defaults to the cancel button for focus and a plain message design', () => {

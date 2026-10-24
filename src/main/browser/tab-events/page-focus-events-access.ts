@@ -1,4 +1,4 @@
-import type { BrowserWindow } from 'electron'
+import type { BrowserWindow, WebContents } from 'electron'
 import type { BrowserState } from '../../../shared/types.js'
 
 /** The tab fields page focus reads and writes: the tab's id, when it was last active and whether it sleeps. */
@@ -37,4 +37,6 @@ export interface PageFocusEventsAccess<Tab extends PageFocusEventsTab> {
   markTabActiveInGroup(tab: Tab): void
   /** Publishes the browser state, and saves it unless persist is false. */
   changed(persist?: boolean): void
+  /** Reports a page that took the keyboard under trusted chrome and gave it back to the shell. */
+  coveredPageTookKeyboard(page: WebContents): void
 }

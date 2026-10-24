@@ -4,12 +4,13 @@ import type { BeforeUnloadStagingAccess, BeforeUnloadStagingTab } from './before
  * Takes the closing page out of view while its beforeunload handler runs: the
  * replacement page, if any, is shown in its place. Cleanup removes a
  * replacement the person did not keep selected; rollback also brings the
- * page back when its close was prevented.
+ * page back when its close was prevented or failed, and gives it the keyboard
+ * when focusPage and it is the active tab.
  */
 export function stageBeforeUnloadClose<Tab extends BeforeUnloadStagingTab>(access: BeforeUnloadStagingAccess<Tab>, tab: Tab): {
   targetDetached: boolean
   cleanup: () => void
-  rollback: () => void
+  rollback: (focusPage: boolean) => void
 } {
   const wasActive = tab.id === access.activeTabId()
   const splitPartnerId = access.splitViewContains(tab.id)
@@ -65,14 +66,14 @@ export function stageBeforeUnloadClose<Tab extends BeforeUnloadStagingTab>(acces
   return {
     targetDetached: true,
     cleanup,
-    rollback: () => {
+    rollback: (focusPage) => {
       cleanup()
       if (tab.webContents.isDestroyed() || access.findTab(tab.id) !== tab) return
       if (access.activeTabId() === tab.id || access.splitViewContains(tab.id)) {
         access.window().contentView.addChildView(tab.view)
       }
       access.layout()
-      if (access.activeTabId() === tab.id) access.focusTabOrTrustedChrome(tab)
+      if (focusPage && access.activeTabId() === tab.id) access.focusTabOrTrustedChrome(tab)
     }
   }
 }
