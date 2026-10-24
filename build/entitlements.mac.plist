@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- V8 compiles JavaScript at run time; the hardened runtime refuses that without this. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <!-- Websites use the camera and microphone only after the person allows it; without these the hardened runtime
+         gives them no device at all. Info.plist carries the matching usage descriptions. -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+  </dict>
+</plist>

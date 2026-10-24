@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Hronaut's own questions now appear as Hronaut dialogs over the window instead of system dialogs: saving or updating a password a page submitted, leaving or closing a page that asks to confirm, quitting with downloads in progress, reading another browser's cookies to import them, importing a password file, and the MCP server failing to start. The password dialog names the website and shows the username the page sent apart from Hronaut's words. Quitting with downloads in progress brings the window forward to ask, even from the tray; the others still use the system dialog while Hronaut's window is hidden, minimized or not loaded yet, and none of them asks once Hronaut is quitting.
+- The macOS packages are now signed with the Hronaut Developer ID certificate and notarized by Apple, with the hardened runtime, so Gatekeeper opens them without a warning or a right-click Open. A release is never published with unsigned macOS packages: the release and its rehearsal stop when a signing secret is missing, and check each app's and disk image's signature, notarization ticket and Gatekeeper's verdict. A Mac running an earlier, unsigned Hronaut may not install this update by itself; download it once from the release page. Windows packages are still unsigned.
 
 ## [3.8.0] - 2026-10-23
 
