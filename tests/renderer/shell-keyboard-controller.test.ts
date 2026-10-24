@@ -222,6 +222,18 @@ describe('useShellKeyboardController', () => {
     }
   })
 
+  it('keeps the Escape that closes the palette from the menu, so Shift+Escape opens no Task manager in its place', () => {
+    for (const shiftKey of [false, true]) {
+      const commandPalette = surface(true)
+      const { controller, runShortcut } = setup({ commandPalette })
+      const event = new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', shiftKey, cancelable: true })
+      controller.handleKeyDown(event)
+      expect(commandPalette.close, String(shiftKey)).toHaveBeenCalledOnce()
+      expect(event.defaultPrevented, String(shiftKey)).toBe(true)
+      expect(runShortcut).not.toHaveBeenCalled()
+    }
+  })
+
   it('closes only the highest-priority modal or Escape surface', () => {
     const firstModal = surface(true)
     const secondModal = surface(true)

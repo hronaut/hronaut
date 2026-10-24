@@ -262,6 +262,9 @@ export const frFRAppErrors: AppErrorMessages = {
     "notCompleted": "Seul un téléchargement terminé peut être affiché dans son dossier.",
     "fileRemoved": "Ce fichier a été déplacé ou supprimé : il ne peut donc pas être affiché dans son dossier."
   },
+  "taskManager": {
+    "cannotEnd": "Ce processus ne peut pas être arrêté ; il est peut-être déjà terminé."
+  },
   "bookmarks": {
     "invalidUrl": "L’adresse du favori doit être une adresse HTTP ou HTTPS de 4096 caractères encodés au maximum.",
     "limit": "Limite de favoris atteinte ({max}).",

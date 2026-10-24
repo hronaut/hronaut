@@ -36,6 +36,8 @@ export interface BrowserShortcutControllerOptions {
   toggleCurrentBookmark: ShortcutCallback
   toggleVisitHistory: ShortcutCallback
   toggleDownloads: ShortcutCallback
+  /** The Task manager, as Chrome's Shift+Esc opens and closes it. */
+  toggleTaskManager?: ShortcutCallback
   toggleTabSearch: ShortcutCallback
   openPrivacySettings: ShortcutCallback
   toggleCommandPalette: ShortcutCallback
@@ -278,6 +280,9 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
         return
       case 'downloads':
         await options.toggleDownloads()
+        return
+      case 'task-manager':
+        await options.toggleTaskManager?.()
         return
       case 'search-tabs':
         await options.toggleTabSearch()

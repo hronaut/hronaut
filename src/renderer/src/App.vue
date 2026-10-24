@@ -17,6 +17,7 @@ import EmulationFrame from './components/EmulationFrame.vue'
 import PageSnapshot from './components/PageSnapshot.vue'
 import PageCard from './components/PageCard.vue'
 import AppTrustedDialogsLayer from './components/AppTrustedDialogsLayer.vue'
+import TaskManagerDialog from './components/TaskManagerDialog.vue'
 import { useTrustedDialogController } from './trusted-dialogs/useTrustedDialogController.js'
 import AppTransientShellLayer from './components/AppTransientShellLayer.vue'
 import { useBrowserStore } from './stores/browser'
@@ -30,6 +31,7 @@ import { useAppPageToolsPanelFeatureController } from './composables/useAppPageT
 import { useAppSettingsFeatureController } from './composables/useAppSettingsFeatureController'
 import { useAppShellPresentationFeatureController } from './composables/useAppShellPresentationFeatureController'
 import { useHelpDialogController } from './composables/useHelpDialogController'
+import { useTaskManagerController } from './composables/useTaskManagerController'
 import { useAppEventsController } from './composables/useAppEventsController'
 import { useAppBrowserCollectionsFeatureController } from './composables/useAppBrowserCollectionsFeatureController'
 import { useAppShellInteractionFeatureController } from './composables/useAppShellInteractionFeatureController'
@@ -263,6 +265,21 @@ const {
   open: releaseHistoryOpen,
   close: closeReleaseHistory
 } = appSettingsFeatureController.releaseHistoryController
+const taskManagerController = useTaskManagerController({
+  api: window.hronautTaskManager,
+  beforeOpen: () => {
+    commandPaletteOpen.value = false
+    closeTransientPanels()
+  },
+  formatError: (error) => friendlyUiError(error, t('taskManager.unavailable'))
+})
+const {
+  open: taskManagerOpen,
+  openDialog: openTaskManager,
+  close: closeTaskManager,
+  toggle: toggleTaskManager,
+  dispose: disposeTaskManagerController
+} = taskManagerController
 const {
   entries: sitePermissions,
   replace: replaceSitePermissions
@@ -541,6 +558,7 @@ const {
     updateNotice: updateNoticeOpen,
     help: { open: helpDialogOpen, close: closeHelpDialog, openDialog: showHelpDialog },
     releaseHistory: { open: releaseHistoryOpen, close: closeReleaseHistory },
+    taskManager: { open: taskManagerOpen, close: closeTaskManager, openDialog: openTaskManager, toggle: toggleTaskManager },
     walletApproval: walletApprovalOpen,
     trustedDialog: trustedDialogSurface,
     agentSteps: { open: agentStepsOpen, close: closeAgentSteps },
@@ -661,6 +679,7 @@ const {
     commandPalette: commandPaletteOpen,
     helpDialog: helpDialogOpen,
     releaseHistory: releaseHistoryOpen,
+    taskManager: taskManagerOpen,
     workspaceEditor: workspaceEditorOpen,
     credentialPicker: credentialPickerOpen,
     walletApproval: walletApprovalOpen,
@@ -823,6 +842,7 @@ useAppLifecycleController({
     disposeAttention,
     disposeAppPageToolsPanelFeatureController,
     disposeHelpDialogController,
+    disposeTaskManagerController,
     disposeAppSiteNavigationFeatureController,
     disposeAppSettingsFeatureController,
     disposeAppBrowserCollectionsFeatureController,
@@ -1013,6 +1033,14 @@ useAppLifecycleController({
       @manage-workspace="openWorkspaceFromSettings"
       @create-workspace="createWorkspaceFromSettings"
       @transfer-workspace-data="transferWorkspaceDataFromSettings"
+    />
+    <TaskManagerDialog
+      v-if="!isDetachedPanelWindow"
+      :controller="taskManagerController"
+      :tabs="state.tabs"
+      :workspaces="walletWorkspaces"
+      :format-bytes="formatBytes"
+      :report-layout="reportShellHeight"
     />
     <DetachedPanelUnavailableState
       v-if="detachedPanelUnavailable"

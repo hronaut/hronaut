@@ -66,6 +66,7 @@ export interface AppCommandPaletteBrowserCommands {
 export interface AppCommandPaletteSettingsCommands {
   openSection: (section: SettingsSection) => unknown
   openHelp: (tab: 'shortcuts') => unknown
+  openTaskManager: () => unknown
   toggleMcpPaused: () => unknown
 }
 
@@ -103,6 +104,7 @@ export function useAppCommandPaletteFeatureController<
       downloads: options.collections.toggleDownloads,
       bookmarks: options.collections.toggleBookmarks,
       history: options.collections.toggleVisitHistory,
+      'task-manager': options.settings.openTaskManager,
       find: options.browser.openFind,
       reload: () => options.browser.runShortcut('reload'),
       'reload-ignoring-cache': () => options.browser.runShortcut('reload-ignoring-cache'),

@@ -27,6 +27,8 @@ export interface AppShellLayoutFeatureControllerOptions {
     commandPalette: BooleanState
     helpDialog: BooleanState
     releaseHistory: BooleanState
+    /** The Task manager; the page views hide under it, as under the other dialogs. */
+    taskManager: BooleanState
     workspaceEditor: BooleanState
     credentialPicker: BooleanState
     walletApproval: BooleanState
@@ -79,6 +81,7 @@ export function useAppShellLayoutFeatureController(
     modals.commandPalette,
     modals.helpDialog,
     modals.releaseHistory,
+    modals.taskManager,
     modals.workspaceEditor,
     modals.credentialPicker,
     modals.walletApproval,
@@ -106,6 +109,7 @@ export function useAppShellLayoutFeatureController(
       modals.commandPalette,
       modals.helpDialog,
       modals.releaseHistory,
+      modals.taskManager,
       overlays.tabSearch,
       overlays.downloads,
       overlays.history,
@@ -122,6 +126,7 @@ export function useAppShellLayoutFeatureController(
       modals.commandPalette,
       modals.helpDialog,
       modals.releaseHistory,
+      modals.taskManager,
       modals.workspaceEditor,
       modals.credentialPicker,
       modals.agentSteps,

@@ -7,6 +7,7 @@ import { registerBrowserImportIpc } from './browser-import/ipc.js'
 import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
 import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
 import { registerNetworkRoutesIpc } from './network-routes-ipc.js'
+import { registerTaskManagerIpc } from './task-manager-ipc.js'
 import { registerFixedDateIpc } from './fixed-date-ipc.js'
 import { registerWalletIpc } from './wallet/ipc.js'
 import type { FollowSuspensionState } from './agent-card-overlay.js'
@@ -902,6 +903,11 @@ function registerIpc(): void {
     handleBrowserIpc,
     tabs: () => tabRuntime.tabs
   })
+  registerTaskManagerIpc({
+    assertMainSender: assertMainShellSender,
+    handleBrowserIpc,
+    tabs: () => tabRuntime.tabs
+  })
   registerPageInspectionIpc({
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
@@ -1078,6 +1084,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     getSearchEngine: () => settingsState.current.searchEngine,
     getLocale: () => settingsState.resolvedLocale,
     getTabPosition: () => settingsState.current.tabPosition,
+    // Hronaut's own pages, the main window and its overlays among them, all load from the shell's folder.
+    isInterfacePage: (url) => url.startsWith(new URL('.', trustedShellUrl()).href),
     configureSession: configureBrowserSession,
     onUserInteraction: (touched) => {
       // A key press in a page hides a shell tooltip, as it hides a native one.

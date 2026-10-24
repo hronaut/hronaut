@@ -655,6 +655,7 @@ export const frFR = {
       "Application": "Application"
     },
     "commands": {
+      "task-manager": { "label": "Ouvrir le Gestionnaire de tâches", "description": "Voir la mémoire et le processeur utilisés par chaque onglet et processus" },
       "home": {
         "label": "Ouvrir l’accueil de Hronaut",
         "description": "Afficher le tableau de bord de l’application"
@@ -862,6 +863,7 @@ export const frFR = {
   "runtime": {
     "initializingStorage": "Initialisation du stockage sécurisé.",
     "shortcuts": {
+      "taskManager": "Ouvrir le Gestionnaire de tâches",
       "address": "Activer la barre d’adresse",
       "nextPane": "Passer de la barre d’adresse à la page et inversement",
       "addressNewTab": "Ouvrir le texte saisi dans la barre d’adresse dans un nouvel onglet",
@@ -3016,6 +3018,38 @@ export const frFR = {
     "interrupted": "Interrompu",
     "fileRemoved": "Déplacé ou supprimé"
   },
+  "taskManager": {
+    "title": "Gestionnaire de tâches",
+    "close": "Fermer le Gestionnaire de tâches",
+    "loading": "Lecture des processus…",
+    "unavailable": "Impossible de lire les processus",
+    "caption": "Processus de Hronaut et leur utilisation de la mémoire et du processeur",
+    "columns": {
+      "task": "Tâche",
+      "memory": "Mémoire",
+      "cpu": "Processeur",
+      "pid": "ID de processus",
+      "actions": "Actions"
+    },
+    "task": {
+      "browser": "Navigateur",
+      "gpu": "Processus GPU",
+      "utility": "Utilitaire : {name}",
+      "utilityUnnamed": "Processus utilitaire",
+      "interface": "Fenêtre Hronaut",
+      "other": "Processus de page sans onglet",
+      "helper": "Auxiliaire : {name}",
+      "tab": "Onglet : {title}",
+      "sleepingTab": "Onglet en veille : {title}",
+      "subframe": "Sous-cadre : {site}",
+      "subframeUnnamed": "Sous-cadre",
+      "devTools": "DevTools : {title}"
+    },
+    "untitled": "Sans titre",
+    "endProcess": "Arrêter le processus",
+    "endProcessAria": "Arrêter le processus : {task}",
+    "summary": "{count} processus utilise {memory} | {count} processus utilisent {memory}"
+  },
   "bookmarks": { sortOrder: "Trier les favoris", sortUpdated: "Récemment modifiés", sortTitle: "Titre", copyAddress: "Copier l’adresse", copyAddressAria: "Copier l’adresse de {title}", addressCopied: "Adresse copiée", copyFailed: "Impossible de copier l’adresse. Réessayez.",
     "collection": "Collection",
     "collectionFilter": "Filtrer les favoris par collection",
@@ -3505,6 +3539,7 @@ export const frFR = {
   },
   "native": {
     "menu": {
+      "taskManager": "Gestionnaire de tâches",
       "show": "Afficher",
       "checkUpdates": "Rechercher des mises à jour…",
       "quit": "Quitter",

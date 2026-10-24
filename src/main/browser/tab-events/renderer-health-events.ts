@@ -37,6 +37,8 @@ function rendererFailureProblem(locale: SupportedLocale, url: string, reason: st
  */
 export function attachRendererHealthEvents<Tab extends RendererHealthEventsTab>(access: RendererHealthEventsAccess<Tab>, tab: Tab, webContents: WebContents): void {
   webContents.on('render-process-gone', (_event, details) => {
+    // Ended from the Task manager, the page was terminated as the person asked rather than crashed, as Chrome says.
+    const reason = access.takeEndedByPerson(webContents) ? 'killed' : details.reason
     if (tab.networkConditionApplication === 'pending') access.markNetworkConditionsUnknown(tab)
     tab.emulationContextGeneration++
     tab.emulationRevision++
@@ -56,11 +58,11 @@ export function attachRendererHealthEvents<Tab extends RendererHealthEventsTab>(
     }
     tab.loading = false
     tab.title = access.text('native.dialog.pageUnavailable')
-    tab.pageProblem = rendererFailureProblem(access.options().getLocale(), tab.url, details.reason, details.exitCode)
+    tab.pageProblem = rendererFailureProblem(access.options().getLocale(), tab.url, reason, details.exitCode)
     access.appendConsoleMessage(tab, {
       timestamp: new Date().toISOString(),
       level: 'error',
-      message: `Renderer process exited: ${details.reason} (exit code ${details.exitCode})`,
+      message: `Renderer process exited: ${reason} (exit code ${details.exitCode})`,
       lineNumber: 0,
       sourceId: tab.url,
       kind: 'lifecycle'

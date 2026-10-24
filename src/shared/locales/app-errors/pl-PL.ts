@@ -262,6 +262,9 @@ export const plPLAppErrors: AppErrorMessages = {
     "notCompleted": "W folderze można pokazać tylko ukończone pobieranie.",
     "fileRemoved": "Ten plik został przeniesiony lub usunięty, więc nie można go pokazać w folderze."
   },
+  "taskManager": {
+    "cannotEnd": "Tego procesu nie można zakończyć; mógł już się zakończyć."
+  },
   "bookmarks": {
     "invalidUrl": "Adres zakładki musi być adresem HTTP lub HTTPS o długości do 4096 zakodowanych znaków.",
     "limit": "Osiągnięto limit zakładek ({max}).",

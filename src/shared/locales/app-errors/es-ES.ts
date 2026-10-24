@@ -262,6 +262,9 @@ export const esESAppErrors: AppErrorMessages = {
     "notCompleted": "Solo se puede mostrar en su carpeta una descarga completada.",
     "fileRemoved": "Este archivo se movió o se eliminó, así que no se puede mostrar en su carpeta."
   },
+  "taskManager": {
+    "cannotEnd": "Este proceso no se puede finalizar; es posible que ya haya finalizado."
+  },
   "bookmarks": {
     "invalidUrl": "La dirección del marcador debe ser una dirección HTTP o HTTPS de hasta 4096 caracteres codificados.",
     "limit": "Se alcanzó el límite de marcadores ({max}).",

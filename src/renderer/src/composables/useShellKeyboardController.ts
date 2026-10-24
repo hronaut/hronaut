@@ -73,9 +73,10 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
     // Find, does not close the next one too, such as a panel in its own window.
     const escape = event.key === 'Escape' && !event.repeat
     // Its own two shortcuts reach the open palette: each closes its list or turns to the other one.
+    // The Escape that closes it goes no further either, so Shift+Escape does not open the Task manager in its place.
     if (options.commandPalette.isOpen() && shortcut !== 'command-palette' && shortcut !== 'switch-workspace') {
       if (escape) options.commandPalette.close()
-      else if (browserKey) event.preventDefault()
+      if (browserKey) event.preventDefault()
       return
     }
     const activeModal = options.modalSurfaces.find((surface) => surface.isOpen())

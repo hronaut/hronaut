@@ -1,6 +1,6 @@
 import { assertExclusiveWorkspaceStorage, canonicalStorageId, cleanExplicitlyDeletedWorkspaceStorage } from './workspace-storage-deletion.js'
 import { ImageInspectionSlots } from './image-state.js'
-import type { BrowserEmulationResult, BrowserUnconfirmedEmulation } from '../../shared/types.js'
+import type { BrowserEmulationResult, BrowserUnconfirmedEmulation, TaskManagerProcess } from '../../shared/types.js'
 import { assertRightClickPlatform } from './owned-right-click.js'
 import type { PageEvaluationAccess } from './page-evaluation/page-evaluation-access.js'
 import { evaluateFile } from './page-evaluation/evaluate-file.js'
@@ -191,6 +191,7 @@ import { trackedViewportScreenshot, type TrackedScreenshot, type TrackedScreensh
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import axe from 'axe-core'
 import {
+  app,
   BrowserWindow,
   dialog,
   Menu,
@@ -313,6 +314,7 @@ import {
 import { uuidV7 } from '../uuid-v7.js'
 import { LocalizedError } from '../localized-error.js'
 import { RendererRecovery } from './renderer-recovery.js'
+import { EndedByPersonMarks, endTaskManagerProcess, taskManagerProcesses, type TaskManagerAccess } from './task-manager/task-manager.js'
 import { guardPageCallsAcrossRendererExit } from './renderer-exit-guard.js'
 import { refusePageScriptsInSourceView } from './source-view-guard.js'
 import { guardPageCallsDuringPrintDialog } from './print-dialog-guard.js'
@@ -865,6 +867,8 @@ export interface TabsManagerOptions {
   getSearchEngine?: () => SearchEngineName
   getLocale: () => SupportedLocale
   getTabPosition: () => TabPosition
+  /** Whether an address is one of Hronaut's own windows, which the Task manager lists as Hronaut's and never ends. */
+  isInterfacePage?: (url: string) => boolean
   toolbarHeight?: number
   getTabAttention?: (tabId: string, workspaceId: string | undefined) => { id: string } | undefined
   resolveTabAttention?: (id: string, tabId: string, workspaceId: string | undefined) => void
@@ -1382,6 +1386,8 @@ export class BrowserTabsManager {
   private readonly defaultExecutionContexts = new Map<number, Map<string, { id: number; uniqueId?: string }>>()
   private readonly devToolsOpening = new Set<number>()
   private readonly rendererRecovery = new RendererRecovery()
+  /** Pages whose process the person ended in the Task manager, until their exit arrives. */
+  private readonly endedByPerson = new EndedByPersonMarks()
   private readonly renderQueues = new Map<number, Promise<void>>()
   /** Tabs whose view is out of its place for an offscreen capture, which restores it. */
   private readonly offscreenCaptureTabIds = new Set<string>()
@@ -2673,6 +2679,32 @@ export class BrowserTabsManager {
 
   wakeTab(tabId: string): Promise<BrowserState> {
     return wakeTab(this.tabSleepAccess(), tabId)
+  }
+
+  /** Every process of Hronaut's with its memory and CPU use, for the Task manager. */
+  taskManagerProcesses(): TaskManagerProcess[] {
+    return taskManagerProcesses(this.taskManagerAccess())
+  }
+
+  /** Ends a page process the person chose in the Task manager, as Chrome's End process. */
+  endTaskManagerProcess(pid: number): void {
+    endTaskManagerProcess(this.taskManagerAccess(), pid)
+  }
+
+  /**
+   * The narrow view the Task manager gets of this manager's private tabs, renderer recovery and the pages the person
+   * ended, with Electron's process readings. It is a prototype method rather than a field, so managers created without
+   * the constructor (as unit tests do) still provide it. Each member reads the manager when called.
+   */
+  private taskManagerAccess(): TaskManagerAccess<BrowserTab> {
+    return {
+      tabs: () => this.orderedTabs().filter((tab) => !tab.webContents.isDestroyed()),
+      appMetrics: () => app.getAppMetrics(),
+      allWebContents: () => electronWebContents.getAllWebContents(),
+      isInterfacePage: (url) => this.options.isInterfacePage?.(url) === true,
+      rendererRecovering: (contents) => this.rendererRecovery.isRecovering(contents),
+      noteEndedByPerson: (contents) => { this.endedByPerson.note(contents) }
+    }
   }
 
   setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState> {
@@ -6134,6 +6166,7 @@ export class BrowserTabsManager {
       tabOverviewPreviewCaptures: () => this.tabOverviewPreviewCaptures,
       tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
       rendererRecovery: () => this.rendererRecovery,
+      takeEndedByPerson: (contents) => this.endedByPerson.take(contents),
       networkWaitController: () => this.networkWaitController,
       cancelNativeSelectionSessions: (tab) => this.cancelNativeSelectionSessions(tab),
       text: (key, parameters) => this.text(key, parameters),

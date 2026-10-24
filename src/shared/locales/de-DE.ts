@@ -655,6 +655,7 @@ export const deDE = {
       "Application": "Anwendung"
     },
     "commands": {
+      "task-manager": { "label": "Task-Manager öffnen", "description": "Speicher- und CPU-Verbrauch jedes Tabs und Prozesses ansehen" },
       "home": {
         "label": "Hronaut-Startseite öffnen",
         "description": "Anwendungsübersicht anzeigen"
@@ -862,6 +863,7 @@ export const deDE = {
   "runtime": {
     "initializingStorage": "Sicherer Speicher wird initialisiert.",
     "shortcuts": {
+      "taskManager": "Task-Manager öffnen",
       "address": "Adressleiste fokussieren",
       "nextPane": "Zwischen Adressleiste und Seite wechseln",
       "addressNewTab": "In der Adressleiste Eingegebenes in einem neuen Tab öffnen",
@@ -3016,6 +3018,38 @@ export const deDE = {
     "interrupted": "Unterbrochen",
     "fileRemoved": "Verschoben oder gelöscht"
   },
+  "taskManager": {
+    "title": "Task-Manager",
+    "close": "Task-Manager schließen",
+    "loading": "Prozesse werden gelesen…",
+    "unavailable": "Prozesse konnten nicht gelesen werden",
+    "caption": "Prozesse von Hronaut mit ihrem Speicher- und CPU-Verbrauch",
+    "columns": {
+      "task": "Aufgabe",
+      "memory": "Speicher",
+      "cpu": "CPU",
+      "pid": "Prozess-ID",
+      "actions": "Aktionen"
+    },
+    "task": {
+      "browser": "Browser",
+      "gpu": "GPU-Prozess",
+      "utility": "Dienstprogramm: {name}",
+      "utilityUnnamed": "Dienstprogrammprozess",
+      "interface": "Hronaut-Fenster",
+      "other": "Seitenprozess ohne Tab",
+      "helper": "Hilfsprozess: {name}",
+      "tab": "Tab: {title}",
+      "sleepingTab": "Schlafender Tab: {title}",
+      "subframe": "Subframe: {site}",
+      "subframeUnnamed": "Subframe",
+      "devTools": "DevTools: {title}"
+    },
+    "untitled": "Ohne Titel",
+    "endProcess": "Prozess beenden",
+    "endProcessAria": "Prozess beenden: {task}",
+    "summary": "{count} Prozess nutzt {memory} | {count} Prozesse nutzen {memory}"
+  },
   "bookmarks": { sortOrder: "Lesezeichen sortieren", sortUpdated: "Zuletzt aktualisiert", sortTitle: "Titel", copyAddress: "Adresse kopieren", copyAddressAria: "Adresse von {title} kopieren", addressCopied: "Adresse kopiert", copyFailed: "Adresse konnte nicht kopiert werden. Erneut versuchen.",
     "collection": "Sammlung",
     "collectionFilter": "Lesezeichen nach Sammlung filtern",
@@ -3505,6 +3539,7 @@ export const deDE = {
   },
   "native": {
     "menu": {
+      "taskManager": "Task-Manager",
       "show": "Anzeigen",
       "checkUpdates": "Nach Updates suchen…",
       "quit": "Beenden",

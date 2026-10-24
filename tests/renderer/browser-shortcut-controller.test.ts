@@ -82,6 +82,7 @@ function createController(canRunAction = (_action: string) => true) {
     toggleCurrentBookmark: vi.fn(async () => undefined),
     toggleVisitHistory: vi.fn(async () => undefined),
     toggleDownloads: vi.fn(async () => undefined),
+    toggleTaskManager: vi.fn(async () => undefined),
     toggleTabSearch: vi.fn(async () => undefined),
     openPrivacySettings: vi.fn(async () => undefined),
     toggleCommandPalette: vi.fn(async () => undefined),
@@ -235,6 +236,14 @@ describe('browser shortcut controller', () => {
     harness.settingsOpen.value = true
     await expect(harness.controller.run('downloads')).resolves.toBe(true)
     expect(harness.callbacks.toggleDownloads).toHaveBeenCalledTimes(2)
+  })
+
+  // Shift+Esc, and View → Task manager, now open and close the Task manager, as in Chrome.
+  it('opens or closes the Task manager', async () => {
+    const harness = createController()
+    await expect(harness.controller.run('task-manager')).resolves.toBe(true)
+    await expect(harness.controller.run('task-manager')).resolves.toBe(true)
+    expect(harness.callbacks.toggleTaskManager).toHaveBeenCalledTimes(2)
   })
 
   it('does not reload the hidden website while Settings is active', async () => {

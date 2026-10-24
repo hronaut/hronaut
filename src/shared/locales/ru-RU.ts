@@ -655,6 +655,7 @@ export const ruRU = {
       "Application": "Приложение"
     },
     "commands": {
+      "task-manager": { "label": "Открыть диспетчер задач", "description": "Сколько памяти и процессора использует каждая вкладка и процесс" },
       "home": {
         "label": "Открыть главную Hronaut",
         "description": "Показать панель приложения"
@@ -862,6 +863,7 @@ export const ruRU = {
   "runtime": {
     "initializingStorage": "Инициализация защищённого хранилища.",
     "shortcuts": {
+      "taskManager": "Открыть диспетчер задач",
       "address": "Перейти к адресной строке",
       "nextPane": "Переключаться между адресной строкой и страницей",
       "addressNewTab": "Открыть введённое в адресной строке в новой вкладке",
@@ -3016,6 +3018,38 @@ export const ruRU = {
     "interrupted": "Прервано",
     "fileRemoved": "Перемещено или удалено"
   },
+  "taskManager": {
+    "title": "Диспетчер задач",
+    "close": "Закрыть диспетчер задач",
+    "loading": "Читаем процессы…",
+    "unavailable": "Не удалось прочитать процессы",
+    "caption": "Процессы Hronaut и сколько памяти и процессора они используют",
+    "columns": {
+      "task": "Задача",
+      "memory": "Память",
+      "cpu": "ЦП",
+      "pid": "ID процесса",
+      "actions": "Действия"
+    },
+    "task": {
+      "browser": "Браузер",
+      "gpu": "Процесс GPU",
+      "utility": "Служебный процесс: {name}",
+      "utilityUnnamed": "Служебный процесс",
+      "interface": "Окно Hronaut",
+      "other": "Процесс страницы без вкладки",
+      "helper": "Вспомогательный процесс: {name}",
+      "tab": "Вкладка: {title}",
+      "sleepingTab": "Спящая вкладка: {title}",
+      "subframe": "Подфрейм: {site}",
+      "subframeUnnamed": "Подфрейм",
+      "devTools": "DevTools: {title}"
+    },
+    "untitled": "Без названия",
+    "endProcess": "Завершить процесс",
+    "endProcessAria": "Завершить процесс: {task}",
+    "summary": "{count} процесс использует {memory} | {count} процесса используют {memory} | {count} процессов используют {memory}"
+  },
   "bookmarks": { sortOrder: "Порядок закладок", sortUpdated: "Недавно обновлённые", sortTitle: "Название", copyAddress: "Копировать адрес", copyAddressAria: "Копировать адрес «{title}»", addressCopied: "Адрес скопирован", copyFailed: "Не удалось скопировать адрес. Повторите попытку.",
     "collection": "Коллекция",
     "collectionFilter": "Фильтровать закладки по коллекции",
@@ -3505,6 +3539,7 @@ export const ruRU = {
   },
   "native": {
     "menu": {
+      "taskManager": "Диспетчер задач",
       "show": "Показать",
       "checkUpdates": "Проверить обновления…",
       "quit": "Выйти",

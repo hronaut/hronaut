@@ -655,6 +655,7 @@ export const plPL = {
       "Application": "Aplikacja"
     },
     "commands": {
+      "task-manager": { "label": "Otwórz Menedżera zadań", "description": "Zobacz, ile pamięci i procesora używa każda karta i proces" },
       "home": {
         "label": "Otwórz stronę główną Hronaut",
         "description": "Pokaż pulpit aplikacji"
@@ -862,6 +863,7 @@ export const plPL = {
   "runtime": {
     "initializingStorage": "Inicjowanie bezpiecznej pamięci.",
     "shortcuts": {
+      "taskManager": "Otwórz Menedżera zadań",
       "address": "Przejdź do paska adresu",
       "nextPane": "Przełączaj między paskiem adresu a stroną",
       "addressNewTab": "Otwórz tekst wpisany w pasku adresu w nowej karcie",
@@ -3016,6 +3018,38 @@ export const plPL = {
     "interrupted": "Przerwano",
     "fileRemoved": "Przeniesiono lub usunięto"
   },
+  "taskManager": {
+    "title": "Menedżer zadań",
+    "close": "Zamknij Menedżera zadań",
+    "loading": "Odczytywanie procesów…",
+    "unavailable": "Nie udało się odczytać procesów",
+    "caption": "Procesy Hronaut i ich użycie pamięci oraz procesora",
+    "columns": {
+      "task": "Zadanie",
+      "memory": "Pamięć",
+      "cpu": "CPU",
+      "pid": "ID procesu",
+      "actions": "Działania"
+    },
+    "task": {
+      "browser": "Przeglądarka",
+      "gpu": "Proces GPU",
+      "utility": "Narzędzie: {name}",
+      "utilityUnnamed": "Proces narzędziowy",
+      "interface": "Okno Hronaut",
+      "other": "Proces strony bez karty",
+      "helper": "Proces pomocniczy: {name}",
+      "tab": "Karta: {title}",
+      "sleepingTab": "Uśpiona karta: {title}",
+      "subframe": "Ramka podrzędna: {site}",
+      "subframeUnnamed": "Ramka podrzędna",
+      "devTools": "DevTools: {title}"
+    },
+    "untitled": "Bez tytułu",
+    "endProcess": "Zakończ proces",
+    "endProcessAria": "Zakończ proces: {task}",
+    "summary": "{count} proces używa {memory} | {count} procesy używają {memory} | {count} procesów używa {memory}"
+  },
   "bookmarks": { sortOrder: "Sortuj zakładki", sortUpdated: "Ostatnio zaktualizowane", sortTitle: "Tytuł", copyAddress: "Kopiuj adres", copyAddressAria: "Kopiuj adres strony {title}", addressCopied: "Adres skopiowany", copyFailed: "Nie udało się skopiować adresu. Spróbuj ponownie.",
     "collection": "Kolekcja",
     "collectionFilter": "Filtruj zakładki według kolekcji",
@@ -3505,6 +3539,7 @@ export const plPL = {
   },
   "native": {
     "menu": {
+      "taskManager": "Menedżer zadań",
       "show": "Pokaż",
       "checkUpdates": "Sprawdź aktualizacje…",
       "quit": "Zakończ",

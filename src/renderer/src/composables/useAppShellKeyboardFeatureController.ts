@@ -51,6 +51,7 @@ export interface AppShellKeyboardFeatureControllerOptions {
     credentialPicker: Ref<boolean>
     releaseHistory: AppShellKeyboardSurface
     helpDialog: AppShellKeyboardSurface
+    taskManager: AppShellKeyboardSurface
     settings: AppShellKeyboardSurface
   }
   overlays: {
@@ -110,6 +111,7 @@ export function useAppShellKeyboardFeatureController(
       refSurface(modals.credentialPicker),
       customSurface(modals.releaseHistory),
       customSurface(modals.helpDialog),
+      customSurface(modals.taskManager),
       refSurface(overlays.tabSearch, 'search-tabs')
     ],
     escapeSurfaces: [

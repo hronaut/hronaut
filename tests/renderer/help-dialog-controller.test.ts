@@ -52,12 +52,15 @@ describe('help dialog controller', () => {
     expect(mac.keys['runtime.shortcuts.nextPane']).toBeUndefined()
     expect(mac.keys['shell.home.open']).toBeUndefined()
     expect(mac.keys['runtime.shortcuts.stop']).toBeUndefined()
+    // Chrome gives its Task manager no key on macOS.
+    expect(mac.keys['runtime.shortcuts.taskManager']).toBeUndefined()
     expect(mac.keys['runtime.shortcuts.moveTabPrevious']).toBeUndefined()
     const linux = keysFor('linux')
     expect(linux.mac).toBe(false)
     expect(linux.keys['runtime.shortcuts.pick']).toEqual(['Ctrl', 'Shift', 'C'])
     expect(linux.keys['runtime.shortcuts.history']).toEqual(['Ctrl', 'H'])
     expect(linux.keys['runtime.shortcuts.downloads']).toEqual(['Ctrl', 'J'])
+    expect(linux.keys['runtime.shortcuts.taskManager']).toEqual(['Shift', 'Esc'])
     expect(linux.keys['runtime.shortcuts.devtools']).toEqual(['F12'])
     expect(linux.keys['runtime.shortcuts.console']).toEqual(['Ctrl', 'Shift', 'J'])
     expect(linux.keys['runtime.shortcuts.back']).toEqual(['Alt', '←'])
@@ -141,7 +144,7 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.addressForgetVisit',
       keys: ['Shift', 'Delete']
     })
-    expect(controller.shortcuts.value).toHaveLength(42)
+    expect(controller.shortcuts.value).toHaveLength(43)
     controller.dispose()
   })
 })

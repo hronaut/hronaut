@@ -482,7 +482,8 @@ describe('the application menu\'s other keys', () => {
     expect(isBrowserKey(input({ key: 'Escape', code: 'Escape', repeat: true }))).toBe(true)
     expect(browserShortcutAction(input({ key: 'Escape', code: 'Escape' }))).toBeNull()
     expect(websiteKeptShortcutAction(input({ key: 'Escape', code: 'Escape' }))).toBeNull()
-    for (const modifiers of [{ shift: true }, { control: true }, { alt: true }, { meta: true }, { repeat: true }, { composing: true }, { mac: true }]) {
+    // Shift+Escape is the Task manager's key (application-menu-task-manager.test.ts).
+    for (const modifiers of [{ control: true }, { alt: true }, { meta: true }, { repeat: true }, { composing: true }, { mac: true }]) {
       expect(menuKey({ key: 'Escape', code: 'Escape', ...modifiers }), JSON.stringify(modifiers)).toBe(false)
     }
   })

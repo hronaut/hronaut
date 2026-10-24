@@ -64,6 +64,7 @@ import type {
   HronautWalletsApi,
   HronautCredentialsApi,
   HronautDownloadsApi,
+  HronautTaskManagerApi,
   BrowsingDataClearOptions,
   McpTabActivity,
   NavigateOptions,
@@ -335,6 +336,11 @@ const downloadsApi: HronautDownloadsApi = {
   }
 }
 contextBridge.exposeInMainWorld('hronautDownloads', downloadsApi)
+const taskManagerApi: HronautTaskManagerApi = {
+  list: () => ipcRenderer.invoke('task-manager:list'),
+  endProcess: (pid: number) => ipcRenderer.invoke('task-manager:end-process', pid)
+}
+contextBridge.exposeInMainWorld('hronautTaskManager', taskManagerApi)
 const bookmarksApi: HronautBookmarksApi = {
   collections: {
     list: () => ipcRenderer.invoke('bookmark-collections:list'),

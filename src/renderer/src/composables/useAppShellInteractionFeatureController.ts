@@ -145,6 +145,13 @@ interface HelpSurface {
   openDialog: (dialog: HelpDialogName) => void
 }
 
+interface TaskManagerSurface {
+  open: Readonly<Ref<boolean>>
+  close: () => void
+  openDialog: () => void
+  toggle: () => void
+}
+
 export interface AppShellInteractionFeatureControllerOptions {
   state: Readonly<Ref<BrowserState>>
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
@@ -157,6 +164,8 @@ export interface AppShellInteractionFeatureControllerOptions {
     updateNotice: Ref<boolean>
     help: HelpSurface
     releaseHistory: ToggleSurface
+    /** The Task manager, as Chrome's. */
+    taskManager: TaskManagerSurface
     walletApproval: Readonly<Ref<boolean>>
     /** Main's own question, such as a website's permission request; Escape answers it as Cancel does. */
     trustedDialog: { open: Readonly<Ref<boolean>>, close: () => void }
@@ -286,6 +295,7 @@ export function useAppShellInteractionFeatureController(
       transient.credentialPickerOpen,
       surfaces.help.open,
       surfaces.releaseHistory.open,
+      surfaces.taskManager.open,
       surfaces.agentSteps.open,
       surfaces.walletApproval,
       surfaces.trustedDialog.open,
@@ -326,6 +336,7 @@ export function useAppShellInteractionFeatureController(
     settings: {
       openSection: surfaces.settings.openSection,
       openHelp: help.openDialog,
+      openTaskManager: surfaces.taskManager.openDialog,
       toggleMcpPaused: actions.toggleMcpPaused
     }
   })
@@ -351,10 +362,26 @@ export function useAppShellInteractionFeatureController(
           || transient.tabSearchOpen.value
           || surfaces.help.open.value
           || surfaces.releaseHistory.open.value
+          || surfaces.taskManager.open.value
           || surfaces.agentSteps.open.value
           || surfaces.walletApproval.value
           || surfaces.trustedDialog.open.value
           || (action !== 'downloads' && surfaces.settings.open.value)
+        )
+      }
+      // The View menu's Task manager, chosen with the pointer over another dialog or the palette, would open over it
+      // and fight it for focus; over its own dialog it closes it, as its key does, unless a site's request, a wallet
+      // approval or the sign-in picker came up over it meanwhile.
+      if (action === 'task-manager') {
+        if (surfaces.trustedDialog.open.value || surfaces.walletApproval.value || transient.credentialPickerOpen.value) return false
+        return surfaces.taskManager.open.value || !(
+          transient.commandPaletteOpen.value
+          || transient.workspaceEditorOpen.value
+          || transient.tabSearchOpen.value
+          || surfaces.help.open.value
+          || surfaces.releaseHistory.open.value
+          || surfaces.agentSteps.open.value
+          || surfaces.settings.open.value
         )
       }
       // A card or a picker over an open dialog would fight it for focus.
@@ -363,6 +390,7 @@ export function useAppShellInteractionFeatureController(
         || transient.workspaceEditorOpen.value
         || transient.credentialPickerOpen.value
         || surfaces.help.open.value
+        || surfaces.taskManager.open.value
         || surfaces.settings.open.value
         || surfaces.trustedDialog.open.value
       )
@@ -376,6 +404,7 @@ export function useAppShellInteractionFeatureController(
     toggleCurrentBookmark: features.collections.toggleCurrentBookmark,
     toggleVisitHistory: features.collections.toggleVisitHistory,
     toggleDownloads: features.collections.toggleDownloads,
+    toggleTaskManager: surfaces.taskManager.toggle,
     toggleTabSearch: tabSearch.toggle,
     openPrivacySettings: features.site.openPrivacySettings,
     toggleCommandPalette: () => commandPalette.toggle('commands'),
@@ -400,6 +429,7 @@ export function useAppShellInteractionFeatureController(
       credentialPicker: transient.credentialPickerOpen,
       releaseHistory: surfaces.releaseHistory,
       helpDialog: surfaces.help,
+      taskManager: surfaces.taskManager,
       settings: surfaces.settings
     },
     overlays: {

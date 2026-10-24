@@ -56,6 +56,7 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = 
     updateNotice: ref(false),
     help: ref(false),
     releaseHistory: ref(false),
+    taskManager: ref(false),
     walletApproval: ref(false),
     trustedDialog: ref(false),
     agentSteps: ref(false),
@@ -76,6 +77,7 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = 
   }
   const closeSettings = vi.fn(() => { refs.settings.value = false })
   const closeHelp = vi.fn(() => { refs.help.value = false })
+  const toggleTaskManager = vi.fn()
   const reportActionError = vi.fn()
   const reportShortcutError = vi.fn()
   const browser = {
@@ -169,6 +171,7 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = 
       updateNotice: refs.updateNotice,
       help: { open: refs.help, close: closeHelp, openDialog: noop },
       releaseHistory: { open: refs.releaseHistory, close: noop },
+      taskManager: { open: refs.taskManager, close: noop, openDialog: noop, toggle: toggleTaskManager },
       walletApproval: refs.walletApproval,
       trustedDialog: { open: refs.trustedDialog, close: noop },
       agentSteps: { open: refs.agentSteps, close: noop },
@@ -214,6 +217,7 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = 
     refs,
     browser,
     syncState,
+    toggleTaskManager,
     reportActionError,
     reportShortcutError
   }
@@ -258,12 +262,39 @@ describe('app shell interaction feature controller', () => {
     const harness = createHarness()
     await expect(harness.controller.runBrowserShortcut('find-next')).resolves.toBe(true)
     await expect(harness.controller.runBrowserShortcut('find-previous')).resolves.toBe(true)
-    for (const dialog of ['commandPalette', 'workspaceEditor', 'credentialPicker', 'tabSearch', 'help', 'releaseHistory', 'agentSteps', 'walletApproval', 'settings'] as const) {
+    for (const dialog of ['commandPalette', 'workspaceEditor', 'credentialPicker', 'tabSearch', 'help', 'releaseHistory', 'taskManager', 'agentSteps', 'walletApproval', 'settings'] as const) {
       harness.refs[dialog].value = true
       await expect(harness.controller.runBrowserShortcut('find-next'), dialog).resolves.toBe(false)
       await expect(harness.controller.runBrowserShortcut('find-previous'), dialog).resolves.toBe(false)
       harness.refs[dialog].value = false
     }
+    harness.controller.dispose()
+  })
+
+  it('opens and closes the Task manager from the menu, but not over another dialog or the palette', async () => {
+    // Chosen with the pointer, the View menu's Task manager reaches the shell under any dialog.
+    const harness = createHarness()
+    await expect(harness.controller.runBrowserShortcut('task-manager')).resolves.toBe(true)
+    expect(harness.toggleTaskManager).toHaveBeenCalledOnce()
+    for (const dialog of ['commandPalette', 'workspaceEditor', 'credentialPicker', 'tabSearch', 'help', 'releaseHistory', 'agentSteps', 'walletApproval', 'trustedDialog', 'settings'] as const) {
+      harness.refs[dialog].value = true
+      await expect(harness.controller.runBrowserShortcut('task-manager'), dialog).resolves.toBe(false)
+      harness.refs[dialog].value = false
+    }
+    expect(harness.toggleTaskManager).toHaveBeenCalledOnce()
+    // Over its own dialog it closes it, as its key does.
+    harness.refs.taskManager.value = true
+    await expect(harness.controller.runBrowserShortcut('task-manager')).resolves.toBe(true)
+    expect(harness.toggleTaskManager).toHaveBeenCalledTimes(2)
+    // Not from under a site's request, a wallet approval or the sign-in picker that came up over it.
+    for (const dialog of ['trustedDialog', 'walletApproval', 'credentialPicker'] as const) {
+      harness.refs[dialog].value = true
+      await expect(harness.controller.runBrowserShortcut('task-manager'), dialog).resolves.toBe(false)
+      harness.refs[dialog].value = false
+    }
+    expect(harness.toggleTaskManager).toHaveBeenCalledTimes(2)
+    // Downloads from the menu would open behind it.
+    await expect(harness.controller.runBrowserShortcut('downloads')).resolves.toBe(false)
     harness.controller.dispose()
   })
 

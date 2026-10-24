@@ -50,6 +50,8 @@ export interface RendererHealthEventsAccess<Tab extends RendererHealthEventsTab>
   tabOverviewPreviewableTabs(): Set<string>
   /** Renderer recovery, which expects the exits it causes. */
   rendererRecovery(): { expectsExit(contents: WebContents): boolean }
+  /** Whether the person ended the page's process in the Task manager, forgetting it, so the tab says so once. */
+  takeEndedByPerson(contents: WebContents): boolean
   /** The waits for network activity. */
   networkWaitController(): { reject(tabId: string, message: string): void }
   /** Cancels the tab's screenshot area selection and element picker. */
