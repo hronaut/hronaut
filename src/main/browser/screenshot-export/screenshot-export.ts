@@ -105,7 +105,11 @@ export async function saveScreenshot<Tab extends ScreenshotExportTab>(access: Sc
       if (!Number.isFinite(width * height) || width * height > SCREENSHOT_EXPORT_MAX_PIXELS) {
         throw new Error('This viewport has more pixels than an 8K frame, so its screenshot was not saved. Make the window or emulated viewport smaller.')
       }
-      const captured = await webContents.capturePage()
+      // A capture that fails as the page changes or the tab closes, such as with Chromium's UnknownVizError, says so.
+      const captured = await webContents.capturePage().catch((error: unknown) => {
+        assertCurrent()
+        throw error
+      })
       return { image: captured, capturedAt: new Date().toISOString() }
     })
     assertCurrent()
