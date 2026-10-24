@@ -13,6 +13,8 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - A workspace Hronaut was deleting when it stopped, such as in a crash or a power cut before the deletion finished, now comes back with its tabs at the next start. It came back without them.
+- Hronaut for Intel Macs and for arm64 Linux starts again. Their downloads lacked their build of `@node-rs/argon2`, which Hronaut loads at launch to protect wallet keys, so they stopped with "A JavaScript error occurred in the main process". The macOS and the Linux release each build the x64 and the arm64 app on one computer, where npm installs only that computer's native packages; they now install both CPUs' packages exactly as `package-lock.json` pins them before they build, and fail when an app lacks one built for its CPU.
+- Opening a panel with a click or a key, such as **Search tabs**, no longer shows the tooltip of whatever lands under the resting pointer, such as a tab's address over the panel. Tooltips come back once the pointer moves.
 - A Hronaut dialog that appears while **Edit workspace** or **Search tabs** is open, such as a website's permission request, now keeps the focus on its safe answer. The open panel took the focus back, so **Enter** pressed the panel's close button and **Tab** could not reach the dialog's other answer.
 
 ## [3.8.0] - 2026-10-23
