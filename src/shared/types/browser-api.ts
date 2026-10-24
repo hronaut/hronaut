@@ -157,6 +157,8 @@ export interface HronautApi {
   showWorkspaceContextMenu(workspaceId: string): Promise<void>
   showTabContextMenu(tabId: string): Promise<void>
   toggleDevTools(tabId?: string): Promise<boolean>
+  /** Opens Developer Tools on the Console, or turns open ones to it. */
+  showDevToolsConsole(tabId?: string): Promise<boolean>
   setTabViewport(tabId: string, viewport: BrowserViewportEmulation | null): Promise<BrowserState>
   setTabEnvironment(tabId: string, environment: BrowserEnvironmentSettings): Promise<BrowserState>
   resetTabEmulation(tabId: string): Promise<BrowserState>

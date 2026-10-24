@@ -41,6 +41,7 @@ export interface BrowserShortcutControllerOptions {
   toggleCommandPalette: ShortcutCallback
   toggleElementPicker: ShortcutCallback
   toggleDeveloperTools: ShortcutCallback
+  showDeveloperToolsConsole: ShortcutCallback
   openAgentCard?: ShortcutCallback
   toggleFullPageView?: ShortcutCallback
   takeOverFromAgent?: ShortcutCallback
@@ -293,6 +294,9 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
       case 'toggle-devtools':
         await options.toggleDeveloperTools()
         return
+      case 'open-console':
+        await options.showDeveloperToolsConsole()
+        return
       case 'agent-card':
         await options.openAgentCard?.()
         return
@@ -313,7 +317,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
       || !options.canRunAction(action)
       || (options.settingsOpen.value && [
         'reload', 'reload-ignoring-cache', 'find', 'find-next', 'find-previous', 'bookmark', 'pick-element',
-        'toggle-devtools', 'zoom-in', 'zoom-out', 'zoom-reset', 'agent-card', 'toggle-full-page', 'take-over',
+        'toggle-devtools', 'open-console', 'zoom-in', 'zoom-out', 'zoom-reset', 'agent-card', 'toggle-full-page', 'take-over',
         'move-tab-next', 'move-tab-previous', 'focus-next-pane'
       ].includes(action))
     ) return false

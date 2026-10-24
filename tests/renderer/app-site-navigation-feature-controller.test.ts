@@ -73,7 +73,8 @@ function createHarness() {
     setTabPageLifecycle: vi.fn(async () => browserState.value),
     setTabMuted: vi.fn(async () => browserState.value),
     showWorkspaceContextMenu: vi.fn(async () => undefined),
-    toggleDevTools: vi.fn(async () => true)
+    toggleDevTools: vi.fn(async () => true),
+    showDevToolsConsole: vi.fn(async () => true)
   }
   const siteSummary: BrowsingDataSiteSummary = {
     origin: 'https://example.test',

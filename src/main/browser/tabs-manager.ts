@@ -426,7 +426,7 @@ import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
 import type { PersonTabCloseAccess } from './tab-close/close-tabs-for-person-access.js'
 import { closeTabsForPerson } from './tab-close/close-tabs-for-person.js'
 import type { DevToolsAccess } from './devtools/devtools-access.js'
-import { openDevTools, toggleDevTools } from './devtools/devtools.js'
+import { openDevTools, showDevToolsConsole, toggleDevTools } from './devtools/devtools.js'
 import { attachDevToolsEvents } from './devtools/devtools-events.js'
 import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
@@ -2754,6 +2754,10 @@ export class BrowserTabsManager {
 
   toggleDevTools(tabId?: string): Promise<boolean> {
     return toggleDevTools(this.devToolsAccess(), tabId)
+  }
+
+  showDevToolsConsole(tabId?: string): Promise<boolean> {
+    return showDevToolsConsole(this.devToolsAccess(), tabId)
   }
 
   setMcpUrl(url: string): BrowserState {

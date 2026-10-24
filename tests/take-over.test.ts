@@ -67,5 +67,10 @@ describe('keys pressed in a page', () => {
     // An agent pressing Ctrl+Shift+O for a web app's own command must not take the page over from itself.
     expect(pageShortcut('take-over', { available: true, expectedAgentInput: true })).toBeNull()
     expect(pageShortcut('agent-card', { available: true, expectedAgentInput: true })).toBeNull()
+    // Developer Tools opened by an agent's key would end that agent's own debugging of the page.
+    for (const action of ['toggle-devtools', 'open-console', 'pick-element'] as const) {
+      expect(pageShortcut(action, { available: true, expectedAgentInput: true }), action).toBeNull()
+      expect(pageShortcut(action, { available: true, expectedAgentInput: false }), action).toBe(action)
+    }
   })
 })

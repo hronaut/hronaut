@@ -401,7 +401,8 @@ const {
 const {
   selectBrowserTab,
   retryActivePageProblem,
-  toggleDeveloperTools
+  toggleDeveloperTools,
+  showDeveloperToolsConsole
 } = browserTabActionsController
 const {
   input: addressInput,
@@ -572,6 +573,7 @@ const {
     expandTabGroup: (groupId) => browserChromeLayer.value?.expandTabGroup(groupId),
     togglePageTools,
     toggleDeveloperTools,
+    showDeveloperToolsConsole,
     openAgentCard: () => browserChromeLayer.value?.openAgentCard(),
     takeOverFromAgent: () => browserChromeLayer.value?.takeOverFromAgent(),
     toggleFullPageView: fullPageView.toggle

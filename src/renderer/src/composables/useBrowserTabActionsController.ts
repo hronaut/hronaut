@@ -21,6 +21,7 @@ type BrowserTabActionsApi = Pick<
   | 'setTabPageLifecycle'
   | 'showWorkspaceContextMenu'
   | 'toggleDevTools'
+  | 'showDevToolsConsole'
 >
 
 export interface BrowserTabActionsControllerOptions {
@@ -208,7 +209,8 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     })
   }
 
-  async function toggleDeveloperTools(): Promise<void> {
+  /** Runs a Developer Tools action for the tab in view, which Home and a locked tab have none of. */
+  async function withDeveloperTools(action: (tabId: string) => Promise<boolean>): Promise<void> {
     if (disposed) return
     const tab = options.activeTab.value
     if (!tab || options.isHome()) return
@@ -219,8 +221,17 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
         ?? (options.state.value.allHumanInteractionLocked || current.humanInteractionLocked)
       if (locked) return
       options.beforeToggleDeveloperTools()
-      await options.browser.toggleDevTools(tab.id)
+      await action(tab.id)
     })
+  }
+
+  async function toggleDeveloperTools(): Promise<void> {
+    await withDeveloperTools((tabId) => options.browser.toggleDevTools(tabId))
+  }
+
+  /** Developer Tools on the Console, as Chrome's Ctrl+Shift+J opens them; open ones turn to it. */
+  async function showDeveloperToolsConsole(): Promise<void> {
+    await withDeveloperTools((tabId) => options.browser.showDevToolsConsole(tabId))
   }
 
   function dispose(): void {
@@ -248,6 +259,7 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     toggleTabHumanInteraction,
     toggleAllHumanInteraction,
     toggleDeveloperTools,
+    showDeveloperToolsConsole,
     dispose
   }
 }

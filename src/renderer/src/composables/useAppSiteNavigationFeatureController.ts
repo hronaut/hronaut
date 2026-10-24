@@ -35,6 +35,7 @@ type SiteNavigationBrowserApi = Pick<
   | 'setTabPageLifecycle'
   | 'showWorkspaceContextMenu'
   | 'toggleDevTools'
+  | 'showDevToolsConsole'
 >
 
 type AddressOverlay = NonNullable<

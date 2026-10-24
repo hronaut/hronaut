@@ -195,6 +195,7 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = 
       expandTabGroup: noop,
       togglePageTools: noop,
       toggleDeveloperTools: asyncNoop,
+      showDeveloperToolsConsole: asyncNoop,
       ...extraNavigation
     },
     actions: {

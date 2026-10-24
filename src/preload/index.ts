@@ -169,6 +169,7 @@ const api: HronautApi = {
   showWorkspaceContextMenu: (workspaceId: string) => ipcRenderer.invoke('browser:show-workspace-context-menu', workspaceId),
   showTabContextMenu: (tabId: string) => ipcRenderer.invoke('browser:show-tab-context-menu', tabId),
   toggleDevTools: (tabId?: string) => ipcRenderer.invoke('browser:toggle-devtools', tabId),
+  showDevToolsConsole: (tabId?: string) => ipcRenderer.invoke('browser:show-devtools-console', tabId),
   setTabViewport: (tabId: string, viewport: BrowserViewportEmulation | null) =>
     ipcRenderer.invoke('browser:set-tab-viewport', tabId, viewport),
   setTabEnvironment: (tabId: string, environment: BrowserEnvironmentSettings) =>

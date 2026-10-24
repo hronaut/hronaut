@@ -11,6 +11,7 @@ All notable changes to Hronaut are documented in this file.
 - On Windows and Linux, **Ctrl+F4** closes the tab in view, as **Ctrl+W** does and as in Chrome, from the page or from Hronaut's window.
 - On Windows and Linux, **Ctrl+E** goes to the address bar and **Alt+Home** opens Home, as in Chrome, from the page or from Hronaut's window. A website that handles one of these keys itself, such as a web document editor centring a paragraph with **Ctrl+E**, keeps it.
 - On Windows and Linux, **Esc** pressed on a page that is loading stops it, as in Chrome. A website that handles the key itself, such as a web code editor, keeps it, and **Esc** in Hronaut's window or from an agent leaves the page loading.
+- **Ctrl+Shift+J** (**Cmd+Option+J** on macOS) opens Developer Tools on the Console, with the keyboard in its prompt, or turns open ones to it, as in Chrome.
 
 ### Changed
 

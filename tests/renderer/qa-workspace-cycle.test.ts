@@ -73,7 +73,7 @@ function harness(specs: WorkspaceSpec[], startIn: string) {
     canRunAction: () => true,
     openNewTab: noop, focusAddress: noop, openFind: noop, setZoom: noop, toggleCurrentBookmark: noop,
     toggleVisitHistory: noop, toggleDownloads: noop, toggleTabSearch: noop, openPrivacySettings: noop, toggleCommandPalette: noop,
-    toggleElementPicker: noop, toggleDeveloperTools: noop,
+    toggleElementPicker: noop, toggleDeveloperTools: noop, showDeveloperToolsConsole: noop,
     onError: vi.fn()
   })
   controllers.push(controller)

@@ -122,6 +122,21 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'I', control: true }))).toBeNull()
   })
 
+  it('opens the Console of Developer Tools with Ctrl+Shift+J, or Cmd+Option+J on macOS, as Chrome does', () => {
+    // A website got the key, where Chrome opens Developer Tools on its Console.
+    expect(browserShortcutAction(input({ key: 'J', code: 'KeyJ', control: true, shift: true }))).toBe('open-console')
+    expect(browserShortcutAction(input({ key: 'J', code: 'KeyJ', meta: true, alt: true }))).toBe('open-console')
+    // On macOS Option+J types ∆, and a Russian layout types О on the key.
+    expect(browserShortcutAction(input({ key: '∆', code: 'KeyJ', meta: true, alt: true, mac: true }))).toBe('open-console')
+    expect(browserShortcutAction(input({ key: 'О', code: 'KeyJ', control: true, shift: true }))).toBe('open-console')
+    expect(isBrowserKey(input({ key: 'J', code: 'KeyJ', control: true, shift: true, repeat: true }))).toBe(true)
+    for (const key of [
+      { key: 'j', code: 'KeyJ', control: true }, { key: 'J', code: 'KeyJ', control: true, shift: true, alt: true },
+      { key: 'J', code: 'KeyJ', control: true, shift: true, mac: true }, { key: 'J', code: 'KeyJ', meta: true, shift: true, mac: true },
+      { key: 'J', code: 'KeyJ', control: true, shift: true, repeat: true }, { key: 'J', code: 'KeyJ', control: true, shift: true, composing: true }
+    ]) expect(browserShortcutAction(input(key)), JSON.stringify(key)).not.toBe('open-console')
+  })
+
   it('maps Chromium inspect-element shortcuts', () => {
     expect(browserShortcutAction(input({ key: 'C', control: true, shift: true }))).toBe('pick-element')
     expect(browserShortcutAction(input({ key: 'C', meta: true, alt: true }))).toBe('pick-element')
@@ -194,11 +209,12 @@ describe('browserShortcutAction', () => {
     ['Щ', 'KeyO', true, 'take-over'],
     ['Ш', 'KeyI', true, 'toggle-devtools'],
     ['С', 'KeyC', true, 'pick-element'],
+    ['О', 'KeyJ', true, 'open-console'],
     ['і', 'KeyS', false, null],
     ['λ', 'KeyL', false, 'focus-address']
   ] as const)('maps Control+%s at %s (Shift %s) by its place on a US keyboard', (key, code, shift, action) => {
     expect(browserShortcutAction(input({ key, code, shift, control: true }))).toBe(action)
-    if (action && !['toggle-devtools', 'pick-element'].includes(action)) {
+    if (action && !['toggle-devtools', 'pick-element', 'open-console'].includes(action)) {
       expect(browserShortcutAction(input({ key, code, shift, meta: true, mac: true }))).toBe(action)
     }
   })
