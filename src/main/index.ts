@@ -1,4 +1,5 @@
 import { WorkspaceStartupReads } from './workspace-startup-reads.js'
+import { DownloadsUnderWayIcons } from './download-progress/download-progress-icon.js'
 import { UserAttentionLifecycle } from './user-attention-lifecycle.js'
 import { registerAttentionIpc } from './attention-ipc.js'
 import { registerIncidentPackageIpc } from './incident-package-ipc.js'
@@ -154,6 +155,7 @@ const panelWindowRefs: PanelWindowRefs = {
   stateStore: null,
   lastState: null
 }
+const downloadsUnderWayIcons = new DownloadsUnderWayIcons(() => [mainWindowRefs.window, panelWindowRefs.window])
 const {
   reportBrowserActionFailure,
   showWindow,
@@ -1113,7 +1115,10 @@ async function createWindow(startMinimized = false): Promise<void> {
     },
     // The rail opened over the page comes down over a page in full screen, which the window may not report itself.
     onPageFullscreenChanged: () => sidebarOverlay.relayout(),
-    onDownloadsChanged: (downloads) => sendToPanelWindow('browser:downloads-changed', downloads),
+    onDownloadsChanged: (downloads) => {
+      sendToPanelWindow('browser:downloads-changed', downloads)
+      downloadsUnderWayIcons.show(downloads)
+    },
     confirmBeforeUnloadClose: async () => {
       const { response } = await trustedDialogs.show({
         type: 'warning',
