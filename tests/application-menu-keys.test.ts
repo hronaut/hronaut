@@ -84,6 +84,19 @@ describe('the application menu\'s keys', () => {
     })
   }
 
+  // Elsewhere than macOS the menu goes by Chromium's code for the key in the layout, which a German keyboard gives its +
+  // key for Zoom In's Ctrl+Shift+=, its # key for Keyboard shortcuts' Ctrl+Shift+/ and its - key for Zoom Out's Ctrl+-.
+  it('are kept under a dialog when a layout types other characters with them', () => {
+    const german = (key: string, code: string, keyCode: number, shift: boolean): BrowserShortcutInput =>
+      ({ key, code, keyCode, control: true, meta: false, alt: false, shift })
+    expect(isBrowserKey(german('*', 'BracketRight', 187, true))).toBe(true)
+    expect(isBrowserKey(german("'", 'Backslash', 191, true))).toBe(true)
+    expect(isBrowserKey(german('-', 'Slash', 189, false))).toBe(true)
+    // A key of another code stays with the dialog, as the menu leaves it alone.
+    expect(isBrowserKey(german('Ü', 'BracketLeft', 186, true))).toBe(false)
+    expect(isBrowserKey(german('ö', 'Semicolon', 192, false))).toBe(false)
+  })
+
   it('leave quitting to the menu under a dialog', () => {
     for (const on of ['linux', 'darwin'] as const) {
       const quit = accelerators(on).find((item) => item.label === 'native.menu.quit')!

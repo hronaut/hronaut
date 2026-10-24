@@ -41,6 +41,11 @@ export interface BrowserShortcutInput {
   key: string
   /** The physical key, such as Digit1; workspace keys go by it so they work in every keyboard layout. */
   code?: string
+  /**
+   * Chromium's code for the key in the person's keyboard layout, as `KeyboardEvent.keyCode` gives it; the application
+   * menu's keys go by it elsewhere than macOS.
+   */
+  keyCode?: number
   control: boolean
   meta: boolean
   alt: boolean
@@ -50,6 +55,11 @@ export interface BrowserShortcutInput {
   /** On macOS the workspace keys use Control, since Option with a digit types a character. */
   mac?: boolean
 }
+
+/** Chromium's codes, named as on Windows, for the keys that type = and +, - and _, and / and ? on a US keyboard. */
+const VKEY_OEM_PLUS = 187
+const VKEY_OEM_MINUS = 189
+const VKEY_OEM_2 = 191
 
 /**
  * Whether a key pressed with Option, or Alt, is the given letter. On macOS Option changes the character a key types,
@@ -139,6 +149,11 @@ export function applicationMenuKey(input: BrowserShortcutInput): boolean {
   if (input.meta) return false
   if (input.alt) return !input.control && !input.shift && (key === 'arrowleft' || key === 'arrowright')
   if (!input.control) return !input.shift && key === 'escape'
+  // There the menu goes by Chromium's code for the key in the layout, so Zoom In's Ctrl+Shift+= and Keyboard
+  // shortcuts' Ctrl+Shift+/ are also Ctrl+Shift with the + key and with the # key of a German keyboard, which have
+  // those codes and type * and ' with Shift.
+  if (input.shift && (input.keyCode === VKEY_OEM_PLUS || input.keyCode === VKEY_OEM_2)) return true
+  if (!input.shift && input.keyCode === VKEY_OEM_MINUS) return true
   if (input.shift) return slash
   return key === 'p' || key === 's' || key === 'u' || key === 'j'
 }
