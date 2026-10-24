@@ -15,8 +15,13 @@ function control(text: string, label?: string): HTMLButtonElement {
   return button
 }
 
-function pointer(type: 'pointerover' | 'pointerout' | 'pointerdown', target: Element, relatedTarget: Element | null = null): void {
-  target.dispatchEvent(new MouseEvent(type, { bubbles: true, relatedTarget }))
+function pointer(
+  type: 'pointerover' | 'pointerout' | 'pointerdown' | 'pointermove',
+  target: Element,
+  relatedTarget: Element | null = null,
+  at = { x: 0, y: 0 }
+): void {
+  target.dispatchEvent(new MouseEvent(type, { bubbles: true, relatedTarget, clientX: at.x, clientY: at.y }))
 }
 
 function tooltipPort() {
@@ -99,11 +104,38 @@ describe('shell tooltips', () => {
     vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
     expect(port.showTooltip).toHaveBeenCalledOnce()
 
-    pointer('pointerout', button, document.body)
+    pointer('pointerout', button, document.body, { x: 40, y: 0 })
     vi.advanceTimersByTime(SHELL_TOOLTIP_WARM_MS)
-    pointer('pointerover', button)
+    pointer('pointerover', button, null, { x: 10, y: 10 })
     vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
     expect(port.showTooltip).toHaveBeenCalledTimes(2)
+  })
+
+  // Clicking Search tabs opened its panel under the resting pointer, and the URL tooltip of the tab row that landed
+  // beneath it appeared over the panel.
+  it.each([
+    ['a click', (button: Element) => pointer('pointerdown', button, null, { x: 10, y: 10 })],
+    ['a key press', () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))]
+  ])('shows nothing for a control that opens under the pointer after %s, until the pointer moves', (_, press) => {
+    const port = tooltipPort()
+    uninstall = installShellTooltips(port)
+    const button = control('Search tabs')
+    pointer('pointerover', button, null, { x: 10, y: 10 })
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
+    press(button)
+    expect(port.hideTooltip).toHaveBeenCalledWith(1)
+
+    // The panel opens over the button; the browser moves the hover to its row without the pointer moving.
+    const row = control('https://example.test/')
+    pointer('pointerout', button, row, { x: 10, y: 10 })
+    pointer('pointerover', row, button, { x: 10, y: 10 })
+    pointer('pointermove', row, null, { x: 10, y: 10 })
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS * 2)
+    expect(port.showTooltip).toHaveBeenCalledOnce()
+
+    pointer('pointermove', row, null, { x: 14, y: 11 })
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
+    expect(port.showTooltip).toHaveBeenLastCalledWith(expect.objectContaining({ id: 2, text: 'https://example.test/' }))
   })
 
   it('follows a control whose text changes and hides when it leaves the page, a key is pressed or the window blurs', async () => {
@@ -119,17 +151,18 @@ describe('shell tooltips', () => {
     button.remove()
     await vi.waitFor(() => expect(port.hideTooltip).toHaveBeenLastCalledWith(2))
 
-    for (const end of [
+    for (const [index, end] of [
       () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true })),
       () => window.dispatchEvent(new Event('blur'))
-    ]) {
+    ].entries()) {
       const next = control('Settings')
-      pointer('pointerover', next)
+      pointer('pointerover', next, null, { x: 10 + index * 40, y: 10 })
       vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
       const shown = port.showTooltip.mock.lastCall![0].id
+      expect(shown).toBe(index + 3)
       end()
       expect(port.hideTooltip).toHaveBeenLastCalledWith(shown)
-      pointer('pointerout', next, document.body)
+      pointer('pointerout', next, document.body, { x: 30 + index * 40, y: 10 })
       next.remove()
     }
   })
