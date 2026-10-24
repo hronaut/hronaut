@@ -35,6 +35,8 @@ jobs:
           profile=$(mktemp -d)
           bin="$app/Contents/MacOS/Hronaut"
           file "$bin"
+          # Each unsigned build is its own code identity, so the Keychain asks before one reads the key another saved.
+          security delete-generic-password -s "hronaut Safe Storage" >/dev/null 2>&1 || true
           ELECTRON_ENABLE_LOGGING=1 HRONAUT_USER_DATA_DIR="$profile" HRONAUT_DOWNLOAD_DIR="$profile" HRONAUT_MCP_HOST=127.0.0.1 HRONAUT_MCP_PORT="$port" arch "-$cpu" "$bin" > "$profile/out.log" 2>&1 &
           pid=$!
           for i in $(seq 1 300); do
@@ -56,12 +58,11 @@ jobs:
         run: bash "$RUNNER_TEMP/start.sh" dist/mac-arm64/Hronaut.app arm64 47903 new-arm64 || echo "new arm64 exit=$?" >> "$RUNNER_TEMP/failed"
       - name: Start the new Intel app
         run: bash "$RUNNER_TEMP/start.sh" dist/mac/Hronaut.app x86_64 47902 new-x64 || echo "new x64 exit=$?" >> "$RUNNER_TEMP/failed"
-      - name: Start the published 3.8.0 Intel app and check it
+      - name: Check the published 3.8.0 Intel app
         run: |
           curl -sSL -o "$RUNNER_TEMP/old.zip" https://github.com/hronaut/hronaut/releases/download/v3.8.0/Hronaut-3.8.0-mac.zip
           mkdir -p "$RUNNER_TEMP/old/mac"
           ditto -x -k "$RUNNER_TEMP/old.zip" "$RUNNER_TEMP/old/mac"
-          bash "$RUNNER_TEMP/start.sh" "$RUNNER_TEMP/old/mac/Hronaut.app" x86_64 47901 old-x64 || echo "old Intel app start exit=$?"
           node scripts/mac-native-bindings.ts check "$RUNNER_TEMP/old" || echo "old Intel app check exit=$?"
       - uses: actions/upload-artifact@v7
         if: always()
