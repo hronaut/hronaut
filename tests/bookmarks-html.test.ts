@@ -151,12 +151,15 @@ describe('parseBookmarksHtml', () => {
     expect(parseBookmarksHtml(html).bookmarks).toEqual([
       { url: 'https://single.example/', title: 'Single <quoted>', folder: 'Caf\u00E9 & \u{1F600} folder' },
       { url: 'https://unquoted.example/path', title: 'Unquoted', folder: 'Caf\u00E9 & \u{1F600} folder' },
-      { url: 'https://after-abbr.example/', title: 'After � � �', folder: 'Caf\u00E9 & \u{1F600} folder' },
+      { url: 'https://after-abbr.example/', title: 'After \uFFFD \uFFFD \uFFFD', folder: 'Caf\u00E9 & \u{1F600} folder' },
       { url: 'https://untitled.example/', title: '', folder: 'Caf\u00E9 & \u{1F600} folder' },
       { url: 'javascript:alert(1)', title: 'Script', folder: 'Caf\u00E9 & \u{1F600} folder' },
       { url: 'https://outside.example/', title: 'Outside' }
     ])
     expect(parseBookmarksHtml('Not a bookmarks file')).toEqual({ bookmarks: [], notRead: 0 })
+    // Dropping a tag never joins what was around it into a new one; what reads as a tag stays plain text.
+    expect(parseBookmarksHtml('<dl><dt><a href="https://e.example/"><<b>script>alert(1)&lt;/script&gt;</a></dl>').bookmarks)
+      .toEqual([{ url: 'https://e.example/', title: '< script>alert(1)</script>' }])
   })
 
   it('reads Safari\'s export, keeping its top folders as folders, as Chrome\'s importer does, but not its Reading List', () => {

@@ -30,16 +30,17 @@ function decodeEntities(value: string): string {
   return value.replace(/&(#x[0-9a-f]{1,6}|#[0-9]{1,7}|[a-z]{1,32});/giu, (entity, name: string) => {
     if (name[0] !== '#') return NAMED_ENTITIES[name.toLowerCase()] ?? entity
     const codePoint = name[1] === 'x' || name[1] === 'X' ? Number.parseInt(name.slice(2), 16) : Number.parseInt(name.slice(1), 10)
-    return codePoint > 0 && codePoint <= 0x10ffff && (codePoint < 0xd800 || codePoint > 0xdfff) ? String.fromCodePoint(codePoint) : '�'
+    return codePoint > 0 && codePoint <= 0x10ffff && (codePoint < 0xd800 || codePoint > 0xdfff) ? String.fromCodePoint(codePoint) : '\uFFFD'
   })
 }
 
 /**
- * An element's text: its tags dropped, its entities decoded and its spaces collapsed. A tag ends at the next < as
- * well as at >, so a file full of unclosed tags takes as long to read as any other of its size.
+ * An element's text, as plain text: each tag read as a space, so no two pieces of the file join into one, its entities
+ * decoded and its spaces collapsed. A tag ends at the next < as well as at >, so a file full of unclosed tags takes as
+ * long to read as any other of its size. The text is never markup: it is escaped wherever it is written as HTML.
  */
 function elementText(html: string): string {
-  return decodeEntities(html.replace(/<[^<>]*>/gu, '')).replace(/\s+/gu, ' ').trim()
+  return decodeEntities(html.replace(/<[^<>]*>/gu, ' ')).replace(/\s+/gu, ' ').trim()
 }
 
 function attribute(attributes: string, name: string): string | undefined {
