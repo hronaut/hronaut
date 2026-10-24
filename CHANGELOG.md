@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 - After a restart, tabs come back with their **Back** and **Forward** pages, scrolled to where they were and with what was typed into their forms, as in Chrome; password fields are never saved.
 - After a restart, sites that keep a sign-in in a cookie without an expiry, called a session cookie, still have it, as in Chrome when it continues where you left off; Hronaut keeps those cookies with the workspace's other data, encrypted by the system's secret storage where it has one, and deletes them with the workspace.
 - **Recently closed** and **Ctrl/Cmd+Shift+T** now keep the tabs closed before a restart, as in Chrome, and such a tab reopens with its **Back** and **Forward** pages, scrolled to where it was.
+- **Downloads** now keeps its list across a restart, as Chrome keeps its download history, so a file downloaded before quitting can still be found and shown in its folder there.
 
 ### Fixed
 
