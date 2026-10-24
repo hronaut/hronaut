@@ -51,7 +51,7 @@ function renderPanel(
     }
     return settings.value
   })
-  const confirmDisableAuthentication = vi.fn(() => true)
+  const confirmDisableAuthentication = vi.fn(async () => true)
   const listCapabilityProfiles = vi.fn(async (): Promise<McpCapabilityProfileSummary[]> => initialCapabilityProfiles)
   const createCapabilityProfile = vi.fn(async () => ({
     profile: {
@@ -249,7 +249,7 @@ describe('McpSettingsPanel', () => {
   it('restores the authentication checkbox when disabling is cancelled', async () => {
     const { controller, confirmDisableAuthentication, setAuthentication, settings } = renderPanel()
     settings.value = { ...settings.value, mcpAuthentication: true }
-    confirmDisableAuthentication.mockReturnValueOnce(false)
+    confirmDisableAuthentication.mockResolvedValueOnce(false)
     const user = userEvent.setup()
     const authentication = screen.getByRole('checkbox', { name: /^Require MCP authentication/ })
 

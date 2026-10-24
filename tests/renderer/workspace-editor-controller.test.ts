@@ -56,7 +56,7 @@ function createController(initialState = browserState()) {
   const state: Ref<BrowserState> = ref(initialState)
   const open = ref(false)
   const canPresent = ref(true)
-  const confirm = vi.fn(() => true)
+  const confirm = vi.fn(async () => true)
   const browser = {
     getState: vi.fn(async () => state.value),
     createWorkspace: vi.fn(async (_options: BrowserWorkspaceCreateOptions) => state.value),
@@ -171,7 +171,7 @@ describe('workspace editor controller', () => {
     controller.targetWorkspaceId.value = 'archived-target'
     await vi.waitFor(() => expect(controller.storageState.value).toBe('idle'))
     controller.transferMode.value = 'move'
-    confirm.mockReturnValueOnce(false)
+    confirm.mockResolvedValueOnce(false)
     await controller.transferStorage()
     expect(browser.transferWorkspaceStorage).not.toHaveBeenCalled()
     browser.transferWorkspaceStorage.mockResolvedValueOnce({ sourceWorkspaceId: 'default', targetWorkspaceId: 'agent', mode: 'copy',

@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import { closeFixtureServer, expect, test } from './fixtures.js'
-import { answerConfirmations } from './confirmation-fixture.js'
+import { answerEveryTrustedDialog } from './trusted-dialog-fixture.js'
 
 test('keeps keyboard position when clearing retained website history', async ({ appWindow, electronApp }) => {
   const servers = Array.from({ length: 3 }, () => createServer((_request, response) => {
@@ -32,7 +32,7 @@ test('keeps keyboard position when clearing retained website history', async ({ 
       { origin: last, nextOrigin: first, remaining: 1 },
       { origin: first, nextOrigin: null, remaining: 0 }
     ]
-    await answerConfirmations(electronApp, 'ok')
+    await answerEveryTrustedDialog(appWindow, 'OK')
     for (const { origin, nextOrigin, remaining } of steps) {
       await appWindow.keyboard.press('Enter')
       await expect(clear(origin)).toHaveCount(0)

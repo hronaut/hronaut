@@ -1,6 +1,7 @@
 import type { AgentStepKind } from '../../../shared/agent-steps.js'
 import type { HomeBootstrap, HomeDashboard, HomeFeedEntry, HronautHomeApi } from '../../../shared/home.js'
 import type { HomeWorkspaceAction, HomeWorkspaceState } from '../../../shared/home-workspaces.js'
+import { splitConfirmation, type Confirmation } from '../../../shared/confirmation.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../../shared/undo.js'
 import { agentStepText } from '../../../shared/agent-step-text.js'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
@@ -19,10 +20,27 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
   let undoId: string | null = null
   const messages = data.messages.workspaceLibrary
   const labels = data.messages.settings.privacy
-  // Main asks with Cancel as the default button; `window.confirm` presses OK on Enter, in English. Component tests
+  // Main asks in Hronaut's dialog with Cancel focused; `window.confirm` presses OK on Enter, in English. Component tests
   // mount Home without the bridge.
-  // eslint-disable-next-line no-restricted-properties -- only without Home's bridge, as in component tests
-  const confirm = (message: string): boolean => api.confirm ? api.confirm(message) : window.confirm(message)
+  const confirm = async (question: Confirmation): Promise<boolean> => {
+    if (api.confirm) return api.confirm(question)
+    // eslint-disable-next-line no-restricted-properties -- only without Home's bridge, as in component tests
+    return window.confirm(question.detail ? `${question.message}\n\n${question.detail}` : question.message)
+  }
+  /**
+   * Asks before a change to a workspace. No other action starts while the question waits, and a yes counts only while
+   * the workspace is still there and unprotected, since Home keeps running meanwhile.
+   */
+  async function confirmWorkspaceChange(template: string, group: { id: string; name: string }): Promise<boolean> {
+    pending = true
+    try {
+      if (!await confirm(splitConfirmation((parameters) => interpolate(template, parameters), { name: group.name })) || signal.aborted) return false
+      const latest = [...state.mcpTabGroups, ...state.savedTabGroups].find(candidate => candidate.id === group.id)
+      return Boolean(latest && !latest.deletionProtected)
+    } finally {
+      pending = false
+    }
+  }
   const mission = data.messages.home.mission
   const root = element('home-workspaces')
   const search = element<HTMLInputElement>('workspace-search')
@@ -137,10 +155,10 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     // the archive has no room for that.
     if (input.view === 'clear') {
       const undoable = state.savedTabGroups.length < MAX_ARCHIVED_WORKSPACES
-      if (!group || group.deletionProtected || (!undoable && !confirm(interpolate(messages.clearConfirm, { name: group.name })))) return
+      if (!group || group.deletionProtected || (!undoable && !await confirmWorkspaceChange(messages.clearConfirm, group))) return
       request = { ...input, undoable }
     }
-    if (input.view === 'delete' && (!group || group.deletionProtected || !confirm(interpolate(messages.deleteConfirm, { name: group.name })))) return
+    if (input.view === 'delete' && (!group || group.deletionProtected || !await confirmWorkspaceChange(messages.deleteConfirm, group))) return
     pending = true
     const generation = ++revision
     error.textContent = ''; error.hidden = true

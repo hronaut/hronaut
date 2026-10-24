@@ -44,7 +44,7 @@ function createController(locale?: SupportedLocale) {
     websites: vi.fn(async () => [website('current.test')]),
     clear: vi.fn(async () => summary(0))
   }
-  const confirm = vi.fn(() => true)
+  const confirm = vi.fn(async () => true)
   const controller = usePrivacySettingsController({
     api,
     confirm,
@@ -211,6 +211,8 @@ describe('privacy settings controller', () => {
     api.clear.mockImplementationOnce(() => pendingClear.promise)
 
     const clearing = controller.clearSelected()
+    // The clear starts once the confirmation answers.
+    await vi.waitFor(() => expect(controller.clearing.value).toBe(true))
     await controller.refreshSummary()
     await controller.refreshWebsites()
     controller.resetSelection()

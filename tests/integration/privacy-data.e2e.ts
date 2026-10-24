@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import { closeFixtureServer, expect, test } from './fixtures.js'
-import { answerConfirmations } from './confirmation-fixture.js'
+import { answerEveryTrustedDialog } from './trusted-dialog-fixture.js'
 
 test('clears global history while preserving workspace storage and retained records', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
@@ -50,7 +50,7 @@ test('clears global history while preserving workspace storage and retained reco
     await expect(dialog.getByRole('button', { name: `Clear history for ${origin}`, exact: true })).toBeVisible()
     await expect(search).toBeFocused()
     expect(await appWindow.evaluate('window.hronautHistory.list()')).toHaveLength(2)
-    await answerConfirmations(electronApp, 'ok')
+    await answerEveryTrustedDialog(appWindow, 'OK')
     await dialog.getByRole('button', { name: `Clear history for ${origin}` }).click()
     await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toMatchObject([{ url: otherUrl }])
     await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toHaveLength(1)

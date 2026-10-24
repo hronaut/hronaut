@@ -94,7 +94,7 @@ function createController(initialState = browserState(), initiallyOpen = false, 
     formatNumber: String,
     formatTime: String,
     describeEmulation: () => '',
-    confirm: () => true,
+    confirm: async () => true,
     formatError: (_cause, fallback) => fallback,
     showError
   })

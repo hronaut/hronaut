@@ -1,3 +1,4 @@
+import type { Confirmation } from '../confirmation.js'
 import type { SearchEngineName } from '../search-engine.js'
 import type { MemorySaverTimeoutMinutes } from '../memory-saver.js'
 import type { InterfaceScale } from '../interface-scale.js'
@@ -172,10 +173,10 @@ export interface HronautShellApi {
   windowChrome: WindowChromeState
   isWindowFocused(): Promise<boolean>
   /**
-   * Asks in a native dialog with Cancel as the default button, in the interface language, so Enter never chooses OK,
-   * and waits like `window.confirm`; true only when the person chose OK.
+   * Asks in Hronaut's own dialog over the window, in the interface language, with Cancel focused, so Enter never
+   * chooses OK; true only when the person chose OK.
    */
-  confirm(message: string): boolean
+  confirm(question: Confirmation): Promise<boolean>
   setToolbarHeight(height: number): void
   setContentInsets(insets: { top: number; right: number; bottom: number; left: number }): void
   /** Hides or shows the page views under trusted chrome; main's report that they left the screen names `request`. */

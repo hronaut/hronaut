@@ -80,7 +80,7 @@ function createController(initial: BrowserState) {
     formatNumber: String,
     formatTime: String,
     describeEmulation: () => '',
-    confirm: () => true,
+    confirm: async () => true,
     formatError: (_cause, fallback) => fallback,
     showError: vi.fn()
   })

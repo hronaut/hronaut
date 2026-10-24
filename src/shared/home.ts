@@ -7,6 +7,7 @@ import type { AgentPresenceState, AgentRecentStep } from './agent-presence.js'
 import type { AgentStepKind } from './agent-steps.js'
 import type { MessageSchema } from './locales/en-US.js'
 import type { ClaudeCodeSetupPreview, ClaudeCodeSetupResult, HomeSetupState } from './claude-code-setup.js'
+import type { Confirmation } from './confirmation.js'
 
 export interface HomeReadinessCheck {
   state: string
@@ -85,8 +86,8 @@ export interface HronautHomeApi {
   getWorkspaces(): Promise<HomeWorkspaceState>
   workspaceAction(request: HomeWorkspaceAction): Promise<HomeWorkspaceState>
   copyText(text: string): Promise<void>
-  /** Asks natively with Cancel as the default button, and waits like `window.confirm`; true only for OK. */
-  confirm?(message: string): boolean
+  /** Asks in Hronaut's own dialog over the window, with Cancel focused; true only for OK. */
+  confirm?(question: Confirmation): Promise<boolean>
   openAgentGuide(id: AgentGuide['id']): Promise<void>
   openVsCodeInstall(): Promise<void>
   openSetupHelp(): Promise<void>

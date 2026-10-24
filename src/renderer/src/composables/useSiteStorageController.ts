@@ -16,6 +16,7 @@ import type {
 import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
 import { createFeedbackTimerRegistry } from './feedback-timer-registry.js'
 import { friendlyUiError } from './useAppToastController.js'
+import { splitConfirmation, type Confirmation } from '../../../shared/confirmation.js'
 
 type SiteStorageBrowserApi = Pick<
   HronautApi,
@@ -32,7 +33,7 @@ export interface SiteStorageControllerOptions {
   browser: SiteStorageBrowserApi
   translate: Translate
   copyText: CopyTextWithFeedback
-  confirm: (message: string) => boolean
+  confirm: (question: Confirmation) => Promise<boolean>
   keepsSeparatePanelOpen: () => boolean
 }
 
@@ -583,14 +584,20 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   const deleteItem = (item: BrowserStorageItem): Promise<void> => mutateItem('delete', item)
 
   async function clearKind(): Promise<void> {
-    if (!options.activeTab.value || !result.value?.itemCount) return
-    const protectedNote = kind.value === 'cookies' ? options.translate('runtimeDetails.httpOnlyNote') : ''
-    const confirmed = options.confirm(options.translate('runtimeDetails.clearStorage', {
+    const tab = options.activeTab.value
+    if (!tab || !result.value?.itemCount) return
+    const askedGeneration = generation
+    const askedKind = kind.value
+    const askedHost = activeHostname.value
+    const protectedNote = askedKind === 'cookies' ? options.translate('runtimeDetails.httpOnlyNote') : ''
+    const confirmed = await options.confirm(splitConfirmation((parameters) => options.translate('runtimeDetails.clearStorage', parameters), {
       kind: kindLabel.value.toLocaleLowerCase(options.locale.value),
-      host: activeHostname.value,
+      host: askedHost,
       note: protectedNote
     }))
-    if (confirmed) await mutateItem('clear')
+    // An agent can show another tab or site while the question waits; only what the person was asked about is cleared.
+    if (!confirmed || !isCurrent(tab.id, askedGeneration) || kind.value !== askedKind || activeHostname.value !== askedHost) return
+    await mutateItem('clear')
   }
 
   function dispose(): void {

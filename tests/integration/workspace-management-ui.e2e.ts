@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import type { BrowserState } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
-import { answerConfirmations } from './confirmation-fixture.js'
+import { answerEveryTrustedDialog } from './trusted-dialog-fixture.js'
 
 test('forks independent workspace data, edits agent access, and moves between archived workspaces through the editor', async ({ appWindow, electronApp }, testInfo) => {
   const server = createServer((_request, response) => {
@@ -97,7 +97,7 @@ test('forks independent workspace data, edits agent access, and moves between ar
       await expect(transfer.getByRole('button', { name: 'Close', exact: true })).toBeInViewport()
       await appWindow.screenshot({ path: testInfo.outputPath(`workspace-move-${width}.png`) })
     }
-    await answerConfirmations(electronApp, 'ok')
+    await answerEveryTrustedDialog(appWindow, 'OK')
     await move.click()
     await expect(transfer.getByRole('status').filter({ hasText: 'Moved 1 cookies and 1 local storage items.' })).toBeVisible()
     await transfer.getByRole('button', { name: 'Close', exact: true }).click()

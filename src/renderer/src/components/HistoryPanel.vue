@@ -18,6 +18,7 @@ import { useHistoryPanelController } from '../composables/useHistoryPanelControl
 import { asMiddleClick, openClickTab } from '../open-click.js'
 import { vTooltip } from '../ui/tooltip.js'
 import { confirmAction } from '../confirm-action.js'
+import { splitConfirmation } from '../../../shared/confirmation.js'
 
 const props = defineProps<{
   formatDateTime: (value: Date | number | string) => string
@@ -75,7 +76,7 @@ const {
   openHistoryEntryInBackground: props.openHistoryEntryInBackground,
   saveHistoryBookmark: props.saveHistoryBookmark,
   copyHistoryAddress: props.copyHistoryAddress,
-  confirmClear: () => confirmAction(t('privacyActions.clearHistory'))
+  confirmClear: () => confirmAction(splitConfirmation(() => t('privacyActions.clearHistory')))
 })
 
 defineExpose({ toggle })

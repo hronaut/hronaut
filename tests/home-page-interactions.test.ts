@@ -585,8 +585,9 @@ describe('Home workspace hub', () => {
     expect(button('[data-workspace-action="clear"]').disabled).toBe(false)
     button('[data-workspace-action="clear"]').click()
     await settle()
+    await settle()
 
-    if (full) expect(confirm).toHaveBeenCalledWith('Permanently clear “Research <safe>”, close its pages, and delete its website data? This cannot be undone.')
+    if (full) expect(confirm).toHaveBeenCalledWith('Permanently clear “Research <safe>”, close its pages, and delete its website data?\n\nThis cannot be undone.')
     else expect(confirm).not.toHaveBeenCalled()
     expect(action).toHaveBeenCalledWith({ view: 'clear', workspaceId: 'project', undoable: !full })
     expect(document.querySelector('#workspace-notice')?.textContent).toBe('“Research <safe>” cleared.')
@@ -599,15 +600,16 @@ describe('Home workspace hub', () => {
     const archive = Array.from({ length: 50 }, (_, index) => ({ ...workspace, id: `archived-${index}`, savedAt: workspace.lastUsedAt, tabs: [] }))
     const full = { ...inventory, savedTabGroups: archive }
     const action = vi.fn().mockResolvedValue({ ...full, mcpTabGroups: [] })
-    const nativeConfirm = vi.fn(() => confirmed)
+    const nativeConfirm = vi.fn(async () => confirmed)
     const windowConfirm = vi.spyOn(window, 'confirm')
     mount({ getWorkspaces: vi.fn().mockResolvedValue(full), workspaceAction: action, confirm: nativeConfirm })
     await settle()
 
     button('[data-workspace-action="clear"]').click()
     await settle()
+    await settle()
 
-    expect(nativeConfirm).toHaveBeenCalledExactlyOnceWith('Permanently clear “Research <safe>”, close its pages, and delete its website data? This cannot be undone.')
+    expect(nativeConfirm).toHaveBeenCalledExactlyOnceWith({ message: 'Permanently clear “Research <safe>”, close its pages, and delete its website data?', detail: 'This cannot be undone.' })
     expect(windowConfirm).not.toHaveBeenCalled()
     if (confirmed) expect(action).toHaveBeenCalledWith({ view: 'clear', workspaceId: 'project', undoable: false })
     else expect(action).not.toHaveBeenCalled()

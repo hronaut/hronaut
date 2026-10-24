@@ -85,7 +85,7 @@ function deferred<Value>() {
 function createController(manageStorage = vi.fn(async () => storageResult()), copyTextOverride?: CopyTextWithFeedback) {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const open = ref(true)
-  const confirm = vi.fn(() => true)
+  const confirm = vi.fn(async () => true)
   const browser = {
     manageStorage,
     inspectStorageUsage: vi.fn(async () => null as unknown as BrowserStorageUsageReport),
@@ -179,7 +179,7 @@ describe('site-storage controller', () => {
     await controller.deleteItem({ key: 'secret', valueBytes: 0, protected: true })
     expect(browser.manageStorage).not.toHaveBeenCalled()
 
-    confirm.mockReturnValue(false)
+    confirm.mockResolvedValue(false)
     await controller.clearKind()
     expect(confirm).toHaveBeenCalledOnce()
     expect(browser.manageStorage).not.toHaveBeenCalled()
