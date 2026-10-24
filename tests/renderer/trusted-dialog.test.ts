@@ -8,6 +8,7 @@ import { useTrustedDialogController } from '../../src/renderer/src/trusted-dialo
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { holdOverlayEntrance, occludeBrowserContent, overlayEntranceEpoch, releaseOverlayEntrance, reportPageViewsHidden, resetOverlayMotion } from '../../src/renderer/src/composables/overlay-motion.js'
 import { useShellOverlayCoordinationController } from '../../src/renderer/src/composables/useShellOverlayCoordinationController.js'
+import { useModalDialogFocus } from '../../src/renderer/src/composables/useModalDialogFocus.js'
 import type { SupportedLocale } from '../../src/shared/locale.js'
 import type { HronautTrustedDialogsApi, TrustedDialogRequest } from '../../src/shared/trusted-dialogs.js'
 
@@ -336,6 +337,41 @@ describe('Hronaut’s permission dialog', () => {
     expect(dialog).toHaveTextContent('Second part.')
     expect(screen.getByRole('button', { name: 'OK' })).toHaveFocus()
     expect(dialog).not.toHaveAttribute('data-topic')
+  })
+
+  it('keeps its safe answer focused over a modal that holds the focus, so Enter and Tab never reach the modal', async () => {
+    // The workspace editor and Search tabs keep the focus inside them while they are open.
+    const modalOpen = ref(true)
+    const modalPanel = ref<HTMLElement | null>(null)
+    const closeModal = vi.fn()
+    render(defineComponent({
+      setup() {
+        useModalDialogFocus({ open: modalOpen, panel: modalPanel })
+        return () => h('section', { ref: modalPanel, role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Edit workspace', tabindex: -1 }, [
+          h('button', { type: 'button', onClick: closeModal }, '×'),
+          h('button', { type: 'button' }, 'Close workspace')
+        ])
+      }
+    }))
+    await nextTick()
+    const { api, show, settle } = mountDialog()
+    await show({
+      id: 'close', type: 'question', title: 'Please confirm', message: 'Close workspace “Client”?', detail: 'Its pages close.',
+      buttons: ['Cancel', 'OK'], defaultId: 0, cancelId: 0, primaryId: 1, variant: { kind: 'message' }
+    })
+    const cancel = screen.getByRole('button', { name: 'Cancel' })
+    expect(cancel).toHaveFocus()
+    await settle()
+    expect(cancel).toHaveFocus()
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'OK' })).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(cancel).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(api.respond).toHaveBeenCalledWith('close', 0)
+    expect(closeModal).not.toHaveBeenCalled()
   })
 
   it('marks one of Hronaut’s own questions by what it is about, keeping its words and the safe answer focused', async () => {

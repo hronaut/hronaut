@@ -4,7 +4,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { ElectronApplication, Locator } from '@playwright/test'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
-import { answerConfirmations } from './confirmation-fixture.js'
+import { answerEveryTrustedDialog, answeredTrustedDialogs, answerTrustedDialog, trustedDialog, trustedDialogHeadline } from './trusted-dialog-fixture.js'
 
 async function homePage(app: ElectronApplication) {
   await expect.poll(() => app.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
@@ -157,6 +157,22 @@ test('creates a hidden protected workspace from Home at enlarged scale and keeps
   expect(rejected).toContain('protected from deletion')
   await card.getByLabel('Protect from deletion', { exact: true }).uncheck()
   await expect(card.getByRole('button', { name: 'Delete…', exact: true })).toBeEnabled()
+
+  // Home asks in Hronaut's dialog over the window, with Cancel focused, and gets the keyboard back after the answer.
+  await card.getByRole('button', { name: 'Delete…', exact: true }).click()
+  const question = trustedDialog(appWindow)
+  await expect(question.locator('.ui-dialog__footer').getByRole('button', { name: 'Cancel', exact: true })).toBeFocused()
+  expect(await trustedDialogHeadline(appWindow)).toMatch(/Private research/)
+  await answerTrustedDialog(appWindow, 'Cancel')
+  await expect(question).toBeHidden()
+  await expect(card).toBeVisible()
+  await expect.poll(() => home.evaluate(() => document.hasFocus())).toBe(true)
+  await openCardMenu(card, 'Private research')
+  await card.getByRole('button', { name: 'Delete…', exact: true }).click()
+  await answerTrustedDialog(appWindow, 'OK')
+  await expect(card).toBeHidden()
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(s => s.savedTabGroups.length)')).toBe(0)
+  await expect.poll(() => home.evaluate(() => document.hasFocus())).toBe(true)
 })
 
 test('clears an open workspace from Home while website input is locked', async ({ appWindow, electronApp }) => {
@@ -170,7 +186,7 @@ test('clears an open workspace from Home while website input is locked', async (
   const home = await homePage(electronApp)
   const card = home.getByRole('article', { name: 'Stuck workspace', exact: true })
   // With room in the archive, clearing from Home offers Undo instead of asking first.
-  const asked = await answerConfirmations(electronApp, 'cancel')
+  await answerEveryTrustedDialog(appWindow, 'Cancel')
 
   await openCardMenu(card, 'Stuck workspace')
   await expect(card.getByRole('button', { name: 'Archive', exact: true })).toBeEnabled()
@@ -183,7 +199,7 @@ test('clears an open workspace from Home while website input is locked', async (
   await expect(card).toBeHidden()
   await expect(home.getByRole('status').filter({ hasText: '“Stuck workspace” cleared.' })).toBeVisible()
   await expect(home.getByRole('button', { name: 'Undo', exact: true })).toBeVisible()
-  expect(await asked()).toEqual([])
+  expect(await answeredTrustedDialogs(appWindow)).toEqual([])
   await expect.poll(() => appWindow.evaluate(id => (
     (window as unknown as { hronaut: HronautApi }).hronaut.getState()
       .then(state => state.mcpTabGroups.some(group => group.id === id))

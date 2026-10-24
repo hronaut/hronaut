@@ -41,7 +41,7 @@ function renderPanel(entries = [website('example.test')], workspaces = WORKSPACE
     websites: vi.fn(async () => [website('refreshed.test')]),
     clear: vi.fn(async () => EMPTY_SUMMARY)
   }
-  const confirm = vi.fn(() => true)
+  const confirm = vi.fn(async () => true)
   const controller = usePrivacySettingsController({
     api,
     confirm,

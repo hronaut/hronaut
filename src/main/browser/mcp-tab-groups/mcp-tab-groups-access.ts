@@ -1,5 +1,6 @@
 import type { NavigationEntry, Session } from 'electron'
 import type { BrowserClosedTabState, BrowserState } from '../../../shared/types.js'
+import type { WorkspaceBeingDeleted } from '../browser-state/persisted-state-access.js'
 import type { BrowserNetworkRecordingState } from '../network-recording.js'
 import type { PersistedBrowserState, TabStateStore } from '../tab-store.js'
 import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from '../workspace-operations/workspace-operations-access.js'
@@ -7,9 +8,10 @@ import type { ActiveWorkspace, ArchivedWorkspace } from '../workspace-registry.j
 
 /**
  * The tab fields workspaces read and write: the workspace a tab belongs to,
- * what closing a workspace saves so a failed close can reopen the tab as it
- * was, and the visual comparison generation and network priority
- * observations a change of agent access retires.
+ * what deleting a workspace keeps saved meanwhile and what closing it keeps
+ * so a failed close can reopen the tab as it was, and the visual comparison
+ * generation and network priority observations a change of agent access
+ * retires.
  */
 export interface McpTabGroupsTab extends BrowserNetworkRecordingState {
   id: string
@@ -23,6 +25,7 @@ export interface McpTabGroupsTab extends BrowserNetworkRecordingState {
   defaultFontSize?: number
   /** The tab's own mute, not the browser-wide one. */
   tabMuted: boolean
+  faviconDataUrl?: string
   navigationGeneration: number
   walletNavigationGeneration: number
   visualComparisonGeneration: number
@@ -97,6 +100,8 @@ export interface McpTabGroupsAccess<Tab extends McpTabGroupsTab> {
   inspectionPermissions(): WeakMap<object, number>
   /** The storage ids of deleted workspaces, which are saved so no workspace reuses them. */
   deletedWorkspaceStorageIds(): Set<string>
+  /** The open workspaces being deleted by id, which the saved session keeps with their tabs until the deletion commits. */
+  workspacesBeingDeleted(): Map<string, WorkspaceBeingDeleted>
   /** The session store. */
   store(): Pick<TabStateStore, 'save'>
   /** The session as it is saved. */

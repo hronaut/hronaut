@@ -1,5 +1,6 @@
 import { computed, nextTick, ref, type Ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
+import type { Confirmation } from '../../src/shared/confirmation.js'
 import { useTabSearchController } from '../../src/renderer/src/composables/useTabSearchController.js'
 import type {
   BrowserSavedTabGroupState,
@@ -65,7 +66,7 @@ function browserState(tabs: BrowserTabState[] = [tab('alpha'), tab('beta', true)
   }
 }
 
-function createController(initialState = browserState(), initiallyOpen = false, translate = (key: string): string => key) {
+function createController(initialState = browserState(), initiallyOpen = false, translate = (key: string): string => key, confirm: (question: Confirmation) => Promise<boolean> = async () => true) {
   const state: Ref<BrowserState> = ref(initialState)
   const open = ref(initiallyOpen)
   const selectTab = vi.fn(async () => undefined)
@@ -94,7 +95,7 @@ function createController(initialState = browserState(), initiallyOpen = false, 
     formatNumber: String,
     formatTime: String,
     describeEmulation: () => '',
-    confirm: () => true,
+    confirm,
     formatError: (_cause, fallback) => fallback,
     showError
   })
@@ -102,6 +103,54 @@ function createController(initialState = browserState(), initiallyOpen = false, 
 }
 
 describe('tab search controller', () => {
+  it.each([
+    ['restored meanwhile', (state: BrowserState) => { state.savedTabGroups = [] }],
+    ['protected meanwhile', (state: BrowserState) => { state.savedTabGroups = [{ ...state.savedTabGroups[0], deletionProtected: true }] }]
+  ])('deletes an archived workspace only if it is still there to delete once the person says yes (%s)', async (_case, change) => {
+    let answer!: (value: boolean) => void
+    const confirm = vi.fn(() => new Promise<boolean>((resolve) => { answer = resolve }))
+    const initial = browserState()
+    initial.savedTabGroups = [savedGroup('archive')]
+    const { state, browser, controller } = createController(initial, true, key => key, confirm)
+    try {
+      const deleting = controller.deleteSavedGroup(new MouseEvent('click'), initial.savedTabGroups[0])
+      expect(confirm).toHaveBeenCalledOnce()
+      const next = { ...state.value, savedTabGroups: [...state.value.savedTabGroups] }
+      change(next)
+      state.value = next
+      answer(true)
+      await deleting
+      expect(browser.deleteSavedTabGroup).not.toHaveBeenCalled()
+    } finally {
+      controller.dispose()
+    }
+  })
+
+  it('deletes nothing when Search tabs closed while the question waited, and deletes after a yes otherwise', async () => {
+    let answer!: (value: boolean) => void
+    const confirm = vi.fn(() => new Promise<boolean>((resolve) => { answer = resolve }))
+    const initial = browserState()
+    initial.savedTabGroups = [savedGroup('archive')]
+    const { open, browser, controller } = createController(initial, true, key => key, confirm)
+    try {
+      const closed = controller.deleteSavedGroup(new MouseEvent('click'), initial.savedTabGroups[0])
+      open.value = false
+      await nextTick()
+      open.value = true
+      await nextTick()
+      answer(true)
+      await closed
+      expect(browser.deleteSavedTabGroup).not.toHaveBeenCalled()
+
+      const kept = controller.deleteSavedGroup(new MouseEvent('click'), initial.savedTabGroups[0])
+      answer(true)
+      await kept
+      expect(browser.deleteSavedTabGroup).toHaveBeenCalledExactlyOnceWith('archive')
+    } finally {
+      controller.dispose()
+    }
+  })
+
   it('matches independent labels across open, closed and archived tabs while preserving title search', () => {
     const state = browserState([{ ...tab('alpha'), label: 'Customer task' }])
     state.closedTabs = [{ id: 'closed', title: 'Closed page', url: 'https://closed.example', pinned: false, closedAt: new Date().toISOString(), label: 'Customer task' }]

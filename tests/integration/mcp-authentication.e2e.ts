@@ -7,7 +7,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { DEFAULT_MCP_PORT } from '../../src/shared/mcp-port.js'
 import type { HronautSettingsApi } from '../../src/shared/types.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
-import { answerConfirmations } from './confirmation-fixture.js'
+import { answerEveryTrustedDialog, answeredTrustedDialogs } from './trusted-dialog-fixture.js'
 
 test('creates a digest-only restricted credential and revokes its active MCP session', async ({
   appWindow,
@@ -165,7 +165,6 @@ test('repairs a malformed profile token before starting the browser and MCP list
 
 test('turns MCP authentication on or off in Settings, and Reset to default turns it back on', async ({
   appWindow,
-  electronApp,
   mcpPort,
   mcpToken,
   profileDirectory
@@ -197,9 +196,10 @@ test('turns MCP authentication on or off in Settings, and Reset to default turns
     .poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).mcpAuthentication)
     .toBe(true)
 
-  await answerConfirmations(electronApp, 'ok')
+  await answerEveryTrustedDialog(appWindow, 'OK')
   await authentication.uncheck()
   await expect.poll(() => healthStatus()).toBe(200)
+  expect(await answeredTrustedDialogs(appWindow)).toEqual(['Disable MCP authentication?'])
   await expect
     .poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).mcpAuthentication)
     .toBe(false)
