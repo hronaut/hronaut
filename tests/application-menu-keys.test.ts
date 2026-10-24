@@ -85,16 +85,20 @@ describe('the application menu\'s keys', () => {
   }
 
   // Elsewhere than macOS the menu goes by Chromium's code for the key in the layout, which a German keyboard gives its +
-  // key for Zoom In's Ctrl+Shift+=, its # key for Keyboard shortcuts' Ctrl+Shift+/ and its - key for Zoom Out's Ctrl+-.
+  // key for Zoom In's Ctrl+Shift+= and its # key for Keyboard shortcuts' Ctrl+Shift+/.
   it('are kept under a dialog when a layout types other characters with them', () => {
-    const german = (key: string, code: string, keyCode: number, shift: boolean): BrowserShortcutInput =>
-      ({ key, code, keyCode, control: true, meta: false, alt: false, shift })
+    const german = (key: string, code: string, keyCode: number, shift: boolean, alt = false): BrowserShortcutInput =>
+      ({ key, code, keyCode, control: true, meta: false, alt, shift })
     expect(isBrowserKey(german('*', 'BracketRight', 187, true))).toBe(true)
     expect(isBrowserKey(german("'", 'Backslash', 191, true))).toBe(true)
-    expect(isBrowserKey(german('-', 'Slash', 189, false))).toBe(true)
-    // A key of another code stays with the dialog, as the menu leaves it alone.
+    // A key of another code, or the same keys with other modifiers, stay with the dialog, as the menu leaves them alone:
+    // Ctrl+# types nothing the menu knows, and AltGr, which Windows reports as Ctrl+Alt, types ~ with the + key.
     expect(isBrowserKey(german('Ü', 'BracketLeft', 186, true))).toBe(false)
     expect(isBrowserKey(german('ö', 'Semicolon', 192, false))).toBe(false)
+    expect(isBrowserKey(german('#', 'Backslash', 191, false))).toBe(false)
+    expect(isBrowserKey(german('~', 'BracketRight', 187, false, true))).toBe(false)
+    // On macOS the menu goes by the character Cmd types, so the code changes nothing there.
+    expect(isBrowserKey({ ...german('*', 'BracketRight', 187, true), control: false, meta: true, mac: true })).toBe(false)
   })
 
   it('leave quitting to the menu under a dialog', () => {

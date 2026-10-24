@@ -56,9 +56,8 @@ export interface BrowserShortcutInput {
   mac?: boolean
 }
 
-/** Chromium's codes, named as on Windows, for the keys that type = and +, - and _, and / and ? on a US keyboard. */
+/** Chromium's codes, named as on Windows, for the keys that type = and +, and / and ? on a US keyboard. */
 const VKEY_OEM_PLUS = 187
-const VKEY_OEM_MINUS = 189
 const VKEY_OEM_2 = 191
 
 /**
@@ -133,7 +132,8 @@ export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserS
  * The keys of Hronaut's application menu that are not browser shortcuts above, which act on the page in view or open
  * another of Hronaut's dialogs: Print, Save Page As, View Page Source, Downloads, Back, Forward and Keyboard shortcuts,
  * on macOS Find Next and Find Previous, which elsewhere are website-kept keys, and elsewhere Escape, which stops the
- * page in focus loading once it leaves the key alone, as in Chrome. A key Hronaut's window leaves alone reaches the
+ * page in focus loading once it leaves the key alone, as in Chrome. Elsewhere than macOS, Zoom In's and Keyboard
+ * shortcuts' keys also go by the key's code, as the menu matches them. A key Hronaut's window leaves alone reaches the
  * menu, so under its own dialogs and the command palette the window keeps these from the menu as well.
  */
 export function applicationMenuKey(input: BrowserShortcutInput): boolean {
@@ -153,7 +153,6 @@ export function applicationMenuKey(input: BrowserShortcutInput): boolean {
   // shortcuts' Ctrl+Shift+/ are also Ctrl+Shift with the + key and with the # key of a German keyboard, which have
   // those codes and type * and ' with Shift.
   if (input.shift && (input.keyCode === VKEY_OEM_PLUS || input.keyCode === VKEY_OEM_2)) return true
-  if (!input.shift && input.keyCode === VKEY_OEM_MINUS) return true
   if (input.shift) return slash
   return key === 'p' || key === 's' || key === 'u' || key === 'j'
 }
