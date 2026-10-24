@@ -1,4 +1,5 @@
 import { session } from 'electron'
+import { saveSessionCookies } from '../session-cookies/saved-session-cookies.js'
 import { flushBrowserSessionStorage, workspacePartition } from '../workspace-storage.js'
 import type { QuitFlushAccess } from './quit-flush-access.js'
 
@@ -47,7 +48,7 @@ export async function drainWorkspaceOperations(access: QuitFlushAccess): Promise
   }
 }
 
-/** Flushes the storage of every open and archived workspace's isolated browser profile to disk. */
+/** Flushes the storage of every open and archived workspace's isolated browser profile to disk, with its session cookies. */
 export async function flushWorkspaceProfiles(access: QuitFlushAccess): Promise<void> {
   const storageIds = new Set<string>()
   for (const workspace of access.mcpTabGroups().values()) {
@@ -59,6 +60,7 @@ export async function flushWorkspaceProfiles(access: QuitFlushAccess): Promise<v
   const results = await Promise.allSettled([...storageIds].map(async (storageId) => {
     const browserSession = session.fromPartition(workspacePartition(access.options().partition, storageId), { cache: true })
     access.options().configureSession?.(browserSession)
+    await saveSessionCookies(browserSession)
     await flushBrowserSessionStorage(browserSession)
   }))
   const errors = results.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])

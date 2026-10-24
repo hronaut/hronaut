@@ -8,6 +8,7 @@ import {
   type WebContents
 } from 'electron'
 import { LocalizedError } from '../localized-error.js'
+import { forgetSessionCookies, keepSessionCookies } from './session-cookies/saved-session-cookies.js'
 
 const STORAGE_TRANSFER_TIMEOUT_MS = 8_000
 
@@ -313,6 +314,8 @@ export async function transferWorkspaceStorage(
   const target = session.fromPartition(options.targetPartition, { cache: true })
   options.configureSession?.(source)
   options.configureSession?.(target)
+  // An archived workspace's session cookies saved at the last quit are back before its cookies are copied or replaced.
+  await Promise.all([keepSessionCookies(source), keepSessionCookies(target)])
 
   const { cookies, omittedPartitionedCookieCount } = await cookiesForTransfer(source, origins, options.copyAllCookies)
   const cookieIdentities = new Set(cookies.map(cookieIdentity))
@@ -502,6 +505,7 @@ export async function destroyWorkspaceStorage(
   const clearEverything = async (): Promise<void> => {
     await browserSession.closeAllConnections()
     await browserSession.clearData()
+    await forgetSessionCookies(browserSession)
     await flushBrowserSessionStorage(browserSession)
   }
   const downloads = downloadsEnd?.(browserSession)
@@ -509,6 +513,7 @@ export async function destroyWorkspaceStorage(
   await browserSession.clearData({
     dataTypes: ['backgroundFetch', 'cache', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL']
   })
+  await forgetSessionCookies(browserSession)
   await flushBrowserSessionStorage(browserSession)
   void (async () => {
     // A download can start after the wait began, so the downloads are checked again once those it waited for ended.
