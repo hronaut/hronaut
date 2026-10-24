@@ -7380,10 +7380,8 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
       savePath: '',
       defaultPath: join(customDownloadDirectory, 'complete.txt')
     })
-    await expect.poll(() => appWindow.evaluate('window.hronautDownloads.list()')).toEqual([
-      expect.objectContaining({ filename: 'complete.txt', state: 'cancelled' })
-    ])
-    await appWindow.evaluate('window.hronautDownloads.clearFinished()')
+    // As in Chrome, a download cancelled before its file was chosen leaves no row.
+    await expect.poll(() => appWindow.evaluate('window.hronautDownloads.list()')).toEqual([])
     await askWhere.uncheck()
     await expect(askWhere).not.toBeChecked()
     await settingsDialog.getByRole('button', { name: 'Close settings', exact: true }).click()
