@@ -816,6 +816,7 @@ function registerIpc(): void {
     openExternal: (url) => shell.openExternal(url),
     mcpPortRecovery: () => mcpPortRecovery,
     showDialog: (options) => trustedDialogs.show(options),
+    focusAskingPage: (event) => tabRuntime.tabs?.focusPageAfterQuestion(event.sender),
     text
   })
   registerPageGeometryIpc({

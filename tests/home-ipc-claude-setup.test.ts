@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -24,10 +25,16 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true })
 })
 
-/** Home's IPC with authentication on and the token from the profile, or from HRONAUT_MCP_TOKEN for this launch. */
-function home(source: 'profile' | 'environment', response = 1) {
+type DialogOptions = Parameters<Parameters<typeof registerHomeIpc>[0]['showDialog']>[0]
+
+/**
+ * Home's IPC with authentication on and the token from the profile, or from HRONAUT_MCP_TOKEN for this launch; with
+ * authentication off when `authentication` is false. `answer` stands in for the person in the dialog.
+ */
+function home(source: 'profile' | 'environment', response = 1, options: { authentication?: boolean; answer?: (options: DialogOptions) => Promise<{ response: number }> } = {}) {
   const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>()
-  const showDialog = vi.fn(async (_options: Parameters<Parameters<typeof registerHomeIpc>[0]['showDialog']>[0]) => ({ response }))
+  const showDialog = vi.fn(options.answer ?? (async (_options: DialogOptions) => ({ response })))
+  const focusAskingPage = vi.fn()
   registerHomeIpc({
     handleBrowserIpc: (channel, listener) => { handlers.set(channel, listener as never) },
     workspaceStartupFailure: () => undefined,
@@ -36,19 +43,22 @@ function home(source: 'profile' | 'environment', response = 1) {
     copyTextToClipboard: async () => undefined,
     reportClipboardFailure: () => undefined,
     mcpUrl: () => endpoint,
-    settings: () => ({ ...DEFAULT_SETTINGS, mcpAuthentication: true }),
+    settings: () => ({ ...DEFAULT_SETTINGS, mcpAuthentication: options.authentication ?? true }),
     mcpTokenConfiguration: () => ({ token: TOKEN, source }),
     mcpCredentialAccepted: () => false,
     openExternal: async () => undefined,
     mcpPortRecovery: () => ({ move: vi.fn() }),
     showDialog,
+    focusAskingPage,
     // The key and its parameters, so a test sees what the dialog would say.
     text: (key, parameters) => parameters ? `${key} ${JSON.stringify(parameters)}` : key
   })
   const mainFrame = { url: 'hronaut://home/' }
-  const event = { sender: { id: 1, mainFrame }, senderFrame: mainFrame }
+  // Home's page, which reports `destroyed` when its tab closes.
+  const sender = Object.assign(new EventEmitter(), { id: 1, mainFrame })
+  const event = { sender, senderFrame: mainFrame }
   const invoke = (channel: string, ...args: unknown[]) => Promise.resolve().then(() => handlers.get(channel)!(event, ...args))
-  return { invoke, showDialog }
+  return { invoke, showDialog, focusAskingPage, event }
 }
 
 describe('Set up Claude Code through Home IPC with MCP authentication on', () => {
@@ -94,6 +104,47 @@ describe('Set up Claude Code through Home IPC with MCP authentication on', () =>
     expect(await invoke('hronaut-home:claude-code-apply', preview.planId)).toEqual({ outcome: 'cancelled' })
     expect(showDialog).toHaveBeenCalledTimes(1)
     expect(await readFile(join(directory, '.claude.json'), 'utf8')).toBe(original)
+  })
+
+  it('gives the keyboard back to Home once the dialog has its answer, whichever it is', async () => {
+    for (const response of [1, 0]) {
+      await writeFile(join(directory, '.claude.json'), `${JSON.stringify({ mcpServers: {} }, null, 2)}\n`)
+      const { invoke, showDialog, focusAskingPage, event } = home('profile', response)
+      const preview = await invoke('hronaut-home:claude-code-prepare') as { planId: string }
+      await invoke('hronaut-home:claude-code-apply', preview.planId)
+      expect(showDialog).toHaveBeenCalledOnce()
+      expect(focusAskingPage).toHaveBeenCalledExactlyOnceWith(event)
+      expect(event.sender.listenerCount('destroyed')).toBe(0)
+    }
+  })
+
+  it('takes the question away and writes nothing when Home goes away while the dialog asks', async () => {
+    let asked!: DialogOptions
+    let answer!: (value: { response: number }) => void
+    const { invoke, event } = home('profile', 1, { answer: (options) => { asked = options; return new Promise((resolve) => { answer = resolve }) } })
+    const original = await readFile(join(directory, '.claude.json'), 'utf8')
+    const preview = await invoke('hronaut-home:claude-code-prepare') as { planId: string }
+    const applied = invoke('hronaut-home:claude-code-apply', preview.planId)
+    await vi.waitFor(() => expect(asked).toBeDefined())
+    expect(asked.signal?.aborted).toBe(false)
+    event.sender.emit('destroyed')
+    expect(asked.signal?.aborted).toBe(true)
+    // Even a yes that lands after Home went away changes nothing.
+    answer({ response: 1 })
+    expect(await applied).toEqual({ outcome: 'cancelled' })
+    expect(await readFile(join(directory, '.claude.json'), 'utf8')).toBe(original)
+  })
+
+  it('writes the entry without a token while authentication is off, and the dialog says so', async () => {
+    const { invoke, showDialog } = home('profile', 1, { authentication: false })
+    const preview = await invoke('hronaut-home:claude-code-prepare') as { planId: string; after: string; tokenHidden: boolean }
+    expect(preview.tokenHidden).toBe(false)
+    expect(preview.after).not.toContain('Bearer')
+    expect(await invoke('hronaut-home:claude-code-apply', preview.planId)).toMatchObject({ outcome: 'applied' })
+    const asked = showDialog.mock.calls[0]![0]
+    expect(JSON.parse(asked.detail!.slice('native.dialog.claudeSetupDetail '.length))).toMatchObject({ token: '' })
+    expect(asked.variant).toMatchObject({ kind: 'claude-setup', tokenHidden: false })
+    expect(JSON.parse(await readFile(join(directory, '.claude.json'), 'utf8')).mcpServers.hronaut).toEqual({ type: 'http', url: endpoint })
   })
 
   it('offers only the command while the token is given to this launch only', async () => {

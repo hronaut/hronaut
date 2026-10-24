@@ -102,15 +102,30 @@ const shownEntry = (endpoint: string, token: string | undefined) => token === un
   : { type: 'http', url: endpoint, headers: { Authorization: 'Bearer •••' } }
 const hronautEntry = (config: Extract<ConfigRead, { state: 'ready' }>): unknown => (config.root.mcpServers as Record<string, unknown> | undefined)?.hronaut
 
-/** An address without sign-in details or a query, either of which can carry a token. */
+const SHOWN_TYPES = new Set(['http', 'sse', 'stdio', 'ws'])
+const SHOWN_PROTOCOLS = new Set(['http:', 'https:', 'ws:', 'wss:'])
+const SHOWN_PATHS = new Set(['/', '/mcp', '/mcp/'])
+
+/**
+ * An address as Home and the dialog show it: its scheme, host and port, and Hronaut's own path. Sign-in details, a
+ * query, a fragment or any other path can carry a token, so they show as •••, as does an address of any other kind.
+ */
 function safeUrl(value: string): string {
   try {
     const url = new URL(value)
-    if (!url.username && !url.password && !url.search) return value
-    const query = url.search ? '?•••' : ''
-    url.username = ''; url.password = ''; url.search = ''
-    return `${url.href}${query}`
+    if (!SHOWN_PROTOCOLS.has(url.protocol)) return '•••'
+    const path = SHOWN_PATHS.has(url.pathname) ? url.pathname : '/•••'
+    const signIn = url.username || url.password ? '•••@' : ''
+    const rest = url.search || url.hash ? '?•••' : ''
+    return `${url.protocol}//${signIn}${url.host}${path}${rest}`
   } catch { return '•••' }
+}
+
+/** The text cut to the preview's length, never inside a character written as two UTF-16 units. */
+function bounded(text: string): string {
+  if (text.length <= PREVIEW_MAX_CHARACTERS) return text
+  const end = /[\uD800-\uDBFF]/.test(text.charAt(PREVIEW_MAX_CHARACTERS - 1)) ? PREVIEW_MAX_CHARACTERS - 1 : PREVIEW_MAX_CHARACTERS
+  return `${text.slice(0, end)}…`
 }
 
 /**
@@ -120,12 +135,12 @@ function safeUrl(value: string): string {
 function describeExisting(entry: unknown): string {
   const shown = isRecord(entry)
     ? Object.fromEntries(Object.entries(entry).map(([key, value]) => [key,
-      key === 'type' && typeof value === 'string' ? value
+      key === 'type' && typeof value === 'string' && SHOWN_TYPES.has(value) ? value
         : key === 'url' && typeof value === 'string' ? safeUrl(value)
           : isRecord(value) ? Object.fromEntries(Object.keys(value).map(name => [name, '•••'])) : '•••']))
     : '•••'
   const text = JSON.stringify(shown, null, 2)
-  return text.length > PREVIEW_MAX_CHARACTERS ? `${text.slice(0, PREVIEW_MAX_CHARACTERS)}…` : text
+  return bounded(text)
 }
 
 /**
@@ -170,8 +185,11 @@ export interface ClaudeCodeSetupOptions {
   /** Whether Hronaut may write the entry now. Checked again after the dialog and just before the file is replaced. */
   allowed?: () => boolean
   now?: () => number
-  /** Asks the person in a dialog main shows, which no page can answer, whether to make exactly this change. */
-  confirm: (preview: ClaudeCodeSetupPreview) => Promise<boolean>
+  /**
+   * Asks the person in a dialog main shows, which no page can answer, whether to make exactly this change. The signal
+   * withdraws the question when the page that asked goes away.
+   */
+  confirm: (preview: ClaudeCodeSetupPreview, signal?: AbortSignal) => Promise<boolean>
   platform?: NodeJS.Platform
 }
 
@@ -228,13 +246,14 @@ export class ClaudeCodeSetup {
     return preview
   }
 
-  async apply(planId: unknown, owner: number): Promise<ClaudeCodeSetupResult> {
+  /** `signal` aborts when the page that asked goes away; the file is then left as it is. */
+  async apply(planId: unknown, owner: number, signal?: AbortSignal): Promise<ClaudeCodeSetupResult> {
     this.forgetExpired()
     const plan = typeof planId === 'string' ? this.plans.get(planId) : undefined
     if (!plan || plan.owner !== owner) throw new ClaudeCodeSetupError('expired')
     this.plans.delete(planId as string)
     this.assertStillValid(plan)
-    if (!await this.options.confirm(plan.preview)) return { outcome: 'cancelled' }
+    if (!await this.options.confirm(plan.preview, signal) || signal?.aborted) return { outcome: 'cancelled' }
     // The port, authentication or the token can change while the dialog is open.
     this.assertStillValid(plan)
     const current = await this.readUnchanged(plan)

@@ -36,6 +36,8 @@ interface HomeIpcHost {
    * the window cannot show it.
    */
   showDialog(options: Omit<TrustedDialogOptions, 'window'>): Promise<{ response: number }>
+  /** Gives the keyboard back to the page that asked, once the shell's dialog took it. */
+  focusAskingPage(event: IpcMainInvokeEvent): void
   text(key: MessageKey, parameters?: MessageParameters): string
 }
 
@@ -76,7 +78,7 @@ export function registerHomeIpc(host: HomeIpcHost): void {
         return { token: configuration.token, accepts: (bearer) => host.mcpCredentialAccepted(bearer) }
       },
       allowed: claudeCodeSetupAllowed,
-      confirm: async (preview) => {
+      confirm: async (preview, signal) => {
         const { response } = await host.showDialog({
           type: 'question',
           title: host.text('native.dialog.claudeSetupTitle'),
@@ -94,6 +96,7 @@ export function registerHomeIpc(host: HomeIpcHost): void {
           cancelId: 0,
           primaryId: 1,
           noLink: true,
+          ...(signal ? { signal } : {}),
           variant: {
             kind: 'claude-setup',
             path: preview.path,
@@ -103,7 +106,7 @@ export function registerHomeIpc(host: HomeIpcHost): void {
             backupName: preview.backupName
           }
         })
-        return response === 1
+        return response === 1 && !signal?.aborted
       }
     })
     return claudeCodeSetup
@@ -183,6 +186,16 @@ export function registerHomeIpc(host: HomeIpcHost): void {
   host.handleBrowserIpc('hronaut-home:claude-code-apply', async (event, planId: unknown) => {
     assertHomeMainFrame(event)
     assertClaudeCodeSetupAllowed()
-    return claudeCodeSetupService().apply(planId, event.sender.id)
+    // Home going away while the dialog asks, such as its tab closing, takes the question with it and writes nothing.
+    const closed = new AbortController()
+    const close = (): void => closed.abort()
+    event.sender.once('destroyed', close)
+    try {
+      return await claudeCodeSetupService().apply(planId, event.sender.id, closed.signal)
+    } finally {
+      event.sender.removeListener('destroyed', close)
+      // The dialog is drawn by the shell, which took the keyboard from Home; Home's own focus goes back with it.
+      host.focusAskingPage(event)
+    }
   })
 }
