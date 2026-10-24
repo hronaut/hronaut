@@ -1,5 +1,6 @@
 import { MAX_BROWSER_TABS, type BrowserTabGroupState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
+import { persistedTab } from '../browser-state/persisted-state.js'
 import { canonicalStorageId } from '../workspace-storage-deletion.js'
 import { destroyWorkspaceStorage, workspacePartition } from '../workspace-storage.js'
 import type { McpTabGroupsAccess, McpTabGroupsTab } from './mcp-tab-groups-access.js'
@@ -28,7 +29,8 @@ export function closeMcpTabGroupInternal<Tab extends McpTabGroupsTab>(access: Mc
 
 /**
  * Closes the workspace's tabs and, unless archiving, deletes its storage,
- * reopening the tabs as they were when that fails. Then forgets the workspace,
+ * keeping the tabs in the saved session until it commits and reopening them
+ * as they were when that fails. Then forgets the workspace,
  * its recently closed tabs and its continuity checkpoint, tells its wallets
  * and, after a deletion, whoever keeps what belongs to it, such as its site
  * permissions, opens Home when no tab is left and saves the session after a
@@ -118,6 +120,9 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
     removeClosedWorkspaceTabs()
     access.changed()
   }
+  // Deleting the storage can take long. Until it commits, the saved session keeps the workspace as it was, so a crash
+  // meanwhile brings it back with its tabs instead of empty.
+  if (!preserveStorage) access.workspacesBeingDeleted().set(groupId, { activeTabId: previousGroupActiveTabId, tabs: tabs.map(persistedTab) })
   try {
     await access.closeTabs(tabSnapshots.map((tab) => tab.id), false)
     // A tab left open would name a workspace the saved session no longer has, which the next start refuses to load.
@@ -143,6 +148,8 @@ async function closeMcpTabGroupAfterLabelSave<Tab extends McpTabGroupsTab>(acces
       throw new LocalizedError('appErrors.workspace.closeRollbackFailed', { name: group.name }, { cause: new AggregateError([error, restoreError]) })
     }
     throw error
+  } finally {
+    access.workspacesBeingDeleted().delete(groupId)
   }
   removeClosedWorkspaceTabs()
   access.mcpTabGroups().delete(groupId)

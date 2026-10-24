@@ -415,7 +415,7 @@ import { DEFAULT_SEARCH_ENGINE, type SearchEngineName } from '../../shared/searc
 import type { AgentPointerIdentity, BrowserFormField } from './page-scripts.js'
 import { evaluate, type EvaluationDeadline } from './page-evaluation/evaluate.js'
 import { TabStateStore, type PersistedBrowserState } from './tab-store.js'
-import type { PersistedStateAccess } from './browser-state/persisted-state-access.js'
+import type { PersistedStateAccess, WorkspaceBeingDeleted } from './browser-state/persisted-state-access.js'
 import { persistedState } from './browser-state/persisted-state.js'
 import type { BrowserStateAccess } from './browser-state/browser-state-access.js'
 import { getState } from './browser-state/browser-state.js'
@@ -1093,6 +1093,8 @@ export class BrowserTabsManager {
   })
   private readonly mcpTabGroups = this.workspaceRegistry.active
   private readonly deletedWorkspaceStorageIds = new Set<string>()
+  /** Open workspaces whose deletion closed their tabs but has not committed, which the saved session keeps meanwhile. */
+  private readonly workspacesBeingDeleted = new Map<string, WorkspaceBeingDeleted>()
   private workspaceStorageCleanupBlocked = false
   private readonly savedTabGroups = this.workspaceRegistry.archived
   private readonly workspaceOperations = new Map<string, BrowserWorkspaceOperation<OpenWorkspaceOperationAction>>()
@@ -1733,6 +1735,7 @@ export class BrowserTabsManager {
       options: () => this.options,
       inspectionPermissions: () => this.inspectionPermissions,
       deletedWorkspaceStorageIds: () => this.deletedWorkspaceStorageIds,
+      workspacesBeingDeleted: () => this.workspacesBeingDeleted,
       store: () => this.store,
       persistedState: () => this.persistedState(),
       assertWorkspaceNameAvailable: (name, excludeActiveWorkspaceId, excludeSavedWorkspaceId, allowDuplicateName) => (
@@ -6551,8 +6554,8 @@ export class BrowserTabsManager {
   /**
    * The narrow view saving the browser state gets of this manager's private
    * destroyed flag, workspace storage records, workspace continuity, active
-   * tab, split view and divider, global mute and lock, workspaces and tabs.
-   * It is a prototype method rather than a field, so managers created
+   * tab, split view and divider, global mute and lock, workspaces, tabs and
+   * the workspaces being deleted. It is a prototype method rather than a field, so managers created
    * without the constructor (as unit tests do) still provide it. Each member
    * reads the manager when called.
    */
@@ -6569,7 +6572,8 @@ export class BrowserTabsManager {
       allHumanInteractionLocked: () => this.allHumanInteractionLocked,
       mcpTabGroups: () => this.mcpTabGroups,
       savedTabGroups: () => this.savedTabGroups,
-      orderedTabs: () => this.orderedTabs()
+      orderedTabs: () => this.orderedTabs(),
+      workspacesBeingDeleted: () => this.workspacesBeingDeleted
     }
   }
 

@@ -1,5 +1,6 @@
 import type { NavigationEntry, Session } from 'electron'
 import type { BrowserClosedTabState, BrowserState } from '../../../shared/types.js'
+import type { WorkspaceBeingDeleted } from '../browser-state/persisted-state-access.js'
 import type { BrowserNetworkRecordingState } from '../network-recording.js'
 import type { PersistedBrowserState, TabStateStore } from '../tab-store.js'
 import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from '../workspace-operations/workspace-operations-access.js'
@@ -97,6 +98,8 @@ export interface McpTabGroupsAccess<Tab extends McpTabGroupsTab> {
   inspectionPermissions(): WeakMap<object, number>
   /** The storage ids of deleted workspaces, which are saved so no workspace reuses them. */
   deletedWorkspaceStorageIds(): Set<string>
+  /** The open workspaces being deleted by id, which the saved session keeps with their tabs until the deletion commits. */
+  workspacesBeingDeleted(): Map<string, WorkspaceBeingDeleted>
   /** The session store. */
   store(): Pick<TabStateStore, 'save'>
   /** The session as it is saved. */

@@ -9,6 +9,10 @@ All notable changes to Hronaut are documented in this file.
 - Hronaut's own questions now appear as Hronaut dialogs over the window instead of system dialogs: saving or updating a password a page submitted, leaving or closing a page that asks to confirm, quitting with downloads in progress, reading another browser's cookies to import them, importing a password file, and the MCP server failing to start. The password dialog names the website and shows the username the page sent apart from Hronaut's words. Quitting with downloads in progress brings the window forward to ask, even from the tray; the others still use the system dialog while Hronaut's window is hidden, minimized or not loaded yet, and none of them asks once Hronaut is quitting.
 - A new wallet's recovery phrase now appears in a Hronaut dialog over the window instead of a system dialog, as a numbered list of its words under the wallet's name, with what keeping it means. The words cannot be selected or copied, and while the phrase is on screen Hronaut asks the system to keep the window out of screen recordings and screen sharing, which Windows honors and macOS honors except for apps that record through ScreenCaptureKit. When the window is hidden or minimized, the system dialog still asks.
 
+### Fixed
+
+- A workspace Hronaut was deleting when it stopped, such as in a crash or a power cut before the workspace's cookies and site data were gone, now comes back with its tabs at the next start, as if the deletion had not begun. It came back empty, its tabs gone while its data stayed.
+
 ## [3.8.0] - 2026-10-23
 
 ### Changed
