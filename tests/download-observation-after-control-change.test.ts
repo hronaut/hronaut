@@ -32,6 +32,7 @@ async function fixture() {
     getSettings: () => ({ downloadDirectory: directory, saveDialogTitle: 'Save', askWhereToSaveDownloads: false }),
     getSource: () => ({ tabId: 'tab-1', workspaceId: 'w', observationGeneration: generations.get('w')! }),
     workspaceObservationGeneration: id => generations.get(id) ?? 0,
+    downloadReady: () => undefined,
     isAvailable: () => true,
     publish: () => undefined
   })

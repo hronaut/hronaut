@@ -17,6 +17,8 @@ export interface TabReopeningTab {
   tabMuted: boolean
   tabAgentPaused: boolean
   humanInteractionLocked: boolean
+  /** Set for a tab a download it opened closed, which reopening would only download again. */
+  leftEmptyByDownload?: boolean
 }
 
 /** What reopening or duplicating a tab asks the tab manager to open. */

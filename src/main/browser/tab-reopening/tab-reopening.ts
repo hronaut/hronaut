@@ -135,10 +135,11 @@ export function forgetWorkspaceClosedTabs<Tab extends TabReopeningTab>(access: T
 
 /**
  * Remembers a closed tab, with its place among its workspace's tabs, so it can be reopened, keeping only the newest;
- * Hronaut Home is not remembered. It is called while the tab is still among the open tabs.
+ * Hronaut Home and a tab a download left empty are not remembered. It is called while the tab is still among the open
+ * tabs.
  */
 export function rememberClosedTab<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, tab: Tab): void {
-  if (isHronautHomeUrl(tab.url)) return
+  if (isHronautHomeUrl(tab.url) || tab.leftEmptyByDownload) return
   const place = tabPeers(access, tab).indexOf(tab)
   access.closedTabs().push({
     id: uuidV7(),

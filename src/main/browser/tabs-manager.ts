@@ -443,6 +443,8 @@ import type { PageSaveAccess } from './page-save/page-save-access.js'
 import { viewFrameSource, viewPageSource, viewShownPageSource } from './page-source/page-source.js'
 import type { PageSourceAccess } from './page-source/page-source-access.js'
 import { openNavigationInNewTab } from './navigation-new-tab/navigation-new-tab.js'
+import { closeTabLeftEmptyByDownload } from './download-tab-close/download-tab-close.js'
+import type { DownloadTabCloseAccess } from './download-tab-close/download-tab-close-access.js'
 import type { NavigationNewTabAccess } from './navigation-new-tab/navigation-new-tab-access.js'
 import type { PagePrintAccess } from './page-print/page-print-access.js'
 import { attachPageWheelZoom } from './page-zoom/page-wheel-zoom.js'
@@ -650,6 +652,10 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
    * shows that tab again when it closes, until Hronaut forgets it as Chrome does.
    */
   openedFromTabId?: string
+  /** Set for a tab a page opened, from a link or a window it asked for, with no history of its own. */
+  openedFromPage?: boolean
+  /** Set as a download that was all the tab opened closes it, so Recently closed does not list it. */
+  leftEmptyByDownload?: boolean
   /**
    * For a new tab the person opened with + or Ctrl/Cmd+T: the tab shown before, which shows again when this tab closes
    * before another tab shows, as in Chrome.
@@ -1190,6 +1196,7 @@ export class BrowserTabsManager {
       }
     },
     workspaceObservationGeneration: (workspaceId) => this.workspaceObservationGeneration(workspaceId),
+    downloadReady: (webContentsId) => closeTabLeftEmptyByDownload(this.downloadTabCloseAccess(), webContentsId),
     isAvailable: () => !this.destroyed && !this.window.isDestroyed(),
     publish: (downloads) => {
       if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed()) return
@@ -3383,6 +3390,21 @@ export class BrowserTabsManager {
       navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
       createTab: (options) => this.createTab(options),
       getState: () => this.getState()
+    }
+  }
+
+  /**
+   * The narrow view closing a tab a download left empty gets of this manager's tabs and tab closing. It is a prototype
+   * method rather than a field, so managers created without the constructor (as unit tests do) still provide it.
+   */
+  private downloadTabCloseAccess(): DownloadTabCloseAccess<BrowserTab> {
+    return {
+      tabOfPage: (webContentsId) => {
+        const tabId = this.destroyed ? undefined : this.webContentsToTab.get(webContentsId)
+        return tabId ? this.tabs.get(tabId) : undefined
+      },
+      tabCount: () => this.tabs.size,
+      closeTab: (tab) => this.closeTab(tab.id)
     }
   }
 
@@ -5604,7 +5626,8 @@ export class BrowserTabsManager {
       storageComparisonGeneration: 0,
       ...(options.mcpGroupId ? { mcpGroupId: options.mcpGroupId } : {}),
       ...(opener ? { openerTabId: opener.id } : {}),
-      ...(options.openedFrom ? { openedFromTabId: options.openedFrom.tabId } : {})
+      ...(options.openedFrom ? { openedFromTabId: options.openedFrom.tabId } : {}),
+      ...(options.openedFrom && !options.navigationHistory ? { openedFromPage: true } : {})
     }
     tab.webContents.setAudioMuted(tab.muted)
     // A page's tab opened in front starts a new task, so its workspace forgets which page opened its other tabs. A

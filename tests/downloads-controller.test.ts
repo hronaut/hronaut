@@ -33,10 +33,12 @@ async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platfo
   const session = new EventEmitter()
   const generations = new Map([['first', 0], ['second', 0]])
   const published: BrowserDownloadState[][] = []
+  const ready: (number | undefined)[] = []
   const controller = new BrowserDownloadsController({
     getSettings: () => ({ downloadDirectory: directory, saveDialogTitle: 'Save', askWhereToSaveDownloads }),
     getSource: id => ({ tabId: String(id), workspaceId: id === 1 ? 'first' : 'second', observationGeneration: 0 }),
     workspaceObservationGeneration: id => generations.get(id) ?? 0,
+    downloadReady: id => { ready.push(id) },
     isAvailable: () => true,
     publish: downloads => { published.push(downloads) }
   }, platform)
@@ -85,7 +87,7 @@ async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platfo
       complete: () => { state = 'completed'; item.emit('done', {}, state) }
     }
   }
-  return { controller, session, generations, download, published }
+  return { controller, session, generations, download, published, ready }
 }
 
 it('redacts URL credentials and token parameters before exposing download history', async () => {
@@ -702,4 +704,26 @@ it('settles when the downloads of a session that have not ended do, for a closed
   await end
   expect(ended).toBe(true)
   expect(controller.downloadsEnd(session as Session)).toBeUndefined()
+})
+
+it('tells the tab manager once that a download has its file, at once or after the save dialog, and when it ends first', async () => {
+  // The tab manager closes a tab a download left empty then, as Chrome does once the file is chosen.
+  const saving = await fixture()
+  const transfer = saving.download(1)
+  expect(saving.ready).toEqual([1])
+  transfer.interrupt()
+  transfer.complete()
+  saving.download(2, true)
+  expect(saving.ready).toEqual([1, 2])
+
+  const asking = await fixture(true)
+  const chosen = asking.download(1)
+  chosen.item.emit('updated', {}, 'progressing')
+  expect(asking.ready).toEqual([])
+  ;(chosen.item as DownloadItem).setSavePath(join(tmpdir(), 'chosen.txt'))
+  chosen.item.emit('updated', {}, 'progressing')
+  chosen.item.emit('updated', {}, 'progressing')
+  expect(asking.ready).toEqual([1])
+  asking.download(2).cancel()
+  expect(asking.ready).toEqual([1, 2])
 })

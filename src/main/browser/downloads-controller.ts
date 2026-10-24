@@ -46,6 +46,12 @@ interface BrowserDownloadsHost {
     observationGeneration: number
   }
   workspaceObservationGeneration(workspaceId: string): number
+  /**
+   * Called once for each download Hronaut keeps, with the page it started from, when the download has its file: at
+   * once, or after the save dialog when Hronaut asks where to save, or when it ends before that, such as when the
+   * person cancels the dialog or the download folder cannot be written.
+   */
+  downloadReady(webContentsId: number | undefined): void
   isAvailable(): boolean
   publish(downloads: BrowserDownloadState[]): void
 }
@@ -363,7 +369,14 @@ export class BrowserDownloadsController {
         }
         const id = randomUUID()
         const downloadUrl = item.getURL()
-        const { tabId, workspaceId, observationGeneration } = this.host.getSource(webContents?.id, downloadUrl)
+        const sourceWebContentsId = webContents?.id
+        let readyReported = false
+        const reportReady = () => {
+          if (readyReported) return
+          readyReported = true
+          this.host.downloadReady(sourceWebContentsId)
+        }
+        const { tabId, workspaceId, observationGeneration } = this.host.getSource(sourceWebContentsId, downloadUrl)
         const settings = this.host.getSettings()
         // As for a click on the link, the name holds only while the download stays on the link's origin: Hronaut saves
         // without asking, so a redirect elsewhere must not get to name its file, such as a script saved as `update.bat`.
@@ -404,6 +417,7 @@ export class BrowserDownloadsController {
           download.paused = false
           download.canResume = false
           this.notifyDownloadsChanged(true)
+          reportReady()
           return
         }
         download.filename = basename(suggestedPath)
@@ -416,6 +430,7 @@ export class BrowserDownloadsController {
           download.totalBytes = item.getTotalBytes()
           this.syncDownloadPath(download, item)
           this.notifyDownloadsChanged()
+          if (item.getSavePath()) reportReady()
         }
         const onDone = (_downloadEvent: Event, state: 'completed' | 'cancelled' | 'interrupted') => {
           detachItemListeners()
@@ -432,6 +447,7 @@ export class BrowserDownloadsController {
           this.downloadSessions.delete(id)
           this.trimDownloadHistory()
           this.notifyDownloadsChanged(true)
+          reportReady()
         }
         const detachItemListeners = () => {
           item.removeListener('updated', onUpdated)
@@ -444,6 +460,7 @@ export class BrowserDownloadsController {
         this.notifyDownloadsChanged(true)
         // A new download opens the Downloads panel, so its finished files are checked as when the panel opens.
         this.checkCompletedFiles()
+        if (!settings.askWhereToSaveDownloads) reportReady()
       }
       browserSession.on('will-download', onWillDownload)
       this.downloadHookSessions.set(browserSession, () => browserSession.removeListener('will-download', onWillDownload))
