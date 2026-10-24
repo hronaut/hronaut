@@ -1,7 +1,11 @@
+import type { WebContents } from 'electron'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { LocalizedError } from '../../localized-error.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { DevToolsAccess, DevToolsTab } from './devtools-access.js'
+
+/** How long Developer Tools get to turn to the Console once open. */
+const SHOW_CONSOLE_WAIT_MS = 5_000
 
 /**
  * Opens Developer Tools for the person's tab, or closes them when open, and
@@ -35,12 +39,30 @@ export async function showDevToolsConsole<Tab extends DevToolsTab>(access: DevTo
   if (isHronautHomeUrl(tab.url) || access.isHumanInteractionLocked(tab)) return false
   await openDevTools(access, tab)
   const devTools = tab.webContents.isDestroyed() ? null : tab.webContents.devToolsWebContents
-  if (!devTools || devTools.isDestroyed()) return false
-  // The front end's own call for a panel, which Chrome makes for this key. Electron runs it once the front end has
-  // loaded, and the Console then has the keyboard in its prompt.
-  await devTools.executeJavaScript("DevToolsAPI.showPanel('console')")
-  if (!devTools.isDestroyed()) devTools.focus()
+  if (!devTools || devTools.isDestroyed() || !await showConsolePanel(devTools)) return false
+  // Opening them gave them the keyboard already. Focusing them first brings Hronaut's window forward, which Electron
+  // counts as their owner, so it would take the keyboard back from them; only open ones without it are focused.
+  if (!devTools.isDestroyed() && !devTools.isFocused()) devTools.focus()
   return true
+}
+
+/**
+ * Makes the front end's own call for the Console, which Chrome makes for this key, and reports whether it ran; the
+ * Console then has the keyboard in its prompt. Electron can leave the call waiting for good once Developer Tools
+ * close, so it also ends then, or after SHOW_CONSOLE_WAIT_MS.
+ */
+function showConsolePanel(devTools: WebContents): Promise<boolean> {
+  return new Promise((resolve) => {
+    const settle = (shown: boolean): void => {
+      clearTimeout(timer)
+      devTools.removeListener('destroyed', fail)
+      resolve(shown)
+    }
+    const fail = (): void => settle(false)
+    const timer = setTimeout(fail, SHOW_CONSOLE_WAIT_MS)
+    devTools.once('destroyed', fail)
+    devTools.executeJavaScript("DevToolsAPI.showPanel('console')").then(() => settle(true), fail)
+  })
 }
 
 /**

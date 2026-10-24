@@ -2,9 +2,12 @@ import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import { redactNetworkUrl } from '../../shared/network-details.js'
 import { urlWithoutDetail } from '../../shared/url-detail.js'
 
-/** Keys that ask something of an agent's person; when an agent sends one itself, the page keeps it. */
+/**
+ * Keys that ask something of an agent's person; when an agent sends one itself, the page keeps it. Developer Tools and
+ * the element picker are the person's too: opening Developer Tools would end the agent's own debugging of the page.
+ */
 const PERSON_ONLY_SHORTCUTS: ReadonlySet<BrowserShortcutAction> = new Set([
-  'agent-card', 'take-over', 'previous-workspace',
+  'agent-card', 'take-over', 'previous-workspace', 'toggle-devtools', 'open-console', 'pick-element',
   ...([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((position) => `select-workspace-${position}` as const)
 ])
 

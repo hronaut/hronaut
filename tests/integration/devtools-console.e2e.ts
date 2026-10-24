@@ -45,6 +45,11 @@ test('Ctrl+Shift+J, or Cmd+Option+J on macOS, opens Developer Tools on the Conso
       return devTools && !devTools.isDestroyed() ? devTools.executeJavaScript(script) as Promise<unknown> : null
     }, { url, script })
     const devToolsView = () => inDevTools(DEVTOOLS_VIEW) as Promise<{ selected: string[], focused: string | null } | null>
+    // Whether the keyboard is in Developer Tools' own window, rather than only in the element they would give it to.
+    const devToolsHaveKeyboard = () => electronApp.evaluate(({ webContents }, url) => {
+      const devTools = webContents.getAllWebContents().find(contents => contents.getURL() === url)?.devToolsWebContents
+      return devTools !== null && devTools !== undefined && webContents.getFocusedWebContents()?.id === devTools.id
+    }, url)
     // The person's key, as the keyboard sends it, on the page or in Hronaut's own window.
     const press = (target: 'page' | 'window') => electronApp.evaluate(({ BrowserWindow, webContents }, { url, shellUrl, target, modifiers }) => {
       const contents = target === 'page'
@@ -63,11 +68,15 @@ test('Ctrl+Shift+J, or Cmd+Option+J on macOS, opens Developer Tools on the Conso
     await appWindow.waitForTimeout(500)
     expect(await devToolsOpen()).toBe(false)
 
-    // The person's opens Developer Tools on the Console, with the keyboard in its prompt, and the page gets no key.
+    // The person's key opens Developer Tools on the Console, with the keyboard in its prompt, and the page gets no key.
     await press('page')
     await expect.poll(devToolsOpen).toBe(true)
     await expect.poll(async () => (await devToolsView())?.selected).toContain('tab-console')
     await expect.poll(async () => (await devToolsView())?.focused).toContain('cm-content')
+    await expect.poll(devToolsHaveKeyboard).toBe(true)
+    // And keeps it: focusing them after they open with it gave it back to Hronaut's window.
+    await appWindow.waitForTimeout(500)
+    expect(await devToolsHaveKeyboard()).toBe(true)
     expect((await keys()).length).toBe(1)
 
     // With Developer Tools open on another panel, the key from Hronaut's window turns them back to the Console.
@@ -76,6 +85,7 @@ test('Ctrl+Shift+J, or Cmd+Option+J on macOS, opens Developer Tools on the Conso
     await press('window')
     await expect.poll(async () => (await devToolsView())?.selected).toContain('tab-console')
     await expect.poll(async () => (await devToolsView())?.focused).toContain('cm-content')
+    await expect.poll(devToolsHaveKeyboard).toBe(true)
     expect(await devToolsOpen()).toBe(true)
     expect((await keys()).length).toBe(1)
 
