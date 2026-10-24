@@ -2433,8 +2433,10 @@ export class BrowserTabsManager {
     const closedTabsForgotten = forgetClosedTabs(this.tabReopeningAccess(), matches, workspaceId)
     const tabs = [...this.tabs.values()].filter((tab) => workspaceId === undefined || tab.mcpGroupId === workspaceId)
     const openTabPagesForgotten = forgetTabHistoryPages(tabs, matches)
-    // Neither is saved with the tabs, so only the state is published.
+    // Recently closed is not saved, so only the state is published; open tabs' history is saved for the next start
+    // without the pages at once.
     if (closedTabsForgotten || openTabPagesForgotten) this.changed(false)
+    if (openTabPagesForgotten) void this.saveTabHistory()
   }
 
   /**

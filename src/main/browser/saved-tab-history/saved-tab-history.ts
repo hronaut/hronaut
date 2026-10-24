@@ -43,6 +43,7 @@ function savedPage(url: string, policy: BrowserWorkspaceNavigationPolicy): boole
 function savedPageState(pageState: string | undefined): string | undefined {
   if (!pageState || pageState.length > MAX_SAVED_PAGE_STATE_CHARS || !BASE64.test(pageState)) return undefined
   const bytes = Buffer.from(pageState, 'base64')
+  if (bytes.length > MAX_SAVED_PAGE_STATE_BYTES) return undefined
   return FORM_ENCODINGS.some((encoding) => bytes.includes(encoding)) ? undefined : pageState
 }
 
