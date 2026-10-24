@@ -76,6 +76,8 @@ interface PendingDialog<Window extends TrustedDialogWindow> {
  */
 interface ShellDialogs<Window extends TrustedDialogWindow> {
   ready: boolean
+  /** Ends the wait for a starting shell document to listen, after which its dialogs go to the system dialog. */
+  startTimer?: ReturnType<typeof setTimeout>
   visible: PendingDialog<Window> | null
   queue: Array<PendingDialog<Window>>
   keyboardPage: WebContents | null
@@ -87,9 +89,10 @@ export interface TrustedDialogs<Window extends TrustedDialogWindow = TrustedDial
    * Asks the person in Hronaut's own dialog on the shell window, drawn over its pages, and resolves with the chosen
    * button's index, as `dialog.showMessageBox` does. Dialogs on one window show one at a time, in the order asked.
    * As a system dialog does, the last one answered gives the keyboard back to the page that had it before the first
-   * opened, such as the page whose navigation it asks about. When no shell window can show it, because it is closed,
-   * hidden, not loaded yet or its document is gone, the question goes to the system dialog instead, so it is always
-   * answered.
+   * opened, such as the page whose navigation it asks about. A window in view whose shell document is still starting,
+   * as while Hronaut starts, shows it once the document listens. When no shell window can show it, because it is
+   * closed or hidden, its document is gone, or it did not start within a few seconds, the question goes to the system
+   * dialog instead, so it is always answered.
    */
   show(options: TrustedDialogOptions<Window>): Promise<MessageBoxReturnValue>
   /**
@@ -109,6 +112,9 @@ export interface TrustedDialogs<Window extends TrustedDialogWindow = TrustedDial
     isTrustedShellSender(event: IpcMainEvent): boolean
   }): void
 }
+
+/** How long a question waits for a starting shell document to listen before the system dialog asks it instead. */
+const SHELL_START_WAIT_MS = 10_000
 
 function validIndex(value: unknown, buttons: readonly string[]): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < buttons.length
@@ -132,10 +138,31 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     return shell
   }
 
+  /**
+   * Whether the window can show the question: one in view, whose shell document listens or is still starting, as just
+   * after Hronaut's window shows while the document loads its settings. A hidden or minimized window would keep the
+   * question out of sight; the system dialog asks as it did before.
+   */
   function canDraw(window: Window | null): window is Window {
-    if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return false
-    // A hidden or minimized window would keep the question out of sight; the system dialog asks as it did before.
-    return window.isVisible() && !window.isMinimized() && Boolean(shells.get(window.webContents)?.ready)
+    if (!window || window.isDestroyed() || window.webContents.isDestroyed() || window.webContents.isCrashed()) return false
+    return window.isVisible() && !window.isMinimized()
+  }
+
+  /** Waits a few seconds for a starting shell document to listen; if it does not, the system dialog asks instead. */
+  function waitForStart(contents: WebContents): void {
+    const shell = shellOf(contents)
+    if (shell.ready || shell.startTimer) return
+    // A document that crashes or goes away meanwhile hands its questions to the system dialog at once.
+    watch(contents)
+    shell.startTimer = setTimeout(() => {
+      shell.startTimer = undefined
+      if (!shell.ready) handOff(contents)
+    }, SHELL_START_WAIT_MS)
+  }
+
+  function stopWaitingForStart(shell: ShellDialogs<Window>): void {
+    if (shell.startTimer) clearTimeout(shell.startTimer)
+    shell.startTimer = undefined
   }
 
   function cancelResponse(options: Options): number {
@@ -158,7 +185,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
   }
 
   function publish(contents: WebContents): void {
-    if (contents.isDestroyed()) return
+    if (contents.isDestroyed() || !shells.get(contents)?.ready) return
     contents.send(TRUSTED_DIALOG_CHANNELS.changed, shells.get(contents)?.visible?.request ?? null)
   }
 
@@ -208,6 +235,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     const shell = shells.get(contents)
     if (!shell) return
     shell.ready = false
+    stopWaitingForStart(shell)
     const pending = [...(shell.visible ? [shell.visible] : []), ...shell.queue]
     shell.visible = null
     shell.queue = []
@@ -272,6 +300,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
       }
       shell.queue.push(pending)
       showNext(window.webContents)
+      waitForStart(window.webContents)
     })
   }
 
@@ -287,7 +316,9 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     ipc.ipcMain.on(TRUSTED_DIALOG_CHANNELS.ready, (event) => {
       if (!trusted(event)) return
       watch(event.sender)
-      shellOf(event.sender).ready = true
+      const shell = shellOf(event.sender)
+      shell.ready = true
+      stopWaitingForStart(shell)
       showNext(event.sender)
     })
 
