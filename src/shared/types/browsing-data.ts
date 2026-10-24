@@ -17,6 +17,8 @@ export interface BrowserDownloadState {
   completedAt?: string
   /** A completed download whose file was moved or deleted, as Hronaut last checked: when the Downloads panel opened or showed the file. */
   fileRemoved?: boolean
+  /** Kept from before Hronaut last started, as Chrome's download history keeps it: the toolbar counts only newer ones. */
+  fromEarlierRun?: boolean
 }
 
 export interface BrowserBookmarkCollection {

@@ -40,6 +40,11 @@ test('a restart keeps the download history, as Chrome', async ({ profileDirector
     // A kept download is not a new one, so the Downloads panel stays closed.
     await after.window.waitForTimeout(500)
     await expect(after.window.getByRole('dialog', { name: 'Downloads', exact: true })).toBeHidden()
+    // Nor does the toolbar show it as just downloaded, or count it: the button shows only this run's downloads.
+    const downloadsButton = after.window.locator('.downloads-button')
+    await expect(downloadsButton).toHaveAttribute('aria-label', 'Downloads')
+    await expect(downloadsButton).not.toHaveClass(/\bcomplete\b/)
+    await expect(downloadsButton.locator('.downloads-badge')).toHaveCount(0)
 
     // Removing it from the list also takes it out of the file.
     await after.window.evaluate((id) => (window as unknown as { hronautDownloads: HronautDownloadsApi }).hronautDownloads.removeFinished(id), kept.id)

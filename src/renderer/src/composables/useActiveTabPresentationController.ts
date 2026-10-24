@@ -70,6 +70,8 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     options.credentials.value.filter((credential) => credential.origin === activeOrigin.value)
   ))
   const activeDownloads = computed(() => options.downloads.value.filter((download) => isActiveDownload(download)))
+  /** The downloads of this run, which the toolbar's button counts; those kept from before the restart stay in the panel. */
+  const toolbarDownloads = computed(() => options.downloads.value.filter((download) => !download.fromEarlierRun))
   const currentBookmark = computed(() => (
     options.bookmarks.value.find((bookmark) => bookmark.url === activeWebUrl.value)
   ))
@@ -81,10 +83,11 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
         activeDownloads.value.length
       )
     }
-    if (options.downloads.value[0]?.state === 'completed' && !options.downloads.value[0].fileRemoved) {
-      return options.translate('runtime.downloads.complete', { filename: options.downloads.value[0].filename })
+    const latest = toolbarDownloads.value[0]
+    if (latest?.state === 'completed' && !latest.fileRemoved) {
+      return options.translate('runtime.downloads.complete', { filename: latest.filename })
     }
-    if (options.downloads.value.length) return options.translate('runtime.downloads.recent')
+    if (toolbarDownloads.value.length) return options.translate('runtime.downloads.recent')
     return options.translate('runtime.downloads.heading')
   })
   const tabHumanInteractionLocked = computed(() => options.activeTab.value?.humanInteractionInputLocked
@@ -167,6 +170,7 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     activeAddressKind,
     activeCredentials,
     activeDownloads,
+    toolbarDownloads,
     currentBookmark,
     downloadButtonLabel,
     tabHumanInteractionLocked,

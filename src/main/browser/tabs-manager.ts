@@ -982,8 +982,10 @@ export class BrowserTabsManager {
     return beginWorkspaceContinuityAction(this.workspaceContinuityAccess(), workspaceId, readOnly)
   }
 
+  /** Forgets a workspace deleted with its data: its continuity, and its downloads in the history kept for the next start. */
   private retireWorkspaceContinuity(workspaceId: string): void {
     retireWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId)
+    this.downloadController.forgetWorkspace(workspaceId)
   }
 
   postWriteContextFingerprint(workspaceId: string, tabId: string, condition: BrowserPostcondition): string {

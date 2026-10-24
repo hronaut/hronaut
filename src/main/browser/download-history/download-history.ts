@@ -1,4 +1,4 @@
-import { lstat, readFile } from 'node:fs/promises'
+import { lstat, readFile, rm } from 'node:fs/promises'
 import { basename, isAbsolute } from 'node:path'
 import { isActiveDownload } from '../../../shared/download-state.js'
 import type { BrowserDownloadState } from '../../../shared/types.js'
@@ -40,6 +40,11 @@ function isTime(value: unknown): value is string {
   return typeof value === 'string' && Number.isFinite(Date.parse(value))
 }
 
+/** A saved time, no later than now, so a clock set back since cannot keep a download first in the list for good. */
+function savedTime(value: string, now: number): string {
+  return new Date(Math.min(Date.parse(value), now)).toISOString()
+}
+
 /**
  * The downloads a restart keeps, newest first, as Chrome keeps its download history. One still under way is kept as
  * cancelled, as quitting cancels it, and without its progress, so a save while it runs writes nothing new.
@@ -71,12 +76,12 @@ export function savedDownloads(
 }
 
 /** A download as the file holds it, or undefined when it is not one. */
-function parsedDownload(value: unknown): SavedDownload | undefined {
+function parsedDownload(value: unknown, now: number): SavedDownload | undefined {
   if (!isRecord(value)) return undefined
   const { id, url, filename, savePath, state, failureReason, receivedBytes, totalBytes, startedAt, completedAt, workspaceId } = value
   if (typeof id !== 'string' || !DOWNLOAD_ID.test(id) || typeof url !== 'string' || url.length > MAX_DOWNLOAD_URL_CHARS
     || typeof filename !== 'string' || !filename || basename(filename) !== filename
-    || (savePath !== undefined && (typeof savePath !== 'string' || !isAbsolute(savePath)))
+    || (savePath !== undefined && (typeof savePath !== 'string' || !isAbsolute(savePath) || basename(savePath) !== filename))
     || (state !== 'completed' && state !== 'cancelled' && state !== 'interrupted')
     || (failureReason !== undefined && failureReason !== 'destination-unavailable')
     || !isByteCount(receivedBytes) || !isByteCount(totalBytes) || !isTime(startedAt)
@@ -93,9 +98,9 @@ function parsedDownload(value: unknown): SavedDownload | undefined {
     ...(failureReason ? { failureReason } : {}),
     receivedBytes,
     totalBytes,
-    startedAt: new Date(Date.parse(startedAt)).toISOString(),
+    startedAt: savedTime(startedAt, now),
     // An interrupted download without an end would read as still under way.
-    ...(completedAt || state === 'interrupted' ? { completedAt: new Date(Date.parse(completedAt ?? startedAt)).toISOString() } : {}),
+    ...(completedAt || state === 'interrupted' ? { completedAt: savedTime(completedAt ?? startedAt, now) } : {}),
     ...(workspaceId ? { workspaceId } : {})
   }
 }
@@ -107,6 +112,8 @@ function parsedDownload(value: unknown): SavedDownload | undefined {
 export class DownloadHistoryStore {
   private saveQueue: Promise<void> = Promise.resolve()
   private written: string | undefined
+  /** What the last save could not write, so a save of the same downloads every second does not try again. */
+  private failed: string | undefined
 
   constructor(private readonly path: string) {}
 
@@ -126,8 +133,9 @@ export class DownloadHistoryStore {
       const data = JSON.parse(contents) as unknown
       if (!isRecord(data) || data.version !== DOWNLOAD_HISTORY_VERSION || !Array.isArray(data.downloads)) throw new Error('Not a saved download history')
       const ids = new Set<string>()
+      const now = Date.now()
       const saved = data.downloads.slice(0, MAX_SAVED_DOWNLOADS).flatMap((value) => {
-        const download = parsedDownload(value)
+        const download = parsedDownload(value, now)
         if (!download || ids.has(download.id)) return []
         ids.add(download.id)
         return [download]
@@ -141,17 +149,27 @@ export class DownloadHistoryStore {
   }
 
   /**
-   * Saves the downloads, taken when the save's turn comes, unless the file holds them already. Nothing is saved when
-   * none are given, as once the browser closes.
+   * Saves the downloads, taken when the save's turn comes, unless the file holds them already, or the same downloads
+   * could not be written last time and `retryFailedWrite` is off. Nothing is saved when none are given, as once the
+   * browser closes. A write that fails removes the file, so a download removed since does not come back at the next
+   * start, as Recently closed does.
    */
-  save(downloads: () => readonly SavedDownload[] | undefined): Promise<void> {
+  save(downloads: () => readonly SavedDownload[] | undefined, retryFailedWrite = true): Promise<void> {
     const operation = this.saveQueue.then(async () => {
       const current = downloads()
       if (!current) return
       const contents = `${JSON.stringify({ version: DOWNLOAD_HISTORY_VERSION, downloads: current })}\n`
-      if (contents === this.written) return
-      await writeTextFileAtomically(this.path, contents, 0o600)
+      if (contents === this.written || (!retryFailedWrite && contents === this.failed)) return
+      try {
+        await writeTextFileAtomically(this.path, contents, 0o600)
+      } catch (error) {
+        this.written = undefined
+        this.failed = contents
+        await rm(this.path, { force: true }).catch(() => undefined)
+        throw error
+      }
       this.written = contents
+      this.failed = undefined
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation

@@ -112,21 +112,28 @@ export class BrowserDownloadsController {
   /** Where the download history is kept for the next start, once the history it kept is back, so no save loses it. */
   private history: DownloadHistoryStore | undefined
   private historySaveTimer: NodeJS.Timeout | null = null
+  /**
+   * Workspaces deleted with their data: their downloads stay in the list until Hronaut quits but are not kept for the
+   * next start, as Recently closed drops their tabs.
+   */
+  private readonly deletedWorkspaceIds = new Set<string>()
 
   constructor(private readonly host: BrowserDownloadsHost, private readonly platform = process.platform) {}
 
   /**
    * Brings back the downloads kept from before the restart, as Chrome's Downloads page lists them, each with its
    * workspace, and keeps the history in that store from now on. Their files are checked when the Downloads panel
-   * opens, as for a download of this run.
+   * opens, as for a download of this run, and their addresses are redacted again, as a record keeps them.
    */
   restoreHistory(saved: readonly SavedDownload[], history: DownloadHistoryStore): void {
     for (const { workspaceId, ...download } of saved.slice(0, MAX_DOWNLOAD_HISTORY)) {
       if (this.downloads.has(download.id)) continue
       this.downloads.set(download.id, {
         ...download,
+        url: retainedDownloadUrl(download.url),
         paused: false,
         canResume: false,
+        fromEarlierRun: true,
         ...(workspaceId ? { observationGeneration: this.host.workspaceObservationGeneration(workspaceId) } : {})
       })
       this.downloadWorkspaceIds.set(download.id, workspaceId)
@@ -134,23 +141,37 @@ export class BrowserDownloadsController {
     this.history = history
   }
 
-  /** Saves the download history for the next start now, as when Hronaut quits. A failure is logged. */
-  async saveHistory(): Promise<void> {
+  /**
+   * Saves the download history for the next start now, as when Hronaut quits, without the downloads of workspaces
+   * deleted with their data. A failure is logged; a save after a change does not write again what just failed.
+   */
+  async saveHistory(retryFailedWrite = true): Promise<void> {
     if (this.historySaveTimer) clearTimeout(this.historySaveTimer)
     this.historySaveTimer = null
     if (!this.history) return
-    await this.history.save(() => this.destroyed
-      ? undefined
-      : savedDownloads(this.listDownloads(), (downloadId) => this.downloadWorkspaceIds.get(downloadId)))
-      .catch((error: unknown) => console.error('[downloads] Failed to save the download history:', error))
+    await this.history.save(() => {
+      if (this.destroyed) return undefined
+      const kept = this.listDownloads().filter((download) => {
+        const workspaceId = this.downloadWorkspaceIds.get(download.id)
+        return !workspaceId || !this.deletedWorkspaceIds.has(workspaceId)
+      })
+      return savedDownloads(kept, (downloadId) => this.downloadWorkspaceIds.get(downloadId))
+    }, retryFailedWrite).catch((error: unknown) => console.error('[downloads] Failed to save the download history:', error))
   }
 
   private scheduleHistorySave(): void {
     if (!this.history || this.destroyed || this.historySaveTimer) return
     this.historySaveTimer = setTimeout(() => {
       this.historySaveTimer = null
-      void this.saveHistory()
+      void this.saveHistory(false)
     }, HISTORY_SAVE_MS)
+  }
+
+  /** Leaves the downloads of a workspace deleted with its data out of the history kept for the next start. */
+  forgetWorkspace(workspaceId: string): void {
+    if (this.destroyed) return
+    this.deletedWorkspaceIds.add(workspaceId)
+    this.scheduleHistorySave()
   }
 
   hasActiveDownload(tabId: string): boolean {
@@ -194,6 +215,7 @@ export class BrowserDownloadsController {
     this.awaitingSavePath.clear()
     this.downloadSessions.clear()
     this.downloadWorkspaceIds.clear()
+    this.deletedWorkspaceIds.clear()
     this.reservedDownloadPaths.clear()
     this.completedFileIdentities.clear()
     this.fileChecks.clear()

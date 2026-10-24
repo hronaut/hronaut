@@ -9,10 +9,25 @@ import { BrowserDownloadsController } from '../src/main/browser/downloads-contro
 import type { BrowserDownloadState } from '../src/shared/types.js'
 
 vi.mock('electron', () => ({ shell: { showItemInFolder: vi.fn() } }))
+const atomicWrite = vi.hoisted(() => ({ failing: false, calls: 0 }))
+vi.mock('../src/main/atomic-file.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/main/atomic-file.js')>()
+  return {
+    ...actual,
+    writeTextFileAtomically: async (...args: Parameters<typeof actual.writeTextFileAtomically>) => {
+      atomicWrite.calls += 1
+      if (atomicWrite.failing) throw Object.assign(new Error('The file is in use'), { code: 'EBUSY' })
+      return actual.writeTextFileAtomically(...args)
+    }
+  }
+})
 
 const cleanups: (() => Promise<void> | void)[] = []
 afterEach(async () => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
+  atomicWrite.failing = false
+  atomicWrite.calls = 0
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
 
@@ -114,9 +129,38 @@ describe('the saved download history', () => {
       saved({ id: '5b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', savePath: undefined }),
       saved({ id: '6b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', receivedBytes: -1 }),
       saved({ id: '7b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', url: `https://download.example/${'a'.repeat(5_000)}` }),
+      // Hronaut names a saved download after its file.
+      saved({ id: '8b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', filename: 'other.pdf' }),
       'not a record'
     ] }))
     expect(await new DownloadHistoryStore(path).load()).toEqual([valid])
+  })
+
+  it('reads a time later than now as now, so a clock set back since cannot keep a download first for good', async () => {
+    const path = join(await directory(), 'download-history.json')
+    await writeFile(path, JSON.stringify({ version: 1, downloads: [saved({ startedAt: '2999-01-01T00:00:00.000Z', completedAt: '2999-01-01T00:00:01.000Z' })] }))
+    const before = Date.now()
+    const [download] = await new DownloadHistoryStore(path).load()
+    expect(Date.parse(download!.startedAt)).toBeGreaterThanOrEqual(before)
+    expect(Date.parse(download!.startedAt)).toBeLessThanOrEqual(Date.now())
+    expect(download!.completedAt).toBe(download!.startedAt)
+  })
+
+  it('removes the file when a save fails, so a download removed since does not come back', async () => {
+    // A failed write left the older file, which brought back at the next start what was removed or cleared meanwhile.
+    const path = join(await directory(), 'download-history.json')
+    const store = new DownloadHistoryStore(path)
+    await store.save(() => [saved(), saved({ id: '1b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b' })])
+    atomicWrite.failing = true
+    await expect(store.save(() => [saved()])).rejects.toThrow('The file is in use')
+    await expect(lstat(path)).rejects.toMatchObject({ code: 'ENOENT' })
+    // A save after each change does not write again what just failed; the save at quit does.
+    const calls = atomicWrite.calls
+    await store.save(() => [saved()], false)
+    expect(atomicWrite.calls).toBe(calls)
+    atomicWrite.failing = false
+    await store.save(() => [saved()])
+    expect(await new DownloadHistoryStore(path).load()).toEqual([saved()])
   })
 
   it('gives an interrupted download an end, so it never reads as still under way', async () => {
@@ -185,11 +229,23 @@ describe('the downloads controller keeping its history', () => {
   it('lists the downloads kept from before the restart, also to agents of their workspace', async () => {
     const { controller, store } = await fixture()
     controller.restoreHistory([saved(), saved({ id: '1b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', workspaceId: 'other', filename: 'other.pdf' })], store)
-    expect(controller.listDownloads().map(({ filename, state }) => ({ filename, state })))
-      .toEqual([{ filename: 'report.pdf', state: 'completed' }, { filename: 'other.pdf', state: 'completed' }])
+    // Marked as from before the restart, so the toolbar does not show them as just downloaded.
+    expect(controller.listDownloads().map(({ filename, state, fromEarlierRun }) => ({ filename, state, fromEarlierRun })))
+      .toEqual([{ filename: 'report.pdf', state: 'completed', fromEarlierRun: true }, { filename: 'other.pdf', state: 'completed', fromEarlierRun: true }])
     expect(controller.manageWorkspaceDownloads('work', 'list').map(({ filename }) => filename)).toEqual(['report.pdf'])
     // Its file's identity was read before the restart, so an agent cannot have a replaced file copied.
     await expect(controller.completedWorkspaceDownloadFile('work', saved().id)).rejects.toThrow('finished before Hronaut restarted')
+  })
+
+  it('redacts a kept address again, as a record keeps it', async () => {
+    const { controller, store } = await fixture()
+    controller.restoreHistory([
+      saved({ url: 'https://person:secret@download.example/report.pdf' }),
+      saved({ id: '1b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', url: 'data:text/csv;base64,c2VjcmV0' })
+    ], store)
+    const urls = controller.listDownloads().map(({ url }) => url)
+    expect(urls[0]).not.toContain('secret')
+    expect(urls[1]).toBe('data:text/csv,')
   })
 
   it('saves a second after a change, with the kept downloads and a new one', async () => {
@@ -224,6 +280,18 @@ describe('the downloads controller keeping its history', () => {
     controller.manageDownloads('clear')
     await controller.saveHistory()
     expect(await fileDownloads()).toEqual([])
+  })
+
+  it('does not keep the downloads of a workspace deleted with its data for the next start', async () => {
+    // As Recently closed drops its tabs: they stay listed until Hronaut quits.
+    const { controller, store, fileDownloads } = await fixture()
+    vi.useFakeTimers()
+    controller.restoreHistory([saved(), saved({ id: '1b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', workspaceId: 'kept', filename: 'other.pdf' }), saved({ id: '2b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', workspaceId: undefined, filename: 'plain.pdf' })], store)
+    controller.forgetWorkspace('work')
+    await vi.advanceTimersByTimeAsync(1_000)
+    vi.useRealTimers()
+    await vi.waitFor(async () => expect((await fileDownloads()).map(({ filename }) => filename)).toEqual(['other.pdf', 'plain.pdf']))
+    expect(controller.listDownloads().map(({ filename }) => filename)).toEqual(['report.pdf', 'other.pdf', 'plain.pdf'])
   })
 
   it('saves nothing before the kept history is back, so a download then cannot replace it', async () => {
