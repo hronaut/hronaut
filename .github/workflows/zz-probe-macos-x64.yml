@@ -29,34 +29,46 @@ jobs:
           arch -x86_64 /usr/bin/true && echo rosetta-ok
       - name: Write the start probe
         run: |
+          mkdir -p "$RUNNER_TEMP/shots"
           cat > "$RUNNER_TEMP/start.sh" <<'SCRIPT'
-          app=$1; cpu=$2; port=$3
+          app=$1; cpu=$2; port=$3; label=$4
           profile=$(mktemp -d)
           bin="$app/Contents/MacOS/Hronaut"
           file "$bin"
-          HRONAUT_USER_DATA_DIR="$profile" HRONAUT_DOWNLOAD_DIR="$profile" HRONAUT_MCP_HOST=127.0.0.1 HRONAUT_MCP_PORT="$port" arch "-$cpu" "$bin" > "$profile/out.log" 2>&1 &
+          ELECTRON_ENABLE_LOGGING=1 HRONAUT_USER_DATA_DIR="$profile" HRONAUT_DOWNLOAD_DIR="$profile" HRONAUT_MCP_HOST=127.0.0.1 HRONAUT_MCP_PORT="$port" arch "-$cpu" "$bin" > "$profile/out.log" 2>&1 &
           pid=$!
-          for i in $(seq 1 90); do
+          for i in $(seq 1 300); do
             code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/healthz" || true)
-            if [ "$code" != "000" ]; then echo "RESULT $app ($cpu) started: healthz answered $code after ${i}s"; kill "$pid"; exit 0; fi
-            if ! kill -0 "$pid" 2>/dev/null; then echo "RESULT $app ($cpu) exited before answering"; tail -30 "$profile/out.log"; exit 1; fi
+            if [ "$code" != "000" ]; then echo "RESULT $label started: healthz answered $code after ${i}s"; screencapture -x "$RUNNER_TEMP/shots/$label.png" || true; kill "$pid"; exit 0; fi
+            if ! kill -0 "$pid" 2>/dev/null; then echo "RESULT $label exited before answering"; tail -60 "$profile/out.log"; exit 1; fi
+            if [ "$i" = 60 ]; then screencapture -x "$RUNNER_TEMP/shots/$label-60s.png" || true; fi
             sleep 1
           done
-          echo "RESULT $app ($cpu) did not answer in 90s"; tail -30 "$profile/out.log"; kill "$pid"; exit 1
+          echo "RESULT $label did not answer in 300s"; screencapture -x "$RUNNER_TEMP/shots/$label-300s.png" || true
+          tail -60 "$profile/out.log"; ls "$profile"; kill "$pid"; exit 1
           SCRIPT
-      - name: Start the published 3.8.0 Intel app and check it
-        run: |
-          curl -sSL -o "$RUNNER_TEMP/old.zip" https://github.com/hronaut/hronaut/releases/download/v3.8.0/Hronaut-3.8.0-mac.zip
-          mkdir -p "$RUNNER_TEMP/old/mac"
-          ditto -x -k "$RUNNER_TEMP/old.zip" "$RUNNER_TEMP/old/mac"
-          bash "$RUNNER_TEMP/start.sh" "$RUNNER_TEMP/old/mac/Hronaut.app" x86_64 47901 || echo "old Intel app start exit=$?"
-          node scripts/mac-native-bindings.ts check "$RUNNER_TEMP/old" || echo "old Intel app check exit=$?"
       - run: npm ci
       - run: node scripts/mac-native-bindings.ts install
       - run: npm run build:app
       - run: npx electron-builder --mac zip --x64 --arm64 --publish never
       - run: node scripts/mac-native-bindings.ts check dist
-      - name: Start the new Intel and Apple silicon apps
+      - name: Start the new Apple silicon app
+        run: bash "$RUNNER_TEMP/start.sh" dist/mac-arm64/Hronaut.app arm64 47903 new-arm64 || echo "new arm64 exit=$?" >> "$RUNNER_TEMP/failed"
+      - name: Start the new Intel app
+        run: bash "$RUNNER_TEMP/start.sh" dist/mac/Hronaut.app x86_64 47902 new-x64 || echo "new x64 exit=$?" >> "$RUNNER_TEMP/failed"
+      - name: Start the published 3.8.0 Intel app and check it
         run: |
-          bash "$RUNNER_TEMP/start.sh" dist/mac/Hronaut.app x86_64 47902
-          bash "$RUNNER_TEMP/start.sh" dist/mac-arm64/Hronaut.app arm64 47903
+          curl -sSL -o "$RUNNER_TEMP/old.zip" https://github.com/hronaut/hronaut/releases/download/v3.8.0/Hronaut-3.8.0-mac.zip
+          mkdir -p "$RUNNER_TEMP/old/mac"
+          ditto -x -k "$RUNNER_TEMP/old.zip" "$RUNNER_TEMP/old/mac"
+          bash "$RUNNER_TEMP/start.sh" "$RUNNER_TEMP/old/mac/Hronaut.app" x86_64 47901 old-x64 || echo "old Intel app start exit=$?"
+          node scripts/mac-native-bindings.ts check "$RUNNER_TEMP/old" || echo "old Intel app check exit=$?"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: probe-shots
+          path: ${{ runner.temp }}/shots
+          retention-days: 3
+      - name: Fail when a new app did not start
+        run: |
+          if [ -f "$RUNNER_TEMP/failed" ]; then cat "$RUNNER_TEMP/failed"; exit 1; fi
