@@ -104,6 +104,29 @@ export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserS
   return null
 }
 
+/**
+ * The keys of Hronaut's application menu that are not browser shortcuts above, which act on the page in view or open
+ * another of Hronaut's dialogs: Print, Save Page As, View Page Source, Downloads, Back, Forward and Keyboard shortcuts,
+ * and on macOS Find Next and Find Previous, which elsewhere are website-kept keys. A key Hronaut's window leaves alone
+ * reaches the menu, so under its own dialogs and the command palette the window keeps these from the menu as well.
+ */
+export function applicationMenuKey(input: BrowserShortcutInput): boolean {
+  if (input.repeat || input.composing) return false
+  const key = shortcutKey(input)
+  const slash = input.code === 'Slash' || key === '/' || key === '?'
+  if (input.mac) {
+    if (!input.meta || input.control) return false
+    if (input.alt) return !input.shift && (key === 'u' || key === 'l')
+    if (input.shift) return key === 'g' || slash
+    return key === 'p' || key === 's' || key === 'g' || input.key === '[' || input.key === ']'
+  }
+  if (input.meta) return false
+  if (input.alt) return !input.control && !input.shift && (key === 'arrowleft' || key === 'arrowright')
+  if (!input.control) return false
+  if (input.shift) return slash
+  return key === 'p' || key === 's' || key === 'u' || key === 'j'
+}
+
 export function browserShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
   const key = shortcutKey(input)
   if (input.repeat || input.composing) return null

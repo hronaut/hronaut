@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { browserShortcutAction, websiteKeptShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
+import { applicationMenuKey, browserShortcutAction, websiteKeptShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
 import { shortcutKey } from '../src/shared/shortcut-key.js'
 
 function input(overrides: Partial<BrowserShortcutInput> = {}): BrowserShortcutInput {
@@ -370,6 +370,46 @@ describe('the Downloads key', () => {
     ]) {
       expect(browserShortcutAction(key)).toBeNull()
       expect(websiteKeptShortcutAction(key)).toBeNull()
+    }
+  })
+})
+
+// Under a Hronaut dialog or the command palette, Hronaut's window keeps these from the application menu, which would
+// act on the page behind it.
+describe('the application menu\'s other keys', () => {
+  const menuKey = (overrides: Partial<BrowserShortcutInput>) => applicationMenuKey(input(overrides))
+
+  it('are Print, Save, View Page Source, Downloads, Back, Forward and Keyboard shortcuts elsewhere than macOS', () => {
+    for (const key of [
+      { key: 'p', code: 'KeyP', control: true }, { key: 's', code: 'KeyS', control: true }, { key: 'u', code: 'KeyU', control: true },
+      { key: 'j', code: 'KeyJ', control: true }, { key: 'з', code: 'KeyP', control: true },
+      { key: 'ArrowLeft', code: 'ArrowLeft', alt: true }, { key: 'ArrowRight', code: 'ArrowRight', alt: true },
+      { key: '?', code: 'Slash', control: true, shift: true }, { key: '/', code: 'Slash', control: true, shift: true }
+    ]) expect(menuKey(key), JSON.stringify(key)).toBe(true)
+    for (const key of [
+      { key: 'p', code: 'KeyP' }, { key: 'p', code: 'KeyP', control: true, alt: true }, { key: 'P', code: 'KeyP', control: true, shift: true },
+      { key: 'p', code: 'KeyP', meta: true }, { key: 'c', code: 'KeyC', control: true }, { key: 'a', code: 'KeyA', control: true },
+      { key: 'ArrowLeft', code: 'ArrowLeft' }, { key: 'ArrowLeft', code: 'ArrowLeft', control: true }, { key: 'ArrowLeft', code: 'ArrowLeft', alt: true, shift: true },
+      { key: '/', code: 'Slash', control: true }, { key: 'p', code: 'KeyP', control: true, repeat: true }, { key: 'p', code: 'KeyP', control: true, composing: true }
+    ]) expect(menuKey(key), JSON.stringify(key)).toBe(false)
+  })
+
+  it('are the same with Command on macOS, with Find Next and Find Previous', () => {
+    for (const key of [
+      { key: 'p', code: 'KeyP', meta: true }, { key: 's', code: 'KeyS', meta: true }, { key: 'g', code: 'KeyG', meta: true },
+      { key: 'G', code: 'KeyG', meta: true, shift: true }, { key: '¨', code: 'KeyU', meta: true, alt: true }, { key: '¬', code: 'KeyL', meta: true, alt: true },
+      { key: '[', code: 'BracketLeft', meta: true }, { key: ']', code: 'BracketRight', meta: true }, { key: '?', code: 'Slash', meta: true, shift: true }
+    ]) expect(menuKey({ ...key, mac: true }), JSON.stringify(key)).toBe(true)
+    for (const key of [
+      { key: 'p', code: 'KeyP', control: true }, { key: 'p', code: 'KeyP', meta: true, control: true }, { key: 'u', code: 'KeyU', meta: true },
+      { key: 'ArrowLeft', code: 'ArrowLeft', alt: true }, { key: 'c', code: 'KeyC', meta: true }
+    ]) expect(menuKey({ ...key, mac: true }), JSON.stringify(key)).toBe(false)
+  })
+
+  it('are no browser shortcuts, which Hronaut\'s window runs itself', () => {
+    for (const key of [{ key: 'p', code: 'KeyP', control: true }, { key: 'ArrowLeft', code: 'ArrowLeft', alt: true }, { key: '?', code: 'Slash', control: true, shift: true }]) {
+      expect(browserShortcutAction(input(key))).toBeNull()
+      expect(websiteKeptShortcutAction(input(key))).toBeNull()
     }
   })
 })
