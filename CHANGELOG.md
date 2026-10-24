@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.11.0] - 2026-10-24
+
 ### Added
 
 - While files download, Hronaut's taskbar buttons on Windows, its Dock icon on macOS and its launcher icon on Linux desktops that show it, such as Ubuntu's, show how far the downloads have come (on macOS while every file's size is known), and on macOS and Linux how many are under way, as in Chrome.

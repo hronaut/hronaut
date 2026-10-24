@@ -2866,6 +2866,7 @@ test('puts Help in the native application menu and opens shell dialogs above eve
     'Command Palette…',
     'Pick Element for Agent',
     'Downloads',
+    'Task manager',
     'separator',
     'Back',
     'Forward',
