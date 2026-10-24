@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- A screenshot of a tab that is not on screen, such as while Hronaut's window is minimized, no longer occasionally waits 15 seconds and fails when the page shows nothing new: Hronaut now asks the page to draw again.
+
 ## [3.10.0] - 2026-10-24
 
 ### Added
