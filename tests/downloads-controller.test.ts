@@ -273,8 +273,9 @@ it.each([false, true])('records native download setup failure without throwing o
   ])
   expect(controller.manageWorkspaceDownloads('second', 'list')).toEqual([])
   controller.manageDownloads('clear')
-  download()
-  expect(controller.listDownloads()[0]?.filename).toBe('file.txt')
+  const next = download().item as DownloadItem
+  // The save dialog proposes the freed name, and the download is listed once it is chosen.
+  expect(basename((dialog ? next.getSaveDialogOptions().defaultPath : next.getSavePath()) ?? '')).toBe('file.txt')
 })
 
 it('frees the name of a download whose setup failed in any spelling on macOS', async () => {
@@ -495,8 +496,41 @@ it('proposes a saved link\'s name when Hronaut asks where to save it', async () 
   const { controller, download } = await fixture(true)
   controller.expectSavedLinkName(1, 'https://download.example/export?id=5', 'report.csv')
   const transfer = download(1, false, 'https://download.example/export?id=5', 'export.csv')
-  expect(basename((transfer.item as DownloadItem).getSaveDialogOptions().defaultPath ?? '')).toBe('report.csv')
+  const proposed = (transfer.item as DownloadItem).getSaveDialogOptions().defaultPath ?? ''
+  expect(basename(proposed)).toBe('report.csv')
+  ;(transfer.item as DownloadItem).setSavePath(proposed)
+  transfer.item.emit('updated', {}, 'progressing')
   expect(controller.listDownloads()[0]?.filename).toBe('report.csv')
+})
+
+it('lists a download once the person chose where to save it, and none they cancelled in the save dialog, as Chrome', async () => {
+  // The Downloads panel opened behind the save dialog, and cancelling the dialog left a Cancelled row with no file.
+  const { controller, download, published } = await fixture(true)
+  const cancelled = download(1, false, 'https://download.example/cancelled.txt', 'cancelled.txt')
+  const chosen = download(1, false, 'https://download.example/chosen.txt', 'chosen.txt')
+  expect(controller.listDownloads()).toEqual([])
+  expect(controller.manageWorkspaceDownloads('first', 'list')).toEqual([])
+  expect(published.at(-1)).toEqual([])
+
+  cancelled.cancel()
+  chosen.item.emit('updated', {}, 'progressing')
+  expect(controller.listDownloads()).toEqual([])
+  ;(chosen.item as DownloadItem).setSavePath(join(tmpdir(), 'chosen.txt'))
+  chosen.item.emit('updated', {}, 'progressing')
+  // Published at once, so the panel opens as the dialog closes.
+  expect(published.at(-1)?.map(({ filename, state }) => ({ filename, state }))).toEqual([{ filename: 'chosen.txt', state: 'progressing' }])
+  chosen.complete()
+  expect(controller.manageWorkspaceDownloads('first', 'list').map(({ filename, state }) => ({ filename, state })))
+    .toEqual([{ filename: 'chosen.txt', state: 'completed' }])
+})
+
+it('keeps a download that has its file when it is cancelled, as Chrome lists it as Cancelled', async () => {
+  const { controller, download } = await fixture(true)
+  const transfer = download(1, false, 'https://download.example/kept.txt', 'kept.txt')
+  ;(transfer.item as DownloadItem).setSavePath(join(tmpdir(), 'kept.txt'))
+  transfer.item.emit('updated', {}, 'progressing')
+  controller.manageDownloads('cancel', controller.listDownloads()[0]!.id)
+  expect(controller.listDownloads().map(({ filename, state }) => ({ filename, state }))).toEqual([{ filename: 'kept.txt', state: 'cancelled' }])
 })
 
 it('uses up a saved link\'s name when a full history refuses its download', async () => {

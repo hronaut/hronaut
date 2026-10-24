@@ -91,6 +91,8 @@ export class BrowserDownloadsController {
   private destroyed = false
   private readonly downloads = new Map<string, BrowserDownloadState>()
   private readonly downloadItems = new Map<string, DownloadItem>()
+  /** Downloads still waiting for the person to choose where to save them, which Chrome lists only once they have. */
+  private readonly awaitingSavePath = new Set<string>()
   /** The session each download in progress runs in, which a closed workspace's storage keeps for it until it ends. */
   private readonly downloadSessions = new Map<string, Session>()
   private readonly downloadWorkspaceIds = new Map<string, string | undefined>()
@@ -143,6 +145,7 @@ export class BrowserDownloadsController {
     for (const detach of this.downloadItemListeners.values()) detach()
     this.downloadItemListeners.clear()
     this.downloadItems.clear()
+    this.awaitingSavePath.clear()
     this.downloadSessions.clear()
     this.downloadWorkspaceIds.clear()
     this.reservedDownloadPaths.clear()
@@ -180,6 +183,7 @@ export class BrowserDownloadsController {
       }
     }
     return [...this.downloads.values()]
+      .filter((download) => !this.awaitingSavePath.has(download.id))
       .sort((left, right) => right.startedAt.localeCompare(left.startedAt))
       .map((download) => ({ ...download }))
   }
@@ -425,18 +429,30 @@ export class BrowserDownloadsController {
         download.filename = basename(suggestedPath)
         download.savePath = settings.askWhereToSaveDownloads ? '' : suggestedPath
         this.downloadItems.set(id, item)
+        if (settings.askWhereToSaveDownloads) this.awaitingSavePath.add(id)
         this.downloadSessions.set(id, browserSession)
         const onUpdated = (_downloadEvent: Event, state: 'interrupted' | 'progressing') => {
           download.state = state === 'interrupted' ? 'interrupted' : 'progressing'
           download.receivedBytes = item.getReceivedBytes()
           download.totalBytes = item.getTotalBytes()
           this.syncDownloadPath(download, item)
-          this.notifyDownloadsChanged()
+          // Listed once the person chose where to save it, which opens the Downloads panel then, as in Chrome.
+          const chosen = Boolean(item.getSavePath()) && this.awaitingSavePath.delete(id)
+          this.notifyDownloadsChanged(chosen)
           if (item.getSavePath()) reportReady()
         }
         const onDone = (_downloadEvent: Event, state: 'completed' | 'cancelled' | 'interrupted') => {
           detachItemListeners()
           this.reservedDownloadPaths.delete(this.reservationKey(suggestedPath))
+          if (this.awaitingSavePath.delete(id) && state === 'cancelled' && !item.getSavePath()) {
+            // Cancelled in the save dialog, so as in Chrome it leaves no Cancelled row behind.
+            this.downloads.delete(id)
+            this.downloadWorkspaceIds.delete(id)
+            this.downloadItems.delete(id)
+            this.downloadSessions.delete(id)
+            reportReady()
+            return
+          }
           download.state = state
           download.receivedBytes = item.getReceivedBytes()
           download.totalBytes = item.getTotalBytes()
