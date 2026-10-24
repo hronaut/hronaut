@@ -2,6 +2,7 @@ import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { localizedLoadFailure } from '../load-failure-error.js'
 import { PAGE_LOAD_WAIT_MS, settledWithin } from '../page-waits/page-load-limit.js'
+import { keepSessionCookies } from '../session-cookies/saved-session-cookies.js'
 import { isHronautHomeUrl, normalizeAddress } from '../url.js'
 import type { PageNavigationAccess, PageNavigationTab } from './page-navigation-access.js'
 
@@ -39,6 +40,9 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
     // does for a typed address.
     access.forgetTabsOpenedFrom(tab.mcpGroupId)
   }
+  // A workspace's sites get the session cookies it saved at the last quit, as its first page does, which this load
+  // then replaces.
+  if (!isHronautHomeUrl(normalized)) await keepSessionCookies(tab.webContents.session)
   const webContents = tab.webContents
   const documentGeneration = tab.documentGeneration
   const loaded = await loadAddress(access, tab, normalized, false)

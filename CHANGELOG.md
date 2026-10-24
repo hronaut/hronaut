@@ -4,10 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- While files download, Hronaut's taskbar buttons on Windows, its Dock icon on macOS and its launcher icon on Linux desktops that show it, such as Ubuntu's, show how far the downloads have come (on macOS while every file's size is known), and on macOS and Linux how many are under way, as in Chrome.
+
 ### Changed
 
 - **Ctrl/Cmd+Shift+T**, a **Recently closed** entry and **Undo** after closing a tab bring the tab back with its **Back** and **Forward** pages, scrolled to where it was, as in Chrome, and loading it again no longer counts another visit in History.
 - After a restart, tabs come back with their **Back** and **Forward** pages, scrolled to where they were and with what was typed into their forms, as in Chrome; password fields are never saved.
+- After a restart, sites that keep a sign-in in a cookie without an expiry, called a session cookie, still have it, as in Chrome when it continues where you left off; Hronaut keeps those cookies with the workspace's other data, encrypted by the system's secret storage where it has one, and deletes them with the workspace.
 
 ### Fixed
 
@@ -17,6 +22,7 @@ All notable changes to Hronaut are documented in this file.
 - When the page changes while an agent saves its screenshot with `browser_screenshot_save` and the capture fails, the agent is told the page changed and to save again, instead of getting Chromium's own error, such as `UnknownVizError`.
 - A link that opens a new tab, such as one with `target="_blank"`, a middle-click or **Open link in new tab**, and turns out to download a file no longer leaves an empty tab behind: the tab closes once the download has its file, as in Chrome, and the page it was opened from shows again.
 - Clearing the history or removing a page from it, in the **History** panel, in **Settings → Workspaces & data** or by an agent, also takes those pages out of the **Back** and **Forward** lists of open tabs, as in Chrome, so **Back** no longer leads to them; an agent clearing a website's history changes only its own workspace's tabs.
+- The **Downloads** panel shows a download at 99% until its last byte is in, as Chrome does, instead of at 100% while it still has bytes to go.
 - A Hronaut question asked while its window is still starting, such as **MCP server failed to start** when another app uses Hronaut's port at launch, now shows in Hronaut's own dialog once the window has loaded, instead of in a system dialog.
 
 ## [3.10.0] - 2026-10-24

@@ -47,7 +47,7 @@ export async function drainWorkspaceOperations(access: QuitFlushAccess): Promise
   }
 }
 
-/** Flushes the storage of every open and archived workspace's isolated browser profile to disk. */
+/** Flushes the storage of every open and archived workspace's isolated browser profile to disk, with its session cookies. */
 export async function flushWorkspaceProfiles(access: QuitFlushAccess): Promise<void> {
   const storageIds = new Set<string>()
   for (const workspace of access.mcpTabGroups().values()) {
