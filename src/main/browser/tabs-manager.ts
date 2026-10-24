@@ -195,6 +195,7 @@ import {
   Menu,
   powerMonitor,
   screen,
+  webContents as electronWebContents,
   WebContentsView,
   type LoadURLOptions,
   type MenuItemConstructorOptions,
@@ -430,7 +431,7 @@ import { attachDevToolsEvents } from './devtools/devtools-events.js'
 import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
 import type { PageNavigationAccess } from './page-navigation/page-navigation-access.js'
-import { back, forward, goToHistoryEntry, navigate, reload, reloadIgnoringCache, stop } from './page-navigation/page-navigation.js'
+import { back, forward, goToHistoryEntry, navigate, reload, reloadIgnoringCache, stop, stopFocusedPageLoading } from './page-navigation/page-navigation.js'
 import type { PageZoomAccess } from './page-zoom/page-zoom-access.js'
 import { setZoom } from './page-zoom/page-zoom.js'
 import type { PageWheelZoomAccess } from './page-zoom/page-wheel-zoom-access.js'
@@ -3283,6 +3284,11 @@ export class BrowserTabsManager {
     return {
       getTab: (tabId) => this.getTab(tabId),
       findTab: (tabId) => this.tabs.get(tabId),
+      focusedTab: () => {
+        const focused = electronWebContents.getFocusedWebContents()
+        const tabId = focused ? this.webContentsToTab.get(focused.id) : undefined
+        return tabId ? this.tabs.get(tabId) : undefined
+      },
       searchEngine: () => this.options.getSearchEngine?.(),
       assertWorkspaceNavigationAllowed: (groupId, url, source) => this.assertWorkspaceNavigationAllowed(groupId, url, source),
       workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
@@ -3595,6 +3601,10 @@ export class BrowserTabsManager {
 
   stop(tabId?: string): BrowserState {
     return stop(this.pageNavigationAccess(), tabId)
+  }
+
+  stopFocusedPageLoading(): void {
+    stopFocusedPageLoading(this.pageNavigationAccess())
   }
 
   /**

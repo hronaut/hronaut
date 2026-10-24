@@ -873,6 +873,7 @@ export const plPL = {
       "forward": "Przejdź do następnej strony",
       "reload": "Odśwież bieżącą witrynę",
       "reloadFresh": "Odśwież bez plików z pamięci podręcznej",
+      "stop": "Zatrzymaj ładowanie strony",
       "newTab": "Otwórz nową kartę",
       "closeTab": "Zamknij bieżącą kartę",
       "reopenTab": "Otwórz ponownie ostatnio zamkniętą kartę",

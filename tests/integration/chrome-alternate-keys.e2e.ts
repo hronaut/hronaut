@@ -1,4 +1,4 @@
-import { createServer } from 'node:http'
+import { createServer, type ServerResponse } from 'node:http'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeFixtureServer } from './fixtures.js'
 import { expect, test, text } from './capability-fixtures.js'
@@ -291,6 +291,87 @@ test('F5, Shift+F5, Ctrl+F5, Alt+D, Ctrl+E, Alt+Home, F6, Ctrl+F4 and Ctrl+Page 
     await expect.poll(() => path(tabId)).toBe('/editor')
     expect((await state()).activeTabId).toBe(tabId)
   } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('Escape stops a page that is loading, as in Chrome, unless the page runs the key itself, and Escape in Hronaut\'s window or from an agent leaves the page loading', async ({ capabilities, appWindow, electronApp }) => {
+  test.skip(process.platform === 'darwin', 'Hronaut keeps these keys from the page only on Windows and Linux; the unit tests cover macOS')
+  const { client, tabId } = capabilities
+  const hanging: ServerResponse[] = []
+  const server = createServer((request, response) => {
+    // Its server never answers for the image, so the page never finishes loading.
+    if (request.url === '/never.png') {
+      hanging.push(response)
+      return
+    }
+    // Every page notes the keys it gets; /editor runs Escape itself, as a web editor does.
+    const editor = request.url?.startsWith('/editor') === true
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.end(`<!doctype html><title>${request.url}</title><script>window.keys = []; addEventListener('keydown', (event) => {
+      window.keys.push(event.key)
+      if (${editor} && event.key === 'Escape') event.preventDefault()
+    })</script><img src="/never.png" alt="">`)
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture port')
+  const origin = `http://127.0.0.1:${address.port}`
+  try {
+    type State = { tabs: Array<{ id: string, url: string, loading: boolean }> }
+    const tab = async () => ((await appWindow.evaluate(`window.hronaut.getState()`)) as State).tabs.find(entry => entry.id === tabId)!
+    const keys = async () => electronApp.evaluate(({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+      // The frame's own executeJavaScript, which Electron does not hold until the page stops loading.
+      return page?.mainFrame.executeJavaScript('window.keys?.slice()') as Promise<string[] | undefined>
+    }, (await tab()).url)
+    const press = async () => electronApp.evaluate(({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+      if (!page) throw new Error('Page web contents was not found')
+      page.focus()
+      page.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+      page.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+    }, (await tab()).url)
+    const visit = async (to: string) => {
+      await appWindow.evaluate(`void window.hronaut.navigate({ url: ${JSON.stringify(origin + to)}, tabId: ${JSON.stringify(tabId)} })`)
+      await expect.poll(async () => (await tab()).url).toBe(origin + to)
+      await expect.poll(keys).toEqual([])
+      expect((await tab()).loading).toBe(true)
+    }
+
+    await visit('/page')
+    // An agent's Escape stays with the page.
+    const pressed = await client.callTool({ name: 'browser_press', arguments: { tabId, key: 'Escape' } }) as CallToolResult
+    expect(pressed.isError, text(pressed)).not.toBe(true)
+    await expect.poll(keys).toEqual(['Escape'])
+    await appWindow.waitForTimeout(500)
+    expect((await tab()).loading).toBe(true)
+    // Escape in Hronaut's own window closes what is open there and leaves the page loading.
+    const addressBar = appWindow.getByRole('combobox', { name: 'Address', exact: true })
+    await addressBar.focus()
+    await expect(addressBar).toBeFocused()
+    // As the keyboard sends it, so a key the window leaves alone would reach the application menu.
+    await electronApp.evaluate(({ BrowserWindow }, url) => {
+      const shell = BrowserWindow.getAllWindows().find((window) => window.webContents.getURL() === url)!.webContents
+      shell.focus()
+      shell.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+      shell.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+    }, appWindow.url())
+    await appWindow.waitForTimeout(500)
+    expect((await tab()).loading).toBe(true)
+    // The person's Escape on the page stops it.
+    await press()
+    await expect.poll(async () => (await tab()).loading).toBe(false)
+    expect(await keys()).toEqual(['Escape', 'Escape'])
+
+    // A page that runs Escape itself keeps it, and keeps loading.
+    await visit('/editor')
+    await press()
+    await expect.poll(keys).toEqual(['Escape'])
+    await appWindow.waitForTimeout(500)
+    expect((await tab()).loading).toBe(true)
+  } finally {
+    for (const response of hanging) response.end()
     await closeFixtureServer(server)
   }
 })

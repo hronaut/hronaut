@@ -873,6 +873,7 @@ export const esES = {
       "forward": "Ir a la página siguiente",
       "reload": "Recargar el sitio actual",
       "reloadFresh": "Recargar sin archivos en caché",
+      "stop": "Detener la carga de la página",
       "newTab": "Abrir una pestaña nueva",
       "closeTab": "Cerrar la pestaña actual",
       "reopenTab": "Volver a abrir la última pestaña cerrada",

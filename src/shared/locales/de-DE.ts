@@ -873,6 +873,7 @@ export const deDE = {
       "forward": "Zur nächsten Seite vorwärtsgehen",
       "reload": "Aktuelle Website neu laden",
       "reloadFresh": "Ohne zwischengespeicherte Dateien neu laden",
+      "stop": "Laden der Seite stoppen",
       "newTab": "Neuen Tab öffnen",
       "closeTab": "Aktuellen Tab schließen",
       "reopenTab": "Zuletzt geschlossenen Tab wieder öffnen",

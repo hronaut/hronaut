@@ -441,6 +441,18 @@ describe('the application menu\'s other keys', () => {
     ]) expect(menuKey(key), JSON.stringify(key)).toBe(false)
   })
 
+  it('are Escape elsewhere than macOS, which stops the page in focus loading once it leaves the key alone', () => {
+    // Escape did nothing on a loading page, where Chrome stops it. Hronaut's window runs Escape itself, to close what is
+    // open there, so it is no shortcut.
+    expect(menuKey({ key: 'Escape', code: 'Escape' })).toBe(true)
+    expect(isBrowserKey(input({ key: 'Escape', code: 'Escape', repeat: true }))).toBe(true)
+    expect(browserShortcutAction(input({ key: 'Escape', code: 'Escape' }))).toBeNull()
+    expect(websiteKeptShortcutAction(input({ key: 'Escape', code: 'Escape' }))).toBeNull()
+    for (const modifiers of [{ shift: true }, { control: true }, { alt: true }, { meta: true }, { repeat: true }, { composing: true }, { mac: true }]) {
+      expect(menuKey({ key: 'Escape', code: 'Escape', ...modifiers }), JSON.stringify(modifiers)).toBe(false)
+    }
+  })
+
   it('are the same with Command on macOS, with Find Next and Find Previous', () => {
     for (const key of [
       { key: 'p', code: 'KeyP', meta: true }, { key: 's', code: 'KeyS', meta: true }, { key: 'g', code: 'KeyG', meta: true },

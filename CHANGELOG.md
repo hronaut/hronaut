@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 - On Windows and Linux, **F6** and **Shift+F6** go from the page to the address bar and from Hronaut's window back to the page, as in Chrome, so the keyboard alone can return to the page from the address bar or the tab list. From Home, which has no address bar, they go to Hronaut's window. A website that handles the key itself keeps it.
 - On Windows and Linux, **Ctrl+F4** closes the tab in view, as **Ctrl+W** does and as in Chrome, from the page or from Hronaut's window.
 - On Windows and Linux, **Ctrl+E** goes to the address bar and **Alt+Home** opens Home, as in Chrome, from the page or from Hronaut's window. A website that handles one of these keys itself, such as a web document editor centring a paragraph with **Ctrl+E**, keeps it.
+- On Windows and Linux, **Esc** pressed on a page that is loading stops it, as in Chrome. A website that handles the key itself, such as a web code editor, keeps it, and **Esc** in Hronaut's window or from an agent leaves the page loading.
 
 ### Changed
 

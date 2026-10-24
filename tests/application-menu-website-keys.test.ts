@@ -14,16 +14,18 @@ function menu(on: NodeJS.Platform) {
   Object.defineProperty(process, 'platform', { value: on })
   const runShortcut = vi.fn()
   const runPageNextPane = vi.fn()
+  const stopFocusedPageLoading = vi.fn()
   // A page in the main window has the keyboard, rather than Hronaut's own window.
   const shellFocused = { value: false }
   const mainWindow = { id: 1, webContents: { isFocused: () => shellFocused.value } }
   createApplicationMenu({
     text: (key) => key, showWindow: vi.fn(), mainWindow: () => mainWindow as never, checkForUpdates: vi.fn(), requestQuit: vi.fn(),
-    runNativeBrowserAction: vi.fn(), runShortcut, runPageNextPane, tabs: () => null
+    runNativeBrowserAction: (_action, callback) => { callback() }, runShortcut, runPageNextPane,
+    tabs: () => ({ stopFocusedPageLoading }) as never
   }).installApplicationMenu()
   const view = installed.template.find((candidate) => candidate.label === 'native.menu.view')!.submenu!
   const key = (accelerator: string) => view.find((item) => item.accelerator === accelerator)
-  return { runShortcut, runPageNextPane, shellFocused, mainWindow, view, key }
+  return { runShortcut, runPageNextPane, stopFocusedPageLoading, shellFocused, mainWindow, view, key }
 }
 
 describe('Chrome\'s keys a website may keep', () => {
@@ -61,16 +63,32 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(runShortcut).not.toHaveBeenCalled()
   })
 
+  it('stop the page in focus loading with Escape, in main rather than in Hronaut\'s window', () => {
+    // Escape did nothing on a loading page, where Chrome stops it once the page leaves the key alone.
+    const { runShortcut, stopFocusedPageLoading, mainWindow, key } = menu('linux')
+    const item = key('Escape')!
+    expect(item.visible).toBe(false)
+    item.click!(item, mainWindow, { triggeredByAccelerator: true })
+    expect(stopFocusedPageLoading).toHaveBeenCalledOnce()
+    expect(runShortcut).not.toHaveBeenCalled()
+    // Typed in a panel in its own window, it would stop no page there.
+    item.click!(item, { id: 2, webContents: {} }, { triggeredByAccelerator: true })
+    expect(stopFocusedPageLoading).toHaveBeenCalledOnce()
+    expect(menu('win32').key('Escape')).toBeDefined()
+    expect(menu('darwin').key('Escape')).toBeUndefined()
+  })
+
   it('do nothing for a key Hronaut\'s own window left alone, as under one of its dialogs', () => {
     // Hronaut's window runs these keys itself; F6 under its dialog moved the keyboard out of the dialog to the address bar.
-    const { runShortcut, runPageNextPane, shellFocused, mainWindow, key } = menu('linux')
+    const { runShortcut, runPageNextPane, stopFocusedPageLoading, shellFocused, mainWindow, key } = menu('linux')
     shellFocused.value = true
-    for (const accelerator of ['F5', 'Alt+D', 'Ctrl+E', 'Alt+Home', 'F6', 'F3', 'Ctrl+Shift+PageDown']) {
+    for (const accelerator of ['F5', 'Escape', 'Alt+D', 'Ctrl+E', 'Alt+Home', 'F6', 'F3', 'Ctrl+Shift+PageDown']) {
       const item = key(accelerator)!
       item.click!(item, mainWindow, { triggeredByAccelerator: true })
     }
     expect(runShortcut).not.toHaveBeenCalled()
     expect(runPageNextPane).not.toHaveBeenCalled()
+    expect(stopFocusedPageLoading).not.toHaveBeenCalled()
   })
 
   it('act only as keys of the main window', () => {

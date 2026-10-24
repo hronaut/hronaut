@@ -34,6 +34,7 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     ...(mac ? [] : [{ label: options.translate('shell.home.open'), keys: ['Alt', 'Home'] }]),
     { label: options.translate('runtime.shortcuts.reload'), keys: ['Ctrl/Cmd', 'R'] },
     { label: options.translate('runtime.shortcuts.reloadFresh'), keys: ['Ctrl/Cmd', 'Shift', 'R'] },
+    ...(mac ? [] : [{ label: options.translate('runtime.shortcuts.stop'), keys: ['Esc'] }]),
     { label: options.translate('runtime.shortcuts.newTab'), keys: ['Ctrl/Cmd', 'T'] },
     { label: options.translate('runtime.shortcuts.closeTab'), keys: ['Ctrl/Cmd', 'W'] },
     { label: options.translate('runtime.shortcuts.reopenTab'), keys: ['Ctrl/Cmd', 'Shift', 'T'] },

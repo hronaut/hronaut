@@ -31,6 +31,8 @@ export interface PageNavigationTab {
 export interface PageNavigationAccess<Tab extends PageNavigationTab> {
   getTab(tabId?: string): Tab
   findTab(tabId: string): Tab | undefined
+  /** The tab whose page has the keyboard, if a tab's page has it. */
+  focusedTab(): Tab | undefined
   searchEngine(): SearchEngineName | undefined
   assertWorkspaceNavigationAllowed(groupId: string, url: string, source: BrowserWorkspaceNavigationAuditSource): void
   workspaceNavigationAllowed(groupId: string, url: string, source: BrowserWorkspaceNavigationAuditSource): boolean
