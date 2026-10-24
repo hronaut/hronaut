@@ -243,6 +243,7 @@ const {
   tabs: () => tabRuntime.tabs,
   workspaceStartupFailure: () => tabRuntime.startupFailure,
   mainWindowRefs,
+  showDialog: (options) => trustedDialogs.show(options),
   text: (key, parameters) => text(key, parameters)
 })
 const mcpPauseState = new McpPauseState()

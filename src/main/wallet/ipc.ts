@@ -37,7 +37,7 @@ function walletIdentifier(value: unknown, label: string): string {
   return value
 }
 
-/** Services are looked up per request; native recovery confirmation stays with the window owner. */
+/** Services are looked up per request; the recovery confirmation stays with the main window. */
 export function registerWalletIpc(ipcMain: Pick<IpcMain, 'handle'>, host: WalletIpcHost): void {
   const requireWalletService = (): WalletIpcService => {
     const service = host.service()

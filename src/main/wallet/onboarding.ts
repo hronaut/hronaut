@@ -23,12 +23,12 @@ async function discardUnconfirmedWallet(service: WalletOnboardingService, wallet
 export async function generateWalletWithRecoveryConfirmation(
   service: WalletOnboardingService,
   input: WalletCreateInput,
-  requestConfirmation: (recoveryMaterial: string) => Promise<boolean>
+  requestConfirmation: (recoveryMaterial: string, wallet: WalletDescriptor) => Promise<boolean>
 ): Promise<WalletDescriptor> {
   const generated = await service.generate(input)
   let accepted: boolean
   try {
-    accepted = await requestConfirmation(generated.recoveryMaterial)
+    accepted = await requestConfirmation(generated.recoveryMaterial, generated.wallet)
   } catch {
     await discardUnconfirmedWallet(service, generated.wallet.id)
     throw new LocalizedError('appErrors.wallet.recoveryFailed')

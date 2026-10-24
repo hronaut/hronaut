@@ -6,7 +6,9 @@ import { promisify } from 'node:util'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { ElectronApplication, Page } from '@playwright/test'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { answerTrustedDialog, trustedDialog } from './trusted-dialog-fixture.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -353,65 +355,91 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   }
 })
 
-test('discards a generated wallet when recovery material is not confirmed', async ({ appWindow, electronApp }) => {
+/** Sets the wallet vault up once, so a wallet can be generated. */
+async function readyWalletVault(appWindow: Page): Promise<void> {
   await appWindow.evaluate(`(async () => {
     const status = await window.hronautWallets.status()
     if (status.managedWallets === 'passphrase-setup-required') {
       await window.hronautWallets.setupPassphrase('docker-wallet-test-passphrase')
     }
   })()`)
-  await electronApp.evaluate(({ dialog }) => {
-    dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
-  })
+}
 
-  await expect(appWindow.evaluate(`window.hronautWallets.generate({
-    name: 'Discarded wallet',
+/** Starts generating a wallet; the promise settles with the wallet or the error's message once its dialog is answered. */
+function generateWallet(appWindow: Page, name: string): Promise<{ wallet?: { name: string, recoveryConfirmed: boolean }, error?: string }> {
+  return appWindow.evaluate(`window.hronautWallets.generate({
+    name: ${JSON.stringify(name)},
     chainFamily: 'evm',
     network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
     workspaceIds: []
-  })`)).rejects.toThrow('Wallet creation cancelled before recovery confirmation')
-  await expect.poll(() => appWindow.evaluate('window.hronautWallets.list()')).toEqual([])
-})
+  }).then((wallet) => ({ wallet }), (error) => ({ error: error.message }))`)
+}
 
-test('asks for recovery confirmation in the interface language without the phrase leaving the dialog', async ({ appWindow, electronApp }) => {
-  // The recovery phrase dialog, its warning and its buttons were in English whatever the interface language.
-  await appWindow.evaluate(`(async () => {
-    const status = await window.hronautWallets.status()
-    if (status.managedWallets === 'passphrase-setup-required') {
-      await window.hronautWallets.setupPassphrase('docker-wallet-test-passphrase')
-    }
-  })()`)
-  await appWindow.evaluate("window.hronautSettings.setLanguagePreference('uk-UA')")
-  await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
+/** Records every system dialog main shows from now on, answering each with its cancel button. */
+async function recordSystemDialogs(electronApp: ElectronApplication): Promise<void> {
   await electronApp.evaluate(({ dialog }) => {
+    const shown: string[] = []
+    ;(globalThis as typeof globalThis & { __systemDialogs?: string[] }).__systemDialogs = shown
     dialog.showMessageBox = async (...args: unknown[]) => {
       const options = args.at(-1) as Electron.MessageBoxOptions
-      const [phrase = '', warning] = (options.detail ?? '').split('\n\n')
-      const text = [options.title, options.message, ...(options.buttons ?? []), warning]
-      const phraseInText = !phrase || text.some((part) => part?.includes(phrase))
-      // Only the dialog's own text and the phrase's word count leave this stub, and no text at all if the phrase moved into it.
-      ;(globalThis as typeof globalThis & { __walletRecoveryDialog?: unknown }).__walletRecoveryDialog = phraseInText
-        ? { phraseInText }
-        : { title: options.title, message: options.message, buttons: options.buttons, warning, phraseWords: phrase.split(' ').length }
-      return { response: 1, checkboxChecked: false }
+      shown.push(options.title ?? options.message)
+      return { response: options.cancelId ?? 0, checkboxChecked: false }
     }
   })
+}
 
-  await expect(appWindow.evaluate(`window.hronautWallets.generate({
-    name: 'Discarded wallet',
-    chainFamily: 'evm',
-    network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
-    workspaceIds: []
-  })`)).rejects.toThrow('Створення гаманця скасовано до підтвердження фрази відновлення.')
+const systemDialogs = (electronApp: ElectronApplication) => electronApp.evaluate(() => (
+  (globalThis as typeof globalThis & { __systemDialogs?: string[] }).__systemDialogs ?? []
+))
+
+test('shows a generated wallet’s recovery phrase in Hronaut’s own dialog and keeps the wallet once it is saved', async ({ appWindow, electronApp }, testInfo) => {
+  // The phrase was shown in a system dialog.
+  await readyWalletVault(appWindow)
+  await recordSystemDialogs(electronApp)
+  const generated = generateWallet(appWindow, 'Kept wallet')
+  const dialog = trustedDialog(appWindow)
+  await expect(dialog).toHaveAttribute('data-variant', 'wallet-recovery')
+  await expect(dialog.locator('h2')).toHaveText('Write down the recovery phrase for Kept wallet')
+  const phrase = dialog.getByRole('list', { name: 'Recovery phrase' })
   // The wallet generator always makes a 12-word phrase.
-  expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __walletRecoveryDialog?: unknown }).__walletRecoveryDialog)).toEqual({
-    title: 'Збережіть дані відновлення гаманця',
-    message: 'Запишіть цю фразу відновлення й зберігайте її офлайн.',
-    buttons: ['Фразу збережено', 'Ще ні'],
-    warning: 'Hronaut не зможе відновити цю фразу. Ніколи не передавайте її вебсайту чи агенту програмування.',
-    phraseWords: 12
-  })
+  await expect(phrase.getByRole('listitem')).toHaveCount(12)
+  expect(await phrase.evaluate((list) => getComputedStyle(list).userSelect)).toBe('none')
+  await expect(dialog.getByRole('button', { name: 'Not yet', exact: true })).toBeFocused()
+  await appWindow.screenshot({ path: testInfo.outputPath('wallet-recovery-dialog.png') })
+  await answerTrustedDialog(appWindow, 'I saved it')
+  await expect(dialog).toBeHidden()
+  expect(await generated).toEqual({ wallet: expect.objectContaining({ name: 'Kept wallet', recoveryConfirmed: true }) })
+  expect(await systemDialogs(electronApp)).toEqual([])
+})
+
+test('discards a generated wallet when recovery material is not confirmed', async ({ appWindow, electronApp }) => {
+  await readyWalletVault(appWindow)
+  await recordSystemDialogs(electronApp)
+  const generated = generateWallet(appWindow, 'Discarded wallet')
+  await expect(trustedDialog(appWindow)).toHaveAttribute('data-variant', 'wallet-recovery')
+  await answerTrustedDialog(appWindow, 'Not yet')
+  // The renderer reads the error with Electron's "Error invoking remote method" prefix.
+  expect(await generated).toEqual({ error: expect.stringContaining('Wallet creation cancelled before recovery confirmation') })
   await expect.poll(() => appWindow.evaluate('window.hronautWallets.list()')).toEqual([])
+  expect(await systemDialogs(electronApp)).toEqual([])
+})
+
+test('asks for recovery confirmation in the interface language', async ({ appWindow, electronApp }) => {
+  // The recovery phrase dialog, its warning and its buttons were in English whatever the interface language.
+  await readyWalletVault(appWindow)
+  await recordSystemDialogs(electronApp)
+  await appWindow.evaluate("window.hronautSettings.setLanguagePreference('uk-UA')")
+  await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
+  const generated = generateWallet(appWindow, 'Discarded wallet')
+  const dialog = trustedDialog(appWindow)
+  await expect(dialog.locator('h2')).toHaveText('Запишіть фразу відновлення для Discarded wallet')
+  await expect(dialog.getByRole('list', { name: 'Фраза відновлення' }).getByRole('listitem')).toHaveCount(12)
+  await expect(dialog).toContainText('Hronaut не зможе відновити цю фразу. Ніколи не передавайте її вебсайту чи агенту програмування.')
+  await expect(dialog.locator('.ui-dialog__footer').getByRole('button')).toHaveText(['Фразу збережено', 'Ще ні'])
+  await answerTrustedDialog(appWindow, 'Ще ні')
+  expect(await generated).toEqual({ error: expect.stringContaining('Створення гаманця скасовано до підтвердження фрази відновлення.') })
+  await expect.poll(() => appWindow.evaluate('window.hronautWallets.list()')).toEqual([])
+  expect(await systemDialogs(electronApp)).toEqual([])
 })
 
 test('shows a selectable wallet list and readable tabs across themes and translated layouts', async ({ appWindow }, testInfo) => {
