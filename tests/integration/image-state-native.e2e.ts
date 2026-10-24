@@ -8,6 +8,8 @@ test('probes native image scalars without page accessors or loading mutations', 
   const requests: string[] = []
   const server = createServer((request, response) => {
     const url = new URL(request.url!, 'http://fixture')
+    // Whether the page's request for a path has come, so the test reads a pending image only once it is asked for.
+    if (url.pathname === '/seen') { response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify(requests.includes(url.searchParams.get('path')!))); return }
     requests.push(url.pathname)
     if (url.pathname === '/pending') return
     if (url.pathname === '/broken') { response.writeHead(404); response.end('not image'); return }
@@ -65,6 +67,11 @@ test('probes native image scalars without page accessors or loading mutations', 
         const after = await page.executeJavaScript('({calls,methods,mutations,focuses,x:scrollX,y:scrollY})')
         for (const kind of ['broken', 'pending', 'srcset', 'density', 'data', 'blob', 'picture']) {
           await page.executeJavaScript(`prepare(${JSON.stringify(kind)})`)
+          // The pending image's request can still be on its way when its src is set, and the next src would cancel it
+          // before it is sent; wait until the server has it.
+          for (let attempt = 0; kind === 'pending' && attempt < 250 && !(await (await fetch(`${origin}/seen?path=/pending`)).json() as boolean); attempt += 1) {
+            await new Promise(resolve => setTimeout(resolve, 20))
+          }
           rows.push({ scenario: kind, state: await read('#target') })
         }
         await page.executeJavaScript(`lazy.src=${JSON.stringify(origin + '/lazy?token=private-canary')}`)
