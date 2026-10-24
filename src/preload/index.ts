@@ -329,6 +329,7 @@ const downloadsApi: HronautDownloadsApi = {
   removeFinished: (downloadId: string) => ipcRenderer.invoke('downloads:remove-finished', downloadId),
   clearFinished: () => ipcRenderer.invoke('downloads:clear-finished'),
   showInFolder: (downloadId: string) => ipcRenderer.invoke('downloads:show-in-folder', downloadId),
+  startDrag: (downloadId: string) => ipcRenderer.invoke('downloads:start-drag', downloadId),
   onChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, downloads: import('../shared/types.js').BrowserDownloadState[]): void => listener(downloads)
     ipcRenderer.on('browser:downloads-changed', handler)

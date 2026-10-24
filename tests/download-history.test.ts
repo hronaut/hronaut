@@ -8,7 +8,11 @@ import { DownloadHistoryStore, savedDownloads, type SavedDownload } from '../src
 import { BrowserDownloadsController } from '../src/main/browser/downloads-controller.js'
 import type { BrowserDownloadState } from '../src/shared/types.js'
 
-vi.mock('electron', () => ({ shell: { showItemInFolder: vi.fn() } }))
+vi.mock('electron', () => ({
+  shell: { showItemInFolder: vi.fn() },
+  app: { getFileIcon: vi.fn(async () => ({ isEmpty: () => false })) },
+  nativeImage: { createFromBitmap: vi.fn(() => ({ isEmpty: () => false })) }
+}))
 const atomicWrite = vi.hoisted(() => ({ failing: false, calls: 0 }))
 vi.mock('../src/main/atomic-file.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/main/atomic-file.js')>()

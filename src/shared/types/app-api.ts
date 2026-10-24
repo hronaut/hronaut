@@ -83,6 +83,8 @@ export interface HronautDownloadsApi {
   removeFinished(downloadId: string): Promise<BrowserDownloadState[]>
   clearFinished(): Promise<BrowserDownloadState[]>
   showInFolder(downloadId: string): Promise<void>
+  /** Drags a completed download's file out of this window, as from Chrome's downloads; call it on the row's dragstart. */
+  startDrag(downloadId: string): Promise<void>
   onChanged(listener: (downloads: BrowserDownloadState[]) => void): () => void
 }
 

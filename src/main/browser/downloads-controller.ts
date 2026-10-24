@@ -8,6 +8,7 @@ import { redactNetworkUrl } from '../../shared/network-details.js'
 import { isWindowsReservedFilename } from '../../shared/portable-filename.js'
 import type { BrowserDownloadAction, BrowserDownloadState } from '../../shared/types.js'
 import { LocalizedError } from '../localized-error.js'
+import { DownloadDragIcons } from './download-drag-icons.js'
 import { savedDownloads, type DownloadHistoryStore, type SavedDownload } from './download-history/download-history.js'
 import { SavedLinkNames, savedLinkFilename, staysOnOrigin } from './saved-link-names.js'
 
@@ -135,6 +136,7 @@ export class BrowserDownloadsController {
   private fileCheckRunning = false
   private fileCheckRequested = false
   private readonly savedLinkNames = new SavedLinkNames()
+  private readonly dragIcons = new DownloadDragIcons()
   /** Where the download history is kept for the next start, once the history it kept is back, so no save loses it. */
   private history: DownloadHistoryStore | undefined
   private historySaveTimer: NodeJS.Timeout | null = null
@@ -531,6 +533,25 @@ export class BrowserDownloadsController {
     shell.showItemInFolder(savePath)
   }
 
+  /**
+   * Drags a completed download's file out of the Downloads panel, as from Chrome's downloads, to a folder, another app
+   * or a page, with the file's own icon. The drag starts from the window the panel is in, and only once its file is
+   * checked to be there; the page or app it is dropped on gets the file as from the person's own folder. The person
+   * holds the pointer until it starts, so the check and the icon, usually read when the file finished, wait together.
+   */
+  async startDownloadDrag(downloadId: string, sender: WebContents): Promise<void> {
+    const download = this.downloads.get(downloadId)
+    if (!download) throw new LocalizedError('appErrors.downloads.unavailable')
+    const savePath = download.state === 'completed' ? download.savePath : undefined
+    if (!savePath) throw new LocalizedError('appErrors.downloads.dragNotCompleted')
+    const [present, icon] = await Promise.all([this.checkFile(download, savePath, true), this.dragIcons.icon(savePath)])
+    if (this.downloads.get(downloadId) !== download) throw new LocalizedError('appErrors.downloads.unavailable')
+    if (!present) throw new LocalizedError('appErrors.downloads.dragFileRemoved')
+    // The panel's window closed meanwhile, so nothing is left to drag from.
+    if (sender.isDestroyed()) return
+    sender.startDrag({ file: savePath, icon })
+  }
+
   attachSession(browserSession: Session): void {
     if (!this.destroyed && !this.downloadHookSessions.has(browserSession)) {
       const onWillDownload = (event: Event, item: DownloadItem, webContents: WebContents) => {
@@ -644,6 +665,8 @@ export class BrowserDownloadsController {
           download.canResume = false
           download.completedAt = new Date().toISOString()
           if (state === 'completed' && download.savePath) this.recordCompletedFile(id, download.savePath)
+          // Read now, so a drag out of Downloads starts at once.
+          if (state === 'completed' && download.savePath) void this.dragIcons.icon(download.savePath)
           // Only a download that did not complete is downloaded again, so a completed one's address is not kept.
           if (state === 'completed') this.retryUrls.delete(id)
           this.downloadItems.delete(id)

@@ -260,7 +260,9 @@ export const frFRAppErrors: AppErrorMessages = {
     "notResumable": "Ce téléchargement ne peut pas être repris.",
     "notRetryable": "Ce téléchargement ne peut pas être réessayé.",
     "notCompleted": "Seul un téléchargement terminé peut être affiché dans son dossier.",
-    "fileRemoved": "Ce fichier a été déplacé ou supprimé : il ne peut donc pas être affiché dans son dossier."
+    "fileRemoved": "Ce fichier a été déplacé ou supprimé : il ne peut donc pas être affiché dans son dossier.",
+    "dragNotCompleted": "Seul un téléchargement terminé peut être glissé.",
+    "dragFileRemoved": "Ce fichier a été déplacé ou supprimé : il ne peut donc pas être glissé."
   },
   "taskManager": {
     "cannotEnd": "Ce processus ne peut pas être arrêté ; il est peut-être déjà terminé."

@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { access, lstat, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
-import type { DownloadItem, Session } from 'electron'
+import type { DownloadItem, NativeImage, Session, WebContents } from 'electron'
 import { afterEach, expect, it, vi } from 'vitest'
 import { BrowserDownloadsController } from '../src/main/browser/downloads-controller.js'
 import { LocalizedError } from '../src/main/localized-error.js'
@@ -20,7 +20,11 @@ vi.mock('node:fs/promises', async importOriginal => {
   return { ...actual, access: vi.fn(actual.access) }
 })
 
-vi.mock('electron', () => ({ shell: { showItemInFolder: vi.fn() } }))
+vi.mock('electron', () => ({
+  shell: { showItemInFolder: vi.fn() },
+  app: { getFileIcon: vi.fn(async () => ({ icon: 'file', isEmpty: () => false })) },
+  nativeImage: { createFromBitmap: vi.fn(() => ({ icon: 'page', isEmpty: () => false })) }
+}))
 
 const cleanups: (() => Promise<void> | void)[] = []
 afterEach(async () => {
@@ -683,6 +687,79 @@ it('checks finished files when a new download opens the panel', async () => {
   await rm(savePath)
   download(1, false, 'https://download.example/b.txt', 'b.txt')
   await vi.waitFor(() => expect(controller.listDownloads().find(item => item.filename === 'a.txt')?.fileRemoved).toBe(true))
+})
+
+it('drags a finished file out from the window it is dragged in, with its icon, and says when the file is gone', async () => {
+  const { app } = await import('electron')
+  const { controller, download, published } = await fixture()
+  const sender = { isDestroyed: () => false, startDrag: vi.fn() }
+  const drag = (id: string) => controller.startDownloadDrag(id, sender as unknown as WebContents)
+  download().complete()
+  const [entry] = controller.listDownloads()
+  const iconReads = () => vi.mocked(app.getFileIcon).mock.calls.filter(([path]) => path === entry!.savePath)
+  // The icon is read when the file finishes, so a drag does not wait for it while the person holds the pointer.
+  expect(iconReads()).toEqual([[entry!.savePath, { size: 'normal' }]])
+  await writeFile(entry!.savePath!, 'saved')
+  await drag(entry!.id)
+  expect(sender.startDrag).toHaveBeenCalledExactlyOnceWith({ file: entry!.savePath, icon: expect.objectContaining({ icon: 'file' }) })
+  await drag(entry!.id)
+  expect(sender.startDrag).toHaveBeenCalledTimes(2)
+  expect(iconReads()).toHaveLength(1)
+  await rm(entry!.savePath!)
+  const failure = await drag(entry!.id).catch((error: unknown) => error)
+  expect(failure).toBeInstanceOf(LocalizedError)
+  expect((failure as LocalizedError).key).toBe('appErrors.downloads.dragFileRemoved')
+  expect((failure as Error).message).toBe('This file was moved or deleted, so it cannot be dragged.')
+  expect(published.at(-1)?.[0]?.fileRemoved).toBe(true)
+  expect(sender.startDrag).toHaveBeenCalledTimes(2)
+  await expect(drag('gone')).rejects.toThrow('This download is no longer in the list.')
+})
+
+it('drags only a completed download, and not into a window that closed meanwhile', async () => {
+  const { controller, download } = await fixture()
+  const sender = { isDestroyed: vi.fn(() => false), startDrag: vi.fn() }
+  const drag = (id: string) => controller.startDownloadDrag(id, sender as unknown as WebContents)
+  const transfer = download()
+  const [entry] = controller.listDownloads()
+  const refusal = await drag(entry!.id).catch((error: unknown) => error)
+  expect((refusal as LocalizedError).key).toBe('appErrors.downloads.dragNotCompleted')
+  expect((refusal as Error).message).toBe('Only a completed download can be dragged.')
+  transfer.complete()
+  const [done] = controller.listDownloads()
+  await writeFile(done!.savePath!, 'saved')
+  sender.isDestroyed.mockReturnValue(true)
+  await drag(done!.id)
+  expect(sender.startDrag).not.toHaveBeenCalled()
+})
+
+it('drags nothing out of a download removed while its file is checked or its icon read', async () => {
+  const { app } = await import('electron')
+  const { controller, download } = await fixture()
+  const sender = { isDestroyed: () => false, startDrag: vi.fn() }
+  const drag = (id: string) => controller.startDownloadDrag(id, sender as unknown as WebContents)
+  // Removed while the file is checked.
+  download().complete()
+  const [checked] = controller.listDownloads()
+  await writeFile(checked!.savePath!, 'saved')
+  let finishCheck!: () => void
+  vi.mocked(access).mockImplementationOnce(() => new Promise<void>(resolve => { finishCheck = resolve }))
+  const whileChecked = drag(checked!.id).catch((error: unknown) => error)
+  await vi.waitFor(() => expect(access).toHaveBeenLastCalledWith(checked!.savePath))
+  controller.removeFinishedDownload(checked!.id)
+  finishCheck()
+  expect(((await whileChecked) as LocalizedError).key).toBe('appErrors.downloads.unavailable')
+  // Removed while its icon is still being read.
+  let finishIcon!: (icon: NativeImage) => void
+  vi.mocked(app.getFileIcon).mockImplementationOnce(() => new Promise(resolve => { finishIcon = resolve }))
+  download(1, false, 'https://download.example/b.txt', 'b.txt').complete()
+  const read = controller.listDownloads().find(item => item.filename === 'b.txt')
+  await writeFile(read!.savePath!, 'saved')
+  const whileRead = drag(read!.id).catch((error: unknown) => error)
+  await vi.waitFor(() => expect(access).toHaveBeenLastCalledWith(read!.savePath))
+  controller.removeFinishedDownload(read!.id)
+  finishIcon({ isEmpty: () => false } as NativeImage)
+  expect(((await whileRead) as LocalizedError).key).toBe('appErrors.downloads.unavailable')
+  expect(sender.startDrag).not.toHaveBeenCalled()
 })
 
 it('opens the folder of a finished file and says when the file was moved or deleted', async () => {

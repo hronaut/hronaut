@@ -53,6 +53,7 @@ const {
     :remove-finished="browserCollectionsController.removeFinishedDownload"
     :clear-finished="browserCollectionsController.clearFinishedDownloads"
     :show-in-folder="browserCollectionsController.revealDownload"
+    :start-drag="browserCollectionsController.startDownloadDrag"
     :copy-saved-path="copyDownloadPath"
   />
   <BookmarksPanel

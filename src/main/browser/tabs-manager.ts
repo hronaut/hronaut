@@ -4728,6 +4728,10 @@ export class BrowserTabsManager {
     return this.downloadController.showDownloadInFolder(downloadId)
   }
 
+  startDownloadDrag(downloadId: string, sender: WebContents): Promise<void> {
+    return this.downloadController.startDownloadDrag(downloadId, sender)
+  }
+
   /**
    * The narrow view a file upload gets of this manager's private tabs,
    * workspaces, inspection permissions, observation context, target
