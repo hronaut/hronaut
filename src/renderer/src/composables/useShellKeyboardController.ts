@@ -53,6 +53,7 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
     const input: BrowserShortcutInput = {
       key: event.key,
       code: event.code,
+      keyCode: event.keyCode,
       control: event.ctrlKey,
       meta: event.metaKey,
       alt: event.altKey,

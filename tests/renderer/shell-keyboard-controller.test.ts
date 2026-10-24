@@ -195,7 +195,10 @@ describe('useShellKeyboardController', () => {
       { key: 'ArrowLeft', code: 'ArrowLeft', altKey: true }, { key: 'ArrowRight', code: 'ArrowRight', altKey: true },
       { key: 'p', code: 'KeyP', ctrlKey: true }, { key: 's', code: 'KeyS', ctrlKey: true }, { key: 'u', code: 'KeyU', ctrlKey: true },
       { key: 'j', code: 'KeyJ', ctrlKey: true }, { key: '=', code: 'Equal', ctrlKey: true }, { key: '0', code: 'Digit0', ctrlKey: true },
-      { key: '?', code: 'Slash', ctrlKey: true, shiftKey: true }, { key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true, repeat: true }
+      { key: '?', code: 'Slash', ctrlKey: true, shiftKey: true }, { key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true, repeat: true },
+      // Zoom In's and Keyboard shortcuts' keys on a German keyboard, whose + and # keys have the menu's codes.
+      { key: '*', code: 'BracketRight', keyCode: 187, ctrlKey: true, shiftKey: true },
+      { key: "'", code: 'Backslash', keyCode: 191, ctrlKey: true, shiftKey: true }
     ]
     // The dialog's own keys, such as copying, selecting all, typing or moving the focus, stay with it.
     const dialogKeys: KeyboardEventInit[] = [
