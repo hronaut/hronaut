@@ -218,7 +218,8 @@ describe('the downloads controller keeping its history', () => {
       getSource: () => ({ tabId: 'tab', workspaceId: 'work', observationGeneration: 2 }),
       workspaceObservationGeneration: () => 2,
       isWorkspaceOpen: (workspaceId) => workspaceId === 'work',
-      workspaceSession: () => session as Session,
+      retrySession: () => session as Session,
+      allowsAddress: () => true,
       downloadReady: () => undefined,
       isAvailable: () => true,
       publish: (downloads) => { published.push(downloads) }

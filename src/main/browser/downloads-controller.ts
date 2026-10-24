@@ -40,6 +40,8 @@ function isRetryableUrl(downloadUrl: string): boolean {
 interface PendingRetry {
   url: string
   workspaceId: string
+  /** The workspace's observation when the retry was asked for, which the transfer keeps, as a page's download does. */
+  observationGeneration: number
   expiresAt: number
 }
 
@@ -64,10 +66,15 @@ interface BrowserDownloadsHost {
     observationGeneration: number
   }
   workspaceObservationGeneration(workspaceId: string): number
-  /** Whether the workspace is open, so a download of it can be downloaded again there. */
+  /** Whether the workspace is open and not being deleted, so a download of it can be downloaded again there. */
   isWorkspaceOpen(workspaceId: string): boolean
-  /** The open workspace's session, hooked as its pages' sessions are, which a retried download starts in. */
-  workspaceSession(workspaceId: string): Session
+  /**
+   * The open workspace's session, hooked as its pages' sessions are, which a retried download starts in, or undefined
+   * while the workspace is being deleted. Throws while another operation holds the workspace busy.
+   */
+  retrySession(workspaceId: string): Session | undefined
+  /** Whether the workspace's Site access allows the address, recording a denial as a blocked navigation does. */
+  allowsAddress(workspaceId: string, url: string, source: 'direct' | 'redirect'): boolean
   /**
    * Called once for each download, with the page it started from, when the download has its file: at once, or after
    * the save dialog when Hronaut asks where to save, or when it ends before that, such as when the person cancels the
@@ -201,10 +208,20 @@ export class BrowserDownloadsController {
     }, HISTORY_SAVE_MS)
   }
 
-  /** Leaves the downloads of a workspace deleted with its data out of the history kept for the next start. */
+  /**
+   * Leaves the downloads of a workspace deleted with its data out of the history kept for the next start, and drops its
+   * retries that have not started downloading, so none starts in its deleted storage.
+   */
   forgetWorkspace(workspaceId: string): void {
     if (this.destroyed) return
     this.deletedWorkspaceIds.add(workspaceId)
+    for (const [browserSession, pending] of this.pendingRetries) {
+      const kept = pending.filter((retry) => retry.workspaceId !== workspaceId)
+      if (kept.length) this.pendingRetries.set(browserSession, kept)
+      else this.pendingRetries.delete(browserSession)
+    }
+    // Its downloads no longer offer Retry.
+    this.notifyDownloadsChanged()
     this.scheduleHistorySave()
   }
 
@@ -436,10 +453,14 @@ export class BrowserDownloadsController {
       if (!download || !inScope(download) || !this.canRetry(download) || !workspaceId || !url) {
         throw new LocalizedError('appErrors.downloads.notRetryable', undefined, { message: `Download cannot be retried: ${downloadId}` })
       }
-      const browserSession = this.host.workspaceSession(workspaceId)
+      const browserSession = this.host.retrySession(workspaceId)
+      // The workspace's Site access may have changed since, as a page's download goes by it too.
+      if (!browserSession || !this.host.allowsAddress(workspaceId, url, 'direct')) {
+        throw new LocalizedError('appErrors.downloads.notRetryable', undefined, { message: `Download cannot be retried: ${downloadId}` })
+      }
       const now = Date.now()
       const pending = (this.pendingRetries.get(browserSession) ?? []).filter((retry) => retry.expiresAt > now)
-      pending.push({ url, workspaceId, expiresAt: now + PENDING_RETRY_MS })
+      pending.push({ url, workspaceId, observationGeneration: this.host.workspaceObservationGeneration(workspaceId), expiresAt: now + PENDING_RETRY_MS })
       this.pendingRetries.set(browserSession, pending)
       // As Chrome's Retry: a new download of the address in the workspace's session, with its cookies, beside the old row.
       browserSession.downloadURL(url)
@@ -459,10 +480,6 @@ export class BrowserDownloadsController {
   }
 
   remapDownloadWorkspaceOwnership(sourceWorkspaceId: string, targetWorkspaceId: string): void {
-    // A retry that has not started downloading yet goes to the workspace too.
-    for (const pending of this.pendingRetries.values()) {
-      for (const retry of pending) if (retry.workspaceId === sourceWorkspaceId) retry.workspaceId = targetWorkspaceId
-    }
     for (const [downloadId, workspaceId] of this.downloadWorkspaceIds) {
       if (workspaceId !== sourceWorkspaceId) continue
       this.downloadWorkspaceIds.set(downloadId, targetWorkspaceId)
@@ -470,6 +487,8 @@ export class BrowserDownloadsController {
       // As when the observation advances, a live transfer stays with the observation that started it.
       if (download && !isActiveDownload(download)) download.observationGeneration = this.host.workspaceObservationGeneration(targetWorkspaceId)
     }
+    // Archiving or restoring the workspace changes which of its downloads Retry is offered for.
+    this.notifyDownloadsChanged()
   }
 
   /**
@@ -520,6 +539,12 @@ export class BrowserDownloadsController {
         const linkName = this.savedLinkNames.take(webContents?.id, urlChain[0] ?? item.getURL())
         // A retry starts from no page, so the retry names its workspace.
         const retry = webContents ? undefined : this.takeRetry(browserSession, urlChain[0] ?? item.getURL())
+        // Electron gives a download without a page no redirect check, so one that went outside the workspace's Site
+        // access is refused here, as a page's redirect there is.
+        if (retry && urlChain.slice(1).some((url) => !this.host.allowsAddress(retry.workspaceId, url, 'redirect'))) {
+          event.preventDefault()
+          return
+        }
         this.trimDownloadHistory()
         if (this.downloads.size >= MAX_DOWNLOAD_HISTORY) {
           event.preventDefault()
@@ -537,7 +562,7 @@ export class BrowserDownloadsController {
           this.host.downloadReady(sourceWebContentsId)
         }
         const { tabId, workspaceId, observationGeneration } = retry
-          ? { tabId: undefined, workspaceId: retry.workspaceId, observationGeneration: this.host.workspaceObservationGeneration(retry.workspaceId) }
+          ? { tabId: undefined, workspaceId: retry.workspaceId, observationGeneration: retry.observationGeneration }
           : this.host.getSource(sourceWebContentsId, downloadUrl)
         const settings = this.host.getSettings()
         // As for a click on the link, the name holds only while the download stays on the link's origin: Hronaut saves

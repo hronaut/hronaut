@@ -34,14 +34,18 @@ async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platfo
   const session = Object.assign(new EventEmitter(), { downloadURL })
   const generations = new Map([['first', 0], ['second', 0]])
   const openWorkspaces = new Set(['first', 'second'])
+  /** Addresses the workspaces' Site access does not allow. */
+  const deniedAddresses = new Set<string>()
   const published: BrowserDownloadState[][] = []
   const ready: (number | undefined)[] = []
   const controller = new BrowserDownloadsController({
     getSettings: () => ({ downloadDirectory: directory, saveDialogTitle: 'Save', askWhereToSaveDownloads }),
-    getSource: id => ({ tabId: String(id), workspaceId: id === 1 ? 'first' : 'second', observationGeneration: 0 }),
+    // Tab 3's page is in no workspace.
+    getSource: id => ({ tabId: String(id), workspaceId: id === 1 ? 'first' : id === 3 ? undefined : 'second', observationGeneration: 0 }),
     workspaceObservationGeneration: id => generations.get(id) ?? 0,
     isWorkspaceOpen: id => openWorkspaces.has(id),
-    workspaceSession: () => session as unknown as Session,
+    retrySession: id => (openWorkspaces.has(id) ? session as unknown as Session : undefined),
+    allowsAddress: (_id, url) => !deniedAddresses.has(url),
     downloadReady: id => { ready.push(id) },
     isAvailable: () => true,
     publish: downloads => { published.push(downloads) }
@@ -92,7 +96,7 @@ async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platfo
       complete: () => { state = 'completed'; item.emit('done', {}, state) }
     }
   }
-  return { controller, session, downloadURL, generations, openWorkspaces, download, published, ready }
+  return { controller, session, downloadURL, generations, openWorkspaces, deniedAddresses, download, published, ready }
 }
 
 it('redacts URL credentials and token parameters before exposing download history', async () => {
@@ -819,6 +823,7 @@ it('does not offer Retry for a completed download, a blob: or data: address, a p
   download(1, false, 'blob:https://download.example/1b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', 'blob.txt').cancel()
   download(1, false, 'data:text/plain,hello', 'data.txt').cancel()
   download(2, false, 'https://download.example/closed.txt', 'closed.txt').cancel()
+  download(3, false, 'https://download.example/nowhere.txt', 'nowhere.txt').cancel()
   openWorkspaces.delete('second')
   expect(controller.listDownloads().filter(({ canRetry }) => canRetry)).toEqual([])
   for (const { id } of controller.listDownloads()) {
@@ -858,12 +863,63 @@ it('gives a retry\'s workspace only to a download of its own address that no pag
   expect(controller.manageWorkspaceDownloads('second', 'list')).toHaveLength(3)
 })
 
-it('gives a retry that has not started yet to the workspace its downloads move to', async () => {
+it('keeps a retried transfer in the observation it was asked for in, as a page\'s download', async () => {
+  // A transfer an agent started leaves the agent's list when control of the workspace changes, also while the server
+  // takes its time to answer the retry.
+  const { controller, generations, download } = await fixture()
+  download(1, false, 'https://download.example/file.txt').cancel()
+  controller.manageWorkspaceDownloads('first', 'retry', controller.listDownloads()[0]!.id)
+  generations.set('first', 2)
+  download(null, false, 'https://download.example/file.txt')
+  expect(controller.listDownloads().find(({ state }) => state === 'progressing')?.observationGeneration).toBe(0)
+  expect(controller.manageWorkspaceDownloads('first', 'list').some(({ state }) => state === 'progressing')).toBe(false)
+})
+
+it('stops a retry waiting for its download after five minutes', async () => {
   const { controller, download } = await fixture()
   download(1, false, 'https://download.example/file.txt').cancel()
+  vi.useFakeTimers()
+  try {
+    controller.manageDownloads('retry', controller.listDownloads()[0]!.id)
+    vi.advanceTimersByTime(5 * 60_000 + 1)
+    // Too late to be the retry, so no page and no retry names its workspace (the fixture then gives the second).
+    download(null, false, 'https://download.example/file.txt')
+  } finally {
+    vi.useRealTimers()
+  }
+  expect(controller.manageWorkspaceDownloads('first', 'list').map(({ state }) => state)).toEqual(['cancelled'])
+  expect(controller.manageWorkspaceDownloads('second', 'list').map(({ state }) => state)).toEqual(['progressing'])
+})
+
+it('goes by the workspace\'s Site access, for the address and for every redirect of the retried download', async () => {
+  const { controller, downloadURL, deniedAddresses, download } = await fixture()
+  const url = 'https://download.example/file.txt'
+  download(1, false, url).cancel()
+  const [record] = controller.listDownloads()
+  deniedAddresses.add(url)
+  expect(() => controller.manageDownloads('retry', record!.id)).toThrow('Download cannot be retried')
+  expect(downloadURL).not.toHaveBeenCalled()
+  deniedAddresses.clear()
+  controller.manageDownloads('retry', record!.id)
+  // Electron checks no redirect of a download without a page, so it is refused once it went outside.
+  deniedAddresses.add('https://elsewhere.example/file.txt')
+  const redirected = download(null, false, 'https://elsewhere.example/file.txt', 'file.txt', '', [url, 'https://elsewhere.example/file.txt'])
+  expect(redirected.event.preventDefault).toHaveBeenCalled()
+  expect(controller.listDownloads().map(({ id }) => id)).toEqual([record!.id])
+})
+
+it('drops the retries of a workspace deleted with its data, and republishes when its downloads change hands', async () => {
+  // So Retry shows for what it can retry now, also with the panel open while a workspace is archived or restored.
+  const { controller, published, download } = await fixture()
+  download(1, false, 'https://download.example/file.txt').cancel()
   controller.manageDownloads('retry', controller.listDownloads()[0]!.id)
-  controller.remapDownloadWorkspaceOwnership('first', 'second')
+  await vi.waitFor(() => expect(published.length).toBeGreaterThan(0))
+  let count = published.length
+  controller.remapDownloadWorkspaceOwnership('first', 'first')
+  await vi.waitFor(() => expect(published.length).toBeGreaterThan(count))
+  count = published.length
+  controller.forgetWorkspace('first')
+  await vi.waitFor(() => expect(published.length).toBeGreaterThan(count))
   download(null, false, 'https://download.example/file.txt')
-  expect(controller.manageWorkspaceDownloads('first', 'list')).toEqual([])
-  expect(controller.manageWorkspaceDownloads('second', 'list').map(({ state }) => state).sort()).toEqual(['cancelled', 'progressing'])
+  expect(controller.manageWorkspaceDownloads('first', 'list').map(({ state }) => state)).toEqual(['cancelled'])
 })

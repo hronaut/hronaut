@@ -33,7 +33,8 @@ async function fixture() {
     getSource: () => ({ tabId: 'tab-1', workspaceId: 'w', observationGeneration: generations.get('w')! }),
     workspaceObservationGeneration: id => generations.get(id) ?? 0,
     isWorkspaceOpen: () => true,
-    workspaceSession: () => session as unknown as Session,
+    retrySession: () => session as unknown as Session,
+    allowsAddress: () => true,
     downloadReady: () => undefined,
     isAvailable: () => true,
     publish: () => undefined
