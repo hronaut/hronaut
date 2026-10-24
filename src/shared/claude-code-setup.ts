@@ -12,7 +12,7 @@ export interface ClaudeCodeSetupStatus {
   path: string
 }
 
-/** The exact change Home shows before the person confirms it in a native dialog. */
+/** The exact change Home shows before the person confirms it in the dialog main asks. */
 export interface ClaudeCodeSetupPreview {
   /** Single use, for this page, for two minutes. */
   planId: string

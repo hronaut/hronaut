@@ -71,6 +71,18 @@ describe('Set up Claude Code through Home IPC with MCP authentication on', () =>
       variant: { kind: 'claude-setup', path: preview.path, after: preview.after, before: null, tokenHidden: true, backupName: preview.backupName }
     })
     expect(preview.after).toContain('Bearer •••')
+    // The system dialog that stands in while the window cannot show Hronaut's still says everything: the test's text
+    // gives each message's key followed by its parameters.
+    const asked = showDialog.mock.calls[0]![0]
+    expect(asked).toMatchObject({ type: 'question', title: 'native.dialog.claudeSetupTitle', message: 'native.dialog.claudeSetupMessage', noLink: true })
+    expect(asked.detail!.startsWith('native.dialog.claudeSetupDetail ')).toBe(true)
+    expect(JSON.parse(asked.detail!.slice('native.dialog.claudeSetupDetail '.length))).toEqual({
+      path: preview.path,
+      after: preview.after,
+      token: 'native.dialog.claudeSetupToken',
+      replaces: '',
+      backup: preview.backupName
+    })
     expect(JSON.parse(await readFile(join(directory, '.claude.json'), 'utf8')).mcpServers.hronaut.headers).toEqual({ Authorization: `Bearer ${TOKEN}` })
     expect((await invoke('hronaut-home:setup-state') as HomeSetupState).claudeCode?.state).toBe('configured')
   })

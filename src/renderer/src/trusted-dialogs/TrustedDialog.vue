@@ -150,9 +150,10 @@ function buttonVariant(index: number): 'primary' | 'secondary' {
           <code class="trusted-dialog__change-path" data-testid="trusted-dialog-change-path">{{ copy.change.path }}</code>
         </figcaption>
         <div v-for="entry in copy.change.entries" :key="entry.kind" :class="['trusted-dialog__change-entry', `trusted-dialog__change-entry--${entry.kind}`]">
-          <span class="trusted-dialog__change-label"><span class="trusted-dialog__change-mark" aria-hidden="true">{{ entry.kind === 'added' ? '+' : '-' }}</span>{{ entry.label }}</span>
+          <span :id="`trusted-dialog-change-${entry.kind}-label`" class="trusted-dialog__change-label"><span class="trusted-dialog__change-mark" aria-hidden="true">{{ entry.kind === 'added' ? '+' : '-' }}</span>{{ entry.label }}</span>
           <!-- Long entries scroll; the region takes the focus so the keyboard can scroll it too. -->
-          <pre role="region" tabindex="0" :aria-label="entry.label" :data-testid="`trusted-dialog-change-${entry.kind}`"><code>{{ entry.text }}</code></pre>
+          <pre role="region" tabindex="0" :aria-labelledby="`trusted-dialog-change-${entry.kind}-label`" :data-testid="`trusted-dialog-change-${entry.kind}`"><code>{{ entry.text }}</code></pre>
+          <p v-if="entry.note" class="trusted-dialog__change-note">{{ entry.note }}</p>
         </div>
       </figure>
       <figure v-if="copy.quoted" class="trusted-dialog__quoted">

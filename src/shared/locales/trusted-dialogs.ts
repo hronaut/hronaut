@@ -23,7 +23,7 @@ export const trustedDialogMessages = {
     claudeSetup: {
       file: 'File',
       added: 'New entry in "mcpServers"',
-      replaces: 'It replaces'
+      replaces: 'Entry it replaces'
     },
     sitePermission: {
       embeddedIn: 'Embedded in {site}',
@@ -72,7 +72,7 @@ export const trustedDialogMessages = {
     claudeSetup: {
       file: 'Файл',
       added: 'Новий запис у "mcpServers"',
-      replaces: 'Він замінить'
+      replaces: 'Запис, який він замінить'
     },
     sitePermission: {
       embeddedIn: 'Вбудовано на {site}',
@@ -121,7 +121,7 @@ export const trustedDialogMessages = {
     claudeSetup: {
       file: 'Файл',
       added: 'Новая запись в "mcpServers"',
-      replaces: 'Она заменит'
+      replaces: 'Запись, которую она заменит'
     },
     sitePermission: {
       embeddedIn: 'Встроено на {site}',
@@ -170,7 +170,7 @@ export const trustedDialogMessages = {
     claudeSetup: {
       file: 'Datei',
       added: 'Neuer Eintrag in "mcpServers"',
-      replaces: 'Er ersetzt'
+      replaces: 'Eintrag, den er ersetzt'
     },
     sitePermission: {
       embeddedIn: 'Eingebettet in {site}',
@@ -219,7 +219,7 @@ export const trustedDialogMessages = {
     claudeSetup: {
       file: 'Fichier',
       added: 'Nouvelle entrée dans "mcpServers"',
-      replaces: 'Elle remplace'
+      replaces: 'Entrée qu’elle remplace'
     },
     sitePermission: {
       embeddedIn: 'Intégré dans {site}',
@@ -268,7 +268,7 @@ export const trustedDialogMessages = {
     claudeSetup: {
       file: 'Archivo',
       added: 'Nueva entrada en "mcpServers"',
-      replaces: 'Sustituye'
+      replaces: 'Entrada que sustituye'
     },
     sitePermission: {
       embeddedIn: 'Insertado en {site}',
@@ -317,7 +317,7 @@ export const trustedDialogMessages = {
     claudeSetup: {
       file: 'Plik',
       added: 'Nowy wpis w "mcpServers"',
-      replaces: 'Zastąpi'
+      replaces: 'Wpis, który zastąpi'
     },
     sitePermission: {
       embeddedIn: 'Osadzono w {site}',

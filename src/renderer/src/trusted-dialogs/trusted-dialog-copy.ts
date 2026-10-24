@@ -63,7 +63,8 @@ export interface TrustedDialogCopy {
   change?: {
     fileLabel: string
     path: string
-    entries: Array<{ kind: 'added' | 'removed', label: string, text: string }>
+    /** `note` explains the entry, shown under it. */
+    entries: Array<{ kind: 'added' | 'removed', label: string, text: string, note?: string }>
   }
   /** Hronaut's own explanation, one paragraph each. */
   lines: string[]
@@ -221,12 +222,17 @@ function claudeSetupCopy(variant: ClaudeSetupDialogVariant, t: Translate): Trust
       fileLabel: t('trustedDialogs.claudeSetup.file'),
       path: variant.path,
       entries: [
-        { kind: 'added', label: t('trustedDialogs.claudeSetup.added'), text: `"hronaut": ${variant.after}` },
+        {
+          kind: 'added',
+          label: t('trustedDialogs.claudeSetup.added'),
+          text: `"hronaut": ${variant.after}`,
+          // Under the entry it is about, not the replaced one, whose ••• hide its own old values.
+          ...(variant.tokenHidden ? { note: t('home.connect.claudeSetup.previewToken') } : {})
+        },
         ...(variant.before === null ? [] : [{ kind: 'removed' as const, label: t('trustedDialogs.claudeSetup.replaces'), text: `"hronaut": ${variant.before}` }])
       ]
     },
     lines: [
-      ...(variant.tokenHidden ? [t('home.connect.claudeSetup.previewToken')] : []),
       t('home.connect.claudeSetup.previewBackup', { name: variant.backupName }),
       t('home.connect.claudeSetup.previewQuit')
     ]

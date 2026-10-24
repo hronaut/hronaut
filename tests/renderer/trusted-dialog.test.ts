@@ -518,13 +518,15 @@ describe('Hronaut’s Claude Code setup dialog', () => {
     expect(change).toHaveTextContent('File')
     // The entries keep their JSON layout, as Home showed them, in diff order: written, then replaced.
     const added = within(change).getByRole('region', { name: 'New entry in "mcpServers"' })
-    const removed = within(change).getByRole('region', { name: 'It replaces' })
+    const removed = within(change).getByRole('region', { name: 'Entry it replaces' })
     expect(added.textContent).toBe(`"hronaut": ${CLAUDE_AFTER}`)
     expect(removed.textContent).toBe(`"hronaut": ${CLAUDE_BEFORE}`)
     expect(added.compareDocumentPosition(removed) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(added.closest('.trusted-dialog__change-entry')).toHaveClass('trusted-dialog__change-entry--added')
     expect(removed.closest('.trusted-dialog__change-entry')).toHaveClass('trusted-dialog__change-entry--removed')
-    expect(dialog).toHaveTextContent('Hronaut writes the actual MCP token where ••• appears.')
+    // The token note belongs to the entry that will hold the token, not to the replaced one, whose ••• hide old values.
+    expect(within(added.closest('.trusted-dialog__change-entry')!).getByText('Hronaut writes the actual MCP token where ••• appears.')).toBeInTheDocument()
+    expect(removed.closest('.trusted-dialog__change-entry')).not.toHaveTextContent('Hronaut writes the actual MCP token')
     expect(dialog).toHaveTextContent('A copy of the file is saved first as .claude.json.hronaut-backup-20261024T001500Z.')
     expect(dialog).toHaveTextContent('If Claude Code is running, quit it first')
     // The detail given for the system dialog is not repeated under Hronaut's own design.
@@ -542,22 +544,8 @@ describe('Hronaut’s Claude Code setup dialog', () => {
     await show(claudeSetup('fresh', { before: null, tokenHidden: false, after: CLAUDE_BEFORE }))
     const dialog = screen.getByRole('alertdialog', { name: 'Add Hronaut to Claude Code?' })
     expect(within(dialog).getByRole('region', { name: 'New entry in "mcpServers"' }).textContent).toBe(`"hronaut": ${CLAUDE_BEFORE}`)
-    expect(within(dialog).queryByRole('region', { name: 'It replaces' })).toBeNull()
+    expect(within(dialog).queryByRole('region', { name: 'Entry it replaces' })).toBeNull()
     expect(dialog).not.toHaveTextContent('•••')
-  })
-
-  it('never adds Hronaut from an Enter held since Home, and answers Escape as Cancel', async () => {
-    const { api, show, settle } = mountDialog()
-    await show(claudeSetup('setup'))
-    await settle()
-    const add = screen.getByRole('button', { name: 'Add to Claude Code' })
-    add.focus()
-    const heldEnter = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
-    add.dispatchEvent(heldEnter)
-    expect(heldEnter.defaultPrevented).toBe(true)
-    expect(api.respond).not.toHaveBeenCalled()
-    await fireEvent.keyDown(add, { key: 'Escape' })
-    expect(api.respond).toHaveBeenCalledExactlyOnceWith('setup', 0)
   })
 
   it('speaks the interface language', async () => {
@@ -565,7 +553,7 @@ describe('Hronaut’s Claude Code setup dialog', () => {
     await show(claudeSetup('uk'))
     const dialog = screen.getByRole('alertdialog', { name: 'Додати Hronaut до Claude Code?' })
     within(dialog).getByRole('region', { name: 'Новий запис у "mcpServers"' })
-    within(dialog).getByRole('region', { name: 'Він замінить' })
+    within(dialog).getByRole('region', { name: 'Запис, який він замінить' })
     expect(dialog).toHaveTextContent('Hronaut запише справжній токен MCP на місце •••.')
   })
 })

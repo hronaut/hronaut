@@ -170,14 +170,14 @@ export interface ClaudeCodeSetupOptions {
   /** Whether Hronaut may write the entry now. Checked again after the dialog and just before the file is replaced. */
   allowed?: () => boolean
   now?: () => number
-  /** Asks the person in a native dialog, outside any page, whether to make exactly this change. */
+  /** Asks the person in a dialog main shows, which no page can answer, whether to make exactly this change. */
   confirm: (preview: ClaudeCodeSetupPreview) => Promise<boolean>
   platform?: NodeJS.Platform
 }
 
 /**
  * Adds `mcpServers.hronaut` to Claude Code's settings in two steps. `prepare` shows the page the exact change and a
- * single-use plan bound to the file's bytes and to the page that asked; `apply` asks the person natively, writes a
+ * single-use plan bound to the file's bytes and to the page that asked; `apply` asks the person through main, writes a
  * byte-for-byte backup and the new file beside it, checks once more that the file did not change, replaces it and reads
  * it back. File contents never leave main.
  */
