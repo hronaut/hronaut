@@ -1,5 +1,6 @@
 import type { Session } from 'electron'
 import { trimNetworkRequests } from '../network-recording.js'
+import { restoringSessionCookies } from '../session-cookies/saved-session-cookies.js'
 import type { SessionHooksAccess, SessionHooksTab } from './session-hooks-access.js'
 
 /**
@@ -19,9 +20,9 @@ export function installSessionHooks<Tab extends SessionHooksTab>(access: Session
           : tab.browserSessionGeneration + 1
         changed = true
       }
-      // Authority generations still advance immediately, but a bulk import
+      // Authority generations still advance immediately, but a bulk import, or saved session cookies set again,
       // publishes its final state once instead of rerendering per cookie.
-      if (changed && !access.browserCookieImportSessions().has(browserSession)) access.changed(false)
+      if (changed && !access.browserCookieImportSessions().has(browserSession) && !restoringSessionCookies(browserSession)) access.changed(false)
     }
     browserSession.cookies.on('changed', onCookieChanged)
     access.browserSessionAuthorityHooks().set(browserSession, onCookieChanged)

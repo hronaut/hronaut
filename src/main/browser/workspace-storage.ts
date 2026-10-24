@@ -8,7 +8,7 @@ import {
   type WebContents
 } from 'electron'
 import { LocalizedError } from '../localized-error.js'
-import { forgetSessionCookies, keepSessionCookies } from './session-cookies/saved-session-cookies.js'
+import { forgetSessionCookies, keepSessionCookies, saveSessionCookies } from './session-cookies/saved-session-cookies.js'
 
 const STORAGE_TRANSFER_TIMEOUT_MS = 8_000
 
@@ -57,10 +57,12 @@ function isPartitionedCookie(cookie: Cookie): boolean {
   return cookiePartitionKey(cookie) !== ''
 }
 
+/** Writes a session's site data and cookies to the disk, with the session cookies it keeps for the next start. */
 export async function flushBrowserSessionStorage(browserSession: Session): Promise<void> {
   const results = await Promise.allSettled([
     browserSession.flushStorageData(),
-    browserSession.cookies.flushStore()
+    browserSession.cookies.flushStore(),
+    saveSessionCookies(browserSession)
   ])
   const errors = results.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
   if (errors.length) {

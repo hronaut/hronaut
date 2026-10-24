@@ -35,7 +35,7 @@ export async function importBrowserCookies(access: WorkspaceDataAccess, destinat
       const group = (access.mcpTabGroups().get(id) ?? access.savedTabGroups().get(id))!
       const target = session.fromPartition(workspacePartition(access.options().partition, group.storageId))
       access.options().configureSession?.(target)
-      // The sign-ins it saved at the last quit are back first, so those imported now replace them.
+      // The sign-ins it saved at the last quit are back first, so the import sees them as the cookies a site has.
       await keepSessionCookies(target)
       access.browserCookieImportSessions().add(target)
       try {

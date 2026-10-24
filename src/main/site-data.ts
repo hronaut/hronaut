@@ -1,5 +1,6 @@
 import type { Session } from 'electron'
 import { cookieAvailableToOrigin } from './browsing-data-websites.js'
+import { keepSessionCookies } from './browser/session-cookies/saved-session-cookies.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { HistoryStore } from './history-store.js'
 import type { SiteDataOperations, SiteDataType } from './mcp/server.js'
@@ -107,7 +108,12 @@ export function createSiteData(host: SiteDataHost): {
 
   /** Agents' site data operations, each in the session of the workspace they name. */
   const agentSiteData: SiteDataOperations = {
-    inspect: (workspaceId, origin) => currentBrowsingDataSiteSummary(origin, host.tabs()?.workspaceSession(workspaceId)),
+    inspect: async (workspaceId, origin) => {
+      const browserSession = host.tabs()?.workspaceSession(workspaceId)
+      // A workspace without tabs has its saved session cookies back first, as the sites it shows would.
+      await keepSessionCookies(browserSession)
+      return currentBrowsingDataSiteSummary(origin, browserSession)
+    },
     clear: (workspaceId, origin, dataTypes: SiteDataType[]) => clearWorkspaceSiteData(workspaceId, origin, dataTypes)
   }
 

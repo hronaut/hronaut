@@ -47,6 +47,9 @@ test('a restart keeps the sign-ins of session cookies, as Chrome continuing wher
     expect(await cookies(first.app)).toEqual(['remember=yes', 'sid=signed-in'])
     const workspaceStorage = await storagePath(first.app, who)
     expect(workspaceStorage).toContain(join(profileDirectory, 'Partitions', 'hronaut-workspace-'))
+    // A session cookie set just before quitting is saved as Hronaut quits.
+    await first.app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find((contents) => contents.getURL() === url)!
+      .session.cookies.set({ url, name: 'late', value: 'quit' }), who)
     await closeHronaut(first.app)
     first = undefined
 
@@ -60,7 +63,7 @@ test('a restart keeps the sign-ins of session cookies, as Chrome continuing wher
     second = await launchHronaut(profileDirectory, mcpPort)
     // The tab loads again only once the session cookie is back, so its first request is signed in.
     await expect.poll(() => showing(second!.window, who)).toBe(true)
-    expect(await cookies(second.app)).toEqual(['remember=yes', 'sid=signed-in'])
+    expect(await cookies(second.app)).toEqual(['late=quit', 'remember=yes', 'sid=signed-in'])
     const restored = await second.app.evaluate(async ({ webContents }, url) => {
       const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === url)!
       return (await contents.session.cookies.get({ name: 'sid' })).map(({ session, httpOnly, sameSite, hostOnly }) => ({ session, httpOnly, sameSite, hostOnly }))

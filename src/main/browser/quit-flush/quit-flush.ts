@@ -1,5 +1,4 @@
 import { session } from 'electron'
-import { saveSessionCookies } from '../session-cookies/saved-session-cookies.js'
 import { flushBrowserSessionStorage, workspacePartition } from '../workspace-storage.js'
 import type { QuitFlushAccess } from './quit-flush-access.js'
 
@@ -60,7 +59,6 @@ export async function flushWorkspaceProfiles(access: QuitFlushAccess): Promise<v
   const results = await Promise.allSettled([...storageIds].map(async (storageId) => {
     const browserSession = session.fromPartition(workspacePartition(access.options().partition, storageId), { cache: true })
     access.options().configureSession?.(browserSession)
-    await saveSessionCookies(browserSession)
     await flushBrowserSessionStorage(browserSession)
   }))
   const errors = results.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
