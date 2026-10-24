@@ -26,6 +26,7 @@ All notable changes to Hronaut are documented in this file.
 - The **Downloads** panel shows a download at 99% until its last byte is in, as Chrome does, instead of at 100% while it still has bytes to go.
 - A Hronaut question asked while its window is still starting, such as **MCP server failed to start** when another app uses Hronaut's port at launch, now shows in Hronaut's own dialog once the window has loaded, instead of in a system dialog.
 - With **Ask where to save each file** on, a download is listed in **Downloads**, which then opens, once you choose where to save it, and cancelling the save dialog no longer leaves a **Cancelled** row behind, as in Chrome.
+- With a keyboard layout such as French AZERTY, where the number row types characters like & or -, **Ctrl/Cmd** with those keys now selects that tab, as in Chrome: **Ctrl+&** did nothing and Ctrl with the **-** on the 6 key zoomed out.
 
 ## [3.10.0] - 2026-10-24
 
