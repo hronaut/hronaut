@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - A screenshot of a tab that is not on screen, such as while Hronaut's window is minimized, no longer occasionally waits 15 seconds and fails when the page shows nothing new: Hronaut now asks the page to draw again.
 - After a Hronaut dialog over a page, such as **Close this tab?** or **Leave this page?** answered with **Keep editing**, or a website's permission request, the keyboard is back on the page, as in Chrome, instead of on a control of Hronaut's window.
+- When the page changes while an agent saves its screenshot with `browser_screenshot_save` and the capture fails, the agent is told the page changed and to save again, instead of getting Chromium's own error, such as `UnknownVizError`.
 
 ## [3.10.0] - 2026-10-24
 

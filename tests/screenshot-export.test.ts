@@ -125,6 +125,20 @@ describe('screenshot export', () => {
     expect(page.webContents.listenerCount('did-navigate')).toBe(0)
   })
 
+  it('says the page changed when the capture fails as the page navigates, not the capture\'s own error', async () => {
+    const page = exportPage({
+      capture: async () => {
+        page.webContents.emit('did-navigate')
+        throw new Error('UnknownVizError')
+      }
+    })
+    await expect(saveScreenshot(page.access, {}, () => undefined)).rejects.toThrow('page changed')
+    // A capture that fails on a page that stayed keeps its own error.
+    const failed = exportPage({ capture: async () => { throw new Error('UnknownVizError') } })
+    await expect(saveScreenshot(failed.access, {}, () => undefined)).rejects.toThrow('UnknownVizError')
+    expect([...page.written, ...failed.written]).toEqual([])
+  })
+
   it('fails the write when the page navigates while the file is being written', async () => {
     const page = exportPage({ onWritten: () => { page.webContents.emit('did-navigate') } })
     await expect(saveScreenshot(page.access, {}, () => undefined)).rejects.toThrow('page changed')
