@@ -96,7 +96,8 @@ export interface PersistedBrowserState {
 
 const WORKSPACE_STORAGE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const HRONAUT_HOME_URL = 'hronaut://home/'
-const MAX_TABS = 50
+/** The most tabs a saved session holds; the next start refuses a session with more. */
+export const MAX_TABS = 50
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_SAVED_WORKSPACES = 50
 const MAX_WORKSPACE_NAME_LENGTH = 80

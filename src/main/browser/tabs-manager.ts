@@ -6555,9 +6555,9 @@ export class BrowserTabsManager {
    * The narrow view saving the browser state gets of this manager's private
    * destroyed flag, workspace storage records, workspace continuity, active
    * tab, split view and divider, global mute and lock, workspaces, tabs and
-   * the workspaces being deleted. It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it. Each member
-   * reads the manager when called.
+   * the workspaces being deleted. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. Each member reads the manager when called.
    */
   private persistedStateAccess(): PersistedStateAccess<BrowserTab> {
     return {

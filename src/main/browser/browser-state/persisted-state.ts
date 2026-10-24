@@ -1,5 +1,5 @@
-import { TAB_STATE_VERSION, type PersistedBrowserState, type PersistedTab } from '../tab-store.js'
-import type { PersistedStateAccess, PersistedStateTab } from './persisted-state-access.js'
+import { MAX_TABS, TAB_STATE_VERSION, type PersistedBrowserState, type PersistedTab } from '../tab-store.js'
+import type { PersistedStateAccess, PersistedStateTab, WorkspaceBeingDeleted } from './persisted-state-access.js'
 
 /** What the saved session keeps of a tab: what it shows, its pin, mute, locks, zoom, font, favicon and workspace. */
 export function persistedTab(tab: PersistedStateTab): PersistedTab {
@@ -20,6 +20,31 @@ export function persistedTab(tab: PersistedStateTab): PersistedTab {
 }
 
 /**
+ * The tabs each workspace being deleted is saved with: every tab it had before the close, in their order, a tab still
+ * open as it is now. The closed ones fit in only beside the open tabs, so the saved session never holds more tabs than
+ * the next start takes; those that do not fit are left out.
+ */
+function tabsBeingDeleted(openTabs: readonly PersistedStateTab[], workspaces: ReadonlyMap<string, WorkspaceBeingDeleted>): Map<string, PersistedTab[]> {
+  const open = new Map(openTabs.map((tab) => [tab.id, tab]))
+  let room = MAX_TABS - openTabs.length
+  const saved = new Map<string, PersistedTab[]>()
+  for (const [workspaceId, workspace] of workspaces) {
+    const tabs: PersistedTab[] = []
+    for (const tab of workspace.tabs) {
+      const stillOpen = open.get(tab.id)
+      if (stillOpen) {
+        tabs.push(persistedTab(stillOpen))
+      } else if (room > 0) {
+        tabs.push({ ...tab })
+        room -= 1
+      }
+    }
+    saved.set(workspaceId, tabs)
+  }
+  return saved
+}
+
+/**
  * The browser state Hronaut saves: the tabs in order, the active tab, the
  * split view, the global mute and lock, the open and archived workspaces,
  * and the workspace storage and continuity records. A workspace being
@@ -30,10 +55,11 @@ export function persistedTab(tab: PersistedStateTab): PersistedTab {
 export function persistedState<Tab extends PersistedStateTab>(access: PersistedStateAccess<Tab>): PersistedBrowserState {
   if (access.isDestroyed()) throw new Error('Browser is closing; session save canceled.')
   const openTabs = access.orderedTabs()
-  const openTabIds = new Set(openTabs.map((tab) => tab.id))
-  // A tab that a failed deletion has already reopened is open again, and saved once.
-  const tabsBeingDeleted = [...access.workspacesBeingDeleted().values()]
-    .flatMap((workspace) => workspace.tabs.filter((tab) => !openTabIds.has(tab.id)))
+  const deleting = tabsBeingDeleted(openTabs, access.workspacesBeingDeleted())
+  // A tab the close has not reached yet, or a failed deletion has reopened, is saved once, in its place.
+  const deletingTabIds = new Set([...deleting.values()].flatMap((tabs) => tabs.map((tab) => tab.id)))
+  const tabs = [...openTabs.filter((tab) => !deletingTabIds.has(tab.id)).map(persistedTab), ...[...deleting.values()].flat()]
+  const savedTabIds = new Set(tabs.map((tab) => tab.id))
   return {
     version: TAB_STATE_VERSION,
     ...(access.deletedWorkspaceStorageIds().size ? { deletedWorkspaceStorageIds: [...access.deletedWorkspaceStorageIds()] } : {}),
@@ -45,7 +71,10 @@ export function persistedState<Tab extends PersistedStateTab>(access: PersistedS
     allHumanInteractionLocked: access.allHumanInteractionLocked(),
     mcpTabGroups: [...access.mcpTabGroups().values()].map((group) => {
       const beingDeleted = access.workspacesBeingDeleted().get(group.id)
-      return beingDeleted ? { ...group, activeTabId: beingDeleted.activeTabId } : { ...group }
+      if (!beingDeleted) return { ...group }
+      // The tab it showed before the close, unless that one did not fit; then the one the close shows meanwhile.
+      const activeTabId = [beingDeleted.activeTabId, group.activeTabId].find((id) => id !== null && savedTabIds.has(id)) ?? null
+      return { ...group, activeTabId }
     }),
     savedTabGroups: [...access.savedTabGroups().values()].map((group) => ({
       id: group.id,
@@ -67,6 +96,6 @@ export function persistedState<Tab extends PersistedStateTab>(access: PersistedS
       tabs: group.tabs.map((tab) => ({ ...tab })),
       ...(group.shownTabIndex !== undefined ? { shownTabIndex: group.shownTabIndex } : {})
     })),
-    tabs: [...openTabs.map(persistedTab), ...tabsBeingDeleted.map((tab) => ({ ...tab }))]
+    tabs
   }
 }

@@ -11,7 +11,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- A workspace Hronaut was deleting when it stopped, such as in a crash or a power cut before the workspace's cookies and site data were gone, now comes back with its tabs at the next start, as if the deletion had not begun. It came back empty, its tabs gone while its data stayed.
+- A workspace Hronaut was deleting when it stopped, such as in a crash or a power cut before the deletion finished, now comes back with its tabs at the next start. It came back without them.
 
 ## [3.8.0] - 2026-10-23
 
