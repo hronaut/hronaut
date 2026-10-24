@@ -27,6 +27,8 @@ export interface BrowserShortcutControllerOptions {
   canRunAction: (action: BrowserShortcutAction) => boolean
   openNewTab: ShortcutCallback
   focusAddress: ShortcutCallback
+  /** Hronaut Home, as the Home button opens it. */
+  openHome?: ShortcutCallback
   openFind: ShortcutCallback
   /** The next or previous match of Find, opening it with its last text when it is closed. */
   findAgain?: (again: 'next' | 'previous') => void | Promise<void>
@@ -212,6 +214,9 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
       // focus-address instead.
       case 'focus-next-pane':
         await options.browser.focusActivePage()
+        return
+      case 'open-home':
+        await options.openHome?.()
         return
       case 'find':
         await options.openFind()

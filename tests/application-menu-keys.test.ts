@@ -35,7 +35,7 @@ const NAMED_KEYS: Readonly<Record<string, { key: string; code: string; shift?: t
   Plus: { key: '+', code: 'Equal', shift: true }, '-': { key: '-', code: 'Minus' }, '/': { key: '/', code: 'Slash' },
   '[': { key: '[', code: 'BracketLeft' }, ']': { key: ']', code: 'BracketRight' },
   Left: { key: 'ArrowLeft', code: 'ArrowLeft' }, Right: { key: 'ArrowRight', code: 'ArrowRight' },
-  PageUp: { key: 'PageUp', code: 'PageUp' }, PageDown: { key: 'PageDown', code: 'PageDown' }
+  PageUp: { key: 'PageUp', code: 'PageUp' }, PageDown: { key: 'PageDown', code: 'PageDown' }, Home: { key: 'Home', code: 'Home' }
 }
 // On macOS Option changes the character a letter key types, as a US keyboard does: ç for C, ¬ for L, a dead key for U.
 const MAC_OPTION_KEYS: Readonly<Record<string, string>> = { C: 'ç', L: '¬', U: 'Dead' }

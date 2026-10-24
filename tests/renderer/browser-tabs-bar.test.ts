@@ -1114,6 +1114,22 @@ describe('BrowserTabsBar', () => {
     expect(view.emitted('closeTab')).toBeUndefined()
   })
 
+  it('leaves Home, End and the arrows with Alt, Ctrl or Cmd to their shortcuts', () => {
+    renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true }), tab('third')], activeTabId: 'second' }))
+    const control = screen.getByRole('tab', { name: /Page second/ })
+    control.focus()
+    for (const key of ['Home', 'End', 'ArrowLeft', 'ArrowRight']) {
+      for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers })
+        control.dispatchEvent(event)
+        // Alt+Home moved the keyboard to the first tab instead of opening Home, and Alt+Left to the tab before
+        // instead of going back.
+        expect(event.defaultPrevented, `${key} ${JSON.stringify(modifiers)}`).toBe(false)
+        expect(control).toHaveFocus()
+      }
+    }
+  })
+
   it('keeps the keyboard close shortcut available while website input is locked', async () => {
     const audible = tab('audible', { active: true, audible: true })
     const view = renderTabs(browserState({

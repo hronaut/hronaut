@@ -310,7 +310,7 @@ describe('Chrome\'s keys a website may keep', () => {
 
   it('are no browser keys a page loses before it sees them', () => {
     // A web editor runs F5 as its debugger and a web terminal reads Alt+D.
-    for (const key of [{ key: 'F5' }, { key: 'F5', shift: true }, { key: 'F5', control: true }, { key: 'd', code: 'KeyD', alt: true }, { key: 'F6' }, { key: 'F6', shift: true }]) {
+    for (const key of [{ key: 'F5' }, { key: 'F5', shift: true }, { key: 'F5', control: true }, { key: 'd', code: 'KeyD', alt: true }, { key: 'F6' }, { key: 'F6', shift: true }, { key: 'e', code: 'KeyE', control: true }, { key: 'Home', code: 'Home', alt: true }]) {
       expect(browserShortcutAction(input(key))).toBeNull()
     }
   })
@@ -335,6 +335,32 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(kept({ key: 'D', code: 'KeyD', alt: true, shift: true })).toBeNull()
     expect(kept({ key: 'd', code: 'KeyD' })).toBeNull()
     expect(kept({ key: '∂', code: 'KeyD', alt: true, mac: true })).toBeNull()
+  })
+
+  it('go to the address bar with Ctrl+E elsewhere than macOS, in every layout', () => {
+    // A web document editor centres a paragraph with Ctrl+E, as Chrome lets it.
+    expect(kept({ key: 'e', code: 'KeyE', control: true })).toBe('focus-address')
+    expect(kept({ key: 'у', code: 'KeyE', control: true })).toBe('focus-address')
+    expect(kept({ key: 'E', code: 'KeyE', control: true, shift: true })).toBeNull()
+    expect(kept({ key: 'e', code: 'KeyE', control: true, alt: true })).toBeNull()
+    expect(kept({ key: 'e', code: 'KeyE', alt: true })).toBeNull()
+    expect(kept({ key: 'e', code: 'KeyE' })).toBeNull()
+    expect(kept({ key: 'e', code: 'KeyE', control: true, repeat: true })).toBeNull()
+    // On macOS Control+E moves the caret to the end of the line, and Chrome has no Cmd+E for the address bar.
+    expect(kept({ key: 'e', code: 'KeyE', control: true, mac: true })).toBeNull()
+    expect(kept({ key: 'e', code: 'KeyE', meta: true, mac: true })).toBeNull()
+    expect(browserShortcutAction(input({ key: 'e', code: 'KeyE', meta: true, mac: true }))).toBeNull()
+  })
+
+  it('open Home with Alt+Home elsewhere than macOS', () => {
+    expect(kept({ key: 'Home', code: 'Home', alt: true })).toBe('open-home')
+    expect(kept({ key: 'Home', code: 'Home' })).toBeNull()
+    expect(kept({ key: 'Home', code: 'Home', alt: true, shift: true })).toBeNull()
+    expect(kept({ key: 'Home', code: 'Home', alt: true, control: true })).toBeNull()
+    expect(kept({ key: 'Home', code: 'Home', control: true })).toBeNull()
+    expect(kept({ key: 'Home', code: 'Home', alt: true, meta: true })).toBeNull()
+    expect(kept({ key: 'Home', code: 'Home', alt: true, repeat: true })).toBeNull()
+    expect(kept({ key: 'Home', code: 'Home', alt: true, mac: true })).toBeNull()
   })
 
   it('go to the next pane with F6 or Shift+F6 elsewhere than macOS', () => {

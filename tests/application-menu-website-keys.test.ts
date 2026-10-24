@@ -31,6 +31,7 @@ describe('Chrome\'s keys a website may keep', () => {
     const { runShortcut, mainWindow, key } = menu('linux')
     for (const [accelerator, action] of [
       ['F5', 'reload'], ['Shift+F5', 'reload-ignoring-cache'], ['Ctrl+F5', 'reload-ignoring-cache'], ['Alt+D', 'focus-address'],
+      ['Ctrl+E', 'focus-address'], ['Alt+Home', 'open-home'],
       ['F3', 'find-next'], ['Shift+F3', 'find-previous'],
       ['Ctrl+Shift+PageDown', 'move-tab-next'], ['Ctrl+Shift+PageUp', 'move-tab-previous']
     ] as const) {
@@ -42,6 +43,8 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(menu('win32').key('F5')).toBeDefined()
     expect(menu('darwin').key('F5')).toBeUndefined()
     expect(menu('darwin').key('Alt+D')).toBeUndefined()
+    expect(menu('darwin').key('Ctrl+E')).toBeUndefined()
+    expect(menu('darwin').key('Alt+Home')).toBeUndefined()
     expect(menu('darwin').key('F3')).toBeUndefined()
     expect(menu('darwin').key('Ctrl+Shift+PageDown')).toBeUndefined()
     expect(menu('darwin').key('F6')).toBeUndefined()
@@ -62,7 +65,7 @@ describe('Chrome\'s keys a website may keep', () => {
     // Hronaut's window runs these keys itself; F6 under its dialog moved the keyboard out of the dialog to the address bar.
     const { runShortcut, runPageNextPane, shellFocused, mainWindow, key } = menu('linux')
     shellFocused.value = true
-    for (const accelerator of ['F5', 'Alt+D', 'F6', 'F3', 'Ctrl+Shift+PageDown']) {
+    for (const accelerator of ['F5', 'Alt+D', 'Ctrl+E', 'Alt+Home', 'F6', 'F3', 'Ctrl+Shift+PageDown']) {
       const item = key(accelerator)!
       item.click!(item, mainWindow, { triggeredByAccelerator: true })
     }
