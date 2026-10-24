@@ -15,7 +15,7 @@ function closedTabOrigin(url: string): string | undefined {
 
 interface SiteDataHost {
   /** The tab runtime, which clears a workspace's site data between its storage operations; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'withWorkspaceSiteDataCleanup' | 'workspaceSession' | 'forgetClosedTabs'> | null
+  tabs(): Pick<BrowserTabsManager, 'withWorkspaceSiteDataCleanup' | 'workspaceSession' | 'forgetHistoryPages'> | null
   /** The visit history, once loaded; the collection and browsing data IPC, the MCP server and shutdown read it too. */
   historyStore(): Pick<HistoryStore, 'list' | 'clearOrigin'> | null
   publishVisitHistory(): void
@@ -76,8 +76,9 @@ export function createSiteData(host: SiteDataHost): {
       const originScope = { origins: [site.origin], originMatchingMode: 'origin-in-all-contexts' as const }
       if (selected.has('history')) {
         await store.clearOrigin(site.origin)
-        // Recently closed tabs of the website go with its history, as in Chrome.
-        host.tabs()?.forgetClosedTabs((url) => closedTabOrigin(url) === site.origin)
+        // The website's pages in the workspace's Recently closed tabs and in its tabs' Back and Forward lists go with its
+        // history, as in Chrome; other workspaces' tabs are not the agent's to change.
+        host.tabs()?.forgetHistoryPages((url) => closedTabOrigin(url) === site.origin, workspaceId)
         host.publishVisitHistory()
       }
       if (selected.has('cookies-and-storage') && selected.has('cache')) {

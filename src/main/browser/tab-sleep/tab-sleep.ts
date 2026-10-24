@@ -7,7 +7,9 @@ import { localizedLoadFailure } from '../load-failure-error.js'
 import type { NavigationHistorySnapshot } from '../navigation-history.js'
 import { settledWithin } from '../page-waits/page-load-limit.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
+import { holdTabHistory } from '../tab-history-pages/forget-tab-history-pages.js'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
+import { SLEEPING_PAGE_URL } from './sleeping-page.js'
 import type { TabSleepAccess, TabSleepTab } from './tab-sleep-access.js'
 
 // A copy of the tab manager's own check, which its load handling keeps using.
@@ -21,9 +23,6 @@ function isAbortedLoad(error: unknown): boolean {
     || details.code === 'ERR_ABORTED'
     || /\bERR_ABORTED\b|\(-3\)\s+loading\b/.test(error.message)
 }
-
-/** The page a sleeping tab shows in place of its own, which holds no site content. */
-const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 
 /**
  * The tab's history without the sleeping page, which a tab that wakes keeps after its own page until that page loads,
@@ -129,7 +128,8 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
   }
   if (!tab.sleeping) return access.getState()
   const restoreUrl = tab.url
-  const navigationHistory = tab.sleepNavigationHistory
+  // Clearing the history while the tab wakes also reaches the history it goes back to sleep with if waking fails.
+  const navigationHistory = holdTabHistory(tab.sleepNavigationHistory)
   const previousLoading = tab.loading
   const previousSuppressInitialHistory = tab.suppressInitialHistory
   const navigationGeneration = tab.navigationGeneration

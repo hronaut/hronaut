@@ -59,6 +59,15 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       return { index: -1, count: 0 }
     }
   }
+  // Whether the active entry follows an entry at the address, as a route the page pushed from there does.
+  const pushedFrom = (address: string): boolean => {
+    try {
+      const index = webContents.navigationHistory.getActiveIndex()
+      return index > 0 && webContents.navigationHistory.getEntryAtIndex(index - 1)?.url === address
+    } catch {
+      return false
+    }
+  }
   // Whether the active entry is the one the page committed last. Only removing entries changes the history without a
   // navigation, such as Hronaut removing the sleeping page of a woken tab, which moves the entry one place back for
   // each entry removed before it. A tab with as many entries as Chromium keeps gives a new last entry the last index
@@ -273,8 +282,10 @@ export function attachNavigationEvents<Tab extends NavigationEventsTab>(access: 
       const visitPending = tab.pendingHistoryUrl === previousUrl
       const samePage = withoutFragment(url) === withoutFragment(previousUrl) && (!visitPending || pendingHistoryReload)
       // A route the page a tab loaded again pushes, such as through a link while an image still loads, is a page opened
-      // from it. The page's own change of its address, such as a router replacing it or adding `#/`, is still that page.
-      if (tab.suppressInitialHistory && committedEntry.index > previousEntry.index
+      // from it: a new entry after the page's own. The page's own change of its address, such as a router replacing it
+      // or adding `#/`, is still that page. Clearing the history can remove entries before the page's own meanwhile,
+      // which moves it back, so the entry before a pushed route is the page it was pushed from.
+      if (tab.suppressInitialHistory && (committedEntry.index > previousEntry.index || pushedFrom(previousUrl))
         && withoutFragment(url) !== withoutFragment(previousUrl)) {
         tab.suppressInitialHistory = false
       }
