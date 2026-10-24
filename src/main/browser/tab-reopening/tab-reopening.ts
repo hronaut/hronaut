@@ -124,13 +124,15 @@ export async function duplicateTabAfterLabelSave<Tab extends TabReopeningTab>(ac
 /**
  * Forgets the remembered closed tabs whose address matches, as Chrome does when history is cleared: Recently closed
  * names the pages, and Reopen closed tab would bring them back. Those held aside while a tab reopens or a workspace
- * closes are forgotten too, so they are not put back. True when any was forgotten.
+ * closes are forgotten too, so they are not put back. Only the workspace's closed tabs when one is named. True when any
+ * was forgotten.
  */
-export function forgetClosedTabs<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, matches: (url: string) => boolean): boolean {
+export function forgetClosedTabs<Tab extends TabReopeningTab>(access: TabReopeningAccess<Tab>, matches: (url: string) => boolean, workspaceId?: string): boolean {
   let forgotten = false
   for (const closedTabs of [access.closedTabs(), ...access.detachedClosedTabs()]) {
     for (let index = closedTabs.length - 1; index >= 0; index -= 1) {
       const closed = closedTabs[index]!
+      if (workspaceId !== undefined && closed.mcpGroupId !== workspaceId) continue
       if (!matches(closed.url)) {
         forgetHistoryPages(closed, matches)
         continue

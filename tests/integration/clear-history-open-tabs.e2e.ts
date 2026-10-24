@@ -5,7 +5,9 @@ interface HistoryWindow {
   hronaut: {
     newTab(options: { url: string; active: boolean }): Promise<unknown>
     navigate(options: { tabId?: string; url: string }): Promise<unknown>
-    getState(): Promise<{ tabs: Array<{ id: string; url: string; loading: boolean; canGoBack: boolean; canGoForward: boolean }> }>
+    selectTab(tabId: string): Promise<unknown>
+    setTabSleeping(tabId: string, sleeping: boolean): Promise<unknown>
+    getState(): Promise<{ tabs: Array<{ id: string; url: string; loading: boolean; sleeping: boolean; canGoBack: boolean; canGoForward: boolean }> }>
   }
   hronautHistory: {
     list(): Promise<Array<{ id: string; url: string }>>
@@ -49,6 +51,38 @@ test('removing a page from the history or clearing it takes it out of open tabs\
     await appWindow.evaluate(() => (window as unknown as HistoryWindow).hronautHistory.clear())
     await expect.poll(async () => (await tab())?.canGoBack).toBe(false)
     expect(await showing(third)).toBe(true)
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('a sleeping tab wakes without the pages whose history was cleared while it slept', async ({ appWindow }) => {
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' }).end(`<!doctype html><title>Page ${request.url?.slice(1)}</title>`)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture port')
+  const [first, second, other] = ['first', 'second', 'other'].map((name) => `http://127.0.0.1:${address.port}/${name}`) as [string, string, string]
+  const tab = () => appWindow.evaluate(async (urls) => (await (window as unknown as HistoryWindow).hronaut.getState()).tabs
+    .find((candidate) => urls.includes(candidate.url)), [first, second])
+  try {
+    await appWindow.evaluate((url) => (window as unknown as HistoryWindow).hronaut.newTab({ url, active: true }), first)
+    await expect.poll(async () => { const shown = await tab(); return shown?.url === first && !shown.loading }).toBe(true)
+    const { id } = (await tab())!
+    await appWindow.evaluate(({ id, url }) => (window as unknown as HistoryWindow).hronaut.navigate({ tabId: id, url }), { id, url: second })
+    await expect.poll(async () => { const shown = await tab(); return shown?.url === second && !shown.loading && shown.canGoBack }).toBe(true)
+
+    await appWindow.evaluate((url) => (window as unknown as HistoryWindow).hronaut.newTab({ url, active: true }), other)
+    await appWindow.evaluate((id) => (window as unknown as HistoryWindow).hronaut.setTabSleeping(id, true), id)
+    await expect.poll(async () => (await tab())?.sleeping).toBe(true)
+    expect((await tab())?.canGoBack).toBe(true)
+
+    await appWindow.evaluate(() => (window as unknown as HistoryWindow).hronautHistory.clear())
+    await expect.poll(async () => (await tab())?.canGoBack).toBe(false)
+    await appWindow.evaluate((id) => (window as unknown as HistoryWindow).hronaut.selectTab(id), id)
+    await expect.poll(async () => { const shown = await tab(); return shown?.url === second && !shown.sleeping && !shown.loading }).toBe(true)
+    expect((await tab())?.canGoBack).toBe(false)
   } finally {
     await closeFixtureServer(server)
   }

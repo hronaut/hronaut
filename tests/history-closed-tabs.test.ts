@@ -22,16 +22,16 @@ afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
-function closedTab(url: string): BrowserClosedTabState {
-  return { id: `closed-${url}`, title: url, url, pinned: false, closedAt: '2026-10-20T16:00:00.000Z' }
+function closedTab(url: string, mcpGroupId?: string): BrowserClosedTabState {
+  return { id: `closed-${url}`, title: url, url, pinned: false, closedAt: '2026-10-20T16:00:00.000Z', ...(mcpGroupId ? { mcpGroupId } : {}) }
 }
 
 /**
  * Recently closed tabs as the tab manager keeps them, with the manager's own forgetting function. Reopening one opens
  * no tab until the test calls failOpening, and then fails, as opening a tab in a workspace that just closed does.
  */
-function recentlyClosed(urls: string[]) {
-  const closedTabs = urls.map(closedTab)
+function recentlyClosed(urls: string[], mcpGroupId?: string) {
+  const closedTabs = urls.map((url) => closedTab(url, mcpGroupId))
   const detachedClosedTabs = new Set<BrowserClosedTabState[]>()
   let failOpening!: (error: Error) => void
   const access = {
@@ -44,7 +44,7 @@ function recentlyClosed(urls: string[]) {
     closedTabs,
     access,
     failOpening: (error: Error) => failOpening(error),
-    tabs: { forgetHistoryPages: vi.fn((matches: (url: string) => boolean) => { forgetClosedTabs(access, matches) }) }
+    tabs: { forgetHistoryPages: vi.fn((matches: (url: string) => boolean, workspaceId?: string) => { forgetClosedTabs(access, matches, workspaceId) }) }
   }
 }
 
@@ -158,8 +158,10 @@ describe('recently closed tabs and the history', () => {
     expect(closedTabs).toEqual([])
   })
 
-  it('forgets the closed tabs of a website whose history an agent clears', async () => {
-    const { closedTabs, tabs } = recentlyClosed(['https://shop.example/cart', ...otherWebsites, 'https://news.example/'])
+  it('forgets the closed tabs of a website whose history an agent clears, only in its workspace', async () => {
+    const { closedTabs, tabs } = recentlyClosed(['https://shop.example/cart', ...otherWebsites, 'https://news.example/'], 'workspace')
+    // The person's tab on the website in another workspace is not the agent's to forget.
+    closedTabs.push(closedTab('https://shop.example/orders', 'other-workspace'))
     const history = await historyWith(['https://shop.example/cart'])
     const browserSession = { cookies: { get: async () => [] } }
     const { agentSiteData } = createSiteData({
@@ -172,7 +174,8 @@ describe('recently closed tabs and the history', () => {
       publishVisitHistory: () => undefined
     })
     await agentSiteData.clear('workspace', 'https://shop.example', ['history'])
-    expect(closedTabs.map((tab) => tab.url)).toEqual([...otherWebsites, 'https://news.example/'])
+    expect(tabs.forgetHistoryPages).toHaveBeenCalledWith(expect.any(Function), 'workspace')
+    expect(closedTabs.map((tab) => tab.url)).toEqual([...otherWebsites, 'https://news.example/', 'https://shop.example/orders'])
   })
 
   it('keeps a closed tab forgotten when the history is cleared while it reopens and reopening it fails', async () => {

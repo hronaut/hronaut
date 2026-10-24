@@ -76,8 +76,9 @@ export function createSiteData(host: SiteDataHost): {
       const originScope = { origins: [site.origin], originMatchingMode: 'origin-in-all-contexts' as const }
       if (selected.has('history')) {
         await store.clearOrigin(site.origin)
-        // The website's pages in Recently closed and in tabs' Back and Forward lists go with its history, as in Chrome.
-        host.tabs()?.forgetHistoryPages((url) => closedTabOrigin(url) === site.origin)
+        // The website's pages in the workspace's Recently closed tabs and in its tabs' Back and Forward lists go with its
+        // history, as in Chrome; other workspaces' tabs are not the agent's to change.
+        host.tabs()?.forgetHistoryPages((url) => closedTabOrigin(url) === site.origin, workspaceId)
         host.publishVisitHistory()
       }
       if (selected.has('cookies-and-storage') && selected.has('cache')) {
