@@ -273,6 +273,13 @@ describe('DownloadsPanel', () => {
     expect(screen.queryByRole('button', { name: 'Cancel failed.bin' })).toBeNull()
   })
 
+  it('shows 99% until the last byte is in, as Chrome', () => {
+    // It said 100% while the download still had bytes to go.
+    renderPanel({ downloads: [download('almost', 'progressing', 999, 1000)] })
+    expect(screen.getByText('99% · 999 B of 1000 B')).toBeVisible()
+    expect(screen.getByRole('progressbar', { name: /almost\.bin/ })).toHaveAttribute('aria-valuenow', '99')
+  })
+
   it('shows a paused transfer without a spinner and resumes it from the keyboard', async () => {
     const resumeDownload = vi.fn(async () => [])
     const view = renderPanel({ downloads: [{ ...download('paused', 'progressing', 25, 100), paused: true, canResume: true }], resumeDownload })
