@@ -520,7 +520,23 @@ export const hiIN: MessageSchema = {
       clearSiteAria: "{origin} का इतिहास साफ़ करें",
       "clearing": "साफ़ किया जा रहा है…",
       "clear": "साफ़ करें…",
-      exclusions: "बुकमार्क ({bookmarks}), सेव किए गए पासवर्ड ({passwords}), अनुमतियां ({permissions}), डाउनलोड, सेटिंग, खुले टैब और वर्कस्पेस का वेबसाइट डेटा बना रहता है।"
+      exclusions: "बुकमार्क ({bookmarks}), सेव किए गए पासवर्ड ({passwords}), अनुमतियां ({permissions}), डाउनलोड, सेटिंग, खुले टैब और वर्कस्पेस का वेबसाइट डेटा बना रहता है।",
+      "secureDns": {
+        "heading": "सुरक्षित DNS",
+        "description": "वेबसाइटों के पते एन्क्रिप्ट किए गए कनेक्शन (HTTPS पर DNS) से खोजे जाते हैं। आपकी hosts फ़ाइल, localhost और IP पते पहले की तरह काम करते हैं।",
+        "use": "सुरक्षित DNS इस्तेमाल करें",
+        "useDescription": "बंद होने पर पते बिना एन्क्रिप्शन के खोजे जाते हैं।",
+        "provider": "प्रदाता",
+        "automatic": "आपकी मौजूदा DNS सेवा",
+        "automaticDescription": "आपकी DNS सेवा सुरक्षित DNS देती हो तो उसका, नहीं तो सामान्य DNS का इस्तेमाल होता है।",
+        "chosenDescription": "हर पता सिर्फ़ इसी प्रदाता से खोजा जाता है। यह उपलब्ध न हो तो वेबसाइटें नहीं खुलतीं।",
+        "custom": "कस्टम",
+        "customLabel": "प्रदाता का पता",
+        "customHint": "https:// वाला पता, जैसे https://dns.example/dns-query",
+        "customPending": "जब तक आप इस्तेमाल करें नहीं दबाते, पते पहले की तरह खोजे जाते हैं।",
+        "customInvalid": "कोई मान्य https:// पता डालें",
+        "useCustom": "इस्तेमाल करें"
+      }
     },
     "support": {
       "trialNotStarted": "आपका 10 दिन का ट्रायल एजेंट के पहले टूल कॉल के साथ शुरू होता है।",

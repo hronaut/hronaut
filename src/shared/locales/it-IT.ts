@@ -520,7 +520,23 @@ export const itIT: MessageSchema = {
       clearSiteAria: "Cancella la cronologia per {origin}",
       "clearing": "Cancellazione…",
       "clear": "Cancella…",
-      exclusions: "Preferiti ({bookmarks}), password salvate ({passwords}), autorizzazioni ({permissions}), download, impostazioni, schede aperte e dati dei siti web delle aree di lavoro vengono conservati."
+      exclusions: "Preferiti ({bookmarks}), password salvate ({passwords}), autorizzazioni ({permissions}), download, impostazioni, schede aperte e dati dei siti web delle aree di lavoro vengono conservati.",
+      "secureDns": {
+        "heading": "DNS sicuro",
+        "description": "Gli indirizzi dei siti web vengono risolti tramite una connessione crittografata (DNS su HTTPS). Il file hosts, localhost e gli indirizzi IP funzionano come prima.",
+        "use": "Usa DNS sicuro",
+        "useDescription": "Se disattivato, gli indirizzi vengono risolti in chiaro.",
+        "provider": "Provider",
+        "automatic": "Il tuo servizio DNS attuale",
+        "automaticDescription": "Usa il DNS sicuro quando il tuo servizio DNS lo offre, altrimenti il DNS normale.",
+        "chosenDescription": "Ogni indirizzo viene risolto solo tramite questo provider. Se non è raggiungibile, i siti web non si aprono.",
+        "custom": "Personalizzato",
+        "customLabel": "Indirizzo del provider",
+        "customHint": "Un indirizzo https://, ad esempio https://dns.example/dns-query",
+        "customPending": "Finché non premi Usa, gli indirizzi vengono risolti come prima.",
+        "customInvalid": "Inserisci un indirizzo https:// valido",
+        "useCustom": "Usa"
+      }
     },
     "support": {
       "trialNotStarted": "La prova di 10 giorni inizia con la prima chiamata a uno strumento da parte di un agente.",

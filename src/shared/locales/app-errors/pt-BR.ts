@@ -353,7 +353,8 @@ export const ptBRAppErrors: AppErrorMessages = {
     "downloadFolderOpenFailed": "O Hronaut não conseguiu abrir a pasta de downloads no seu gerenciador de arquivos.",
     "siteSearchRejected": "O Hronaut não conseguiu salvar esta pesquisa em site. Confira o nome, o atalho e a URL.",
     "siteSearchMissing": "Esta pesquisa em site foi excluída, então a alteração não foi salva.",
-    "siteSearchListFull": "A lista de pesquisas em sites está cheia. Exclua uma para adicionar outra."
+    "siteSearchListFull": "A lista de pesquisas em sites está cheia. Exclua uma para adicionar outra.",
+    "secureDnsRejected": "O Hronaut não conseguiu usar este provedor de DNS seguro. Confira o endereço."
   },
   "credentials": {
     "fillAgentActive": "A senha não foi preenchida porque um comando de agente ainda estava em execução. Os agentes continuam pausados; tente novamente quando ele terminar.",

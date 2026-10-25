@@ -353,7 +353,8 @@ export const zhCNAppErrors: AppErrorMessages = {
     "downloadFolderOpenFailed": "Hronaut 无法在文件管理器中打开下载文件夹。",
     "siteSearchRejected": "Hronaut 无法保存此网站搜索。请检查名称、快捷字词和网址。",
     "siteSearchMissing": "此网站搜索已被删除，因此更改未保存。",
-    "siteSearchListFull": "网站搜索列表已满。请先删除一个，再添加新的。"
+    "siteSearchListFull": "网站搜索列表已满。请先删除一个，再添加新的。",
+    "secureDnsRejected": "Hronaut 无法使用此安全 DNS 提供商。请检查其地址。"
   },
   "credentials": {
     "fillAgentActive": "由于智能体命令仍在运行，未填充密码。智能体保持暂停状态；请在命令完成后重试。",

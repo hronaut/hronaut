@@ -53,6 +53,8 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      secureDnsMode: 'automatic',
+      secureDnsTemplate: '',
       followAgentActivity: false,
       showAgentCursor: true,
       pinAgentLiveStatus: false,

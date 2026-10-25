@@ -97,6 +97,7 @@ import type { AddressSuggestionOverlayRequest, AddressSuggestionSelection } from
 import type { ShellTooltipRequest } from '../shared/shell-tooltip.js'
 import type { UndoOffer } from '../shared/undo.js'
 import type { SiteSearchDraft } from '../shared/site-search.js'
+import type { SecureDnsMode } from '../shared/secure-dns.js'
 
 const api: HronautApi = {
   getState: () => ipcRenderer.invoke('browser:get-state'),
@@ -471,6 +472,7 @@ const settingsApi: HronautSettingsApi = {
   addSiteSearch: (draft: SiteSearchDraft) => ipcRenderer.invoke('settings:add-site-search', draft),
   updateSiteSearch: (id: string, draft: SiteSearchDraft) => ipcRenderer.invoke('settings:update-site-search', id, draft),
   removeSiteSearch: (id: string) => ipcRenderer.invoke('settings:remove-site-search', id),
+  setSecureDns: (mode: SecureDnsMode, template: string) => ipcRenderer.invoke('settings:set-secure-dns', mode, template),
   setHideInTray: (enabled: boolean) => ipcRenderer.invoke('settings:set-hide-in-tray', enabled),
   setLaunchAtStartup: (enabled: boolean) => ipcRenderer.invoke('settings:set-launch-at-startup', enabled),
   setLaunchMinimized: (enabled: boolean) => ipcRenderer.invoke('settings:set-launch-minimized', enabled),

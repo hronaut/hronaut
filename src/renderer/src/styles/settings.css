@@ -230,6 +230,12 @@
 .site-search-form { @apply grid [gap:12px] [padding:14px] [border:1px_solid_color-mix(in_srgb,_var(--accent)_35%,_var(--border-soft))] [border-radius:var(--corner-2)] bg-accent-soft; }
 .site-search-form h5 { @apply m-0 text-copy [font-size:var(--type-body-size)] [font-weight:var(--weight-strong)]; }
 .site-search-actions { @apply flex flex-wrap [gap:8px]; }
+.secure-dns-settings { @apply grid [gap:12px] [margin-top:28px] [padding-top:22px] [border-top:1px_solid_var(--border-soft)]; }
+.secure-dns-settings .setting-copy h4 { @apply m-0 text-copy [font-size:var(--type-title-size)] [font-weight:var(--weight-strong)]; }
+.secure-dns-settings .setting-copy p { @apply [margin:4px_0_0] text-muted [font-size:var(--type-small-size)] [line-height:1.5]; }
+.secure-dns-settings .settings-rows { @apply m-0; }
+.secure-dns-custom { @apply grid [gap:12px] [padding:14px] [border:1px_solid_color-mix(in_srgb,_var(--accent)_35%,_var(--border-soft))] [border-radius:var(--corner-2)] bg-accent-soft; }
+.secure-dns-custom > .ui-button { @apply justify-self-start; }
 
 .workspace-data-section { @apply grid [gap:12px] [margin-top:20px]; }
 .workspace-data-heading { @apply flex items-start justify-between [gap:16px]; }

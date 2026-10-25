@@ -520,7 +520,23 @@ export const esES: MessageSchema = {
       clearSiteAria: "Borrar historial de {origin}",
       "clearing": "Borrando…",
       "clear": "Borrar…",
-      exclusions: "Se conservan los marcadores ({bookmarks}), contraseñas ({passwords}), permisos ({permissions}), descargas, ajustes, pestañas y datos de los espacios."
+      exclusions: "Se conservan los marcadores ({bookmarks}), contraseñas ({passwords}), permisos ({permissions}), descargas, ajustes, pestañas y datos de los espacios.",
+      "secureDns": {
+        "heading": "DNS seguro",
+        "description": "Las direcciones de los sitios web se resuelven a través de una conexión cifrada (DNS sobre HTTPS). Tu archivo hosts, localhost y las direcciones IP funcionan como antes.",
+        "use": "Usar DNS seguro",
+        "useDescription": "Si está desactivado, las direcciones se resuelven sin cifrar.",
+        "provider": "Proveedor",
+        "automatic": "Tu servicio de DNS actual",
+        "automaticDescription": "Usa DNS seguro cuando tu servicio de DNS lo ofrece, y DNS normal cuando no.",
+        "chosenDescription": "Todas las direcciones se resuelven solo a través de este proveedor. Si no se puede acceder a él, los sitios web no se abren.",
+        "custom": "Personalizado",
+        "customLabel": "Dirección del proveedor",
+        "customHint": "Una dirección https://, como https://dns.example/dns-query",
+        "customPending": "Hasta que pulses Usar, las direcciones se resuelven como antes.",
+        "customInvalid": "Escribe una dirección https:// válida",
+        "useCustom": "Usar"
+      }
     },
     "support": {
       "trialNotStarted": "La prueba de 10 días empieza con la primera llamada a una herramienta del agente.",

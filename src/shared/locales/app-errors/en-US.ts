@@ -357,7 +357,8 @@ export const enUSAppErrors = {
     "downloadFolderOpenFailed": "Hronaut could not open the download folder in your file manager.",
     "siteSearchRejected": "Hronaut could not save this site search. Check its name, shortcut and URL.",
     "siteSearchMissing": "This site search was deleted, so the change was not saved.",
-    "siteSearchListFull": "The site search list is full. Delete a site search to add another."
+    "siteSearchListFull": "The site search list is full. Delete a site search to add another.",
+    "secureDnsRejected": "Hronaut could not use this secure DNS provider. Check its address."
   },
   "credentials": {
     "fillAgentActive": "The password was not filled because an agent command was still running. Agents stay paused; try again when it finishes.",

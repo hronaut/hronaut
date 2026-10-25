@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
@@ -127,7 +127,8 @@ describe('PrivacySettingsPanel', () => {
     controller.summary.value = { ...EMPTY_SUMMARY, historyEntries: 3 }
     await nextTick()
     expect(screen.queryByRole('group', { name: 'What to clear' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    // History has no choices; the panel's one switch is Secure DNS's.
+    expect(within(screen.getByRole('region', { name: 'Global history' })).queryByRole('checkbox')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Clear history…' })).toBeEnabled()
     controller.dispose()
   })

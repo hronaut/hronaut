@@ -12,6 +12,7 @@ import IconSearch from '~icons/material-symbols/search-rounded'
 import IconSwapHoriz from '~icons/material-symbols/swap-horiz-rounded'
 import IconWorkspaces from '~icons/material-symbols/workspaces-rounded'
 import type { PrivacySettingsController } from '../composables/usePrivacySettingsController'
+import SecureDnsSettings from './SecureDnsSettings.vue'
 import { vTooltip } from '../ui/tooltip.js'
 
 interface WorkspaceDataSummary {
@@ -32,6 +33,7 @@ const emit = defineEmits<{
   manageWorkspace: [workspaceId: string]
   createWorkspace: []
   transferWorkspaceData: [workspaceId?: string]
+  settingError: [error: unknown]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -182,5 +184,6 @@ watch(() => filteredWebsites.value.map(site => site.origin).join('\n'), async (_
       <p>{{ t('settings.privacy.exclusions', { bookmarks: summary?.bookmarkCount === undefined ? '…' : formatNumber(summary.bookmarkCount), passwords: summary?.savedPasswordCount === undefined ? '…' : formatNumber(summary.savedPasswordCount), permissions: summary?.permissionDecisionCount === undefined ? '…' : formatNumber(summary.permissionDecisionCount) }) }}</p>
     </div>
     </section>
+    <SecureDnsSettings @setting-error="emit('settingError', $event)" />
   </div>
 </template>

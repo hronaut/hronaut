@@ -353,7 +353,8 @@ export const esESAppErrors: AppErrorMessages = {
     "downloadFolderOpenFailed": "Hronaut no pudo abrir la carpeta de descargas en el gestor de archivos.",
     "siteSearchRejected": "Hronaut no pudo guardar esta búsqueda en sitio. Revisa el nombre, el acceso directo y la URL.",
     "siteSearchMissing": "Esta búsqueda en sitio se eliminó, así que el cambio no se guardó.",
-    "siteSearchListFull": "La lista de búsquedas en sitios está llena. Elimina una para añadir otra."
+    "siteSearchListFull": "La lista de búsquedas en sitios está llena. Elimina una para añadir otra.",
+    "secureDnsRejected": "Hronaut no pudo usar este proveedor de DNS seguro. Revisa su dirección."
   },
   "credentials": {
     "fillAgentActive": "No se rellenó la contraseña porque un comando de agente seguía en curso. Los agentes siguen en pausa; vuelve a intentarlo cuando termine.",

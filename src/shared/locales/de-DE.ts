@@ -520,7 +520,23 @@ export const deDE: MessageSchema = {
       clearSiteAria: "Verlauf für {origin} löschen",
       "clearing": "Wird gelöscht…",
       "clear": "Löschen…",
-      exclusions: "Lesezeichen ({bookmarks}), Passwörter ({passwords}), Berechtigungen ({permissions}), Downloads, Einstellungen, Tabs und Websitedaten der Arbeitsbereiche bleiben erhalten."
+      exclusions: "Lesezeichen ({bookmarks}), Passwörter ({passwords}), Berechtigungen ({permissions}), Downloads, Einstellungen, Tabs und Websitedaten der Arbeitsbereiche bleiben erhalten.",
+      "secureDns": {
+        "heading": "Sicheres DNS",
+        "description": "Adressen von Websites werden über eine verschlüsselte Verbindung aufgelöst (DNS über HTTPS). Deine hosts-Datei, localhost und IP-Adressen funktionieren wie bisher.",
+        "use": "Sicheres DNS verwenden",
+        "useDescription": "Ist es aus, werden Adressen unverschlüsselt aufgelöst.",
+        "provider": "Anbieter",
+        "automatic": "Dein aktueller DNS-Dienst",
+        "automaticDescription": "Nutzt sicheres DNS, wenn dein DNS-Dienst es anbietet, und sonst normales DNS.",
+        "chosenDescription": "Jede Adresse wird nur über diesen Anbieter aufgelöst. Ist er nicht erreichbar, öffnen sich keine Websites.",
+        "custom": "Benutzerdefiniert",
+        "customLabel": "Adresse des Anbieters",
+        "customHint": "Eine https://-Adresse, zum Beispiel https://dns.example/dns-query",
+        "customPending": "Bis du auf „Verwenden“ drückst, werden Adressen wie bisher aufgelöst.",
+        "customInvalid": "Gib eine gültige https://-Adresse ein",
+        "useCustom": "Verwenden"
+      }
     },
     "support": {
       "trialNotStarted": "Die 10 Testtage beginnen mit dem ersten Werkzeugaufruf eines Agenten.",

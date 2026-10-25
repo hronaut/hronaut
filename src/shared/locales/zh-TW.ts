@@ -520,7 +520,23 @@ export const zhTW: MessageSchema = {
       clearSiteAria: "清除 {origin} 的記錄",
       "clearing": "清除中…",
       "clear": "清除…",
-      exclusions: "書籤（{bookmarks}）、已儲存的密碼（{passwords}）、權限（{permissions}）、下載項目、設定、開啟中的分頁和工作區網站資料都會保留。"
+      exclusions: "書籤（{bookmarks}）、已儲存的密碼（{passwords}）、權限（{permissions}）、下載項目、設定、開啟中的分頁和工作區網站資料都會保留。",
+      "secureDns": {
+        "heading": "安全 DNS",
+        "description": "透過加密連線（DNS over HTTPS）解析網站位址。hosts 檔案、localhost 和 IP 位址照常可用。",
+        "use": "使用安全 DNS",
+        "useDescription": "關閉後，系統會以未加密的方式解析位址。",
+        "provider": "供應商",
+        "automatic": "目前的 DNS 服務",
+        "automaticDescription": "如果 DNS 服務支援安全 DNS，就使用安全 DNS，否則使用一般 DNS。",
+        "chosenDescription": "所有位址只會透過這個供應商解析。無法連上時，網站將無法開啟。",
+        "custom": "自訂",
+        "customLabel": "供應商位址",
+        "customHint": "以 https:// 開頭的位址，例如 https://dns.example/dns-query",
+        "customPending": "在你按下「使用」之前，位址仍會以原本的方式解析。",
+        "customInvalid": "請輸入有效的 https:// 位址",
+        "useCustom": "使用"
+      }
     },
     "support": {
       "trialNotStarted": "你的 10 天試用期會在第一次呼叫代理程式工具時開始。",

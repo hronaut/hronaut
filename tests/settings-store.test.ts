@@ -89,6 +89,8 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      secureDnsMode: 'secure',
+      secureDnsTemplate: 'https://dns.quad9.net/dns-query',
       followAgentActivity: true,
       showAgentCursor: false,
       pinAgentLiveStatus: true,
@@ -118,6 +120,8 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      secureDnsMode: 'secure',
+      secureDnsTemplate: 'https://dns.quad9.net/dns-query',
       followAgentActivity: true,
       showAgentCursor: false,
       pinAgentLiveStatus: true,
@@ -147,6 +151,8 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      secureDnsMode: 'secure',
+      secureDnsTemplate: 'https://dns.quad9.net/dns-query',
       followAgentActivity: true,
       showAgentCursor: false,
       pinAgentLiveStatus: true,
@@ -216,6 +222,8 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      secureDnsMode: 'automatic',
+      secureDnsTemplate: '',
       followAgentActivity: false,
       showAgentCursor: true,
       pinAgentLiveStatus: false,
@@ -230,6 +238,18 @@ describe('SettingsStore', () => {
       checkForUpdatesOnStartup: true,
       languagePreference: 'system'
     })
+  })
+
+  it('reads secure DNS back as Automatic unless the file holds a known mode, and Secure only with a provider', async () => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    expect(DEFAULT_SETTINGS).toMatchObject({ secureDnsMode: 'automatic', secureDnsTemplate: '' })
+    await writeFile(path, JSON.stringify({ secureDnsMode: 'off', secureDnsTemplate: ' https://dns.google/dns-query{?dns} ' }))
+    expect(await store.load()).toMatchObject({ secureDnsMode: 'off', secureDnsTemplate: 'https://dns.google/dns-query{?dns}' })
+    await writeFile(path, JSON.stringify({ secureDnsMode: 'secure', secureDnsTemplate: 'http://dns.example/dns-query' }))
+    expect(await store.load()).toMatchObject({ secureDnsMode: 'automatic', secureDnsTemplate: '' })
+    await writeFile(path, JSON.stringify({ secureDnsMode: 'strict', secureDnsTemplate: 7 }))
+    expect(await store.load()).toMatchObject({ secureDnsMode: 'automatic', secureDnsTemplate: '' })
   })
 
   it('keeps the well-formed site searches of a settings file and drops the rest', async () => {

@@ -1,6 +1,7 @@
 import type { Confirmation } from '../confirmation.js'
 import type { SearchEngineName } from '../search-engine.js'
 import type { SiteSearchDraft } from '../site-search.js'
+import type { SecureDnsMode } from '../secure-dns.js'
 import type { MemorySaverTimeoutMinutes } from '../memory-saver.js'
 import type { InterfaceScale } from '../interface-scale.js'
 import type { LanguagePreference } from '../locale.js'
@@ -152,6 +153,8 @@ export interface HronautSettingsApi {
   addSiteSearch(draft: SiteSearchDraft): Promise<AppSettings>
   updateSiteSearch(id: string, draft: SiteSearchDraft): Promise<AppSettings>
   removeSiteSearch(id: string): Promise<AppSettings>
+  /** Sets how website addresses are looked up, with the chosen provider's DNS over HTTPS address kept for Secure. */
+  setSecureDns(mode: SecureDnsMode, template: string): Promise<AppSettings>
   setHideInTray(enabled: boolean): Promise<AppSettings>
   setLaunchAtStartup(enabled: boolean): Promise<AppSettings>
   setLaunchMinimized(enabled: boolean): Promise<AppSettings>

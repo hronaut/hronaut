@@ -5,6 +5,7 @@ import { DEFAULT_INTERFACE_SCALE } from '../../../shared/interface-scale.js'
 import { DEFAULT_TAB_POSITION } from '../../../shared/tab-position.js'
 import type { WindowMaterial } from '../../../shared/window-material.js'
 import type { SiteSearchDraft } from '../../../shared/site-search.js'
+import type { SecureDnsMode } from '../../../shared/secure-dns.js'
 import type {
   AppSettings,
   AttentionSoundCue,
@@ -25,6 +26,8 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   useSystemTitleBar: false,
   searchEngine: 'google',
   siteSearches: [],
+  secureDnsMode: 'automatic',
+  secureDnsTemplate: '',
   hideInTray: true,
   launchAtStartup: false,
   launchMinimized: false,
@@ -191,6 +194,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const addSiteSearch = (draft: SiteSearchDraft): Promise<AppSettings> => applySettings(window.hronautSettings.addSiteSearch(draft))
   const updateSiteSearch = (id: string, draft: SiteSearchDraft): Promise<AppSettings> => applySettings(window.hronautSettings.updateSiteSearch(id, draft))
   const removeSiteSearch = (id: string): Promise<AppSettings> => applySettings(window.hronautSettings.removeSiteSearch(id))
+  const setSecureDns = (mode: SecureDnsMode, template: string): Promise<AppSettings> => applySettings(window.hronautSettings.setSecureDns(mode, template))
   const setHideInTray = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setHideInTray(enabled))
   const setLaunchAtStartup = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setLaunchAtStartup(enabled))
   const setLaunchMinimized = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setLaunchMinimized(enabled))
@@ -259,6 +263,7 @@ export const useSettingsStore = defineStore('settings', () => {
     addSiteSearch,
     updateSiteSearch,
     removeSiteSearch,
+    setSecureDns,
     setHideInTray,
     setLaunchAtStartup,
     setLaunchMinimized,

@@ -520,7 +520,23 @@ export const jaJP: MessageSchema = {
       clearSiteAria: "{origin} の履歴を消去",
       "clearing": "消去しています…",
       "clear": "消去…",
-      exclusions: "ブックマーク（{bookmarks}）、保存したパスワード（{passwords}）、権限（{permissions}）、ダウンロード、設定、開いているタブ、ワークスペースのウェブサイト データは保持されます。"
+      exclusions: "ブックマーク（{bookmarks}）、保存したパスワード（{passwords}）、権限（{permissions}）、ダウンロード、設定、開いているタブ、ワークスペースのウェブサイト データは保持されます。",
+      "secureDns": {
+        "heading": "セキュア DNS",
+        "description": "ウェブサイトのアドレスを暗号化された接続（DNS over HTTPS）で解決します。hosts ファイル、localhost、IP アドレスはこれまでどおり使えます。",
+        "use": "セキュア DNS を使用する",
+        "useDescription": "オフにすると、アドレスは暗号化されずに解決されます。",
+        "provider": "プロバイダ",
+        "automatic": "現在の DNS サービス",
+        "automaticDescription": "DNS サービスがセキュア DNS に対応していればそれを使い、対応していなければ通常の DNS を使います。",
+        "chosenDescription": "すべてのアドレスをこのプロバイダだけで解決します。接続できない場合、ウェブサイトは開きません。",
+        "custom": "カスタム",
+        "customLabel": "プロバイダのアドレス",
+        "customHint": "https:// で始まるアドレス（例: https://dns.example/dns-query）",
+        "customPending": "［使用］を押すまで、アドレスはこれまでどおり解決されます。",
+        "customInvalid": "有効な https:// のアドレスを入力してください",
+        "useCustom": "使用"
+      }
     },
     "support": {
       "trialNotStarted": "10 日間の試用期間は、エージェントが最初にツールを呼び出した時点から始まります。",
