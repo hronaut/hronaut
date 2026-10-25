@@ -43,10 +43,11 @@ describe('plural forms', () => {
   })
 
   it('gives every plural message the forms its language picks from', () => {
-    // Chinese, Japanese and Korean write a count the same way whatever it is, so their messages have one form.
+    // Chinese, Japanese, Korean, Indonesian and Vietnamese write a count the same way whatever it is, so their messages
+    // have one form.
     const forms: Record<SupportedLocale, number> = {
       'en-US': 2, 'de-DE': 2, 'es-ES': 2, 'fr-FR': 2, 'pl-PL': 3, 'ru-RU': 3, 'uk-UA': 3,
-      'it-IT': 2, 'pt-BR': 2, 'tr-TR': 2, 'hi-IN': 2, 'ja-JP': 1, 'ko-KR': 1, 'zh-CN': 1, 'zh-TW': 1
+      'it-IT': 2, 'pt-BR': 2, 'tr-TR': 2, 'hi-IN': 2, 'ja-JP': 1, 'ko-KR': 1, 'zh-CN': 1, 'zh-TW': 1, 'id-ID': 1, 'vi-VN': 1
     }
     for (const [locale, expected] of Object.entries(forms) as Array<[SupportedLocale, number]>) {
       const messages = pluralMessages(localeMessages[locale])

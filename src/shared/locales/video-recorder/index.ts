@@ -13,6 +13,8 @@ import { jaJPVideoRecorder } from './ja-JP.js'
 import { koKRVideoRecorder } from './ko-KR.js'
 import { zhCNVideoRecorder } from './zh-CN.js'
 import { zhTWVideoRecorder } from './zh-TW.js'
+import { idIDVideoRecorder } from './id-ID.js'
+import { viVNVideoRecorder } from './vi-VN.js'
 
 /** The video recorder strings, one file for each language. */
 export const videoRecorderMessages = {
@@ -30,5 +32,7 @@ export const videoRecorderMessages = {
   'ja-JP': jaJPVideoRecorder,
   'ko-KR': koKRVideoRecorder,
   'zh-CN': zhCNVideoRecorder,
-  'zh-TW': zhTWVideoRecorder
+  'zh-TW': zhTWVideoRecorder,
+  'id-ID': idIDVideoRecorder,
+  'vi-VN': viVNVideoRecorder
 }

@@ -1,4 +1,4 @@
-export const SUPPORTED_LOCALES = ['en-US', 'uk-UA', 'ru-RU', 'de-DE', 'fr-FR', 'es-ES', 'pl-PL', 'it-IT', 'pt-BR', 'tr-TR', 'hi-IN', 'ja-JP', 'ko-KR', 'zh-CN', 'zh-TW'] as const
+export const SUPPORTED_LOCALES = ['en-US', 'uk-UA', 'ru-RU', 'de-DE', 'fr-FR', 'es-ES', 'pl-PL', 'it-IT', 'pt-BR', 'tr-TR', 'hi-IN', 'ja-JP', 'ko-KR', 'zh-CN', 'zh-TW', 'id-ID', 'vi-VN'] as const
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]
 
 export const LOCALE_NATIVE_NAMES: Record<SupportedLocale, string> = {
@@ -16,7 +16,9 @@ export const LOCALE_NATIVE_NAMES: Record<SupportedLocale, string> = {
   'ja-JP': '日本語',
   'ko-KR': '한국어',
   'zh-CN': '简体中文',
-  'zh-TW': '繁體中文'
+  'zh-TW': '繁體中文',
+  'id-ID': 'Bahasa Indonesia',
+  'vi-VN': 'Tiếng Việt'
 }
 
 export const LANGUAGE_PREFERENCES = ['system', ...SUPPORTED_LOCALES] as const
@@ -50,6 +52,8 @@ export function resolveSupportedLocale(systemLocale: string): SupportedLocale {
   if (normalized === 'zh-tw' || normalized === 'zh-hk' || normalized === 'zh-mo' || normalized.startsWith('zh-hant')
     || /^zh-[a-z]+-(tw|hk|mo)$/.test(normalized)) return 'zh-TW'
   if (normalized === 'zh' || normalized.startsWith('zh-')) return 'zh-CN'
+  if (normalized === 'id' || normalized.startsWith('id-')) return 'id-ID'
+  if (normalized === 'vi' || normalized.startsWith('vi-')) return 'vi-VN'
   return 'en-US'
 }
 

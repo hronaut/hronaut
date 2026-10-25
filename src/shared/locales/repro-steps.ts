@@ -525,4 +525,74 @@ export const reproStepMessages = {
       "urlPath": "URL 路徑"
     }
   },
+  "id-ID": {
+    "kinds": {
+      "navigate": "navigasi",
+      "click": "klik",
+      "input": "input",
+      "key": "tombol",
+      "scroll": "gulir",
+      "expect": "ekspektasi"
+    },
+    "steps": {
+      "open": "Buka {url}",
+      "navigate": "Navigasi ke {url}",
+      "navigateWithin": "Navigasi di dalam halaman ke {url}",
+      "click": "Klik {target}",
+      "input": "Ketik di {target} (nilai tidak direkam)",
+      "key": "Tekan {key} di {target}",
+      "scroll": "Gulir ke x={x}, y={y}",
+      "expect": "Hasil yang diharapkan: {condition}",
+      "captureFailed": "Target tindakan tidak dapat direkam; buat ulang tindakan ini secara manual.",
+      "captureInterrupted": "Perekaman tindakan terganggu oleh navigasi; buat ulang tindakan ini secara manual."
+    },
+    "targets": {
+      "input": "input {type}",
+      "labelled": "{kind} “{label}”"
+    },
+    "conditions": {
+      "visible": "terlihat",
+      "hidden": "tersembunyi",
+      "text": "teks",
+      "checked": "dicentang",
+      "unchecked": "tidak dicentang",
+      "count": "jumlah",
+      "urlPath": "jalur URL"
+    }
+  },
+  "vi-VN": {
+    "kinds": {
+      "navigate": "điều hướng",
+      "click": "nhấp",
+      "input": "nhập",
+      "key": "phím",
+      "scroll": "cuộn",
+      "expect": "kỳ vọng"
+    },
+    "steps": {
+      "open": "Mở {url}",
+      "navigate": "Điều hướng đến {url}",
+      "navigateWithin": "Điều hướng trong trang đến {url}",
+      "click": "Nhấp vào {target}",
+      "input": "Nhập vào {target} (không ghi lại giá trị)",
+      "key": "Nhấn {key} trên {target}",
+      "scroll": "Cuộn đến x={x}, y={y}",
+      "expect": "Kết quả mong đợi: {condition}",
+      "captureFailed": "Không thể ghi lại mục tiêu của thao tác; hãy tạo lại thao tác này theo cách thủ công.",
+      "captureInterrupted": "Việc ghi lại thao tác bị gián đoạn do điều hướng; hãy tạo lại thao tác này theo cách thủ công."
+    },
+    "targets": {
+      "input": "trường nhập {type}",
+      "labelled": "{kind} “{label}”"
+    },
+    "conditions": {
+      "visible": "hiển thị",
+      "hidden": "ẩn",
+      "text": "văn bản",
+      "checked": "đã đánh dấu",
+      "unchecked": "chưa đánh dấu",
+      "count": "số lượng",
+      "urlPath": "đường dẫn URL"
+    }
+  },
 }

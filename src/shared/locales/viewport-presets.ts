@@ -120,4 +120,20 @@ export const viewportPresetMessages = {
     laptop: { label: '筆記型電腦', description: '精簡的桌面版面' },
     desktop: { label: '桌上型電腦', description: '寬版桌面版面' }
   },
+  'id-ID': {
+    'compact-phone': { label: 'Ponsel ringkas', description: 'Tata letak seluler yang sempit' },
+    phone: { label: 'Ponsel', description: 'Tata letak seluler umum' },
+    'large-phone': { label: 'Ponsel besar', description: 'Tata letak seluler yang lebar' },
+    tablet: { label: 'Tablet', description: 'Tata letak tablet yang mengutamakan sentuhan' },
+    laptop: { label: 'Laptop', description: 'Tata letak desktop yang ringkas' },
+    desktop: { label: 'Desktop', description: 'Tata letak desktop yang lebar' }
+  },
+  'vi-VN': {
+    'compact-phone': { label: 'Điện thoại nhỏ gọn', description: 'Bố cục di động hẹp' },
+    phone: { label: 'Điện thoại', description: 'Bố cục di động thông thường' },
+    'large-phone': { label: 'Điện thoại lớn', description: 'Bố cục di động rộng' },
+    tablet: { label: 'Máy tính bảng', description: 'Bố cục máy tính bảng ưu tiên cảm ứng' },
+    laptop: { label: 'Máy tính xách tay', description: 'Bố cục máy tính để bàn nhỏ gọn' },
+    desktop: { label: 'Máy tính để bàn', description: 'Bố cục máy tính để bàn rộng' }
+  },
 }

@@ -134,4 +134,22 @@ export const incidentPathMessages = {
     "pathHint": "最多 10 個路徑，每個路徑最多 16 段。範例：[\"console\", 0, \"message\"]。字串用來選取物件鍵，數字用來走訪陣列。無法移除陣列元素。路徑比對會在全域欄位省略與文字取代之前進行。",
     "invalidPath": "屬性省略 {index} 需要有效的常值路徑。"
   },
+  "id-ID": {
+    "addPath": "Hilangkan satu properti",
+    "removePath": "Hapus penghilangan properti {index}",
+    "pathRow": "Penghilangan properti {index}",
+    "pathArtifact": "Artefak",
+    "pathValue": "Jalur properti persis (array JSON)",
+    "pathHint": "Hingga 10 jalur, masing-masing dengan 16 segmen. Contoh: [\"console\", 0, \"message\"]. String memilih kunci objek; angka menelusuri array. Elemen array tidak dapat dihapus. Jalur harus cocok sebelum penghilangan kolom global dan penggantian teks.",
+    "invalidPath": "Penghilangan properti {index} memerlukan jalur literal yang valid."
+  },
+  "vi-VN": {
+    "addPath": "Bỏ qua một thuộc tính",
+    "removePath": "Xóa mục bỏ qua thuộc tính {index}",
+    "pathRow": "Mục bỏ qua thuộc tính {index}",
+    "pathArtifact": "Tạo phẩm",
+    "pathValue": "Đường dẫn thuộc tính chính xác (mảng JSON)",
+    "pathHint": "Tối đa 10 đường dẫn, mỗi đường dẫn có tối đa 16 phân đoạn. Ví dụ: [\"console\", 0, \"message\"]. Chuỗi chọn khóa của đối tượng; số dùng để duyệt mảng. Không thể xóa phần tử của mảng. Đường dẫn phải khớp trước khi áp dụng việc bỏ qua trường chung và thay thế văn bản.",
+    "invalidPath": "Mục bỏ qua thuộc tính {index} cần một đường dẫn dạng chữ hợp lệ."
+  },
 }
