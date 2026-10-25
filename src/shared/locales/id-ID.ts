@@ -413,6 +413,7 @@ export const idID: MessageSchema = {
       "askDescription": "Tampilkan dialog simpan sistem operasi untuk setiap download situs baru.",
       "help": "Perubahan berlaku untuk download situs baru. Transfer yang sedang berjalan tetap menggunakan tujuan awalnya. Ekspor PDF dan file yang dibuat agen menggunakan folder yang dipilih tanpa menanyakan lokasi penyimpanan."
     },
+    "restartNow": "Mulai ulang",
     "graphics": { "heading": "Grafis", "use": "Gunakan akselerasi grafis jika tersedia", "useDescription": "Jika aktif, halaman dan Hronaut digambar menggunakan kartu grafis Anda. Nonaktifkan setelan ini jika sebagian jendela tetap hitam atau kosong, atau berkedip.", "restart": "Mulai ulang Hronaut untuk menerapkan perubahan ini." },
     "memory": {
       "heading": "Penghemat Memori",
@@ -3785,6 +3786,10 @@ export const idID: MessageSchema = {
       "quitDownloadsDetail": "Keluar sekarang akan membatalkan semuanya dan menghapus file yang belum selesai.",
       "quitDownloadsQuit": "Keluar",
       "quitDownloadsKeep": "Lanjutkan download",
+      "restartDownloadsTitle": "Mulai ulang Hronaut?",
+      "restartDownloadDetail": "Memulai ulang sekarang akan membatalkannya dan menghapus file yang belum selesai.",
+      "restartDownloadsDetail": "Memulai ulang sekarang akan membatalkan semuanya dan menghapus file yang belum selesai.",
+      "restartDownloadsRestart": "Mulai ulang",
       "closeTabTitle": "Tutup tab ini?",
       "closeTabMessage": "Halaman ini meminta Hronaut untuk mengonfirmasi sebelum ditutup.",
       "closeTabDetail": "Menutup tab dapat membuang perubahan yang belum disimpan.",

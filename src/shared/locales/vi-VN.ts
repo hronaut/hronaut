@@ -413,6 +413,7 @@ export const viVN: MessageSchema = {
       "askDescription": "Hiển thị hộp thoại lưu của hệ điều hành cho mỗi lượt tải xuống mới từ trang web.",
       "help": "Thay đổi áp dụng cho các lượt tải xuống mới từ trang web. Các lượt truyền đang diễn ra vẫn giữ đích ban đầu. Bản xuất PDF và tệp do tác nhân tạo sẽ dùng thư mục đã chọn mà không hỏi nơi lưu."
     },
+    "restartNow": "Khởi động lại",
     "graphics": { "heading": "Đồ họa", "use": "Sử dụng tính năng tăng tốc đồ họa khi có", "useDescription": "Khi bật, các trang và Hronaut sẽ dùng card đồ họa của bạn để hiển thị. Hãy tắt cài đặt này nếu một phần cửa sổ bị đen, trống hoặc nhấp nháy.", "restart": "Hãy khởi động lại Hronaut để áp dụng thay đổi này." },
     "memory": {
       "heading": "Trình tiết kiệm bộ nhớ",
@@ -3785,6 +3786,10 @@ export const viVN: MessageSchema = {
       "quitDownloadsDetail": "Nếu thoát bây giờ, các lượt tải xuống sẽ bị hủy và các tệp chưa hoàn tất sẽ bị xóa.",
       "quitDownloadsQuit": "Thoát",
       "quitDownloadsKeep": "Tiếp tục tải xuống",
+      "restartDownloadsTitle": "Khởi động lại Hronaut?",
+      "restartDownloadDetail": "Nếu khởi động lại bây giờ, lượt tải xuống sẽ bị hủy và tệp chưa hoàn tất sẽ bị xóa.",
+      "restartDownloadsDetail": "Nếu khởi động lại bây giờ, các lượt tải xuống sẽ bị hủy và các tệp chưa hoàn tất sẽ bị xóa.",
+      "restartDownloadsRestart": "Khởi động lại",
       "closeTabTitle": "Đóng thẻ này?",
       "closeTabMessage": "Trang này yêu cầu Hronaut xác nhận trước khi đóng.",
       "closeTabDetail": "Việc đóng thẻ có thể làm mất các thay đổi chưa được lưu.",
