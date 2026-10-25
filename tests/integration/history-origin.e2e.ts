@@ -17,8 +17,10 @@ test('filters exact history origins with search/date, keyboard access and unchan
     visitedAt: new Date(Date.now() - (id === 'old' ? 10 * 86_400_000 : 0)).toISOString()
   }))
   entries.sort((left, right) => right.visitedAt.localeCompare(left.visitedAt) || left.title.localeCompare(right.title))
+  // The history saves the visit times it keeps for a page; with one, its last visit, the file stays as written.
+  const saved = entries.map(entry => ({ ...entry, earlierVisitAt: Date.parse(entry.visitedAt) }))
   const path = join(profileDirectory, 'history.json')
-  await writeFile(path, JSON.stringify({ version: 1, entries }))
+  await writeFile(path, JSON.stringify({ version: 1, entries: saved }))
   let instance = await launchHronaut(profileDirectory, mcpPort)
   try {
     const window = instance.window
@@ -56,7 +58,7 @@ test('filters exact history origins with search/date, keyboard access and unchan
     expect(await panel.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
     await testInfo.attach('history-origin-compact', { body: await panel.screenshot(), contentType: 'image/png' })
     expect(await window.evaluate(() => (window as unknown as { hronautHistory: HronautHistoryApi }).hronautHistory.list())).toEqual(entries)
-    expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual(entries)
+    expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual(saved)
     await closeHronaut(instance.app)
     instance = await launchHronaut(profileDirectory, mcpPort)
     await instance.window.getByRole('button', { name: 'Browsing history', exact: true }).click()
