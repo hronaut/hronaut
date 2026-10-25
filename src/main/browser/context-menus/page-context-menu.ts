@@ -4,6 +4,7 @@ import { pageSourceAddress } from '../page-source/page-source.js'
 import { searchEngineLabel, selectionAddressKept, selectionGoToUrl, selectionSearchLabelText, selectionSearchQuery, selectionSearchUrl } from '../selection-search/selection-search.js'
 import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
 import { openedResourceReferrer, savedResourceReferrer } from './page-context-menu-referrer.js'
+import { textFragmentLink } from './text-fragment-link.js'
 
 // The fields Chrome offers the emoji picker in: an editable element, which has no form control, a text, search,
 // address, email or password input, or a text area. A number, telephone or date field takes no emoji.
@@ -11,8 +12,8 @@ const EMOJI_FIELDS: ReadonlySet<ContextMenuParams['formControlType']> = new Set(
 
 /**
  * Shows the native context menu for a right-click in the page: link, image,
- * editing and selection actions for what was clicked, with a search for the
- * selected text or a visit to a selected address, then page navigation, copy address, save, print, view source, the
+ * editing and selection actions for what was clicked, with a link to the
+ * selected text and a search for it or a visit to a selected address, then page navigation, copy address, save, print, view source, the
  * source and reload of a frame inside the page, and inspect. Each action checks that its tab is still open.
  */
 export function showContextMenu<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, params: ContextMenuParams): void {
@@ -103,6 +104,13 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       label: access.text('native.context.searchFor', { engine: searchEngineLabel(engine), text: selectionSearchLabelText(query) }),
       click: openSelectionTab('search for the selection', selectionSearchUrl(query, engine))
     }]
+  }
+  // Chrome's Copy link to highlight, for text selected in the page itself: a frame inside the page has an address of its
+  // own, and Chrome makes no link for text in one either. See text-fragment-link.ts.
+  const linkToHighlight = (): MenuItemConstructorOptions[] => {
+    if (frame || params.frameURL !== params.pageURL) return []
+    const link = textFragmentLink(params.pageURL, params.selectionText)
+    return link ? [{ id: 'copy-link-to-highlight', label: access.text('native.context.copyLinkToHighlight'), click: () => copyText(link) }] : []
   }
   const copyImage = (): void => {
     void access.options().copyImageAt(webContents, params.x, params.y)
@@ -226,7 +234,11 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     const search = searchSelection()
     if (search.length) groups.push(search)
   } else if (params.selectionText) {
-    groups.push([{ id: 'copy-selection', label: access.text('native.context.copy'), click: withLiveContents('copy selection', () => webContents.copy()) }, ...searchSelection()])
+    groups.push([
+      { id: 'copy-selection', label: access.text('native.context.copy'), click: withLiveContents('copy selection', () => webContents.copy()) },
+      ...linkToHighlight(),
+      ...searchSelection()
+    ])
   }
 
   const navigation = webContents.navigationHistory

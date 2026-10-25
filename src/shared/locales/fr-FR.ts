@@ -3634,6 +3634,7 @@ export const frFR = {
       "bookmarkAllTabs": "Ajouter tous les onglets aux favoris…",
       "openLink": "Ouvrir le lien dans un nouvel onglet",
       "copyLink": "Copier l’adresse du lien",
+      "copyLinkToHighlight": "Copier le lien vers le texte surligné",
       "copyEmail": "Copier l’adresse e-mail",
       "saveLink": "Enregistrer le lien",
       "openImage": "Ouvrir l’image dans un nouvel onglet",

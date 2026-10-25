@@ -3634,6 +3634,7 @@ export const plPL = {
       "bookmarkAllTabs": "Dodaj wszystkie karty do zakładek…",
       "openLink": "Otwórz łącze w nowej karcie",
       "copyLink": "Kopiuj adres łącza",
+      "copyLinkToHighlight": "Kopiuj link do wyróżnionego tekstu",
       "copyEmail": "Kopiuj adres e-mail",
       "saveLink": "Zapisz łącze",
       "openImage": "Otwórz obraz w nowej karcie",

@@ -119,7 +119,7 @@ describe('the address a selection goes to', () => {
 describe('Search for the selection in the page context menu', () => {
   it('goes to a selected address instead, in front beside the page, without asking for the search engine', () => {
     const { tab, createTab, searchEngine, ids, items } = openMenu({ selectionText: ' https://docs.example/guide\n' })
-    expect(ids.slice(0, 3)).toEqual(['copy-selection', 'go-to-selection', 'separator'])
+    expect(ids.slice(0, 4)).toEqual(['copy-selection', 'copy-link-to-highlight', 'go-to-selection', 'separator'])
     expect(ids).not.toContain('search-selection')
     const item = items.find((entry) => entry.id === 'go-to-selection')!
     expect(item.label).toBe('native.context.goTo {"text":"https://docs.example/guide"}')
@@ -167,8 +167,8 @@ describe('Search for the selection in the page context menu', () => {
 
   it('follows Copy for selected text, named for the address bar\'s search engine', () => {
     const { ids, items } = openMenu({ selectionText: 'Hronaut   browser' }, { engine: 'duckduckgo' })
-    expect(ids.slice(0, 3)).toEqual(['copy-selection', 'search-selection', 'separator'])
-    expect(items[1]?.label).toBe('native.context.searchFor {"engine":"DuckDuckGo","text":"Hronaut browser"}')
+    expect(ids.slice(0, 4)).toEqual(['copy-selection', 'copy-link-to-highlight', 'search-selection', 'separator'])
+    expect(items[2]?.label).toBe('native.context.searchFor {"engine":"DuckDuckGo","text":"Hronaut browser"}')
   })
 
   it('opens the results in front, beside the page and in its workspace', () => {
