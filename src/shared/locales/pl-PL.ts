@@ -3031,12 +3031,12 @@ export const plPL = {
     "close": "Zamknij kod QR",
     "image": "Kod QR",
     "url": "URL",
-    "tooLong": "Użyj maksymalnie {count} znaków",
+    "tooLong": "Ten tekst jest za długi na kod QR",
     "hint": "Aby zeskanować ten kod, możesz użyć aplikacji do skanowania kodów QR na telefonie lub niektórych aplikacji aparatu.",
     "copy": "Kopiuj",
     "download": "Pobierz",
     "copied": "Skopiowano obraz kodu QR",
-    "downloaded": "Pobrano obraz kodu QR"
+    "downloadStarted": "Rozpoczęto pobieranie obrazu kodu QR"
   },
   "taskManager": {
     "title": "Menedżer zadań",

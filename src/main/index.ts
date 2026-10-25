@@ -931,7 +931,7 @@ function registerIpc(): void {
     copyPngToClipboard
   })
   registerQrCodeIpc({
-    assertTrustedSender: assertTrustedShellSender,
+    assertTrustedSender: assertMainShellSender,
     handleBrowserIpc,
     tabs: () => tabRuntime.tabs,
     copyPngToClipboard

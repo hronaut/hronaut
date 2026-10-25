@@ -35,7 +35,8 @@ export function qrCodePng(text: string): Buffer | undefined {
 
 /**
  * The name Chrome gives a downloaded QR code, after the address it was made for: `qrcode_` and the host, or
- * `qrcode_hronaut.png` for an address with no host name, such as an IP address.
+ * `qrcode_hronaut.png` for an address with no host name, such as an IP address. A host name with characters a file name
+ * cannot hold everywhere, as `a*b` can be, names no file either.
  */
 export function qrCodeFilename(address: string): string {
   let host = ''
@@ -45,5 +46,5 @@ export function qrCodeFilename(address: string): string {
     // An address that does not parse names no host.
   }
   const bare = host.startsWith('[') ? host.slice(1, -1) : host
-  return host && !isIP(bare) ? `qrcode_${host}.png` : 'qrcode_hronaut.png'
+  return /^[a-z0-9._-]+$/.test(host) && !isIP(bare) ? `qrcode_${host}.png` : 'qrcode_hronaut.png'
 }

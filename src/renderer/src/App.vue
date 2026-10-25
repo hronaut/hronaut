@@ -1068,7 +1068,6 @@ useAppLifecycleController({
     <QrCodeDialog
       v-if="!isDetachedPanelWindow"
       :controller="qrCodeController"
-      :format-number="localNumber"
       :report-layout="reportShellHeight"
     />
     <DetachedPanelUnavailableState

@@ -3031,12 +3031,12 @@ export const esES = {
     "close": "Cerrar código QR",
     "image": "Código QR",
     "url": "URL",
-    "tooLong": "Usa {count} caracteres como máximo",
+    "tooLong": "Este texto es demasiado largo para un código QR",
     "hint": "Para escanear este código, puedes usar una aplicación de escáner QR en tu teléfono o algunas aplicaciones de cámara.",
     "copy": "Copiar",
     "download": "Descargar",
     "copied": "Imagen del código QR copiada",
-    "downloaded": "Imagen del código QR descargada"
+    "downloadStarted": "Descarga de la imagen del código QR iniciada"
   },
   "taskManager": {
     "title": "Administrador de tareas",

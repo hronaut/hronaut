@@ -184,7 +184,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       ...!params.linkURL && isWebUrl(params.srcURL) ? [{
         id: 'create-qr-code-image',
         label: access.text('native.context.createQrCodeImage'),
-        click: () => requestQrCode(params.srcURL)
+        click: withLiveContents('create a QR code', () => requestQrCode(params.srcURL))
       }] : [],
       {
         id: 'save-image',
@@ -323,7 +323,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     ...isWebUrl(tab.url) ? [{
       id: 'create-qr-code-page',
       label: access.text('native.context.createQrCodePage'),
-      click: () => requestQrCode(tab.url)
+      click: withLiveContents('create a QR code', () => requestQrCode(tab.url))
     }] : [],
     // As in Chrome, between Print and Inspect, for a web page; a page's source has no source of its own.
     ...pageSourceAddress(tab.url) ? [{

@@ -50,5 +50,8 @@ describe('the QR code image', () => {
     expect(qrCodeFilename('http://[::1]:3000/')).toBe('qrcode_hronaut.png')
     expect(qrCodeFilename('not an address')).toBe('qrcode_hronaut.png')
     expect(qrCodeFilename('data:text/plain,hi')).toBe('qrcode_hronaut.png')
+    // A web host name may hold characters such as * that Windows refuses in a file name.
+    expect(qrCodeFilename('http://a*b/logo.png')).toBe('qrcode_hronaut.png')
+    expect(qrCodeFilename('http://build_42.local/')).toBe('qrcode_build_42.local.png')
   })
 })

@@ -23,7 +23,8 @@ function harness() {
   const tabIds = ref<readonly string[]>(['tab-1', 'tab-2'])
   const api = {
     copyQrCode: vi.fn(async (_text: string): Promise<void> => undefined),
-    downloadQrCode: vi.fn(async (_request: { tabId: string, text: string, address: string }): Promise<void> => undefined)
+    downloadQrCode: vi.fn(async (_request: { tabId: string, text: string, address: string }): Promise<void> => undefined),
+    focusActivePage: vi.fn(async (): Promise<void> => undefined)
   }
   const beforeOpen = vi.fn()
   const controller = useQrCodeDialogController({ api, tabIds, beforeOpen, formatError: (error) => `Failed: ${(error as Error).message}` })
@@ -48,6 +49,22 @@ describe('the QR code dialog controller', () => {
     expect(controller.tooLong.value).toBe(false)
   })
 
+  it('opens nothing for a tab that closed while its menu was open', () => {
+    const { controller, beforeOpen } = harness()
+    controller.openFor({ tabId: 'tab-gone', address: 'https://hronaut.dev/' })
+    expect([controller.open.value, beforeOpen.mock.calls.length]).toEqual([false, 0])
+  })
+
+  it('gives the page back the keyboard as it closes, as Chrome\'s does', () => {
+    // The page's keys went nowhere after Escape: the shell kept the focus the dialog had.
+    const { controller, api } = harness()
+    controller.close()
+    expect(api.focusActivePage).not.toHaveBeenCalled()
+    controller.openFor({ tabId: 'tab-1', address: 'https://hronaut.dev/' })
+    controller.close()
+    expect(api.focusActivePage).toHaveBeenCalledOnce()
+  })
+
   it('copies and downloads the code of the text as edited, and names the download after the address it opened for', async () => {
     const { controller, api } = harness()
     controller.openFor({ tabId: 'tab-2', address: 'https://hronaut.dev/' })
@@ -57,7 +74,7 @@ describe('the QR code dialog controller', () => {
     expect(controller.status.value).toBe('copied')
     await controller.download()
     expect(api.downloadQrCode).toHaveBeenCalledExactlyOnceWith({ tabId: 'tab-2', text: 'https://hronaut.dev/guide', address: 'https://hronaut.dev/' })
-    expect(controller.status.value).toBe('downloaded')
+    expect(controller.status.value).toBe('downloadStarted')
   })
 
   it('draws no code for empty text or text longer than a code holds, and then copies nothing', async () => {
@@ -122,7 +139,7 @@ describe('the QR code dialog', () => {
     const state = harness()
     render(QrCodeDialog, {
       global: { plugins: [createHronautI18n('en-US')] },
-      props: { controller: state.controller, formatNumber: (value: number) => value.toLocaleString('en-US'), reportLayout: vi.fn() }
+      props: { controller: state.controller, reportLayout: vi.fn() }
     })
     state.controller.openFor({ tabId: 'tab-1', address: 'https://hronaut.dev/' })
     await flushPromises()
@@ -156,7 +173,7 @@ describe('the QR code dialog', () => {
     await user.click(field)
     await user.paste('x'.repeat(2400))
     expect(screen.queryByRole('img', { name: 'QR code' })).toBeNull()
-    expect(screen.getByText('Use 2,000 characters or fewer')).toBeTruthy()
+    expect(screen.getByText('This text is too long for a QR code')).toBeTruthy()
     expect(field.getAttribute('aria-invalid')).toBe('true')
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Copy' }).disabled).toBe(true)
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Download' }).disabled).toBe(true)

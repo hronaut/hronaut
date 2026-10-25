@@ -3031,12 +3031,12 @@ export const deDE = {
     "close": "QR-Code schließen",
     "image": "QR-Code",
     "url": "URL",
-    "tooLong": "Verwenden Sie höchstens {count} Zeichen",
+    "tooLong": "Dieser Text ist zu lang für einen QR-Code",
     "hint": "Zum Scannen dieses Codes können Sie eine QR-Scanner-App auf Ihrem Smartphone oder einige Kamera-Apps verwenden.",
     "copy": "Kopieren",
     "download": "Herunterladen",
     "copied": "QR-Code-Bild kopiert",
-    "downloaded": "QR-Code-Bild heruntergeladen"
+    "downloadStarted": "Download des QR-Code-Bilds gestartet"
   },
   "taskManager": {
     "title": "Task-Manager",

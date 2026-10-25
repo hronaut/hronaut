@@ -3,7 +3,7 @@ import { qrCode } from '../../../shared/qr-code.js'
 import type { HronautApi } from '../../../shared/types.js'
 
 export interface QrCodeDialogControllerOptions {
-  api: Pick<HronautApi, 'copyQrCode' | 'downloadQrCode'>
+  api: Pick<HronautApi, 'copyQrCode' | 'downloadQrCode' | 'focusActivePage'>
   /** The open tabs; the dialog closes when the tab it was opened for does, as Chrome's closes with its tab. */
   tabIds: Readonly<Ref<readonly string[]>>
   /** Closes what the dialog would cover or fight for focus, such as the command palette or another dialog. */
@@ -15,7 +15,7 @@ export interface QrCodeDialogControllerOptions {
  * Chrome's Create QR Code dialog: a QR code of the address of the page or image it was opened for, which the person can
  * edit, and Copy and Download for its image. The code is drawn as the text changes; text longer than a QR code holds
  * draws none. Copy and Download ask main, which makes the image itself, and an answer that comes after the dialog
- * closed or was opened again changes nothing.
+ * closed or was opened again changes nothing. As Chrome's, the dialog gives the page back the keyboard as it closes.
  */
 export function useQrCodeDialogController(options: QrCodeDialogControllerOptions) {
   const open = ref(false)
@@ -23,13 +23,15 @@ export function useQrCodeDialogController(options: QrCodeDialogControllerOptions
   /** The tab and the address the dialog was opened for, which name the downloaded image. */
   const source = ref<{ tabId: string; address: string } | null>(null)
   const busy = ref<'copy' | 'download' | null>(null)
-  const status = ref<'copied' | 'downloaded' | null>(null)
+  const status = ref<'copied' | 'downloadStarted' | null>(null)
   const error = ref('')
   const modules = computed(() => (text.value ? qrCode(text.value) : undefined))
   const tooLong = computed(() => text.value !== '' && modules.value === undefined)
   let generation = 0
 
   function openFor(request: { tabId: string; address: string }): void {
+    // The tab can close while its menu is still open.
+    if (!options.tabIds.value.includes(request.tabId)) return
     options.beforeOpen()
     generation++
     source.value = request
@@ -46,6 +48,8 @@ export function useQrCodeDialogController(options: QrCodeDialogControllerOptions
     open.value = false
     busy.value = null
     source.value = null
+    // Main waits until the dialog no longer covers the page.
+    void options.api.focusActivePage().catch(() => undefined)
   }
 
   async function run(action: 'copy' | 'download', request: () => Promise<void>): Promise<void> {
@@ -56,7 +60,7 @@ export function useQrCodeDialogController(options: QrCodeDialogControllerOptions
     error.value = ''
     try {
       await request()
-      if (current === generation) status.value = action === 'copy' ? 'copied' : 'downloaded'
+      if (current === generation) status.value = action === 'copy' ? 'copied' : 'downloadStarted'
     } catch (cause) {
       if (current === generation) error.value = options.formatError(cause)
     } finally {

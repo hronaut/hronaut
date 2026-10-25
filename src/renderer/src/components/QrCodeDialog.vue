@@ -10,12 +10,8 @@ import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 import type { QrCodeDialogController } from '../composables/useQrCodeDialogController.js'
 import { qrCodePath, QR_CODE_QUIET_ZONE } from '../../../shared/qr-code-path.js'
 
-/** Chrome's dialog asks for no more characters than this, a round number under what the largest code holds. */
-const CHARACTER_LIMIT = 2000
-
 const props = defineProps<{
   controller: QrCodeDialogController
-  formatNumber: (value: number) => string
   reportLayout: () => void
 }>()
 
@@ -57,10 +53,10 @@ useModalDialogFocus({ open, panel, focusTarget: field, afterLayout: props.report
           :aria-invalid="tooLong"
           :aria-describedby="tooLong ? 'qr-code-too-long' : 'qr-code-hint'"
         >
-        <p v-if="tooLong" id="qr-code-too-long" class="qr-code-error">{{ t('qrCode.tooLong', { count: formatNumber(CHARACTER_LIMIT) }) }}</p>
+        <p v-if="tooLong" id="qr-code-too-long" class="qr-code-error">{{ t('qrCode.tooLong') }}</p>
         <p v-else-if="error" class="qr-code-error" role="alert">{{ error }}</p>
         <p id="qr-code-hint" class="qr-code-hint">{{ t('qrCode.hint') }}</p>
-        <p class="sr-only" role="status">{{ status === 'copied' ? t('qrCode.copied') : status === 'downloaded' ? t('qrCode.downloaded') : '' }}</p>
+        <p class="sr-only" role="status">{{ status === 'copied' ? t('qrCode.copied') : status === 'downloadStarted' ? t('qrCode.downloadStarted') : '' }}</p>
         <footer class="qr-code-actions">
           <UiButton :disabled="!modules" @keydown="ignoreHeldEnter" @click="copy">{{ t('qrCode.copy') }}</UiButton>
           <UiButton variant="primary" :disabled="!modules" @keydown="ignoreHeldEnter" @click="download">{{ t('qrCode.download') }}</UiButton>

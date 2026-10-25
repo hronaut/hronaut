@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { QR_CODE_MAX_BYTES, qrCode } from '../src/shared/qr-code.js'
 
@@ -109,5 +110,20 @@ describe('a QR code', () => {
     // Version 8's information beside the top-right finder, 0x085BC in ISO/IEC 18004's table.
     const versionBits = Array.from({ length: 18 }, (_, index) => (code[Math.floor(index / 3)]![size - 11 + (index % 3)] ? 1 : 0) << index).reduce((bits, bit) => bits | bit, 0)
     expect(versionBits).toBe(0x085BC)
+  })
+
+  it('interleaves the blocks of the larger sizes, which split their codewords', () => {
+    // From version 5 on, a code's codewords are split into blocks and interleaved; these four sizes were read back too.
+    const text = (length: number) => Array.from({ length }, (_, index) => 'Hronaut \u00e9 \u4e2d '[index % 12]).join('')
+    const hash = (modules: boolean[][]) => createHash('sha256').update(rows(modules).join('\n')).digest('hex')
+    expect([68, 171, 900, 1866].map((length) => {
+      const modules = qrCode(text(length))!
+      return [modules.length, hash(modules)]
+    })).toEqual([
+      [37, 'baae79cf5ccd224b6deb723fc1db8f42695b753954ea1a50c94cc42750db4535'],
+      [57, '5c98829eff68e5d5851f744a4493f88c6257e11934c4238400f642d26ba54cbc'],
+      [125, '247c78e1a3918025168f8fc7ccf962557d5c78c88c309e64130f82720164908e'],
+      [177, '761a2f899a133e4542c925f3fd6f14ac51562cea1d96d2591e36142f1d4b8f07']
+    ])
   })
 })

@@ -21,7 +21,8 @@ type PageContextMenuAccess = import('../src/main/browser/context-menus/page-cont
 // Hronaut had no Create QR Code for this Page or for this Image, as Chrome's page menu has.
 
 function openMenu(params: Partial<ContextMenuParams>, url = 'https://docs.example/guide') {
-  const webContents = { id: 7, isDestroyed: () => false, navigationHistory: { canGoBack: () => false, canGoForward: () => false } } as unknown as WebContents
+  let destroyed = false
+  const webContents = { id: 7, isDestroyed: () => destroyed, navigationHistory: { canGoBack: () => false, canGoForward: () => false } } as unknown as WebContents
   const tab: PageTab = { id: 'tab-7', url, mcpGroupId: 'client', webContents }
   const send = vi.fn()
   const access = {
@@ -40,7 +41,7 @@ function openMenu(params: Partial<ContextMenuParams>, url = 'https://docs.exampl
   const items = built.templates.at(-1)!
   const ids = items.map((item) => item.id ?? item.type)
   const click = (id: string) => (items.find((item) => item.id === id)!.click as () => void)()
-  return { ids, items, click, send }
+  return { ids, items, click, send, closeTab: () => { destroyed = true } }
 }
 
 afterEach(() => {
@@ -65,6 +66,13 @@ describe('Create QR Code in the page context menu', () => {
     expect(menu.send).toHaveBeenCalledExactlyOnceWith('browser:qr-code-requested', { tabId: 'tab-7', address: image })
     expect(openMenu({ mediaType: 'image', srcURL: image, hasImageContents: true, linkURL: 'https://docs.example/next' }).ids).not.toContain('create-qr-code-image')
     expect(openMenu({ mediaType: 'image', srcURL: 'data:image/png;base64,iVBORw0KGgo=', hasImageContents: true }).ids).not.toContain('create-qr-code-image')
+  })
+
+  it('asks for nothing once its tab is gone', () => {
+    const menu = openMenu({})
+    menu.closeTab()
+    menu.click('create-qr-code-page')
+    expect(menu.send).not.toHaveBeenCalled()
   })
 
   it('offers nothing for a page that is not a web page', () => {

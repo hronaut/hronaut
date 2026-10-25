@@ -92,7 +92,7 @@ test('Create QR Code shows, copies and downloads the QR code of the page or an i
     // Download saves the same image from the tab's workspace, named after the address, which here has no host name.
     const downloads = () => appWindow.evaluate('window.hronautDownloads.list()') as Promise<BrowserDownloadState[]>
     await dialog.getByRole('button', { name: 'Download' }).click()
-    await expect.poll(said, { timeout: 10_000 }).toBe('QR code image downloaded | ')
+    await expect.poll(said, { timeout: 10_000 }).toBe('QR code image download started | ')
     await expect.poll(async () => (await downloads())[0]?.state).toBe('completed')
     const saved = (await downloads())[0]!
     expect(saved.filename).toBe('qrcode_hronaut.png')
@@ -106,7 +106,7 @@ test('Create QR Code shows, copies and downloads the QR code of the page or an i
     await field.fill(`${page}?from=qr`)
     await expect.poll(drawn).toBe(qrCodePath(qrCode(`${page}?from=qr`)!))
     await field.fill('x'.repeat(2400))
-    await expect(dialog.getByText('Use 2,000 characters or fewer')).toBeVisible()
+    await expect(dialog.getByText('This text is too long for a QR code')).toBeVisible()
     await expect(dialog.getByRole('button', { name: 'Copy' })).toBeDisabled()
     await appWindow.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
