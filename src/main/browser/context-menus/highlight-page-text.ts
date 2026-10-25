@@ -46,7 +46,11 @@ function pageTextScript(deadline: number): string {
       let known = styles.get(element)
       if (!known) {
         const computed = getComputedStyle(element)
-        known = { display: computed.display, collapse: computed.whiteSpaceCollapse, shown: computed.display === 'contents' || element.checkVisibility({ visibilityProperty: true }) }
+        // An element with no box of its own is shown as its parent is.
+        const shown = computed.display === 'contents'
+          ? computed.visibility === 'visible' && (!element.parentElement || style(element.parentElement).shown)
+          : element.checkVisibility({ visibilityProperty: true })
+        known = { display: computed.display, collapse: computed.whiteSpaceCollapse, shown }
         styles.set(element, known)
       }
       return known
@@ -61,8 +65,12 @@ function pageTextScript(deadline: number): string {
       }
       return block
     }
-    const runs = []
-    let run = '', runBlock = null, nodes = 0, length = 0, started = false, ended = false
+    // Chromium finds no text across an image, a control, an embedded page, a script or text drawn by CSS, nor across
+    // text it lays out hidden, so each of these ends the run, and its own text is left out.
+    const atomic = new Set(['img', 'svg', 'math', 'video', 'audio', 'canvas', 'iframe', 'object', 'embed', 'input', 'textarea', 'select', 'button', 'meter', 'progress', 'script', 'style', 'noscript', 'template'])
+    const drawn = (element, pseudo) => !['none', 'normal', '""'].includes(getComputedStyle(element, pseudo).content)
+    const runs = [], closingRuns = []
+    let run = '', runBlock = null, skipped = null, nodes = 0, length = 0, started = false, ended = false
     const endRun = () => {
       run = run.replace(/ +$/, '')
       if (run) runs.push(run)
@@ -80,12 +88,27 @@ function pageTextScript(deadline: number): string {
         if (!started) return null
         markEnd()
       }
+      while (closingRuns.length && !closingRuns.at(-1).contains(node)) {
+        closingRuns.pop()
+        endRun()
+      }
+      if (skipped && skipped.contains(node)) continue
+      skipped = null
       if (node.nodeType === Node.ELEMENT_NODE) {
         if (node.localName === 'br') endRun()
+        else if (atomic.has(node.localName) || node.inert || (!style(node).shown && node.checkVisibility())) {
+          endRun()
+          skipped = node
+        } else if (['inline', 'contents', 'ruby'].includes(style(node).display)) {
+          if (drawn(node, '::before')) endRun()
+          if (drawn(node, '::after')) closingRuns.push(node)
+        }
         continue
       }
       const parent = node.parentElement
-      if (!parent || ['textarea', 'select', 'option', 'optgroup'].includes(parent.localName) || !style(parent).shown) continue
+      // Chromium also finds text in a closed details element or hidden until found, and opens it, so that text is kept
+      // where it is, as the link could find the selected text there.
+      if (!parent || (!style(parent).shown && !parent.closest('details:not([open]), [hidden="until-found"]'))) continue
       const block = blockOf(parent)
       if (block !== runBlock) {
         endRun()
@@ -131,18 +154,26 @@ function markedPageText(raw: unknown): HighlightPageText | undefined {
   if (!marked.every((run): run is string => typeof run === 'string')) return undefined
   let start: HighlightPageText['start'] | undefined
   let end: HighlightPageText['end'] | undefined
-  const runs = marked.map((text, run) => {
-    let clean = ''
-    for (const character of text) {
-      if (character === START && !start && !end) start = { run, offset: clean.length }
-      else if (character === END && start && !end) end = { run, offset: clean.length }
-      else if (character === START || character === END) return undefined
-      else clean += character
+  const runs: string[] = []
+  for (const [run, text] of marked.entries()) {
+    let clean = text
+    const startAt = clean.indexOf(START)
+    if (startAt !== -1) {
+      if (start || end) return undefined
+      start = { run, offset: startAt }
+      clean = clean.slice(0, startAt) + clean.slice(startAt + 1)
     }
-    return clean
-  })
-  if (!start || !end || runs.some((run) => run === undefined)) return undefined
-  return { runs: runs as string[], start, end }
+    const endAt = clean.indexOf(END)
+    if (endAt !== -1) {
+      if (!start || end || (start.run === run && endAt < start.offset)) return undefined
+      end = { run, offset: endAt }
+      clean = clean.slice(0, endAt) + clean.slice(endAt + 1)
+    }
+    if (clean.includes(START) || clean.includes(END)) return undefined
+    runs.push(clean)
+  }
+  if (!start || !end) return undefined
+  return { runs, start, end }
 }
 
 // The page's selection is still the one the menu was opened for when the menu's words read in order among the page's.

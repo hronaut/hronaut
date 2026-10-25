@@ -39,14 +39,15 @@ describe('the link to a highlight, from the menu\'s selected text', () => {
   })
 
   it('never cuts a word, and quotes whole a long text with too few words to mark by its ends', () => {
-    const long = `https://example.test/${'x'.repeat(150)}`
+    const long = 'x'.repeat(320)
     const words = [long, 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', long].join(' ')
     expect(textFragmentLink(PAGE, words)).toBe(`${LINK}${encodeURIComponent(long)},${encodeURIComponent(long)}`)
     // Words that stop fitting are left out rather than cut.
     const wide = ['a'.repeat(60), 'b'.repeat(30), 'c'.repeat(30), ...Array.from({ length: 20 }, () => 'mid'), 'd'.repeat(30), 'e'.repeat(30), 'f'.repeat(60)].join(' ')
     expect(textFragmentLink(PAGE, wide)).toBe(`${LINK}${'a'.repeat(60)}%20${'b'.repeat(30)},${'e'.repeat(30)}%20${'f'.repeat(60)}`)
     const unspaced = '\u65E5'.repeat(400)
-    expect(textFragmentLink(PAGE, unspaced)).toBe(`${LINK}${encodeURIComponent(unspaced)}`)
+    // Text written without spaces has words too, so a long one is marked by its ends rather than quoted whole.
+    expect(textFragmentLink(PAGE, unspaced)).toBe(`${LINK}${encodeURIComponent('\u65E5'.repeat(5))},${encodeURIComponent('\u65E5'.repeat(5))}`)
   })
 
   it('keeps the page\'s own fragment and other directives, and puts the new text in place of a text directive it had', () => {
@@ -96,20 +97,30 @@ describe('the link to a highlight, from the page\'s text', () => {
 
   it('adds the words around text the page holds more than once, until the link finds only it', () => {
     expect(textFragmentLink(PAGE, selected(['Pick the word apple first.', 'Then the word apple again.'], [1, 5], [1, 19])))
-      .toBe(`${LINK}Then-,the%20word%20apple,-again.`)
+      .toBe(`${LINK}Then-,the%20word%20apple,-again`)
     // A match is case-insensitive, so one word around it is not enough here.
     expect(textFragmentLink(PAGE, selected(['Then the word apple again.', 'And then the word apple again.'], [1, 9], [1, 23])))
-      .toBe(`${LINK}And%20then-,the%20word%20apple,-again.`)
+      .toBe(`${LINK}And%20then-,the%20word%20apple,-again`)
     // Chromium matches a no-break space to a space.
     expect(textFragmentLink(PAGE, selected(['Say one\u00A0two now', 'Then one two'], [1, 5], [1, 12]))).toBe(`${LINK}Then-,one%20two`)
     // Before a range, the words go before its start, which is where the page looks for it first, and none after its end.
     expect(textFragmentLink(PAGE, selected(['Agents get their own browser.', 'Note: Agents get their own browser.', 'Every project keeps its sign-ins apart. Always.'], [1, 6], [2, 39])))
-      .toBe(`${LINK}Note%3A-,Agents%20get%20their%20own%20browser.,project%20keeps%20its%20sign%2Dins%20apart.`)
+      .toBe(`${LINK}Note%3A-,Agents%20get%20their%20own%20browser,keeps%20its%20sign%2Dins%20apart.`)
   })
 
-  it('adds nothing to text found only once as whole words, or with no words around it to add', () => {
+  it('counts copies as Chromium finds them, alike but for accents and with words around them across runs', () => {
+    expect(textFragmentLink(PAGE, selected(['Resume tips here', 'R\u00E9sum\u00E9 tips here'], [1, 0], [1, 11]))).toBe(`${LINK}here-,R%C3%A9sum%C3%A9%20tips,-here`)
+    expect(textFragmentLink(PAGE, selected(['Then', 'the word apple again', 'Then the word apple again now'], [2, 5], [2, 19])))
+      .toBe(`${LINK}Then-,the%20word%20apple,-again%20now`)
+  })
+
+  it('grows a selection to a whole word however long the word is', () => {
+    expect(textFragmentLink(PAGE, selected([`${'y'.repeat(100)} end`], [0, 80], [0, 104]))).toBe(`${LINK}${'y'.repeat(100)}%20end`)
+  })
+
+  it('adds nothing to text found only once as whole words, and takes the words around text that fills its run from the runs beside it', () => {
     expect(textFragmentLink(PAGE, selected(['apples and pineapple', 'Eat apple now'], [1, 4], [1, 9]))).toBe(`${LINK}apple`)
-    expect(textFragmentLink(PAGE, selected(['the word apple', 'the word apple'], [1, 0], [1, 14]))).toBe(`${LINK}the%20word%20apple`)
+    expect(textFragmentLink(PAGE, selected(['the word apple', 'the word apple'], [1, 0], [1, 14]))).toBe(`${LINK}apple-,the%20word%20apple`)
   })
 
   it('makes no link from a place outside the page\'s text', () => {

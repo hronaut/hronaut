@@ -8,6 +8,8 @@ const RANGE_WORDS = 5
 const RANGE_TERM_MAX_LENGTH = 100
 /** The most words added around text that the page holds more than once, to find it rather than its first copy. */
 const CONTEXT_WORDS = 3
+/** How much of the text around the selection the words around it are taken from. */
+const CONTEXT_TEXT_MAX_LENGTH = 2000
 /** The longest address Chromium opens. */
 const URL_MAX_LENGTH = 2 * 1024 * 1024
 
@@ -81,7 +83,11 @@ function pageTextDirective(page: HighlightPageText): TextDirective | undefined {
   const last = pieces.at(-1)
   if (!first || !last) return undefined
   const directive = quoteOrRange(runs[first.run]!.slice(first.from, first.to), runs[last.run]!.slice(last.from, last.to), pieces.length === 1)
-  return withContext(directive, runs, runs[first.run]!.slice(0, first.from), runs[last.run]!.slice(last.to))
+  // Text that starts or ends its run takes the words around it from the run before or after, which Chromium finds
+  // across the line between them.
+  const before = runs[first.run]!.slice(0, first.from)
+  const after = runs[last.run]!.slice(last.to)
+  return withContext(directive, runs, before.trim() ? before : runs[first.run - 1] ?? '', after.trim() ? after : runs[last.run + 1] ?? '')
 }
 
 // Half of a character that lost its other half, which a page can select, reads as U+FFFD, as Chrome reads it.
@@ -93,33 +99,38 @@ function readable(text: string): string {
 function quoteOrRange(first: string, last: string, single: boolean): TextDirective {
   if (single && first.length <= EXACT_TEXT_MAX_LENGTH) return { start: first }
   // Text too short in words to mark by its ends without the two overlapping is quoted whole.
-  if (single && [...first.matchAll(/\S+/gu)].length < RANGE_WORDS * 2) return { start: first }
+  if (single && wordsOf(first).length < RANGE_WORDS * 2) return { start: first }
   return { start: leadingWords(first, RANGE_WORDS, RANGE_TERM_MAX_LENGTH), end: trailingWords(last, RANGE_WORDS, RANGE_TERM_MAX_LENGTH) }
 }
 
 // Chrome adds the words just before and after text that the page holds more than once, until the link finds only it.
 // Before a range, the words go before its start, which is where the page looks for it first.
 function withContext(directive: TextDirective, runs: readonly string[], before: string, after: string): TextDirective {
-  if (matchCount(runs, directive) <= 1) return directive
+  const page = runs.map(fold).join('\n')
+  if (!matchesMoreThanOnce(page, directive)) return directive
   let widest = directive
   for (let words = 1; words <= CONTEXT_WORDS; words++) {
-    const prefix = trailingWords(before.trimEnd(), words)
-    const suffix = directive.end === undefined ? leadingWords(after.trimStart(), words) : ''
+    const prefix = trailingWords(before.trimEnd().slice(-CONTEXT_TEXT_MAX_LENGTH), words)
+    const suffix = directive.end === undefined ? leadingWords(after.trimStart().slice(0, CONTEXT_TEXT_MAX_LENGTH), words) : ''
     if (!prefix && !suffix) return directive
     widest = { ...directive, ...(prefix ? { prefix } : {}), ...(suffix ? { suffix } : {}) }
-    if (matchCount(runs, widest) <= 1) return widest
+    if (!matchesMoreThanOnce(page, widest)) return widest
   }
   return widest
+}
+
+// The words of a text as Intl.Segmenter finds them, so that text written without spaces, such as Japanese, has words.
+function wordsOf(text: string): Array<{ start: number, end: number }> {
+  return [...WORDS.segment(text)].filter((segment) => segment.isWordLike).map((segment) => ({ start: segment.index, end: segment.index + segment.segment.length }))
 }
 
 // The first words of a text, while they stay short, with the spaces between them as the page has them. A match starts
 // and ends at whole words, so a word is never cut, and the first word is kept however long it is.
 function leadingWords(text: string, count: number, maxLength = Infinity): string {
   let end = 0
-  for (const word of [...text.matchAll(/\S+/gu)].slice(0, count)) {
-    const wordEnd = word.index + word[0].length
-    if (end && wordEnd > maxLength) break
-    end = wordEnd
+  for (const word of wordsOf(text).slice(0, count)) {
+    if (end && word.end > maxLength) break
+    end = word.end
   }
   return text.slice(0, end)
 }
@@ -127,53 +138,68 @@ function leadingWords(text: string, count: number, maxLength = Infinity): string
 // The last words of a text, as leadingWords takes the first.
 function trailingWords(text: string, count: number, maxLength = Infinity): string {
   let start = text.length
-  for (const word of [...text.matchAll(/\S+/gu)].slice(-count).reverse()) {
-    if (start < text.length && text.length - word.index > maxLength) break
-    start = word.index
+  for (const word of wordsOf(text).slice(-count).reverse()) {
+    if (start < text.length && text.length - word.start > maxLength) break
+    start = word.start
   }
   return text.slice(start)
 }
 
-// Where the matches of a directive's start would begin in the page: a match is case-insensitive, starts and ends at
-// whole words, keeps within one run, and finds the prefix and suffix next to the start with only spaces between.
-function matchCount(runs: readonly string[], directive: TextDirective): number {
+// Whether the page holds a directive's text more than once, so that the link could open another copy first. The page
+// is its runs folded, one to a line. A match starts and ends at whole words and keeps within one run, and the prefix
+// and suffix sit next to it with only spaces between, which may cross into the run before or after, as in Chromium.
+// Counting stops at the second match, since only that matters.
+function matchesMoreThanOnce(page: string, directive: TextDirective): boolean {
   const pattern = new RegExp(
     `${directive.prefix ? `${termPattern(directive.prefix)}\\s*` : ''}${termPattern(directive.start)}${directive.suffix ? `\\s*${termPattern(directive.suffix)}` : ''}`,
     'giu'
   )
   let count = 0
-  for (const run of runs) {
-    for (const match of run.matchAll(pattern)) {
-      if (isWordBoundary(run, match.index) && isWordBoundary(run, match.index + match[0].length)) count++
-    }
+  for (const match of page.matchAll(pattern)) {
+    if (isWordBoundary(page, match.index) && isWordBoundary(page, match.index + match[0].length) && ++count > 1) return true
   }
-  return count
+  return false
 }
 
-// Each space matches one space of any kind, as Chromium matches a no-break space to a space but not two spaces to one.
+// Chromium matches text as alike when it differs only in case, accents or width, and reads curly quotes as straight.
+function fold(text: string): string {
+  return text.normalize('NFKD').replace(/\p{M}/gu, '').replace(/[\u2018\u2019\u201B]/gu, "'").replace(/[\u201C\u201D\u201F]/gu, '"').toLowerCase()
+}
+
+// Each space matches one space of any kind within the run, as Chromium matches a no-break space to a space but not two
+// spaces to one.
 function termPattern(text: string): string {
-  return text.replace(/[\\^$.*+?()[\]{}|/]/gu, '\\$&').replace(/\s/gu, '\\s')
+  return fold(text).replace(/[\\^$.*+?()[\]{}|/]/gu, '\\$&').replace(/\s/gu, '[^\\S\\n]')
 }
 
 // A selection that starts or ends inside a word grows to the whole word, as in Chrome.
 function wordStart(text: string, offset: number): number {
-  const window = Math.max(0, offset - 64)
-  const segment = WORDS.segment(text.slice(window, offset + 64)).containing(offset - window)
-  return segment?.isWordLike && window + segment.index < offset ? window + segment.index : offset
+  const segment = segmentAt(text, offset)
+  return segment?.isWordLike && segment.start < offset ? segment.start : offset
 }
 
 function wordEnd(text: string, offset: number): number {
   if (offset <= 0) return offset
-  const window = Math.max(0, offset - 64)
-  const segment = WORDS.segment(text.slice(window, offset + 64)).containing(offset - 1 - window)
-  const segmentEnd = segment ? window + segment.index + segment.segment.length : offset
-  return segment?.isWordLike && segmentEnd > offset ? segmentEnd : offset
+  const segment = segmentAt(text, offset - 1)
+  return segment?.isWordLike && segment.end > offset ? segment.end : offset
 }
 
 function isWordBoundary(text: string, index: number): boolean {
-  if (index <= 0 || index >= text.length) return true
-  const window = Math.max(0, index - 64)
-  return WORDS.segment(text.slice(window, index + 64)).containing(index - window)?.index === index - window
+  return index <= 0 || index >= text.length || segmentAt(text, index)?.start === index
+}
+
+// The word or the gap between words at a place in a text. Only the text around the place is segmented, and more of it
+// while the segment reaches the edge of what was, so that a long word is still found whole.
+function segmentAt(text: string, index: number): { start: number, end: number, isWordLike: boolean } | undefined {
+  for (let reach = 64; ; reach *= 4) {
+    const from = Math.max(0, index - reach)
+    const to = Math.min(text.length, index + reach)
+    const segment = WORDS.segment(text.slice(from, to)).containing(index - from)
+    if (!segment) return undefined
+    const start = from + segment.index
+    const end = start + segment.segment.length
+    if ((start > from || from === 0) && (end < to || to === text.length)) return { start, end, isWordLike: segment.isWordLike === true }
+  }
 }
 
 function formatDirective(directive: TextDirective): string {

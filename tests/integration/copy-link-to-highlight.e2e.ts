@@ -13,7 +13,7 @@ const selectAll = (id: string) => `getSelection().selectAllChildren(document.get
 const selectText = (id: string, from: number, to: number) => `{ const text = document.getElementById(${JSON.stringify(id)}).firstChild; getSelection().setBaseAndExtent(text, ${from}, text, ${to}) }`
 const CASES = [
   { id: 'target', html: '<p id="target">Run   npm ci --ignore-scripts before the build.</p>', select: selectAll('target'), text: 'Run%20npm%20ci%20%2D%2Dignore%2Dscripts%20before%20the%20build.' },
-  { id: 'across', html: '<div id="across"><p>Agents get their own browser.</p><p>Every project keeps its sign-ins apart.</p></div>', select: selectAll('across'), text: 'Agents%20get%20their%20own%20browser.,project%20keeps%20its%20sign%2Dins%20apart.' },
+  { id: 'across', html: '<div id="across"><p>Agents get their own browser.</p><p>Every project keeps its sign-ins apart.</p></div>', select: selectAll('across'), text: 'Agents%20get%20their%20own%20browser,keeps%20its%20sign%2Dins%20apart.' },
   { id: 'cut', html: '<p id="cut">Highlight the text here</p>', select: selectText('cut', 1, 15), text: 'Highlight%20the%20text' },
   { id: 'pre', html: '<pre id="pre">x   = 1</pre>', select: selectAll('pre'), text: 'x%20%20%20%3D%201' },
   { id: 'cells', html: '<table id="cells"><tr><td>Price</td><td>Total</td></tr></table>', select: selectAll('cells'), text: 'Price,Total' },
@@ -22,7 +22,13 @@ const CASES = [
   { id: 'hidden', html: '<p id="hidden">Open <span style="display: none">secret </span>the door</p>', select: selectAll('hidden'), text: 'Open%20the%20door' },
   { id: 'unselectable', html: '<p id="unselectable">Press <kbd style="user-select: none">Ctrl</kbd> K now</p>', select: selectAll('unselectable'), text: 'Press%20Ctrl%20K%20now' },
   { id: 'inline-block', html: '<p id="inline-block">Alpha <span style="display: inline-block">Beta</span> Gamma</p>', select: selectAll('inline-block'), text: 'Alpha,Gamma' },
-  { id: 'repeated', html: '<p id="repeated">Then the word apple again.</p>', select: selectText('repeated', 5, 19), text: 'Then-,the%20word%20apple,-again.' }
+  { id: 'repeated', html: '<p id="repeated">Then the word apple again.</p>', select: selectText('repeated', 5, 19), text: 'Then-,the%20word%20apple,-again' },
+  // An image, an icon drawn by CSS and text laid out hidden each keep the text around them apart, as in Chromium.
+  { id: 'image', html: '<p id="image">Click <svg width="12" height="12"></svg> Settings to continue</p>', select: selectAll('image'), text: 'Click,Settings%20to%20continue' },
+  { id: 'icon', html: '<style>.icon::before { content: "*" }</style><p id="icon">Choose <i class="icon"></i> Upload later</p>', select: selectAll('icon'), text: 'Choose,Upload%20later' },
+  { id: 'invisible', html: '<p id="invisible">Lift <span style="visibility: hidden">secret</span> the lid</p>', select: selectAll('invisible'), text: 'Lift,the%20lid' },
+  // Chromium finds text in a closed details element too, so the link takes the words before the copy shown here.
+  { id: 'details', html: '<details><summary>More</summary><p>Fold the map twice.</p></details><div style="height: 3000px"></div><p id="details">Fold the map twice.</p>', select: selectAll('details'), text: 'twice.-,Fold%20the%20map%20twice.' }
 ]
 
 test('Copy link to highlight copies a link that opens the page at the selected text, as in Chrome', async ({ capabilities, appWindow, electronApp }) => {

@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ContextMenuParams, MenuItemConstructorOptions, WebContents, WebFrameMain } from 'electron'
 
-const built = vi.hoisted(() => ({ templates: [] as MenuItemConstructorOptions[][] }))
+const built = vi.hoisted(() => ({ templates: [] as MenuItemConstructorOptions[][], clipboard: '' }))
 
 vi.mock('electron', () => ({
   app: { isEmojiPanelSupported: () => false },
+  clipboard: { readText: async () => built.clipboard },
   Menu: {
     buildFromTemplate: (template: MenuItemConstructorOptions[]) => {
       built.templates.push(template)
@@ -51,6 +52,7 @@ function openMenu(params: Partial<ContextMenuParams>, url = PAGE, pageText?: () 
 
 afterEach(() => {
   built.templates.length = 0
+  built.clipboard = ''
 })
 
 describe('Copy link to highlight in the page context menu', () => {
@@ -81,6 +83,30 @@ describe('Copy link to highlight in the page context menu', () => {
     answers[0]!({ runs: ['\uFDD0apple\uFDD1'] })
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(menu.copyText).toHaveBeenCalledExactlyOnceWith('https://docs.example/guide#install:~:text=Then-,apple,-again')
+  })
+
+  it('keeps a copy the menu made while the page was read, as newer than the link', async () => {
+    const answers: Array<(value: unknown) => void> = []
+    const menu = openMenu({ selectionText: 'apple' }, PAGE, () => new Promise((resolve) => answers.push(resolve)))
+    ;(menu.items.find((candidate) => candidate.id === 'copy-link-to-highlight')!.click as () => void)()
+    await vi.waitFor(() => expect(answers).toHaveLength(1))
+    const linkMenu = openMenu({ linkURL: 'https://docs.example/next' })
+    ;(linkMenu.items.find((candidate) => candidate.label === 'native.context.copyLink')!.click as () => void)()
+    expect(linkMenu.copyText).toHaveBeenCalledExactlyOnceWith('https://docs.example/next')
+    answers[0]!({ runs: ['\uFDD0apple\uFDD1'] })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(menu.copyText).not.toHaveBeenCalled()
+  })
+
+  it('keeps text copied some other way while the page was read, such as with Ctrl+C', async () => {
+    const answers: Array<(value: unknown) => void> = []
+    const menu = openMenu({ selectionText: 'apple' }, PAGE, () => new Promise((resolve) => answers.push(resolve)))
+    ;(menu.items.find((candidate) => candidate.id === 'copy-link-to-highlight')!.click as () => void)()
+    await vi.waitFor(() => expect(answers).toHaveLength(1))
+    built.clipboard = 'copied with Ctrl+C'
+    answers[0]!({ runs: ['\uFDD0apple\uFDD1'] })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(menu.copyText).not.toHaveBeenCalled()
   })
 
   it('links to a selected address too, beside its Go to', () => {
