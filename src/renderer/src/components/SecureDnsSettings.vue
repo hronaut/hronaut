@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, useId, watch } from 'vue'
+import { computed, nextTick, ref, useId } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
@@ -33,7 +33,7 @@ const switchId = `secure-dns-switch-${ids}`
 const providerId = `secure-dns-provider-${ids}`
 
 const customForm = ref<HTMLFormElement | null>(null)
-// Whether Custom was picked and its address is still being typed, so the list shows Custom before anything changed.
+// Whether Custom was picked in the list, so the list shows Custom before a custom address is in use.
 const editingCustom = ref(false)
 // Whether Use was pressed, after which the field says when the address is not one a provider can have.
 const attempted = ref(false)
@@ -42,25 +42,22 @@ function knownProvider(template: string): string | undefined {
   return SECURE_DNS_PROVIDERS.find((provider) => provider.template === template)?.id
 }
 
-function savedCustomTemplate(): string {
-  return knownProvider(settings.value.secureDnsTemplate) ? '' : settings.value.secureDnsTemplate
-}
+// The custom address used last, filled in again when Custom is picked after a listed provider.
+let lastCustomTemplate = knownProvider(settings.value.secureDnsTemplate) ? '' : settings.value.secureDnsTemplate
 
-const customTemplate = ref(savedCustomTemplate())
+const customTemplate = ref(lastCustomTemplate)
 const enabled = computed(() => settings.value.secureDnsMode !== 'off')
 const choice = computed(() => {
   if (editingCustom.value) return 'custom'
   if (settings.value.secureDnsMode !== 'secure') return 'automatic'
   return knownProvider(settings.value.secureDnsTemplate) ?? 'custom'
 })
+// Whether the field holds an address other than the one in use, which Use has yet to apply.
+const customPending = computed(() => settings.value.secureDnsMode !== 'secure'
+  || customTemplate.value.trim() !== settings.value.secureDnsTemplate)
 const customError = computed(() => attempted.value && !isSecureDnsTemplate(customTemplate.value)
   ? t('settings.privacy.secureDns.customInvalid')
   : undefined)
-
-// A provider chosen in another window shows here too, unless an address is being typed.
-watch(() => settings.value.secureDnsTemplate, () => {
-  if (!editingCustom.value) customTemplate.value = savedCustomTemplate()
-})
 
 async function change(mode: SecureDnsMode, template: string): Promise<boolean> {
   try {
@@ -83,11 +80,10 @@ async function changeEnabled(event: Event): Promise<void> {
 async function changeProvider(event: Event): Promise<void> {
   const select = event.target as HTMLSelectElement
   attempted.value = false
+  // The field follows the list; the keyboard stays on the list, whose arrow keys change the choice.
   if (select.value === 'custom') {
     editingCustom.value = true
-    customTemplate.value = savedCustomTemplate()
-    await nextTick()
-    customForm.value?.querySelector<HTMLInputElement>('input')?.focus()
+    customTemplate.value = lastCustomTemplate
     return
   }
   editingCustom.value = false
@@ -99,20 +95,25 @@ async function changeProvider(event: Event): Promise<void> {
 }
 
 async function useCustom(): Promise<void> {
+  const submitted = customTemplate.value
   attempted.value = true
-  if (!isSecureDnsTemplate(customTemplate.value)) {
+  if (!isSecureDnsTemplate(submitted)) {
     await nextTick()
     customForm.value?.querySelector<HTMLInputElement>('input')?.focus()
     return
   }
-  if (!(await change('secure', customTemplate.value.trim()))) return
+  if (!(await change('secure', submitted.trim()))) return
+  lastCustomTemplate = submitted.trim()
+  // An address typed while this one was saved stays as typed, with its own check.
+  if (customTemplate.value !== submitted) return
+  customTemplate.value = lastCustomTemplate
   editingCustom.value = false
   attempted.value = false
 }
 
 function formKeydown(event: KeyboardEvent): void {
   if (isImeCompositionEvent(event)) return
-  // An Enter still held from the list does not use the address it opened.
+  // A held Enter uses the address once, not again with every repeat.
   if (event.key === 'Enter' && event.repeat) event.preventDefault()
 }
 </script>
@@ -159,7 +160,7 @@ function formKeydown(event: KeyboardEvent): void {
     >
       <UiField
         :label="t('settings.privacy.secureDns.customLabel')"
-        :hint="editingCustom ? t('settings.privacy.secureDns.customPending') : t('settings.privacy.secureDns.customHint')"
+        :hint="customPending ? t('settings.privacy.secureDns.customPending') : t('settings.privacy.secureDns.customHint')"
         :error="customError"
       >
         <UiInput

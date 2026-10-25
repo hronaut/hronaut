@@ -61,7 +61,7 @@ describe('Secure DNS settings', () => {
     // Back on the DNS service's own, the chosen provider is kept for later.
     await user.selectOptions(provider, 'Your current DNS service')
     expect(setSecureDns).toHaveBeenLastCalledWith('automatic', GOOGLE)
-    expect(within(region).queryByRole('form')).toBeNull()
+    expect(within(region).queryByLabelText('Provider address')).toBeNull()
   })
 
   it('uses a custom provider only once its address is a valid one', async () => {
@@ -70,7 +70,8 @@ describe('Secure DNS settings', () => {
     expect(provider).toHaveValue('cloudflare')
     await user.selectOptions(provider, 'Custom')
     const address = within(region).getByLabelText('Provider address')
-    expect(address).toHaveFocus()
+    // The keyboard stays on the list, whose arrow keys go on changing the choice.
+    expect(provider).toHaveFocus()
     expect(address).toHaveValue('')
     expect(address).toHaveAccessibleDescription('Addresses are looked up as before until you press Use.')
     expect(setSecureDns).not.toHaveBeenCalled()
@@ -83,18 +84,48 @@ describe('Secure DNS settings', () => {
     await user.click(within(region).getByRole('button', { name: 'Use' }))
     expect(setSecureDns).toHaveBeenLastCalledWith('secure', 'https://dns.example/dns-query')
     expect(provider).toHaveValue('custom')
+    expect(address).toHaveValue('https://dns.example/dns-query')
     expect(address).toHaveAccessibleDescription('An https:// address, such as https://dns.example/dns-query')
+    // Picked again after a listed provider, Custom has the address used last.
+    await user.selectOptions(provider, 'Cloudflare (1.1.1.1)')
+    expect(setSecureDns).toHaveBeenLastCalledWith('secure', CLOUDFLARE)
+    expect(within(region).queryByLabelText('Provider address')).toBeNull()
+    await user.selectOptions(provider, 'Custom')
+    expect(within(region).getByLabelText('Provider address')).toHaveValue('https://dns.example/dns-query')
   })
 
-  it('shows a saved custom provider, and a held Enter from the list does not use it', async () => {
-    const { region, setSecureDns } = renderSettings({ secureDnsMode: 'secure', secureDnsTemplate: 'https://dns.example/q{?dns}' })
+  it('keeps an address typed while another is saved, with its own check', async () => {
+    const { region, user, setSecureDns } = renderSettings({ secureDnsMode: 'secure', secureDnsTemplate: CLOUDFLARE })
+    let finish!: () => void
+    setSecureDns.mockImplementationOnce((secureDnsMode, secureDnsTemplate) => new Promise((resolve) => {
+      finish = () => resolve({ ...DEFAULT_RENDERER_SETTINGS, secureDnsMode, secureDnsTemplate })
+    }))
+    await user.selectOptions(within(region).getByRole('combobox', { name: /Provider/ }), 'Custom')
+    const address = within(region).getByLabelText('Provider address')
+    await user.type(address, 'https://first.example/dns-query{Enter}')
+    expect(setSecureDns).toHaveBeenLastCalledWith('secure', 'https://first.example/dns-query')
+    await user.clear(address)
+    await user.type(address, 'http://second.example/{Enter}')
+    expect(address).toHaveAccessibleDescription('Enter a valid https:// address')
+    finish()
+    // Every step after the first save runs before the next task.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(setSecureDns).toHaveBeenCalledOnce()
+    expect(address).toHaveValue('http://second.example/')
+    expect(address).toHaveAccessibleDescription('Enter a valid https:// address')
+  })
+
+  it('shows a saved custom provider, says when the field holds another, and uses it once for a held Enter', async () => {
+    const { region, user } = renderSettings({ secureDnsMode: 'secure', secureDnsTemplate: 'https://dns.example/q{?dns}' })
     expect(within(region).getByRole('combobox', { name: /Provider/ })).toHaveValue('custom')
     const address = within(region).getByLabelText('Provider address')
     expect(address).toHaveValue('https://dns.example/q{?dns}')
+    expect(address).toHaveAccessibleDescription('An https:// address, such as https://dns.example/dns-query')
+    await user.type(address, 'x')
+    expect(address).toHaveAccessibleDescription('Addresses are looked up as before until you press Use.')
     const held = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
     address.dispatchEvent(held)
     expect(held.defaultPrevented).toBe(true)
-    expect(setSecureDns).not.toHaveBeenCalled()
   })
 
   it('shows the saved setting again when a change fails', async () => {
