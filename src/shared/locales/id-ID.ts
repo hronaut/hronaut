@@ -2243,7 +2243,7 @@ export const idID: MessageSchema = {
     "cipher": "Cipher",
     "keyExchange": "Pertukaran kunci",
     "certificateTransparency": "Transparansi sertifikat",
-    "encryptedClientHello": "Encrypted ClientHello",
+    "encryptedClientHello": "ClientHello terenkripsi",
     "unavailable": "Tidak tersedia",
     "certificate": "Sertifikat",
     "subject": "Subjek",
