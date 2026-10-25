@@ -497,7 +497,7 @@ export const ptBR: MessageSchema = {
     "privacy": {
       "heading": "Espaços de trabalho e dados",
       description: "Revise cada espaço de trabalho do navegador, gerencie a política dele e copie ou mova dados de sites selecionados entre perfis isolados.",
-      workspaces: "Espaços de trabalho do navegador", workspacesDescription: "Espaços de trabalho ativos e arquivados mantêm cookies e armazenamento local separados.", createWorkspace: "Criar espaço de trabalho", transferData: "Copiar ou mover dados", manageWorkspace: "Gerenciar", workspaceActive: "Ativo", workspaceArchived: "Arquivado", workspaceTabs: "{count} guia | {count} guias", workspaceSites: "{count} site conhecido | {count} sites conhecidos", historyHeading: "Histórico global", historyDescription: "Limpe o histórico de navegação de todo o aplicativo. Gerencie o armazenamento de sites no espaço de trabalho correspondente.",
+      workspaces: "Espaços de trabalho do navegador", workspacesDescription: "Espaços de trabalho ativos e arquivados mantêm cookies e armazenamento local separados.", createWorkspace: "Criar espaço de trabalho", transferData: "Copiar ou mover dados", manageWorkspace: "Gerenciar", workspaceActive: "Ativo", workspaceArchived: "Arquivado", workspaceTabs: "{count} guia | {count} guias", workspaceSites: "{count} site conhecido | {count} sites conhecidos", historyHeading: "Histórico global", historyDescription: "Limpe o histórico de navegação de todo o aplicativo. Gerencie o armazenamento de sites no espaço de trabalho correspondente.", "timeRange": "Intervalo de tempo", "timeRanges": { "lastHour": "Última hora", "last24Hours": "Últimas 24 horas", "last7Days": "Últimos 7 dias", "last4Weeks": "Últimas 4 semanas", "allTime": "Todo o período" },
       "cookies": "Cookies e dados de sites",
       "signOut": "Pode desconectar você",
       "cache": "Arquivos em cache",
@@ -1316,7 +1316,7 @@ export const ptBR: MessageSchema = {
   "privacyActions": {
     "clearHistory": "Limpar todo o histórico de navegação? Isso não remove cookies, senhas, favoritos nem arquivos baixados.",
     "historyAll": "Histórico de navegação e as sugestões de endereço relacionadas",
-    "historySite": "Histórico de navegação e sugestões de endereço",
+    "historySite": "Histórico de navegação e sugestões de endereço", "timeRange": "Intervalo de tempo: {range}",
     "cookiesAll": "Cookies e dados de sites (você pode ser desconectado)",
     "cookiesSite": "Cookies e armazenamento do site (você pode ser desconectado)",
     "cache": "Imagens e arquivos em cache",

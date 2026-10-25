@@ -275,6 +275,28 @@ export class HistoryStore {
     })
   }
 
+  /**
+   * Removes the pages visited within the last `duration` milliseconds, as Chrome's time ranges do, and resolves their
+   * addresses. A page keeps only its last visit, so a page visited in that time goes with its earlier visits.
+   */
+  async clearRecent(duration: number): Promise<string[]> {
+    return this.queueMutation(async () => {
+      const since = this.now() - duration
+      const nextEntries = new Map(this.entries)
+      const removed: string[] = []
+      for (const entry of nextEntries.values()) {
+        if (Date.parse(entry.visitedAt) < since) continue
+        nextEntries.delete(entry.id)
+        removed.push(entry.url)
+      }
+      // A file Hronaut could not read may hold visits from that time, though none are listed.
+      if (!removed.length && !this.unreadableFile) return []
+      await this.persist(nextEntries.values())
+      this.replaceEntries(nextEntries)
+      return removed
+    })
+  }
+
   async clearOrigin(origin: string): Promise<number> {
     return this.queueMutation(async () => {
       const nextEntries = new Map(this.entries)

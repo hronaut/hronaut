@@ -497,7 +497,7 @@ export const esES: MessageSchema = {
     "privacy": {
       "heading": "Espacios de trabajo y datos",
       description: "Revisa cada espacio del navegador, gestiona su política y copia o mueve datos seleccionados entre perfiles aislados.",
-      workspaces: "Espacios del navegador", workspacesDescription: "Los espacios activos y archivados mantienen cookies y almacenamiento local separados.", createWorkspace: "Crear espacio", transferData: "Copiar o mover datos", manageWorkspace: "Gestionar", workspaceActive: "Activo", workspaceArchived: "Archivado", workspaceTabs: "{count} pestaña | {count} pestañas", workspaceSites: "{count} sitio conocido | {count} sitios conocidos", historyHeading: "Historial global", historyDescription: "Borra el historial. Gestiona los datos de cada sitio en su espacio.",
+      workspaces: "Espacios del navegador", workspacesDescription: "Los espacios activos y archivados mantienen cookies y almacenamiento local separados.", createWorkspace: "Crear espacio", transferData: "Copiar o mover datos", manageWorkspace: "Gestionar", workspaceActive: "Activo", workspaceArchived: "Archivado", workspaceTabs: "{count} pestaña | {count} pestañas", workspaceSites: "{count} sitio conocido | {count} sitios conocidos", historyHeading: "Historial global", historyDescription: "Borra el historial. Gestiona los datos de cada sitio en su espacio.", "timeRange": "Intervalo de tiempo", "timeRanges": { "lastHour": "Última hora", "last24Hours": "Últimas 24 horas", "last7Days": "Últimos 7 días", "last4Weeks": "Últimas 4 semanas", "allTime": "Desde siempre" },
       "cookies": "Cookies y datos de sitios",
       "signOut": "Puede cerrar tu sesión",
       "cache": "Archivos en caché",
@@ -1316,7 +1316,7 @@ export const esES: MessageSchema = {
   "privacyActions": {
     "clearHistory": "¿Borrar todo el historial de navegación? Esto no eliminará cookies, contraseñas, marcadores ni archivos descargados.",
     "historyAll": "Historial de navegación y sus sugerencias de direcciones",
-    "historySite": "Historial de navegación y sugerencias de direcciones",
+    "historySite": "Historial de navegación y sugerencias de direcciones", "timeRange": "Intervalo de tiempo: {range}",
     "cookiesAll": "Cookies y datos de sitios (puede que se cierre tu sesión)",
     "cookiesSite": "Cookies y almacenamiento del sitio (puede que se cierre tu sesión)",
     "cache": "Imágenes y archivos en caché",

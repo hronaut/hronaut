@@ -529,11 +529,41 @@ describe('HistoryStore', () => {
     expect(await readFile(path, 'utf8')).not.toContain('private.example')
   })
 
+  // As Chrome's Delete browsing data, clearing the last hour leaves the pages visited before it.
+  it('clears the pages visited within a time range, and only those', async () => {
+    let now = Date.UTC(2026, 7, 13, 12)
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-history-'))
+    directories.push(directory)
+    const path = join(directory, 'history.json')
+    const store = new HistoryStore(path, () => now)
+    await store.load()
+    await store.record({ url: 'https://old.example/', title: 'Old' })
+    now += 2 * 60 * 60 * 1000
+    await store.record({ url: 'https://edge.example/', title: 'Edge' })
+    now += 60 * 60 * 1000
+    await store.record({ url: 'https://recent.example/page#part', title: 'Recent' })
+    // A page visited before and again within the hour goes with its earlier visit, which history does not keep apart.
+    await store.record({ url: 'https://old-and-recent.example/', title: 'Both' })
+    await expect(store.clearRecent(60 * 60 * 1000)).resolves.toEqual(expect.arrayContaining(['https://edge.example/', 'https://recent.example/page', 'https://old-and-recent.example/']))
+    expect(store.list().map((entry) => entry.url)).toEqual(['https://old.example/'])
+    expect(JSON.parse(await readFile(path, 'utf8')).entries.map((entry: { url: string }) => entry.url)).toEqual(['https://old.example/'])
+    await expect(store.clearRecent(60 * 60 * 1000)).resolves.toEqual([])
+  })
+
+  it('removes the visits of a file it could not read when clearing a time range', async () => {
+    const { path, store } = await storeAt()
+    await writeFile(path, JSON.stringify({ version: 2, entries: [{ id: 'a', url: 'https://private.example/visit', title: 'Private', visitedAt: '2026-08-12T00:00:00.000Z', visitCount: 1 }] }))
+    await expect(store.load()).resolves.toEqual([])
+    await expect(store.clearRecent(60 * 60 * 1000)).resolves.toEqual([])
+    expect(await readFile(path, 'utf8')).not.toContain('private.example')
+  })
+
   it('writes nothing when clearing a history that is already empty', async () => {
     const { path, store } = await storeAt()
     await store.load()
     await store.clear()
     await expect(store.clearOrigin('https://one.example')).resolves.toBe(0)
+    await expect(store.clearRecent(60 * 60 * 1000)).resolves.toEqual([])
     await expect(readFile(path, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   })
 

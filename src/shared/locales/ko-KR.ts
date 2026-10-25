@@ -497,7 +497,7 @@ export const koKR: MessageSchema = {
     "privacy": {
       "heading": "작업 공간 및 데이터",
       description: "각 브라우저 작업 공간을 검토하고 정책을 관리하며, 선택한 웹사이트 데이터를 격리된 프로필 간에 복사하거나 이동합니다.",
-      workspaces: "브라우저 작업 공간", workspacesDescription: "활성 및 보관처리된 작업 공간은 쿠키와 로컬 저장소를 별도로 유지합니다.", createWorkspace: "작업 공간 만들기", transferData: "데이터 복사 또는 이동", manageWorkspace: "관리", workspaceActive: "활성", workspaceArchived: "보관처리됨", workspaceTabs: "탭 {count}개", workspaceSites: "알려진 웹사이트 {count}개", historyHeading: "전체 방문 기록", historyDescription: "애플리케이션 전체의 인터넷 사용 기록을 삭제합니다. 웹사이트 저장소는 해당 작업 공간에서 관리하세요.",
+      workspaces: "브라우저 작업 공간", workspacesDescription: "활성 및 보관처리된 작업 공간은 쿠키와 로컬 저장소를 별도로 유지합니다.", createWorkspace: "작업 공간 만들기", transferData: "데이터 복사 또는 이동", manageWorkspace: "관리", workspaceActive: "활성", workspaceArchived: "보관처리됨", workspaceTabs: "탭 {count}개", workspaceSites: "알려진 웹사이트 {count}개", historyHeading: "전체 방문 기록", historyDescription: "애플리케이션 전체의 인터넷 사용 기록을 삭제합니다. 웹사이트 저장소는 해당 작업 공간에서 관리하세요.", "timeRange": "기간", "timeRanges": { "lastHour": "지난 1시간", "last24Hours": "지난 24시간", "last7Days": "지난 7일", "last4Weeks": "지난 4주", "allTime": "전체 기간" },
       "cookies": "쿠키 및 사이트 데이터",
       "signOut": "로그아웃될 수 있음",
       "cache": "캐시된 파일",
@@ -1316,7 +1316,7 @@ export const koKR: MessageSchema = {
   "privacyActions": {
     "clearHistory": "인터넷 사용 기록을 모두 삭제하시겠습니까? 쿠키, 비밀번호, 북마크, 다운로드한 파일은 삭제되지 않습니다.",
     "historyAll": "인터넷 사용 기록 및 주소 추천",
-    "historySite": "인터넷 사용 기록 및 주소 추천",
+    "historySite": "인터넷 사용 기록 및 주소 추천", "timeRange": "기간: {range}",
     "cookiesAll": "쿠키 및 사이트 데이터(로그아웃될 수 있음)",
     "cookiesSite": "쿠키 및 사이트 저장소(로그아웃될 수 있음)",
     "cache": "캐시된 이미지 및 파일",

@@ -497,7 +497,7 @@ export const plPL: MessageSchema = {
     "privacy": {
       "heading": "Obszary robocze i dane",
       description: "Przeglądaj obszary przeglądarki, zarządzaj ich zasadami oraz kopiuj lub przenoś wybrane dane między izolowanymi profilami.",
-      workspaces: "Obszary przeglądarki", workspacesDescription: "Aktywne i zarchiwizowane obszary przechowują osobne pliki cookie i dane lokalne.", createWorkspace: "Utwórz obszar", transferData: "Kopiuj lub przenieś dane", manageWorkspace: "Zarządzaj", workspaceActive: "Aktywny", workspaceArchived: "Zarchiwizowany", workspaceTabs: "{count} karta | {count} karty | {count} kart", workspaceSites: "{count} znana witryna | {count} znane witryny | {count} znanych witryn", historyHeading: "Historia globalna", historyDescription: "Wyczyść historię. Danymi witryn zarządzaj w ich obszarach.",
+      workspaces: "Obszary przeglądarki", workspacesDescription: "Aktywne i zarchiwizowane obszary przechowują osobne pliki cookie i dane lokalne.", createWorkspace: "Utwórz obszar", transferData: "Kopiuj lub przenieś dane", manageWorkspace: "Zarządzaj", workspaceActive: "Aktywny", workspaceArchived: "Zarchiwizowany", workspaceTabs: "{count} karta | {count} karty | {count} kart", workspaceSites: "{count} znana witryna | {count} znane witryny | {count} znanych witryn", historyHeading: "Historia globalna", historyDescription: "Wyczyść historię. Danymi witryn zarządzaj w ich obszarach.", "timeRange": "Zakres czasu", "timeRanges": { "lastHour": "Ostatnia godzina", "last24Hours": "Ostatnie 24 godziny", "last7Days": "Ostatnie 7 dni", "last4Weeks": "Ostatnie 4 tygodnie", "allTime": "Od początku" },
       "cookies": "Pliki cookie i dane witryn",
       "signOut": "Może Cię wylogować",
       "cache": "Pliki w pamięci podręcznej",
@@ -1316,7 +1316,7 @@ export const plPL: MessageSchema = {
   "privacyActions": {
     "clearHistory": "Wyczyścić całą historię przeglądania? Nie usunie to plików cookie, haseł, zakładek ani pobranych plików.",
     "historyAll": "Historia przeglądania i jej sugestie adresów",
-    "historySite": "Historia przeglądania i sugestie adresów",
+    "historySite": "Historia przeglądania i sugestie adresów", "timeRange": "Zakres czasu: {range}",
     "cookiesAll": "Pliki cookie i dane witryn (możesz zostać wylogowany)",
     "cookiesSite": "Pliki cookie i pamięć witryny (możesz zostać wylogowany)",
     "cache": "Obrazy i pliki w pamięci podręcznej",

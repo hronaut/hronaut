@@ -497,7 +497,7 @@ export const hiIN: MessageSchema = {
     "privacy": {
       "heading": "वर्कस्पेस और डेटा",
       description: "हर ब्राउज़र वर्कस्पेस की समीक्षा करें, उसकी नीति मैनेज करें और चुना गया वेबसाइट डेटा अलग-अलग प्रोफ़ाइल के बीच कॉपी करें या ले जाएं।",
-      workspaces: "ब्राउज़र वर्कस्पेस", workspacesDescription: "चालू और संग्रहित वर्कस्पेस की कुकी और लोकल स्टोरेज अलग-अलग रहते हैं।", createWorkspace: "वर्कस्पेस बनाएं", transferData: "डेटा कॉपी करें या ले जाएं", manageWorkspace: "मैनेज करें", workspaceActive: "चालू", workspaceArchived: "संग्रहित", workspaceTabs: "{count} टैब | {count} टैब", workspaceSites: "{count} जानी-पहचानी वेबसाइट | {count} जानी-पहचानी वेबसाइटें", historyHeading: "ग्लोबल इतिहास", historyDescription: "पूरे ऐप्लिकेशन का ब्राउज़िंग इतिहास साफ़ करें। वेबसाइट स्टोरेज उसके वर्कस्पेस में मैनेज करें।",
+      workspaces: "ब्राउज़र वर्कस्पेस", workspacesDescription: "चालू और संग्रहित वर्कस्पेस की कुकी और लोकल स्टोरेज अलग-अलग रहते हैं।", createWorkspace: "वर्कस्पेस बनाएं", transferData: "डेटा कॉपी करें या ले जाएं", manageWorkspace: "मैनेज करें", workspaceActive: "चालू", workspaceArchived: "संग्रहित", workspaceTabs: "{count} टैब | {count} टैब", workspaceSites: "{count} जानी-पहचानी वेबसाइट | {count} जानी-पहचानी वेबसाइटें", historyHeading: "ग्लोबल इतिहास", historyDescription: "पूरे ऐप्लिकेशन का ब्राउज़िंग इतिहास साफ़ करें। वेबसाइट स्टोरेज उसके वर्कस्पेस में मैनेज करें।", "timeRange": "समय सीमा", "timeRanges": { "lastHour": "पिछला घंटा", "last24Hours": "पिछले 24 घंटे", "last7Days": "पिछले 7 दिन", "last4Weeks": "पिछले 4 हफ़्ते", "allTime": "पूरा समय" },
       "cookies": "कुकी और साइट डेटा",
       "signOut": "इससे आप साइन आउट हो सकते हैं",
       "cache": "कैश की गई फ़ाइलें",
@@ -1316,7 +1316,7 @@ export const hiIN: MessageSchema = {
   "privacyActions": {
     "clearHistory": "पूरा ब्राउज़िंग इतिहास साफ़ करें? इससे कुकी, पासवर्ड, बुकमार्क या डाउनलोड की गई फ़ाइलें नहीं हटेंगी।",
     "historyAll": "ब्राउज़िंग इतिहास और उससे जुड़े पते के सुझाव",
-    "historySite": "ब्राउज़िंग इतिहास और पते के सुझाव",
+    "historySite": "ब्राउज़िंग इतिहास और पते के सुझाव", "timeRange": "समय सीमा: {range}",
     "cookiesAll": "कुकी और साइट डेटा (आप साइन आउट हो सकते हैं)",
     "cookiesSite": "कुकी और साइट स्टोरेज (आप साइन आउट हो सकते हैं)",
     "cache": "कैश की गई इमेज और फ़ाइलें",

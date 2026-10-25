@@ -497,7 +497,7 @@ export const ruRU: MessageSchema = {
     "privacy": {
       "heading": "Рабочие пространства и данные",
       description: "Просматривайте рабочие пространства браузера, управляйте их политиками и копируйте или перемещайте выбранные данные между изолированными профилями.",
-      workspaces: "Рабочие пространства браузера", workspacesDescription: "Активные и архивные пространства хранят cookie и локальные данные раздельно.", createWorkspace: "Создать пространство", transferData: "Копировать или переместить данные", manageWorkspace: "Управлять", workspaceActive: "Активно", workspaceArchived: "В архиве", workspaceTabs: "{count} вкладка | {count} вкладки | {count} вкладок", workspaceSites: "{count} известный сайт | {count} известных сайта | {count} известных сайтов", historyHeading: "Общая история", historyDescription: "Очистите историю приложения. Управляйте данными сайтов в их рабочем пространстве.",
+      workspaces: "Рабочие пространства браузера", workspacesDescription: "Активные и архивные пространства хранят cookie и локальные данные раздельно.", createWorkspace: "Создать пространство", transferData: "Копировать или переместить данные", manageWorkspace: "Управлять", workspaceActive: "Активно", workspaceArchived: "В архиве", workspaceTabs: "{count} вкладка | {count} вкладки | {count} вкладок", workspaceSites: "{count} известный сайт | {count} известных сайта | {count} известных сайтов", historyHeading: "Общая история", historyDescription: "Очистите историю приложения. Управляйте данными сайтов в их рабочем пространстве.", "timeRange": "Временной диапазон", "timeRanges": { "lastHour": "Последний час", "last24Hours": "Последние 24 часа", "last7Days": "Последние 7 дней", "last4Weeks": "Последние 4 недели", "allTime": "Всё время" },
       "cookies": "Файлы cookie и данные сайтов",
       "signOut": "Возможно, потребуется снова войти",
       "cache": "Кэшированные файлы",
@@ -1316,7 +1316,7 @@ export const ruRU: MessageSchema = {
   "privacyActions": {
     "clearHistory": "Очистить всю историю просмотра? Файлы cookie, пароли, закладки и загруженные файлы не будут удалены.",
     "historyAll": "История просмотра и подсказки адресов из неё",
-    "historySite": "История просмотра и подсказки адресов",
+    "historySite": "История просмотра и подсказки адресов", "timeRange": "Временной диапазон: {range}",
     "cookiesAll": "Файлы cookie и данные сайтов (возможно, потребуется снова войти)",
     "cookiesSite": "Файлы cookie и хранилище сайта (возможно, потребуется снова войти)",
     "cache": "Кэшированные изображения и файлы",

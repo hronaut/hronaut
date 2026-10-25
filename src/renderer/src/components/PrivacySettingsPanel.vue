@@ -14,6 +14,7 @@ import IconWorkspaces from '~icons/material-symbols/workspaces-rounded'
 import type { PrivacySettingsController } from '../composables/usePrivacySettingsController'
 import SecureDnsSettings from './SecureDnsSettings.vue'
 import { vTooltip } from '../ui/tooltip.js'
+import { HISTORY_TIME_RANGES } from '../../../shared/types.js'
 
 interface WorkspaceDataSummary {
   id: string
@@ -39,6 +40,7 @@ const emit = defineEmits<{
 const { t } = useI18n({ useScope: 'global' })
 const {
   summary,
+  clearOptions,
   summaryState,
   summaryMessage,
   websites,
@@ -116,6 +118,12 @@ watch(() => filteredWebsites.value.map(site => site.origin).join('\n'), async (_
         <h4 id="history-data-heading" tabindex="-1">{{ t('settings.privacy.historyHeading') }}</h4>
         <p>{{ t('settings.privacy.historyDescription') }}</p>
       </div>
+    <label class="settings-row history-time-range" for="history-time-range">
+      <span><strong>{{ t('settings.privacy.timeRange') }}</strong></span>
+      <select id="history-time-range" v-model="clearOptions.timeRange" :disabled="clearing">
+        <option v-for="range in HISTORY_TIME_RANGES" :key="range" :value="range">{{ t(`settings.privacy.timeRanges.${range}`) }}</option>
+      </select>
+    </label>
     <div class="privacy-data-actions">
       <UiButton variant="danger" class="clear-data-button" type="button" :disabled="!canClear" @click="clearSelected">
         {{ summaryState === 'clearing' ? t('settings.privacy.clearingAll') : t('settings.privacy.clearAll') }}

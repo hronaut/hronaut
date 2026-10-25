@@ -4,26 +4,36 @@ import { LocalizedError } from './localized-error.js'
 import type { BookmarkStore } from './bookmark-store.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { CredentialStore } from './credential-store.js'
-import type { HistoryStore } from './history-store.js'
+import { normalizeHistoryUrl, type HistoryStore } from './history-store.js'
 import type { McpHttpServer } from './mcp/server.js'
 import type { SitePermissionStore } from './site-permission-store.js'
-import type {
-  BrowsingDataClearOptions,
-  BrowsingDataSiteSummary,
-  BrowsingDataSummary,
-  BrowsingDataWebsiteSummary
+import {
+  HISTORY_TIME_RANGES,
+  type BrowsingDataClearOptions,
+  type BrowsingDataSiteSummary,
+  type BrowsingDataSummary,
+  type BrowsingDataWebsiteSummary,
+  type HistoryTimeRange
 } from '../shared/types.js'
+
+const HOUR_MS = 60 * 60 * 1000
+const TIME_RANGE_MS: Record<Exclude<HistoryTimeRange, 'allTime'>, number> = {
+  lastHour: HOUR_MS,
+  last24Hours: 24 * HOUR_MS,
+  last7Days: 7 * 24 * HOUR_MS,
+  last4Weeks: 28 * 24 * HOUR_MS
+}
 
 interface BrowsingDataIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
   tabs(): Pick<BrowserTabsManager, 'getState' | 'workspaceSession' | 'forgetHistoryPages'> | null
-  historyStore(): Pick<HistoryStore, 'list' | 'clearOrigin' | 'clear'> | null
+  historyStore(): Pick<HistoryStore, 'list' | 'clearOrigin' | 'clearRecent' | 'clear'> | null
   bookmarkStore(): Pick<BookmarkStore, 'list'> | null
   credentialStore(): Pick<CredentialStore, 'list'> | null
   sitePermissionStore(): Pick<SitePermissionStore, 'list'> | null
-  mcpServer(): Pick<McpHttpServer, 'forgetHomeFeed'> | null
+  mcpServer(): Pick<McpHttpServer, 'forgetHomeFeed' | 'forgetHomeFeedSince'> | null
   publishVisitHistory(): void
   currentBrowsingDataSiteSummary(value: string, browserSession: Session | undefined): Promise<BrowsingDataSiteSummary>
 }
@@ -76,6 +86,17 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
     if (!host.historyStore()) throw new Error('Browser history is unavailable')
     if (!options.history) throw new Error('Select history to clear')
     const origin = normalizeBrowsingDataOrigin(options.origin)
+    const duration = options.timeRange && options.timeRange !== 'allTime' ? TIME_RANGE_MS[options.timeRange] : undefined
+    if (duration !== undefined) {
+      // As Chrome's time ranges: the pages visited in that time, the steps Home's feed lists from then, and those pages
+      // in Recently closed and in tabs' Back and Forward lists.
+      const since = Date.now() - duration
+      const cleared = new Set(await host.historyStore()!.clearRecent(duration))
+      host.mcpServer()?.forgetHomeFeedSince(since)
+      if (cleared.size) host.tabs()?.forgetHistoryPages((url) => cleared.has(normalizeHistoryUrl(url) ?? ''))
+      host.publishVisitHistory()
+      return currentBrowsingDataSummary()
+    }
     if (origin) await host.historyStore()!.clearOrigin(origin)
     else await host.historyStore()!.clear()
     // Home's feed names pages agents acted on, so it goes with any history clearing. The cleared website's pages in
@@ -107,9 +128,12 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
   host.handleBrowserIpc('browsing-data:clear', (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object') throw new TypeError('Invalid browsing-data options')
-    const { history, origin } = value as Record<string, unknown>
+    const { history, origin, timeRange } = value as Record<string, unknown>
     if (typeof history !== 'boolean' || (origin !== undefined && typeof origin !== 'string')
-      || Object.keys(value).some(key => key !== 'history' && key !== 'origin')) throw new TypeError('Invalid history clearing options')
-    return clearBrowsingData({ history, ...(origin ? { origin } : {}) })
+      || (timeRange !== undefined && !HISTORY_TIME_RANGES.includes(timeRange as HistoryTimeRange))
+      // A website's history is cleared for all time, as in Chrome.
+      || (origin !== undefined && timeRange !== undefined && timeRange !== 'allTime')
+      || Object.keys(value).some(key => key !== 'history' && key !== 'origin' && key !== 'timeRange')) throw new TypeError('Invalid history clearing options')
+    return clearBrowsingData({ history, ...(origin ? { origin } : {}), ...(timeRange ? { timeRange: timeRange as HistoryTimeRange } : {}) })
   })
 }

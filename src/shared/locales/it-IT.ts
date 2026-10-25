@@ -497,7 +497,7 @@ export const itIT: MessageSchema = {
     "privacy": {
       "heading": "Aree di lavoro e dati",
       description: "Esamina ogni area di lavoro del browser, gestiscine i criteri e copia o sposta i dati dei siti web selezionati tra profili isolati.",
-      workspaces: "Aree di lavoro del browser", workspacesDescription: "Le aree di lavoro attive e archiviate mantengono cookie e archiviazione locale separati.", createWorkspace: "Crea area di lavoro", transferData: "Copia o sposta dati", manageWorkspace: "Gestisci", workspaceActive: "Attiva", workspaceArchived: "Archiviata", workspaceTabs: "{count} scheda | {count} schede", workspaceSites: "{count} sito web noto | {count} siti web noti", historyHeading: "Cronologia globale", historyDescription: "Cancella la cronologia di navigazione di tutta l’applicazione. Gestisci l’archiviazione dei siti web nella relativa area di lavoro.",
+      workspaces: "Aree di lavoro del browser", workspacesDescription: "Le aree di lavoro attive e archiviate mantengono cookie e archiviazione locale separati.", createWorkspace: "Crea area di lavoro", transferData: "Copia o sposta dati", manageWorkspace: "Gestisci", workspaceActive: "Attiva", workspaceArchived: "Archiviata", workspaceTabs: "{count} scheda | {count} schede", workspaceSites: "{count} sito web noto | {count} siti web noti", historyHeading: "Cronologia globale", historyDescription: "Cancella la cronologia di navigazione di tutta l’applicazione. Gestisci l’archiviazione dei siti web nella relativa area di lavoro.", "timeRange": "Intervallo di tempo", "timeRanges": { "lastHour": "Ultima ora", "last24Hours": "Ultime 24 ore", "last7Days": "Ultimi 7 giorni", "last4Weeks": "Ultime 4 settimane", "allTime": "Dall'inizio" },
       "cookies": "Cookie e dati dei siti",
       "signOut": "Potrebbe disconnetterti",
       "cache": "File memorizzati nella cache",
@@ -1316,7 +1316,7 @@ export const itIT: MessageSchema = {
   "privacyActions": {
     "clearHistory": "Cancellare tutta la cronologia di navigazione? Cookie, password, preferiti e file scaricati non verranno rimossi.",
     "historyAll": "Cronologia di navigazione e relativi suggerimenti di indirizzi",
-    "historySite": "Cronologia di navigazione e suggerimenti di indirizzi",
+    "historySite": "Cronologia di navigazione e suggerimenti di indirizzi", "timeRange": "Intervallo di tempo: {range}",
     "cookiesAll": "Cookie e dati dei siti (potresti essere disconnesso)",
     "cookiesSite": "Cookie e archiviazione del sito (potresti essere disconnesso)",
     "cache": "Immagini e file memorizzati nella cache",
