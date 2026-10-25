@@ -208,7 +208,7 @@ test('persists the selected theme across application restarts', async ({
   await expect.poll(async () => JSON.parse(await readFile(settingsPath, 'utf8')).theme).toBe('matrix')
   await closeHronaut(electronApp)
 
-  const restarted = await launchHronaut(profileDirectory, mcpPort + 1)
+  const restarted = await launchHronaut(profileDirectory, mcpPort)
   try {
     await expect(restarted.window.locator('html')).toHaveAttribute('data-theme', 'matrix')
     await restarted.window.getByRole('button', { name: 'Settings' }).click()
@@ -267,7 +267,7 @@ test('scales Hronaut without zooming the active website and persists the choice'
   await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).interfaceScale).toBe(1.25)
   await closeHronaut(electronApp)
 
-  const restarted = await launchHronaut(profileDirectory, mcpPort + 1)
+  const restarted = await launchHronaut(profileDirectory, mcpPort)
   try {
     await expect.poll(() => restarted.app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0]?.webContents.getZoomFactor()

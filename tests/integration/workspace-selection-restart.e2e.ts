@@ -98,7 +98,7 @@ for (const homeState of ['closed', 'background', 'active'] as const) {
 for (const selection of ['missing-workspace', 'missing-global', 'invalid-workspace', 'other-workspace', 'invalid-global', 'empty'] as const) {
   const rejectedSelection = ['invalid-workspace', 'other-workspace', 'invalid-global'].includes(selection)
   test(`${rejectedSelection ? 'preserves rejected metadata' : 'keeps startup fallback behavior'} for ${selection} selection`, async ({ profileDirectory, mcpPort }) => {
-    let instance = await launchHronaut(profileDirectory)
+    let instance = await launchHronaut(profileDirectory, mcpPort)
     try {
       const ids = await instance.window.evaluate(async () => {
         const browser = (window as unknown as { hronaut: HronautApi }).hronaut
@@ -147,7 +147,7 @@ for (const selection of ['missing-workspace', 'missing-global', 'invalid-workspa
         } finally { await rejected.close().catch(() => undefined) }
         return
       }
-      instance = await launchHronaut(profileDirectory)
+      instance = await launchHronaut(profileDirectory, mcpPort)
       const restored = await instance.window.evaluate('window.hronaut.getState()') as BrowserState
       if (selection === 'missing-workspace' || selection === 'missing-global') {
         expect(restored.tabs.map(tab => tab.id)).toEqual([ids.a1, ids.a2, ids.b1])

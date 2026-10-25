@@ -374,7 +374,7 @@ test('persists the system-title-bar fallback across restart on every platform', 
   await expect(appWindow.locator('html')).toHaveAttribute('data-title-bar-mode', 'overlay')
 
   await closeHronaut(electronApp)
-  const restarted = await launchHronaut(profileDirectory, mcpPort + 1)
+  const restarted = await launchHronaut(profileDirectory, mcpPort)
   try {
     await expect(restarted.window.locator('html')).toHaveAttribute('data-title-bar-mode', 'system')
     await expect(restarted.window.locator('.shell')).toHaveClass(/vertical-tabs-shell/)

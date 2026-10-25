@@ -99,7 +99,7 @@ test('manages and persists per-website permission decisions', async ({
     { origin: 'https://example.com', permission: 'notifications', decision: 'allow', workspaceId: '01912345-6789-7abc-8def-0123456789ab' }
   ] }), 'utf8')
 
-  const restarted = await launchHronaut(profileDirectory, mcpPort + 1)
+  const restarted = await launchHronaut(profileDirectory, mcpPort)
   try {
     const own = { origin: 'https://example.com', permission: 'geolocation', decision: 'deny', workspaceId }
     await expect.poll(() => restarted.window.evaluate('window.hronautPermissions.list()')).toEqual([own])
