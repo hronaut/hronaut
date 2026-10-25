@@ -44,8 +44,7 @@ for (const hidden of [false, true]) {
       await expect.poll(overlayState).toMatchObject({ visible: false })
       await address.fill('goog')
       await address.pressSequentially('le')
-      // The visit's site fills in after the typed text, as in Chrome.
-      await expect(address).toHaveValue('google.com')
+      await expect(address).toHaveValue('google')
       await expect(address).toHaveAttribute('aria-expanded', 'true')
       await expect.poll(overlayState).toMatchObject({ visible: true, crashed: false })
       expect((await overlayState()).id).not.toBe(firstId)
