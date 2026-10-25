@@ -15,6 +15,7 @@ import type { SupportedLocale } from '../../../shared/locale.js'
 import type { BrowserBookmark, BrowserHistoryEntry, BrowserTabState } from '../../../shared/types.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { addressEnterAction, withWwwAndCom, type AddressEnterAction } from '../address-enter.js'
+import { inlineAddressCompletion, siteVisits, type AddressInlineCompletion } from '../address-inline-completion.js'
 import { disposeAll, registerDisposers } from './dispose-all.js'
 
 /**
@@ -79,11 +80,18 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   // The visits Shift+Delete forgot. Their rows leave at once, as in Chrome, while history saves the change, and come
   // back if it fails; a visit never returns under the same id, since a new visit gets a new one.
   const forgottenVisits = shallowRef<ReadonlySet<string>>(new Set())
+  // The rest of an address the field filled in after the text typed at its end, selected, as Chrome's address bar does;
+  // see address-inline-completion.ts. It holds while the field has the keyboard and its text is still the typed text
+  // and that rest.
+  const inlineCompletion = shallowRef<(AddressInlineCompletion & { typed: string }) | null>(null)
+  const completionShown = computed(() => inlineCompletion.value !== null && address.value === inlineCompletion.value.text)
+  // What the suggestions match: the typed text, without the rest the field filled in.
+  const query = computed(() => completionShown.value && inlineCompletion.value ? inlineCompletion.value.typed : address.value)
   // The other open tabs with a page, kept as they were while their addresses stay the same, and their titles too while
   // @tabs lists them, so the browser state that each page's loading or new title brings does not draw the suggestions
   // again.
   let openTabsValue: { id: string; title: string; url: string }[] = []
-  const listsOpenTabs = computed(() => addressSuggestionScope(address.value) === 'tabs')
+  const listsOpenTabs = computed(() => addressSuggestionScope(query.value) === 'tabs')
   const openTabs = computed(() => {
     const shown = options.activeTab.value?.id
     const titled = listsOpenTabs.value
@@ -97,12 +105,15 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     if (!unchanged) openTabsValue = next
     return openTabsValue
   })
+  const history = computed(() => forgottenVisits.value.size
+    ? options.history.value.filter((entry) => !forgottenVisits.value.has(entry.id))
+    : options.history.value)
+  // Read only while a completion is worked out.
+  const visitsBySite = computed(() => siteVisits(history.value))
   const suggestions = computed(() => buildLocalAddressSuggestions({
-    query: address.value,
+    query: query.value,
     bookmarks: options.bookmarks.value,
-    history: forgottenVisits.value.size
-      ? options.history.value.filter((entry) => !forgottenVisits.value.has(entry.id))
-      : options.history.value,
+    history: history.value,
     tabs: openTabs.value
   }))
   const visible = computed(() => open.value && suggestions.value.length > 0)
@@ -121,6 +132,10 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   let forgetKeyHeld = false
   // Whether the Tab key held down went on to Switch to this tab or back, so that its repeats leave the field alone.
   let switchKeyHeld = false
+  // Whether the field is taking the rest of an address it fills in, which is not typing.
+  let fillingCompletion = false
+  // Whether the field is taking pasted text, which it leaves as pasted.
+  let insertingPaste = false
   let pendingNavigation: {
     tabId: string | undefined
     initialUrl: string | undefined
@@ -159,6 +174,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       && pendingNavigation.initialUrl === tab?.url
       ? pendingNavigation.address
       : displayedAddress(tab?.url)
+    inlineCompletion.value = null
     dirty.value = false
   }
 
@@ -199,11 +215,59 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     openSuggestions()
   }
 
-  function handleInput(): void {
+  function handleInput(event?: Event): void {
     focused.value = true
     editing.value = true
     dirty.value = true
+    if (fillingCompletion) return
+    const completion = inlineCompletion.value
+    // An input method composing over the rest leaves the field's text to it until it is done; the suggestions stay the
+    // typed text's.
+    if (completion && event instanceof InputEvent && event.isComposing && address.value === completion.text) address.value = completion.typed
+    inlineCompletion.value = null
     openSuggestions()
+    completeInline(event)
+  }
+
+  // Typing at the end of the field fills in the rest of a site or page it starts, selected, so that typing on replaces
+  // it, Backspace or Delete takes it away, and Enter opens it, as in Chrome's address bar. Text pasted, dropped, typed
+  // elsewhere in the field or still being composed is left as it is, as Chrome leaves it.
+  function completeInline(event: Event | undefined): void {
+    const field = input.value
+    if (disposed || insertingPaste || !field || !(event instanceof InputEvent) || event.inputType !== 'insertText' || event.isComposing) return
+    const typed = field.value
+    if (field.selectionStart !== typed.length || field.selectionEnd !== typed.length) return
+    const completion = inlineAddressCompletion(typed, suggestions.value, visitsBySite.value)
+    if (!completion) return
+    inlineCompletion.value = { ...completion, typed }
+    const rest = completion.text.slice(typed.length)
+    if (rest) {
+      fillingCompletion = true
+      try {
+        // insertText puts the rest on the field's undo stack with the character typed, so Ctrl+Z steps back a
+        // character at a time, as each looked.
+        if (typeof document.execCommand !== 'function' || !document.execCommand('insertText', false, rest)) {
+          field.setRangeText(rest, typed.length, typed.length, 'end')
+        }
+      } finally {
+        fillingCompletion = false
+      }
+      address.value = field.value
+    }
+    field.setSelectionRange(typed.length, field.value.length)
+  }
+
+  // The rest the field filled in leaves, and the field shows the typed text, as when the highlight moves to a row.
+  function dropInlineCompletion(): void {
+    const completion = inlineCompletion.value
+    if (!completion) return
+    if (address.value === completion.text) address.value = completion.typed
+    inlineCompletion.value = null
+  }
+
+  // What Enter opens: the site or page the field filled in, with its own scheme, or the text as it is.
+  function enteredAddress(): string {
+    return completionShown.value && inlineCompletion.value ? inlineCompletion.value.url : address.value
   }
 
   // A paste reads as Chrome's address bar reads one (see address-paste.ts): an address split over lines arrives whole,
@@ -216,7 +280,12 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     event.preventDefault()
     if (!text) return
     // insertText keeps the paste on the field's undo stack and reports it as input, as a plain paste does.
-    if (typeof document.execCommand === 'function' && document.execCommand('insertText', false, text)) return
+    insertingPaste = true
+    try {
+      if (typeof document.execCommand === 'function' && document.execCommand('insertText', false, text)) return
+    } finally {
+      insertingPaste = false
+    }
     field.setRangeText(text, field.selectionStart ?? field.value.length, field.selectionEnd ?? field.value.length, 'end')
     field.dispatchEvent(new Event('input', { bubbles: true }))
   }
@@ -254,6 +323,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     blurTimer = undefined
     focused.value = false
     editing.value = false
+    // A field left with a completion keeps its text as text, as Chrome's does.
+    inlineCompletion.value = null
     if (!dirty.value) restoreActiveAddress()
   }
 
@@ -284,6 +355,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       address: target
     }
     pendingNavigation = navigation
+    inlineCompletion.value = null
     cancelBlur()
     editing.value = false
     dirty.value = false
@@ -322,17 +394,19 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     // A held key opens the address once, not a tab for each repeat.
     if (disposed || event.repeat) return true
     if (action === 'add-www-and-com') {
-      if (address.value.trim()) void navigateTo(withWwwAndCom(address.value) ?? address.value)
+      // Ctrl+Enter adds www. and .com to what was typed, not to the rest the field filled in, as in Chrome.
+      const typed = query.value
+      if (typed.trim()) void navigateTo(withWwwAndCom(typed) ?? typed)
       return true
     }
-    const target = suggestion?.url ?? address.value.trim()
+    const target = suggestion?.url ?? enteredAddress().trim()
     if (target) void openInNewTab(target, action === 'new-background-tab')
     return true
   }
 
   async function submit(): Promise<void> {
     if (disposed || !address.value.trim()) return
-    await navigateTo(address.value)
+    await navigateTo(enteredAddress())
   }
 
   // Paste and Go in the field's menu shows the clipboard text in the field and opens it as Enter would, as in Chrome.
@@ -396,6 +470,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     if (!count) return
     // Moving the highlight goes back from Switch to this tab, even to the same row when it is the only one.
     switchFocusedState.value = false
+    dropInlineCompletion()
     if (!open.value) openSuggestions()
     if (selection.value < 0) selection.value = offset === 1 ? 0 : count - 1
     else selection.value = (selection.value + offset + count) % count
@@ -416,9 +491,18 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       event.preventDefault()
       return true
     }
-    const suggestion = visible.value ? selected.value : undefined
+    const highlighted = visible.value ? selected.value : undefined
+    // With nothing highlighted, the key forgets the visit the field filled in from, as Chrome forgets its default row.
+    const completion = completionShown.value ? inlineCompletion.value : null
+    const suggestion = highlighted ?? (completion ? suggestions.value.find((candidate) => candidate.id === completion.suggestionId) : undefined)
     const entryId = suggestion && historySuggestionEntryId(suggestion)
-    if (!suggestion || !entryId) return false
+    if (!suggestion || !entryId) {
+      if (highlighted || !completion) return false
+      // The rest filled in from a bookmark leaves instead of being cut.
+      event.preventDefault()
+      dropInlineCompletion()
+      return true
+    }
     event.preventDefault()
     if (disposed) return true
     forgetKeyHeld = true
@@ -532,6 +616,15 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       await nextTick()
       if (!disposed) revealSelected()
     }, { flush: 'sync' }),
+    // New suggestions, as another tab's visits or clearing history bring, keep a completion they still give, and take
+    // away one they no longer give, leaving the typed text.
+    () => watch(suggestions, (next) => {
+      const completion = inlineCompletion.value
+      if (!completion || !completionShown.value) return
+      const still = inlineAddressCompletion(completion.typed, next, visitsBySite.value)
+      if (still?.text !== completion.text) dropInlineCompletion()
+      else if (still.url !== completion.url || still.suggestionId !== completion.suggestionId) inlineCompletion.value = { ...still, typed: completion.typed }
+    }, { flush: 'sync' }),
     // Moving the highlight to another row, by key or as the rows change, goes back from Switch to this tab to the row.
     () => watch(() => `${selection.value} ${selected.value?.id ?? ''} ${selected.value?.openTabId ?? ''}`, () => {
       switchFocusedState.value = false
@@ -559,6 +652,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
           close()
           if (tabChanged) editing.value = false
           address.value = displayedAddress(url)
+          inlineCompletion.value = null
           dirty.value = false
         }
       },
