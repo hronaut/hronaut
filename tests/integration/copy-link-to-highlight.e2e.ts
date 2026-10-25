@@ -17,7 +17,8 @@ const CASES = [
   { id: 'cut', html: '<p id="cut">Highlight the text here</p>', select: selectText('cut', 1, 15), text: 'Highlight%20the%20text' },
   { id: 'pre', html: '<pre id="pre">x   = 1</pre>', select: selectAll('pre'), text: 'x%20%20%20%3D%201' },
   { id: 'cells', html: '<table id="cells"><tr><td>Price</td><td>Total</td></tr></table>', select: selectAll('cells'), text: 'Price,Total' },
-  { id: 'lines', html: '<p id="lines">line one<br>line two</p>', select: selectAll('lines'), text: 'line%20one,line%20two' },
+  // Cut at both ends, so only the page's text, which a line break splits, gives whole words.
+  { id: 'lines', html: '<p id="lines">line one<br>line two</p>', select: '{ const lines = document.getElementById("lines"); getSelection().setBaseAndExtent(lines.firstChild, 1, lines.lastChild, 7) }', text: 'line%20one,line%20two' },
   { id: 'hidden', html: '<p id="hidden">Open <span style="display: none">secret </span>the door</p>', select: selectAll('hidden'), text: 'Open%20the%20door' },
   { id: 'unselectable', html: '<p id="unselectable">Press <kbd style="user-select: none">Ctrl</kbd> K now</p>', select: selectAll('unselectable'), text: 'Press%20Ctrl%20K%20now' },
   { id: 'inline-block', html: '<p id="inline-block">Alpha <span style="display: inline-block">Beta</span> Gamma</p>', select: selectAll('inline-block'), text: 'Alpha,Gamma' },
