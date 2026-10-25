@@ -245,9 +245,11 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
   })
   host.handleBrowserIpc('settings:reset-memory-saver', async (event) => {
     host.assertTrustedSender(event)
+    // Reset to default in Settings → Performance: Memory Saver, and graphics acceleration from the next start.
     await host.updateSettings({
       memorySaverEnabled: true,
-      memorySaverTimeoutMinutes: DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES
+      memorySaverTimeoutMinutes: DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
+      graphicsAcceleration: DEFAULT_SETTINGS.graphicsAcceleration
     })
     host.tabs()?.setMemorySaverSettings(host.settings().memorySaverEnabled, host.settings().memorySaverTimeoutMinutes)
     host.publishSettings()

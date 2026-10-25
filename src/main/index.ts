@@ -84,6 +84,7 @@ import { createAddressSuggestionOverlay } from './windows/address-suggestion-ove
 import { registerSettingsIpc } from './settings-ipc.js'
 import { registerSiteSearchIpc } from './site-search-ipc.js'
 import { applySavedSecureDns, registerSecureDnsIpc } from './secure-dns.js'
+import { applySavedGraphicsAcceleration, registerGraphicsAccelerationIpc } from './graphics-acceleration.js'
 import { createBrowserSession, type BrowserSessionState } from './browser-session.js'
 import { registerPermissionsIpc } from './permissions-ipc.js'
 import { WindowStateStore } from './window-state.js'
@@ -144,6 +145,8 @@ if (process.env.HRONAUT_USER_DATA_DIR) {
 } else if (!app.isPackaged) {
   app.setPath('userData', join(app.getPath('appData'), 'hronaut-dev'))
 }
+// Chromium takes this choice only before Electron is ready.
+const graphicsAccelerationInUse = applySavedGraphicsAcceleration(app, join(app.getPath('userData'), 'settings.json'))
 
 const mainWindowRefs: MainWindowRefs = {
   window: null,
@@ -1066,6 +1069,13 @@ function registerIpc(): void {
   registerSecureDnsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     app,
+    settings: () => settingsState.current,
+    updateSettings,
+    publishSettings
+  })
+  registerGraphicsAccelerationIpc(hronautIpcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    inUse: graphicsAccelerationInUse,
     settings: () => settingsState.current,
     updateSettings,
     publishSettings

@@ -357,7 +357,7 @@ export const trTR: MessageSchema = {
       "downloads": "İndirilenler",
       "downloadsDescription": "Konum ve sorular",
       "performance": "Performans",
-      "performanceDescription": "Uyuyan sekmeler",
+      "performanceDescription": "Uyuyan sekmeler, grafikler",
       "mcp": "MCP güvenliği",
       "mcpDescription": "Yerel kimlik doğrulama",
       "wallets": "Cüzdanlar",
@@ -413,6 +413,7 @@ export const trTR: MessageSchema = {
       "askDescription": "Her yeni web sitesi indirmesinde işletim sisteminin kaydetme iletişim kutusunu gösterir.",
       "help": "Değişiklikler yeni web sitesi indirmelerine uygulanır. Devam eden aktarımlar ilk hedeflerini korur. PDF dışa aktarmaları ve ajanların oluşturduğu dosyalar, nereye kaydedileceği sorulmadan seçili klasöre kaydedilir."
     },
+    "graphics": { "heading": "Grafikler", "use": "Mevcut olduğunda grafik hızlandırmayı kullan", "useDescription": "Sayfalar ve Hronaut ekran kartınızla çizilir. Pencerenin bazı bölümleri siyah ya da boş kalıyor veya titriyorsa kapatın.", "restart": "Bu değişikliği uygulamak için Hronaut’u yeniden başlatın." },
     "memory": {
       "heading": "Bellek Tasarrufu",
       "description": "Etkin insan ve ajan çalışmalarına daha fazla CPU ve bellek kalması için etkin olmayan web sitesi sekmelerini bellekten kaldırın.",

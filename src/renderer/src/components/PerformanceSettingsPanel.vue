@@ -9,10 +9,14 @@ import {
   type MemorySaverTimeoutMinutes
 } from '../../../shared/memory-saver'
 import type { PerformanceSettingsController } from '../composables/usePerformanceSettingsController'
+import GraphicsAccelerationSettings from './GraphicsAccelerationSettings.vue'
 
 const props = defineProps<{
   controller: PerformanceSettingsController
   formatNumber: (value: number) => string
+}>()
+const emit = defineEmits<{
+  settingError: [error: unknown]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -118,5 +122,6 @@ async function changeTimeout(event: Event): Promise<void> {
       <span class="info-dot" aria-hidden="true"><IconInfo /></span>
       <p>{{ t('settings.memory.help') }}</p>
     </div>
+    <GraphicsAccelerationSettings @setting-error="emit('settingError', $event)" />
   </div>
 </template>

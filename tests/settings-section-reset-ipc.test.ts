@@ -25,22 +25,28 @@ const CHANGED: Partial<AppSettings> = {
   showAgentCursor: false,
   pinAgentLiveStatus: true,
   languagePreference: 'uk-UA',
-  searchEngine: 'bing'
+  searchEngine: 'bing',
+  memorySaverEnabled: false,
+  memorySaverTimeoutMinutes: 15,
+  graphicsAcceleration: false
 }
 const APPEARANCE_KEYS = ['theme', 'interfaceScale', 'tabPosition', 'useSystemTitleBar'] as const
 const GENERAL_KEYS = [
   'hideInTray', 'launchAtStartup', 'launchMinimized', 'attentionSound', 'attentionSoundCue',
   'showAgentCursor', 'pinAgentLiveStatus', 'languagePreference'
 ] as const
+const PERFORMANCE_KEYS = ['memorySaverEnabled', 'memorySaverTimeoutMinutes', 'graphicsAcceleration'] as const
 
 function settingsIpc(packaged = false) {
   const handlers = new Map<string, Handler>()
   const ipcMain = { handle: (channel: string, handler: Handler) => { handlers.set(channel, handler) }, on: () => ipcMain } as unknown as IpcMain
   let settings: AppSettings = { ...DEFAULT_SETTINGS, ...CHANGED }
   const startupLaunchManager = { setEnabled: vi.fn(async () => undefined) }
+  const setMemorySaverSettings = vi.fn()
   const host = {
     assertTrustedSender: vi.fn(),
-    handleBrowserIpc: () => undefined,
+    handleBrowserIpc: (channel: string, handler: Handler) => { handlers.set(channel, handler) },
+    tabs: () => ({ setMemorySaverSettings }),
     isPackaged: () => packaged,
     startupLaunchManager: () => startupLaunchManager,
     settings: () => settings,
@@ -57,7 +63,7 @@ function settingsIpc(packaged = false) {
   }
   registerSettingsIpc(ipcMain, host as never)
   const invoke = (channel: string) => Promise.resolve().then(() => handlers.get(channel)!({} as IpcMainInvokeEvent))
-  return { invoke, host, startupLaunchManager, settings: () => settings }
+  return { invoke, host, startupLaunchManager, setMemorySaverSettings, settings: () => settings }
 }
 
 const pick = (settings: AppSettings, keys: readonly (keyof AppSettings)[]) => Object.fromEntries(keys.map(key => [key, settings[key]]))
@@ -96,5 +102,16 @@ describe('Reset to default in Settings', () => {
     expect(settings().theme).toBe(DEFAULT_SETTINGS.theme)
     await expect(invoke('settings:reset-general')).rejects.toThrow()
     expect(settings().languagePreference).toBe('uk-UA')
+  })
+
+  it('sets back Memory Saver and graphics acceleration in Performance, which applies at the next start', async () => {
+    const { invoke, host, settings, setMemorySaverSettings } = settingsIpc()
+    await invoke('settings:reset-memory-saver')
+
+    expect(pick(settings(), PERFORMANCE_KEYS)).toEqual(pick(DEFAULT_SETTINGS, PERFORMANCE_KEYS))
+    expect(settings().graphicsAcceleration).toBe(true)
+    expect(pick(settings(), GENERAL_KEYS)).toEqual(pick({ ...DEFAULT_SETTINGS, ...CHANGED }, GENERAL_KEYS))
+    expect(setMemorySaverSettings).toHaveBeenCalledWith(true, DEFAULT_SETTINGS.memorySaverTimeoutMinutes)
+    expect(host.publishSettings).toHaveBeenCalledOnce()
   })
 })

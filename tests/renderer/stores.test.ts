@@ -66,6 +66,7 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       askWhereToSaveDownloads: false,
       memorySaverEnabled: true,
       memorySaverTimeoutMinutes: 60,
+      graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
       languagePreference: locale
     },

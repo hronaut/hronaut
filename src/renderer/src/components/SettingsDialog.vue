@@ -171,6 +171,7 @@ watch(open, async (active, _previous, onCleanup) => {
             v-else-if="section === 'performance'"
             :controller="performanceController"
             :format-number="formatNumber"
+            @setting-error="reportSettingError"
           />
           <McpSettingsPanel
             v-else-if="section === 'mcp'"

@@ -357,7 +357,7 @@ export const ptBR: MessageSchema = {
       "downloads": "Downloads",
       "downloadsDescription": "Local e confirmações",
       "performance": "Desempenho",
-      "performanceDescription": "Guias suspensas",
+      "performanceDescription": "Guias suspensas, gráficos",
       "mcp": "Segurança do MCP",
       "mcpDescription": "Autenticação local",
       "wallets": "Carteiras",
@@ -413,6 +413,7 @@ export const ptBR: MessageSchema = {
       "askDescription": "Mostra a caixa de diálogo de salvar do sistema operacional para cada novo download de site.",
       "help": "As mudanças se aplicam a novos downloads de sites. Transferências em andamento mantêm o destino original. Exportações em PDF e arquivos criados por agentes usam a pasta selecionada sem perguntar onde salvar."
     },
+    "graphics": { "heading": "Gráficos", "use": "Usar aceleração gráfica quando disponível", "useDescription": "As páginas e o Hronaut são desenhados com a sua placa de vídeo. Desative se partes de uma janela ficarem pretas ou em branco, ou piscando.", "restart": "Reinicie o Hronaut para aplicar esta alteração." },
     "memory": {
       "heading": "Economia de memória",
       "description": "Descarrega guias de sites inativas para que o trabalho ativo de pessoas e agentes tenha mais CPU e memória.",

@@ -357,7 +357,7 @@ export const itIT: MessageSchema = {
       "downloads": "Download",
       "downloadsDescription": "Posizione e richieste di conferma",
       "performance": "Prestazioni",
-      "performanceDescription": "Schede sospese",
+      "performanceDescription": "Schede sospese, grafica",
       "mcp": "Sicurezza MCP",
       "mcpDescription": "Autenticazione locale",
       "wallets": "Wallet",
@@ -413,6 +413,7 @@ export const itIT: MessageSchema = {
       "askDescription": "Mostra la finestra di salvataggio del sistema operativo per ogni nuovo download da un sito web.",
       "help": "Le modifiche si applicano ai nuovi download dai siti web. I trasferimenti in corso mantengono la destinazione originale. Le esportazioni PDF e i file creati dagli agenti usano la cartella selezionata senza chiedere dove salvare."
     },
+    "graphics": { "heading": "Grafica", "use": "Usa l’accelerazione grafica quando disponibile", "useDescription": "Le pagine e Hronaut vengono disegnate con la scheda grafica. Disattivala se parti di una finestra restano nere o vuote, o sfarfallano.", "restart": "Riavvia Hronaut per applicare questa modifica." },
     "memory": {
       "heading": "Risparmio memoria",
       "description": "Scarica le schede inattive dei siti web per dare più CPU e memoria al lavoro attivo di persone e agenti.",
