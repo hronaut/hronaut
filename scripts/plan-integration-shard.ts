@@ -68,11 +68,21 @@ export function unlistable(tests: ListedTest[]): string | undefined {
 
 /** Each test's recorded seconds; a test without one counts as the median of the recorded ones, or 1 s without any. */
 export function testSeconds(tests: ListedTest[], durations: TestDurations): number[] {
-  const recorded = tests.map((test) => durations[testListLine(test)])
-    .map((seconds) => (typeof seconds === 'number' && Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined))
+  const recorded = tests.map((test) => recordedSeconds(durations, test))
   const known = recorded.filter((seconds): seconds is number => seconds !== undefined).sort((left, right) => left - right)
   const median = known.length ? known[Math.floor(known.length / 2)]! : 1
   return recorded.map((seconds) => seconds ?? median)
+}
+
+/** A test's recorded duration in seconds, when one was recorded and is usable. */
+function recordedSeconds(durations: TestDurations, test: ListedTest): number | undefined {
+  const seconds = durations[testListLine(test)]
+  return typeof seconds === 'number' && Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined
+}
+
+/** How many tests have no recorded duration, so a summary can say when the recorded durations need a refresh. */
+export function unrecordedTests(tests: ListedTest[], durations: TestDurations): number {
+  return tests.filter((test) => recordedSeconds(durations, test) === undefined).length
 }
 
 /**
@@ -129,6 +139,8 @@ if (isMainModule(import.meta.url)) {
     }
     const planned = planShards(tests, durations, total)[index - 1]!
     await writeFile(outputPath, planned.tests.map((test) => `${testListLine(test)}\n`).join(''))
-    console.log(`Shard ${index}/${total} runs ${planned.tests.length} of ${tests.length} tests, about ${Math.round(planned.seconds / 60)} min by recorded durations.`)
+    const unrecorded = unrecordedTests(tests, durations)
+    console.log(`Shard ${index}/${total} runs ${planned.tests.length} of ${tests.length} tests, about ${Math.round(planned.seconds / 60)} min by recorded durations`
+      + (unrecorded ? `; ${unrecorded} of the ${tests.length} have none and count as the median one.` : '.'))
   }
 }

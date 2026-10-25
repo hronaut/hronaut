@@ -227,7 +227,7 @@ describe.skipIf(process.platform === 'win32')('Docker Electron scheduling', () =
     // Longest first, each to the shard with less time so far; the unrecorded test counts as the median (12 s).
     expect(first.plan).toBe('browser-shell.e2e.ts › opens a tab\n')
     expect(second.plan).toBe('browser-shell.e2e.ts › closes a tab\nbrowser-shell.e2e.ts › restores a window\nbrowser-shell.e2e.ts › keeps the theme\n')
-    expect(first.stdout).toContain('Shard 1/2 runs 1 of 4 tests')
+    expect(first.stdout).toContain('Shard 1/2 runs 1 of 4 tests, about 1 min by recorded durations; 1 of the 4 have none and count as the median one.')
   })
 
   it.each<[string, Record<string, string>]>([

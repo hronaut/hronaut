@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { listedTests, planShards, testListLine, testSeconds, unlistable, type ListedTest } from '../scripts/plan-integration-shard.ts'
+import { listedTests, planShards, testListLine, testSeconds, unlistable, unrecordedTests, type ListedTest } from '../scripts/plan-integration-shard.ts'
 import { mergedDurations, reportedDurations, serializeDurations } from '../scripts/update-integration-durations.ts'
 
 const test = (title: string, file = 'browser-shell.e2e.ts', describes: string[] = []): ListedTest => ({ file, titlePath: [...describes, title] })
@@ -62,6 +62,7 @@ describe('planShards', () => {
     })).toEqual([1, 5, 9, 5])
     expect(testSeconds([test('a')], {})).toEqual([1])
     expect(testSeconds([test('a'), test('b')], { 'browser-shell.e2e.ts › a': -1, 'browser-shell.e2e.ts › b': 4 })).toEqual([4, 4])
+    expect(unrecordedTests([test('a'), test('b'), test('new')], { 'browser-shell.e2e.ts › a': -1, 'browser-shell.e2e.ts › b': 4 })).toBe(2)
   })
 
   it('leaves extra shards empty', () => {
