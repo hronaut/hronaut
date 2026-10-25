@@ -49,7 +49,7 @@ describe('Print in the page context menu', () => {
   it('prints the page it opened on, after Copy Page Address and Save As and before Inspect', () => {
     const { tab, print, items } = openMenu('https://docs.example/invoice')
     const ids = items.map((item) => item.id ?? item.type)
-    expect(ids.slice(ids.indexOf('copy-page-address'))).toEqual(['copy-page-address', 'save-page', 'print', 'view-page-source', 'inspect-element'])
+    expect(ids.slice(ids.indexOf('copy-page-address'))).toEqual(['copy-page-address', 'save-page', 'print', 'create-qr-code-page', 'view-page-source', 'inspect-element'])
     const item = items.find((entry) => entry.id === 'print')!
     expect(item.label).toBe('native.context.print')
     ;(item.click as () => void)()

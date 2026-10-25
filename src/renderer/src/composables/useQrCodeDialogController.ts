@@ -70,11 +70,13 @@ export function useQrCodeDialogController(options: QrCodeDialogControllerOptions
     return opened ? run('download', () => options.api.downloadQrCode({ tabId: opened.tabId, text: text.value, address: opened.address })) : Promise.resolve()
   }
 
-  // A new text has a new image, so what was said of the last one no longer holds.
+  // A new text has a new image, so what was said of the last one no longer holds, and an answer about it changes nothing.
   watch(text, () => {
+    generation++
+    busy.value = null
     status.value = null
     error.value = ''
-  })
+  }, { flush: 'sync' })
   watch(options.tabIds, (tabIds) => {
     if (open.value && source.value && !tabIds.includes(source.value.tabId)) close()
   })

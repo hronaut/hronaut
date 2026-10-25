@@ -8,7 +8,7 @@ import IconClose from '~icons/material-symbols/close-rounded'
 import { ignoreHeldEnter } from '../held-enter.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 import type { QrCodeDialogController } from '../composables/useQrCodeDialogController.js'
-import { qrCodePath, QR_CODE_QUIET_ZONE } from '../qr-code-path.js'
+import { qrCodePath, QR_CODE_QUIET_ZONE } from '../../../shared/qr-code-path.js'
 
 /** Chrome's dialog asks for no more characters than this, a round number under what the largest code holds. */
 const CHARACTER_LIMIT = 2000
