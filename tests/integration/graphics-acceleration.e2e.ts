@@ -76,7 +76,10 @@ async function freePort(): Promise<number> {
 test('restarts Hronaut from beside the notice, and the next run applies the change', async ({ profileDirectory, mcpPort }) => {
   const settingsPath = join(profileDirectory, 'settings.json')
   const devToolsPort = await freePort()
-  const first = await launchHronaut(profileDirectory, mcpPort, 1, [], [`--remote-debugging-port=${devToolsPort}`])
+  // Playwright adds --no-sandbox on Linux, but takes it out of process.argv with its own switches, so the next run,
+  // which starts from this run's command line, would lack it, and Chromium refuses to run as root without it.
+  const sandbox = process.platform === 'linux' ? ['--no-sandbox'] : []
+  const first = await launchHronaut(profileDirectory, mcpPort, 1, [], [...sandbox, `--remote-debugging-port=${devToolsPort}`])
   let next: Browser | undefined
   try {
     const settings = await openGraphicsSettings(first.window)
@@ -109,8 +112,9 @@ test('restarts Hronaut from beside the notice, and the next run applies the chan
     await expect.poll(async () => (await shell()) !== undefined, { timeout: 30_000 }).toBe(true)
     const window = (await shell())!
     expect(await inUse(window)).toBe(false)
-    await expect((await openGraphicsSettings(window)).use).not.toBeChecked()
-    await expect((await openGraphicsSettings(window)).restart).toHaveText('')
+    const applied = await openGraphicsSettings(window)
+    await expect(applied.use).not.toBeChecked()
+    await expect(applied.restart).toHaveText('')
     const disconnected = new Promise<void>((resolve) => next!.once('disconnected', () => resolve()))
     await window.evaluate('window.hronaut.quit()').catch(() => undefined)
     await disconnected
