@@ -9,6 +9,7 @@ All notable changes to Hronaut are documented in this file.
 - The Bookmarks panel has **Open all (N)** above the list, as Chrome's **Open all** on a bookmark folder: it opens every bookmark the list shows, after the chosen collection and the search, in the list's order, each in a background tab. From 15 tabs on it first asks **Open N tabs?**, and opening stops at the first tab that cannot open, such as at the 50-tab limit, saying how many opened.
 - **Bookmark all tabs**, as in Chrome: **Ctrl/Cmd+Shift+D**, **View → Bookmark All Tabs…**, **Bookmark All Tabs…** in a tab's menu or the command palette asks in the Bookmarks panel, or in its own window, what to call a new collection, suggesting the workspace's name, and saves the workspace's open tabs in it in the tab strip's order. A page already in another collection stays there, and the panel says what it added. A website that handles **Ctrl/Cmd+Shift+D** itself keeps the key, as in Chrome.
 - **Switch to this tab** in the address bar, as in Chrome: a bookmark or visit already open in another tab offers it, by a click or with **Tab** then **Enter**, and **@tabs** lists the open tabs to switch to.
+- **Inline autocomplete** in the address bar, as in Chrome: typing the start of a bookmarked site, or one visited more than once, fills in the rest of its address after what you typed, selected, and **Enter** opens it with its own scheme and port; **Backspace** takes the rest away and the arrow keys go back to what you typed.
 
 ## [3.11.0] - 2026-10-24
 

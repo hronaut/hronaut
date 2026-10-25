@@ -171,7 +171,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       :aria-label="t('shell.toolbar.address')"
       role="combobox"
       aria-keyshortcuts="Control+L Meta+L"
-      aria-autocomplete="list"
+      aria-autocomplete="both"
       aria-controls="address-suggestions address-suggestion-actions"
       :aria-expanded="visible"
       :aria-activedescendant="visible && selected ? (switchFocused ? switchSuggestionId(selected) : suggestionId(selected)) : undefined"
