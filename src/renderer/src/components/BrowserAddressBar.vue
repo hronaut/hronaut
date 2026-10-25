@@ -8,6 +8,7 @@ import IconClose from '~icons/material-symbols/close-rounded'
 import IconKeyboardArrowRight from '~icons/material-symbols/keyboard-arrow-right-rounded'
 import IconPasskey from '~icons/material-symbols/passkey-rounded'
 import IconRoute from '~icons/material-symbols/route-rounded'
+import IconSearch from '~icons/material-symbols/search-rounded'
 import IconSpeed from '~icons/material-symbols/speed-rounded'
 import IconTune from '~icons/material-symbols/tune-rounded'
 import type {
@@ -68,6 +69,8 @@ const {
   visible,
   selected,
   switchFocused,
+  keyword,
+  keywordHint,
   suggestionId,
   switchSuggestionId,
   suggestionMeta,
@@ -102,6 +105,12 @@ const cssStatePreview = computed(() => {
     action: t(preview.resetUncertain ? 'runtime.cssStatePreview.retry' : 'runtime.cssStatePreview.reset', { states, selector: preview.selector }),
     uncertain: preview.resetUncertain === true
   }
+})
+
+// What a screen reader hears as the field offers a keyword search or takes one, as the hint and the chip show it.
+const keywordStatus = computed(() => {
+  if (keyword.value) return t('runtime.suggestion.keywordSearch', { engine: keyword.value.label })
+  return keywordHint.value ? t('runtime.suggestion.keywordHint', { engine: keywordHint.value.label }) : ''
 })
 
 // An agent's software passkey signs in to the page for it, so the address bar shows it while its tab is shown and the person can stop it.
@@ -164,6 +173,10 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       <IconTune aria-hidden="true" />
       <span v-if="activeSitePermissions.length" class="site-controls-indicator" aria-hidden="true" />
     </UiButton>
+    <span v-if="keyword" id="address-keyword" class="address-keyword">
+      <IconSearch aria-hidden="true" />
+      <span>{{ t('runtime.suggestion.keywordSearch', { engine: keyword.label }) }}</span>
+    </span>
     <input
       ref="input"
       v-model="address"
@@ -175,9 +188,10 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       aria-controls="address-suggestions address-suggestion-actions"
       :aria-expanded="visible"
       :aria-activedescendant="visible && selected ? (switchFocused ? switchSuggestionId(selected) : suggestionId(selected)) : undefined"
+      :aria-describedby="keyword ? 'address-keyword' : undefined"
       autocomplete="off"
       spellcheck="false"
-      :placeholder="t('shell.toolbar.addressPlaceholder')"
+      :placeholder="keyword ? '' : t('shell.toolbar.addressPlaceholder')"
       @focus="handleFocus"
       @input="handleInput"
       @paste="handlePaste"
@@ -186,6 +200,8 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       @drop="handleDrop"
       @keydown="handleKeydown"
     />
+    <span v-if="keywordHint" class="address-keyword-hint" aria-hidden="true">{{ t('runtime.suggestion.keywordHint', { engine: keywordHint.label }) }}</span>
+    <span class="sr-only" role="status">{{ keywordStatus }}</span>
     <span v-if="activeTab?.emulationState" class="emulation-pill" role="status" v-tooltip="t('emulationApplication.help')">
       <IconSpeed aria-hidden="true" />
       <span>{{ t('emulationApplication.' + activeTab.emulationState.application) }}</span>

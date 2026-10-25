@@ -1,4 +1,4 @@
-/* The address field, its site controls button and its emulation and network pills. */
+/* The address field, its site controls button, its keyword search and its emulation and network pills. */
 .address-form {
   @apply relative flex items-center [flex:1] [min-width:180px] [height:40px] [margin:0_6px] [padding:0_14px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] bg-surface-muted [transition:border-color_120ms,_box-shadow_120ms,_background_120ms];
 }
@@ -13,6 +13,13 @@
 .site-controls-indicator { @apply absolute [right:3px] [bottom:3px] [width:6px] [height:6px] [border:1px_solid_var(--surface-muted)] rounded-full bg-accent; }
 .address { @apply w-full border-0 [outline:0] bg-transparent text-copy [font-size:var(--type-body-size)]; }
 .address::placeholder { @apply text-subtle; }
+/* The engine a keyword search goes to, before the search, and Tab to search one, after the text, as in Chrome. */
+.address-keyword {
+  @apply flex [height:26px] [max-width:160px] flex-none items-center [gap:4px] [margin-right:8px] [padding:0_8px_0_6px] [border-radius:var(--corner-2)] text-accent-copy bg-accent-soft [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] whitespace-nowrap;
+}
+.address-keyword svg { @apply [width:15px] [height:15px] flex-none; }
+.address-keyword span { @apply overflow-hidden text-ellipsis; }
+.address-keyword-hint { @apply [flex:0_1_auto] min-w-0 [margin-left:8px] overflow-hidden text-ellipsis whitespace-nowrap text-subtle [font-size:var(--type-small-size)]; }
 .emulation-pill {
   @apply flex [height:28px] [max-width:170px] flex-none items-center [gap:5px] [margin-left:8px] [padding:0_7px] [border:1px_solid_color-mix(in_srgb,_#e49a32_52%,_var(--border))] [border-radius:var(--corner-2)] [color:color-mix(in_srgb,_var(--text)_74%,_#e49a32)] [background:color-mix(in_srgb,_#e49a32_10%,_var(--surface-muted))] [font:inherit] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] whitespace-nowrap cursor-pointer;
 }

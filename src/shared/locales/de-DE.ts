@@ -871,6 +871,7 @@ export const deDE = {
       "addressBackgroundTab": "In der Adressleiste Eingegebenes in einem neuen Hintergrund-Tab öffnen",
       "addressWwwCom": "www. und .com zum Websitenamen in der Adressleiste hinzufügen und öffnen",
       "addressForgetVisit": "Hervorgehobenen Besuch aus den Vorschlägen der Adressleiste und aus dem Verlauf entfernen",
+      "addressKeywordSearch": "Mit der Suchmaschine suchen, deren Website in der Adressleiste eingegeben ist",
       "viewSource": "Seitenquelltext anzeigen",
       "back": "Zur vorherigen Seite zurückgehen",
       "forward": "Zur nächsten Seite vorwärtsgehen",
@@ -1089,7 +1090,9 @@ export const deDE = {
       "visits": "Verlauf · {count} Besuch | Verlauf · {count} Besuche",
       "openTab": "Geöffneter Tab",
       "switchToTab": "Zu diesem Tab wechseln",
-      "switchHint": "Mit Tab und dann Eingabe zu diesem Tab wechseln."
+      "switchHint": "Mit Tab und dann Eingabe zu diesem Tab wechseln.",
+      "keywordSearch": "In {engine} suchen",
+      "keywordHint": "Mit Tab in {engine} suchen"
     },
     "network": {
       "notObserved": "Nicht beobachtet",

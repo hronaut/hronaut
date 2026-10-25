@@ -871,6 +871,7 @@ export const frFR = {
       "addressBackgroundTab": "Ouvrir le texte saisi dans la barre d’adresse dans un nouvel onglet en arrière-plan",
       "addressWwwCom": "Ajouter www. et .com au nom de site saisi dans la barre d’adresse et l’ouvrir",
       "addressForgetVisit": "Retirer la visite en surbrillance des suggestions de la barre d’adresse et de l’historique",
+      "addressKeywordSearch": "Rechercher avec le moteur dont le site est saisi dans la barre d’adresse",
       "viewSource": "Afficher le code source de la page",
       "back": "Revenir à la page précédente",
       "forward": "Aller à la page suivante",
@@ -1089,7 +1090,9 @@ export const frFR = {
       "visits": "Historique · {count} visite | Historique · {count} visites",
       "openTab": "Onglet ouvert",
       "switchToTab": "Passer à cet onglet",
-      "switchHint": "Appuyez sur Tab, puis sur Entrée, pour passer à cet onglet."
+      "switchHint": "Appuyez sur Tab, puis sur Entrée, pour passer à cet onglet.",
+      "keywordSearch": "Rechercher sur {engine}",
+      "keywordHint": "Appuyez sur Tab pour rechercher sur {engine}"
     },
     "network": {
       "notObserved": "Non observé",
