@@ -132,9 +132,9 @@ describe('focused Docker integration feedback', () => {
     ])
 
     expect(workflow).toContain('integration-shard:')
-    expect(workflow).toContain('name: Electron integration shard ${{ matrix.shard }}/8')
-    expect(workflow).toContain('shard: [1, 2, 3, 4, 5, 6, 7, 8]')
-    expect(workflow).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/8"')
+    expect(workflow).toContain('name: Electron integration shard ${{ matrix.shard }}/12')
+    expect(workflow).toContain('shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]')
+    expect(workflow).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/12"')
     expect(workflow).toContain('HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"')
     expect(workflow).toContain('needs: integration-shard')
     expect(compose).toContain('HRONAUT_INTEGRATION_SHARD: "${HRONAUT_INTEGRATION_SHARD:-}"')
@@ -142,6 +142,9 @@ describe('focused Docker integration feedback', () => {
     expect(runner).toContain('HRONAUT_INTEGRATION_SHARD')
     expect(runner).toContain('HRONAUT_INTEGRATION_RUN_DIALOGS')
     expect(runner).toContain('"--shard=${shard_spec}"')
+    // Each shard runs its part of a split by recorded durations, and CI keeps every shard's durations.
+    expect(runner).toContain('node scripts/plan-integration-shard.ts "$list_report" tests/integration/durations.json "$shard_spec" "$test_list"')
+    expect(workflow).toContain('name: durations-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}\n          path: test-durations/')
     expect(runner).toContain('run_shard "$single_shard" "$single_shard_index"')
   })
 
