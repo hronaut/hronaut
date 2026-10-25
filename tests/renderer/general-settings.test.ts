@@ -39,6 +39,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       askWhereToSaveDownloads: false,
       memorySaverEnabled: true,
       memorySaverTimeoutMinutes: 60,
+      graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
       languagePreference: locale
     },

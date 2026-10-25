@@ -112,6 +112,9 @@ describe('settings section search', () => {
     { locale: 'ru-RU', query: 'язык интерфейса', sections: ['general'] },
     { locale: 'en-US', query: 'updated', sections: ['updates'] },
     { locale: 'en-US', query: 'dark mode', sections: ['appearance'] },
+    { locale: 'en-US', query: 'gpu', sections: ['performance'] },
+    { locale: 'en-US', query: 'graphics acceleration', sections: ['performance'] },
+    { locale: 'ru-RU', query: 'видеокарта', sections: ['performance'] },
     { locale: 'en-US', query: 'proxy', sections: [] }
   ])('finds $query in $locale by the sections Settings shows', ({ locale, query, sections }) => {
     expect(sectionsFound(locale, query)).toEqual(sections)

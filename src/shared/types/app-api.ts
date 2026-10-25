@@ -184,6 +184,9 @@ export interface HronautSettingsApi {
   setMemorySaverEnabled(enabled: boolean): Promise<AppSettings>
   setMemorySaverTimeoutMinutes(timeoutMinutes: MemorySaverTimeoutMinutes): Promise<AppSettings>
   resetMemorySaver(): Promise<AppSettings>
+  setGraphicsAcceleration(enabled: boolean): Promise<AppSettings>
+  /** Whether this run draws with graphics acceleration, as the saved setting said at its start. */
+  graphicsAccelerationInUse(): Promise<boolean>
   setCheckForUpdatesOnStartup(enabled: boolean): Promise<AppSettings>
   setLanguagePreference(preference: LanguagePreference): Promise<RendererSettingsState>
   onChanged(listener: (settings: AppSettings) => void): () => void

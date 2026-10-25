@@ -49,6 +49,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   askWhereToSaveDownloads: false,
   memorySaverEnabled: true,
   memorySaverTimeoutMinutes: DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
+  graphicsAcceleration: true,
   checkForUpdatesOnStartup: true,
   languagePreference: 'system'
 }
@@ -129,6 +130,8 @@ export class SettingsStore {
         memorySaverTimeoutMinutes: isMemorySaverTimeoutMinutes(value.memorySaverTimeoutMinutes)
           ? value.memorySaverTimeoutMinutes
           : DEFAULT_SETTINGS.memorySaverTimeoutMinutes,
+        // Only an explicit off turns it off, as readSavedGraphicsAcceleration reads it at startup.
+        graphicsAcceleration: value.graphicsAcceleration !== false,
         checkForUpdatesOnStartup,
         languagePreference: isLanguagePreference(value.languagePreference)
           ? value.languagePreference

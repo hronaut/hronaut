@@ -102,6 +102,7 @@ describe('SettingsStore', () => {
       askWhereToSaveDownloads: true,
       memorySaverEnabled: false,
       memorySaverTimeoutMinutes: 15,
+      graphicsAcceleration: false,
       checkForUpdatesOnStartup: false,
       languagePreference: 'uk-UA'
     })
@@ -133,6 +134,7 @@ describe('SettingsStore', () => {
       askWhereToSaveDownloads: true,
       memorySaverEnabled: false,
       memorySaverTimeoutMinutes: 15,
+      graphicsAcceleration: false,
       checkForUpdatesOnStartup: false,
       languagePreference: 'uk-UA'
     })
@@ -164,6 +166,7 @@ describe('SettingsStore', () => {
       askWhereToSaveDownloads: true,
       memorySaverEnabled: false,
       memorySaverTimeoutMinutes: 15,
+      graphicsAcceleration: false,
       checkForUpdatesOnStartup: false,
       languagePreference: 'uk-UA'
     })
@@ -235,6 +238,7 @@ describe('SettingsStore', () => {
       askWhereToSaveDownloads: false,
       memorySaverEnabled: true,
       memorySaverTimeoutMinutes: 60,
+      graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
       languagePreference: 'system'
     })

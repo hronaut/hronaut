@@ -357,7 +357,7 @@ export const frFR: MessageSchema = {
       "downloads": "Téléchargements",
       "downloadsDescription": "Emplacement et demandes",
       "performance": "Performances",
-      "performanceDescription": "Onglets en veille",
+      "performanceDescription": "Onglets en veille, graphismes",
       "mcp": "Sécurité MCP",
       "mcpDescription": "Authentification locale",
       "wallets": "Portefeuilles",
@@ -413,6 +413,7 @@ export const frFR: MessageSchema = {
       "askDescription": "Afficher la boîte de dialogue du système pour chaque nouveau téléchargement.",
       "help": "Les modifications concernent les nouveaux téléchargements. Les transferts actifs conservent leur destination. Les PDF et fichiers créés par un agent utilisent le dossier choisi sans boîte de dialogue."
     },
+    "graphics": { "heading": "Graphismes", "use": "Utiliser l’accélération graphique si disponible", "useDescription": "Lorsque cette option est activée, les pages et Hronaut s’affichent avec votre carte graphique. Désactivez cette option si des parties d’une fenêtre restent noires ou vides, ou clignotent.", "restart": "Redémarrez Hronaut pour appliquer cette modification." },
     "memory": {
       "heading": "Économiseur de mémoire",
       "description": "Décharger les onglets inactifs afin de réserver plus de processeur et de mémoire au travail actif.",

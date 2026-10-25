@@ -357,7 +357,7 @@ export const jaJP: MessageSchema = {
       "downloads": "ダウンロード",
       "downloadsDescription": "保存先と確認",
       "performance": "パフォーマンス",
-      "performanceDescription": "スリープ中のタブ",
+      "performanceDescription": "スリープ中のタブ、グラフィック",
       "mcp": "MCP セキュリティ",
       "mcpDescription": "ローカル認証",
       "wallets": "ウォレット",
@@ -413,6 +413,7 @@ export const jaJP: MessageSchema = {
       "askDescription": "ウェブサイトから新しくダウンロードするたびに、オペレーティング システムの保存ダイアログを表示します。",
       "help": "変更は新しいウェブサイトからのダウンロードに適用されます。進行中の転送は元の保存先のままです。PDF のエクスポートとエージェントが作成したファイルは、保存場所を確認せずに選択したフォルダに保存されます。"
     },
+    "graphics": { "heading": "グラフィック", "use": "グラフィック アクセラレーションが使用可能な場合は使用する", "useDescription": "オンにすると、ページと Hronaut の表示にグラフィック カードを使います。ウィンドウの一部が黒や空白のままになったり、ちらついたりする場合は、この設定をオフにしてください。", "restart": "この変更を適用するには Hronaut を再起動してください。" },
     "memory": {
       "heading": "メモリセーバー",
       "description": "使用していないウェブサイトのタブを解放して、人とエージェントの作業により多くの CPU とメモリを割り当てます。",

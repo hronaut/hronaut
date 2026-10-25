@@ -357,7 +357,7 @@ export const koKR: MessageSchema = {
       "downloads": "다운로드",
       "downloadsDescription": "위치 및 확인 메시지",
       "performance": "성능",
-      "performanceDescription": "절전 탭",
+      "performanceDescription": "절전 탭, 그래픽",
       "mcp": "MCP 보안",
       "mcpDescription": "로컬 인증",
       "wallets": "지갑",
@@ -413,6 +413,7 @@ export const koKR: MessageSchema = {
       "askDescription": "웹사이트에서 새로 다운로드할 때마다 운영체제의 저장 대화상자를 표시합니다.",
       "help": "변경 사항은 새 웹사이트 다운로드에 적용됩니다. 진행 중인 전송은 원래 대상을 유지합니다. PDF 내보내기와 에이전트가 만든 파일은 저장 위치를 묻지 않고 선택한 폴더를 사용합니다."
     },
+    "graphics": { "heading": "그래픽", "use": "가능한 경우 그래픽 가속 사용", "useDescription": "사용 설정하면 페이지와 Hronaut를 그래픽 카드로 표시합니다. 창의 일부가 검은색이나 빈 화면으로 남거나 깜박이면 이 설정을 사용 중지하세요.", "restart": "변경사항을 적용하려면 Hronaut를 다시 시작하세요." },
     "memory": {
       "heading": "메모리 절약 모드",
       "description": "비활성 웹사이트 탭을 언로드하여 사람과 에이전트가 진행 중인 작업에 CPU와 메모리를 더 많이 할당합니다.",

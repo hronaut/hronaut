@@ -357,7 +357,7 @@ export const esES: MessageSchema = {
       "downloads": "Descargas",
       "downloadsDescription": "Ubicación y avisos",
       "performance": "Rendimiento",
-      "performanceDescription": "Pestañas suspendidas",
+      "performanceDescription": "Pestañas suspendidas, gráficos",
       "mcp": "Seguridad MCP",
       "mcpDescription": "Autenticación local",
       "wallets": "Monederos",
@@ -413,6 +413,7 @@ export const esES: MessageSchema = {
       "askDescription": "Mostrar el diálogo del sistema operativo para cada nueva descarga.",
       "help": "Los cambios se aplican a nuevas descargas. Las transferencias activas conservan su destino. Los PDF y archivos del agente usan la carpeta elegida sin diálogo."
     },
+    "graphics": { "heading": "Gráficos", "use": "Usar aceleración gráfica cuando esté disponible", "useDescription": "Si está activada, las páginas y Hronaut se dibujan con tu tarjeta gráfica. Desactiva esta opción si partes de una ventana se quedan en negro o en blanco, o parpadean.", "restart": "Reinicia Hronaut para aplicar este cambio." },
     "memory": {
       "heading": "Ahorro de memoria",
       "description": "Descarga las pestañas inactivas para dar más CPU y memoria al trabajo activo.",

@@ -101,6 +101,9 @@ describe('PerformanceSettingsPanel', () => {
     expect(timeout).toBeDisabled()
     expect(enabled).toBeDisabled()
     expect(sleep).toBeDisabled()
+    // Memory Saver's save marked the whole panel busy, Graphics included, which does not wait for it.
+    expect(timeout.closest('[aria-busy="true"]')).not.toBeNull()
+    expect(screen.getByRole('region', { name: 'Graphics' }).closest('[aria-busy="true"]')).toBeNull()
 
     saving.reject(new Error('cannot persist memory saver'))
     expect(await screen.findByRole('alert')).toHaveTextContent('cannot persist memory saver')

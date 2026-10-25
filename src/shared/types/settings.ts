@@ -76,6 +76,11 @@ export interface AppSettings {
   askWhereToSaveDownloads: boolean
   memorySaverEnabled: boolean
   memorySaverTimeoutMinutes: MemorySaverTimeoutMinutes
+  /**
+   * Use graphics acceleration when available, as in Chrome: Chromium draws with the graphics card. Read at startup, so a
+   * change applies at the next start.
+   */
+  graphicsAcceleration: boolean
   checkForUpdatesOnStartup: boolean
   languagePreference: LanguagePreference
 }

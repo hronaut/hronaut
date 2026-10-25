@@ -47,6 +47,7 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   askWhereToSaveDownloads: false,
   memorySaverEnabled: true,
   memorySaverTimeoutMinutes: 60,
+  graphicsAcceleration: true,
   checkForUpdatesOnStartup: true,
   languagePreference: 'system'
 }
@@ -216,6 +217,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const setMemorySaverEnabled = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMemorySaverEnabled(enabled))
   const setMemorySaverTimeoutMinutes = (minutes: MemorySaverTimeoutMinutes): Promise<AppSettings> => applySettings(window.hronautSettings.setMemorySaverTimeoutMinutes(minutes))
   const resetMemorySaver = (): Promise<AppSettings> => applySettings(window.hronautSettings.resetMemorySaver())
+  const setGraphicsAcceleration = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setGraphicsAcceleration(enabled))
   const setCheckForUpdatesOnStartup = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setCheckForUpdatesOnStartup(enabled))
 
   async function setLanguagePreference(preference: LanguagePreference): Promise<RendererSettingsState> {
@@ -285,6 +287,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setMemorySaverEnabled,
     setMemorySaverTimeoutMinutes,
     resetMemorySaver,
+    setGraphicsAcceleration,
     setCheckForUpdatesOnStartup,
     setLanguagePreference
   }
