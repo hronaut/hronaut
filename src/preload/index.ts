@@ -505,6 +505,7 @@ const settingsApi: HronautSettingsApi = {
   resetMemorySaver: () => ipcRenderer.invoke('settings:reset-memory-saver'),
   setGraphicsAcceleration: (enabled: boolean) => ipcRenderer.invoke('settings:set-graphics-acceleration', enabled),
   graphicsAccelerationInUse: () => ipcRenderer.invoke('settings:graphics-acceleration-in-use'),
+  restart: () => ipcRenderer.invoke('app:restart'),
   setCheckForUpdatesOnStartup: (enabled: boolean) => ipcRenderer.invoke('settings:set-check-on-startup', enabled),
   setLanguagePreference: (preference: LanguagePreference) => ipcRenderer.invoke('settings:set-language-preference', preference),
   onChanged: (listener: (settings: AppSettings) => void) => {

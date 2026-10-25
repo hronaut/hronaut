@@ -3,6 +3,7 @@ import { computed, onMounted, ref, useId } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import UiCheckbox from '../ui/UiCheckbox.vue'
+import SettingRestart from './SettingRestart.vue'
 import { useSettingsStore } from '../stores/settings.js'
 
 /**
@@ -52,10 +53,6 @@ async function changeEnabled(event: Event): Promise<void> {
         <span>
           <strong>{{ t('settings.graphics.use') }}</strong>
           <small>{{ t('settings.graphics.useDescription') }}</small>
-          <!-- The live region stays, so screen readers announce the notice when a change brings it. -->
-          <span role="status">
-            <small v-if="restartRequired" class="setting-restart-required">{{ t('settings.graphics.restart') }}</small>
-          </span>
         </span>
         <UiCheckbox
           :id="switchId"
@@ -65,6 +62,7 @@ async function changeEnabled(event: Event): Promise<void> {
           @change="changeEnabled"
         />
       </label>
+      <SettingRestart :required="restartRequired" :message="t('settings.graphics.restart')" />
     </div>
   </section>
 </template>

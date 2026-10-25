@@ -320,7 +320,10 @@
 .settings-row strong, .settings-row small { @apply block; }
 .settings-row strong { @apply [font-size:var(--type-body-size)]; }
 .settings-row small { @apply [margin-top:5px] text-muted [font-size:var(--type-small-size)] [line-height:1.5]; }
-.settings-row small.setting-restart-required { @apply text-accent-copy [font-weight:var(--weight-strong)]; }
+/* Restart to apply belongs to the row above it, and takes no room until a change asks for it. */
+.setting-restart { @apply flex items-center justify-between [gap:24px]; }
+.setting-restart:has(.setting-restart-required) { @apply [margin-top:-4px] [padding:0_0_14px]; }
+.setting-restart small { @apply block text-accent-copy [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [line-height:1.5]; }
 .settings-row input:disabled:not(.ui-checkbox--switch) { @apply [opacity:0.42]; }
 .settings-row select { @apply [min-width:126px] [min-height:36px] [padding:7px_10px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-1)] outline-none text-copy bg-surface-raised [font:inherit] [font-size:var(--type-body-size)]; }
 .settings-row select:focus { @apply border-accent [box-shadow:0_0_0_2px_var(--accent-soft)]; }

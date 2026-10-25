@@ -413,6 +413,7 @@ export const trTR: MessageSchema = {
       "askDescription": "Her yeni web sitesi indirmesinde işletim sisteminin kaydetme iletişim kutusunu gösterir.",
       "help": "Değişiklikler yeni web sitesi indirmelerine uygulanır. Devam eden aktarımlar ilk hedeflerini korur. PDF dışa aktarmaları ve ajanların oluşturduğu dosyalar, nereye kaydedileceği sorulmadan seçili klasöre kaydedilir."
     },
+    "restartNow": "Yeniden başlat",
     "graphics": { "heading": "Grafikler", "use": "Mevcut olduğunda grafik hızlandırmayı kullan", "useDescription": "Açık olduğunda sayfalar ve Hronaut ekran kartınızla çizilir. Pencerenin bazı bölümleri siyah ya da boş kalıyor veya titriyorsa bu ayarı kapatın.", "restart": "Bu değişikliği uygulamak için Hronaut’u yeniden başlatın." },
     "memory": {
       "heading": "Bellek Tasarrufu",

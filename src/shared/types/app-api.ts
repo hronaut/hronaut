@@ -187,6 +187,11 @@ export interface HronautSettingsApi {
   setGraphicsAcceleration(enabled: boolean): Promise<AppSettings>
   /** Whether this run draws with graphics acceleration, as the saved setting said at its start. */
   graphicsAccelerationInUse(): Promise<boolean>
+  /**
+   * Restarts Hronaut to apply a change that takes effect at the next start, after asking about downloads in progress as
+   * Quit does; resolves false when they are kept.
+   */
+  restart(): Promise<boolean>
   setCheckForUpdatesOnStartup(enabled: boolean): Promise<AppSettings>
   setLanguagePreference(preference: LanguagePreference): Promise<RendererSettingsState>
   onChanged(listener: (settings: AppSettings) => void): () => void

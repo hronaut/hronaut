@@ -85,6 +85,7 @@ import { registerSettingsIpc } from './settings-ipc.js'
 import { registerSiteSearchIpc } from './site-search-ipc.js'
 import { applySavedSecureDns, registerSecureDnsIpc } from './secure-dns.js'
 import { applySavedGraphicsAcceleration, registerGraphicsAccelerationIpc } from './graphics-acceleration.js'
+import { registerAppRestartIpc } from './app-restart.js'
 import { createBrowserSession, type BrowserSessionState } from './browser-session.js'
 import { registerPermissionsIpc } from './permissions-ipc.js'
 import { WindowStateStore } from './window-state.js'
@@ -1079,6 +1080,14 @@ function registerIpc(): void {
     settings: () => settingsState.current,
     updateSettings,
     publishSettings
+  })
+  registerAppRestartIpc(hronautIpcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    confirmQuit: confirmQuitWithDownloads,
+    quitState: appQuitState,
+    relaunch: (options) => app.relaunch(options),
+    quit: () => app.quit(),
+    restartContext: () => ({ argv: process.argv, defaultApp: process.defaultApp, appImage: process.env.APPIMAGE })
   })
   registerPermissionsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,

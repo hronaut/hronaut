@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises'
+import { createServer } from 'node:net'
 import { join } from 'node:path'
-import type { ElectronApplication, Page } from '@playwright/test'
-import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { chromium, type Browser, type ElectronApplication, type Page } from '@playwright/test'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 // Hronaut always drew with the graphics card. As in Chrome's Use graphics acceleration when available, Settings →
 // Performance turns it off or on, Settings asks for a restart while this run still uses the other choice, and the
@@ -15,7 +16,8 @@ async function openGraphicsSettings(window: Page) {
   const graphics = window.getByRole('tabpanel', { name: 'Settings' }).getByRole('region', { name: 'Graphics' })
   return {
     use: graphics.getByRole('checkbox', { name: /Use graphics acceleration when available/ }),
-    restart: graphics.getByRole('status')
+    restart: graphics.getByRole('status'),
+    restartNow: graphics.getByRole('button', { name: 'Restart' })
   }
 }
 
@@ -56,5 +58,69 @@ test('turns graphics acceleration off and on again from the next start', async (
     await expect((await openGraphicsSettings(instance.window)).restart).toHaveText('')
   } finally {
     if (instance) await closeHronaut(instance.app)
+  }
+})
+
+async function freePort(): Promise<number> {
+  const server = createServer()
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  await closeFixtureServer(server)
+  if (!address || typeof address === 'string') throw new Error('No free port')
+  return address.port
+}
+
+// Settings only said to restart Hronaut, and closing its window may just hide it in the tray. As Chrome's Relaunch,
+// Restart beside the notice quits Hronaut and starts it again on the same profile, which then applies the change. The
+// new run is no Playwright launch: it keeps this run's DevTools switch, so the test reaches it there, and quits it.
+test('restarts Hronaut from beside the notice, and the next run applies the change', async ({ profileDirectory, mcpPort }) => {
+  const settingsPath = join(profileDirectory, 'settings.json')
+  const devToolsPort = await freePort()
+  const first = await launchHronaut(profileDirectory, mcpPort, 1, [], [`--remote-debugging-port=${devToolsPort}`])
+  let next: Browser | undefined
+  try {
+    const settings = await openGraphicsSettings(first.window)
+    await expect(settings.restartNow).toHaveCount(0)
+    await settings.use.click()
+    await expect(settings.restart).toHaveText('Restart Hronaut to apply this change.')
+    await expect.poll(async () => (JSON.parse(await readFile(settingsPath, 'utf8')) as { graphicsAcceleration?: boolean })
+      .graphicsAcceleration).toBe(false)
+    const exited = first.app.waitForEvent('close')
+    await settings.restartNow.click()
+    await exited
+
+    const deadline = Date.now() + 30_000
+    while (!next) {
+      try {
+        next = await chromium.connectOverCDP(`http://127.0.0.1:${devToolsPort}`)
+      } catch (error) {
+        if (Date.now() > deadline) throw error
+        await new Promise((resolve) => setTimeout(resolve, 250))
+      }
+    }
+    const shell = async () => {
+      for (const page of next!.contexts().flatMap((context) => context.pages())) {
+        if (await page.evaluate('typeof window.hronautSettings?.graphicsAccelerationInUse === "function"').catch(() => false)) {
+          return page
+        }
+      }
+      return undefined
+    }
+    await expect.poll(async () => (await shell()) !== undefined, { timeout: 30_000 }).toBe(true)
+    const window = (await shell())!
+    expect(await inUse(window)).toBe(false)
+    await expect((await openGraphicsSettings(window)).use).not.toBeChecked()
+    await expect((await openGraphicsSettings(window)).restart).toHaveText('')
+    const disconnected = new Promise<void>((resolve) => next!.once('disconnected', () => resolve()))
+    await window.evaluate('window.hronaut.quit()').catch(() => undefined)
+    await disconnected
+    next = undefined
+  } finally {
+    await closeHronaut(first.app).catch(() => undefined)
+    if (next) {
+      const shell = next.contexts().flatMap((context) => context.pages())
+      await Promise.all(shell.map((page) => page.evaluate('window.hronaut?.quit()').catch(() => undefined)))
+      await next.close().catch(() => undefined)
+    }
   }
 })

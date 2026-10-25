@@ -413,6 +413,7 @@ export const deDE: MessageSchema = {
       "askDescription": "Für jeden neuen Website-Download den Speicherdialog des Betriebssystems anzeigen.",
       "help": "Änderungen gelten für neue Website-Downloads. Aktive Übertragungen behalten ihr Ziel. PDF-Exporte und Agentendateien verwenden den gewählten Ordner ohne Dialog."
     },
+    "restartNow": "Neu starten",
     "graphics": { "heading": "Grafik", "use": "Grafikbeschleunigung verwenden, falls verfügbar", "useDescription": "Wenn aktiviert, werden Seiten und Hronaut mit Ihrer Grafikkarte gezeichnet. Deaktivieren Sie diese Einstellung, wenn Teile eines Fensters schwarz oder leer bleiben oder flackern.", "restart": "Starten Sie Hronaut neu, um diese Änderung anzuwenden." },
     "memory": {
       "heading": "Arbeitsspeicher sparen",

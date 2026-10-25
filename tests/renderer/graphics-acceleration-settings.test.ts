@@ -19,9 +19,10 @@ function renderSettings(saved: Partial<AppSettings> = {}, inUse: Promise<boolean
     return settings
   })
   const graphicsAccelerationInUse = vi.fn(() => inUse)
+  const restart = vi.fn(async () => true)
   Object.defineProperty(window, 'hronautSettings', {
     configurable: true,
-    value: { setGraphicsAcceleration, graphicsAccelerationInUse }
+    value: { setGraphicsAcceleration, graphicsAccelerationInUse, restart }
   })
   const pinia = createTestingPinia({
     stubActions: false,
@@ -33,23 +34,49 @@ function renderSettings(saved: Partial<AppSettings> = {}, inUse: Promise<boolean
   const use = within(region).getByRole('checkbox', { name: /Use graphics acceleration when available/ })
   // The live region stays in place, so a notice that a change brings is announced.
   const notice = () => within(region).getByRole('status').textContent.trim()
-  return { ...view, region, use, notice, setGraphicsAcceleration, graphicsAccelerationInUse, user: userEvent.setup() }
+  const restartButton = () => within(region).queryByRole('button', { name: 'Restart' })
+  return { ...view, region, use, notice, restartButton, restart, setGraphicsAcceleration, graphicsAccelerationInUse, user: userEvent.setup() }
 }
 
 describe('Graphics acceleration settings', () => {
   it('is on by default, and asks for a restart only while the saved choice differs from this run', async () => {
-    const { region, use, notice, user, setGraphicsAcceleration, graphicsAccelerationInUse } = renderSettings()
+    const { region, use, notice, restartButton, user, setGraphicsAcceleration, graphicsAccelerationInUse } = renderSettings()
     expect(use).toBeChecked()
     expect(within(region).getByText(/parts of a window stay black or blank/)).toBeVisible()
     await vi.waitFor(() => expect(graphicsAccelerationInUse).toHaveBeenCalledOnce())
     expect(notice()).toBe('')
+    expect(restartButton()).toBeNull()
     await user.click(use)
     expect(setGraphicsAcceleration).toHaveBeenLastCalledWith(false)
     expect(use).not.toBeChecked()
     expect(notice()).toBe(RESTART)
+    expect(restartButton()).toBeVisible()
     await user.click(use)
     expect(setGraphicsAcceleration).toHaveBeenLastCalledWith(true)
     expect(notice()).toBe('')
+    expect(restartButton()).toBeNull()
+  })
+
+  // Settings only said to restart Hronaut, and closing its window may just hide it in the tray; as Chrome's Relaunch,
+  // Restart beside the notice restarts it, after main asks about downloads in progress.
+  it('restarts Hronaut from beside the notice, which stays while Hronaut stays open', async () => {
+    const { use, notice, restartButton, restart, user } = renderSettings()
+    await user.click(use)
+    await user.click(restartButton()!)
+    expect(restart).toHaveBeenCalledOnce()
+    restart.mockResolvedValueOnce(false)
+    await user.click(restartButton()!)
+    expect(restart).toHaveBeenCalledTimes(2)
+    restart.mockRejectedValueOnce(new Error('main is gone'))
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      await user.click(restartButton()!)
+      await vi.waitFor(() => expect(logged).toHaveBeenCalledOnce())
+    } finally {
+      logged.mockRestore()
+    }
+    expect(notice()).toBe(RESTART)
+    expect(restartButton()).toBeEnabled()
   })
 
   it('asks for no restart once Reset to default for Performance puts back what this run uses', async () => {

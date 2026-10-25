@@ -413,6 +413,7 @@ export const ptBR: MessageSchema = {
       "askDescription": "Mostra a caixa de diálogo de salvar do sistema operacional para cada novo download de site.",
       "help": "As mudanças se aplicam a novos downloads de sites. Transferências em andamento mantêm o destino original. Exportações em PDF e arquivos criados por agentes usam a pasta selecionada sem perguntar onde salvar."
     },
+    "restartNow": "Reiniciar",
     "graphics": { "heading": "Gráficos", "use": "Usar aceleração gráfica quando disponível", "useDescription": "Quando ativada, as páginas e o Hronaut são desenhados com a sua placa de vídeo. Desative esta configuração se partes de uma janela ficarem pretas ou em branco, ou piscarem.", "restart": "Reinicie o Hronaut para aplicar esta alteração." },
     "memory": {
       "heading": "Economia de memória",
