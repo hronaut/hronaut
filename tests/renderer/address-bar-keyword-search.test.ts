@@ -42,23 +42,29 @@ function visit(id: string, url: string, visitCount = 2): BrowserHistoryEntry {
   return { id, title: `Visit ${id}`, url, visitedAt: '2026-10-25T00:00:00.000Z', visitCount }
 }
 
-function controllerOptions(active: Ref<BrowserTabState>, history: Ref<BrowserHistoryEntry[]>) {
+function controllerOptions(active: Ref<BrowserTabState>, history: Ref<BrowserHistoryEntry[]>, otherTabs: BrowserTabState[] = []) {
   const onNavigate = vi.fn(async (_address: string) => undefined)
   const onOpenInNewTab = vi.fn(async (_address: string, _background: boolean) => undefined)
+  let dismissedListener: ((sessionId: number) => void) | undefined
   const overlay = {
     show: vi.fn<(request: AddressSuggestionOverlayRequest) => void>(),
     hide: vi.fn(),
     returnFocus: vi.fn(),
     onSelected: vi.fn(() => () => undefined),
-    onDismissed: vi.fn(() => () => undefined)
+    onDismissed: vi.fn((listener: (sessionId: number) => void) => {
+      dismissedListener = listener
+      return () => undefined
+    })
   }
   return {
     onNavigate,
     onOpenInNewTab,
     overlay,
+    // The suggestions view closes by itself, as a click elsewhere on the screen closes it.
+    dismiss: () => dismissedListener?.(overlay.show.mock.calls.at(-1)![0].sessionId),
     options: {
       activeTab: computed(() => active.value),
-      tabs: computed(() => [active.value]),
+      tabs: computed(() => [active.value, ...otherTabs]),
       bookmarks: ref([]),
       history,
       overlay,
@@ -77,10 +83,10 @@ function controllerOptions(active: Ref<BrowserTabState>, history: Ref<BrowserHis
   }
 }
 
-function createHarness(entries: BrowserHistoryEntry[] = []) {
+function createHarness(entries: BrowserHistoryEntry[] = [], otherTabs: BrowserTabState[] = []) {
   const active = ref(tab('shown', 'https://shown.test/'))
   const history = ref<BrowserHistoryEntry[]>(entries)
-  const { options, onNavigate, onOpenInNewTab, overlay } = controllerOptions(active, history)
+  const { options, onNavigate, onOpenInNewTab, overlay, dismiss } = controllerOptions(active, history, otherTabs)
   let controller!: ReturnType<typeof useAddressBarController>
   const Harness = defineComponent({
     setup() {
@@ -100,6 +106,7 @@ function createHarness(entries: BrowserHistoryEntry[] = []) {
     active,
     history,
     overlay,
+    dismiss,
     onNavigate,
     onOpenInNewTab,
     input,
@@ -161,7 +168,7 @@ describe('keyword search engines', () => {
 
 describe('keyword search in the address bar', () => {
   it('offers Tab to search an engine whose site is typed, and Tab turns the field into a search box for it', async () => {
-    const h = createHarness()
+    const h = createHarness([visit('cats', 'https://cats.example/')])
     await clear(h.input)
     await type(h.input, 'bing.co')
     expect(h.hint()).toBeNull()
@@ -172,9 +179,10 @@ describe('keyword search in the address bar', () => {
     expect(h.engine()).toBe('bing')
     expect(h.hint()).toBeNull()
     expect(h.field()).toEqual({ value: '', caret: [0, 0] })
-    // The field suggests nothing while it searches an engine.
+    // The field suggests nothing while it searches an engine, not even a visit the search matches.
     await type(h.input, 'cats')
     expect(h.controller.suggestions.value).toEqual([])
+    expect(h.field()).toEqual({ value: 'cats', caret: [4, 4] })
     expect(h.controller.visible.value).toBe(false)
     await h.controller.submit()
     expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://www.bing.com/search?q=cats')
@@ -214,12 +222,23 @@ describe('keyword search in the address bar', () => {
     await edit(h.input, ' ')
     expect(h.engine()).toBe('bing')
     expect(h.field()).toEqual({ value: 'cats', caret: [0, 0] })
+
+    // The wide space a Japanese keyboard types takes the site too, as in Chrome.
+    await key(h.input, { key: 'Backspace' })
+    await clear(h.input)
+    await type(h.input, 'bing.com\u3000cats')
+    expect(h.engine()).toBe('bing')
+    expect(h.field()).toEqual({ value: 'cats', caret: [4, 4] })
   })
 
   it('leaves a space pasted or composed after the site, and a site with a path, as text', async () => {
     const h = createHarness()
     await clear(h.input)
     await edit(h.input, 'bing.com ', 'insertFromPaste')
+    expect(h.engine()).toBeNull()
+    await clear(h.input)
+    await type(h.input, 'bing.com')
+    await edit(h.input, ' ', 'insertFromPaste')
     expect(h.engine()).toBeNull()
     await clear(h.input)
     await type(h.input, 'bing.com')
@@ -301,6 +320,39 @@ describe('keyword search in the address bar', () => {
     expect(h.engine()).toBe('bing')
   })
 
+  it('gives the site back with Shift+Tab, once for a held key, and then Shift+Tab leaves the field', async () => {
+    const h = createHarness()
+    await clear(h.input)
+    await type(h.input, 'bing.com cats')
+    h.input.setSelectionRange(4, 4)
+    const back = await key(h.input, { key: 'Tab', shiftKey: true })
+    expect(back.defaultPrevented).toBe(true)
+    expect(h.engine()).toBeNull()
+    expect(h.field()).toEqual({ value: 'bing.com cats', caret: [8, 8] })
+    expect((await key(h.input, { key: 'Tab', shiftKey: true, repeat: true })).defaultPrevented).toBe(true)
+    expect(h.field().value).toBe('bing.com cats')
+    expect((await key(h.input, { key: 'Tab', shiftKey: true })).defaultPrevented).toBe(false)
+  })
+
+  it('keeps Tab for Switch to this tab on a highlighted row, and offers the keyword again once the suggestions close', async () => {
+    const h = createHarness([visit('bing', 'https://bing.com/', 3)], [{ ...tab('open', 'https://bing.com/'), active: false }])
+    await clear(h.input)
+    await type(h.input, 'bing.com')
+    await key(h.input, { key: 'ArrowDown' })
+    expect(h.controller.selected.value?.openTabId).toBe('open')
+    expect(h.hint()).toBeNull()
+    expect((await key(h.input, { key: 'Tab' })).defaultPrevented).toBe(true)
+    expect(h.controller.switchFocused.value).toBe(true)
+    expect(h.engine()).toBeNull()
+    // With the suggestions closed, nothing is highlighted to switch to, and Tab takes the keyword.
+    h.dismiss()
+    await nextTick()
+    expect(h.controller.visible.value).toBe(false)
+    expect(h.hint()).toBe('bing')
+    expect((await key(h.input, { key: 'Tab' })).defaultPrevented).toBe(true)
+    expect(h.engine()).toBe('bing')
+  })
+
   it('offers no keyword for the page\'s own address, a highlighted row, or Tab with a modifier', async () => {
     const h = createHarness([visit('bing', 'https://bing.com/', 3)])
     h.active.value = tab('shown', 'https://bing.com/')
@@ -322,7 +374,34 @@ describe('keyword search in the address bar', () => {
     expect(h.hint()).toBeNull()
   })
 
-  it('leaves the search with Escape, a tab change or a navigation', async () => {
+  it('leaves the search as soon as it goes, and shows where it goes while it loads', async () => {
+    const h = createHarness()
+    h.onNavigate.mockImplementation(() => new Promise<undefined>(() => undefined))
+    await clear(h.input)
+    await type(h.input, 'bing.com cats')
+    void h.controller.submit()
+    await nextTick()
+    expect(h.engine()).toBeNull()
+    expect(h.field().value).toBe('https://www.bing.com/search?q=cats')
+    expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://www.bing.com/search?q=cats')
+
+    // Ctrl+Enter shows where it goes too.
+    await clear(h.input)
+    await type(h.input, 'bing.com news')
+    await key(h.input, { key: 'Enter', ctrlKey: true })
+    expect(h.engine()).toBeNull()
+    expect(h.field().value).toBe('https://www.bing.com/search?q=news')
+
+    // Paste and Go opens what was pasted, and the chip goes with the search.
+    await clear(h.input)
+    await type(h.input, 'bing.com dogs')
+    void h.controller.pasteAndGo('example.test')
+    await nextTick()
+    expect(h.engine()).toBeNull()
+    expect(h.onNavigate).toHaveBeenLastCalledWith('example.test')
+  })
+
+  it('leaves the search with Escape, a tab change or Paste and Go', async () => {
     const h = createHarness()
     await clear(h.input)
     await type(h.input, 'bing.com cats')
@@ -354,6 +433,12 @@ describe('keyword search in the address bar', () => {
     expect(h.engine()).toBe('bing')
     expect(h.field().value).toBe('cats')
     expect(h.hint()).toBeNull()
+    // Back in the field, typing goes on with the search.
+    h.input.focus()
+    h.input.setSelectionRange(4, 4)
+    await type(h.input, ' more')
+    await h.controller.submit()
+    expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://www.bing.com/search?q=cats%20more')
   })
 })
 

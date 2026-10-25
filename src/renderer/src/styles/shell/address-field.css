@@ -19,7 +19,7 @@
 }
 .address-keyword svg { @apply [width:15px] [height:15px] flex-none; }
 .address-keyword span { @apply overflow-hidden text-ellipsis; }
-.address-keyword-hint { @apply [flex:0_1_auto] min-w-0 [margin-left:8px] overflow-hidden text-ellipsis whitespace-nowrap text-subtle [font-size:var(--type-small-size)]; }
+.address-keyword-hint { @apply flex-none [max-width:45%] [margin-left:8px] overflow-hidden text-ellipsis whitespace-nowrap text-subtle [font-size:var(--type-small-size)]; }
 .emulation-pill {
   @apply flex [height:28px] [max-width:170px] flex-none items-center [gap:5px] [margin-left:8px] [padding:0_7px] [border:1px_solid_color-mix(in_srgb,_#e49a32_52%,_var(--border))] [border-radius:var(--corner-2)] [color:color-mix(in_srgb,_var(--text)_74%,_#e49a32)] [background:color-mix(in_srgb,_#e49a32_10%,_var(--surface-muted))] [font:inherit] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] whitespace-nowrap cursor-pointer;
 }

@@ -4,8 +4,6 @@ import { addressKeyword, type AddressKeyword } from '../address-keyword-search.j
 interface AddressKeywordModeOptions {
   address: Ref<string>
   input: Ref<HTMLInputElement | null>
-  /** The field's text as it shows it, with the rest of an address it filled in, which the keyword hint reads. */
-  shownText: () => string
   /** Whether the person is typing in the field with no suggestion highlighted, when Tab can take a keyword. */
   offersKeyword: () => boolean
 }
@@ -18,7 +16,8 @@ interface AddressKeywordModeOptions {
  */
 export function useAddressKeywordMode(options: AddressKeywordModeOptions) {
   const keyword = shallowRef<AddressKeyword | null>(null)
-  const hint = computed(() => keyword.value || !options.offersKeyword() ? null : addressKeyword(options.shownText()) ?? null)
+  // The field's text is the whole of it, with the rest of an address it filled in after what was typed.
+  const hint = computed(() => keyword.value || !options.offersKeyword() ? null : addressKeyword(options.address.value) ?? null)
   // Whether the Tab key held down took the keyword, so that its repeats keep the keyboard in the field.
   let tabHeld = false
 
@@ -48,21 +47,22 @@ export function useAddressKeywordMode(options: AddressKeywordModeOptions) {
     keyword.value = null
   }
 
-  // Tab takes the keyword the field offers, and a held Tab takes it once. Backspace with the caret at the start of the
-  // search gives the site back.
+  // Tab takes the keyword the field offers, and Shift+Tab gives the site back, as it steps back from a keyword in
+  // Chrome; a held key does it once. Backspace with the caret at the start of the search gives the site back too.
   function handleKeydown(event: KeyboardEvent): boolean {
     if (event.key === 'Tab') {
       if (!event.repeat) tabHeld = false
-      if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return false
+      if (event.ctrlKey || event.altKey || event.metaKey) return false
       if (event.repeat && tabHeld) {
         event.preventDefault()
         return true
       }
-      const offered = hint.value
-      if (!offered) return false
+      const offered = event.shiftKey ? null : hint.value
+      if (!offered && !(event.shiftKey && keyword.value)) return false
       event.preventDefault()
       tabHeld = true
-      enter(offered, '')
+      if (offered) enter(offered, '')
+      else leave()
       return true
     }
     if (event.key !== 'Backspace' || !keyword.value) return false
@@ -74,10 +74,12 @@ export function useAddressKeywordMode(options: AddressKeywordModeOptions) {
   }
 
   // A space typed right after an engine's site takes it as the keyword, and the text after the space is the search, as
-  // in Chrome, without the spaces it starts with. A space pasted or composed stays text.
+  // in Chrome, without the spaces it starts with; the wide space a Japanese keyboard types does too, as Chrome takes it.
+  // A space pasted or composed stays text.
   function enterFromSpace(event: Event | undefined): boolean {
     const field = options.input.value
-    if (keyword.value || !field || !(event instanceof InputEvent) || event.inputType !== 'insertText' || event.data !== ' ' || event.isComposing) return false
+    if (keyword.value || !field || !(event instanceof InputEvent) || event.inputType !== 'insertText' || event.isComposing) return false
+    if (event.data !== ' ' && event.data !== '\u3000') return false
     const caret = field.selectionStart ?? 0
     if (caret < 1 || caret !== field.selectionEnd) return false
     const named = addressKeyword(field.value.slice(0, caret - 1))

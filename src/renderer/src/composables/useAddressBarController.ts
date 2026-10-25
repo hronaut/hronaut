@@ -94,8 +94,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const keywordMode = useAddressKeywordMode({
     address,
     input,
-    shownText: () => completionShown.value && inlineCompletion.value ? inlineCompletion.value.text : address.value,
-    offersKeyword: () => focused.value && dirty.value && selection.value < 0
+    offersKeyword: () => focused.value && dirty.value && !(visible.value && selected.value)
   })
   // The other open tabs with a page, kept as they were while their addresses stay the same, and their titles too while
   // @tabs lists them, so the browser state that each page's loading or new title brings does not draw the suggestions
@@ -245,7 +244,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   // elsewhere in the field or still being composed is left as it is, as Chrome leaves it.
   function completeInline(event: Event | undefined): void {
     const field = input.value
-    if (disposed || insertingPaste || keywordMode.keyword.value || !field || !(event instanceof InputEvent) || event.inputType !== 'insertText' || event.isComposing) return
+    if (disposed || insertingPaste || !field || !(event instanceof InputEvent) || event.inputType !== 'insertText' || event.isComposing) return
     const typed = field.value
     if (field.selectionStart !== typed.length || field.selectionEnd !== typed.length) return
     const completion = inlineAddressCompletion(typed, suggestions.value, visitsBySite.value)
@@ -409,7 +408,12 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     if (keyword) {
       // A keyword search is a search whatever is typed, so Ctrl+Enter searches as Enter does.
       const target = keywordSearchTarget(keyword, address.value)
-      void (action === 'add-www-and-com' ? navigateTo(target) : openInNewTab(target, action === 'new-background-tab'))
+      if (action !== 'add-www-and-com') {
+        void openInNewTab(target, action === 'new-background-tab')
+        return true
+      }
+      address.value = target
+      void navigateTo(target)
       return true
     }
     if (action === 'add-www-and-com') {

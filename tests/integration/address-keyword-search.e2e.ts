@@ -62,6 +62,13 @@ test('searches an engine by its site with Tab or a space, as in Chrome, and Back
   await address.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a')
   await address.pressSequentially('bing.com dogs')
   await expect(chip).toHaveText('Search Bing')
+  // Shift+Tab gives the site back too, and keeps the keyboard in the field.
+  await address.press('Shift+Tab')
+  await expect(chip).toHaveCount(0)
+  await expect(address).toHaveValue('bing.com dogs')
+  await expect(address).toBeFocused()
+  await address.press('Space')
+  await expect(chip).toHaveText('Search Bing')
   await address.press('Escape')
   await expect(chip).toHaveCount(0)
   await address.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a')
