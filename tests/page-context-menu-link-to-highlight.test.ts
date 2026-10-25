@@ -69,6 +69,8 @@ describe('Copy link to highlight in the page context menu', () => {
   it('offers nothing for text in a frame inside the page, or when the frame is not the page', () => {
     const frame = { parent: {}, origin: 'https://embed.example' } as unknown as WebFrameMain
     expect(openMenu({ selectionText: 'framed', frame, frameURL: 'https://embed.example/widget' }).ids).not.toContain('copy-link-to-highlight')
+    // A frame showing the page's own address is still a frame inside it.
+    expect(openMenu({ selectionText: 'framed', frame }).ids).not.toContain('copy-link-to-highlight')
     // A frame that is already gone shows no parent, but its address is still not the page's.
     expect(openMenu({ selectionText: 'framed', frame: null, frameURL: 'https://embed.example/widget' }).ids).not.toContain('copy-link-to-highlight')
     const main = { parent: null, origin: 'https://docs.example' } as unknown as WebFrameMain
