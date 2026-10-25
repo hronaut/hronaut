@@ -42,10 +42,14 @@ test('Create QR Code shows, copies and downloads the QR code of the page or an i
       let menu: Electron.Menu | undefined
       Menu.prototype.popup = function (): void { menu = this }
       try {
-        contents.focus()
-        contents.sendInputEvent({ type: 'mouseDown', button: 'right', clickCount: 1, ...point })
-        contents.sendInputEvent({ type: 'mouseUp', button: 'right', clickCount: 1, ...point })
-        for (let waited = 0; !menu && waited < 5_000; waited += 50) await new Promise(resolve => setTimeout(resolve, 50))
+        // Right after a dialog closes, the page shows again only once the dialog's exit ends, so the click is repeated
+        // until the page answers it with its menu.
+        for (let attempt = 0; !menu && attempt < 10; attempt++) {
+          contents.focus()
+          contents.sendInputEvent({ type: 'mouseDown', button: 'right', clickCount: 1, ...point })
+          contents.sendInputEvent({ type: 'mouseUp', button: 'right', clickCount: 1, ...point })
+          for (let waited = 0; !menu && waited < 500; waited += 50) await new Promise(resolve => setTimeout(resolve, 50))
+        }
       } finally {
         Menu.prototype.popup = popup
       }
@@ -73,22 +77,22 @@ test('Create QR Code shows, copies and downloads the QR code of the page or an i
       const offset = (((y + 4) * scale + Math.floor(scale / 2)) * bitmap.width + (x + 4) * scale + Math.floor(scale / 2)) * 4
       return bitmap.data[offset] === 0 && bitmap.data[offset + 1] === 0 && bitmap.data[offset + 2] === 0
     }))
-    await app.evaluate(({ clipboard }) => { clipboard.clear() })
+    const said = () => dialog.evaluate((node) => [node.querySelector('[role="status"]')?.textContent ?? '', node.querySelector('.qr-code-error')?.textContent ?? ''].join(' | '))
     await dialog.getByRole('button', { name: 'Copy' }).click()
-    const copied = async () => app.evaluate(async ({ clipboard, nativeImage }) => {
+    await expect.poll(said, { timeout: 10_000 }).toBe('QR code image copied | ')
+    const copied = await app.evaluate(async ({ clipboard, nativeImage }) => {
       const item = (await clipboard.read()).find((entry) => entry.types.includes('image/png'))
-      if (!item) return null
-      const blob = await item.getType('image/png')
-      if (!(blob instanceof Blob)) return null
-      const picture = nativeImage.createFromBuffer(Buffer.from(await blob.arrayBuffer()))
-      return picture.isEmpty() ? null : { width: picture.getSize().width, data: [...picture.toBitmap()] }
+      const blob = item ? await item.getType('image/png') : undefined
+      const picture = nativeImage.createFromBuffer(Buffer.from(blob instanceof Blob ? await blob.arrayBuffer() : new ArrayBuffer(0)))
+      return { width: picture.getSize().width, data: [...picture.toBitmap()] }
     })
-    await expect.poll(async () => (await copied())?.width).toBe((modules.length + 8) * scale)
-    expect(darkModules((await copied())!)).toEqual(modules)
+    expect(copied.width).toBe((modules.length + 8) * scale)
+    expect(darkModules(copied)).toEqual(modules)
 
     // Download saves the same image from the tab's workspace, named after the address, which here has no host name.
     const downloads = () => appWindow.evaluate('window.hronautDownloads.list()') as Promise<BrowserDownloadState[]>
     await dialog.getByRole('button', { name: 'Download' }).click()
+    await expect.poll(said, { timeout: 10_000 }).toBe('QR code image downloaded | ')
     await expect.poll(async () => (await downloads())[0]?.state).toBe('completed')
     const saved = (await downloads())[0]!
     expect(saved.filename).toBe('qrcode_hronaut.png')
