@@ -144,7 +144,10 @@ test('looks up addresses through the chosen secure DNS provider from startup, an
     asked.length = 0
     instance = await launch()
     window = instance.window
-    await expect(window.getByRole('tab', { name: /Found custom\.hronaut\.test/ })).toBeVisible({ timeout: 30_000 })
+    await expect.poll(
+      () => window.evaluate('window.hronaut.getState().then((state) => { const tab = state.tabs.find((candidate) => candidate.active); return tab && { title: tab.title, loading: tab.loading, problem: tab.pageProblem ?? null } })'),
+      { timeout: 30_000 }
+    ).toEqual({ title: 'Found custom.hronaut.test', loading: false, problem: null })
     expect(asked).toContain('custom.hronaut.test')
   } finally {
     if (instance) await closeHronaut(instance.app)
