@@ -167,6 +167,8 @@ export interface AppShellInteractionFeatureControllerOptions {
     releaseHistory: ToggleSurface
     /** The Task manager, as Chrome's. */
     taskManager: TaskManagerSurface
+    /** The Create QR Code dialog, as Chrome's. */
+    qrCode: ToggleSurface
     walletApproval: Readonly<Ref<boolean>>
     /** Main's own question, such as a website's permission request; Escape answers it as Cancel does. */
     trustedDialog: { open: Readonly<Ref<boolean>>, close: () => void }
@@ -297,6 +299,7 @@ export function useAppShellInteractionFeatureController(
       surfaces.help.open,
       surfaces.releaseHistory.open,
       surfaces.taskManager.open,
+      surfaces.qrCode.open,
       surfaces.agentSteps.open,
       surfaces.walletApproval,
       surfaces.trustedDialog.open,
@@ -364,6 +367,7 @@ export function useAppShellInteractionFeatureController(
           || surfaces.help.open.value
           || surfaces.releaseHistory.open.value
           || surfaces.taskManager.open.value
+          || surfaces.qrCode.open.value
           || surfaces.agentSteps.open.value
           || surfaces.walletApproval.value
           || surfaces.trustedDialog.open.value
@@ -382,6 +386,7 @@ export function useAppShellInteractionFeatureController(
           || surfaces.help.open.value
           || surfaces.releaseHistory.open.value
           || surfaces.agentSteps.open.value
+          || surfaces.qrCode.open.value
           || surfaces.settings.open.value
         )
       }
@@ -392,6 +397,7 @@ export function useAppShellInteractionFeatureController(
         || transient.credentialPickerOpen.value
         || surfaces.help.open.value
         || surfaces.taskManager.open.value
+        || surfaces.qrCode.open.value
         || surfaces.settings.open.value
         || surfaces.trustedDialog.open.value
       )
@@ -432,6 +438,7 @@ export function useAppShellInteractionFeatureController(
       releaseHistory: surfaces.releaseHistory,
       helpDialog: surfaces.help,
       taskManager: surfaces.taskManager,
+      qrCode: surfaces.qrCode,
       settings: surfaces.settings
     },
     overlays: {

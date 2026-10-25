@@ -29,6 +29,8 @@ export interface AppShellLayoutFeatureControllerOptions {
     releaseHistory: BooleanState
     /** The Task manager; the page views hide under it, as under the other dialogs. */
     taskManager: BooleanState
+    /** The Create QR Code dialog; the page views hide under it, as under the other dialogs. */
+    qrCode: BooleanState
     workspaceEditor: BooleanState
     credentialPicker: BooleanState
     walletApproval: BooleanState
@@ -82,6 +84,7 @@ export function useAppShellLayoutFeatureController(
     modals.helpDialog,
     modals.releaseHistory,
     modals.taskManager,
+    modals.qrCode,
     modals.workspaceEditor,
     modals.credentialPicker,
     modals.walletApproval,
@@ -110,6 +113,7 @@ export function useAppShellLayoutFeatureController(
       modals.helpDialog,
       modals.releaseHistory,
       modals.taskManager,
+      modals.qrCode,
       overlays.tabSearch,
       overlays.downloads,
       overlays.history,
@@ -127,6 +131,7 @@ export function useAppShellLayoutFeatureController(
       modals.helpDialog,
       modals.releaseHistory,
       modals.taskManager,
+      modals.qrCode,
       modals.workspaceEditor,
       modals.credentialPicker,
       modals.agentSteps,

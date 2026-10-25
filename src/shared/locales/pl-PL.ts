@@ -3026,6 +3026,18 @@ export const plPL = {
     "interrupted": "Przerwano",
     "fileRemoved": "Przeniesiono lub usunięto"
   },
+  "qrCode": {
+    "title": "Zeskanuj kod QR",
+    "close": "Zamknij kod QR",
+    "image": "Kod QR",
+    "url": "URL",
+    "tooLong": "Użyj maksymalnie {count} znaków",
+    "hint": "Aby zeskanować ten kod, możesz użyć aplikacji do skanowania kodów QR na telefonie lub niektórych aplikacji aparatu.",
+    "copy": "Kopiuj",
+    "download": "Pobierz",
+    "copied": "Skopiowano obraz kodu QR",
+    "downloaded": "Pobrano obraz kodu QR"
+  },
   "taskManager": {
     "title": "Menedżer zadań",
     "close": "Zamknij Menedżera zadań",
@@ -3666,6 +3678,8 @@ export const plPL = {
       "reload": "Odśwież",
       "reloadWithoutCache": "Odśwież bez pamięci podręcznej",
       "copyPageAddress": "Kopiuj adres strony",
+      "createQrCodePage": "Utwórz kod QR dla tej strony",
+      "createQrCodeImage": "Utwórz kod QR dla tego obrazu",
       "inspect": "Sprawdź",
       "print": "Drukuj…",
       "showFullHistory": "Pokaż całą historię",

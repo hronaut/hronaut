@@ -3026,6 +3026,18 @@ export const deDE = {
     "interrupted": "Unterbrochen",
     "fileRemoved": "Verschoben oder gelöscht"
   },
+  "qrCode": {
+    "title": "QR-Code scannen",
+    "close": "QR-Code schließen",
+    "image": "QR-Code",
+    "url": "URL",
+    "tooLong": "Verwenden Sie höchstens {count} Zeichen",
+    "hint": "Zum Scannen dieses Codes können Sie eine QR-Scanner-App auf Ihrem Smartphone oder einige Kamera-Apps verwenden.",
+    "copy": "Kopieren",
+    "download": "Herunterladen",
+    "copied": "QR-Code-Bild kopiert",
+    "downloaded": "QR-Code-Bild heruntergeladen"
+  },
   "taskManager": {
     "title": "Task-Manager",
     "close": "Task-Manager schließen",
@@ -3666,6 +3678,8 @@ export const deDE = {
       "reload": "Neu laden",
       "reloadWithoutCache": "Ohne Cache neu laden",
       "copyPageAddress": "Seitenadresse kopieren",
+      "createQrCodePage": "QR-Code für diese Seite erstellen",
+      "createQrCodeImage": "QR-Code für dieses Bild erstellen",
       "inspect": "Untersuchen",
       "print": "Drucken…",
       "showFullHistory": "Gesamten Verlauf anzeigen",

@@ -3026,6 +3026,18 @@ export const esES = {
     "interrupted": "Interrumpida",
     "fileRemoved": "Movido o eliminado"
   },
+  "qrCode": {
+    "title": "Escanear código QR",
+    "close": "Cerrar código QR",
+    "image": "Código QR",
+    "url": "URL",
+    "tooLong": "Usa {count} caracteres como máximo",
+    "hint": "Para escanear este código, puedes usar una aplicación de escáner QR en tu teléfono o algunas aplicaciones de cámara.",
+    "copy": "Copiar",
+    "download": "Descargar",
+    "copied": "Imagen del código QR copiada",
+    "downloaded": "Imagen del código QR descargada"
+  },
   "taskManager": {
     "title": "Administrador de tareas",
     "close": "Cerrar el Administrador de tareas",
@@ -3666,6 +3678,8 @@ export const esES = {
       "reload": "Recargar",
       "reloadWithoutCache": "Recargar sin caché",
       "copyPageAddress": "Copiar dirección de la página",
+      "createQrCodePage": "Crear código QR para esta página",
+      "createQrCodeImage": "Crear código QR para esta imagen",
       "inspect": "Inspeccionar",
       "print": "Imprimir…",
       "showFullHistory": "Mostrar historial completo",

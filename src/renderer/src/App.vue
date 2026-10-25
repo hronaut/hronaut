@@ -18,6 +18,7 @@ import PageSnapshot from './components/PageSnapshot.vue'
 import PageCard from './components/PageCard.vue'
 import AppTrustedDialogsLayer from './components/AppTrustedDialogsLayer.vue'
 import TaskManagerDialog from './components/TaskManagerDialog.vue'
+import QrCodeDialog from './components/QrCodeDialog.vue'
 import { useTrustedDialogController } from './trusted-dialogs/useTrustedDialogController.js'
 import AppTransientShellLayer from './components/AppTransientShellLayer.vue'
 import { useBrowserStore } from './stores/browser'
@@ -32,6 +33,7 @@ import { useAppSettingsFeatureController } from './composables/useAppSettingsFea
 import { useAppShellPresentationFeatureController } from './composables/useAppShellPresentationFeatureController'
 import { useHelpDialogController } from './composables/useHelpDialogController'
 import { useTaskManagerController } from './composables/useTaskManagerController'
+import { useQrCodeDialogController } from './composables/useQrCodeDialogController'
 import { useAppEventsController } from './composables/useAppEventsController'
 import { useAppBrowserCollectionsFeatureController } from './composables/useAppBrowserCollectionsFeatureController'
 import { useAppShellInteractionFeatureController } from './composables/useAppShellInteractionFeatureController'
@@ -280,6 +282,16 @@ const {
   toggle: toggleTaskManager,
   dispose: disposeTaskManagerController
 } = taskManagerController
+const qrCodeController = useQrCodeDialogController({
+  api: browser,
+  tabIds: computed(() => state.value.tabs.map((tab) => tab.id)),
+  beforeOpen: () => {
+    commandPaletteOpen.value = false
+    closeTransientPanels()
+  },
+  formatError: (error) => friendlyUiError(error, t('native.errors.actionFailed'))
+})
+const { open: qrCodeOpen, close: closeQrCode } = qrCodeController
 const {
   entries: sitePermissions,
   replace: replaceSitePermissions
@@ -562,6 +574,7 @@ const {
     help: { open: helpDialogOpen, close: closeHelpDialog, openDialog: showHelpDialog },
     releaseHistory: { open: releaseHistoryOpen, close: closeReleaseHistory },
     taskManager: { open: taskManagerOpen, close: closeTaskManager, openDialog: openTaskManager, toggle: toggleTaskManager },
+    qrCode: { open: qrCodeOpen, close: closeQrCode },
     walletApproval: walletApprovalOpen,
     trustedDialog: trustedDialogSurface,
     agentSteps: { open: agentStepsOpen, close: closeAgentSteps },
@@ -649,6 +662,10 @@ const { dispose: disposeAppEventsController } = useAppEventsController({
   onNewTab: newTabInWorkspace,
   onVisitHistory: browserCollectionsFeatureController.openVisitHistory,
   onBookmarkAllTabs: browserCollectionsFeatureController.bookmarkAllTabs,
+  // A page's menu can still be open when another dialog comes up, so the QR code waits for none to be open.
+  onQrCode: (request) => {
+    if (!shellFullModalOpen.value) qrCodeController.openFor(request)
+  },
   onAddressPasteAndGo: addressBarController.pasteAndGo,
   onPermissionsChanged: replaceSitePermissions,
   onCredentialsChanged: replaceCredentials,
@@ -668,7 +685,8 @@ const {
   startResize: startPanelResize,
   resizeWithKeyboard: resizePanelWithKeyboard,
   resetSize: resetPanelDockSize,
-  dispose: disposeAppShellLayoutFeatureController
+  dispose: disposeAppShellLayoutFeatureController,
+  fullModalOpen: shellFullModalOpen
 } = useAppShellLayoutFeatureController({
   layout: {
     dock: panelDock,
@@ -684,6 +702,7 @@ const {
     helpDialog: helpDialogOpen,
     releaseHistory: releaseHistoryOpen,
     taskManager: taskManagerOpen,
+    qrCode: qrCodeOpen,
     workspaceEditor: workspaceEditorOpen,
     credentialPicker: credentialPickerOpen,
     walletApproval: walletApprovalOpen,
@@ -1044,6 +1063,12 @@ useAppLifecycleController({
       :tabs="state.tabs"
       :workspaces="walletWorkspaces"
       :format-bytes="formatBytes"
+      :report-layout="reportShellHeight"
+    />
+    <QrCodeDialog
+      v-if="!isDetachedPanelWindow"
+      :controller="qrCodeController"
+      :format-number="localNumber"
       :report-layout="reportShellHeight"
     />
     <DetachedPanelUnavailableState
