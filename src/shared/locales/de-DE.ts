@@ -376,7 +376,31 @@ export const deDE: MessageSchema = {
     "search": {
       "heading": "Standardsuchmaschine",
       "description": "Wähle, wo Text gesucht wird, der keine Adresse ist, egal ob du ihn in die Adressleiste tippst oder ein Agent ihn öffnet.",
-      "privacy": "Vorschläge aus Tabs, Lesezeichen und Verlauf bleiben auf diesem Gerät. Hronaut sendet die Suche erst nach dem Absenden."
+      "privacy": "Vorschläge aus Tabs, Lesezeichen und Verlauf bleiben auf diesem Gerät. Hronaut sendet die Suche erst nach dem Absenden.",
+      "site": {
+        "heading": "Websitesuche",
+        "description": "Tippe in der Adressleiste ein Kürzel ein und drücke dann Tab oder die Leertaste, um eine Website zu durchsuchen.",
+        "add": "Websitesuche hinzufügen",
+        "editHeading": "Websitesuche bearbeiten",
+        "empty": "Noch keine Websitesuchen",
+        "full": "Die Liste ist voll. Lösche eine Websitesuche, um eine weitere hinzuzufügen.",
+        "name": "Name",
+        "keyword": "Kürzel",
+        "url": "URL mit %s anstelle des Suchbegriffs",
+        "save": "Speichern",
+        "cancel": "Abbrechen",
+        "edit": "Bearbeiten",
+        "editAria": "{name} bearbeiten",
+        "remove": "Löschen",
+        "removeAria": "{name} löschen",
+        "nameMissing": "Gib einen Namen ein",
+        "keywordMissing": "Gib ein Kürzel ein",
+        "keywordSpaces": "Ein Kürzel darf keine Leerzeichen enthalten",
+        "keywordTaken": "Dieses Kürzel wird bereits verwendet",
+        "urlInvalid": "Gib eine Webadresse ein, die mit http:// oder https:// beginnt",
+        "urlNoQuery": "Setze %s dort ein, wo die Suchbegriffe stehen",
+        "tooLong": "Das ist zu lang"
+      }
     },
     "downloads": {
       "heading": "Website-Downloads",

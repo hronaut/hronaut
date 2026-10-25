@@ -17,6 +17,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       tabPosition: 'top',
       useSystemTitleBar: false,
       searchEngine: 'google',
+      siteSearches: [],
       hideInTray: true,
       launchAtStartup: false,
       launchMinimized: false,

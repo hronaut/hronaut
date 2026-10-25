@@ -392,6 +392,7 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
   },
   address: {
     overlay: isDetachedPanelWindow ? undefined : window.hronautAddressOverlay,
+    siteSearches: () => settings.value.siteSearches,
     theme: () => settings.value.theme === 'system' ? systemTheme.value : settings.value.theme,
     locale: () => resolvedLocale.value,
     translate,

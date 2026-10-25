@@ -350,7 +350,9 @@ export const zhTWAppErrors: AppErrorMessages = {
     "downloadFolderBlocked": "有檔案佔用了下載資料夾的位置（{code}）。請選擇其他資料夾。",
     "downloadFolderMissingDrive": "無法使用下載資料夾所在的磁碟機或網路位置（{code}）。請選擇其他資料夾。",
     "downloadFolderUnavailable": "Hronaut 無法建立下載資料夾（{code}）。",
-    "downloadFolderOpenFailed": "Hronaut 無法在檔案管理員中開啟下載資料夾。"
+    "downloadFolderOpenFailed": "Hronaut 無法在檔案管理員中開啟下載資料夾。",
+    "siteSearchRejected": "Hronaut 無法儲存這個網站搜尋。請檢查名稱、快捷字詞和網址。",
+    "siteSearchMissing": "這個網站搜尋已被刪除，因此變更未儲存。"
   },
   "credentials": {
     "fillAgentActive": "由於代理程式指令仍在執行，因此未填入密碼。代理程式會保持暫停；請在指令完成後再試一次。",

@@ -1,4 +1,5 @@
 import type { SearchEngineName } from '../search-engine.js'
+import type { SiteSearch } from '../site-search.js'
 import type { MemorySaverTimeoutMinutes } from '../memory-saver.js'
 import type { InterfaceScale } from '../interface-scale.js'
 import type { LanguagePreference, SupportedLocale } from '../locale.js'
@@ -42,6 +43,8 @@ export interface AppSettings {
   tabPosition: TabPosition
   useSystemTitleBar: boolean
   searchEngine: SearchEngineName
+  /** Shortcuts that search a site from the address bar, as Chrome's site search does; see site-search.ts. */
+  siteSearches: SiteSearch[]
   hideInTray: boolean
   launchAtStartup: boolean
   launchMinimized: boolean

@@ -33,6 +33,9 @@ describe('SettingsDialog', () => {
     const searchController = useSearchSettingsController({
       settings,
       setSearchEngine: vi.fn(async (searchEngine: AppSettings['searchEngine']) => (settings.value = { ...settings.value, searchEngine })),
+      addSiteSearch: vi.fn(),
+      updateSiteSearch: vi.fn(),
+      removeSiteSearch: vi.fn(),
       onError: vi.fn()
     })
     const inactiveController = {} as never
@@ -111,6 +114,9 @@ describe('SettingsDialog', () => {
     const searchController = useSearchSettingsController({
       settings,
       setSearchEngine: vi.fn(async () => settings.value),
+      addSiteSearch: vi.fn(),
+      updateSiteSearch: vi.fn(),
+      removeSiteSearch: vi.fn(),
       onError: vi.fn()
     })
     const inactiveController = {} as never
@@ -197,7 +203,7 @@ describe('SettingsDialog focus after Reset to default', () => {
     })
     const settings = ref<AppSettings>({ ...DEFAULT_RENDERER_SETTINGS })
     const searchController = useSearchSettingsController({
-      settings, setSearchEngine: vi.fn(async () => settings.value), onError: vi.fn()
+      settings, setSearchEngine: vi.fn(async () => settings.value), addSiteSearch: vi.fn(), updateSiteSearch: vi.fn(), removeSiteSearch: vi.fn(), onError: vi.fn()
     })
     const inactiveController = {} as never
     const view = render(SettingsDialog, {

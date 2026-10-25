@@ -350,7 +350,9 @@ export const plPLAppErrors: AppErrorMessages = {
     "downloadFolderBlocked": "Plik uniemożliwia utworzenie folderu pobierania ({code}). Wybierz inny folder.",
     "downloadFolderMissingDrive": "Dysk lub lokalizacja sieciowa folderu pobierania jest niedostępna ({code}). Wybierz inny folder.",
     "downloadFolderUnavailable": "Hronaut nie mógł utworzyć folderu pobierania ({code}).",
-    "downloadFolderOpenFailed": "Hronaut nie mógł otworzyć folderu pobierania w menedżerze plików."
+    "downloadFolderOpenFailed": "Hronaut nie mógł otworzyć folderu pobierania w menedżerze plików.",
+    "siteSearchRejected": "Hronaut nie mógł zapisać tego wyszukiwania w witrynie. Sprawdź nazwę, skrót i URL.",
+    "siteSearchMissing": "To wyszukiwanie w witrynie zostało usunięte, więc zmiana nie została zapisana."
   },
   "credentials": {
     "fillAgentActive": "Hasło nie zostało wypełnione, ponieważ polecenie agenta wciąż było wykonywane. Agenci pozostają wstrzymani; spróbuj ponownie, gdy się zakończy.",

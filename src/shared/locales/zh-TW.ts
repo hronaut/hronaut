@@ -376,7 +376,31 @@ export const zhTW: MessageSchema = {
     "search": {
       "heading": "預設搜尋引擎",
       "description": "選擇非網址文字的搜尋位置，無論是你在網址列中輸入，還是代理程式開啟的內容。",
-      "privacy": "本機分頁、書籤和記錄建議都會保留在這部裝置上。Hronaut 只會在你送出查詢後才傳送查詢內容。"
+      "privacy": "本機分頁、書籤和記錄建議都會保留在這部裝置上。Hronaut 只會在你送出查詢後才傳送查詢內容。",
+      "site": {
+        "heading": "網站搜尋",
+        "description": "在網址列輸入快捷字詞，然後按下 Tab 鍵或空白鍵，即可搜尋該網站。",
+        "add": "新增網站搜尋",
+        "editHeading": "編輯網站搜尋",
+        "empty": "尚未新增網站搜尋",
+        "full": "清單已滿。請先刪除一個網站搜尋，才能再新增。",
+        "name": "名稱",
+        "keyword": "快捷字詞",
+        "url": "以 %s 取代搜尋字詞的網址",
+        "save": "儲存",
+        "cancel": "取消",
+        "edit": "編輯",
+        "editAria": "編輯 {name}",
+        "remove": "刪除",
+        "removeAria": "刪除 {name}",
+        "nameMissing": "請輸入名稱",
+        "keywordMissing": "請輸入快捷字詞",
+        "keywordSpaces": "快捷字詞不能包含空格",
+        "keywordTaken": "這個快捷字詞已在使用中",
+        "urlInvalid": "請輸入以 http:// 或 https:// 開頭的網址",
+        "urlNoQuery": "請在搜尋字詞的位置放上 %s",
+        "tooLong": "內容過長"
+      }
     },
     "downloads": {
       "heading": "網站下載",

@@ -1,5 +1,6 @@
 import type { Confirmation } from '../confirmation.js'
 import type { SearchEngineName } from '../search-engine.js'
+import type { SiteSearchDraft } from '../site-search.js'
 import type { MemorySaverTimeoutMinutes } from '../memory-saver.js'
 import type { InterfaceScale } from '../interface-scale.js'
 import type { LanguagePreference } from '../locale.js'
@@ -148,6 +149,9 @@ export interface HronautSettingsApi {
   setTabPosition(position: TabPosition): Promise<AppSettings>
   setUseSystemTitleBar(enabled: boolean): Promise<AppSettings>
   setSearchEngine(searchEngine: SearchEngineName): Promise<AppSettings>
+  addSiteSearch(draft: SiteSearchDraft): Promise<AppSettings>
+  updateSiteSearch(id: string, draft: SiteSearchDraft): Promise<AppSettings>
+  removeSiteSearch(id: string): Promise<AppSettings>
   setHideInTray(enabled: boolean): Promise<AppSettings>
   setLaunchAtStartup(enabled: boolean): Promise<AppSettings>
   setLaunchMinimized(enabled: boolean): Promise<AppSettings>

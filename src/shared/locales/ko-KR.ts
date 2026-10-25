@@ -376,7 +376,31 @@ export const koKR: MessageSchema = {
     "search": {
       "heading": "기본 검색엔진",
       "description": "주소창에 입력하거나 에이전트가 연 텍스트 중 주소가 아닌 텍스트를 검색할 곳을 선택하세요.",
-      "privacy": "로컬 탭, 북마크, 방문 기록 추천은 이 기기에만 저장됩니다. Hronaut은 검색어를 제출한 후에만 전송합니다."
+      "privacy": "로컬 탭, 북마크, 방문 기록 추천은 이 기기에만 저장됩니다. Hronaut은 검색어를 제출한 후에만 전송합니다.",
+      "site": {
+        "heading": "사이트 검색",
+        "description": "주소창에 바로가기를 입력한 다음 Tab 키나 스페이스바를 누르면 사이트를 검색할 수 있습니다.",
+        "add": "사이트 검색 추가",
+        "editHeading": "사이트 검색 수정",
+        "empty": "아직 사이트 검색이 없습니다",
+        "full": "목록이 가득 찼습니다. 다른 항목을 추가하려면 사이트 검색을 삭제하세요.",
+        "name": "이름",
+        "keyword": "바로가기",
+        "url": "검색어 대신 %s를 넣은 URL",
+        "save": "저장",
+        "cancel": "취소",
+        "edit": "수정",
+        "editAria": "{name} 수정",
+        "remove": "삭제",
+        "removeAria": "{name} 삭제",
+        "nameMissing": "이름을 입력하세요",
+        "keywordMissing": "바로가기를 입력하세요",
+        "keywordSpaces": "바로가기에는 공백을 넣을 수 없습니다",
+        "keywordTaken": "이미 사용 중인 바로가기입니다",
+        "urlInvalid": "http:// 또는 https://로 시작하는 웹 주소를 입력하세요",
+        "urlNoQuery": "검색어가 들어갈 자리에 %s를 넣으세요",
+        "tooLong": "너무 깁니다"
+      }
     },
     "downloads": {
       "heading": "웹사이트 다운로드",

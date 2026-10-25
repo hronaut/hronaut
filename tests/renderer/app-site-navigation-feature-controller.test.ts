@@ -119,6 +119,7 @@ function createHarness() {
           settingsEntryBlocked: () => false
         },
         address: {
+          siteSearches: () => [],
           theme: () => 'dark',
           locale: () => 'en-US',
           translate: (key) => key,

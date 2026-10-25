@@ -11,6 +11,7 @@ import type { SiteDataSummaryController } from '../../src/renderer/src/composabl
 import type { SitePermissionsController } from '../../src/renderer/src/composables/useSitePermissionsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AddressSuggestionOverlayRequest } from '../../src/shared/address-suggestions.js'
+import type { SiteSearch } from '../../src/shared/site-search.js'
 import type { BrowserHistoryEntry, BrowserTabState } from '../../src/shared/types.js'
 
 // The address bar had no keyword search: "bing.com" and Tab left the field, and "bing.com cats" searched the default
@@ -42,7 +43,7 @@ function visit(id: string, url: string, visitCount = 2): BrowserHistoryEntry {
   return { id, title: `Visit ${id}`, url, visitedAt: '2026-10-25T00:00:00.000Z', visitCount }
 }
 
-function controllerOptions(active: Ref<BrowserTabState>, history: Ref<BrowserHistoryEntry[]>, otherTabs: BrowserTabState[] = []) {
+function controllerOptions(active: Ref<BrowserTabState>, history: Ref<BrowserHistoryEntry[]>, otherTabs: BrowserTabState[] = [], siteSearches: Ref<SiteSearch[]> = ref([])) {
   const onNavigate = vi.fn(async (_address: string) => undefined)
   const onOpenInNewTab = vi.fn(async (_address: string, _background: boolean) => undefined)
   let dismissedListener: ((sessionId: number) => void) | undefined
@@ -67,6 +68,7 @@ function controllerOptions(active: Ref<BrowserTabState>, history: Ref<BrowserHis
       tabs: computed(() => [active.value, ...otherTabs]),
       bookmarks: ref([]),
       history,
+      siteSearches: () => siteSearches.value,
       overlay,
       theme: () => 'dark' as const,
       locale: () => 'en-US' as const,
@@ -83,10 +85,11 @@ function controllerOptions(active: Ref<BrowserTabState>, history: Ref<BrowserHis
   }
 }
 
-function createHarness(entries: BrowserHistoryEntry[] = [], otherTabs: BrowserTabState[] = []) {
+function createHarness(entries: BrowserHistoryEntry[] = [], otherTabs: BrowserTabState[] = [], searches: SiteSearch[] = []) {
   const active = ref(tab('shown', 'https://shown.test/'))
   const history = ref<BrowserHistoryEntry[]>(entries)
-  const { options, onNavigate, onOpenInNewTab, overlay, dismiss } = controllerOptions(active, history, otherTabs)
+  const siteSearches = ref<SiteSearch[]>(searches)
+  const { options, onNavigate, onOpenInNewTab, overlay, dismiss } = controllerOptions(active, history, otherTabs, siteSearches)
   let controller!: ReturnType<typeof useAddressBarController>
   const Harness = defineComponent({
     setup() {
@@ -105,14 +108,15 @@ function createHarness(entries: BrowserHistoryEntry[] = [], otherTabs: BrowserTa
     controller,
     active,
     history,
+    siteSearches,
     overlay,
     dismiss,
     onNavigate,
     onOpenInNewTab,
     input,
     field: () => ({ value: input.value, caret: [input.selectionStart, input.selectionEnd] }),
-    engine: () => controller.keyword.value?.engine ?? null,
-    hint: () => controller.keywordHint.value?.engine ?? null
+    engine: () => controller.keyword.value?.id ?? null,
+    hint: () => controller.keywordHint.value?.id ?? null
   }
 }
 
@@ -147,10 +151,10 @@ async function key(input: HTMLInputElement, init: KeyboardEventInit): Promise<Ke
 
 describe('keyword search engines', () => {
   it('reads each built-in engine\'s site as its keyword, as Chrome reads a typed keyword', () => {
-    expect(addressKeyword('bing.com')?.engine).toBe('bing')
-    expect(addressKeyword('  Google.COM ')?.engine).toBe('google')
-    expect(addressKeyword('https://www.duckduckgo.com/')?.engine).toBe('duckduckgo')
-    expect(addressKeyword('http://search.brave.com')?.engine).toBe('brave')
+    expect(addressKeyword('bing.com')?.id).toBe('bing')
+    expect(addressKeyword('  Google.COM ')?.id).toBe('google')
+    expect(addressKeyword('https://www.duckduckgo.com/')?.id).toBe('duckduckgo')
+    expect(addressKeyword('http://search.brave.com')?.id).toBe('brave')
     expect(addressKeyword('www.startpage.com')?.label).toBe('Startpage')
     for (const text of ['', 'bing', 'bing.co', 'bing.com/search', 'maps.google.com', 'bing.com cats', 'ftp://bing.com']) {
       expect(addressKeyword(text), text).toBeUndefined()
@@ -513,5 +517,90 @@ describe('the address bar\'s keyword chip and hint', () => {
     expect(input).toHaveValue('search.brave.com')
     expect(hint()).toHaveTextContent('Press Tab to search Brave Search')
     expect(status).toHaveTextContent('Press Tab to search Brave Search')
+  })
+})
+
+// Site searches had no place in the address bar: a shortcut such as "w" typed before a space was the start of a search
+// of the default engine. Chrome's site search makes each shortcut in Settings a keyword, as an engine's site is.
+const WIKIPEDIA: SiteSearch = {
+  id: 'wiki',
+  name: 'Wikipedia',
+  keyword: 'w',
+  url: 'https://en.wikipedia.org/w/index.php?search=%s&title=Special:Search'
+}
+
+describe('site search shortcuts in the address bar', () => {
+  it('reads each site search\'s shortcut as a keyword after the built-in engines\' sites', () => {
+    expect(addressKeyword('W', [WIKIPEDIA])).toEqual({ id: 'wiki', label: 'Wikipedia', keyword: 'w', url: WIKIPEDIA.url })
+    expect(addressKeyword(' https://www.w/ ', [WIKIPEDIA])?.id).toBe('wiki')
+    expect(addressKeyword('w')).toBeUndefined()
+    expect(addressKeyword('wi', [WIKIPEDIA])).toBeUndefined()
+    expect(addressKeyword('', [{ ...WIKIPEDIA, keyword: '' }])).toBeUndefined()
+    // Settings never saves an engine's site as a shortcut; if one were saved anyway, the engine keeps its site.
+    expect(addressKeyword('bing.com', [{ ...WIKIPEDIA, keyword: 'bing.com' }])?.id).toBe('bing')
+    const wikipedia = addressKeyword('w', [WIKIPEDIA])!
+    expect(keywordSearchTarget(wikipedia, ' cats & dogs ')).toBe('https://en.wikipedia.org/w/index.php?search=cats%20%26%20dogs&title=Special:Search')
+    expect(keywordSearchTarget(wikipedia, ' ')).toBe('https://en.wikipedia.org/')
+  })
+
+  it('offers Tab to search a site by its shortcut, and a space after the shortcut takes it too', async () => {
+    const h = createHarness([], [], [WIKIPEDIA])
+    await clear(h.input)
+    await type(h.input, 'w')
+    expect(h.hint()).toBe('wiki')
+    expect(h.controller.keywordHint.value?.label).toBe('Wikipedia')
+    await key(h.input, { key: 'Tab' })
+    expect(h.engine()).toBe('wiki')
+    expect(h.field()).toEqual({ value: '', caret: [0, 0] })
+    await type(h.input, 'Ada Lovelace')
+    await h.controller.submit()
+    expect(h.onNavigate).toHaveBeenCalledExactlyOnceWith('https://en.wikipedia.org/w/index.php?search=Ada%20Lovelace&title=Special:Search')
+
+    await clear(h.input)
+    await type(h.input, 'w cats')
+    expect(h.engine()).toBe('wiki')
+    expect(h.field()).toEqual({ value: 'cats', caret: [4, 4] })
+    // Backspace at the start gives the shortcut back, as it gives an engine's site back.
+    h.input.setSelectionRange(0, 0)
+    await key(h.input, { key: 'Backspace' })
+    expect(h.engine()).toBeNull()
+    expect(h.field()).toEqual({ value: 'w cats', caret: [1, 1] })
+  })
+
+  it('offers a shortcut typed whole while the field fills in a visited site after it', async () => {
+    const h = createHarness([visit('wikipedia', 'https://wikipedia.org/', 3)], [], [WIKIPEDIA])
+    await clear(h.input)
+    await type(h.input, 'w')
+    expect(h.input.value).toBe('wikipedia.org')
+    expect(h.hint()).toBe('wiki')
+    await key(h.input, { key: 'Tab' })
+    expect(h.engine()).toBe('wiki')
+    expect(h.field()).toEqual({ value: '', caret: [0, 0] })
+
+    // A space typed over the rest the field filled in takes the shortcut too.
+    await key(h.input, { key: 'Escape' })
+    await clear(h.input)
+    await type(h.input, 'w')
+    expect(h.input.value).toBe('wikipedia.org')
+    await type(h.input, ' ')
+    expect(h.engine()).toBe('wiki')
+    expect(h.field()).toEqual({ value: '', caret: [0, 0] })
+  })
+
+  it('follows the site searches as Settings changes them', async () => {
+    const h = createHarness([], [], [WIKIPEDIA])
+    await clear(h.input)
+    await type(h.input, 'w')
+    expect(h.hint()).toBe('wiki')
+    h.siteSearches.value = []
+    await nextTick()
+    expect(h.hint()).toBeNull()
+    await type(h.input, ' cats')
+    expect(h.engine()).toBeNull()
+    expect(h.input.value).toBe('w cats')
+    h.siteSearches.value = [{ ...WIKIPEDIA, keyword: 'wiki', name: 'Wiki' }]
+    await clear(h.input)
+    await type(h.input, 'wiki ')
+    expect(h.controller.keyword.value?.label).toBe('Wiki')
   })
 })

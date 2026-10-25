@@ -376,7 +376,31 @@ export const esES: MessageSchema = {
     "search": {
       "heading": "Motor de búsqueda predeterminado",
       "description": "Elige dónde buscar el texto que no es una dirección, tanto si lo escribes en la barra de direcciones como si lo abre un agente.",
-      "privacy": "Las sugerencias de pestañas, marcadores e historial permanecen en este dispositivo. Hronaut solo envía la consulta al confirmarla."
+      "privacy": "Las sugerencias de pestañas, marcadores e historial permanecen en este dispositivo. Hronaut solo envía la consulta al confirmarla.",
+      "site": {
+        "heading": "Búsqueda en sitios",
+        "description": "Escribe un acceso directo en la barra de direcciones y pulsa Tab o Espacio para buscar en un sitio.",
+        "add": "Añadir búsqueda en sitio",
+        "editHeading": "Editar búsqueda en sitio",
+        "empty": "Aún no hay búsquedas en sitios",
+        "full": "La lista está llena. Elimina una búsqueda en sitio para añadir otra.",
+        "name": "Nombre",
+        "keyword": "Acceso directo",
+        "url": "URL con %s en lugar de la consulta",
+        "save": "Guardar",
+        "cancel": "Cancelar",
+        "edit": "Editar",
+        "editAria": "Editar {name}",
+        "remove": "Eliminar",
+        "removeAria": "Eliminar {name}",
+        "nameMissing": "Escribe un nombre",
+        "keywordMissing": "Escribe un acceso directo",
+        "keywordSpaces": "Un acceso directo no puede contener espacios",
+        "keywordTaken": "Este acceso directo ya está en uso",
+        "urlInvalid": "Escribe una dirección web que empiece por http:// o https://",
+        "urlNoQuery": "Pon %s donde van los términos de búsqueda",
+        "tooLong": "Es demasiado largo"
+      }
     },
     "downloads": {
       "heading": "Descargas de sitios web",

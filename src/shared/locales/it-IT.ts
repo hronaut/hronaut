@@ -376,7 +376,31 @@ export const itIT: MessageSchema = {
     "search": {
       "heading": "Motore di ricerca predefinito",
       "description": "Scegli dove cercare il testo che non è un indirizzo, sia che tu lo digiti nella barra degli indirizzi sia che lo apra un agente.",
-      "privacy": "I suggerimenti da schede, preferiti e cronologia locali restano su questo dispositivo. Hronaut invia la ricerca solo quando la confermi."
+      "privacy": "I suggerimenti da schede, preferiti e cronologia locali restano su questo dispositivo. Hronaut invia la ricerca solo quando la confermi.",
+      "site": {
+        "heading": "Ricerca nei siti",
+        "description": "Digita una scorciatoia nella barra degli indirizzi, poi premi Tab o Spazio per cercare in un sito.",
+        "add": "Aggiungi ricerca nel sito",
+        "editHeading": "Modifica ricerca nel sito",
+        "empty": "Ancora nessuna ricerca nei siti",
+        "full": "L’elenco è pieno. Elimina una ricerca nel sito per aggiungerne un’altra.",
+        "name": "Nome",
+        "keyword": "Scorciatoia",
+        "url": "URL con %s al posto della query",
+        "save": "Salva",
+        "cancel": "Annulla",
+        "edit": "Modifica",
+        "editAria": "Modifica {name}",
+        "remove": "Elimina",
+        "removeAria": "Elimina {name}",
+        "nameMissing": "Inserisci un nome",
+        "keywordMissing": "Inserisci una scorciatoia",
+        "keywordSpaces": "Una scorciatoia non può contenere spazi",
+        "keywordTaken": "Questa scorciatoia è già in uso",
+        "urlInvalid": "Inserisci un indirizzo web che inizi con http:// o https://",
+        "urlNoQuery": "Metti %s dove vanno i termini di ricerca",
+        "tooLong": "È troppo lungo"
+      }
     },
     "downloads": {
       "heading": "Download dai siti web",

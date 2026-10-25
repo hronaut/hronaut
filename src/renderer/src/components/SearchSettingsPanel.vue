@@ -5,6 +5,7 @@ import IconCheck from '~icons/material-symbols/check-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import { SEARCH_ENGINE_OPTIONS, isSearchEngineName } from '../../../shared/search-engine.js'
 import type { SearchSettingsController } from '../composables/useSearchSettingsController.js'
+import SiteSearchSettings from './SiteSearchSettings.vue'
 
 const props = defineProps<{
   controller: SearchSettingsController
@@ -72,5 +73,6 @@ function navigateEngine(event: KeyboardEvent): void {
       <span class="info-dot" aria-hidden="true"><IconInfo /></span>
       <p>{{ t('settings.search.privacy') }}</p>
     </div>
+    <SiteSearchSettings :controller="controller" />
   </div>
 </template>

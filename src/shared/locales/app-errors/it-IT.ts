@@ -350,7 +350,9 @@ export const itITAppErrors: AppErrorMessages = {
     "downloadFolderBlocked": "Un file impedisce di usare la cartella dei download ({code}). Scegli un’altra cartella.",
     "downloadFolderMissingDrive": "L’unità o il percorso di rete della cartella dei download non è disponibile ({code}). Scegli un’altra cartella.",
     "downloadFolderUnavailable": "Hronaut non è riuscito a creare la cartella dei download ({code}).",
-    "downloadFolderOpenFailed": "Hronaut non è riuscito ad aprire la cartella dei download nel gestore file."
+    "downloadFolderOpenFailed": "Hronaut non è riuscito ad aprire la cartella dei download nel gestore file.",
+    "siteSearchRejected": "Hronaut non è riuscito a salvare questa ricerca nel sito. Controlla nome, scorciatoia e URL.",
+    "siteSearchMissing": "Questa ricerca nel sito è stata eliminata, quindi la modifica non è stata salvata."
   },
   "credentials": {
     "fillAgentActive": "La password non è stata inserita perché un comando di un agente era ancora in esecuzione. Gli agenti restano in pausa; riprova al termine del comando.",

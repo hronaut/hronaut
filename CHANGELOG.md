@@ -15,6 +15,7 @@ All notable changes to Hronaut are documented in this file.
 - **Copy Link to Highlight**, as in Chrome: text selected on a page offers it in the page's context menu, after **Copy**, and copies a link to the page that opens it scrolled to that text, highlighted. The link takes whole words, and the words around text the page holds more than once.
 - **Create QR Code**, as in Chrome: a web page's context menu offers **Create QR Code for this Page** after **Print**, and an image's menu offers **Create QR Code for this Image**. A dialog shows the address's QR code, which can be edited, copied as an image or downloaded as `qrcode_<host>.png`.
 - Eight more interface languages: Italian, Brazilian Portuguese, Turkish, Hindi, Japanese, Korean, Simplified Chinese and Traditional Chinese. **System default** picks them from the operating system's language, with Chinese for Taiwan, Hong Kong and Macau, or written in Traditional script, shown in Traditional Chinese.
+- **Site search**, as in Chrome: **Settings → Search engine → Site search** adds shortcuts, each with a name and a URL with `%s` for the search terms; a shortcut typed in the address bar offers **Press Tab to search** that site, and **Tab** or a space after it searches the site for what you type next.
 
 ## [3.11.0] - 2026-10-24
 

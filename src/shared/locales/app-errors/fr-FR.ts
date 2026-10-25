@@ -350,7 +350,9 @@ export const frFRAppErrors: AppErrorMessages = {
     "downloadFolderBlocked": "Un fichier empêche de créer le dossier de téléchargement ({code}). Choisissez un autre dossier.",
     "downloadFolderMissingDrive": "Le lecteur ou l’emplacement réseau du dossier de téléchargement n’est pas disponible ({code}). Choisissez un autre dossier.",
     "downloadFolderUnavailable": "Hronaut n’a pas pu créer le dossier de téléchargement ({code}).",
-    "downloadFolderOpenFailed": "Hronaut n’a pas pu ouvrir le dossier de téléchargement dans le gestionnaire de fichiers."
+    "downloadFolderOpenFailed": "Hronaut n’a pas pu ouvrir le dossier de téléchargement dans le gestionnaire de fichiers.",
+    "siteSearchRejected": "Hronaut n’a pas pu enregistrer cette recherche sur site. Vérifiez son nom, son raccourci et son URL.",
+    "siteSearchMissing": "Cette recherche sur site a été supprimée : la modification n’a pas été enregistrée."
   },
   "credentials": {
     "fillAgentActive": "Le mot de passe n’a pas été renseigné, car une commande d’agent était encore en cours. Les agents restent en pause ; réessayez quand elle sera terminée.",

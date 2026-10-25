@@ -376,7 +376,31 @@ export const trTR: MessageSchema = {
     "search": {
       "heading": "Varsayılan arama motoru",
       "description": "Adres olmayan metnin nerede aranacağını seçin; metni adres çubuğuna siz yazsanız da bir ajan açsa da bu ayar geçerlidir.",
-      "privacy": "Yerel sekme, yer işareti ve geçmiş önerileri bu cihazda kalır. Hronaut sorguyu yalnızca siz gönderdikten sonra iletir."
+      "privacy": "Yerel sekme, yer işareti ve geçmiş önerileri bu cihazda kalır. Hronaut sorguyu yalnızca siz gönderdikten sonra iletir.",
+      "site": {
+        "heading": "Site araması",
+        "description": "Bir siteyi aramak için adres çubuğuna kısayolunu yazın, ardından Tab veya Boşluk tuşuna basın.",
+        "add": "Site araması ekle",
+        "editHeading": "Site aramasını düzenle",
+        "empty": "Henüz site araması yok",
+        "full": "Liste dolu. Başka bir tane eklemek için bir site aramasını silin.",
+        "name": "Ad",
+        "keyword": "Kısayol",
+        "url": "Sorgu yerine %s içeren URL",
+        "save": "Kaydet",
+        "cancel": "İptal",
+        "edit": "Düzenle",
+        "editAria": "Düzenle: {name}",
+        "remove": "Sil",
+        "removeAria": "Sil: {name}",
+        "nameMissing": "Bir ad girin",
+        "keywordMissing": "Bir kısayol girin",
+        "keywordSpaces": "Kısayol boşluk içeremez",
+        "keywordTaken": "Bu kısayol zaten kullanılıyor",
+        "urlInvalid": "http:// veya https:// ile başlayan bir web adresi girin",
+        "urlNoQuery": "Arama terimlerinin geleceği yere %s koyun",
+        "tooLong": "Bu çok uzun"
+      }
     },
     "downloads": {
       "heading": "Web sitesi indirmeleri",

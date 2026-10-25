@@ -350,7 +350,9 @@ export const trTRAppErrors: AppErrorMessages = {
     "downloadFolderBlocked": "İndirme klasörünün yerinde bir dosya var ({code}). Başka bir klasör seçin.",
     "downloadFolderMissingDrive": "İndirme klasörünün bulunduğu sürücü veya ağ konumu kullanılamıyor ({code}). Başka bir klasör seçin.",
     "downloadFolderUnavailable": "Hronaut indirme klasörünü oluşturamadı ({code}).",
-    "downloadFolderOpenFailed": "Hronaut indirme klasörünü dosya yöneticinizde açamadı."
+    "downloadFolderOpenFailed": "Hronaut indirme klasörünü dosya yöneticinizde açamadı.",
+    "siteSearchRejected": "Hronaut bu site aramasını kaydedemedi. Adını, kısayolunu ve URL’sini kontrol edin.",
+    "siteSearchMissing": "Bu site araması silindiği için değişiklik kaydedilmedi."
   },
   "credentials": {
     "fillAgentActive": "Bir ajan komutu hâlâ çalıştığı için şifre doldurulmadı. Ajanlar duraklatılmış olarak kalır; komut bitince tekrar deneyin.",

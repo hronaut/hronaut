@@ -350,7 +350,9 @@ export const jaJPAppErrors: AppErrorMessages = {
     "downloadFolderBlocked": "ダウンロード フォルダの場所にファイルがあるため使用できません（{code}）。別のフォルダを選択してください。",
     "downloadFolderMissingDrive": "ダウンロード フォルダのドライブまたはネットワーク上の場所を利用できません（{code}）。別のフォルダを選択してください。",
     "downloadFolderUnavailable": "Hronaut はダウンロード フォルダを作成できませんでした（{code}）。",
-    "downloadFolderOpenFailed": "Hronaut はファイル マネージャーでダウンロード フォルダを開けませんでした。"
+    "downloadFolderOpenFailed": "Hronaut はファイル マネージャーでダウンロード フォルダを開けませんでした。",
+    "siteSearchRejected": "Hronaut はこのサイト内検索を保存できませんでした。名前、ショートカット、URL を確認してください。",
+    "siteSearchMissing": "このサイト内検索は削除されたため、変更は保存されませんでした。"
   },
   "credentials": {
     "fillAgentActive": "エージェントのコマンドがまだ実行中だったため、パスワードは入力されませんでした。エージェントは一時停止したままです。完了してから、もう一度お試しください。",

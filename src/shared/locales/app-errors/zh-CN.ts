@@ -350,7 +350,9 @@ export const zhCNAppErrors: AppErrorMessages = {
     "downloadFolderBlocked": "有一个文件占用了下载文件夹的位置（{code}）。请选择其他文件夹。",
     "downloadFolderMissingDrive": "下载文件夹所在的驱动器或网络位置不可用（{code}）。请选择其他文件夹。",
     "downloadFolderUnavailable": "Hronaut 无法创建下载文件夹（{code}）。",
-    "downloadFolderOpenFailed": "Hronaut 无法在文件管理器中打开下载文件夹。"
+    "downloadFolderOpenFailed": "Hronaut 无法在文件管理器中打开下载文件夹。",
+    "siteSearchRejected": "Hronaut 无法保存此网站搜索。请检查名称、快捷字词和网址。",
+    "siteSearchMissing": "此网站搜索已被删除，因此更改未保存。"
   },
   "credentials": {
     "fillAgentActive": "由于智能体命令仍在运行，未填充密码。智能体保持暂停状态；请在命令完成后重试。",

@@ -376,7 +376,31 @@ export const ptBR: MessageSchema = {
     "search": {
       "heading": "Mecanismo de pesquisa padrão",
       "description": "Escolha onde pesquisar o texto que não é um endereço, seja ele digitado na barra de endereços ou aberto por um agente.",
-      "privacy": "Sugestões de guias locais, favoritos e histórico ficam neste dispositivo. O Hronaut só envia a consulta depois que você a envia."
+      "privacy": "Sugestões de guias locais, favoritos e histórico ficam neste dispositivo. O Hronaut só envia a consulta depois que você a envia.",
+      "site": {
+        "heading": "Pesquisa em sites",
+        "description": "Digite um atalho na barra de endereços e pressione Tab ou Espaço para pesquisar em um site.",
+        "add": "Adicionar pesquisa em site",
+        "editHeading": "Editar pesquisa em site",
+        "empty": "Nenhuma pesquisa em sites ainda",
+        "full": "A lista está cheia. Exclua uma pesquisa em site para adicionar outra.",
+        "name": "Nome",
+        "keyword": "Atalho",
+        "url": "URL com %s no lugar da consulta",
+        "save": "Salvar",
+        "cancel": "Cancelar",
+        "edit": "Editar",
+        "editAria": "Editar {name}",
+        "remove": "Excluir",
+        "removeAria": "Excluir {name}",
+        "nameMissing": "Digite um nome",
+        "keywordMissing": "Digite um atalho",
+        "keywordSpaces": "Um atalho não pode ter espaços",
+        "keywordTaken": "Este atalho já está em uso",
+        "urlInvalid": "Digite um endereço da web que comece com http:// ou https://",
+        "urlNoQuery": "Coloque %s onde ficam os termos da pesquisa",
+        "tooLong": "É longo demais"
+      }
     },
     "downloads": {
       "heading": "Downloads de sites",
