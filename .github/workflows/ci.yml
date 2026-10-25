@@ -79,8 +79,9 @@ jobs:
           HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"
         run: bash scripts/run-integration-ci.sh
 
+      # Also after a pass that needed a flaky-test recheck: the first failures' traces are what the fix needs.
       - name: Upload Electron failure diagnostics
-        if: failure()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
