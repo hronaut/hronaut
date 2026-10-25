@@ -6,7 +6,8 @@ type State = { activeTabId?: string; tabs: Array<{ id: string; url: string }> }
 
 // The page's context menu had no Copy link to highlight, as Chrome's has. The link it copies opens the page scrolled to
 // the selected text, also when the selection cuts a word, keeps preformatted spaces, crosses table cells, a line break
-// or an inline block, leaves out text the page makes unselectable, or is text the page holds more than once.
+// or an inline block, holds hidden text, leaves out text the page makes unselectable, or is text the page holds more
+// than once.
 
 const selectAll = (id: string) => `getSelection().selectAllChildren(document.getElementById(${JSON.stringify(id)}))`
 const selectText = (id: string, from: number, to: number) => `{ const text = document.getElementById(${JSON.stringify(id)}).firstChild; getSelection().setBaseAndExtent(text, ${from}, text, ${to}) }`
@@ -17,6 +18,7 @@ const CASES = [
   { id: 'pre', html: '<pre id="pre">x   = 1</pre>', select: selectAll('pre'), text: 'x%20%20%20%3D%201' },
   { id: 'cells', html: '<table id="cells"><tr><td>Price</td><td>Total</td></tr></table>', select: selectAll('cells'), text: 'Price,Total' },
   { id: 'lines', html: '<p id="lines">line one<br>line two</p>', select: selectAll('lines'), text: 'line%20one,line%20two' },
+  { id: 'hidden', html: '<p id="hidden">Open <span style="display: none">secret </span>the door</p>', select: selectAll('hidden'), text: 'Open%20the%20door' },
   { id: 'unselectable', html: '<p id="unselectable">Press <kbd style="user-select: none">Ctrl</kbd> K now</p>', select: selectAll('unselectable'), text: 'Press%20Ctrl%20K%20now' },
   { id: 'inline-block', html: '<p id="inline-block">Alpha <span style="display: inline-block">Beta</span> Gamma</p>', select: selectAll('inline-block'), text: 'Alpha,Gamma' },
   { id: 'repeated', html: '<p id="repeated">Then the word apple again.</p>', select: selectText('repeated', 5, 19), text: 'Then-,the%20word%20apple,-again.' }
