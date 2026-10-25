@@ -13,6 +13,7 @@ function fixture(zoom: number, split = false) {
   const shell = { getZoomFactor: () => zoom, isDestroyed: () => false }
   const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
     destroyed: false,
+    options: {},
     window: {
       isDestroyed: () => false,
       getContentBounds: () => ({ x: 0, y: 0, width: 1440, height: 900 }),

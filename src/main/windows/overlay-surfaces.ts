@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import type { AgentCardOverlay, AgentCardSurface } from '../agent-card-overlay.js'
 import type { ShellOverlayView } from '../shell-overlay-view.js'
 import type { ShellTooltipSurface } from '../shell-tooltip-overlay.js'
+import type { StatusBubbleOverlay, StatusBubbleSurface } from '../status-bubble-overlay.js'
 import type { ToastOverlay, ToastOverlaySurface } from '../toast-overlay.js'
 import { SIDEBAR_OVERLAY_TOOLTIP_ID_OFFSET, type SidebarOverlay, type SidebarOverlaySurface } from '../sidebar-overlay.js'
 import { attachSidebarOverlayKeyboard, type SidebarOverlayKeyboardHost } from '../sidebar-overlay-keyboard.js'
@@ -26,10 +27,13 @@ interface OverlaySurfacesHost {
   /** The keys pressed in that view, which work as in the shell. */
   sidebarOverlayKeyboard: SidebarOverlayKeyboardHost
   shellTooltips: Pick<ShellTooltipOverlay, 'shownId' | 'hide'>
+  /** The transparent view that draws the status bubble at a page's bottom corner. */
+  statusBubbleView: Pick<ShellOverlayView, 'ensure' | 'present' | 'withdraw'>
+  statusBubble: Pick<StatusBubbleOverlay, 'pointerOnBubble' | 'viewFocused'>
 }
 
 /**
- * The trusted documents of the agent card, toast, tooltip and open rail overlay views, and the surfaces their
+ * The trusted documents of the agent card, toast, tooltip, open rail and status bubble overlay views, and the surfaces their
  * controllers draw through once a view has loaded. `__dirname` is the bundled main entry's directory, as for the other main modules.
  */
 export function createOverlaySurfaces(host: OverlaySurfacesHost): {
@@ -41,6 +45,8 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
   ensureTooltipSurface(): Promise<ShellTooltipSurface>
   trustedSidebarOverlayUrl(): string
   ensureSidebarOverlaySurface(): Promise<SidebarOverlaySurface>
+  trustedStatusBubbleUrl(): string
+  ensureStatusBubbleSurface(): Promise<StatusBubbleSurface>
 } {
   function trustedAgentCardUrl(): string {
     if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
@@ -155,6 +161,37 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
     }
   }
 
+  function trustedStatusBubbleUrl(): string {
+    if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
+      return new URL('status-bubble.html', host.trustedShellUrl()).href
+    }
+    return pathToFileURL(join(__dirname, '../renderer/status-bubble.html')).href
+  }
+
+  /** One transparent view, created on the first link pointed at, draws the status bubble. */
+  const statusBubbleWatched = new WeakSet<Electron.WebContents>()
+
+  async function ensureStatusBubbleSurface(): Promise<StatusBubbleSurface> {
+    const { view, webContents } = await host.statusBubbleView.ensure()
+    if (!statusBubbleWatched.has(webContents)) {
+      statusBubbleWatched.add(webContents)
+      // The bubble has nothing to click; it moves out of the pointer's way as soon as the pointer comes onto it.
+      webContents.on('before-mouse-event', (event, mouse) => {
+        event.preventDefault()
+        if (mouse.type !== 'mouseLeave') host.statusBubble.pointerOnBubble(mouse.x, mouse.y)
+      })
+      webContents.on('focus', () => host.statusBubble.viewFocused())
+    }
+    return {
+      send: (state) => { if (!webContents.isDestroyed()) webContents.send('status-bubble:state', state) },
+      setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
+      setBounds: (bounds) => view.setBounds(bounds),
+      present: () => host.statusBubbleView.present(),
+      withdraw: () => host.statusBubbleView.withdraw(),
+      isDestroyed: () => webContents.isDestroyed()
+    }
+  }
+
   return {
     trustedAgentCardUrl,
     ensureAgentCardSurface,
@@ -163,6 +200,8 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
     trustedTooltipOverlayUrl,
     ensureTooltipSurface,
     trustedSidebarOverlayUrl,
-    ensureSidebarOverlaySurface
+    ensureSidebarOverlaySurface,
+    trustedStatusBubbleUrl,
+    ensureStatusBubbleSurface
   }
 }

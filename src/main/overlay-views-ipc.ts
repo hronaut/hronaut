@@ -4,6 +4,7 @@ import type { ShellOverlayView } from './shell-overlay-view.js'
 import type { ShellTooltipOverlay } from './shell-tooltip-overlay.js'
 import type { ToastOverlay } from './toast-overlay.js'
 import { SIDEBAR_OVERLAY_TOOLTIP_ID_OFFSET, type SidebarOverlay } from './sidebar-overlay.js'
+import type { StatusBubbleOverlay } from './status-bubble-overlay.js'
 import {
   parseAgentCardMeasurement,
   parseAgentCardShowRequest,
@@ -12,6 +13,7 @@ import {
   type AgentCardShowRequest
 } from '../shared/agent-card.js'
 import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
+import { parseStatusBubbleMeasurement } from '../shared/status-bubble.js'
 import {
   parseSidebarOverlayIntent,
   parseSidebarOverlayPointer,
@@ -46,12 +48,15 @@ interface OverlayViewsIpcHost {
   sidebarOverlay(): Pick<SidebarOverlay, 'refused' | 'show' | 'hide' | 'rendered' | 'pointer' | 'received' | 'tooltip'>
   /** The view that draws the open tab rail over the page. */
   sidebarOverlayView(): Pick<ShellOverlayView, 'isSender'>
+  statusBubble(): Pick<StatusBubbleOverlay, 'measured'>
+  /** The view that draws the status bubble at a page's corner. */
+  statusBubbleView(): Pick<ShellOverlayView, 'isSender'>
 }
 
 /**
  * The shell's requests to show and hide tooltips, agent cards, toasts and the open tab rail drawn in overlay views
- * above the pages, and those views' own reports. Dependencies stay lazy because handlers are registered before the
- * window loads.
+ * above the pages, and those views' own reports, with the status bubble's. Dependencies stay lazy because handlers are
+ * registered before the window loads.
  */
 export function registerOverlayViewsIpc(ipcMain: Pick<IpcMain, 'on'>, host: OverlayViewsIpcHost): void {
   function assertAgentCardSender(event: Electron.IpcMainEvent): void {
@@ -68,6 +73,10 @@ export function registerOverlayViewsIpc(ipcMain: Pick<IpcMain, 'on'>, host: Over
 
   function assertSidebarOverlaySender(event: Electron.IpcMainEvent): void {
     if (!host.sidebarOverlayView().isSender(event)) throw new Error('Rejected IPC from a non-sidebar renderer')
+  }
+
+  function assertStatusBubbleSender(event: Electron.IpcMainEvent): void {
+    if (!host.statusBubbleView().isSender(event)) throw new Error('Rejected IPC from a non-status-bubble renderer')
   }
 
   ipcMain.on('shell-tooltip:show', (event, value: unknown) => {
@@ -206,5 +215,10 @@ export function registerOverlayViewsIpc(ipcMain: Pick<IpcMain, 'on'>, host: Over
     assertTooltipOverlaySender(event)
     const measurement = parseShellTooltipMeasurement(value)
     if (measurement) host.shellTooltips().measured(measurement)
+  })
+  ipcMain.on('status-bubble:measured', (event, value: unknown) => {
+    assertStatusBubbleSender(event)
+    const measurement = parseStatusBubbleMeasurement(value)
+    if (measurement) host.statusBubble().measured(measurement)
   })
 }

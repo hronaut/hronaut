@@ -530,6 +530,8 @@ import type { PageFocusEventsAccess } from './tab-events/page-focus-events-acces
 import { attachPageFocusEvents } from './tab-events/page-focus-events.js'
 import type { PagePointerEventsAccess } from './tab-events/page-pointer-events-access.js'
 import { attachPagePointerEvents } from './tab-events/page-pointer-events.js'
+import type { PageTargetUrlEventsAccess, PageTargetUrlEventsOptions } from './tab-events/page-target-url-events-access.js'
+import { attachPageTargetUrlEvents } from './tab-events/page-target-url-events.js'
 import type { RendererHealthEventsAccess } from './tab-events/renderer-health-events-access.js'
 import { attachRendererHealthEvents } from './tab-events/renderer-health-events.js'
 import type { WindowOpenHandlerAccess } from './tab-events/window-open-handler-access.js'
@@ -895,6 +897,10 @@ export interface TabsManagerOptions {
   onStateChanged?: (state: BrowserState) => void
   /** A page took or left full screen, which nothing of the shell's is drawn over. */
   onPageFullscreenChanged?: () => void
+  onPageTargetUrl?: PageTargetUrlEventsOptions['onPageTargetUrl']
+  onPagePointer?: PageTargetUrlEventsOptions['onPagePointer']
+  /** The pages were laid out again: moved, resized, shown, hidden or swapped for others. */
+  onPagesLaidOut?: () => void
   onWorkspaceNavigationDecision?: (workspaceId: string, decision: WorkspaceNavigationDecision, source: BrowserWorkspaceNavigationAuditSource) => void
   onWorkspaceClosed?: (workspaceId: string) => void
   onDownloadsChanged?: (downloads: BrowserDownloadState[]) => void
@@ -5466,6 +5472,21 @@ export class BrowserTabsManager {
 
   layout(): void {
     layout(this.windowLayoutAccess())
+    this.options.onPagesLaidOut?.()
+  }
+
+  /**
+   * Where a tab's page shows for the status bubble, in window coordinates, with its corner radius: only the page in
+   * view or a split pane, while it is on screen and not covered by trusted chrome.
+   */
+  statusBubblePane(tabId: string): { bounds: Rectangle; corner: number } | null {
+    const tab = this.tabs.get(tabId)
+    if (this.destroyed || !tab || tab.webContents.isDestroyed() || this.browserContentOccluded) return null
+    if (tab.id !== this.activeTabId && !this.splitViewContains(tab.id)) return null
+    if (!tab.view.getVisible() || !this.window.contentView.children.includes(tab.view)) return null
+    const bounds = tab.view.getBounds()
+    if (bounds.width < 1 || bounds.height < 1) return null
+    return { bounds, corner: this.pageCornerRadii.get(tab.view) ?? 0 }
   }
 
   /**
@@ -5940,6 +5961,7 @@ export class BrowserTabsManager {
     attachPageFocusEvents(this.pageFocusEventsAccess(), tab, webContents)
     attachPageKeyboardEvents(this.pageKeyboardEventsAccess(), tab, webContents)
     attachPagePointerEvents(this.pagePointerEventsAccess(), tab, webContents)
+    attachPageTargetUrlEvents(this.pageTargetUrlEventsAccess(), tab, webContents)
     attachPageWheelZoom(this.pageWheelZoomAccess(), tab, webContents)
     attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
     attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
@@ -6074,6 +6096,22 @@ export class BrowserTabsManager {
       reproRecorder: () => this.reproRecorder,
       scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
       mcpActivityFollower: () => this.mcpActivityFollower,
+      options: () => this.options
+    }
+  }
+
+  /**
+   * The narrow view a page's link and pointer listeners for the status bubble
+   * get of this manager's private in-flight agent input, agent tool calls and
+   * options. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. Each member reads the
+   * manager when called.
+   */
+  private pageTargetUrlEventsAccess(): PageTargetUrlEventsAccess {
+    return {
+      agentInputWebContents: () => this.agentInputWebContents,
+      agentToolCallInFlight: (tabId) => this.mcpActivitiesByTab.has(tabId),
       options: () => this.options
     }
   }
