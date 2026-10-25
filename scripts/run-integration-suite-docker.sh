@@ -72,9 +72,31 @@ run_shard() {
   )
 }
 
+# A shard that failed because of a few tests reruns each of them three times without retries. When every rerun
+# passes, the failure was a flake: the shard passes with a warning naming the tests, which still need a fix.
+recheck_flaky_tests() {
+  local shard_label="$1"
+  local report="test-results/json/shard-${shard_label}.json"
+  local test_list="test-results/json/shard-${shard_label}-recheck.txt"
+  node scripts/recheck-flaky-tests.ts list "$report" "$test_list" || return 1
+  local recheck_status=0
+  (
+    export HRONAUT_TEST_SHARD="shard-${shard_label}-recheck"
+    export HRONAUT_TEST_SHARD_INDEX="$shard_label"
+    HRONAUT_TEST_ISOLATED_DISPLAYS=1 \
+      npm run test:integration:run -- --test-list "$test_list" --repeat-each=3 --retries=0 --workers=1
+  ) || recheck_status="$?"
+  if ((recheck_status != 0)); then
+    echo "The recheck exited with status ${recheck_status}, so the shard fails."
+    return 1
+  fi
+  node scripts/recheck-flaky-tests.ts verify "$report" "test-results/json/shard-${shard_label}-recheck.json"
+}
+
 status=0
 if [[ -n "$single_shard" ]]; then
-  if ! run_shard "$single_shard" "$single_shard_index" "$single_shard_index"; then
+  if ! run_shard "$single_shard" "$single_shard_index" "$single_shard_index" &&
+    ! recheck_flaky_tests "$single_shard_index"; then
     status=1
   fi
 else

@@ -64,7 +64,13 @@ for attempt in 1 2 3; do
   sleep "$((attempt * 5))" || break
 done
 
-if (( status != 0 )) && docker inspect "$container_name" >/dev/null 2>&1; then
+# A shard that passed only after rechecking flaky tests keeps their first failures' traces for the fix.
+flaky_passed=false
+if (( status == 0 )) && grep -q '^::warning title=Flaky Electron tests::' "$startup_log"; then
+  flaky_passed=true
+fi
+
+if { (( status != 0 )) || [[ "$flaky_passed" == true ]]; } && docker inspect "$container_name" >/dev/null 2>&1; then
   if [[ "$local_artifacts" == true ]]; then
     mkdir -p test-results
     artifact_directory="$(mktemp -d test-results/local-docker-XXXXXX)" || exit "$status"

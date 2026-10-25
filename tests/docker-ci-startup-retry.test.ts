@@ -15,10 +15,14 @@ describe('CI Docker startup recovery', () => {
     { name: 'registry authentication failure', failures: 1, message: 'failed to resolve source metadata: 401 Unauthorized', container: false, attempts: 1, status: 17 },
     { name: 'test HTTP failure', failures: 1, message: 'Expected 200, received 503 Service Unavailable', container: true, attempts: 1, status: 17 },
     { name: 'container failure quoting registry output', failures: 1, message: registryError, container: true, attempts: 1, status: 17 }
-  ].map(scenario => ({ ...scenario, local: false, copySuccess: false })).concat([
+  ].map(scenario => ({ ...scenario, local: false, copySuccess: false, output: '' })).concat([
     { name: 'local success', failures: 0, message: '', container: true, attempts: 1, status: 0, local: true, copySuccess: false },
     { name: 'local failure preserves artifacts', failures: 1, message: 'Test failed', container: true, attempts: 1, status: 17, local: true, copySuccess: true },
     { name: 'local extraction failure preserves exit status and cleanup', failures: 1, message: 'Test failed', container: true, attempts: 1, status: 17, local: true, copySuccess: false }
+  ].map(scenario => ({ ...scenario, output: '' }))).concat([
+    // A shard that passed only after a flaky-test recheck keeps the first failures' traces for the fix.
+    { name: 'pass after a flaky-test recheck preserves artifacts', failures: 0, message: '', container: true, attempts: 1, status: 0, local: false, copySuccess: true, output: '::warning title=Flaky Electron tests::1 Electron test(s) failed and then passed 3 of 3 reruns without retries.' },
+    { name: 'pass with another warning keeps no artifacts', failures: 0, message: '', container: true, attempts: 1, status: 0, local: false, copySuccess: true, output: '::warning title=Development dependency advisories::npm audit found issues' }
   ]))('$name', scenario => {
     const directory = mkdtempSync(join(tmpdir(), 'hronaut-ci-startup-'))
     try {
@@ -36,6 +40,7 @@ const scenario = JSON.parse(readFileSync('scenario.json', 'utf8'));
 const args = process.argv.slice(2);
 appendFileSync('calls.jsonl', JSON.stringify(args) + '\\n');
 if (args[0] === 'compose') {
+  if (scenario.output) console.log(scenario.output);
   if (scenario.local && scenario.copySuccess) {
     // Simulate old evidence from a prior run whose container PID was reused.
     const oldDirectory = 'test-results/local-docker-' + args[args.indexOf('--name') + 1];
@@ -83,9 +88,11 @@ if (args[0] === 'cp') {
       expect(JSON.parse(readFileSync(join(directory, 'mode.json'), 'utf8'))).toEqual({
         workers: scenario.local ? '4' : '2', skipTypecheck: scenario.local ? 'false' : 'true'
       })
-      expect(calls.filter(call => call[0] === 'cp')).toHaveLength(scenario.status !== 0 && scenario.container ? 2 : 0)
+      const flakyPass = scenario.output.startsWith('::warning title=Flaky Electron tests::')
+      expect(calls.filter(call => call[0] === 'cp')).toHaveLength((scenario.status !== 0 || flakyPass) && scenario.container ? 2 : 0)
       expect(calls.at(-1)).toEqual(['rm', '--force', firstRun[firstRun.indexOf('--name') + 1]])
-      if (scenario.copySuccess) {
+      if (flakyPass) expect(readFileSync(join(directory, 'ci-artifacts/proof.txt'), 'utf8')).toBe('retained failure')
+      if (scenario.local && scenario.copySuccess) {
         const artifactPath = result.stdout.match(/Failure artifacts: (.+)/)?.[1]
         expect(artifactPath).toMatch(/^test-results\/local-docker-/)
         expect(readFileSync(join(directory, artifactPath!, 'proof.txt'), 'utf8')).toBe('retained failure')

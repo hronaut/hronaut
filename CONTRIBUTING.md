@@ -129,7 +129,11 @@ HRONAUT_INTEGRATION_SHARDS=2 npm run test:integration:docker
 
 Manually dispatched CI and release validation assign eight shards to separate runners, each
 with one Electron worker. This shortens each batch while keeping native focus and
-capture checks away from per-runner Electron contention. The selected-shard
+capture checks away from per-runner Electron contention. A shard that fails
+because of at most three tests, and nothing else, reruns each of them three times
+without retries. When every rerun passes, the shard passes with a "Flaky Electron
+tests" warning and keeps the first failures' traces as an artifact; each flake it
+names still needs a fix. The selected-shard
 worker count can be tuned through `HRONAUT_INTEGRATION_SHARD_WORKERS` when
 benchmarking a dedicated machine.
 An explicit
