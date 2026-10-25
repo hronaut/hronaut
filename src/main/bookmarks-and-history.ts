@@ -24,7 +24,7 @@ interface BookmarksAndHistoryHost {
   /** The two stores; index.ts creates the record, and most of the main process reads it. */
   state: BookmarksAndHistoryState
   sendToShellWindows(channel: string, ...args: unknown[]): void
-  /** The MCP listener while it runs, whose Home feed goes when the person or an agent clears the history. */
+  /** The MCP listener while it runs, whose agents' finished steps go when the person or an agent clears the history. */
   mcpServer(): Pick<McpHttpServer, 'forgetAgentStepsSince'> | null
   /** The tabs once the window opens, whose Recently closed tabs and Back and Forward pages go with the history. */
   tabs(): Pick<BrowserTabsManager, 'forgetHistoryPages'> | null
@@ -34,8 +34,8 @@ interface BookmarksAndHistoryHost {
 
 /**
  * Bookmarks and visit history at runtime: opening both stores, recording the pages tabs visit, telling both shell
- * windows what they hold after each change, offering to undo a bookmark the person removed, forgetting Home's feed with
- * the history, and the operations the MCP server offers agents on them, `agentBookmarks` and `agentHistory`.
+ * windows what they hold after each change, offering to undo a bookmark the person removed, forgetting agents' finished
+ * steps with the history, and the operations the MCP server offers agents on them, `agentBookmarks` and `agentHistory`.
  */
 export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   publishBookmarks(): BrowserBookmark[]
