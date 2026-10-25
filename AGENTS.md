@@ -137,7 +137,7 @@ cache; the final integration stage copies the original checkout and version.
 Local runs use four workers with separate Xvfb displays
 and one shared test queue after one application build, so a worker that finishes
 a short test can take the next pending case. Hosted CI gives each of twelve shards
-an isolated runner with one worker to limit native focus and capture contention.
+an isolated runner with two workers, each on its own Xvfb display.
 Each shard lists the suite and takes its part of a split by the test durations in
 `tests/integration/durations.json` (`scripts/plan-integration-shard.ts`), so the
 shards take about the same time; a test without a recorded duration counts as the

@@ -128,8 +128,8 @@ HRONAUT_INTEGRATION_SHARDS=2 npm run test:integration:docker
 ```
 
 Manually dispatched CI and release validation assign twelve shards to separate
-runners, each with one Electron worker. This shortens each batch while keeping
-native focus and capture checks away from per-runner Electron contention. Each
+runners, each with two Electron workers on separate Xvfb displays, which keeps
+native focus and capture checks of one worker away from the other's. Each
 shard lists the suite and runs its part of a split by the durations in
 `tests/integration/durations.json`, so the shards finish at about the same time.
 A shard that cannot list or plan the suite fails, since the others already split
