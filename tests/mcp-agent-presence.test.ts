@@ -275,6 +275,38 @@ describe('agent presence registry', () => {
     expect(registry.attachThumbnail(pictured.at(-2)!, picture(9))).toBe(false)
   })
 
+  // Clearing the history left each agent's "All steps" naming, and showing pictures of, the pages it had cleared.
+  it('forgets every agent\'s finished steps and their pictures from a time on, or all of them, as history is cleared', () => {
+    const registry = new AgentPresenceRegistry()
+    const finish = (session: typeof claude, workspaceId: string, activityId: string, at: number) => {
+      registry.track(session, workspaceId, { activityId, toolName: 'browser_navigate', phase: 'started', occurredAt: at, source: 'call', tabId: 'tab-1' })
+      registry.track(session, workspaceId, { activityId, toolName: 'browser_navigate', phase: 'finished', occurredAt: at + 1, source: 'call', tabId: 'tab-1' })
+      const step = { sessionId: session.id, workspaceId, stepId: registry.latestStep(session.id, workspaceId)!.id }
+      registry.attachThumbnail(step, { jpeg: Buffer.from([0xff, 0xd8, at % 256]), width: 320, height: 200 })
+    }
+    finish(claude, workspace, 'old', 1_000)
+    finish(claude, workspace, 'new', 3_000)
+    finish(cursor, 'workspace-b', 'other', 5_000)
+    const steps = (session: typeof claude, workspaceId: string) => registry.history(registry.clientKey(session.id), workspaceId, context(), new Set())!
+      .map((entry) => [entry.at, entry.thumbnail !== undefined])
+
+    const before = registry.historyRevision
+    registry.forgetStepsSince(3_001)
+    expect(registry.historyRevision).toBe(before + 1)
+    expect(steps(claude, workspace)).toEqual([[1_001, true]])
+    expect(steps(cursor, 'workspace-b')).toEqual([])
+    // Nothing left from then: nothing changes.
+    registry.forgetStepsSince(2_000)
+    expect(registry.historyRevision).toBe(before + 1)
+
+    registry.forgetStepsSince()
+    expect(registry.historyRevision).toBe(before + 2)
+    expect(steps(claude, workspace)).toEqual([])
+    expect(registry.derive(6_000, context())[workspace]?.[0]?.recentSteps).toEqual([])
+    registry.forgetStepsSince()
+    expect(registry.historyRevision).toBe(before + 2)
+  })
+
   it('keeps the last tab when a call names none', () => {
     const registry = new AgentPresenceRegistry()
     registry.track(claude, workspace, activity('finished', 1_000, { tabId: 'tab-4' }))

@@ -178,8 +178,7 @@ describe('recently closed tabs and the history', () => {
     await history.record({ url: 'https://recent.example/page', title: 'Recent' })
     await history.record({ url: 'https://both.example/', title: 'Both' })
     const handlers = new Map<string, (...args: unknown[]) => unknown>()
-    const forgetHomeFeed = vi.fn()
-    const forgetHomeFeedSince = vi.fn()
+    const forgetAgentStepsSince = vi.fn()
     registerBrowsingDataIpc({
       assertTrustedSender: () => undefined,
       handleBrowserIpc: ((channel: string, listener: (...args: unknown[]) => unknown) => { handlers.set(channel, listener) }) as never,
@@ -188,7 +187,7 @@ describe('recently closed tabs and the history', () => {
       bookmarkStore: () => null,
       credentialStore: () => null,
       sitePermissionStore: () => null,
-      mcpServer: () => ({ forgetHomeFeed, forgetHomeFeedSince }),
+      mcpServer: () => ({ forgetAgentStepsSince }),
       publishVisitHistory: () => undefined,
       currentBrowsingDataSiteSummary: async () => { throw new Error('Not used') }
     })
@@ -197,8 +196,8 @@ describe('recently closed tabs and the history', () => {
     await clear({ history: true, timeRange: 'lastHour' })
     expect(history.list().map(({ url, visitCount }) => [url, visitCount])).toEqual([['https://both.example/', 1], ['https://old.example/', 1]])
     expect(closedTabs.map((tab) => tab.url)).toEqual(['https://old.example/', 'view-source:https://old.example/'])
-    expect(forgetHomeFeed).not.toHaveBeenCalled()
-    const [since] = forgetHomeFeedSince.mock.calls[0] as [number]
+    expect(forgetAgentStepsSince).toHaveBeenCalledOnce()
+    const [since] = forgetAgentStepsSince.mock.calls[0] as [number]
     expect(since).toBeGreaterThanOrEqual(before - hour)
     expect(since).toBeLessThanOrEqual(Date.now() - hour)
 
@@ -211,7 +210,9 @@ describe('recently closed tabs and the history', () => {
     await clear({ history: true, timeRange: 'allTime' })
     expect(history.list()).toEqual([])
     expect(closedTabs).toEqual([])
-    expect(forgetHomeFeed).toHaveBeenCalledOnce()
+    // All time: every step agents took goes.
+    expect(forgetAgentStepsSince).toHaveBeenCalledTimes(2)
+    expect(forgetAgentStepsSince.mock.calls[1]).toEqual([])
   })
 
   it('forgets the closed tabs of a website whose history an agent clears, only in its workspace', async () => {

@@ -11,6 +11,10 @@ All notable changes to Hronaut are documented in this file.
 - **Time range** for clearing history, as in Chrome's Delete browsing data: **Settings → Workspaces & data → Global history** clears the visits of the **Last hour**, **Last 24 hours**, **Last 7 days** or **Last 4 weeks**, or **All time** as before, with the pages visited then in Recently closed and in tabs' Back and Forward lists, and the steps Home's activity feed lists from then. A page visited before keeps those visits. The question before clearing names a range other than All time.
 - Two more interface languages: Indonesian and Vietnamese. **System default** picks them from the operating system's language.
 
+### Fixed
+
+- Clearing history also clears the steps agents took in that time from their cards and **All steps**, with the pictures of the pages, as it already did for Home's activity feed.
+
 ## [3.12.0] - 2026-10-25
 
 ### Added

@@ -25,7 +25,7 @@ interface BookmarksAndHistoryHost {
   state: BookmarksAndHistoryState
   sendToShellWindows(channel: string, ...args: unknown[]): void
   /** The MCP listener while it runs, whose Home feed goes when the person or an agent clears the history. */
-  mcpServer(): Pick<McpHttpServer, 'forgetHomeFeed'> | null
+  mcpServer(): Pick<McpHttpServer, 'forgetAgentStepsSince'> | null
   /** The tabs once the window opens, whose Recently closed tabs and Back and Forward pages go with the history. */
   tabs(): Pick<BrowserTabsManager, 'forgetHistoryPages'> | null
   /** Offers the person's latest reversible action for Undo, replacing the previous offer. */
@@ -105,11 +105,12 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   }
 
   /**
-   * The history was cleared, by the person or an agent. Home's feed names pages agents acted on, Recently closed names
-   * pages tabs showed and tabs' Back and Forward lists hold pages, so they all go too, as Chrome forgets them with it.
+   * The history was cleared, by the person or an agent. Agents' finished steps (Home's feed and each agent's "All steps")
+   * name and picture pages they acted on, Recently closed names pages tabs showed and tabs' Back and Forward lists hold
+   * pages, so they all go too, as Chrome forgets them with it.
    */
   function historyCleared(): void {
-    host.mcpServer()?.forgetHomeFeed()
+    host.mcpServer()?.forgetAgentStepsSince()
     host.tabs()?.forgetHistoryPages(() => true)
   }
 

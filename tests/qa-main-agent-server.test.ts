@@ -141,25 +141,47 @@ describe('Home agent data from the MCP server', () => {
     expect(server.getHomeFeed()).toEqual([expect.objectContaining({ workspaceId, step: 'working', outcome: 'done' })])
   })
 
-  it('forgets the feed when history is cleared, telling main once and not again for an empty feed', async () => {
+  // Clearing the history left each agent's "All steps" naming, and showing pictures of, the pages it had cleared.
+  it('forgets agents\' steps, in the feed and in "All steps", when history is cleared, telling main once and not again when none are left', async () => {
     const { server, onAgentPresenceChanged, connect, listTabs } = await startServer()
     const claude = await connect('Claude Code')
     await listTabs(claude.client)
     expect(server.getHomeFeed()).toHaveLength(1)
+    const agent = server.getAgentPresence()[workspaceId]?.[0]
+    expect(server.getAgentStepHistory(agent!.clientKey, workspaceId, [])).toHaveLength(1)
     const revision = server.homeFeedRevision
+    const stepsRevision = server.agentStepHistoryRevision
     onAgentPresenceChanged.mockClear()
 
-    server.forgetHomeFeed()
+    server.forgetAgentStepsSince()
     expect(server.getHomeFeed()).toEqual([])
+    expect(server.getAgentStepHistory(agent!.clientKey, workspaceId, [])).toEqual([])
+    expect(server.getAgentPresence()[workspaceId]?.[0]?.recentSteps).toEqual([])
     expect(server.homeFeedRevision).toBeGreaterThan(revision)
+    expect(server.agentStepHistoryRevision).toBeGreaterThan(stepsRevision)
     expect(onAgentPresenceChanged).toHaveBeenCalledOnce()
 
     onAgentPresenceChanged.mockClear()
-    server.forgetHomeFeed()
-    server.forgetHomeFeed(workspaceId)
+    server.forgetAgentStepsSince()
+    server.forgetAgentStepsSince(0)
     expect(onAgentPresenceChanged).not.toHaveBeenCalled()
-    // The agent's own steps for the shell stay; only Home's feed goes with history.
-    expect(server.getAgentPresence()[workspaceId]?.[0]?.recentSteps.length).toBeGreaterThan(0)
+    // The agent is still connected; its next step is listed as usual.
+    await listTabs(claude.client)
+    expect(server.getAgentStepHistory(agent!.clientKey, workspaceId, [])).toHaveLength(1)
+  })
+
+  it('forgets only the steps agents took from a time range\'s start when history is cleared for it', async () => {
+    const { server, connect, listTabs } = await startServer()
+    const claude = await connect('Claude Code')
+    await listTabs(claude.client)
+    const agent = server.getAgentPresence()[workspaceId]?.[0]
+    const [first] = server.getHomeFeed()
+    server.forgetAgentStepsSince(first!.at + 1)
+    expect(server.getHomeFeed()).toHaveLength(1)
+    expect(server.getAgentStepHistory(agent!.clientKey, workspaceId, [])).toHaveLength(1)
+    server.forgetAgentStepsSince(first!.at)
+    expect(server.getHomeFeed()).toEqual([])
+    expect(server.getAgentStepHistory(agent!.clientKey, workspaceId, [])).toEqual([])
   })
 
   it('forgets one workspace\'s feed entries and keeps the others', async () => {
@@ -172,7 +194,7 @@ describe('Home agent data from the MCP server', () => {
     const other = await claude.client.callTool({ name: 'browser_tabs', arguments: { workspaceId: otherWorkspaceId } }) as CallToolResult
     expect(other.isError, text(other)).not.toBe(true)
     expect(new Set(server.getHomeFeed().map((entry) => entry.workspaceId))).toEqual(new Set([workspaceId, otherWorkspaceId]))
-    server.forgetHomeFeed(otherWorkspaceId)
+    server.forgetAgentWorkspaceSteps(otherWorkspaceId)
     expect(server.getHomeFeed().map((entry) => entry.workspaceId)).toEqual([workspaceId])
   })
 

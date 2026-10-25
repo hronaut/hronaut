@@ -34,7 +34,7 @@ interface BrowsingDataIpcHost {
   bookmarkStore(): Pick<BookmarkStore, 'list'> | null
   credentialStore(): Pick<CredentialStore, 'list'> | null
   sitePermissionStore(): Pick<SitePermissionStore, 'list'> | null
-  mcpServer(): Pick<McpHttpServer, 'forgetHomeFeed' | 'forgetHomeFeedSince'> | null
+  mcpServer(): Pick<McpHttpServer, 'forgetAgentStepsSince'> | null
   publishVisitHistory(): void
   currentBrowsingDataSiteSummary(value: string, browserSession: Session | undefined): Promise<BrowsingDataSiteSummary>
 }
@@ -95,11 +95,11 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
     if (options.timeRange && options.timeRange !== 'allTime') {
       const duration = TIME_RANGE_MS[options.timeRange]
       if (!duration) throw new TypeError('Invalid history time range')
-      // As Chrome's time ranges: the visits from then, the steps Home's feed lists from then, and the pages visited then
-      // in Recently closed and in tabs' Back and Forward lists.
+      // As Chrome's time ranges: the visits from then, the steps agents took from then (in Home's feed and in each agent's
+      // "All steps", pictures included), and the pages visited then in Recently closed and in tabs' Back and Forward lists.
       const since = Date.now() - duration
       const cleared = new Set(await host.historyStore()!.clearSince(since))
-      host.mcpServer()?.forgetHomeFeedSince(since)
+      host.mcpServer()?.forgetAgentStepsSince(since)
       // Electron gives a tab's pages no visit times, so those lists keep only the pages the history shows a visit to from
       // before then and none from then: a page the history cannot hold, such as a page's source or a file, or one left
       // before it was ready, which the history never got, goes too.
@@ -113,9 +113,10 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
     }
     if (origin) await host.historyStore()!.clearOrigin(origin)
     else await host.historyStore()!.clear()
-    // Home's feed names pages agents acted on, so it goes with any history clearing. The cleared website's pages in
-    // Recently closed and in tabs' Back and Forward lists go too, as Chrome forgets them with the history.
-    host.mcpServer()?.forgetHomeFeed()
+    // Agents' finished steps name and picture pages they acted on, so Home's feed and each agent's "All steps" go with any
+    // history clearing. The cleared website's pages in Recently closed and in tabs' Back and Forward lists go too, as
+    // Chrome forgets them with the history.
+    host.mcpServer()?.forgetAgentStepsSince()
     host.tabs()?.forgetHistoryPages((url) => !origin || closedTabOrigin(url) === origin)
     host.publishVisitHistory()
     return currentBrowsingDataSummary()
