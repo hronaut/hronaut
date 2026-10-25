@@ -63,11 +63,21 @@ shard_selection() {
   local list_report="test-results/json/shard-${shard_label}-list.json"
   local test_list="test-results/json/shard-${shard_label}-plan.txt"
   mkdir -p test-results/json
-  if PLAYWRIGHT_JSON_OUTPUT_NAME="$list_report" npm run test:integration:run -- --list --reporter=json >/dev/null &&
-    node scripts/plan-integration-shard.ts "$list_report" tests/integration/durations.json "$shard_spec" "$test_list"; then
+  local list_status=0
+  local plan_status=0
+  PLAYWRIGHT_JSON_OUTPUT_NAME="$list_report" npm run test:integration:run -- --list --reporter=json >/dev/null ||
+    list_status="$?"
+  node scripts/plan-integration-shard.ts "$list_report" tests/integration/durations.json "$shard_spec" "$test_list" ||
+    plan_status="$?"
+  if ((list_status == 0 && plan_status == 0)); then
     selected_tests=(--test-list "$test_list")
-  else
+  elif ((list_status == 0 && plan_status == 3)); then
+    # Titles a test list cannot name: every shard lists the same tests, so every one keeps Playwright's split alike.
     selected_tests=("--shard=${shard_spec}")
+  else
+    # The other shards may have split the tests by durations, so a split of this shard's own would skip or repeat tests.
+    echo "::error title=Electron shard plan::Shard ${shard_spec} could not plan its tests (listing exited with ${list_status}, planning with ${plan_status})."
+    return 1
   fi
 }
 
@@ -76,7 +86,7 @@ run_shard() {
   local shard_label="$2"
   local shard_index="$3"
   local selected_tests=()
-  shard_selection "$shard_spec" "$shard_label"
+  shard_selection "$shard_spec" "$shard_label" || return 1
   (
     export HRONAUT_TEST_SHARD="shard-${shard_label}"
     export HRONAUT_TEST_SHARD_INDEX="$shard_index"

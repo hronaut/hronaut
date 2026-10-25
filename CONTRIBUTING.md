@@ -132,13 +132,17 @@ runners, each with one Electron worker. This shortens each batch while keeping
 native focus and capture checks away from per-runner Electron contention. Each
 shard lists the suite and runs its part of a split by the durations in
 `tests/integration/durations.json`, so the shards finish at about the same time.
-Every CI shard uploads how long its tests took as a `durations-electron-*`
-artifact; after tests were added or got slower, refresh the file from a full run:
+A shard that cannot list or plan the suite fails, since the others already split
+it by durations. Every CI shard uploads how long its tests took as a
+`durations-electron-*` artifact; after tests were added or got slower, refresh
+the file from a full run, with all twelve artifacts downloaded (`--replace` keeps
+only the tests they record):
 
 ```bash
-gh run download <run-id> --pattern 'durations-electron-*' --dir "$TMPDIR/durations"
+durations="$(mktemp -d)"
+gh run download <run-id> --pattern 'durations-electron-*' --dir "$durations"
 node scripts/update-integration-durations.ts --replace tests/integration/durations.json \
-  $(find "$TMPDIR/durations" -name 'shard-*.json')
+  $(find "$durations" -name 'shard-*.json')
 ```
 
 A shard that fails because of at most three tests, with every other test run and

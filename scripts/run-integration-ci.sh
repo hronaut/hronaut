@@ -82,7 +82,7 @@ if { (( status != 0 )) || [[ "$flaky_passed" == true ]]; } && docker inspect "$c
 fi
 
 # Every hosted shard keeps how long its tests took, which tests/integration/durations.json is refreshed from.
-if [[ "$local_artifacts" != true ]] && docker inspect "$container_name" >/dev/null 2>&1; then
+if [[ "$local_artifacts" != true && -n "${HRONAUT_INTEGRATION_SHARD:-}" ]] && docker inspect "$container_name" >/dev/null 2>&1; then
   mkdir -p test-durations
   if ! docker cp "$container_name:/workspace/test-results/durations" - | tar -xf - -C test-durations; then
     echo "Warning: could not extract the test durations from $container_name." >&2

@@ -55,8 +55,10 @@ const args = process.argv.slice(2);
 const shard = process.env.HRONAUT_TEST_SHARD;
 appendFileSync('calls.jsonl', JSON.stringify({ args, isolatedDisplays: process.env.HRONAUT_TEST_ISOLATED_DISPLAYS, shard }) + '\\n');
 if (args.includes('--list')) {
-  // A hosted shard lists the suite to split it by recorded durations.
-  if (process.env.TEST_LIST_REPORT) writeFileSync(process.env.PLAYWRIGHT_JSON_OUTPUT_NAME, process.env.TEST_LIST_REPORT);
+  // A hosted shard lists the suite to split it by recorded durations. Unless a case lists its own tests, their titles
+  // cannot be named in a test list, so the shard keeps Playwright's split.
+  const unnamed = JSON.stringify({ errors: [], suites: [{ title: 'browser-shell.e2e.ts', specs: [{ title: 'opens › closes', file: 'browser-shell.e2e.ts' }] }] });
+  if (process.env.TEST_LIST_REPORT !== 'none') writeFileSync(process.env.PLAYWRIGHT_JSON_OUTPUT_NAME, process.env.TEST_LIST_REPORT || unnamed);
   process.exit(Number(process.env.TEST_LIST_STATUS || 0));
 }
 if (args.includes('test:integration:run')) {
@@ -199,7 +201,7 @@ describe.skipIf(process.platform === 'win32')('Docker Electron scheduling', () =
     expect(status).toBe(1)
     expect(calls.some(call => call.args.includes(`--repeat-each=${RECHECK_REPEATS}`))).toBe(true)
     expect(calls.some(call => call.args.includes('test:integration:dialogs:headless'))).toBe(false)
-    expect(stdout).not.toContain('::warning')
+    expect(stdout).not.toContain('::warning title=Flaky Electron tests')
   })
 
   it.each<[string, Record<string, string>]>([
@@ -231,14 +233,29 @@ describe.skipIf(process.platform === 'win32')('Docker Electron scheduling', () =
   })
 
   it.each<[string, Record<string, string>]>([
-    ['listing fails', { TEST_LIST_REPORT: listReport(['opens a tab']), TEST_LIST_STATUS: '1' }],
     ['a title cannot be named in a test list', { TEST_LIST_REPORT: listReport(['opens › closes']) }],
+    ['a title has a line break', { TEST_LIST_REPORT: listReport(['opens\nand closes']) }],
     ['one title selects another test', { TEST_LIST_REPORT: JSON.stringify({ suites: [{ title: 'browser-shell.e2e.ts', specs: [{ title: 'tabs', file: 'browser-shell.e2e.ts' }], suites: [{ title: 'tabs', specs: [{ title: 'close', file: 'browser-shell.e2e.ts' }] }] }] }) }]
-  ])('keeps Playwright\'s split when %s', async (_case, listed) => {
+  ])('keeps Playwright\'s split, as every shard does, when %s', async (_case, listed) => {
     const { status, calls, stdout } = await runSuite({ ...listed, HRONAUT_INTEGRATION_SHARD: '1/2' })
     expect(status).toBe(0)
     expect(calls[2]?.args).toEqual(['run', 'test:integration:run', '--', '--shard=1/2', '--workers=1'])
-    if (!listed.TEST_LIST_STATUS) expect(stdout).toContain('Splitting shards by test count:')
+    expect(stdout).toContain('::warning title=Electron shard plan::Splitting shards by test count:')
+  })
+
+  // A shard that split the tests by itself while the others split them by durations would skip or repeat tests.
+  it.each<[string, Record<string, string>, string]>([
+    ['listing fails', { TEST_LIST_REPORT: listReport(['opens a tab']), TEST_LIST_STATUS: '1' }, 'listing exited with 1'],
+    ['listing leaves no report', { TEST_LIST_REPORT: 'none' }, 'planning with 1'],
+    ['listing reports an error', { TEST_LIST_REPORT: JSON.stringify({ errors: [{ message: 'SyntaxError: Unexpected token\n  at tabs.e2e.ts:3' }], suites: [] }) },
+      'cannot take its part of the split: listing the tests reported 1 error(s): SyntaxError: Unexpected token.'],
+    ['nothing is listed', { TEST_LIST_REPORT: listReport([]) }, 'no test was listed']
+  ])('fails a hosted shard without running a test when %s', async (_case, listed, reason) => {
+    const { status, calls, stdout } = await runSuite({ ...listed, HRONAUT_INTEGRATION_SHARD: '1/2' })
+    expect(status).toBe(1)
+    expect(calls.map(call => call.args)).toEqual([['run', 'build'], listing])
+    expect(stdout).toContain('::error title=Electron shard plan::')
+    expect(stdout).toContain(reason)
   })
 
   it('records how long each test of a hosted shard took, without its output', async () => {

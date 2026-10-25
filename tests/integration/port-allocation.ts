@@ -1,7 +1,9 @@
 // Keep listeners below the measured Docker QA ephemeral range (32768–60999).
 // Reserve enough distinct worker/retry slots without crossing another shard.
-const BASE_INTEGRATION_MCP_PORT = 18_000
-const SHARD_PORT_STRIDE = 500
+// Playwright numbers every worker it starts, after each failure and on each change of worker options too, so a shard
+// keeps 1000 slots; thirteen ranges, the trace fixtures' and the busy-port blocks all end below 32768.
+const BASE_INTEGRATION_MCP_PORT = 12_000
+const SHARD_PORT_STRIDE = 1000
 /** Hosted CI runs shards 1 through 12; 0 is an unsharded run. */
 const MAX_SHARD = 12
 // The trace self-test starts a separate Playwright process whose worker indices

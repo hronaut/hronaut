@@ -7,21 +7,21 @@ describe('integration MCP port allocation', () => {
   it('isolates nested trace fixture workers from every parent shard and retry slot', () => {
     const parentPorts = new Set<number>()
     for (let shard = 0; shard <= 12; shard += 1) {
-      for (let worker = 0; worker < 500; worker += 1) parentPorts.add(integrationMcpPort(String(shard), worker))
+      for (let worker = 0; worker < 1000; worker += 1) parentPorts.add(integrationMcpPort(String(shard), worker))
     }
     const childPorts = new Set<number>()
-    for (let worker = 0; worker < 500; worker += 1) {
+    for (let worker = 0; worker < 1000; worker += 1) {
       const port = integrationMcpPort(undefined, worker, 'trace-fixtures')
       expect(parentPorts.has(port), `nested worker ${worker} overlaps parent port ${port}`).toBe(false)
       childPorts.add(port)
     }
-    expect(childPorts.size).toBe(500)
-    expect(integrationMcpPort(undefined, 2, 'trace-fixtures')).toBe(24_502)
+    expect(childPorts.size).toBe(1000)
+    expect(integrationMcpPort(undefined, 2, 'trace-fixtures')).toBe(25_002)
   })
 
   it.runIf(process.platform === 'linux')('keeps nested trace ports outside the kernel ephemeral range', () => {
     const [first, last] = readFileSync('/proc/sys/net/ipv4/ip_local_port_range', 'utf8').trim().split(/\s+/).map(Number)
-    for (let worker = 0; worker < 500; worker += 1) {
+    for (let worker = 0; worker < 1000; worker += 1) {
       const port = integrationMcpPort('8', worker, 'trace-fixtures')
       expect(port < first! || port > last!).toBe(true)
     }
@@ -36,7 +36,7 @@ describe('integration MCP port allocation', () => {
     expect(first).toBeGreaterThan(0)
     expect(last).toBeGreaterThan(first!)
     for (let shard = 0; shard <= 12; shard += 1) {
-      for (let worker = 0; worker < 500; worker += 1) {
+      for (let worker = 0; worker < 1000; worker += 1) {
         const port = integrationMcpPort(String(shard), worker)
         expect(port < first! || port > last!, `reserved port ${port} overlaps ephemeral ${first}-${last}`).toBe(true)
       }
@@ -46,22 +46,22 @@ describe('integration MCP port allocation', () => {
   it('keeps every reserved shard and worker slot distinct', () => {
     const ports = new Set<number>()
     for (let shard = 0; shard <= 12; shard += 1) {
-      for (let worker = 0; worker < 500; worker += 1) {
+      for (let worker = 0; worker < 1000; worker += 1) {
         ports.add(integrationMcpPort(String(shard), worker))
       }
     }
-    expect(ports.size).toBe(6_500)
+    expect(ports.size).toBe(13_000)
   })
 
-  it.each([-1, 500, 0.5, Number.NaN])('rejects worker index %s instead of overlapping another shard', (worker) => {
+  it.each([-1, 1000, 0.5, Number.NaN])('rejects worker index %s instead of overlapping another shard', (worker) => {
     expect(() => integrationMcpPort('1', worker)).toThrow(RangeError)
   })
 
   it('reserves a distinct range for every Docker shard', () => {
-    expect(integrationMcpPort('1', 0)).toBe(18_500)
-    expect(integrationMcpPort('2', 0)).toBe(19_000)
-    expect(integrationMcpPort('1', 3)).toBe(18_503)
-    expect(integrationMcpPort('12', 0)).toBe(24_000)
+    expect(integrationMcpPort('1', 0)).toBe(13_000)
+    expect(integrationMcpPort('2', 0)).toBe(14_000)
+    expect(integrationMcpPort('1', 3)).toBe(13_003)
+    expect(integrationMcpPort('12', 999)).toBe(24_999)
   })
 
   describe('busy-port blocks', () => {
@@ -73,7 +73,7 @@ describe('integration MCP port allocation', () => {
 
     it('keeps the occupied port and every offer clear of all reserved fixture ports and of each other', () => {
       const reserved = new Set<number>()
-      for (let worker = 0; worker < 500; worker += 1) {
+      for (let worker = 0; worker < 1000; worker += 1) {
         for (let shard = 0; shard <= 12; shard += 1) reserved.add(integrationMcpPort(String(shard), worker))
         reserved.add(integrationMcpPort(undefined, worker, 'trace-fixtures'))
       }
@@ -88,8 +88,10 @@ describe('integration MCP port allocation', () => {
         }
       }
       expect(BUSY_PORT_BLOCK).toBeGreaterThanOrEqual(21)
-      expect(integrationBusyMcpPort(undefined, 0)).toBe(25_000)
-      expect(integrationBusyMcpPort('1', 2)).toBe(25_000 + 18 * BUSY_PORT_BLOCK)
+      expect(integrationBusyMcpPort(undefined, 0)).toBe(26_000)
+      expect(integrationBusyMcpPort('1', 2)).toBe(26_000 + 18 * BUSY_PORT_BLOCK)
+      // The last block's last offer stays below the kernel's usual ephemeral range.
+      expect(integrationBusyMcpPort('12', 15) + 20).toBeLessThan(32_768)
     })
 
     it.runIf(process.platform === 'linux')('keeps busy-port blocks below the running kernel ephemeral range', () => {
@@ -107,10 +109,10 @@ describe('integration MCP port allocation', () => {
   })
 
   it('keeps unsharded and invalid environments on the unsharded range', () => {
-    expect(integrationMcpPort(undefined, 0)).toBe(18_000)
-    expect(integrationMcpPort('invalid', 2)).toBe(18_002)
-    expect(integrationMcpPort('13', 0)).toBe(18_000)
-    expect(integrationMcpPort('99', 0)).toBe(18_000)
+    expect(integrationMcpPort(undefined, 0)).toBe(12_000)
+    expect(integrationMcpPort('invalid', 2)).toBe(12_002)
+    expect(integrationMcpPort('13', 0)).toBe(12_000)
+    expect(integrationMcpPort('99', 0)).toBe(12_000)
   })
 
   // A restart on mcpPort + 1 took the next worker's port, and the port-in-use dialog then covered the Settings button.

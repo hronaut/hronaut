@@ -141,8 +141,10 @@ an isolated runner with one worker to limit native focus and capture contention.
 Each shard lists the suite and takes its part of a split by the test durations in
 `tests/integration/durations.json` (`scripts/plan-integration-shard.ts`), so the
 shards take about the same time; a test without a recorded duration counts as the
-median one. Refresh the file from a CI run's `durations-electron-*` artifacts
-as CONTRIBUTING.md describes.
+median one. A shard that cannot list the suite fails instead of splitting it by
+itself; titles a test list cannot name make every shard keep Playwright's split.
+Refresh the file from a CI run's `durations-electron-*` artifacts as
+CONTRIBUTING.md describes.
 When a hosted shard fails because of at most three tests (failed, or passed only
 on a retry), every other test ran, and no error came from outside a test, it
 reruns each of them three times with no retries. If every rerun passes, the

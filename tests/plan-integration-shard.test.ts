@@ -1,5 +1,7 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { listedTests, planShards, testListLine, testSeconds, unlistable, unrecordedTests, type ListedTest } from '../scripts/plan-integration-shard.ts'
+import { listedTests, planShards, testListLine, testSeconds, unlistable, unrecordedTests, unsplittable, type ListedTest } from '../scripts/plan-integration-shard.ts'
 import { mergedDurations, reportedDurations, serializeDurations } from '../scripts/update-integration-durations.ts'
 
 const test = (title: string, file = 'browser-shell.e2e.ts', describes: string[] = []): ListedTest => ({ file, titlePath: [...describes, title] })
@@ -25,10 +27,28 @@ describe('unlistable', () => {
   it.each<[string, ListedTest[], string]>([
     ['the list separator', [test('opens › closes')], 'cannot be named in a test list'],
     ['surrounding spaces', [test('opens ')], 'cannot be named in a test list'],
+    ['a line break, which ends a test list line', [test('opens\nand closes')], 'cannot be named in a test list'],
     ['the same title path twice', [test('opens'), test('opens')], 'two tests have the same title path'],
     ['a test whose title path starts another one', [test('tabs'), test('close', 'browser-shell.e2e.ts', ['tabs'])], '"browser-shell.e2e.ts › tabs" also selects "browser-shell.e2e.ts › tabs › close"']
   ])('refuses %s', (_case, tests, problem) => {
     expect(unlistable(tests)).toContain(problem)
+  })
+})
+
+describe('unsplittable', () => {
+  it('names the errors of a listing and an empty one, which no shard can take its part of', () => {
+    expect(unsplittable({ errors: [{ message: 'SyntaxError: Unexpected token\n    at tabs.e2e.ts:3' }, 'Error: worker crashed'] }, []))
+      .toBe('listing the tests reported 2 error(s): SyntaxError: Unexpected token; Error: worker crashed')
+    expect(unsplittable({ errors: [] }, [])).toBe('no test was listed')
+    expect(unsplittable({ errors: [] }, [test('opens')])).toBeUndefined()
+  })
+
+  // A test list may split a serial group between shards, which Playwright's --shard never does, and the list report
+  // does not say a group is serial.
+  it('finds no serial test group in the Electron suite', () => {
+    for (const file of readdirSync('tests/integration').filter((name) => name.endsWith('.ts'))) {
+      expect(readFileSync(join('tests/integration', file), 'utf8'), file).not.toMatch(/describe\.serial|mode:\s*['"]serial['"]/)
+    }
   })
 })
 

@@ -46,12 +46,13 @@ export function testListLine(test: ListedTest): string {
 }
 
 /**
- * Why a test list cannot select exactly these tests, if it cannot. `--test-list` splits on › and trims each title, and
- * a line selects every test whose title path starts with it, so such a test would run in no shard or in two.
+ * Why a test list cannot select exactly these tests, if it cannot. `--test-list` reads one test per line, splits it on
+ * › and trims each title, and a line selects every test whose title path starts with it, so such a test would run in
+ * no shard or in two.
  */
 export function unlistable(tests: ListedTest[]): string | undefined {
   for (const test of tests) {
-    if ([test.file, ...test.titlePath].some((part) => part === '' || part.includes('›') || part !== part.trim())) {
+    if ([test.file, ...test.titlePath].some((part) => part === '' || /[›\r\n]/.test(part) || part !== part.trim())) {
       return `"${testListLine(test)}" cannot be named in a test list`
     }
   }
@@ -103,13 +104,19 @@ export function planShards(tests: ListedTest[], durations: TestDurations, total:
   return shards
 }
 
-/** The list report, or why there is none. */
-async function readListReport(path: string): Promise<ListReport | string> {
-  try {
-    return JSON.parse(await readFile(path, 'utf8')) as ListReport
-  } catch (error) {
-    return `the suite could not be listed (${error instanceof Error ? error.message : String(error)})`
+/** Exit status for a suite every shard lists alike that a test list cannot split: the runner keeps `--shard`. */
+export const KEEP_PLAYWRIGHT_SPLIT = 3
+
+/** Why a list report cannot be split at all, which fails the shard: the other shards may have split it by durations. */
+export function unsplittable(report: ListReport, tests: ListedTest[]): string | undefined {
+  if (report.errors?.length) {
+    const messages = report.errors.slice(0, 3).map((error) => {
+      const message = typeof error === 'object' && error && 'message' in error ? String(error.message) : String(error)
+      return message.split('\n')[0]!.slice(0, 300)
+    })
+    return `listing the tests reported ${report.errors.length} error(s): ${messages.join('; ')}`
   }
+  return tests.length === 0 ? 'no test was listed' : undefined
 }
 
 if (isMainModule(import.meta.url)) {
@@ -121,15 +128,17 @@ if (isMainModule(import.meta.url)) {
   const index = Number(selection[1])
   const total = Number(selection[2])
   if (index < 1 || index > total) throw new Error(`Shard ${shard} is out of range.`)
-  const report = await readListReport(listPath)
-  const tests = typeof report === 'string' ? [] : listedTests(report)
-  const problem = typeof report === 'string' ? report
-    : report.errors?.length ? `listing the tests reported ${report.errors.length} error(s)`
-      : tests.length === 0 ? 'no test was listed' : unlistable(tests)
-  if (problem) {
-    // The runner then keeps Playwright's own split by test count.
-    console.log(`Splitting shards by test count: ${problem}.`)
+  const report = JSON.parse(await readFile(listPath, 'utf8')) as ListReport
+  const tests = listedTests(report)
+  const broken = unsplittable(report, tests)
+  const unnamed = broken ? undefined : unlistable(tests)
+  if (broken) {
+    console.log(`::error title=Electron shard plan::Shard ${shard} cannot take its part of the split: ${broken}.`)
     process.exitCode = 1
+  } else if (unnamed) {
+    // Every shard lists the same tests, so every one keeps Playwright's split by test count alike.
+    console.log(`::warning title=Electron shard plan::Splitting shards by test count: ${unnamed}.`)
+    process.exitCode = KEEP_PLAYWRIGHT_SPLIT
   } else {
     let durations: TestDurations = {}
     try {

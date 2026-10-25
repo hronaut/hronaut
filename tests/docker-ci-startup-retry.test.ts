@@ -15,14 +15,16 @@ describe('CI Docker startup recovery', () => {
     { name: 'registry authentication failure', failures: 1, message: 'failed to resolve source metadata: 401 Unauthorized', container: false, attempts: 1, status: 17 },
     { name: 'test HTTP failure', failures: 1, message: 'Expected 200, received 503 Service Unavailable', container: true, attempts: 1, status: 17 },
     { name: 'container failure quoting registry output', failures: 1, message: registryError, container: true, attempts: 1, status: 17 }
-  ].map(scenario => ({ ...scenario, local: false, copySuccess: false, output: '' })).concat([
+  ].map(scenario => ({ ...scenario, local: false, copySuccess: false, output: '', shard: '3/12' })).concat([
     { name: 'local success', failures: 0, message: '', container: true, attempts: 1, status: 0, local: true, copySuccess: false },
     { name: 'local failure preserves artifacts', failures: 1, message: 'Test failed', container: true, attempts: 1, status: 17, local: true, copySuccess: true },
     { name: 'local extraction failure preserves exit status and cleanup', failures: 1, message: 'Test failed', container: true, attempts: 1, status: 17, local: true, copySuccess: false }
-  ].map(scenario => ({ ...scenario, output: '' }))).concat([
+  ].map(scenario => ({ ...scenario, output: '', shard: '' }))).concat([
     // A shard that passed only after a flaky-test recheck keeps the first failures' traces for the fix.
-    { name: 'pass after a flaky-test recheck preserves artifacts', failures: 0, message: '', container: true, attempts: 1, status: 0, local: false, copySuccess: true, output: '::warning title=Flaky Electron tests::1 Electron test(s) failed and then passed 3 of 3 reruns without retries.' },
-    { name: 'pass with another warning keeps no artifacts', failures: 0, message: '', container: true, attempts: 1, status: 0, local: false, copySuccess: true, output: '::warning title=Development dependency advisories::npm audit found issues' }
+    { name: 'pass after a flaky-test recheck preserves artifacts', failures: 0, message: '', container: true, attempts: 1, status: 0, local: false, copySuccess: true, output: '::warning title=Flaky Electron tests::1 Electron test(s) failed and then passed 3 of 3 reruns without retries.', shard: '3/12' },
+    { name: 'pass with another warning keeps no artifacts', failures: 0, message: '', container: true, attempts: 1, status: 0, local: false, copySuccess: true, output: '::warning title=Development dependency advisories::npm audit found issues', shard: '3/12' },
+    // A standalone run without a shard records no durations to keep.
+    { name: 'standalone success keeps no durations', failures: 0, message: '', container: true, attempts: 1, status: 0, local: false, copySuccess: true, output: '', shard: '' }
   ]))('$name', scenario => {
     const directory = mkdtempSync(join(tmpdir(), 'hronaut-ci-startup-'))
     try {
@@ -72,7 +74,7 @@ if (args[0] === 'cp') {
         timeout: 5000,
         env: {
           ...process.env, PATH: `${bin}:${process.env.PATH}`, HRONAUT_INTEGRATION_IMAGE_PREBUILT: 'false',
-          HRONAUT_INTEGRATION_SHARDS: undefined, HRONAUT_INTEGRATION_SKIP_TYPECHECK: undefined
+          HRONAUT_INTEGRATION_SHARDS: undefined, HRONAUT_INTEGRATION_SKIP_TYPECHECK: undefined, HRONAUT_INTEGRATION_SHARD: scenario.shard
         }
       })
       expect(result.error).toBeUndefined()
@@ -92,7 +94,7 @@ if (args[0] === 'cp') {
       const copied = calls.filter(call => call[0] === 'cp').map(call => call[1]?.split(':')[1])
       const diagnostics = (scenario.status !== 0 || flakyPass) && scenario.container ? ['/workspace/test-results', '/workspace/playwright-report'] : []
       // Every hosted shard also keeps its test durations, whether it passed or not.
-      const durations = !scenario.local && scenario.container ? ['/workspace/test-results/durations'] : []
+      const durations = !scenario.local && scenario.shard && scenario.container ? ['/workspace/test-results/durations'] : []
       expect(copied).toEqual([...diagnostics, ...durations])
       expect(calls.at(-1)).toEqual(['rm', '--force', firstRun[firstRun.indexOf('--name') + 1]])
       if (flakyPass) expect(readFileSync(join(directory, 'ci-artifacts/proof.txt'), 'utf8')).toBe('retained failure')
