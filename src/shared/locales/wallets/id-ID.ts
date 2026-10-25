@@ -132,7 +132,7 @@ export const idIDWallets = {
   "noWalletsConfiguredDescription": "Tambahkan dompet untuk membuat akun baru, mengimpor akun yang sudah ada, atau memantau alamat publik.",
   "signingVault": "Perlindungan kunci penandatanganan",
   "lockVaultDescription": "Mengunci akan menghapus kunci penandatanganan yang sudah didekripsi dan data otoritas dompet dari memori, serta menjeda penandatanganan terkelola. Tindakan ini tidak menutup tab, mengganggu penjelajahan biasa, atau menonaktifkan dompet khusus pantau.",
-  "lockSigningKeys": "Kunci penandatanganan",
+  "lockSigningKeys": "Kunci semua kunci penandatanganan",
   "selectWallet": "Pilih dompet",
   "walletOption": "{name} · {chain} · {kind}",
   "address": "Alamat",

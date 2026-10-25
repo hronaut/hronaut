@@ -557,7 +557,7 @@ export const reproStepMessages = {
       "checked": "dicentang",
       "unchecked": "tidak dicentang",
       "count": "jumlah",
-      "urlPath": "urlPath"
+      "urlPath": "jalur URL"
     }
   },
   "vi-VN": {

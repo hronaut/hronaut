@@ -216,7 +216,7 @@ export const viVNAppErrors: AppErrorMessages = {
     "unknownOutcomeUnacknowledged": "Hãy xác nhận rằng bạn đã xem xét trang và hiểu rằng thao tác trước đó có thể đã có tác dụng."
   },
   "lifecycle": {
-    "homeTab": "Chỉ có thể cố định hoặc tiếp tục các thẻ trang đang chạy.",
+    "homeTab": "Chỉ có thể đóng băng hoặc tiếp tục các thẻ trang đang chạy.",
     "sleeping": "Hãy đánh thức thẻ đang ngủ trước khi thay đổi vòng đời trang của thẻ.",
     "rendererUnavailable": "Trình kết xuất của thẻ không khả dụng.",
     "closedWhileChanging": "Thẻ đã đóng trong khi thay đổi vòng đời trang.",

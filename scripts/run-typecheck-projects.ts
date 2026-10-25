@@ -28,7 +28,7 @@ const projects: TypecheckProject[] = [
 
 /**
  * The heap each compiler gets. Node's own limit can be as low as 2 GB, which the node project's check outgrew with
- * fifteen interface languages: it needs about 2.6 GB.
+ * fifteen interface languages: it needed about 2.6 GB then, and seventeen still check within this heap.
  */
 const COMPILER_HEAP_MB = 4096
 

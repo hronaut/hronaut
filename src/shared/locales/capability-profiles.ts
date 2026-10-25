@@ -757,7 +757,7 @@ export const capabilityProfileMessages = {
     "name": "Tên hồ sơ",
     "preset": "Mức truy cập đặt sẵn",
     "presetReadOnly": "Chỉ đọc",
-    "presetEssentials": "Trình duyệt cơ bản",
+    "presetEssentials": "Thiết yếu cho trình duyệt",
     "presetQa": "Kiểm thử web",
     "presetComplete": "Đầy đủ",
     "parent": "Khả năng mẹ (không bắt buộc)",

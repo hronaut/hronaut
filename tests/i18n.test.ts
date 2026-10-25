@@ -68,8 +68,8 @@ describe('locale resolution', () => {
     ['ko', 'ko-KR'], ['zh', 'zh-CN'], ['zh-CN', 'zh-CN'], ['zh-SG', 'zh-CN'], ['zh-Hans-CN', 'zh-CN'],
     // Chinese for Taiwan, Hong Kong and Macau, or written in Traditional script, is Traditional Chinese.
     ['zh-TW', 'zh-TW'], ['zh_TW', 'zh-TW'], ['zh-HK', 'zh-TW'], ['zh-MO', 'zh-TW'], ['zh-Hant', 'zh-TW'], ['zh-Hant-HK', 'zh-TW'],
-    ['id', 'id-ID'], ['id-ID', 'id-ID'], ['id_ID', 'id-ID'], ['vi', 'vi-VN'], ['vi-VN', 'vi-VN'],
-    ['nl-NL', 'en-US'], ['', 'en-US']
+    ['id', 'id-ID'], ['id-ID', 'id-ID'], ['id_ID', 'id-ID'], ['vi', 'vi-VN'], ['vi-VN', 'vi-VN'], ['vi_VN', 'vi-VN'],
+    ['nl-NL', 'en-US'], ['ms-MY', 'en-US'], ['', 'en-US']
   ] as const)('normalizes %s to %s', (input, expected) => {
     expect(resolveSupportedLocale(input)).toBe(expected)
   })

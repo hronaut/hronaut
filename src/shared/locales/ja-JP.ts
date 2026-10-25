@@ -437,7 +437,7 @@ export const jaJP: MessageSchema = {
       "toolSetDescription": "新しい MCP 接続で使用する、タスク別のカタログを選択します。",
       "toolSetEssentials": "ブラウザの基本機能",
       "toolSetQa": "Web QA",
-      "toolSetComplete": "完了",
+      "toolSetComplete": "完全",
       "toolSetReconnect": "接続済みの MCP クライアントは現在のカタログを使い続けます。この変更を適用するには再接続してください。",
       "port": "MCP サーバーのポート",
       "portDescription": "Hronaut を再起動せずにローカルのリスナーを移動します。接続済みのクライアントは新しいエンドポイントを使用する必要があります。",

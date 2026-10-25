@@ -138,7 +138,7 @@ export const idID: MessageSchema = {
       "UNKNOWN": "Hasil tidak diketahui"
     },
     "review": {
-      "heading": "Tindakan berdampak", "step": "Langkah {current} dari {total}", "expected": "Hasil yang diharapkan", "tool": "Alat", "actionClass": "Kelas tindakan", "reversibility": "Reversibilitas", "workspace": "Ruang kerja", "profile": "Profil kapabilitas", "authority": "Generasi otoritas", "origin": "Origin saat ini", "tab": "Tab", "navigation": "Generasi navigasi", "humanInput": "Generasi input manusia", "browserSession": "Generasi sesi browser", "artifact": "Hash artefak persis", "timeline": "Linimasa tanda terima peninjauan", "visibleOnly": "Mutasi ini tidak dapat direpresentasikan dengan aman sebagai teks. Periksa browser yang terlihat sebelum memutuskan.",
+      "heading": "Tindakan berdampak", "step": "Langkah {current} dari {total}", "expected": "Hasil yang diharapkan", "tool": "Alat", "actionClass": "Kelas tindakan", "reversibility": "Reversibilitas", "workspace": "Ruang kerja", "profile": "Profil kemampuan", "authority": "Generasi otoritas", "origin": "Origin saat ini", "tab": "Tab", "navigation": "Generasi navigasi", "humanInput": "Generasi input manusia", "browserSession": "Generasi sesi browser", "artifact": "Hash artefak persis", "timeline": "Linimasa tanda terima peninjauan", "visibleOnly": "Mutasi ini tidak dapat direpresentasikan dengan aman sebagai teks. Periksa browser yang terlihat sebelum memutuskan.",
       "statuses": { "PROPOSED": "Diusulkan", "REVIEWED": "Ditinjau", "APPROVED": "Disetujui", "REJECTED": "Ditolak", "CANCELLED": "Dibatalkan", "EXPIRED": "Kedaluwarsa", "ATTEMPTED": "Dicoba", "VERIFIED": "Terverifikasi", "UNKNOWN": "Tidak diketahui" },
       "reversibilities": { "reversible": "Dapat diurungkan", "conditionally-reversible": "Dapat diurungkan dengan syarat", "irreversible": "Tidak dapat diurungkan", "unknown": "Tidak diketahui" }
     },
@@ -390,7 +390,7 @@ export const idID: MessageSchema = {
         "save": "Simpan",
         "cancel": "Batal",
         "edit": "Edit",
-        "editAria": "Ubah {name}",
+        "editAria": "Edit {name}",
         "remove": "Hapus",
         "removeAria": "Hapus {name}",
         "nameMissing": "Masukkan nama",
@@ -443,7 +443,7 @@ export const idID: MessageSchema = {
       "portDescription": "Pindahkan listener lokal tanpa memulai ulang Hronaut. Klien yang terhubung harus menggunakan endpoint baru.",
       "moving": "Memindahkan…",
       "applyPort": "Terapkan port",
-      "tokenHelp": "Token kompatibilitas memberikan akses penuh. Gunakan profil kapabilitas untuk klien yang dibatasi.",
+      "tokenHelp": "Token kompatibilitas memberikan akses penuh. Gunakan profil kemampuan untuk klien yang dibatasi.",
       "warning": "Autentikasi nonaktif. Siapa pun yang dapat menjangkau listener ini dapat mengontrol tab yang sudah login dan melampirkan file lokal, termasuk dari komputer lain saat akses jarak jauh aktif.",
       capabilities: capabilityProfileMessages['id-ID']
     },
@@ -1433,7 +1433,7 @@ export const idID: MessageSchema = {
       "inputLocked": "Input halaman terkunci",
       "switchWorkspace": "Beralih ruang kerja",
       "switchWorkspaceTitle": "Beralih ruang kerja (Ctrl/Cmd+K)",
-      "allWorkspaces": "{count} ruang kerja",
+      "allWorkspaces": "Semua ruang kerja ({count})",
       "allWorkspacesTitle": "Tampilkan semua ruang kerja (Ctrl/Cmd+K)",
       "unlistedWorkspaceNeedsYou": "Ruang kerja yang tidak tercantum di sini memerlukan tindakan Anda",
       "createWorkspaceTitle": "Buat ruang kerja terisolasi baru",
@@ -3674,7 +3674,7 @@ export const idID: MessageSchema = {
       "freezePage": "Bekukan halaman untuk peninjauan",
       "resumePage": "Lanjutkan halaman",
       "pageLifecycleUnknown": "Hasil penahanan halaman tidak diketahui",
-      "wakeTab": "Aktifkan tab",
+      "wakeTab": "Bangunkan tab",
       "sleepTab": "Tidurkan tab",
       "moveLeft": "Pindahkan tab ke kiri",
       "moveRight": "Pindahkan tab ke kanan",
