@@ -36,7 +36,7 @@ test('clears the history of the last hour and keeps the visits before it', async
     await expect.poll(history).toEqual([old.url])
     expect(await answeredTrustedDialogs(window)).toEqual(['Clear browsing history for all websites?'])
     await expect.poll(closedTabs).not.toContain(recent)
-    await expect(section.getByRole('status')).toContainText('cleared')
+    await expect(section.locator('output.privacy-data-status:not(.janitor-status)')).toContainText('cleared for all websites')
   } finally {
     await closeHronaut(app)
     await closeFixtureServer(server)
