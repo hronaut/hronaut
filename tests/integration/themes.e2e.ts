@@ -296,28 +296,46 @@ test('resets every Appearance preference including interface size, and only thos
   // The last change's own update reaches the window first, so the probe below counts only the reset's.
   await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.tabPosition)')).toBe('top')
   await appWindow.evaluate(async () => {
+    type Settings = Record<string, unknown>
     const page = window as typeof window & {
       hronautSettings: {
-        get: () => Promise<unknown>
-        onChanged: (listener: (settings: unknown) => void) => () => void
+        get: () => Promise<Settings>
+        onChanged: (listener: (settings: Settings) => void) => () => void
       }
-      __appearanceResetProbe?: { count: () => number, dispose: () => void }
+      __appearanceResetProbe?: { changes: () => string[][], dispose: () => void }
     }
-    // Startup finishing, such as the MCP listener coming up, sends the same settings again; only a change counts.
-    let last = JSON.stringify(await page.hronautSettings.get())
-    let count = 0
-    const dispose = page.hronautSettings.onChanged((settings) => {
-      const next = JSON.stringify(settings)
-      if (next !== last) count += 1
-      last = next
-    })
-    page.__appearanceResetProbe = { count: () => count, dispose }
+    const changedKeys = (from: Settings, to: Settings) => [...new Set([...Object.keys(from), ...Object.keys(to)])]
+      .filter((key) => JSON.stringify(from[key]) !== JSON.stringify(to[key]))
+      .sort()
+    const current = await page.hronautSettings.get()
+    const received: Settings[] = []
+    const dispose = page.hronautSettings.onChanged((settings) => { received.push(settings) })
+    page.__appearanceResetProbe = {
+      // The keys each update changed after the last one that still had these settings: updates main sent earlier can
+      // reach a busy window after get() answers, as the earlier changes' own did, so the probe counted them too
+      // (3 instead of 1 in the v3.12.0 release run). Startup finishing, such as the MCP listener coming up, sends the
+      // same settings again; only a change counts.
+      changes: () => {
+        let start = 0
+        received.forEach((settings, index) => { if (changedKeys(current, settings).length === 0) start = index + 1 })
+        let previous = current
+        const changes: string[][] = []
+        for (const settings of received.slice(start)) {
+          const keys = changedKeys(previous, settings)
+          if (keys.length > 0) changes.push(keys)
+          previous = settings
+        }
+        return changes
+      },
+      dispose
+    }
   })
-  // As startup finishing does whenever it gets there on a slow machine, main sends the same settings again.
-  const unchanged = await appWindow.evaluate('window.hronautSettings.get()')
-  await electronApp.evaluate(({ BrowserWindow }, settings) => {
-    BrowserWindow.getAllWindows()[0]!.webContents.send('settings:changed', settings)
-  }, unchanged)
+  // As a busy window can, it takes the interface size's and tab position's own updates only now, and then, as startup
+  // finishing does whenever it gets there on a slow machine, main sends the same settings again.
+  const unchanged = await appWindow.evaluate('window.hronautSettings.get()') as Record<string, unknown>
+  await electronApp.evaluate(({ BrowserWindow }, updates) => {
+    for (const settings of updates) BrowserWindow.getAllWindows()[0]!.webContents.send('settings:changed', settings)
+  }, [{ ...unchanged, tabPosition: 'left' }, unchanged, unchanged])
 
   await appWindow.locator('.settings-header .secondary-button').click()
 
@@ -337,12 +355,13 @@ test('resets every Appearance preference including interface size, and only thos
   })
   await sections.nth(0).click()
   await expect(appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })).not.toBeChecked()
+  // The reset reaches the window as one update, with only Appearance's settings changed.
   await expect.poll(() => appWindow.evaluate(() => {
     const page = window as typeof window & {
-      __appearanceResetProbe?: { count: () => number }
+      __appearanceResetProbe?: { changes: () => string[][] }
     }
-    return page.__appearanceResetProbe?.count()
-  })).toBe(1)
+    return page.__appearanceResetProbe?.changes()
+  })).toEqual([['interfaceScale', 'tabPosition', 'theme']])
   await appWindow.evaluate(() => {
     const page = window as typeof window & {
       __appearanceResetProbe?: { dispose: () => void }
