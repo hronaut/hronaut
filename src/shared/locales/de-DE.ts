@@ -3634,6 +3634,7 @@ export const deDE = {
       "bookmarkAllTabs": "Alle Tabs als Lesezeichen speichern…",
       "openLink": "Link in neuem Tab öffnen",
       "copyLink": "Linkadresse kopieren",
+      "copyLinkToHighlight": "Link zur Markierung kopieren",
       "copyEmail": "E-Mail-Adresse kopieren",
       "saveLink": "Link speichern",
       "openImage": "Bild in neuem Tab öffnen",

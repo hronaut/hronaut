@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 - **Inline autocomplete** in the address bar, as in Chrome: typing the start of a bookmarked site, or one visited more than once, fills in the rest of its address after what you typed, selected, and **Enter** opens it with its own scheme and port; **Backspace** takes the rest away and the arrow keys go back to what you typed.
 - **Link status bubble**, as in Chrome: pointing at a link, or giving one keyboard focus, shows its address in a small bubble at the page's bottom left corner after a short pause; it moves to the bottom right corner out of the pointer's way, widens to the whole address after resting on a long one, and shows nothing for an agent's pointing.
 - **Tab to search** in the address bar, as in Chrome: typing a built-in search engine's site, such as `bing.com`, or a start the field fills in to one, offers **Press Tab to search Bing**; **Tab**, or a space after the site, turns the field into a search box for that engine, shown by a chip before the text, and **Backspace** at its start gives the site back.
+- **Copy Link to Highlight**, as in Chrome: text selected on a page offers it in the page's context menu, after **Copy**, and copies a link to the page that opens it scrolled to that text, highlighted. The link takes whole words, and the words around text the page holds more than once.
 
 ## [3.11.0] - 2026-10-24
 

@@ -3634,6 +3634,7 @@ export const esES = {
       "bookmarkAllTabs": "Añadir todas las pestañas a marcadores…",
       "openLink": "Abrir enlace en pestaña nueva",
       "copyLink": "Copiar dirección del enlace",
+      "copyLinkToHighlight": "Copiar enlace al texto destacado",
       "copyEmail": "Copiar dirección de correo electrónico",
       "saveLink": "Guardar enlace",
       "openImage": "Abrir imagen en pestaña nueva",

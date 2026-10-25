@@ -1,18 +1,23 @@
-import { app, Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebFrameMain } from 'electron'
+import { app, clipboard, Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebFrameMain } from 'electron'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import { pageSourceAddress } from '../page-source/page-source.js'
 import { searchEngineLabel, selectionAddressKept, selectionGoToUrl, selectionSearchLabelText, selectionSearchQuery, selectionSearchUrl } from '../selection-search/selection-search.js'
 import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
 import { openedResourceReferrer, savedResourceReferrer } from './page-context-menu-referrer.js'
+import { readHighlightPageText } from './highlight-page-text.js'
+import { textFragmentLink } from './text-fragment-link.js'
 
 // The fields Chrome offers the emoji picker in: an editable element, which has no form control, a text, search,
 // address, email or password input, or a text area. A number, telephone or date field takes no emoji.
 const EMOJI_FIELDS: ReadonlySet<ContextMenuParams['formControlType']> = new Set(['none', 'input-text', 'input-search', 'input-url', 'input-email', 'input-password', 'text-area'])
+// Copy link to highlight reads the page before it copies, so a copy the menu made meanwhile is newer and keeps the
+// clipboard: each copy the menu makes counts here.
+let menuCopies = 0
 
 /**
  * Shows the native context menu for a right-click in the page: link, image,
- * editing and selection actions for what was clicked, with a search for the
- * selected text or a visit to a selected address, then page navigation, copy address, save, print, view source, the
+ * editing and selection actions for what was clicked, with a link to the
+ * selected text and a search for it or a visit to a selected address, then page navigation, copy address, save, print, view source, the
  * source and reload of a frame inside the page, and inspect. Each action checks that its tab is still open.
  */
 export function showContextMenu<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, params: ContextMenuParams): void {
@@ -40,6 +45,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     access.options().onClipboardCopyFailed?.(error)
   }
   const copyText = (text: string): void => {
+    menuCopies++
     void access.options().copyText(text).catch((error) => reportCopyFailure('text', error))
   }
   // Electron types the frame's referrer policy as a Referrer, but reports the policy name.
@@ -103,6 +109,24 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       label: access.text('native.context.searchFor', { engine: searchEngineLabel(engine), text: selectionSearchLabelText(query) }),
       click: openSelectionTab('search for the selection', selectionSearchUrl(query, engine))
     }]
+  }
+  // Chrome's Copy link to highlight, for text selected in the page itself: a frame inside the page has an address of its
+  // own, and Chrome makes no link for text in one either. The link is made from the page's text when the item is
+  // chosen, and from the menu's selected text when the page cannot give it. See text-fragment-link.ts.
+  const linkToHighlight = (): MenuItemConstructorOptions[] => {
+    if (frame || params.frameURL !== params.pageURL) return []
+    const selectedTextLink = textFragmentLink(params.pageURL, params.selectionText)
+    if (!selectedTextLink) return []
+    const copyLink = async (): Promise<void> => {
+      const copy = ++menuCopies
+      // Text copied some other way meanwhile, such as with Ctrl+C, is newer than the link and keeps the clipboard too.
+      const [clipboardBefore, page] = await Promise.all([clipboardText(), readHighlightPageText(webContents, params.selectionText)])
+      if (copy !== menuCopies) return
+      const clipboardNow = await clipboardText()
+      if (copy !== menuCopies || clipboardNow !== clipboardBefore) return
+      copyText((page && textFragmentLink(params.pageURL, page)) ?? selectedTextLink)
+    }
+    return [{ id: 'copy-link-to-highlight', label: access.text('native.context.copyLinkToHighlight'), click: () => void copyLink() }]
   }
   const copyImage = (): void => {
     void access.options().copyImageAt(webContents, params.x, params.y)
@@ -226,7 +250,11 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     const search = searchSelection()
     if (search.length) groups.push(search)
   } else if (params.selectionText) {
-    groups.push([{ id: 'copy-selection', label: access.text('native.context.copy'), click: withLiveContents('copy selection', () => webContents.copy()) }, ...searchSelection()])
+    groups.push([
+      { id: 'copy-selection', label: access.text('native.context.copy'), click: withLiveContents('copy selection', () => webContents.copy()) },
+      ...linkToHighlight(),
+      ...searchSelection()
+    ])
   }
 
   const navigation = webContents.navigationHistory
@@ -383,4 +411,9 @@ async function inspectElement<Tab extends PageContextMenuTab>(access: PageContex
   const webContents = tab.webContents
   // Inspecting opens Developer Tools by itself, so check again for a tab that shows Home by now.
   if (!webContents.isDestroyed() && !isHronautHomeUrl(tab.url)) webContents.inspectElement(Math.round(x), Math.round(y))
+}
+
+// The clipboard's text, to tell whether anything was copied since; it stays in main.
+function clipboardText(): Promise<string | undefined> {
+  return clipboard.readText().catch(() => undefined)
 }
