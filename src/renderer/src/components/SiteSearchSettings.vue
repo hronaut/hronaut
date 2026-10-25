@@ -45,9 +45,6 @@ const keyword = ref('')
 const url = ref('')
 // Whether Save was pressed, after which the form names what is wrong as it is typed.
 const attempted = ref(false)
-// Each form opened or closed, so that a save that ends after the form changed leaves the newer one as it is.
-let formGeneration = 0
-
 const siteSearches = computed(() => settings.value.siteSearches)
 const full = computed(() => siteSearches.value.length >= SITE_SEARCH_LIMIT)
 const problems = computed(() => siteSearchProblems(
@@ -63,7 +60,6 @@ function problemText(problem: SiteSearchProblem | undefined): string | undefined
 
 async function openForm(entry: SiteSearch | null): Promise<void> {
   if (siteSearchBusy.value || (entry === null && full.value)) return
-  formGeneration += 1
   editing.value = entry?.id ?? null
   name.value = entry?.name ?? ''
   keyword.value = entry?.keyword ?? ''
@@ -84,7 +80,6 @@ async function focusHeading(): Promise<void> {
 }
 
 function closeForm(): Promise<void> {
-  formGeneration += 1
   editing.value = undefined
   attempted.value = false
   return focusHeading()
@@ -99,17 +94,13 @@ async function save(): Promise<void> {
     form.value?.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus()
     return
   }
-  const generation = formGeneration
-  const saved = await saveSiteSearch(id, { name: name.value, keyword: keyword.value, url: url.value })
-  if (saved && generation === formGeneration) await closeForm()
+  // No other form opens while the save runs, and a form closed meanwhile stays closed with the keyboard where it went.
+  if (await saveSiteSearch(id, { name: name.value, keyword: keyword.value, url: url.value })) await closeForm()
 }
 
 async function remove(entry: SiteSearch): Promise<void> {
   if (!await removeSiteSearch(entry.id)) return
-  if (editing.value === entry.id) {
-    formGeneration += 1
-    editing.value = undefined
-  }
+  if (editing.value === entry.id) editing.value = undefined
   await focusHeading()
 }
 

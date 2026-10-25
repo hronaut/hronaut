@@ -177,9 +177,8 @@ describe('Site search settings', () => {
     add.focus()
     settings.value = { ...settings.value, siteSearches: [WIKIPEDIA] }
     pending.resolve(settings.value)
-    await pending.promise
-    await nextTick()
-    await nextTick()
+    // Every step after the save runs before the next task.
+    await new Promise((resolve) => setTimeout(resolve, 0))
     expect(add).toHaveFocus()
     expect(add).not.toHaveAttribute('aria-disabled')
     expect(within(region).getAllByRole('listitem')).toHaveLength(1)
