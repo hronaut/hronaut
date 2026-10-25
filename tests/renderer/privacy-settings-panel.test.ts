@@ -133,6 +133,28 @@ describe('PrivacySettingsPanel', () => {
     controller.dispose()
   })
 
+  // As Chrome's Delete browsing data: All time, as before, unless a shorter range is chosen.
+  it('clears the history of the time range chosen, All time unless another is', async () => {
+    const { api, controller } = renderPanel()
+    controller.summary.value = { ...EMPTY_SUMMARY, historyEntries: 3 }
+    await nextTick()
+    const range = within(screen.getByRole('region', { name: 'Global history' })).getByRole('combobox', { name: 'Time range' })
+    expect(range).toHaveValue('allTime')
+    // Clearing one website below takes all its history, whatever the range.
+    expect(range).toHaveAccessibleDescription('Applies to all websites. Clearing one website below removes all of its history.')
+    expect([...range.querySelectorAll('option')].map((option) => option.textContent?.trim()))
+      .toEqual(['Last hour', 'Last 24 hours', 'Last 7 days', 'Last 4 weeks', 'All time'])
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Clear history…' }))
+    expect(api.clear).toHaveBeenLastCalledWith({ history: true, timeRange: 'allTime' })
+    await vi.waitFor(() => expect(controller.summaryState.value).not.toBe('clearing'))
+    controller.summary.value = { ...EMPTY_SUMMARY, historyEntries: 3 }
+    await user.selectOptions(range, 'Last hour')
+    await user.click(screen.getByRole('button', { name: 'Clear history…' }))
+    expect(api.clear).toHaveBeenLastCalledWith({ history: true, timeRange: 'lastHour' })
+    controller.dispose()
+  })
+
   it('blocks refresh and clear controls for the full duration of a clear operation', async () => {
     const { controller } = renderPanel()
 
@@ -141,6 +163,7 @@ describe('PrivacySettingsPanel', () => {
 
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Clearing all…' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'Time range' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Clear history for https://example.test' })).toHaveAttribute('aria-disabled', 'true')
     controller.dispose()
   })

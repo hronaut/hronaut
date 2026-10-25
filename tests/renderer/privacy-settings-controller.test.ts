@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { usePrivacySettingsController } from '../../src/renderer/src/composables/usePrivacySettingsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import type { Confirmation } from '../../src/shared/confirmation.js'
 import type { BrowsingDataSummary, BrowsingDataWebsiteSummary, SupportedLocale } from '../../src/shared/types.js'
 
 function summary(historyEntries: number): BrowsingDataSummary {
@@ -44,7 +45,7 @@ function createController(locale?: SupportedLocale) {
     websites: vi.fn(async () => [website('current.test')]),
     clear: vi.fn(async () => summary(0))
   }
-  const confirm = vi.fn(async () => true)
+  const confirm = vi.fn(async (_question: Confirmation) => true)
   const controller = usePrivacySettingsController({
     api,
     confirm,
@@ -102,7 +103,7 @@ describe('privacy settings controller', () => {
     else await controller.clearSelected()
     expect(confirm).toHaveBeenCalledOnce()
     expect(api.clear).toHaveBeenCalledExactlyOnceWith(scope === 'site'
-      ? { history: true, origin: target.origin } : { history: true })
+      ? { history: true, origin: target.origin } : { history: true, timeRange: 'allTime' })
     controller.dispose()
   })
 
@@ -201,7 +202,7 @@ describe('privacy settings controller', () => {
 
     expect(controller.summary.value?.historyEntries).toBe(0)
     expect(controller.summaryState.value).toBe('cleared')
-    expect(api.clear).toHaveBeenCalledWith({ history: true })
+    expect(api.clear).toHaveBeenCalledWith({ history: true, timeRange: 'allTime' })
     controller.dispose()
   })
 
@@ -217,6 +218,21 @@ describe('privacy settings controller', () => {
     answer(true)
     await clearing
     expect(api.clear).toHaveBeenCalledExactlyOnceWith(asked)
+    controller.dispose()
+  })
+
+  it('names a time range other than All time in the question, and clears a website for all time', async () => {
+    const { api, confirm, controller } = createController('en-US')
+    const asked: Confirmation[] = []
+    confirm.mockImplementation(async (question: Confirmation) => { asked.push(question); return true })
+    controller.summary.value = summary(3)
+    controller.clearOptions.value = { ...controller.clearOptions.value, timeRange: 'last7Days' }
+    await controller.clearSelected()
+    expect(asked[0]?.detail).toContain('• Browsing history and its address suggestions\n• Time range: Last 7 days')
+    expect(api.clear).toHaveBeenLastCalledWith({ history: true, timeRange: 'last7Days' })
+    await controller.clearWebsite(website('current.test'))
+    expect(api.clear).toHaveBeenLastCalledWith({ history: true, origin: 'https://current.test' })
+    expect(JSON.stringify(asked[1])).not.toContain('Time range')
     controller.dispose()
   })
 

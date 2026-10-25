@@ -159,6 +159,61 @@ describe('recently closed tabs and the history', () => {
     expect(closedTabs).toEqual([])
   })
 
+  // As Chrome's Delete browsing data, the last hour goes and what was visited before it stays. Electron gives a tab's
+  // pages no visit times, so Recently closed keeps only pages the history shows a visit to from before the hour only.
+  it('clears a time range of history, with those pages\' closed tabs and the steps Home lists from then', async () => {
+    const hour = 60 * 60 * 1000
+    const { closedTabs, tabs } = recentlyClosed([
+      'https://old.example/', 'https://recent.example/page#top', 'https://never.example/', 'https://both.example/',
+      'view-source:https://old.example/', 'view-source:https://recent.example/page', 'data:text/html,private'
+    ])
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-history-closed-tabs-test-'))
+    temporaryDirectories.push(directory)
+    let now = Date.now() - 3 * hour
+    const history = new HistoryStore(join(directory, 'history.json'), () => now)
+    await history.load()
+    await history.record({ url: 'https://old.example/', title: 'Old' })
+    await history.record({ url: 'https://both.example/', title: 'Both' })
+    now = Date.now()
+    await history.record({ url: 'https://recent.example/page', title: 'Recent' })
+    await history.record({ url: 'https://both.example/', title: 'Both' })
+    const handlers = new Map<string, (...args: unknown[]) => unknown>()
+    const forgetHomeFeed = vi.fn()
+    const forgetHomeFeedSince = vi.fn()
+    registerBrowsingDataIpc({
+      assertTrustedSender: () => undefined,
+      handleBrowserIpc: ((channel: string, listener: (...args: unknown[]) => unknown) => { handlers.set(channel, listener) }) as never,
+      tabs: () => ({ ...tabs, getState: () => ({ tabs: [] }) }) as never,
+      historyStore: () => history,
+      bookmarkStore: () => null,
+      credentialStore: () => null,
+      sitePermissionStore: () => null,
+      mcpServer: () => ({ forgetHomeFeed, forgetHomeFeedSince }),
+      publishVisitHistory: () => undefined,
+      currentBrowsingDataSiteSummary: async () => { throw new Error('Not used') }
+    })
+    const clear = async (options: unknown) => handlers.get('browsing-data:clear')!({}, options)
+    const before = Date.now()
+    await clear({ history: true, timeRange: 'lastHour' })
+    expect(history.list().map(({ url, visitCount }) => [url, visitCount])).toEqual([['https://both.example/', 1], ['https://old.example/', 1]])
+    expect(closedTabs.map((tab) => tab.url)).toEqual(['https://old.example/', 'view-source:https://old.example/'])
+    expect(forgetHomeFeed).not.toHaveBeenCalled()
+    const [since] = forgetHomeFeedSince.mock.calls[0] as [number]
+    expect(since).toBeGreaterThanOrEqual(before - hour)
+    expect(since).toBeLessThanOrEqual(Date.now() - hour)
+
+    for (const options of [
+      { history: true, timeRange: 'lastYear' },
+      { history: true, timeRange: 3_600_000 },
+      // A website's history is cleared for all time, as in Chrome.
+      { history: true, origin: 'https://old.example', timeRange: 'lastHour' }
+    ]) await expect(clear(options)).rejects.toThrow('Invalid history clearing options')
+    await clear({ history: true, timeRange: 'allTime' })
+    expect(history.list()).toEqual([])
+    expect(closedTabs).toEqual([])
+    expect(forgetHomeFeed).toHaveBeenCalledOnce()
+  })
+
   it('forgets the closed tabs of a website whose history an agent clears, only in its workspace', async () => {
     const { closedTabs, tabs } = recentlyClosed(['https://shop.example/cart', ...otherWebsites, 'https://news.example/'], 'workspace')
     // The person's tab on the website in another workspace is not the agent's to forget.
