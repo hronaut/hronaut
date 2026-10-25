@@ -5,6 +5,7 @@ import type {
   AddressSuggestionOverlayRequest,
   AddressSuggestionSelection
 } from '../shared/address-suggestions.js'
+import { ADDRESS_SUGGESTION_TITLE_MAX_LENGTH, ADDRESS_SUGGESTION_URL_MAX_LENGTH, hasSwitchToTabButton } from '../shared/address-suggestions.js'
 import { isResolvedThemeName } from '../shared/theme.js'
 
 interface AddressOverlayIpcHost {
@@ -23,16 +24,20 @@ function validAddressSuggestion(value: unknown): value is AddressSuggestion {
     typeof suggestion.id === 'string'
     && suggestion.id.length > 0
     && suggestion.id.length <= 512
-    && (suggestion.kind === 'bookmark' || suggestion.kind === 'history')
+    && (suggestion.kind === 'bookmark' || suggestion.kind === 'history' || suggestion.kind === 'tab')
     && typeof suggestion.title === 'string'
-    && suggestion.title.length <= 4_096
+    && suggestion.title.length <= ADDRESS_SUGGESTION_TITLE_MAX_LENGTH
     && typeof suggestion.url === 'string'
     && suggestion.url.length > 0
-    && suggestion.url.length <= 32_768
+    && suggestion.url.length <= ADDRESS_SUGGESTION_URL_MAX_LENGTH
     && (
       suggestion.visitCount === undefined
       || (typeof suggestion.visitCount === 'number' && Number.isFinite(suggestion.visitCount) && suggestion.visitCount >= 0)
     )
+    // An open tab's row always names its tab.
+    && (suggestion.openTabId === undefined ? suggestion.kind !== 'tab' : (
+      typeof suggestion.openTabId === 'string' && suggestion.openTabId.length > 0 && suggestion.openTabId.length <= 512
+    ))
   )
 }
 
@@ -72,6 +77,13 @@ function validatedAddressOverlayRequest(value: unknown): AddressSuggestionOverla
     || request.selectedIndex < -1
     || request.selectedIndex >= request.suggestions.length
   ) {
+    throw new TypeError('Invalid address overlay selection')
+  }
+  // Only a highlighted bookmark or visit open in another tab has a Switch to this tab button for Tab to go on to.
+  if (request.selectedAction !== undefined && (
+    request.selectedAction !== 'switch-tab'
+    || !hasSwitchToTabButton((request.suggestions as AddressSuggestion[])[request.selectedIndex])
+  )) {
     throw new TypeError('Invalid address overlay selection')
   }
   if (!isResolvedThemeName(request.theme)) {
@@ -116,11 +128,12 @@ export function registerAddressOverlayIpc(ipcMain: Pick<IpcMain, 'on'>, host: Ad
     const selection = value as AddressSuggestionSelection
     if (!Number.isSafeInteger(selection.sessionId) || selection.sessionId < 1
       || typeof selection.suggestionId !== 'string' || selection.suggestionId.length < 1 || selection.suggestionId.length > 512
-      || (selection.disposition !== undefined && selection.disposition !== 'new-background-tab')) {
+      || (selection.disposition !== undefined && selection.disposition !== 'new-background-tab')
+      || (selection.action !== undefined && (selection.action !== 'switch-tab' || selection.disposition !== undefined))) {
       throw new TypeError('Invalid address suggestion selection')
     }
     // Only the known fields go on to the shell.
-    const { sessionId, suggestionId, disposition } = selection
-    host.addressOverlay().select(disposition ? { sessionId, suggestionId, disposition } : { sessionId, suggestionId })
+    const { sessionId, suggestionId, disposition, action } = selection
+    host.addressOverlay().select(disposition ? { sessionId, suggestionId, disposition } : action ? { sessionId, suggestionId, action } : { sessionId, suggestionId })
   })
 }

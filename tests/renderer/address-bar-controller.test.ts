@@ -72,6 +72,7 @@ function createHarness(options: {
     setup() {
       controller = useAddressBarController({
         activeTab: computed(() => activeTab.value),
+        tabs: ref([]),
         bookmarks,
         history,
         overlay,
@@ -82,6 +83,7 @@ function createHarness(options: {
         onOpen,
         onNavigate,
         onOpenInNewTab,
+        onSwitchToTab: vi.fn(async () => true),
         onRemoveVisit,
         onRemoveVisitFailed,
         onFocusLeft

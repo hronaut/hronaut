@@ -1,4 +1,4 @@
-import { onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
 import type {
   AddressSuggestionOverlayTheme
 } from '../../../shared/address-suggestions.js'
@@ -126,6 +126,7 @@ export function useAppSiteNavigationFeatureController(
   })
   const addressBarController = useAddressBarController({
     activeTab: options.activeTab,
+    tabs: computed(() => options.state.value.tabs),
     bookmarks: collections.bookmarks,
     history: collections.history,
     overlay: options.address.overlay,
@@ -146,6 +147,7 @@ export function useAppSiteNavigationFeatureController(
     },
     onNavigate: browserTabActionsController.navigateAddress,
     onOpenInNewTab: browserTabActionsController.openAddressInNewTab,
+    onSwitchToTab: browserTabActionsController.selectBrowserTab,
     onRemoveVisit: collections.removeHistoryEntry,
     onRemoveVisitFailed: actions.onActionError,
     onFocusLeft: () => (siteControlsOpen.value = false)

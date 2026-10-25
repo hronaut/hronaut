@@ -2,7 +2,15 @@ import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, type Compu
 import { useResizeObserver } from '@vueuse/core'
 import { addressPasteText } from '../../../shared/address-paste.js'
 import type { AddressSuggestion, AddressSuggestionOverlayRequest, AddressSuggestionOverlayTheme, AddressSuggestionSelection } from '../../../shared/address-suggestions.js'
-import { buildLocalAddressSuggestions, historySuggestionEntryId } from '../../../shared/address-suggestions.js'
+import {
+  ADDRESS_SUGGESTION_TITLE_MAX_LENGTH,
+  ADDRESS_SUGGESTION_URL_MAX_LENGTH,
+  addressSuggestionScope,
+  buildLocalAddressSuggestions,
+  hasSwitchToTabButton,
+  historySuggestionEntryId
+} from '../../../shared/address-suggestions.js'
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
 import type { BrowserBookmark, BrowserHistoryEntry, BrowserTabState } from '../../../shared/types.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
@@ -25,6 +33,8 @@ interface AddressOverlayApi {
 
 interface AddressBarControllerOptions {
   activeTab: ComputedRef<BrowserTabState | undefined>
+  /** The open tabs, in the tab strip's order, which Switch to this tab and @tabs find. */
+  tabs: Readonly<Ref<readonly BrowserTabState[]>>
   bookmarks: Ref<BrowserBookmark[]>
   history: Ref<BrowserHistoryEntry[]>
   overlay?: AddressOverlayApi
@@ -36,6 +46,8 @@ interface AddressBarControllerOptions {
   onNavigate: (address: string) => Promise<void>
   /** Opens the address in a new tab; a background tab leaves the current one shown. */
   onOpenInNewTab: (address: string, background: boolean) => Promise<void>
+  /** Shows another open tab, as Switch to this tab does in Chrome's address bar; false when it could not. */
+  onSwitchToTab: (tabId: string) => Promise<boolean>
   /** Forgets a visit, as removing it in History does; history suggestions update when history does. */
   onRemoveVisit: (entryId: string) => Promise<unknown>
   onRemoveVisitFailed: (error: unknown) => void
@@ -67,15 +79,37 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   // The visits Shift+Delete forgot. Their rows leave at once, as in Chrome, while history saves the change, and come
   // back if it fails; a visit never returns under the same id, since a new visit gets a new one.
   const forgottenVisits = shallowRef<ReadonlySet<string>>(new Set())
+  // The other open tabs with a page, kept as they were while their addresses stay the same, and their titles too while
+  // @tabs lists them, so the browser state that each page's loading or new title brings does not draw the suggestions
+  // again.
+  let openTabsValue: { id: string; title: string; url: string }[] = []
+  const listsOpenTabs = computed(() => addressSuggestionScope(address.value) === 'tabs')
+  const openTabs = computed(() => {
+    const shown = options.activeTab.value?.id
+    const titled = listsOpenTabs.value
+    const next = options.tabs.value
+      .filter((tab) => tab.id !== shown && displayedAddress(tab.url) !== '' && !isHronautHomeUrl(tab.url))
+      .map((tab) => ({ id: tab.id, title: titled ? tab.title : '', url: tab.url }))
+    const unchanged = next.length === openTabsValue.length && next.every((tab, index) => {
+      const previous = openTabsValue[index]
+      return previous !== undefined && tab.id === previous.id && tab.url === previous.url && tab.title === previous.title
+    })
+    if (!unchanged) openTabsValue = next
+    return openTabsValue
+  })
   const suggestions = computed(() => buildLocalAddressSuggestions({
     query: address.value,
     bookmarks: options.bookmarks.value,
     history: forgottenVisits.value.size
       ? options.history.value.filter((entry) => !forgottenVisits.value.has(entry.id))
-      : options.history.value
+      : options.history.value,
+    tabs: openTabs.value
   }))
   const visible = computed(() => open.value && suggestions.value.length > 0)
   const selected = computed(() => selection.value >= 0 ? suggestions.value[selection.value] : undefined)
+  // Tab went on from the highlighted row to its Switch to this tab button, as in Chrome; moving the highlight goes back.
+  const switchFocusedState = ref(false)
+  const switchFocused = computed(() => switchFocusedState.value && visible.value && hasSwitchToTabButton(selected.value))
   let blurTimer: number | undefined
   let presentedSuggestions: AddressSuggestion[] = []
   let presentedSuggestionOwner: Pick<BrowserTabState, 'id'> | null = null
@@ -85,6 +119,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   let forgottenRow: string | null = null
   // Whether the Delete key held down forgot a visit, so that its repeats do nothing.
   let forgetKeyHeld = false
+  // Whether the Tab key held down went on to Switch to this tab or back, so that its repeats leave the field alone.
+  let switchKeyHeld = false
   let pendingNavigation: {
     tabId: string | undefined
     initialUrl: string | undefined
@@ -97,8 +133,14 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     return `address-suggestion-${suggestion.id}`
   }
 
+  /** The screen reader's option for a row's Switch to this tab button, which Tab goes on to. */
+  function switchSuggestionId(suggestion: AddressSuggestion): string {
+    return `${suggestionId(suggestion)}-switch`
+  }
+
   function suggestionMeta(suggestion: AddressSuggestion): string {
     if (suggestion.kind === 'bookmark') return options.translate('runtime.suggestion.bookmark')
+    if (suggestion.kind === 'tab') return options.translate('runtime.suggestion.openTab')
     return suggestion.visitCount && suggestion.visitCount > 1
       ? options.translate('runtime.suggestion.visits', { count: options.formatNumber(suggestion.visitCount) }, suggestion.visitCount)
       : options.translate('runtime.suggestion.history')
@@ -306,6 +348,43 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     await navigateTo(suggestion.url)
   }
 
+  // Switch to this tab, or an open tab's row, shows that tab, and this tab's field shows its own address again for when
+  // the person comes back, as a new tab in front leaves it. A tab closed meanwhile, or one that could not be shown,
+  // opens its page here instead.
+  async function switchToTab(suggestion: AddressSuggestion): Promise<void> {
+    if (disposed) return
+    const tabId = suggestion.openTabId
+    if (!tabId || !options.tabs.value.some((tab) => tab.id === tabId)) {
+      await chooseSuggestion(suggestion)
+      return
+    }
+    cancelBlur()
+    close()
+    editing.value = false
+    dirty.value = false
+    restoreActiveAddress()
+    input.value?.blur()
+    if (!await options.onSwitchToTab(tabId) && !disposed) await chooseSuggestion(suggestion)
+  }
+
+  // Tab goes on from a highlighted bookmark or visit open in another tab to its Switch to this tab button, and Shift+Tab
+  // comes back, as in Chrome's address bar; otherwise Tab leaves the field as usual. A held key moves once, and its
+  // repeats keep the keyboard in the field.
+  function moveToSwitchButton(event: KeyboardEvent): boolean {
+    if (event.key !== 'Tab') return false
+    if (!event.repeat) switchKeyHeld = false
+    if (event.ctrlKey || event.altKey || event.metaKey) return false
+    if (event.repeat && switchKeyHeld) {
+      event.preventDefault()
+      return true
+    }
+    if (!visible.value || !hasSwitchToTabButton(selected.value) || event.shiftKey !== switchFocused.value) return false
+    event.preventDefault()
+    switchKeyHeld = true
+    switchFocusedState.value = !event.shiftKey
+    return true
+  }
+
   function revealSelected(): void {
     const suggestion = selected.value
     if (!suggestion) return
@@ -315,6 +394,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   async function moveSelection(offset: -1 | 1): Promise<void> {
     const count = suggestions.value.length
     if (!count) return
+    // Moving the highlight goes back from Switch to this tab, even to the same row when it is the only one.
+    switchFocusedState.value = false
     if (!open.value) openSuggestions()
     if (selection.value < 0) selection.value = offset === 1 ? 0 : count - 1
     else selection.value = (selection.value + offset + count) % count
@@ -367,6 +448,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     if (enterAction && handleModifiedEnter(event, enterAction)) return
     if (forgetSelectedVisit(event)) return
     if (!suggestions.value.length) return
+    if (moveToSwitchButton(event)) return
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
       void moveSelection(event.key === 'ArrowDown' ? 1 : -1)
@@ -374,7 +456,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     }
     if (event.key === 'Enter' && visible.value && selected.value) {
       event.preventDefault()
-      void chooseSuggestion(selected.value)
+      void (switchFocused.value || selected.value.kind === 'tab' ? switchToTab(selected.value) : chooseSuggestion(selected.value))
     }
   }
 
@@ -401,8 +483,9 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     overlay.show({
       sessionId: overlaySessionId,
       bounds: { x, y, width, maxHeight },
-      suggestions: presentedSuggestions,
+      suggestions: presentedSuggestions.map(forSuggestionsView),
       selectedIndex: selection.value,
+      ...(switchFocused.value ? { selectedAction: 'switch-tab' as const } : {}),
       theme: options.theme(),
       locale: options.locale()
     })
@@ -410,6 +493,19 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
 
   function handleResize(): void {
     syncOverlay()
+  }
+
+  // The suggestions view shows at most so much of an address or title. An open tab's address can be longer, as a data:
+  // page's or one kept in the fragment is; the field keeps the whole one to open.
+  function forSuggestionsView(suggestion: AddressSuggestion): AddressSuggestion {
+    if (suggestion.url.length <= ADDRESS_SUGGESTION_URL_MAX_LENGTH && suggestion.title.length <= ADDRESS_SUGGESTION_TITLE_MAX_LENGTH) {
+      return suggestion
+    }
+    return {
+      ...suggestion,
+      url: suggestion.url.slice(0, ADDRESS_SUGGESTION_URL_MAX_LENGTH),
+      title: suggestion.title.slice(0, ADDRESS_SUGGESTION_TITLE_MAX_LENGTH)
+    }
   }
 
   const registrations: Array<() => () => void> = [
@@ -436,8 +532,12 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       await nextTick()
       if (!disposed) revealSelected()
     }, { flush: 'sync' }),
+    // Moving the highlight to another row, by key or as the rows change, goes back from Switch to this tab to the row.
+    () => watch(() => `${selection.value} ${selected.value?.id ?? ''} ${selected.value?.openTabId ?? ''}`, () => {
+      switchFocusedState.value = false
+    }, { flush: 'sync' }),
     () => watch(
-      [visible, suggestions, selection, options.theme, options.locale],
+      [visible, suggestions, selection, switchFocused, options.theme, options.locale],
       async () => {
         if (disposed) return
         await nextTick()
@@ -468,7 +568,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const overlay = options.overlay
   if (overlay) {
     registrations.push(
-      () => overlay.onSelected(({ sessionId, suggestionId, disposition }) => {
+      () => overlay.onSelected(({ sessionId, suggestionId, disposition, action }) => {
         if (disposed) return
         // A middle press gave the suggestions view the keyboard. The field takes it back, and shows its suggestions
         // again, whether or not the row still opens.
@@ -482,7 +582,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
         const suggestion = presentedSuggestions.find((candidate) => candidate.id === suggestionId)
         if (!suggestion) return
         if (!disposition) {
-          void chooseSuggestion(suggestion)
+          void (action === 'switch-tab' || suggestion.kind === 'tab' ? switchToTab(suggestion) : chooseSuggestion(suggestion))
           return
         }
         // A middle-click opens the row in a new tab behind, as Alt+Shift+Enter on it does.
@@ -529,9 +629,11 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     suggestions,
     visible,
     selected,
+    switchFocused,
     focused,
     dirty,
     suggestionId,
+    switchSuggestionId,
     suggestionMeta,
     close,
     handleFocus,

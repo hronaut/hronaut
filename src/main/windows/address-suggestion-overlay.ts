@@ -189,6 +189,7 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
       sessionId: request.sessionId,
       suggestions: request.suggestions,
       selectedIndex: request.selectedIndex,
+      ...(request.selectedAction ? { selectedAction: request.selectedAction } : {}),
       theme: request.theme,
       locale: host.resolvedLocale()
     }

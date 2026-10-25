@@ -17,6 +17,7 @@ import type {
   SitePermissionEntry,
   SupportedLocale
 } from '../../../shared/types.js'
+import { hasSwitchToTabButton } from '../../../shared/address-suggestions.js'
 import type { ActiveTabPresentationController } from '../composables/useActiveTabPresentationController.js'
 import type { AddressBarController } from '../composables/useAddressBarController.js'
 import type { EmulationController } from '../composables/useEmulationController.js'
@@ -66,7 +67,9 @@ const {
   suggestions,
   visible,
   selected,
+  switchFocused,
   suggestionId,
+  switchSuggestionId,
   suggestionMeta,
   handleFocus,
   handleInput,
@@ -169,9 +172,9 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       role="combobox"
       aria-keyshortcuts="Control+L Meta+L"
       aria-autocomplete="list"
-      aria-controls="address-suggestions"
+      aria-controls="address-suggestions address-suggestion-actions"
       :aria-expanded="visible"
-      :aria-activedescendant="visible && selected ? suggestionId(selected) : undefined"
+      :aria-activedescendant="visible && selected ? (switchFocused ? switchSuggestionId(selected) : suggestionId(selected)) : undefined"
       autocomplete="off"
       spellcheck="false"
       :placeholder="t('shell.toolbar.addressPlaceholder')"
@@ -286,7 +289,18 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
         :key="suggestion.id"
         role="option"
         :aria-selected="index === selection"
-      >{{ suggestion.title }} {{ suggestion.url }} {{ suggestionMeta(suggestion) }}</span>
+      >{{ suggestion.title }} {{ suggestion.url }} {{ suggestionMeta(suggestion) }}<template v-if="hasSwitchToTabButton(suggestion)">{{ ' ' + t('runtime.suggestion.switchHint') }}</template></span>
     </section>
+    <!-- Tab goes on to a row's Switch to this tab button, as in Chrome's address bar. The buttons sit outside the list, so
+         it still counts only the rows. -->
+    <div v-if="visible" id="address-suggestion-actions" class="sr-only">
+      <template v-for="suggestion in suggestions" :key="suggestion.id">
+        <span
+          v-if="hasSwitchToTabButton(suggestion)"
+          :id="switchSuggestionId(suggestion)"
+          role="button"
+        >{{ t('runtime.suggestion.switchToTab') }}: {{ suggestion.title }}</span>
+      </template>
+    </div>
   </form>
 </template>

@@ -1086,7 +1086,10 @@ export const ruRU = {
     "suggestion": {
       "bookmark": "Закладка",
       "history": "История",
-      "visits": "История · {count} посещение | История · {count} посещения | История · {count} посещений"
+      "visits": "История · {count} посещение | История · {count} посещения | История · {count} посещений",
+      "openTab": "Открытая вкладка",
+      "switchToTab": "Перейти на эту вкладку",
+      "switchHint": "Нажмите Tab, затем Enter, чтобы перейти на эту вкладку."
     },
     "network": {
       "notObserved": "Не наблюдалось",
@@ -3324,7 +3327,9 @@ export const ruRU = {
     "bookmark": "Закладка",
     "history": "История",
     "historyVisits": "История · {count} посещение | История · {count} посещения | История · {count} посещений",
-    "localOnly": "Только локально"
+    "localOnly": "Только локально",
+    "openTab": "Открытая вкладка",
+    "switchToTab": "Перейти на эту вкладку"
   },
   "panelDocks": {
     "responsive": "Закрепить адаптивный просмотр",

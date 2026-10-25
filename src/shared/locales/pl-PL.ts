@@ -1086,7 +1086,10 @@ export const plPL = {
     "suggestion": {
       "bookmark": "Zakładka",
       "history": "Historia",
-      "visits": "Historia · {count} wizyta | Historia · {count} wizyty | Historia · {count} wizyt"
+      "visits": "Historia · {count} wizyta | Historia · {count} wizyty | Historia · {count} wizyt",
+      "openTab": "Otwarta karta",
+      "switchToTab": "Przełącz na tę kartę",
+      "switchHint": "Naciśnij Tab, a potem Enter, aby przełączyć na tę kartę."
     },
     "network": {
       "notObserved": "Nie zaobserwowano",
@@ -3324,7 +3327,9 @@ export const plPL = {
     "bookmark": "Zakładka",
     "history": "Historia",
     "historyVisits": "Historia · {count} wizyta | Historia · {count} wizyty | Historia · {count} wizyt",
-    "localOnly": "Tylko lokalnie"
+    "localOnly": "Tylko lokalnie",
+    "openTab": "Otwarta karta",
+    "switchToTab": "Przełącz na tę kartę"
   },
   "panelDocks": {
     "responsive": "Dokuj podgląd responsywny",
