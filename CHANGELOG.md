@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 - **Bookmark all tabs**, as in Chrome: **Ctrl/Cmd+Shift+D**, **View → Bookmark All Tabs…**, **Bookmark All Tabs…** in a tab's menu or the command palette asks in the Bookmarks panel, or in its own window, what to call a new collection, suggesting the workspace's name, and saves the workspace's open tabs in it in the tab strip's order. A page already in another collection stays there, and the panel says what it added. A website that handles **Ctrl/Cmd+Shift+D** itself keeps the key, as in Chrome.
 - **Switch to this tab** in the address bar, as in Chrome: a bookmark or visit already open in another tab offers it, by a click or with **Tab** then **Enter**, and **@tabs** lists the open tabs to switch to.
 - **Inline autocomplete** in the address bar, as in Chrome: typing the start of a bookmarked site, or one visited more than once, fills in the rest of its address after what you typed, selected, and **Enter** opens it with its own scheme and port; **Backspace** takes the rest away and the arrow keys go back to what you typed.
+- **Link status bubble**, as in Chrome: pointing at a link, or giving one keyboard focus, shows its address in a small bubble at the page's bottom left corner after a short pause; it moves to the bottom right corner out of the pointer's way, widens to the whole address after resting on a long one, and shows nothing for an agent's pointing.
 
 ## [3.11.0] - 2026-10-24
 

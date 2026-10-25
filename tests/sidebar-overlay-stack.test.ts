@@ -56,7 +56,13 @@ function setup() {
     }
   }
   const fullscreen = { page: false }
-  const tabs = { showsPageFullscreen: () => fullscreen.page, showTabContextMenu: vi.fn(), showWorkspaceContextMenu: vi.fn(), pageArea: () => null }
+  const tabs = {
+    showsPageFullscreen: () => fullscreen.page,
+    showTabContextMenu: vi.fn(),
+    showWorkspaceContextMenu: vi.fn(),
+    pageArea: () => null,
+    statusBubblePane: () => ({ bounds: { x: 56, y: 48, width: 900, height: 600 }, corner: 12 })
+  }
   const surface = { focused: false, send: vi.fn(), setZoomFactor: vi.fn(), setBounds: vi.fn(), present: vi.fn(), withdraw: vi.fn(), isFocused() { return this.focused }, isDestroyed: () => false }
   const overlays = createShellOverlays({
     trustedUrlMatches: (actual, expected) => actual === expected,
@@ -71,7 +77,10 @@ function setup() {
     trustedTooltipOverlayUrl: () => 'file:///app/tooltip-overlay.html',
     ensureTooltipSurface: async () => surface as never,
     trustedSidebarOverlayUrl: () => 'file:///app/sidebar-overlay.html',
-    ensureSidebarOverlaySurface: async () => surface
+    ensureSidebarOverlaySurface: async () => surface,
+    trustedStatusBubbleUrl: () => 'file:///app/status-bubble.html',
+    ensureStatusBubbleSurface: async () => surface,
+    theme: () => 'dark'
   })
   return { overlays, window, children, sent, fullscreen, tabs, surface }
 }
@@ -170,6 +179,80 @@ describe('the open rail over the page', () => {
       await settled()
       expect(window.webContents.focus).toHaveBeenCalledOnce()
       expect(page.focus).toHaveBeenCalledOnce()
+    } finally {
+      focus.current = null
+    }
+  })
+
+  it('draws the status bubble in its own sandboxed view, above the pages and under everything else the shell draws over them', async () => {
+    const { overlays, children } = setup()
+    const [{ view: bubble }, { view: sidebar }, { view: toast }, { view: card }, { view: tooltip }] = await Promise.all([
+      overlays.statusBubbleView.ensure(),
+      overlays.sidebarOverlayView.ensure(),
+      overlays.toastOverlayView.ensure(),
+      overlays.agentCardView.ensure(),
+      overlays.tooltipView.ensure()
+    ])
+    expect((bubble as unknown as FakeView).options.webPreferences).toMatchObject({ sandbox: true, contextIsolation: true, nodeIntegration: false })
+    expect((bubble as unknown as FakeView).options.webPreferences.preload).toMatch(/statusBubble\.cjs$/)
+    children.push('page')
+    overlays.sidebarOverlayView.present()
+    overlays.toastOverlayView.present()
+    overlays.agentCardView.present()
+    overlays.tooltipView.present()
+    overlays.statusBubbleView.present()
+    expect(children).toEqual(['page', bubble, sidebar, toast, card, tooltip])
+    // A page attached later goes on top; main restacks the bubble first, then the rail, the toast and the card.
+    children.push('new page')
+    overlays.statusBubbleView.present()
+    overlays.sidebarOverlayView.present()
+    overlays.toastOverlayView.present()
+    overlays.agentCardView.present()
+    expect(children.indexOf(bubble)).toBeGreaterThan(children.indexOf('new page'))
+    for (const view of [sidebar, toast, card]) expect(children.indexOf(view)).toBeGreaterThan(children.indexOf(bubble))
+  })
+
+  it('shows the status bubble for the page in view, but not over a page in full screen nor in a minimized window', async () => {
+    const { overlays, window, fullscreen, surface } = setup()
+    const shown = async () => {
+      surface.send.mockClear()
+      overlays.statusBubble.targetUrl('page', 'https://example.com/docs')
+      await new Promise((resolve) => setTimeout(resolve, 120))
+      const sent = surface.send.mock.calls.length > 0
+      overlays.statusBubble.hide()
+      return sent
+    }
+    expect(await shown()).toBe(true)
+    fullscreen.page = true
+    expect(await shown()).toBe(false)
+    fullscreen.page = false
+    window.minimized = true
+    expect(await shown()).toBe(false)
+  })
+
+  it('gives the keyboard a click on the status bubble took back to the page, and leaves a window in the background alone', async () => {
+    const { overlays, window, children } = setup()
+    const { view: bubble } = await overlays.statusBubbleView.ensure()
+    const page = { focus: vi.fn(), isDestroyed: () => false }
+    children.push({ getVisible: () => true, webContents: page })
+    const settled = () => new Promise((resolve) => setImmediate(resolve))
+    try {
+      focus.current = page
+      overlays.statusBubble.pointerOnBubble(10, 10)
+      focus.current = (bubble as unknown as FakeView).webContents
+      overlays.statusBubble.viewFocused()
+      await settled()
+      expect(page.focus).toHaveBeenCalledOnce()
+      window.focused = false
+      overlays.statusBubble.viewFocused()
+      await settled()
+      expect(page.focus).toHaveBeenCalledOnce()
+      // The page went meanwhile: the shell gets it.
+      window.focused = true
+      children.splice(0, children.length)
+      overlays.statusBubble.viewFocused()
+      await settled()
+      expect(window.webContents.focus).toHaveBeenCalledOnce()
     } finally {
       focus.current = null
     }

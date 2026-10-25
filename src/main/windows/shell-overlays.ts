@@ -5,6 +5,8 @@ import { AgentCardOverlay, type AgentCardSurface, type FollowSuspensionState } f
 import { ToastOverlay, type ToastOverlaySurface } from '../toast-overlay.js'
 import { ShellTooltipOverlay, type ShellTooltipSurface } from '../shell-tooltip-overlay.js'
 import { SidebarOverlay, type SidebarOverlaySurface } from '../sidebar-overlay.js'
+import { StatusBubbleOverlay, type StatusBubblePane, type StatusBubbleSurface } from '../status-bubble-overlay.js'
+import type { ResolvedThemeName } from '../../shared/theme.js'
 import type { TabRuntimeState } from '../tab-runtime-startup.js'
 import type { AddressSuggestionOverlay } from './address-suggestion-overlay.js'
 import type { MainWindowRefs } from './main-window.js'
@@ -32,11 +34,15 @@ interface ShellOverlaysHost {
   ensureTooltipSurface(): Promise<ShellTooltipSurface>
   trustedSidebarOverlayUrl(): string
   ensureSidebarOverlaySurface(): Promise<SidebarOverlaySurface>
+  trustedStatusBubbleUrl(): string
+  ensureStatusBubbleSurface(): Promise<StatusBubbleSurface>
+  /** The theme the shell shows now. */
+  theme(): ResolvedThemeName
 }
 
 /**
- * The shell's overlays above the page views: the tooltip, the agent card, the toast and the tab rail opened over the
- * page, each a controller and the view it draws through. The views load their documents on first use, and the surfaces come from the host
+ * The shell's overlays above the page views: the tooltip, the agent card, the toast, the tab rail opened over the
+ * page and the status bubble at a page's corner, each a controller and the view it draws through. The views load their documents on first use, and the surfaces come from the host
  * because they are built from these views. `__dirname` is the bundled main entry's directory, as for the other main
  * modules.
  */
@@ -49,6 +55,8 @@ export function createShellOverlays(host: ShellOverlaysHost): {
   shellTooltips: ShellTooltipOverlay
   sidebarOverlayView: ShellOverlayView
   sidebarOverlay: SidebarOverlay
+  statusBubbleView: ShellOverlayView
+  statusBubble: StatusBubbleOverlay
 } {
   const tooltipView = new ShellOverlayView({
     name: 'tooltip',
@@ -219,6 +227,62 @@ export function createShellOverlays(host: ShellOverlaysHost): {
     }
   })
 
+  const statusBubbleView = new ShellOverlayView({
+    name: 'status bubble',
+    preload: join(__dirname, '../preload/statusBubble.cjs'),
+    url: () => host.trustedStatusBubbleUrl(),
+    window: () => host.mainWindowRefs.window,
+    urlMatches: (actual, expected) => host.trustedUrlMatches(actual, expected),
+    onLost: () => statusBubble.surfaceLost(),
+    // The bubble belongs to the page under it; everything the shell draws over the pages goes above it.
+    keepAbove: () => [
+      sidebarOverlayView.currentView(),
+      toastOverlayView.currentView(),
+      agentCardView.currentView(),
+      tooltipView.currentView(),
+      host.addressSuggestionOverlay.currentView()
+    ].filter((view) => !!view)
+  })
+  const statusBubble = new StatusBubbleOverlay({
+    surface: () => host.ensureStatusBubbleSurface(),
+    pane: (tabId) => {
+      const window = host.mainWindowRefs.window
+      const tabs = host.tabRuntime.tabs
+      if (host.tabRuntime.startupFailure || !window || window.isDestroyed() || !window.isVisible() || window.isMinimized()) return null
+      // Nothing of the shell's is drawn over a page in full screen, nor before the saved workspaces are up.
+      if (!tabs || host.tabRuntime.initializedTabs !== tabs || tabs.showsPageFullscreen()) return null
+      return tabs.statusBubblePane(tabId) satisfies StatusBubblePane | null
+    },
+    zoom: () => {
+      const window = host.mainWindowRefs.window
+      return window && !window.isDestroyed() && !window.webContents.isDestroyed() ? window.webContents.getZoomFactor() : 1
+    },
+    theme: () => host.theme(),
+    focusOwner: () => {
+      const focused = allWebContents.getFocusedWebContents()
+      return focused && !statusBubbleView.owns(focused) ? focused : null
+    },
+    restoreFocus: (owner) => {
+      // Focus moves to the view while the click lands; moving it back in the same task does not stick.
+      setImmediate(() => {
+        const window = host.mainWindowRefs.window
+        if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return
+        // Focusing a view would bring a window in the background or minimized forward.
+        if (!window.isFocused() || window.isMinimized()) return
+        const focused = allWebContents.getFocusedWebContents()
+        if (!focused || !statusBubbleView.owns(focused)) return
+        const previous = owner as Electron.WebContents | null
+        const overlay = !!previous && (sidebarOverlayView.owns(previous) || toastOverlayView.owns(previous) || agentCardView.owns(previous)
+          || tooltipView.owns(previous) || host.addressSuggestionOverlay.owns(previous))
+        // Back to a page only while it still shows; from an overlay, or a page that went, the shell.
+        const page = previous && !previous.isDestroyed() && !overlay && window.contentView.children.some((child) => (
+          child.getVisible() && 'webContents' in child && (child as WebContentsView).webContents === previous
+        )) ? previous : null
+        ;(page ?? window.webContents).focus()
+      })
+    }
+  })
+
   return {
     tooltipView,
     agentCardView,
@@ -227,6 +291,8 @@ export function createShellOverlays(host: ShellOverlaysHost): {
     toastOverlay,
     shellTooltips,
     sidebarOverlayView,
-    sidebarOverlay
+    sidebarOverlay,
+    statusBubbleView,
+    statusBubble
   }
 }

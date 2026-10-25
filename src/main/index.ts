@@ -204,7 +204,9 @@ const {
   toastOverlay,
   shellTooltips,
   sidebarOverlayView,
-  sidebarOverlay
+  sidebarOverlay,
+  statusBubbleView,
+  statusBubble
 } = createShellOverlays({
   trustedUrlMatches,
   mainWindowRefs,
@@ -218,7 +220,10 @@ const {
   trustedTooltipOverlayUrl: () => trustedTooltipOverlayUrl(),
   ensureTooltipSurface: () => ensureTooltipSurface(),
   trustedSidebarOverlayUrl: () => trustedSidebarOverlayUrl(),
-  ensureSidebarOverlaySurface: () => ensureSidebarOverlaySurface()
+  ensureSidebarOverlaySurface: () => ensureSidebarOverlaySurface(),
+  trustedStatusBubbleUrl: () => trustedStatusBubbleUrl(),
+  ensureStatusBubbleSurface: () => ensureStatusBubbleSurface(),
+  theme: () => resolvedTheme(settingsState.current.theme)
 })
 const workspaceStartupReads = new WorkspaceStartupReads()
 let requireExistingWorkspaceMetadata = false
@@ -584,6 +589,7 @@ const { applyTheme, applyInterfaceScale, followSystemTheme } = createWindowAppea
   addressSuggestionOverlay,
   toastOverlay,
   sidebarOverlay,
+  statusBubble,
   sendToShellWindows,
   currentRendererSettingsState
 })
@@ -634,7 +640,9 @@ const {
   trustedTooltipOverlayUrl,
   ensureTooltipSurface,
   trustedSidebarOverlayUrl,
-  ensureSidebarOverlaySurface
+  ensureSidebarOverlaySurface,
+  trustedStatusBubbleUrl,
+  ensureStatusBubbleSurface
 } = createOverlaySurfaces({
   trustedShellUrl,
   agentCardView,
@@ -653,7 +661,9 @@ const {
       runPageShortcut(action)
     }
   },
-  shellTooltips
+  shellTooltips,
+  statusBubbleView,
+  statusBubble
 })
 
 const { detachedPanelTitle, openPanelWindow, closePanelWindow } = createPanelWindow({
@@ -730,7 +740,9 @@ function registerIpc(): void {
     toastOverlayView: () => toastOverlayView,
     tooltipView: () => tooltipView,
     sidebarOverlay: () => sidebarOverlay,
-    sidebarOverlayView: () => sidebarOverlayView
+    sidebarOverlayView: () => sidebarOverlayView,
+    statusBubble: () => statusBubble,
+    statusBubbleView: () => statusBubbleView
   })
   registerAddressOverlayIpc(hronautIpcMain, {
     assertMainShellSender,
@@ -1152,12 +1164,24 @@ async function createWindow(startMinimized = false): Promise<void> {
       scheduleAgentPresencePublish()
       // A page view attached meanwhile goes on top of the open rail's, the toast's and the card's views; put them back
       // above it, the toast above the rail and the card above the toast.
+      statusBubble.restack()
       sidebarOverlay.restack()
       toastOverlay.restack()
       agentCards.restack()
     },
-    // The rail opened over the page comes down over a page in full screen, which the window may not report itself.
-    onPageFullscreenChanged: () => sidebarOverlay.relayout(),
+    // The rail opened over the page and the status bubble come down over a page in full screen, which the window may not
+    // report itself.
+    onPageFullscreenChanged: () => {
+      sidebarOverlay.relayout()
+      statusBubble.layoutChanged()
+    },
+    // Chrome's status bubble: the address of the link the person points at, at the page's bottom corner.
+    onPageTargetUrl: (tabId, url) => statusBubble.targetUrl(tabId, url),
+    onPagePointer: (tabId, pointer) => {
+      if (pointer) statusBubble.pointerMoved(tabId, pointer.x, pointer.y)
+      else statusBubble.pointerLeft(tabId)
+    },
+    onPagesLaidOut: () => statusBubble.layoutChanged(),
     onDownloadsChanged: (downloads) => {
       sendToPanelWindow('browser:downloads-changed', downloads)
       downloadsUnderWayIcons.show(downloads)
@@ -1253,6 +1277,8 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.window.on('blur', () => sidebarOverlay.dismiss('blur'))
   for (const change of ['minimize', 'hide'] as const) {
     mainWindowRefs.window.on(change as 'minimize', () => sidebarOverlay.dismiss('window'))
+    // The link under the pointer is no longer pointed at; the next one shows its own bubble.
+    mainWindowRefs.window.on(change as 'minimize', () => statusBubble.hide())
   }
   mainWindowRefs.window.on('resize', scheduleWindowStateSave)
   mainWindowRefs.window.on('move', scheduleWindowStateSave)
@@ -1283,6 +1309,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     toastOverlayView.close()
     sidebarOverlay.shellReset()
     sidebarOverlayView.close()
+    statusBubble.hide()
+    statusBubbleView.close()
     mainWindowRefs.controlsScrim = null
     mainWindowRefs.window = null
   })

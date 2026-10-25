@@ -37,7 +37,9 @@ async function railView() {
     sidebarOverlayView: { ensure: async () => loaded as never, present: vi.fn(), withdraw: vi.fn() },
     sidebarOverlay: { pointerActivity },
     sidebarOverlayKeyboard: { noteKey: (input) => tabs.noteShellKey(input), runShortcut },
-    shellTooltips: { shownId: undefined, hide: vi.fn() }
+    shellTooltips: { shownId: undefined, hide: vi.fn() },
+    statusBubbleView: {} as never,
+    statusBubble: {} as never
   })
   await surfaces.ensureSidebarOverlaySurface()
   // The view is loaded once and reused; its listeners are attached once.

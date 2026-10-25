@@ -1,0 +1,93 @@
+@layer theme, tokens, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source("./");
+@import './styles/tokens.css' layer(tokens);
+
+@theme inline {
+  --color-copy: var(--text);
+  --color-muted: var(--muted);
+  --color-border-soft: var(--border-soft);
+  --color-surface-raised: var(--surface-raised);
+  --font-sans: var(--font-ui);
+}
+
+:root,
+:root[data-theme="light"],
+:root[data-theme="sepia"] { @apply [color-scheme:light]; }
+:root[data-theme="dark"],
+:root[data-theme="midnight"],
+:root[data-theme="cyberpunk"],
+:root[data-theme="cyberpunk-turbo"],
+:root[data-theme="matrix"],
+:root[data-theme="machine"],
+:root[data-theme="galactic"] { @apply [color-scheme:dark]; }
+
+* { @apply box-border; }
+html, body, #status-bubble-root { @apply m-0; @apply overflow-hidden; @apply bg-transparent; }
+html, body { @apply w-full; @apply h-full; }
+#status-bubble-root { @apply inline-block; }
+
+/*
+ * One line in the page's bottom corner, as Chrome's status bubble: square where it meets the page's edges, rounded
+ * like the page's own corner where it meets that, and rounded on the side facing the page. The view is sized to this
+ * box. At most a third of the page wide (--status-bubble-max-width, from main), or all of it once widened.
+ */
+.status-bubble {
+  @apply flex;
+  @apply items-baseline;
+  @apply overflow-hidden;
+  @apply [width:max-content];
+  @apply [max-width:var(--status-bubble-max-width)];
+  @apply [padding:3px_7px];
+  @apply [border:1px_solid_var(--border-soft)];
+  @apply text-copy;
+  @apply bg-surface-raised;
+  @apply [font-family:var(--font-ui)];
+  @apply [font-size:var(--type-micro-size)];
+  @apply [line-height:1.35];
+  @apply [white-space:nowrap];
+}
+
+.status-bubble[data-opening="true"] { @apply [animation:status-bubble-in_var(--motion-instant)_var(--motion-ease-out)]; }
+
+.status-bubble[data-side="left"] {
+  @apply [border-left-width:0];
+  @apply [border-bottom-width:0];
+  @apply [border-radius:0_var(--corner-1)_0_var(--status-bubble-corner)];
+}
+
+.status-bubble[data-side="right"] {
+  @apply [border-right-width:0];
+  @apply [border-bottom-width:0];
+  @apply [border-radius:var(--corner-1)_0_var(--status-bubble-corner)_0];
+}
+
+.status-bubble__scheme,
+.status-bubble__host { @apply flex-none; }
+.status-bubble__rest {
+  @apply [flex:0_1_auto];
+  @apply [min-width:0];
+  @apply overflow-hidden;
+  @apply [text-overflow:ellipsis];
+}
+
+/* A host too long for the bubble shows its end, which names the site, after an ellipsis, and nothing else. */
+.status-bubble--long-host .status-bubble__scheme,
+.status-bubble--long-host .status-bubble__rest { @apply hidden; }
+.status-bubble--long-host .status-bubble__host {
+  @apply [flex:0_1_auto];
+  @apply [min-width:0];
+  @apply overflow-hidden;
+  @apply [text-overflow:ellipsis];
+  @apply [direction:rtl];
+}
+.status-bubble__host-text { @apply [unicode-bidi:isolate]; }
+
+@keyframes status-bubble-in {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-bubble[data-opening="true"] { @apply [animation:none]; }
+}

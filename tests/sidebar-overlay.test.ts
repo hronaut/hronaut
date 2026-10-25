@@ -726,7 +726,9 @@ describe('sidebar overlay IPC', () => {
       toastOverlayView: () => ({ isSender: () => false }),
       tooltipView: () => ({ isSender: () => false }),
       sidebarOverlay: () => overlay as never,
-      sidebarOverlayView: () => ({ isSender: (event: Pick<IpcMainEvent, 'sender'>) => event.sender === view.webContents })
+      sidebarOverlayView: () => ({ isSender: (event: Pick<IpcMainEvent, 'sender'>) => event.sender === view.webContents }),
+      statusBubble: () => ({}) as never,
+      statusBubbleView: () => ({ isSender: () => false })
     })
     const fromView = { sender: Object.assign(view.webContents, { getZoomFactor: () => 1.25 }) } as unknown as IpcMainEvent
     const fromShell = { shell: true, sender: {} } as unknown as IpcMainEvent

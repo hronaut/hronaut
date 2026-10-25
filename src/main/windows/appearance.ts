@@ -1,6 +1,7 @@
 import { nativeTheme } from 'electron'
 import type { ToastOverlay } from '../toast-overlay.js'
 import type { SidebarOverlay } from '../sidebar-overlay.js'
+import type { StatusBubbleOverlay } from '../status-bubble-overlay.js'
 import type { AddressSuggestionOverlay } from './address-suggestion-overlay.js'
 import type { MainWindowRefs } from './main-window.js'
 import type { PanelWindowRefs } from './panel-window.js'
@@ -42,6 +43,8 @@ interface WindowAppearanceHost {
   toastOverlay: Pick<ToastOverlay, 'relayout'>
   /** The tab rail opened over the page, which the scale resizes. */
   sidebarOverlay: Pick<SidebarOverlay, 'relayout'>
+  /** The status bubble at a page's corner, which the scale resizes and the theme colors. */
+  statusBubble: Pick<StatusBubbleOverlay, 'layoutChanged'>
   sendToShellWindows(channel: string, ...args: unknown[]): void
   currentRendererSettingsState(): RendererSettingsState
 }
@@ -60,6 +63,7 @@ export function createWindowAppearance(host: WindowAppearanceHost): {
     host.applyMainWindowBackground()
     host.panelWindowRefs.window?.setBackgroundColor(THEME_BACKGROUND[resolvedTheme(theme)])
     host.applyMainWindowTitleBarOverlay()
+    host.statusBubble.layoutChanged()
   }
 
   function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
@@ -72,6 +76,7 @@ export function createWindowAppearance(host: WindowAppearanceHost): {
     host.applyMainWindowTitleBarOverlay()
     host.toastOverlay.relayout()
     host.sidebarOverlay.relayout()
+    host.statusBubble.layoutChanged()
   }
 
   /** Repaints both windows and tells both shells when the system's appearance changes; startup calls it once. */
@@ -81,6 +86,7 @@ export function createWindowAppearance(host: WindowAppearanceHost): {
       if (host.settings().theme === 'system') {
         host.panelWindowRefs.window?.setBackgroundColor(THEME_BACKGROUND[systemTheme])
         host.applyMainWindowTitleBarOverlay()
+        host.statusBubble.layoutChanged()
       }
       // The system theme, reduced transparency or a high-contrast mode can each bring the material or take it away.
       host.applyMainWindowBackground()
