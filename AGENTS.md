@@ -63,16 +63,18 @@ improvement cycles. Respect any required reviews, branch protections, and
 remaining checks; CodeQL continues independently.
 
 Full validation is required at release time. Use the existing version-bump →
-auto-tag → release pipeline: the immutable release tag runs static validation,
+auto-tag → release pipeline: the immutable release tag gets static validation,
 all unit/component tests, the full Docker/Electron and native-dialog gate, and
 platform packaging before publication. A failed release gate blocks publication;
 fix it without overwriting a published tag. The CI workflow is manual-only for
 explicit investigations or release rehearsals, with packaging on `release/`
-branches. When a rehearsal on a `release/` branch passed static validation and
-every Electron shard on the tag's own tree, the release takes those results
-instead of running them again; it still audits dependencies and tests every
-package. Dispatch the release with `full_tests` to run everything. Never
-describe unexecuted checks as passing.
+branches. When a rehearsal on a `release/` branch passed `npm run validate`
+(lint, unit/component tests, typecheck and the application build) and every
+Electron shard (including native dialogs) on the tag's own tree, the release
+takes those results from it, with a notice linking the rehearsal, instead of
+running them again. The release still audits production dependencies, runs the
+MCPB tests, and builds every platform package. Dispatch the release with
+`full_tests` to run everything. Never describe unexecuted checks as passing.
 
 Install with Node.js 22 or newer:
 

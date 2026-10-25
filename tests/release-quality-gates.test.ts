@@ -198,6 +198,8 @@ describe('release quality gates', () => {
     // A cached ESLint result for an unchanged file hides a type-aware error that a change in another file causes, and
     // the release gate lints without a cache, so the rehearsal does too.
     expect(validate).not.toContain('.cache/eslint')
+    // The release takes a rehearsal's validate result, so a rehearsal typechecks without earlier state as the release does.
+    expect(validate).toContain("- name: Restore static-analysis state\n        if: ${{ !startsWith(github.ref_name, 'release/') }}\n        uses: actions/cache/restore@v6")
   })
 
   it('blocks native preflights on the release gate\'s advisories and only reports development ones', async () => {
@@ -235,7 +237,7 @@ describe('release quality gates', () => {
 
   // The release ran validate and all eight Electron shards again on the tree its rehearsal had just passed.
   it('takes validate and Electron shard results from a release rehearsal that passed on the same tree', async () => {
-    type Step = { name?: string, id?: string, if?: string, run?: string, env?: Record<string, string> }
+    type Step = { name?: string, id?: string, if?: string, run?: string, uses?: string, with?: Record<string, unknown>, env?: Record<string, string> }
     type Job = { name?: string, needs?: string | string[], if?: string, permissions?: Record<string, string>, outputs?: Record<string, string>, strategy?: { matrix: { shard: number[] } }, steps: Step[] }
     const [releaseSource, ciSource] = await Promise.all([
       readFile('.github/workflows/release.yml', 'utf8'),
@@ -243,6 +245,7 @@ describe('release quality gates', () => {
     ])
     const release = parse(releaseSource) as { on: { workflow_dispatch: { inputs: Record<string, { type: string, default: unknown }> } }, jobs: Record<string, Job> }
     const ci = parse(ciSource) as { jobs: Record<string, Job> }
+    const ciWorkflow = parse(ciSource) as { on: unknown }
     const { REHEARSED_JOBS } = await import('../scripts/find-release-rehearsal.ts')
     const step = (job: Job, name: string) => {
       const found = job.steps.find((candidate) => candidate.name === name)
@@ -250,12 +253,14 @@ describe('release quality gates', () => {
       return found
     }
     const reused = "needs.prepare-release.outputs.rehearsal_run != ''"
+    const finder = await readFile('scripts/find-release-rehearsal.ts', 'utf8')
     const notReused = "needs.prepare-release.outputs.rehearsal_run == ''"
 
     expect(release.on.workflow_dispatch.inputs.full_tests).toMatchObject({ type: 'boolean', default: false })
     const prepare = release.jobs['prepare-release']!
     expect(prepare.permissions).toEqual({ actions: 'read', contents: 'read' })
     expect(prepare.outputs?.rehearsal_run).toBe('${{ steps.rehearsal.outputs.run_id }}')
+    expect(finder).toContain('appendFile(process.env.GITHUB_OUTPUT, `run_id=${run}\\n`)')
     const find = step(prepare, 'Find the release rehearsal that passed on this tree')
     expect(find).toMatchObject({
       id: 'rehearsal',
@@ -282,6 +287,13 @@ describe('release quality gates', () => {
     expect(integration.strategy!.matrix.shard).toEqual(shards.strategy!.matrix.shard)
     expect(step(integration, 'Run Electron integration tests in Docker').env)
       .toEqual(step(shards, 'Run Electron integration tests in Docker').env)
+    // A rehearsal stands for the tree it was dispatched on only while ci.yml takes no input and checks out that commit.
+    expect(ciWorkflow.on).toEqual({ workflow_dispatch: null })
+    for (const job of ['validate', 'integration-shard']) {
+      const checkout = ci.jobs[job]!.steps.find(({ uses }) => uses?.startsWith('actions/checkout@'))
+      expect(checkout).toBeDefined()
+      expect(checkout?.with).toBeUndefined()
+    }
     for (const job of ['validate', 'integration-shard']) {
       expect(ci.jobs[job]!.steps.map(({ run }) => run).filter(Boolean)).toEqual(expect.arrayContaining(
         release.jobs[job === 'validate' ? 'validate' : 'test-integration']!.steps

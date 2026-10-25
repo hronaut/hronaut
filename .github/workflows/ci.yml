@@ -31,8 +31,10 @@ jobs:
         run: npm ci
 
       # ESLint's cache is left out: its type-aware rules depend on other files, and a cached result for an unchanged
-      # file hid an error that a change elsewhere caused.
+      # file hid an error that a change elsewhere caused. A release rehearsal typechecks from scratch as the release
+      # does, because the release takes its result.
       - name: Restore static-analysis state
+        if: ${{ !startsWith(github.ref_name, 'release/') }}
         uses: actions/cache/restore@v6
         with:
           path: |

@@ -57,6 +57,14 @@ describe('findReleaseRehearsal', () => {
     expect(paths.some((path) => path.includes('/runs/1/'))).toBe(false)
   })
 
+  it('passes over a newer run on the same tree whose shard failed to an older one that passed', async () => {
+    const { get } = github([
+      { id: 9, sha: 'rerun', jobs: passedJobs().map((job) => job.name === 'Electron integration shard 2/8' ? { ...job, conclusion: 'failure' } : job) },
+      { id: 8, sha: 'rehearsed' }
+    ])
+    await expect(findReleaseRehearsal(get, repository, tree)).resolves.toBe(8)
+  })
+
   it.each<[string, Partial<Rehearsal>]>([
     ['on another branch than a release branch', { branch: 'main' }],
     ['without a branch', { branch: null }],
