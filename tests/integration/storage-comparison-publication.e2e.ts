@@ -62,7 +62,7 @@ for (const scenario of ['get', 'baseline', 'compare', 'clear', 'clear empty', 'm
         }
         cookies.get = async filter => {
           const result = await get(filter)
-          // Only the comparison reads one address's cookies; the session cookie saver, a second after a page sets one, reads all.
+          // In this test only the comparison reads one address's cookies; the session cookie saver, a second after a page sets one, reads all.
           if (!filter.url) return result
           gate.reads.cookies++
           if (stage === 'cookies') { gate.held = true; await barrier; if (change === 'native error') throw new Error('synthetic-native-error-canary') }
