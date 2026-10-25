@@ -39,22 +39,41 @@ it('puts the tabs\' pages in a new collection in the tabs\' order, once each, an
   expect(created.name).toBe('Client A')
   const byUrl = (url: string) => store.list().find(bookmark => bookmark.url === url)!
   const added = ['https://one.test/', 'https://two.test/page', 'https://three.test/'].map(byUrl)
-  expect(created.bookmarkIds).toEqual([added[0]!.id, added[1]!.id, unfiled.id, added[2]!.id])
-  // Each new bookmark is a millisecond older than the one before, so newest first lists them in the tabs' order.
-  const times = added.map(bookmark => Date.parse(bookmark.createdAt))
-  expect([times[0]! - times[1]!, times[1]! - times[2]!]).toEqual([1, 1])
-  expect(store.list().filter(bookmark => added.some(entry => entry.id === bookmark.id)).map(bookmark => bookmark.url)).toEqual(added.map(bookmark => bookmark.url))
+  const inOrder = [added[0]!, added[1]!, byUrl('https://unfiled.test/'), added[2]!]
+  expect(created.bookmarkIds).toEqual(inOrder.map(bookmark => bookmark.id))
+  // Each is updated a millisecond before the one before it, so newest first lists them in the tabs' order.
+  const times = inOrder.map(bookmark => Date.parse(bookmark.updatedAt))
+  expect(times.slice(1).map((time, index) => times[index]! - time)).toEqual([1, 1, 1])
+  expect(added.map(bookmark => bookmark.createdAt)).toEqual(added.map(bookmark => bookmark.updatedAt))
+  expect(store.list().filter(bookmark => created.bookmarkIds.includes(bookmark.id)).map(bookmark => bookmark.url))
+    .toEqual(inOrder.map(bookmark => bookmark.url))
   // An untitled page is named after its site, and credentials are never kept.
   expect(added[1]!.title).toBe('two.test')
   expect(store.list().map(bookmark => bookmark.url)).not.toContain('https://user:secret@three.test/')
-  // Saved bookmarks keep what they were, and the filed one stays in its collection.
+  // The bookmark that joins keeps its title, address and when it was added; the filed one stays as it was, in its
+  // collection.
   expect(byUrl('https://filed.test/')).toEqual(filed)
-  expect(byUrl('https://unfiled.test/')).toEqual(unfiled)
+  expect(byUrl('https://unfiled.test/')).toEqual({ ...unfiled, updatedAt: inOrder[2]!.updatedAt })
   expect(snapshot.collections.find(collection => collection.id === work.id)!.bookmarkIds).toEqual([filed.id])
   // Saved at once, as it now is.
   const reloaded = new BookmarkStore(path)
   expect(await reloaded.load()).toEqual(store.list())
   expect(reloaded.collectionSnapshot().collections).toEqual(snapshot.collections)
+})
+
+it('lists a page bookmarked before in its tab\'s place, first when its tab is', async () => {
+  const { store } = await createStore()
+  const saved = await store.add({ url: 'https://saved.test/', title: 'Saved' })
+  const later = await store.add({ url: 'https://later.test/', title: 'Later' })
+  const result = await store.bookmarkTabs('Session', [
+    { url: 'https://saved.test/', title: 'Saved' },
+    { url: 'https://new.test/', title: 'New' },
+    { url: 'https://later.test/', title: 'Later' }
+  ])
+  const ids = store.collectionSnapshot().collections.find(collection => collection.id === result.collectionId)!.bookmarkIds
+  const newId = store.findByUrl('https://new.test/')!.id
+  expect(ids).toEqual([saved.id, newId, later.id])
+  expect(store.list().filter(bookmark => ids.includes(bookmark.id)).map(bookmark => bookmark.id)).toEqual(ids)
 })
 
 it('creates nothing when no tab can go in a new collection', async () => {

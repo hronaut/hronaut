@@ -3572,7 +3572,8 @@ export const frFR = {
       "print": "Imprimer…",
       "viewSource": "Afficher le code source de la page",
       "downloads": "Téléchargements",
-      "savePage": "Enregistrer la page sous…"
+      "savePage": "Enregistrer la page sous…",
+      "bookmarkAllTabs": "Ajouter tous les onglets aux favoris…"
     },
     "tray": {
       "show": "Afficher Hronaut",

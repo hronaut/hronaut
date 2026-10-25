@@ -3572,7 +3572,8 @@ export const ruRU = {
       "print": "Печать…",
       "viewSource": "Просмотр кода страницы",
       "downloads": "Загрузки",
-      "savePage": "Сохранить страницу как…"
+      "savePage": "Сохранить страницу как…",
+      "bookmarkAllTabs": "Добавить все вкладки в закладки…"
     },
     "tray": {
       "show": "Показать Hronaut",

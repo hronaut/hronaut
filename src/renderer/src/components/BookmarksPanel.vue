@@ -349,7 +349,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('bookmarks.close')" @keydown="ignoreHeldEnter" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
-    <BookmarkCollectionsToolbar v-if="collectionsApi" ref="collectionsToolbar" :controller="collectionController" :blocked="pendingAction !== null" :format-number="formatNumber" />
+    <BookmarkCollectionsToolbar v-if="collectionsApi" ref="collectionsToolbar" :controller="collectionController" :blocked="anyPending" :format-number="formatNumber" />
     <div v-if="bookmarks.length" class="bookmark-search-field">
       <IconSearch aria-hidden="true" />
       <input v-model="query" type="search" :aria-label="t('bookmarks.search')" autocomplete="off" spellcheck="false" :placeholder="t('bookmarks.search')" />

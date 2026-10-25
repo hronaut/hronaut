@@ -334,14 +334,9 @@ const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureContr
   settingsOpen,
   tabSearchOpen,
   syncState,
-  tabsWorkspace: (workspaceId) => {
-    const tab = activeTab.value
-    const id = workspaceId !== undefined ? workspaceId
-      : tab && !isHronautHomeUrl(tab.url) ? tab.mcpGroupId ?? null : undefined
-    if (id === undefined) return undefined
-    const name = id === null ? undefined : state.value.mcpTabGroups.find(group => group.id === id)?.name
-    return name ? { id, name } : { id }
-  }
+  browserState: () => state.value,
+  bookmarksInOwnWindow: panelsInOwnWindow,
+  panelWindow: window.hronautPanelWindow
 })
 const {
   downloads,

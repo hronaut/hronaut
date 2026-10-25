@@ -3572,7 +3572,8 @@ export const plPL = {
       "print": "Drukuj…",
       "viewSource": "Wyświetl źródło strony",
       "downloads": "Pobrane pliki",
-      "savePage": "Zapisz stronę jako…"
+      "savePage": "Zapisz stronę jako…",
+      "bookmarkAllTabs": "Dodaj wszystkie karty do zakładek…"
     },
     "tray": {
       "show": "Pokaż Hronaut",

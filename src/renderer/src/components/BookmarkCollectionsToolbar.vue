@@ -56,6 +56,16 @@ async function focusTabsName(asked = false): Promise<void> {
 
 watch(() => props.blocked || pending.value, busy => { if (!busy) void focusTabsName() })
 
+// A suggested name renumbered while it is selected, as when a collection takes the name meanwhile, stays selected,
+// so typing still replaces it. The field still shows the name it had here; once the person types, it shows theirs.
+watch(draft, async (_name, previous) => {
+  const input = nameInput.value
+  if (!namingTabs.value || !input || document.activeElement !== input) return
+  if (input.value !== previous || input.selectionStart !== 0 || input.selectionEnd !== previous.length) return
+  await nextTick()
+  if (document.activeElement === input) input.select()
+})
+
 async function begin(id?: string): Promise<void> {
   const element = root.value
   props.controller.beginEdit(id)
@@ -85,7 +95,9 @@ function keydown(event: KeyboardEvent): void {
     void finish(props.controller.cancelEdit)
   } else if (event.key === 'Enter') {
     event.preventDefault()
-    void finish(props.controller.save)
+    // A held Enter, such as the one that ran Bookmark all tabs from the command palette, does not save a name the
+    // person has not seen yet.
+    if (!event.repeat) void finish(props.controller.save)
   }
 }
 </script>

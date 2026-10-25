@@ -3572,7 +3572,8 @@ export const deDE = {
       "print": "Drucken…",
       "viewSource": "Seitenquelltext anzeigen",
       "downloads": "Downloads",
-      "savePage": "Seite speichern unter…"
+      "savePage": "Seite speichern unter…",
+      "bookmarkAllTabs": "Alle Tabs als Lesezeichen speichern…"
     },
     "tray": {
       "show": "Hronaut anzeigen",

@@ -1,4 +1,5 @@
 import { computed, ref, watch, type Ref } from 'vue'
+import { truncateText } from '../../../shared/text-boundaries.js'
 import type { BookmarkCollectionSnapshot, BookmarkTabsResult, HronautBookmarkCollectionsApi } from '../../../shared/types.js'
 import { friendlyUiError } from './useAppToastController.js'
 
@@ -37,6 +38,8 @@ export function useBookmarkCollectionsController(options: {
       tabsSuggestion.name = availableName(tabsSuggestion.base)
       draft.value = tabsSuggestion.name
     }
+    // What Bookmark all tabs did is about its collection, so it goes with it.
+    if (tabsResult.value && !collections.value.some(collection => collection.id === tabsResult.value!.collectionId)) tabsResult.value = null
   }
 
   async function run(operation: () => Promise<BookmarkCollectionSnapshot>, feedbackCurrent: () => boolean = () => true): Promise<boolean> {
@@ -82,20 +85,25 @@ export function useBookmarkCollectionsController(options: {
   function beginTabs(workspaceId: string | null, suggestedName: string): void {
     if (disposed) return
     cancelEdit()
+    tabsResult.value = null
+    // As New collection is unavailable then, it says so at once rather than after the name is typed.
+    if (collections.value.length >= 50) {
+      error.value = options.translate('appErrors.bookmarks.collectionLimit')
+      return
+    }
     editor.value = `tabs:${workspaceId ?? ''}`
     tabsSuggestion = { base: suggestedName, name: availableName(suggestedName) }
     draft.value = tabsSuggestion.name
     error.value = ''
-    tabsResult.value = null
   }
 
   function availableName(suggested: string): string {
-    const base = suggested.trim().replace(/\s+/g, ' ').slice(0, 80)
+    const base = truncateText(suggested.trim().replace(/\s+/g, ' '), 80)
     const taken = new Set(collections.value.map(collection => collection.name.toLowerCase()))
     if (!taken.has(base.toLowerCase())) return base
     for (let number = 2; ; number += 1) {
       const suffix = ` (${number})`
-      const name = `${base.slice(0, 80 - suffix.length)}${suffix}`
+      const name = `${truncateText(base, 80 - suffix.length)}${suffix}`
       if (!taken.has(name.toLowerCase())) return name
     }
   }

@@ -371,9 +371,10 @@ export class BookmarkStore {
   /**
    * Bookmark all tabs, as in Chrome: a new collection with this name holds the tabs' pages, in the tabs' order. A page
    * not bookmarked yet is bookmarked, and one bookmarked in no collection joins it; one in another collection stays
-   * there, since a bookmark is in one collection at most. A page counts once however many tabs show it. Each new
-   * bookmark is a millisecond older than the one before, so the list, newest first, shows them in the tabs' order. All
-   * is saved at once, and nothing when no page can go in the collection.
+   * there, since a bookmark is in one collection at most. A page counts once however many tabs show it. Each of the
+   * collection's bookmarks is updated a millisecond before the one before it, as Chrome adds them anew, so the list,
+   * newest first, and Open all show them in the tabs' order. All is saved at once, and nothing when no page can go in
+   * the collection.
    */
   bookmarkTabs(value: string, tabs: readonly { url: string; title: string }[]): Promise<BookmarkTabsResult> {
     const name = collectionName(value)
@@ -389,7 +390,6 @@ export class BookmarkStore {
       const inCollections = new Set(this.collections.flatMap(existing => existing.bookmarkIds))
       const pages = new Set<string>()
       const now = Date.now()
-      let added = 0
       for (const tab of tabs) {
         const url = normalizeBookmarkUrl(tab.url)
         if (!url) {
@@ -399,19 +399,19 @@ export class BookmarkStore {
         if (pages.has(url)) continue
         pages.add(url)
         const existing = bookmarked.get(url)
+        const time = new Date(now - result.saved).toISOString()
         if (existing !== undefined) {
           if (inCollections.has(existing)) result.inOtherCollections += 1
           else {
+            nextEntries.set(existing, { ...nextEntries.get(existing)!, updatedAt: time })
             collection.bookmarkIds.push(existing)
             result.saved += 1
           }
         } else if (nextEntries.size >= MAX_BOOKMARKS) result.overLimit += 1
         else {
-          const time = new Date(now - added).toISOString()
           const entry: BrowserBookmark = { id: randomUUID(), url, title: normalizeBookmarkTitle(tab.title, url, tab.url), createdAt: time, updatedAt: time }
           nextEntries.set(entry.id, entry)
           collection.bookmarkIds.push(entry.id)
-          added += 1
           result.saved += 1
         }
       }

@@ -832,7 +832,8 @@ export const ukUA = {
       print: 'Друк…',
       viewSource: 'Переглянути код сторінки',
       downloads: 'Завантаження',
-      savePage: 'Зберегти сторінку як…'
+      savePage: 'Зберегти сторінку як…',
+      bookmarkAllTabs: 'Додати всі вкладки в закладки…'
     },
     tray: {
       show: 'Показати Hronaut',

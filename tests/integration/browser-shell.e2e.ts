@@ -2867,6 +2867,7 @@ test('puts Help in the native application menu and opens shell dialogs above eve
     'Pick Element for Agent',
     'Downloads',
     'Task manager',
+    'Bookmark All Tabs…',
     'separator',
     'Back',
     'Forward',
@@ -4511,7 +4512,9 @@ test('pins tabs from the native menu and tab search while preserving closed-tab 
     { id: 'close-other-tabs', label: 'Close Other Tabs', enabled: true },
     { id: 'close-tabs-to-right', label: 'Close Tabs to the Right', enabled: false },
     { id: 'close-duplicate-tabs', label: 'Close Duplicate Tabs', enabled: false },
-    { id: 'reopen-closed-tab', label: 'Reopen Closed Tab', enabled: false }
+    { id: 'reopen-closed-tab', label: 'Reopen Closed Tab', enabled: false },
+    // The workspace's tabs show data: pages, which are not web pages to bookmark.
+    { id: 'bookmark-all-tabs', label: 'Bookmark All Tabs…', enabled: false }
   ])
   await expect.poll(() => electronApp.evaluate(() => {
     const menu = (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu

@@ -578,6 +578,7 @@ const panelWindowApi: HronautPanelWindowApi = {
   setActive: (panel: DetachablePanelId) => ipcRenderer.invoke('panel-window:set-active', panel),
   redock: (panel: DetachablePanelId, dock: Exclude<PanelDock, 'window'>) =>
     ipcRenderer.invoke('panel-window:redock', panel, dock),
+  bookmarkAllTabs: (workspaceId: string | null) => ipcRenderer.invoke('panel-window:bookmark-all-tabs', workspaceId),
   onPanelRequested: panelRequests.subscribe,
   onActivePanelChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, panel: DetachablePanelId): void => listener(panel)

@@ -90,6 +90,79 @@ describe('Bookmark all tabs in the Bookmarks panel', () => {
     expect(wrapper.get('.bookmark-collection-filter select').element).toHaveFocus()
   })
 
+  it('saves only on a new Enter, not one held from the command palette', async () => {
+    const collections = api()
+    const { wrapper, exposed } = mountPanel(collections)
+    await flushPromises()
+    await exposed.bookmarkAllTabs('workspace-1', 'Client A')
+    await flushPromises()
+    const input = wrapper.get('.bookmark-collection-editor input')
+    await input.trigger('keydown', { key: 'Enter', repeat: true })
+    await flushPromises()
+    expect(collections.bookmarkTabs).not.toHaveBeenCalled()
+    expect(nameField()).toHaveFocus()
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(collections.bookmarkTabs).toHaveBeenCalledExactlyOnceWith('workspace-1', 'Client A (2)')
+  })
+
+  it('keeps a renumbered name selected, so typing still replaces it, unless the person moved in it', async () => {
+    const collections = api()
+    const { exposed } = mountPanel(collections)
+    await flushPromises()
+    await exposed.bookmarkAllTabs('workspace-1', 'Client A')
+    await flushPromises()
+    const taken = (revision: number, ...names: string[]) => ({
+      revision, collections: [...client.collections, ...names.map(name => ({ id: name, name, bookmarkIds: [] }))]
+    })
+    collections.changed(taken(2, 'Client A (2)'))
+    await flushPromises()
+    const input = nameField()!
+    expect(input.value).toBe('Client A (3)')
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 'Client A (3)'.length])
+    input.setSelectionRange(3, 3)
+    collections.changed(taken(3, 'Client A (2)', 'Client A (3)'))
+    await flushPromises()
+    expect(input.value).toBe('Client A (4)')
+    expect(input.selectionStart).not.toBe(0)
+    expect(input).toHaveFocus()
+  })
+
+  it('says at once that no collection can be added at the limit, rather than asking for a name', async () => {
+    const full = { revision: 1, collections: Array.from({ length: 50 }, (_, index) => ({ id: `c${index}`, name: `Collection ${index}`, bookmarkIds: [] })) }
+    const collections = api(async () => full)
+    const { wrapper, exposed } = mountPanel(collections)
+    await flushPromises()
+    await exposed.bookmarkAllTabs('workspace-1', 'Client A')
+    await flushPromises()
+    expect(nameField()).toBeNull()
+    expect(wrapper.get('.bookmarks-error[role="alert"]').text()).toBe('Collection limit reached (50)')
+    expect(collections.bookmarkTabs).not.toHaveBeenCalled()
+  })
+
+  it('waits for Open all to finish before the name can be saved', async () => {
+    let opened!: () => void
+    const openBookmarkInBackground = vi.fn(() => new Promise<void>(resolve => { opened = resolve }))
+    const collections = api()
+    const { wrapper, exposed } = mountPanel(collections, { openBookmarkInBackground })
+    await flushPromises()
+    await wrapper.get('.bookmarks-open-all button').trigger('click')
+    await flushPromises()
+    expect(openBookmarkInBackground).toHaveBeenCalledOnce()
+    await exposed.bookmarkAllTabs('workspace-1', 'Client A')
+    await flushPromises()
+    const input = nameField()!
+    expect(input.disabled).toBe(true)
+    // Cancel stays available.
+    expect(wrapper.findAll('.bookmark-collection-editor button').map(button => button.attributes('disabled') !== undefined)).toEqual([true, false])
+    opened()
+    await flushPromises()
+    opened()
+    await flushPromises()
+    expect(input.disabled).toBe(false)
+    expect(input).toHaveFocus()
+  })
+
   it('opens the panel when it is closed, and names the collection Open tabs without a workspace name', async () => {
     const collections = api(async () => ({ revision: 1, collections: [] }))
     const opened: { current?: { setProps(props: Record<string, unknown>): Promise<void> } } = {}
@@ -156,17 +229,19 @@ describe('Bookmark all tabs in the Bookmarks panel', () => {
     expect(wrapper.find('.bookmarks-feedback').exists()).toBe(false)
   })
 
+  // Each sentence in full, with pl/ru/uk's three plural forms.
   it.each([
-    ['ru-RU', 21, '21 страница добавлена в Tabs.'],
-    ['ru-RU', 3, '3 страницы добавлены в Tabs.'],
-    ['ru-RU', 5, '5 страниц добавлено в Tabs.'],
-    ['uk-UA', 3, '3 сторінки додано до Tabs.'],
-    ['pl-PL', 5, 'Dodano 5 stron do Tabs.']
-  ] as const)('says what it saved in %s for %i pages', async (locale, saved, expected) => {
+    ['en-US', [1, 1, 1, 1], 'Added 1 page to Tabs. 1 was already in another collection, so it stayed there. 1 tab shows no web page, so it was left out. Hronaut keeps up to 500 bookmarks, so 1 was left out.'],
+    ['ru-RU', [21, 1, 2, 1], '21 страница добавлена в Tabs. 1 уже была в другой коллекции и осталась там. 2 вкладки не показывают веб-страницу, поэтому пропущены. Hronaut хранит до 500 закладок, поэтому 1 пропущена.'],
+    ['ru-RU', [3, 2, 5, 5], '3 страницы добавлены в Tabs. 2 уже были в других коллекциях и остались там. 5 вкладок не показывают веб-страницу, поэтому пропущены. Hronaut хранит до 500 закладок, поэтому 5 пропущено.'],
+    ['ru-RU', [5, 5, 1, 2], '5 страниц добавлено в Tabs. 5 уже было в других коллекциях и осталось там. 1 вкладка не показывает веб-страницу, поэтому пропущена. Hronaut хранит до 500 закладок, поэтому 2 пропущены.'],
+    ['uk-UA', [3, 5, 2, 1], '3 сторінки додано до Tabs. 5 вже було в інших колекціях і лишилося там. 2 вкладки не показують вебсторінку, тому їх пропущено. Hronaut зберігає до 500 закладок, тому 1 пропущено.'],
+    ['pl-PL', [5, 1, 2, 22], 'Dodano 5 stron do Tabs. 1 była już w innej kolekcji, więc tam została. 2 karty nie pokazują strony internetowej, więc je pominięto. Hronaut przechowuje do 500 zakładek, więc pominięto 22.']
+  ] as const)('says what it saved in %s for %j', async (locale, [saved, inOtherCollections, notWebPages, overLimit], expected) => {
     const collections = api()
     collections.bookmarkTabs.mockImplementationOnce(async (_workspaceId, name) => ({
       snapshot: { revision: 2, collections: [{ id: 'new', name, bookmarkIds: [] }] },
-      result: { collectionId: 'new', saved, inOtherCollections: 0, notWebPages: 2, overLimit: 1, limit: 500 }
+      result: { collectionId: 'new', saved, inOtherCollections, notWebPages, overLimit, limit: 500 }
     }))
     const { wrapper, exposed } = mountPanel(collections, {}, locale)
     await flushPromises()
@@ -174,9 +249,7 @@ describe('Bookmark all tabs in the Bookmarks panel', () => {
     await flushPromises()
     await wrapper.get('.bookmark-collection-editor input').trigger('keydown', { key: 'Enter' })
     await flushPromises()
-    const status = wrapper.get('.bookmarks-feedback').text()
-    expect(status.startsWith(expected)).toBe(true)
-    expect(status).toContain('500')
+    expect(wrapper.get('.bookmarks-feedback').text()).toBe(expected)
   })
 })
 
@@ -235,6 +308,30 @@ describe('Bookmark all tabs naming', () => {
       expect(instance.tabsResult.value).not.toBeNull()
       instance.beginEdit()
       expect(instance.tabsResult.value).toBeNull()
+    } finally { instance.dispose() }
+  })
+
+  it('forgets what it did once its collection is gone, as when the collection is removed elsewhere', async () => {
+    const { instance, collections } = controller()
+    try {
+      await flushPromises()
+      instance.beginTabs(null, 'Tabs')
+      expect(await instance.save()).toBe(true)
+      expect(instance.tabsResult.value).toMatchObject({ collectionId: 'new' })
+      collections.changed({ revision: 3, collections: [...client.collections, { id: 'new', name: 'Tabs', bookmarkIds: ['one'] }] })
+      expect(instance.tabsResult.value).toMatchObject({ collectionId: 'new' })
+      collections.changed({ revision: 4, collections: client.collections })
+      expect(instance.tabsResult.value).toBeNull()
+    } finally { instance.dispose() }
+  })
+
+  it('says the collection limit at once, with no name to type', async () => {
+    const { instance } = controller({ revision: 1, collections: Array.from({ length: 50 }, (_, index) => ({ id: `c${index}`, name: `C ${index}`, bookmarkIds: [] })) })
+    try {
+      await flushPromises()
+      instance.beginTabs('w', 'Tabs')
+      expect(instance.editor.value).toBeNull()
+      expect(instance.error.value).toBe('appErrors.bookmarks.collectionLimit')
     } finally { instance.dispose() }
   })
 })

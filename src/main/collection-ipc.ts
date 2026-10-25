@@ -3,13 +3,14 @@ import type { BookmarkStore, RemovedBookmark } from './bookmark-store.js'
 import type { HistoryStore } from './history-store.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { BookmarkTabsOutcome, BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
+import { isHronautHomeUrl } from '../shared/home-url.js'
 
 interface CollectionIpcHost {
   runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T>
   assertTrustedSender(event: IpcMainInvokeEvent): void
   bookmarks(): Pick<BookmarkStore, 'list' | 'add' | 'addIfMissing' | 'rename' | 'updateDestination' | 'removeRestorably' | 'collectionSnapshot' | 'createCollection' | 'renameCollection' | 'removeCollection' | 'assignCollection' | 'bookmarkTabs'>
-  /** The open tabs of a workspace, or of no workspace for null, in the tab strip's order; Home is not one of them. */
-  workspaceTabs(workspaceId: string | null): { url: string; title: string }[]
+  /** The open tabs, in the tab strip's order. */
+  tabs(): readonly { url: string; title: string; mcpGroupId?: string }[]
   /** The person removed a bookmark from Hronaut's own controls; Undo can put it back. */
   bookmarkRemoved?(removed: RemovedBookmark): void
   history(): Pick<HistoryStore, 'list' | 'remove' | 'clear'>
@@ -113,7 +114,9 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
       throw new TypeError('Invalid bookmark collection arguments')
     }
     const store = host.bookmarks()
-    const result = await store.bookmarkTabs(name, host.workspaceTabs(workspaceId))
+    // The workspace's tabs, or the tabs in no workspace for null; Home is not one of them.
+    const tabs = host.tabs().filter(tab => (tab.mcpGroupId ?? null) === workspaceId && !isHronautHomeUrl(tab.url))
+    const result = await store.bookmarkTabs(name, tabs.map(tab => ({ url: tab.url, title: tab.title })))
     host.publishBookmarks()
     return { snapshot: store.collectionSnapshot(), result }
   })

@@ -3572,7 +3572,8 @@ export const esES = {
       "print": "Imprimir…",
       "viewSource": "Ver código fuente de la página",
       "downloads": "Descargas",
-      "savePage": "Guardar página como…"
+      "savePage": "Guardar página como…",
+      "bookmarkAllTabs": "Añadir todas las pestañas a marcadores…"
     },
     "tray": {
       "show": "Mostrar Hronaut",

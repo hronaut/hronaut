@@ -132,6 +132,7 @@ function panelWindowHandlers() {
     closePanelWindow: panelWindow.closePanelWindow,
     panelWindowRefs: refs,
     detachedPanelTitle: panelWindow.detachedPanelTitle,
+    sendToPanelWindow: () => undefined,
     mainWindow: () => mainWindow as never
   })
   return {

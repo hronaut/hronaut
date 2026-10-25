@@ -759,7 +759,8 @@ export const enUS = {
       print: 'Print…',
       viewSource: 'View Page Source',
       downloads: 'Downloads',
-      savePage: 'Save Page As…'
+      savePage: 'Save Page As…',
+      bookmarkAllTabs: 'Bookmark All Tabs…'
     },
     tray: {
       show: 'Show Hronaut',

@@ -6,8 +6,10 @@ import type {
   HronautApi,
   HronautBookmarksApi,
   HronautDownloadsApi,
-  HronautHistoryApi
+  HronautHistoryApi,
+  HronautPanelWindowApi
 } from '../../../shared/types.js'
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { useBrowserCollectionsController } from './useBrowserCollectionsController.js'
 import {
   useBrowserCollectionsShellController,
@@ -29,11 +31,11 @@ export interface AppBrowserCollectionsFeatureControllerOptions {
   settingsOpen: Ref<boolean>
   tabSearchOpen: Ref<boolean>
   syncState: (operation: Promise<BrowserState>) => Promise<void>
-  /**
-   * The workspace whose tabs Bookmark all tabs saves, null for the tabs in no workspace, with its name: the one asked
-   * for, or the one in view when none is; none while no website tab is in view.
-   */
-  tabsWorkspace?: (workspaceId?: string | null) => { id: string | null; name?: string } | undefined
+  /** The browser state, whose tab in view and workspaces Bookmark all tabs reads. */
+  browserState?: () => Pick<BrowserState, 'tabs' | 'activeTabId' | 'mcpTabGroups'>
+  /** Whether Bookmarks shows in its own window, which then asks for Bookmark all tabs' name; never in that window. */
+  bookmarksInOwnWindow?: () => boolean
+  panelWindow?: Pick<HronautPanelWindowApi, 'bookmarkAllTabs'>
 }
 
 export function useAppBrowserCollectionsFeatureController(
@@ -72,9 +74,23 @@ export function useAppBrowserCollectionsFeatureController(
     await options.syncState(options.browser.newTab({ url: entry.url, active: false, focus: false }))
   }
 
-  function bookmarkAllTabs(workspaceId?: string | null): Promise<void> {
-    const workspace = options.tabsWorkspace?.(workspaceId)
-    return workspace ? shellController.bookmarkAllTabs(workspace.id, workspace.name) : Promise.resolve()
+  /**
+   * Bookmark all tabs for the workspace asked for, null for the tabs in no workspace, or else for the website tab in
+   * view; with Home in view there are none. The workspace's name is the one suggested for the collection.
+   */
+  async function bookmarkAllTabs(workspaceId?: string | null): Promise<void> {
+    const state = options.browserState?.()
+    if (!state) return
+    const shown = state.tabs.find(tab => tab.id === state.activeTabId)
+    const id = workspaceId !== undefined ? workspaceId
+      : shown && !isHronautHomeUrl(shown.url) ? shown.mcpGroupId ?? null : undefined
+    if (id === undefined) return
+    if (options.bookmarksInOwnWindow?.()) {
+      await options.panelWindow?.bookmarkAllTabs(id)
+      return
+    }
+    const name = id === null ? undefined : state.mcpTabGroups.find(group => group.id === id)?.name
+    await shellController.bookmarkAllTabs(id, name)
   }
 
   function copyDownloadPath(path: string): Promise<void> {
