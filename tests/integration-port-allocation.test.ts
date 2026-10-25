@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { BUSY_PORT_BLOCK, integrationBusyMcpPort, integrationMcpPort } from './integration/port-allocation.js'
 
@@ -109,5 +110,18 @@ describe('integration MCP port allocation', () => {
     expect(integrationMcpPort(undefined, 0)).toBe(18_000)
     expect(integrationMcpPort('invalid', 2)).toBe(18_002)
     expect(integrationMcpPort('99', 0)).toBe(18_000)
+  })
+
+  // A restart on mcpPort + 1 took the next worker's port, and the port-in-use dialog then covered the Settings button.
+  it('relaunches every e2e app on its own worker\'s MCP port', () => {
+    const files = readdirSync('tests/integration').filter((name) => name.endsWith('.e2e.ts'))
+    expect(files.length).toBeGreaterThan(100)
+    for (const file of files) {
+      const source = readFileSync(join('tests/integration', file), 'utf8')
+      expect(source, file).not.toMatch(/mcpPort\s*[+-]\s*\d/)
+      // Without a port Hronaut listens on its default one, which every worker shares. Only the case that checks the
+      // port a profile saved relaunches without one.
+      if (file !== 'mcp-authentication.e2e.ts') expect(source, file).not.toMatch(/launchHronaut\(\s*profileDirectory\s*\)/)
+    }
   })
 })

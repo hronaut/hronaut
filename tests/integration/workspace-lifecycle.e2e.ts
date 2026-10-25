@@ -6,14 +6,14 @@ import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from '.
 import { seedWorkspaceProfile } from './workspace-profile.js'
 
 for (const empty of [false, true]) {
-  test(`preserves isolated site data through rename and ${empty ? 'tabless' : 'populated'} archive, then deletes its workspace`, async ({ profileDirectory }) => {
+  test(`preserves isolated site data through rename and ${empty ? 'tabless' : 'populated'} archive, then deletes its workspace`, async ({ profileDirectory, mcpPort }) => {
     const { workspaceId } = await seedWorkspaceProfile(profileDirectory)
     const server = createServer((_request, response) => { response.writeHead(200, { 'content-type': 'text/html' }); response.end('<title>Workspace data</title>') })
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Missing fixture address')
     const url = `http://127.0.0.1:${address.port}/workspace`
-    let instance = await launchHronaut(profileDirectory)
+    let instance = await launchHronaut(profileDirectory, mcpPort)
     try {
       // DOM readiness precedes profile restoration. The state API waits for initialization.
       await instance.window.evaluate('window.hronaut.getState()')
@@ -34,7 +34,7 @@ for (const empty of [false, true]) {
         })`)
       }, url)
       await closeHronaut(instance.app)
-      instance = await launchHronaut(profileDirectory)
+      instance = await launchHronaut(profileDirectory, mcpPort)
       await instance.window.evaluate('window.hronaut.getState()')
       await instance.window.evaluate(`window.hronaut.updateTabGroup(${JSON.stringify(workspaceId)},{name:'My existing profile',agentAccess:false})`)
       if (empty) {
@@ -52,7 +52,7 @@ for (const empty of [false, true]) {
         return saved.savedTabGroups?.find(group => group.id === workspaceId)?.name
       }).toBe('My existing profile')
       await closeHronaut(instance.app)
-      instance = await launchHronaut(profileDirectory)
+      instance = await launchHronaut(profileDirectory, mcpPort)
       const archived = await instance.window.evaluate('window.hronaut.getState()') as BrowserState
       expect(archived.mcpTabGroups).toEqual([])
       expect(archived.savedTabGroups).toMatchObject([{ id: workspaceId, name: 'My existing profile', agentAccess: false }])
@@ -80,7 +80,7 @@ for (const empty of [false, true]) {
       const removed = await instance.window.evaluate(`window.hronaut.closeWorkspace(${JSON.stringify(workspaceId)})`) as BrowserState
       expect(removed.mcpTabGroups).toEqual([])
       await closeHronaut(instance.app)
-      instance = await launchHronaut(profileDirectory)
+      instance = await launchHronaut(profileDirectory, mcpPort)
       const restarted = await instance.window.evaluate('window.hronaut.getState()') as BrowserState
       expect(restarted.mcpTabGroups).toEqual([])
       expect(restarted.savedTabGroups).toEqual([])

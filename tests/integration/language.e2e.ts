@@ -31,7 +31,7 @@ test('switches language live through Settings and persists it across restart', a
   await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).languagePreference).toBe('uk-UA')
 
   await closeHronaut(electronApp)
-  const restarted = await launchHronaut(profileDirectory, mcpPort + 1)
+  const restarted = await launchHronaut(profileDirectory, mcpPort)
   try {
     await expect(restarted.window.locator('html')).toHaveAttribute('lang', 'uk-UA')
     await restarted.window.getByRole('button', { name: 'Налаштування' }).click()

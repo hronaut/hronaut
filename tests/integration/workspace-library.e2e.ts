@@ -206,8 +206,8 @@ test('clears an open workspace from Home while website input is locked', async (
   ), workspaceId)).toBe(false)
 })
 
-test('persists deletion protection and browser mute without requiring a website tab', async ({ profileDirectory }) => {
-  let instance = await launchHronaut(profileDirectory)
+test('persists deletion protection and browser mute without requiring a website tab', async ({ profileDirectory, mcpPort }) => {
+  let instance = await launchHronaut(profileDirectory, mcpPort)
   try {
     const audio = instance.window.locator('.all-tabs-audio-button')
     await expect(audio).toBeEnabled()
@@ -223,7 +223,7 @@ test('persists deletion protection and browser mute without requiring a website 
     expect(rejected).toContain('protected from deletion')
     await instance.window.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.saveAndCloseTabGroup(id), id)
     await closeHronaut(instance.app)
-    instance = await launchHronaut(profileDirectory)
+    instance = await launchHronaut(profileDirectory, mcpPort)
     state = await instance.window.evaluate('window.hronaut.getState()') as BrowserState
     expect(state.allTabsMuted).toBe(true)
     expect(state.savedTabGroups[0]).toMatchObject({ id, hiddenFromSidebar: true, deletionProtected: true })
