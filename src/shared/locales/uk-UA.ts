@@ -23,7 +23,7 @@ import { walletMessages } from './wallets/index.js'
 import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
-export const ukUA = {
+export const ukUA: MessageSchema = {
   trustedDialogs: trustedDialogMessages['uk-UA'],
   reactInspection: reactInspectionMessages['uk-UA'],
   agentStatus: { starting: "Підготовка до роботи з агентами", ready: "Готово до роботи з агентами", connected: "{name}: підключено", connectedMany: "{count} агент підключений | {count} агенти підключені | {count} агентів підключено", working: "{name} працює", workingMany: "{count} агент працює | {count} агенти працюють | {count} агентів працюють", needsYou: "Чекає на вас", paused: "Агентів призупинено", error: "Агенти не можуть підключитися", details: "Подробиці" },
@@ -896,4 +896,4 @@ export const ukUA = {
       savePageTitle: 'Зберегти сторінку як', webpageComplete: 'Вебсторінка повністю', webpageSingleFile: 'Вебсторінка, один файл'
     }
   }
-} satisfies MessageSchema
+}

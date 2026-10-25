@@ -23,7 +23,7 @@ import { walletMessages } from './wallets/index.js'
 import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
-export const zhCN = {
+export const zhCN: MessageSchema = {
   trustedDialogs: trustedDialogMessages['zh-CN'],
   reactInspection: reactInspectionMessages['zh-CN'],
   "agentStatus": { "starting": "正在为智能体做准备", "ready": "已可供智能体使用", "connected": "{name} 已连接", "connectedMany": "已连接 {count} 个智能体", "working": "{name} 正在工作", "workingMany": "{count} 个智能体正在工作", "needsYou": "需要您处理", "paused": "智能体已暂停", "error": "智能体无法连接", "details": "详细信息" },
@@ -1673,7 +1673,7 @@ export const zhCN = {
       "elementScreenshot": "元素截图",
       "screenshotDescription": "选取一个组件并复制其完整 PNG",
       "audit": "审核和优化",
-      "javascriptCpu": "JavaScript CPU",
+      "javascriptCpu": "JavaScript CPU 分析",
       "exportAccount": "导出和账号",
       "copySnapshot": "复制页面快照",
       "copySnapshotAria": "为智能体复制页面快照",
@@ -3026,6 +3026,18 @@ export const zhCN = {
     "interrupted": "已中断",
     "fileRemoved": "已移动或删除"
   },
+  "qrCode": {
+    "title": "扫描二维码",
+    "close": "关闭二维码",
+    "image": "二维码",
+    "url": "网址",
+    "tooLong": "此文本太长，无法生成二维码",
+    "hint": "如需扫描此二维码，您可以使用手机上的二维码扫描应用或某些相机应用。",
+    "copy": "复制",
+    "download": "下载",
+    "copied": "已复制二维码图片",
+    "downloadStarted": "已开始下载二维码图片"
+  },
   "taskManager": {
     "title": "任务管理器",
     "close": "关闭任务管理器",
@@ -3666,6 +3678,8 @@ export const zhCN = {
       "reload": "重新加载",
       "reloadWithoutCache": "不使用缓存重新加载",
       "copyPageAddress": "复制网页地址",
+      "createQrCodePage": "为此网页创建二维码",
+      "createQrCodeImage": "为此图片创建二维码",
       "inspect": "检查",
       "print": "打印…",
       "showFullHistory": "显示完整历史记录",
@@ -3809,4 +3823,4 @@ export const zhCN = {
       "webpageSingleFile": "网页，单个文件"
     }
   }
-} satisfies MessageSchema
+}

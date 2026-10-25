@@ -23,7 +23,7 @@ import { walletMessages } from './wallets/index.js'
 import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
-export const itIT = {
+export const itIT: MessageSchema = {
   trustedDialogs: trustedDialogMessages['it-IT'],
   reactInspection: reactInspectionMessages['it-IT'],
   "agentStatus": { "starting": "Preparazione per gli agenti in corso", "ready": "Pronto per gli agenti", "connected": "{name} connesso", "connectedMany": "{count} agente connesso | {count} agenti connessi", "working": "{name} sta lavorando", "workingMany": "{count} agente al lavoro | {count} agenti al lavoro", "needsYou": "Serve il tuo intervento", "paused": "Agenti in pausa", "error": "Gli agenti non riescono a connettersi", "details": "Dettagli" },
@@ -2087,7 +2087,7 @@ export const itIT = {
     "description": "Descrizione",
     "image": "Immagine",
     "imageAlt": "Testo alternativo dell’immagine",
-    "twitterCard": "Twitter card",
+    "twitterCard": "Scheda Twitter",
     "card": "Card",
     "structuredData": "Dati strutturati",
     "noStructuredTypes": "Nessun tipo JSON-LD trovato.",
@@ -3026,6 +3026,18 @@ export const itIT = {
     "interrupted": "Interrotto",
     "fileRemoved": "Spostato o eliminato"
   },
+  "qrCode": {
+    "title": "Scansiona codice QR",
+    "close": "Chiudi codice QR",
+    "image": "Codice QR",
+    "url": "URL",
+    "tooLong": "Questo testo è troppo lungo per un codice QR",
+    "hint": "Per scansionare questo codice, puoi usare un’app di scansione QR sul telefono o alcune app della fotocamera.",
+    "copy": "Copia",
+    "download": "Scarica",
+    "copied": "Immagine del codice QR copiata",
+    "downloadStarted": "Download dell’immagine del codice QR avviato"
+  },
   "taskManager": {
     "title": "Task Manager",
     "close": "Chiudi Task Manager",
@@ -3666,6 +3678,8 @@ export const itIT = {
       "reload": "Ricarica",
       "reloadWithoutCache": "Ricarica senza cache",
       "copyPageAddress": "Copia indirizzo pagina",
+      "createQrCodePage": "Crea codice QR per questa pagina",
+      "createQrCodeImage": "Crea codice QR per questa immagine",
       "inspect": "Ispeziona",
       "print": "Stampa…",
       "showFullHistory": "Mostra cronologia completa",
@@ -3809,4 +3823,4 @@ export const itIT = {
       "webpageSingleFile": "Pagina web, file singolo"
     }
   }
-} satisfies MessageSchema
+}

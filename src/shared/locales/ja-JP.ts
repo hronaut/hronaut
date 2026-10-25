@@ -23,7 +23,7 @@ import { walletMessages } from './wallets/index.js'
 import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
-export const jaJP = {
+export const jaJP: MessageSchema = {
   trustedDialogs: trustedDialogMessages['ja-JP'],
   reactInspection: reactInspectionMessages['ja-JP'],
   "agentStatus": { "starting": "エージェントの準備をしています", "ready": "エージェントの準備完了", "connected": "{name} が接続済み", "connectedMany": "{count} 個のエージェントが接続済み", "working": "{name} が作業中", "workingMany": "{count} 個のエージェントが作業中", "needsYou": "対応が必要です", "paused": "エージェント一時停止中", "error": "エージェントが接続できません", "details": "詳細" },
@@ -1673,7 +1673,7 @@ export const jaJP = {
       "elementScreenshot": "要素のスクリーンショット",
       "screenshotDescription": "コンポーネントを 1 つ選択して PNG 全体をコピーします",
       "audit": "監査と最適化",
-      "javascriptCpu": "JavaScript CPU",
+      "javascriptCpu": "JavaScript CPU プロファイル",
       "exportAccount": "エクスポートとアカウント",
       "copySnapshot": "ページのスナップショットをコピー",
       "copySnapshotAria": "エージェント用にページのスナップショットをコピー",
@@ -3026,6 +3026,18 @@ export const jaJP = {
     "interrupted": "中断",
     "fileRemoved": "移動済みまたは削除済み"
   },
+  "qrCode": {
+    "title": "QR コードをスキャン",
+    "close": "QR コードを閉じる",
+    "image": "QR コード",
+    "url": "URL",
+    "tooLong": "このテキストは長すぎるため QR コードにできません",
+    "hint": "このコードをスキャンするには、スマートフォンの QR コードスキャナ アプリや一部のカメラアプリを使用できます。",
+    "copy": "コピー",
+    "download": "ダウンロード",
+    "copied": "QR コードの画像をコピーしました",
+    "downloadStarted": "QR コードの画像のダウンロードを開始しました"
+  },
   "taskManager": {
     "title": "タスク マネージャー",
     "close": "タスク マネージャーを閉じる",
@@ -3666,6 +3678,8 @@ export const jaJP = {
       "reload": "再読み込み",
       "reloadWithoutCache": "キャッシュなしで再読み込み",
       "copyPageAddress": "ページのアドレスをコピー",
+      "createQrCodePage": "このページの QR コードを作成",
+      "createQrCodeImage": "この画像の QR コードを作成",
       "inspect": "検証",
       "print": "印刷…",
       "showFullHistory": "すべての履歴を表示",
@@ -3809,4 +3823,4 @@ export const jaJP = {
       "webpageSingleFile": "ウェブページ、1 つのファイル"
     }
   }
-} satisfies MessageSchema
+}

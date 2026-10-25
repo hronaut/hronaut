@@ -23,7 +23,7 @@ import { walletMessages } from './wallets/index.js'
 import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
-export const hiIN = {
+export const hiIN: MessageSchema = {
   trustedDialogs: trustedDialogMessages['hi-IN'],
   reactInspection: reactInspectionMessages['hi-IN'],
   "agentStatus": { "starting": "एजेंट के लिए तैयारी हो रही है", "ready": "एजेंट के लिए तैयार", "connected": "{name} कनेक्ट है", "connectedMany": "{count} एजेंट कनेक्ट है | {count} एजेंट कनेक्ट हैं", "working": "{name} काम कर रहा है", "workingMany": "{count} एजेंट काम कर रहा है | {count} एजेंट काम कर रहे हैं", "needsYou": "आपकी ज़रूरत है", "paused": "एजेंट रोके गए", "error": "एजेंट कनेक्ट नहीं हो पा रहे", "details": "विवरण" },
@@ -3026,6 +3026,18 @@ export const hiIN = {
     "interrupted": "बीच में रुक गया",
     "fileRemoved": "दूसरी जगह ले जाई गई या मिटाई गई"
   },
+  "qrCode": {
+    "title": "QR कोड स्कैन करें",
+    "close": "QR कोड बंद करें",
+    "image": "QR कोड",
+    "url": "URL",
+    "tooLong": "यह टेक्स्ट QR कोड के लिए बहुत लंबा है",
+    "hint": "इस कोड को स्कैन करने के लिए, आप अपने फ़ोन पर QR स्कैनर ऐप या कुछ कैमरा ऐप्लिकेशन का इस्तेमाल कर सकते हैं।",
+    "copy": "कॉपी करें",
+    "download": "डाउनलोड करें",
+    "copied": "QR कोड की इमेज कॉपी की गई",
+    "downloadStarted": "QR कोड की इमेज डाउनलोड होना शुरू हुई"
+  },
   "taskManager": {
     "title": "टास्क मैनेजर",
     "close": "टास्क मैनेजर बंद करें",
@@ -3666,6 +3678,8 @@ export const hiIN = {
       "reload": "फिर से लोड करें",
       "reloadWithoutCache": "कैश के बिना फिर से लोड करें",
       "copyPageAddress": "पेज का पता कॉपी करें",
+      "createQrCodePage": "इस पेज के लिए QR कोड बनाएं",
+      "createQrCodeImage": "इस इमेज के लिए QR कोड बनाएं",
       "inspect": "जांच करें",
       "print": "प्रिंट करें…",
       "showFullHistory": "पूरा इतिहास दिखाएं",
@@ -3809,4 +3823,4 @@ export const hiIN = {
       "webpageSingleFile": "वेबपेज, एक फ़ाइल"
     }
   }
-} satisfies MessageSchema
+}

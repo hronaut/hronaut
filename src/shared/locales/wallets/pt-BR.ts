@@ -86,8 +86,8 @@ export const ptBRWallets = {
   "environment": "Ambiente",
   "environments": {
     "local": "Local",
-    "testnet": "Testnet",
-    "mainnet": "Mainnet"
+    "testnet": "Rede de teste",
+    "mainnet": "Rede principal"
   },
   "networkId": "ID da rede",
   "networkName": "Nome da rede",

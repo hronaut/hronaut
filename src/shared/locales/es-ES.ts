@@ -23,7 +23,7 @@ import { walletMessages } from './wallets/index.js'
 import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
-export const esES = {
+export const esES: MessageSchema = {
   trustedDialogs: trustedDialogMessages['es-ES'],
   reactInspection: reactInspectionMessages['es-ES'],
   "agentStatus": { "starting": "Preparándose para agentes", "ready": "Listo para agentes", "connected": "{name} conectado", "connectedMany": "{count} agente conectado | {count} agentes conectados", "working": "{name} está trabajando", "workingMany": "{count} agente trabajando | {count} agentes trabajando", "needsYou": "Te necesita", "paused": "Agentes en pausa", "error": "Los agentes no pueden conectarse", "details": "Detalles" },
@@ -3823,4 +3823,4 @@ export const esES = {
       "webpageSingleFile": "Página web, un solo archivo"
     }
   }
-} satisfies MessageSchema
+}

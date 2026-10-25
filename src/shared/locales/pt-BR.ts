@@ -23,7 +23,7 @@ import { walletMessages } from './wallets/index.js'
 import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
-export const ptBR = {
+export const ptBR: MessageSchema = {
   trustedDialogs: trustedDialogMessages['pt-BR'],
   reactInspection: reactInspectionMessages['pt-BR'],
   "agentStatus": { "starting": "Preparando para os agentes", "ready": "Pronto para os agentes", "connected": "{name} conectado", "connectedMany": "{count} agente conectado | {count} agentes conectados", "working": "{name} está trabalhando", "workingMany": "{count} agente trabalhando | {count} agentes trabalhando", "needsYou": "Precisa de você", "paused": "Agentes pausados", "error": "Os agentes não conseguem se conectar", "details": "Detalhes" },
@@ -3026,6 +3026,18 @@ export const ptBR = {
     "interrupted": "Interrompido",
     "fileRemoved": "Movido ou excluído"
   },
+  "qrCode": {
+    "title": "Ler QR code",
+    "close": "Fechar QR code",
+    "image": "QR code",
+    "url": "URL",
+    "tooLong": "Este texto é longo demais para um QR code",
+    "hint": "Para ler este código, você pode usar um app leitor de QR code no seu smartphone ou alguns apps de câmera.",
+    "copy": "Copiar",
+    "download": "Fazer download",
+    "copied": "Imagem do QR code copiada",
+    "downloadStarted": "Download da imagem do QR code iniciado"
+  },
   "taskManager": {
     "title": "Gerenciador de tarefas",
     "close": "Fechar Gerenciador de tarefas",
@@ -3183,8 +3195,8 @@ export const ptBR = {
       "emptyDescription": "Este site não criou um banco de dados para a origem de nível superior.",
       "database": "Banco de dados",
       "databaseAria": "Banco de dados IndexedDB",
-      "objectStore": "Object store",
-      "objectStoreAria": "Object store do IndexedDB",
+      "objectStore": "Repositório de objetos",
+      "objectStoreAria": "Repositório de objetos do IndexedDB",
       "records": "{count} registro | {count} registros",
       "filter": "Filtrar registros do IndexedDB",
       "filterPlaceholder": "Filtrar chaves ou valores carregados",
@@ -3666,6 +3678,8 @@ export const ptBR = {
       "reload": "Recarregar",
       "reloadWithoutCache": "Recarregar sem cache",
       "copyPageAddress": "Copiar endereço da página",
+      "createQrCodePage": "Criar QR code para esta página",
+      "createQrCodeImage": "Criar QR code para esta imagem",
       "inspect": "Inspecionar",
       "print": "Imprimir…",
       "showFullHistory": "Mostrar histórico completo",
@@ -3809,4 +3823,4 @@ export const ptBR = {
       "webpageSingleFile": "Página da web, arquivo único"
     }
   }
-} satisfies MessageSchema
+}

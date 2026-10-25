@@ -23,7 +23,7 @@ import { walletMessages } from './wallets/index.js'
 import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
-export const koKR = {
+export const koKR: MessageSchema = {
   trustedDialogs: trustedDialogMessages['ko-KR'],
   reactInspection: reactInspectionMessages['ko-KR'],
   "agentStatus": { "starting": "에이전트 준비 중", "ready": "에이전트 준비 완료", "connected": "{name} 연결됨", "connectedMany": "에이전트 {count}개 연결됨", "working": "{name} 작업 중", "workingMany": "에이전트 {count}개 작업 중", "needsYou": "확인 필요", "paused": "에이전트 일시중지됨", "error": "에이전트를 연결할 수 없음", "details": "세부정보" },
@@ -1673,7 +1673,7 @@ export const koKR = {
       "elementScreenshot": "요소 스크린샷",
       "screenshotDescription": "구성요소 하나를 선택하고 전체 PNG로 복사",
       "audit": "감사 및 최적화",
-      "javascriptCpu": "JavaScript CPU",
+      "javascriptCpu": "JavaScript CPU 프로필",
       "exportAccount": "내보내기 및 계정",
       "copySnapshot": "페이지 스냅샷 복사",
       "copySnapshotAria": "에이전트용 페이지 스냅샷 복사",
@@ -3026,6 +3026,18 @@ export const koKR = {
     "interrupted": "중단됨",
     "fileRemoved": "이동되었거나 삭제됨"
   },
+  "qrCode": {
+    "title": "QR 코드 스캔",
+    "close": "QR 코드 닫기",
+    "image": "QR 코드",
+    "url": "URL",
+    "tooLong": "이 텍스트는 QR 코드로 만들기에 너무 깁니다.",
+    "hint": "이 코드를 스캔하려면 휴대전화의 QR 스캐너 앱이나 일부 카메라 앱을 사용하세요.",
+    "copy": "복사",
+    "download": "다운로드",
+    "copied": "QR 코드 이미지를 복사했습니다.",
+    "downloadStarted": "QR 코드 이미지 다운로드를 시작했습니다."
+  },
   "taskManager": {
     "title": "작업 관리자",
     "close": "작업 관리자 닫기",
@@ -3666,6 +3678,8 @@ export const koKR = {
       "reload": "새로고침",
       "reloadWithoutCache": "캐시 없이 새로고침",
       "copyPageAddress": "페이지 주소 복사",
+      "createQrCodePage": "이 페이지의 QR 코드 생성",
+      "createQrCodeImage": "이 이미지의 QR 코드 생성",
       "inspect": "검사",
       "print": "인쇄…",
       "showFullHistory": "전체 방문 기록 표시",
@@ -3809,4 +3823,4 @@ export const koKR = {
       "webpageSingleFile": "웹페이지, 단일 파일"
     }
   }
-} satisfies MessageSchema
+}

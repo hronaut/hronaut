@@ -23,7 +23,7 @@ import { walletMessages } from './wallets/index.js'
 import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
-export const trTR = {
+export const trTR: MessageSchema = {
   trustedDialogs: trustedDialogMessages['tr-TR'],
   reactInspection: reactInspectionMessages['tr-TR'],
   "agentStatus": { "starting": "Ajanlar için hazırlanıyor", "ready": "Ajanlara hazır", "connected": "{name} bağlandı", "connectedMany": "{count} ajan bağlı | {count} ajan bağlı", "working": "{name} çalışıyor", "workingMany": "{count} ajan çalışıyor | {count} ajan çalışıyor", "needsYou": "Sizi bekliyor", "paused": "Ajanlar duraklatıldı", "error": "Ajanlar bağlanamıyor", "details": "Ayrıntılar" },
@@ -1673,7 +1673,7 @@ export const trTR = {
       "elementScreenshot": "Öğe ekran görüntüsü",
       "screenshotDescription": "Bir bileşen seçin ve tam PNG’sini kopyalayın",
       "audit": "Denetle ve iyileştir",
-      "javascriptCpu": "JavaScript CPU",
+      "javascriptCpu": "JavaScript işlemci profili",
       "exportAccount": "Dışa aktarma ve hesap",
       "copySnapshot": "Sayfa anlık görüntüsünü kopyala",
       "copySnapshotAria": "Ajan için sayfa anlık görüntüsünü kopyala",
@@ -3026,6 +3026,18 @@ export const trTR = {
     "interrupted": "Kesintiye uğradı",
     "fileRemoved": "Taşındı veya silindi"
   },
+  "qrCode": {
+    "title": "QR kodunu tara",
+    "close": "QR kodunu kapat",
+    "image": "QR kodu",
+    "url": "URL",
+    "tooLong": "Bu metin bir QR kodu için çok uzun",
+    "hint": "Bu kodu taramak için telefonunuzdaki bir QR tarayıcı uygulamasını veya bazı kamera uygulamalarını kullanabilirsiniz.",
+    "copy": "Kopyala",
+    "download": "İndir",
+    "copied": "QR kodu resmi kopyalandı",
+    "downloadStarted": "QR kodu resminin indirilmesi başladı"
+  },
   "taskManager": {
     "title": "Görev yöneticisi",
     "close": "Görev yöneticisini kapat",
@@ -3666,6 +3678,8 @@ export const trTR = {
       "reload": "Yeniden yükle",
       "reloadWithoutCache": "Önbelleği kullanmadan yeniden yükle",
       "copyPageAddress": "Sayfa adresini kopyala",
+      "createQrCodePage": "Bu sayfa için QR kodu oluştur",
+      "createQrCodeImage": "Bu resim için QR kodu oluştur",
       "inspect": "İncele",
       "print": "Yazdır…",
       "showFullHistory": "Tüm geçmişi göster",
@@ -3809,4 +3823,4 @@ export const trTR = {
       "webpageSingleFile": "Web sayfası, tek dosya"
     }
   }
-} satisfies MessageSchema
+}

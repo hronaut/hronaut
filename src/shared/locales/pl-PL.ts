@@ -23,7 +23,7 @@ import { walletMessages } from './wallets/index.js'
 import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
-export const plPL = {
+export const plPL: MessageSchema = {
   trustedDialogs: trustedDialogMessages['pl-PL'],
   reactInspection: reactInspectionMessages['pl-PL'],
   "agentStatus": { "starting": "Przygotowanie do pracy z agentami", "ready": "Gotowe do pracy z agentami", "connected": "{name}: połączono", "connectedMany": "{count} agent połączony | {count} agenci połączeni | {count} agentów połączonych", "working": "{name} pracuje", "workingMany": "{count} agent pracuje | {count} agenci pracują | {count} agentów pracuje", "needsYou": "Czeka na Ciebie", "paused": "Agenci wstrzymani", "error": "Agenci nie mogą się połączyć", "details": "Szczegóły" },
@@ -3823,4 +3823,4 @@ export const plPL = {
       "webpageSingleFile": "Strona internetowa, jeden plik"
     }
   }
-} satisfies MessageSchema
+}

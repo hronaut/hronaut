@@ -23,7 +23,7 @@ import { walletMessages } from './wallets/index.js'
 import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
-export const zhTW = {
+export const zhTW: MessageSchema = {
   trustedDialogs: trustedDialogMessages['zh-TW'],
   reactInspection: reactInspectionMessages['zh-TW'],
   "agentStatus": { "starting": "正在為代理程式做準備", "ready": "代理程式已就緒", "connected": "{name} 已連線", "connectedMany": "已連線 {count} 個代理程式", "working": "{name} 正在處理工作", "workingMany": "{count} 個代理程式正在處理工作", "needsYou": "需要你處理", "paused": "代理程式已暫停", "error": "代理程式無法連線", "details": "詳細資料" },
@@ -1673,7 +1673,7 @@ export const zhTW = {
       "elementScreenshot": "元素螢幕截圖",
       "screenshotDescription": "選取一個元件並複製其完整 PNG",
       "audit": "稽核與最佳化",
-      "javascriptCpu": "JavaScript CPU",
+      "javascriptCpu": "JavaScript CPU 分析",
       "exportAccount": "匯出與帳戶",
       "copySnapshot": "複製網頁快照",
       "copySnapshotAria": "複製網頁快照給代理程式",
@@ -3026,6 +3026,18 @@ export const zhTW = {
     "interrupted": "已中斷",
     "fileRemoved": "已移動或刪除"
   },
+  "qrCode": {
+    "title": "掃描 QR 圖碼",
+    "close": "關閉 QR 圖碼",
+    "image": "QR 圖碼",
+    "url": "網址",
+    "tooLong": "這段文字太長，無法建立 QR 圖碼",
+    "hint": "如要掃描這個 QR 圖碼，你可以使用手機上的 QR 圖碼掃描器應用程式或某些相機應用程式。",
+    "copy": "複製",
+    "download": "下載",
+    "copied": "已複製 QR 圖碼圖片",
+    "downloadStarted": "已開始下載 QR 圖碼圖片"
+  },
   "taskManager": {
     "title": "工作管理員",
     "close": "關閉工作管理員",
@@ -3666,6 +3678,8 @@ export const zhTW = {
       "reload": "重新載入",
       "reloadWithoutCache": "略過快取重新載入",
       "copyPageAddress": "複製網頁網址",
+      "createQrCodePage": "為這個網頁建立 QR 圖碼",
+      "createQrCodeImage": "為這張圖片建立 QR 圖碼",
       "inspect": "檢查",
       "print": "列印…",
       "showFullHistory": "顯示完整記錄",
@@ -3809,4 +3823,4 @@ export const zhTW = {
       "webpageSingleFile": "網頁，單一檔案"
     }
   }
-} satisfies MessageSchema
+}
