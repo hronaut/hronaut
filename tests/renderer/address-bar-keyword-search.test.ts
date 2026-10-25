@@ -587,6 +587,18 @@ describe('site search shortcuts in the address bar', () => {
     expect(h.field()).toEqual({ value: '', caret: [0, 0] })
   })
 
+  it('offers an engine only by the site the field shows, as before there were site searches', async () => {
+    // The field fills in a visited google.com.au after google.com; that is not Google's site, so Tab is not taken.
+    const h = createHarness([visit('australia', 'https://www.google.com.au/', 3)], [], [WIKIPEDIA])
+    await clear(h.input)
+    await type(h.input, 'google.com')
+    expect(h.input.value).toBe('google.com.au')
+    expect(h.hint()).toBeNull()
+    const tabKey = await key(h.input, { key: 'Tab' })
+    expect(tabKey.defaultPrevented).toBe(false)
+    expect(h.engine()).toBeNull()
+  })
+
   it('follows the site searches as Settings changes them', async () => {
     const h = createHarness([], [], [WIKIPEDIA])
     await clear(h.input)

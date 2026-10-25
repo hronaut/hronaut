@@ -1,5 +1,5 @@
 import { computed, shallowRef, type Ref } from 'vue'
-import { addressKeyword, type AddressKeyword } from '../address-keyword-search.js'
+import { addressKeyword, siteSearchKeyword, type AddressKeyword } from '../address-keyword-search.js'
 import type { SiteSearch } from '../../../shared/site-search.js'
 
 interface AddressKeywordModeOptions {
@@ -21,12 +21,13 @@ interface AddressKeywordModeOptions {
  */
 export function useAddressKeywordMode(options: AddressKeywordModeOptions) {
   const keyword = shallowRef<AddressKeyword | null>(null)
-  // The field's text is the whole of it, with the rest of an address it filled in after what was typed. A shortcut typed
-  // whole is offered too while the field fills in more after it, as Chrome offers a typed keyword.
+  // The field's text is the whole of it, with the rest of an address it filled in after what was typed. A site search's
+  // shortcut typed whole is offered too while the field fills in more after it, as Chrome offers a typed keyword; an
+  // engine's site is offered only as the field shows it, as before there were site searches.
   const hint = computed(() => {
     if (keyword.value || !options.offersKeyword()) return null
     const siteSearches = options.siteSearches()
-    return addressKeyword(options.address.value, siteSearches) ?? addressKeyword(options.typed(), siteSearches) ?? null
+    return addressKeyword(options.address.value, siteSearches) ?? siteSearchKeyword(options.typed(), siteSearches) ?? null
   })
   // Whether the Tab key held down took the keyword, so that its repeats keep the keyboard in the field.
   let tabHeld = false

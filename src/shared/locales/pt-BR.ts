@@ -398,6 +398,7 @@ export const ptBR: MessageSchema = {
         "keywordSpaces": "Um atalho não pode ter espaços",
         "keywordTaken": "Este atalho já está em uso",
         "urlInvalid": "Digite um endereço da web que comece com http:// ou https://",
+        "urlQueryInSite": "Coloque %s depois do domínio, não nele",
         "urlNoQuery": "Coloque %s onde ficam os termos da pesquisa",
         "tooLong": "É longo demais"
       }

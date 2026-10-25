@@ -398,6 +398,7 @@ export const frFR: MessageSchema = {
         "keywordSpaces": "Un raccourci ne peut pas contenir d’espaces",
         "keywordTaken": "Ce raccourci est déjà utilisé",
         "urlInvalid": "Saisissez une adresse web commençant par http:// ou https://",
+        "urlQueryInSite": "Placez %s après le domaine, pas dedans",
         "urlNoQuery": "Placez %s à l’endroit des termes de recherche",
         "tooLong": "C’est trop long"
       }

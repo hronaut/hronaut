@@ -106,7 +106,10 @@ describe('site search IPC', () => {
       id: `site-${index}`, name: `Site ${index}`, keyword: `s${index}`, url: `https://s${index}.example/?q=%s`
     }))
     const { invoke, list } = siteSearchIpc(full)
-    await expect(invoke('settings:add-site-search', WIKIPEDIA)).rejects.toMatchObject({ key: 'appErrors.settings.siteSearchRejected' })
+    await expect(invoke('settings:add-site-search', WIKIPEDIA)).rejects.toMatchObject({
+      key: 'appErrors.settings.siteSearchListFull',
+      message: 'The site search list is full. Delete a site search to add another.'
+    })
     expect(list()).toHaveLength(SITE_SEARCH_LIMIT)
   })
 

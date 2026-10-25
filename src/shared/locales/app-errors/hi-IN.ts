@@ -352,7 +352,8 @@ export const hiINAppErrors: AppErrorMessages = {
     "downloadFolderUnavailable": "Hronaut डाउनलोड फ़ोल्डर नहीं बना सका ({code})।",
     "downloadFolderOpenFailed": "Hronaut आपके फ़ाइल मैनेजर में डाउनलोड फ़ोल्डर नहीं खोल सका।",
     "siteSearchRejected": "Hronaut यह साइट खोज सहेज नहीं सका। इसका नाम, शॉर्टकट और URL जांचें।",
-    "siteSearchMissing": "यह साइट खोज हटा दी गई थी, इसलिए बदलाव सहेजा नहीं गया।"
+    "siteSearchMissing": "यह साइट खोज हटा दी गई थी, इसलिए बदलाव सहेजा नहीं गया।",
+    "siteSearchListFull": "साइट खोज की सूची भर गई है। दूसरी जोड़ने के लिए कोई एक हटाएं।"
   },
   "credentials": {
     "fillAgentActive": "पासवर्ड नहीं भरा गया, क्योंकि एजेंट की एक कमांड अब भी चल रही थी। एजेंट रुके रहते हैं; उसके पूरा होने पर फिर से कोशिश करें।",

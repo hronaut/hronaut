@@ -398,6 +398,7 @@ export const esES: MessageSchema = {
         "keywordSpaces": "Un acceso directo no puede contener espacios",
         "keywordTaken": "Este acceso directo ya está en uso",
         "urlInvalid": "Escribe una dirección web que empiece por http:// o https://",
+        "urlQueryInSite": "Pon %s después del dominio, no dentro de él",
         "urlNoQuery": "Pon %s donde van los términos de búsqueda",
         "tooLong": "Es demasiado largo"
       }

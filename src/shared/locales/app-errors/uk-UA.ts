@@ -352,7 +352,8 @@ export const ukUAAppErrors: AppErrorMessages = {
     "downloadFolderUnavailable": "Hronaut не вдалося створити папку завантажень ({code}).",
     "downloadFolderOpenFailed": "Hronaut не вдалося відкрити папку завантажень у файловому менеджері.",
     "siteSearchRejected": "Hronaut не вдалося зберегти цей пошук на сайті. Перевірте назву, ярлик і URL.",
-    "siteSearchMissing": "Цей пошук на сайті було видалено, тому зміну не збережено."
+    "siteSearchMissing": "Цей пошук на сайті було видалено, тому зміну не збережено.",
+    "siteSearchListFull": "Список пошуку на сайтах заповнено. Видаліть один пошук, щоб додати інший."
   },
   "credentials": {
     "fillAgentActive": "Пароль не заповнено, бо команда агента ще виконувалася. Агенти залишаються призупиненими; спробуйте ще раз, коли вона завершиться.",

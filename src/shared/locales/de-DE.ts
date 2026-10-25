@@ -398,6 +398,7 @@ export const deDE: MessageSchema = {
         "keywordSpaces": "Ein Kürzel darf keine Leerzeichen enthalten",
         "keywordTaken": "Dieses Kürzel wird bereits verwendet",
         "urlInvalid": "Gib eine Webadresse ein, die mit http:// oder https:// beginnt",
+        "urlQueryInSite": "Setze %s hinter die Domain, nicht hinein",
         "urlNoQuery": "Setze %s dort ein, wo die Suchbegriffe stehen",
         "tooLong": "Das ist zu lang"
       }

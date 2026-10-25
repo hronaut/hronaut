@@ -398,6 +398,7 @@ export const plPL: MessageSchema = {
         "keywordSpaces": "Skrót nie może zawierać spacji",
         "keywordTaken": "Ten skrót jest już używany",
         "urlInvalid": "Wpisz adres internetowy zaczynający się od http:// lub https://",
+        "urlQueryInSite": "Wstaw %s za domeną, a nie w niej",
         "urlNoQuery": "Wstaw %s w miejscu wyszukiwanych słów",
         "tooLong": "To jest za długie"
       }

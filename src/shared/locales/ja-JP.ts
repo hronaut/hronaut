@@ -398,6 +398,7 @@ export const jaJP: MessageSchema = {
         "keywordSpaces": "ショートカットにスペースは使えません",
         "keywordTaken": "このショートカットは既に使われています",
         "urlInvalid": "http:// または https:// で始まるウェブアドレスを入力してください",
+        "urlQueryInSite": "%s はドメインの中ではなく、その後ろに置いてください",
         "urlNoQuery": "検索語を入れる位置に %s を置いてください",
         "tooLong": "長すぎます"
       }

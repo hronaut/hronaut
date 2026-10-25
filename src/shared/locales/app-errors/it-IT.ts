@@ -352,7 +352,8 @@ export const itITAppErrors: AppErrorMessages = {
     "downloadFolderUnavailable": "Hronaut non è riuscito a creare la cartella dei download ({code}).",
     "downloadFolderOpenFailed": "Hronaut non è riuscito ad aprire la cartella dei download nel gestore file.",
     "siteSearchRejected": "Hronaut non è riuscito a salvare questa ricerca nel sito. Controlla nome, scorciatoia e URL.",
-    "siteSearchMissing": "Questa ricerca nel sito è stata eliminata, quindi la modifica non è stata salvata."
+    "siteSearchMissing": "Questa ricerca nel sito è stata eliminata, quindi la modifica non è stata salvata.",
+    "siteSearchListFull": "L’elenco delle ricerche nei siti è pieno. Eliminane una per aggiungerne un’altra."
   },
   "credentials": {
     "fillAgentActive": "La password non è stata inserita perché un comando di un agente era ancora in esecuzione. Gli agenti restano in pausa; riprova al termine del comando.",

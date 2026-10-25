@@ -32,9 +32,13 @@ const ENGINE_KEYWORDS: readonly AddressKeyword[] = SEARCH_ENGINE_OPTIONS.map((en
 export function addressKeyword(text: string, siteSearches: readonly SiteSearch[] = []): AddressKeyword | undefined {
   const typed = cleanSiteSearchKeyword(text)
   if (!typed) return undefined
-  const engine = ENGINE_KEYWORDS.find((candidate) => candidate.keyword === typed)
-  if (engine) return engine
-  const site = siteSearches.find((candidate) => candidate.keyword === typed)
+  return ENGINE_KEYWORDS.find((candidate) => candidate.keyword === typed) ?? siteSearchKeyword(text, siteSearches)
+}
+
+/** The site search whose shortcut the text is, read as addressKeyword reads it, leaving out the built-in engines. */
+export function siteSearchKeyword(text: string, siteSearches: readonly SiteSearch[]): AddressKeyword | undefined {
+  const typed = cleanSiteSearchKeyword(text)
+  const site = typed ? siteSearches.find((candidate) => candidate.keyword === typed) : undefined
   return site ? { id: site.id, label: site.name, keyword: site.keyword, url: site.url } : undefined
 }
 

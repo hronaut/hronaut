@@ -20,6 +20,15 @@ describe('site search rules', () => {
     expect(cleanSiteSearchKeyword('https://www.Example.org/')).toBe('example.org')
     expect(cleanSiteSearchKeyword('http://docs')).toBe('docs')
     expect(cleanSiteSearchKeyword('www.')).toBe('')
+    // The address field cleans typed text once, so a shortcut is saved cleaned until nothing more changes, and reads
+    // back as it was saved.
+    expect(cleanSiteSearchKeyword('www.www.wiki')).toBe('www.wiki')
+    for (const keyword of ['www.www.wiki', 'https://https://wiki', 'wiki//', ' https:// www.wiki ']) {
+      const saved = siteSearchFromDraft('wiki', { name: 'Wiki', keyword, url: 'https://wiki.example/?q=%s' })
+      expect(saved.keyword, keyword).toBe('wiki')
+      expect(readSiteSearches([saved]), keyword).toEqual([saved])
+    }
+    expect(siteSearchProblems({ name: 'A', keyword: 'www.www.w', url: 'https://example.org/?q=%s' }, [WIKIPEDIA]).keyword).toBe('keywordTaken')
   })
 
   it('accepts a named shortcut with a web address that has %s where the terms go', () => {
@@ -42,8 +51,16 @@ describe('site search rules', () => {
     })
     expect(siteSearchProblems({ name: 'A', keyword: 'two words', url: 'https://example.org/' }, []))
       .toEqual({ keyword: 'keywordSpaces', url: 'urlNoQuery' })
-    for (const url of ['example.org/?q=%s', 'javascript:alert(%s)', 'file:///tmp/%s', 'https:///%s', 'https://%s.example.org/']) {
+    for (const url of ['example.org/?q=%s', 'javascript:alert(%s)', 'file:///tmp/%s']) {
       expect(siteSearchProblems({ name: 'A', keyword: 'a', url }, []).url, url).toBe('urlInvalid')
+    }
+    // Terms in the site's name would change the site, and with nothing typed there would be no home page to open.
+    for (const url of ['https://%s.example.org/', 'https:///%s', 'https://%s/']) {
+      expect(siteSearchProblems({ name: 'A', keyword: 'a', url }, []).url, url).toBe('urlQueryInSite')
+    }
+    // Terms anywhere after the site keep it.
+    for (const url of ['https://example.org/%s', 'https://example.org/?q=%s#%s', 'https://user:%s@example.org/']) {
+      expect(siteSearchProblems({ name: 'A', keyword: 'a', url }, []).url, url).toBeUndefined()
     }
   })
 

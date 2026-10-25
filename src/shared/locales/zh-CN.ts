@@ -398,6 +398,7 @@ export const zhCN: MessageSchema = {
         "keywordSpaces": "快捷字词不能包含空格",
         "keywordTaken": "此快捷字词已被使用",
         "urlInvalid": "请输入以 http:// 或 https:// 开头的网址",
+        "urlQueryInSite": "请把 %s 放在域名之后，而不是域名中",
         "urlNoQuery": "请在搜索字词的位置放上 %s",
         "tooLong": "内容过长"
       }

@@ -398,6 +398,7 @@ export const itIT: MessageSchema = {
         "keywordSpaces": "Una scorciatoia non può contenere spazi",
         "keywordTaken": "Questa scorciatoia è già in uso",
         "urlInvalid": "Inserisci un indirizzo web che inizi con http:// o https://",
+        "urlQueryInSite": "Metti %s dopo il dominio, non al suo interno",
         "urlNoQuery": "Metti %s dove vanno i termini di ricerca",
         "tooLong": "È troppo lungo"
       }

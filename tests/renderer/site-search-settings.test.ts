@@ -60,9 +60,9 @@ describe('Site search settings', () => {
     expect(within(region).queryByRole('form')).toBeNull()
     expect(within(region).getByRole('heading', { name: 'Site search' })).toHaveFocus()
     const row = within(region).getByRole('listitem')
-    expect(row).toHaveTextContent('Wikipedia')
-    expect(row).toHaveTextContent('w')
-    expect(row).toHaveTextContent(WIKIPEDIA.url)
+    expect(within(row).getByText('Wikipedia')).toBeVisible()
+    expect(within(row).getByText('w', { selector: 'code' })).toBeVisible()
+    expect(within(row).getByText(WIKIPEDIA.url)).toBeVisible()
     expect(settings.value.siteSearches).toHaveLength(1)
   })
 
@@ -134,16 +134,18 @@ describe('Site search settings', () => {
     }
   })
 
+  // jsdom does not submit a form on Enter by itself, so the browser's submit is left to the e2e; the repeat must be
+  // cancelled, which is what keeps it from submitting there.
   it('does not save the form an Enter still held from Add opened', async () => {
-    const { region, user, addSiteSearch } = renderPanel()
+    const { region, user } = renderPanel()
     await user.click(within(region).getByRole('button', { name: 'Add site search' }))
     const name = within(region).getByLabelText('Name')
     const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
     name.dispatchEvent(repeat)
     expect(repeat.defaultPrevented).toBe(true)
-    await nextTick()
-    expect(within(region).queryByRole('alert')).toBeNull()
-    expect(addSiteSearch).not.toHaveBeenCalled()
+    const first = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    name.dispatchEvent(first)
+    expect(first.defaultPrevented).toBe(false)
   })
 
   it('keeps the form open with what was typed when saving fails', async () => {

@@ -398,6 +398,7 @@ export const hiIN: MessageSchema = {
         "keywordSpaces": "शॉर्टकट में स्पेस नहीं हो सकते",
         "keywordTaken": "यह शॉर्टकट पहले से इस्तेमाल हो रहा है",
         "urlInvalid": "http:// या https:// से शुरू होने वाला वेब पता डालें",
+        "urlQueryInSite": "%s को डोमेन के अंदर नहीं, उसके बाद लगाएं",
         "urlNoQuery": "खोज शब्दों की जगह %s लगाएं",
         "tooLong": "यह बहुत लंबा है"
       }

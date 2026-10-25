@@ -9,7 +9,7 @@ export interface SiteSearch {
   id: string
   /** What the Settings list and the address field's chip show, such as Wikipedia. */
   name: string
-  /** What is typed in the address field to search the site, such as w, cleaned as cleanSiteSearchKeyword cleans it. */
+  /** What is typed in the address field to search the site, such as w, in the clean form the field matches. */
   keyword: string
   /** The search address, with %s where the search terms go. */
   url: string
@@ -36,6 +36,7 @@ export type SiteSearchProblem =
   | 'keywordTaken'
   | 'urlTooLong'
   | 'urlInvalid'
+  | 'urlQueryInSite'
   | 'urlNoQuery'
 
 export interface SiteSearchProblems {
@@ -56,23 +57,31 @@ const RESERVED_KEYWORDS: ReadonlySet<string> = new Set([
 const ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/u
 
 /**
- * A shortcut as the address field reads it, as Chrome cleans a typed keyword: in lower case, without http:// or
- * https://, www. and a closing slash, so that wikipedia.org and https://www.wikipedia.org/ are one shortcut.
+ * Typed text as the address field reads it for a keyword, as Chrome cleans a typed keyword: in lower case, without
+ * http:// or https://, www. and a closing slash, so that wikipedia.org and https://www.wikipedia.org/ name one site.
  */
 export function cleanSiteSearchKeyword(text: string): string {
   return text.trim().toLowerCase().replace(/^https?:\/\//u, '').replace(/^www\./u, '').replace(/\/$/u, '')
 }
 
-// The site a search address belongs to, with x and y for the terms: an address whose site changes with the terms,
-// such as https://%s.example/, has none, and neither has one that is not a web address.
-function searchSite(url: string): string | undefined {
+// A shortcut as it is saved: cleaned until cleaning changes nothing more, so that www.www.wiki is saved as wiki, the
+// text the address field matches it by, and reads back the same.
+function savedKeyword(text: string): string {
+  let keyword = text
+  for (let cleaned = cleanSiteSearchKeyword(keyword); cleaned !== keyword; cleaned = cleanSiteSearchKeyword(keyword)) keyword = cleaned
+  return keyword
+}
+
+// Whether the text is a web address once x stands for the terms, and whether its site stays the same whatever the
+// terms are: an address such as https://%s.example/ puts them in the site's name.
+function searchAddress(url: string): 'invalid' | 'queryInSite' | 'valid' {
   try {
     const first = new URL(url.replaceAll('%s', 'x'))
     const second = new URL(url.replaceAll('%s', 'y'))
-    if ((first.protocol !== 'http:' && first.protocol !== 'https:') || !first.hostname) return undefined
-    return first.origin === second.origin ? first.origin : undefined
+    if ((first.protocol !== 'http:' && first.protocol !== 'https:') || !first.hostname) return 'invalid'
+    return first.origin === second.origin ? 'valid' : 'queryInSite'
   } catch {
-    return undefined
+    return 'invalid'
   }
 }
 
@@ -82,21 +91,23 @@ export function siteSearchProblems(draft: SiteSearchDraft, others: readonly Site
   const name = draft.name.trim()
   if (!name) problems.name = 'nameMissing'
   else if (name.length > SITE_SEARCH_NAME_MAX_LENGTH) problems.name = 'nameTooLong'
-  const keyword = cleanSiteSearchKeyword(draft.keyword)
+  const keyword = savedKeyword(draft.keyword)
   if (!keyword) problems.keyword = 'keywordMissing'
   else if (keyword.length > SITE_SEARCH_KEYWORD_MAX_LENGTH) problems.keyword = 'keywordTooLong'
   else if (/\s/u.test(keyword)) problems.keyword = 'keywordSpaces'
   else if (RESERVED_KEYWORDS.has(keyword) || others.some((entry) => entry.keyword === keyword)) problems.keyword = 'keywordTaken'
   const url = draft.url.trim()
-  if (url.length > SITE_SEARCH_URL_MAX_LENGTH) problems.url = 'urlTooLong'
-  else if (!searchSite(url)) problems.url = 'urlInvalid'
+  const address = url.length > SITE_SEARCH_URL_MAX_LENGTH ? undefined : searchAddress(url)
+  if (!address) problems.url = 'urlTooLong'
+  else if (address === 'invalid') problems.url = 'urlInvalid'
+  else if (address === 'queryInSite') problems.url = 'urlQueryInSite'
   else if (!url.includes('%s')) problems.url = 'urlNoQuery'
   return problems
 }
 
 /** The site search a draft without problems saves, with its shortcut cleaned and its name and address trimmed. */
 export function siteSearchFromDraft(id: string, draft: SiteSearchDraft): SiteSearch {
-  return { id, name: draft.name.trim(), keyword: cleanSiteSearchKeyword(draft.keyword), url: draft.url.trim() }
+  return { id, name: draft.name.trim(), keyword: savedKeyword(draft.keyword), url: draft.url.trim() }
 }
 
 export function isSiteSearchDraft(value: unknown): value is SiteSearchDraft {

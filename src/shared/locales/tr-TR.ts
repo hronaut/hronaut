@@ -398,6 +398,7 @@ export const trTR: MessageSchema = {
         "keywordSpaces": "Kısayol boşluk içeremez",
         "keywordTaken": "Bu kısayol zaten kullanılıyor",
         "urlInvalid": "http:// veya https:// ile başlayan bir web adresi girin",
+        "urlQueryInSite": "%s ifadesini alan adının içine değil, sonrasına koyun",
         "urlNoQuery": "Arama terimlerinin geleceği yere %s koyun",
         "tooLong": "Bu çok uzun"
       }

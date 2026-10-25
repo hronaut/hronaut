@@ -398,8 +398,9 @@ export const ruRU: MessageSchema = {
         "keywordSpaces": "Ярлык не может содержать пробелы",
         "keywordTaken": "Этот ярлык уже используется",
         "urlInvalid": "Введите веб-адрес, который начинается с http:// или https://",
+        "urlQueryInSite": "Поставьте %s после домена, а не в нём",
         "urlNoQuery": "Поставьте %s на место поисковых слов",
-        "tooLong": "Слишком длинно"
+        "tooLong": "Слишком длинное значение"
       }
     },
     "downloads": {

@@ -398,6 +398,7 @@ export const zhTW: MessageSchema = {
         "keywordSpaces": "快捷字詞不能包含空格",
         "keywordTaken": "這個快捷字詞已在使用中",
         "urlInvalid": "請輸入以 http:// 或 https:// 開頭的網址",
+        "urlQueryInSite": "請將 %s 放在網域之後，而不是網域中",
         "urlNoQuery": "請在搜尋字詞的位置放上 %s",
         "tooLong": "內容過長"
       }

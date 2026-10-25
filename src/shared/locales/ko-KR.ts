@@ -398,6 +398,7 @@ export const koKR: MessageSchema = {
         "keywordSpaces": "바로가기에는 공백을 넣을 수 없습니다",
         "keywordTaken": "이미 사용 중인 바로가기입니다",
         "urlInvalid": "http:// 또는 https://로 시작하는 웹 주소를 입력하세요",
+        "urlQueryInSite": "%s를 도메인 안이 아니라 도메인 뒤에 넣으세요",
         "urlNoQuery": "검색어가 들어갈 자리에 %s를 넣으세요",
         "tooLong": "너무 깁니다"
       }

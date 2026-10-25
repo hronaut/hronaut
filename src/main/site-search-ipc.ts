@@ -47,7 +47,7 @@ export function registerSiteSearchIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Si
     host.assertTrustedSender(event)
     if (!isSiteSearchDraft(draft)) throw new TypeError('Invalid site search')
     return change((current) => {
-      if (current.length >= SITE_SEARCH_LIMIT) throw new LocalizedError('appErrors.settings.siteSearchRejected')
+      if (current.length >= SITE_SEARCH_LIMIT) throw new LocalizedError('appErrors.settings.siteSearchListFull')
       return [...current, checked(randomUUID(), draft, current)]
     })
   })
