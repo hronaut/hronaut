@@ -68,7 +68,11 @@ all unit/component tests, the full Docker/Electron and native-dialog gate, and
 platform packaging before publication. A failed release gate blocks publication;
 fix it without overwriting a published tag. The CI workflow is manual-only for
 explicit investigations or release rehearsals, with packaging on `release/`
-branches. Never describe unexecuted checks as passing.
+branches. When a rehearsal on a `release/` branch passed static validation and
+every Electron shard on the tag's own tree, the release takes those results
+instead of running them again; it still audits dependencies and tests every
+package. Dispatch the release with `full_tests` to run everything. Never
+describe unexecuted checks as passing.
 
 Install with Node.js 22 or newer:
 

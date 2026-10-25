@@ -15,6 +15,11 @@ on:
         required: false
         default: false
         type: boolean
+      full_tests:
+        description: Run static validation and every Electron shard even when a release rehearsal passed them on the same tree
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -26,10 +31,14 @@ concurrency:
 jobs:
   prepare-release:
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
       notes_sha: ${{ steps.release.outputs.notes_sha }}
+      rehearsal_run: ${{ steps.rehearsal.outputs.run_id }}
     steps:
       - name: Checkout selected tag
         uses: actions/checkout@v7
@@ -103,6 +112,20 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "notes_sha=$notes_sha" >> "$GITHUB_OUTPUT"
 
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # The release branch's ci.yml rehearsal runs the same static validation and Electron shards. When one passed on the
+      # tag's own tree, running them again would test the same files the same way.
+      - name: Find the release rehearsal that passed on this tree
+        id: rehearsal
+        if: github.event_name != 'workflow_dispatch' || inputs.full_tests != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/find-release-rehearsal.ts "$(git rev-parse "$GITHUB_SHA^{tree}")"
+
   test-integration:
     name: Electron integration shard ${{ matrix.shard }}/8
     needs: prepare-release
@@ -112,13 +135,21 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
+      - name: Take the shard's result from the release rehearsal
+        if: needs.prepare-release.outputs.rehearsal_run != ''
+        env:
+          REHEARSAL_RUN: ${{ needs.prepare-release.outputs.rehearsal_run }}
+        run: echo "::notice::Release rehearsal $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$REHEARSAL_RUN passed this shard on the same tree."
+
       - name: Checkout immutable release source
+        if: needs.prepare-release.outputs.rehearsal_run == ''
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Run Electron integration tests in Docker
+        if: needs.prepare-release.outputs.rehearsal_run == ''
         env:
           HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/8"
           HRONAUT_INTEGRATION_SHARD_WORKERS: "1"
@@ -154,9 +185,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Take static validation from the release rehearsal
+        if: needs.prepare-release.outputs.rehearsal_run != ''
+        env:
+          REHEARSAL_RUN: ${{ needs.prepare-release.outputs.rehearsal_run }}
+        run: echo "::notice::Release rehearsal $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$REHEARSAL_RUN passed static validation on the same tree."
+
       - name: Run static validation
+        if: needs.prepare-release.outputs.rehearsal_run == ''
         run: npm run validate
 
+      # Advisories can be published after the rehearsal, so the audit always runs.
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 

@@ -233,6 +233,63 @@ describe('release quality gates', () => {
     }
   })
 
+  // The release ran validate and all eight Electron shards again on the tree its rehearsal had just passed.
+  it('takes validate and Electron shard results from a release rehearsal that passed on the same tree', async () => {
+    type Step = { name?: string, id?: string, if?: string, run?: string, env?: Record<string, string> }
+    type Job = { name?: string, needs?: string | string[], if?: string, permissions?: Record<string, string>, outputs?: Record<string, string>, strategy?: { matrix: { shard: number[] } }, steps: Step[] }
+    const [releaseSource, ciSource] = await Promise.all([
+      readFile('.github/workflows/release.yml', 'utf8'),
+      readFile('.github/workflows/ci.yml', 'utf8')
+    ])
+    const release = parse(releaseSource) as { on: { workflow_dispatch: { inputs: Record<string, { type: string, default: unknown }> } }, jobs: Record<string, Job> }
+    const ci = parse(ciSource) as { jobs: Record<string, Job> }
+    const { REHEARSED_JOBS } = await import('../scripts/find-release-rehearsal.ts')
+    const step = (job: Job, name: string) => {
+      const found = job.steps.find((candidate) => candidate.name === name)
+      if (!found) throw new Error(`Workflow step not found: ${name}`)
+      return found
+    }
+    const reused = "needs.prepare-release.outputs.rehearsal_run != ''"
+    const notReused = "needs.prepare-release.outputs.rehearsal_run == ''"
+
+    expect(release.on.workflow_dispatch.inputs.full_tests).toMatchObject({ type: 'boolean', default: false })
+    const prepare = release.jobs['prepare-release']!
+    expect(prepare.permissions).toEqual({ actions: 'read', contents: 'read' })
+    expect(prepare.outputs?.rehearsal_run).toBe('${{ steps.rehearsal.outputs.run_id }}')
+    const find = step(prepare, 'Find the release rehearsal that passed on this tree')
+    expect(find).toMatchObject({
+      id: 'rehearsal',
+      if: "github.event_name != 'workflow_dispatch' || inputs.full_tests != true",
+      run: 'node scripts/find-release-rehearsal.ts "$(git rev-parse "$GITHUB_SHA^{tree}")"'
+    })
+
+    const integration = release.jobs['test-integration']!
+    expect(step(integration, 'Take the shard\'s result from the release rehearsal').if).toBe(reused)
+    expect(step(integration, 'Checkout immutable release source').if).toBe(notReused)
+    expect(step(integration, 'Run Electron integration tests in Docker').if).toBe(notReused)
+    const validate = release.jobs.validate!
+    expect(step(validate, 'Take static validation from the release rehearsal').if).toBe(reused)
+    expect(step(validate, 'Run static validation')).toMatchObject({ if: notReused, run: 'npm run validate' })
+    // Advisories can be published after the rehearsal.
+    expect(step(validate, 'Audit production dependencies').if).toBeUndefined()
+
+    // The finder asks for the rehearsal's jobs by the names ci.yml gives them.
+    const shards = ci.jobs['integration-shard']!
+    expect(REHEARSED_JOBS).toEqual([
+      'validate',
+      ...shards.strategy!.matrix.shard.map((shard) => shards.name!.replace('${{ matrix.shard }}', String(shard)))
+    ])
+    expect(integration.strategy!.matrix.shard).toEqual(shards.strategy!.matrix.shard)
+    expect(step(integration, 'Run Electron integration tests in Docker').env)
+      .toEqual(step(shards, 'Run Electron integration tests in Docker').env)
+    for (const job of ['validate', 'integration-shard']) {
+      expect(ci.jobs[job]!.steps.map(({ run }) => run).filter(Boolean)).toEqual(expect.arrayContaining(
+        release.jobs[job === 'validate' ? 'validate' : 'test-integration']!.steps
+          .filter(({ if: condition }) => condition === notReused).map(({ run }) => run).filter(Boolean)
+      ))
+    }
+  })
+
   it.each(['build-linux', 'build-macos', 'build-windows'])(
     'does not package desktop artifacts after adapter validation fails (%s)', async build => {
       const workflow = parse(await readFile('.github/workflows/release.yml', 'utf8')) as {

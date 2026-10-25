@@ -33,7 +33,11 @@ complete static, unit/component, Docker/Electron, native-dialog, and packaging
 gates before publication. A failed gate prevents publication. Do not overwrite
 published tags. The CI workflow remains available by manual dispatch for an
 explicit investigation or rehearsal; dispatching it on a `release/` branch also
-checks platform packaging.
+checks platform packaging. When that rehearsal passed static validation and every
+Electron shard on the tag's own tree, the release workflow takes those results
+instead of running them again. It still audits production dependencies and builds
+and tests every platform package. Dispatch the release with `full_tests` to run
+every gate again.
 
 For release validation or an explicitly requested investigation:
 
