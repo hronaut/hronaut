@@ -15,7 +15,7 @@ const { commitRuntimeSetting } = await import('../src/main/runtime-setting-commi
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
 
-const CLOUDFLARE = SECURE_DNS_PROVIDERS[0].template
+const CLOUDFLARE = SECURE_DNS_PROVIDERS[0]!.template
 
 function secureDnsIpc(saved: Partial<AppSettings> = {}) {
   const handlers = new Map<string, Handler>()
