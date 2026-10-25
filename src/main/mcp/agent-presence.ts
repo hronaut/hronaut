@@ -473,7 +473,7 @@ export class AgentPresenceRegistry {
     return ordered
   }
 
-  /** Increases whenever a step is added or gets its picture. */
+  /** Increases whenever a step is added, gets its picture or is forgotten. */
   get historyRevision(): number {
     return this.revision
   }
@@ -528,6 +528,20 @@ export class AgentPresenceRegistry {
       if (!workspace?.steps.length) continue
       workspace.steps = []
       forgot = true
+    }
+    if (forgot) this.revision += 1
+  }
+
+  /** History was cleared, all of it or from `since` (epoch milliseconds) on: every agent's finished steps from then go, pictures included. */
+  forgetStepsSince(since = Number.NEGATIVE_INFINITY): void {
+    let forgot = false
+    for (const record of this.clients.values()) {
+      for (const workspace of record.workspaces.values()) {
+        const kept = workspace.steps.filter((step) => step.at < since)
+        if (kept.length === workspace.steps.length) continue
+        workspace.steps = kept
+        forgot = true
+      }
     }
     if (forgot) this.revision += 1
   }

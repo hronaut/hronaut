@@ -555,19 +555,24 @@ export class McpHttpServer {
     return this.homeFeed.revision
   }
 
-  /** Forgets Home's feed, or one workspace's entries in it. */
-  forgetHomeFeed(workspaceId?: string): void {
+  /** Forgets one workspace's entries in Home's feed. */
+  private forgetWorkspaceHomeFeed(workspaceId: string): void {
     const revision = this.homeFeed.revision
-    if (workspaceId) this.homeFeed.forgetWorkspace(workspaceId)
-    else this.homeFeed.clear()
+    this.homeFeed.forgetWorkspace(workspaceId)
     if (this.homeFeed.revision !== revision) this.agentPresenceChanged()
   }
 
-  /** Forgets the steps in Home's feed from `since` (epoch milliseconds) on, as history cleared for a time range. */
-  forgetHomeFeedSince(since: number): void {
-    const revision = this.homeFeed.revision
-    this.homeFeed.forgetSince(since)
-    if (this.homeFeed.revision !== revision) this.agentPresenceChanged()
+  /**
+   * History was cleared, all of it or from `since` (epoch milliseconds) on: the steps agents took from then go from
+   * Home's feed and from each agent's "All steps", pictures included, since they name and show the pages visited.
+   */
+  forgetAgentStepsSince(since?: number): void {
+    const feedRevision = this.homeFeed.revision
+    const stepsRevision = this.agentPresence.historyRevision
+    if (since === undefined) this.homeFeed.clear()
+    else this.homeFeed.forgetSince(since)
+    this.agentPresence.forgetStepsSince(since)
+    if (this.homeFeed.revision !== feedRevision || this.agentPresence.historyRevision !== stepsRevision) this.agentPresenceChanged()
   }
 
   /** Whether a session still counts as connected: a request open, or one within the presence window. */
@@ -612,7 +617,7 @@ export class McpHttpServer {
   /** A workspace closed: the steps agents took there, their pictures and Home's feed entries for it, are not kept. */
   forgetAgentWorkspaceSteps(workspaceId: string): void {
     this.agentPresence.forgetWorkspaceSteps(workspaceId)
-    this.forgetHomeFeed(workspaceId)
+    this.forgetWorkspaceHomeFeed(workspaceId)
   }
 
   /** One agent's last steps in an open workspace, newest first, for the shell only; null once its session closed. */

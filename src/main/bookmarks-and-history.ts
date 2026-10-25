@@ -24,8 +24,8 @@ interface BookmarksAndHistoryHost {
   /** The two stores; index.ts creates the record, and most of the main process reads it. */
   state: BookmarksAndHistoryState
   sendToShellWindows(channel: string, ...args: unknown[]): void
-  /** The MCP listener while it runs, whose Home feed goes when the person or an agent clears the history. */
-  mcpServer(): Pick<McpHttpServer, 'forgetHomeFeed'> | null
+  /** The MCP listener while it runs, whose agents' finished steps go when the person or an agent clears the history. */
+  mcpServer(): Pick<McpHttpServer, 'forgetAgentStepsSince'> | null
   /** The tabs once the window opens, whose Recently closed tabs and Back and Forward pages go with the history. */
   tabs(): Pick<BrowserTabsManager, 'forgetHistoryPages'> | null
   /** Offers the person's latest reversible action for Undo, replacing the previous offer. */
@@ -34,8 +34,8 @@ interface BookmarksAndHistoryHost {
 
 /**
  * Bookmarks and visit history at runtime: opening both stores, recording the pages tabs visit, telling both shell
- * windows what they hold after each change, offering to undo a bookmark the person removed, forgetting Home's feed with
- * the history, and the operations the MCP server offers agents on them, `agentBookmarks` and `agentHistory`.
+ * windows what they hold after each change, offering to undo a bookmark the person removed, forgetting agents' finished
+ * steps with the history, and the operations the MCP server offers agents on them, `agentBookmarks` and `agentHistory`.
  */
 export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   publishBookmarks(): BrowserBookmark[]
@@ -105,11 +105,12 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   }
 
   /**
-   * The history was cleared, by the person or an agent. Home's feed names pages agents acted on, Recently closed names
-   * pages tabs showed and tabs' Back and Forward lists hold pages, so they all go too, as Chrome forgets them with it.
+   * The history was cleared, by the person or an agent. Agents' finished steps (Home's feed and each agent's "All steps")
+   * name and picture pages they acted on, Recently closed names pages tabs showed and tabs' Back and Forward lists hold
+   * pages, so they all go too, as Chrome forgets them with it.
    */
   function historyCleared(): void {
-    host.mcpServer()?.forgetHomeFeed()
+    host.mcpServer()?.forgetAgentStepsSince()
     host.tabs()?.forgetHistoryPages(() => true)
   }
 
