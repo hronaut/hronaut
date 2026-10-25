@@ -47,7 +47,8 @@ test('looks up addresses through the chosen secure DNS provider from startup, an
   const certificates = await mkdtemp(join(tmpdir(), 'hronaut-secure-dns-'))
   const asked: string[] = []
   const website = createHttpServer((request, response) => {
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    // Not stored, so the tab restored after the relaunch loads from the website again and has to be looked up.
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
     response.end(`<!doctype html><title>Found ${(request.headers.host ?? '').split(':')[0]}</title><main>Found</main>`)
   })
   let provider: ReturnType<typeof createHttpsServer> | undefined
