@@ -108,7 +108,7 @@ describe('the link to a highlight, from the page\'s text', () => {
   })
 
   it('adds nothing to text found only once as whole words, or with no words around it to add', () => {
-    expect(textFragmentLink(PAGE, selected(['apples and pineapple', 'apple'], [1, 0], [1, 5]))).toBe(`${LINK}apple`)
+    expect(textFragmentLink(PAGE, selected(['apples and pineapple', 'Eat apple now'], [1, 4], [1, 9]))).toBe(`${LINK}apple`)
     expect(textFragmentLink(PAGE, selected(['the word apple', 'the word apple'], [1, 0], [1, 14]))).toBe(`${LINK}the%20word%20apple`)
   })
 
