@@ -495,7 +495,11 @@ describe('release quality gates', () => {
     expect(releaseIntegration).toContain('shard: [1, 2, 3, 4, 5, 6, 7, 8]')
     expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/8"')
     expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"')
-    expect(releaseIntegration).toContain('release-playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}')
+    expect(releaseIntegration).toContain('diagnostics-playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}')
+    // The publish job downloads every release-* artifact into the assets it attests and publishes; only builds may match.
+    const releaseArtifacts = [...releaseWorkflow.matchAll(/^ +name: (release-.*)$/gm)].map((match) => match[1])
+    expect(releaseArtifacts).toEqual(['release-mcpb', 'release-linux-${{ matrix.slug }}', 'release-macos-${{ matrix.target }}', 'release-windows-${{ matrix.target }}'])
+    expect(releaseWorkflow).toContain('          pattern: release-*\n          path: release-assets\n')
     expect(playwright).toContain('retries: process.env.CI ? 1 : 0')
     expect(playwright).toContain('failOnFlakyTests: Boolean(process.env.CI)')
     expect(playwright).toContain("[['json', { outputFile: `test-results/json/${artifactShard}.json` }]]")

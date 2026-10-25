@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -22,7 +22,8 @@ function report(specs: Record<string, Status[]>, errors: unknown[] = []): Playwr
         specs: Object.entries(specs).map(([title, statuses]) => ({
           title,
           file: 'browser-shell.e2e.ts',
-          tests: statuses.map((status) => ({ status }))
+          // An intended skip expects to be skipped; a test another failure kept from running expects to pass.
+          tests: statuses.map((status) => ({ status, expectedStatus: status === 'skipped' ? 'skipped' as const : 'passed' as const }))
         }))
       }]
     }]
@@ -54,7 +55,13 @@ describe('testsToRecheck', () => {
     ['no failed test', report({ passes: ['expected'] }), /no test failed/],
     ['more failures than a recheck takes', report(Object.fromEntries(Array.from({ length: MAX_RECHECKED_TESTS + 1 }, (_, index) => [`fails ${index}`, ['unexpected']]))), /4 tests failed, more than the 3/],
     ['a title with the list separator', report({ 'opens › closes': ['flaky'] }), /cannot be named in a test list/],
-    ['a title with surrounding spaces', report({ ' padded': ['flaky'] }), /cannot be named in a test list/]
+    ['a title with surrounding spaces', report({ ' padded': ['flaky'] }), /cannot be named in a test list/],
+    ['a test the failure kept from running', {
+      suites: [{ title: 'browser-shell.e2e.ts', specs: [
+        { title: 'fails', file: 'browser-shell.e2e.ts', tests: [{ status: 'unexpected', expectedStatus: 'passed' }] },
+        { title: 'next in the serial group', file: 'browser-shell.e2e.ts', tests: [{ status: 'skipped', expectedStatus: 'passed' }] }
+      ] }]
+    }, /1 test\(s\) did not run, such as "browser-shell.e2e.ts › next in the serial group"/]
   ])('keeps the shard red after %s', (_case, failed, reason) => {
     const selection = testsToRecheck(failed)
     expect(selection).toEqual({ reason: expect.stringMatching(reason) })
@@ -100,13 +107,16 @@ describe.skipIf(process.platform === 'win32')('flaky-test recheck with Playwrigh
     const cli = resolve('node_modules/@playwright/test/cli.js')
     const script = resolve('scripts/recheck-flaky-tests.ts')
     try {
+      // As in the real config, the test directory sits below the working directory, so report and list paths are
+      // relative to it.
+      await mkdir(join(directory, 'e2e'))
       await writeFile(join(directory, 'playwright.config.mjs'), `import { defineConfig } from '${playwright}'
 export default defineConfig({
-  testDir: '.', testMatch: '*.e2e.mjs', retries: 1, failOnFlakyTests: true,
+  testDir: './e2e', testMatch: '*.e2e.mjs', retries: 1, failOnFlakyTests: true,
   reporter: [['json', { outputFile: process.env.REPORT }]]
 })
 `)
-      await writeFile(join(directory, 'sample.e2e.mjs'), `import { expect, test } from '${playwright}'
+      await writeFile(join(directory, 'e2e/sample.e2e.mjs'), `import { expect, test } from '${playwright}'
 import { existsSync, writeFileSync } from 'node:fs'
 test.describe('restart', () => {
   test.describe(() => {

@@ -139,8 +139,8 @@ and one shared test queue after one application build, so a worker that finishes
 a short test can take the next pending case. Hosted CI gives each of eight shards
 an isolated runner with one worker to limit native focus and capture contention.
 When a hosted shard fails because of at most three tests (failed, or passed only
-on a retry) and nothing else went wrong, it reruns each of them three times with
-no retries. If every rerun passes, the shard passes with a "Flaky Electron tests"
+on a retry), every other test ran, and no error came from outside a test, it
+reruns each of them three times with no retries. If every rerun passes, the shard passes with a "Flaky Electron tests"
 warning and uploads the first failures' traces. Fix each flake it names as you
 would a failing test. Use
 `HRONAUT_INTEGRATION_SHARD_WORKERS` to tune a selected hosted shard. The existing

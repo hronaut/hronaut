@@ -8,6 +8,7 @@ export const RECHECK_REPEATS = 3
 
 interface ReportTest {
   status: 'expected' | 'unexpected' | 'flaky' | 'skipped'
+  expectedStatus?: 'passed' | 'failed' | 'timedOut' | 'skipped' | 'interrupted'
 }
 
 interface ReportSpec {
@@ -66,6 +67,10 @@ const sameTest = (left: ListedTest, right: ListedTest) =>
  */
 export function testsToRecheck(report: PlaywrightReport): { tests: ListedTest[] } | { reason: string } {
   if (report.errors?.length) return { reason: `the run reported ${report.errors.length} error(s) outside any test` }
+  // A failure can keep other tests from running: the rest of a serial group, or a file after its beforeAll failed. A
+  // recheck of the failed test alone would never run them.
+  const notRun = reportedSpecs(report).filter(({ tests }) => tests.some(({ status, expectedStatus }) => status === 'skipped' && expectedStatus !== 'skipped'))
+  if (notRun.length) return { reason: `${notRun.length} test(s) did not run, such as "${testListLine(notRun[0]!)}"` }
   const failed = reportedSpecs(report)
     .filter(({ tests }) => tests.some(({ status }) => status === 'unexpected' || status === 'flaky'))
     .map(({ file, titlePath }) => ({ file, titlePath }))

@@ -17,7 +17,11 @@ function playwrightReport(tests: Record<string, Array<'expected' | 'unexpected' 
     errors: [],
     suites: [{
       title: 'browser-shell.e2e.ts',
-      specs: Object.entries(tests).map(([title, statuses]) => ({ title, file: 'browser-shell.e2e.ts', tests: statuses.map(status => ({ status })) }))
+      specs: Object.entries(tests).map(([title, statuses]) => ({
+        title,
+        file: 'browser-shell.e2e.ts',
+        tests: statuses.map(status => ({ status, expectedStatus: status === 'skipped' ? 'skipped' as const : 'passed' as const }))
+      }))
     }]
   }
   return JSON.stringify(report)
