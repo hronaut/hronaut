@@ -16,7 +16,9 @@ import type { BrowserBookmark, BrowserHistoryEntry, BrowserTabState } from '../.
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { addressEnterAction, withWwwAndCom, type AddressEnterAction } from '../address-enter.js'
 import { inlineAddressCompletion, siteVisits, type AddressInlineCompletion } from '../address-inline-completion.js'
+import { keywordSearchTarget } from '../address-keyword-search.js'
 import { disposeAll, registerDisposers } from './dispose-all.js'
+import { useAddressKeywordMode } from './useAddressKeywordMode.js'
 
 /**
  * The toolbar's address field fills the free space (styles/shell/toolbar.css). The take-over prompt takes room from it
@@ -87,6 +89,13 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const completionShown = computed(() => inlineCompletion.value !== null && address.value === inlineCompletion.value.text)
   // What the suggestions match: the typed text, without the rest the field filled in.
   const query = computed(() => completionShown.value && inlineCompletion.value ? inlineCompletion.value.typed : address.value)
+  // Tab to search an engine whose site the field shows, as in Chrome; see useAddressKeywordMode.ts. While the field
+  // searches an engine it suggests nothing.
+  const keywordMode = useAddressKeywordMode({
+    address,
+    input,
+    offersKeyword: () => focused.value && dirty.value && !(visible.value && selected.value)
+  })
   // The other open tabs with a page, kept as they were while their addresses stay the same, and their titles too while
   // @tabs lists them, so the browser state that each page's loading or new title brings does not draw the suggestions
   // again.
@@ -110,7 +119,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     : options.history.value)
   // Read only while a completion is worked out.
   const visitsBySite = computed(() => siteVisits(history.value))
-  const suggestions = computed(() => buildLocalAddressSuggestions({
+  const suggestions = computed(() => keywordMode.keyword.value ? [] : buildLocalAddressSuggestions({
     query: query.value,
     bookmarks: options.bookmarks.value,
     history: history.value,
@@ -175,6 +184,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       ? pendingNavigation.address
       : displayedAddress(tab?.url)
     inlineCompletion.value = null
+    keywordMode.clear()
     dirty.value = false
   }
 
@@ -226,7 +236,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     if (completion && event instanceof InputEvent && event.isComposing && address.value === completion.text) address.value = completion.typed
     inlineCompletion.value = null
     openSuggestions()
-    completeInline(event)
+    if (!keywordMode.enterFromSpace(event)) completeInline(event)
   }
 
   // Typing at the end of the field fills in the rest of a site or page it starts, selected, so that typing on replaces
@@ -356,6 +366,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     }
     pendingNavigation = navigation
     inlineCompletion.value = null
+    keywordMode.clear()
     cancelBlur()
     editing.value = false
     dirty.value = false
@@ -393,6 +404,18 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     event.preventDefault()
     // A held key opens the address once, not a tab for each repeat.
     if (disposed || event.repeat) return true
+    const keyword = keywordMode.keyword.value
+    if (keyword) {
+      // A keyword search is a search whatever is typed, so Ctrl+Enter searches as Enter does.
+      const target = keywordSearchTarget(keyword, address.value)
+      if (action !== 'add-www-and-com') {
+        void openInNewTab(target, action === 'new-background-tab')
+        return true
+      }
+      address.value = target
+      void navigateTo(target)
+      return true
+    }
     if (action === 'add-www-and-com') {
       // Ctrl+Enter adds www. and .com to what was typed, not to the rest the field filled in, as in Chrome.
       const typed = query.value
@@ -405,7 +428,15 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   }
 
   async function submit(): Promise<void> {
-    if (disposed || !address.value.trim()) return
+    if (disposed) return
+    const keyword = keywordMode.keyword.value
+    if (keyword) {
+      // The field shows where the search goes while it loads, as it shows a picked suggestion's address.
+      address.value = keywordSearchTarget(keyword, address.value)
+      await navigateTo(address.value)
+      return
+    }
+    if (!address.value.trim()) return
     await navigateTo(enteredAddress())
   }
 
@@ -531,6 +562,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     const enterAction = addressEnterAction(event, window.hronautShell?.windowChrome?.platform === 'darwin')
     if (enterAction && handleModifiedEnter(event, enterAction)) return
     if (forgetSelectedVisit(event)) return
+    if (keywordMode.handleKeydown(event)) return
     if (!suggestions.value.length) return
     if (moveToSwitchButton(event)) return
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -653,6 +685,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
           if (tabChanged) editing.value = false
           address.value = displayedAddress(url)
           inlineCompletion.value = null
+          keywordMode.clear()
           dirty.value = false
         }
       },
@@ -726,6 +759,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     switchFocused,
     focused,
     dirty,
+    keyword: keywordMode.keyword,
+    keywordHint: keywordMode.hint,
     suggestionId,
     switchSuggestionId,
     suggestionMeta,

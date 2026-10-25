@@ -871,6 +871,7 @@ export const esES = {
       "addressBackgroundTab": "Abrir lo escrito en la barra de direcciones en una pestaña nueva en segundo plano",
       "addressWwwCom": "Añadir www. y .com al nombre del sitio escrito en la barra de direcciones y abrirlo",
       "addressForgetVisit": "Quitar la visita resaltada de las sugerencias de la barra de direcciones y del historial",
+      "addressKeywordSearch": "Buscar con el buscador cuyo sitio escribiste en la barra de direcciones",
       "viewSource": "Ver el código fuente de la página",
       "back": "Volver a la página anterior",
       "forward": "Ir a la página siguiente",
@@ -1089,7 +1090,9 @@ export const esES = {
       "visits": "Historial · {count} visita | Historial · {count} visitas",
       "openTab": "Pestaña abierta",
       "switchToTab": "Cambiar a esta pestaña",
-      "switchHint": "Pulsa Tab y luego Intro para cambiar a esta pestaña."
+      "switchHint": "Pulsa Tab y luego Intro para cambiar a esta pestaña.",
+      "keywordSearch": "Buscar en {engine}",
+      "keywordHint": "Pulsa Tab para buscar en {engine}"
     },
     "network": {
       "notObserved": "No observado",

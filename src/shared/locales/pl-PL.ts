@@ -871,6 +871,7 @@ export const plPL = {
       "addressBackgroundTab": "Otwórz tekst wpisany w pasku adresu w nowej karcie w tle",
       "addressWwwCom": "Dodaj www. i .com do nazwy witryny wpisanej w pasku adresu i ją otwórz",
       "addressForgetVisit": "Usuń wyróżnioną wizytę z podpowiedzi paska adresu i z historii",
+      "addressKeywordSearch": "Szukaj wyszukiwarką, której witrynę wpisano w pasku adresu",
       "viewSource": "Wyświetl źródło strony",
       "back": "Wróć do poprzedniej strony",
       "forward": "Przejdź do następnej strony",
@@ -1089,7 +1090,9 @@ export const plPL = {
       "visits": "Historia · {count} wizyta | Historia · {count} wizyty | Historia · {count} wizyt",
       "openTab": "Otwarta karta",
       "switchToTab": "Przełącz na tę kartę",
-      "switchHint": "Naciśnij Tab, a potem Enter, aby przełączyć na tę kartę."
+      "switchHint": "Naciśnij Tab, a potem Enter, aby przełączyć na tę kartę.",
+      "keywordSearch": "Szukaj w {engine}",
+      "keywordHint": "Naciśnij Tab, aby szukać w {engine}"
     },
     "network": {
       "notObserved": "Nie zaobserwowano",
