@@ -14,6 +14,7 @@ function createHarness() {
     helpDialog: ref(false),
     releaseHistory: ref(false),
     taskManager: ref(false),
+    qrCode: ref(false),
     settings: ref(false),
     siteStorage: ref(false),
     siteControls: ref(false),
@@ -54,6 +55,7 @@ function createHarness() {
     closeHelpDialog: vi.fn(() => { surfaces.helpDialog.value = false }),
     closeReleaseHistory: vi.fn(() => { surfaces.releaseHistory.value = false }),
     closeTaskManager: vi.fn(() => { surfaces.taskManager.value = false }),
+    closeQrCode: vi.fn(() => { surfaces.qrCode.value = false }),
     closeAgentSteps: vi.fn(() => { surfaces.agentSteps.value = false }),
     cancelTrustedDialog: vi.fn(() => { surfaces.trustedDialog.value = false }),
     closeSettings: vi.fn(() => { surfaces.settings.value = false }),
@@ -76,6 +78,7 @@ function createHarness() {
       helpDialog: { open: surfaces.helpDialog, close: actions.closeHelpDialog },
       releaseHistory: { open: surfaces.releaseHistory, close: actions.closeReleaseHistory },
       taskManager: { open: surfaces.taskManager, close: actions.closeTaskManager },
+      qrCode: { open: surfaces.qrCode, close: actions.closeQrCode },
       settings: { open: surfaces.settings, close: actions.closeSettings }
     },
     overlays: {
@@ -363,6 +366,22 @@ describe('useAppShellKeyboardFeatureController', () => {
     controller.handleKeyDown(escape)
     expect(actions.closeTaskManager).toHaveBeenCalledTimes(2)
     expect(surfaces.taskManager.value).toBe(false)
+  })
+
+  it('keeps browser shortcuts behind the QR code dialog and closes it with Escape', () => {
+    const { controller, surfaces, actions } = createHarness()
+    surfaces.qrCode.value = true
+    const shortcut = new KeyboardEvent('keydown', { key: 'l', ctrlKey: true, cancelable: true })
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+
+    controller.handleKeyDown(shortcut)
+    controller.handleKeyDown(escape)
+
+    expect(actions.runShortcut).not.toHaveBeenCalled()
+    expect(shortcut.defaultPrevented).toBe(true)
+    expect(escape.defaultPrevented).toBe(true)
+    expect(actions.closeQrCode).toHaveBeenCalledOnce()
+    expect(surfaces.qrCode.value).toBe(false)
   })
 
   it('keeps browser shortcuts behind an agent\'s All steps and closes it with Escape', () => {

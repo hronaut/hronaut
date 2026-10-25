@@ -57,6 +57,7 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = 
     help: ref(false),
     releaseHistory: ref(false),
     taskManager: ref(false),
+    qrCode: ref(false),
     walletApproval: ref(false),
     trustedDialog: ref(false),
     agentSteps: ref(false),
@@ -173,6 +174,7 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = 
       help: { open: refs.help, close: closeHelp, openDialog: noop },
       releaseHistory: { open: refs.releaseHistory, close: noop },
       taskManager: { open: refs.taskManager, close: noop, openDialog: noop, toggle: toggleTaskManager },
+      qrCode: { open: refs.qrCode, close: noop },
       walletApproval: refs.walletApproval,
       trustedDialog: { open: refs.trustedDialog, close: noop },
       agentSteps: { open: refs.agentSteps, close: noop },
@@ -263,7 +265,7 @@ describe('app shell interaction feature controller', () => {
     const harness = createHarness()
     await expect(harness.controller.runBrowserShortcut('find-next')).resolves.toBe(true)
     await expect(harness.controller.runBrowserShortcut('find-previous')).resolves.toBe(true)
-    for (const dialog of ['commandPalette', 'workspaceEditor', 'credentialPicker', 'tabSearch', 'help', 'releaseHistory', 'taskManager', 'agentSteps', 'walletApproval', 'settings'] as const) {
+    for (const dialog of ['commandPalette', 'workspaceEditor', 'credentialPicker', 'tabSearch', 'help', 'releaseHistory', 'taskManager', 'qrCode', 'agentSteps', 'walletApproval', 'settings'] as const) {
       harness.refs[dialog].value = true
       await expect(harness.controller.runBrowserShortcut('find-next'), dialog).resolves.toBe(false)
       await expect(harness.controller.runBrowserShortcut('find-previous'), dialog).resolves.toBe(false)
@@ -277,7 +279,7 @@ describe('app shell interaction feature controller', () => {
     const harness = createHarness()
     await expect(harness.controller.runBrowserShortcut('task-manager')).resolves.toBe(true)
     expect(harness.toggleTaskManager).toHaveBeenCalledOnce()
-    for (const dialog of ['commandPalette', 'workspaceEditor', 'credentialPicker', 'tabSearch', 'help', 'releaseHistory', 'agentSteps', 'walletApproval', 'trustedDialog', 'settings'] as const) {
+    for (const dialog of ['commandPalette', 'workspaceEditor', 'credentialPicker', 'tabSearch', 'help', 'releaseHistory', 'qrCode', 'agentSteps', 'walletApproval', 'trustedDialog', 'settings'] as const) {
       harness.refs[dialog].value = true
       await expect(harness.controller.runBrowserShortcut('task-manager'), dialog).resolves.toBe(false)
       harness.refs[dialog].value = false
