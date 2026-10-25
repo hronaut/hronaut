@@ -16,6 +16,7 @@ import type {
   SearchEngineName
 } from '../../../shared/types.js'
 import type { McpToolSet } from '../../../shared/mcp-tool-sets.js'
+import type { SiteSearchDraft } from '../../../shared/site-search.js'
 import { mcpPortProblem } from '../../../shared/mcp-port.js'
 import type { AppBootstrapTask } from './useAppBootstrapController.js'
 import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
@@ -45,6 +46,9 @@ interface AppSettingsFeatureStore {
   setShowAgentCursor(enabled: boolean): Promise<AppSettings>
   setPinAgentLiveStatus(enabled: boolean): Promise<AppSettings>
   setSearchEngine(searchEngine: SearchEngineName): Promise<AppSettings>
+  addSiteSearch(draft: SiteSearchDraft): Promise<AppSettings>
+  updateSiteSearch(id: string, draft: SiteSearchDraft): Promise<AppSettings>
+  removeSiteSearch(id: string): Promise<AppSettings>
   setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
   setOmitAgentUrlDetail(enabled: boolean): Promise<AppSettings>
   setAllowWebsiteFileSaving(enabled: boolean): Promise<AppSettings>
@@ -264,6 +268,9 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
   const searchSettingsController = useSearchSettingsController({
     settings: options.settings,
     setSearchEngine: (searchEngine) => options.settingsStore.setSearchEngine(searchEngine),
+    addSiteSearch: (draft) => options.settingsStore.addSiteSearch(draft),
+    updateSiteSearch: (id, draft) => options.settingsStore.updateSiteSearch(id, draft),
+    removeSiteSearch: (id) => options.settingsStore.removeSiteSearch(id),
     onError: options.onSettingError
   })
   const walletsController = useWalletsController({

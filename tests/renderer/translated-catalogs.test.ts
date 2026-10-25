@@ -55,7 +55,7 @@ describe('translated preset and search engine catalogs', () => {
 
   it('describes the search engines in the interface language and keeps brand names', () => {
     const settings = ref<AppSettings>({ ...DEFAULT_RENDERER_SETTINGS })
-    const controller = useSearchSettingsController({ settings, setSearchEngine: vi.fn(async () => settings.value), onError: vi.fn() })
+    const controller = useSearchSettingsController({ settings, setSearchEngine: vi.fn(async () => settings.value), addSiteSearch: vi.fn(), updateSiteSearch: vi.fn(), removeSiteSearch: vi.fn(), onError: vi.fn() })
     render(SearchSettingsPanel, {
       global: { plugins: [createHronautI18n('de-DE')] },
       props: { controller }

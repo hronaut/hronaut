@@ -6,7 +6,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: 'interface size scale zoom tab position left top title bar dark light mode system cyberpunk',
       general: 'language interface system tray close startup sign in login launch minimized attention sound cursor live status strip agent agents',
-      search: 'address bar google duckduckgo bing brave startpage',
+      search: 'address bar site search shortcut keyword google duckduckgo bing brave startpage',
       downloads: 'folder location save ask file',
       performance: 'memory saver sleep cpu inactive tabs',
       mcp: 'token authentication port remote network lan tool set capability profile captcha url agents',
@@ -25,7 +25,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: 'oberfläche größe skalierung zoom tab position links oben titelleiste dunkel hell modus system cyberpunk',
       general: 'sprache oberfläche system tray infobereich schließen start anmelden starten minimiert aufmerksamkeit ton cursor live status leiste agent agenten',
-      search: 'suchmaschine adressleiste google duckduckgo bing brave startpage',
+      search: 'suchmaschine adressleiste websitesuche kürzel google duckduckgo bing brave startpage',
       downloads: 'ordner speicherort speichern fragen datei',
       performance: 'speicher sparmodus ruhezustand cpu inaktive tabs',
       mcp: 'token authentifizierung port remote netzwerk lan toolset werkzeuge berechtigungsprofil captcha url agenten',
@@ -44,7 +44,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: 'interface taille échelle zoom onglets position gauche haut barre de titre sombre clair mode système cyberpunk',
       general: 'langue interface système zone de notification fermer démarrage connexion lancer réduit attention son curseur statut en direct bandeau agent agents',
-      search: 'moteur de recherche barre d’adresse google duckduckgo bing brave startpage',
+      search: 'moteur de recherche barre d’adresse recherche sur site raccourci google duckduckgo bing brave startpage',
       downloads: 'dossier emplacement enregistrer demander fichier téléchargements',
       performance: 'mémoire économiseur veille cpu onglets inactifs',
       mcp: 'jeton authentification port distant réseau lan outils profil de capacités captcha url agents',
@@ -63,7 +63,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: 'interfaz tamaño escala zoom pestañas posición izquierda arriba barra de título oscuro claro modo sistema cyberpunk',
       general: 'idioma interfaz sistema bandeja cerrar inicio iniciar sesión abrir minimizado atención sonido cursor estado en vivo franja agente agentes',
-      search: 'motor de búsqueda barra de direcciones google duckduckgo bing brave startpage',
+      search: 'motor de búsqueda barra de direcciones búsqueda en sitios acceso directo google duckduckgo bing brave startpage',
       downloads: 'carpeta ubicación guardar preguntar archivo descargas',
       performance: 'memoria ahorro suspender cpu pestañas inactivas',
       mcp: 'token autenticación puerto remoto red lan herramientas perfil de capacidades captcha url agentes',
@@ -82,7 +82,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: 'interfejs rozmiar skala powiększenie karty położenie lewo góra pasek tytułu ciemny jasny tryb systemowy cyberpunk',
       general: 'język interfejs systemowy zasobnik zamykanie uruchamianie logowanie start zminimalizowane uwaga dźwięk kursor status na żywo pasek agent agenci',
-      search: 'wyszukiwarka pasek adresu google duckduckgo bing brave startpage',
+      search: 'wyszukiwarka pasek adresu wyszukiwanie w witrynach skrót google duckduckgo bing brave startpage',
       downloads: 'folder lokalizacja zapisywanie pytaj plik pobrane',
       performance: 'pamięć oszczędzanie uśpienie cpu nieaktywne karty',
       mcp: 'token uwierzytelnianie port zdalny sieć lan narzędzia profil uprawnień captcha url agenci',
@@ -101,7 +101,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: 'интерфейс размер масштаб вкладки положение слева сверху заголовок тёмная светлая режим системная cyberpunk',
       general: 'язык интерфейс интерфейса системный трей закрытие запуск вход автозапуск свёрнуто свернуто внимание звук курсор статус полоса агент агенты',
-      search: 'поисковая система адресная строка google duckduckgo bing brave startpage',
+      search: 'поисковая система адресная строка поиск по сайтам ярлык google duckduckgo bing brave startpage',
       downloads: 'папка расположение сохранять спрашивать файл загрузки',
       performance: 'память экономия сон спящие cpu неактивные вкладки',
       mcp: 'токен аутентификация порт удалённый удаленный сеть lan инструменты профиль полномочий captcha url агенты',
@@ -120,7 +120,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: 'інтерфейс розмір масштаб вкладки положення ліворуч згори заголовок темна світла режим системна cyberpunk',
       general: 'мова інтерфейс інтерфейсу системний трей закриття запуск вхід автозапуск згорнуто увага звук курсор статус смуга агент агенти',
-      search: 'пошукова система адресний рядок google duckduckgo bing brave startpage',
+      search: 'пошукова система адресний рядок пошук на сайтах ярлик google duckduckgo bing brave startpage',
       downloads: 'тека папка розташування зберігати питати файл завантаження',
       performance: 'пам’ять економія сон сплячі cpu неактивні вкладки',
       mcp: 'токен автентифікація порт віддалений мережа lan інструменти профіль повноважень captcha url агенти',
@@ -139,7 +139,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: 'interfaccia dimensione scala zoom posizione schede sinistra alto barra del titolo modalità scura chiara sistema tema aspetto cyberpunk',
       general: 'lingua interfaccia area di notifica barra di sistema chiusura avvio accesso login apertura ridotta a icona attenzione suono cursore stato in tempo reale striscia agente agenti',
-      search: 'barra degli indirizzi motore di ricerca google duckduckgo bing brave startpage',
+      search: 'barra degli indirizzi motore di ricerca ricerca nei siti scorciatoia google duckduckgo bing brave startpage',
       downloads: 'cartella posizione percorso salva chiedi file download',
       performance: 'risparmio memoria sospensione cpu schede inattive prestazioni',
       mcp: 'token autenticazione porta remoto rete lan set di strumenti profilo funzionalità captcha url agenti',
@@ -158,7 +158,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: 'interface tamanho escala zoom guias posição esquerda topo barra de título escuro claro modo sistema cyberpunk aparência tema',
       general: 'idioma interface sistema bandeja fechar inicialização login entrar iniciar minimizado atenção som cursor status ao vivo faixa agente agentes',
-      search: 'barra de endereços pesquisa google duckduckgo bing brave startpage',
+      search: 'barra de endereços pesquisa pesquisa em sites atalho google duckduckgo bing brave startpage',
       downloads: 'pasta local salvar perguntar arquivo downloads',
       performance: 'economia de memória suspender cpu guias inativas desempenho',
       mcp: 'token autenticação porta remoto rede lan conjunto de ferramentas perfil de capacidades captcha url agentes segurança',
@@ -177,7 +177,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: 'arayüz boyut ölçek yakınlaştırma zoom sekme konum sol üst başlık çubuğu koyu açık mod tema sistem cyberpunk',
       general: 'dil arayüz sistem tepsisi kapat başlangıç oturum açma giriş başlat simge durumunda ilgi ses imleç canlı durum şeridi ajan ajanlar',
-      search: 'arama motoru adres çubuğu google duckduckgo bing brave startpage',
+      search: 'arama motoru adres çubuğu site araması kısayol google duckduckgo bing brave startpage',
       downloads: 'klasör konum kaydet sor dosya indirilenler',
       performance: 'bellek tasarrufu uyku cpu işlemci etkin olmayan sekmeler',
       mcp: 'belirteç token kimlik doğrulama bağlantı noktası port uzak ağ lan araç seti yetenek profil captcha url ajanlar',
@@ -196,7 +196,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: 'दिखावट इंटरफ़ेस साइज़ स्केल ज़ूम टैब की जगह बाएं ऊपर टाइटल बार गहरा हल्का मोड थीम सिस्टम cyberpunk',
       general: 'सामान्य भाषा इंटरफ़ेस सिस्टम ट्रे बंद करें स्टार्टअप साइन इन लॉगिन खोलें छोटा करें ध्यान आवाज़ कर्सर लाइव स्थिति पट्टी एजेंट',
-      search: 'खोज सर्च इंजन पता बार google duckduckgo bing brave startpage',
+      search: 'खोज सर्च इंजन पता बार साइट खोज शॉर्टकट google duckduckgo bing brave startpage',
       downloads: 'डाउनलोड फ़ोल्डर जगह सेव करें पूछें फ़ाइल',
       performance: 'परफ़ॉर्मेंस मेमोरी सेवर स्लीप मोड cpu इनऐक्टिव टैब',
       mcp: 'mcp टोकन ऑथेंटिकेशन पोर्ट रिमोट नेटवर्क lan टूल सेट क्षमता प्रोफ़ाइल captcha url एजेंट',
@@ -215,7 +215,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: 'インターフェース 表示 サイズ 拡大 縮小 倍率 ズーム タブ 位置 左 上 タイトルバー ダーク ライト モード システム テーマ デザイン cyberpunk',
       general: '言語 インターフェース システム トレイ 閉じる 起動 スタートアップ ログイン サインイン 最小化 通知音 サウンド 音 カーソル ライブ ステータス バー エージェント agent',
-      search: '検索エンジン アドレスバー google duckduckgo bing brave startpage',
+      search: '検索エンジン アドレスバー サイト内検索 ショートカット google duckduckgo bing brave startpage',
       downloads: 'フォルダ 保存先 場所 保存 確認 ファイル ダウンロード',
       performance: 'メモリ 省メモリ スリープ cpu 非アクティブ タブ パフォーマンス',
       mcp: 'トークン 認証 ポート リモート ネットワーク lan ツール セット 機能プロファイル captcha url エージェント',
@@ -234,7 +234,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: '인터페이스 크기 배율 확대 축소 탭 위치 왼쪽 위 제목 표시줄 다크 라이트 모드 시스템 테마 사이버펑크 cyberpunk',
       general: '언어 인터페이스 시스템 트레이 닫기 시작 로그인 실행 최소화 알림 소리 커서 실시간 상태 표시줄 에이전트',
-      search: '검색엔진 주소창 google duckduckgo bing brave startpage',
+      search: '검색엔진 주소창 사이트 검색 바로가기 google duckduckgo bing brave startpage',
       downloads: '폴더 위치 저장 묻기 파일 다운로드',
       performance: '메모리 절약 절전 cpu 비활성 탭 성능',
       mcp: '토큰 인증 포트 원격 네트워크 lan 도구 세트 권한 프로필 captcha url 에이전트',
@@ -253,7 +253,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: '界面 大小 缩放 比例 标签页 位置 左侧 顶部 标题栏 深色 浅色 模式 系统 主题 赛博朋克 interface zoom tab dark light cyberpunk',
       general: '语言 界面 系统 托盘 关闭 启动 登录 最小化 提醒 声音 光标 实时状态 横条 智能体 language tray startup login sound cursor agent',
-      search: '地址栏 搜索引擎 google duckduckgo bing brave startpage',
+      search: '地址栏 搜索引擎 网站搜索 快捷字词 google duckduckgo bing brave startpage',
       downloads: '下载 文件夹 位置 保存 询问 文件 download folder',
       performance: '内存 节省 休眠 cpu 不活跃 标签页 memory sleep',
       mcp: '令牌 身份验证 端口 远程 网络 局域网 lan 工具集 能力配置 人机验证 captcha 网址 url 智能体 token port',
@@ -272,7 +272,7 @@ export const settingsSectionMessages = {
     keywords: {
       appearance: '介面 大小 比例 縮放 zoom 分頁 位置 左側 頂端 標題列 深色 淺色 模式 系統 主題 cyberpunk',
       general: '語言 介面 系統匣 關閉 啟動 開機 登入 最小化 提醒 注意 音效 游標 即時 狀態列 代理程式 agent',
-      search: '搜尋引擎 網址列 google duckduckgo bing brave startpage',
+      search: '搜尋引擎 網址列 網站搜尋 快捷字詞 google duckduckgo bing brave startpage',
       downloads: '下載 資料夾 位置 儲存 詢問 檔案',
       performance: '效能 記憶體 節省 休眠 cpu 閒置 分頁',
       mcp: 'token 權杖 驗證 連接埠 port 遠端 網路 lan 工具組 能力 設定檔 captcha 驗證碼 url 網址 代理程式',

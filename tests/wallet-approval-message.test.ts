@@ -32,6 +32,10 @@ const context: WalletBrokerContext = {
   topLevelOrigin: 'https://dapp.example', requester: { type: 'website', id: 'https://dapp.example' }
 }
 
+// A request's checks can take seconds while the whole suite runs, past waitFor's one-second default and the five-second
+// test limit, so each wait for a request's state, and each test, allows more. A wait still ends once the state is reached.
+const STATE_WAIT = { timeout: 15_000 }
+
 // A connected Sepolia wallet, so personal_sign goes straight to a person.
 async function connectedWallet() {
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -50,7 +54,7 @@ async function connectedWallet() {
   const broker = new WalletBroker(service, { now, requestExpiryScheduler: () => () => {} })
   brokers.push(broker)
   const connecting = broker.providerRequest(context, { family: 'evm', method: 'eth_requestAccounts' })
-  await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+  await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true), STATE_WAIT)
   await broker.approve(broker.listPending().find((request) => request.status === 'awaiting-human')!.id)
   await connecting
   return { broker, wallet: service.list()[0]! }
@@ -59,7 +63,7 @@ async function connectedWallet() {
 async function pendingMessage(broker: WalletBroker, wallet: WalletDescriptor, message: string) {
   const signing = broker.providerRequest(context, { family: 'evm', method: 'personal_sign', params: [message, wallet.publicAddress] })
   signing.catch(() => undefined)
-  await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+  await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true), STATE_WAIT)
   const pending = broker.listPending().find((request) => request.status === 'awaiting-human')!
   return { pending, settle: () => broker.reject(pending.id) }
 }
@@ -68,7 +72,7 @@ async function pendingMessage(broker: WalletBroker, wallet: WalletDescriptor, me
 // state: under load, approving or reading it earlier fails with "not awaiting human approval" or missing details.
 async function awaitingMessage(broker: WalletBroker) {
   const awaiting = () => broker.listPending().find((request) => request.operation === 'sign-message' && request.status === 'awaiting-human')
-  await vi.waitFor(() => expect(awaiting()).toBeDefined())
+  await vi.waitFor(() => expect(awaiting()).toBeDefined(), STATE_WAIT)
   return awaiting()!
 }
 
@@ -79,7 +83,7 @@ function siwe(wallet: WalletDescriptor, domain = 'dapp.example', address = walle
   ].join('\n')
 }
 
-describe('message text in the trusted approval', () => {
+describe('message text in the trusted approval', { timeout: 30_000 }, () => {
   it('shows a plain-text message as readable text without the undecodable warning', async () => {
     const { broker, wallet } = await connectedWallet()
     const message = siwe(wallet)
@@ -257,7 +261,7 @@ describe('message text in the trusted approval', () => {
   })
 })
 
-describe('Sign-In with Solana text in the trusted approval', () => {
+describe('Sign-In with Solana text in the trusted approval', { timeout: 30_000 }, () => {
   async function connectedSolanaWallet() {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(now())
@@ -275,7 +279,7 @@ describe('Sign-In with Solana text in the trusted approval', () => {
     const broker = new WalletBroker(service, { now, requestExpiryScheduler: () => () => {} })
     brokers.push(broker)
     const connecting = broker.providerRequest(context, { family: 'solana', method: 'connect' })
-    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true), STATE_WAIT)
     await broker.approve(broker.listPending().find((request) => request.status === 'awaiting-human')!.id)
     await connecting
     return { broker, wallet }

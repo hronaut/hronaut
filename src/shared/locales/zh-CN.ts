@@ -376,7 +376,32 @@ export const zhCN: MessageSchema = {
     "search": {
       "heading": "默认搜索引擎",
       "description": "选择在哪里搜索非网址的文本，无论是您在地址栏中输入的，还是智能体打开的。",
-      "privacy": "本地标签页、书签和历史记录建议都保留在此设备上。Hronaut 只会在您提交查询后才发送它。"
+      "privacy": "本地标签页、书签和历史记录建议都保留在此设备上。Hronaut 只会在您提交查询后才发送它。",
+      "site": {
+        "heading": "网站搜索",
+        "description": "在地址栏中输入快捷字词，然后按 Tab 键或空格键，即可搜索该网站。",
+        "add": "添加网站搜索",
+        "editHeading": "修改网站搜索",
+        "empty": "还没有网站搜索",
+        "full": "列表已满。删除一个网站搜索后才能再添加。",
+        "name": "名称",
+        "keyword": "快捷字词",
+        "url": "用 %s 代替搜索字词的网址",
+        "save": "保存",
+        "cancel": "取消",
+        "edit": "修改",
+        "editAria": "修改 {name}",
+        "remove": "删除",
+        "removeAria": "删除 {name}",
+        "nameMissing": "请输入名称",
+        "keywordMissing": "请输入快捷字词",
+        "keywordSpaces": "快捷字词不能包含空格",
+        "keywordTaken": "此快捷字词已被使用",
+        "urlInvalid": "请输入以 http:// 或 https:// 开头的网址",
+        "urlQueryInSite": "请把 %s 放在域名之后，而不是域名中",
+        "urlNoQuery": "请在搜索字词的位置放上 %s",
+        "tooLong": "内容过长"
+      }
     },
     "downloads": {
       "heading": "网站下载内容",

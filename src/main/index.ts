@@ -82,6 +82,7 @@ import { DEFAULT_SETTINGS } from './settings-store.js'
 import { createSettingsRuntime, type SettingsState } from './settings-runtime.js'
 import { createAddressSuggestionOverlay } from './windows/address-suggestion-overlay.js'
 import { registerSettingsIpc } from './settings-ipc.js'
+import { registerSiteSearchIpc } from './site-search-ipc.js'
 import { createBrowserSession, type BrowserSessionState } from './browser-session.js'
 import { registerPermissionsIpc } from './permissions-ipc.js'
 import { WindowStateStore } from './window-state.js'
@@ -1054,6 +1055,12 @@ function registerIpc(): void {
     setMcpPort,
     resetMcpSettings,
     mcpCapabilityProfiles: () => agentServices.capabilityProfiles
+  })
+  registerSiteSearchIpc(hronautIpcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    settings: () => settingsState.current,
+    updateSettings,
+    publishSettings
   })
   registerPermissionsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,

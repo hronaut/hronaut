@@ -96,6 +96,7 @@ import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
 import type { AddressSuggestionOverlayRequest, AddressSuggestionSelection } from '../shared/address-suggestions.js'
 import type { ShellTooltipRequest } from '../shared/shell-tooltip.js'
 import type { UndoOffer } from '../shared/undo.js'
+import type { SiteSearchDraft } from '../shared/site-search.js'
 
 const api: HronautApi = {
   getState: () => ipcRenderer.invoke('browser:get-state'),
@@ -467,6 +468,9 @@ const settingsApi: HronautSettingsApi = {
   setTabPosition: (position: TabPosition) => ipcRenderer.invoke('settings:set-tab-position', position),
   setUseSystemTitleBar: (enabled: boolean) => ipcRenderer.invoke('settings:set-use-system-title-bar', enabled),
   setSearchEngine: (searchEngine: SearchEngineName) => ipcRenderer.invoke('settings:set-search-engine', searchEngine),
+  addSiteSearch: (draft: SiteSearchDraft) => ipcRenderer.invoke('settings:add-site-search', draft),
+  updateSiteSearch: (id: string, draft: SiteSearchDraft) => ipcRenderer.invoke('settings:update-site-search', id, draft),
+  removeSiteSearch: (id: string) => ipcRenderer.invoke('settings:remove-site-search', id),
   setHideInTray: (enabled: boolean) => ipcRenderer.invoke('settings:set-hide-in-tray', enabled),
   setLaunchAtStartup: (enabled: boolean) => ipcRenderer.invoke('settings:set-launch-at-startup', enabled),
   setLaunchMinimized: (enabled: boolean) => ipcRenderer.invoke('settings:set-launch-minimized', enabled),

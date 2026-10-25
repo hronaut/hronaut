@@ -3,6 +3,7 @@ import type {
   AddressSuggestionOverlayTheme
 } from '../../../shared/address-suggestions.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
+import type { SiteSearch } from '../../../shared/site-search.js'
 import type {
   BrowserBookmark,
   BrowserHistoryEntry,
@@ -73,6 +74,7 @@ export interface AppSiteNavigationFeatureControllerOptions {
   }
   address: {
     overlay?: AddressOverlay
+    siteSearches: () => readonly SiteSearch[]
     theme: () => AddressSuggestionOverlayTheme
     locale: () => SupportedLocale
     translate: (key: string, parameters?: Record<string, string | number>, plural?: number) => string
@@ -129,6 +131,7 @@ export function useAppSiteNavigationFeatureController(
     tabs: computed(() => options.state.value.tabs),
     bookmarks: collections.bookmarks,
     history: collections.history,
+    siteSearches: options.address.siteSearches,
     overlay: options.address.overlay,
     theme: options.address.theme,
     locale: options.address.locale,

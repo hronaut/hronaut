@@ -4,6 +4,7 @@ import { isAttentionSoundCue, type AppSettings } from '../shared/types.js'
 import { isThemeName } from '../shared/theme.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
 import { DEFAULT_SEARCH_ENGINE, isSearchEngineName } from '../shared/search-engine.js'
+import { readSiteSearches } from '../shared/site-search.js'
 import { DEFAULT_INTERFACE_SCALE, isInterfaceScale } from '../shared/interface-scale.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
@@ -24,6 +25,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   tabPosition: DEFAULT_TAB_POSITION,
   useSystemTitleBar: false,
   searchEngine: DEFAULT_SEARCH_ENGINE,
+  siteSearches: [],
   hideInTray: true,
   launchAtStartup: false,
   launchMinimized: false,
@@ -80,6 +82,7 @@ export class SettingsStore {
             ? value.useSystemTitleBar
             : DEFAULT_SETTINGS.useSystemTitleBar,
         searchEngine: isSearchEngineName(value.searchEngine) ? value.searchEngine : DEFAULT_SETTINGS.searchEngine,
+        siteSearches: readSiteSearches(value.siteSearches),
         hideInTray: typeof value.hideInTray === 'boolean' ? value.hideInTray : DEFAULT_SETTINGS.hideInTray,
         launchAtStartup:
           typeof value.launchAtStartup === 'boolean' ? value.launchAtStartup : DEFAULT_SETTINGS.launchAtStartup,

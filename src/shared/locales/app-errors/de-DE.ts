@@ -350,7 +350,10 @@ export const deDEAppErrors: AppErrorMessages = {
     "downloadFolderBlocked": "Eine Datei steht dem Downloadordner im Weg ({code}). Wählen Sie einen anderen Ordner.",
     "downloadFolderMissingDrive": "Das Laufwerk oder der Netzwerkspeicherort des Downloadordners ist nicht verfügbar ({code}). Wählen Sie einen anderen Ordner.",
     "downloadFolderUnavailable": "Hronaut konnte den Downloadordner nicht anlegen ({code}).",
-    "downloadFolderOpenFailed": "Hronaut konnte den Downloadordner nicht im Dateimanager öffnen."
+    "downloadFolderOpenFailed": "Hronaut konnte den Downloadordner nicht im Dateimanager öffnen.",
+    "siteSearchRejected": "Hronaut konnte diese Websitesuche nicht speichern. Prüfe Name, Kürzel und URL.",
+    "siteSearchMissing": "Diese Websitesuche wurde gelöscht, daher wurde die Änderung nicht gespeichert.",
+    "siteSearchListFull": "Die Liste der Websitesuchen ist voll. Lösche eine, um eine weitere hinzuzufügen."
   },
   "credentials": {
     "fillAgentActive": "Das Passwort wurde nicht ausgefüllt, weil noch ein Agentenbefehl lief. Agenten bleiben pausiert; versuchen Sie es erneut, wenn er abgeschlossen ist.",

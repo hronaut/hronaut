@@ -20,7 +20,7 @@ function renderPanel() {
     settings.value = { ...settings.value, searchEngine }
     return settings.value
   })
-  const controller = useSearchSettingsController({ settings, setSearchEngine, onError: vi.fn() })
+  const controller = useSearchSettingsController({ settings, setSearchEngine, addSiteSearch: vi.fn(), updateSiteSearch: vi.fn(), removeSiteSearch: vi.fn(), onError: vi.fn() })
   render(SearchSettingsPanel, {
     global: { plugins: [createHronautI18n('en-US')] },
     props: { controller }

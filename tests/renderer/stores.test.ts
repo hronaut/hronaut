@@ -44,6 +44,7 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       tabPosition: 'top',
       useSystemTitleBar: false,
       searchEngine: 'google',
+      siteSearches: [],
       hideInTray: true,
       launchAtStartup: false,
       launchMinimized: false,

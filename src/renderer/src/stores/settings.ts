@@ -4,6 +4,7 @@ import { translate } from '../../../shared/i18n.js'
 import { DEFAULT_INTERFACE_SCALE } from '../../../shared/interface-scale.js'
 import { DEFAULT_TAB_POSITION } from '../../../shared/tab-position.js'
 import type { WindowMaterial } from '../../../shared/window-material.js'
+import type { SiteSearchDraft } from '../../../shared/site-search.js'
 import type {
   AppSettings,
   AttentionSoundCue,
@@ -23,6 +24,7 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   tabPosition: DEFAULT_TAB_POSITION,
   useSystemTitleBar: false,
   searchEngine: 'google',
+  siteSearches: [],
   hideInTray: true,
   launchAtStartup: false,
   launchMinimized: false,
@@ -186,6 +188,9 @@ export const useSettingsStore = defineStore('settings', () => {
   const setTabPosition = (position: TabPosition): Promise<AppSettings> => applySettings(window.hronautSettings.setTabPosition(position))
   const setUseSystemTitleBar = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setUseSystemTitleBar(enabled))
   const setSearchEngine = (engine: SearchEngineName): Promise<AppSettings> => applySettings(window.hronautSettings.setSearchEngine(engine))
+  const addSiteSearch = (draft: SiteSearchDraft): Promise<AppSettings> => applySettings(window.hronautSettings.addSiteSearch(draft))
+  const updateSiteSearch = (id: string, draft: SiteSearchDraft): Promise<AppSettings> => applySettings(window.hronautSettings.updateSiteSearch(id, draft))
+  const removeSiteSearch = (id: string): Promise<AppSettings> => applySettings(window.hronautSettings.removeSiteSearch(id))
   const setHideInTray = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setHideInTray(enabled))
   const setLaunchAtStartup = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setLaunchAtStartup(enabled))
   const setLaunchMinimized = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setLaunchMinimized(enabled))
@@ -251,6 +256,9 @@ export const useSettingsStore = defineStore('settings', () => {
     setTabPosition,
     setUseSystemTitleBar,
     setSearchEngine,
+    addSiteSearch,
+    updateSiteSearch,
+    removeSiteSearch,
     setHideInTray,
     setLaunchAtStartup,
     setLaunchMinimized,

@@ -1,9 +1,14 @@
 import { computed, shallowRef, type Ref } from 'vue'
-import { addressKeyword, type AddressKeyword } from '../address-keyword-search.js'
+import { addressKeyword, siteSearchKeyword, type AddressKeyword } from '../address-keyword-search.js'
+import type { SiteSearch } from '../../../shared/site-search.js'
 
 interface AddressKeywordModeOptions {
   address: Ref<string>
   input: Ref<HTMLInputElement | null>
+  /** What was typed, without the rest of an address the field filled in after it. */
+  typed: () => string
+  /** The site searches in Settings, whose shortcuts name engines too. */
+  siteSearches: () => readonly SiteSearch[]
   /** Whether the person is typing in the field with no suggestion highlighted, when Tab can take a keyword. */
   offersKeyword: () => boolean
 }
@@ -16,8 +21,14 @@ interface AddressKeywordModeOptions {
  */
 export function useAddressKeywordMode(options: AddressKeywordModeOptions) {
   const keyword = shallowRef<AddressKeyword | null>(null)
-  // The field's text is the whole of it, with the rest of an address it filled in after what was typed.
-  const hint = computed(() => keyword.value || !options.offersKeyword() ? null : addressKeyword(options.address.value) ?? null)
+  // The field's text is the whole of it, with the rest of an address it filled in after what was typed. A site search's
+  // shortcut typed whole is offered too while the field fills in more after it, as Chrome offers a typed keyword; an
+  // engine's site is offered only as the field shows it, as before there were site searches.
+  const hint = computed(() => {
+    if (keyword.value || !options.offersKeyword()) return null
+    const siteSearches = options.siteSearches()
+    return addressKeyword(options.address.value, siteSearches) ?? siteSearchKeyword(options.typed(), siteSearches) ?? null
+  })
   // Whether the Tab key held down took the keyword, so that its repeats keep the keyboard in the field.
   let tabHeld = false
 
@@ -82,7 +93,7 @@ export function useAddressKeywordMode(options: AddressKeywordModeOptions) {
     if (event.data !== ' ' && event.data !== '\u3000') return false
     const caret = field.selectionStart ?? 0
     if (caret < 1 || caret !== field.selectionEnd) return false
-    const named = addressKeyword(field.value.slice(0, caret - 1))
+    const named = addressKeyword(field.value.slice(0, caret - 1), options.siteSearches())
     if (!named) return false
     enter(named, field.value.slice(caret).trimStart())
     return true

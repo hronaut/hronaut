@@ -17,7 +17,7 @@ function createController() {
     return settings.value
   })
   const onError = vi.fn()
-  const controller = useSearchSettingsController({ settings, setSearchEngine, onError })
+  const controller = useSearchSettingsController({ settings, setSearchEngine, addSiteSearch: vi.fn(), updateSiteSearch: vi.fn(), removeSiteSearch: vi.fn(), onError })
   return { controller, onError, setSearchEngine, settings }
 }
 

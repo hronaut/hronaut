@@ -354,7 +354,10 @@ export const enUSAppErrors = {
     "downloadFolderBlocked": "A file is in the way of the download folder ({code}). Choose another folder.",
     "downloadFolderMissingDrive": "The drive or network location of the download folder is not available ({code}). Choose another folder.",
     "downloadFolderUnavailable": "Hronaut could not create the download folder ({code}).",
-    "downloadFolderOpenFailed": "Hronaut could not open the download folder in your file manager."
+    "downloadFolderOpenFailed": "Hronaut could not open the download folder in your file manager.",
+    "siteSearchRejected": "Hronaut could not save this site search. Check its name, shortcut and URL.",
+    "siteSearchMissing": "This site search was deleted, so the change was not saved.",
+    "siteSearchListFull": "The site search list is full. Delete a site search to add another."
   },
   "credentials": {
     "fillAgentActive": "The password was not filled because an agent command was still running. Agents stay paused; try again when it finishes.",

@@ -350,7 +350,10 @@ export const koKRAppErrors: AppErrorMessages = {
     "downloadFolderBlocked": "다운로드 폴더 위치에 파일이 있습니다({code}). 다른 폴더를 선택하세요.",
     "downloadFolderMissingDrive": "다운로드 폴더의 드라이브나 네트워크 위치를 사용할 수 없습니다({code}). 다른 폴더를 선택하세요.",
     "downloadFolderUnavailable": "Hronaut에서 다운로드 폴더를 만들 수 없습니다({code}).",
-    "downloadFolderOpenFailed": "Hronaut에서 파일 관리자로 다운로드 폴더를 열 수 없습니다."
+    "downloadFolderOpenFailed": "Hronaut에서 파일 관리자로 다운로드 폴더를 열 수 없습니다.",
+    "siteSearchRejected": "Hronaut에서 이 사이트 검색을 저장할 수 없습니다. 이름, 바로가기, URL을 확인하세요.",
+    "siteSearchMissing": "이 사이트 검색이 삭제되어 변경 사항이 저장되지 않았습니다.",
+    "siteSearchListFull": "사이트 검색 목록이 가득 찼습니다. 다른 항목을 추가하려면 하나를 삭제하세요."
   },
   "credentials": {
     "fillAgentActive": "에이전트 명령이 아직 실행 중이어서 비밀번호를 입력하지 않았습니다. 에이전트는 일시중지된 상태로 유지됩니다. 명령이 끝나면 다시 시도하세요.",

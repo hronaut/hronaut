@@ -12,6 +12,7 @@ import {
 } from '../../../shared/address-suggestions.js'
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
+import type { SiteSearch } from '../../../shared/site-search.js'
 import type { BrowserBookmark, BrowserHistoryEntry, BrowserTabState } from '../../../shared/types.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { addressEnterAction, withWwwAndCom, type AddressEnterAction } from '../address-enter.js'
@@ -40,6 +41,8 @@ interface AddressBarControllerOptions {
   tabs: Readonly<Ref<readonly BrowserTabState[]>>
   bookmarks: Ref<BrowserBookmark[]>
   history: Ref<BrowserHistoryEntry[]>
+  /** The site searches in Settings, whose shortcuts search their sites as the built-in engines' sites do. */
+  siteSearches?: () => readonly SiteSearch[]
   overlay?: AddressOverlayApi
   theme: () => AddressSuggestionOverlayTheme
   locale: () => SupportedLocale
@@ -94,6 +97,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const keywordMode = useAddressKeywordMode({
     address,
     input,
+    typed: () => query.value,
+    siteSearches: () => options.siteSearches?.() ?? [],
     offersKeyword: () => focused.value && dirty.value && !(visible.value && selected.value)
   })
   // The other open tabs with a page, kept as they were while their addresses stay the same, and their titles too while

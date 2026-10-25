@@ -350,7 +350,10 @@ export const ruRUAppErrors: AppErrorMessages = {
     "downloadFolderBlocked": "Файл мешает создать папку загрузок ({code}). Выберите другую папку.",
     "downloadFolderMissingDrive": "Диск или сетевое расположение папки загрузок недоступны ({code}). Выберите другую папку.",
     "downloadFolderUnavailable": "Hronaut не удалось создать папку загрузок ({code}).",
-    "downloadFolderOpenFailed": "Hronaut не удалось открыть папку загрузок в файловом менеджере."
+    "downloadFolderOpenFailed": "Hronaut не удалось открыть папку загрузок в файловом менеджере.",
+    "siteSearchRejected": "Hronaut не удалось сохранить этот поиск по сайту. Проверьте название, ярлык и URL.",
+    "siteSearchMissing": "Этот поиск по сайту был удалён, поэтому изменение не сохранено.",
+    "siteSearchListFull": "Список поиска по сайтам заполнен. Удалите один поиск, чтобы добавить другой."
   },
   "credentials": {
     "fillAgentActive": "Пароль не заполнен, потому что команда агента ещё выполнялась. Агенты остаются на паузе; повторите попытку, когда она завершится.",

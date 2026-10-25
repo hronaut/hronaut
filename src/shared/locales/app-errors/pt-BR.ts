@@ -350,7 +350,10 @@ export const ptBRAppErrors: AppErrorMessages = {
     "downloadFolderBlocked": "Há um arquivo no lugar da pasta de downloads ({code}). Escolha outra pasta.",
     "downloadFolderMissingDrive": "A unidade ou o local de rede da pasta de downloads não está disponível ({code}). Escolha outra pasta.",
     "downloadFolderUnavailable": "O Hronaut não conseguiu criar a pasta de downloads ({code}).",
-    "downloadFolderOpenFailed": "O Hronaut não conseguiu abrir a pasta de downloads no seu gerenciador de arquivos."
+    "downloadFolderOpenFailed": "O Hronaut não conseguiu abrir a pasta de downloads no seu gerenciador de arquivos.",
+    "siteSearchRejected": "O Hronaut não conseguiu salvar esta pesquisa em site. Confira o nome, o atalho e a URL.",
+    "siteSearchMissing": "Esta pesquisa em site foi excluída, então a alteração não foi salva.",
+    "siteSearchListFull": "A lista de pesquisas em sites está cheia. Exclua uma para adicionar outra."
   },
   "credentials": {
     "fillAgentActive": "A senha não foi preenchida porque um comando de agente ainda estava em execução. Os agentes continuam pausados; tente novamente quando ele terminar.",

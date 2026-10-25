@@ -376,7 +376,32 @@ export const plPL: MessageSchema = {
     "search": {
       "heading": "Domyślna wyszukiwarka",
       "description": "Wybierz, gdzie wyszukiwać tekst, który nie jest adresem, niezależnie od tego, czy wpiszesz go w pasku adresu, czy otworzy go agent.",
-      "privacy": "Sugestie kart, zakładek i historii pozostają na tym urządzeniu. Hronaut wysyła zapytanie dopiero po zatwierdzeniu."
+      "privacy": "Sugestie kart, zakładek i historii pozostają na tym urządzeniu. Hronaut wysyła zapytanie dopiero po zatwierdzeniu.",
+      "site": {
+        "heading": "Wyszukiwanie w witrynach",
+        "description": "Wpisz skrót na pasku adresu, a potem naciśnij Tab lub spację, aby przeszukać witrynę.",
+        "add": "Dodaj wyszukiwanie w witrynie",
+        "editHeading": "Edytuj wyszukiwanie w witrynie",
+        "empty": "Brak wyszukiwań w witrynach",
+        "full": "Lista jest pełna. Usuń jedno wyszukiwanie w witrynie, aby dodać kolejne.",
+        "name": "Nazwa",
+        "keyword": "Skrót",
+        "url": "URL z %s w miejscu zapytania",
+        "save": "Zapisz",
+        "cancel": "Anuluj",
+        "edit": "Edytuj",
+        "editAria": "Edytuj {name}",
+        "remove": "Usuń",
+        "removeAria": "Usuń {name}",
+        "nameMissing": "Wpisz nazwę",
+        "keywordMissing": "Wpisz skrót",
+        "keywordSpaces": "Skrót nie może zawierać spacji",
+        "keywordTaken": "Ten skrót jest już używany",
+        "urlInvalid": "Wpisz adres internetowy zaczynający się od http:// lub https://",
+        "urlQueryInSite": "Wstaw %s za domeną, a nie w niej",
+        "urlNoQuery": "Wstaw %s w miejscu wyszukiwanych słów",
+        "tooLong": "To jest za długie"
+      }
     },
     "downloads": {
       "heading": "Pobieranie z witryn",

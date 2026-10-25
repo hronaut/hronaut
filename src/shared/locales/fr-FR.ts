@@ -376,7 +376,32 @@ export const frFR: MessageSchema = {
     "search": {
       "heading": "Moteur de recherche par défaut",
       "description": "Choisissez où rechercher un texte qui n’est pas une adresse, que vous le saisissiez dans la barre d’adresse ou qu’un agent l’ouvre.",
-      "privacy": "Les suggestions des onglets, favoris et de l’historique restent sur cet appareil. Hronaut n’envoie la requête qu’après validation."
+      "privacy": "Les suggestions des onglets, favoris et de l’historique restent sur cet appareil. Hronaut n’envoie la requête qu’après validation.",
+      "site": {
+        "heading": "Recherche sur site",
+        "description": "Saisissez un raccourci dans la barre d’adresse, puis appuyez sur Tab ou Espace pour effectuer une recherche sur un site.",
+        "add": "Ajouter une recherche sur site",
+        "editHeading": "Modifier la recherche sur site",
+        "empty": "Aucune recherche sur site pour l’instant",
+        "full": "La liste est pleine. Supprimez une recherche sur site pour en ajouter une autre.",
+        "name": "Nom",
+        "keyword": "Raccourci",
+        "url": "URL avec %s à la place de la requête",
+        "save": "Enregistrer",
+        "cancel": "Annuler",
+        "edit": "Modifier",
+        "editAria": "Modifier {name}",
+        "remove": "Supprimer",
+        "removeAria": "Supprimer {name}",
+        "nameMissing": "Saisissez un nom",
+        "keywordMissing": "Saisissez un raccourci",
+        "keywordSpaces": "Un raccourci ne peut pas contenir d’espaces",
+        "keywordTaken": "Ce raccourci est déjà utilisé",
+        "urlInvalid": "Saisissez une adresse web commençant par http:// ou https://",
+        "urlQueryInSite": "Placez %s après le domaine, pas dedans",
+        "urlNoQuery": "Placez %s à l’endroit des termes de recherche",
+        "tooLong": "C’est trop long"
+      }
     },
     "downloads": {
       "heading": "Téléchargements des sites",

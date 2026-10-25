@@ -80,6 +80,7 @@ describe('SettingsStore', () => {
       tabPosition: 'left',
       useSystemTitleBar: true,
       searchEngine: 'duckduckgo',
+      siteSearches: [{ id: 'wiki', name: 'Wikipedia', keyword: 'w', url: 'https://en.wikipedia.org/w/index.php?search=%s' }],
       hideInTray: false,
       launchAtStartup: true,
       launchMinimized: true,
@@ -108,6 +109,7 @@ describe('SettingsStore', () => {
       tabPosition: 'left',
       useSystemTitleBar: true,
       searchEngine: 'duckduckgo',
+      siteSearches: [{ id: 'wiki', name: 'Wikipedia', keyword: 'w', url: 'https://en.wikipedia.org/w/index.php?search=%s' }],
       hideInTray: false,
       launchAtStartup: true,
       launchMinimized: true,
@@ -136,6 +138,7 @@ describe('SettingsStore', () => {
       tabPosition: 'left',
       useSystemTitleBar: true,
       searchEngine: 'duckduckgo',
+      siteSearches: [{ id: 'wiki', name: 'Wikipedia', keyword: 'w', url: 'https://en.wikipedia.org/w/index.php?search=%s' }],
       hideInTray: false,
       launchAtStartup: true,
       launchMinimized: true,
@@ -204,6 +207,7 @@ describe('SettingsStore', () => {
       tabPosition: 'left',
       useSystemTitleBar: false,
       searchEngine: 'google',
+      siteSearches: [],
       hideInTray: true,
       launchAtStartup: false,
       launchMinimized: false,
@@ -226,6 +230,17 @@ describe('SettingsStore', () => {
       checkForUpdatesOnStartup: true,
       languagePreference: 'system'
     })
+  })
+
+  it('keeps the well-formed site searches of a settings file and drops the rest', async () => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    const wikipedia = { id: 'wiki', name: 'Wikipedia', keyword: 'w', url: 'https://en.wikipedia.org/w/index.php?search=%s' }
+    await writeFile(path, JSON.stringify({ siteSearches: [wikipedia, { ...wikipedia, id: 'again' }, { id: 'x', name: 'X', keyword: 'x', url: 'javascript:%s' }] }))
+    expect((await store.load()).siteSearches).toEqual([wikipedia])
+    await writeFile(path, JSON.stringify({ siteSearches: 'w' }))
+    expect((await store.load()).siteSearches).toEqual([])
+    expect(DEFAULT_SETTINGS.siteSearches).toEqual([])
   })
 
   it('starts a new profile with MCP authentication on and keeps a saved choice', async () => {
