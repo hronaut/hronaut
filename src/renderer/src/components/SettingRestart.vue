@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 
@@ -13,6 +14,8 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
+// Restart reads its notice too, for someone who reaches it with Tab from the setting.
+const messageId = useId()
 
 // Main first asks about downloads in progress, as Quit does, and restarts only once however often this is pressed.
 // When the downloads are kept, or the restart fails, Hronaut stays open and so does the notice.
@@ -28,9 +31,9 @@ async function restart(): Promise<void> {
 <template>
   <div class="setting-restart">
     <span role="status">
-      <small v-if="props.required" class="setting-restart-required">{{ props.message }}</small>
+      <small v-if="props.required" :id="messageId" class="setting-restart-required">{{ props.message }}</small>
     </span>
-    <UiButton v-if="props.required" class="secondary-button" type="button" @click="restart">
+    <UiButton v-if="props.required" class="secondary-button" type="button" :aria-describedby="messageId" @click="restart">
       {{ t('settings.restartNow') }}
     </UiButton>
   </div>

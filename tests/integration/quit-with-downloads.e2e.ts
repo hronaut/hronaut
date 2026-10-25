@@ -61,6 +61,15 @@ test('asks before Quit cancels a download in progress, and keeps it when asked t
       await expect(question.getByRole('button', { name: 'Keep downloading', exact: true })).toBeFocused()
       await answerTrustedDialog(appWindow, 'Keep downloading')
       await expect(question).toBeHidden()
+      // Restart in Settings asked "Quit Hronaut?" with Quit, and Quit pressed meanwhile took its answer and restarted.
+      const restarted = appWindow.evaluate('window.hronautSettings.restart()')
+      await expect(question).toContainText('Restarting now cancels it and deletes the unfinished file.')
+      await expect(question.locator('.ui-dialog__footer button')).toHaveText(['Keep downloading', 'Restart'])
+      await chooseQuit()
+      await expect(question.locator('.ui-dialog__footer button')).toHaveText(['Keep downloading', 'Restart'])
+      await answerTrustedDialog(appWindow, 'Keep downloading')
+      await expect(question).toBeHidden()
+      expect(await restarted).toBe(false)
       // Closing the window quits too, and asks the same.
       await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')?.close())
       await expect(question).toHaveAttribute('data-topic', 'downloads')

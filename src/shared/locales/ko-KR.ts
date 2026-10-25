@@ -3785,7 +3785,7 @@ export const koKR: MessageSchema = {
       "quitDownloadDetail": "지금 종료하면 다운로드가 취소되고 완료되지 않은 파일이 삭제됩니다.",
       "quitDownloadsDetail": "지금 종료하면 다운로드가 취소되고 완료되지 않은 파일이 삭제됩니다.",
       "quitDownloadsQuit": "종료",
-      "quitDownloadsKeep": "다운로드 계속",
+      "quitDownloadsKeep": "다운로드 계속", "restartDownloadsTitle": "Hronaut을 다시 시작하시겠습니까?", "restartDownloadDetail": "지금 다시 시작하면 다운로드가 취소되고 완료되지 않은 파일이 삭제됩니다.", "restartDownloadsDetail": "지금 다시 시작하면 다운로드가 취소되고 완료되지 않은 파일이 삭제됩니다.", "restartDownloadsRestart": "다시 시작",
       "closeTabTitle": "이 탭을 닫으시겠습니까?",
       "closeTabMessage": "이 페이지에서 닫기 전에 확인하도록 Hronaut에 요청했습니다.",
       "closeTabDetail": "탭을 닫으면 저장하지 않은 변경 사항이 삭제될 수 있습니다.",

@@ -51,6 +51,7 @@ describe('Graphics acceleration settings', () => {
     expect(use).not.toBeChecked()
     expect(notice()).toBe(RESTART)
     expect(restartButton()).toBeVisible()
+    expect(restartButton()).toHaveAccessibleDescription(RESTART)
     await user.click(use)
     expect(setGraphicsAcceleration).toHaveBeenLastCalledWith(true)
     expect(notice()).toBe('')

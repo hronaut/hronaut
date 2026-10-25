@@ -3785,7 +3785,7 @@ export const zhCN: MessageSchema = {
       "quitDownloadDetail": "现在退出将取消该下载并删除未完成的文件。",
       "quitDownloadsDetail": "现在退出将取消这些下载并删除未完成的文件。",
       "quitDownloadsQuit": "退出",
-      "quitDownloadsKeep": "继续下载",
+      "quitDownloadsKeep": "继续下载", "restartDownloadsTitle": "要重启 Hronaut 吗？", "restartDownloadDetail": "现在重启将取消该下载并删除未完成的文件。", "restartDownloadsDetail": "现在重启将取消这些下载并删除未完成的文件。", "restartDownloadsRestart": "重启",
       "closeTabTitle": "要关闭此标签页吗？",
       "closeTabMessage": "此页面要求 Hronaut 在关闭前进行确认。",
       "closeTabDetail": "关闭标签页可能会丢失尚未保存的更改。",

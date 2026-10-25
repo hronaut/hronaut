@@ -3785,7 +3785,7 @@ export const ptBR: MessageSchema = {
       "quitDownloadDetail": "Sair agora cancela o download e exclui o arquivo incompleto.",
       "quitDownloadsDetail": "Sair agora cancela os downloads e exclui os arquivos incompletos.",
       "quitDownloadsQuit": "Sair",
-      "quitDownloadsKeep": "Continuar o download",
+      "quitDownloadsKeep": "Continuar o download", "restartDownloadsTitle": "Reiniciar o Hronaut?", "restartDownloadDetail": "Reiniciar agora cancela o download e exclui o arquivo incompleto.", "restartDownloadsDetail": "Reiniciar agora cancela os downloads e exclui os arquivos incompletos.", "restartDownloadsRestart": "Reiniciar",
       "closeTabTitle": "Fechar esta guia?",
       "closeTabMessage": "Esta página pediu ao Hronaut que confirmasse antes de fechar.",
       "closeTabDetail": "Fechar a guia pode descartar alterações que não foram salvas.",

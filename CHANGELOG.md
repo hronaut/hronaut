@@ -7,7 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - **Use graphics acceleration when available**, as in Chrome: **Settings → Performance → Graphics** turns off drawing with the graphics card, for a computer whose driver leaves windows black, blank or flickering, and turns it on again. Hronaut reads the choice at startup, so Settings asks for a restart until one applies it; resetting Performance turns it back on. A window too black to reach Settings has Chromium's way back, `hronaut --disable-gpu`, which Settings counts as a run without it.
-- **Restart** beside a change that applies at the next start, as Chrome's **Relaunch**: **Use graphics acceleration when available** and **Use system title bar** show it with their restart notice. Like Quit, it first asks before cancelling downloads in progress, then starts Hronaut again with its command-line switches, except those about one run such as `--disable-gpu`, and its tabs restored; however often it is pressed, Hronaut restarts once.
+- **Restart** beside a change that applies at the next start, as Chrome's **Relaunch**: **Use graphics acceleration when available** and **Use system title bar** show it with their restart notice. Like Quit, it first asks, as **Restart Hronaut?**, before cancelling downloads in progress, then starts Hronaut again with its command-line switches, except those about one run such as `--disable-gpu`, and its tabs restored; however often it is pressed, Hronaut restarts once.
 
 ## [3.12.0] - 2026-10-25
 

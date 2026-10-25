@@ -3785,7 +3785,7 @@ export const deDE: MessageSchema = {
       "quitDownloadDetail": "Wenn Sie jetzt beenden, wird er abgebrochen und die unvollständige Datei gelöscht.",
       "quitDownloadsDetail": "Wenn Sie jetzt beenden, werden sie abgebrochen und die unvollständigen Dateien gelöscht.",
       "quitDownloadsQuit": "Beenden",
-      "quitDownloadsKeep": "Weiter herunterladen",
+      "quitDownloadsKeep": "Weiter herunterladen", "restartDownloadsTitle": "Hronaut neu starten?", "restartDownloadDetail": "Wenn Sie jetzt neu starten, wird er abgebrochen und die unvollständige Datei gelöscht.", "restartDownloadsDetail": "Wenn Sie jetzt neu starten, werden sie abgebrochen und die unvollständigen Dateien gelöscht.", "restartDownloadsRestart": "Neu starten",
       "closeTabTitle": "Diesen Tab schließen?",
       "closeTabMessage": "Diese Seite bittet Hronaut, das Schließen zu bestätigen.",
       "closeTabDetail": "Beim Schließen des Tabs können nicht gespeicherte Änderungen verloren gehen.",

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, readlink } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { chromium, type Browser, type ElectronApplication, type Page } from '@playwright/test'
@@ -70,6 +70,18 @@ async function freePort(): Promise<number> {
   return address.port
 }
 
+/**
+ * The run Restart started, by the process Chromium's profile lock names on Linux, and only while its command line
+ * still holds this test's DevTools switch, so a stale lock never names some other process.
+ */
+async function restartedRun(profileDirectory: string, devToolsPort: number): Promise<number | undefined> {
+  const owner = await readlink(join(profileDirectory, 'SingletonLock')).catch(() => '')
+  const pid = Number(/-(\d+)$/.exec(owner)?.[1])
+  if (!Number.isSafeInteger(pid) || pid <= 0) return undefined
+  const commandLine = await readFile(`/proc/${pid}/cmdline`, 'utf8').catch(() => '')
+  return commandLine.split('\0').includes(`--remote-debugging-port=${devToolsPort}`) ? pid : undefined
+}
+
 // Settings only said to restart Hronaut, and closing its window may just hide it in the tray. As Chrome's Relaunch,
 // Restart beside the notice quits Hronaut and starts it again on the same profile, which then applies the change. The
 // new run is no Playwright launch: it keeps this run's DevTools switch, so the test reaches it there, and quits it.
@@ -119,12 +131,23 @@ test('restarts Hronaut from beside the notice, and the next run applies the chan
     await window.evaluate('window.hronaut.quit()').catch(() => undefined)
     await disconnected
     next = undefined
+    // Quit, the next run lets the profile go, which the test then removes.
+    await expect.poll(() => restartedRun(profileDirectory, devToolsPort), { timeout: 15_000 }).toBeUndefined()
   } finally {
     await closeHronaut(first.app).catch(() => undefined)
     if (next) {
       const shell = next.contexts().flatMap((context) => context.pages())
       await Promise.all(shell.map((page) => page.evaluate('window.hronaut?.quit()').catch(() => undefined)))
       await next.close().catch(() => undefined)
+    }
+    // No Playwright launch stops the next run when the test fails before it quits, and it would keep this worker's MCP
+    // port and profile from the tests after it.
+    const pid = await restartedRun(profileDirectory, devToolsPort)
+    if (pid !== undefined) {
+      const signal = (name: NodeJS.Signals) => { try { process.kill(pid, name) } catch { /* It has exited. */ } }
+      signal('SIGTERM')
+      await expect.poll(() => restartedRun(profileDirectory, devToolsPort), { timeout: 10_000 }).toBeUndefined()
+        .catch(() => signal('SIGKILL'))
     }
   }
 })

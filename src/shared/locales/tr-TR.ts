@@ -3785,7 +3785,7 @@ export const trTR: MessageSchema = {
       "quitDownloadDetail": "Şimdi çıkarsanız indirme iptal edilir ve tamamlanmamış dosya silinir.",
       "quitDownloadsDetail": "Şimdi çıkarsanız indirmeler iptal edilir ve tamamlanmamış dosyalar silinir.",
       "quitDownloadsQuit": "Çık",
-      "quitDownloadsKeep": "İndirmeye devam et",
+      "quitDownloadsKeep": "İndirmeye devam et", "restartDownloadsTitle": "Hronaut yeniden başlatılsın mı?", "restartDownloadDetail": "Şimdi yeniden başlatırsanız indirme iptal edilir ve tamamlanmamış dosya silinir.", "restartDownloadsDetail": "Şimdi yeniden başlatırsanız indirmeler iptal edilir ve tamamlanmamış dosyalar silinir.", "restartDownloadsRestart": "Yeniden başlat",
       "closeTabTitle": "Bu sekme kapatılsın mı?",
       "closeTabMessage": "Bu sayfa, kapatılmadan önce Hronaut’un onay almasını istedi.",
       "closeTabDetail": "Sekmeyi kapatmak, kaydedilmemiş değişikliklerin kaybolmasına neden olabilir.",

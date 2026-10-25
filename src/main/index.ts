@@ -1083,11 +1083,18 @@ function registerIpc(): void {
   })
   registerAppRestartIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
-    confirmQuit: confirmQuitWithDownloads,
+    confirmQuit: () => confirmQuitWithDownloads('restart'),
     quitState: appQuitState,
     relaunch: (options) => app.relaunch(options),
     quit: () => app.quit(),
-    restartContext: () => ({ argv: process.argv, defaultApp: process.defaultApp, appImage: process.env.APPIMAGE })
+    restartContext: () => ({
+      argv: process.argv,
+      cwd: process.cwd(),
+      defaultApp: process.defaultApp,
+      appPath: app.getAppPath(),
+      appImage: process.env.APPIMAGE,
+      portableExecutable: process.env.PORTABLE_EXECUTABLE_FILE
+    })
   })
   registerPermissionsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,

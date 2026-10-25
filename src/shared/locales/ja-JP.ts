@@ -3785,7 +3785,7 @@ export const jaJP: MessageSchema = {
       "quitDownloadDetail": "今すぐ終了すると、ダウンロードはキャンセルされ、未完了のファイルは削除されます。",
       "quitDownloadsDetail": "今すぐ終了すると、ダウンロードはキャンセルされ、未完了のファイルは削除されます。",
       "quitDownloadsQuit": "終了",
-      "quitDownloadsKeep": "ダウンロードを続ける",
+      "quitDownloadsKeep": "ダウンロードを続ける", "restartDownloadsTitle": "Hronaut を再起動しますか？", "restartDownloadDetail": "今すぐ再起動すると、ダウンロードはキャンセルされ、未完了のファイルは削除されます。", "restartDownloadsDetail": "今すぐ再起動すると、ダウンロードはキャンセルされ、未完了のファイルは削除されます。", "restartDownloadsRestart": "再起動",
       "closeTabTitle": "このタブを閉じますか？",
       "closeTabMessage": "このページは、閉じる前に確認するよう Hronaut に求めています。",
       "closeTabDetail": "タブを閉じると、保存されていない変更が失われる可能性があります。",

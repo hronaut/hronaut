@@ -3785,7 +3785,7 @@ export const hiIN: MessageSchema = {
       "quitDownloadDetail": "अभी बाहर निकलने पर यह रद्द हो जाएगा और अधूरी फ़ाइल मिट जाएगी।",
       "quitDownloadsDetail": "अभी बाहर निकलने पर ये रद्द हो जाएंगे और अधूरी फ़ाइलें मिट जाएंगी।",
       "quitDownloadsQuit": "बाहर निकलें",
-      "quitDownloadsKeep": "डाउनलोड जारी रखें",
+      "quitDownloadsKeep": "डाउनलोड जारी रखें", "restartDownloadsTitle": "Hronaut रीस्टार्ट करें?", "restartDownloadDetail": "अभी रीस्टार्ट करने पर यह रद्द हो जाएगा और अधूरी फ़ाइल मिट जाएगी।", "restartDownloadsDetail": "अभी रीस्टार्ट करने पर ये रद्द हो जाएंगे और अधूरी फ़ाइलें मिट जाएंगी।", "restartDownloadsRestart": "रीस्टार्ट करें",
       "closeTabTitle": "यह टैब बंद करें?",
       "closeTabMessage": "इस पेज ने Hronaut से बंद करने से पहले पुष्टि करने को कहा है।",
       "closeTabDetail": "टैब बंद करने पर वे बदलाव खो सकते हैं जो सेव नहीं किए गए हैं।",

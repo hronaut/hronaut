@@ -3785,7 +3785,7 @@ export const esES: MessageSchema = {
       "quitDownloadDetail": "Si sales ahora, se cancelará y se eliminará el archivo sin terminar.",
       "quitDownloadsDetail": "Si sales ahora, se cancelarán y se eliminarán los archivos sin terminar.",
       "quitDownloadsQuit": "Salir",
-      "quitDownloadsKeep": "Seguir descargando",
+      "quitDownloadsKeep": "Seguir descargando", "restartDownloadsTitle": "¿Reiniciar Hronaut?", "restartDownloadDetail": "Si reinicias ahora, se cancelará y se eliminará el archivo sin terminar.", "restartDownloadsDetail": "Si reinicias ahora, se cancelarán y se eliminarán los archivos sin terminar.", "restartDownloadsRestart": "Reiniciar",
       "closeTabTitle": "¿Cerrar esta pestaña?",
       "closeTabMessage": "Esta página ha pedido a Hronaut que confirme antes de cerrarla.",
       "closeTabDetail": "Al cerrar la pestaña se pueden perder los cambios no guardados.",

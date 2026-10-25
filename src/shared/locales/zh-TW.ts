@@ -3785,7 +3785,7 @@ export const zhTW: MessageSchema = {
       "quitDownloadDetail": "立即結束會取消下載，並刪除未完成的檔案。",
       "quitDownloadsDetail": "立即結束會取消這些下載，並刪除未完成的檔案。",
       "quitDownloadsQuit": "結束",
-      "quitDownloadsKeep": "繼續下載",
+      "quitDownloadsKeep": "繼續下載", "restartDownloadsTitle": "要重新啟動 Hronaut 嗎？", "restartDownloadDetail": "立即重新啟動會取消下載，並刪除未完成的檔案。", "restartDownloadsDetail": "立即重新啟動會取消這些下載，並刪除未完成的檔案。", "restartDownloadsRestart": "重新啟動",
       "closeTabTitle": "要關閉這個分頁嗎？",
       "closeTabMessage": "這個網頁要求 Hronaut 在關閉前先確認。",
       "closeTabDetail": "關閉分頁可能會捨棄尚未儲存的變更。",

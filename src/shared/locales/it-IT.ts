@@ -3785,7 +3785,7 @@ export const itIT: MessageSchema = {
       "quitDownloadDetail": "Se esci ora, il download verrà annullato e il file incompleto verrà eliminato.",
       "quitDownloadsDetail": "Se esci ora, i download verranno annullati e i file incompleti verranno eliminati.",
       "quitDownloadsQuit": "Esci",
-      "quitDownloadsKeep": "Continua a scaricare",
+      "quitDownloadsKeep": "Continua a scaricare", "restartDownloadsTitle": "Riavviare Hronaut?", "restartDownloadDetail": "Se riavvii ora, il download verrà annullato e il file incompleto verrà eliminato.", "restartDownloadsDetail": "Se riavvii ora, i download verranno annullati e i file incompleti verranno eliminati.", "restartDownloadsRestart": "Riavvia",
       "closeTabTitle": "Chiudere questa scheda?",
       "closeTabMessage": "Questa pagina ha chiesto a Hronaut di confermare prima della chiusura.",
       "closeTabDetail": "Chiudendo la scheda potresti perdere le modifiche non salvate.",

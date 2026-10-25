@@ -3785,7 +3785,7 @@ export const ruRU: MessageSchema = {
       "quitDownloadDetail": "Если выйти сейчас, загрузка будет отменена, а недокачанный файл удалён.",
       "quitDownloadsDetail": "Если выйти сейчас, загрузки будут отменены, а недокачанные файлы удалены.",
       "quitDownloadsQuit": "Выйти",
-      "quitDownloadsKeep": "Продолжить загрузку",
+      "quitDownloadsKeep": "Продолжить загрузку", "restartDownloadsTitle": "Перезапустить Hronaut?", "restartDownloadDetail": "Если перезапустить сейчас, загрузка будет отменена, а недокачанный файл удалён.", "restartDownloadsDetail": "Если перезапустить сейчас, загрузки будут отменены, а недокачанные файлы удалены.", "restartDownloadsRestart": "Перезапустить",
       "closeTabTitle": "Закрыть эту вкладку?",
       "closeTabMessage": "Эта страница просит Hronaut подтвердить закрытие.",
       "closeTabDetail": "При закрытии вкладки несохранённые изменения могут быть потеряны.",
