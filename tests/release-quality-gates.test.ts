@@ -235,7 +235,7 @@ describe('release quality gates', () => {
     }
   })
 
-  // The release ran validate and all eight Electron shards again on the tree its rehearsal had just passed.
+  // The release ran validate and all the Electron shards again on the tree its rehearsal had just passed.
   it('takes validate and Electron shard results from a release rehearsal that passed on the same tree', async () => {
     type Step = { name?: string, id?: string, if?: string, run?: string, uses?: string, with?: Record<string, unknown>, env?: Record<string, string> }
     type Job = { name?: string, needs?: string | string[], if?: string, permissions?: Record<string, string>, outputs?: Record<string, string>, strategy?: { matrix: { shard: number[] } }, steps: Step[] }
@@ -488,12 +488,12 @@ describe('release quality gates', () => {
       expect(integration).toContain('path: ci-artifacts/')
       expect(integration).toContain('retention-days: 7')
     }
-    expect(manualIntegration).toContain('name: Electron integration shard ${{ matrix.shard }}/8')
-    expect(manualIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/8"')
+    expect(manualIntegration).toContain('name: Electron integration shard ${{ matrix.shard }}/12')
+    expect(manualIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/12"')
     expect(releaseIntegration).toContain('fail-fast: false')
-    expect(releaseIntegration).toContain('name: Electron integration shard ${{ matrix.shard }}/8')
-    expect(releaseIntegration).toContain('shard: [1, 2, 3, 4, 5, 6, 7, 8]')
-    expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/8"')
+    expect(releaseIntegration).toContain('name: Electron integration shard ${{ matrix.shard }}/12')
+    expect(releaseIntegration).toContain('shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]')
+    expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/12"')
     expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"')
     expect(releaseIntegration).toContain('diagnostics-playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}')
     // The publish job downloads every release-* artifact into the assets it attests and publishes; only builds may match.

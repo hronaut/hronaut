@@ -2,7 +2,7 @@ import { appendFile } from 'node:fs/promises'
 import { isMainModule } from './is-main-module.ts'
 
 /** The ci.yml jobs whose results a release takes from its rehearsal: static validation and every Electron shard. */
-export const REHEARSED_JOBS = ['validate', ...Array.from({ length: 8 }, (_, index) => `Electron integration shard ${index + 1}/8`)]
+export const REHEARSED_JOBS = ['validate', ...Array.from({ length: 12 }, (_, index) => `Electron integration shard ${index + 1}/12`)]
 
 /** Reads one GitHub REST API path, such as `repos/owner/name/git/commits/<sha>`. */
 export type GitHubGet = (path: string) => Promise<unknown>

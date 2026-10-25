@@ -27,6 +27,13 @@ function playwrightReport(tests: Record<string, Array<'expected' | 'unexpected' 
   return JSON.stringify(report)
 }
 
+/** A `playwright test --list --reporter=json` report of one file's tests. */
+function listReport(titles: string[]): string {
+  return JSON.stringify({ errors: [], suites: [{ title: 'browser-shell.e2e.ts', specs: titles.map(title => ({ title, file: 'browser-shell.e2e.ts' })) }] })
+}
+
+const listing = ['run', 'test:integration:run', '--', '--list', '--reporter=json']
+
 async function runSuite(environment: Record<string, string> = {}) {
   const root = await mkdtemp(join(tmpdir(), 'hronaut-suite-runner-'))
   try {
@@ -35,15 +42,26 @@ async function runSuite(environment: Record<string, string> = {}) {
     await copyFile('scripts/run-integration-suite-docker.sh', join(root, 'scripts/run-integration-suite-docker.sh'))
     await copyFile('scripts/recheck-flaky-tests.ts', join(root, 'scripts/recheck-flaky-tests.ts'))
     await copyFile('scripts/is-main-module.ts', join(root, 'scripts/is-main-module.ts'))
+    await copyFile('scripts/plan-integration-shard.ts', join(root, 'scripts/plan-integration-shard.ts'))
+    await copyFile('scripts/update-integration-durations.ts', join(root, 'scripts/update-integration-durations.ts'))
+    if (environment.TEST_DURATIONS) {
+      await mkdir(join(root, 'tests/integration'), { recursive: true })
+      await writeFile(join(root, 'tests/integration/durations.json'), environment.TEST_DURATIONS)
+    }
     await writeFile(join(root, 'scripts/verify-dependency-manifest.ts'), '')
     await writeFile(join(root, 'bin/npm'), `#!${process.execPath}
 const { appendFileSync, mkdirSync, writeFileSync } = require('node:fs');
 const args = process.argv.slice(2);
 const shard = process.env.HRONAUT_TEST_SHARD;
 appendFileSync('calls.jsonl', JSON.stringify({ args, isolatedDisplays: process.env.HRONAUT_TEST_ISOLATED_DISPLAYS, shard }) + '\\n');
+if (args.includes('--list')) {
+  // A hosted shard lists the suite to split it by recorded durations.
+  if (process.env.TEST_LIST_REPORT) writeFileSync(process.env.PLAYWRIGHT_JSON_OUTPUT_NAME, process.env.TEST_LIST_REPORT);
+  process.exit(Number(process.env.TEST_LIST_STATUS || 0));
+}
 if (args.includes('test:integration:run')) {
   // Playwright's JSON reporter writes test-results/json/<shard>.json for a hosted shard (playwright.config.ts).
-  const recheck = args.includes('--test-list');
+  const recheck = args.includes('--repeat-each=${RECHECK_REPEATS}');
   const report = recheck ? process.env.TEST_RECHECK_REPORT : process.env.TEST_SHARD_REPORT;
   if (shard && report) {
     mkdirSync('test-results/json', { recursive: true });
@@ -76,7 +94,15 @@ if (args.includes('test:integration:run')) {
     })
     const calls = source.trim().split('\n').filter(Boolean)
       .map(line => JSON.parse(line) as Invocation)
-    return { status: result.status, calls, stdout: result.stdout }
+    const shard = environment.HRONAUT_INTEGRATION_SHARD?.split('/')[0]
+    const optional = (path: string) => readFile(join(root, path), 'utf8').catch(() => undefined)
+    return {
+      status: result.status,
+      calls,
+      stdout: result.stdout,
+      plan: await optional(`test-results/json/shard-${shard}-plan.txt`),
+      durations: await optional(`test-results/durations/shard-${shard}.json`)
+    }
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -101,8 +127,10 @@ describe.skipIf(process.platform === 'win32')('Docker Electron scheduling', () =
       HRONAUT_INTEGRATION_SKIP_TYPECHECK: 'true'
     })
     expect(status).toBe(0)
+    // Without a listed suite the shard keeps Playwright's split by test count.
     expect(calls.map(call => call.args)).toEqual([
       ['run', 'build:app'],
+      listing,
       ['run', 'test:integration:run', '--', '--shard=2/5', '--workers=1']
     ])
   })
@@ -113,11 +141,11 @@ describe.skipIf(process.platform === 'win32')('Docker Electron scheduling', () =
       HRONAUT_INTEGRATION_SHARD_WORKERS: '2'
     })
     expect(status).toBe(0)
-    expect(calls[1]).toMatchObject({
+    expect(calls[2]).toMatchObject({
       args: ['run', 'test:integration:run', '--', '--shard=5/5', '--workers=2'],
       isolatedDisplays: '1'
     })
-    expect(calls[2]?.args).toEqual(['run', 'test:integration:dialogs:headless'])
+    expect(calls[3]?.args).toEqual(['run', 'test:integration:dialogs:headless'])
   })
 
   it.each(['0', '2x', '1.5', '9'])('rejects invalid hosted worker count %s before building', async workers => {
@@ -143,7 +171,7 @@ describe.skipIf(process.platform === 'win32')('Docker Electron scheduling', () =
       TEST_RECHECK_REPORT: playwrightReport({ 'keeps the theme': ['expected', 'expected', 'expected'], 'opens a tab': ['expected', 'expected', 'expected'] })
     })
     expect(status).toBe(0)
-    expect(calls.slice(1)).toEqual([
+    expect(calls.slice(2)).toEqual([
       { args: ['run', 'test:integration:run', '--', '--shard=2/5', '--workers=1'], isolatedDisplays: '1', shard: 'shard-2' },
       {
         args: ['run', 'test:integration:run', '--', '--test-list', 'test-results/json/shard-2-recheck.txt', `--repeat-each=${RECHECK_REPEATS}`, '--retries=0', '--workers=1'],
@@ -169,7 +197,7 @@ describe.skipIf(process.platform === 'win32')('Docker Electron scheduling', () =
       ...recheck
     })
     expect(status).toBe(1)
-    expect(calls.some(call => call.args.includes('--test-list'))).toBe(true)
+    expect(calls.some(call => call.args.includes(`--repeat-each=${RECHECK_REPEATS}`))).toBe(true)
     expect(calls.some(call => call.args.includes('test:integration:dialogs:headless'))).toBe(false)
     expect(stdout).not.toContain('::warning')
   })
@@ -180,7 +208,52 @@ describe.skipIf(process.platform === 'win32')('Docker Electron scheduling', () =
   ])('does not recheck a hosted shard when %s', async (_case, shard) => {
     const { status, calls, stdout } = await runSuite({ HRONAUT_INTEGRATION_SHARD: '3/5', TEST_ELECTRON_STATUS: '1', ...shard })
     expect(status).toBe(1)
-    expect(calls.some(call => call.args.includes('--test-list'))).toBe(false)
+    expect(calls.some(call => call.args.includes(`--repeat-each=${RECHECK_REPEATS}`))).toBe(false)
     expect(stdout).toContain('Not rechecking:')
+  })
+
+  // Playwright's --shard gives each shard the same number of tests, and their run times differed by up to six minutes.
+  it('splits hosted shards by recorded test durations', async () => {
+    const environment = {
+      TEST_LIST_REPORT: listReport(['opens a tab', 'keeps the theme', 'restores a window', 'closes a tab']),
+      TEST_DURATIONS: JSON.stringify({ 'browser-shell.e2e.ts › opens a tab': 30, 'browser-shell.e2e.ts › keeps the theme': 10, 'browser-shell.e2e.ts › restores a window': 12 })
+    }
+    const first = await runSuite({ ...environment, HRONAUT_INTEGRATION_SHARD: '1/2' })
+    const second = await runSuite({ ...environment, HRONAUT_INTEGRATION_SHARD: '2/2' })
+    expect(first.status).toBe(0)
+    expect(first.calls[1]?.args).toEqual(listing)
+    expect(first.calls[2]).toMatchObject({ args: ['run', 'test:integration:run', '--', '--test-list', 'test-results/json/shard-1-plan.txt', '--workers=1'], shard: 'shard-1' })
+    expect(second.calls[2]).toMatchObject({ args: ['run', 'test:integration:run', '--', '--test-list', 'test-results/json/shard-2-plan.txt', '--workers=1'], shard: 'shard-2' })
+    // Longest first, each to the shard with less time so far; the unrecorded test counts as the median (12 s).
+    expect(first.plan).toBe('browser-shell.e2e.ts › opens a tab\n')
+    expect(second.plan).toBe('browser-shell.e2e.ts › closes a tab\nbrowser-shell.e2e.ts › restores a window\nbrowser-shell.e2e.ts › keeps the theme\n')
+    expect(first.stdout).toContain('Shard 1/2 runs 1 of 4 tests')
+  })
+
+  it.each<[string, Record<string, string>]>([
+    ['listing fails', { TEST_LIST_REPORT: listReport(['opens a tab']), TEST_LIST_STATUS: '1' }],
+    ['a title cannot be named in a test list', { TEST_LIST_REPORT: listReport(['opens › closes']) }],
+    ['one title selects another test', { TEST_LIST_REPORT: JSON.stringify({ suites: [{ title: 'browser-shell.e2e.ts', specs: [{ title: 'tabs', file: 'browser-shell.e2e.ts' }], suites: [{ title: 'tabs', specs: [{ title: 'close', file: 'browser-shell.e2e.ts' }] }] }] }) }]
+  ])('keeps Playwright\'s split when %s', async (_case, listed) => {
+    const { status, calls, stdout } = await runSuite({ ...listed, HRONAUT_INTEGRATION_SHARD: '1/2' })
+    expect(status).toBe(0)
+    expect(calls[2]?.args).toEqual(['run', 'test:integration:run', '--', '--shard=1/2', '--workers=1'])
+    if (!listed.TEST_LIST_STATUS) expect(stdout).toContain('Splitting shards by test count:')
+  })
+
+  it('records how long each test of a hosted shard took, without its output', async () => {
+    const report = {
+      errors: [],
+      suites: [{
+        title: 'browser-shell.e2e.ts',
+        specs: [{
+          title: 'opens a tab',
+          file: 'browser-shell.e2e.ts',
+          tests: [{ status: 'flaky', expectedStatus: 'passed', results: [{ status: 'failed', duration: 45_000, stdout: ['secret'] }, { status: 'passed', duration: 2_340 }] }]
+        }]
+      }]
+    }
+    const { durations } = await runSuite({ HRONAUT_INTEGRATION_SHARD: '4/5', TEST_SHARD_REPORT: JSON.stringify(report) })
+    expect(durations).toBe('{\n  "browser-shell.e2e.ts › opens a tab": 2.3\n}\n')
   })
 })

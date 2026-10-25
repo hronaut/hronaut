@@ -127,13 +127,13 @@ jobs:
         run: node scripts/find-release-rehearsal.ts "$(git rev-parse "$GITHUB_SHA^{tree}")"
 
   test-integration:
-    name: Electron integration shard ${{ matrix.shard }}/8
+    name: Electron integration shard ${{ matrix.shard }}/12
     needs: prepare-release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     steps:
       - name: Take the shard's result from the release rehearsal
         if: needs.prepare-release.outputs.rehearsal_run != ''
@@ -151,7 +151,7 @@ jobs:
       - name: Run Electron integration tests in Docker
         if: needs.prepare-release.outputs.rehearsal_run == ''
         env:
-          HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/8"
+          HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/12"
           HRONAUT_INTEGRATION_SHARD_WORKERS: "1"
           HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"
         run: bash scripts/run-integration-ci.sh

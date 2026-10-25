@@ -127,13 +127,25 @@ memory-constrained machine, reduce concurrency without changing the suite:
 HRONAUT_INTEGRATION_SHARDS=2 npm run test:integration:docker
 ```
 
-Manually dispatched CI and release validation assign eight shards to separate runners, each
-with one Electron worker. This shortens each batch while keeping native focus and
-capture checks away from per-runner Electron contention. A shard that fails
-because of at most three tests, with every other test run and no error outside a
-test, reruns each of them three times without retries. When every rerun passes, the shard passes with a "Flaky Electron
-tests" warning and keeps the first failures' traces as an artifact; each flake it
-names still needs a fix. The selected-shard
+Manually dispatched CI and release validation assign twelve shards to separate
+runners, each with one Electron worker. This shortens each batch while keeping
+native focus and capture checks away from per-runner Electron contention. Each
+shard lists the suite and runs its part of a split by the durations in
+`tests/integration/durations.json`, so the shards finish at about the same time.
+Every CI shard uploads how long its tests took as a `durations-electron-*`
+artifact; after tests were added or got slower, refresh the file from a full run:
+
+```bash
+gh run download <run-id> --pattern 'durations-electron-*' --dir "$TMPDIR/durations"
+node scripts/update-integration-durations.ts --replace tests/integration/durations.json \
+  $(find "$TMPDIR/durations" -name 'shard-*.json')
+```
+
+A shard that fails because of at most three tests, with every other test run and
+no error outside a test, reruns each of them three times without retries. When
+every rerun passes, the shard passes with a "Flaky Electron tests" warning and
+keeps the first failures' traces as an artifact; each flake it names still needs
+a fix. The selected-shard
 worker count can be tuned through `HRONAUT_INTEGRATION_SHARD_WORKERS` when
 benchmarking a dedicated machine.
 An explicit

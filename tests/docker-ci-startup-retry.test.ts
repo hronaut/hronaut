@@ -89,7 +89,11 @@ if (args[0] === 'cp') {
         workers: scenario.local ? '4' : '2', skipTypecheck: scenario.local ? 'false' : 'true'
       })
       const flakyPass = scenario.output.startsWith('::warning title=Flaky Electron tests::')
-      expect(calls.filter(call => call[0] === 'cp')).toHaveLength((scenario.status !== 0 || flakyPass) && scenario.container ? 2 : 0)
+      const copied = calls.filter(call => call[0] === 'cp').map(call => call[1]?.split(':')[1])
+      const diagnostics = (scenario.status !== 0 || flakyPass) && scenario.container ? ['/workspace/test-results', '/workspace/playwright-report'] : []
+      // Every hosted shard also keeps its test durations, whether it passed or not.
+      const durations = !scenario.local && scenario.container ? ['/workspace/test-results/durations'] : []
+      expect(copied).toEqual([...diagnostics, ...durations])
       expect(calls.at(-1)).toEqual(['rm', '--force', firstRun[firstRun.indexOf('--name') + 1]])
       if (flakyPass) expect(readFileSync(join(directory, 'ci-artifacts/proof.txt'), 'utf8')).toBe('retained failure')
       if (scenario.local && scenario.copySuccess) {

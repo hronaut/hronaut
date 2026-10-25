@@ -45,7 +45,7 @@ function github(rehearsals: Rehearsal[]): { get: GitHubGet; paths: string[] } {
 }
 
 describe('findReleaseRehearsal', () => {
-  // The release ran validate and all eight Electron shards again on the tree its rehearsal had just passed.
+  // The release ran validate and all the Electron shards again on the tree its rehearsal had just passed.
   it('finds the rehearsal that passed static validation and every Electron shard on the same tree', async () => {
     const { get, paths } = github([
       { id: 3, sha: 'newer', tree: 'another-tree' },
@@ -59,7 +59,7 @@ describe('findReleaseRehearsal', () => {
 
   it('passes over a newer run on the same tree whose shard failed to an older one that passed', async () => {
     const { get } = github([
-      { id: 9, sha: 'rerun', jobs: passedJobs().map((job) => job.name === 'Electron integration shard 2/8' ? { ...job, conclusion: 'failure' } : job) },
+      { id: 9, sha: 'rerun', jobs: passedJobs().map((job) => job.name === 'Electron integration shard 2/12' ? { ...job, conclusion: 'failure' } : job) },
       { id: 8, sha: 'rehearsed' }
     ])
     await expect(findReleaseRehearsal(get, repository, tree)).resolves.toBe(8)
@@ -72,15 +72,15 @@ describe('findReleaseRehearsal', () => {
     ['started by another event', { event: 'push' }],
     ['that did not succeed', { conclusion: 'failure' }],
     ['on another tree', { tree: 'another-tree' }],
-    ['whose latest attempt failed a shard', { jobs: passedJobs().map((job) => job.name === 'Electron integration shard 5/8' ? { ...job, conclusion: 'failure' } : job) }],
+    ['whose latest attempt failed a shard', { jobs: passedJobs().map((job) => job.name === 'Electron integration shard 5/12' ? { ...job, conclusion: 'failure' } : job) }],
     ['that skipped validation', { jobs: passedJobs().map((job) => job.name === 'validate' ? { ...job, conclusion: 'skipped' } : job) }],
-    ['missing a shard', { jobs: passedJobs().filter((job) => job.name !== 'Electron integration shard 8/8') }]
+    ['missing a shard', { jobs: passedJobs().filter((job) => job.name !== 'Electron integration shard 12/12') }]
   ])('takes no rehearsal %s', async (_case, rehearsal) => {
     const { get } = github([{ id: 7, sha: 'rehearsed', ...rehearsal }])
     await expect(findReleaseRehearsal(get, repository, tree)).resolves.toBeUndefined()
   })
 
-  it('names validate and the eight shards ci.yml and release.yml run', () => {
-    expect(REHEARSED_JOBS).toEqual(['validate', ...[1, 2, 3, 4, 5, 6, 7, 8].map((shard) => `Electron integration shard ${shard}/8`)])
+  it('names validate and the twelve shards ci.yml and release.yml run', () => {
+    expect(REHEARSED_JOBS).toEqual(['validate', ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((shard) => `Electron integration shard ${shard}/12`)])
   })
 })
