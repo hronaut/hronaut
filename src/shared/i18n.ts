@@ -14,9 +14,11 @@ import { jaJP } from './locales/ja-JP.js'
 import { koKR } from './locales/ko-KR.js'
 import { zhCN } from './locales/zh-CN.js'
 import { zhTW } from './locales/zh-TW.js'
+import { idID } from './locales/id-ID.js'
+import { viVN } from './locales/vi-VN.js'
 import { pluralFormIndex } from './plural.js'
 
-// Annotated rather than inferred: fifteen catalogs' inferred types are more than the compiler will write out.
+// Annotated rather than inferred: seventeen catalogs' inferred types are more than the compiler will write out.
 export const localeMessages: Record<SupportedLocale, MessageSchema> = {
   'en-US': enUS,
   'uk-UA': ukUA,
@@ -32,7 +34,9 @@ export const localeMessages: Record<SupportedLocale, MessageSchema> = {
   'ja-JP': jaJP,
   'ko-KR': koKR,
   'zh-CN': zhCN,
-  'zh-TW': zhTW
+  'zh-TW': zhTW,
+  'id-ID': idID,
+  'vi-VN': viVN
 }
 
 type LeafKeys<Value, Prefix extends string = ''> = {

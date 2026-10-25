@@ -119,4 +119,20 @@ export const reactInspectionMessages = {
     "installed": "已安裝，請讀取元件樹以確認是否支援",
     "residue": "已關閉，請重新載入以移除殘留的 hook"
   },
+  "id-ID": {
+    "title": "Inspeksi React",
+    "enable": "Aktifkan untuk tab ini",
+    "disabled": "Nonaktif",
+    "reloadRequired": "Aktif — muat ulang jika sudah siap",
+    "installed": "Terinstal — baca tree untuk memeriksa dukungan",
+    "residue": "Nonaktif — muat ulang untuk menghapus sisa hook"
+  },
+  "vi-VN": {
+    "title": "Kiểm tra React",
+    "enable": "Bật cho thẻ này",
+    "disabled": "Tắt",
+    "reloadRequired": "Đã bật — hãy tải lại khi sẵn sàng",
+    "installed": "Đã cài đặt — hãy đọc một cây để kiểm tra khả năng hỗ trợ",
+    "residue": "Tắt — hãy tải lại để xóa phần hook còn sót lại"
+  },
 }

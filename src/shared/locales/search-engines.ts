@@ -106,4 +106,18 @@ export const searchEngineMessages = {
     brave: '注重隱私的獨立搜尋引擎',
     startpage: '不建立個人資料剖析的私密結果'
   },
+  'id-ID': {
+    google: 'Hasil web yang luas dan peringkat yang sudah familier',
+    duckduckgo: 'Penelusuran tanpa pelacakan yang dipersonalisasi',
+    bing: 'Penelusuran web dan gambar dari Microsoft',
+    brave: 'Penelusuran independen yang berfokus pada privasi',
+    startpage: 'Hasil pribadi tanpa pembuatan profil'
+  },
+  'vi-VN': {
+    google: 'Kết quả tìm kiếm web rộng và cách xếp hạng quen thuộc',
+    duckduckgo: 'Tìm kiếm không có theo dõi cá nhân hóa',
+    bing: 'Tìm kiếm web và hình ảnh của Microsoft',
+    brave: 'Tìm kiếm độc lập, chú trọng quyền riêng tư',
+    startpage: 'Kết quả riêng tư, không lập hồ sơ người dùng'
+  },
 }

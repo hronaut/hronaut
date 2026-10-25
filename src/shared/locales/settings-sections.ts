@@ -287,4 +287,42 @@ export const settingsSectionMessages = {
     generalGroups: { startup: '啟動與系統匣', agents: '代理程式活動' },
     general: { heading: '一般', description: '選擇 Hronaut 的語言、啟動方式，以及代理程式活動的顯示方式。' }
   },
+  'id-ID': {
+    keywords: {
+      appearance: 'tampilan antarmuka ukuran skala zoom posisi tab kiri atas bilah judul mode gelap terang sistem cyberpunk',
+      general: 'bahasa antarmuka baki sistem tutup startup login masuk buka saat login diminimalkan perhatian suara kursor status langsung strip agen',
+      search: 'kolom alamat mesin telusur penelusuran situs pintasan kata kunci google duckduckgo bing brave startpage',
+      downloads: 'download folder lokasi simpan tanya file',
+      performance: 'penghemat memori tidur cpu tab tidak aktif grafis akselerasi gpu hardware',
+      mcp: 'token autentikasi port jarak jauh jaringan lan set alat profil kemampuan captcha url agen',
+      privacy: 'ruang kerja profil riwayat hapus cookie penyimpanan data salin pindahkan transfer situs dns aman doh dns melalui https terenkripsi cloudflare google quad9',
+      permissions: 'kamera mikrofon lokasi notifikasi papan klip file izinkan tolak',
+      credentials: 'sandi kata sandi login masuk kredensial',
+      wallets: 'kripto dompet evm solana tron brankas frasa sandi',
+      updates: 'versi periksa catatan rilis pembaruan',
+      support: 'lisensi kunci aktifkan langganan uji coba beli creem'
+    },
+    appearanceGroups: { window: 'Jendela' },
+    generalGroups: { startup: 'Startup dan baki sistem', agents: 'Aktivitas agen' },
+    general: { heading: 'Umum', description: 'Pilih bahasa Hronaut, cara Hronaut dimulai, dan cara aktivitas agen ditampilkan.' }
+  },
+  'vi-VN': {
+    keywords: {
+      appearance: 'giao diện kích thước tỷ lệ thu phóng zoom vị trí thẻ tab trái trên thanh tiêu đề tối sáng chế độ hệ thống cyberpunk',
+      general: 'ngôn ngữ giao diện hệ thống khay tray đóng khởi động đăng nhập khởi chạy thu nhỏ chú ý âm thanh con trỏ trực tiếp trạng thái dải tác nhân agent',
+      search: 'thanh địa chỉ tìm kiếm trang web phím tắt từ khóa công cụ tìm kiếm google duckduckgo bing brave startpage',
+      downloads: 'tải xuống thư mục vị trí lưu hỏi tệp',
+      performance: 'tiết kiệm bộ nhớ ngủ cpu thẻ không hoạt động đồ họa tăng tốc gpu phần cứng',
+      mcp: 'mã thông báo token xác thực cổng port từ xa mạng lan bộ công cụ hồ sơ khả năng captcha url tác nhân agent',
+      privacy: 'không gian làm việc hồ sơ lịch sử xóa cookie bộ nhớ dữ liệu sao chép di chuyển chuyển trang web dns bảo mật doh dns qua https mã hóa cloudflare google quad9',
+      permissions: 'máy ảnh camera micrô vị trí thông báo bảng nhớ tạm tệp cho phép từ chối',
+      credentials: 'mật khẩu đăng nhập thông tin xác thực tài khoản',
+      wallets: 'ví tiền mã hóa crypto evm solana tron kho cụm mật khẩu',
+      updates: 'cập nhật phiên bản kiểm tra ghi chú phát hành',
+      support: 'giấy phép khóa kích hoạt gói đăng ký dùng thử mua creem'
+    },
+    appearanceGroups: { window: 'Cửa sổ' },
+    generalGroups: { startup: 'Khởi động và khay hệ thống', agents: 'Hoạt động của tác nhân' },
+    general: { heading: 'Chung', description: 'Chọn ngôn ngữ của Hronaut, cách ứng dụng khởi động và cách hiển thị hoạt động của tác nhân.' }
+  },
 }

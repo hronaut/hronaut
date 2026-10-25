@@ -86,7 +86,7 @@ test('supports Russian and the additional language choices', async ({ appWindow 
   await appWindow.locator('.settings-nav-item').nth(0).click()
   await appWindow.setViewportSize({ width: 760, height: 640 })
   const selector = appWindow.locator('#setting-language')
-  await expect(selector.locator('option')).toHaveCount(16)
+  await expect(selector.locator('option')).toHaveCount(18)
 
   const additionalHeadings = {
     'ru-RU': 'Настройки',
@@ -101,7 +101,9 @@ test('supports Russian and the additional language choices', async ({ appWindow 
     'ja-JP': '設定',
     'ko-KR': '설정',
     'zh-CN': '设置',
-    'zh-TW': '設定'
+    'zh-TW': '設定',
+    'id-ID': 'Setelan',
+    'vi-VN': 'Cài đặt'
   } as const
   for (const [locale, heading] of Object.entries(additionalHeadings)) {
     await selector.selectOption(locale)

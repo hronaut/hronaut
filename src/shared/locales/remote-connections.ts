@@ -89,4 +89,16 @@ export const remoteConnectionMessages = {
     "restart": "變更遠端存取設定後，請重新啟動 Hronaut。驗證設定的變更會立即生效。",
     "connection": "在另一部電腦上使用 http://this-computer-LAN-IP:{port}/mcp；若已啟用驗證，請另外使用下方「能力設定檔」中的 Bearer 憑證。請在防火牆中允許這個連接埠，且僅在可信任的網路中使用：HTTP 不會加密流量。"
   },
+  "id-ID": {
+    "label": "Izinkan koneksi dari komputer lain",
+    "description": "Mendengarkan di semua antarmuka jaringan IPv4. Autentikasi token bersifat opsional. Tanpa autentikasi, siapa pun yang dapat menjangkau listener ini dapat mengontrol browser Anda dan melampirkan file lokal.",
+    "restart": "Mulai ulang Hronaut setelah mengubah akses jarak jauh. Perubahan autentikasi langsung berlaku.",
+    "connection": "Di komputer lain, gunakan http://this-computer-LAN-IP:{port}/mcp dan, jika autentikasi diaktifkan, kredensial bearer dari Profil kemampuan di bawah. Izinkan port ini di firewall Anda. Gunakan hanya jaringan tepercaya: HTTP tidak mengenkripsi traffic."
+  },
+  "vi-VN": {
+    "label": "Cho phép kết nối từ máy tính khác",
+    "description": "Lắng nghe trên tất cả giao diện mạng IPv4. Xác thực bằng mã thông báo là không bắt buộc. Nếu không có xác thực, bất kỳ ai truy cập được trình nghe này đều có thể điều khiển trình duyệt của bạn và đính kèm tệp cục bộ.",
+    "restart": "Hãy khởi động lại Hronaut sau khi thay đổi quyền truy cập từ xa. Các thay đổi về xác thực có hiệu lực ngay lập tức.",
+    "connection": "Trên máy tính kia, hãy dùng http://this-computer-LAN-IP:{port}/mcp và, nếu đã bật xác thực, một thông tin xác thực bearer từ mục Hồ sơ khả năng bên dưới. Hãy cho phép cổng này trong tường lửa. Chỉ dùng mạng đáng tin cậy: HTTP không mã hóa lưu lượng."
+  },
 }

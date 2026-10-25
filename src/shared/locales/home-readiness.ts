@@ -419,4 +419,60 @@ export const homeReadinessMessages = {
       "none": "這項檢查不需要採取任何動作。"
     }
   },
+  "id-ID": {
+    "heading": "Kesiapan MCP",
+    "description": "Verifikasi setiap batas secara terpisah sebelum mengandalkan alat browser.",
+    "checks": {
+      "app": "Aplikasi",
+      "endpoint": "Endpoint lokal",
+      "initialization": "Inisialisasi klien",
+      "advertisedTools": "Alat yang diiklankan",
+      "configuration": "Konfigurasi klien",
+      "clientVisibility": "Alat terlihat di klien aktif",
+      "probe": "Probe hanya baca"
+    },
+    "inventory": "Tempel daftar alat yang ditampilkan oleh klien aktif",
+    "inventoryPlaceholder": "Tempel output klien yang berisi nama alat browser_* atau wallet_*",
+    "verifyInventory": "Bandingkan daftar alat",
+    "copyReport": "Salin diagnostik",
+    "reportLabel": "Diagnostik kesiapan MCP yang aman untuk disalin",
+    "privacy": "Perbandingan tetap berada di halaman ini. Laporan yang disalin hanya berisi status bertipe, jumlah, nama alat yang dibatasi, dan stempel waktu.",
+    "nextAction": {
+      "start_honaut": "Mulai atau perbaiki listener Hronaut lokal.",
+      "connect_client": "Hubungkan ulang klien MCP aktif dan tunggu inisialisasi selesai.",
+      "verify_client_configuration": "Konfirmasi endpoint dan autentikasi ini di konfigurasi klien aktif.",
+      "list_tools_in_active_client": "Tampilkan daftar alat di klien aktif dan bandingkan di sini.",
+      "run_read_only_probe": "Di ruang kerja milik tugas, panggil browser_status atau browser_snapshot sekali.",
+      "retry_read_only_probe": "Periksa error klien aktif, lalu coba lagi satu probe hanya baca.",
+      "none": "Tidak ada tindakan yang diperlukan untuk pemeriksaan ini."
+    }
+  },
+  "vi-VN": {
+    "heading": "Mức sẵn sàng của MCP",
+    "description": "Hãy xác minh riêng từng ranh giới trước khi dựa vào các công cụ trình duyệt.",
+    "checks": {
+      "app": "Ứng dụng",
+      "endpoint": "Điểm cuối cục bộ",
+      "initialization": "Khởi tạo ứng dụng khách",
+      "advertisedTools": "Công cụ được công bố",
+      "configuration": "Cấu hình ứng dụng khách",
+      "clientVisibility": "Công cụ hiển thị trong ứng dụng khách đang dùng",
+      "probe": "Thăm dò chỉ đọc"
+    },
+    "inventory": "Dán danh sách công cụ mà ứng dụng khách đang dùng hiển thị",
+    "inventoryPlaceholder": "Dán kết quả của ứng dụng khách có chứa tên công cụ browser_* hoặc wallet_*",
+    "verifyInventory": "So sánh danh sách công cụ",
+    "copyReport": "Sao chép thông tin chẩn đoán",
+    "reportLabel": "Thông tin chẩn đoán mức sẵn sàng MCP an toàn để sao chép",
+    "privacy": "Việc so sánh chỉ diễn ra trên trang này. Báo cáo được sao chép chỉ chứa các trạng thái đã phân loại, số lượng, tên công cụ có giới hạn và dấu thời gian.",
+    "nextAction": {
+      "start_honaut": "Khởi động hoặc sửa trình nghe Hronaut cục bộ.",
+      "connect_client": "Kết nối lại ứng dụng khách MCP đang dùng và đợi quá trình khởi tạo.",
+      "verify_client_configuration": "Xác nhận điểm cuối và thông tin xác thực này trong cấu hình của ứng dụng khách đang dùng.",
+      "list_tools_in_active_client": "Liệt kê công cụ trong ứng dụng khách đang dùng và so sánh tại đây.",
+      "run_read_only_probe": "Trong một không gian làm việc thuộc về nhiệm vụ, hãy gọi browser_status hoặc browser_snapshot một lần.",
+      "retry_read_only_probe": "Kiểm tra lỗi của ứng dụng khách đang dùng, rồi thử lại một lượt thăm dò chỉ đọc.",
+      "none": "Không cần thao tác nào cho bước kiểm tra này."
+    }
+  },
 }

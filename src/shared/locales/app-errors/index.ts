@@ -13,6 +13,8 @@ import { jaJPAppErrors } from './ja-JP.js'
 import { koKRAppErrors } from './ko-KR.js'
 import { zhCNAppErrors } from './zh-CN.js'
 import { zhTWAppErrors } from './zh-TW.js'
+import { idIDAppErrors } from './id-ID.js'
+import { viVNAppErrors } from './vi-VN.js'
 
 /** Errors from the main process that a person sees, one file for each language. */
 export const appErrorMessages = {
@@ -30,5 +32,7 @@ export const appErrorMessages = {
   'ja-JP': jaJPAppErrors,
   'ko-KR': koKRAppErrors,
   'zh-CN': zhCNAppErrors,
-  'zh-TW': zhTWAppErrors
+  'zh-TW': zhTWAppErrors,
+  'id-ID': idIDAppErrors,
+  'vi-VN': viVNAppErrors
 }

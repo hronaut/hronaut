@@ -13,6 +13,8 @@ import { jaJPWallets } from './ja-JP.js'
 import { koKRWallets } from './ko-KR.js'
 import { zhCNWallets } from './zh-CN.js'
 import { zhTWWallets } from './zh-TW.js'
+import { idIDWallets } from './id-ID.js'
+import { viVNWallets } from './vi-VN.js'
 
 /** The Wallets panel and wallet approval strings, one file for each language. */
 export const walletMessages = {
@@ -30,5 +32,7 @@ export const walletMessages = {
   'ja-JP': jaJPWallets,
   'ko-KR': koKRWallets,
   'zh-CN': zhCNWallets,
-  'zh-TW': zhTWWallets
+  'zh-TW': zhTWWallets,
+  'id-ID': idIDWallets,
+  'vi-VN': viVNWallets
 }

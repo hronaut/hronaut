@@ -179,4 +179,28 @@ export const networkPriorityMessages = {
     "VeryHigh": "非常高",
     "note": "這是 Chromium 排程的觀察結果，並非最終優先順序，也無法證明傳輸順序、伺服器處理方式或 LCP 成因。"
   },
+  "id-ID": {
+    "heading": "Prioritas permintaan",
+    "initial": "Awal",
+    "latest": "Terakhir diamati",
+    "unavailable": "Tidak tersedia",
+    "VeryLow": "Sangat rendah",
+    "Low": "Rendah",
+    "Medium": "Sedang",
+    "High": "Tinggi",
+    "VeryHigh": "Sangat tinggi",
+    "note": "Pengamatan penjadwalan Chromium, bukan prioritas akhir atau bukti urutan transfer, penanganan server, atau penyebab LCP."
+  },
+  "vi-VN": {
+    "heading": "Mức ưu tiên của yêu cầu",
+    "initial": "Ban đầu",
+    "latest": "Quan sát gần nhất",
+    "unavailable": "Không có",
+    "VeryLow": "Rất thấp",
+    "Low": "Thấp",
+    "Medium": "Trung bình",
+    "High": "Cao",
+    "VeryHigh": "Rất cao",
+    "note": "Đây là các quan sát về việc lập lịch của Chromium, không phải mức ưu tiên cuối cùng hay bằng chứng về thứ tự truyền, cách máy chủ xử lý hoặc nguyên nhân LCP."
+  },
 }
