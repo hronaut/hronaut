@@ -40,6 +40,7 @@ import electronUpdater from 'electron-updater'
 import { enableNativeWebMcp } from './native-webmcp-switch.js'
 import { createAppUpdates, type AppUpdatesState } from './app-updates.js'
 import { registerPageInspectionIpc } from './page-inspection-ipc.js'
+import { registerQrCodeIpc } from './qr-code-ipc.js'
 import { DownloadHistoryStore } from './browser/download-history/download-history.js'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
 import { TabStateStore, WorkspaceMetadataError } from './browser/tab-store.js'
@@ -927,6 +928,12 @@ function registerIpc(): void {
     handleBrowserIpc,
     tabs: () => tabRuntime.tabs,
     copyTextToClipboard,
+    copyPngToClipboard
+  })
+  registerQrCodeIpc({
+    assertTrustedSender: assertMainShellSender,
+    handleBrowserIpc,
+    tabs: () => tabRuntime.tabs,
     copyPngToClipboard
   })
   registerCollectionIpc(hronautIpcMain, {

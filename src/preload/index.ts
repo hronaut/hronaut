@@ -122,6 +122,8 @@ const api: HronautApi = {
   getTabOverviewPreviews: (tabIds: string[]) => ipcRenderer.invoke('browser:get-tab-overview-previews', tabIds),
   getTabOverviewPagePreview: (tabId: string) => ipcRenderer.invoke('browser:get-tab-overview-page-preview', tabId),
   copyText: (text: string) => ipcRenderer.invoke('browser:copy-text', text),
+  copyQrCode: (text: string) => ipcRenderer.invoke('browser:copy-qr-code', text),
+  downloadQrCode: (request: { tabId: string; text: string; address: string }) => ipcRenderer.invoke('browser:download-qr-code', request),
   openHome: () => ipcRenderer.invoke('browser:open-home'),
   newTab: (options: NewTabOptions = {}) => ipcRenderer.invoke('browser:new-tab', options),
   reopenClosedTab: (closedTabId?: string) => ipcRenderer.invoke('browser:reopen-closed-tab', closedTabId),
@@ -309,6 +311,14 @@ const api: HronautApi = {
     const handler = (): void => listener()
     ipcRenderer.on('browser:visit-history-requested', handler)
     return () => ipcRenderer.removeListener('browser:visit-history-requested', handler)
+  },
+  onQrCodeRequested: (listener: (request: { tabId: string; address: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, request: unknown): void => {
+      const { tabId, address } = (request ?? {}) as Record<string, unknown>
+      if (typeof tabId === 'string' && typeof address === 'string') listener({ tabId, address })
+    }
+    ipcRenderer.on('browser:qr-code-requested', handler)
+    return () => ipcRenderer.removeListener('browser:qr-code-requested', handler)
   },
   onBookmarkAllTabsRequested: (listener: (workspaceId: string | null) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, workspaceId: unknown): void => listener(typeof workspaceId === 'string' ? workspaceId : null)

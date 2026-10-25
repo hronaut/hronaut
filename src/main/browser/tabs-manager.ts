@@ -4693,6 +4693,17 @@ export class BrowserTabsManager {
     failAllHeldResponses(this.networkConditionsAccess(), [...this.tabs.values()].map(tab => tab.webContents))
   }
 
+  /**
+   * Saves a file Hronaut made, such as a QR code's image, as a download from the tab's workspace under the given name,
+   * as Chrome saves its QR code through its downloads.
+   */
+  downloadGeneratedFile(tabId: string, dataUrl: string, filename: string): void {
+    const tab = this.getTab(tabId)
+    if (tab.webContents.isDestroyed()) throw new LocalizedError('native.errors.tabUnavailable', undefined, { message: `Tab not found: ${tabId}` })
+    this.downloadController.expectGeneratedFile(tab.webContents.id, dataUrl, filename)
+    tab.webContents.downloadURL(dataUrl)
+  }
+
   listDownloads(): BrowserDownloadState[] {
     return this.downloadController.listDownloads()
   }

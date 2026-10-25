@@ -44,6 +44,10 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     console.error(`[browser] Could not copy context-menu ${kind}:`, error)
     access.options().onClipboardCopyFailed?.(error)
   }
+  // The shell opens the Create QR Code dialog for the address, in the tab's window.
+  const requestQrCode = (address: string): void => {
+    access.window().webContents.send('browser:qr-code-requested', { tabId: tab.id, address })
+  }
   const copyText = (text: string): void => {
     menuCopies++
     void access.options().copyText(text).catch((error) => reportCopyFailure('text', error))
@@ -176,6 +180,12 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
         label: access.text('native.context.copyImageAddress'),
         click: () => copyText(params.srcURL)
       },
+      // As in Chrome, for an image that is not a link, whose address is http or https.
+      ...!params.linkURL && isWebUrl(params.srcURL) ? [{
+        id: 'create-qr-code-image',
+        label: access.text('native.context.createQrCodeImage'),
+        click: withLiveContents('create a QR code', () => requestQrCode(params.srcURL))
+      }] : [],
       {
         id: 'save-image',
         label: access.text('native.context.saveImage'),
@@ -309,6 +319,12 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
         void access.print(tab).catch((error) => access.options().onActionFailed?.('print the page', error))
       })
     }],
+    // As in Chrome, after Print, for a web page: its address as a QR code, in Hronaut's own dialog.
+    ...isWebUrl(tab.url) ? [{
+      id: 'create-qr-code-page',
+      label: access.text('native.context.createQrCodePage'),
+      click: withLiveContents('create a QR code', () => requestQrCode(tab.url))
+    }] : [],
     // As in Chrome, between Print and Inspect, for a web page; a page's source has no source of its own.
     ...pageSourceAddress(tab.url) ? [{
       id: 'view-page-source',

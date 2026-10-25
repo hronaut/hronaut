@@ -52,6 +52,7 @@ export interface AppShellKeyboardFeatureControllerOptions {
     releaseHistory: AppShellKeyboardSurface
     helpDialog: AppShellKeyboardSurface
     taskManager: AppShellKeyboardSurface
+    qrCode: AppShellKeyboardSurface
     settings: AppShellKeyboardSurface
   }
   overlays: {
@@ -112,6 +113,7 @@ export function useAppShellKeyboardFeatureController(
       customSurface(modals.releaseHistory),
       customSurface(modals.helpDialog),
       customSurface(modals.taskManager),
+      customSurface(modals.qrCode),
       refSurface(overlays.tabSearch, 'search-tabs')
     ],
     escapeSurfaces: [

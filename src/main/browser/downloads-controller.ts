@@ -136,6 +136,8 @@ export class BrowserDownloadsController {
   private fileCheckRunning = false
   private fileCheckRequested = false
   private readonly savedLinkNames = new SavedLinkNames()
+  // Names Hronaut gives the files it makes itself, such as a QR code's image.
+  private readonly generatedFileNames = new SavedLinkNames()
   private readonly dragIcons = new DownloadDragIcons()
   /** Where the download history is kept for the next start, once the history it kept is back, so no save loses it. */
   private history: DownloadHistoryStore | undefined
@@ -275,6 +277,7 @@ export class BrowserDownloadsController {
     this.completedFileIdentities.clear()
     this.fileChecks.clear()
     this.savedLinkNames.clear()
+    this.generatedFileNames.clear()
   }
 
   /**
@@ -283,6 +286,14 @@ export class BrowserDownloadsController {
    */
   expectSavedLinkName(webContentsId: number, url: string, linkName: string): void {
     if (!this.destroyed) this.savedLinkNames.expect(webContentsId, url, linkName)
+  }
+
+  /**
+   * Names the download of a file Hronaut made itself, such as a QR code's image, which this page is about to start from
+   * a `data:` address. Hronaut chose the name, so it holds where a page's name for a link would not.
+   */
+  expectGeneratedFile(webContentsId: number, url: string, filename: string): void {
+    if (!this.destroyed) this.generatedFileNames.expect(webContentsId, url, filename)
   }
 
   listDownloads(): BrowserDownloadState[] {
@@ -558,6 +569,7 @@ export class BrowserDownloadsController {
         // Taken first, so a download refused below cannot leave its name for the next one.
         const urlChain = item.getURLChain()
         const linkName = this.savedLinkNames.take(webContents?.id, urlChain[0] ?? item.getURL())
+        const generatedName = this.generatedFileNames.take(webContents?.id, urlChain[0] ?? item.getURL())
         // A retry starts from no page, so the retry names its workspace.
         const retry = webContents ? undefined : this.takeRetry(browserSession, urlChain[0] ?? item.getURL())
         // Electron gives a download without a page no redirect check, so one that went outside the workspace's Site
@@ -588,9 +600,9 @@ export class BrowserDownloadsController {
         const settings = this.host.getSettings()
         // As for a click on the link, the name holds only while the download stays on the link's origin: Hronaut saves
         // without asking, so a redirect elsewhere must not get to name its file, such as a script saved as `update.bat`.
-        const filename = linkName && staysOnOrigin(urlChain)
+        const filename = generatedName ?? (linkName && staysOnOrigin(urlChain)
           ? savedLinkFilename(linkName, item.getFilename(), item.getContentDisposition())
-          : item.getFilename()
+          : item.getFilename())
         const download: BrowserDownloadState = {
           id,
           observationGeneration,

@@ -50,7 +50,7 @@ describe('View Page Source in the page context menu', () => {
   it('opens the source of the page it opened on, between Print and Inspect', () => {
     const { tab, viewSource, items } = openMenu('https://docs.example/invoice')
     const ids = items.map((item) => item.id ?? item.type)
-    expect(ids.slice(ids.indexOf('print'))).toEqual(['print', 'view-page-source', 'inspect-element'])
+    expect(ids.slice(ids.indexOf('print'))).toEqual(['print', 'create-qr-code-page', 'view-page-source', 'inspect-element'])
     const item = items.find((entry) => entry.id === 'view-page-source')!
     expect(item.label).toBe('native.context.viewSource')
     ;(item.click as () => void)()

@@ -109,6 +109,10 @@ export interface HronautApi {
   getTabOverviewPreviews(tabIds: string[]): Promise<BrowserTabOverviewPreview[]>
   getTabOverviewPagePreview(tabId: string): Promise<BrowserTabOverviewPreview>
   copyText(text: string): Promise<void>
+  /** Copies the image of the text's QR code, as Create QR Code's Copy does. */
+  copyQrCode(text: string): Promise<void>
+  /** Saves the image of the text's QR code as a download from the tab's workspace, named after the address it was made for. */
+  downloadQrCode(request: { tabId: string; text: string; address: string }): Promise<void>
   openHome(): Promise<BrowserState>
   newTab(options?: NewTabOptions): Promise<BrowserState>
   reopenClosedTab(closedTabId?: string): Promise<BrowserState>
@@ -243,4 +247,6 @@ export interface HronautApi {
   onBookmarkAllTabsRequested(listener: (workspaceId: string | null) => void): () => void
   /** Paste and Go or Paste and Search in the address field's menu, with the clipboard text to open. */
   onAddressPasteAndGo(listener: (text: string) => void): () => void
+  /** Create QR Code in a page's menu, for the tab and the address of its page or image. */
+  onQrCodeRequested(listener: (request: { tabId: string; address: string }) => void): () => void
 }

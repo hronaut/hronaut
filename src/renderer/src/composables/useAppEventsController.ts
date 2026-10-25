@@ -22,6 +22,7 @@ export interface AppEventsControllerOptions {
     HronautApi,
     'onUserAttentionRequested' | 'onShortcutRequested' | 'onTabGroupEditRequested' | 'onNewTabRequested' | 'onVisitHistoryRequested'
     | 'onBookmarkAllTabsRequested'
+    | 'onQrCodeRequested'
     | 'onAddressPasteAndGo'
   >
   permissionsApi: Pick<HronautPermissionsApi, 'onChanged'>
@@ -36,6 +37,8 @@ export interface AppEventsControllerOptions {
   onVisitHistory: () => unknown
   /** A tab's menu asked to bookmark the tabs of its workspace, or of no workspace for null. */
   onBookmarkAllTabs: (workspaceId: string | null) => unknown
+  /** A page's menu asked for a QR code of the page's or an image's address. */
+  onQrCode: (request: { tabId: string, address: string }) => unknown
   /** Opens the clipboard text from Paste and Go, as the address field would. */
   onAddressPasteAndGo: (text: string) => unknown
   onPermissionsChanged: (permissions: SitePermissionEntry[]) => unknown
@@ -72,6 +75,7 @@ export function useAppEventsController(options: AppEventsControllerOptions) {
     () => options.browserApi.onNewTabRequested(active(options.onNewTab)),
     () => options.browserApi.onVisitHistoryRequested(active(options.onVisitHistory)),
     () => options.browserApi.onBookmarkAllTabsRequested(active(options.onBookmarkAllTabs)),
+    () => options.browserApi.onQrCodeRequested(active(options.onQrCode)),
     () => options.browserApi.onAddressPasteAndGo(active(options.onAddressPasteAndGo)),
     () => options.permissionsApi.onChanged(active(options.onPermissionsChanged)),
     () => options.credentialsApi.onChanged(active(options.onCredentialsChanged)),

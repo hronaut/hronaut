@@ -12,7 +12,7 @@ interface Harness {
   controller: AppShellLayoutFeatureController
   wrapper: VueWrapper
   dock: Ref<PanelDock>
-  modals: Record<'settings' | 'commandPalette' | 'helpDialog' | 'releaseHistory' | 'taskManager' | 'workspaceEditor' | 'credentialPicker' | 'walletApproval' | 'trustedDialog' | 'agentSteps', Ref<boolean>>
+  modals: Record<'settings' | 'commandPalette' | 'helpDialog' | 'releaseHistory' | 'taskManager' | 'qrCode' | 'workspaceEditor' | 'credentialPicker' | 'walletApproval' | 'trustedDialog' | 'agentSteps', Ref<boolean>>
   overlays: {
     updateNotice: Ref<boolean>
     find: Ref<boolean>
@@ -62,6 +62,7 @@ function createHarness(detachedWindow = false): Harness {
     helpDialog: ref(false),
     releaseHistory: ref(false),
     taskManager: ref(false),
+    qrCode: ref(false),
     workspaceEditor: ref(false),
     credentialPicker: ref(false),
     walletApproval: ref(false),
@@ -362,6 +363,17 @@ describe('useAppShellLayoutFeatureController', () => {
     const harness = createHarness()
 
     harness.modals.taskManager.value = true
+    await nextTick()
+    await nextTick()
+
+    expect(harness.controller.fullModalOpen.value).toBe(true)
+    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
+  })
+
+  it('hides the website under the QR code dialog, as under the other dialogs', async () => {
+    const harness = createHarness()
+
+    harness.modals.qrCode.value = true
     await nextTick()
     await nextTick()
 

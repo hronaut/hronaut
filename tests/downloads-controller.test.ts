@@ -505,6 +505,18 @@ it('keeps the address\'s name when a saved link redirects to another site', asyn
   expect(savedAs(download(1, false, 'https://download.example/files/5', '5.csv', '', ['https://download.example/export?id=5', 'https://download.example/files/5']))).toBe('report.csv')
 })
 
+it('names a file Hronaut makes itself, such as a QR code image, though its address has no origin', async () => {
+  // A QR code's image downloads from a data: address, whose origin Save Link As's check refuses, so it was download.png.
+  const { controller, download } = await fixture()
+  const savedAs = (transfer: { item: unknown }) => basename((transfer.item as DownloadItem).getSavePath())
+  const image = 'data:image/png;base64,iVBORw0KGgo='
+  controller.expectGeneratedFile(1, image, 'qrcode_hronaut.dev.png')
+  expect(savedAs(download(2, false, image, 'download.png'))).toBe('download.png')
+  expect(savedAs(download(1, false, image, 'download.png'))).toBe('qrcode_hronaut.dev.png')
+  // The name is used once, by the download it was given for.
+  expect(savedAs(download(1, false, image, 'download.png'))).toBe('download (1).png')
+})
+
 it('proposes a saved link\'s name when Hronaut asks where to save it', async () => {
   const { controller, download } = await fixture(true)
   controller.expectSavedLinkName(1, 'https://download.example/export?id=5', 'report.csv')
