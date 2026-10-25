@@ -13,7 +13,8 @@ import {
   isLanguagePreference,
   isSupportedLocale,
   resolveLocalePreference,
-  resolveSupportedLocale
+  resolveSupportedLocale,
+  SUPPORTED_LOCALES
 } from '../src/shared/locale.js'
 
 function flattenMessages(value: unknown, prefix = ''): Map<string, string> {
@@ -62,7 +63,12 @@ describe('locale resolution', () => {
   it.each([
     ['uk', 'uk-UA'], ['uk-UA', 'uk-UA'], ['uk_UA', 'uk-UA'], ['uk-CA', 'uk-UA'],
     ['en', 'en-US'], ['en-GB', 'en-US'], ['ru', 'ru-RU'], ['de-AT', 'de-DE'],
-    ['fr-CA', 'fr-FR'], ['es-MX', 'es-ES'], ['pl', 'pl-PL'], ['ja-JP', 'en-US'], ['', 'en-US']
+    ['fr-CA', 'fr-FR'], ['es-MX', 'es-ES'], ['pl', 'pl-PL'], ['it', 'it-IT'], ['it-CH', 'it-IT'],
+    ['pt', 'pt-BR'], ['pt-PT', 'pt-BR'], ['tr', 'tr-TR'], ['hi', 'hi-IN'], ['ja', 'ja-JP'], ['ja-JP', 'ja-JP'],
+    ['ko', 'ko-KR'], ['zh', 'zh-CN'], ['zh-CN', 'zh-CN'], ['zh-SG', 'zh-CN'], ['zh-Hans-CN', 'zh-CN'],
+    // Chinese for Taiwan, Hong Kong and Macau, or written in Traditional script, is Traditional Chinese.
+    ['zh-TW', 'zh-TW'], ['zh_TW', 'zh-TW'], ['zh-HK', 'zh-TW'], ['zh-MO', 'zh-TW'], ['zh-Hant', 'zh-TW'], ['zh-Hant-HK', 'zh-TW'],
+    ['nl-NL', 'en-US'], ['', 'en-US']
   ] as const)('normalizes %s to %s', (input, expected) => {
     expect(resolveSupportedLocale(input)).toBe(expected)
   })
@@ -71,7 +77,8 @@ describe('locale resolution', () => {
     expect(resolveLocalePreference('en-US', 'uk-UA')).toBe('en-US')
     expect(resolveLocalePreference('uk-UA', 'en-US')).toBe('uk-UA')
     expect(resolveLocalePreference('system', 'uk-UA')).toBe('uk-UA')
-    expect(resolveLocalePreference('system', 'ja-JP')).toBe('en-US')
+    expect(resolveLocalePreference('system', 'ja-JP')).toBe('ja-JP')
+    expect(resolveLocalePreference('system', 'nl-NL')).toBe('en-US')
   })
 
   it('rejects malformed preferences and resolved locales', () => {
@@ -112,7 +119,7 @@ describe('locale catalogs', () => {
     }
   })
 
-  it.each(['ru-RU', 'de-DE', 'fr-FR', 'es-ES', 'pl-PL'] as const)(
+  it.each(SUPPORTED_LOCALES.filter((locale) => locale !== 'en-US' && locale !== 'uk-UA'))(
     'does not fall back to English across deep %s surfaces',
     (locale) => {
       for (const key of [
@@ -133,7 +140,7 @@ describe('locale catalogs', () => {
   )
 
   // A section copied from the English catalog shows English to every reader of that language.
-  it.each(['uk-UA', 'ru-RU', 'de-DE', 'fr-FR', 'es-ES', 'pl-PL'] as const)('shows no English labels or sentences in %s', (locale) => {
+  it.each(SUPPORTED_LOCALES.filter((locale) => locale !== 'en-US'))('shows no English labels or sentences in %s', (locale) => {
     const catalog = flattenMessages(localeMessages[locale])
     const untranslated = [...catalog]
       .filter(([key, message]) => message === english.get(key) && wordCount(message) > 1 && !SAME_IN_EVERY_LANGUAGE.has(key))

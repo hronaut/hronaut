@@ -194,5 +194,229 @@ export const homeReadinessMessages = {
       "retry_read_only_probe": "Sprawdź błąd aktywnego klienta, a następnie ponów jeden test tylko do odczytu.",
       "none": "Ta kontrola nie wymaga żadnych działań."
     }
-  }
+  },
+  "it-IT": {
+    "heading": "Stato di preparazione MCP",
+    "description": "Verifica separatamente ogni passaggio prima di affidarti agli strumenti del browser.",
+    "checks": {
+      "app": "Applicazione",
+      "endpoint": "Endpoint locale",
+      "initialization": "Inizializzazione del client",
+      "advertisedTools": "Strumenti annunciati",
+      "configuration": "Configurazione del client",
+      "clientVisibility": "Strumenti visibili nel client attivo",
+      "probe": "Verifica in sola lettura"
+    },
+    "inventory": "Incolla l’elenco degli strumenti mostrato dal client attivo",
+    "inventoryPlaceholder": "Incolla l’output del client contenente nomi di strumenti browser_* o wallet_*",
+    "verifyInventory": "Confronta elenco strumenti",
+    "copyReport": "Copia diagnostica",
+    "reportLabel": "Diagnostica di preparazione MCP sicura da copiare",
+    "privacy": "Il confronto resta su questa pagina. Il report copiato contiene solo stati tipizzati, conteggi, nomi di strumenti limitati e timestamp.",
+    "nextAction": {
+      "start_honaut": "Avvia o ripara il listener locale di Hronaut.",
+      "connect_client": "Riconnetti il client MCP attivo e attendi l’inizializzazione.",
+      "verify_client_configuration": "Verifica questo endpoint e l’autenticazione nella configurazione del client attivo.",
+      "list_tools_in_active_client": "Elenca gli strumenti nel client attivo e confrontali qui.",
+      "run_read_only_probe": "In un’area di lavoro di proprietà dell’attività, richiama una volta browser_status o browser_snapshot.",
+      "retry_read_only_probe": "Esamina l’errore del client attivo, quindi ripeti una verifica in sola lettura.",
+      "none": "Nessuna azione necessaria per questo controllo."
+    }
+  },
+  "pt-BR": {
+    "heading": "Prontidão do MCP",
+    "description": "Verifique cada limite separadamente antes de contar com as ferramentas do navegador.",
+    "checks": {
+      "app": "Aplicativo",
+      "endpoint": "Endpoint local",
+      "initialization": "Inicialização do cliente",
+      "advertisedTools": "Ferramentas anunciadas",
+      "configuration": "Configuração do cliente",
+      "clientVisibility": "Ferramentas visíveis no cliente ativo",
+      "probe": "Teste somente leitura"
+    },
+    "inventory": "Cole a lista de ferramentas mostrada pelo cliente ativo",
+    "inventoryPlaceholder": "Cole a saída do cliente com nomes de ferramentas browser_* ou wallet_*",
+    "verifyInventory": "Comparar lista de ferramentas",
+    "copyReport": "Copiar diagnóstico",
+    "reportLabel": "Diagnóstico de prontidão do MCP seguro para copiar",
+    "privacy": "A comparação fica nesta página. O relatório copiado contém somente estados tipados, contagens, nomes de ferramentas limitados e carimbos de data/hora.",
+    "nextAction": {
+      "start_honaut": "Inicie ou repare o listener local do Hronaut.",
+      "connect_client": "Reconecte o cliente MCP ativo e aguarde a inicialização.",
+      "verify_client_configuration": "Confirme este endpoint e a autenticação na configuração do cliente ativo.",
+      "list_tools_in_active_client": "Liste as ferramentas no cliente ativo e compare-as aqui.",
+      "run_read_only_probe": "Em um espaço de trabalho da tarefa, invoque browser_status ou browser_snapshot uma vez.",
+      "retry_read_only_probe": "Inspecione o erro do cliente ativo e tente novamente um teste somente leitura.",
+      "none": "Nenhuma ação necessária para esta verificação."
+    }
+  },
+  "tr-TR": {
+    "heading": "MCP hazırlığı",
+    "description": "Tarayıcı araçlarına güvenmeden önce her sınırı ayrı ayrı doğrulayın.",
+    "checks": {
+      "app": "Uygulama",
+      "endpoint": "Yerel uç nokta",
+      "initialization": "İstemci başlatma",
+      "advertisedTools": "Duyurulan araçlar",
+      "configuration": "İstemci yapılandırması",
+      "clientVisibility": "Etkin istemcide görünen araçlar",
+      "probe": "Salt okunur yoklama"
+    },
+    "inventory": "Etkin istemcinin gösterdiği araç listesini yapıştırın",
+    "inventoryPlaceholder": "browser_* veya wallet_* araç adlarını içeren istemci çıktısını yapıştırın",
+    "verifyInventory": "Araç listesini karşılaştır",
+    "copyReport": "Tanılamayı kopyala",
+    "reportLabel": "Kopyalaması güvenli MCP hazırlık tanılaması",
+    "privacy": "Karşılaştırma bu sayfada kalır. Kopyalanan rapor yalnızca türlendirilmiş durumları, sayıları, sınırlı sayıda araç adını ve zaman damgalarını içerir.",
+    "nextAction": {
+      "start_honaut": "Yerel Hronaut dinleyicisini başlatın veya onarın.",
+      "connect_client": "Etkin MCP istemcisini yeniden bağlayın ve başlatmanın tamamlanmasını bekleyin.",
+      "verify_client_configuration": "Etkin istemcinin yapılandırmasında bu uç noktayı ve kimlik doğrulamayı onaylayın.",
+      "list_tools_in_active_client": "Etkin istemcideki araçları listeleyin ve burada karşılaştırın.",
+      "run_read_only_probe": "Göreve ait bir çalışma alanında browser_status veya browser_snapshot aracını bir kez çağırın.",
+      "retry_read_only_probe": "Etkin istemcideki hatayı inceleyin, ardından salt okunur yoklamayı bir kez daha deneyin.",
+      "none": "Bu denetim için işlem gerekmiyor."
+    }
+  },
+  "hi-IN": {
+    "heading": "MCP की तैयारी",
+    "description": "ब्राउज़र टूल पर भरोसा करने से पहले हर सीमा की अलग-अलग पुष्टि करें।",
+    "checks": {
+      "app": "ऐप्लिकेशन",
+      "endpoint": "लोकल एंडपॉइंट",
+      "initialization": "क्लाइंट का शुरू होना",
+      "advertisedTools": "बताए गए टूल",
+      "configuration": "क्लाइंट कॉन्फ़िगरेशन",
+      "clientVisibility": "चालू क्लाइंट में दिख रहे टूल",
+      "probe": "सिर्फ़ पढ़ने वाली जांच"
+    },
+    "inventory": "चालू क्लाइंट में दिख रही टूल की सूची चिपकाएं",
+    "inventoryPlaceholder": "क्लाइंट का ऐसा आउटपुट चिपकाएं जिसमें browser_* या wallet_* टूल के नाम हों",
+    "verifyInventory": "टूल की सूची की तुलना करें",
+    "copyReport": "डायग्नोस्टिक कॉपी करें",
+    "reportLabel": "कॉपी करने के लिए सुरक्षित MCP तैयारी डायग्नोस्टिक",
+    "privacy": "तुलना इसी पेज पर रहती है। कॉपी की गई रिपोर्ट में सिर्फ़ तय स्थितियां, संख्याएं, सीमित टूल नाम और टाइमस्टैंप होते हैं।",
+    "nextAction": {
+      "start_honaut": "लोकल Hronaut लिसनर शुरू करें या ठीक करें।",
+      "connect_client": "चालू MCP क्लाइंट को फिर से कनेक्ट करें और उसके शुरू होने का इंतज़ार करें।",
+      "verify_client_configuration": "चालू क्लाइंट के कॉन्फ़िगरेशन में इस एंडपॉइंट और ऑथेंटिकेशन की पुष्टि करें।",
+      "list_tools_in_active_client": "चालू क्लाइंट में टूल की सूची देखें और यहां उनकी तुलना करें।",
+      "run_read_only_probe": "टास्क के अपने वर्कस्पेस में, browser_status या browser_snapshot को एक बार चलाएं।",
+      "retry_read_only_probe": "चालू क्लाइंट की गड़बड़ी जांचें, फिर सिर्फ़ पढ़ने वाली एक जांच दोबारा चलाएं।",
+      "none": "इस जांच के लिए कोई कार्रवाई ज़रूरी नहीं है।"
+    }
+  },
+  "ja-JP": {
+    "heading": "MCP の準備状況",
+    "description": "ブラウザ ツールを利用する前に、各境界を個別に確認してください。",
+    "checks": {
+      "app": "アプリケーション",
+      "endpoint": "ローカル エンドポイント",
+      "initialization": "クライアントの初期化",
+      "advertisedTools": "公開されているツール",
+      "configuration": "クライアントの設定",
+      "clientVisibility": "アクティブなクライアントで表示されるツール",
+      "probe": "読み取り専用のプローブ"
+    },
+    "inventory": "アクティブなクライアントに表示されているツールの一覧を貼り付けてください",
+    "inventoryPlaceholder": "browser_* または wallet_* のツール名を含むクライアントの出力を貼り付けます",
+    "verifyInventory": "ツールの一覧を比較",
+    "copyReport": "診断情報をコピー",
+    "reportLabel": "コピーしても安全な MCP 準備状況の診断情報",
+    "privacy": "比較はこのページ内で行われます。コピーされるレポートには、型付きの状態、件数、範囲を限定したツール名、タイムスタンプのみが含まれます。",
+    "nextAction": {
+      "start_honaut": "ローカルの Hronaut リスナーを起動または修復してください。",
+      "connect_client": "アクティブな MCP クライアントを再接続し、初期化が完了するまでお待ちください。",
+      "verify_client_configuration": "アクティブなクライアントの設定で、このエンドポイントと認証を確認してください。",
+      "list_tools_in_active_client": "アクティブなクライアントでツールを一覧表示し、ここで比較してください。",
+      "run_read_only_probe": "タスク専用のワークスペースで、browser_status または browser_snapshot を 1 回呼び出してください。",
+      "retry_read_only_probe": "アクティブなクライアントのエラーを確認してから、読み取り専用のプローブを 1 回再試行してください。",
+      "none": "このチェックで必要な操作はありません。"
+    }
+  },
+  "ko-KR": {
+    "heading": "MCP 준비 상태",
+    "description": "브라우저 도구를 사용하기 전에 각 경계를 하나씩 확인하세요.",
+    "checks": {
+      "app": "애플리케이션",
+      "endpoint": "로컬 엔드포인트",
+      "initialization": "클라이언트 초기화",
+      "advertisedTools": "제공되는 도구",
+      "configuration": "클라이언트 구성",
+      "clientVisibility": "활성 클라이언트에 표시되는 도구",
+      "probe": "읽기 전용 점검"
+    },
+    "inventory": "활성 클라이언트에 표시된 도구 목록을 붙여넣으세요",
+    "inventoryPlaceholder": "browser_* 또는 wallet_* 도구 이름이 포함된 클라이언트 출력을 붙여넣으세요",
+    "verifyInventory": "도구 목록 비교",
+    "copyReport": "진단 정보 복사",
+    "reportLabel": "복사해도 안전한 MCP 준비 상태 진단",
+    "privacy": "비교는 이 페이지 안에서만 이루어집니다. 복사된 보고서에는 정해진 상태 값, 개수, 길이가 제한된 도구 이름, 타임스탬프만 포함됩니다.",
+    "nextAction": {
+      "start_honaut": "로컬 Hronaut 리스너를 시작하거나 복구하세요.",
+      "connect_client": "활성 MCP 클라이언트를 다시 연결하고 초기화가 끝날 때까지 기다리세요.",
+      "verify_client_configuration": "활성 클라이언트 구성에서 이 엔드포인트와 인증을 확인하세요.",
+      "list_tools_in_active_client": "활성 클라이언트에서 도구 목록을 표시한 후 여기에서 비교하세요.",
+      "run_read_only_probe": "태스크가 소유한 작업 공간에서 browser_status 또는 browser_snapshot을 한 번 호출하세요.",
+      "retry_read_only_probe": "활성 클라이언트의 오류를 확인한 후 읽기 전용 점검을 한 번 다시 시도하세요.",
+      "none": "이 항목은 조치가 필요하지 않습니다."
+    }
+  },
+  "zh-CN": {
+    "heading": "MCP 就绪状态",
+    "description": "在依赖浏览器工具之前，请逐一验证每个环节。",
+    "checks": {
+      "app": "应用",
+      "endpoint": "本地端点",
+      "initialization": "客户端初始化",
+      "advertisedTools": "公布的工具",
+      "configuration": "客户端配置",
+      "clientVisibility": "活动客户端中可见的工具",
+      "probe": "只读探测"
+    },
+    "inventory": "粘贴活动客户端显示的工具列表",
+    "inventoryPlaceholder": "粘贴包含 browser_* 或 wallet_* 工具名称的客户端输出",
+    "verifyInventory": "比较工具列表",
+    "copyReport": "复制诊断信息",
+    "reportLabel": "可安全复制的 MCP 就绪诊断信息",
+    "privacy": "比较仅在此页面上进行。复制的报告仅包含类型化状态、计数、有限的工具名称和时间戳。",
+    "nextAction": {
+      "start_honaut": "启动或修复本地 Hronaut 监听器。",
+      "connect_client": "重新连接活动的 MCP 客户端，并等待初始化完成。",
+      "verify_client_configuration": "在活动客户端的配置中确认此端点和身份验证设置。",
+      "list_tools_in_active_client": "在活动客户端中列出工具，然后在此处进行比较。",
+      "run_read_only_probe": "在任务专属的工作区中，调用一次 browser_status 或 browser_snapshot。",
+      "retry_read_only_probe": "检查活动客户端的错误，然后重试一次只读探测。",
+      "none": "此检查无需执行任何操作。"
+    }
+  },
+  "zh-TW": {
+    "heading": "MCP 就緒狀態",
+    "description": "在依賴瀏覽器工具之前，請逐一驗證每個環節。",
+    "checks": {
+      "app": "應用程式",
+      "endpoint": "本機端點",
+      "initialization": "用戶端初始化",
+      "advertisedTools": "已宣告的工具",
+      "configuration": "用戶端設定",
+      "clientVisibility": "使用中用戶端可見的工具",
+      "probe": "唯讀探測"
+    },
+    "inventory": "貼上使用中用戶端顯示的工具清單",
+    "inventoryPlaceholder": "貼上包含 browser_* 或 wallet_* 工具名稱的用戶端輸出內容",
+    "verifyInventory": "比對工具清單",
+    "copyReport": "複製診斷資訊",
+    "reportLabel": "可安全複製的 MCP 就緒狀態診斷",
+    "privacy": "比對只會在這個頁面上進行。複製的報告只包含類型化的狀態、數量、長度受限的工具名稱和時間戳記。",
+    "nextAction": {
+      "start_honaut": "啟動或修復本機的 Hronaut 監聽程式。",
+      "connect_client": "重新連線使用中的 MCP 用戶端，並等待初始化完成。",
+      "verify_client_configuration": "在使用中用戶端的設定中確認這個端點與驗證方式。",
+      "list_tools_in_active_client": "在使用中的用戶端列出工具，然後在這裡比對。",
+      "run_read_only_probe": "在任務專屬的工作區中，呼叫一次 browser_status 或 browser_snapshot。",
+      "retry_read_only_probe": "檢查使用中用戶端的錯誤，然後再試一次唯讀探測。",
+      "none": "這項檢查不需要採取任何動作。"
+    }
+  },
 }

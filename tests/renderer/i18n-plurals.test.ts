@@ -43,10 +43,14 @@ describe('plural forms', () => {
   })
 
   it('gives every plural message the forms its language picks from', () => {
-    const forms: Record<SupportedLocale, number> = { 'en-US': 2, 'de-DE': 2, 'es-ES': 2, 'fr-FR': 2, 'pl-PL': 3, 'ru-RU': 3, 'uk-UA': 3 }
+    // Chinese, Japanese and Korean write a count the same way whatever it is, so their messages have one form.
+    const forms: Record<SupportedLocale, number> = {
+      'en-US': 2, 'de-DE': 2, 'es-ES': 2, 'fr-FR': 2, 'pl-PL': 3, 'ru-RU': 3, 'uk-UA': 3,
+      'it-IT': 2, 'pt-BR': 2, 'tr-TR': 2, 'hi-IN': 2, 'ja-JP': 1, 'ko-KR': 1, 'zh-CN': 1, 'zh-TW': 1
+    }
     for (const [locale, expected] of Object.entries(forms) as Array<[SupportedLocale, number]>) {
       const messages = pluralMessages(localeMessages[locale])
-      expect(messages.length, locale).toBeGreaterThan(0)
+      if (expected > 1) expect(messages.length, locale).toBeGreaterThan(0)
       expect(messages.filter(([, message]) => message.split(' | ').length !== expected).map(([key]) => `${locale} ${key}`)).toEqual([])
     }
   })
@@ -57,5 +61,6 @@ describe('plural forms', () => {
     expect(COUNTS.map((count) => pluralFormIndex('en-US', count, 2))).toEqual([1, 0, 1, 1, 1, 1, 1, 1, 1])
     expect(COUNTS.map((count) => pluralFormIndex('fr-FR', count, 2))).toEqual([0, 0, 1, 1, 1, 1, 1, 1, 1])
     expect(pluralFormIndex('ru-RU', 5, 1)).toBe(0)
+    expect(COUNTS.map((count) => pluralFormIndex('ja-JP', count, 1))).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0])
   })
 })

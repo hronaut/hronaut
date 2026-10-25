@@ -113,7 +113,7 @@ Use a task-owned headless browser or automation library when the browser should 
 - Independent **Follow agents** mode that keeps the active agent tab visible without taking keyboard or mouse focus. With it off, agent-created tabs, workspace tab selections, and agent-triggered popups leave the tab you are viewing in place.
 - Built-in history, bookmarks, downloads, password vault, site controls, responsive preview, visual comparison, and Chromium diagnostics.
 - Automatic update checks against public GitHub releases; downloads and installation always require user action.
-- English, Ukrainian, Russian, German, French, Spanish, and Polish interface languages.
+- English, Ukrainian, Russian, German, French, Spanish, Polish, Italian, Brazilian Portuguese, Turkish, Hindi, Japanese, Korean, Simplified Chinese, and Traditional Chinese interface languages.
 
 ## Install
 

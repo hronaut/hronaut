@@ -134,5 +134,157 @@ export const settingsSectionMessages = {
     appearanceGroups: { window: 'Вікно' },
     generalGroups: { startup: 'Запуск і трей', agents: 'Робота агентів' },
     general: { heading: 'Загальні', description: 'Виберіть мову Hronaut, як він запускається і як видно роботу агентів.' }
-  }
+  },
+  'it-IT': {
+    keywords: {
+      appearance: 'interfaccia dimensione scala zoom posizione schede sinistra alto barra del titolo modalità scura chiara sistema tema aspetto cyberpunk',
+      general: 'lingua interfaccia area di notifica barra di sistema chiusura avvio accesso login apertura ridotta a icona attenzione suono cursore stato in tempo reale striscia agente agenti',
+      search: 'barra degli indirizzi motore di ricerca google duckduckgo bing brave startpage',
+      downloads: 'cartella posizione percorso salva chiedi file download',
+      performance: 'risparmio memoria sospensione cpu schede inattive prestazioni',
+      mcp: 'token autenticazione porta remoto rete lan set di strumenti profilo funzionalità captcha url agenti',
+      privacy: 'area di lavoro profilo cronologia cancella cookie archiviazione dati copia sposta trasferisci siti web',
+      permissions: 'fotocamera microfono posizione notifiche appunti file consenti blocca autorizzazioni',
+      credentials: 'password accesso login credenziali',
+      wallets: 'crypto criptovalute evm solana tron cassaforte passphrase wallet',
+      updates: 'versione controlla note di rilascio aggiornamenti',
+      support: 'licenza chiave attiva abbonamento prova acquista creem supporto'
+    },
+    appearanceGroups: { window: 'Finestra' },
+    generalGroups: { startup: 'Avvio e area di notifica', agents: 'Attività degli agenti' },
+    general: { heading: 'Generali', description: 'Scegli la lingua di Hronaut, come si avvia e come viene mostrata l’attività degli agenti.' }
+  },
+  'pt-BR': {
+    keywords: {
+      appearance: 'interface tamanho escala zoom guias posição esquerda topo barra de título escuro claro modo sistema cyberpunk aparência tema',
+      general: 'idioma interface sistema bandeja fechar inicialização login entrar iniciar minimizado atenção som cursor status ao vivo faixa agente agentes',
+      search: 'barra de endereços pesquisa google duckduckgo bing brave startpage',
+      downloads: 'pasta local salvar perguntar arquivo downloads',
+      performance: 'economia de memória suspender cpu guias inativas desempenho',
+      mcp: 'token autenticação porta remoto rede lan conjunto de ferramentas perfil de capacidades captcha url agentes segurança',
+      privacy: 'espaço de trabalho perfil histórico limpar cookies armazenamento dados copiar mover transferir sites',
+      permissions: 'câmera microfone localização notificações área de transferência arquivos permitir negar',
+      credentials: 'senha login entrar credenciais',
+      wallets: 'cripto evm solana tron cofre senha longa carteira',
+      updates: 'versão verificar notas da versão atualização',
+      support: 'licença chave ativar assinatura avaliação comprar creem'
+    },
+    appearanceGroups: { window: 'Janela' },
+    generalGroups: { startup: 'Inicialização e bandeja', agents: 'Atividade dos agentes' },
+    general: { heading: 'Geral', description: 'Escolha o idioma do Hronaut, como ele é iniciado e como a atividade dos agentes é exibida.' }
+  },
+  'tr-TR': {
+    keywords: {
+      appearance: 'arayüz boyut ölçek yakınlaştırma zoom sekme konum sol üst başlık çubuğu koyu açık mod tema sistem cyberpunk',
+      general: 'dil arayüz sistem tepsisi kapat başlangıç oturum açma giriş başlat simge durumunda ilgi ses imleç canlı durum şeridi ajan ajanlar',
+      search: 'arama motoru adres çubuğu google duckduckgo bing brave startpage',
+      downloads: 'klasör konum kaydet sor dosya indirilenler',
+      performance: 'bellek tasarrufu uyku cpu işlemci etkin olmayan sekmeler',
+      mcp: 'belirteç token kimlik doğrulama bağlantı noktası port uzak ağ lan araç seti yetenek profil captcha url ajanlar',
+      privacy: 'çalışma alanı profil geçmiş temizle çerezler depolama veri kopyala taşı aktar web siteleri',
+      permissions: 'kamera mikrofon konum bildirimler pano dosyalar izin ver reddet',
+      credentials: 'şifre parola giriş oturum açma kimlik bilgileri',
+      wallets: 'kripto cüzdan evm solana tron kasa parola',
+      updates: 'sürüm güncelleme denetle sürüm notları',
+      support: 'lisans anahtar etkinleştir abonelik deneme satın al creem'
+    },
+    appearanceGroups: { window: 'Pencere' },
+    generalGroups: { startup: 'Başlangıç ve sistem tepsisi', agents: 'Ajan etkinliği' },
+    general: { heading: 'Genel', description: 'Hronaut’un dilini, nasıl başlayacağını ve ajan etkinliğinin nasıl görüneceğini seçin.' }
+  },
+  'hi-IN': {
+    keywords: {
+      appearance: 'दिखावट इंटरफ़ेस साइज़ स्केल ज़ूम टैब की जगह बाएं ऊपर टाइटल बार गहरा हल्का मोड थीम सिस्टम cyberpunk',
+      general: 'सामान्य भाषा इंटरफ़ेस सिस्टम ट्रे बंद करें स्टार्टअप साइन इन लॉगिन खोलें छोटा करें ध्यान आवाज़ कर्सर लाइव स्थिति पट्टी एजेंट',
+      search: 'खोज सर्च इंजन पता बार google duckduckgo bing brave startpage',
+      downloads: 'डाउनलोड फ़ोल्डर जगह सेव करें पूछें फ़ाइल',
+      performance: 'परफ़ॉर्मेंस मेमोरी सेवर स्लीप मोड cpu इनऐक्टिव टैब',
+      mcp: 'mcp टोकन ऑथेंटिकेशन पोर्ट रिमोट नेटवर्क lan टूल सेट क्षमता प्रोफ़ाइल captcha url एजेंट',
+      privacy: 'निजता वर्कस्पेस प्रोफ़ाइल इतिहास साफ़ करें कुकी स्टोरेज डेटा कॉपी ले जाएं ट्रांसफ़र वेबसाइटें',
+      permissions: 'अनुमतियां कैमरा माइक्रोफ़ोन जगह सूचनाएं क्लिपबोर्ड फ़ाइलें अनुमति दें अनुमति न दें',
+      credentials: 'पासवर्ड लॉगिन साइन इन क्रेडेंशियल खाता',
+      wallets: 'वॉलेट क्रिप्टो evm solana tron वॉल्ट पासफ़्रेज़',
+      updates: 'अपडेट वर्शन जांचें रिलीज़ नोट',
+      support: 'लाइसेंस कुंजी ऐक्टिवेट सदस्यता ट्रायल खरीदें creem'
+    },
+    appearanceGroups: { window: 'विंडो' },
+    generalGroups: { startup: 'स्टार्टअप और ट्रे', agents: 'एजेंट गतिविधि' },
+    general: { heading: 'सामान्य', description: 'Hronaut की भाषा चुनें, यह कैसे शुरू होता है और एजेंट गतिविधि कैसे दिखती है।' }
+  },
+  'ja-JP': {
+    keywords: {
+      appearance: 'インターフェース 表示 サイズ 拡大 縮小 倍率 ズーム タブ 位置 左 上 タイトルバー ダーク ライト モード システム テーマ デザイン cyberpunk',
+      general: '言語 インターフェース システム トレイ 閉じる 起動 スタートアップ ログイン サインイン 最小化 通知音 サウンド 音 カーソル ライブ ステータス バー エージェント agent',
+      search: '検索エンジン アドレスバー google duckduckgo bing brave startpage',
+      downloads: 'フォルダ 保存先 場所 保存 確認 ファイル ダウンロード',
+      performance: 'メモリ 省メモリ スリープ cpu 非アクティブ タブ パフォーマンス',
+      mcp: 'トークン 認証 ポート リモート ネットワーク lan ツール セット 機能プロファイル captcha url エージェント',
+      privacy: 'ワークスペース プロファイル 履歴 消去 削除 cookie ストレージ データ コピー 移動 転送 ウェブサイト サイト プライバシー',
+      permissions: 'カメラ マイク 位置情報 現在地 通知 クリップボード ファイル 許可 ブロック 拒否',
+      credentials: 'パスワード ログイン サインイン 認証情報 ログイン情報',
+      wallets: '暗号資産 仮想通貨 crypto evm solana tron 保管庫 パスフレーズ ウォレット',
+      updates: 'バージョン 確認 リリースノート アップデート 更新',
+      support: 'ライセンス キー 有効化 サブスクリプション 試用 トライアル 購入 creem'
+    },
+    appearanceGroups: { window: 'ウィンドウ' },
+    generalGroups: { startup: '起動とトレイ', agents: 'エージェントのアクティビティ' },
+    general: { heading: '全般', description: 'Hronaut の言語、起動方法、エージェントの動作の表示方法を選択します。' }
+  },
+  'ko-KR': {
+    keywords: {
+      appearance: '인터페이스 크기 배율 확대 축소 탭 위치 왼쪽 위 제목 표시줄 다크 라이트 모드 시스템 테마 사이버펑크 cyberpunk',
+      general: '언어 인터페이스 시스템 트레이 닫기 시작 로그인 실행 최소화 알림 소리 커서 실시간 상태 표시줄 에이전트',
+      search: '검색엔진 주소창 google duckduckgo bing brave startpage',
+      downloads: '폴더 위치 저장 묻기 파일 다운로드',
+      performance: '메모리 절약 절전 cpu 비활성 탭 성능',
+      mcp: '토큰 인증 포트 원격 네트워크 lan 도구 세트 권한 프로필 captcha url 에이전트',
+      privacy: '작업 공간 프로필 방문 기록 삭제 쿠키 저장소 데이터 복사 이동 전송 웹사이트 개인정보',
+      permissions: '카메라 마이크 위치 알림 클립보드 파일 허용 차단 권한',
+      credentials: '비밀번호 로그인 자격 증명 계정',
+      wallets: '암호화폐 지갑 crypto evm solana tron 보관소 암호 문구',
+      updates: '버전 확인 출시 노트 업데이트',
+      support: '라이선스 키 활성화 구독 체험판 구매 creem 지원'
+    },
+    appearanceGroups: { window: '창' },
+    generalGroups: { startup: '시작 및 트레이', agents: '에이전트 활동' },
+    general: { heading: '일반', description: 'Hronaut의 언어, 시작 방식, 에이전트 활동 표시 방식을 선택하세요.' }
+  },
+  'zh-CN': {
+    keywords: {
+      appearance: '界面 大小 缩放 比例 标签页 位置 左侧 顶部 标题栏 深色 浅色 模式 系统 主题 赛博朋克 interface zoom tab dark light cyberpunk',
+      general: '语言 界面 系统 托盘 关闭 启动 登录 最小化 提醒 声音 光标 实时状态 横条 智能体 language tray startup login sound cursor agent',
+      search: '地址栏 搜索引擎 google duckduckgo bing brave startpage',
+      downloads: '下载 文件夹 位置 保存 询问 文件 download folder',
+      performance: '内存 节省 休眠 cpu 不活跃 标签页 memory sleep',
+      mcp: '令牌 身份验证 端口 远程 网络 局域网 lan 工具集 能力配置 人机验证 captcha 网址 url 智能体 token port',
+      privacy: '工作区 配置文件 历史记录 清除 cookie 存储 数据 复制 移动 转移 网站 workspace history',
+      permissions: '摄像头 麦克风 位置 通知 剪贴板 文件 允许 拒绝 camera microphone',
+      credentials: '密码 登录 凭据 password login',
+      wallets: '钱包 加密货币 crypto evm solana tron 保管库 密码短语 wallet',
+      updates: '版本 检查 更新 版本说明 version update',
+      support: '许可证 密钥 激活 订阅 试用 购买 creem license'
+    },
+    appearanceGroups: { window: '窗口' },
+    generalGroups: { startup: '启动和托盘', agents: '智能体活动' },
+    general: { heading: '常规', description: '选择 Hronaut 的语言、启动方式以及智能体活动的显示方式。' }
+  },
+  'zh-TW': {
+    keywords: {
+      appearance: '介面 大小 比例 縮放 zoom 分頁 位置 左側 頂端 標題列 深色 淺色 模式 系統 主題 cyberpunk',
+      general: '語言 介面 系統匣 關閉 啟動 開機 登入 最小化 提醒 注意 音效 游標 即時 狀態列 代理程式 agent',
+      search: '搜尋引擎 網址列 google duckduckgo bing brave startpage',
+      downloads: '下載 資料夾 位置 儲存 詢問 檔案',
+      performance: '效能 記憶體 節省 休眠 cpu 閒置 分頁',
+      mcp: 'token 權杖 驗證 連接埠 port 遠端 網路 lan 工具組 能力 設定檔 captcha 驗證碼 url 網址 代理程式',
+      privacy: '隱私 工作區 設定檔 記錄 清除 cookie 儲存空間 資料 複製 移動 轉移 網站',
+      permissions: '權限 相機 麥克風 位置 通知 剪貼簿 檔案 允許 拒絕',
+      credentials: '密碼 登入 憑證 帳戶',
+      wallets: '錢包 加密貨幣 crypto evm solana tron 保險庫 密語',
+      updates: '更新 版本 檢查 版本資訊',
+      support: '授權 金鑰 啟用 訂閱 試用 購買 creem'
+    },
+    appearanceGroups: { window: '視窗' },
+    generalGroups: { startup: '啟動與系統匣', agents: '代理程式活動' },
+    general: { heading: '一般', description: '選擇 Hronaut 的語言、啟動方式，以及代理程式活動的顯示方式。' }
+  },
 }

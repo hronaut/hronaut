@@ -6,6 +6,14 @@ import { deDE } from './locales/de-DE.js'
 import { frFR } from './locales/fr-FR.js'
 import { esES } from './locales/es-ES.js'
 import { plPL } from './locales/pl-PL.js'
+import { itIT } from './locales/it-IT.js'
+import { ptBR } from './locales/pt-BR.js'
+import { trTR } from './locales/tr-TR.js'
+import { hiIN } from './locales/hi-IN.js'
+import { jaJP } from './locales/ja-JP.js'
+import { koKR } from './locales/ko-KR.js'
+import { zhCN } from './locales/zh-CN.js'
+import { zhTW } from './locales/zh-TW.js'
 import { pluralFormIndex } from './plural.js'
 
 export const localeMessages = {
@@ -15,7 +23,15 @@ export const localeMessages = {
   'de-DE': deDE,
   'fr-FR': frFR,
   'es-ES': esES,
-  'pl-PL': plPL
+  'pl-PL': plPL,
+  'it-IT': itIT,
+  'pt-BR': ptBR,
+  'tr-TR': trTR,
+  'hi-IN': hiIN,
+  'ja-JP': jaJP,
+  'ko-KR': koKR,
+  'zh-CN': zhCN,
+  'zh-TW': zhTW
 } satisfies Record<SupportedLocale, MessageSchema>
 
 type LeafKeys<Value, Prefix extends string = ''> = {

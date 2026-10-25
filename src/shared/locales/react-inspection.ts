@@ -54,5 +54,69 @@ export const reactInspectionMessages = {
     "reloadRequired": "Włączone — odśwież w dogodnym momencie",
     "installed": "Zainstalowano — odczytaj drzewo, aby sprawdzić obsługę",
     "residue": "Wyłączone — odśwież, aby usunąć pozostałości hooka"
-  }
+  },
+  "it-IT": {
+    "title": "Ispezione React",
+    "enable": "Attiva per questa scheda",
+    "disabled": "Disattivata",
+    "reloadRequired": "Attivata — ricarica quando vuoi",
+    "installed": "Installata — leggi un albero per verificare il supporto",
+    "residue": "Disattivata — ricarica per rimuovere i residui dell’hook"
+  },
+  "pt-BR": {
+    "title": "Inspeção do React",
+    "enable": "Ativar nesta guia",
+    "disabled": "Desativada",
+    "reloadRequired": "Ativada — recarregue quando quiser",
+    "installed": "Instalada — leia uma árvore para verificar a compatibilidade",
+    "residue": "Desativada — recarregue para remover os resíduos do hook"
+  },
+  "tr-TR": {
+    "title": "React incelemesi",
+    "enable": "Bu sekme için etkinleştir",
+    "disabled": "Kapalı",
+    "reloadRequired": "Etkin — hazır olduğunuzda yeniden yükleyin",
+    "installed": "Yüklendi — desteği denetlemek için bir ağaç okuyun",
+    "residue": "Kapalı — kanca kalıntısını kaldırmak için yeniden yükleyin"
+  },
+  "hi-IN": {
+    "title": "React की जांच",
+    "enable": "इस टैब के लिए चालू करें",
+    "disabled": "बंद है",
+    "reloadRequired": "चालू है — तैयार होने पर फिर से लोड करें",
+    "installed": "इंस्टॉल है — सपोर्ट जांचने के लिए ट्री पढ़ें",
+    "residue": "बंद है — हुक के बचे हुए हिस्से हटाने के लिए फिर से लोड करें"
+  },
+  "ja-JP": {
+    "title": "React の検証",
+    "enable": "このタブで有効にする",
+    "disabled": "オフ",
+    "reloadRequired": "有効 — 準備ができたら再読み込みしてください",
+    "installed": "インストール済み — ツリーを読み取ってサポートを確認してください",
+    "residue": "オフ — 再読み込みしてフックの残留物を削除してください"
+  },
+  "ko-KR": {
+    "title": "React 검사",
+    "enable": "이 탭에서 사용",
+    "disabled": "사용 안함",
+    "reloadRequired": "사용 설정됨 — 준비되면 새로고침하세요",
+    "installed": "설치됨 — 트리를 읽어 지원 여부를 확인하세요",
+    "residue": "사용 안함 — 새로고침하여 남은 후크를 제거하세요"
+  },
+  "zh-CN": {
+    "title": "React 检查",
+    "enable": "为此标签页启用",
+    "disabled": "已关闭",
+    "reloadRequired": "已启用 — 准备好后请重新加载",
+    "installed": "已安装 — 读取组件树以检查支持情况",
+    "residue": "已关闭 — 重新加载以清除挂钩残留"
+  },
+  "zh-TW": {
+    "title": "React 檢查",
+    "enable": "為這個分頁啟用",
+    "disabled": "關閉",
+    "reloadRequired": "已啟用，準備好後請重新載入",
+    "installed": "已安裝，請讀取元件樹以確認是否支援",
+    "residue": "已關閉，請重新載入以移除殘留的 hook"
+  },
 }
