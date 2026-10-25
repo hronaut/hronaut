@@ -22,11 +22,12 @@ type PageContextMenuAccess = import('../src/main/browser/context-menus/page-cont
 
 const PAGE = 'https://docs.example/guide#install'
 
-function openMenu(params: Partial<ContextMenuParams>, url = PAGE) {
+function openMenu(params: Partial<ContextMenuParams>, url = PAGE, pageText?: () => Promise<unknown>) {
   const webContents = {
     id: 7,
     isDestroyed: () => false,
-    navigationHistory: { canGoBack: () => false, canGoForward: () => false }
+    navigationHistory: { canGoBack: () => false, canGoForward: () => false },
+    ...(pageText ? { executeJavaScriptInIsolatedWorld: vi.fn(pageText) } : {})
   } as unknown as WebContents
   const tab: PageTab = { id: 'tab', url, mcpGroupId: 'client', webContents }
   const copyText = vi.fn(async (_text: string) => undefined)
@@ -60,6 +61,26 @@ describe('Copy link to highlight in the page context menu', () => {
     expect(item.label).toBe('native.context.copyLinkToHighlight')
     ;(item.click as () => void)()
     await vi.waitFor(() => expect(menu.copyText).toHaveBeenCalledExactlyOnceWith('https://docs.example/guide#install:~:text=npm%20ci%20%2D%2Dignore%2Dscripts'))
+  })
+
+  it('makes the link from the page\'s text when the page gives it, as a whole word', async () => {
+    const menu = openMenu({ selectionText: 'ighlight the te' }, PAGE, async () => ({ runs: ['H\uFDD0ighlight the te\uFDD1xt here'] }))
+    ;(menu.items.find((candidate) => candidate.id === 'copy-link-to-highlight')!.click as () => void)()
+    await vi.waitFor(() => expect(menu.copyText).toHaveBeenCalledExactlyOnceWith('https://docs.example/guide#install:~:text=Highlight%20the%20text'))
+  })
+
+  it('copies only the link chosen last, however the page reads answer', async () => {
+    const answers: Array<(value: unknown) => void> = []
+    const menu = openMenu({ selectionText: 'apple' }, PAGE, () => new Promise((resolve) => answers.push(resolve)))
+    const click = menu.items.find((candidate) => candidate.id === 'copy-link-to-highlight')!.click as () => void
+    click()
+    click()
+    await vi.waitFor(() => expect(answers).toHaveLength(2))
+    answers[1]!({ runs: ['apple pie', 'Then \uFDD0apple\uFDD1 again'] })
+    await vi.waitFor(() => expect(menu.copyText).toHaveBeenCalledOnce())
+    answers[0]!({ runs: ['\uFDD0apple\uFDD1'] })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(menu.copyText).toHaveBeenCalledExactlyOnceWith('https://docs.example/guide#install:~:text=Then-,apple,-again')
   })
 
   it('links to a selected address too, beside its Go to', () => {

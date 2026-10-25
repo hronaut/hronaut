@@ -4,11 +4,14 @@ import { pageSourceAddress } from '../page-source/page-source.js'
 import { searchEngineLabel, selectionAddressKept, selectionGoToUrl, selectionSearchLabelText, selectionSearchQuery, selectionSearchUrl } from '../selection-search/selection-search.js'
 import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
 import { openedResourceReferrer, savedResourceReferrer } from './page-context-menu-referrer.js'
+import { readHighlightPageText } from './highlight-page-text.js'
 import { textFragmentLink } from './text-fragment-link.js'
 
 // The fields Chrome offers the emoji picker in: an editable element, which has no form control, a text, search,
 // address, email or password input, or a text area. A number, telephone or date field takes no emoji.
 const EMOJI_FIELDS: ReadonlySet<ContextMenuParams['formControlType']> = new Set(['none', 'input-text', 'input-search', 'input-url', 'input-email', 'input-password', 'text-area'])
+// Each Copy link to highlight reads the page first, so only the latest one copies its link.
+let highlightLinkCopies = 0
 
 /**
  * Shows the native context menu for a right-click in the page: link, image,
@@ -106,11 +109,19 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     }]
   }
   // Chrome's Copy link to highlight, for text selected in the page itself: a frame inside the page has an address of its
-  // own, and Chrome makes no link for text in one either. See text-fragment-link.ts.
+  // own, and Chrome makes no link for text in one either. The link is made from the page's text when the item is
+  // chosen, and from the menu's selected text when the page cannot give it. See text-fragment-link.ts.
   const linkToHighlight = (): MenuItemConstructorOptions[] => {
     if (frame || params.frameURL !== params.pageURL) return []
-    const link = textFragmentLink(params.pageURL, params.selectionText)
-    return link ? [{ id: 'copy-link-to-highlight', label: access.text('native.context.copyLinkToHighlight'), click: () => copyText(link) }] : []
+    const selectedTextLink = textFragmentLink(params.pageURL, params.selectionText)
+    if (!selectedTextLink) return []
+    const copyLink = async (): Promise<void> => {
+      const copy = ++highlightLinkCopies
+      const page = await readHighlightPageText(webContents, params.selectionText)
+      if (copy !== highlightLinkCopies) return
+      copyText((page && textFragmentLink(params.pageURL, page)) ?? selectedTextLink)
+    }
+    return [{ id: 'copy-link-to-highlight', label: access.text('native.context.copyLinkToHighlight'), click: () => void copyLink() }]
   }
   const copyImage = (): void => {
     void access.options().copyImageAt(webContents, params.x, params.y)
