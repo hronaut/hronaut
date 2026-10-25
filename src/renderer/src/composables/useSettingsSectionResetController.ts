@@ -8,7 +8,7 @@ export interface SettingsSectionResetControllerOptions {
   resetSearch: () => ResetResult
   resetDownloads: () => ResetResult
   resetPerformance: () => ResetResult
-  resetPrivacySelection: () => ResetResult
+  resetPrivacy: () => ResetResult
   clearSitePermissions: () => ResetResult
   resetMcp: () => ResetResult
   resetUpdates: () => ResetResult
@@ -21,7 +21,7 @@ export function useSettingsSectionResetController(options: SettingsSectionResetC
     if (section === 'search') return options.resetSearch()
     if (section === 'downloads') return options.resetDownloads()
     if (section === 'performance') return options.resetPerformance()
-    if (section === 'privacy') return options.resetPrivacySelection()
+    if (section === 'privacy') return options.resetPrivacy()
     if (section === 'permissions') return options.clearSitePermissions()
     if (section === 'mcp') return options.resetMcp()
     if (section === 'updates') return options.resetUpdates()

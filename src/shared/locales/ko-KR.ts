@@ -520,7 +520,23 @@ export const koKR: MessageSchema = {
       clearSiteAria: "{origin}의 방문 기록 삭제",
       "clearing": "삭제하는 중…",
       "clear": "삭제…",
-      exclusions: "북마크({bookmarks}), 저장된 비밀번호({passwords}), 권한({permissions}), 다운로드, 설정, 열린 탭, 작업 공간 웹사이트 데이터는 유지됩니다."
+      exclusions: "북마크({bookmarks}), 저장된 비밀번호({passwords}), 권한({permissions}), 다운로드, 설정, 열린 탭, 작업 공간 웹사이트 데이터는 유지됩니다.",
+      "secureDns": {
+        "heading": "보안 DNS",
+        "description": "웹사이트 주소를 암호화된 연결(DNS over HTTPS)로 조회합니다. hosts 파일, localhost, IP 주소는 지금처럼 작동합니다.",
+        "use": "보안 DNS 사용",
+        "useDescription": "끄면 주소를 암호화 없이 조회합니다.",
+        "provider": "제공업체",
+        "automatic": "현재 DNS 서비스",
+        "automaticDescription": "DNS 서비스가 보안 DNS를 지원하면 보안 DNS를, 지원하지 않으면 일반 DNS를 사용합니다.",
+        "chosenDescription": "모든 주소를 이 제공업체로만 조회합니다. 연결할 수 없으면 웹사이트가 열리지 않습니다.",
+        "custom": "맞춤",
+        "customLabel": "제공업체 주소",
+        "customHint": "https://로 시작하는 주소(예: https://dns.example/dns-query)",
+        "customPending": "사용을 누르기 전까지는 주소를 이전처럼 조회합니다.",
+        "customInvalid": "올바른 https:// 주소를 입력하세요",
+        "useCustom": "사용"
+      }
     },
     "support": {
       "trialNotStarted": "10일 무료 체험은 에이전트가 처음 도구를 호출할 때 시작됩니다.",

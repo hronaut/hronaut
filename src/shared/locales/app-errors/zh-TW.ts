@@ -353,7 +353,8 @@ export const zhTWAppErrors: AppErrorMessages = {
     "downloadFolderOpenFailed": "Hronaut 無法在檔案管理員中開啟下載資料夾。",
     "siteSearchRejected": "Hronaut 無法儲存這個網站搜尋。請檢查名稱、快捷字詞和網址。",
     "siteSearchMissing": "這個網站搜尋已被刪除，因此變更未儲存。",
-    "siteSearchListFull": "網站搜尋清單已滿。請先刪除一個，再新增。"
+    "siteSearchListFull": "網站搜尋清單已滿。請先刪除一個，再新增。",
+    "secureDnsRejected": "Hronaut 無法使用這個安全 DNS 供應商。請檢查它的位址。"
   },
   "credentials": {
     "fillAgentActive": "由於代理程式指令仍在執行，因此未填入密碼。代理程式會保持暫停；請在指令完成後再試一次。",

@@ -520,7 +520,23 @@ export const trTR: MessageSchema = {
       clearSiteAria: "{origin} için geçmişi temizle",
       "clearing": "Temizleniyor…",
       "clear": "Temizle…",
-      exclusions: "Yer işaretleri ({bookmarks}), kayıtlı şifreler ({passwords}), izinler ({permissions}), indirilenler, ayarlar, açık sekmeler ve çalışma alanlarının web sitesi verileri korunur."
+      exclusions: "Yer işaretleri ({bookmarks}), kayıtlı şifreler ({passwords}), izinler ({permissions}), indirilenler, ayarlar, açık sekmeler ve çalışma alanlarının web sitesi verileri korunur.",
+      "secureDns": {
+        "heading": "Güvenli DNS",
+        "description": "Web sitesi adresleri şifreli bir bağlantı üzerinden çözümlenir (HTTPS üzerinden DNS). Hosts dosyanız, localhost ve IP adresleri eskisi gibi çalışır.",
+        "use": "Güvenli DNS kullan",
+        "useDescription": "Kapalıyken adresler şifrelenmeden çözümlenir.",
+        "provider": "Sağlayıcı",
+        "automatic": "Mevcut DNS hizmetiniz",
+        "automaticDescription": "DNS hizmetiniz sunuyorsa güvenli DNS, sunmuyorsa normal DNS kullanılır.",
+        "chosenDescription": "Tüm adresler yalnızca bu sağlayıcı üzerinden çözümlenir. Sağlayıcıya ulaşılamazsa web siteleri açılmaz.",
+        "custom": "Özel",
+        "customLabel": "Sağlayıcı adresi",
+        "customHint": "https:// ile başlayan bir adres, örneğin https://dns.example/dns-query",
+        "customPending": "Kullan’a basana kadar adresler eskisi gibi çözümlenir.",
+        "customInvalid": "Geçerli bir https:// adresi girin",
+        "useCustom": "Kullan"
+      }
     },
     "support": {
       "trialNotStarted": "10 günlük deneme süreniz ilk ajan aracı çağrısıyla başlar.",

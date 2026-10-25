@@ -520,7 +520,23 @@ export const plPL: MessageSchema = {
       clearSiteAria: "Wyczyść historię dla {origin}",
       "clearing": "Czyszczenie…",
       "clear": "Wyczyść…",
-      exclusions: "Zakładki ({bookmarks}), hasła ({passwords}), uprawnienia ({permissions}), pobrania, ustawienia, karty i dane obszarów zostaną zachowane."
+      exclusions: "Zakładki ({bookmarks}), hasła ({passwords}), uprawnienia ({permissions}), pobrania, ustawienia, karty i dane obszarów zostaną zachowane.",
+      "secureDns": {
+        "heading": "Bezpieczny DNS",
+        "description": "Adresy witryn są rozpoznawane przez szyfrowane połączenie (DNS przez HTTPS). Plik hosts, localhost i adresy IP działają jak dotąd.",
+        "use": "Używaj bezpiecznego DNS",
+        "useDescription": "Gdy jest wyłączony, adresy są rozpoznawane bez szyfrowania.",
+        "provider": "Dostawca",
+        "automatic": "Twoja obecna usługa DNS",
+        "automaticDescription": "Używa bezpiecznego DNS, gdy Twoja usługa DNS go oferuje, a w przeciwnym razie zwykłego DNS.",
+        "chosenDescription": "Każdy adres jest rozpoznawany tylko przez tego dostawcę. Jeśli jest niedostępny, witryny się nie otwierają.",
+        "custom": "Niestandardowy",
+        "customLabel": "Adres dostawcy",
+        "customHint": "Adres https://, na przykład https://dns.example/dns-query",
+        "customPending": "Dopóki nie naciśniesz Użyj, adresy są rozpoznawane jak dotąd.",
+        "customInvalid": "Wpisz prawidłowy adres https://",
+        "useCustom": "Użyj"
+      }
     },
     "support": {
       "trialNotStarted": "10-dniowa próba zaczyna się od pierwszego wywołania narzędzia przez agenta.",

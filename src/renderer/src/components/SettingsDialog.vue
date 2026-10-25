@@ -185,6 +185,7 @@ watch(open, async (active, _previous, onCleanup) => {
             @manage-workspace="emit('manageWorkspace', $event)"
             @create-workspace="emit('createWorkspace')"
             @transfer-workspace-data="emit('transferWorkspaceData', $event)"
+            @setting-error="reportSettingError"
           />
           <SitePermissionsSettingsPanel
             v-else-if="section === 'permissions'"

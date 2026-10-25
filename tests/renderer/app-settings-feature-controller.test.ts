@@ -58,6 +58,7 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
       addSiteSearch: vi.fn(),
       updateSiteSearch: vi.fn(),
       removeSiteSearch: vi.fn(),
+      setSecureDns: vi.fn(async (secureDnsMode: AppSettings['secureDnsMode'], secureDnsTemplate: string) => applySettings({ ...settings.value, secureDnsMode, secureDnsTemplate })),
       setMcpRemoteAccess: vi.fn(),
     setMcpAuthentication: vi.fn(async (mcpAuthentication: boolean) => applySettings({ ...settings.value, mcpAuthentication })),
       setMcpPort: vi.fn(async (mcpPort: number) => applySettings({ ...settings.value, mcpPort })),
@@ -301,6 +302,16 @@ describe('app settings feature controller', () => {
     await loading
 
     expect(harness.controller.defaultDownloadDirectory.value).toBe('')
+  })
+
+  // Workspaces & data's Reset to default left Secure DNS as it was, although the section shows it.
+  it('puts Secure DNS back to the DNS service\'s own, with no provider kept, when Workspaces & data is reset', async () => {
+    const harness = createHarness()
+    harness.options.settings.value = { ...harness.options.settings.value, secureDnsMode: 'secure', secureDnsTemplate: 'https://dns.example/dns-query' }
+    harness.controller.settingsDialogController.openSection('privacy')
+    await expect(harness.controller.settingsDialogController.resetCurrent()).resolves.toBe(true)
+    expect(harness.options.settingsStore.setSecureDns).toHaveBeenCalledExactlyOnceWith('automatic', '')
+    expect(harness.options.settings.value).toMatchObject({ secureDnsMode: 'automatic', secureDnsTemplate: '' })
   })
 
   it('hands release history off from other modal surfaces instead of stacking dialogs', () => {

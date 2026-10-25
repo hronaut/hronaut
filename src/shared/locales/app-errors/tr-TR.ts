@@ -353,7 +353,8 @@ export const trTRAppErrors: AppErrorMessages = {
     "downloadFolderOpenFailed": "Hronaut indirme klasörünü dosya yöneticinizde açamadı.",
     "siteSearchRejected": "Hronaut bu site aramasını kaydedemedi. Adını, kısayolunu ve URL’sini kontrol edin.",
     "siteSearchMissing": "Bu site araması silindiği için değişiklik kaydedilmedi.",
-    "siteSearchListFull": "Site araması listesi dolu. Başka bir tane eklemek için birini silin."
+    "siteSearchListFull": "Site araması listesi dolu. Başka bir tane eklemek için birini silin.",
+    "secureDnsRejected": "Hronaut bu güvenli DNS sağlayıcısını kullanamadı. Adresini kontrol edin."
   },
   "credentials": {
     "fillAgentActive": "Bir ajan komutu hâlâ çalıştığı için şifre doldurulmadı. Ajanlar duraklatılmış olarak kalır; komut bitince tekrar deneyin.",

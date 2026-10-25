@@ -5,6 +5,7 @@ import { isThemeName } from '../shared/theme.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
 import { DEFAULT_SEARCH_ENGINE, isSearchEngineName } from '../shared/search-engine.js'
 import { readSiteSearches } from '../shared/site-search.js'
+import { DEFAULT_SECURE_DNS_MODE, readSecureDns } from '../shared/secure-dns.js'
 import { DEFAULT_INTERFACE_SCALE, isInterfaceScale } from '../shared/interface-scale.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
@@ -34,6 +35,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   challengeDetectionEnabled: false,
   omitAgentUrlDetail: false,
   allowWebsiteFileSaving: false,
+  secureDnsMode: DEFAULT_SECURE_DNS_MODE,
+  secureDnsTemplate: '',
   followAgentActivity: false,
   showAgentCursor: true,
   // Off by default for now; the default for everyone is still to be decided.
@@ -104,6 +107,7 @@ export class SettingsStore {
         challengeDetectionEnabled: value.challengeDetectionEnabled === true,
         omitAgentUrlDetail: value.omitAgentUrlDetail === true,
         allowWebsiteFileSaving: value.allowWebsiteFileSaving === true,
+        ...readSecureDns(value.secureDnsMode, value.secureDnsTemplate),
         mcpRemoteAccess: value.mcpRemoteAccess === true,
         mcpAuthentication:
           typeof value.mcpAuthentication === 'boolean'

@@ -83,6 +83,7 @@ import { createSettingsRuntime, type SettingsState } from './settings-runtime.js
 import { createAddressSuggestionOverlay } from './windows/address-suggestion-overlay.js'
 import { registerSettingsIpc } from './settings-ipc.js'
 import { registerSiteSearchIpc } from './site-search-ipc.js'
+import { applySavedSecureDns, registerSecureDnsIpc } from './secure-dns.js'
 import { createBrowserSession, type BrowserSessionState } from './browser-session.js'
 import { registerPermissionsIpc } from './permissions-ipc.js'
 import { WindowStateStore } from './window-state.js'
@@ -1062,6 +1063,13 @@ function registerIpc(): void {
     updateSettings,
     publishSettings
   })
+  registerSecureDnsIpc(hronautIpcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    app,
+    settings: () => settingsState.current,
+    updateSettings,
+    publishSettings
+  })
   registerPermissionsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     sitePermissionStore: () => browserSessionState.sitePermissionStore,
@@ -1476,6 +1484,8 @@ async function startRuntime(): Promise<void> {
   configureAutoUpdater()
   const startupLaunchManager = createStartupLaunchManager()
   await loadAuthoritativeSettings()
+  // Before any page or request looks up an address.
+  applySavedSecureDns(app, settingsState.current)
   if (app.isPackaged) await reconcileStartupSetting()
   installApplicationMenu()
   const startMinimized = shouldStartMinimized(settingsState.current, { platform: process.platform, argv: process.argv, wasOpenedAtLogin: startupLaunchManager.wasOpenedAtLogin() })

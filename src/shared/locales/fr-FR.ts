@@ -520,7 +520,23 @@ export const frFR: MessageSchema = {
       clearSiteAria: "Effacer l’historique de {origin}",
       "clearing": "Effacement…",
       "clear": "Effacer…",
-      exclusions: "Les favoris ({bookmarks}), mots de passe ({passwords}), autorisations ({permissions}), téléchargements, réglages, onglets et données des espaces sont conservés."
+      exclusions: "Les favoris ({bookmarks}), mots de passe ({passwords}), autorisations ({permissions}), téléchargements, réglages, onglets et données des espaces sont conservés.",
+      "secureDns": {
+        "heading": "DNS sécurisé",
+        "description": "Les adresses des sites web sont résolues via une connexion chiffrée (DNS over HTTPS). Votre fichier hosts, localhost et les adresses IP fonctionnent comme avant.",
+        "use": "Utiliser le DNS sécurisé",
+        "useDescription": "Désactivé, les adresses sont résolues en clair.",
+        "provider": "Fournisseur",
+        "automatic": "Votre service DNS actuel",
+        "automaticDescription": "Utilise le DNS sécurisé quand votre service DNS le propose, et le DNS classique sinon.",
+        "chosenDescription": "Chaque adresse est résolue uniquement par ce fournisseur. S’il est injoignable, les sites web ne s’ouvrent pas.",
+        "custom": "Personnalisé",
+        "customLabel": "Adresse du fournisseur",
+        "customHint": "Une adresse https://, par exemple https://dns.example/dns-query",
+        "customPending": "Les adresses sont résolues comme avant jusqu’à ce que vous appuyiez sur Utiliser.",
+        "customInvalid": "Saisissez une adresse https:// valide",
+        "useCustom": "Utiliser"
+      }
     },
     "support": {
       "trialNotStarted": "L’essai de 10 jours commence au premier appel d’outil par un agent.",

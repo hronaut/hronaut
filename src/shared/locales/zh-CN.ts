@@ -520,7 +520,23 @@ export const zhCN: MessageSchema = {
       clearSiteAria: "清除 {origin} 的历史记录",
       "clearing": "正在清除…",
       "clear": "清除…",
-      exclusions: "书签（{bookmarks}）、已保存的密码（{passwords}）、权限（{permissions}）、下载内容、设置、打开的标签页和工作区网站数据都会保留。"
+      exclusions: "书签（{bookmarks}）、已保存的密码（{passwords}）、权限（{permissions}）、下载内容、设置、打开的标签页和工作区网站数据都会保留。",
+      "secureDns": {
+        "heading": "安全 DNS",
+        "description": "通过加密连接（基于 HTTPS 的 DNS）解析网站地址。hosts 文件、localhost 和 IP 地址照常可用。",
+        "use": "使用安全 DNS",
+        "useDescription": "关闭后，地址将以未加密的方式解析。",
+        "provider": "提供商",
+        "automatic": "当前的 DNS 服务",
+        "automaticDescription": "如果 DNS 服务支持安全 DNS，就使用安全 DNS，否则使用普通 DNS。",
+        "chosenDescription": "所有地址只通过此提供商解析。无法连接到它时，网站将无法打开。",
+        "custom": "自定义",
+        "customLabel": "提供商地址",
+        "customHint": "以 https:// 开头的地址，例如 https://dns.example/dns-query",
+        "customPending": "在你点按“使用”之前，地址仍按原来的方式解析。",
+        "customInvalid": "请输入有效的 https:// 地址",
+        "useCustom": "使用"
+      }
     },
     "support": {
       "trialNotStarted": "您的 10 天试用期将从第一次调用智能体工具时开始。",

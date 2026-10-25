@@ -1,5 +1,6 @@
 import type { SearchEngineName } from '../search-engine.js'
 import type { SiteSearch } from '../site-search.js'
+import type { SecureDnsMode } from '../secure-dns.js'
 import type { MemorySaverTimeoutMinutes } from '../memory-saver.js'
 import type { InterfaceScale } from '../interface-scale.js'
 import type { LanguagePreference, SupportedLocale } from '../locale.js'
@@ -58,6 +59,10 @@ export interface AppSettings {
    * picked in their Save dialog. Off by default: Electron cannot tell such a file from one a rename would replace.
    */
   allowWebsiteFileSaving: boolean
+  /** How website addresses are looked up: secure DNS when the DNS service offers it, through one provider only, or plain. */
+  secureDnsMode: SecureDnsMode
+  /** The chosen provider's DNS over HTTPS address, kept while another mode is on; empty until one is chosen. */
+  secureDnsTemplate: string
   followAgentActivity: boolean
   /** Draw each agent's named cursor on the page where it clicks, points or drags. */
   showAgentCursor: boolean

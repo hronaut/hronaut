@@ -520,7 +520,23 @@ export const ptBR: MessageSchema = {
       clearSiteAria: "Limpar o histórico de {origin}",
       "clearing": "Limpando…",
       "clear": "Limpar…",
-      exclusions: "Favoritos ({bookmarks}), senhas salvas ({passwords}), permissões ({permissions}), downloads, configurações, guias abertas e dados de sites dos espaços de trabalho são preservados."
+      exclusions: "Favoritos ({bookmarks}), senhas salvas ({passwords}), permissões ({permissions}), downloads, configurações, guias abertas e dados de sites dos espaços de trabalho são preservados.",
+      "secureDns": {
+        "heading": "DNS seguro",
+        "description": "Os endereços dos sites são resolvidos por uma conexão criptografada (DNS via HTTPS). Seu arquivo hosts, localhost e endereços IP funcionam como antes.",
+        "use": "Usar DNS seguro",
+        "useDescription": "Desativado, os endereços são resolvidos sem criptografia.",
+        "provider": "Provedor",
+        "automatic": "Seu serviço de DNS atual",
+        "automaticDescription": "Usa DNS seguro quando seu serviço de DNS oferece, e DNS comum quando não.",
+        "chosenDescription": "Todos os endereços são resolvidos apenas por este provedor. Se ele não estiver acessível, os sites não abrem.",
+        "custom": "Personalizado",
+        "customLabel": "Endereço do provedor",
+        "customHint": "Um endereço https://, como https://dns.example/dns-query",
+        "customPending": "Até você pressionar Usar, os endereços são resolvidos como antes.",
+        "customInvalid": "Digite um endereço https:// válido",
+        "useCustom": "Usar"
+      }
     },
     "support": {
       "trialNotStarted": "Seu período de avaliação de 10 dias começa com a primeira chamada de ferramenta de um agente.",

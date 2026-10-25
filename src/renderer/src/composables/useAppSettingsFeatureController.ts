@@ -17,6 +17,7 @@ import type {
 } from '../../../shared/types.js'
 import type { McpToolSet } from '../../../shared/mcp-tool-sets.js'
 import type { SiteSearchDraft } from '../../../shared/site-search.js'
+import { DEFAULT_SECURE_DNS_MODE, type SecureDnsMode } from '../../../shared/secure-dns.js'
 import { mcpPortProblem } from '../../../shared/mcp-port.js'
 import type { AppBootstrapTask } from './useAppBootstrapController.js'
 import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
@@ -49,6 +50,7 @@ interface AppSettingsFeatureStore {
   addSiteSearch(draft: SiteSearchDraft): Promise<AppSettings>
   updateSiteSearch(id: string, draft: SiteSearchDraft): Promise<AppSettings>
   removeSiteSearch(id: string): Promise<AppSettings>
+  setSecureDns(mode: SecureDnsMode, template: string): Promise<AppSettings>
   setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
   setOmitAgentUrlDetail(enabled: boolean): Promise<AppSettings>
   setAllowWebsiteFileSaving(enabled: boolean): Promise<AppSettings>
@@ -290,7 +292,12 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     resetSearch: searchSettingsController.reset,
     resetDownloads: downloadSettingsController.reset,
     resetPerformance: performanceSettingsController.reset,
-    resetPrivacySelection: privacySettingsController.resetSelection,
+    // Workspaces & data shows what to clear and Secure DNS; reset puts both back, with no provider kept.
+    resetPrivacy: async () => {
+      privacySettingsController.resetSelection()
+      await options.settingsStore.setSecureDns(DEFAULT_SECURE_DNS_MODE, '')
+      return true
+    },
     clearSitePermissions: sitePermissionsController.clear,
     resetMcp: mcpSettingsController.reset,
     resetUpdates: updateSettingsController.reset
