@@ -38,6 +38,14 @@ export class HomeActivityFeed {
     this.changes += 1
   }
 
+  /** Drops the entries from `since` (epoch milliseconds) on, as history cleared for a time range. */
+  forgetSince(since: number): void {
+    const kept = this.entries.filter((entry) => entry.at < since)
+    if (kept.length === this.entries.length) return
+    this.entries = kept
+    this.changes += 1
+  }
+
   clear(): void {
     if (!this.entries.length) return
     this.entries = []

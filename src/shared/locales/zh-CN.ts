@@ -497,7 +497,7 @@ export const zhCN: MessageSchema = {
     "privacy": {
       "heading": "工作区和数据",
       description: "查看每个浏览器工作区、管理其策略，并在隔离的配置文件之间复制或移动所选的网站数据。",
-      workspaces: "浏览器工作区", workspacesDescription: "活动和已归档的工作区各自保留独立的 Cookie 和本地存储。", createWorkspace: "创建工作区", transferData: "复制或移动数据", manageWorkspace: "管理", workspaceActive: "活动", workspaceArchived: "已归档", workspaceTabs: "{count} 个标签页", workspaceSites: "{count} 个已知网站", historyHeading: "全局历史记录", historyDescription: "清除应用范围内的浏览历史记录。请在对应工作区中管理网站存储。",
+      workspaces: "浏览器工作区", workspacesDescription: "活动和已归档的工作区各自保留独立的 Cookie 和本地存储。", createWorkspace: "创建工作区", transferData: "复制或移动数据", manageWorkspace: "管理", workspaceActive: "活动", workspaceArchived: "已归档", workspaceTabs: "{count} 个标签页", workspaceSites: "{count} 个已知网站", historyHeading: "全局历史记录", historyDescription: "清除应用范围内的浏览历史记录。请在对应工作区中管理网站存储。", "timeRange": "时间范围", "timeRangeDescription": "适用于所有网站。在下方清除单个网站会删除该网站的全部浏览历史记录。", "timeRanges": { "lastHour": "过去 1 小时", "last24Hours": "过去 24 小时", "last7Days": "过去 7 天", "last4Weeks": "过去 4 周", "allTime": "时间不限" },
       "cookies": "Cookie 和网站数据",
       "signOut": "可能会让您退出登录",
       "cache": "缓存的文件",
@@ -1316,7 +1316,7 @@ export const zhCN: MessageSchema = {
   "privacyActions": {
     "clearHistory": "要清除所有浏览历史记录吗？此操作不会移除 Cookie、密码、书签或已下载的文件。",
     "historyAll": "浏览历史记录及其地址建议",
-    "historySite": "浏览历史记录和地址建议",
+    "historySite": "浏览历史记录和地址建议", "timeRange": "时间范围：{range}",
     "cookiesAll": "Cookie 和网站数据（您可能会退出登录）",
     "cookiesSite": "Cookie 和网站存储（您可能会退出登录）",
     "cache": "缓存的图片和文件",

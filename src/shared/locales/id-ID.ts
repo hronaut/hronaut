@@ -497,7 +497,7 @@ export const idID: MessageSchema = {
     "privacy": {
       "heading": "Ruang kerja & data",
       description: "Tinjau setiap ruang kerja browser, kelola kebijakannya, dan salin atau pindahkan data situs yang dipilih antar-profil terisolasi.",
-      workspaces: "Ruang kerja browser", workspacesDescription: "Ruang kerja aktif dan yang diarsipkan menyimpan cookie dan penyimpanan lokal secara terpisah.", createWorkspace: "Buat ruang kerja", transferData: "Salin atau pindahkan data", manageWorkspace: "Kelola", workspaceActive: "Aktif", workspaceArchived: "Diarsipkan", workspaceTabs: "{count} tab", workspaceSites: "{count} situs dikenal", historyHeading: "Riwayat global", historyDescription: "Hapus riwayat penjelajahan di seluruh aplikasi. Kelola penyimpanan situs di ruang kerjanya.",
+      workspaces: "Ruang kerja browser", workspacesDescription: "Ruang kerja aktif dan yang diarsipkan menyimpan cookie dan penyimpanan lokal secara terpisah.", createWorkspace: "Buat ruang kerja", transferData: "Salin atau pindahkan data", manageWorkspace: "Kelola", workspaceActive: "Aktif", workspaceArchived: "Diarsipkan", workspaceTabs: "{count} tab", workspaceSites: "{count} situs dikenal", historyHeading: "Riwayat global", historyDescription: "Hapus riwayat penjelajahan di seluruh aplikasi. Kelola penyimpanan situs di ruang kerjanya.", timeRange: "Rentang waktu", timeRangeDescription: "Berlaku untuk semua situs. Menghapus satu situs di bawah akan menghapus seluruh riwayatnya.", timeRanges: { lastHour: "1 jam terakhir", last24Hours: "24 jam terakhir", last7Days: "7 hari terakhir", last4Weeks: "4 minggu terakhir", allTime: "Sepanjang waktu" },
       "cookies": "Cookie & data situs",
       "signOut": "Mungkin membuat Anda logout",
       "cache": "File dalam cache",
@@ -1316,7 +1316,7 @@ export const idID: MessageSchema = {
   "privacyActions": {
     "clearHistory": "Hapus semua riwayat penjelajahan? Tindakan ini tidak akan menghapus cookie, sandi, bookmark, atau file yang didownload.",
     "historyAll": "Riwayat penjelajahan dan saran alamatnya",
-    "historySite": "Riwayat penjelajahan dan saran alamat",
+    "historySite": "Riwayat penjelajahan dan saran alamat", "timeRange": "Rentang waktu: {range}",
     "cookiesAll": "Cookie dan data situs (Anda mungkin akan logout)",
     "cookiesSite": "Cookie dan penyimpanan situs (Anda mungkin akan logout)",
     "cache": "Gambar dan file dalam cache",

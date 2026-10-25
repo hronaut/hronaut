@@ -563,6 +563,13 @@ export class McpHttpServer {
     if (this.homeFeed.revision !== revision) this.agentPresenceChanged()
   }
 
+  /** Forgets the steps in Home's feed from `since` (epoch milliseconds) on, as history cleared for a time range. */
+  forgetHomeFeedSince(since: number): void {
+    const revision = this.homeFeed.revision
+    this.homeFeed.forgetSince(since)
+    if (this.homeFeed.revision !== revision) this.agentPresenceChanged()
+  }
+
   /** Whether a session still counts as connected: a request open, or one within the presence window. */
   private static sessionLive(client: McpClientActivity, now: number): boolean {
     return client.activeRequests > 0 || now - Date.parse(client.lastSeenAt) < AGENT_PRESENCE_WINDOW_MS

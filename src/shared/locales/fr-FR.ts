@@ -497,7 +497,7 @@ export const frFR: MessageSchema = {
     "privacy": {
       "heading": "Espaces de travail et données",
       description: "Examinez chaque espace du navigateur, gérez sa politique et copiez ou déplacez des données sélectionnées entre profils isolés.",
-      workspaces: "Espaces du navigateur", workspacesDescription: "Les espaces actifs et archivés conservent des cookies et un stockage local séparés.", createWorkspace: "Créer un espace", transferData: "Copier ou déplacer les données", manageWorkspace: "Gérer", workspaceActive: "Actif", workspaceArchived: "Archivé", workspaceTabs: "{count} onglet | {count} onglets", workspaceSites: "{count} site connu | {count} sites connus", historyHeading: "Historique global", historyDescription: "Effacez l’historique. Gérez les données des sites dans leur espace.",
+      workspaces: "Espaces du navigateur", workspacesDescription: "Les espaces actifs et archivés conservent des cookies et un stockage local séparés.", createWorkspace: "Créer un espace", transferData: "Copier ou déplacer les données", manageWorkspace: "Gérer", workspaceActive: "Actif", workspaceArchived: "Archivé", workspaceTabs: "{count} onglet | {count} onglets", workspaceSites: "{count} site connu | {count} sites connus", historyHeading: "Historique global", historyDescription: "Effacez l’historique. Gérez les données des sites dans leur espace.", "timeRange": "Période", "timeRangeDescription": "S’applique à tous les sites. Effacer un site ci-dessous supprime tout son historique.", "timeRanges": { "lastHour": "Dernière heure", "last24Hours": "Dernières 24 heures", "last7Days": "7 derniers jours", "last4Weeks": "4 dernières semaines", "allTime": "Toutes les données" },
       "cookies": "Cookies et données de sites",
       "signOut": "Peut vous déconnecter",
       "cache": "Fichiers en cache",
@@ -1316,7 +1316,7 @@ export const frFR: MessageSchema = {
   "privacyActions": {
     "clearHistory": "Effacer tout l’historique de navigation ? Les cookies, mots de passe, favoris et fichiers téléchargés ne seront pas supprimés.",
     "historyAll": "Historique de navigation et suggestions d’adresses associées",
-    "historySite": "Historique de navigation et suggestions d’adresses",
+    "historySite": "Historique de navigation et suggestions d’adresses", "timeRange": "Période : {range}",
     "cookiesAll": "Cookies et données de sites (vous pourriez être déconnecté)",
     "cookiesSite": "Cookies et stockage du site (vous pourriez être déconnecté)",
     "cache": "Images et fichiers en cache",

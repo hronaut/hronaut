@@ -497,7 +497,7 @@ export const deDE: MessageSchema = {
     "privacy": {
       "heading": "Arbeitsbereiche und Daten",
       description: "Prüfen Sie Browser-Arbeitsbereiche, verwalten Sie ihre Richtlinien und kopieren oder verschieben Sie ausgewählte Website-Daten zwischen isolierten Profilen.",
-      workspaces: "Browser-Arbeitsbereiche", workspacesDescription: "Aktive und archivierte Arbeitsbereiche speichern Cookies und lokalen Speicher getrennt.", createWorkspace: "Arbeitsbereich erstellen", transferData: "Daten kopieren oder verschieben", manageWorkspace: "Verwalten", workspaceActive: "Aktiv", workspaceArchived: "Archiviert", workspaceTabs: "{count} Tab | {count} Tabs", workspaceSites: "{count} bekannte Website | {count} bekannte Websites", historyHeading: "Globaler Verlauf", historyDescription: "Löschen Sie den Browserverlauf. Websitedaten verwalten Sie im jeweiligen Arbeitsbereich.",
+      workspaces: "Browser-Arbeitsbereiche", workspacesDescription: "Aktive und archivierte Arbeitsbereiche speichern Cookies und lokalen Speicher getrennt.", createWorkspace: "Arbeitsbereich erstellen", transferData: "Daten kopieren oder verschieben", manageWorkspace: "Verwalten", workspaceActive: "Aktiv", workspaceArchived: "Archiviert", workspaceTabs: "{count} Tab | {count} Tabs", workspaceSites: "{count} bekannte Website | {count} bekannte Websites", historyHeading: "Globaler Verlauf", historyDescription: "Löschen Sie den Browserverlauf. Websitedaten verwalten Sie im jeweiligen Arbeitsbereich.", "timeRange": "Zeitraum", "timeRangeDescription": "Gilt für alle Websites. Wenn Sie unten eine einzelne Website löschen, wird ihr gesamter Verlauf entfernt.", "timeRanges": { "lastHour": "Letzte Stunde", "last24Hours": "Letzte 24 Stunden", "last7Days": "Letzte 7 Tage", "last4Weeks": "Letzte 4 Wochen", "allTime": "Gesamte Zeit" },
       "cookies": "Cookies und Websitedaten",
       "signOut": "Kann Sie abmelden",
       "cache": "Zwischengespeicherte Dateien",
@@ -1316,7 +1316,7 @@ export const deDE: MessageSchema = {
   "privacyActions": {
     "clearHistory": "Gesamten Browserverlauf löschen? Cookies, Passwörter, Lesezeichen und heruntergeladene Dateien werden nicht entfernt.",
     "historyAll": "Browserverlauf und zugehörige Adressvorschläge",
-    "historySite": "Browserverlauf und Adressvorschläge",
+    "historySite": "Browserverlauf und Adressvorschläge", "timeRange": "Zeitraum: {range}",
     "cookiesAll": "Cookies und Websitedaten (Sie werden möglicherweise abgemeldet)",
     "cookiesSite": "Cookies und Website-Speicher (Sie werden möglicherweise abgemeldet)",
     "cache": "Zwischengespeicherte Bilder und Dateien",

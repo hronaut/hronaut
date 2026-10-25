@@ -497,7 +497,7 @@ export const trTR: MessageSchema = {
     "privacy": {
       "heading": "Çalışma alanları ve veriler",
       description: "Her tarayıcı çalışma alanını inceleyin, politikasını yönetin ve seçili web sitesi verilerini yalıtılmış profiller arasında kopyalayın veya taşıyın.",
-      workspaces: "Tarayıcı çalışma alanları", workspacesDescription: "Etkin ve arşivlenmiş çalışma alanları ayrı çerezler ve yerel depolama kullanır.", createWorkspace: "Çalışma alanı oluştur", transferData: "Verileri kopyala veya taşı", manageWorkspace: "Yönet", workspaceActive: "Etkin", workspaceArchived: "Arşivlendi", workspaceTabs: "{count} sekme | {count} sekme", workspaceSites: "{count} bilinen web sitesi | {count} bilinen web sitesi", historyHeading: "Genel geçmiş", historyDescription: "Uygulama genelindeki tarama geçmişini temizleyin. Web sitesi depolamasını ilgili çalışma alanında yönetin.",
+      workspaces: "Tarayıcı çalışma alanları", workspacesDescription: "Etkin ve arşivlenmiş çalışma alanları ayrı çerezler ve yerel depolama kullanır.", createWorkspace: "Çalışma alanı oluştur", transferData: "Verileri kopyala veya taşı", manageWorkspace: "Yönet", workspaceActive: "Etkin", workspaceArchived: "Arşivlendi", workspaceTabs: "{count} sekme | {count} sekme", workspaceSites: "{count} bilinen web sitesi | {count} bilinen web sitesi", historyHeading: "Genel geçmiş", historyDescription: "Uygulama genelindeki tarama geçmişini temizleyin. Web sitesi depolamasını ilgili çalışma alanında yönetin.", "timeRange": "Zaman aralığı", "timeRangeDescription": "Tüm web siteleri için geçerlidir. Aşağıdan bir web sitesini temizlemek tüm geçmişini kaldırır.", "timeRanges": { "lastHour": "Son 1 saat", "last24Hours": "Son 24 saat", "last7Days": "Son 7 gün", "last4Weeks": "Son 4 hafta", "allTime": "Tüm zamanlar" },
       "cookies": "Çerezler ve site verileri",
       "signOut": "Oturumlarınız kapanabilir",
       "cache": "Önbelleğe alınan dosyalar",
@@ -1316,7 +1316,7 @@ export const trTR: MessageSchema = {
   "privacyActions": {
     "clearHistory": "Tüm tarama geçmişi temizlensin mi? Bu işlem çerezleri, şifreleri, yer işaretlerini veya indirilen dosyaları kaldırmaz.",
     "historyAll": "Tarama geçmişi ve buna bağlı adres önerileri",
-    "historySite": "Tarama geçmişi ve adres önerileri",
+    "historySite": "Tarama geçmişi ve adres önerileri", "timeRange": "Zaman aralığı: {range}",
     "cookiesAll": "Çerezler ve site verileri (oturumlarınız kapanabilir)",
     "cookiesSite": "Çerezler ve site depolaması (oturumlarınız kapanabilir)",
     "cache": "Önbelleğe alınan resimler ve dosyalar",

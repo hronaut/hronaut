@@ -109,7 +109,13 @@ export interface BrowsingDataWebsiteSummary extends BrowsingDataSiteSummary {
   lastVisitedAt?: string
 }
 
+/** Chrome's time ranges for deleting browsing data, shortest first. */
+export const HISTORY_TIME_RANGES = ['lastHour', 'last24Hours', 'last7Days', 'last4Weeks', 'allTime'] as const
+export type HistoryTimeRange = (typeof HISTORY_TIME_RANGES)[number]
+
 export interface BrowsingDataClearOptions {
   history: boolean
   origin?: string
+  /** For all websites only; All time when left out. */
+  timeRange?: HistoryTimeRange
 }

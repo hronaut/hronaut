@@ -14,7 +14,8 @@ type PrivacySummaryState = 'idle' | 'loading' | 'clearing' | 'cleared' | 'error'
 type PrivacyWebsiteState = 'idle' | 'loading' | 'clearing' | 'cleared' | 'error'
 
 const DEFAULT_CLEAR_OPTIONS: BrowsingDataClearOptions = {
-  history: true
+  history: true,
+  timeRange: 'allTime'
 }
 
 export interface PrivacySettingsControllerOptions {
@@ -106,6 +107,13 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
     return selected
   }
 
+  /** The time range the question names, as Chrome's Delete browsing data, unless it is All time. */
+  function timeRangeItem(): string[] {
+    const range = clearOptions.value.timeRange
+    if (!range || range === 'allTime') return []
+    return [options.translate('privacyActions.timeRange', { range: options.translate(`settings.privacy.timeRanges.${range}`) })]
+  }
+
   async function clearSelected(): Promise<void> {
     if (clearing.value) return
     const selected = selectedLabels(false)
@@ -113,7 +121,7 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
     // What the person confirms is what is cleared, whatever changes while the question waits.
     const request = { ...clearOptions.value }
     const confirmed = await options.confirm(splitConfirmation((parameters) => options.translate('runtimeActions.browsingData.confirm', parameters), {
-      items: selected.map((item) => options.translate('runtimeActions.browsingData.item', { item })).join('\n')
+      items: [...selected, ...timeRangeItem()].map((item) => options.translate('runtimeActions.browsingData.item', { item })).join('\n')
     }))
     if (!confirmed || clearing.value) return
     const summaryOperation = ++summaryGeneration
@@ -151,7 +159,8 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
     if (clearing.value) return
     const selected = selectedLabels(true)
     if (!selected.length) return
-    const request = { ...clearOptions.value, origin: site.origin }
+    // A website's history is cleared for all time, as in Chrome, whatever range Clear all is set to.
+    const request: BrowsingDataClearOptions = { history: clearOptions.value.history, origin: site.origin }
     const confirmed = await options.confirm(splitConfirmation((parameters) => options.translate('privacyActions.clearSiteConfirm', parameters), {
       origin: site.origin,
       items: selected.map((item) => options.translate('runtimeActions.browsingData.item', { item })).join('\n')

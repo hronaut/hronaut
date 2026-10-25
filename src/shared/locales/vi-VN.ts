@@ -497,7 +497,7 @@ export const viVN: MessageSchema = {
     "privacy": {
       "heading": "Không gian làm việc và dữ liệu",
       description: "Xem lại từng không gian làm việc của trình duyệt, quản lý chính sách của từng không gian và sao chép hoặc di chuyển dữ liệu trang web đã chọn giữa các hồ sơ tách biệt.",
-      workspaces: "Không gian làm việc của trình duyệt", workspacesDescription: "Không gian làm việc đang hoạt động và đã lưu trữ đều giữ cookie và bộ nhớ cục bộ riêng.", createWorkspace: "Tạo không gian làm việc", transferData: "Sao chép hoặc di chuyển dữ liệu", manageWorkspace: "Quản lý", workspaceActive: "Đang hoạt động", workspaceArchived: "Đã lưu trữ", workspaceTabs: "{count} thẻ", workspaceSites: "{count} trang web đã biết", historyHeading: "Lịch sử chung", historyDescription: "Xóa lịch sử duyệt web của toàn bộ ứng dụng. Quản lý bộ nhớ của trang web trong không gian làm việc tương ứng.",
+      workspaces: "Không gian làm việc của trình duyệt", workspacesDescription: "Không gian làm việc đang hoạt động và đã lưu trữ đều giữ cookie và bộ nhớ cục bộ riêng.", createWorkspace: "Tạo không gian làm việc", transferData: "Sao chép hoặc di chuyển dữ liệu", manageWorkspace: "Quản lý", workspaceActive: "Đang hoạt động", workspaceArchived: "Đã lưu trữ", workspaceTabs: "{count} thẻ", workspaceSites: "{count} trang web đã biết", historyHeading: "Lịch sử chung", historyDescription: "Xóa lịch sử duyệt web của toàn bộ ứng dụng. Quản lý bộ nhớ của trang web trong không gian làm việc tương ứng.", timeRange: "Phạm vi thời gian", timeRangeDescription: "Áp dụng cho mọi trang web. Xóa một trang web bên dưới sẽ xóa toàn bộ lịch sử của trang đó.", timeRanges: { lastHour: "1 giờ qua", last24Hours: "24 giờ qua", last7Days: "7 ngày qua", last4Weeks: "4 tuần qua", allTime: "Từ trước đến nay" },
       "cookies": "Cookie và dữ liệu trang web",
       "signOut": "Có thể khiến bạn bị đăng xuất",
       "cache": "Tệp trong bộ nhớ đệm",
@@ -1316,7 +1316,7 @@ export const viVN: MessageSchema = {
   "privacyActions": {
     "clearHistory": "Xóa toàn bộ lịch sử duyệt web? Thao tác này sẽ không xóa cookie, mật khẩu, dấu trang hay tệp đã tải xuống.",
     "historyAll": "Lịch sử duyệt web và các đề xuất địa chỉ từ lịch sử",
-    "historySite": "Lịch sử duyệt web và đề xuất địa chỉ",
+    "historySite": "Lịch sử duyệt web và đề xuất địa chỉ", "timeRange": "Phạm vi thời gian: {range}",
     "cookiesAll": "Cookie và dữ liệu trang web (bạn có thể bị đăng xuất)",
     "cookiesSite": "Cookie và bộ nhớ trang web (bạn có thể bị đăng xuất)",
     "cache": "Hình ảnh và tệp được lưu trong bộ nhớ đệm",
