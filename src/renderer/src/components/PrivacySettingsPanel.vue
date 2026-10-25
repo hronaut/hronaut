@@ -119,8 +119,17 @@ watch(() => filteredWebsites.value.map(site => site.origin).join('\n'), async (_
         <p>{{ t('settings.privacy.historyDescription') }}</p>
       </div>
     <label class="settings-row history-time-range" for="history-time-range">
-      <span><strong>{{ t('settings.privacy.timeRange') }}</strong></span>
-      <select id="history-time-range" v-model="clearOptions.timeRange" :disabled="clearing">
+      <span>
+        <strong>{{ t('settings.privacy.timeRange') }}</strong>
+        <small id="history-time-range-description">{{ t('settings.privacy.timeRangeDescription') }}</small>
+      </span>
+      <select
+        id="history-time-range"
+        v-model="clearOptions.timeRange"
+        :aria-label="t('settings.privacy.timeRange')"
+        aria-describedby="history-time-range-description"
+        :disabled="clearing"
+      >
         <option v-for="range in HISTORY_TIME_RANGES" :key="range" :value="range">{{ t(`settings.privacy.timeRanges.${range}`) }}</option>
       </select>
     </label>

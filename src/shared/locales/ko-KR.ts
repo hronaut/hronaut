@@ -497,7 +497,7 @@ export const koKR: MessageSchema = {
     "privacy": {
       "heading": "작업 공간 및 데이터",
       description: "각 브라우저 작업 공간을 검토하고 정책을 관리하며, 선택한 웹사이트 데이터를 격리된 프로필 간에 복사하거나 이동합니다.",
-      workspaces: "브라우저 작업 공간", workspacesDescription: "활성 및 보관처리된 작업 공간은 쿠키와 로컬 저장소를 별도로 유지합니다.", createWorkspace: "작업 공간 만들기", transferData: "데이터 복사 또는 이동", manageWorkspace: "관리", workspaceActive: "활성", workspaceArchived: "보관처리됨", workspaceTabs: "탭 {count}개", workspaceSites: "알려진 웹사이트 {count}개", historyHeading: "전체 방문 기록", historyDescription: "애플리케이션 전체의 인터넷 사용 기록을 삭제합니다. 웹사이트 저장소는 해당 작업 공간에서 관리하세요.", "timeRange": "기간", "timeRanges": { "lastHour": "지난 1시간", "last24Hours": "지난 24시간", "last7Days": "지난 7일", "last4Weeks": "지난 4주", "allTime": "전체 기간" },
+      workspaces: "브라우저 작업 공간", workspacesDescription: "활성 및 보관처리된 작업 공간은 쿠키와 로컬 저장소를 별도로 유지합니다.", createWorkspace: "작업 공간 만들기", transferData: "데이터 복사 또는 이동", manageWorkspace: "관리", workspaceActive: "활성", workspaceArchived: "보관처리됨", workspaceTabs: "탭 {count}개", workspaceSites: "알려진 웹사이트 {count}개", historyHeading: "전체 방문 기록", historyDescription: "애플리케이션 전체의 인터넷 사용 기록을 삭제합니다. 웹사이트 저장소는 해당 작업 공간에서 관리하세요.", "timeRange": "기간", "timeRangeDescription": "모든 웹사이트에 적용됩니다. 아래에서 웹사이트 하나를 삭제하면 해당 사이트의 인터넷 사용 기록이 모두 삭제됩니다.", "timeRanges": { "lastHour": "지난 1시간", "last24Hours": "지난 24시간", "last7Days": "지난 7일", "last4Weeks": "지난 4주", "allTime": "전체 기간" },
       "cookies": "쿠키 및 사이트 데이터",
       "signOut": "로그아웃될 수 있음",
       "cache": "캐시된 파일",

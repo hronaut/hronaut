@@ -4,6 +4,7 @@ import { LocalizedError } from './localized-error.js'
 import type { BookmarkStore } from './bookmark-store.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { CredentialStore } from './credential-store.js'
+import { isSourceViewUrl } from './browser/source-view-guard.js'
 import { normalizeHistoryUrl, type HistoryStore } from './history-store.js'
 import type { McpHttpServer } from './mcp/server.js'
 import type { SitePermissionStore } from './site-permission-store.js'
@@ -29,7 +30,7 @@ interface BrowsingDataIpcHost {
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
   handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
   tabs(): Pick<BrowserTabsManager, 'getState' | 'workspaceSession' | 'forgetHistoryPages'> | null
-  historyStore(): Pick<HistoryStore, 'list' | 'clearOrigin' | 'clearRecent' | 'clear'> | null
+  historyStore(): Pick<HistoryStore, 'list' | 'clearOrigin' | 'clearSince' | 'clear'> | null
   bookmarkStore(): Pick<BookmarkStore, 'list'> | null
   credentialStore(): Pick<CredentialStore, 'list'> | null
   sitePermissionStore(): Pick<SitePermissionStore, 'list'> | null
@@ -44,6 +45,11 @@ function closedTabOrigin(url: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+/** The address the history keeps for a page in a tab's history, or null for one it cannot hold; a page's source is the page's. */
+function tabHistoryAddress(url: string): string | null {
+  return normalizeHistoryUrl(isSourceViewUrl(url) ? url.slice('view-source:'.length) : url)
 }
 
 function normalizeBrowsingDataOrigin(value: string | undefined): string | undefined {
@@ -86,14 +92,22 @@ export function registerBrowsingDataIpc(host: BrowsingDataIpcHost): void {
     if (!host.historyStore()) throw new Error('Browser history is unavailable')
     if (!options.history) throw new Error('Select history to clear')
     const origin = normalizeBrowsingDataOrigin(options.origin)
-    const duration = options.timeRange && options.timeRange !== 'allTime' ? TIME_RANGE_MS[options.timeRange] : undefined
-    if (duration !== undefined) {
-      // As Chrome's time ranges: the pages visited in that time, the steps Home's feed lists from then, and those pages
+    if (options.timeRange && options.timeRange !== 'allTime') {
+      const duration = TIME_RANGE_MS[options.timeRange]
+      if (!duration) throw new TypeError('Invalid history time range')
+      // As Chrome's time ranges: the visits from then, the steps Home's feed lists from then, and the pages visited then
       // in Recently closed and in tabs' Back and Forward lists.
       const since = Date.now() - duration
-      const cleared = new Set(await host.historyStore()!.clearRecent(duration))
+      const cleared = new Set(await host.historyStore()!.clearSince(since))
       host.mcpServer()?.forgetHomeFeedSince(since)
-      if (cleared.size) host.tabs()?.forgetHistoryPages((url) => cleared.has(normalizeHistoryUrl(url) ?? ''))
+      // Electron gives a tab's pages no visit times, so those lists keep only the pages the history shows a visit to from
+      // before then and none from then: a page the history cannot hold, such as a page's source or a file, or one left
+      // before it was ready, which the history never got, goes too.
+      const held = new Set(host.historyStore()!.list().map((entry) => entry.url))
+      host.tabs()?.forgetHistoryPages((url) => {
+        const address = tabHistoryAddress(url)
+        return address === null || cleared.has(address) || !held.has(address)
+      })
       host.publishVisitHistory()
       return currentBrowsingDataSummary()
     }

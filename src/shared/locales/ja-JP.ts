@@ -497,7 +497,7 @@ export const jaJP: MessageSchema = {
     "privacy": {
       "heading": "ワークスペースとデータ",
       description: "各ブラウザ ワークスペースを確認してポリシーを管理し、分離されたプロファイル間で選択したウェブサイト データをコピーまたは移動します。",
-      workspaces: "ブラウザ ワークスペース", workspacesDescription: "アクティブなワークスペースとアーカイブしたワークスペースには、それぞれ別の Cookie とローカル ストレージがあります。", createWorkspace: "ワークスペースを作成", transferData: "データをコピーまたは移動", manageWorkspace: "管理", workspaceActive: "アクティブ", workspaceArchived: "アーカイブ済み", workspaceTabs: "タブ {count} 個", workspaceSites: "既知のウェブサイト {count} 件", historyHeading: "全体の履歴", historyDescription: "アプリケーション全体の閲覧履歴を消去します。ウェブサイトのストレージは各ワークスペースで管理してください。", "timeRange": "期間", "timeRanges": { "lastHour": "1 時間以内", "last24Hours": "過去 24 時間", "last7Days": "過去 7 日間", "last4Weeks": "過去 4 週間", "allTime": "全期間" },
+      workspaces: "ブラウザ ワークスペース", workspacesDescription: "アクティブなワークスペースとアーカイブしたワークスペースには、それぞれ別の Cookie とローカル ストレージがあります。", createWorkspace: "ワークスペースを作成", transferData: "データをコピーまたは移動", manageWorkspace: "管理", workspaceActive: "アクティブ", workspaceArchived: "アーカイブ済み", workspaceTabs: "タブ {count} 個", workspaceSites: "既知のウェブサイト {count} 件", historyHeading: "全体の履歴", historyDescription: "アプリケーション全体の閲覧履歴を消去します。ウェブサイトのストレージは各ワークスペースで管理してください。", "timeRange": "期間", "timeRangeDescription": "すべてのサイトに適用されます。下のサイトを個別に削除すると、そのサイトの履歴はすべて削除されます。", "timeRanges": { "lastHour": "1 時間以内", "last24Hours": "過去 24 時間", "last7Days": "過去 7 日間", "last4Weeks": "過去 4 週間", "allTime": "全期間" },
       "cookies": "Cookie とサイトデータ",
       "signOut": "ログアウトされる可能性があります",
       "cache": "キャッシュされたファイル",
@@ -1316,7 +1316,7 @@ export const jaJP: MessageSchema = {
   "privacyActions": {
     "clearHistory": "閲覧履歴をすべて消去しますか？Cookie、パスワード、ブックマーク、ダウンロードしたファイルは削除されません。",
     "historyAll": "閲覧履歴とそのアドレス候補",
-    "historySite": "閲覧履歴とアドレス候補", "timeRange": "期間: {range}",
+    "historySite": "閲覧履歴とアドレス候補", "timeRange": "期間：{range}",
     "cookiesAll": "Cookie とサイトデータ（ログアウトされる場合があります）",
     "cookiesSite": "Cookie とサイト ストレージ（ログアウトされる場合があります）",
     "cache": "キャッシュされた画像とファイル",

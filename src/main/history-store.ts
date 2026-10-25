@@ -10,10 +10,52 @@ const MAX_HISTORY_TITLE = 200
 const MAX_HISTORY_URL = 4_096
 const MAX_HISTORY_INPUT_URL = 32_768
 const HISTORY_RETENTION_MS = 90 * 24 * 60 * 60 * 1_000
+// Last 4 weeks is the longest time range Settings clears but All time, so a page keeps the times of its visits from then.
+const RECENT_VISITS_MS = 28 * 24 * 60 * 60 * 1_000
+const MAX_RECENT_VISITS = 100
+
+/**
+ * A page as the history file keeps it. As Chrome keeps each visit, it keeps the times of its visits from the last four
+ * weeks, so clearing a time range takes only the visits in it and the page keeps those before.
+ */
+interface StoredHistoryEntry extends BrowserHistoryEntry {
+  /** When the page was visited (ms), oldest first; a reload or a change of only the fragment is not another visit. */
+  recentVisits?: number[]
+  /** The last visit recentVisits no longer lists, older than four weeks or beyond its first MAX_RECENT_VISITS. */
+  earlierVisitAt?: number
+}
 
 interface PersistedHistory {
   version: typeof HISTORY_VERSION
-  entries: BrowserHistoryEntry[]
+  entries: StoredHistoryEntry[]
+}
+
+/** The page as the history lists it, without the visit times it keeps for clearing a time range. */
+function listedEntry({ id, url, title, visitedAt, visitCount }: StoredHistoryEntry): BrowserHistoryEntry {
+  return { id, url, title, visitedAt, visitCount }
+}
+
+/**
+ * The visit times a page keeps at `now`: those of the last four weeks, at most MAX_RECENT_VISITS, with the last one let
+ * go as its earlier visit.
+ */
+function keptVisits(visits: number[], earlierVisitAt: number | undefined, now: number): Pick<StoredHistoryEntry, 'recentVisits' | 'earlierVisitAt'> {
+  const kept = [...visits].sort((left, right) => left - right)
+  let earlier = earlierVisitAt
+  while (kept.length && (kept.length > MAX_RECENT_VISITS || kept[0]! < now - RECENT_VISITS_MS)) earlier = kept.shift()
+  return { ...(kept.length ? { recentVisits: kept } : {}), ...(earlier === undefined ? {} : { earlierVisitAt: earlier }) }
+}
+
+/** A page's visit times as the file has them, or nothing for times it cannot hold, such as ones after its last visit. */
+function storedVisits(entry: StoredHistoryEntry, now: number): Pick<StoredHistoryEntry, 'recentVisits' | 'earlierVisitAt'> {
+  const visitedAt = Date.parse(entry.visitedAt)
+  const time = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value <= visitedAt
+  const visits = Array.isArray(entry.recentVisits) && entry.recentVisits.length <= entry.visitCount && entry.recentVisits.every(time)
+    ? entry.recentVisits
+    : []
+  // With no visit listed, the visit the list leaves out is the page's last one.
+  const earlier = time(entry.earlierVisitAt) ? entry.earlierVisitAt : visits.length ? undefined : visitedAt
+  return keptVisits(visits, earlier, now)
 }
 
 export function normalizeHistoryUrl(value: string): string | null {
@@ -87,14 +129,14 @@ function validEntry(value: unknown, oldestAllowed: number): value is BrowserHist
   )
 }
 
-function sortedHistory(entries: Iterable<BrowserHistoryEntry>): BrowserHistoryEntry[] {
+function sortedHistory<Entry extends BrowserHistoryEntry>(entries: Iterable<Entry>): Entry[] {
   return [...entries]
     .sort((left, right) => right.visitedAt.localeCompare(left.visitedAt) || left.title.localeCompare(right.title))
     .map((entry) => ({ ...entry }))
 }
 
 export class HistoryStore {
-  private readonly entries = new Map<string, BrowserHistoryEntry>()
+  private readonly entries = new Map<string, StoredHistoryEntry>()
   private mutationQueue: Promise<void> = Promise.resolve()
   private saveQueue: Promise<void> = Promise.resolve()
   private expiryTimer: NodeJS.Timeout | undefined
@@ -129,14 +171,17 @@ export class HistoryStore {
       const validEntries = value.entries.filter((entry) => validEntry(entry, oldestAllowed))
       let repairedPersistedHistory = validEntries.length !== value.entries.length
       const currentTimestamp = new Date(now).toISOString()
-      const normalizedEntries = validEntries.map((entry) => {
+      const normalizedEntries = validEntries.map((entry: StoredHistoryEntry) => {
         const visitedAt = Date.parse(entry.visitedAt) <= now
           ? new Date(entry.visitedAt).toISOString()
           : currentTimestamp
         const visitCount = Math.min(entry.visitCount, Number.MAX_SAFE_INTEGER)
-        if (visitedAt === entry.visitedAt && visitCount === entry.visitCount) return entry
+        const { recentVisits, earlierVisitAt, ...listed } = entry
+        const visits = storedVisits({ ...listed, visitedAt, visitCount, recentVisits, earlierVisitAt }, now)
+        const normalized: StoredHistoryEntry = { ...listed, visitedAt, visitCount, ...visits }
+        if (JSON.stringify(normalized) === JSON.stringify(entry)) return entry
         repairedPersistedHistory = true
-        return { ...entry, visitedAt, visitCount }
+        return normalized
       })
       const sorted = normalizedEntries
         .sort((left, right) => right.visitedAt.localeCompare(left.visitedAt))
@@ -148,9 +193,12 @@ export class HistoryStore {
         const existingId = seenUrls.get(normalizedUrl)
         if (existingId) {
           const existing = this.entries.get(existingId)!
+          const { recentVisits: _visits, earlierVisitAt: _earlier, ...listed } = existing
+          const earlier = Math.max(existing.earlierVisitAt ?? -Infinity, entry.earlierVisitAt ?? -Infinity)
           this.entries.set(existingId, {
-            ...existing,
-            visitCount: Math.min(Number.MAX_SAFE_INTEGER, existing.visitCount + entry.visitCount)
+            ...listed,
+            visitCount: Math.min(Number.MAX_SAFE_INTEGER, existing.visitCount + entry.visitCount),
+            ...keptVisits([...existing.recentVisits ?? [], ...entry.recentVisits ?? []], Number.isFinite(earlier) ? earlier : undefined, now)
           })
           repairedPersistedHistory = true
           continue
@@ -179,7 +227,7 @@ export class HistoryStore {
 
   list(): BrowserHistoryEntry[] {
     const oldestAllowed = this.now() - HISTORY_RETENTION_MS
-    return sortedHistory([...this.entries.values()].filter((entry) => Date.parse(entry.visitedAt) >= oldestAllowed))
+    return sortedHistory([...this.entries.values()].filter((entry) => Date.parse(entry.visitedAt) >= oldestAllowed)).map(listedEntry)
   }
 
   flush(): Promise<void> {
@@ -220,19 +268,22 @@ export class HistoryStore {
       const nextEntries = new Map(this.entries)
       this.prune(nextEntries)
       const existing = [...nextEntries.values()].find((entry) => entry.url === url)
-      const entry: BrowserHistoryEntry = {
+      const now = this.now()
+      const samePage = Boolean(existing && value.samePage)
+      const entry: StoredHistoryEntry = {
         id: existing?.id ?? randomUUID(),
         url,
         title: normalizeTitle(value.title, url, value.url),
-        visitedAt: new Date(this.now()).toISOString(),
-        visitCount: existing && value.samePage ? existing.visitCount : Math.min((existing?.visitCount ?? 0) + 1, Number.MAX_SAFE_INTEGER)
+        visitedAt: new Date(now).toISOString(),
+        visitCount: samePage ? existing!.visitCount : Math.min((existing?.visitCount ?? 0) + 1, Number.MAX_SAFE_INTEGER),
+        ...keptVisits([...existing?.recentVisits ?? [], ...samePage ? [] : [now]], existing?.earlierVisitAt, now)
       }
       if (existing) nextEntries.delete(existing.id)
       nextEntries.set(entry.id, entry)
       this.prune(nextEntries)
       await this.persist(nextEntries.values())
       this.replaceEntries(nextEntries)
-      return { ...entry }
+      return listedEntry(entry)
     })
   }
 
@@ -243,13 +294,13 @@ export class HistoryStore {
       const existing = [...this.entries.values()].find((entry) => entry.url === url)
       if (!existing) return null
       const title = normalizeTitle(value.title, url, value.url)
-      if (title === existing.title) return { ...existing }
+      if (title === existing.title) return listedEntry(existing)
       const nextEntries = new Map(this.entries)
       const updated = { ...existing, title }
       nextEntries.set(existing.id, updated)
       await this.persist(nextEntries.values())
       this.replaceEntries(nextEntries)
-      return { ...updated }
+      return listedEntry(updated)
     })
   }
 
@@ -262,7 +313,7 @@ export class HistoryStore {
       nextEntries.delete(id)
       await this.persist(nextEntries.values())
       this.replaceEntries(nextEntries)
-      return { ...removed }
+      return listedEntry(removed)
     })
   }
 
@@ -276,24 +327,39 @@ export class HistoryStore {
   }
 
   /**
-   * Removes the pages visited within the last `duration` milliseconds, as Chrome's time ranges do, and resolves their
-   * addresses. A page keeps only its last visit, so a page visited in that time goes with its earlier visits.
+   * Removes the visits from `since` (ms) on, as Chrome's time ranges do, and resolves the addresses of the pages visited
+   * then. A page visited before keeps those visits, with the last of them as its last visit; one visited only then goes.
    */
-  async clearRecent(duration: number): Promise<string[]> {
+  async clearSince(since: number): Promise<string[]> {
+    if (!Number.isFinite(since)) throw new TypeError('Invalid history time range')
     return this.queueMutation(async () => {
-      const since = this.now() - duration
       const nextEntries = new Map(this.entries)
-      const removed: string[] = []
+      const cleared: string[] = []
       for (const entry of nextEntries.values()) {
         if (Date.parse(entry.visitedAt) < since) continue
-        nextEntries.delete(entry.id)
-        removed.push(entry.url)
+        cleared.push(entry.url)
+        const visits = entry.recentVisits ?? []
+        const before = visits.filter((visit) => visit < since)
+        // Visits the page no longer lists may be from then too, when even the last of them is.
+        const lastBefore = before.at(-1) ?? (entry.earlierVisitAt !== undefined && entry.earlierVisitAt < since ? entry.earlierVisitAt : undefined)
+        const visitCount = entry.visitCount - (visits.length - before.length)
+        if (lastBefore === undefined || visitCount < 1) {
+          nextEntries.delete(entry.id)
+          continue
+        }
+        nextEntries.set(entry.id, {
+          ...listedEntry(entry),
+          visitedAt: new Date(lastBefore).toISOString(),
+          visitCount,
+          ...before.length ? { recentVisits: before } : {},
+          ...entry.earlierVisitAt === undefined ? {} : { earlierVisitAt: entry.earlierVisitAt }
+        })
       }
       // A file Hronaut could not read may hold visits from that time, though none are listed.
-      if (!removed.length && !this.unreadableFile) return []
+      if (!cleared.length && !this.unreadableFile) return []
       await this.persist(nextEntries.values())
       this.replaceEntries(nextEntries)
-      return removed
+      return cleared
     })
   }
 
@@ -314,7 +380,7 @@ export class HistoryStore {
     })
   }
 
-  private prune(entries: Map<string, BrowserHistoryEntry>): void {
+  private prune(entries: Map<string, StoredHistoryEntry>): void {
     const oldestAllowed = this.now() - HISTORY_RETENTION_MS
     for (const entry of sortedHistory(entries.values())) {
       if (Date.parse(entry.visitedAt) < oldestAllowed) entries.delete(entry.id)
@@ -329,7 +395,7 @@ export class HistoryStore {
     return operation
   }
 
-  private replaceEntries(entries: ReadonlyMap<string, BrowserHistoryEntry>): void {
+  private replaceEntries(entries: ReadonlyMap<string, StoredHistoryEntry>): void {
     this.entries.clear()
     for (const [id, entry] of entries) this.entries.set(id, entry)
     this.scheduleExpiry()
@@ -351,7 +417,7 @@ export class HistoryStore {
     this.expiryTimer.unref()
   }
 
-  private persist(entries: Iterable<BrowserHistoryEntry> = this.entries.values()): Promise<void> {
+  private persist(entries: Iterable<StoredHistoryEntry> = this.entries.values()): Promise<void> {
     const value: PersistedHistory = { version: HISTORY_VERSION, entries: sortedHistory(entries) }
     const operation = this.saveQueue.then(async () => {
       await writeTextFileAtomically(this.path, `${JSON.stringify(value, null, 2)}\n`)

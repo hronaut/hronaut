@@ -159,18 +159,24 @@ describe('recently closed tabs and the history', () => {
     expect(closedTabs).toEqual([])
   })
 
-  // As Chrome's Delete browsing data, the last hour goes and what was visited before it stays.
+  // As Chrome's Delete browsing data, the last hour goes and what was visited before it stays. Electron gives a tab's
+  // pages no visit times, so Recently closed keeps only pages the history shows a visit to from before the hour only.
   it('clears a time range of history, with those pages\' closed tabs and the steps Home lists from then', async () => {
     const hour = 60 * 60 * 1000
-    const { closedTabs, tabs } = recentlyClosed(['https://old.example/', 'https://recent.example/page#top', 'https://never.example/'])
+    const { closedTabs, tabs } = recentlyClosed([
+      'https://old.example/', 'https://recent.example/page#top', 'https://never.example/', 'https://both.example/',
+      'view-source:https://old.example/', 'view-source:https://recent.example/page', 'data:text/html,private'
+    ])
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-history-closed-tabs-test-'))
     temporaryDirectories.push(directory)
     let now = Date.now() - 3 * hour
     const history = new HistoryStore(join(directory, 'history.json'), () => now)
     await history.load()
     await history.record({ url: 'https://old.example/', title: 'Old' })
+    await history.record({ url: 'https://both.example/', title: 'Both' })
     now = Date.now()
     await history.record({ url: 'https://recent.example/page', title: 'Recent' })
+    await history.record({ url: 'https://both.example/', title: 'Both' })
     const handlers = new Map<string, (...args: unknown[]) => unknown>()
     const forgetHomeFeed = vi.fn()
     const forgetHomeFeedSince = vi.fn()
@@ -189,8 +195,8 @@ describe('recently closed tabs and the history', () => {
     const clear = async (options: unknown) => handlers.get('browsing-data:clear')!({}, options)
     const before = Date.now()
     await clear({ history: true, timeRange: 'lastHour' })
-    expect(history.list().map((entry) => entry.url)).toEqual(['https://old.example/'])
-    expect(closedTabs.map((tab) => tab.url)).toEqual(['https://old.example/', 'https://never.example/'])
+    expect(history.list().map(({ url, visitCount }) => [url, visitCount])).toEqual([['https://both.example/', 1], ['https://old.example/', 1]])
+    expect(closedTabs.map((tab) => tab.url)).toEqual(['https://old.example/', 'view-source:https://old.example/'])
     expect(forgetHomeFeed).not.toHaveBeenCalled()
     const [since] = forgetHomeFeedSince.mock.calls[0] as [number]
     expect(since).toBeGreaterThanOrEqual(before - hour)

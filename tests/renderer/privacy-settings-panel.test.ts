@@ -140,6 +140,8 @@ describe('PrivacySettingsPanel', () => {
     await nextTick()
     const range = within(screen.getByRole('region', { name: 'Global history' })).getByRole('combobox', { name: 'Time range' })
     expect(range).toHaveValue('allTime')
+    // Clearing one website below takes all its history, whatever the range.
+    expect(range).toHaveAccessibleDescription('Applies to all websites. Clearing one website below removes all of its history.')
     expect([...range.querySelectorAll('option')].map((option) => option.textContent?.trim()))
       .toEqual(['Last hour', 'Last 24 hours', 'Last 7 days', 'Last 4 weeks', 'All time'])
     const user = userEvent.setup()

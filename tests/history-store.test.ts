@@ -529,32 +529,120 @@ describe('HistoryStore', () => {
     expect(await readFile(path, 'utf8')).not.toContain('private.example')
   })
 
-  // As Chrome's Delete browsing data, clearing the last hour leaves the pages visited before it.
-  it('clears the pages visited within a time range, and only those', async () => {
+  // As Chrome's Delete browsing data, clearing the last hour leaves the visits before it.
+  it('clears the visits within a time range, and keeps the visits of a page from before it', async () => {
+    const hour = 60 * 60 * 1000
     let now = Date.UTC(2026, 7, 13, 12)
-    const directory = await mkdtemp(join(tmpdir(), 'hronaut-history-'))
-    directories.push(directory)
-    const path = join(directory, 'history.json')
+    const { path } = await storeAt()
+    const clock = new HistoryStore(path, () => now)
+    await clock.load()
+    await clock.record({ url: 'https://old.example/', title: 'Old' })
+    await clock.record({ url: 'https://both.example/', title: 'Both' })
+    now += hour
+    await clock.record({ url: 'https://both.example/', title: 'Both' })
+    const lastVisitBefore = new Date(now).toISOString()
+    now += hour
+    await clock.record({ url: 'https://edge.example/', title: 'Edge' })
+    now += hour
+    await clock.record({ url: 'https://recent.example/page#part', title: 'Recent' })
+    // Visited twice before the hour and twice within it, the page was cleared only of the two visits within it.
+    await clock.record({ url: 'https://both.example/', title: 'Both again' })
+    await clock.record({ url: 'https://both.example/', title: 'Both again' })
+    await expect(clock.clearSince(now - hour)).resolves.toEqual(expect.arrayContaining(['https://edge.example/', 'https://recent.example/page', 'https://both.example/']))
+    expect(clock.list()).toEqual([
+      { id: expect.any(String), url: 'https://both.example/', title: 'Both again', visitedAt: lastVisitBefore, visitCount: 2 },
+      { id: expect.any(String), url: 'https://old.example/', title: 'Old', visitedAt: new Date(Date.UTC(2026, 7, 13, 12)).toISOString(), visitCount: 1 }
+    ])
+    const saved = JSON.parse(await readFile(path, 'utf8')).entries as Array<{ url: string; recentVisits?: number[] }>
+    expect(saved.map((entry) => [entry.url, entry.recentVisits])).toEqual([
+      ['https://both.example/', [Date.UTC(2026, 7, 13, 12), Date.UTC(2026, 7, 13, 13)]],
+      ['https://old.example/', [Date.UTC(2026, 7, 13, 12)]]
+    ])
+    await expect(clock.clearSince(now - hour)).resolves.toEqual([])
+    // Read again, the history has the same visits.
+    await expect(new HistoryStore(path, () => now).load()).resolves.toEqual(clock.list())
+  })
+
+  // A reload is not another visit: clearing it moves the page back to the visit it reloaded, with its count.
+  it('moves a page reloaded within a time range back to its visit before it', async () => {
+    const hour = 60 * 60 * 1000
+    let now = Date.UTC(2026, 7, 13, 12)
+    const { path } = await storeAt()
+    const clock = new HistoryStore(path, () => now)
+    await clock.load()
+    await clock.record({ url: 'https://reloaded.example/', title: 'Reloaded' })
+    now += 2 * hour
+    await clock.record({ url: 'https://reloaded.example/', title: 'Reloaded', samePage: true })
+    await expect(clock.clearSince(now - hour)).resolves.toEqual(['https://reloaded.example/'])
+    expect(clock.list()).toEqual([{ id: expect.any(String), url: 'https://reloaded.example/', title: 'Reloaded', visitedAt: new Date(Date.UTC(2026, 7, 13, 12)).toISOString(), visitCount: 1 }])
+  })
+
+  // A history saved before visit times were kept knows each page's last visit only.
+  it('keeps the last visit of a page saved without its visit times when a time range clears its newer visits', async () => {
+    const hour = 60 * 60 * 1000
+    let now = Date.UTC(2026, 7, 13, 12)
+    const { path } = await storeAt()
+    await writeFile(path, JSON.stringify({ version: 1, entries: [
+      { id: 'saved', url: 'https://saved.example/', title: 'Saved', visitedAt: new Date(now - 3 * hour).toISOString(), visitCount: 40 },
+      { id: 'recent', url: 'https://recent-saved.example/', title: 'Recent', visitedAt: new Date(now - 1_000).toISOString(), visitCount: 3 },
+      { id: 'broken', url: 'https://broken.example/', title: 'Broken', visitedAt: new Date(now - 3 * hour).toISOString(), visitCount: 2, recentVisits: ['soon', now], earlierVisitAt: 'never' }
+    ] }))
     const store = new HistoryStore(path, () => now)
     await store.load()
-    await store.record({ url: 'https://old.example/', title: 'Old' })
-    now += 2 * 60 * 60 * 1000
-    await store.record({ url: 'https://edge.example/', title: 'Edge' })
-    now += 60 * 60 * 1000
-    await store.record({ url: 'https://recent.example/page#part', title: 'Recent' })
-    // A page visited before and again within the hour goes with its earlier visit, which history does not keep apart.
-    await store.record({ url: 'https://old-and-recent.example/', title: 'Both' })
-    await expect(store.clearRecent(60 * 60 * 1000)).resolves.toEqual(expect.arrayContaining(['https://edge.example/', 'https://recent.example/page', 'https://old-and-recent.example/']))
-    expect(store.list().map((entry) => entry.url)).toEqual(['https://old.example/'])
-    expect(JSON.parse(await readFile(path, 'utf8')).entries.map((entry: { url: string }) => entry.url)).toEqual(['https://old.example/'])
-    await expect(store.clearRecent(60 * 60 * 1000)).resolves.toEqual([])
+    expect(JSON.parse(await readFile(path, 'utf8')).entries.map((entry: { earlierVisitAt?: number; recentVisits?: number[] }) => [entry.earlierVisitAt, entry.recentVisits]))
+      .toEqual([[now - 1_000, undefined], [now - 3 * hour, undefined], [now - 3 * hour, undefined]])
+    await store.record({ url: 'https://saved.example/', title: 'Saved' })
+    await store.record({ url: 'https://broken.example/', title: 'Broken' })
+    now += 1
+    // A page saved with its last visit within the range goes, as no visit before it is known.
+    await expect(store.clearSince(now - hour)).resolves.toEqual(expect.arrayContaining(['https://saved.example/', 'https://broken.example/', 'https://recent-saved.example/']))
+    expect(store.list().map(({ url, visitedAt, visitCount }) => [url, visitedAt, visitCount])).toEqual([
+      ['https://broken.example/', new Date(now - 1 - 3 * hour).toISOString(), 2],
+      ['https://saved.example/', new Date(now - 1 - 3 * hour).toISOString(), 40]
+    ])
+  })
+
+  it('keeps the newest visits within four weeks, and clears a page whose let-go visits are within the range', async () => {
+    const hour = 60 * 60 * 1000
+    let now = Date.UTC(2026, 7, 13, 12)
+    const { path } = await storeAt()
+    const store = new HistoryStore(path, () => now)
+    await store.load()
+    await store.record({ url: 'https://earlier.example/', title: 'Earlier' })
+    await store.record({ url: 'https://aging.example/', title: 'Aging' })
+    now += 2 * hour
+    await store.record({ url: 'https://busy.example/', title: 'Busy' })
+    for (let visit = 0; visit < 100; visit += 1) {
+      now += 1_000
+      await store.record({ url: 'https://earlier.example/', title: 'Earlier' })
+      await store.record({ url: 'https://busy.example/', title: 'Busy' })
+    }
+    const saved = JSON.parse(await readFile(path, 'utf8')).entries as Array<{ url: string; recentVisits: number[]; earlierVisitAt?: number }>
+    expect(saved.map((entry) => [entry.url, entry.recentVisits.length, entry.earlierVisitAt])).toEqual([
+      ['https://busy.example/', 100, Date.UTC(2026, 7, 13, 14)],
+      ['https://earlier.example/', 100, Date.UTC(2026, 7, 13, 12)],
+      ['https://aging.example/', 1, undefined]
+    ])
+    // The busy page's visit let go is within the hour too, so whether it had visits before is not known: it goes.
+    await expect(store.clearSince(now - hour)).resolves.toEqual(expect.arrayContaining(['https://busy.example/', 'https://earlier.example/']))
+    expect(store.list().map(({ url, visitedAt, visitCount }) => [url, visitedAt, visitCount])).toEqual([
+      ['https://aging.example/', new Date(Date.UTC(2026, 7, 13, 12)).toISOString(), 1],
+      ['https://earlier.example/', new Date(Date.UTC(2026, 7, 13, 12)).toISOString(), 1]
+    ])
+
+    // A visit older than four weeks is let go as the page's earlier visit.
+    now += 29 * 24 * hour
+    await store.record({ url: 'https://aging.example/', title: 'Aging' })
+    const [aged] = JSON.parse(await readFile(path, 'utf8')).entries as Array<{ url: string; recentVisits: number[]; earlierVisitAt: number }>
+    expect(aged).toEqual(expect.objectContaining({ url: 'https://aging.example/', visitCount: 2, recentVisits: [now], earlierVisitAt: Date.UTC(2026, 7, 13, 12) }))
+    await expect(store.clearSince(Number.NaN)).rejects.toThrow('Invalid history time range')
   })
 
   it('removes the visits of a file it could not read when clearing a time range', async () => {
     const { path, store } = await storeAt()
     await writeFile(path, JSON.stringify({ version: 2, entries: [{ id: 'a', url: 'https://private.example/visit', title: 'Private', visitedAt: '2026-08-12T00:00:00.000Z', visitCount: 1 }] }))
     await expect(store.load()).resolves.toEqual([])
-    await expect(store.clearRecent(60 * 60 * 1000)).resolves.toEqual([])
+    await expect(store.clearSince(Date.UTC(2026, 7, 13) - 60 * 60 * 1000)).resolves.toEqual([])
     expect(await readFile(path, 'utf8')).not.toContain('private.example')
   })
 
@@ -563,7 +651,7 @@ describe('HistoryStore', () => {
     await store.load()
     await store.clear()
     await expect(store.clearOrigin('https://one.example')).resolves.toBe(0)
-    await expect(store.clearRecent(60 * 60 * 1000)).resolves.toEqual([])
+    await expect(store.clearSince(Date.UTC(2026, 7, 13) - 60 * 60 * 1000)).resolves.toEqual([])
     await expect(readFile(path, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   })
 

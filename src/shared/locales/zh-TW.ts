@@ -497,7 +497,7 @@ export const zhTW: MessageSchema = {
     "privacy": {
       "heading": "工作區與資料",
       description: "檢查每個瀏覽器工作區、管理其政策，並在獨立的設定檔之間複製或移動所選的網站資料。",
-      workspaces: "瀏覽器工作區", workspacesDescription: "使用中和已封存的工作區會分別保存 Cookie 和本機儲存空間。", createWorkspace: "建立工作區", transferData: "複製或移動資料", manageWorkspace: "管理", workspaceActive: "使用中", workspaceArchived: "已封存", workspaceTabs: "{count} 個分頁", workspaceSites: "{count} 個已知網站", historyHeading: "全域記錄", historyDescription: "清除整個應用程式的瀏覽記錄。網站儲存空間請在其工作區中管理。", "timeRange": "時間範圍", "timeRanges": { "lastHour": "過去 1 小時", "last24Hours": "過去 24 小時", "last7Days": "過去 7 天", "last4Weeks": "過去 4 週", "allTime": "不限時間" },
+      workspaces: "瀏覽器工作區", workspacesDescription: "使用中和已封存的工作區會分別保存 Cookie 和本機儲存空間。", createWorkspace: "建立工作區", transferData: "複製或移動資料", manageWorkspace: "管理", workspaceActive: "使用中", workspaceArchived: "已封存", workspaceTabs: "{count} 個分頁", workspaceSites: "{count} 個已知網站", historyHeading: "全域記錄", historyDescription: "清除整個應用程式的瀏覽記錄。網站儲存空間請在其工作區中管理。", "timeRange": "時間範圍", "timeRangeDescription": "適用於所有網站。在下方清除單一網站會刪除該網站的所有瀏覽記錄。", "timeRanges": { "lastHour": "過去 1 小時", "last24Hours": "過去 24 小時", "last7Days": "過去 7 天", "last4Weeks": "過去 4 週", "allTime": "不限時間" },
       "cookies": "Cookie 和網站資料",
       "signOut": "可能會讓你登出",
       "cache": "快取檔案",
