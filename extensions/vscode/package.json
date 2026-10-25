@@ -2,7 +2,7 @@
   "name": "hronaut",
   "displayName": "Hronaut",
   "description": "Connects your coding agent to Hronaut — a visible desktop browser it can drive over MCP. Watch every step, pause and take over, keep logins between sessions. Requires the Hronaut app (free 10-day trial at hronaut.dev).",
-  "version": "3.11.0",
+  "version": "3.12.0",
   "publisher": "hronaut",
   "license": "SEE LICENSE IN LICENSE.md",
   "pricing": "Trial",
