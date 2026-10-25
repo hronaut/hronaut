@@ -6,17 +6,34 @@ import { deDE } from './locales/de-DE.js'
 import { frFR } from './locales/fr-FR.js'
 import { esES } from './locales/es-ES.js'
 import { plPL } from './locales/pl-PL.js'
+import { itIT } from './locales/it-IT.js'
+import { ptBR } from './locales/pt-BR.js'
+import { trTR } from './locales/tr-TR.js'
+import { hiIN } from './locales/hi-IN.js'
+import { jaJP } from './locales/ja-JP.js'
+import { koKR } from './locales/ko-KR.js'
+import { zhCN } from './locales/zh-CN.js'
+import { zhTW } from './locales/zh-TW.js'
 import { pluralFormIndex } from './plural.js'
 
-export const localeMessages = {
+// Annotated rather than inferred: fifteen catalogs' inferred types are more than the compiler will write out.
+export const localeMessages: Record<SupportedLocale, MessageSchema> = {
   'en-US': enUS,
   'uk-UA': ukUA,
   'ru-RU': ruRU,
   'de-DE': deDE,
   'fr-FR': frFR,
   'es-ES': esES,
-  'pl-PL': plPL
-} satisfies Record<SupportedLocale, MessageSchema>
+  'pl-PL': plPL,
+  'it-IT': itIT,
+  'pt-BR': ptBR,
+  'tr-TR': trTR,
+  'hi-IN': hiIN,
+  'ja-JP': jaJP,
+  'ko-KR': koKR,
+  'zh-CN': zhCN,
+  'zh-TW': zhTW
+}
 
 type LeafKeys<Value, Prefix extends string = ''> = {
   [Key in keyof Value & string]: Value[Key] extends string

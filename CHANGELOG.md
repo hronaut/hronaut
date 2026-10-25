@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 - **Tab to search** in the address bar, as in Chrome: typing a built-in search engine's site, such as `bing.com`, or a start the field fills in to one, offers **Press Tab to search Bing**; **Tab**, or a space after the site, turns the field into a search box for that engine, shown by a chip before the text, and **Backspace** at its start gives the site back.
 - **Copy Link to Highlight**, as in Chrome: text selected on a page offers it in the page's context menu, after **Copy**, and copies a link to the page that opens it scrolled to that text, highlighted. The link takes whole words, and the words around text the page holds more than once.
 - **Create QR Code**, as in Chrome: a web page's context menu offers **Create QR Code for this Page** after **Print**, and an image's menu offers **Create QR Code for this Image**. A dialog shows the address's QR code, which can be edited, copied as an image or downloaded as `qrcode_<host>.png`.
+- Eight more interface languages: Italian, Brazilian Portuguese, Turkish, Hindi, Japanese, Korean, Simplified Chinese and Traditional Chinese. **System default** picks them from the operating system's language, with Chinese for Taiwan, Hong Kong and Macau, or written in Traditional script, shown in Traditional Chinese.
 
 ## [3.11.0] - 2026-10-24
 

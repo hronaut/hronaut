@@ -280,7 +280,7 @@ describe('SettingsStore', () => {
     expect((await store.load()).mcpToolSet).toBe('essentials')
   })
 
-  it.each(['uk', 'en-GB', 'ja-JP', '', 42, null])('migrates an invalid language preference to system: %s', async (languagePreference) => {
+  it.each(['uk', 'en-GB', 'nl-NL', '', 42, null])('migrates an invalid language preference to system: %s', async (languagePreference) => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify({ languagePreference }), 'utf8')

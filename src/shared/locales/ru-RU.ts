@@ -23,7 +23,7 @@ import { walletMessages } from './wallets/index.js'
 import { appErrorMessages } from './app-errors/index.js'
 import type { MessageSchema } from './en-US.js'
 
-export const ruRU = {
+export const ruRU: MessageSchema = {
   trustedDialogs: trustedDialogMessages['ru-RU'],
   reactInspection: reactInspectionMessages['ru-RU'],
   "agentStatus": { "starting": "Подготовка к работе с агентами", "ready": "Готово к работе с агентами", "connected": "{name}: подключён", "connectedMany": "{count} агент подключён | {count} агента подключены | {count} агентов подключено", "working": "{name} работает", "workingMany": "{count} агент работает | {count} агента работают | {count} агентов работают", "needsYou": "Ждёт вас", "paused": "Агенты приостановлены", "error": "Агенты не могут подключиться", "details": "Подробности" },
@@ -3823,4 +3823,4 @@ export const ruRU = {
       "webpageSingleFile": "Веб-страница, один файл"
     }
   }
-} satisfies MessageSchema
+}

@@ -244,5 +244,285 @@ export const reproStepMessages = {
       "count": "кількість елементів",
       "urlPath": "шлях URL"
     }
-  }
+  },
+  "it-IT": {
+    "kinds": {
+      "navigate": "navigazione",
+      "click": "clic",
+      "input": "inserimento",
+      "key": "tasto",
+      "scroll": "scorrimento",
+      "expect": "verifica"
+    },
+    "steps": {
+      "open": "Apri {url}",
+      "navigate": "Vai a {url}",
+      "navigateWithin": "Vai a {url} all’interno della pagina",
+      "click": "Fai clic su {target}",
+      "input": "Digita in {target} (valore non registrato)",
+      "key": "Premi {key} su {target}",
+      "scroll": "Scorri fino a x={x}, y={y}",
+      "expect": "Risultato previsto: {condition}",
+      "captureFailed": "Impossibile acquisire la destinazione dell’azione; ricrea questa azione manualmente.",
+      "captureInterrupted": "Acquisizione dell’azione interrotta dalla navigazione; ricrea questa azione manualmente."
+    },
+    "targets": {
+      "input": "campo {type}",
+      "labelled": "{kind} “{label}”"
+    },
+    "conditions": {
+      "visible": "visibile",
+      "hidden": "nascosto",
+      "text": "testo",
+      "checked": "selezionato",
+      "unchecked": "non selezionato",
+      "count": "conteggio",
+      "urlPath": "percorso URL"
+    }
+  },
+  "pt-BR": {
+    "kinds": {
+      "navigate": "navegar",
+      "click": "clicar",
+      "input": "digitar",
+      "key": "tecla",
+      "scroll": "rolar",
+      "expect": "esperar"
+    },
+    "steps": {
+      "open": "Abrir {url}",
+      "navigate": "Navegar para {url}",
+      "navigateWithin": "Navegar dentro da página para {url}",
+      "click": "Clicar em {target}",
+      "input": "Digitar em {target} (valor não gravado)",
+      "key": "Pressionar {key} em {target}",
+      "scroll": "Rolar até x={x}, y={y}",
+      "expect": "Resultado esperado: {condition}",
+      "captureFailed": "Não foi possível capturar o alvo da ação; recrie esta ação manualmente.",
+      "captureInterrupted": "A captura da ação foi interrompida por uma navegação; recrie esta ação manualmente."
+    },
+    "targets": {
+      "input": "campo {type}",
+      "labelled": "{kind} “{label}”"
+    },
+    "conditions": {
+      "visible": "visível",
+      "hidden": "oculto",
+      "text": "texto",
+      "checked": "marcado",
+      "unchecked": "desmarcado",
+      "count": "contagem",
+      "urlPath": "caminho do URL"
+    }
+  },
+  "tr-TR": {
+    "kinds": {
+      "navigate": "gezinme",
+      "click": "tıklama",
+      "input": "giriş",
+      "key": "tuş",
+      "scroll": "kaydırma",
+      "expect": "beklenti"
+    },
+    "steps": {
+      "open": "{url} adresini açın",
+      "navigate": "{url} adresine gidin",
+      "navigateWithin": "Sayfa içinde {url} adresine gidin",
+      "click": "{target} öğesini tıklayın",
+      "input": "{target} alanına yazın (değer kaydedilmedi)",
+      "key": "{target} üzerinde {key} tuşuna basın",
+      "scroll": "x={x}, y={y} konumuna kaydırın",
+      "expect": "Beklenen sonuç: {condition}",
+      "captureFailed": "Eylemin hedefi yakalanamadı; bu eylemi elle yeniden oluşturun.",
+      "captureInterrupted": "Eylem yakalama bir gezinme nedeniyle kesildi; bu eylemi elle yeniden oluşturun."
+    },
+    "targets": {
+      "input": "{type} girişi",
+      "labelled": "{kind} “{label}”"
+    },
+    "conditions": {
+      "visible": "görünür",
+      "hidden": "gizli",
+      "text": "metin",
+      "checked": "işaretli",
+      "unchecked": "işaretsiz",
+      "count": "sayı",
+      "urlPath": "URL yolu"
+    }
+  },
+  "hi-IN": {
+    "kinds": {
+      "navigate": "नेविगेशन",
+      "click": "क्लिक",
+      "input": "इनपुट",
+      "key": "कुंजी",
+      "scroll": "स्क्रोल",
+      "expect": "जांच बिंदु"
+    },
+    "steps": {
+      "open": "{url} खोलें",
+      "navigate": "{url} पर जाएं",
+      "navigateWithin": "पेज के अंदर {url} पर जाएं",
+      "click": "{target} पर क्लिक करें",
+      "input": "{target} में टाइप करें (वैल्यू रिकॉर्ड नहीं की गई)",
+      "key": "{target} पर {key} दबाएं",
+      "scroll": "x={x}, y={y} तक स्क्रोल करें",
+      "expect": "अनुमानित नतीजा: {condition}",
+      "captureFailed": "कार्रवाई का टारगेट कैप्चर नहीं किया जा सका; इस कार्रवाई को मैन्युअल रूप से फिर से बनाएं।",
+      "captureInterrupted": "नेविगेशन की वजह से कार्रवाई का कैप्चर बीच में रुक गया; इस कार्रवाई को मैन्युअल रूप से फिर से बनाएं।"
+    },
+    "targets": {
+      "input": "{type} इनपुट",
+      "labelled": "{kind} “{label}”"
+    },
+    "conditions": {
+      "visible": "दिख रहा है",
+      "hidden": "छिपा है",
+      "text": "सटीक टेक्स्ट",
+      "checked": "चुना गया",
+      "unchecked": "नहीं चुना गया",
+      "count": "एलिमेंट की संख्या",
+      "urlPath": "URL पाथ"
+    }
+  },
+  "ja-JP": {
+    "kinds": {
+      "navigate": "ナビゲーション",
+      "click": "クリック",
+      "input": "入力",
+      "key": "キー",
+      "scroll": "スクロール",
+      "expect": "確認"
+    },
+    "steps": {
+      "open": "{url} を開く",
+      "navigate": "{url} に移動",
+      "navigateWithin": "ページ内で {url} に移動",
+      "click": "{target} をクリック",
+      "input": "{target} に入力（値は記録されていません）",
+      "key": "{target} で {key} を押す",
+      "scroll": "x={x}, y={y} までスクロール",
+      "expect": "期待される結果：{condition}",
+      "captureFailed": "操作の対象を記録できませんでした。この操作は手動で再現してください。",
+      "captureInterrupted": "ページの移動によって操作の記録が中断されました。この操作は手動で再現してください。"
+    },
+    "targets": {
+      "input": "{type} 入力欄",
+      "labelled": "{kind}「{label}」"
+    },
+    "conditions": {
+      "visible": "表示",
+      "hidden": "非表示",
+      "text": "テキスト",
+      "checked": "チェックあり",
+      "unchecked": "チェックなし",
+      "count": "要素数",
+      "urlPath": "URL パス"
+    }
+  },
+  "ko-KR": {
+    "kinds": {
+      "navigate": "이동",
+      "click": "클릭",
+      "input": "입력",
+      "key": "키",
+      "scroll": "스크롤",
+      "expect": "확인"
+    },
+    "steps": {
+      "open": "{url} 열기",
+      "navigate": "{url}(으)로 이동",
+      "navigateWithin": "페이지 안에서 {url}(으)로 이동",
+      "click": "{target} 클릭",
+      "input": "{target}에 입력(값은 기록되지 않음)",
+      "key": "{target}에서 {key} 누르기",
+      "scroll": "x={x}, y={y} 위치로 스크롤",
+      "expect": "예상 결과: {condition}",
+      "captureFailed": "작업 대상을 캡처할 수 없습니다. 이 작업을 직접 다시 만드세요.",
+      "captureInterrupted": "페이지 이동으로 작업 캡처가 중단되었습니다. 이 작업을 직접 다시 만드세요."
+    },
+    "targets": {
+      "input": "{type} 입력란",
+      "labelled": "{kind} ‘{label}’"
+    },
+    "conditions": {
+      "visible": "표시됨",
+      "hidden": "숨겨짐",
+      "text": "텍스트",
+      "checked": "선택됨",
+      "unchecked": "선택 해제됨",
+      "count": "개수",
+      "urlPath": "URL 경로"
+    }
+  },
+  "zh-CN": {
+    "kinds": {
+      "navigate": "导航",
+      "click": "点击",
+      "input": "输入",
+      "key": "按键",
+      "scroll": "滚动",
+      "expect": "预期"
+    },
+    "steps": {
+      "open": "打开 {url}",
+      "navigate": "导航到 {url}",
+      "navigateWithin": "在页面内导航到 {url}",
+      "click": "点击 {target}",
+      "input": "在 {target} 中输入（未记录值）",
+      "key": "在 {target} 上按 {key}",
+      "scroll": "滚动到 x={x}, y={y}",
+      "expect": "预期结果：{condition}",
+      "captureFailed": "无法捕获操作目标；请手动重新创建此操作。",
+      "captureInterrupted": "操作捕获被导航中断；请手动重新创建此操作。"
+    },
+    "targets": {
+      "input": "{type} 输入框",
+      "labelled": "{kind}“{label}”"
+    },
+    "conditions": {
+      "visible": "可见",
+      "hidden": "隐藏",
+      "text": "文本",
+      "checked": "已选中",
+      "unchecked": "未选中",
+      "count": "数量",
+      "urlPath": "网址路径"
+    }
+  },
+  "zh-TW": {
+    "kinds": {
+      "navigate": "導覽",
+      "click": "點擊",
+      "input": "輸入",
+      "key": "按鍵",
+      "scroll": "捲動",
+      "expect": "檢查點"
+    },
+    "steps": {
+      "open": "開啟 {url}",
+      "navigate": "前往 {url}",
+      "navigateWithin": "在頁面內前往 {url}",
+      "click": "點擊 {target}",
+      "input": "在 {target} 中輸入（未記錄輸入值）",
+      "key": "在 {target} 上按下 {key}",
+      "scroll": "捲動至 x={x}, y={y}",
+      "expect": "預期結果：{condition}",
+      "captureFailed": "無法擷取動作目標，請手動重新建立這個動作。",
+      "captureInterrupted": "動作擷取因導覽而中斷，請手動重新建立這個動作。"
+    },
+    "targets": {
+      "input": "{type} 輸入欄位",
+      "labelled": "{kind}「{label}」"
+    },
+    "conditions": {
+      "visible": "可見",
+      "hidden": "隱藏",
+      "text": "文字",
+      "checked": "已勾選",
+      "unchecked": "未勾選",
+      "count": "數量",
+      "urlPath": "URL 路徑"
+    }
+  },
 }

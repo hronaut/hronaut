@@ -1,4 +1,4 @@
-export const SUPPORTED_LOCALES = ['en-US', 'uk-UA', 'ru-RU', 'de-DE', 'fr-FR', 'es-ES', 'pl-PL'] as const
+export const SUPPORTED_LOCALES = ['en-US', 'uk-UA', 'ru-RU', 'de-DE', 'fr-FR', 'es-ES', 'pl-PL', 'it-IT', 'pt-BR', 'tr-TR', 'hi-IN', 'ja-JP', 'ko-KR', 'zh-CN', 'zh-TW'] as const
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]
 
 export const LOCALE_NATIVE_NAMES: Record<SupportedLocale, string> = {
@@ -8,7 +8,15 @@ export const LOCALE_NATIVE_NAMES: Record<SupportedLocale, string> = {
   'de-DE': 'Deutsch',
   'fr-FR': 'Français',
   'es-ES': 'Español',
-  'pl-PL': 'Polski'
+  'pl-PL': 'Polski',
+  'it-IT': 'Italiano',
+  'pt-BR': 'Português (Brasil)',
+  'tr-TR': 'Türkçe',
+  'hi-IN': 'हिन्दी',
+  'ja-JP': '日本語',
+  'ko-KR': '한국어',
+  'zh-CN': '简体中文',
+  'zh-TW': '繁體中文'
 }
 
 export const LANGUAGE_PREFERENCES = ['system', ...SUPPORTED_LOCALES] as const
@@ -31,6 +39,17 @@ export function resolveSupportedLocale(systemLocale: string): SupportedLocale {
   if (normalized === 'fr' || normalized.startsWith('fr-')) return 'fr-FR'
   if (normalized === 'es' || normalized.startsWith('es-')) return 'es-ES'
   if (normalized === 'pl' || normalized.startsWith('pl-')) return 'pl-PL'
+  if (normalized === 'it' || normalized.startsWith('it-')) return 'it-IT'
+  // Portuguese is Brazilian Portuguese, the only variant Hronaut has.
+  if (normalized === 'pt' || normalized.startsWith('pt-')) return 'pt-BR'
+  if (normalized === 'tr' || normalized.startsWith('tr-')) return 'tr-TR'
+  if (normalized === 'hi' || normalized.startsWith('hi-')) return 'hi-IN'
+  if (normalized === 'ja' || normalized.startsWith('ja-')) return 'ja-JP'
+  if (normalized === 'ko' || normalized.startsWith('ko-')) return 'ko-KR'
+  // Traditional Chinese for Taiwan, Hong Kong, Macau and any locale written in Hant; Simplified for the rest.
+  if (normalized === 'zh-tw' || normalized === 'zh-hk' || normalized === 'zh-mo' || normalized.startsWith('zh-hant')
+    || /^zh-[a-z]+-(tw|hk|mo)$/.test(normalized)) return 'zh-TW'
+  if (normalized === 'zh' || normalized.startsWith('zh-')) return 'zh-CN'
   return 'en-US'
 }
 

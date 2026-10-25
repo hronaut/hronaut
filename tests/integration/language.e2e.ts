@@ -81,19 +81,27 @@ test('keeps a committed language change authoritative when the Home refresh fail
   await expect(appWindow.getByRole('alert')).toHaveCount(0)
 })
 
-test('supports Russian and the additional European language choices', async ({ appWindow }, testInfo) => {
+test('supports Russian and the additional language choices', async ({ appWindow }, testInfo) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await appWindow.locator('.settings-nav-item').nth(0).click()
   await appWindow.setViewportSize({ width: 760, height: 640 })
   const selector = appWindow.locator('#setting-language')
-  await expect(selector.locator('option')).toHaveCount(8)
+  await expect(selector.locator('option')).toHaveCount(16)
 
   const additionalHeadings = {
     'ru-RU': 'Настройки',
     'de-DE': 'Einstellungen',
     'fr-FR': 'Paramètres',
     'es-ES': 'Configuración',
-    'pl-PL': 'Ustawienia'
+    'pl-PL': 'Ustawienia',
+    'it-IT': 'Impostazioni',
+    'pt-BR': 'Configurações',
+    'tr-TR': 'Ayarlar',
+    'hi-IN': 'सेटिंग',
+    'ja-JP': '設定',
+    'ko-KR': '설정',
+    'zh-CN': '设置',
+    'zh-TW': '設定'
   } as const
   for (const [locale, heading] of Object.entries(additionalHeadings)) {
     await selector.selectOption(locale)

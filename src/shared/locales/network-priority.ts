@@ -82,5 +82,101 @@ export const networkPriorityMessages = {
     "High": "Высокий",
     "VeryHigh": "Очень высокий",
     "note": "Наблюдения планирования Chromium, а не окончательный приоритет или доказательство порядка передачи, обработки сервером либо причины LCP."
-  }
+  },
+  "it-IT": {
+    "heading": "Priorità della richiesta",
+    "initial": "Iniziale",
+    "latest": "Ultima osservata",
+    "unavailable": "Non disponibile",
+    "VeryLow": "Molto bassa",
+    "Low": "Bassa",
+    "Medium": "Media",
+    "High": "Alta",
+    "VeryHigh": "Molto alta",
+    "note": "Osservazioni sulla pianificazione di Chromium, non una priorità definitiva né la prova dell’ordine di trasferimento, della gestione da parte del server o di una causa dell’LCP."
+  },
+  "pt-BR": {
+    "heading": "Prioridade da solicitação",
+    "initial": "Inicial",
+    "latest": "Última observada",
+    "unavailable": "Indisponível",
+    "VeryLow": "Muito baixa",
+    "Low": "Baixa",
+    "Medium": "Média",
+    "High": "Alta",
+    "VeryHigh": "Muito alta",
+    "note": "Observações de agendamento do Chromium, não uma prioridade final nem prova da ordem de transferência, do tratamento pelo servidor ou de uma causa do LCP."
+  },
+  "tr-TR": {
+    "heading": "İstek önceliği",
+    "initial": "İlk",
+    "latest": "Son gözlenen",
+    "unavailable": "Kullanılamıyor",
+    "VeryLow": "Çok düşük",
+    "Low": "Düşük",
+    "Medium": "Orta",
+    "High": "Yüksek",
+    "VeryHigh": "Çok yüksek",
+    "note": "Chromium zamanlama gözlemleridir; nihai öncelik ya da aktarım sırasının, sunucu işleyişinin veya bir LCP nedeninin kanıtı değildir."
+  },
+  "hi-IN": {
+    "heading": "अनुरोध की प्राथमिकता",
+    "initial": "शुरुआती",
+    "latest": "आखिरी बार देखी गई",
+    "unavailable": "उपलब्ध नहीं है",
+    "VeryLow": "बहुत कम",
+    "Low": "कम",
+    "Medium": "मीडियम",
+    "High": "ज़्यादा",
+    "VeryHigh": "बहुत ज़्यादा",
+    "note": "Chromium की शेड्यूलिंग से जुड़े ऑब्ज़र्वेशन। यह आखिरी प्राथमिकता नहीं है, न ही ट्रांसफ़र के क्रम, सर्वर की हैंडलिंग या LCP की वजह का सबूत है।"
+  },
+  "ja-JP": {
+    "heading": "リクエストの優先度",
+    "initial": "初期",
+    "latest": "最新の観測値",
+    "unavailable": "利用不可",
+    "VeryLow": "最低",
+    "Low": "低",
+    "Medium": "中",
+    "High": "高",
+    "VeryHigh": "最高",
+    "note": "Chromium のスケジューリングの観測値であり、最終的な優先度や、転送順序、サーバーの処理、LCP の原因を証明するものではありません。"
+  },
+  "ko-KR": {
+    "heading": "요청 우선순위",
+    "initial": "초기",
+    "latest": "최근 관찰",
+    "unavailable": "사용할 수 없음",
+    "VeryLow": "매우 낮음",
+    "Low": "낮음",
+    "Medium": "보통",
+    "High": "높음",
+    "VeryHigh": "매우 높음",
+    "note": "Chromium의 스케줄링 관찰 결과이며, 최종 우선순위나 전송 순서, 서버 처리, LCP 원인을 증명하지 않습니다."
+  },
+  "zh-CN": {
+    "heading": "请求优先级",
+    "initial": "初始",
+    "latest": "最近观察到的",
+    "unavailable": "不可用",
+    "VeryLow": "最低",
+    "Low": "低",
+    "Medium": "中",
+    "High": "高",
+    "VeryHigh": "最高",
+    "note": "这是 Chromium 的调度观察结果，并非最终优先级，也不能证明传输顺序、服务器处理方式或 LCP 的原因。"
+  },
+  "zh-TW": {
+    "heading": "要求優先順序",
+    "initial": "初始",
+    "latest": "最近觀察到",
+    "unavailable": "無法取得",
+    "VeryLow": "非常低",
+    "Low": "低",
+    "Medium": "中",
+    "High": "高",
+    "VeryHigh": "非常高",
+    "note": "這是 Chromium 排程的觀察結果，並非最終優先順序，也無法證明傳輸順序、伺服器處理方式或 LCP 成因。"
+  },
 }

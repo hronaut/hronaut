@@ -26,6 +26,12 @@ const projects: TypecheckProject[] = [
   }
 ]
 
+/**
+ * The heap each compiler gets. Node's own limit can be as low as 2 GB, which the node project's check outgrew with
+ * fifteen interface languages: it needs about 2.6 GB.
+ */
+const COMPILER_HEAP_MB = 4096
+
 export function typecheckJobCount(value: string | undefined): number {
   if (value === undefined || value === '') return 2
   const parsed = Number(value)
@@ -74,6 +80,7 @@ async function main(): Promise<void> {
       process.stdout.write(`[typecheck] Starting ${project.name}.\n`)
       const status = await new Promise<number>((done) => {
         const child = spawn(process.execPath, [
+          `--max-old-space-size=${COMPILER_HEAP_MB}`,
           project.executable,
           '--build',
           '--noEmit',
