@@ -37,6 +37,7 @@ function createHarness(history: BrowserHistoryEntry[] = []) {
     setup() {
       controller = useAddressBarController({
         activeTab: computed(() => activeTab.value),
+        tabs: ref([]),
         bookmarks: ref([]),
         history: ref(history),
         theme: () => 'dark',
@@ -46,6 +47,7 @@ function createHarness(history: BrowserHistoryEntry[] = []) {
         onOpen: vi.fn(),
         onNavigate,
         onOpenInNewTab,
+        onSwitchToTab: vi.fn(async () => true),
         onRemoveVisit: vi.fn(async () => undefined),
         onRemoveVisitFailed: vi.fn(),
         onFocusLeft: vi.fn()

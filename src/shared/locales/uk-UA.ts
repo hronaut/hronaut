@@ -384,7 +384,7 @@ export const ukUA = {
     cssStatePreview: { label: 'Примусово: {states}', reset: 'Припинити примусово вмикати {states} для {selector}', uncertain: 'Зняття {states} не підтверджено', retry: 'Повторити зняття {states} з {selector}' },
     virtualPasskey: { label: 'Віртуальний ключ доступу', stop: 'Зупинити віртуальний ключ доступу для {origin}' },
     logpoints: { label: 'Точки логування', stop: 'Зупинити точки логування агента на {origin}' },
-    suggestion: { bookmark: 'Закладка', history: 'Історія', visits: 'Історія · {count} відвідування | Історія · {count} відвідування | Історія · {count} відвідувань' },
+    suggestion: { bookmark: 'Закладка', history: 'Історія', visits: 'Історія · {count} відвідування | Історія · {count} відвідування | Історія · {count} відвідувань', openTab: 'Відкрита вкладка', switchToTab: 'Перейти на цю вкладку', switchHint: 'Натисніть Tab, потім Enter, щоб перейти на цю вкладку.' },
     network: { notObserved: 'Не спостерігалося', complete: 'Завершено', pending: 'Очікує', done: 'Готово', removed: 'Цього запиту більше немає в обмеженому журналі мережі. Оновіть дані й повторіть пошук.' },
     toast: { pageSnapshotFailed: 'Помилка знімка сторінки', pageSnapshotDescription: 'Не вдалося скопіювати поточний знімок сторінки.', elementScreenshotCopied: 'Знімок елемента скопійовано', elementCopied: 'Елемент скопійовано', elementScreenshotFailed: 'Помилка знімка елемента', elementFailed: 'Помилка вибору елемента', elementScreenshotDescription: 'Не вдалося зробити або скопіювати знімок вибраного елемента.', elementDescription: 'Не вдалося скопіювати контекст вибраного елемента.', areaCopied: 'Знімок області скопійовано', fullCopied: 'Знімок усієї сторінки скопійовано', viewportCopied: 'Знімок видимої області скопійовано', settingNotSaved: 'Налаштування не збережено', settingKept: 'Hronaut зберіг попереднє налаштування.', passwordFilled: 'Пароль заповнено', passwordFilledDescription: '{username} заповнено. Агенти лишаються призупиненими.', passwordFillFailed: 'Не вдалося заповнити пароль', passwordFillDescription: 'Збережений пароль не вдалося заповнити.', passwordRemoved: 'Пароль видалено', passwordRemovedDescription: 'Збережений обліковий запис видалено з цього пристрою.', passwordRemoveFailed: 'Не вдалося видалити пароль', passwordRemoveDescription: 'Збережений обліковий запис не вдалося видалити.', startupIncomplete: 'Запуск завершено не повністю', startupIncompleteDescription: 'Деякі служби Hronaut не завершили запуск. Доступними функціями можна продовжувати користуватися.', startupRecovered: 'Запуск відновлено', startupRecoveredDescription: 'Усі служби Hronaut знову доступні.', actionFailed: 'Запитану дію браузера не вдалося виконати.' },
     downloadSettings: { openingPicker: 'Відкриття вибору папки…', folderSelected: 'Нові завантаження з вебсайтів використовуватимуть цю папку.', saving: 'Збереження параметрів завантаження…', ask: 'Hronaut запитуватиме, куди зберігати кожне нове завантаження з вебсайту.', automatic: 'Нові завантаження з вебсайтів зберігатимуться автоматично.', openingFolder: 'Відкриття папки завантажень…', restoring: 'Відновлення типових параметрів завантаження…', restored: 'Завантаження використовуватимуть типову папку й зберігатимуться автоматично.' },
@@ -651,7 +651,9 @@ export const ukUA = {
     bookmark: 'Закладка',
     history: 'Історія',
     historyVisits: 'Історія · {count} відвідування | Історія · {count} відвідування | Історія · {count} відвідувань',
-    localOnly: 'Лише локально'
+    localOnly: 'Лише локально',
+    openTab: 'Відкрита вкладка',
+    switchToTab: 'Перейти на цю вкладку'
   },
   panelDocks: { responsive: 'Розташування адаптивного перегляду', network: 'Розташування монітора мережі', issues: 'Розташування проблем браузера' },
   accessibility: { recentlyClosedTabs: 'Нещодавно закриті вкладки' },

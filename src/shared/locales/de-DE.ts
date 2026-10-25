@@ -1086,7 +1086,10 @@ export const deDE = {
     "suggestion": {
       "bookmark": "Lesezeichen",
       "history": "Verlauf",
-      "visits": "Verlauf · {count} Besuch | Verlauf · {count} Besuche"
+      "visits": "Verlauf · {count} Besuch | Verlauf · {count} Besuche",
+      "openTab": "Geöffneter Tab",
+      "switchToTab": "Zu diesem Tab wechseln",
+      "switchHint": "Mit Tab und dann Eingabe zu diesem Tab wechseln."
     },
     "network": {
       "notObserved": "Nicht beobachtet",
@@ -3324,7 +3327,9 @@ export const deDE = {
     "bookmark": "Lesezeichen",
     "history": "Verlauf",
     "historyVisits": "Verlauf · {count} Besuch | Verlauf · {count} Besuche",
-    "localOnly": "Nur lokal"
+    "localOnly": "Nur lokal",
+    "openTab": "Geöffneter Tab",
+    "switchToTab": "Zu diesem Tab wechseln"
   },
   "panelDocks": {
     "responsive": "Responsive Vorschau andocken",

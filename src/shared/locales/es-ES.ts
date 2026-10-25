@@ -1086,7 +1086,10 @@ export const esES = {
     "suggestion": {
       "bookmark": "Marcador",
       "history": "Historial",
-      "visits": "Historial · {count} visita | Historial · {count} visitas"
+      "visits": "Historial · {count} visita | Historial · {count} visitas",
+      "openTab": "Pestaña abierta",
+      "switchToTab": "Cambiar a esta pestaña",
+      "switchHint": "Pulsa Tab y luego Intro para cambiar a esta pestaña."
     },
     "network": {
       "notObserved": "No observado",
@@ -3324,7 +3327,9 @@ export const esES = {
     "bookmark": "Marcador",
     "history": "Historial",
     "historyVisits": "Historial · {count} visita | Historial · {count} visitas",
-    "localOnly": "Solo local"
+    "localOnly": "Solo local",
+    "openTab": "Pestaña abierta",
+    "switchToTab": "Cambiar a esta pestaña"
   },
   "panelDocks": {
     "responsive": "Acoplar vista previa adaptativa",

@@ -74,12 +74,17 @@ button { @apply [font:inherit]; }
 .address-suggestion-icon { @apply grid; @apply [width:34px]; @apply [height:34px]; @apply place-items-center; @apply [border-radius:var(--corner-2)]; @apply text-accent-copy; @apply bg-surface-muted; @apply [font-size:var(--type-heading-size)]; }
 .address-suggestion-icon.kind-bookmark { @apply [color:#d49a16]; }
 .address-suggestion-icon.kind-history { @apply text-muted; }
+.address-suggestion-icon.kind-tab { @apply text-accent-copy; }
 .address-suggestion-copy { @apply min-w-0; }
 .address-suggestion-copy strong,
 .address-suggestion-copy span { @apply block; @apply overflow-hidden; @apply text-ellipsis; @apply whitespace-nowrap; }
 .address-suggestion-copy strong { @apply [font-size:var(--type-body-size)]; @apply [line-height:1.35]; }
 .address-suggestion-copy span { @apply [margin-top:3px]; @apply text-muted; @apply [font-size:var(--type-small-size)]; }
 .address-suggestion small { @apply text-accent-copy; @apply [font-size:var(--type-small-size)]; @apply [font-weight:var(--weight-strong)]; @apply whitespace-nowrap; }
+.address-suggestion.has-switch { @apply [grid-template-columns:34px_minmax(0,_1fr)_auto_auto]; }
+.address-suggestion-switch { @apply [padding:5px_10px]; @apply [border:1px_solid_var(--border-soft)]; @apply [border-radius:var(--corner-pill)]; @apply text-copy; @apply bg-surface-muted; @apply [font-size:var(--type-small-size)]; @apply [font-weight:var(--weight-strong)]; @apply whitespace-nowrap; }
+.address-suggestion-switch:hover { @apply [border-color:var(--accent-text)]; }
+.address-suggestion-switch.focused { @apply [outline:2px_solid_var(--accent-text)]; @apply [outline-offset:1px]; @apply [border-color:var(--accent-text)]; }
 .address-suggestions footer { @apply sticky; @apply [bottom:0]; @apply flex; @apply [min-height:39px]; @apply flex-none; @apply items-center; @apply justify-between; @apply [gap:12px]; @apply [margin-top:4px]; @apply [padding:6px_12px]; @apply [border-top:1px_solid_var(--border-soft)]; @apply text-muted; @apply bg-surface; @apply [font-size:var(--type-small-size)]; }
 .address-suggestions footer span { @apply flex; @apply items-center; @apply [gap:5px]; }
 .address-suggestions footer kbd { @apply [padding:3px_5px]; @apply [border:1px_solid_var(--border-soft)]; @apply [border-radius:5px]; @apply text-copy; @apply bg-surface-muted; @apply [font:var(--weight-strong)_var(--type-micro-size)/1_var(--font-code)]; }

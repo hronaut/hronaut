@@ -1086,7 +1086,10 @@ export const frFR = {
     "suggestion": {
       "bookmark": "Favori",
       "history": "Historique",
-      "visits": "Historique · {count} visite | Historique · {count} visites"
+      "visits": "Historique · {count} visite | Historique · {count} visites",
+      "openTab": "Onglet ouvert",
+      "switchToTab": "Passer à cet onglet",
+      "switchHint": "Appuyez sur Tab, puis sur Entrée, pour passer à cet onglet."
     },
     "network": {
       "notObserved": "Non observé",
@@ -3324,7 +3327,9 @@ export const frFR = {
     "bookmark": "Favori",
     "history": "Historique",
     "historyVisits": "Historique · {count} visite | Historique · {count} visites",
-    "localOnly": "Local uniquement"
+    "localOnly": "Local uniquement",
+    "openTab": "Onglet ouvert",
+    "switchToTab": "Passer à cet onglet"
   },
   "panelDocks": {
     "responsive": "Ancrer l’aperçu adaptatif",

@@ -313,7 +313,7 @@ export const enUS = {
     cssStatePreview: { label: 'Forced {states}', reset: 'Stop forcing {states} on {selector}', uncertain: 'Forced {states} not confirmed removed', retry: 'Try again to remove forced {states} from {selector}' },
     virtualPasskey: { label: 'Virtual passkey', stop: 'Stop the virtual passkey for {origin}' },
     logpoints: { label: 'Logpoints', stop: 'Stop the agent\'s logpoints on {origin}' },
-    suggestion: { bookmark: 'Bookmark', history: 'History', visits: 'History · {count} visit | History · {count} visits' },
+    suggestion: { bookmark: 'Bookmark', history: 'History', visits: 'History · {count} visit | History · {count} visits', openTab: 'Open tab', switchToTab: 'Switch to this tab', switchHint: 'Press Tab, then Enter, to switch to this tab.' },
     network: { notObserved: 'Not observed', complete: 'Complete', pending: 'Pending', done: 'Done', removed: 'That request is no longer in the bounded Network log. Refresh and search again.' },
     toast: { pageSnapshotFailed: 'Page snapshot failed', pageSnapshotDescription: 'Could not copy the current page snapshot.', elementScreenshotCopied: 'Element screenshot copied', elementCopied: 'Element copied', elementScreenshotFailed: 'Element screenshot failed', elementFailed: 'Element selection failed', elementScreenshotDescription: 'Could not capture or copy the selected element.', elementDescription: 'Could not copy the selected element context.', areaCopied: 'Area screenshot copied', fullCopied: 'Full-page screenshot copied', viewportCopied: 'Viewport screenshot copied', settingNotSaved: 'Setting not saved', settingKept: 'Hronaut kept your previous setting.', passwordFilled: 'Password filled', passwordFilledDescription: '{username} was filled. Agents remain paused.', passwordFillFailed: 'Password fill failed', passwordFillDescription: 'The saved password could not be filled.', passwordRemoved: 'Password removed', passwordRemovedDescription: 'The saved account was removed from this device.', passwordRemoveFailed: 'Remove password failed', passwordRemoveDescription: 'The saved account could not be removed.', startupIncomplete: 'Startup incomplete', startupIncompleteDescription: 'Some Hronaut services did not finish starting. You can keep using available features.', startupRecovered: 'Startup recovered', startupRecoveredDescription: 'All Hronaut services are available again.', actionFailed: 'The requested browser action could not be completed.' },
     downloadSettings: { openingPicker: 'Opening the folder picker…', folderSelected: 'New website downloads will use this folder.', saving: 'Saving download preferences…', ask: 'Hronaut will ask where to save each new website download.', automatic: 'New website downloads will save automatically.', openingFolder: 'Opening the download folder…', restoring: 'Restoring download defaults…', restored: 'Downloads will use the default folder and save automatically.' },
@@ -578,7 +578,9 @@ export const enUS = {
     bookmark: 'Bookmark',
     history: 'History',
     historyVisits: 'History · {count} visit | History · {count} visits',
-    localOnly: 'Local only'
+    localOnly: 'Local only',
+    openTab: 'Open tab',
+    switchToTab: 'Switch to this tab'
   },
   panelDocks: { responsive: 'Dock responsive preview', network: 'Dock network monitor', issues: 'Dock browser issues' },
   accessibility: { recentlyClosedTabs: 'Recently closed tabs' },
