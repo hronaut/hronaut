@@ -413,7 +413,7 @@ export const zhTW: MessageSchema = {
       "askDescription": "每次有新的網站下載時，都顯示作業系統的儲存對話方塊。",
       "help": "變更會套用到新的網站下載。進行中的傳輸會保留原本的目的地。PDF 匯出和代理程式建立的檔案會直接使用所選的資料夾，不會詢問儲存位置。"
     },
-    "graphics": { "heading": "圖形", "use": "可用時使用圖形加速功能", "useDescription": "網頁和 Hronaut 會使用你的顯示卡繪製。如果視窗的某些部分一直是黑色或空白，或是閃爍，請關閉這項功能。", "restart": "重新啟動 Hronaut 即可套用這項變更。" },
+    "graphics": { "heading": "圖形", "use": "可用時使用圖形加速功能", "useDescription": "開啟後，網頁和 Hronaut 會使用你的顯示卡繪製。如果視窗的某些部分一直是黑色或空白，或是閃爍，請關閉這項設定。", "restart": "重新啟動 Hronaut 即可套用這項變更。" },
     "memory": {
       "heading": "記憶體節省模式",
       "description": "卸載閒置的網站分頁，讓進行中的真人和代理程式工作取得更多 CPU 和記憶體。",

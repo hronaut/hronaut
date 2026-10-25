@@ -413,7 +413,7 @@ export const plPL: MessageSchema = {
       "askDescription": "Pokazuj systemowe okno zapisu dla każdego nowego pobierania.",
       "help": "Zmiany dotyczą nowych pobrań. Aktywne transfery zachowują cel. Pliki PDF i pliki agenta używają wybranego folderu bez okna dialogowego."
     },
-    "graphics": { "heading": "Grafika", "use": "Używaj akceleracji grafiki, gdy jest dostępna", "useDescription": "Strony i Hronaut są rysowane przez kartę graficzną. Wyłącz ją, jeśli części okna pozostają czarne lub puste albo migoczą.", "restart": "Uruchom ponownie Hronaut, aby zastosować tę zmianę." },
+    "graphics": { "heading": "Grafika", "use": "Używaj akceleracji grafiki, gdy jest dostępna", "useDescription": "Gdy ta opcja jest włączona, strony i Hronaut są rysowane przez kartę graficzną. Wyłącz to ustawienie, jeśli części okna pozostają czarne lub puste albo migoczą.", "restart": "Uruchom ponownie Hronaut, aby zastosować tę zmianę." },
     "memory": {
       "heading": "Oszczędzanie pamięci",
       "description": "Zwalniaj nieaktywne karty, aby aktywna praca miała więcej procesora i pamięci.",

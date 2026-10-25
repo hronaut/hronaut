@@ -71,56 +71,59 @@ async function changeTimeout(event: Event): Promise<void> {
 </script>
 
 <template>
-  <div class="settings-content performance-settings" :aria-busy="busy">
-    <div class="setting-copy">
-      <h3>{{ t('settings.memory.heading') }}</h3>
-      <p>{{ t('settings.memory.description') }}</p>
-    </div>
-    <div class="memory-saver-summary" aria-live="polite">
-      <span class="settings-nav-icon" aria-hidden="true"><IconBedtime /></span>
-      <span><strong>{{ sleepingTabsCount }} {{ t('settings.memory.sleeping', sleepingTabsCount) }}</strong><small>{{ t('settings.memory.ofWebsiteTabs', { count: regularTabsCount }, regularTabsCount) }}</small></span>
-    </div>
-    <div class="settings-rows">
-      <label class="settings-row" for="setting-memory-saver">
-        <span>
-          <strong>{{ t('settings.memory.auto') }}</strong>
-          <small>{{ t('settings.memory.autoDescription') }}</small>
-        </span>
-        <UiCheckbox
-          bare
-          appearance="switch"
-          id="setting-memory-saver"
-          :checked="settings.memorySaverEnabled"
-          :disabled="busy"
-          @change="changeEnabled"
-        />
-      </label>
-      <label class="settings-row" for="setting-memory-saver-timeout">
-        <span>
-          <strong>{{ t('settings.memory.sleepAfter') }}</strong>
-          <small>{{ t('settings.memory.counted') }}</small>
-        </span>
-        <select
-          id="setting-memory-saver-timeout"
-          :value="settings.memorySaverTimeoutMinutes"
-          :disabled="busy || !settings.memorySaverEnabled"
-          @change="changeTimeout"
-        >
-          <option v-for="timeout in MEMORY_SAVER_TIMEOUT_MINUTES" :key="timeout" :value="timeout">
-            {{ timeoutLabel(timeout) }}
-          </option>
-        </select>
-      </label>
-    </div>
-    <div class="memory-saver-actions">
-      <UiButton class="secondary-button" type="button" :disabled="busy || !settings.memorySaverEnabled || sleepingTabsCount >= regularTabsCount" @click="keepFocusThrough($event, sleepNow)">
-        <IconBedtime aria-hidden="true" /> {{ t('settings.memory.sleepNow') }}
-      </UiButton>
-    </div>
-    <output v-if="errorMessage" class="site-controls-error" role="alert">{{ errorMessage }}</output>
-    <div class="settings-info">
-      <span class="info-dot" aria-hidden="true"><IconInfo /></span>
-      <p>{{ t('settings.memory.help') }}</p>
+  <div class="settings-content performance-settings">
+    <!-- Only Memory Saver waits for its changes; graphics acceleration stays usable meanwhile. -->
+    <div class="memory-saver-settings" :aria-busy="busy">
+      <div class="setting-copy">
+        <h3>{{ t('settings.memory.heading') }}</h3>
+        <p>{{ t('settings.memory.description') }}</p>
+      </div>
+      <div class="memory-saver-summary" aria-live="polite">
+        <span class="settings-nav-icon" aria-hidden="true"><IconBedtime /></span>
+        <span><strong>{{ sleepingTabsCount }} {{ t('settings.memory.sleeping', sleepingTabsCount) }}</strong><small>{{ t('settings.memory.ofWebsiteTabs', { count: regularTabsCount }, regularTabsCount) }}</small></span>
+      </div>
+      <div class="settings-rows">
+        <label class="settings-row" for="setting-memory-saver">
+          <span>
+            <strong>{{ t('settings.memory.auto') }}</strong>
+            <small>{{ t('settings.memory.autoDescription') }}</small>
+          </span>
+          <UiCheckbox
+            bare
+            appearance="switch"
+            id="setting-memory-saver"
+            :checked="settings.memorySaverEnabled"
+            :disabled="busy"
+            @change="changeEnabled"
+          />
+        </label>
+        <label class="settings-row" for="setting-memory-saver-timeout">
+          <span>
+            <strong>{{ t('settings.memory.sleepAfter') }}</strong>
+            <small>{{ t('settings.memory.counted') }}</small>
+          </span>
+          <select
+            id="setting-memory-saver-timeout"
+            :value="settings.memorySaverTimeoutMinutes"
+            :disabled="busy || !settings.memorySaverEnabled"
+            @change="changeTimeout"
+          >
+            <option v-for="timeout in MEMORY_SAVER_TIMEOUT_MINUTES" :key="timeout" :value="timeout">
+              {{ timeoutLabel(timeout) }}
+            </option>
+          </select>
+        </label>
+      </div>
+      <div class="memory-saver-actions">
+        <UiButton class="secondary-button" type="button" :disabled="busy || !settings.memorySaverEnabled || sleepingTabsCount >= regularTabsCount" @click="keepFocusThrough($event, sleepNow)">
+          <IconBedtime aria-hidden="true" /> {{ t('settings.memory.sleepNow') }}
+        </UiButton>
+      </div>
+      <output v-if="errorMessage" class="site-controls-error" role="alert">{{ errorMessage }}</output>
+      <div class="settings-info">
+        <span class="info-dot" aria-hidden="true"><IconInfo /></span>
+        <p>{{ t('settings.memory.help') }}</p>
+      </div>
     </div>
     <GraphicsAccelerationSettings @setting-error="emit('settingError', $event)" />
   </div>

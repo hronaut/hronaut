@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
-- **Use graphics acceleration when available**, as in Chrome: **Settings → Performance → Graphics** turns off drawing with the graphics card, for a computer whose driver leaves windows black, blank or flickering, and turns it on again. Hronaut reads the choice at startup, so Settings asks for a restart until one applies it; resetting Performance turns it back on.
+- **Use graphics acceleration when available**, as in Chrome: **Settings → Performance → Graphics** turns off drawing with the graphics card, for a computer whose driver leaves windows black, blank or flickering, and turns it on again. Hronaut reads the choice at startup, so Settings asks for a restart until one applies it; resetting Performance turns it back on. A window too black to reach Settings has Chromium's way back, `hronaut --disable-gpu`, which Settings counts as a run without it.
 
 ## [3.12.0] - 2026-10-25
 

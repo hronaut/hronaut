@@ -20,15 +20,16 @@ const ids = useId()
 const headingId = `graphics-acceleration-heading-${ids}`
 const switchId = `graphics-acceleration-switch-${ids}`
 
-// What this run uses, from main; unknown until it answers, when no restart is asked for.
+// What this run uses, from main. While it is unknown, or if main cannot say, no restart is asked for: nothing was saved
+// then, so Settings shows no error for it either.
 const inUse = ref<boolean>()
 const restartRequired = computed(() => inUse.value !== undefined && inUse.value !== settings.value.graphicsAcceleration)
 
 onMounted(async () => {
   try {
     inUse.value = await window.hronautSettings.graphicsAccelerationInUse()
-  } catch (error) {
-    emit('settingError', error)
+  } catch {
+    inUse.value = undefined
   }
 })
 
@@ -45,15 +46,16 @@ async function changeEnabled(event: Event): Promise<void> {
 
 <template>
   <section class="graphics-acceleration-settings" :aria-labelledby="headingId">
-    <h4 :id="headingId" class="settings-group-heading">{{ t('settings.graphics.heading') }}</h4>
+    <h3 :id="headingId" class="settings-group-heading">{{ t('settings.graphics.heading') }}</h3>
     <div class="settings-rows grouped">
       <label class="settings-row" :for="switchId">
         <span>
           <strong>{{ t('settings.graphics.use') }}</strong>
           <small>{{ t('settings.graphics.useDescription') }}</small>
-          <small v-if="restartRequired" class="setting-restart-required" role="status">
-            {{ t('settings.graphics.restart') }}
-          </small>
+          <!-- The live region stays, so screen readers announce the notice when a change brings it. -->
+          <span role="status">
+            <small v-if="restartRequired" class="setting-restart-required">{{ t('settings.graphics.restart') }}</small>
+          </span>
         </span>
         <UiCheckbox
           :id="switchId"

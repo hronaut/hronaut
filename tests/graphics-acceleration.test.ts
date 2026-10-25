@@ -76,8 +76,19 @@ describe('graphics acceleration at startup', () => {
   })
 
   it('turns it off for this run only when the saved setting says so', async () => {
-    const app = { disableHardwareAcceleration: vi.fn() }
+    const app = { disableHardwareAcceleration: vi.fn(), commandLine: { hasSwitch: vi.fn(() => false) } }
     expect(applySavedGraphicsAcceleration(app, settingsPath)).toBe(true)
+    expect(app.disableHardwareAcceleration).not.toHaveBeenCalled()
+    await writeFile(settingsPath, JSON.stringify({ graphicsAcceleration: false }), 'utf8')
+    expect(applySavedGraphicsAcceleration(app, settingsPath)).toBe(false)
+    expect(app.disableHardwareAcceleration).toHaveBeenCalledOnce()
+  })
+
+  // A window too black to reach Settings has Chromium's own way back, starting once with --disable-gpu; that run
+  // draws without the graphics card although the setting is on, so Settings must not count it as one with it.
+  it('counts a run started with --disable-gpu as one without it', async () => {
+    const app = { disableHardwareAcceleration: vi.fn(), commandLine: { hasSwitch: vi.fn((name: string) => name === 'disable-gpu') } }
+    expect(applySavedGraphicsAcceleration(app, settingsPath)).toBe(false)
     expect(app.disableHardwareAcceleration).not.toHaveBeenCalled()
     await writeFile(settingsPath, JSON.stringify({ graphicsAcceleration: false }), 'utf8')
     expect(applySavedGraphicsAcceleration(app, settingsPath)).toBe(false)

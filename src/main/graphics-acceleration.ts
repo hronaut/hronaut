@@ -17,15 +17,16 @@ export function readSavedGraphicsAcceleration(settingsPath: string): boolean {
 
 /**
  * Turns graphics acceleration off for this run when the saved setting says so, as Chrome does at its start. Returns
- * whether this run uses it; a change made later applies at the next start.
+ * whether this run uses it, which Chromium's own --disable-gpu, the way back for a window too black to reach Settings,
+ * also turns off; a change made later applies at the next start.
  */
 export function applySavedGraphicsAcceleration(
-  app: Pick<App, 'disableHardwareAcceleration'>,
+  app: Pick<App, 'disableHardwareAcceleration'> & { commandLine: Pick<App['commandLine'], 'hasSwitch'> },
   settingsPath: string
 ): boolean {
-  const inUse = readSavedGraphicsAcceleration(settingsPath)
-  if (!inUse) app.disableHardwareAcceleration()
-  return inUse
+  const saved = readSavedGraphicsAcceleration(settingsPath)
+  if (!saved) app.disableHardwareAcceleration()
+  return saved && !app.commandLine.hasSwitch('disable-gpu')
 }
 
 interface GraphicsAccelerationIpcHost {

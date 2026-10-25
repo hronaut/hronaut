@@ -30,7 +30,7 @@ test('turns graphics acceleration off and on again from the next start', async (
     expect(await inUse(instance.window)).toBe(true)
     let settings = await openGraphicsSettings(instance.window)
     await expect(settings.use).toBeChecked()
-    await expect(settings.restart).toHaveCount(0)
+    await expect(settings.restart).toHaveText('')
     await settings.use.click()
     await expect(settings.use).not.toBeChecked()
     await expect(settings.restart).toHaveText('Restart Hronaut to apply this change.')
@@ -44,7 +44,7 @@ test('turns graphics acceleration off and on again from the next start', async (
     expect(await accelerated(instance.app)).toBe(false)
     settings = await openGraphicsSettings(instance.window)
     await expect(settings.use).not.toBeChecked()
-    await expect(settings.restart).toHaveCount(0)
+    await expect(settings.restart).toHaveText('')
     await settings.use.click()
     await expect(settings.restart).toHaveText('Restart Hronaut to apply this change.')
     await expect.poll(saved).toBe(true)
@@ -53,7 +53,7 @@ test('turns graphics acceleration off and on again from the next start', async (
     instance = undefined
     instance = await launchHronaut(profileDirectory, mcpPort)
     expect(await inUse(instance.window)).toBe(true)
-    await expect((await openGraphicsSettings(instance.window)).restart).toHaveCount(0)
+    await expect((await openGraphicsSettings(instance.window)).restart).toHaveText('')
   } finally {
     if (instance) await closeHronaut(instance.app)
   }

@@ -413,7 +413,7 @@ export const zhCN: MessageSchema = {
       "askDescription": "每次从网站下载新文件时都显示操作系统的保存对话框。",
       "help": "更改将应用于新的网站下载。正在进行的传输仍使用原来的目标位置。PDF 导出和智能体创建的文件会直接使用所选文件夹，不会询问保存位置。"
     },
-    "graphics": { "heading": "图形", "use": "使用图形加速功能（如果可用）", "useDescription": "网页和 Hronaut 使用您的显卡绘制。如果窗口的某些部分一直是黑色或空白，或者闪烁，请关闭此功能。", "restart": "重启 Hronaut 后即可应用此更改。" },
+    "graphics": { "heading": "图形", "use": "使用图形加速功能（如果可用）", "useDescription": "开启后，网页和 Hronaut 使用您的显卡绘制。如果窗口的某些部分一直是黑色或空白，或者闪烁，请关闭此设置。", "restart": "重启 Hronaut 后即可应用此更改。" },
     "memory": {
       "heading": "节省内存",
       "description": "卸载不活跃的网站标签页，让用户和智能体正在进行的工作获得更多 CPU 和内存。",
