@@ -413,6 +413,7 @@ export const deDE: MessageSchema = {
       "askDescription": "Für jeden neuen Website-Download den Speicherdialog des Betriebssystems anzeigen.",
       "help": "Änderungen gelten für neue Website-Downloads. Aktive Übertragungen behalten ihr Ziel. PDF-Exporte und Agentendateien verwenden den gewählten Ordner ohne Dialog."
     },
+    "restartNow": "Neu starten",
     "graphics": { "heading": "Grafik", "use": "Grafikbeschleunigung verwenden, falls verfügbar", "useDescription": "Wenn aktiviert, werden Seiten und Hronaut mit Ihrer Grafikkarte gezeichnet. Deaktivieren Sie diese Einstellung, wenn Teile eines Fensters schwarz oder leer bleiben oder flackern.", "restart": "Starten Sie Hronaut neu, um diese Änderung anzuwenden." },
     "memory": {
       "heading": "Arbeitsspeicher sparen",
@@ -3784,7 +3785,7 @@ export const deDE: MessageSchema = {
       "quitDownloadDetail": "Wenn Sie jetzt beenden, wird er abgebrochen und die unvollständige Datei gelöscht.",
       "quitDownloadsDetail": "Wenn Sie jetzt beenden, werden sie abgebrochen und die unvollständigen Dateien gelöscht.",
       "quitDownloadsQuit": "Beenden",
-      "quitDownloadsKeep": "Weiter herunterladen",
+      "quitDownloadsKeep": "Weiter herunterladen", "restartDownloadsTitle": "Hronaut neu starten?", "restartDownloadDetail": "Wenn Sie jetzt neu starten, wird er abgebrochen und die unvollständige Datei gelöscht.", "restartDownloadsDetail": "Wenn Sie jetzt neu starten, werden sie abgebrochen und die unvollständigen Dateien gelöscht.", "restartDownloadsRestart": "Neu starten",
       "closeTabTitle": "Diesen Tab schließen?",
       "closeTabMessage": "Diese Seite bittet Hronaut, das Schließen zu bestätigen.",
       "closeTabDetail": "Beim Schließen des Tabs können nicht gespeicherte Änderungen verloren gehen.",

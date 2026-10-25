@@ -413,6 +413,7 @@ export const koKR: MessageSchema = {
       "askDescription": "웹사이트에서 새로 다운로드할 때마다 운영체제의 저장 대화상자를 표시합니다.",
       "help": "변경 사항은 새 웹사이트 다운로드에 적용됩니다. 진행 중인 전송은 원래 대상을 유지합니다. PDF 내보내기와 에이전트가 만든 파일은 저장 위치를 묻지 않고 선택한 폴더를 사용합니다."
     },
+    "restartNow": "다시 시작",
     "graphics": { "heading": "그래픽", "use": "가능한 경우 그래픽 가속 사용", "useDescription": "사용 설정하면 페이지와 Hronaut를 그래픽 카드로 표시합니다. 창의 일부가 검은색이나 빈 화면으로 남거나 깜박이면 이 설정을 사용 중지하세요.", "restart": "변경사항을 적용하려면 Hronaut를 다시 시작하세요." },
     "memory": {
       "heading": "메모리 절약 모드",
@@ -3784,7 +3785,7 @@ export const koKR: MessageSchema = {
       "quitDownloadDetail": "지금 종료하면 다운로드가 취소되고 완료되지 않은 파일이 삭제됩니다.",
       "quitDownloadsDetail": "지금 종료하면 다운로드가 취소되고 완료되지 않은 파일이 삭제됩니다.",
       "quitDownloadsQuit": "종료",
-      "quitDownloadsKeep": "다운로드 계속",
+      "quitDownloadsKeep": "다운로드 계속", "restartDownloadsTitle": "Hronaut을 다시 시작하시겠습니까?", "restartDownloadDetail": "지금 다시 시작하면 다운로드가 취소되고 완료되지 않은 파일이 삭제됩니다.", "restartDownloadsDetail": "지금 다시 시작하면 다운로드가 취소되고 완료되지 않은 파일이 삭제됩니다.", "restartDownloadsRestart": "다시 시작",
       "closeTabTitle": "이 탭을 닫으시겠습니까?",
       "closeTabMessage": "이 페이지에서 닫기 전에 확인하도록 Hronaut에 요청했습니다.",
       "closeTabDetail": "탭을 닫으면 저장하지 않은 변경 사항이 삭제될 수 있습니다.",

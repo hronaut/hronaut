@@ -413,6 +413,7 @@ export const zhCN: MessageSchema = {
       "askDescription": "每次从网站下载新文件时都显示操作系统的保存对话框。",
       "help": "更改将应用于新的网站下载。正在进行的传输仍使用原来的目标位置。PDF 导出和智能体创建的文件会直接使用所选文件夹，不会询问保存位置。"
     },
+    "restartNow": "重启",
     "graphics": { "heading": "图形", "use": "使用图形加速功能（如果可用）", "useDescription": "开启后，网页和 Hronaut 使用您的显卡绘制。如果窗口的某些部分一直是黑色或空白，或者闪烁，请关闭此设置。", "restart": "重启 Hronaut 后即可应用此更改。" },
     "memory": {
       "heading": "节省内存",
@@ -3784,7 +3785,7 @@ export const zhCN: MessageSchema = {
       "quitDownloadDetail": "现在退出将取消该下载并删除未完成的文件。",
       "quitDownloadsDetail": "现在退出将取消这些下载并删除未完成的文件。",
       "quitDownloadsQuit": "退出",
-      "quitDownloadsKeep": "继续下载",
+      "quitDownloadsKeep": "继续下载", "restartDownloadsTitle": "要重启 Hronaut 吗？", "restartDownloadDetail": "现在重启将取消该下载并删除未完成的文件。", "restartDownloadsDetail": "现在重启将取消这些下载并删除未完成的文件。", "restartDownloadsRestart": "重启",
       "closeTabTitle": "要关闭此标签页吗？",
       "closeTabMessage": "此页面要求 Hronaut 在关闭前进行确认。",
       "closeTabDetail": "关闭标签页可能会丢失尚未保存的更改。",

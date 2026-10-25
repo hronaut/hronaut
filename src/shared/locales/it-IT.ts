@@ -413,6 +413,7 @@ export const itIT: MessageSchema = {
       "askDescription": "Mostra la finestra di salvataggio del sistema operativo per ogni nuovo download da un sito web.",
       "help": "Le modifiche si applicano ai nuovi download dai siti web. I trasferimenti in corso mantengono la destinazione originale. Le esportazioni PDF e i file creati dagli agenti usano la cartella selezionata senza chiedere dove salvare."
     },
+    "restartNow": "Riavvia",
     "graphics": { "heading": "Grafica", "use": "Usa l’accelerazione grafica quando disponibile", "useDescription": "Se attiva, le pagine e Hronaut vengono disegnate con la scheda grafica. Disattiva questa impostazione se parti di una finestra restano nere o vuote, o sfarfallano.", "restart": "Riavvia Hronaut per applicare questa modifica." },
     "memory": {
       "heading": "Risparmio memoria",
@@ -3784,7 +3785,7 @@ export const itIT: MessageSchema = {
       "quitDownloadDetail": "Se esci ora, il download verrà annullato e il file incompleto verrà eliminato.",
       "quitDownloadsDetail": "Se esci ora, i download verranno annullati e i file incompleti verranno eliminati.",
       "quitDownloadsQuit": "Esci",
-      "quitDownloadsKeep": "Continua a scaricare",
+      "quitDownloadsKeep": "Continua a scaricare", "restartDownloadsTitle": "Riavviare Hronaut?", "restartDownloadDetail": "Se riavvii ora, il download verrà annullato e il file incompleto verrà eliminato.", "restartDownloadsDetail": "Se riavvii ora, i download verranno annullati e i file incompleti verranno eliminati.", "restartDownloadsRestart": "Riavvia",
       "closeTabTitle": "Chiudere questa scheda?",
       "closeTabMessage": "Questa pagina ha chiesto a Hronaut di confermare prima della chiusura.",
       "closeTabDetail": "Chiudendo la scheda potresti perdere le modifiche non salvate.",

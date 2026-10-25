@@ -413,6 +413,7 @@ export const zhTW: MessageSchema = {
       "askDescription": "每次有新的網站下載時，都顯示作業系統的儲存對話方塊。",
       "help": "變更會套用到新的網站下載。進行中的傳輸會保留原本的目的地。PDF 匯出和代理程式建立的檔案會直接使用所選的資料夾，不會詢問儲存位置。"
     },
+    "restartNow": "重新啟動",
     "graphics": { "heading": "圖形", "use": "可用時使用圖形加速功能", "useDescription": "開啟後，網頁和 Hronaut 會使用你的顯示卡繪製。如果視窗的某些部分一直是黑色或空白，或是閃爍，請關閉這項設定。", "restart": "重新啟動 Hronaut 即可套用這項變更。" },
     "memory": {
       "heading": "記憶體節省模式",
@@ -3784,7 +3785,7 @@ export const zhTW: MessageSchema = {
       "quitDownloadDetail": "立即結束會取消下載，並刪除未完成的檔案。",
       "quitDownloadsDetail": "立即結束會取消這些下載，並刪除未完成的檔案。",
       "quitDownloadsQuit": "結束",
-      "quitDownloadsKeep": "繼續下載",
+      "quitDownloadsKeep": "繼續下載", "restartDownloadsTitle": "要重新啟動 Hronaut 嗎？", "restartDownloadDetail": "立即重新啟動會取消下載，並刪除未完成的檔案。", "restartDownloadsDetail": "立即重新啟動會取消這些下載，並刪除未完成的檔案。", "restartDownloadsRestart": "重新啟動",
       "closeTabTitle": "要關閉這個分頁嗎？",
       "closeTabMessage": "這個網頁要求 Hronaut 在關閉前先確認。",
       "closeTabDetail": "關閉分頁可能會捨棄尚未儲存的變更。",
