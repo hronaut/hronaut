@@ -28,12 +28,17 @@ checks still apply.
 Test execution is deferred to release preparation. A version bump on main, which
 also sets the version in `plugins/hronaut/.claude-plugin/plugin.json` and
 `extensions/vscode/package.json`, uses
-the existing auto-tag pipeline; the immutable-tag release workflow runs the
-complete static, unit/component, Docker/Electron, native-dialog, and packaging
-gates before publication. A failed gate prevents publication. Do not overwrite
+the existing auto-tag pipeline; the immutable tag must pass the complete static,
+unit/component, Docker/Electron, native-dialog, and packaging gates before
+publication. A failed gate prevents publication. Do not overwrite
 published tags. The CI workflow remains available by manual dispatch for an
 explicit investigation or rehearsal; dispatching it on a `release/` branch also
-checks platform packaging.
+checks platform packaging. When that rehearsal passed `npm run validate` (lint,
+unit/component tests, typecheck and the application build) and every Electron
+shard (including native dialogs) on the tag's own tree, the release workflow takes
+those results from it instead of running them again. It still audits production
+dependencies, runs the MCPB tests, and builds every platform package. Dispatch
+the release with `full_tests` to run every gate again.
 
 For release validation or an explicitly requested investigation:
 
