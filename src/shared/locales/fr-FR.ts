@@ -413,6 +413,7 @@ export const frFR: MessageSchema = {
       "askDescription": "Afficher la boîte de dialogue du système pour chaque nouveau téléchargement.",
       "help": "Les modifications concernent les nouveaux téléchargements. Les transferts actifs conservent leur destination. Les PDF et fichiers créés par un agent utilisent le dossier choisi sans boîte de dialogue."
     },
+    "restartNow": "Redémarrer",
     "graphics": { "heading": "Graphismes", "use": "Utiliser l’accélération graphique si disponible", "useDescription": "Lorsque cette option est activée, les pages et Hronaut s’affichent avec votre carte graphique. Désactivez cette option si des parties d’une fenêtre restent noires ou vides, ou clignotent.", "restart": "Redémarrez Hronaut pour appliquer cette modification." },
     "memory": {
       "heading": "Économiseur de mémoire",
@@ -3784,7 +3785,7 @@ export const frFR: MessageSchema = {
       "quitDownloadDetail": "Si vous quittez maintenant, il sera annulé et le fichier incomplet supprimé.",
       "quitDownloadsDetail": "Si vous quittez maintenant, ils seront annulés et les fichiers incomplets supprimés.",
       "quitDownloadsQuit": "Quitter",
-      "quitDownloadsKeep": "Continuer le téléchargement",
+      "quitDownloadsKeep": "Continuer le téléchargement", "restartDownloadsTitle": "Redémarrer Hronaut ?", "restartDownloadDetail": "Si vous redémarrez maintenant, il sera annulé et le fichier incomplet supprimé.", "restartDownloadsDetail": "Si vous redémarrez maintenant, ils seront annulés et les fichiers incomplets supprimés.", "restartDownloadsRestart": "Redémarrer",
       "closeTabTitle": "Fermer cet onglet ?",
       "closeTabMessage": "Cette page demande à Hronaut de confirmer sa fermeture.",
       "closeTabDetail": "La fermeture de l’onglet peut supprimer des modifications non enregistrées.",

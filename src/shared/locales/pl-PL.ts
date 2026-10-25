@@ -413,6 +413,7 @@ export const plPL: MessageSchema = {
       "askDescription": "Pokazuj systemowe okno zapisu dla każdego nowego pobierania.",
       "help": "Zmiany dotyczą nowych pobrań. Aktywne transfery zachowują cel. Pliki PDF i pliki agenta używają wybranego folderu bez okna dialogowego."
     },
+    "restartNow": "Uruchom ponownie",
     "graphics": { "heading": "Grafika", "use": "Używaj akceleracji grafiki, gdy jest dostępna", "useDescription": "Gdy ta opcja jest włączona, strony i Hronaut są rysowane przez kartę graficzną. Wyłącz to ustawienie, jeśli części okna pozostają czarne lub puste albo migoczą.", "restart": "Uruchom ponownie Hronaut, aby zastosować tę zmianę." },
     "memory": {
       "heading": "Oszczędzanie pamięci",
@@ -3784,7 +3785,7 @@ export const plPL: MessageSchema = {
       "quitDownloadDetail": "Jeśli zakończysz teraz, pobieranie zostanie anulowane, a niedokończony plik usunięty.",
       "quitDownloadsDetail": "Jeśli zakończysz teraz, pobierania zostaną anulowane, a niedokończone pliki usunięte.",
       "quitDownloadsQuit": "Zakończ",
-      "quitDownloadsKeep": "Kontynuuj pobieranie",
+      "quitDownloadsKeep": "Kontynuuj pobieranie", "restartDownloadsTitle": "Uruchomić ponownie Hronaut?", "restartDownloadDetail": "Ponowne uruchomienie teraz anuluje pobieranie i usunie niedokończony plik.", "restartDownloadsDetail": "Ponowne uruchomienie teraz anuluje pobierania i usunie niedokończone pliki.", "restartDownloadsRestart": "Uruchom ponownie",
       "closeTabTitle": "Zamknąć tę kartę?",
       "closeTabMessage": "Ta strona prosi Hronaut o potwierdzenie przed zamknięciem.",
       "closeTabDetail": "Zamknięcie karty może spowodować utratę niezapisanych zmian.",

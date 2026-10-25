@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
 import UiCheckbox from "../ui/UiCheckbox.vue"
+import SettingRestart from "./SettingRestart.vue"
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
@@ -195,9 +196,6 @@ async function setUseSystemTitleBar(event: Event): Promise<void> {
         <span>
           <strong>{{ t('appearance.systemTitleBar.label') }}</strong>
           <small>{{ t('appearance.systemTitleBar.description') }}</small>
-          <small v-if="titleBarRestartRequired" class="setting-restart-required" role="status">
-            {{ t('appearance.systemTitleBar.restartRequired') }}
-          </small>
         </span>
         <UiCheckbox
           bare
@@ -207,6 +205,7 @@ async function setUseSystemTitleBar(event: Event): Promise<void> {
           @change="setUseSystemTitleBar"
         />
       </label>
+      <SettingRestart :required="titleBarRestartRequired" :message="t('appearance.systemTitleBar.restartRequired')" />
     </div>
   </div>
 </template>

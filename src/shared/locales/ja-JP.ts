@@ -413,6 +413,7 @@ export const jaJP: MessageSchema = {
       "askDescription": "ウェブサイトから新しくダウンロードするたびに、オペレーティング システムの保存ダイアログを表示します。",
       "help": "変更は新しいウェブサイトからのダウンロードに適用されます。進行中の転送は元の保存先のままです。PDF のエクスポートとエージェントが作成したファイルは、保存場所を確認せずに選択したフォルダに保存されます。"
     },
+    "restartNow": "再起動",
     "graphics": { "heading": "グラフィック", "use": "グラフィック アクセラレーションが使用可能な場合は使用する", "useDescription": "オンにすると、ページと Hronaut の表示にグラフィック カードを使います。ウィンドウの一部が黒や空白のままになったり、ちらついたりする場合は、この設定をオフにしてください。", "restart": "この変更を適用するには Hronaut を再起動してください。" },
     "memory": {
       "heading": "メモリセーバー",
@@ -3784,7 +3785,7 @@ export const jaJP: MessageSchema = {
       "quitDownloadDetail": "今すぐ終了すると、ダウンロードはキャンセルされ、未完了のファイルは削除されます。",
       "quitDownloadsDetail": "今すぐ終了すると、ダウンロードはキャンセルされ、未完了のファイルは削除されます。",
       "quitDownloadsQuit": "終了",
-      "quitDownloadsKeep": "ダウンロードを続ける",
+      "quitDownloadsKeep": "ダウンロードを続ける", "restartDownloadsTitle": "Hronaut を再起動しますか？", "restartDownloadDetail": "今すぐ再起動すると、ダウンロードはキャンセルされ、未完了のファイルは削除されます。", "restartDownloadsDetail": "今すぐ再起動すると、ダウンロードはキャンセルされ、未完了のファイルは削除されます。", "restartDownloadsRestart": "再起動",
       "closeTabTitle": "このタブを閉じますか？",
       "closeTabMessage": "このページは、閉じる前に確認するよう Hronaut に求めています。",
       "closeTabDetail": "タブを閉じると、保存されていない変更が失われる可能性があります。",

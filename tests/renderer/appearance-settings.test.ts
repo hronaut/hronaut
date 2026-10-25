@@ -153,9 +153,10 @@ describe('AppearanceSettings', () => {
       configurable: true,
       value: { windowChrome: { platform: 'darwin', mode: 'overlay', mainWindow: true } }
     })
+    const restart = vi.fn(async () => true)
     Object.defineProperty(window, 'hronautSettings', {
       configurable: true,
-      value: { setUseSystemTitleBar }
+      value: { setUseSystemTitleBar, restart }
     })
     const pinia = createTestingPinia({
       stubActions: false,
@@ -170,6 +171,8 @@ describe('AppearanceSettings', () => {
 
     expect(setUseSystemTitleBar).toHaveBeenCalledWith(true)
     expect(screen.getByRole('status')).toHaveTextContent('Restart Hronaut to apply this window-frame change.')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Restart' }))
+    expect(restart).toHaveBeenCalledOnce()
   })
 
 })

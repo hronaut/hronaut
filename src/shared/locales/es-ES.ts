@@ -413,6 +413,7 @@ export const esES: MessageSchema = {
       "askDescription": "Mostrar el diálogo del sistema operativo para cada nueva descarga.",
       "help": "Los cambios se aplican a nuevas descargas. Las transferencias activas conservan su destino. Los PDF y archivos del agente usan la carpeta elegida sin diálogo."
     },
+    "restartNow": "Reiniciar",
     "graphics": { "heading": "Gráficos", "use": "Usar aceleración gráfica cuando esté disponible", "useDescription": "Si está activada, las páginas y Hronaut se dibujan con tu tarjeta gráfica. Desactiva esta opción si partes de una ventana se quedan en negro o en blanco, o parpadean.", "restart": "Reinicia Hronaut para aplicar este cambio." },
     "memory": {
       "heading": "Ahorro de memoria",
@@ -3784,7 +3785,7 @@ export const esES: MessageSchema = {
       "quitDownloadDetail": "Si sales ahora, se cancelará y se eliminará el archivo sin terminar.",
       "quitDownloadsDetail": "Si sales ahora, se cancelarán y se eliminarán los archivos sin terminar.",
       "quitDownloadsQuit": "Salir",
-      "quitDownloadsKeep": "Seguir descargando",
+      "quitDownloadsKeep": "Seguir descargando", "restartDownloadsTitle": "¿Reiniciar Hronaut?", "restartDownloadDetail": "Si reinicias ahora, se cancelará y se eliminará el archivo sin terminar.", "restartDownloadsDetail": "Si reinicias ahora, se cancelarán y se eliminarán los archivos sin terminar.", "restartDownloadsRestart": "Reiniciar",
       "closeTabTitle": "¿Cerrar esta pestaña?",
       "closeTabMessage": "Esta página ha pedido a Hronaut que confirme antes de cerrarla.",
       "closeTabDetail": "Al cerrar la pestaña se pueden perder los cambios no guardados.",

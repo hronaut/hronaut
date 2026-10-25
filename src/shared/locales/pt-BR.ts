@@ -413,6 +413,7 @@ export const ptBR: MessageSchema = {
       "askDescription": "Mostra a caixa de diálogo de salvar do sistema operacional para cada novo download de site.",
       "help": "As mudanças se aplicam a novos downloads de sites. Transferências em andamento mantêm o destino original. Exportações em PDF e arquivos criados por agentes usam a pasta selecionada sem perguntar onde salvar."
     },
+    "restartNow": "Reiniciar",
     "graphics": { "heading": "Gráficos", "use": "Usar aceleração gráfica quando disponível", "useDescription": "Quando ativada, as páginas e o Hronaut são desenhados com a sua placa de vídeo. Desative esta configuração se partes de uma janela ficarem pretas ou em branco, ou piscarem.", "restart": "Reinicie o Hronaut para aplicar esta alteração." },
     "memory": {
       "heading": "Economia de memória",
@@ -3784,7 +3785,7 @@ export const ptBR: MessageSchema = {
       "quitDownloadDetail": "Sair agora cancela o download e exclui o arquivo incompleto.",
       "quitDownloadsDetail": "Sair agora cancela os downloads e exclui os arquivos incompletos.",
       "quitDownloadsQuit": "Sair",
-      "quitDownloadsKeep": "Continuar o download",
+      "quitDownloadsKeep": "Continuar o download", "restartDownloadsTitle": "Reiniciar o Hronaut?", "restartDownloadDetail": "Reiniciar agora cancela o download e exclui o arquivo incompleto.", "restartDownloadsDetail": "Reiniciar agora cancela os downloads e exclui os arquivos incompletos.", "restartDownloadsRestart": "Reiniciar",
       "closeTabTitle": "Fechar esta guia?",
       "closeTabMessage": "Esta página pediu ao Hronaut que confirmasse antes de fechar.",
       "closeTabDetail": "Fechar a guia pode descartar alterações que não foram salvas.",
