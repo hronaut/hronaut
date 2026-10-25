@@ -68,6 +68,7 @@ type CollectionsFeature = Pick<
   | 'bookmarksPanel'
   | 'historyOpen'
   | 'toggleCurrentBookmark'
+  | 'bookmarkAllTabs'
   | 'toggleVisitHistory'
   | 'toggleDownloads'
   | 'toggleBookmarks'
@@ -402,6 +403,7 @@ export function useAppShellInteractionFeatureController(
     findAgain: find.findAgain,
     setZoom: transient.setZoom,
     toggleCurrentBookmark: features.collections.toggleCurrentBookmark,
+    bookmarkAllTabs: () => features.collections.bookmarkAllTabs(),
     toggleVisitHistory: features.collections.toggleVisitHistory,
     toggleDownloads: features.collections.toggleDownloads,
     toggleTaskManager: surfaces.taskManager.toggle,

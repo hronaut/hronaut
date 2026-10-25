@@ -239,6 +239,8 @@ export interface HronautApi {
   onNewTabRequested(listener: (workspaceId: string | undefined) => void): () => void
   /** Show Full History in Back's or Forward's list asked for the history panel. */
   onVisitHistoryRequested(listener: () => void): () => void
+  /** A tab's menu asked to bookmark the open tabs of its workspace, or of no workspace for null. */
+  onBookmarkAllTabsRequested(listener: (workspaceId: string | null) => void): () => void
   /** Paste and Go or Paste and Search in the address field's menu, with the clipboard text to open. */
   onAddressPasteAndGo(listener: (text: string) => void): () => void
 }

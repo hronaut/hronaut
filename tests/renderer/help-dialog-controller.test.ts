@@ -144,7 +144,11 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.addressForgetVisit',
       keys: ['Shift', 'Delete']
     })
-    expect(controller.shortcuts.value).toHaveLength(43)
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.bookmarkAllTabs',
+      keys: ['Ctrl/Cmd', 'Shift', 'D']
+    })
+    expect(controller.shortcuts.value).toHaveLength(44)
     controller.dispose()
   })
 })

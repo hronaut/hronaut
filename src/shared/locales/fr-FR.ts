@@ -656,6 +656,7 @@ export const frFR = {
     },
     "commands": {
       "task-manager": { "label": "Ouvrir le Gestionnaire de tâches", "description": "Voir la mémoire et le processeur utilisés par chaque onglet et processus" },
+      "bookmark-all-tabs": { "label": "Ajouter tous les onglets aux favoris", "description": "Enregistrer les onglets ouverts de l’espace de travail affiché comme une collection de favoris" },
       "home": {
         "label": "Ouvrir l’accueil de Hronaut",
         "description": "Afficher le tableau de bord de l’application"
@@ -887,6 +888,7 @@ export const frFR = {
       "findPrevious": "Aller à l’occurrence précédente de la page",
       "print": "Imprimer la page",
       "bookmark": "Ajouter la page actuelle aux favoris",
+      "bookmarkAllTabs": "Ajouter tous les onglets ouverts aux favoris dans une nouvelle collection",
       "history": "Ouvrir l’historique de navigation",
       "downloads": "Ouvrir les téléchargements",
       "savePage": "Enregistrer la page",
@@ -3053,6 +3055,7 @@ export const frFR = {
   "bookmarks": { sortOrder: "Trier les favoris", sortUpdated: "Récemment modifiés", sortTitle: "Titre", copyAddress: "Copier l’adresse", copyAddressAria: "Copier l’adresse de {title}", addressCopied: "Adresse copiée", copyFailed: "Impossible de copier l’adresse. Réessayez.",
     file: { import: "Importer…", export: "Exporter…", importHint: "Importer des favoris depuis un fichier HTML, comme un fichier exporté de Chrome", exportHint: "Exporter les favoris dans un fichier HTML que Chrome et d’autres navigateurs peuvent importer", exported: "{count} favori exporté. | {count} favoris exportés.", imported: "{count} favori importé. | {count} favoris importés.", alreadySaved: "{count} était déjà enregistré. | {count} étaient déjà enregistrés.", notWebPages: "{count} lien n’est pas une page web et a été ignoré. | {count} liens ne sont pas des pages web et ont été ignorés.", overLimit: "Hronaut conserve jusqu’à {max} favoris, donc {count} a été ignoré. | Hronaut conserve jusqu’à {max} favoris, donc {count} ont été ignorés.", nothingNew: "Aucun nouveau favori n’a été importé." },
     openAll: { button: "Tout ouvrir ({count})", hint: "Ouvrir chaque favori de la liste dans un onglet en arrière-plan", ask: "Ouvrir {count} onglet ? | Ouvrir {count} onglets ?", confirm: "Ouvrir {count} onglet | Ouvrir {count} onglets", cancel: "Annuler", opened: "{count} onglet ouvert. | {count} onglets ouverts." },
+    allTabs: { heading: "Ajouter tous les onglets aux favoris", hint: "Les onglets ouverts vont dans une nouvelle collection portant ce nom.", defaultName: "Onglets ouverts", save: "Enregistrer les onglets", cancel: "Annuler", saved: "{count} page ajoutée à {name}. | {count} pages ajoutées à {name}.", inOtherCollections: "{count} était déjà dans une autre collection et y reste. | {count} étaient déjà dans d’autres collections et y restent.", notWebPages: "{count} onglet n’affiche aucune page web, il a été ignoré. | {count} onglets n’affichent aucune page web, ils ont été ignorés.", overLimit: "Hronaut conserve jusqu’à {max} favoris, donc {count} a été ignoré. | Hronaut conserve jusqu’à {max} favoris, donc {count} ont été ignorés." },
     "collection": "Collection",
     "collectionFilter": "Filtrer les favoris par collection",
     "allCollections": "Tous les favoris",
@@ -3569,7 +3572,8 @@ export const frFR = {
       "print": "Imprimer…",
       "viewSource": "Afficher le code source de la page",
       "downloads": "Téléchargements",
-      "savePage": "Enregistrer la page sous…"
+      "savePage": "Enregistrer la page sous…",
+      "bookmarkAllTabs": "Ajouter tous les onglets aux favoris…"
     },
     "tray": {
       "show": "Afficher Hronaut",
@@ -3619,6 +3623,7 @@ export const frFR = {
       "closeBelow": "Fermer les onglets en dessous",
       "closeDuplicates": "Fermer les onglets en double",
       "reopenClosed": "Rouvrir l’onglet fermé",
+      "bookmarkAllTabs": "Ajouter tous les onglets aux favoris…",
       "openLink": "Ouvrir le lien dans un nouvel onglet",
       "copyLink": "Copier l’adresse du lien",
       "copyEmail": "Copier l’adresse e-mail",

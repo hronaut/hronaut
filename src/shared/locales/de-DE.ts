@@ -656,6 +656,7 @@ export const deDE = {
     },
     "commands": {
       "task-manager": { "label": "Task-Manager öffnen", "description": "Speicher- und CPU-Verbrauch jedes Tabs und Prozesses ansehen" },
+      "bookmark-all-tabs": { "label": "Alle Tabs als Lesezeichen speichern", "description": "Die geöffneten Tabs des angezeigten Arbeitsbereichs als Lesezeichensammlung speichern" },
       "home": {
         "label": "Hronaut-Startseite öffnen",
         "description": "Anwendungsübersicht anzeigen"
@@ -887,6 +888,7 @@ export const deDE = {
       "findPrevious": "Zum vorherigen Treffer auf der Seite",
       "print": "Seite drucken",
       "bookmark": "Aktuelle Seite als Lesezeichen speichern",
+      "bookmarkAllTabs": "Alle geöffneten Tabs in einer neuen Sammlung als Lesezeichen speichern",
       "history": "Browserverlauf öffnen",
       "downloads": "Downloads öffnen",
       "savePage": "Seite speichern",
@@ -3053,6 +3055,7 @@ export const deDE = {
   "bookmarks": { sortOrder: "Lesezeichen sortieren", sortUpdated: "Zuletzt aktualisiert", sortTitle: "Titel", copyAddress: "Adresse kopieren", copyAddressAria: "Adresse von {title} kopieren", addressCopied: "Adresse kopiert", copyFailed: "Adresse konnte nicht kopiert werden. Erneut versuchen.",
     file: { import: "Importieren…", export: "Exportieren…", importHint: "Lesezeichen aus einer HTML-Datei importieren, z. B. einer aus Chrome exportierten", exportHint: "Lesezeichen in eine HTML-Datei exportieren, die Chrome und andere Browser importieren können", exported: "{count} Lesezeichen exportiert. | {count} Lesezeichen exportiert.", imported: "{count} Lesezeichen importiert. | {count} Lesezeichen importiert.", alreadySaved: "{count} war bereits gespeichert. | {count} waren bereits gespeichert.", notWebPages: "{count} Link ist keine Webseite und wurde ausgelassen. | {count} Links sind keine Webseiten und wurden ausgelassen.", overLimit: "Hronaut speichert bis zu {max} Lesezeichen, daher wurde {count} ausgelassen. | Hronaut speichert bis zu {max} Lesezeichen, daher wurden {count} ausgelassen.", nothingNew: "Es wurden keine neuen Lesezeichen importiert." },
     openAll: { button: "Alle öffnen ({count})", hint: "Jedes hier aufgeführte Lesezeichen in einem Hintergrundtab öffnen", ask: "{count} Tab öffnen? | {count} Tabs öffnen?", confirm: "{count} Tab öffnen | {count} Tabs öffnen", cancel: "Abbrechen", opened: "{count} Tab geöffnet. | {count} Tabs geöffnet." },
+    allTabs: { heading: "Alle Tabs als Lesezeichen speichern", hint: "Die geöffneten Tabs kommen in eine neue Sammlung mit diesem Namen.", defaultName: "Geöffnete Tabs", save: "Tabs speichern", cancel: "Abbrechen", saved: "{count} Seite zu {name} hinzugefügt. | {count} Seiten zu {name} hinzugefügt.", inOtherCollections: "{count} war schon in einer anderen Sammlung und bleibt dort. | {count} waren schon in anderen Sammlungen und bleiben dort.", notWebPages: "{count} Tab zeigt keine Webseite und wurde ausgelassen. | {count} Tabs zeigen keine Webseite und wurden ausgelassen.", overLimit: "Hronaut speichert bis zu {max} Lesezeichen, daher wurde {count} ausgelassen. | Hronaut speichert bis zu {max} Lesezeichen, daher wurden {count} ausgelassen." },
     "collection": "Sammlung",
     "collectionFilter": "Lesezeichen nach Sammlung filtern",
     "allCollections": "Alle Lesezeichen",
@@ -3569,7 +3572,8 @@ export const deDE = {
       "print": "Drucken…",
       "viewSource": "Seitenquelltext anzeigen",
       "downloads": "Downloads",
-      "savePage": "Seite speichern unter…"
+      "savePage": "Seite speichern unter…",
+      "bookmarkAllTabs": "Alle Tabs als Lesezeichen speichern…"
     },
     "tray": {
       "show": "Hronaut anzeigen",
@@ -3619,6 +3623,7 @@ export const deDE = {
       "closeBelow": "Tabs darunter schließen",
       "closeDuplicates": "Doppelte Tabs schließen",
       "reopenClosed": "Geschlossenen Tab erneut öffnen",
+      "bookmarkAllTabs": "Alle Tabs als Lesezeichen speichern…",
       "openLink": "Link in neuem Tab öffnen",
       "copyLink": "Linkadresse kopieren",
       "copyEmail": "E-Mail-Adresse kopieren",

@@ -8,8 +8,8 @@ import type { TabContextMenuAccess, TabContextMenuTab } from './tab-context-menu
 /**
  * Shows a website tab's context menu: attention, new tab, reload, duplicate,
  * split view, React inspection, mute, pin, freeze, sleep, the workspace's own
- * menu, moving and closing tabs, and reopening a closed one. Hronaut Home has
- * no tab menu. A failed action is logged and reported, never thrown.
+ * menu, moving and closing tabs, reopening a closed one and bookmarking all
+ * tabs. Hronaut Home has no tab menu. A failed action is logged and reported, never thrown.
  */
 export function showTabContextMenu<Tab extends TabContextMenuTab>(access: TabContextMenuAccess<Tab>, tabId: string, onClosed?: () => void): void {
   const tab = access.getTab(tabId)
@@ -234,6 +234,13 @@ export function showTabContextMenu<Tab extends TabContextMenuTab>(access: TabCon
       label: access.text('native.context.reopenClosed'),
       enabled: access.closedTabs().length > 0,
       click: () => runAction('reopen a closed tab', () => access.reopenClosedTab())
+    },
+    {
+      id: 'bookmark-all-tabs',
+      label: access.text('native.context.bookmarkAllTabs'),
+      // As in Chrome, the workspace's tabs go in a new bookmark collection, which the Bookmarks panel asks to name.
+      enabled: workspaceTabs.some((candidate) => /^https?:/i.test(candidate.url)),
+      click: () => runAction('bookmark all tabs', () => access.window().webContents.send('browser:bookmark-all-tabs-requested', tab.mcpGroupId ?? null))
     }
   ])
   menu.popup({ window: access.window(), ...(onClosed ? { callback: onClosed } : {}) })

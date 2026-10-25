@@ -285,7 +285,8 @@ export const enUSAppErrors = {
     "exportFailed": "The bookmarks file could not be saved.",
     "importTooLarge": "This file is too large to be a bookmarks file.",
     "importUnreadable": "This file could not be read.",
-    "importEmpty": "No bookmarks were found in this file."
+    "importEmpty": "No bookmarks were found in this file.",
+    "tabsNothingToSave": "None of these tabs can go in a new collection: each shows no web page or is already in another collection."
   },
   "pageTools": {
     "devToolsOpen": "Close Developer Tools for this tab, then try again.",

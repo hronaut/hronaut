@@ -187,6 +187,17 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
                 host.runShortcut('task-manager')
               }
             },
+            {
+              label: host.text('native.menu.bookmarkAllTabs'),
+              // Chrome's key, which a website may keep, as a web editor does to show its Run and Debug view: as the
+              // menu's key it reaches the menu only when the website or field in focus leaves it alone, and never from
+              // an agent. Hronaut's window then asks what to call the collection for the workspace in view.
+              accelerator: process.platform === 'darwin' ? 'Cmd+Shift+D' : 'Ctrl+Shift+D',
+              click: () => {
+                host.showWindow()
+                host.runShortcut('bookmark-all-tabs')
+              }
+            },
             { type: 'separator' },
             {
               label: host.text('native.menu.back'),

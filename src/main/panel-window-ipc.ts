@@ -19,6 +19,7 @@ interface PanelWindowIpcHost {
   panelWindowRefs: Pick<PanelWindowRefs, 'window' | 'panel' | 'redocking'>
   detachedPanelTitle(panel: DetachablePanelId): string
   mainWindow(): Pick<BrowserWindow, 'isDestroyed' | 'webContents'> | null
+  sendToPanelWindow(channel: string, ...args: unknown[]): void
 }
 
 function isDetachablePanelId(value: unknown): value is DetachablePanelId {
@@ -51,6 +52,14 @@ export function registerPanelWindowIpc(ipcMain: Pick<IpcMain, 'handle'>, host: P
     if (host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
       host.mainWindow()!.webContents.send('panel-window:active-panel', panel)
     }
+  })
+  // Bookmark all tabs with Bookmarks in its own window: the name is asked for there, once it shows Bookmarks. Main
+  // sends the request after the window has loaded and been told to show Bookmarks, on the same channel as a tab's menu.
+  ipcMain.handle('panel-window:bookmark-all-tabs', async (event, workspaceId: unknown) => {
+    host.assertMainShellSender(event)
+    if (workspaceId !== null && typeof workspaceId !== 'string') throw new TypeError('Invalid workspace')
+    await host.openPanelWindow('bookmarks')
+    host.sendToPanelWindow('browser:bookmark-all-tabs-requested', workspaceId)
   })
   ipcMain.handle('panel-window:redock', (event, panel: unknown, dock: unknown) => {
     host.assertPanelShellSender(event)

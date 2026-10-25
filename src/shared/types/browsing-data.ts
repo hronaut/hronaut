@@ -55,6 +55,27 @@ export interface BookmarkImportResult {
   limit: number
 }
 
+/** What Bookmark all tabs did, for the sentence the bookmarks panel says about it. */
+export interface BookmarkTabsResult {
+  /** The new collection that holds the tabs' pages. */
+  collectionId: string
+  /** Pages now in that collection: newly bookmarked, or bookmarked before in no collection. */
+  saved: number
+  /** Pages already bookmarked in another collection, which stay there. */
+  inOtherCollections: number
+  /** Tabs that show no web page, such as a blank tab. */
+  notWebPages: number
+  /** Pages left out because Hronaut keeps no more bookmarks. */
+  overLimit: number
+  /** The most bookmarks Hronaut keeps. */
+  limit: number
+}
+
+export interface BookmarkTabsOutcome {
+  snapshot: BookmarkCollectionSnapshot
+  result: BookmarkTabsResult
+}
+
 export interface BrowserHistoryEntry {
   id: string
   url: string

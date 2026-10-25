@@ -7,6 +7,7 @@ export type CommandPaletteCommandId =
   | 'switch-workspace'
   | 'downloads'
   | 'bookmarks'
+  | 'bookmark-all-tabs'
   | 'history'
   | 'task-manager'
   | 'find'
@@ -74,6 +75,7 @@ export const COMMAND_PALETTE_COMMANDS: readonly CommandPaletteCommand[] = [
   { id: 'switch-workspace', label: 'Switch workspace', description: 'Go to a workspace by its name, agents, or sites', category: 'Navigation', keywords: ['workspace', 'project', 'client', 'jump', 'go to', 'agent', 'archived'], shortcut: 'Ctrl/Cmd+K' },
   { id: 'downloads', label: 'Show downloads', description: 'Review current and completed downloads', category: 'Navigation', keywords: ['files'], shortcut: 'Ctrl+J / Cmd+Option+L' },
   { id: 'bookmarks', label: 'Show bookmarks', description: 'Open locally saved pages', category: 'Navigation', keywords: ['favorites', 'star'] },
+  { id: 'bookmark-all-tabs', label: 'Bookmark all tabs', description: 'Save the open tabs of the workspace in view as a bookmark collection', category: 'Navigation', keywords: ['favorites', 'star', 'save tabs', 'session', 'collection'], shortcut: 'Ctrl/Cmd+Shift+D', websiteOnly: true },
   { id: 'history', label: 'Show browsing history', description: 'Search locally visited pages', category: 'Navigation', keywords: ['visits'], shortcut: 'Ctrl+H / Cmd+Y' },
   { id: 'task-manager', label: 'Open Task manager', description: 'See the memory and CPU each tab and process uses', category: 'Application', keywords: ['processes', 'memory', 'cpu', 'end process', 'kill', 'slow'], shortcut: 'Shift+Esc', noMacShortcut: true },
   { id: 'find', label: 'Find in page', description: 'Search text in the current website', category: 'Current website', keywords: ['search'], shortcut: 'Ctrl/Cmd+F', websiteOnly: true },

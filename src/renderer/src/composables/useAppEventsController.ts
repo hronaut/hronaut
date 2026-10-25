@@ -21,6 +21,7 @@ export interface AppEventsControllerOptions {
   browserApi: Pick<
     HronautApi,
     'onUserAttentionRequested' | 'onShortcutRequested' | 'onTabGroupEditRequested' | 'onNewTabRequested' | 'onVisitHistoryRequested'
+    | 'onBookmarkAllTabsRequested'
     | 'onAddressPasteAndGo'
   >
   permissionsApi: Pick<HronautPermissionsApi, 'onChanged'>
@@ -33,6 +34,8 @@ export interface AppEventsControllerOptions {
   onNewTab: (workspaceId: string | undefined) => unknown
   /** Opens the history panel, unless it is open. */
   onVisitHistory: () => unknown
+  /** A tab's menu asked to bookmark the tabs of its workspace, or of no workspace for null. */
+  onBookmarkAllTabs: (workspaceId: string | null) => unknown
   /** Opens the clipboard text from Paste and Go, as the address field would. */
   onAddressPasteAndGo: (text: string) => unknown
   onPermissionsChanged: (permissions: SitePermissionEntry[]) => unknown
@@ -68,6 +71,7 @@ export function useAppEventsController(options: AppEventsControllerOptions) {
     () => options.browserApi.onTabGroupEditRequested(active(options.onTabGroupEdit)),
     () => options.browserApi.onNewTabRequested(active(options.onNewTab)),
     () => options.browserApi.onVisitHistoryRequested(active(options.onVisitHistory)),
+    () => options.browserApi.onBookmarkAllTabsRequested(active(options.onBookmarkAllTabs)),
     () => options.browserApi.onAddressPasteAndGo(active(options.onAddressPasteAndGo)),
     () => options.permissionsApi.onChanged(active(options.onPermissionsChanged)),
     () => options.credentialsApi.onChanged(active(options.onCredentialsChanged)),

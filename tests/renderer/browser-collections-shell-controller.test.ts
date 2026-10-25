@@ -20,7 +20,8 @@ function createController() {
   const tabSearchOpen = ref(true)
   const bookmarksPanel = ref({
     toggle: vi.fn(async () => { bookmarksOpen.value = !bookmarksOpen.value }),
-    toggleCurrent: vi.fn(async () => { bookmarksOpen.value = true })
+    toggleCurrent: vi.fn(async () => { bookmarksOpen.value = true }),
+    bookmarkAllTabs: vi.fn(async (_workspaceId: string | null, _suggestedName?: string) => { bookmarksOpen.value = true })
   })
   const historyPanel = ref({
     toggle: vi.fn(async () => { historyOpen.value = !historyOpen.value })
@@ -167,6 +168,20 @@ describe('useBrowserCollectionsShellController', () => {
 
     expect(harness.historyOpen.value).toBe(true)
     expect(harness.historyPanel.value.toggle).toHaveBeenCalledOnce()
+  })
+
+  it('closes competing UI, Settings too, before Bookmark all tabs asks for the name', async () => {
+    const harness = createController()
+    harness.downloadsOpen.value = true
+    harness.historyOpen.value = true
+
+    await harness.controller.bookmarkAllTabs('client', 'Client A')
+
+    expect(harness.settingsOpen.value).toBe(false)
+    expect(harness.downloadsOpen.value).toBe(false)
+    expect(harness.historyOpen.value).toBe(false)
+    expect(harness.tabSearchOpen.value).toBe(false)
+    expect(harness.bookmarksPanel.value.bookmarkAllTabs).toHaveBeenCalledExactlyOnceWith('client', 'Client A')
   })
 
   it('opens the current-bookmark action without closing Settings', async () => {

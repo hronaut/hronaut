@@ -40,6 +40,7 @@ import type { CredentialImportResult, CredentialStorageStatus, CredentialSummary
 import type { AppReleaseHistoryPage, AppUpdateState } from './updates.js'
 import type {
   BookmarkCollectionSnapshot,
+  BookmarkTabsOutcome,
   BookmarkImportResult,
   BrowserBookmark,
   BrowserDownloadState,
@@ -59,6 +60,11 @@ export interface HronautBookmarkCollectionsApi {
   rename(id: string, name: string): Promise<BookmarkCollectionSnapshot>
   remove(id: string): Promise<BookmarkCollectionSnapshot>
   assign(bookmarkId: string, collectionId: string | null): Promise<BookmarkCollectionSnapshot>
+  /**
+   * Bookmark all tabs, as in Chrome: the open tabs of a workspace, or of no workspace for null, go in a new collection
+   * with this name.
+   */
+  bookmarkTabs(workspaceId: string | null, name: string): Promise<BookmarkTabsOutcome>
   onChanged(listener: (snapshot: BookmarkCollectionSnapshot) => void): () => void
 }
 
@@ -67,6 +73,11 @@ export interface HronautPanelWindowApi {
   close(): Promise<void>
   setActive(panel: DetachablePanelId): Promise<void>
   redock(panel: DetachablePanelId, dock: Exclude<PanelDock, 'window'>): Promise<void>
+  /**
+   * Bookmark all tabs while Bookmarks is in its own window: that window shows Bookmarks and asks what to call the
+   * collection the workspace's tabs go in, null for the tabs in no workspace.
+   */
+  bookmarkAllTabs(workspaceId: string | null): Promise<void>
   onPanelRequested(listener: (panel: DetachablePanelId) => void): () => void
   onActivePanelChanged(listener: (panel: DetachablePanelId) => void): () => void
   onRedockRequested(listener: (request: PanelRedockRequest) => void): () => void

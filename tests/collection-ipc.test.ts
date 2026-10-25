@@ -6,13 +6,13 @@ type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
   'downloads:list', 'downloads:cancel', 'downloads:pause', 'downloads:resume', 'downloads:retry', 'downloads:remove-finished', 'downloads:clear-finished', 'downloads:show-in-folder', 'downloads:start-drag',
   'bookmarks:list', 'bookmarks:add', 'bookmarks:add-if-missing', 'bookmarks:rename', 'bookmarks:update-destination', 'bookmarks:remove',
-  'bookmark-collections:list', 'bookmark-collections:create', 'bookmark-collections:rename', 'bookmark-collections:remove', 'bookmark-collections:assign',
+  'bookmark-collections:list', 'bookmark-collections:create', 'bookmark-collections:rename', 'bookmark-collections:remove', 'bookmark-collections:assign', 'bookmark-collections:bookmark-tabs',
   'visit-history:list', 'visit-history:remove', 'visit-history:clear'
 ]
 
 function fixture() {
   const listeners = new Map<string, Listener>()
-  const bookmarks = { collectionSnapshot: vi.fn(() => ({ revision: 0, collections: [] })), createCollection: vi.fn(), renameCollection: vi.fn(), removeCollection: vi.fn(), assignCollection: vi.fn(), list: vi.fn(() => []), add: vi.fn(), addIfMissing: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), removeRestorably: vi.fn() }
+  const bookmarks = { collectionSnapshot: vi.fn(() => ({ revision: 0, collections: [] })), createCollection: vi.fn(), renameCollection: vi.fn(), removeCollection: vi.fn(), assignCollection: vi.fn(), list: vi.fn(() => []), add: vi.fn(), addIfMissing: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), removeRestorably: vi.fn(), bookmarkTabs: vi.fn() }
   const history = { list: vi.fn(() => []), remove: vi.fn(), clear: vi.fn() }
   const downloads = { removeFinishedDownload: vi.fn(() => []), listDownloads: vi.fn(() => []), listDownloadsCheckingFiles: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn(), startDownloadDrag: vi.fn() }
   const host = {
@@ -21,6 +21,7 @@ function fixture() {
     bookmarks: vi.fn(() => bookmarks),
     history: vi.fn(() => history),
     downloads: vi.fn(() => downloads),
+    tabs: vi.fn(() => [] as { url: string; title: string; mcpGroupId?: string }[]),
     publishBookmarks: vi.fn(() => []),
     publishVisitHistory: vi.fn(() => [])
   }
@@ -40,6 +41,7 @@ it.each(channels)('rejects untrusted %s calls before looking up services', async
   expect(host.downloads).not.toHaveBeenCalled()
   expect(host.publishBookmarks).not.toHaveBeenCalled()
   expect(host.publishVisitHistory).not.toHaveBeenCalled()
+  expect(host.tabs).not.toHaveBeenCalled()
 })
 
 it.each([
@@ -47,6 +49,9 @@ it.each([
   ['bookmark-collections:rename', ['id', 7]],
   ['bookmark-collections:assign', ['id', undefined]],
   ['bookmark-collections:remove', [{}]],
+  ['bookmark-collections:bookmark-tabs', [undefined, 'Tabs']],
+  ['bookmark-collections:bookmark-tabs', [7, 'Tabs']],
+  ['bookmark-collections:bookmark-tabs', ['workspace-1', null]],
   ['downloads:remove-finished', [null]],
   ['downloads:remove-finished', ['']],
   ['downloads:cancel', [null]],
@@ -68,6 +73,37 @@ it.each([
   expect(host.bookmarks).not.toHaveBeenCalled()
   expect(host.history).not.toHaveBeenCalled()
   expect(host.downloads).not.toHaveBeenCalled()
+  expect(host.tabs).not.toHaveBeenCalled()
+})
+
+it('bookmarks the tabs main reads for the workspace named, and publishes only after they are saved', async () => {
+  const { host, bookmarks, invoke } = fixture()
+  host.tabs.mockReturnValue([
+    { url: 'hronaut://home/', title: 'Home', mcpGroupId: 'workspace-1' },
+    { url: 'https://one.test/', title: 'One', mcpGroupId: 'workspace-1' },
+    { url: 'https://other.test/', title: 'Other', mcpGroupId: 'workspace-2' },
+    { url: 'https://loose.test/', title: 'Loose' },
+    { url: 'about:blank', title: '', mcpGroupId: 'workspace-1' }
+  ])
+  // In the tab strip's order, without Home or another workspace's tabs; main leaves out what shows no web page.
+  const tabs = [{ url: 'https://one.test/', title: 'One' }, { url: 'about:blank', title: '' }]
+  const result = { collectionId: 'new', saved: 1, inOtherCollections: 0, notWebPages: 0, overLimit: 0, limit: 500 }
+  const snapshot = { revision: 3, collections: [{ id: 'new', name: 'Client A', bookmarkIds: ['b1'] }] }
+  bookmarks.collectionSnapshot.mockReturnValue(snapshot as never)
+  let resolve: ((value: typeof result) => void) | undefined
+  bookmarks.bookmarkTabs.mockImplementation(() => new Promise(done => { resolve = done }))
+  const pending = invoke('bookmark-collections:bookmark-tabs', 'workspace-1', 'Client A')
+  await vi.waitFor(() => expect(bookmarks.bookmarkTabs).toHaveBeenCalledWith('Client A', tabs))
+  expect(host.publishBookmarks).not.toHaveBeenCalled()
+  resolve!(result)
+  await expect(pending).resolves.toEqual({ snapshot, result })
+  expect(host.publishBookmarks).toHaveBeenCalledOnce()
+
+  // The tabs in no workspace are named by null; a failure publishes nothing.
+  bookmarks.bookmarkTabs.mockRejectedValueOnce(new Error('Nothing to save'))
+  await expect(invoke('bookmark-collections:bookmark-tabs', null, 'Open tabs')).rejects.toThrow('Nothing to save')
+  expect(bookmarks.bookmarkTabs).toHaveBeenLastCalledWith('Open tabs', [{ url: 'https://loose.test/', title: 'Loose' }])
+  expect(host.publishBookmarks).toHaveBeenCalledOnce()
 })
 
 it('registers lazily and publishes a bookmark mutation only after persistence succeeds', async () => {

@@ -9,7 +9,10 @@ import type {
   HronautDownloadsApi,
   HronautHistoryApi
 } from '../../src/shared/types.js'
-import { useAppBrowserCollectionsFeatureController } from '../../src/renderer/src/composables/useAppBrowserCollectionsFeatureController.js'
+import {
+  useAppBrowserCollectionsFeatureController,
+  type AppBrowserCollectionsFeatureControllerOptions
+} from '../../src/renderer/src/composables/useAppBrowserCollectionsFeatureController.js'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -53,7 +56,7 @@ function historyEntry(id: string): BrowserHistoryEntry {
   }
 }
 
-function createHarness() {
+function createHarness(bookmarkAllTabsOptions: Pick<AppBrowserCollectionsFeatureControllerOptions, 'browserState' | 'bookmarksInOwnWindow' | 'panelWindow'> = {}) {
   let downloadsChanged: (downloads: BrowserDownloadState[]) => void = () => undefined
   const unsubscribeDownloads = vi.fn()
   const unsubscribeBookmarks = vi.fn()
@@ -107,7 +110,8 @@ function createHarness() {
     historyApi,
     settingsOpen,
     tabSearchOpen,
-    syncState
+    syncState,
+    ...bookmarkAllTabsOptions
   })
 
   return {
@@ -175,6 +179,7 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     harness.controller.bookmarksPanel.value = {
       toggle: bookmarksToggle,
       toggleCurrent: currentBookmarkToggle,
+      bookmarkAllTabs: vi.fn(async () => undefined),
       handleEscape: vi.fn()
     }
     harness.controller.historyPanel.value = { toggle: historyToggle }
@@ -207,6 +212,49 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     await harness.controller.openHistoryEntry(visited)
     expect(harness.newTab).toHaveBeenLastCalledWith({ url: visited.url, active: true })
 
+    harness.controller.dispose()
+  })
+
+  it('bookmarks the tabs of the workspace named, or of the tab in view, by the workspace\'s name, and asks nothing from Home', async () => {
+    const tab = (id: string, url: string, mcpGroupId?: string) => ({ id, url, mcpGroupId }) as BrowserState['tabs'][number]
+    const state = {
+      tabs: [tab('home', 'hronaut://home/'), tab('client-tab', 'https://client.test/', 'client'), tab('loose', 'https://loose.test/')],
+      activeTabId: 'client-tab',
+      mcpTabGroups: [{ id: 'client', name: 'Client A' }] as BrowserState['mcpTabGroups']
+    }
+    const panelWindow = { bookmarkAllTabs: vi.fn(async (_workspaceId: string | null) => undefined) }
+    let ownWindow = false
+    const harness = createHarness({ browserState: () => state, bookmarksInOwnWindow: () => ownWindow, panelWindow })
+    const bookmarkAllTabs = vi.fn(async (_workspaceId: string | null, _suggestedName?: string) => undefined)
+    harness.controller.bookmarksPanel.value = { toggle: vi.fn(async () => undefined), toggleCurrent: vi.fn(async () => undefined), bookmarkAllTabs, handleEscape: vi.fn() }
+    harness.controller.historyOpen.value = true
+    // Its key or the command palette: the workspace of the tab in view.
+    await harness.controller.bookmarkAllTabs()
+    expect(bookmarkAllTabs).toHaveBeenLastCalledWith('client', 'Client A')
+    expect(harness.settingsOpen.value).toBe(false)
+    expect(harness.controller.historyOpen.value).toBe(false)
+    expect(harness.tabSearchOpen.value).toBe(false)
+    // A tab's menu names its workspace, or none.
+    await harness.controller.bookmarkAllTabs('client')
+    expect(bookmarkAllTabs).toHaveBeenLastCalledWith('client', 'Client A')
+    await harness.controller.bookmarkAllTabs(null)
+    expect(bookmarkAllTabs).toHaveBeenLastCalledWith(null, undefined)
+    state.activeTabId = 'loose'
+    await harness.controller.bookmarkAllTabs()
+    expect(bookmarkAllTabs).toHaveBeenLastCalledWith(null, undefined)
+    // Home is in view: there are no tabs to bookmark, so the panel is not opened.
+    state.activeTabId = 'home'
+    await harness.controller.bookmarkAllTabs()
+    expect(bookmarkAllTabs).toHaveBeenCalledTimes(4)
+    // With Bookmarks in its own window, that window asks; this one opens nothing.
+    ownWindow = true
+    state.activeTabId = 'client-tab'
+    await harness.controller.bookmarkAllTabs()
+    await harness.controller.bookmarkAllTabs(null)
+    state.activeTabId = 'home'
+    await harness.controller.bookmarkAllTabs()
+    expect(panelWindow.bookmarkAllTabs.mock.calls).toEqual([['client'], [null]])
+    expect(bookmarkAllTabs).toHaveBeenCalledTimes(4)
     harness.controller.dispose()
   })
 

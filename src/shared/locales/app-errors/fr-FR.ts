@@ -281,7 +281,8 @@ export const frFRAppErrors: AppErrorMessages = {
     "exportFailed": "Impossible d’enregistrer le fichier de favoris.",
     "importTooLarge": "Ce fichier est trop volumineux pour être un fichier de favoris.",
     "importUnreadable": "Impossible de lire ce fichier.",
-    "importEmpty": "Aucun favori n’a été trouvé dans ce fichier."
+    "importEmpty": "Aucun favori n’a été trouvé dans ce fichier.",
+    "tabsNothingToSave": "Aucun de ces onglets ne peut aller dans une nouvelle collection : chacun n’affiche aucune page web ou est déjà dans une autre collection."
   },
   "pageTools": {
     "devToolsOpen": "Fermez les outils de développement de cet onglet, puis réessayez.",

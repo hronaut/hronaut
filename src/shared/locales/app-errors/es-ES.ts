@@ -281,7 +281,8 @@ export const esESAppErrors: AppErrorMessages = {
     "exportFailed": "No se pudo guardar el archivo de marcadores.",
     "importTooLarge": "Este archivo es demasiado grande para ser un archivo de marcadores.",
     "importUnreadable": "No se pudo leer este archivo.",
-    "importEmpty": "No se encontraron marcadores en este archivo."
+    "importEmpty": "No se encontraron marcadores en este archivo.",
+    "tabsNothingToSave": "Ninguna de estas pestañas puede ir a una colección nueva: cada una no muestra una página web o ya está en otra colección."
   },
   "pageTools": {
     "devToolsOpen": "Cierra las herramientas de desarrollo de esta pestaña y vuelve a intentarlo.",

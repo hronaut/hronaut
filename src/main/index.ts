@@ -745,7 +745,8 @@ function registerIpc(): void {
     closePanelWindow,
     panelWindowRefs,
     detachedPanelTitle,
-    mainWindow: () => mainWindowRefs.window
+    mainWindow: () => mainWindowRefs.window,
+    sendToPanelWindow
   })
   registerMcpControlIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
@@ -922,6 +923,7 @@ function registerIpc(): void {
     bookmarks: () => bookmarksAndHistory.bookmarks!,
     history: () => bookmarksAndHistory.history!,
     downloads: () => tabRuntime.tabs!,
+    tabs: () => tabRuntime.tabs?.getState().tabs ?? [],
     publishBookmarks,
     publishVisitHistory,
     historyCleared,

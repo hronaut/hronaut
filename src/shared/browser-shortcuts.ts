@@ -22,6 +22,7 @@ export type BrowserShortcutAction =
   | 'zoom-out'
   | 'zoom-reset'
   | 'bookmark'
+  | 'bookmark-all-tabs'
   | 'visit-history'
   | 'downloads'
   | 'task-manager'
@@ -131,9 +132,10 @@ export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserS
 
 /**
  * The keys of Hronaut's application menu that are not browser shortcuts above, which act on the page in view or open
- * another of Hronaut's dialogs: Print, Save Page As, View Page Source, Downloads, Back, Forward and Keyboard shortcuts,
- * on macOS Find Next and Find Previous, which elsewhere are website-kept keys, and elsewhere Escape, which stops the
- * page in focus loading once it leaves the key alone, as in Chrome, and Shift+Escape, which opens the Task manager.
+ * another of Hronaut's dialogs: Print, Save Page As, View Page Source, Downloads, Bookmark All Tabs, Back, Forward and
+ * Keyboard shortcuts, on macOS Find Next and Find Previous, which elsewhere are website-kept keys, and elsewhere
+ * Escape, which stops the page in focus loading once it leaves the key alone, as in Chrome, and Shift+Escape, which
+ * opens the Task manager.
  * Elsewhere than macOS, Zoom In's and Keyboard shortcuts' keys also go by the key's code, as the menu matches them. A
  * key Hronaut's window leaves alone reaches the menu, so under its own dialogs and the command palette the window keeps
  * these from the menu as well.
@@ -145,7 +147,7 @@ export function applicationMenuKey(input: BrowserShortcutInput): boolean {
   if (input.mac) {
     if (!input.meta || input.control) return false
     if (input.alt) return !input.shift && (optionLetter(input, 'u') || optionLetter(input, 'l'))
-    if (input.shift) return key === 'g' || slash
+    if (input.shift) return key === 'g' || key === 'd' || slash
     return key === 'p' || key === 's' || key === 'g' || key === '[' || key === ']'
   }
   if (input.meta) return false
@@ -155,7 +157,7 @@ export function applicationMenuKey(input: BrowserShortcutInput): boolean {
   // shortcuts' Ctrl+Shift+/ are also Ctrl+Shift with the + key and with the # key of a German keyboard, which have
   // those codes and type * and ' with Shift.
   if (input.shift && (input.keyCode === VKEY_OEM_PLUS || input.keyCode === VKEY_OEM_2)) return true
-  if (input.shift) return slash
+  if (input.shift) return slash || key === 'd'
   return key === 'p' || key === 's' || key === 'u' || key === 'j'
 }
 

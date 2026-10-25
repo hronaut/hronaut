@@ -281,7 +281,8 @@ export const plPLAppErrors: AppErrorMessages = {
     "exportFailed": "Nie udało się zapisać pliku zakładek.",
     "importTooLarge": "Ten plik jest zbyt duży, aby był plikiem zakładek.",
     "importUnreadable": "Nie udało się odczytać tego pliku.",
-    "importEmpty": "W tym pliku nie znaleziono zakładek."
+    "importEmpty": "W tym pliku nie znaleziono zakładek.",
+    "tabsNothingToSave": "Żadna z tych kart nie może trafić do nowej kolekcji: każda nie pokazuje strony internetowej albo jest już w innej kolekcji."
   },
   "pageTools": {
     "devToolsOpen": "Zamknij narzędzia deweloperskie tej karty i spróbuj ponownie.",

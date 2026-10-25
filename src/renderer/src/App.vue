@@ -333,7 +333,10 @@ const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureContr
   historyApi: window.hronautHistory,
   settingsOpen,
   tabSearchOpen,
-  syncState
+  syncState,
+  browserState: () => state.value,
+  bookmarksInOwnWindow: panelsInOwnWindow,
+  panelWindow: window.hronautPanelWindow
 })
 const {
   downloads,
@@ -645,6 +648,7 @@ const { dispose: disposeAppEventsController } = useAppEventsController({
   // New Tab in a tab's or workspace's menu opens the tab as the + button does, with the cursor in the address field.
   onNewTab: newTabInWorkspace,
   onVisitHistory: browserCollectionsFeatureController.openVisitHistory,
+  onBookmarkAllTabs: browserCollectionsFeatureController.bookmarkAllTabs,
   onAddressPasteAndGo: addressBarController.pasteAndGo,
   onPermissionsChanged: replaceSitePermissions,
   onCredentialsChanged: replaceCredentials,

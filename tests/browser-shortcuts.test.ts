@@ -163,6 +163,26 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'O', control: true, shift: true, repeat: true }))).toBeNull()
   })
 
+  it('leaves Bookmark all tabs\' primary modifier plus Shift+D to the page first, as Chrome does, keeping Bookmark on D', () => {
+    // Chrome does not reserve it, so a website may keep it, as a web editor does to show its Run and Debug view. The
+    // application menu's View item has it, which runs only when the page leaves the key alone.
+    expect(browserShortcutAction(input({ key: 'D', code: 'KeyD', control: true, shift: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'D', code: 'KeyD', meta: true, shift: true, mac: true }))).toBeNull()
+    expect(websiteKeptShortcutAction(input({ key: 'D', code: 'KeyD', control: true, shift: true }))).toBeNull()
+    expect(applicationMenuKey(input({ key: 'D', code: 'KeyD', control: true, shift: true }))).toBe(true)
+    expect(applicationMenuKey(input({ key: 'D', code: 'KeyD', meta: true, shift: true, mac: true }))).toBe(true)
+    // By its place on a US keyboard, with a Russian or Ukrainian layout on.
+    expect(applicationMenuKey(input({ key: 'В', code: 'KeyD', control: true, shift: true }))).toBe(true)
+    expect(applicationMenuKey(input({ key: 'В', code: 'KeyD', meta: true, shift: true, mac: true }))).toBe(true)
+    expect(browserShortcutAction(input({ key: 'd', control: true }))).toBe('bookmark')
+    for (const key of [
+      { key: 'D', code: 'KeyD', shift: true }, { key: 'D', code: 'KeyD', control: true, shift: true, alt: true },
+      { key: 'D', code: 'KeyD', control: true, shift: true, mac: true }, { key: 'D', code: 'KeyD', meta: true, shift: true }
+    ]) expect(applicationMenuKey(input(key)), JSON.stringify(key)).toBe(false)
+    // Under Hronaut's dialogs the window keeps it from the page behind them, as the other browser keys.
+    expect(isBrowserKey(input({ key: 'D', code: 'KeyD', control: true, shift: true, repeat: true }))).toBe(true)
+  })
+
   it('switches workspace with the primary modifier plus K, and nothing else on K', () => {
     expect(browserShortcutAction(input({ key: 'k', control: true }))).toBe('switch-workspace')
     expect(browserShortcutAction(input({ key: 'K', meta: true }))).toBe('switch-workspace')

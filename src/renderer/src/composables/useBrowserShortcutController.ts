@@ -34,6 +34,8 @@ export interface BrowserShortcutControllerOptions {
   findAgain?: (again: 'next' | 'previous') => void | Promise<void>
   setZoom: (action: 'in' | 'out' | 'reset') => void | Promise<void>
   toggleCurrentBookmark: ShortcutCallback
+  /** Bookmark all tabs, as Chrome's Ctrl/Cmd+Shift+D: the workspace in view's tabs go in a new collection. */
+  bookmarkAllTabs?: ShortcutCallback
   toggleVisitHistory: ShortcutCallback
   toggleDownloads: ShortcutCallback
   /** The Task manager, as Chrome's Shift+Esc opens and closes it. */
@@ -275,6 +277,9 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
       case 'bookmark':
         await options.toggleCurrentBookmark()
         return
+      case 'bookmark-all-tabs':
+        await options.bookmarkAllTabs?.()
+        return
       case 'visit-history':
         await options.toggleVisitHistory()
         return
@@ -321,7 +326,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
       disposed
       || !options.canRunAction(action)
       || (options.settingsOpen.value && [
-        'reload', 'reload-ignoring-cache', 'find', 'find-next', 'find-previous', 'bookmark', 'pick-element',
+        'reload', 'reload-ignoring-cache', 'find', 'find-next', 'find-previous', 'bookmark', 'bookmark-all-tabs', 'pick-element',
         'toggle-devtools', 'open-console', 'zoom-in', 'zoom-out', 'zoom-reset', 'agent-card', 'toggle-full-page', 'take-over',
         'move-tab-next', 'move-tab-previous', 'focus-next-pane'
       ].includes(action))
