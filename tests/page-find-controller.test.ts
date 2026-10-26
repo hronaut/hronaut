@@ -87,14 +87,41 @@ it('keeps searches in different pages independent', async () => {
   expect(vi.getTimerCount()).toBe(0)
 })
 
-it('clears the selection when a search ends, and clicks the active match only when asked', async () => {
+it('clears the selection when a search ends, and clicks only an active match a search settled on', async () => {
   const page = fixture()
-  const search = page.search().catch(error => error.message)
-  page.stop()
-  expect(await search).toBe('Page search was cancelled or superseded')
+  const settle = async (activeMatchOrdinal: number) => {
+    const search = page.search()
+    const requestId = page.contents.findInPage.mock.results.at(-1)!.value as number
+    page.contents.emit('found-in-page', {}, { requestId, finalUpdate: true, activeMatchOrdinal, matches: activeMatchOrdinal ? 3 : 0 })
+    await search
+  }
+  // Chromium clicks the page's focused element, which is the match's link only once a search found it: before, it is
+  // whatever had the focus, such as a button the person pressed.
+  const unanswered = page.search().catch(error => error.message)
+  expect(page.stop('activateSelection')).toBe(false)
+  expect(await unanswered).toBe('Page search was cancelled or superseded')
   expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
-  page.stop('activateSelection')
+
+  await settle(1)
+  expect(page.stop()).toBe(false)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+  await settle(1)
+  expect(page.stop('activateSelection')).toBe(true)
   expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('activateSelection')
+  // The search ended with it.
+  expect(page.stop('activateSelection')).toBe(false)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+
+  await settle(0)
+  expect(page.stop('activateSelection')).toBe(false)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+
+  // A match, then a search that has not answered yet.
+  await settle(1)
+  const next = page.search().catch(error => error.message)
+  expect(page.stop('activateSelection')).toBe(false)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+  expect(await next).toBe('Page search was cancelled or superseded')
 })
 
 it('ends a search session before a new one finds the same text again, so its active match can still be clicked', () => {
@@ -114,7 +141,7 @@ it('ends a search session before a new one finds the same text again, so its act
   search('pricing details', { findNext: false })
   search('pricing details', { findNext: true, matchCase: true })
   search('Pricing Details', { findNext: true })
-  controller.stop(webContents, 'activateSelection')
+  controller.stop(webContents)
   search('pricing details', { findNext: true })
 
   expect(calls).toEqual([
@@ -126,7 +153,7 @@ it('ends a search session before a new one finds the same text again, so its act
     'find pricing details new case',
     'stop clearSelection',
     'find Pricing Details new',
-    'stop activateSelection',
+    'stop clearSelection',
     // The search was stopped already.
     'find pricing details new'
   ])

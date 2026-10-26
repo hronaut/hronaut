@@ -5,18 +5,42 @@ vi.mock('electron', () => ({ app: { isPackaged: false } }))
 
 const { stopFindInPage } = await import('../src/main/browser/page-find/page-find.js')
 type PageFindAccess = import('../src/main/browser/page-find/page-find-access.js').PageFindAccess<PageTab>
-type PageTab = { id: string; locked: boolean; webContents: WebContents }
+type PageTab = {
+  id: string
+  mcpGroupId?: string
+  locked: boolean
+  webContents: WebContents
+  humanInteractionGeneration: number
+  lastHumanInteractionAt: number
+  lastActiveAt: number
+}
 
-function pageSearch(locked = false) {
-  const tab: PageTab = { id: 'tab', locked, webContents: { id: 4 } as WebContents }
-  const stopPageSearch = vi.fn()
+function pageSearch(options: { locked?: boolean; occluded?: boolean; agentInput?: boolean; selecting?: boolean; matched?: boolean } = {}) {
+  const tab: PageTab = {
+    id: 'tab',
+    mcpGroupId: 'workspace',
+    locked: options.locked ?? false,
+    webContents: { id: 4 } as WebContents,
+    humanInteractionGeneration: 7,
+    lastHumanInteractionAt: 1,
+    lastActiveAt: 1
+  }
+  // The controller clicks only after a search settled on a match.
+  const stopPageSearch = vi.fn((_webContents: WebContents, action: 'clearSelection' | 'activateSelection') => action === 'activateSelection' && (options.matched ?? true))
+  const noteHumanInput = vi.fn()
+  const onUserInteraction = vi.fn()
   const access: PageFindAccess = {
     getTab: () => tab,
     searchPage: vi.fn(),
     stopPageSearch,
-    isHumanInteractionLocked: (candidate) => candidate.locked
+    browserContentOccluded: () => options.occluded ?? false,
+    isHumanInteractionLocked: (candidate) => candidate.locked,
+    agentInputWebContents: () => new Map(options.agentInput ? [[4, 1]] : []),
+    nativeSelectionUnderWay: (webContentsId) => (options.selecting ?? false) && webContentsId === 4,
+    noteHumanInput,
+    onUserInteraction
   }
-  return { tab, access, stopPageSearch }
+  return { tab, access, stopPageSearch, noteHumanInput, onUserInteraction }
 }
 
 describe('ending a page search', () => {
@@ -24,17 +48,41 @@ describe('ending a page search', () => {
     const page = pageSearch()
     stopFindInPage(page.access, 'tab')
     expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'clearSelection')
+    expect(page.tab.humanInteractionGeneration).toBe(7)
+    expect(page.noteHumanInput).not.toHaveBeenCalled()
   })
 
-  it('clicks the active match when asked, as Ctrl+Enter in Chrome\'s find bar follows the link it is in', () => {
+  it('clicks the active match when asked, as Ctrl+Enter in Chrome\'s find bar follows the link it is in, as the person\'s click', () => {
     const page = pageSearch()
     stopFindInPage(page.access, 'tab', { activateMatch: true })
     expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'activateSelection')
+    // An agent's pending action and the take-over note see the person's click, as with their own click in the page.
+    expect(page.tab.humanInteractionGeneration).toBe(8)
+    expect(page.tab.lastHumanInteractionAt).toBeGreaterThan(1)
+    expect(page.tab.lastActiveAt).toBe(page.tab.lastHumanInteractionAt)
+    expect(page.noteHumanInput).toHaveBeenCalledOnce()
+    expect(page.onUserInteraction).toHaveBeenCalledExactlyOnceWith({ tabId: 'tab', workspaceId: 'workspace' })
   })
 
-  it('only ends the search of a tab whose input is locked, since the click would be the person\'s input', () => {
-    const page = pageSearch(true)
+  it('records no interaction when there was no match to click', () => {
+    const page = pageSearch({ matched: false })
+    stopFindInPage(page.access, 'tab', { activateMatch: true })
+    expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'activateSelection')
+    expect(page.tab.humanInteractionGeneration).toBe(7)
+    expect(page.noteHumanInput).not.toHaveBeenCalled()
+    expect(page.onUserInteraction).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['whose input is locked', { locked: true }],
+    ['behind trusted chrome', { occluded: true }],
+    ['an agent is sending input to', { agentInput: true }],
+    ['with an area capture or element pick in progress', { selecting: true }]
+  ])('only ends the search of a page %s, as the person\'s Back key leaves it alone', (_case, options) => {
+    const page = pageSearch(options)
     stopFindInPage(page.access, 'tab', { activateMatch: true })
     expect(page.stopPageSearch).toHaveBeenCalledExactlyOnceWith(page.tab.webContents, 'clearSelection')
+    expect(page.tab.humanInteractionGeneration).toBe(7)
+    expect(page.onUserInteraction).not.toHaveBeenCalled()
   })
 })

@@ -299,6 +299,23 @@ describe('FindInPageBar', () => {
     expect(browser.stopFindInPage).not.toHaveBeenCalledWith('first', { activateMatch: true })
   })
 
+  it('leaves Find open on a Ctrl+Enter that confirms an IME composition', async () => {
+    const { view, browser } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await vi.waitFor(() => expect(search).toHaveFocus())
+    await fireEvent.update(search, 'pricing')
+    await vi.waitFor(() => expect(browser.findInPage).toHaveBeenCalledTimes(1))
+
+    const follow = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, isComposing: true, bubbles: true, cancelable: true })
+    search.dispatchEvent(follow)
+    await nextTick()
+
+    expect(follow.defaultPrevented).toBe(false)
+    expect(view.emitted()['update:open']).toBeUndefined()
+    expect(browser.stopFindInPage).not.toHaveBeenCalled()
+    expect(browser.findInPage).toHaveBeenCalledTimes(1)
+  })
+
   it('leaves Find open on an Escape that a control in the bar already handled', async () => {
     const { view } = renderBar()
     const search = screen.getByRole('searchbox', { name: 'Find text' })
