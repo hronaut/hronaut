@@ -3699,6 +3699,8 @@ export const ptBR: MessageSchema = {
       "openVideo": "Abrir vídeo em nova guia",
       "saveVideo": "Salvar vídeo",
       "copyVideoAddress": "Copiar endereço do vídeo",
+      "copyVideoFrame": "Copiar quadro do vídeo",
+      "saveVideoFrame": "Salvar quadro do vídeo",
       "openAudio": "Abrir áudio em nova guia",
       "saveAudio": "Salvar áudio",
       "copyAudioAddress": "Copiar endereço do áudio",

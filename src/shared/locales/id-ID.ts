@@ -3699,6 +3699,8 @@ export const idID: MessageSchema = {
       "openVideo": "Buka video di tab baru",
       "saveVideo": "Simpan video",
       "copyVideoAddress": "Salin alamat video",
+      "copyVideoFrame": "Salin bingkai video",
+      "saveVideoFrame": "Simpan bingkai video",
       "openAudio": "Buka audio di tab baru",
       "saveAudio": "Simpan audio",
       "copyAudioAddress": "Salin alamat audio",

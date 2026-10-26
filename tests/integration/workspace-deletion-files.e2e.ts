@@ -16,8 +16,13 @@ for (const mode of ['active', 'archived'] as const) {
       const group = await instance.window.evaluate(async ({ url, name }) => {
         const api = (window as unknown as { hronaut: HronautApi }).hronaut
         const state = await api.createWorkspace({ name, storage: 'scratch' })
-        await api.navigate({ tabId: state.activeTabId!, url })
-        return state.mcpTabGroups.find(g => g.name === name)!.id
+        const group = state.mcpTabGroups.find(g => g.name === name)!.id
+        // The page opens at its address in place of the workspace's blank tab. Playwright emulates focus in every page
+        // it attaches to, and Chromium's renderer can crash (FocusController::FocusHasChanged) when that emulation ends
+        // as an unfocused page swaps out its blank document for the first address it navigates to.
+        await api.newTab({ url, active: true, mcpGroupId: group })
+        await api.closeTab(state.activeTabId!)
+        return group
       }, { url, name })
       await expect.poll(() => instance.app.evaluate(({ webContents }, url) => webContents.getAllWebContents().some(w => w.getURL() === url && !w.isLoading()), url)).toBe(true)
       const path = await instance.app.evaluate(async ({ webContents }, url) => {

@@ -16,6 +16,7 @@ import { integrationMcpPort } from './port-allocation.js'
 import { ElectronTraceRecorder } from './electron-tracing.js'
 import { startWorkerDisplay } from './worker-display.js'
 import { activityDiagnostics, attachActivityDiagnostics } from './activity-failure-diagnostics.js'
+import { collectsNativeCrashStacks, readNativeCrashStacks, trackNativeCrashStacks, untrackNativeCrashStacks } from './native-crash-stacks.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 export function expectFixtureSuccess(result: CallToolResult, operation: string): void {
@@ -82,6 +83,8 @@ export interface HronautFixtures {
    * and font settings. A case that launches Hronaut again passes `standInHomeEnvironment` to `launchHronaut` itself.
    */
   standInHome: boolean
+  /** Collects the native stack traces of the processes the test's launches crash, for a failure to attach. */
+  nativeCrashStacks: void
 }
 
 /** An empty home folder inside the test profile, with no agent's settings in it, as `launchHronaut` overrides. */
@@ -92,6 +95,11 @@ export async function standInHomeEnvironment(profileDirectory: string): Promise<
   const authority = process.env.XAUTHORITY ?? (process.env.HOME ? join(process.env.HOME, '.Xauthority') : undefined)
   const keepAuthority = authority !== undefined && await access(authority).then(() => true, () => false)
   return { HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: undefined, ...(keepAuthority ? { XAUTHORITY: authority } : {}) }
+}
+
+/** The test this code runs in, or none, as when a unit test drives the launch. */
+function runningTestInfo(): TestInfo | undefined {
+  try { return base.info() } catch { return undefined }
 }
 
 export async function launchHronaut(
@@ -117,6 +125,9 @@ export async function launchHronaut(
     await writeFile(settingsPath, `${JSON.stringify({ theme: 'system', interfaceScale, tabPosition: 'top', mcpToolSet: 'complete', mcpAuthentication: false }, null, 2)}\n`, 'utf8')
   }
   const environment = { ...process.env }
+  // Each process that crashes prints its native stack trace, which a failed test attaches.
+  const testInfo = runningTestInfo()
+  if (testInfo && collectsNativeCrashStacks(testInfo)) environment.ELECTRON_ENABLE_STACK_DUMPING = '1'
   for (const [name, value] of Object.entries(environmentOverrides)) {
     if (value === undefined) delete environment[name]
     else environment[name] = value
@@ -139,6 +150,7 @@ export async function launchHronaut(
       HRONAUT_DOWNLOAD_DIR: profileDirectory
     }
   })
+  if (testInfo) readNativeCrashStacks(testInfo, app.process().stderr)
   try {
     await app.evaluate(({ app }) => {
       const exits: { reason: string; exitCode: number; webContentsId: number; type: string; surface: string; occurredAt: number }[] = []
@@ -168,7 +180,7 @@ export async function launchHronaut(
     // Electron exposes its context before the first Page is fully initialized.
     // Starting earlier can miss installing Playwright's DOM snapshot streamer
     // in that page for its entire lifetime, despite recording screenshots.
-    const traces = testTraces.get(base.info())
+    const traces = testInfo && testTraces.get(testInfo)
     if (traces) {
       applicationTraces.set(app, traces)
       await traces.start(app)
@@ -359,6 +371,17 @@ export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
     try { await use(traces) } finally {
       testTraces.delete(testInfo)
       await traces.finish()
+    }
+  }, { auto: true }],
+
+  nativeCrashStacks: [async ({}, use, testInfo) => {
+    const stacks = trackNativeCrashStacks(testInfo)
+    try { await use() } finally {
+      untrackNativeCrashStacks(testInfo)
+      // A failure's only: a test that crashes a page on purpose prints a trace too.
+      if (testInfo.status !== testInfo.expectedStatus && stacks.length > 0) {
+        await testInfo.attach('native-crash-stacks', { body: JSON.stringify(stacks), contentType: 'application/json' })
+      }
     }
   }, { auto: true }],
 

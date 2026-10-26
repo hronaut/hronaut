@@ -10,12 +10,15 @@ All notable changes to Hronaut are documented in this file.
 - **Restart** beside a change that applies at the next start, as Chrome's **Relaunch**: **Use graphics acceleration when available** and **Use system title bar** show it with their restart notice. Like Quit, it first asks, as **Restart Hronaut?**, before cancelling downloads in progress, then starts Hronaut again with its command-line switches, except those about one run such as `--disable-gpu`, and its tabs restored; however often it is pressed, Hronaut restarts once.
 - **Time range** for clearing history, as in Chrome's Delete browsing data: **Settings → Workspaces & data → Global history** clears the visits of the **Last hour**, **Last 24 hours**, **Last 7 days** or **Last 4 weeks**, or **All time** as before, with the pages visited then in Recently closed and in tabs' Back and Forward lists, and the steps Home's activity feed lists from then. A page visited before keeps those visits. The question before clearing names a range other than All time.
 - Two more interface languages: Indonesian and Vietnamese. **System default** picks them from the operating system's language.
+- Right-clicking a video now also offers **Copy Video Frame** and **Save Video Frame**, as in Chrome: they copy the picture the video shows to the clipboard or save it as a PNG to your downloads, also for a video inside a frame of the page or one with no address, such as a camera's. A still of a video could be had only from a screenshot of the page. A video that failed to load keeps them unavailable.
 
 ### Fixed
 
 - Clearing history also clears the steps agents took in that time from their cards and **All steps**, with the pictures of the pages, as it already did for Home's activity feed.
 - A page that crashes while it loads shows only the tab's **This page stopped working** notice, as in Chrome, without a **Navigation failed** toast quoting Electron's ERR_FAILED code. `browser_navigate` tells the agent that the page's renderer exited instead of reporting a network failure.
 - **Bookmark all tabs** with Bookmarks in its own window always asks for the collection's name. When that window was closed, the window it opened could miss the request and ask nothing.
+- A **Copy Image** that fails no longer empties the clipboard: what you had copied before stays there.
+- **Resume Page** on Linux shows the page again at once. Freezing a page hides it in Chromium, which resuming does not undo, so a resumed page kept its timers and animations slowed down and reported itself hidden until Hronaut's visibility check, which first asks the page, got its answer, which under load could take long enough to notice. The same goes for an agent's resume (`browser_page_lifecycle`).
 
 ## [3.12.0] - 2026-10-25
 

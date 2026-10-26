@@ -50,7 +50,8 @@ export const koKRAppErrors: AppErrorMessages = {
     "textRejected": "텍스트를 준비했지만 시스템 클립보드에서 받아들이지 않았습니다",
     "screenshotRejected": "스크린샷을 캡처했지만 시스템 클립보드에서 이미지를 받아들이지 않았습니다",
     "pageClosed": "이미지를 복사하기 전에 페이지가 닫혔습니다",
-    "imageRejected": "페이지 이미지를 선택했지만 시스템 클립보드에서 받아들이지 않았습니다"
+    "imageRejected": "페이지 이미지를 선택했지만 시스템 클립보드에서 받아들이지 않았습니다",
+    "videoFrameRejected": "동영상에 복사할 프레임이 없거나 시스템 클립보드에서 받아들이지 않았습니다"
   },
   "tabs": {
     "noActiveTab": "활성 탭이 없습니다",

@@ -3699,6 +3699,8 @@ export const itIT: MessageSchema = {
       "openVideo": "Apri video in una nuova scheda",
       "saveVideo": "Salva video",
       "copyVideoAddress": "Copia indirizzo video",
+      "copyVideoFrame": "Copia fotogramma video",
+      "saveVideoFrame": "Salva fotogramma video",
       "openAudio": "Apri audio in una nuova scheda",
       "saveAudio": "Salva audio",
       "copyAudioAddress": "Copia indirizzo audio",

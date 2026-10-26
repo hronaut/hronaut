@@ -112,6 +112,7 @@ async function controlPageLifecycleInternal<Tab extends PageLifecycleTab>(
 ): Promise<BrowserPageLifecycleResult> {
   const navigationGeneration = tab.navigationGeneration
   const webContents = tab.webContents
+  const wasFrozen = tab.pageLifecycleState === 'frozen'
   let dispatched = false
   const assertCurrentDocument = (): void => {
     if (access.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
@@ -228,7 +229,10 @@ async function controlPageLifecycleInternal<Tab extends PageLifecycleTab>(
   tab.pageLifecycleState = requestedState
   tab.pageLifecycleUnknownRequest = undefined
   access.changed(false)
-  if (requestedState === 'active') access.reconcileTabPresentation(tab)
+  // Chromium hides a page it freezes (Page.setWebLifecycleState calls WasHidden) and does not show it when it resumes,
+  // and a hidden page's timers and frames stay throttled. So the page on screen is shown before the resume reports
+  // done. A page whose freeze may not have reached Chromium is shown only if it says it is hidden.
+  if (requestedState === 'active') access.showResumedPage(tab, wasFrozen)
   return {
     tabId: tab.id,
     requestedState,

@@ -3699,6 +3699,8 @@ export const deDE: MessageSchema = {
       "openVideo": "Video in neuem Tab öffnen",
       "saveVideo": "Video speichern",
       "copyVideoAddress": "Videoadresse kopieren",
+      "copyVideoFrame": "Videoframe kopieren",
+      "saveVideoFrame": "Videoframe speichern",
       "openAudio": "Audio in neuem Tab öffnen",
       "saveAudio": "Audio speichern",
       "copyAudioAddress": "Audioadresse kopieren",
