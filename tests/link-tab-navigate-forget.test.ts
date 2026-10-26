@@ -9,7 +9,7 @@ function navigation(mcpGroupId: string | undefined, allowed = true) {
   const forgetTabsOpenedFrom = vi.fn()
   const tab = {
     id: 'tab', mcpGroupId, navigationGeneration: 0, navigationPolicyDenialSequence: 0, sleeping: false,
-    webContents: { on: vi.fn(), once: vi.fn(), removeListener: vi.fn(), loadURL }
+    webContents: { on: vi.fn(), once: vi.fn(), removeListener: vi.fn(), isCrashed: () => false, loadURL }
   }
   const access = {
     getTab: () => tab,

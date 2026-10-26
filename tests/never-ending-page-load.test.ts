@@ -27,6 +27,7 @@ describe('opening an address whose page never finishes loading', () => {
   function tabLoadingForever(shows: boolean) {
     const webContents = Object.assign(new EventEmitter(), {
       isDestroyed: () => false,
+      isCrashed: () => false,
       loadURL: vi.fn(() => {
         if (shows) webContents.emit('did-navigate', {}, 'https://next.example/')
         return new Promise<void>(() => {})
