@@ -86,3 +86,61 @@ it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-po
   }
 })
 
+
+it('tells an agent to retry shortly, not to clear every condition, while the rules are still being applied', async () => {
+  const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
+  const tabId = '01912345-6790-7abc-8def-0123456789ab'
+  const reviewId = '01912345-6791-7abc-8def-0123456789ab'
+  const reviewRevision = '01912345-6792-7abc-8def-0123456789ab'
+  const workspace = { id: workspaceId, name: 'Condition settlement', agentAccess: true, contextClass: 'standard' }
+  const manager = {
+    suspendWorkspaceContinuity: vi.fn(() => false), requireWorkspaceContinuityDispatch: vi.fn(),
+    beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
+    createMcpTabGroup: vi.fn(async () => workspace), listWorkspaceForkSources: vi.fn(() => []),
+    listMcpTabGroups: vi.fn(() => [workspace]), listSavedTabGroups: vi.fn(() => []),
+    isWorkspaceAgentAccessible: vi.fn(() => true), mcpWorkspaceResumeKey: vi.fn(() => `hrw1_${'R'.repeat(43)}`),
+    requireMcpTabGroup: vi.fn(() => workspace), requireTabInMcpGroup: vi.fn(() => tabId),
+    tabBelongsToMcpGroup: vi.fn(() => true), wakeTab: vi.fn(),
+    setNetworkRouteEnabled: vi.fn(async (_tabId: string, _routeId: string, _enabled: boolean, validate: () => void) => {
+      validate()
+      throw new Error('Another request-condition change is still applying. Wait for it to settle before enabling or disabling a rule.')
+    }),
+    networkConditionPublication: vi.fn(() => () => undefined),
+    networkConditionState: vi.fn(() => ({ application: 'pending', retainedRules: [] })),
+    heldNetworkResponses: vi.fn(() => []),
+    getMcpGroupState: vi.fn(() => ({
+      activeTabId: tabId,
+      tabs: [{ id: tabId, url: 'https://example.test/', navigationGeneration: 1, observationGeneration: 1, humanInteractionGeneration: 0 }],
+      mcpTabGroups: [workspace]
+    }))
+  }
+  const waiting = {
+    requireDispatch: vi.fn(async () => undefined),
+    beginReviewedDispatch: vi.fn(async () => ({ id: reviewId, revision: reviewRevision })),
+    finishReviewedDispatch: vi.fn(async () => undefined)
+  }
+  const auditReceipts = {
+    isRecording: vi.fn(() => true),
+    execute: vi.fn(async (_workspace: string, action: { operation: () => Promise<CallToolResult> }) => await action.operation())
+  }
+  const server = new McpHttpServer(manager as never, {
+    host: '127.0.0.1', port: 0, version: 'test', toolSet: 'complete', humanWaiting: waiting as never, auditReceipts: auditReceipts as never,
+    showWindowInactive: () => undefined, getUserAttention: () => null, requestUserAttention: vi.fn(),
+    bookmarks: {} as never, history: {} as never, siteData: {} as never
+  })
+  const client = new Client({ name: 'condition-settlement', version: '1' })
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(await server.start())))
+    const call = async (name: string, args: Record<string, unknown>) => await client.callTool({ name, arguments: args }) as CallToolResult
+    expect((await call('browser_workspaces', { action: 'create', name: 'Condition settlement' })).isError).not.toBe(true)
+    const result = await call('browser_network_routes', { workspaceId, tabId, reviewId, reviewRevision, action: 'set-enabled', routeId: 'retained-rule', enabled: false })
+    expect(result.isError).toBe(true)
+    expect(result.structuredContent, JSON.stringify(result)).toMatchObject({ status: 'NOT_DISPATCHED', effects: 'none', application: 'pending' })
+    const nextAction = (result.structuredContent as { nextAction: string }).nextAction
+    expect(nextAction).toContain('still being applied')
+    expect(nextAction).not.toContain('clear conditions')
+  } finally {
+    await client.close()
+    await server.stop()
+  }
+})
