@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import type { WebContents } from 'electron'
 import type {
   BrowserNetworkConditionState,
   BrowserNetworkRouteInput,
@@ -21,6 +22,23 @@ const MAX_NETWORK_ROUTES = 50
  * pending, but only a change can leave it unknown.
  */
 const changesApplying = new WeakMap<NetworkConditionsTab, number>()
+
+/**
+ * The interception each tab's last confirmed application sent, in the
+ * condition epoch it belongs to. A refresh that would send the same applies
+ * nothing; one that would not, such as after the last held request ended,
+ * still applies.
+ */
+const appliedInterception = new WeakMap<NetworkConditionsTab, { epoch: number, command: string }>()
+
+/** The Fetch command that intercepts the tab's rules: their patterns, no patterns while a request is held, or none. */
+function interceptionCommand<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, contents: WebContents, routes: readonly BrowserNetworkRouteRecord[]): { method: string, params?: Record<string, unknown> } {
+  const interception = routes.filter(route => route.enabled && route.behavior !== 'throttle')
+  if (interception.length) return { method: 'Fetch.enable', params: { patterns: [...new Set(interception.map(route => route.urlPattern))].map(urlPattern => ({ urlPattern })) } }
+  // Disabling interception fails held requests; empty patterns keep them and pause nothing new.
+  if (heldResponseCount(access, contents)) return { method: 'Fetch.enable', params: { patterns: [] } }
+  return { method: 'Fetch.disable' }
+}
 
 /** A rule removed meanwhile, for example by an agent. The Network panel shows its key; its English message names the rule's ID. */
 function conditionGone(routeId: string): LocalizedError {
@@ -185,7 +203,8 @@ function networkRouteSummary(route: BrowserNetworkRouteRecord): BrowserNetworkRo
  * sent restores the earlier rules; after that the application becomes
  * unknown. Once admitted, it replaces a scheduled refresh, which it schedules
  * again if it fails before sending anything. A refresh, which changes nothing,
- * applies nothing once another application confirmed the rules.
+ * applies nothing once another application confirmed the rules with the
+ * interception it would send.
  */
 export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tab: Tab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
   const contents = tab.webContents
@@ -195,7 +214,8 @@ export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(acces
     if (!recovery) requireNetworkConditionsKnown(tab)
     if (access.isDestroyed() || contents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before application')
     // A change that waited in this queue may have confirmed the rules since the refresh was scheduled.
-    if (!mutate && !recovery && tab.networkConditionApplication === 'confirmed') return
+    const applied = appliedInterception.get(tab)
+    if (!mutate && !recovery && tab.networkConditionApplication === 'confirmed' && applied?.epoch === tab.networkConditionEpoch && applied.command === JSON.stringify(interceptionCommand(access, contents, tab.networkRoutes))) return
     const previousRoutes = tab.networkRoutes
     mutate?.()
     // This application settles the rules a scheduled refresh would have applied.
@@ -224,15 +244,13 @@ export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(acces
     if (mutate) changesApplying.set(tab, (changesApplying.get(tab) ?? 0) + 1)
     try {
       access.changed(false)
-      const interception = projection.filter(route => route.enabled && route.behavior !== 'throttle')
-      if (interception.length) await send('Fetch.enable', { patterns: [...new Set(interception.map(route => route.urlPattern))].map(urlPattern => ({ urlPattern })) })
-      // Disabling interception fails held requests; empty patterns keep them and pause nothing new.
-      else if (heldResponseCount(access, contents)) await send('Fetch.enable', { patterns: [] })
-      else await send('Fetch.disable')
+      const interception = interceptionCommand(access, contents, projection)
+      await send(interception.method, interception.params)
       await access.applyNetworkEmulation(contents, network, projection, send)
       // Native acknowledgement is independent of subsequent UI/MCP publication.
       if (contents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Request-condition acknowledgement belongs to a retired configuration')
       tab.networkConditionApplication = 'confirmed'
+      appliedInterception.set(tab, { epoch, command: JSON.stringify(interception) })
     } catch (error) {
       if (access.findTab(tab.id) === tab && tab.webContents === contents && tab.networkConditionEpoch === epoch) {
         if (submitted || tab.networkRoutes !== routes) markNetworkConditionsUnknown(tab)
