@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserWindow, WebContentsView } from 'electron'
-import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from '../src/main/browser/presented-view-visibility.js'
+import { reconcilePresentedViewVisibility, showResumedPresentedView, watchPresentedViewVisibility } from '../src/main/browser/presented-view-visibility.js'
 
 function fixture() {
   vi.stubGlobal('process', { ...process, platform: 'linux', versions: { ...process.versions, electron: '44.2.0' } })
@@ -128,5 +128,33 @@ describe('presented view visibility', () => {
     vi.stubGlobal('process', { ...process, versions: { ...process.versions, electron: '45.0.0' } })
     f.reconcile()
     expect(f.contents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
+  })
+})
+
+describe('showing a resumed page', () => {
+  it('shows the renderer of a presented view without checking it first', () => {
+    // Chromium leaves a page it resumed hidden, and the check that would find it hidden could come too late.
+    const f = fixture()
+    showResumedPresentedView(f.window as unknown as BrowserWindow, f.view as unknown as WebContentsView)
+    expect(f.contents.setEmbedder).toHaveBeenCalledExactlyOnceWith(f.window.webContents)
+    expect(f.contents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
+  })
+
+  it.each(['hidden', 'minimized', 'detached', 'destroyed', 'loading'] as const)('leaves a view that is %s alone', state => {
+    const f = fixture()
+    if (state === 'hidden') f.view.getVisible.mockReturnValue(false)
+    if (state === 'minimized') f.window.isMinimized.mockReturnValue(true)
+    if (state === 'detached') f.window.contentView.children = []
+    if (state === 'destroyed') f.contents.isDestroyed.mockReturnValue(true)
+    if (state === 'loading') f.contents.isLoadingMainFrame.mockReturnValue(true)
+    showResumedPresentedView(f.window as unknown as BrowserWindow, f.view as unknown as WebContentsView)
+    expect(f.contents.setEmbedder).not.toHaveBeenCalled()
+  })
+
+  it('does nothing outside Linux, where the internal API is not verified', () => {
+    const f = fixture()
+    vi.stubGlobal('process', { ...process, platform: 'darwin', versions: { ...process.versions, electron: '44.2.0' } })
+    showResumedPresentedView(f.window as unknown as BrowserWindow, f.view as unknown as WebContentsView)
+    expect(f.contents.setEmbedder).not.toHaveBeenCalled()
   })
 })

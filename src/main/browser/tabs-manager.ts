@@ -168,7 +168,7 @@ import {
 import { ensureHumanWorkspace } from './workspace-creation/human-workspace.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
 import { pinnedWorkspacesFirst } from '../../shared/workspace-rail.js'
-import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
+import { reconcilePresentedViewVisibility, showResumedPresentedView, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { resizeViewport } from './emulation/resize-viewport.js'
 import { setEmulationViewSize } from './emulation/emulation-view-size.js'
 import { createSplitDivider } from './split-view/split-divider.js'
@@ -2733,7 +2733,7 @@ export class BrowserTabsManager {
       inDebuggerQueue: (webContentsId, operation) => this.debuggerQueue.run(webContentsId, operation),
       dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
       isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
-      reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
+      showResumedPage: (tab) => showResumedPresentedView(this.window, tab.view),
       changed: (persist) => this.changed(persist),
       getState: () => this.getState()
     }

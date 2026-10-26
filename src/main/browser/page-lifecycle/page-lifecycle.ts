@@ -228,7 +228,10 @@ async function controlPageLifecycleInternal<Tab extends PageLifecycleTab>(
   tab.pageLifecycleState = requestedState
   tab.pageLifecycleUnknownRequest = undefined
   access.changed(false)
-  if (requestedState === 'active') access.reconcileTabPresentation(tab)
+  // Chromium hides a page it freezes (Page.setWebLifecycleState calls WasHidden) and does not show it when it resumes,
+  // and a hidden page's timers and frames stay throttled. So the page on screen is shown before the resume reports
+  // done.
+  if (requestedState === 'active') access.showResumedPage(tab)
   return {
     tabId: tab.id,
     requestedState,

@@ -38,7 +38,8 @@ export interface PageLifecycleAccess<Tab extends PageLifecycleTab> {
   inDebuggerQueue<T>(webContentsId: number, operation: () => Promise<T>): Promise<T>
   dialogMonitorAttach(webContentsId: number): Promise<void> | undefined
   isDevToolsOpening(webContentsId: number): boolean
-  reconcileTabPresentation(tab: Tab): void
+  /** Shows the page of a tab just resumed, which Chromium leaves hidden, if it is on screen. */
+  showResumedPage(tab: Tab): void
   changed(persist?: boolean): void
   getState(): BrowserState
 }

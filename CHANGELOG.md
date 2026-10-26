@@ -16,6 +16,7 @@ All notable changes to Hronaut are documented in this file.
 - Clearing history also clears the steps agents took in that time from their cards and **All steps**, with the pictures of the pages, as it already did for Home's activity feed.
 - A page that crashes while it loads shows only the tab's **This page stopped working** notice, as in Chrome, without a **Navigation failed** toast quoting Electron's ERR_FAILED code. `browser_navigate` tells the agent that the page's renderer exited instead of reporting a network failure.
 - **Bookmark all tabs** with Bookmarks in its own window always asks for the collection's name. When that window was closed, the window it opened could miss the request and ask nothing.
+- **Resume Page** on Linux shows the page again at once. Freezing a page hides it in Chromium, which resuming does not undo, so a resumed page could keep its timers and animations slowed down and report itself hidden until Hronaut's next visibility check repaired it, about a second later. The same goes for an agent's resume (`browser_page_lifecycle`).
 
 ## [3.12.0] - 2026-10-25
 

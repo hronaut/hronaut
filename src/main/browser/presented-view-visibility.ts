@@ -5,34 +5,57 @@ const pending = new WeakSet<WebContentsView>()
 const VISIBILITY_WORLD_ID = ISOLATED_WORLDS.presentedViewVisibility
 const VISIBILITY_PROBE_TIMEOUT_MS = 1_500
 
-/** Repair Electron 44's stale native visibility without reloading or focusing. */
-export function reconcilePresentedViewVisibility(window: BrowserWindow, view: WebContentsView): void {
-  if (process.platform !== 'linux' || process.versions.electron?.split('.')[0] !== '44' || pending.has(view)) return
-  let contents: WebContents
+function repairsVisibility(): boolean {
+  return process.platform === 'linux' && process.versions.electron?.split('.')[0] === '44'
+}
+
+function viewContents(view: WebContentsView): WebContents | undefined {
   try {
     // Electron can invalidate this native getter while a child view is being
     // torn down. The periodic recovery check must not turn that expected race
     // into an uncaught main-process exception.
-    contents = view.webContents
+    return view.webContents
   } catch {
-    return
+    return undefined
   }
-  const isPresented = (): boolean => {
-    try {
-      return !window.isDestroyed()
-        && !contents.isDestroyed()
-        && window.isVisible()
-        && !window.isMinimized()
-        && window.contentView.children.includes(view)
-        && view.getVisible()
-        && !contents.isLoadingMainFrame()
-    } catch {
-      // Any native wrapper in this predicate can become invalid between the
-      // periodic watcher selecting a view and checking its presentation.
-      return false
-    }
+}
+
+function isPresented(window: BrowserWindow, view: WebContentsView, contents: WebContents): boolean {
+  try {
+    return !window.isDestroyed()
+      && !contents.isDestroyed()
+      && window.isVisible()
+      && !window.isMinimized()
+      && window.contentView.children.includes(view)
+      && view.getVisible()
+      && !contents.isLoadingMainFrame()
+  } catch {
+    // Any native wrapper in this predicate can become invalid between the
+    // periodic watcher selecting a view and checking its presentation.
+    return false
   }
-  if (!isPresented()) return
+}
+
+/**
+ * Electron 44's View visibility/bounds can already be correct while its
+ * RenderWidgetHost remains hidden. Reapplying them does not call WasShown.
+ * setEmbedder performs WasHidden/WasShown and preserves the live document,
+ * focus and background throttling. This internal API is deliberately
+ * feature-checked and restricted to the verified Electron major version.
+ * https://github.com/electron/electron/blob/v44.2.0/shell/browser/api/electron_api_web_contents.cc
+ */
+function showRenderer(window: BrowserWindow, contents: WebContents): void {
+  const nativeContents = contents as WebContents & { setEmbedder?: (embedder: WebContents) => void }
+  nativeContents.setEmbedder?.(window.webContents)
+}
+
+/** Repair Electron 44's stale native visibility without reloading or focusing. */
+export function reconcilePresentedViewVisibility(window: BrowserWindow, view: WebContentsView): void {
+  if (!repairsVisibility() || pending.has(view)) return
+  const contents = viewContents(view)
+  if (!contents) return
+  const presented = (): boolean => isPresented(window, view, contents)
+  if (!presented()) return
   pending.add(view)
   let probe: ReturnType<WebContents['executeJavaScriptInIsolatedWorld']>
   try {
@@ -56,15 +79,8 @@ export function reconcilePresentedViewVisibility(window: BrowserWindow, view: We
     deadline
   ])
     .then(visibility => {
-      if (visibility !== 'hidden' || !isPresented()) return
-      // Electron 44's View visibility/bounds can already be correct while its
-      // RenderWidgetHost remains hidden. Reapplying them does not call WasShown.
-      // setEmbedder performs WasHidden/WasShown and preserves the live document,
-      // focus and background throttling. This internal API is deliberately
-      // feature-checked and restricted to the verified Electron major version.
-      // https://github.com/electron/electron/blob/v44.2.0/shell/browser/api/electron_api_web_contents.cc
-      const nativeContents = contents as WebContents & { setEmbedder?: (embedder: WebContents) => void }
-      nativeContents.setEmbedder?.(window.webContents)
+      if (visibility !== 'hidden' || !presented()) return
+      showRenderer(window, contents)
     })
     // Navigation or destruction can invalidate the isolated execution context.
     .catch(() => undefined)
@@ -72,6 +88,17 @@ export function reconcilePresentedViewVisibility(window: BrowserWindow, view: We
       if (timeout) clearTimeout(timeout)
       pending.delete(view)
     })
+}
+
+/**
+ * Shows the page of a presented view that Hronaut has just resumed. Chromium hides a page it freezes
+ * (Page.setWebLifecycleState calls WasHidden) and does not show it when it resumes, which left the page's timers and
+ * frames throttled until a check found it hidden. The page is known to be hidden, so it is shown without a check.
+ */
+export function showResumedPresentedView(window: BrowserWindow, view: WebContentsView): void {
+  if (!repairsVisibility()) return
+  const contents = viewContents(view)
+  if (contents && isPresented(window, view, contents)) showRenderer(window, contents)
 }
 
 /** Check idle presented pages too: compositor visibility can drift without a
