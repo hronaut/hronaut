@@ -3699,6 +3699,8 @@ export const zhCN: MessageSchema = {
       "openVideo": "在新标签页中打开视频",
       "saveVideo": "保存视频",
       "copyVideoAddress": "复制视频地址",
+      "copyVideoFrame": "复制视频帧",
+      "saveVideoFrame": "保存视频帧",
       "openAudio": "在新标签页中打开音频",
       "saveAudio": "保存音频",
       "copyAudioAddress": "复制音频地址",

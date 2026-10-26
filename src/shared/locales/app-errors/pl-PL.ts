@@ -50,7 +50,8 @@ export const plPLAppErrors: AppErrorMessages = {
     "textRejected": "Tekst został przygotowany, ale schowek systemowy go nie przyjął.",
     "screenshotRejected": "Zrzut ekranu został wykonany, ale schowek systemowy nie przyjął obrazu.",
     "pageClosed": "Strona została zamknięta, zanim udało się skopiować jej obraz.",
-    "imageRejected": "Obraz na stronie został wybrany, ale schowek systemowy go nie przyjął."
+    "imageRejected": "Obraz na stronie został wybrany, ale schowek systemowy go nie przyjął.",
+    "videoFrameRejected": "Wideo nie miało klatki do skopiowania albo schowek systemowy jej nie przyjął."
   },
   "tabs": {
     "noActiveTab": "Brak aktywnej karty.",

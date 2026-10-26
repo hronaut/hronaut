@@ -136,6 +136,55 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     void access.options().copyImageAt(webContents, params.x, params.y)
       .catch((error) => reportCopyFailure('image', error))
   }
+  // A video's or audio's open, save and copy of its address.
+  const addressedMediaItems = (video: boolean, savable: boolean): MenuItemConstructorOptions[] => [
+    {
+      id: video ? 'open-video-new-tab' : 'open-audio-new-tab',
+      label: access.text(video ? 'native.context.openVideo' : 'native.context.openAudio'),
+      enabled: savable,
+      click: () => openBackgroundTab(params.srcURL)
+    },
+    {
+      id: video ? 'save-video' : 'save-audio',
+      label: access.text(video ? 'native.context.saveVideo' : 'native.context.saveAudio'),
+      enabled: savable,
+      click: withLiveContents(video ? 'save video' : 'save audio', () => download(params.srcURL))
+    },
+    {
+      id: video ? 'copy-video-address' : 'copy-audio-address',
+      label: access.text(video ? 'native.context.copyVideoAddress' : 'native.context.copyAudioAddress'),
+      click: () => copyText(params.srcURL)
+    }
+  ]
+  // Chrome's Copy Video Frame and Save Video Frame, for the frame the video shows, taken from the frame of the page the
+  // video is in, which the click's page coordinates reach even across sites. Electron tells nothing of whether the video
+  // has a frame to give, so only a video in error has them unavailable: a copy without a frame reports it failed, and a
+  // save without one saves nothing, as does either from a frame the page has removed since. The save goes through the
+  // downloads, as Save Video does.
+  const videoFrameItems = (): MenuItemConstructorOptions[] => {
+    const videoFrame = params.frame ?? webContents.mainFrame
+    const enabled = !params.mediaFlags.inError
+    return [
+      {
+        id: 'copy-video-frame',
+        label: access.text('native.context.copyVideoFrame'),
+        enabled,
+        click: withLiveContents('copy video frame', () => {
+          void access.options().copyVideoFrameAt(videoFrame, params.x, params.y)
+            .catch((error) => reportCopyFailure('image', error))
+        })
+      },
+      {
+        id: 'save-video-frame',
+        label: access.text('native.context.saveVideoFrame'),
+        enabled,
+        click: withLiveContents('save video frame', () => {
+          if (videoFrame.isDestroyed() || videoFrame.detached) return
+          videoFrame.saveVideoFrameAs(params.x, params.y)
+        })
+      }
+    ]
+  }
 
   if (params.linkURL) {
     const webLink = isWebUrl(params.linkURL)
@@ -195,30 +244,16 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     ])
   }
 
-  // A video or audio, as in Chrome: open it in a new tab, save it or copy its address. Chromium cannot save a stream a
-  // page builds itself, such as one from a MediaSource, and Chrome then neither saves nor opens it, so neither does this.
-  // As for an image, only an http or https address opens or saves.
-  if ((params.mediaType === 'video' || params.mediaType === 'audio') && params.srcURL) {
-    const video = params.mediaType === 'video'
+  // A video or audio, as in Chrome: open it in a new tab, save it or copy its address, and for a video, copy or save the
+  // frame it shows. Chromium cannot save a stream a page builds itself, such as one from a MediaSource, and Chrome then
+  // neither saves nor opens it, so neither does this. As for an image, only an http or https address opens or saves. A
+  // video with no address, such as a camera's, still has its frame items.
+  const video = params.mediaType === 'video'
+  if (video || (params.mediaType === 'audio' && params.srcURL)) {
     const savable = isWebUrl(params.srcURL) && params.mediaFlags.canSave
     groups.push([
-      {
-        id: video ? 'open-video-new-tab' : 'open-audio-new-tab',
-        label: access.text(video ? 'native.context.openVideo' : 'native.context.openAudio'),
-        enabled: savable,
-        click: () => openBackgroundTab(params.srcURL)
-      },
-      {
-        id: video ? 'save-video' : 'save-audio',
-        label: access.text(video ? 'native.context.saveVideo' : 'native.context.saveAudio'),
-        enabled: savable,
-        click: withLiveContents(video ? 'save video' : 'save audio', () => download(params.srcURL))
-      },
-      {
-        id: video ? 'copy-video-address' : 'copy-audio-address',
-        label: access.text(video ? 'native.context.copyVideoAddress' : 'native.context.copyAudioAddress'),
-        click: () => copyText(params.srcURL)
-      }
+      ...params.srcURL ? addressedMediaItems(video, savable) : [],
+      ...video ? videoFrameItems() : []
     ])
   }
 

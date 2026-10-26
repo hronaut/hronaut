@@ -3699,6 +3699,8 @@ export const trTR: MessageSchema = {
       "openVideo": "Videoyu yeni sekmede aç",
       "saveVideo": "Videoyu kaydet",
       "copyVideoAddress": "Video adresini kopyala",
+      "copyVideoFrame": "Video karesini kopyala",
+      "saveVideoFrame": "Video karesini kaydet",
       "openAudio": "Sesi yeni sekmede aç",
       "saveAudio": "Sesi kaydet",
       "copyAudioAddress": "Ses adresini kopyala",

@@ -3699,6 +3699,8 @@ export const jaJP: MessageSchema = {
       "openVideo": "動画を新しいタブで開く",
       "saveVideo": "動画を保存",
       "copyVideoAddress": "動画のアドレスをコピー",
+      "copyVideoFrame": "動画のフレームをコピー",
+      "saveVideoFrame": "動画のフレームを保存",
       "openAudio": "音声を新しいタブで開く",
       "saveAudio": "音声を保存",
       "copyAudioAddress": "音声のアドレスをコピー",

@@ -3699,6 +3699,8 @@ export const plPL: MessageSchema = {
       "openVideo": "Otwórz wideo w nowej karcie",
       "saveVideo": "Zapisz wideo",
       "copyVideoAddress": "Kopiuj adres wideo",
+      "copyVideoFrame": "Kopiuj klatkę wideo",
+      "saveVideoFrame": "Zapisz klatkę wideo",
       "openAudio": "Otwórz plik audio w nowej karcie",
       "saveAudio": "Zapisz plik audio",
       "copyAudioAddress": "Kopiuj adres pliku audio",
