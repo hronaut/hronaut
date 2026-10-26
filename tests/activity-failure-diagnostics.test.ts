@@ -129,16 +129,16 @@ describe('bounded activity failure diagnostics', () => {
     expect(activityDiagnostics(app)).toBeUndefined()
   })
 
-  it('uses only the existing 1000ms failure probe deadline for an unresponsive main process', async () => {
+  it('uses only the existing 2000ms failure probe deadline for an unresponsive main process', async () => {
     vi.useFakeTimers()
     try {
       const app = fakeApp(vi.fn(async () => ({ rendererExits: [], nativeContents: [] })).mockImplementationOnce(() => new Promise<never>(() => undefined)))
       const details = info()
       const task = useHronautFixture(app, async () => { enableActivityDiagnostics(app) }, details)
-      await vi.advanceTimersByTimeAsync(1000)
+      await vi.advanceTimersByTimeAsync(2000)
       await task
       const attachment = details.attach.mock.calls.find(([name]) => name === 'activity-failure-diagnostics')!
-      expect(JSON.parse(String(attachment[1].body)).records).toMatchObject([{ label: 'failure-probe', elapsed: 1000, outcome: 'deadline-exceeded' }])
+      expect(JSON.parse(String(attachment[1].body)).records).toMatchObject([{ label: 'failure-probe', elapsed: 2000, outcome: 'deadline-exceeded' }])
       expect(app.evaluate).toHaveBeenCalledTimes(2) // Existing diagnostics and renderer-listener cleanup.
       expect(vi.getTimerCount()).toBe(0)
     } finally { vi.useRealTimers() }

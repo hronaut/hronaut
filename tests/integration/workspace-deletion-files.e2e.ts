@@ -67,7 +67,7 @@ for (const mode of ['active', 'archived'] as const) {
       expect(settled.deletedWorkspaceStorageIds ?? []).not.toContain(storageId)
     } catch (error) {
       // This test launches Hronaut itself, so the fixture attaches no renderer report for it; closing would drop it.
-      await testInfo.attach('renderer-exits', { body: JSON.stringify(await collectRendererDiagnostics(instance.app)), contentType: 'application/json' })
+      await testInfo.attach('renderer-exits', { body: JSON.stringify(await collectRendererDiagnostics(instance.app)), contentType: 'application/json' }).catch(() => undefined)
       throw error
     } finally { await closeHronaut(instance.app); await closeFixtureServer(server) }
   })
