@@ -1,42 +1,26 @@
 <script setup lang="ts">
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { shortcutKey } from '../../../shared/shortcut-key.js'
-import IconStopCircle from '~icons/material-symbols/stop-circle-rounded'
 import UiButton from "../ui/UiButton.vue"
+import BrowserTabRow from './BrowserTabRow.vue'
 import { friendlyUiError } from '../composables/useAppToastController.js'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import IconRecord from '~icons/material-symbols/fiber-manual-record-rounded'
 import IconAdd from '~icons/material-symbols/add-rounded'
 import IconAddBox from '~icons/material-symbols/add-box-rounded'
-import IconBedtime from '~icons/material-symbols/bedtime-rounded'
-import IconClose from '~icons/material-symbols/close-rounded'
 import IconDashboard from '~icons/material-symbols/space-dashboard-rounded'
-import IconError from '~icons/material-symbols/error-outline-rounded'
-import IconHorizontalSplit from '~icons/material-symbols/horizontal-split-rounded'
 import IconKeyboardArrowDown from '~icons/material-symbols/keyboard-arrow-down-rounded'
 import IconKeyboardArrowLeft from '~icons/material-symbols/keyboard-arrow-left-rounded'
 import IconKeyboardArrowRight from '~icons/material-symbols/keyboard-arrow-right-rounded'
 import IconKeyboardArrowUp from '~icons/material-symbols/keyboard-arrow-up-rounded'
 import IconKeep from '~icons/material-symbols/keep-rounded'
 import IconKeepOff from '~icons/material-symbols/keep-off-rounded'
-import IconLanguage from '~icons/material-symbols/language-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
-import IconLock from '~icons/material-symbols/lock-rounded'
-import IconPauseCircle from '~icons/material-symbols/pause-circle-rounded'
-import IconPriorityHigh from '~icons/material-symbols/priority-high-rounded'
 import IconVisibility from '~icons/material-symbols/visibility-rounded'
-import IconHelp from '~icons/material-symbols/help-outline-rounded'
-import IconRoute from '~icons/material-symbols/route-rounded'
-import IconSpeed from '~icons/material-symbols/speed-rounded'
 import IconStacks from '~icons/material-symbols/stacks-rounded'
-import IconVerticalSplit from '~icons/material-symbols/vertical-split-rounded'
-import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
-import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
 import type { BrowserState, BrowserTabGroupColor, BrowserTabGroupState, BrowserTabState, McpTabActivity, UserAttentionRequest } from '../../../shared/types.js'
 import { AGENT_AVATAR_VISIBLE_LIMIT, agentAvatarColorHex, type AgentPresence, type HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shared/tab-groups.js'
-import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { foldRailWorkspaces, pinnedWorkspacesFirst } from '../../../shared/workspace-rail.js'
 import { keyedPinnedWorkspaces } from '../../../shared/workspace-shortcuts.js'
 import { attentionReasonText } from '../composables/agent-attention-reason.js'
@@ -149,10 +133,16 @@ const { draggedTabId, tabDropTargetId, tabDropPlacement, clearTabDrag, beginTabD
   onReorder: (details) => emit('reorderTab', details)
 })
 
-function tabGroupStyle(tab: BrowserTabState): Record<string, string> | undefined {
+function tabGroupColor(tab: BrowserTabState): string | undefined {
   if (!tab.mcpGroupId) return undefined
   const color = props.state.mcpTabGroups.find((group) => group.id === tab.mcpGroupId)?.color ?? defaultTabGroupColor(tab.mcpGroupId)
-  return { '--tab-group-color': BROWSER_TAB_GROUP_COLOR_HEX[color] }
+  return BROWSER_TAB_GROUP_COLOR_HEX[color]
+}
+
+function tabSplitOrientation(tab: BrowserTabState): 'horizontal' | 'vertical' | undefined {
+  const split = props.state.splitView
+  if (!split || (split.firstTabId !== tab.id && split.secondTabId !== tab.id)) return undefined
+  return split.orientation === 'horizontal' ? 'horizontal' : 'vertical'
 }
 
 function tabGroupColorStyle(color: BrowserTabGroupColor): Record<string, string> {
@@ -329,11 +319,13 @@ function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
   if (target) focusTab(target.id)
 }
 
-function tabKeyboardShortcuts(tab: BrowserTabState): string | undefined {
-  const shortcuts: string[] = ['Delete']
-  if (tab.audible || tab.muted) shortcuts.push('M')
-  return shortcuts.length ? shortcuts.join(' ') : undefined
+function focusTabControl(tabId: string): void {
+  focusedTabId.value = tabId
 }
+
+const showTabContextMenu = (tabId: string): void => emit('showTabContextMenu', tabId)
+const toggleTabMuted = (tab: BrowserTabState): void => emit('toggleTabMuted', tab)
+const closeTab = (tabId: string): void => emit('closeTab', tabId)
 
 function handleTabAuxClick(event: MouseEvent, tab: BrowserTabState): void {
   if (event.button !== 1) return
@@ -619,94 +611,37 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
         :aria-label="workspace.name"
         :aria-orientation="orientation"
       >
-        <template v-for="tab in isTabGroupCollapsed(workspace.id) ? [] : tabGroupTabs(workspace.id)" :key="tab.id">
-        <UiButton appearance="application"
-          class="tab"
-          :class="{
-            active: tab.active && !settingsActive,
-            pinned: tab.pinned,
-            sleeping: tab.sleeping,
-            frozen: tab.pageLifecycleState === 'frozen',
-            grouped: Boolean(tab.mcpGroupId),
-            dragging: draggedTabId === tab.id,
-            'drop-before': tabDropTargetId === tab.id && tabDropPlacement === 'before',
-            'drop-after': tabDropTargetId === tab.id && tabDropPlacement === 'after',
-            locked: tab.humanInteractionInputLocked ?? (state.allHumanInteractionLocked || tab.humanInteractionLocked),
-            'split-visible': state.splitView?.firstTabId === tab.id || state.splitView?.secondTabId === tab.id,
-            'mcp-active': Boolean(mcpActivityByTab[tab.id]),
-            'needs-attention': userAttention?.tabId === tab.id
-          }"
-          :style="tabGroupStyle(tab)"
-          v-tooltip="userAttention?.tabId === tab.id ? `${tabTooltip(tab)}\n\n${attentionLine}` : mcpActivityByTab[tab.id] ? `${tabTooltip(tab)}\n\n${t('tabSearch.meta.agent')}` : tabTooltip(tab)"
-          :data-mcp-command="mcpActivityByTab[tab.id]?.toolName"
-          :aria-label="tabTooltip(tab)"
-          :aria-description="userAttention?.tabId === tab.id ? attentionLine : mcpActivityByTab[tab.id] ? t('tabSearch.meta.agent') : undefined"
-          type="button"
-          role="tab"
-          :tabindex="tabKeyboardIndex(tab)"
-          :aria-keyshortcuts="tabKeyboardShortcuts(tab)"
-          :data-tab-id="tab.id"
-          draggable="true"
-          :aria-selected="tab.active && !settingsActive"
-          :data-active-tab="tab.active && !settingsActive ? 'true' : undefined"
-          @focus="focusedTabId = tab.id"
-          @keydown="handleTabKeyDown($event, tab)"
-          @click="activateTab(tab.id)"
-          @auxclick="handleTabAuxClick($event, tab)"
-          @contextmenu.prevent="emit('showTabContextMenu', tab.id)"
-          @dragstart="beginTabDrag($event, tab)"
-          @dragover="updateTabDrop($event, tab)"
-          @drop="finishTabDrop($event, tab)"
-          @dragend="clearTabDrag"
-        >
-          <span v-if="tab.active && !settingsActive" class="tab-active-indicator" aria-hidden="true" />
-          <span v-if="userAttention?.tabId === tab.id" class="tab-attention-badge" aria-hidden="true"><IconPriorityHigh /></span>
-          <span v-if="tab.loading" class="spinner" :aria-label="t('shell.loading')" />
-          <IconError v-else-if="tab.pageProblem" class="favicon-fallback tab-problem-icon" :aria-label="t('shell.tabs.pageAttention')" />
-          <img v-else-if="tab.faviconDataUrl" class="favicon-image" :src="tab.faviconDataUrl" alt="" draggable="false" />
-          <span v-else-if="tab.url === 'about:blank'" class="favicon-fallback" aria-hidden="true">✦</span>
-          <IconLanguage v-else class="favicon-fallback" aria-hidden="true" />
-          <IconRecord v-if="tab.videoRecording === 'recording'" style="color: #e5484d" :aria-label="t('video.status.recording')" />
-          <IconRecord v-if="tab.pwaLifecycleActive" :aria-label="t('pwaLifecycle.active')" />
-          <span class="tab-title">{{ tab.label || tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) }}</span>
-          <IconBedtime v-if="tab.sleeping" class="tab-sleep-mark" :aria-label="t('shell.tabs.sleeping')" />
-          <IconPauseCircle v-else-if="tab.pageLifecycleState === 'frozen'" class="tab-freeze-mark" :aria-label="t('shell.tabs.frozen')" />
-          <IconHelp v-else-if="tab.pageLifecycleState === 'unknown'" class="tab-freeze-mark unknown" :aria-label="t('shell.tabs.freezeUnknown')" />
-          <IconHorizontalSplit
-            v-if="state.splitView?.orientation === 'horizontal' && (state.splitView.firstTabId === tab.id || state.splitView.secondTabId === tab.id)"
-            class="tab-split-mark"
-            :aria-label="t('shell.tabs.stackedVisible')"
-          />
-          <IconVerticalSplit
-            v-else-if="state.splitView && (state.splitView.firstTabId === tab.id || state.splitView.secondTabId === tab.id)"
-            class="tab-split-mark"
-            :aria-label="t('shell.tabs.sideVisible')"
-          />
-          <IconSpeed v-if="tab.emulation" class="tab-emulation-mark" :aria-label="t('runtime.emulation.reset', { description: describeEmulation(tab) })" />
-          <IconRoute v-if="tab.networkRouteCount || (tab.networkConditionState && tab.networkConditionState.application !== 'confirmed')" class="tab-network-route-mark" :aria-label="tab.networkConditionState && tab.networkConditionState.application !== 'confirmed' ? t('network.conditions.unconfirmed') : t('runtime.tabs.routes', { count: formatNumber(tab.networkRouteCount ?? 0) }, tab.networkRouteCount ?? 0)" />
-          <!-- The browser-wide lock and mute already show as pressed buttons, so a tab draws its own lock, and a muted tab
-               its speaker while it plays sound, instead of repeating them on every row. Its name still says both. -->
-          <IconLock v-if="!state.allHumanInteractionLocked && (tab.humanInteractionInputLocked ?? tab.humanInteractionLocked)" class="tab-lock-mark" :aria-label="t('shell.tabs.inputLocked')" />
-          <span
-            v-if="tab.audible || (tab.muted && !state.allTabsMuted)"
-            class="tab-audio"
-            :class="{ muted: tab.muted }"
-            v-tooltip="t(tab.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', { title: tabTitleForDisplay(tab, t('tabSearch.newTabTitle')) })"
-            aria-hidden="true"
-            @click.stop="emit('toggleTabMuted', tab)"
-          >
-            <IconVolumeOff v-if="tab.muted" aria-hidden="true" />
-            <IconVolumeUp v-else aria-hidden="true" />
-          </span>
-          <span
-            class="tab-close"
-            v-tooltip="t('runtime.locks.closeShortcut')"
-            aria-hidden="true"
-            @click.stop="emit('closeTab', tab.id)"
-          ><IconClose aria-hidden="true" /></span>
-        </UiButton>
-        <UiButton v-if="tab.pwaLifecycleActive" variant="ghost" size="small" class="tab-pwa-stop" :data-testid="`worker-capture-stop-${tab.id}`" :aria-label="t('pwaLifecycle.stop')" v-tooltip="workerCaptureErrors.get(tab.id) || t('pwaLifecycle.stop')" @click="stopWorkerCapture(tab.id)"><IconStopCircle aria-hidden="true" /></UiButton>
-        </template>
+        <BrowserTabRow
+          v-for="tab in isTabGroupCollapsed(workspace.id) ? [] : tabGroupTabs(workspace.id)"
+          :key="tab.id"
+          :tab="tab"
+          :active="tab.active && !settingsActive"
+          :dragging="draggedTabId === tab.id"
+          :drop-placement="tabDropTargetId === tab.id ? tabDropPlacement ?? undefined : undefined"
+          :all-human-interaction-locked="state.allHumanInteractionLocked"
+          :all-tabs-muted="state.allTabsMuted === true"
+          :split-orientation="tabSplitOrientation(tab)"
+          :agent-command="mcpActivityByTab[tab.id]?.toolName"
+          :attention="userAttention?.tabId === tab.id ? attentionLine : undefined"
+          :keyboard-index="tabKeyboardIndex(tab)"
+          :group-color="tabGroupColor(tab)"
+          :worker-capture-error="workerCaptureErrors.get(tab.id)"
+          :format-number="formatNumber"
+          :tab-tooltip="tabTooltip"
+          :describe-emulation="describeEmulation"
+          @select="activateTab"
+          @focus-tab="focusTabControl"
+          @tab-keydown="handleTabKeyDown"
+          @tab-auxclick="handleTabAuxClick"
+          @context-menu="showTabContextMenu"
+          @tab-dragstart="beginTabDrag"
+          @tab-dragover="updateTabDrop"
+          @tab-drop="finishTabDrop"
+          @tab-dragend="clearTabDrag"
+          @toggle-muted="toggleTabMuted"
+          @close="closeTab"
+          @stop-worker-capture="stopWorkerCapture"
+        />
       </div>
       <UiButton appearance="application"
         class="new-tab workspace-new-tab"
@@ -768,6 +703,3 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
   </nav>
 </template>
 
-<style scoped>
-.tab-pwa-stop { flex-shrink: 0; width: 28px; }
-</style>

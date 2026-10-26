@@ -363,6 +363,33 @@ describe('browser Pinia store lifecycle', () => {
 
     expect(store.state.activeTabId).toBe('initial')
   })
+
+  it('keeps the tabs that did not change, so only the changed tab draws again', async () => {
+    let listener: ((state: BrowserState) => void) | undefined
+    const twoTabs = (secondTitle: string): BrowserState => {
+      const state = browserState('first')
+      return { ...state, tabs: [state.tabs[0], { ...state.tabs[0], id: 'second', title: secondTitle, active: false }] }
+    }
+    installBrowserApi({ getState: async () => twoTabs('Loading'), onStateChanged: (next) => { listener = next; return vi.fn() } })
+    const store = useBrowserStore()
+    await store.initialize()
+    const [first, second] = store.state.tabs
+    const workspaces = store.state.mcpTabGroups
+
+    listener?.(twoTabs('Loaded'))
+    expect(store.state.tabs[0]).toBe(first)
+    expect(store.state.tabs[1]).not.toBe(second)
+    expect(store.state.tabs[1].title).toBe('Loaded')
+    expect(store.state.mcpTabGroups).toBe(workspaces)
+
+    const tabs = store.state.tabs
+    listener?.(twoTabs('Loaded'))
+    expect(store.state.tabs).toBe(tabs)
+    listener?.({ ...twoTabs('Loaded'), tabs: [...twoTabs('Loaded').tabs].reverse() })
+    expect(store.state.tabs.map(tab => tab.id)).toEqual(['second', 'first'])
+    expect(store.state.tabs[1]).toBe(first)
+    store.dispose()
+  })
 })
 
 describe('settings Pinia store lifecycle', () => {

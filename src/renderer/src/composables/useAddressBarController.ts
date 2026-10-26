@@ -138,6 +138,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   let blurTimer: number | undefined
   let presentedSuggestions: AddressSuggestion[] = []
   let presentedSuggestionOwner: Pick<BrowserTabState, 'id'> | null = null
+  let overlayPresented = false
   let overlaySessionId = 0
   let cleanupCallbacks: (() => void)[] = []
   // The highlighted row Shift+Delete forgot, whose highlight goes to the row that takes its place.
@@ -586,7 +587,9 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     const overlay = options.overlay
     if (!overlay) return
     if (!visible.value || !form.value) {
-      overlay.hide()
+      // The rows change with each page that loads, and each hide is a message to main: hide only what was shown.
+      if (overlayPresented) overlay.hide()
+      overlayPresented = false
       return
     }
     const formBounds = form.value.getBoundingClientRect()
@@ -610,6 +613,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       theme: options.theme(),
       locale: options.locale()
     })
+    overlayPresented = true
   }
 
   function handleResize(): void {

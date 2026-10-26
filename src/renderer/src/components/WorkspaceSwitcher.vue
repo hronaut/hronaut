@@ -131,7 +131,8 @@ function firstChoice(): number {
 }
 
 // A new query starts from its best match; otherwise the selected workspace keeps its selection as the list changes.
-watch([query, () => results.value.map(key)], ([nextQuery, nextKeys], [previousQuery, previousKeys]) => {
+// A closed switcher lists nothing, so each page that loads does not work out every workspace's entry again.
+watch([query, () => open.value ? results.value.map(key) : []], ([nextQuery, nextKeys], [previousQuery, previousKeys]) => {
   if (nextQuery !== previousQuery) {
     selection.value = firstChoice()
   } else {

@@ -116,6 +116,25 @@ function renderTabs(
 }
 
 describe('BrowserTabsBar', () => {
+  it('draws only the row of a tab that changed, as when one of many loading pages gets its title', async () => {
+    const tabTooltip = vi.fn((value: BrowserTabState) => value.title)
+    const first = tab('first')
+    const second = tab('second', { loading: true })
+    const state = browserState({ tabs: [first, second] })
+    const view = render(BrowserTabsBar, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { state, hydrated: true, orientation: 'vertical', railPinned: true, mcpActivityByTab: {}, formatNumber: String, tabTooltip, describeEmulation: () => '' }
+    })
+    expect(tabTooltip.mock.calls.map(([value]) => value.id)).toContain('first')
+    tabTooltip.mockClear()
+    // The shell's store keeps the object of each tab that did not change.
+    await view.rerender({ state: { ...state, tabs: [first, { ...second, title: 'Loaded', loading: false }] } })
+    expect(screen.getByRole('tab', { name: 'Loaded' })).toBeTruthy()
+    const drawn = tabTooltip.mock.calls.map(([value]) => value.id)
+    expect(drawn).toContain('second')
+    expect(drawn).not.toContain('first')
+  })
+
   it.each(['horizontal', 'vertical'] as const)('normalizes wheel units in the %s tab strip', async orientation => {
     renderTabs(browserState(), true, orientation)
     const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
