@@ -9,7 +9,9 @@
 .debug-report-summary article.error strong { @apply text-danger-copy; }
 .debug-report-summary article.warning strong { @apply [color:color-mix(in_srgb,_var(--text)_80%,_var(--warning))]; }
 .debug-report-empty { @apply [min-height:260px]; }
-.debug-report-evidence { @apply min-h-0 overflow-y-auto [padding:12px]; }
+/* The report scrolls as a whole between the header and footer, so none of its parts collapses to make room. */
+.debug-report-panel > .panel-scroll-body > * { @apply flex-none; }
+.debug-report-evidence { @apply [padding:12px]; }
 .debug-report-evidence > section + section { @apply [margin-top:16px]; }
 .debug-report-evidence h3 { @apply flex items-center justify-between [gap:10px] [margin:0_0_7px] [font-size:var(--type-small-size)] [letter-spacing:.04em] uppercase; }
 .debug-report-evidence h3 span { @apply [min-width:24px] [padding:2px_7px] [border-radius:var(--corner-pill)] text-accent-copy bg-accent-soft text-center [font-size:var(--type-small-size)] [font-variant-numeric:tabular-nums]; }

@@ -206,7 +206,7 @@ onBeforeUnmount(reset)
 </template>
 
 <style scoped>
-.incident-review { min-height: 0; overflow: auto; overscroll-behavior: contain; margin: 12px; padding: 12px; border: 1px solid var(--border-soft); border-radius: var(--corner-2); }
+.incident-review { overflow-x: auto; margin: 12px; padding: 12px; border: 1px solid var(--border-soft); border-radius: var(--corner-2); }
 .incident-review fieldset { display: grid; gap: 8px; margin-block: 12px; border: 1px solid var(--border-soft); border-radius: var(--corner-2); }
 .incident-review label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .incident-review input { min-width: 0; max-width: 100%; }
