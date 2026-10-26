@@ -62,10 +62,13 @@ export function registerNavigationIpc(host: NavigationIpcHost): void {
     ) throw new TypeError('Invalid find options')
     return host.tabs()!.findInPage(query, { tabId, forward, findNext, caseSensitive })
   })
-  host.handleBrowserIpc('browser:stop-find-in-page', (event, tabId: unknown) => {
+  host.handleBrowserIpc('browser:stop-find-in-page', (event, tabId: unknown, options: unknown = {}) => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid find tab')
-    host.tabs()!.stopFindInPage(tabId)
+    if (typeof options !== 'object' || options === null) throw new TypeError('Invalid stop find options')
+    const { activateMatch } = options as Record<string, unknown>
+    if (activateMatch !== undefined && typeof activateMatch !== 'boolean') throw new TypeError('Invalid stop find options')
+    host.tabs()!.stopFindInPage(tabId, { activateMatch })
   })
   host.handleBrowserIpc('browser:set-zoom', (event, options: unknown) => {
     host.assertTrustedSender(event)

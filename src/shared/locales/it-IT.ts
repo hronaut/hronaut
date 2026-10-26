@@ -929,7 +929,7 @@ export const itIT: MessageSchema = {
       "pick": "Scegli un elemento come contesto per l’agente",
       "find": "Trova nella pagina attuale",
       "findNext": "Vai alla corrispondenza successiva nella pagina",
-      "findPrevious": "Vai alla corrispondenza precedente nella pagina",
+      "findPrevious": "Vai alla corrispondenza precedente nella pagina", "findFollowLink": "Apri il link della corrispondenza attuale nella pagina",
       "print": "Stampa la pagina",
       "bookmark": "Aggiungi la pagina attuale ai preferiti",
       "bookmarkAllTabs": "Aggiungi tutte le schede aperte ai preferiti in una nuova raccolta",

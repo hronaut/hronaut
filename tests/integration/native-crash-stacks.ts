@@ -8,6 +8,13 @@ import type { TestInfo } from '@playwright/test'
 export interface NativeCrashStack {
   signal: string
   frames: string[]
+  /** Set on the SIGABRT trace teardown asked for from a main process that did not quit, which is no crash of its own. */
+  requestedByTeardown?: true
+}
+
+/** Whether teardown has sent a launch's main process SIGABRT, so the abort trace it prints is marked as asked for. */
+export interface TeardownAbort {
+  requested: boolean
 }
 
 const MAX_STACKS = 8
@@ -40,11 +47,17 @@ export function collectsNativeCrashStacks(testInfo: TestInfo): boolean {
 }
 
 /** Reads the crash traces in a launch's error output for the test that launched it. */
-export function readNativeCrashStacks(testInfo: TestInfo, output: NodeJS.ReadableStream | null | undefined): void {
+export function readNativeCrashStacks(
+  testInfo: TestInfo,
+  output: NodeJS.ReadableStream | null | undefined,
+  teardownAbort: TeardownAbort = { requested: false }
+): void {
   const stacks = testStacks.get(testInfo)
   if (!stacks || !output) return
   const read = nativeCrashStackReader((stack) => {
-    if (stacks.length < MAX_STACKS) stacks.push(stack)
+    if (stacks.length >= MAX_STACKS) return
+    if (teardownAbort.requested && stack.signal === '6') stack.requestedByTeardown = true
+    stacks.push(stack)
   })
   output.on('data', (chunk: Buffer | string) => read(chunk.toString()))
 }

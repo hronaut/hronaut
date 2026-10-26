@@ -929,7 +929,7 @@ export const zhCN: MessageSchema = {
       "pick": "选取元素作为智能体上下文",
       "find": "在当前页面中查找",
       "findNext": "转到页面中的下一个匹配项",
-      "findPrevious": "转到页面中的上一个匹配项",
+      "findPrevious": "转到页面中的上一个匹配项", "findFollowLink": "打开页面中当前匹配项所在的链接",
       "print": "打印页面",
       "bookmark": "为当前页面添加书签",
       "bookmarkAllTabs": "将所有打开的标签页添加到新的书签集合",

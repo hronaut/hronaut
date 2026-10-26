@@ -929,7 +929,7 @@ export const deDE: MessageSchema = {
       "pick": "Element für Agentenkontext auswählen",
       "find": "Auf der aktuellen Seite suchen",
       "findNext": "Zum nächsten Treffer auf der Seite",
-      "findPrevious": "Zum vorherigen Treffer auf der Seite",
+      "findPrevious": "Zum vorherigen Treffer auf der Seite", "findFollowLink": "Den Link des aktuellen Treffers auf der Seite öffnen",
       "print": "Seite drucken",
       "bookmark": "Aktuelle Seite als Lesezeichen speichern",
       "bookmarkAllTabs": "Alle geöffneten Tabs in einer neuen Sammlung als Lesezeichen speichern",

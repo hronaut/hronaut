@@ -47,6 +47,7 @@ describe('help dialog controller', () => {
     expect(mac.keys['runtime.shortcuts.addressNewTab']).toEqual(['Option', 'Return'])
     expect(mac.keys['runtime.shortcuts.addressBackgroundTab']).toEqual(['Cmd', 'Return'])
     expect(mac.keys['runtime.shortcuts.addressWwwCom']).toEqual(['Control', 'Return'])
+    expect(mac.keys['runtime.shortcuts.findFollowLink']).toEqual(['Control', 'Return'])
     expect(mac.keys['runtime.shortcuts.addressForgetVisit']).toEqual(['Shift', 'Fn', 'Delete'])
     expect(mac.keys['runtime.shortcuts.moveTabNext']).toBeUndefined()
     expect(mac.keys['runtime.shortcuts.nextPane']).toBeUndefined()
@@ -68,6 +69,7 @@ describe('help dialog controller', () => {
     expect(linux.keys['runtime.shortcuts.addressNewTab']).toEqual(['Alt', 'Enter'])
     expect(linux.keys['runtime.shortcuts.addressBackgroundTab']).toEqual(['Alt', 'Shift', 'Enter'])
     expect(linux.keys['runtime.shortcuts.addressWwwCom']).toEqual(['Ctrl', 'Enter'])
+    expect(linux.keys['runtime.shortcuts.findFollowLink']).toEqual(['Ctrl', 'Enter'])
     expect(linux.keys['runtime.shortcuts.moveTabNext']).toEqual(['Ctrl', 'Shift', 'Page Down'])
     expect(linux.keys['runtime.shortcuts.nextPane']).toEqual(['F6'])
     expect(linux.keys['shell.home.open']).toEqual(['Alt', 'Home'])
@@ -152,7 +154,7 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.bookmarkAllTabs',
       keys: ['Ctrl/Cmd', 'Shift', 'D']
     })
-    expect(controller.shortcuts.value).toHaveLength(45)
+    expect(controller.shortcuts.value).toHaveLength(46)
     controller.dispose()
   })
 })

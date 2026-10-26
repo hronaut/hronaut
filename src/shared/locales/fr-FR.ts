@@ -929,7 +929,7 @@ export const frFR: MessageSchema = {
       "pick": "Sélectionner un élément pour le contexte de l’agent",
       "find": "Rechercher dans la page actuelle",
       "findNext": "Aller à l’occurrence suivante de la page",
-      "findPrevious": "Aller à l’occurrence précédente de la page",
+      "findPrevious": "Aller à l’occurrence précédente de la page", "findFollowLink": "Ouvrir le lien de l’occurrence actuelle de la page",
       "print": "Imprimer la page",
       "bookmark": "Ajouter la page actuelle aux favoris",
       "bookmarkAllTabs": "Ajouter tous les onglets ouverts aux favoris dans une nouvelle collection",

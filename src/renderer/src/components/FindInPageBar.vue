@@ -76,16 +76,28 @@ function handleSearchInput(event: Event): void {
   void search(true, true)
 }
 
+// Ctrl+Enter, as in Chrome's find bar, where macOS takes Control too.
+function isFollowMatchKey(event: KeyboardEvent): boolean {
+  return event.key === 'Enter' && event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+}
+
 function handleSearchKeydown(event: KeyboardEvent): void {
-  if (isImeCompositionEvent(event) || event.key !== 'Enter') return
+  if (isImeCompositionEvent(event) || event.key !== 'Enter' || isFollowMatchKey(event)) return
   event.preventDefault()
   void search(!event.shiftKey, false)
 }
 
 // Escape typed anywhere in the bar closes Find itself, not the first panel in the shell's Escape order, such as Site
-// storage, even in its own window.
+// storage, even in its own window. Ctrl+Enter anywhere in it closes Find and clicks the active match, as in Chrome,
+// which follows the link the match is in.
 function handleBarKeydown(event: KeyboardEvent): void {
-  if (isImeCompositionEvent(event) || event.key !== 'Escape' || event.defaultPrevented) return
+  if (isImeCompositionEvent(event) || event.defaultPrevented) return
+  if (isFollowMatchKey(event)) {
+    event.preventDefault()
+    void close({ activateMatch: true })
+    return
+  }
+  if (event.key !== 'Escape') return
   event.preventDefault()
   void close()
 }
@@ -132,19 +144,21 @@ async function openForTab(tab: BrowserTabState | undefined = props.activeTab, ag
   if (shouldRepeatQuery) await search(forward, true)
 }
 
-async function cleanup(): Promise<void> {
+async function cleanup(options: { activateMatch?: boolean } = {}): Promise<void> {
   const tabId = targetTabId
   requestSequence += 1
   targetTabId = undefined
   searching.value = false
   searchFailed.value = false
   result.value = { activeMatchOrdinal: 0, matches: 0 }
-  if (tabId) await props.browser.stopFindInPage(tabId).catch(() => undefined)
+  if (!tabId) return
+  const stopped = options.activateMatch ? props.browser.stopFindInPage(tabId, { activateMatch: true }) : props.browser.stopFindInPage(tabId)
+  await stopped.catch(() => undefined)
 }
 
-async function close(): Promise<void> {
+async function close(options: { activateMatch?: boolean } = {}): Promise<void> {
   open.value = false
-  await cleanup()
+  await cleanup(options)
 }
 
 watch(open, (isOpen) => {
@@ -217,7 +231,7 @@ defineExpose({ close, openForTab })
     >
       <IconKeyboardArrowDown aria-hidden="true" />
     </UiButton>
-    <UiButton appearance="application" class="find-action" type="button" v-tooltip="t('find.closeTitle')" :aria-label="t('find.close')" @click="close">
+    <UiButton appearance="application" class="find-action" type="button" v-tooltip="t('find.closeTitle')" :aria-label="t('find.close')" @click="close()">
       <IconClose aria-hidden="true" />
     </UiButton>
   </div>

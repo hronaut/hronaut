@@ -1,5 +1,10 @@
+import { EventEmitter } from 'node:events'
+import type { TestInfo } from '@playwright/test'
 import { describe, expect, it } from 'vitest'
-import { nativeCrashStackReader, type NativeCrashStack } from './integration/native-crash-stacks.js'
+import {
+  nativeCrashStackReader, nativeCrashStacks, readNativeCrashStacks, trackNativeCrashStacks, untrackNativeCrashStacks,
+  type NativeCrashStack
+} from './integration/native-crash-stacks.js'
 
 // A renderer that crashed in an e2e run left only "crashed, exit code 139", which says nothing about where.
 
@@ -59,6 +64,28 @@ describe('native crash stacks in a launch\'s error output', () => {
     expect(stacks.map(stack => stack.signal)).toEqual(['unreadable', '6', '11 <unknown> 000000000000'])
     expect(stacks[0]?.frames).toEqual(['electron+0x949c5a2', 'libc.so.6+0x4532f', 'electron+0x4b873ed'])
     expect(JSON.stringify(stacks)).not.toMatch(/\/|example|ERROR/)
+  })
+
+  it('marks the abort trace teardown asked for, and no trace before it or of another signal', () => {
+    const info = {} as TestInfo
+    trackNativeCrashStacks(info)
+    try {
+      const output = new EventEmitter()
+      const teardownAbort = { requested: false }
+      readNativeCrashStacks(info, output as unknown as NodeJS.ReadableStream, teardownAbort)
+      const abort = ['Received signal 6', '#0 0x5636 (/opt/app/electron+0x9435b42)', '[end of stack trace]', ''].join('\n')
+      output.emit('data', abort)
+      teardownAbort.requested = true
+      output.emit('data', [...trace, ''].join('\n'))
+      output.emit('data', Buffer.from(abort))
+      expect(nativeCrashStacks(info)).toEqual([
+        { signal: '6', frames: ['electron+0x9435b42'] },
+        { signal: '11 SEGV_MAPERR 000000000000', frames: ['electron+0x949c5a2', 'libc.so.6+0x4532f', 'electron+0x4b873ed'] },
+        { signal: '6', frames: ['electron+0x9435b42'], requestedByTeardown: true }
+      ])
+    } finally {
+      untrackNativeCrashStacks(info)
+    }
   })
 
   it('stays bounded: 64 frames a trace, no endless line', () => {

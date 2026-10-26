@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import type { HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 import { nativeCrashStacks } from './native-crash-stacks.js'
 
 // Renderers that crashed in e2e runs left only "crashed, exit code 139". Each launch now has Electron print a crashed
@@ -33,4 +33,18 @@ test('a page renderer that crashes leaves its native stack for a failed test to 
   } finally {
     await closeFixtureServer(server)
   }
+})
+
+test('teardown ends a main process stuck past SIGTERM with SIGABRT, which prints where its main thread waits', async ({ profileDirectory, mcpPort }, testInfo) => {
+  const { app } = await launchHronaut(profileDirectory, mcpPort)
+  const child = app.process()
+  // The main thread waits in the kernel, as one stuck on a lock or a reply does, and answers nothing.
+  void app.evaluate(() => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0) }).catch(() => undefined)
+  await closeHronaut(app)
+  expect(child.signalCode).toBe('SIGABRT')
+  // The process can end before its last output is read. Below the signal handler's own frames are the main thread's,
+  // down to its event loop.
+  await expect.poll(() => nativeCrashStacks(testInfo).find(stack => stack.signal === '6')?.frames.length ?? 0).toBeGreaterThan(8)
+  expect(nativeCrashStacks(testInfo).find(stack => stack.signal === '6')?.requestedByTeardown).toBe(true)
+  expect(JSON.stringify(nativeCrashStacks(testInfo))).not.toContain('/')
 })

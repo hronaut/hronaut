@@ -929,7 +929,7 @@ export const zhTW: MessageSchema = {
       "pick": "選取元素作為代理程式的參考內容",
       "find": "在目前的網頁中尋找",
       "findNext": "前往網頁中的下一個相符項目",
-      "findPrevious": "前往網頁中的上一個相符項目",
+      "findPrevious": "前往網頁中的上一個相符項目", "findFollowLink": "開啟網頁中目前相符項目所在的連結",
       "print": "列印網頁",
       "bookmark": "將目前的網頁加入書籤",
       "bookmarkAllTabs": "將所有開啟中的分頁加入新的書籤集合",
