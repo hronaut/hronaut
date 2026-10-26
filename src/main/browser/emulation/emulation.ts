@@ -26,7 +26,7 @@ function emulationPublication<Tab extends EmulationTab>(access: EmulationAccess<
 /**
  * Validates the requested emulation changes and applies them to the tab's page
  * through the debugger as one transaction. A request that changes nothing
- * attaches no debugger. Network conditions must be known and confirmed first;
+ * attaches no debugger. Network conditions must be known first;
  * a change that failed after a command was sent leaves the emulation unknown
  * until it is explicitly restored. Its failures keep the messages agents read,
  * while Hronaut's own pages say what changed in the interface language.
@@ -57,7 +57,9 @@ export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<
   const admission = (): void => { validate(); context() }
   return access.withDebugger(webContents, async () => {
     admission()
-    if (tab.networkConditionApplication !== 'confirmed') {
+    // Changes to the rules apply in this queue too, so a pending application here is a rule a request used up, which
+    // waits for its refresh. Emulation applies the remaining rules' conditions and leaves that refresh to come.
+    if (tab.networkConditionApplication === 'unknown') {
       throw new LocalizedError('appErrors.emulation.networkUnconfirmed', undefined, {
         message: 'Network application must be confirmed before changing or restoring emulation. Recover Network conditions separately.'
       })
@@ -77,6 +79,7 @@ export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<
     const revision = ++tab.emulationRevision
     const networkChanged = next.network !== tab.emulation.network
     let submitted = false
+    let networkSettlement: 'confirmed' | 'pending'
     tab.nativeInputEnvironmentGeneration += 1
     tab.emulationApplication = 'pending'
     const previousViewSize = tab.emulationViewSize
@@ -89,7 +92,7 @@ export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<
       // hands the page the view's own size, so the view also fills its
       // space first, while the override still pins the page.
       access.setEmulationViewSize(tab, next.viewport)
-      await applyEmulationState(access, tab, next, nextHeaders, async (method, params) => {
+      networkSettlement = await applyEmulationState(access, tab, next, nextHeaders, async (method, params) => {
         admission()
         networkContext()
         submitted = true
@@ -117,7 +120,7 @@ export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<
     tab.emulation = next
     tab.emulationExtraHttpHeaders = nextHeaders
     tab.emulationApplication = 'confirmed'
-    tab.networkConditionApplication = 'confirmed'
+    tab.networkConditionApplication = networkSettlement
     access.changed(false)
     access.setEmulationViewSize(tab, next.viewport)
     validate()
@@ -133,6 +136,8 @@ export async function emulate<Tab extends EmulationTab>(access: EmulationAccess<
  * saver, headers, CPU and animation rates, media features, vision deficiency,
  * user agent, locale, timezone, viewport and touch, geolocation, safe area,
  * text scale, small viewport height, script execution and rendering overlays.
+ * Returns how the network conditions stand once the state commits: still
+ * pending when a rule a request used up waits for its refresh.
  */
 async function applyEmulationState<Tab extends EmulationTab>(
   access: EmulationAccess<Tab>,
@@ -140,7 +145,7 @@ async function applyEmulationState<Tab extends EmulationTab>(
   state: BrowserEmulationState,
   extraHttpHeaders: Record<string, string>,
   send: (method: string, params?: Record<string, unknown>) => Promise<unknown>
-): Promise<void> {
+): Promise<'confirmed' | 'pending'> {
   access.requireNetworkConditionsKnown(tab)
   const webContents = tab.webContents
   const routes = tab.networkRoutes
@@ -157,6 +162,8 @@ async function applyEmulationState<Tab extends EmulationTab>(
   if (webContents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) {
     throw new LocalizedError('appErrors.emulation.networkChanged', undefined, { message: 'Network emulation context changed before application' })
   }
+  // Emulation does not change the interception patterns a used-up rule's refresh removes it from.
+  const settlement = tab.networkConditionApplication === 'pending' ? 'pending' : 'confirmed'
   tab.networkConditionApplication = 'pending'
   try {
     await access.applyNetworkEmulation(webContents, state.network, projection, async (method, params) => {
@@ -171,7 +178,7 @@ async function applyEmulationState<Tab extends EmulationTab>(
     }
     // A proposed throttle is not yet the retained throttle. Keep Network
     // pending until the entire emulation configuration commits atomically.
-    tab.networkConditionApplication = state.network === tab.emulation.network ? 'confirmed' : 'pending'
+    tab.networkConditionApplication = state.network === tab.emulation.network ? settlement : 'pending'
   } catch (error) {
     access.markNetworkConditionsUnknown(tab)
     access.changed(false)
@@ -267,4 +274,5 @@ async function applyEmulationState<Tab extends EmulationTab>(
   await send('Overlay.setShowFPSCounter', { show: renderingDebug.fpsCounter })
   await send('Overlay.setShowScrollBottleneckRects', { show: renderingDebug.scrollBottlenecks })
   if (!Object.values(renderingDebug).some(Boolean)) await send('Overlay.disable')
+  return settlement
 }
