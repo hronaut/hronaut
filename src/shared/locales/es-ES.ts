@@ -929,7 +929,7 @@ export const esES: MessageSchema = {
       "pick": "Seleccionar un elemento para el contexto del agente",
       "find": "Buscar en la página actual",
       "findNext": "Ir a la siguiente coincidencia de la página",
-      "findPrevious": "Ir a la coincidencia anterior de la página",
+      "findPrevious": "Ir a la coincidencia anterior de la página", "findFollowLink": "Abrir el enlace de la coincidencia actual de la página",
       "print": "Imprimir la página",
       "bookmark": "Añadir la página actual a marcadores",
       "bookmarkAllTabs": "Añadir todas las pestañas abiertas a marcadores en una colección nueva",

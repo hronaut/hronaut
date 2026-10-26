@@ -929,7 +929,7 @@ export const plPL: MessageSchema = {
       "pick": "Wybierz element do kontekstu agenta",
       "find": "Znajdź na bieżącej stronie",
       "findNext": "Przejdź do następnego wyniku na stronie",
-      "findPrevious": "Przejdź do poprzedniego wyniku na stronie",
+      "findPrevious": "Przejdź do poprzedniego wyniku na stronie", "findFollowLink": "Otwórz link bieżącego wyniku na stronie",
       "print": "Drukuj stronę",
       "bookmark": "Dodaj bieżącą stronę do zakładek",
       "bookmarkAllTabs": "Dodaj wszystkie otwarte karty do zakładek w nowej kolekcji",

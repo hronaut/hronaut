@@ -17,7 +17,7 @@ function fixture() {
   return {
     contents,
     search: () => controller.search(webContents, 'needle', {}),
-    stop: () => controller.stop(webContents),
+    stop: (action?: 'clearSelection' | 'activateSelection') => controller.stop(webContents, action),
     complete: (id = requestId, finalUpdate = true) => contents.emit('found-in-page', {}, {
       requestId: id, finalUpdate, activeMatchOrdinal: 1, matches: 3
     })
@@ -85,4 +85,76 @@ it('keeps searches in different pages independent', async () => {
   pages[1]!.emit('found-in-page', {}, { requestId: 1, finalUpdate: true, activeMatchOrdinal: 2, matches: 4 })
   expect(await Promise.all(pending)).toEqual(['Page search was cancelled or superseded', { activeMatchOrdinal: 2, matches: 4 }])
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('clears the selection when a search ends, and clicks only an active match a search settled on', async () => {
+  const page = fixture()
+  const settle = async (activeMatchOrdinal: number) => {
+    const search = page.search()
+    const requestId = page.contents.findInPage.mock.results.at(-1)!.value as number
+    page.contents.emit('found-in-page', {}, { requestId, finalUpdate: true, activeMatchOrdinal, matches: activeMatchOrdinal ? 3 : 0 })
+    await search
+  }
+  // Chromium clicks the page's focused element, which is the match's link only once a search found it: before, it is
+  // whatever had the focus, such as a button the person pressed.
+  const unanswered = page.search().catch(error => error.message)
+  expect(page.stop('activateSelection')).toBe(false)
+  expect(await unanswered).toBe('Page search was cancelled or superseded')
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+
+  await settle(1)
+  expect(page.stop()).toBe(false)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+  await settle(1)
+  expect(page.stop('activateSelection')).toBe(true)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('activateSelection')
+  // The search ended with it.
+  expect(page.stop('activateSelection')).toBe(false)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+
+  await settle(0)
+  expect(page.stop('activateSelection')).toBe(false)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+
+  // A match, then a search that has not answered yet.
+  await settle(1)
+  const next = page.search().catch(error => error.message)
+  expect(page.stop('activateSelection')).toBe(false)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+  expect(await next).toBe('Page search was cancelled or superseded')
+})
+
+it('ends a search session before a new one finds the same text again, so its active match can still be clicked', () => {
+  const page = fixture()
+  const controller = new PageFindController()
+  const webContents = page.contents as unknown as WebContents
+  const calls: string[] = []
+  page.contents.findInPage.mockImplementation(((query: string, options: Electron.FindInPageOptions) => {
+    calls.push(`find ${query}${options.findNext ? ' new' : ''}${options.matchCase ? ' case' : ''}`)
+    return calls.length
+  }) as never)
+  page.contents.stopFindInPage.mockImplementation(((action: string) => { calls.push(`stop ${action}`) }) as never)
+  const search = (query: string, options: Electron.FindInPageOptions) => { void controller.search(webContents, query, options).catch(() => undefined) }
+
+  search('pricing', { findNext: true })
+  search('pricing details', { findNext: true })
+  search('pricing details', { findNext: false })
+  search('pricing details', { findNext: true, matchCase: true })
+  search('Pricing Details', { findNext: true })
+  controller.stop(webContents)
+  search('pricing details', { findNext: true })
+
+  expect(calls).toEqual([
+    'find pricing new',
+    'find pricing details new',
+    'find pricing details',
+    // Match case switched: the same text again.
+    'stop clearSelection',
+    'find pricing details new case',
+    'stop clearSelection',
+    'find Pricing Details new',
+    'stop clearSelection',
+    // The search was stopped already.
+    'find pricing details new'
+  ])
 })

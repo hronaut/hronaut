@@ -3642,16 +3642,24 @@ export class BrowserTabsManager {
 
   /**
    * The narrow view finding text in a page gets of this manager's private
-   * tabs and page find controller. It is a prototype method rather than a
+   * tabs, page find controller, trusted chrome occlusion, input locks,
+   * in-flight agent input, native selection sessions and the record of the
+   * person's input. It is a prototype method rather than a
    * field, so managers created without the constructor (as unit tests do)
    * still provide it. The delegates below return the feature's promise
    * directly, so callers see the same ticks as before.
    */
-  private pageFindAccess(): PageFindAccess {
+  private pageFindAccess(): PageFindAccess<BrowserTab> {
     return {
       getTab: (tabId) => this.getTab(tabId),
       searchPage: (webContents, query, options) => this.pageFind.search(webContents, query, options),
-      stopPageSearch: (webContents) => this.pageFind.stop(webContents)
+      stopPageSearch: (webContents, action) => this.pageFind.stop(webContents, action),
+      browserContentOccluded: () => this.browserContentOccluded,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      agentInputWebContents: () => this.agentInputWebContents,
+      nativeSelectionUnderWay: (webContentsId) => this.screenshotAreaSessions.has(webContentsId) || this.elementPickerSessions.has(webContentsId),
+      noteHumanInput: () => this.mcpActivityFollower.noteHumanInput(),
+      onUserInteraction: (touched) => this.options.onUserInteraction?.(touched)
     }
   }
 
@@ -3662,8 +3670,8 @@ export class BrowserTabsManager {
     return findInPage(this.pageFindAccess(), query, options)
   }
 
-  stopFindInPage(tabId?: string): void {
-    stopFindInPage(this.pageFindAccess(), tabId)
+  stopFindInPage(tabId?: string, options?: { activateMatch?: boolean }): void {
+    stopFindInPage(this.pageFindAccess(), tabId, options)
   }
 
   /**

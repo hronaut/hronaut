@@ -190,7 +190,8 @@ export interface HronautApi {
   reloadIgnoringCache(tabId?: string): Promise<BrowserState>
   stop(tabId?: string): Promise<BrowserState>
   findInPage(options: BrowserFindOptions): Promise<BrowserFindResult>
-  stopFindInPage(tabId?: string): Promise<void>
+  /** Ends the page search; with activateMatch, also clicks the active match, as Ctrl+Enter in Chrome's find bar. */
+  stopFindInPage(tabId?: string, options?: { activateMatch?: boolean }): Promise<void>
   setZoom(options: BrowserZoomOptions): Promise<BrowserState>
   setTabMuted(tabId: string, muted: boolean): Promise<BrowserState>
   setAllTabsMuted(muted: boolean): Promise<BrowserState>

@@ -929,7 +929,7 @@ export const idID: MessageSchema = {
       "pick": "Pilih elemen untuk konteks agen",
       "find": "Cari di halaman saat ini",
       "findNext": "Buka hasil berikutnya di halaman",
-      "findPrevious": "Buka hasil sebelumnya di halaman",
+      "findPrevious": "Buka hasil sebelumnya di halaman", "findFollowLink": "Buka tautan dari hasil saat ini di halaman",
       "print": "Cetak halaman",
       "bookmark": "Bookmark halaman saat ini",
       "bookmarkAllTabs": "Bookmark semua tab yang terbuka dalam koleksi baru",

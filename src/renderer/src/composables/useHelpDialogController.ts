@@ -48,6 +48,8 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.find'), keys: ['Ctrl/Cmd', 'F'] },
     { label: options.translate('runtime.shortcuts.findNext'), keys: ['Ctrl/Cmd', 'G'] },
     { label: options.translate('runtime.shortcuts.findPrevious'), keys: ['Ctrl/Cmd', 'Shift', 'G'] },
+    // In the find bar, as in Chrome's.
+    { label: options.translate('runtime.shortcuts.findFollowLink'), keys: mac ? ['Control', 'Return'] : ['Ctrl', 'Enter'] },
     { label: options.translate('runtime.shortcuts.savePage'), keys: ['Ctrl/Cmd', 'S'] },
     { label: options.translate('runtime.shortcuts.print'), keys: ['Ctrl/Cmd', 'P'] },
     { label: options.translate('runtime.shortcuts.fullPage'), keys: ['Ctrl/Cmd', 'Shift', 'F'] },

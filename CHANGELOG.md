@@ -11,6 +11,7 @@ All notable changes to Hronaut are documented in this file.
 - **Time range** for clearing history, as in Chrome's Delete browsing data: **Settings → Workspaces & data → Global history** clears the visits of the **Last hour**, **Last 24 hours**, **Last 7 days** or **Last 4 weeks**, or **All time** as before, with the pages visited then in Recently closed and in tabs' Back and Forward lists, and the steps Home's activity feed lists from then. A page visited before keeps those visits. The question before clearing names a range other than All time.
 - Two more interface languages: Indonesian and Vietnamese. **System default** picks them from the operating system's language.
 - Right-clicking a video now also offers **Copy Video Frame** and **Save Video Frame**, as in Chrome: they copy the picture the video shows to the clipboard or save it as a PNG to your downloads, also for a video inside a frame of the page or one with no address, such as a camera's. A still of a video could be had only from a screenshot of the page. A video that failed to load keeps them unavailable.
+- **Ctrl+Enter** in Find (**Control+Return** on macOS) closes it and follows the link the current match is in, as in Chrome. Help's **Keyboard shortcuts** lists it.
 
 ### Fixed
 
