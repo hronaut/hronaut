@@ -28,12 +28,18 @@ const BROWSER_PROCESS_COMMANDS = new Set([
   'Storage.getUsageAndQuota', 'Target.setAutoAttach'
 ])
 const BROWSER_PROCESS_DOMAINS = ['Fetch.', 'WebAuthn.']
+// Electron rejects a page script with this when the page's renderer goes away, which can come before it reports that
+// the renderer exited, and when a navigation replaces the document the script ran in.
+const FRAME_DISPOSED = 'Render frame was disposed before the request completed'
+// How long a script refused that way waits for Electron to report that the renderer exited.
+const EXIT_REPORT_WAIT_MS = 100
 
 /**
- * Electron never settles a page's executeJavaScript or
- * executeJavaScriptInIsolatedWorld call once its renderer exits, and holds
- * renderer DevTools commands until the next load. An operation awaiting one
- * would keep its tab, debugger queue and workspace busy indefinitely.
+ * Electron settles a page's executeJavaScript or
+ * executeJavaScriptInIsolatedWorld call whose renderer exited only with an
+ * error that does not say so, and holds renderer DevTools commands until the
+ * next load. An operation awaiting one would report a vague failure or keep
+ * its tab, debugger queue and workspace busy indefinitely.
  * printToPDF on a page whose renderer exited ends the whole application, and
  * capturePage returns an image that is not the page. Installed once on each
  * tab's page, this makes those calls fail with RendererExitedError when the
@@ -49,12 +55,23 @@ export function guardPageCallsAcrossRendererExit(page: GuardedPage): void {
     inFlight.clear()
     for (const reject of rejecters) reject(new RendererExitedError(true))
   })
+  const rendererExited = (): boolean => !page.isDestroyed() && page.isCrashed()
   const settleBeforeExit = <T>(call: () => Promise<T>): Promise<T> => {
-    if (!page.isDestroyed() && page.isCrashed()) return Promise.reject(new RendererExitedError(false))
+    if (rendererExited()) return Promise.reject(new RendererExitedError(false))
     const pending = call()
     return new Promise<T>((resolve, reject) => {
       inFlight.add(reject)
-      pending.then(resolve, reject).finally(() => inFlight.delete(reject))
+      const settle = (outcome: () => void): void => {
+        inFlight.delete(reject)
+        outcome()
+      }
+      pending.then((value) => settle(() => resolve(value)), (error: unknown) => {
+        if (rendererExited()) return settle(() => reject(new RendererExitedError(true)))
+        if (page.isDestroyed() || !(error instanceof Error) || error.message !== FRAME_DISPOSED) return settle(() => reject(error))
+        // Unless render-process-gone comes meanwhile and rejects the call as stopped by the exit, a navigation replaced
+        // the document.
+        setTimeout(() => settle(() => reject(rendererExited() ? new RendererExitedError(true) : error)), EXIT_REPORT_WAIT_MS)
+      })
     })
   }
   const executeJavaScript = page.executeJavaScript.bind(page)

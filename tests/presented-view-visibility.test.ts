@@ -3,7 +3,7 @@ import type { BrowserWindow, WebContentsView } from 'electron'
 import { reconcilePresentedViewVisibility, showResumedPresentedView, watchPresentedViewVisibility } from '../src/main/browser/presented-view-visibility.js'
 
 function fixture() {
-  vi.stubGlobal('process', { ...process, platform: 'linux', versions: { ...process.versions, electron: '44.2.0' } })
+  vi.stubGlobal('process', { ...process, platform: 'linux', versions: { ...process.versions, electron: '45.0.0' } })
   let resolve!: (visibility: string) => void
   const contents = {
     isDestroyed: vi.fn(() => false),
@@ -125,7 +125,7 @@ describe('presented view visibility', () => {
 
   it('does not use the internal workaround on an unverified Electron major', () => {
     const f = fixture()
-    vi.stubGlobal('process', { ...process, versions: { ...process.versions, electron: '45.0.0' } })
+    vi.stubGlobal('process', { ...process, versions: { ...process.versions, electron: '46.0.0' } })
     f.reconcile()
     expect(f.contents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
   })
@@ -159,7 +159,7 @@ describe('showing a resumed page', () => {
 
   it('does nothing outside Linux, where the internal API is not verified', () => {
     const f = fixture()
-    vi.stubGlobal('process', { ...process, platform: 'darwin', versions: { ...process.versions, electron: '44.2.0' } })
+    vi.stubGlobal('process', { ...process, platform: 'darwin', versions: { ...process.versions, electron: '45.0.0' } })
     showResumedPresentedView(f.window as unknown as BrowserWindow, f.view as unknown as WebContentsView)
     expect(f.contents.setEmbedder).not.toHaveBeenCalled()
   })
