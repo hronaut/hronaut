@@ -3692,6 +3692,7 @@ export const itIT: MessageSchema = {
       "reopenClosed": "Riapri scheda chiusa",
       "bookmarkAllTabs": "Aggiungi tutte le schede ai preferiti…",
       "openLink": "Apri link in una nuova scheda",
+      "openLinkSplit": "Apri link in visualizzazione divisa",
       "copyLink": "Copia indirizzo link",
       "copyLinkToHighlight": "Copia link all’evidenziazione",
       "copyEmail": "Copia indirizzo email",

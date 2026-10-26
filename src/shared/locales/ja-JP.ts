@@ -3692,6 +3692,7 @@ export const jaJP: MessageSchema = {
       "reopenClosed": "閉じたタブを開く",
       "bookmarkAllTabs": "すべてのタブをブックマーク…",
       "openLink": "リンクを新しいタブで開く",
+      "openLinkSplit": "リンクを分割ビューで開く",
       "copyLink": "リンクのアドレスをコピー",
       "copyLinkToHighlight": "ハイライトへのリンクをコピー",
       "copyEmail": "メールアドレスをコピー",

@@ -3692,6 +3692,7 @@ export const viVN: MessageSchema = {
       "reopenClosed": "Mở lại thẻ đã đóng",
       "bookmarkAllTabs": "Thêm tất cả các thẻ vào dấu trang…",
       "openLink": "Mở đường liên kết trong thẻ mới",
+      "openLinkSplit": "Mở đường liên kết trong chế độ xem chia đôi",
       "copyLink": "Sao chép địa chỉ đường liên kết",
       "copyLinkToHighlight": "Sao chép đường liên kết đến phần đánh dấu",
       "copyEmail": "Sao chép địa chỉ email",

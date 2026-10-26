@@ -3692,6 +3692,7 @@ export const plPL: MessageSchema = {
       "reopenClosed": "Otwórz ponownie zamkniętą kartę",
       "bookmarkAllTabs": "Dodaj wszystkie karty do zakładek…",
       "openLink": "Otwórz łącze w nowej karcie",
+      "openLinkSplit": "Otwórz łącze w widoku dzielonym",
       "copyLink": "Kopiuj adres łącza",
       "copyLinkToHighlight": "Kopiuj link do wyróżnionego tekstu",
       "copyEmail": "Kopiuj adres e-mail",

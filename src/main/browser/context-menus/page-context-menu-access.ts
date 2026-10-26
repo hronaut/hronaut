@@ -35,6 +35,11 @@ export interface PageContextMenuAccess<Tab extends PageContextMenuTab> {
   text(key: MessageKey, parameters?: MessageParameters): string
   /** Opens a tab beside the tab its page opened it from; the load options carry the page's referrer to the address. */
   createTab(options: { url: string; active: boolean; mcpGroupId?: string; loadOptions?: LoadURLOptions; openedFrom?: { tabId: string; background: boolean } }): Promise<Tab>
+  /**
+   * Shows a tab beside the page's tab in split view, replacing any other split, while the page's tab is still the one
+   * shown; a tab the person went to meanwhile stays in front, and the other tab stays where it opened.
+   */
+  showBeside(tab: Tab, besideTabId: string): Promise<void>
   back(tabId: string): Promise<BrowserState>
   forward(tabId: string): Promise<BrowserState>
   reload(tabId: string): Promise<BrowserState>
