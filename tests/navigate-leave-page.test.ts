@@ -8,6 +8,7 @@ import { navigate } from '../src/main/browser/page-navigation/page-navigation.js
 function pageThatAsksToStay(confirmLeavePage: () => Promise<boolean> = async () => false) {
   const webContents = Object.assign(new EventEmitter(), {
     isDestroyed: () => false,
+    isCrashed: () => false,
     // As Electron: the page's question goes to will-prevent-unload, and the load is cancelled unless it is prevented.
     loadURL: vi.fn(async function (this: EventEmitter) {
       let left = false

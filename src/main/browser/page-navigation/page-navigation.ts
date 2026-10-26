@@ -1,6 +1,7 @@
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { localizedLoadFailure } from '../load-failure-error.js'
+import { RendererExitedError } from '../renderer-exit-guard.js'
 import { PAGE_LOAD_WAIT_MS, settledWithin } from '../page-waits/page-load-limit.js'
 import { keepSessionCookies } from '../session-cookies/saved-session-cookies.js'
 import { isHronautHomeUrl, normalizeAddress } from '../url.js'
@@ -22,10 +23,13 @@ function isAbortedLoad(error: unknown): boolean {
  * Loads an address or search in the tab. An agent workspace cannot open Home,
  * and its navigation policy is checked before the load starts. A load that a
  * policy denial or an abort ended resolves; any other failure of the current
- * load throws. A page that asks before it is left, as an editor with unsaved
- * changes does, keeps itself open: a person who started the load is asked, as
- * Chrome asks "Leave site?", and an agent gets an error saying so instead of a
- * load that silently did not happen.
+ * load throws. A load the page's renderer ended by exiting resolves for a
+ * person, as the tab says its page stopped working, as Chrome does; an agent is
+ * told the renderer exited, which a network error would not say. A page that
+ * asks before it is left, as an editor with unsaved changes does, keeps itself
+ * open: a person who started the load is asked, as Chrome asks "Leave site?",
+ * and an agent gets an error saying so instead of a load that silently did not
+ * happen.
  */
 export async function navigate<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, url: string, tabId?: string,
   options: { byPerson?: boolean } = {}): Promise<BrowserState> {
@@ -48,6 +52,7 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
   const loaded = await loadAddress(access, tab, normalized, false)
   // A person sees the tab still loading, as in Chrome; an agent would otherwise read the page it left.
   if (loaded === 'not-shown' && !options.byPerson) throw new LocalizedError('appErrors.page.loadTimedOut')
+  if (loaded === 'renderer-exited' && !options.byPerson) throw new RendererExitedError(true)
   if (loaded !== 'asked-to-stay') return access.getState()
   if (!options.byPerson) throw new Error(PAGE_ASKED_TO_STAY)
   // The question is only the person's while the same page is still open in the tab. The page keeps running while it is
@@ -76,10 +81,11 @@ const PAGE_ASKED_TO_STAY = 'The page asked to confirm before it is left (a befor
  * returns 'asked-to-stay' when the page asked before it is left
  * and so kept itself open; with `leave`, that question is skipped, once, as the
  * person already answered it. It returns 'not-shown' when the wait passed before
- * the new page replaced the one the tab showed.
+ * the new page replaced the one the tab showed, and 'renderer-exited' when the
+ * load failed because the page's renderer exited.
  */
 async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tab: Tab, normalized: string,
-  leave: boolean): Promise<'done' | 'asked-to-stay' | 'not-shown'> {
+  leave: boolean): Promise<'done' | 'asked-to-stay' | 'not-shown' | 'renderer-exited'> {
   const navigationPolicyDenialSequence = tab.navigationPolicyDenialSequence
   access.prepareDiagnosticNavigation(tab)
   type NavigationOutcome =
@@ -148,6 +154,10 @@ async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigation
   if (outcome.kind !== 'failed' || access.findTab(tab.id) !== tab
     || tab.navigationPolicyDenialSequence !== navigationPolicyDenialSequence) return 'done'
   if (askedToStay) return 'asked-to-stay'
+  // Electron fails a load whose renderer exits with a plain ERR_FAILED, as if the network had, before it marks the
+  // renderer gone, so the check waits for the rest of that exit.
+  await new Promise(resolve => setImmediate(resolve))
+  if (!webContents.isDestroyed() && webContents.isCrashed()) return 'renderer-exited'
   if (!isAbortedLoad(outcome.error)) throw localizedLoadFailure(outcome.error)
   return 'done'
 }

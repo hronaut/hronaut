@@ -40,6 +40,42 @@ async function crashPage(electronApp: ElectronApplication, url: string): Promise
   }, url)
 }
 
+test('a navigation whose renderer exits while the page loads tells the agent and leaves the person the tab notice', async ({ capabilities, electronApp, appWindow }) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  const call = (name: string, args: Record<string, unknown>) =>
+    client.callTool({ name, arguments: { tabId, ...args } }, undefined, { timeout: 30_000 }) as Promise<CallToolResult>
+  const crashOnceShown = async (url: string) => {
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
+      webContents.getAllWebContents().some(page => page.getURL() === url && !page.isCrashed()), url)).toBe(true)
+    await crashPage(electronApp, url)
+  }
+  // The page's script never ends, so its load is still running when the renderer exits.
+  const routed = await call('browser_network_routes', {
+    action: 'add', urlPattern: '*crash-while-loading*',
+    response: { status: 200, headers: { 'content-type': 'text/html' }, body: '<title>Loading</title><script>while (true);</script>' }
+  })
+  expect(routed.isError, text(routed)).not.toBe(true)
+  try {
+    const agentUrl = `${fixtureUrl}&crash-while-loading=agent`
+    const navigated = call('browser_navigate', { url: agentUrl })
+    await crashOnceShown(agentUrl)
+    const result = await navigated
+    expect(result.isError, text(result)).toBe(true)
+    expect(text(result)).toContain('renderer exited')
+    expect(text(result)).not.toContain('ERR_FAILED')
+
+    const personUrl = `${fixtureUrl}&crash-while-loading=person`
+    const opened = appWindow.evaluate(({ id, url }) => (window as unknown as { hronaut: HronautApi }).hronaut.navigate({ tabId: id, url }), { id: tabId, url: personUrl })
+    await crashOnceShown(personUrl)
+    // The person's load ends without an error, and the tab says its page stopped working.
+    await opened
+    await expect.poll(() => appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.getState()
+      .then(state => state.tabs.find(tab => tab.id === id)?.pageProblem?.kind), tabId)).toBe('renderer-gone')
+  } finally {
+    await call('browser_network_routes', { action: 'clear' }).catch(() => undefined)
+  }
+})
+
 test('an evaluation in flight settles when its renderer exits', async ({ capabilities, electronApp }) => {
   const { client, tabId, fixtureUrl } = capabilities
   const pending = client.callTool({ name: 'browser_evaluate', arguments: { tabId, script: '(window.__evaluating = true, new Promise(() => {}))' } }, undefined, { timeout: 15_000 }) as Promise<CallToolResult>
