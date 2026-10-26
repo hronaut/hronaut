@@ -328,7 +328,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
       const embeddedIn = webContents
         ? embeddingSiteOf(webContents, origin, details.isMainFrame)
         : namedEmbeddingSite(details.embeddingOrigin, origin)
-      if (embeddedIn === null) return false
+      // Screen capture is never asked for, so it is never allowed.
+      if (embeddedIn === null || permission === 'display-capture') return false
       if (FRESH_CONSENT_PERMISSIONS.has(permission)) return freshConsentAllows(browserSession, webContents, origin, permission, details)
       return host.state.sitePermissionStore?.decisionFor(origin, permission, workspaceId, embeddedIn) === 'allow'
     })
@@ -371,11 +372,11 @@ export function createBrowserSession(host: BrowserSessionHost): {
         return
       }
       const decisionScope = { workspaceId, ...(embeddedIn ? { embeddedIn } : {}) }
-      // A camera or microphone request lists its devices. One that lists neither asks to capture the screen, a window
-      // or a tab, through getDisplayMedia or getUserMedia's chromeMediaSource, and the prompt could only call it
-      // "Camera and microphone": an allowed desktop source shared the whole screen. Refuse it without asking.
+      // Capturing the screen, a window or a tab, through getDisplayMedia or getUserMedia's chromeMediaSource, asks for
+      // display-capture, and an allowed desktop source shares the whole screen. Refuse it without asking. A camera or
+      // microphone request lists its devices; one that lists neither has nothing to ask about.
       const mediaTypes = permission === 'media' && 'mediaTypes' in details ? details.mediaTypes ?? [] : []
-      if (permission === 'media' && mediaTypes.length === 0) {
+      if (permission === 'display-capture' || (permission === 'media' && mediaTypes.length === 0)) {
         respond(false)
         return
       }

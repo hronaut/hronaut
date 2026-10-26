@@ -112,8 +112,11 @@ describe('site permission prompt', () => {
   })
 
   it('refuses a screen sharing request without asking about the camera and microphone', async () => {
-    // A screen, window or tab capture request lists no device. It used to show "requests “Camera and microphone”
-    // permission", and Allow shared the whole screen for getUserMedia's chromeMediaSource "desktop".
+    // A screen, window or tab capture request used to show "requests “Camera and microphone” permission", and Allow
+    // shared the whole screen for getUserMedia's chromeMediaSource "desktop". Electron 45 names it display-capture and
+    // lists the display's video and audio; before, it was media with no devices.
+    expect(await request('en-US', 'display-capture', { mediaTypes: ['video', 'audio'] }, 'allow')).toEqual({ allowed: false, shown: [] })
+    expect(await request('en-US', 'display-capture', {}, 'allow')).toEqual({ allowed: false, shown: [] })
     expect(await request('en-US', 'media', { mediaTypes: [] }, 'allow')).toEqual({ allowed: false, shown: [] })
     expect(await request('en-US', 'media', {}, 'allow')).toEqual({ allowed: false, shown: [] })
     expect(await request('en-US', 'media', { mediaTypes: ['video'] }, 'allow')).toMatchObject({ allowed: true, shown: [{}] })

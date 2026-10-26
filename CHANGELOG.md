@@ -14,6 +14,10 @@ All notable changes to Hronaut are documented in this file.
 - **Ctrl+Enter** in Find (**Control+Return** on macOS) closes it and follows the link the current match is in, as in Chrome. Help's **Keyboard shortcuts** lists it.
 - **Spell check** can be turned off, as in Chrome: the **Spell check** switch in **Settings → General**, or **Spell check → Check the spelling of text fields** in a text field's context menu, stops or starts checking spelling for every website and workspace at once. It stays on by default.
 
+### Changed
+
+- Hronaut now runs on Electron 45.0 (Chromium 156.0.8078.48), which brings that release's security and stability fixes. A website's request to share the screen, a window or a tab is still refused without asking, now that Electron reports it as its own permission.
+
 ### Fixed
 
 - Clearing history also clears the steps agents took in that time from their cards and **All steps**, with the pictures of the pages, as it already did for Home's activity feed.
