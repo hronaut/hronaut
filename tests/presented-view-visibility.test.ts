@@ -151,6 +151,12 @@ describe('showing a resumed page', () => {
     expect(f.contents.setEmbedder).not.toHaveBeenCalled()
   })
 
+  it('keeps the resume done when the native repair throws', () => {
+    const f = fixture()
+    f.contents.setEmbedder.mockImplementation(() => { throw new Error('Object has been destroyed') })
+    expect(() => showResumedPresentedView(f.window as unknown as BrowserWindow, f.view as unknown as WebContentsView)).not.toThrow()
+  })
+
   it('does nothing outside Linux, where the internal API is not verified', () => {
     const f = fixture()
     vi.stubGlobal('process', { ...process, platform: 'darwin', versions: { ...process.versions, electron: '44.2.0' } })

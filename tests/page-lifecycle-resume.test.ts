@@ -33,7 +33,7 @@ function frozenTab() {
     pageLifecycleState: 'frozen',
     pageLifecycleAnimations: []
   }
-  const showResumedPage = vi.fn(() => { commands.push(`show ${tab.pageLifecycleState}`) })
+  const showResumedPage = vi.fn((_tab: PageTab, wasFrozen: boolean) => { commands.push(`show ${tab.pageLifecycleState}${wasFrozen ? ' at once' : ''}`) })
   const access: PageLifecycleAccess = {
     getTab: () => tab,
     findTab: () => tab,
@@ -54,7 +54,17 @@ describe('resuming a frozen page', () => {
     // stayed throttled until a later check found it hidden.
     const page = frozenTab()
     await expect(controlPageLifecycle(page.access, 'tab', 'active')).resolves.toMatchObject({ state: 'active', status: 'changed' })
-    expect(page.showResumedPage).toHaveBeenCalledExactlyOnceWith(page.tab)
+    expect(page.showResumedPage).toHaveBeenCalledExactlyOnceWith(page.tab, true)
+    expect(page.commands).toEqual(['Page.setWebLifecycleState active', 'show active at once'])
+  })
+
+  it('has a page whose freeze may not have reached Chromium shown only if it is hidden', async () => {
+    // Showing it at once would give a page that was never hidden a hidden-then-visible change.
+    const page = frozenTab()
+    page.tab.pageLifecycleState = 'unknown'
+    page.tab.pageLifecycleUnknownRequest = 'frozen'
+    await expect(controlPageLifecycle(page.access, 'tab', 'active')).resolves.toMatchObject({ state: 'active', status: 'changed' })
+    expect(page.showResumedPage).toHaveBeenCalledExactlyOnceWith(page.tab, false)
     expect(page.commands).toEqual(['Page.setWebLifecycleState active', 'show active'])
   })
 

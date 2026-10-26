@@ -98,7 +98,12 @@ export function reconcilePresentedViewVisibility(window: BrowserWindow, view: We
 export function showResumedPresentedView(window: BrowserWindow, view: WebContentsView): void {
   if (!repairsVisibility()) return
   const contents = viewContents(view)
-  if (contents && isPresented(window, view, contents)) showRenderer(window, contents)
+  if (!contents || !isPresented(window, view, contents)) return
+  try {
+    showRenderer(window, contents)
+  } catch {
+    // The resume itself has succeeded; the periodic check repairs the page later, as it would have before.
+  }
 }
 
 /** Check idle presented pages too: compositor visibility can drift without a
@@ -107,7 +112,7 @@ export function watchPresentedViewVisibility(
   window: BrowserWindow,
   displayedViews: () => readonly WebContentsView[]
 ): () => void {
-  if (process.platform !== 'linux' || process.versions.electron?.split('.')[0] !== '44') return () => undefined
+  if (!repairsVisibility()) return () => undefined
   const timer = setInterval(() => {
     if (window.isDestroyed()) { clearInterval(timer); return }
     if (!window.isVisible() || window.isMinimized()) return

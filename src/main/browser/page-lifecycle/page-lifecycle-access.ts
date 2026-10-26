@@ -29,7 +29,8 @@ export interface PageLifecycleTab {
  * the tabs, the debugger queue, dialog monitoring, DevTools opening, page
  * presentation and state publication private. The debugger queue and dialog
  * monitoring stay manager fields because every debugger user shares them;
- * page presentation stays a manager method because layout uses it too.
+ * showing a resumed page stays with the manager, which owns the window and
+ * its views.
  */
 export interface PageLifecycleAccess<Tab extends PageLifecycleTab> {
   getTab(tabId?: string): Tab
@@ -38,8 +39,11 @@ export interface PageLifecycleAccess<Tab extends PageLifecycleTab> {
   inDebuggerQueue<T>(webContentsId: number, operation: () => Promise<T>): Promise<T>
   dialogMonitorAttach(webContentsId: number): Promise<void> | undefined
   isDevToolsOpening(webContentsId: number): boolean
-  /** Shows the page of a tab just resumed, which Chromium leaves hidden, if it is on screen. */
-  showResumedPage(tab: Tab): void
+  /**
+   * Shows the page of a tab just resumed if it is on screen: at once when the tab was frozen, since Chromium hides a
+   * page it freezes and does not show it again, and otherwise once the page says it is hidden.
+   */
+  showResumedPage(tab: Tab, wasFrozen: boolean): void
   changed(persist?: boolean): void
   getState(): BrowserState
 }
