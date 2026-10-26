@@ -25,8 +25,9 @@ export async function findInPage<Tab extends PageFindTab>(
  * Ends the tab's page search and clears its selection, or, as Chrome's Ctrl+Enter in its find bar does, clicks the
  * active match, which follows the link it is in. A click in the page is the person's input, so, as the person's Back
  * key does, it leaves alone a page behind trusted chrome, a locked tab, a page an agent is sending input to and a page
- * with an area capture or element pick in progress: those only have their search ended. A click counts as the person's
- * interaction with the tab, as their own click in the page does.
+ * with an area capture or element pick in progress: those only have their search ended. Ending it on the match counts
+ * as the person's interaction with the tab, as their own click in the page does, also when the match is outside a link
+ * and Chromium only selects it: one interaction too many is the safe side.
  */
 export function stopFindInPage<Tab extends PageFindTab>(
   access: PageFindAccess<Tab>,
