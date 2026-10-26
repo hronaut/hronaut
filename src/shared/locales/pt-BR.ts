@@ -929,7 +929,7 @@ export const ptBR: MessageSchema = {
       "pick": "Escolher um elemento como contexto para o agente",
       "find": "Localizar na página atual",
       "findNext": "Ir para a próxima correspondência na página",
-      "findPrevious": "Ir para a correspondência anterior na página",
+      "findPrevious": "Ir para a correspondência anterior na página", "findFollowLink": "Abrir o link da correspondência atual na página",
       "print": "Imprimir a página",
       "bookmark": "Adicionar a página atual aos favoritos",
       "bookmarkAllTabs": "Adicionar todas as guias abertas aos favoritos em uma nova coleção",

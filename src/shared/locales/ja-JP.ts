@@ -929,7 +929,7 @@ export const jaJP: MessageSchema = {
       "pick": "エージェントのコンテキスト用に要素を選択",
       "find": "現在のページ内を検索",
       "findNext": "ページ内の次の一致に移動",
-      "findPrevious": "ページ内の前の一致に移動",
+      "findPrevious": "ページ内の前の一致に移動", "findFollowLink": "ページ内の現在の一致箇所のリンクを開く",
       "print": "ページを印刷",
       "bookmark": "現在のページをブックマーク",
       "bookmarkAllTabs": "開いているすべてのタブを新しいコレクションにブックマーク",

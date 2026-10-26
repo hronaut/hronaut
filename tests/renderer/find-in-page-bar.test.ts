@@ -264,6 +264,41 @@ describe('FindInPageBar', () => {
     await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledWith('first'))
   })
 
+  it.each(['Find text', 'Next match'])('closes Find and clicks the active match on Ctrl+Enter in %s, as Chrome does', async (name) => {
+    // Ctrl+Enter searched again like Enter, so a match in a link could only be followed by closing Find and clicking it.
+    const { view, browser } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await vi.waitFor(() => expect(search).toHaveFocus())
+    await fireEvent.update(search, 'pricing')
+    await vi.waitFor(() => expect(browser.findInPage).toHaveBeenCalledTimes(1))
+    const target = name === 'Find text' ? search : screen.getByRole('button', { name })
+
+    const follow = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true })
+    target.dispatchEvent(follow)
+    expect(follow.defaultPrevented).toBe(true)
+
+    expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
+    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first', { activateMatch: true }))
+    expect(browser.findInPage).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['Shift', { shiftKey: true }],
+    ['Alt', { altKey: true }],
+    ['Meta', { metaKey: true }]
+  ])('keeps Ctrl+%s+Enter a search, not a click on the match', async (_modifier, modifiers) => {
+    const { view, browser } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await vi.waitFor(() => expect(search).toHaveFocus())
+    await fireEvent.update(search, 'pricing')
+    await vi.waitFor(() => expect(browser.findInPage).toHaveBeenCalledTimes(1))
+
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, ...modifiers, bubbles: true, cancelable: true }))
+    await vi.waitFor(() => expect(browser.findInPage).toHaveBeenCalledTimes(2))
+    expect(view.emitted()['update:open']?.at(-1)).not.toEqual([false])
+    expect(browser.stopFindInPage).not.toHaveBeenCalledWith('first', { activateMatch: true })
+  })
+
   it('leaves Find open on an Escape that a control in the bar already handled', async () => {
     const { view } = renderBar()
     const search = screen.getByRole('searchbox', { name: 'Find text' })

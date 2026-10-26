@@ -929,7 +929,7 @@ export const trTR: MessageSchema = {
       "pick": "Ajan bağlamı için bir öğe seç",
       "find": "Geçerli sayfada bul",
       "findNext": "Sayfadaki sonraki eşleşmeye git",
-      "findPrevious": "Sayfadaki önceki eşleşmeye git",
+      "findPrevious": "Sayfadaki önceki eşleşmeye git", "findFollowLink": "Sayfadaki geçerli eşleşmenin bağlantısını aç",
       "print": "Sayfayı yazdır",
       "bookmark": "Geçerli sayfayı yer işaretlerine ekle",
       "bookmarkAllTabs": "Tüm açık sekmeleri yeni bir koleksiyonda yer işaretlerine ekle",

@@ -3647,11 +3647,12 @@ export class BrowserTabsManager {
    * still provide it. The delegates below return the feature's promise
    * directly, so callers see the same ticks as before.
    */
-  private pageFindAccess(): PageFindAccess {
+  private pageFindAccess(): PageFindAccess<BrowserTab> {
     return {
       getTab: (tabId) => this.getTab(tabId),
       searchPage: (webContents, query, options) => this.pageFind.search(webContents, query, options),
-      stopPageSearch: (webContents) => this.pageFind.stop(webContents)
+      stopPageSearch: (webContents, action) => this.pageFind.stop(webContents, action),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab)
     }
   }
 
@@ -3662,8 +3663,8 @@ export class BrowserTabsManager {
     return findInPage(this.pageFindAccess(), query, options)
   }
 
-  stopFindInPage(tabId?: string): void {
-    stopFindInPage(this.pageFindAccess(), tabId)
+  stopFindInPage(tabId?: string, options?: { activateMatch?: boolean }): void {
+    stopFindInPage(this.pageFindAccess(), tabId, options)
   }
 
   /**

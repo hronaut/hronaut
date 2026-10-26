@@ -17,7 +17,7 @@ function fixture() {
   return {
     contents,
     search: () => controller.search(webContents, 'needle', {}),
-    stop: () => controller.stop(webContents),
+    stop: (action?: 'clearSelection' | 'activateSelection') => controller.stop(webContents, action),
     complete: (id = requestId, finalUpdate = true) => contents.emit('found-in-page', {}, {
       requestId: id, finalUpdate, activeMatchOrdinal: 1, matches: 3
     })
@@ -85,4 +85,49 @@ it('keeps searches in different pages independent', async () => {
   pages[1]!.emit('found-in-page', {}, { requestId: 1, finalUpdate: true, activeMatchOrdinal: 2, matches: 4 })
   expect(await Promise.all(pending)).toEqual(['Page search was cancelled or superseded', { activeMatchOrdinal: 2, matches: 4 }])
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('clears the selection when a search ends, and clicks the active match only when asked', async () => {
+  const page = fixture()
+  const search = page.search().catch(error => error.message)
+  page.stop()
+  expect(await search).toBe('Page search was cancelled or superseded')
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+  page.stop('activateSelection')
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('activateSelection')
+})
+
+it('ends a search session before a new one finds the same text again, so its active match can still be clicked', () => {
+  const page = fixture()
+  const controller = new PageFindController()
+  const webContents = page.contents as unknown as WebContents
+  const calls: string[] = []
+  page.contents.findInPage.mockImplementation(((query: string, options: Electron.FindInPageOptions) => {
+    calls.push(`find ${query}${options.findNext ? ' new' : ''}${options.matchCase ? ' case' : ''}`)
+    return calls.length
+  }) as never)
+  page.contents.stopFindInPage.mockImplementation(((action: string) => { calls.push(`stop ${action}`) }) as never)
+  const search = (query: string, options: Electron.FindInPageOptions) => { void controller.search(webContents, query, options).catch(() => undefined) }
+
+  search('pricing', { findNext: true })
+  search('pricing details', { findNext: true })
+  search('pricing details', { findNext: false })
+  search('pricing details', { findNext: true, matchCase: true })
+  search('Pricing Details', { findNext: true })
+  controller.stop(webContents, 'activateSelection')
+  search('pricing details', { findNext: true })
+
+  expect(calls).toEqual([
+    'find pricing new',
+    'find pricing details new',
+    'find pricing details',
+    // Match case switched: the same text again.
+    'stop clearSelection',
+    'find pricing details new case',
+    'stop clearSelection',
+    'find Pricing Details new',
+    'stop activateSelection',
+    // The search was stopped already.
+    'find pricing details new'
+  ])
 })

@@ -3,6 +3,8 @@ import type { WebContents } from 'electron'
 /** Chromium has one active find operation per page. Mirror that lifecycle. */
 export class PageFindController {
   private readonly pending = new WeakMap<WebContents, () => void>()
+  /** The text the page's search session began with, until the search is stopped. */
+  private readonly sessionQueries = new WeakMap<WebContents, string>()
 
   search(
     webContents: WebContents,
@@ -10,6 +12,12 @@ export class PageFindController {
     options: Electron.FindInPageOptions
   ): Promise<{ activeMatchOrdinal: number; matches: number }> {
     this.pending.get(webContents)?.()
+    if (options.findNext === true) {
+      // A new session that finds the same text again, as switching Match case does, leaves Chromium without the
+      // active match it ends the search on, so a later Ctrl+Enter would click nothing: the earlier session ends first.
+      if (this.sessionQueries.get(webContents)?.toLowerCase() === query.toLowerCase()) webContents.stopFindInPage('clearSelection')
+      this.sessionQueries.set(webContents, query)
+    }
     return new Promise((resolve, reject) => {
       let requestId = -1
       const cleanup = (): void => {
@@ -47,8 +55,10 @@ export class PageFindController {
     })
   }
 
-  stop(webContents: WebContents): void {
+  /** Ends the page's search, clearing its selection, or clicking the active match as Chrome's Ctrl+Enter does. */
+  stop(webContents: WebContents, action: 'clearSelection' | 'activateSelection' = 'clearSelection'): void {
     this.pending.get(webContents)?.()
-    webContents.stopFindInPage('clearSelection')
+    this.sessionQueries.delete(webContents)
+    webContents.stopFindInPage(action)
   }
 }

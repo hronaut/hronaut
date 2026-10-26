@@ -929,7 +929,7 @@ export const viVN: MessageSchema = {
       "pick": "Chọn một phần tử làm ngữ cảnh cho tác nhân",
       "find": "Tìm trong trang hiện tại",
       "findNext": "Đi tới kết quả khớp tiếp theo trên trang",
-      "findPrevious": "Đi tới kết quả khớp trước đó trên trang",
+      "findPrevious": "Đi tới kết quả khớp trước đó trên trang", "findFollowLink": "Mở liên kết của kết quả khớp hiện tại trên trang",
       "print": "In trang",
       "bookmark": "Đánh dấu trang hiện tại",
       "bookmarkAllTabs": "Đánh dấu tất cả thẻ đang mở vào một bộ sưu tập mới",

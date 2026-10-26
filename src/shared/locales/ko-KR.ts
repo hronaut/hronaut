@@ -929,7 +929,7 @@ export const koKR: MessageSchema = {
       "pick": "에이전트 컨텍스트용 요소 선택",
       "find": "현재 페이지에서 찾기",
       "findNext": "페이지에서 다음 일치 항목으로 이동",
-      "findPrevious": "페이지에서 이전 일치 항목으로 이동",
+      "findPrevious": "페이지에서 이전 일치 항목으로 이동", "findFollowLink": "페이지에서 현재 일치 항목의 링크 열기",
       "print": "페이지 인쇄",
       "bookmark": "현재 페이지를 북마크에 추가",
       "bookmarkAllTabs": "열린 탭을 모두 새 컬렉션에 북마크로 추가",
