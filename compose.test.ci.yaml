@@ -9,6 +9,9 @@ services:
     network_mode: bridge
     init: true
     ipc: host
+    # Teardown can end a stuck Electron main process with SIGABRT for its stack; it must leave no core file behind.
+    ulimits:
+      core: 0
     environment:
       CI: "true"
       HRONAUT_INTEGRATION_SHARDS: "${HRONAUT_INTEGRATION_SHARDS:-4}"

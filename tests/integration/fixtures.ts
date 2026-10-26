@@ -16,7 +16,7 @@ import { integrationMcpPort } from './port-allocation.js'
 import { ElectronTraceRecorder } from './electron-tracing.js'
 import { startWorkerDisplay } from './worker-display.js'
 import { activityDiagnostics, attachActivityDiagnostics } from './activity-failure-diagnostics.js'
-import { collectsNativeCrashStacks, readNativeCrashStacks, trackNativeCrashStacks, untrackNativeCrashStacks } from './native-crash-stacks.js'
+import { collectsNativeCrashStacks, readNativeCrashStacks, trackNativeCrashStacks, untrackNativeCrashStacks, type TeardownAbort } from './native-crash-stacks.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 export function expectFixtureSuccess(result: CallToolResult, operation: string): void {
@@ -31,7 +31,7 @@ const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
 const testTraces = new WeakMap<TestInfo, ElectronTraceRecorder>()
 const applicationTraces = new WeakMap<ElectronApplication, ElectronTraceRecorder>()
 // Launches whose processes print their native stack when a fatal signal reaches them.
-const stackDumpingApps = new WeakSet<ElectronApplication>()
+const stackDumpingApps = new WeakMap<ElectronApplication, TeardownAbort>()
 
 export interface HronautInstance {
   app: ElectronApplication
@@ -152,8 +152,10 @@ export async function launchHronaut(
       HRONAUT_DOWNLOAD_DIR: profileDirectory
     }
   })
-  if (testInfo) readNativeCrashStacks(testInfo, app.process().stderr)
-  if (environment.ELECTRON_ENABLE_STACK_DUMPING) stackDumpingApps.add(app)
+  const teardownAbort: TeardownAbort = { requested: false }
+  if (testInfo) readNativeCrashStacks(testInfo, app.process().stderr, teardownAbort)
+  // Electron dumps stacks whenever the variable is set, even to nothing.
+  if (environment.ELECTRON_ENABLE_STACK_DUMPING !== undefined) stackDumpingApps.set(app, teardownAbort)
   try {
     await app.evaluate(({ app }) => {
       const exits: { reason: string; exitCode: number; webContentsId: number; type: string; surface: string; occurredAt: number }[] = []
@@ -281,9 +283,11 @@ export async function closeHronaut(app: ElectronApplication): Promise<void> {
     child.kill('SIGTERM')
     await waitForExit(child, 2_000)
   }
-  if (!exited(child) && stackDumpingApps.has(app)) {
-    // A main process that takes neither app.close() nor SIGTERM is stuck. SIGABRT has its main thread print where it
-    // waits, which a failed test attaches with the crash traces.
+  const teardownAbort = stackDumpingApps.get(app)
+  if (!exited(child) && teardownAbort) {
+    // A main process that neither app.close() nor SIGTERM ended within 5 s is stuck, or slow to quit. SIGABRT has its
+    // main thread print where it is, which a failed test attaches with the crash traces, marked as asked for.
+    teardownAbort.requested = true
     child.kill('SIGABRT')
     await waitForExit(child, 2_000)
   }
