@@ -67,7 +67,7 @@ export function guardPageCallsAcrossRendererExit(page: GuardedPage): void {
       }
       pending.then((value) => settle(() => resolve(value)), (error: unknown) => {
         if (rendererExited()) return settle(() => reject(new RendererExitedError(true)))
-        if (page.isDestroyed() || !(error instanceof Error) || error.message !== FRAME_DISPOSED) return settle(() => reject(error))
+        if (page.isDestroyed() || !isFrameDisposedError(error)) return settle(() => reject(error))
         // Unless render-process-gone comes meanwhile and rejects the call as stopped by the exit, a navigation replaced
         // the document.
         setTimeout(() => settle(() => reject(rendererExited() ? new RendererExitedError(true) : error)), EXIT_REPORT_WAIT_MS)
@@ -86,6 +86,11 @@ export function guardPageCallsAcrossRendererExit(page: GuardedPage): void {
   page.debugger.sendCommand = (method, ...args) => answeredByBrowserProcess(method)
     ? sendCommand(method, ...args)
     : settleBeforeExit(() => sendCommand(method, ...args))
+}
+
+/** Whether Electron refused a page script because a navigation or a renderer exit disposed the document it ran in. */
+export function isFrameDisposedError(error: unknown): boolean {
+  return error instanceof Error && error.message === FRAME_DISPOSED
 }
 
 /** Whether Chromium answers this DevTools command in the browser process, without waiting on the page's renderer. */
