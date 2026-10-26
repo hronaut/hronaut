@@ -13,15 +13,15 @@ test('keeps the actions and messages of a debug report in view in a short window
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('Missing fixture address')
-  const windowHigh = async (height: number): Promise<void> => {
-    await electronApp.evaluate(({ BrowserWindow }, height) => BrowserWindow.getAllWindows()[0]!.setSize(1000, height), height)
-    await expect.poll(() => appWindow.evaluate(() => innerHeight)).toBe(height)
+  const windowSize = async (width: number, height: number): Promise<void> => {
+    await electronApp.evaluate(({ BrowserWindow }, [width, height]) => BrowserWindow.getAllWindows()[0]!.setSize(width, height), [width, height])
+    await expect.poll(() => appWindow.evaluate(() => [innerWidth, innerHeight])).toEqual([width, height])
   }
   try {
     await appWindow.evaluate(`window.hronaut.newTab({ url: 'http://127.0.0.1:${address.port}/', active: true })`)
     // The page committed, so its load no longer resets the panel.
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.title)')).toBe('Quiet page')
-    await windowHigh(1000)
+    await windowSize(1000, 1000)
     await appWindow.locator('.page-tools-button').click()
     const tools = appWindow.getByRole('dialog', { name: 'Page tools', exact: true })
     await tools.locator('.page-tools-grid button').filter({ has: appWindow.locator('strong', { hasText: /^Debug report$/ }) }).click()
@@ -37,7 +37,7 @@ test('keeps the actions and messages of a debug report in view in a short window
     await actionsInView()
     await expect.poll(() => report.locator('.debug-report-empty').evaluate(element => element.getBoundingClientRect().height)).toBe(260)
 
-    await windowHigh(760)
+    await windowSize(1000, 760)
     await actionsInView()
     // The report scrolls under the footer instead, and its message can still be read.
     await expect.poll(() => report.locator('.panel-scroll-body').evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
@@ -48,12 +48,15 @@ test('keeps the actions and messages of a debug report in view in a short window
     expect(await report.locator('.incident-review').evaluate(element => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(0)
 
     // In the smallest window, a report with a message keeps the message in reach above the footer.
-    await windowHigh(520)
+    await windowSize(760, 520)
     const url = `http://127.0.0.1:${address.port}/`
     const page = electronApp.context().pages().find(candidate => candidate.url() === url)!
     await page.evaluate(() => console.error('quiet-page-failure'))
     await report.locator(':scope > footer').getByRole('button', { name: 'Refresh', exact: true }).click()
     const message = report.getByText('quiet-page-failure')
+    await expect(message).toBeAttached()
+    // The list keeps its height; the report around it scrolls instead.
+    expect(await report.locator('.debug-report-evidence').evaluate(element => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(0)
     await message.scrollIntoViewIfNeeded()
     await expect(message).toBeInViewport({ ratio: 1 })
     await actionsInView()
