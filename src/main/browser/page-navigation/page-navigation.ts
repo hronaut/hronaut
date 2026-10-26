@@ -1,3 +1,4 @@
+import type { WebContents } from 'electron'
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { localizedLoadFailure } from '../load-failure-error.js'
@@ -9,8 +10,7 @@ import type { PageNavigationAccess, PageNavigationTab } from './page-navigation-
 
 // A copy of the tab manager's own check, which its load and wake handling keep using.
 const ABORTED_LOAD_ERROR = -3
-const FAILED_LOAD_ERROR = -2
-// How long a load that failed with Electron's bare ERR_FAILED waits for Electron to report that the renderer exited.
+// How long a failed load waits for Electron to report that the page's renderer exited.
 const RENDERER_EXIT_REPORT_WAIT_MS = 100
 
 function isAbortedLoad(error: unknown): boolean {
@@ -22,14 +22,31 @@ function isAbortedLoad(error: unknown): boolean {
     || /\bERR_ABORTED\b|\(-3\)\s+loading\b/.test(error.message)
 }
 
-/** Whether a load failed with Electron's bare ERR_FAILED, which a renderer exit during the load also gives. */
-function isBareLoadFailure(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
-  const details = error as Error & { code?: unknown; errno?: unknown }
-  return details.code === FAILED_LOAD_ERROR
-    || details.errno === FAILED_LOAD_ERROR
-    || details.code === 'ERR_FAILED'
-    || /\bERR_FAILED\b|\(-2\)\s+loading\b/.test(error.message)
+/**
+ * Follows the exits of a page's renderer that Electron reports while a load runs. A crashed page's load starts a new
+ * renderer, so an exit before the load is not the load's.
+ */
+function watchRendererExit(webContents: WebContents): { reported(waitMs: number): Promise<boolean>; stop(): void } {
+  let exited = false
+  let exitReported: (() => void) | undefined
+  const onRendererGone = (): void => {
+    exited = true
+    exitReported?.()
+  }
+  webContents.on('render-process-gone', onRendererGone)
+  return {
+    // Whether an exit was reported, waiting up to waitMs for one.
+    reported: (waitMs) => (exited ? Promise.resolve(true) : new Promise<boolean>((resolve) => {
+      const wait = setTimeout(() => resolve(exited), waitMs)
+      exitReported = () => {
+        clearTimeout(wait)
+        resolve(true)
+      }
+    })),
+    stop: () => {
+      webContents.removeListener('render-process-gone', onRendererGone)
+    }
+  }
 }
 
 /**
@@ -120,13 +137,6 @@ async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigation
   // question the new page asks later.
   let askedToStay = false
   const webContents = tab.webContents
-  // A crashed page's load starts a new renderer, so only an exit reported during the load is this load's.
-  let rendererExited = false
-  let exitReported: (() => void) | undefined
-  const onRendererGone = (): void => {
-    rendererExited = true
-    exitReported?.()
-  }
   const onPreventUnload = (event: Electron.Event): void => {
     stopWatchingUnload()
     if (leave) event.preventDefault()
@@ -141,25 +151,25 @@ async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigation
     webContents.removeListener('will-prevent-unload', onPreventUnload)
     webContents.removeListener('did-start-navigation', onNavigationStart)
   }
-  webContents.on('render-process-gone', onRendererGone)
+  const rendererExit = watchRendererExit(webContents)
   try {
-    webContents.on('will-frame-navigate', detectPolicyDenial)
-    webContents.on('will-redirect', detectPolicyDenial)
-    webContents.on('will-prevent-unload', onPreventUnload)
-    webContents.on('did-start-navigation', onNavigationStart)
-    webContents.on('did-navigate', onShown)
-    const load = webContents.loadURL(normalized).then<NavigationOutcome, NavigationOutcome>(
-      () => ({ kind: 'loaded' }),
-      (error: unknown) => ({ kind: 'failed', error })
-    )
-    // A page whose load never ends, such as one with an image its server never answers, keeps loading in the tab, as in
-    // Chrome, while the navigation returns.
     let loadWait: ReturnType<typeof setTimeout> | undefined
-    const stillLoading = new Promise<NavigationOutcome>((resolve) => {
-      loadWait = setTimeout(() => resolve({ kind: 'loading' }), PAGE_LOAD_WAIT_MS)
-    })
     let outcome: NavigationOutcome
     try {
+      webContents.on('will-frame-navigate', detectPolicyDenial)
+      webContents.on('will-redirect', detectPolicyDenial)
+      webContents.on('will-prevent-unload', onPreventUnload)
+      webContents.on('did-start-navigation', onNavigationStart)
+      webContents.on('did-navigate', onShown)
+      const load = webContents.loadURL(normalized).then<NavigationOutcome, NavigationOutcome>(
+        () => ({ kind: 'loaded' }),
+        (error: unknown) => ({ kind: 'failed', error })
+      )
+      // A page whose load never ends, such as one with an image its server never answers, keeps loading in the tab, as
+      // in Chrome, while the navigation returns.
+      const stillLoading = new Promise<NavigationOutcome>((resolve) => {
+        loadWait = setTimeout(() => resolve({ kind: 'loading' }), PAGE_LOAD_WAIT_MS)
+      })
       // Electron can leave loadURL pending after preventDefault() rejects a
       // redirect. A policy decision is already terminal for this navigation,
       // so do not strand renderer IPC waiting for a load event that may never
@@ -176,23 +186,19 @@ async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigation
     if (outcome.kind !== 'failed' || access.findTab(tab.id) !== tab
       || tab.navigationPolicyDenialSequence !== navigationPolicyDenialSequence) return 'done'
     if (askedToStay) return 'asked-to-stay'
-    // Electron fails a load whose renderer exits with a bare ERR_FAILED, as if the network had, and can do so before it
-    // reports the exit, so such a failure waits a moment for that report.
-    if (!rendererExited && isBareLoadFailure(outcome.error)) {
-      await new Promise<void>((resolve) => {
-        const wait = setTimeout(resolve, RENDERER_EXIT_REPORT_WAIT_MS)
-        exitReported = () => {
-          clearTimeout(wait)
-          resolve()
-        }
-      })
-    }
-    if (access.findTab(tab.id) !== tab) return 'done'
+    // Electron fails a load whose renderer exits with a bare ERR_FAILED, as if the network had, and can do so a task
+    // before it reports the exit, so a failure waits a moment for that report.
+    const navigationGeneration = tab.navigationGeneration
+    const rendererExited = await rendererExit.reported(RENDERER_EXIT_REPORT_WAIT_MS)
+    // A newer load in the tab, or its closing, replaced this one meanwhile, and only the newer one is reported.
+    if (access.findTab(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()
+      || tab.navigationGeneration !== navigationGeneration
+      || tab.navigationPolicyDenialSequence !== navigationPolicyDenialSequence) return 'done'
     if (rendererExited) return 'renderer-exited'
     if (!isAbortedLoad(outcome.error)) throw localizedLoadFailure(outcome.error)
     return 'done'
   } finally {
-    webContents.removeListener('render-process-gone', onRendererGone)
+    rendererExit.stop()
   }
 }
 
