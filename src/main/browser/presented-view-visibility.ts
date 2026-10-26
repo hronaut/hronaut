@@ -6,7 +6,7 @@ const VISIBILITY_WORLD_ID = ISOLATED_WORLDS.presentedViewVisibility
 const VISIBILITY_PROBE_TIMEOUT_MS = 1_500
 
 function repairsVisibility(): boolean {
-  return process.platform === 'linux' && process.versions.electron?.split('.')[0] === '44'
+  return process.platform === 'linux' && process.versions.electron?.split('.')[0] === '45'
 }
 
 function viewContents(view: WebContentsView): WebContents | undefined {
@@ -37,19 +37,19 @@ function isPresented(window: BrowserWindow, view: WebContentsView, contents: Web
 }
 
 /**
- * Electron 44's View visibility/bounds can already be correct while its
+ * Electron's View visibility/bounds can already be correct while its
  * RenderWidgetHost remains hidden. Reapplying them does not call WasShown.
  * setEmbedder performs WasHidden/WasShown and preserves the live document,
  * focus and background throttling. This internal API is deliberately
  * feature-checked and restricted to the verified Electron major version.
- * https://github.com/electron/electron/blob/v44.2.0/shell/browser/api/electron_api_web_contents.cc
+ * https://github.com/electron/electron/blob/v45.0.0/shell/browser/api/electron_api_web_contents.cc
  */
 function showRenderer(window: BrowserWindow, contents: WebContents): void {
   const nativeContents = contents as WebContents & { setEmbedder?: (embedder: WebContents) => void }
   nativeContents.setEmbedder?.(window.webContents)
 }
 
-/** Repair Electron 44's stale native visibility without reloading or focusing. */
+/** Repair Electron's stale native visibility without reloading or focusing. */
 export function reconcilePresentedViewVisibility(window: BrowserWindow, view: WebContentsView): void {
   if (!repairsVisibility() || pending.has(view)) return
   const contents = viewContents(view)

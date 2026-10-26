@@ -15,6 +15,10 @@ All notable changes to Hronaut are documented in this file.
 - **Spell check** can be turned off, as in Chrome: the **Spell check** switch in **Settings → General**, or **Spell check → Check the spelling of text fields** in a text field's context menu, stops or starts checking spelling for every website and workspace at once. It stays on by default.
 - **Open Link in Split View** in a link's context menu, as in Chrome: the link opens in a new tab beside the page, which keeps the keyboard. From a split view, the page and the link's tab take the split side by side, half each, and the tab that was beside the page stays open.
 
+### Changed
+
+- Hronaut now runs on Electron 45.0 (Chromium 156.0.8078.48), which brings that release's security and stability fixes. A website's request to share the screen, a window or a tab is still refused without asking, now that Electron reports it as its own permission.
+
 ### Fixed
 
 - Clearing history also clears the steps agents took in that time from their cards and **All steps**, with the pictures of the pages, as it already did for Home's activity feed.

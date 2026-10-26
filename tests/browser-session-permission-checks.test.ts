@@ -23,7 +23,7 @@ const site = { url: 'https://editor.example/notes', origin: 'https://editor.exam
 const fromSite = { requestingUrl: site.url, isMainFrame: true }
 
 /** One workspace session's handlers, answering each prompt with the next answer in `answers`. */
-function createHarness(answers: Array<'allow' | 'deny'> = [], saveFiles: () => boolean = () => false) {
+function createHarness(answers: Array<'allow' | 'deny'> = [], saveFiles: () => boolean = () => false, saved: 'allow' | undefined = undefined) {
   const shown: MessageBoxOptions[] = []
   const handlers = { request: undefined as RequestHandler | undefined, check: undefined as CheckHandler | undefined }
   const browserSession = createBrowserSession({
@@ -34,7 +34,7 @@ function createHarness(answers: Array<'allow' | 'deny'> = [], saveFiles: () => b
       return { response: answers.shift() === 'allow' ? 1 : 0, checkboxChecked: false }
     },
     workspaces: () => [],
-    state: { persistentSession: null, sitePermissionStore: null },
+    state: { persistentSession: null, sitePermissionStore: saved ? { decisionFor: () => saved } as never : null },
     sendToShellWindows: () => undefined,
     partition: 'persist:test',
     websitesMaySaveFiles: saveFiles,
@@ -308,6 +308,13 @@ describe('a single file a website holds', () => {
     switchOn = false
     expect(file(handlers, notes)).toBe(false)
   })
+})
+
+it('never admits screen capture from a check, even with an allowing decision saved', () => {
+  const { handlers, workspaceSession } = createHarness([], () => false, 'allow')
+  const page = createPage(workspaceSession)
+  expect(handlers.check!(page.contents as never, 'geolocation' as never, site.origin, fromSite as never)).toBe(true)
+  expect(handlers.check!(page.contents as never, 'display-capture' as never, site.origin, fromSite as never)).toBe(false)
 })
 
 it('never admits a link to another app from a check, even after the person allowed one', async () => {

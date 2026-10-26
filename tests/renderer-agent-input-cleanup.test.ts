@@ -38,6 +38,15 @@ describe('renderer agent-input flag cleanup', () => {
     expect(onFailure).not.toHaveBeenCalled()
     expect(f.page.listenerCount('destroyed')).toBe(0)
   })
+  // Electron 45 refuses the script this way when a navigation replaced the document that had the flag.
+  it('treats a document a navigation replaced as cleaned up', async () => {
+    const f = fixture(), onFailure = vi.fn()
+    const pending = clearRendererAgentInputFlag(f.page, onFailure)
+    f.reject(new Error('Render frame was disposed before the request completed'))
+    await pending
+    expect(onFailure).not.toHaveBeenCalled()
+    expect(f.page.listenerCount('destroyed')).toBe(0)
+  })
   // withAgentInput clears the flag again once the person closes the dialog.
   it.each([true, false])('does not report a page its print dialog holds as a failed cleanup (sent: %s)', async sent => {
     const f = fixture(), onFailure = vi.fn()

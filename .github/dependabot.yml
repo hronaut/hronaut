@@ -24,10 +24,6 @@ updates:
       - dependency-name: "typescript"
         versions:
           - "7.x"
-      # Electron 44.4.x shifts trusted controls after compact navigation; 44.4.1 also crashes continuity QA.
-      - dependency-name: "electron"
-        versions:
-          - "44.4.x"
     groups:
       production-minor-patch:
         dependency-type: "production"

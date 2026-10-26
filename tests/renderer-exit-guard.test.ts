@@ -49,6 +49,41 @@ describe('page calls across a renderer exit', () => {
     await Promise.resolve()
   })
 
+  // On Electron 45 an evaluation in flight whose renderer exited failed with "Render frame was disposed before the
+  // request completed", since Electron rejects it before it reports the exit.
+  it('reports a script that Electron rejects as its frame goes away as stopped by the renderer exit', async () => {
+    vi.useFakeTimers()
+    try {
+      const disposed = () => new Error('Render frame was disposed before the request completed')
+      const { page, state, calls, exit, restart } = fakePage()
+      const beforeReport = page.executeJavaScript('1')
+      calls[0]!.reply.reject(disposed())
+      await vi.advanceTimersByTimeAsync(0)
+      exit()
+      await expect(beforeReport).rejects.toMatchObject({ name: 'RendererExitedError', sent: true })
+
+      // The page already counts as crashed, though render-process-gone has not been emitted yet.
+      restart()
+      const crashedFirst = page.executeJavaScriptInIsolatedWorld(7, [{ code: '2' }])
+      state.crashed = true
+      calls[1]!.reply.reject(disposed())
+      await expect(crashedFirst).rejects.toMatchObject({ name: 'RendererExitedError', sent: true })
+
+      // A navigation replaced the document the script ran in, and no renderer exit is reported.
+      restart()
+      const navigated = page.executeJavaScript('3')
+      const failed = page.executeJavaScript('4')
+      const replaced = expect(navigated).rejects.toThrow('Render frame was disposed before the request completed')
+      calls[2]!.reply.reject(disposed())
+      calls[3]!.reply.reject(new Error('Script failed'))
+      await expect(failed).rejects.toThrow('Script failed')
+      await vi.advanceTimersByTimeAsync(100)
+      await replaced
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('rejects a capture or a print in flight when the renderer exits, and refuses both unsent while it stays gone', async () => {
     const { page, calls, exit } = fakePage()
     const capture = page.capturePage()

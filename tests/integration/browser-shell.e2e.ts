@@ -7388,6 +7388,8 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
     await expect.poll(() => appWindow.evaluate('window.hronautDownloads.list()')).toEqual([])
     await askWhere.uncheck()
     await expect(askWhere).not.toBeChecked()
+    // The switch shows the change before it is saved, and a download started meanwhile would still ask where to save.
+    await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then((settings) => settings.askWhereToSaveDownloads)')).toBe(false)
     await settingsDialog.getByRole('button', { name: 'Close settings', exact: true }).click()
 
     const panel = appWindow.getByRole('dialog', { name: 'Downloads' })

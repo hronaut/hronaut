@@ -14,7 +14,7 @@ test('keeps the actions and messages of a debug report in view in a short window
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('Missing fixture address')
   const windowSize = async (width: number, height: number): Promise<void> => {
-    await electronApp.evaluate(({ BrowserWindow }, [width, height]) => BrowserWindow.getAllWindows()[0]!.setSize(width, height), [width, height])
+    await electronApp.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size.width, size.height), { width, height })
     await expect.poll(() => appWindow.evaluate(() => [innerWidth, innerHeight])).toEqual([width, height])
   }
   try {

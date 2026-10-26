@@ -5492,7 +5492,7 @@ export class BrowserTabsManager {
   }
 
   private reconcileTabPresentation(tab: BrowserTab): void {
-    // Linux/Electron 44 visibility repair intentionally performs a WasShown
+    // The Linux visibility repair intentionally performs a WasShown
     // transition. Skip it while an explicit lifecycle hold is active or
     // ambiguous, otherwise the repair would silently thaw the page.
     if (tab.pageLifecycleState !== 'active' || tab.pageLifecycleOperation?.requestedState === 'frozen') return
