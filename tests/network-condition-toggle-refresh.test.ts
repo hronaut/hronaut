@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { WebContents } from 'electron'
-import { queueNetworkRouteRequest, removeNetworkRoute, setNetworkRouteEnabled } from '../src/main/browser/network-conditions/network-conditions.js'
+import { clearNetworkRoutes, queueNetworkRouteRequest, removeNetworkRoute, setNetworkRouteEnabled } from '../src/main/browser/network-conditions/network-conditions.js'
 import type { NetworkConditionsAccess, NetworkConditionsTab } from '../src/main/browser/network-conditions/network-conditions-access.js'
 import { normalizeNetworkRouteInput } from '../src/main/browser/network-route-input.js'
 
@@ -60,12 +60,18 @@ function conditions() {
     heldNetworkResponses: () => new Map(),
     changed: () => {}
   }
-  /** A page request that uses up the first rule, then the paused-request queue drains. */
-  const useUpRule = async () => {
-    queueNetworkRouteRequest(access, tab, { requestId: 'request-1', request: { url: 'https://app.test/once', method: 'GET' }, frameId: 'main', resourceType: 'Fetch' })
+  /** A page request, which uses up the first rule unless it asks for another address, then the paused-request queue drains. */
+  const request = async (url = 'https://app.test/once') => {
+    queueNetworkRouteRequest(access, tab, { requestId: `request-${commands.length}`, request: { url, method: 'GET' }, frameId: 'main', resourceType: 'Fetch' })
     await vi.advanceTimersByTimeAsync(0)
   }
-  return { access, tab, commands, timers, useUpRule, holdNext: (method: string) => { holdNext = method }, release: () => held?.() }
+  /** Another debugger operation, such as emulation, that holds the queue until released. */
+  const occupyQueue = () => {
+    let free!: () => void
+    void access.withDebugger(contents, () => new Promise<void>(resolve => { free = resolve }))
+    return () => free()
+  }
+  return { access, tab, commands, timers, useUpRule: () => request(), request, occupyQueue, holdNext: (method: string) => { holdNext = method }, release: () => held?.() }
 }
 
 it('toggles a rule while the refresh after a used-up rule is applying', async () => {
@@ -120,4 +126,67 @@ it('still refuses a toggle while the application is unknown', async () => {
   tab.networkConditionApplication = 'unknown'
   await expect(setNetworkRouteEnabled(access, 'tab-1', 'kept', false)).rejects.toThrow('Explicitly clear unknown conditions to recover')
   expect(commands).toEqual([])
+})
+
+it('applies nothing more for a refresh that fires while a change waits in the queue', async () => {
+  const { access, tab, commands, timers, request, occupyQueue } = conditions()
+  // A request no rule matches still leaves a refresh scheduled for when the page's paused requests drain.
+  await request('https://app.test/other')
+  expect(timers.size).toBe(1)
+  const free = occupyQueue()
+  const toggled = setNetworkRouteEnabled(access, 'tab-1', 'kept', false)
+  await vi.advanceTimersByTimeAsync(250)
+  const sent = commands.length
+  free()
+  await expect(toggled).resolves.toEqual([expect.objectContaining({ id: 'once', enabled: true }), expect.objectContaining({ id: 'kept', enabled: false })])
+  await vi.advanceTimersByTimeAsync(500)
+  // The toggle's own application only: a refresh after it would leave the rules pending again for a moment.
+  expect(commands.slice(sent).filter(method => method === 'Fetch.enable')).toHaveLength(1)
+  expect(tab.networkConditionApplication).toBe('confirmed')
+})
+
+it('applies nothing more for a refresh queued while a change applies', async () => {
+  const { access, tab, commands, timers, request, holdNext, release } = conditions()
+  holdNext('Fetch.enable')
+  const toggled = setNetworkRouteEnabled(access, 'tab-1', 'kept', false)
+  await vi.advanceTimersByTimeAsync(0)
+  // A request while the change applies schedules a refresh, which fires and waits behind the change.
+  await request('https://app.test/other')
+  expect(timers.size).toBe(1)
+  await vi.advanceTimersByTimeAsync(250)
+  expect(timers.size).toBe(0)
+  const sent = commands.length
+  release()
+  await expect(toggled).resolves.toHaveLength(2)
+  await vi.advanceTimersByTimeAsync(500)
+  expect(commands.slice(sent)).not.toContain('Fetch.enable')
+  expect(tab.networkConditionApplication).toBe('confirmed')
+})
+
+it('schedules the refresh again when a change it replaced fails before sending anything', async () => {
+  const { access, tab, commands, timers, useUpRule } = conditions()
+  await useUpRule()
+  const sent = commands.length
+  // Refuses once the change is made, at the first command, as when the caller lost its authority meanwhile.
+  const validate = () => { if (tab.networkRoutes.some(route => route.id === 'kept' && !route.enabled)) throw new Error('Controlled late refusal') }
+  await expect(setNetworkRouteEnabled(access, 'tab-1', 'kept', false, validate)).rejects.toThrow('Controlled late refusal')
+  expect(commands).toHaveLength(sent)
+  expect(tab.networkRoutes.find(route => route.id === 'kept')?.enabled).toBe(true)
+  expect(tab.networkConditionApplication).toBe('pending')
+  expect(timers.size).toBe(1)
+  await vi.advanceTimersByTimeAsync(250)
+  expect(tab.networkConditionApplication).toBe('confirmed')
+  // Nothing is left counted as applying.
+  await expect(setNetworkRouteEnabled(access, 'tab-1', 'kept', false)).resolves.toEqual([expect.objectContaining({ id: 'kept', enabled: false })])
+})
+
+it('counts nothing as applying after a change that failed once sent', async () => {
+  const { access, tab } = conditions()
+  access.applyNetworkEmulation = async (_contents, _network, _routes, send) => { await send?.('Network.emulateNetworkConditionsByRule') }
+  let sends = 0
+  const validate = () => { if (tab.networkRoutes.some(route => route.id === 'kept' && !route.enabled) && ++sends > 1) throw new Error('Controlled failure after sending') }
+  await expect(setNetworkRouteEnabled(access, 'tab-1', 'kept', false, validate)).rejects.toThrow('Controlled failure after sending')
+  expect(tab.networkConditionApplication).toBe('unknown')
+  await expect(clearNetworkRoutes(access, 'tab-1')).resolves.toEqual([])
+  expect(tab.networkConditionApplication).toBe('confirmed')
 })

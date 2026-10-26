@@ -77,5 +77,6 @@ test('a rule turns off while another rule used up by a request waits for its ref
     // Turning the rule off applied the rules that remain, which settles them before the refresh.
     expect(await application(appWindow, tabId)).toBe('confirmed')
   })
-  expect(await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.listNetworkRoutes(id), tabId)).toEqual([expect.objectContaining({ enabled: false, urlPattern: expect.stringMatching(/\/kept-rule$/) })])
+  const retained = await appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(t => t.id === id)!.networkConditionState!.retainedRules, tabId)
+  expect(retained).toEqual([expect.objectContaining({ enabled: false, urlPattern: expect.stringMatching(/\/kept-rule$/) })])
 })

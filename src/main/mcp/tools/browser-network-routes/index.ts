@@ -136,7 +136,10 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
         const outcome = { status: 'NETWORK_CONDITIONS_UNCONFIRMED', ...state, retrySafe: false,
           nextAction: holding
             ? 'A request is held: use action held, release or cancel for it, and retry this action shortly if application is pending. Clearing conditions fails held requests.'
-            : 'Explicitly clear conditions to recover. Future matching requests may reach their normal destination. Already-dispatched effects cannot be undone.' }
+            // Pending rules are still being applied, as after a request used one up; they settle by themselves.
+            : state.application === 'pending'
+              ? 'Request conditions are still being applied. List them again shortly, and retry this action if the list shows it did not take effect.'
+              : 'Explicitly clear conditions to recover. Future matching requests may reach their normal destination. Already-dispatched effects cannot be undone.' }
         return { ...textResult(outcome), structuredContent: outcome, isError: true }
       }
     }),

@@ -184,7 +184,8 @@ function networkRouteSummary(route: BrowserNetworkRouteRecord): BrowserNetworkRo
  * tab, its page or its debugger epoch changed. A failure before anything was
  * sent restores the earlier rules; after that the application becomes
  * unknown. Once admitted, it replaces a scheduled refresh, which it schedules
- * again if it fails before sending anything.
+ * again if it fails before sending anything. A refresh, which changes nothing,
+ * applies nothing once another application confirmed the rules.
  */
 export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tab: Tab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
   const contents = tab.webContents
@@ -193,6 +194,8 @@ export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(acces
     validate()
     if (!recovery) requireNetworkConditionsKnown(tab)
     if (access.isDestroyed() || contents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before application')
+    // A change that waited in this queue may have confirmed the rules since the refresh was scheduled.
+    if (!mutate && !recovery && tab.networkConditionApplication === 'confirmed') return
     const previousRoutes = tab.networkRoutes
     mutate?.()
     // This application settles the rules a scheduled refresh would have applied.
@@ -359,7 +362,8 @@ export function queueNetworkRouteRequest<Tab extends NetworkConditionsTab>(acces
  * Reapplies the rules 250 milliseconds after the page's paused requests
  * drain, so used-up rules leave the interception patterns once fulfilled
  * responses reached the page. It waits while requests are queued and skips a
- * closed page or an unknown application.
+ * closed page, an unknown application and rules already confirmed, which no
+ * rule was used up since.
  */
 function scheduleNetworkRouteRefresh<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tab: Tab): void {
   const webContentsId = tab.webContents.id
@@ -367,7 +371,7 @@ function scheduleNetworkRouteRefresh<Tab extends NetworkConditionsTab>(access: N
   if (previous) clearTimeout(previous)
   const timer = setTimeout(() => {
     access.networkRouteRefreshTimers().delete(webContentsId)
-    if (access.isDestroyed() || tab.webContents.isDestroyed() || tab.networkConditionApplication === 'unknown') return
+    if (access.isDestroyed() || tab.webContents.isDestroyed() || tab.networkConditionApplication !== 'pending') return
     if (access.networkRouteQueues().has(webContentsId)) {
       scheduleNetworkRouteRefresh(access, tab)
       return
