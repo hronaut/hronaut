@@ -2,9 +2,9 @@ import { createServer } from 'node:http'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 // In a window 760 px high, a debug report with nothing to show kept its full height and pushed Refresh and Copy report
-// partly out of the panel.
+// partly out of the panel, and in a shorter one a report's list of messages could shrink to nothing.
 
-test('keeps the actions of an empty debug report in view in a short window', async ({ appWindow, electronApp }) => {
+test('keeps the actions and messages of a debug report in view in a short window', async ({ appWindow, electronApp }) => {
   // With a Content-Security-Policy, Electron logs no security warning to the page's console, so the report is empty.
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html', 'content-security-policy': "default-src 'none'" })
@@ -46,6 +46,17 @@ test('keeps the actions of an empty debug report in view in a short window', asy
     await actionsInView()
     // The closed incident review keeps its whole line rather than squeezing into a scroll of its own.
     expect(await report.locator('.incident-review').evaluate(element => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(0)
+
+    // In the smallest window, a report with a message keeps the message in reach above the footer.
+    await windowHigh(520)
+    const url = `http://127.0.0.1:${address.port}/`
+    const page = electronApp.context().pages().find(candidate => candidate.url() === url)!
+    await page.evaluate(() => console.error('quiet-page-failure'))
+    await report.locator(':scope > footer').getByRole('button', { name: 'Refresh', exact: true }).click()
+    const message = report.getByText('quiet-page-failure')
+    await message.scrollIntoViewIfNeeded()
+    await expect(message).toBeInViewport({ ratio: 1 })
+    await actionsInView()
   } finally {
     await closeFixtureServer(server)
   }

@@ -21,7 +21,7 @@ All notable changes to Hronaut are documented in this file.
 - **Bookmark all tabs** with Bookmarks in its own window always asks for the collection's name. When that window was closed, the window it opened could miss the request and ask nothing.
 - A **Copy Image** that fails no longer empties the clipboard: what you had copied before stays there.
 - **Resume Page** on Linux shows the page again at once. Freezing a page hides it in Chromium, which resuming does not undo, so a resumed page kept its timers and animations slowed down and reported itself hidden until Hronaut's visibility check, which first asks the page, got its answer, which under load could take long enough to notice. The same goes for an agent's resume (`browser_page_lifecycle`).
-- **Debug report** keeps its **Refresh** and **Copy report** buttons in view in a short window or dock: the report scrolls between the panel's header and its buttons, which an empty report pushed partly out of view.
+- **Debug report** keeps **Refresh** and **Copy report** in view in a short window or dock: the report scrolls as a whole between the panel's header and these buttons, where an empty report pushed them partly out of view and a long one could shrink its list of messages to nothing.
 
 ## [3.12.0] - 2026-10-25
 
