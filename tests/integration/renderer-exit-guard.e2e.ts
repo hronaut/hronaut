@@ -58,6 +58,8 @@ test('a navigation whose renderer exits while the page loads tells the agent and
   try {
     const agentUrl = `${fixtureUrl}&crash-while-loading=agent`
     const navigated = call('browser_navigate', { url: agentUrl })
+    // Handled here too, so a failed crash leaves no unhandled rejection behind.
+    navigated.catch(() => undefined)
     await crashOnceShown(agentUrl)
     const result = await navigated
     expect(result.isError, text(result)).toBe(true)
@@ -66,6 +68,7 @@ test('a navigation whose renderer exits while the page loads tells the agent and
 
     const personUrl = `${fixtureUrl}&crash-while-loading=person`
     const opened = appWindow.evaluate(({ id, url }) => (window as unknown as { hronaut: HronautApi }).hronaut.navigate({ tabId: id, url }), { id: tabId, url: personUrl })
+    opened.catch(() => undefined)
     await crashOnceShown(personUrl)
     // The person's load ends without an error, and the tab says its page stopped working.
     await opened

@@ -1,8 +1,8 @@
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import { localizedLoadFailure } from '../load-failure-error.js'
-import { RendererExitedError } from '../renderer-exit-guard.js'
 import { PAGE_LOAD_WAIT_MS, settledWithin } from '../page-waits/page-load-limit.js'
+import { RendererExitedError } from '../renderer-exit-guard.js'
 import { keepSessionCookies } from '../session-cookies/saved-session-cookies.js'
 import { isHronautHomeUrl, normalizeAddress } from '../url.js'
 import type { PageNavigationAccess, PageNavigationTab } from './page-navigation-access.js'
@@ -82,7 +82,7 @@ const PAGE_ASKED_TO_STAY = 'The page asked to confirm before it is left (a befor
  * and so kept itself open; with `leave`, that question is skipped, once, as the
  * person already answered it. It returns 'not-shown' when the wait passed before
  * the new page replaced the one the tab showed, and 'renderer-exited' when the
- * load failed because the page's renderer exited.
+ * load failed because the page's renderer exited while it loaded.
  */
 async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tab: Tab, normalized: string,
   leave: boolean): Promise<'done' | 'asked-to-stay' | 'not-shown' | 'renderer-exited'> {
@@ -107,6 +107,8 @@ async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigation
   // question the new page asks later.
   let askedToStay = false
   const webContents = tab.webContents
+  // A crashed page's load starts a new renderer, so only an exit during the load is this load's.
+  const crashedAtStart = webContents.isCrashed()
   const onPreventUnload = (event: Electron.Event): void => {
     stopWatchingUnload()
     if (leave) event.preventDefault()
@@ -157,7 +159,8 @@ async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigation
   // Electron fails a load whose renderer exits with a plain ERR_FAILED, as if the network had, before it marks the
   // renderer gone, so the check waits for the rest of that exit.
   await new Promise(resolve => setImmediate(resolve))
-  if (!webContents.isDestroyed() && webContents.isCrashed()) return 'renderer-exited'
+  if (access.findTab(tab.id) !== tab) return 'done'
+  if (!crashedAtStart && !webContents.isDestroyed() && webContents.isCrashed()) return 'renderer-exited'
   if (!isAbortedLoad(outcome.error)) throw localizedLoadFailure(outcome.error)
   return 'done'
 }

@@ -1,7 +1,7 @@
 import type { Debugger, WebContents } from 'electron'
 import { LocalizedError } from '../localized-error.js'
 
-/** A page script, DevTools command, capture or print that cannot finish because the page's renderer exited. */
+/** A page load, page script, DevTools command, capture or print that cannot finish because the page's renderer exited. */
 export class RendererExitedError extends LocalizedError {
   /** Whether the call reached the page before its renderer exited; false when it was refused unsent. */
   readonly sent: boolean
