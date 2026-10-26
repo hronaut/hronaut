@@ -1,13 +1,16 @@
 import type { BrowserState } from '../../../shared/types.js'
 
-/** Each part of a state as it arrived, written out once, which is how the next state's parts are compared with it. */
-const written = new WeakMap<object, string>()
+/**
+ * Each part of a state as it arrived, serialized once, which is how the next state's parts are compared with it.
+ * The shell never changes a part after it arrived, so its serialized form stays true.
+ */
+const serializedParts = new WeakMap<object, string>()
 
-function writtenOut(value: object): string {
-  let text = written.get(value)
+function serialized(value: object): string {
+  let text = serializedParts.get(value)
   if (text === undefined) {
     text = JSON.stringify(value)
-    written.set(value, text)
+    serializedParts.set(value, text)
   }
   return text
 }
@@ -18,7 +21,7 @@ function reuseItems<Item extends { id: string }>(previous: readonly Item[], next
   let unchanged = previous.length === next.length
   const items = next.map((item, index) => {
     const kept = previousById.get(item.id)
-    if (kept && writtenOut(kept) === writtenOut(item)) {
+    if (kept && serialized(kept) === serialized(item)) {
       if (previous[index] !== kept) unchanged = false
       return kept
     }

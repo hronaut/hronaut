@@ -483,6 +483,14 @@ describe('address bar controller', () => {
     expect(input).toHaveValue('https://second.example/unsaved-form')
   })
 
+  it('hides the suggestions a reloaded shell may have left on screen when it starts', async () => {
+    // Its first sync sends nothing for a view it never showed; closing for the tab in view hides them.
+    const rendered = createHarness({ history: [visit('first')] })
+    await nextTick()
+    expect(rendered.overlay.show).not.toHaveBeenCalled()
+    expect(rendered.overlay.hide).toHaveBeenCalled()
+  })
+
   it('sends main nothing while its suggestions are not shown and the pages they come from change', async () => {
     // Each page that loads changes the open tabs and visits the suggestions come from; a hide for each was a message.
     const rendered = createHarness({ history: [visit('first')] })

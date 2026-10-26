@@ -319,10 +319,12 @@ function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
   if (target) focusTab(target.id)
 }
 
-function focusTabControl(tabId: string): void {
+function noteFocusedTab(tabId: string): void {
   focusedTabId.value = tabId
 }
 
+// The rows' events go on as the tab bar's own through these, the same function for every row and every draw, so a
+// row whose tab did not change is not drawn again for a new handler.
 const showTabContextMenu = (tabId: string): void => emit('showTabContextMenu', tabId)
 const toggleTabMuted = (tab: BrowserTabState): void => emit('toggleTabMuted', tab)
 const closeTab = (tabId: string): void => emit('closeTab', tabId)
@@ -626,11 +628,11 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, toggleTabGroup, collapsedTa
           :keyboard-index="tabKeyboardIndex(tab)"
           :group-color="tabGroupColor(tab)"
           :worker-capture-error="workerCaptureErrors.get(tab.id)"
+          :label="tabTooltip(tab)"
+          :emulation-description="tab.emulation ? describeEmulation(tab) : undefined"
           :format-number="formatNumber"
-          :tab-tooltip="tabTooltip"
-          :describe-emulation="describeEmulation"
           @select="activateTab"
-          @focus-tab="focusTabControl"
+          @focused="noteFocusedTab"
           @tab-keydown="handleTabKeyDown"
           @tab-auxclick="handleTabAuxClick"
           @context-menu="showTabContextMenu"

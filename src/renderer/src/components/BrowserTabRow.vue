@@ -23,7 +23,9 @@ import type { BrowserTabState } from '../../../shared/types.js'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 
 // One tab of the tab strip or rail. Each value it shows comes in as a prop that stays equal while it does not change,
-// so a row draws again only when its own tab changed, not whenever another tab loads.
+// so a row draws again only when its own tab changed, not whenever another tab loads. Its name and emulation
+// description are worked out by the tab bar: they read the whole browser state, which a row reading them would
+// draw again for on every change.
 const props = defineProps<{
   tab: BrowserTabState
   /** The tab is the one in view, and Settings does not cover it. */
@@ -43,14 +45,16 @@ const props = defineProps<{
   /** The color of the tab's workspace, while it is in one. */
   groupColor?: string
   workerCaptureError?: string
+  /** The tab's name with its states, as its tooltip shows them. */
+  label: string
+  /** What the tab emulates, while it does. */
+  emulationDescription?: string
   formatNumber: (value: number) => string
-  tabTooltip: (tab: BrowserTabState) => string
-  describeEmulation: (tab: BrowserTabState) => string
 }>()
 
 const emit = defineEmits<{
   select: [tabId: string]
-  focusTab: [tabId: string]
+  focused: [tabId: string]
   tabKeydown: [event: KeyboardEvent, tab: BrowserTabState]
   tabAuxclick: [event: MouseEvent, tab: BrowserTabState]
   contextMenu: [tabId: string]
@@ -64,9 +68,9 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
-const tooltip = computed(() => props.attention !== undefined
-  ? `${props.tabTooltip(props.tab)}\n\n${props.attention}`
-  : props.agentCommand !== undefined ? `${props.tabTooltip(props.tab)}\n\n${t('tabSearch.meta.agent')}` : props.tabTooltip(props.tab))
+/** Why an agent needs you, or that one is working, on this tab. */
+const agentNote = computed(() => props.attention ?? (props.agentCommand !== undefined ? t('tabSearch.meta.agent') : undefined))
+const tooltip = computed(() => agentNote.value !== undefined ? `${props.label}\n\n${agentNote.value}` : props.label)
 const networkUnconfirmed = computed(() => Boolean(props.tab.networkConditionState && props.tab.networkConditionState.application !== 'confirmed'))
 </script>
 
@@ -90,8 +94,8 @@ const networkUnconfirmed = computed(() => Boolean(props.tab.networkConditionStat
     :style="groupColor ? { '--tab-group-color': groupColor } : undefined"
     v-tooltip="tooltip"
     :data-mcp-command="agentCommand"
-    :aria-label="tabTooltip(tab)"
-    :aria-description="attention !== undefined ? attention : agentCommand !== undefined ? t('tabSearch.meta.agent') : undefined"
+    :aria-label="label"
+    :aria-description="agentNote"
     type="button"
     role="tab"
     :tabindex="keyboardIndex"
@@ -100,7 +104,7 @@ const networkUnconfirmed = computed(() => Boolean(props.tab.networkConditionStat
     draggable="true"
     :aria-selected="active"
     :data-active-tab="active ? 'true' : undefined"
-    @focus="emit('focusTab', tab.id)"
+    @focus="emit('focused', tab.id)"
     @keydown="emit('tabKeydown', $event, tab)"
     @click="emit('select', tab.id)"
     @auxclick="emit('tabAuxclick', $event, tab)"
@@ -125,7 +129,7 @@ const networkUnconfirmed = computed(() => Boolean(props.tab.networkConditionStat
     <IconHelp v-else-if="tab.pageLifecycleState === 'unknown'" class="tab-freeze-mark unknown" :aria-label="t('shell.tabs.freezeUnknown')" />
     <IconHorizontalSplit v-if="splitOrientation === 'horizontal'" class="tab-split-mark" :aria-label="t('shell.tabs.stackedVisible')" />
     <IconVerticalSplit v-else-if="splitOrientation === 'vertical'" class="tab-split-mark" :aria-label="t('shell.tabs.sideVisible')" />
-    <IconSpeed v-if="tab.emulation" class="tab-emulation-mark" :aria-label="t('runtime.emulation.reset', { description: describeEmulation(tab) })" />
+    <IconSpeed v-if="tab.emulation" class="tab-emulation-mark" :aria-label="t('runtime.emulation.reset', { description: emulationDescription ?? '' })" />
     <IconRoute v-if="tab.networkRouteCount || networkUnconfirmed" class="tab-network-route-mark" :aria-label="networkUnconfirmed ? t('network.conditions.unconfirmed') : t('runtime.tabs.routes', { count: formatNumber(tab.networkRouteCount ?? 0) }, tab.networkRouteCount ?? 0)" />
     <!-- The browser-wide lock and mute already show as pressed buttons, so a tab draws its own lock, and a muted tab
          its speaker while it plays sound, instead of repeating them on every row. Its name still says both. -->

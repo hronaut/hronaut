@@ -23,6 +23,12 @@ describe('isHronautHomeUrl', () => {
       for (let index = 0; index < 600; index++) isHronautHomeUrl(`https://example.test/${index}`)
       expect(isHronautHomeUrl('hronaut://home/?repeat')).toBe(true)
       expect(isHronautHomeUrl('hronaut://home@other.example/?repeat')).toBe(false)
+      // A long address, such as a data: page, is parsed each time instead of being kept.
+      const long = `data:text/html,${'x'.repeat(4096)}`
+      parses = 0
+      expect(isHronautHomeUrl(long)).toBe(false)
+      expect(isHronautHomeUrl(long)).toBe(false)
+      expect(parses).toBe(2)
     } finally {
       globalThis.URL = Parser
     }

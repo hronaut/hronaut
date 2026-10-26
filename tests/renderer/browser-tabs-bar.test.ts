@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { flushPromises } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { nextTick, shallowRef } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import BrowserTabsBar from '../../src/renderer/src/components/BrowserTabsBar.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
@@ -117,22 +117,27 @@ function renderTabs(
 
 describe('BrowserTabsBar', () => {
   it('draws only the row of a tab that changed, as when one of many loading pages gets its title', async () => {
-    const tabTooltip = vi.fn((value: BrowserTabState) => value.title)
-    const first = tab('first')
+    const first = tab('first', { networkRouteCount: 7 })
     const second = tab('second', { loading: true })
     const state = browserState({ tabs: [first, second] })
+    // As in the shell, a tab's name reads the whole browser state, which each change replaces.
+    const current = shallowRef(state)
+    const tabTooltip = (value: BrowserTabState): string => current.value.tabs.find(candidate => candidate.id === value.id)?.title ?? value.title
+    // Only the first tab's row counts its 7 rules, so each call with 7 is that row drawing.
+    const formatNumber = vi.fn((value: number) => String(value))
     const view = render(BrowserTabsBar, {
       global: { plugins: [createHronautI18n('en-US')] },
-      props: { state, hydrated: true, orientation: 'vertical', railPinned: true, mcpActivityByTab: {}, formatNumber: String, tabTooltip, describeEmulation: () => '' }
+      props: { state, hydrated: true, orientation: 'vertical', railPinned: true, mcpActivityByTab: {}, formatNumber, tabTooltip, describeEmulation: () => '' }
     })
-    expect(tabTooltip.mock.calls.map(([value]) => value.id)).toContain('first')
-    tabTooltip.mockClear()
+    expect(formatNumber).toHaveBeenCalledWith(7)
+    formatNumber.mockClear()
     // The shell's store keeps the object of each tab that did not change.
-    await view.rerender({ state: { ...state, tabs: [first, { ...second, title: 'Loaded', loading: false }] } })
+    const next = { ...state, tabs: [first, { ...second, title: 'Loaded', loading: false }] }
+    current.value = next
+    await view.rerender({ state: next })
     expect(screen.getByRole('tab', { name: 'Loaded' })).toBeTruthy()
-    const drawn = tabTooltip.mock.calls.map(([value]) => value.id)
-    expect(drawn).toContain('second')
-    expect(drawn).not.toContain('first')
+    expect(screen.getByRole('tab', { name: 'Page first' })).toBeTruthy()
+    expect(formatNumber.mock.calls.filter(([value]) => value === 7)).toEqual([])
   })
 
   it.each(['horizontal', 'vertical'] as const)('normalizes wheel units in the %s tab strip', async orientation => {
