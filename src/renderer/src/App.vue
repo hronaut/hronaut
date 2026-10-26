@@ -347,6 +347,8 @@ const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureContr
   tabSearchOpen,
   syncState,
   browserState: () => state.value,
+  // The startup tasks read the browser state once the shell has mounted, so its panels are there by then too.
+  browserStateReady: isDetachedPanelWindow ? browserStore.whenInitialized : undefined,
   bookmarksInOwnWindow: panelsInOwnWindow,
   panelWindow: window.hronautPanelWindow
 })

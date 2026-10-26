@@ -56,7 +56,7 @@ function historyEntry(id: string): BrowserHistoryEntry {
   }
 }
 
-function createHarness(bookmarkAllTabsOptions: Pick<AppBrowserCollectionsFeatureControllerOptions, 'browserState' | 'bookmarksInOwnWindow' | 'panelWindow'> = {}) {
+function createHarness(bookmarkAllTabsOptions: Pick<AppBrowserCollectionsFeatureControllerOptions, 'browserState' | 'browserStateReady' | 'bookmarksInOwnWindow' | 'panelWindow'> = {}) {
   let downloadsChanged: (downloads: BrowserDownloadState[]) => void = () => undefined
   const unsubscribeDownloads = vi.fn()
   const unsubscribeBookmarks = vi.fn()
@@ -255,6 +255,27 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     await harness.controller.bookmarkAllTabs()
     expect(panelWindow.bookmarkAllTabs.mock.calls).toEqual([['client'], [null]])
     expect(bookmarkAllTabs).toHaveBeenCalledTimes(4)
+    harness.controller.dispose()
+  })
+
+  it('waits for the browser state before Bookmark all tabs reads it, as a new Bookmarks window gets the request first', async () => {
+    // Before the shell reads the browser state, it knows no tabs or workspaces, and its panels are not mounted yet.
+    let state: Pick<BrowserState, 'tabs' | 'activeTabId' | 'mcpTabGroups'> = { tabs: [], activeTabId: null, mcpTabGroups: [] }
+    let ready!: () => void
+    const harness = createHarness({ browserState: () => state, browserStateReady: () => new Promise<void>(resolve => { ready = resolve }) })
+    const pending = harness.controller.bookmarkAllTabs('client')
+    const bookmarkAllTabs = vi.fn(async (_workspaceId: string | null, _suggestedName?: string) => undefined)
+    harness.controller.bookmarksPanel.value = { toggle: vi.fn(async () => undefined), toggleCurrent: vi.fn(async () => undefined), bookmarkAllTabs, handleEscape: vi.fn() }
+    state = {
+      tabs: [{ id: 'client-tab', url: 'https://client.test/', mcpGroupId: 'client' }] as BrowserState['tabs'],
+      activeTabId: 'client-tab',
+      mcpTabGroups: [{ id: 'client', name: 'Client A' }] as BrowserState['mcpTabGroups']
+    }
+    await Promise.resolve()
+    expect(bookmarkAllTabs).not.toHaveBeenCalled()
+    ready()
+    await pending
+    expect(bookmarkAllTabs).toHaveBeenCalledExactlyOnceWith('client', 'Client A')
     harness.controller.dispose()
   })
 

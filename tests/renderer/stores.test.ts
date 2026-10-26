@@ -171,6 +171,27 @@ describe('browser Pinia store lifecycle', () => {
     expect(onStateChanged).toHaveBeenCalledTimes(2)
   })
 
+  it('settles a wait for the first browser state once a read succeeds, also after a failed one', async () => {
+    const failure = new Error('state unavailable')
+    const getState = vi.fn()
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(browserState('recovered'))
+    installBrowserApi({ getState, onStateChanged: () => vi.fn() })
+    const store = useBrowserStore()
+    let settled = false
+    const waiting = store.whenInitialized().then(() => { settled = true })
+
+    await expect(store.initialize()).rejects.toBe(failure)
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    await store.initialize()
+    await waiting
+    expect(store.state.activeTabId).toBe('recovered')
+    // Once read, a wait settles at once.
+    await expect(store.whenInitialized()).resolves.toBeUndefined()
+    store.dispose()
+  })
+
   it('keeps a leaked browser listener inert when failed initialization cleanup throws', async () => {
     const sourceError = new Error('state unavailable')
     const getState = vi.fn()

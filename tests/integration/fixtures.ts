@@ -203,30 +203,44 @@ export async function waitForSavedWorkspaces(window: Page): Promise<void> {
   ]).then(() => undefined)`)
 }
 
+/**
+ * What the main process knows of each renderer when a test fails: its exits, and how each page met a script that does
+ * nothing. 'silent' tells a busy shell or page from a busy main process, which answers nothing at all; 'refused' is a
+ * call Hronaut turned down before it reached the page, as on a page still loading or with a print dialog open.
+ */
 export async function collectRendererDiagnostics(app: ElectronApplication): Promise<unknown> {
-  const pending = app.evaluate(({ webContents }) => {
+  const pending = app.evaluate(async ({ webContents }) => {
     const scope = globalThis as typeof globalThis & {
       __hronautQaRendererExits?: { exits: { reason: string; exitCode: number; webContentsId: number; type: string }[] }
     }
-    const nativeContents = webContents.getAllWebContents().slice(0, 32).map(contents => {
+    const scriptAnswer = (contents: Electron.WebContents): Promise<'answered' | 'refused' | 'silent'> => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      return Promise.race([
+        contents.executeJavaScript('0').then(() => 'answered' as const, () => 'refused' as const),
+        new Promise<'silent'>(resolve => { timer = setTimeout(() => resolve('silent'), 400) })
+      ]).finally(() => clearTimeout(timer))
+    }
+    const nativeContents = await Promise.all(webContents.getAllWebContents().slice(0, 32).map(async contents => {
       try {
         const url = contents.getURL()
+        const crashed = contents.isCrashed()
         return {
           id: contents.id,
           type: contents.getType(),
           surface: url.startsWith('hronaut://home') ? 'home' : url.startsWith('file:') ? 'app' : !url || url === 'about:blank' ? 'blank' : 'page',
           loading: contents.isLoadingMainFrame(),
-          crashed: contents.isCrashed(),
-          processId: contents.getOSProcessId()
+          crashed,
+          processId: contents.getOSProcessId(),
+          script: crashed ? 'crashed' : await scriptAnswer(contents)
         }
       } catch {
         return { id: contents.id, unavailable: true }
       }
-    })
+    }))
     return { rendererExits: scope.__hronautQaRendererExits?.exits ?? [], nativeContents }
   }).catch(() => ({ unavailable: 'Main process closed before diagnostics could be collected' }))
-  let diagnostics: unknown = { unavailable: 'Main process did not respond to diagnostics within 1000ms' }
-  await settleWithin(pending.then(result => { diagnostics = result }), 1_000)
+  let diagnostics: unknown = { unavailable: 'Main process did not respond to diagnostics within 2000ms' }
+  await settleWithin(pending.then(result => { diagnostics = result }), 2_000)
   return diagnostics
 }
 
