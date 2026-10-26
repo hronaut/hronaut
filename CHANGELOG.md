@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 - Two more interface languages: Indonesian and Vietnamese. **System default** picks them from the operating system's language.
 - Right-clicking a video now also offers **Copy Video Frame** and **Save Video Frame**, as in Chrome: they copy the picture the video shows to the clipboard or save it as a PNG to your downloads, also for a video inside a frame of the page or one with no address, such as a camera's. A still of a video could be had only from a screenshot of the page. A video that failed to load keeps them unavailable.
 - **Ctrl+Enter** in Find (**Control+Return** on macOS) closes it and follows the link the current match is in, as in Chrome. Help's **Keyboard shortcuts** lists it.
+- **Spell check** can be turned off, as in Chrome: the **Spell check** switch in **Settings → General**, or **Spell check → Check the spelling of text fields** in a text field's context menu, stops or starts checking spelling for every website and workspace at once. It stays on by default.
 
 ### Fixed
 

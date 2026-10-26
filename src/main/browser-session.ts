@@ -41,6 +41,8 @@ interface BrowserSessionHost {
   partition: string
   /** Whether the person turned on letting websites save to any single file they hold; read on every check. */
   websitesMaySaveFiles(): boolean
+  /** Has the session check spelling as the spell check setting says, now and after every change. */
+  trackSpellCheck(browserSession: Session): void
 }
 
 /**
@@ -300,9 +302,9 @@ export function createBrowserSession(host: BrowserSessionHost): {
   }
 
   /**
-   * Gives a browser session its download folder and permission handlers once. A tab's session also names the workspace
-   * it belongs to, the one whose decisions its pages get; each workspace has its own session, so a session that two
-   * workspaces claim gets no permission at all.
+   * Gives a browser session its download folder, spell checking and permission handlers once. A tab's session also
+   * names the workspace it belongs to, the one whose decisions its pages get; each workspace has its own session, so a
+   * session that two workspaces claim gets no permission at all.
    */
   function configureBrowserSession(browserSession: Session, workspaceId?: string): void {
     if (workspaceId !== undefined) {
@@ -574,6 +576,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
     browserSession.on('file-system-access-restricted', (_event, details, callback) => {
       answerProtectedLocation(browserSession, details, callback)
     })
+    // After the permission handlers, so a session is never left configured without them.
+    host.trackSpellCheck(browserSession)
   }
 
   /**

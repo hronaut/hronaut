@@ -275,6 +275,10 @@ export const koKR: MessageSchema = {
       "systemOption": "시스템 기본값 — {language}",
       "changeFailed": "언어 환경설정을 저장할 수 없습니다. 이전 언어가 계속 사용됩니다."
     },
+    "spellCheck": {
+      "label": "맞춤법 검사",
+      "description": "웹사이트에서 텍스트를 입력할 때 맞춤법 오류를 확인합니다."
+    },
     "interfaceSize": {
       "label": "인터페이스 크기",
       "description": "웹사이트 확대/축소는 바꾸지 않고 Hronaut의 컨트롤과 텍스트를 크게 표시합니다.",
@@ -3705,6 +3709,8 @@ export const koKR: MessageSchema = {
       "saveAudio": "오디오 저장",
       "copyAudioAddress": "오디오 주소 복사",
       "addDictionary": "사전에 ‘{word}’ 추가",
+      "spellCheck": "맞춤법 검사",
+      "checkSpelling": "텍스트 필드의 맞춤법 검사",
       "undo": "실행취소",
       "redo": "다시 실행",
       "cut": "잘라내기",

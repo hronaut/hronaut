@@ -37,7 +37,8 @@ function createHarness(answers: Array<'allow' | 'deny'> = [], saveFiles: () => b
     state: { persistentSession: null, sitePermissionStore: null },
     sendToShellWindows: () => undefined,
     partition: 'persist:test',
-    websitesMaySaveFiles: saveFiles
+    websitesMaySaveFiles: saveFiles,
+    trackSpellCheck: () => undefined
   })
   const workspaceSession = {
     setDownloadPath: () => undefined,

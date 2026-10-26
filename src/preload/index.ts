@@ -484,6 +484,7 @@ const settingsApi: HronautSettingsApi = {
   setFollowAgentActivity: (enabled: boolean) => ipcRenderer.invoke('settings:set-follow-agent-activity', enabled),
   setShowAgentCursor: (enabled: boolean) => ipcRenderer.invoke('settings:set-show-agent-cursor', enabled),
   setPinAgentLiveStatus: (enabled: boolean) => ipcRenderer.invoke('settings:set-pin-agent-live-status', enabled),
+  setSpellCheck: (enabled: boolean) => ipcRenderer.invoke('settings:set-spell-check', enabled),
   setChallengeDetectionEnabled: (enabled) => ipcRenderer.invoke('settings:set-challenge-detection', enabled),
   setOmitAgentUrlDetail: (enabled: boolean) => ipcRenderer.invoke('settings:set-omit-agent-url-detail', enabled),
   setAllowWebsiteFileSaving: (enabled: boolean) => ipcRenderer.invoke('settings:set-allow-website-file-saving', enabled),

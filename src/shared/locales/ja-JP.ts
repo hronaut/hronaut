@@ -275,6 +275,10 @@ export const jaJP: MessageSchema = {
       "systemOption": "システムのデフォルト — {language}",
       "changeFailed": "言語の設定を保存できませんでした。以前の言語が引き続き使用されます。"
     },
+    "spellCheck": {
+      "label": "スペルチェック",
+      "description": "ウェブサイトで文字を入力するときにスペルミスをチェックします。"
+    },
     "interfaceSize": {
       "label": "インターフェースのサイズ",
       "description": "ウェブサイトのズームを変えずに、Hronaut のコントロールとテキストを拡大します。",
@@ -3705,6 +3709,8 @@ export const jaJP: MessageSchema = {
       "saveAudio": "音声を保存",
       "copyAudioAddress": "音声のアドレスをコピー",
       "addDictionary": "「{word}」を辞書に追加",
+      "spellCheck": "スペルチェック",
+      "checkSpelling": "テキスト フィールドのスペルをチェック",
       "undo": "元に戻す",
       "redo": "やり直し",
       "cut": "切り取り",

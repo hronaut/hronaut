@@ -83,6 +83,8 @@ export interface AppSettings {
   graphicsAcceleration: boolean
   checkForUpdatesOnStartup: boolean
   languagePreference: LanguagePreference
+  /** Check spelling in websites' text fields, as in Chrome: misspelled words are underlined and the menu suggests fixes. */
+  spellCheck: boolean
 }
 
 export interface RendererSettingsState {

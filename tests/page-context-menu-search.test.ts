@@ -41,6 +41,8 @@ function openMenu(params: Partial<ContextMenuParams>, options: { engine?: Search
     isHumanInteractionLocked: () => false,
     createTab,
     searchEngine,
+    spellCheck: () => true,
+    setSpellCheck: async () => undefined,
     browserContentOccluded: options.occluded ?? (() => false)
   } as unknown as PageContextMenuAccess
   showContextMenu(access, tab, {

@@ -176,6 +176,10 @@ export const enUS = {
       systemOption: 'System default — {language}',
       changeFailed: 'The language preference could not be saved. Your previous language is still active.'
     },
+    spellCheck: {
+      label: 'Spell check',
+      description: 'Check for spelling errors when you type text on websites.'
+    },
     interfaceSize: {
       label: 'Interface size',
       description: "Enlarge Hronaut's controls and text without changing website zoom.",
@@ -782,7 +786,7 @@ export const enUS = {
       newTab: 'New Tab', reloadTab: 'Reload Tab', reloadNoCache: 'Reload Tab Without Cache', duplicateTab: 'Duplicate Tab', muteTab: 'Mute Tab', unmuteTab: 'Unmute Tab', pinTab: 'Pin Tab', unpinTab: 'Unpin Tab', freezePage: 'Freeze Page for Review', resumePage: 'Resume Page', pageLifecycleUnknown: 'Page Hold Outcome Unknown', wakeTab: 'Wake Tab', sleepTab: 'Put Tab to Sleep',
       moveLeft: 'Move Tab Left', moveRight: 'Move Tab Right', moveUp: 'Move Tab Up', moveDown: 'Move Tab Down', closeTab: 'Close Tab', closeOthers: 'Close Other Tabs', closeRight: 'Close Tabs to the Right', closeBelow: 'Close Tabs Below', closeDuplicates: 'Close Duplicate Tabs', reopenClosed: 'Reopen Closed Tab', bookmarkAllTabs: 'Bookmark All Tabs…',
       openLink: 'Open Link in New Tab', copyLink: 'Copy Link Address', copyLinkToHighlight: 'Copy Link to Highlight', copyEmail: 'Copy Email Address', saveLink: 'Save Link', openImage: 'Open Image in New Tab', copyImage: 'Copy Image', copyImageAddress: 'Copy Image Address', saveImage: 'Save Image', openVideo: 'Open Video in New Tab', saveVideo: 'Save Video', copyVideoAddress: 'Copy Video Address', copyVideoFrame: 'Copy Video Frame', saveVideoFrame: 'Save Video Frame', openAudio: 'Open Audio in New Tab', saveAudio: 'Save Audio', copyAudioAddress: 'Copy Audio Address',
-      addDictionary: 'Add “{word}” to Dictionary', undo: 'Undo', redo: 'Redo', cut: 'Cut', copy: 'Copy', paste: 'Paste', pasteMatchStyle: 'Paste and Match Style', pasteAndGo: 'Paste and Go', pasteAndGoTo: 'Paste and Go to {text}', pasteAndSearchFor: 'Paste and Search for “{text}”', delete: 'Delete', selectAll: 'Select All', emoji: 'Emoji', emojiSymbols: 'Emoji & Symbols',
+      addDictionary: 'Add “{word}” to Dictionary', spellCheck: 'Spell check', checkSpelling: 'Check the spelling of text fields', undo: 'Undo', redo: 'Redo', cut: 'Cut', copy: 'Copy', paste: 'Paste', pasteMatchStyle: 'Paste and Match Style', pasteAndGo: 'Paste and Go', pasteAndGoTo: 'Paste and Go to {text}', pasteAndSearchFor: 'Paste and Search for “{text}”', delete: 'Delete', selectAll: 'Select All', emoji: 'Emoji', emojiSymbols: 'Emoji & Symbols',
       back: 'Back', forward: 'Forward', reload: 'Reload', reloadWithoutCache: 'Reload Without Cache', copyPageAddress: 'Copy Page Address', createQrCodePage: "Create QR Code for this Page", createQrCodeImage: "Create QR Code for this Image", inspect: 'Inspect', print: 'Print…', showFullHistory: 'Show Full History', viewSource: 'View Page Source', viewFrameSource: 'View Frame Source', reloadFrame: 'Reload Frame', searchFor: 'Search {engine} for “{text}”', goTo: 'Go to {text}', savePage: 'Save As…'
     },
     pageProblem: {
