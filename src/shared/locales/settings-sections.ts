@@ -5,7 +5,7 @@ export const settingsSectionMessages = {
   'en-US': {
     keywords: {
       appearance: 'interface size scale zoom tab position left top title bar dark light mode system cyberpunk',
-      general: 'language interface system tray close startup sign in login launch minimized attention sound cursor live status strip agent agents',
+      general: 'language interface system tray close startup sign in login launch minimized attention sound cursor live status strip agent agents spell check spelling dictionary',
       search: 'address bar site search shortcut keyword google duckduckgo bing brave startpage',
       downloads: 'folder location save ask file',
       performance: 'memory saver sleep cpu inactive tabs graphics acceleration gpu hardware',
@@ -24,7 +24,7 @@ export const settingsSectionMessages = {
   'de-DE': {
     keywords: {
       appearance: 'oberfläche größe skalierung zoom tab position links oben titelleiste dunkel hell modus system cyberpunk',
-      general: 'sprache oberfläche system tray infobereich schließen start anmelden starten minimiert aufmerksamkeit ton cursor live status leiste agent agenten',
+      general: 'sprache oberfläche system tray infobereich schließen start anmelden starten minimiert aufmerksamkeit ton cursor live status leiste agent agenten rechtschreibprüfung rechtschreibung wörterbuch',
       search: 'suchmaschine adressleiste websitesuche kürzel google duckduckgo bing brave startpage',
       downloads: 'ordner speicherort speichern fragen datei',
       performance: 'speicher sparmodus ruhezustand cpu inaktive tabs grafik grafikbeschleunigung gpu hardware',
@@ -43,7 +43,7 @@ export const settingsSectionMessages = {
   'fr-FR': {
     keywords: {
       appearance: 'interface taille échelle zoom onglets position gauche haut barre de titre sombre clair mode système cyberpunk',
-      general: 'langue interface système zone de notification fermer démarrage connexion lancer réduit attention son curseur statut en direct bandeau agent agents',
+      general: 'langue interface système zone de notification fermer démarrage connexion lancer réduit attention son curseur statut en direct bandeau agent agents vérification orthographique orthographe dictionnaire',
       search: 'moteur de recherche barre d’adresse recherche sur site raccourci google duckduckgo bing brave startpage',
       downloads: 'dossier emplacement enregistrer demander fichier téléchargements',
       performance: 'mémoire économiseur veille cpu onglets inactifs graphismes accélération graphique gpu matériel',
@@ -62,7 +62,7 @@ export const settingsSectionMessages = {
   'es-ES': {
     keywords: {
       appearance: 'interfaz tamaño escala zoom pestañas posición izquierda arriba barra de título oscuro claro modo sistema cyberpunk',
-      general: 'idioma interfaz sistema bandeja cerrar inicio iniciar sesión abrir minimizado atención sonido cursor estado en vivo franja agente agentes',
+      general: 'idioma interfaz sistema bandeja cerrar inicio iniciar sesión abrir minimizado atención sonido cursor estado en vivo franja agente agentes corrector ortográfico ortografía diccionario',
       search: 'motor de búsqueda barra de direcciones búsqueda en sitios acceso directo google duckduckgo bing brave startpage',
       downloads: 'carpeta ubicación guardar preguntar archivo descargas',
       performance: 'memoria ahorro suspender cpu pestañas inactivas gráficos aceleración gráfica gpu hardware',
@@ -81,7 +81,7 @@ export const settingsSectionMessages = {
   'pl-PL': {
     keywords: {
       appearance: 'interfejs rozmiar skala powiększenie karty położenie lewo góra pasek tytułu ciemny jasny tryb systemowy cyberpunk',
-      general: 'język interfejs systemowy zasobnik zamykanie uruchamianie logowanie start zminimalizowane uwaga dźwięk kursor status na żywo pasek agent agenci',
+      general: 'język interfejs systemowy zasobnik zamykanie uruchamianie logowanie start zminimalizowane uwaga dźwięk kursor status na żywo pasek agent agenci sprawdzanie pisowni pisownia słownik',
       search: 'wyszukiwarka pasek adresu wyszukiwanie w witrynach skrót google duckduckgo bing brave startpage',
       downloads: 'folder lokalizacja zapisywanie pytaj plik pobrane',
       performance: 'pamięć oszczędzanie uśpienie cpu nieaktywne karty grafika akceleracja grafiki gpu sprzętowa',
@@ -100,7 +100,7 @@ export const settingsSectionMessages = {
   'ru-RU': {
     keywords: {
       appearance: 'интерфейс размер масштаб вкладки положение слева сверху заголовок тёмная светлая режим системная cyberpunk',
-      general: 'язык интерфейс интерфейса системный трей закрытие запуск вход автозапуск свёрнуто свернуто внимание звук курсор статус полоса агент агенты',
+      general: 'язык интерфейс интерфейса системный трей закрытие запуск вход автозапуск свёрнуто свернуто внимание звук курсор статус полоса агент агенты проверка правописания орфография словарь',
       search: 'поисковая система адресная строка поиск по сайтам ярлык google duckduckgo bing brave startpage',
       downloads: 'папка расположение сохранять спрашивать файл загрузки',
       performance: 'память экономия сон спящие cpu неактивные вкладки графика графическое аппаратное ускорение видеокарта gpu',
@@ -119,7 +119,7 @@ export const settingsSectionMessages = {
   'uk-UA': {
     keywords: {
       appearance: 'інтерфейс розмір масштаб вкладки положення ліворуч згори заголовок темна світла режим системна cyberpunk',
-      general: 'мова інтерфейс інтерфейсу системний трей закриття запуск вхід автозапуск згорнуто увага звук курсор статус смуга агент агенти',
+      general: 'мова інтерфейс інтерфейсу системний трей закриття запуск вхід автозапуск згорнуто увага звук курсор статус смуга агент агенти перевірка правопису орфографія словник',
       search: 'пошукова система адресний рядок пошук на сайтах ярлик google duckduckgo bing brave startpage',
       downloads: 'тека папка розташування зберігати питати файл завантаження',
       performance: 'пам’ять економія сон сплячі cpu неактивні вкладки графіка графічне апаратне прискорення відеокарта gpu',
@@ -138,7 +138,7 @@ export const settingsSectionMessages = {
   'it-IT': {
     keywords: {
       appearance: 'interfaccia dimensione scala zoom posizione schede sinistra alto barra del titolo modalità scura chiara sistema tema aspetto cyberpunk',
-      general: 'lingua interfaccia area di notifica barra di sistema chiusura avvio accesso login apertura ridotta a icona attenzione suono cursore stato in tempo reale striscia agente agenti',
+      general: 'lingua interfaccia area di notifica barra di sistema chiusura avvio accesso login apertura ridotta a icona attenzione suono cursore stato in tempo reale striscia agente agenti controllo ortografico ortografia dizionario',
       search: 'barra degli indirizzi motore di ricerca ricerca nei siti scorciatoia google duckduckgo bing brave startpage',
       downloads: 'cartella posizione percorso salva chiedi file download',
       performance: 'risparmio memoria sospensione cpu schede inattive prestazioni grafica accelerazione grafica gpu hardware',
@@ -157,7 +157,7 @@ export const settingsSectionMessages = {
   'pt-BR': {
     keywords: {
       appearance: 'interface tamanho escala zoom guias posição esquerda topo barra de título escuro claro modo sistema cyberpunk aparência tema',
-      general: 'idioma interface sistema bandeja fechar inicialização login entrar iniciar minimizado atenção som cursor status ao vivo faixa agente agentes',
+      general: 'idioma interface sistema bandeja fechar inicialização login entrar iniciar minimizado atenção som cursor status ao vivo faixa agente agentes verificação ortográfica ortografia dicionário',
       search: 'barra de endereços pesquisa pesquisa em sites atalho google duckduckgo bing brave startpage',
       downloads: 'pasta local salvar perguntar arquivo downloads',
       performance: 'economia de memória suspender cpu guias inativas desempenho gráficos aceleração gráfica gpu hardware placa de vídeo',
@@ -176,7 +176,7 @@ export const settingsSectionMessages = {
   'tr-TR': {
     keywords: {
       appearance: 'arayüz boyut ölçek yakınlaştırma zoom sekme konum sol üst başlık çubuğu koyu açık mod tema sistem cyberpunk',
-      general: 'dil arayüz sistem tepsisi kapat başlangıç oturum açma giriş başlat simge durumunda ilgi ses imleç canlı durum şeridi ajan ajanlar',
+      general: 'dil arayüz sistem tepsisi kapat başlangıç oturum açma giriş başlat simge durumunda ilgi ses imleç canlı durum şeridi ajan ajanlar yazım denetimi yazım sözlük',
       search: 'arama motoru adres çubuğu site araması kısayol google duckduckgo bing brave startpage',
       downloads: 'klasör konum kaydet sor dosya indirilenler',
       performance: 'bellek tasarrufu uyku cpu işlemci etkin olmayan sekmeler grafik hızlandırma ekran kartı gpu donanım',
@@ -195,7 +195,7 @@ export const settingsSectionMessages = {
   'hi-IN': {
     keywords: {
       appearance: 'दिखावट इंटरफ़ेस साइज़ स्केल ज़ूम टैब की जगह बाएं ऊपर टाइटल बार गहरा हल्का मोड थीम सिस्टम cyberpunk',
-      general: 'सामान्य भाषा इंटरफ़ेस सिस्टम ट्रे बंद करें स्टार्टअप साइन इन लॉगिन खोलें छोटा करें ध्यान आवाज़ कर्सर लाइव स्थिति पट्टी एजेंट',
+      general: 'सामान्य भाषा इंटरफ़ेस सिस्टम ट्रे बंद करें स्टार्टअप साइन इन लॉगिन खोलें छोटा करें ध्यान आवाज़ कर्सर लाइव स्थिति पट्टी एजेंट वर्तनी जांच शब्दकोश',
       search: 'खोज सर्च इंजन पता बार साइट खोज शॉर्टकट google duckduckgo bing brave startpage',
       downloads: 'डाउनलोड फ़ोल्डर जगह सेव करें पूछें फ़ाइल',
       performance: 'परफ़ॉर्मेंस मेमोरी सेवर स्लीप मोड cpu इनऐक्टिव टैब ग्राफ़िक्स ऐक्सेलरेशन gpu हार्डवेयर graphics',
@@ -214,7 +214,7 @@ export const settingsSectionMessages = {
   'ja-JP': {
     keywords: {
       appearance: 'インターフェース 表示 サイズ 拡大 縮小 倍率 ズーム タブ 位置 左 上 タイトルバー ダーク ライト モード システム テーマ デザイン cyberpunk',
-      general: '言語 インターフェース システム トレイ 閉じる 起動 スタートアップ ログイン サインイン 最小化 通知音 サウンド 音 カーソル ライブ ステータス バー エージェント agent',
+      general: '言語 インターフェース システム トレイ 閉じる 起動 スタートアップ ログイン サインイン 最小化 通知音 サウンド 音 カーソル ライブ ステータス バー エージェント agent スペルチェック スペル 辞書',
       search: '検索エンジン アドレスバー サイト内検索 ショートカット google duckduckgo bing brave startpage',
       downloads: 'フォルダ 保存先 場所 保存 確認 ファイル ダウンロード',
       performance: 'メモリ 省メモリ スリープ cpu 非アクティブ タブ パフォーマンス グラフィック アクセラレーション ハードウェア gpu graphics',
@@ -233,7 +233,7 @@ export const settingsSectionMessages = {
   'ko-KR': {
     keywords: {
       appearance: '인터페이스 크기 배율 확대 축소 탭 위치 왼쪽 위 제목 표시줄 다크 라이트 모드 시스템 테마 사이버펑크 cyberpunk',
-      general: '언어 인터페이스 시스템 트레이 닫기 시작 로그인 실행 최소화 알림 소리 커서 실시간 상태 표시줄 에이전트',
+      general: '언어 인터페이스 시스템 트레이 닫기 시작 로그인 실행 최소화 알림 소리 커서 실시간 상태 표시줄 에이전트 맞춤법 검사 맞춤법 사전',
       search: '검색엔진 주소창 사이트 검색 바로가기 google duckduckgo bing brave startpage',
       downloads: '폴더 위치 저장 묻기 파일 다운로드',
       performance: '메모리 절약 절전 cpu 비활성 탭 성능 그래픽 가속 하드웨어 gpu graphics',
@@ -252,7 +252,7 @@ export const settingsSectionMessages = {
   'zh-CN': {
     keywords: {
       appearance: '界面 大小 缩放 比例 标签页 位置 左侧 顶部 标题栏 深色 浅色 模式 系统 主题 赛博朋克 interface zoom tab dark light cyberpunk',
-      general: '语言 界面 系统 托盘 关闭 启动 登录 最小化 提醒 声音 光标 实时状态 横条 智能体 language tray startup login sound cursor agent',
+      general: '语言 界面 系统 托盘 关闭 启动 登录 最小化 提醒 声音 光标 实时状态 横条 智能体 language tray startup login sound cursor agent 拼写检查 拼写 词典',
       search: '地址栏 搜索引擎 网站搜索 快捷字词 google duckduckgo bing brave startpage',
       downloads: '下载 文件夹 位置 保存 询问 文件 download folder',
       performance: '内存 节省 休眠 cpu 不活跃 标签页 memory sleep 图形 加速 硬件 显卡 gpu graphics',
@@ -271,7 +271,7 @@ export const settingsSectionMessages = {
   'zh-TW': {
     keywords: {
       appearance: '介面 大小 比例 縮放 zoom 分頁 位置 左側 頂端 標題列 深色 淺色 模式 系統 主題 cyberpunk',
-      general: '語言 介面 系統匣 關閉 啟動 開機 登入 最小化 提醒 注意 音效 游標 即時 狀態列 代理程式 agent',
+      general: '語言 介面 系統匣 關閉 啟動 開機 登入 最小化 提醒 注意 音效 游標 即時 狀態列 代理程式 agent 拼字檢查 拼字 字典',
       search: '搜尋引擎 網址列 網站搜尋 快捷字詞 google duckduckgo bing brave startpage',
       downloads: '下載 資料夾 位置 儲存 詢問 檔案',
       performance: '效能 記憶體 節省 休眠 cpu 閒置 分頁 圖形 加速 硬體 顯示卡 gpu graphics',
@@ -290,7 +290,7 @@ export const settingsSectionMessages = {
   'id-ID': {
     keywords: {
       appearance: 'tampilan antarmuka ukuran skala zoom posisi tab kiri atas bilah judul mode gelap terang sistem cyberpunk',
-      general: 'bahasa antarmuka baki sistem tutup startup login masuk buka saat login diminimalkan perhatian suara kursor status langsung strip agen',
+      general: 'bahasa antarmuka baki sistem tutup startup login masuk buka saat login diminimalkan perhatian suara kursor status langsung strip agen pemeriksaan ejaan ejaan kamus',
       search: 'kolom alamat mesin telusur penelusuran situs pintasan kata kunci google duckduckgo bing brave startpage',
       downloads: 'download folder lokasi simpan tanya file',
       performance: 'penghemat memori tidur cpu tab tidak aktif grafis akselerasi gpu hardware',
@@ -309,7 +309,7 @@ export const settingsSectionMessages = {
   'vi-VN': {
     keywords: {
       appearance: 'giao diện kích thước tỷ lệ thu phóng zoom vị trí thẻ tab trái trên thanh tiêu đề tối sáng chế độ hệ thống cyberpunk',
-      general: 'ngôn ngữ giao diện hệ thống khay tray đóng khởi động đăng nhập khởi chạy thu nhỏ chú ý âm thanh con trỏ trực tiếp trạng thái dải tác nhân agent',
+      general: 'ngôn ngữ giao diện hệ thống khay tray đóng khởi động đăng nhập khởi chạy thu nhỏ chú ý âm thanh con trỏ trực tiếp trạng thái dải tác nhân agent kiểm tra chính tả chính tả từ điển',
       search: 'thanh địa chỉ tìm kiếm trang web phím tắt từ khóa công cụ tìm kiếm google duckduckgo bing brave startpage',
       downloads: 'tải xuống thư mục vị trí lưu hỏi tệp',
       performance: 'tiết kiệm bộ nhớ ngủ cpu thẻ không hoạt động đồ họa tăng tốc gpu phần cứng',

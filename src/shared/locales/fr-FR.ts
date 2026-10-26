@@ -275,6 +275,10 @@ export const frFR: MessageSchema = {
       "systemOption": "Langue du système — {language}",
       "changeFailed": "La préférence de langue n’a pas pu être enregistrée. La langue précédente reste active."
     },
+    "spellCheck": {
+      "label": "Vérification orthographique",
+      "description": "Vérifier l’orthographe quand vous saisissez du texte sur les sites web."
+    },
     "interfaceSize": {
       "label": "Taille de l’interface",
       "description": "Agrandissez les commandes et le texte de Hronaut sans modifier le zoom des sites.",
@@ -3705,6 +3709,8 @@ export const frFR: MessageSchema = {
       "saveAudio": "Enregistrer le fichier audio",
       "copyAudioAddress": "Copier l’adresse du fichier audio",
       "addDictionary": "Ajouter « {word} » au dictionnaire",
+      "spellCheck": "Vérification orthographique",
+      "checkSpelling": "Vérifier l’orthographe des champs de texte",
       "undo": "Annuler",
       "redo": "Rétablir",
       "cut": "Couper",

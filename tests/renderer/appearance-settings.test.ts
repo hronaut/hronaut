@@ -38,7 +38,8 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       memorySaverTimeoutMinutes: 60,
       graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
-      languagePreference: locale
+      languagePreference: locale,
+      spellCheck: true
     },
     systemTheme: 'light',
     systemLocale: locale,

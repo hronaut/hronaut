@@ -275,6 +275,10 @@ export const deDE: MessageSchema = {
       "systemOption": "Systemstandard — {language}",
       "changeFailed": "Die Spracheinstellung konnte nicht gespeichert werden. Die vorherige Sprache bleibt aktiv."
     },
+    "spellCheck": {
+      "label": "Rechtschreibprüfung",
+      "description": "Beim Eingeben von Text auf Websites auf Rechtschreibfehler prüfen."
+    },
     "interfaceSize": {
       "label": "Oberflächengröße",
       "description": "Vergrößern Sie Hronaut-Steuerelemente und Text, ohne den Website-Zoom zu ändern.",
@@ -3705,6 +3709,8 @@ export const deDE: MessageSchema = {
       "saveAudio": "Audio speichern",
       "copyAudioAddress": "Audioadresse kopieren",
       "addDictionary": "„{word}“ zum Wörterbuch hinzufügen",
+      "spellCheck": "Rechtschreibprüfung",
+      "checkSpelling": "Rechtschreibung in Textfeldern prüfen",
       "undo": "Rückgängig",
       "redo": "Wiederholen",
       "cut": "Ausschneiden",

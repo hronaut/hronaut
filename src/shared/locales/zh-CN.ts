@@ -275,6 +275,10 @@ export const zhCN: MessageSchema = {
       "systemOption": "系统默认 — {language}",
       "changeFailed": "无法保存语言偏好设置。仍在使用之前的语言。"
     },
+    "spellCheck": {
+      "label": "拼写检查",
+      "description": "在网站上输入文字时检查拼写错误。"
+    },
     "interfaceSize": {
       "label": "界面大小",
       "description": "放大 Hronaut 的控件和文字，而不改变网站的缩放比例。",
@@ -3705,6 +3709,8 @@ export const zhCN: MessageSchema = {
       "saveAudio": "保存音频",
       "copyAudioAddress": "复制音频地址",
       "addDictionary": "将“{word}”添加到字典",
+      "spellCheck": "拼写检查",
+      "checkSpelling": "检查文本字段的拼写",
       "undo": "撤消",
       "redo": "重做",
       "cut": "剪切",

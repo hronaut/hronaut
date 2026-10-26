@@ -380,6 +380,7 @@ test('resets every General preference including the language, and only those', a
   await appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' }).uncheck()
   await appWindow.getByRole('checkbox', { name: 'Play attention sound' }).uncheck()
   await appWindow.getByRole('checkbox', { name: /^Show agent cursors/ }).uncheck()
+  await appWindow.getByRole('checkbox', { name: /^Spell check/ }).uncheck()
   await appWindow.locator('#setting-language').selectOption('uk-UA')
   await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
 
@@ -390,6 +391,7 @@ test('resets every General preference including the language, and only those', a
   await expect(appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })).toBeChecked()
   await expect(appWindow.getByRole('checkbox', { name: 'Play attention sound' })).toBeChecked()
   await expect(appWindow.getByRole('checkbox', { name: /^Show agent cursors/ })).toBeChecked()
+  await expect(appWindow.getByRole('checkbox', { name: /^Spell check/ })).toBeChecked()
   await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8'))).toMatchObject({
     theme: 'matrix',
     hideInTray: true,
@@ -399,7 +401,8 @@ test('resets every General preference including the language, and only those', a
     attentionSoundCue: 'warning',
     showAgentCursor: true,
     pinAgentLiveStatus: false,
-    languagePreference: 'system'
+    languagePreference: 'system',
+    spellCheck: true
   })
   await expect(appWindow.locator('html')).toHaveAttribute('data-theme', 'matrix')
 })

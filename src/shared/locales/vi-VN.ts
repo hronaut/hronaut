@@ -275,6 +275,10 @@ export const viVN: MessageSchema = {
       "systemOption": "Mặc định của hệ thống — {language}",
       "changeFailed": "Không thể lưu lựa chọn ngôn ngữ. Ngôn ngữ trước đó của bạn vẫn đang được dùng."
     },
+    "spellCheck": {
+      "label": "Kiểm tra chính tả",
+      "description": "Kiểm tra lỗi chính tả khi bạn nhập văn bản trên trang web."
+    },
     "interfaceSize": {
       "label": "Kích thước giao diện",
       "description": "Phóng to các nút điều khiển và văn bản của Hronaut mà không thay đổi mức thu phóng của trang web.",
@@ -3705,6 +3709,8 @@ export const viVN: MessageSchema = {
       "saveAudio": "Lưu âm thanh",
       "copyAudioAddress": "Sao chép địa chỉ âm thanh",
       "addDictionary": "Thêm “{word}” vào từ điển",
+      "spellCheck": "Kiểm tra chính tả",
+      "checkSpelling": "Kiểm tra chính tả của trường văn bản",
       "undo": "Hoàn tác",
       "redo": "Làm lại",
       "cut": "Cắt",

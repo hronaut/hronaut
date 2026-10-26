@@ -275,6 +275,10 @@ export const idID: MessageSchema = {
       "systemOption": "Default sistem — {language}",
       "changeFailed": "Preferensi bahasa tidak dapat disimpan. Bahasa sebelumnya masih aktif."
     },
+    "spellCheck": {
+      "label": "Pemeriksaan ejaan",
+      "description": "Periksa kesalahan ejaan saat mengetik teks di situs web."
+    },
     "interfaceSize": {
       "label": "Ukuran antarmuka",
       "description": "Perbesar kontrol dan teks Hronaut tanpa mengubah zoom situs.",
@@ -3705,6 +3709,8 @@ export const idID: MessageSchema = {
       "saveAudio": "Simpan audio",
       "copyAudioAddress": "Salin alamat audio",
       "addDictionary": "Tambahkan “{word}” ke kamus",
+      "spellCheck": "Pemeriksaan ejaan",
+      "checkSpelling": "Periksa ejaan kolom teks",
       "undo": "Urungkan",
       "redo": "Ulangi",
       "cut": "Potong",

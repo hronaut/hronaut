@@ -68,7 +68,8 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       memorySaverTimeoutMinutes: 60,
       graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
-      languagePreference: locale
+      languagePreference: locale,
+      spellCheck: true
     },
     systemTheme: 'dark',
     systemLocale: locale,

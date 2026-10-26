@@ -82,6 +82,11 @@ async function setShowAgentCursor(event: Event): Promise<void> {
   if (!(await runSetting(store.setShowAgentCursor(input.checked)))) input.checked = settings.value.showAgentCursor
 }
 
+async function setSpellCheck(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  if (!(await runSetting(store.setSpellCheck(input.checked)))) input.checked = settings.value.spellCheck
+}
+
 async function setPinAgentLiveStatus(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
   if (!(await runSetting(store.setPinAgentLiveStatus(input.checked)))) input.checked = settings.value.pinAgentLiveStatus
@@ -114,6 +119,13 @@ async function setPinAgentLiveStatus(event: Event): Promise<void> {
       <output v-if="languageChangeError" class="download-settings-status error" role="alert">
         {{ t('appearance.language.changeFailed') }}
       </output>
+      <label class="settings-row" for="setting-spell-check">
+        <span>
+          <strong>{{ t('appearance.spellCheck.label') }}</strong>
+          <small>{{ t('appearance.spellCheck.description') }}</small>
+        </span>
+        <UiCheckbox bare appearance="switch" id="setting-spell-check" :checked="settings.spellCheck" @change="setSpellCheck" />
+      </label>
     </div>
     <h4 class="settings-group-heading">{{ t('settingsSections.generalGroups.startup') }}</h4>
     <div class="settings-rows grouped">

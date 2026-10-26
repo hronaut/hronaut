@@ -275,6 +275,10 @@ export const plPL: MessageSchema = {
       "systemOption": "Domyślny systemu — {language}",
       "changeFailed": "Nie udało się zapisać ustawienia języka. Poprzedni język pozostaje aktywny."
     },
+    "spellCheck": {
+      "label": "Sprawdzanie pisowni",
+      "description": "Sprawdzaj pisownię podczas wpisywania tekstu na stronach internetowych."
+    },
     "interfaceSize": {
       "label": "Rozmiar interfejsu",
       "description": "Powiększ elementy sterujące i tekst Hronaut bez zmiany powiększenia witryn.",
@@ -3705,6 +3709,8 @@ export const plPL: MessageSchema = {
       "saveAudio": "Zapisz plik audio",
       "copyAudioAddress": "Kopiuj adres pliku audio",
       "addDictionary": "Dodaj „{word}” do słownika",
+      "spellCheck": "Sprawdzanie pisowni",
+      "checkSpelling": "Sprawdzaj pisownię w polach tekstowych",
       "undo": "Cofnij",
       "redo": "Ponów",
       "cut": "Wytnij",

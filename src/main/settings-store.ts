@@ -51,7 +51,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   memorySaverTimeoutMinutes: DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
   graphicsAcceleration: true,
   checkForUpdatesOnStartup: true,
-  languagePreference: 'system'
+  languagePreference: 'system',
+  spellCheck: true
 }
 
 export { isThemeName }
@@ -135,7 +136,8 @@ export class SettingsStore {
         checkForUpdatesOnStartup,
         languagePreference: isLanguagePreference(value.languagePreference)
           ? value.languagePreference
-          : DEFAULT_SETTINGS.languagePreference
+          : DEFAULT_SETTINGS.languagePreference,
+        spellCheck: typeof value.spellCheck === 'boolean' ? value.spellCheck : DEFAULT_SETTINGS.spellCheck
       }
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code

@@ -275,6 +275,10 @@ export const ptBR: MessageSchema = {
       "systemOption": "Padrão do sistema — {language}",
       "changeFailed": "Não foi possível salvar a preferência de idioma. O idioma anterior continua ativo."
     },
+    "spellCheck": {
+      "label": "Verificação ortográfica",
+      "description": "Verificar erros de ortografia ao digitar texto em sites."
+    },
     "interfaceSize": {
       "label": "Tamanho da interface",
       "description": "Aumente os controles e o texto do Hronaut sem alterar o zoom dos sites.",
@@ -3705,6 +3709,8 @@ export const ptBR: MessageSchema = {
       "saveAudio": "Salvar áudio",
       "copyAudioAddress": "Copiar endereço do áudio",
       "addDictionary": "Adicionar “{word}” ao dicionário",
+      "spellCheck": "Verificação ortográfica",
+      "checkSpelling": "Verificar a ortografia dos campos de texto",
       "undo": "Desfazer",
       "redo": "Refazer",
       "cut": "Recortar",

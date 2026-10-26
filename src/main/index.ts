@@ -84,6 +84,7 @@ import { createAddressSuggestionOverlay } from './windows/address-suggestion-ove
 import { registerSettingsIpc } from './settings-ipc.js'
 import { registerSiteSearchIpc } from './site-search-ipc.js'
 import { applySavedSecureDns, registerSecureDnsIpc } from './secure-dns.js'
+import { createSpellCheck, registerSpellCheckIpc } from './spell-check.js'
 import { applySavedGraphicsAcceleration, registerGraphicsAccelerationIpc } from './graphics-acceleration.js'
 import { registerAppRestartIpc } from './app-restart.js'
 import { createBrowserSession, type BrowserSessionState } from './browser-session.js'
@@ -353,6 +354,7 @@ const {
   persistentSession: () => browserSessionState.persistentSession,
   tabs: () => tabRuntime.tabs
 })
+const spellCheck = createSpellCheck({ settings: () => settingsState.current, updateSettings, publishSettings })
 const {
   configureBrowserSession,
   configurePersistentSession,
@@ -368,7 +370,8 @@ const {
   state: browserSessionState,
   sendToShellWindows,
   partition: PARTITION,
-  websitesMaySaveFiles: () => settingsState.current.allowWebsiteFileSaving
+  websitesMaySaveFiles: () => settingsState.current.allowWebsiteFileSaving,
+  trackSpellCheck: (browserSession) => spellCheck.track(browserSession)
 })
 const credentialRuntime: CredentialRuntimeState = {
   storageStatus: { available: false, reason: 'Secure storage is initializing.' },
@@ -1040,6 +1043,7 @@ function registerIpc(): void {
     applyLanguagePreferenceRuntime,
     applyMainWindowTitleBarOverlay,
     applyMainWindowBackground,
+    applySpellCheck: (enabled) => spellCheck.apply(enabled),
     startupLaunchManager: () => settingsState.startupLaunchManager,
     defaultDownloadDirectory,
     effectiveDownloadDirectory: () => effectiveDownloadDirectory(),
@@ -1068,6 +1072,7 @@ function registerIpc(): void {
     updateSettings,
     publishSettings
   })
+  registerSpellCheckIpc(hronautIpcMain, { assertTrustedSender: assertTrustedShellSender, setEnabled: spellCheck.setEnabled })
   registerSecureDnsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     app,
@@ -1174,6 +1179,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     getChallengeDetectionEnabled: () => settingsState.current.challengeDetectionEnabled,
     getOmitAgentUrlDetail: () => settingsState.current.omitAgentUrlDetail,
     getSearchEngine: () => settingsState.current.searchEngine,
+    getSpellCheck: () => spellCheck.isEnabled(),
+    setSpellCheck: (enabled) => spellCheck.setEnabled(enabled),
     getLocale: () => settingsState.resolvedLocale,
     getTabPosition: () => settingsState.current.tabPosition,
     // Hronaut's own pages, the main window and its overlays among them, all load from the shell's folder.

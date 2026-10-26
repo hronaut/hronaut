@@ -275,6 +275,10 @@ export const ruRU: MessageSchema = {
       "systemOption": "Системный — {language}",
       "changeFailed": "Не удалось сохранить выбор языка. Предыдущий язык остаётся активным."
     },
+    "spellCheck": {
+      "label": "Проверка правописания",
+      "description": "Проверять орфографию при вводе текста на сайтах."
+    },
     "interfaceSize": {
       "label": "Размер интерфейса",
       "description": "Увеличьте элементы управления и текст Hronaut, не меняя масштаб сайтов.",
@@ -3705,6 +3709,8 @@ export const ruRU: MessageSchema = {
       "saveAudio": "Сохранить аудиофайл",
       "copyAudioAddress": "Копировать адрес аудиофайла",
       "addDictionary": "Добавить «{word}» в словарь",
+      "spellCheck": "Проверка правописания",
+      "checkSpelling": "Проверять правописание в текстовых полях",
       "undo": "Отменить",
       "redo": "Повторить",
       "cut": "Вырезать",

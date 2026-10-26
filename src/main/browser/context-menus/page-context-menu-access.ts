@@ -51,6 +51,10 @@ export interface PageContextMenuAccess<Tab extends PageContextMenuTab> {
   savePage(tab: Tab): Promise<boolean>
   /** The search engine the address bar uses, which searches the selected text. */
   searchEngine(): SearchEngineName
+  /** Whether websites' text fields check spelling, which a text field's menu shows. */
+  spellCheck(): boolean
+  /** Turns spell checking on or off for every website and saves it, as Settings does. */
+  setSpellCheck(enabled: boolean): Promise<void>
   /** Whether trusted chrome, such as one of Hronaut's dialogs, covers the page, which a new tab in front would change. */
   browserContentOccluded(): boolean
   /** Names the download Save Link As starts for this address in this page with the link's `download` name. */
