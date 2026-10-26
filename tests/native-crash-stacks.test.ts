@@ -30,19 +30,42 @@ describe('native crash stacks in a launch\'s error output', () => {
     expect(read([text.replaceAll('\n', '\r\n')])).toEqual(expected)
   })
 
-  it('keeps a trace whose process ended while printing it, and ends one at output that is not a frame', () => {
-    const stacks = read([`${trace.slice(0, 2).join('\n')}\nsomething else\n#7 0xabc (/opt/electron+0x10)\n${trace.slice(0, 3).join('\n')}\n`])
+  it('keeps a trace whose process ended while printing it, through other processes\' output inside it', () => {
+    const stacks = read([[
+      ...trace.slice(0, 2),
+      '[1026/005221.866410:ERROR:file.cc(12)] another process at /home/person/site',
+      '#1 0x7ff1[1026/005221.866411:ERROR:file.cc(13)] broken',
+      '  r8: 0000000000000000  r9: 0000000000000001',
+      '#2 0x5636479ae3ee (/opt/electron+0x4b873ed)',
+      '#1 0x7ff17b845330 (/usr/lib/libc.so.6+0x4532f)',
+      ...trace.slice(0, 2),
+      ''
+    ].join('\n')])
     expect(stacks).toEqual([
-      { signal: '11 SEGV_MAPERR 000000000000', frames: ['electron+0x949c5a2'] },
-      { signal: '11 SEGV_MAPERR 000000000000', frames: ['electron+0x949c5a2', 'libc.so.6+0x4532f'] }
+      { signal: '11 SEGV_MAPERR 000000000000', frames: ['electron+0x949c5a2', 'electron+0x4b873ed'] },
+      { signal: '11 SEGV_MAPERR 000000000000', frames: ['electron+0x949c5a2'] }
     ])
   })
 
-  it('stays bounded: 64 frames a trace, a signal line of 80 characters, no endless line', () => {
+  it('reads a signal line other output broke as unreadable, keeping none of that output', () => {
+    const stacks = read([[
+      'Received signal [1026/005221.866410:ERROR:file.cc(12)] /home/person https://example.com/private',
+      '11 SEGV_MAPERR 000000000000',
+      ...trace.slice(1),
+      'Received signal 6',
+      'Received signal 11 <unknown> 000000000000',
+      ''
+    ].join('\n')])
+    expect(stacks.map(stack => stack.signal)).toEqual(['unreadable', '6', '11 <unknown> 000000000000'])
+    expect(stacks[0]?.frames).toEqual(['electron+0x949c5a2', 'libc.so.6+0x4532f', 'electron+0x4b873ed'])
+    expect(JSON.stringify(stacks)).not.toMatch(/\/|example|ERROR/)
+  })
+
+  it('stays bounded: 64 frames a trace, no endless line', () => {
     const frames = Array.from({ length: 100 }, (_, index) => `#${index} 0x1 (/opt/electron+0x${index.toString(16)})`)
     const stacks = read([`Received signal 11 ${'x'.repeat(200)}\n${frames.join('\n')}\n`, 'y'.repeat(10_000), '\nReceived signal 7 BUS_ADRERR 1\n'])
     expect(stacks).toHaveLength(2)
-    expect(stacks[0]?.signal).toHaveLength(80)
+    expect(stacks[0]?.signal).toBe('unreadable')
     expect(stacks[0]?.frames).toHaveLength(64)
     expect(stacks[1]).toEqual({ signal: '7 BUS_ADRERR 1', frames: [] })
   })
