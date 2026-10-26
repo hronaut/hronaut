@@ -3692,6 +3692,7 @@ export const zhCN: MessageSchema = {
       "reopenClosed": "重新打开关闭的标签页",
       "bookmarkAllTabs": "为所有标签页添加书签…",
       "openLink": "在新标签页中打开链接",
+      "openLinkSplit": "在拆分视图中打开链接",
       "copyLink": "复制链接地址",
       "copyLinkToHighlight": "复制指向突出显示的内容的链接",
       "copyEmail": "复制电子邮件地址",

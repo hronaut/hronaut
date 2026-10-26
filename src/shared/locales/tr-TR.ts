@@ -3692,6 +3692,7 @@ export const trTR: MessageSchema = {
       "reopenClosed": "Kapatılan sekmeyi yeniden aç",
       "bookmarkAllTabs": "Tüm sekmeleri yer işaretlerine ekle…",
       "openLink": "Bağlantıyı yeni sekmede aç",
+      "openLinkSplit": "Bağlantıyı bölünmüş görünümde aç",
       "copyLink": "Bağlantı adresini kopyala",
       "copyLinkToHighlight": "Vurgulanan metnin bağlantısını kopyala",
       "copyEmail": "E-posta adresini kopyala",

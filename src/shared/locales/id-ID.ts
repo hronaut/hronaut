@@ -3692,6 +3692,7 @@ export const idID: MessageSchema = {
       "reopenClosed": "Buka kembali tab yang ditutup",
       "bookmarkAllTabs": "Bookmark semua tab…",
       "openLink": "Buka link di tab baru",
+      "openLinkSplit": "Buka link dalam tampilan terpisah",
       "copyLink": "Salin alamat link",
       "copyLinkToHighlight": "Salin link ke sorotan",
       "copyEmail": "Salin alamat email",

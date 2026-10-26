@@ -3692,6 +3692,7 @@ export const koKR: MessageSchema = {
       "reopenClosed": "닫은 탭 다시 열기",
       "bookmarkAllTabs": "모든 탭을 북마크에 추가…",
       "openLink": "새 탭에서 링크 열기",
+      "openLinkSplit": "분할 보기로 링크 열기",
       "copyLink": "링크 주소 복사",
       "copyLinkToHighlight": "강조 표시 링크 복사",
       "copyEmail": "이메일 주소 복사",

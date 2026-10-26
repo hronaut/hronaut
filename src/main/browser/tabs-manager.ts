@@ -6309,6 +6309,10 @@ export class BrowserTabsManager {
       options: () => this.options,
       text: (key, parameters) => this.text(key, parameters),
       createTab: (options) => this.createTab(options),
+      showBeside: async (tab, besideTabId) => {
+        if (this.tabs.get(tab.id) !== tab || this.activeTabId !== tab.id) return
+        await openSplitViewAndWait(this.splitViewAccess(), besideTabId, { openedBeside: true })
+      },
       back: (tabId) => this.back(tabId),
       forward: (tabId) => this.forward(tabId),
       reload: (tabId) => this.reload(tabId),

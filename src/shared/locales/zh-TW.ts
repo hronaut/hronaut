@@ -3692,6 +3692,7 @@ export const zhTW: MessageSchema = {
       "reopenClosed": "重新開啟已關閉的分頁",
       "bookmarkAllTabs": "將所有分頁加入書籤…",
       "openLink": "在新分頁中開啟連結",
+      "openLinkSplit": "以分割檢視開啟連結",
       "copyLink": "複製連結網址",
       "copyLinkToHighlight": "複製醒目顯示內容的連結",
       "copyEmail": "複製電子郵件地址",

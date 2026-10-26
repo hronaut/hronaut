@@ -3692,6 +3692,7 @@ export const esES: MessageSchema = {
       "reopenClosed": "Volver a abrir pestaña cerrada",
       "bookmarkAllTabs": "Añadir todas las pestañas a marcadores…",
       "openLink": "Abrir enlace en pestaña nueva",
+      "openLinkSplit": "Abrir enlace en vista dividida",
       "copyLink": "Copiar dirección del enlace",
       "copyLinkToHighlight": "Copiar enlace al texto destacado",
       "copyEmail": "Copiar dirección de correo electrónico",
