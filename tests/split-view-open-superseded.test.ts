@@ -12,7 +12,7 @@ import type { BrowserSplitViewState } from '../src/shared/split-view.js'
 function tab(id: string): SplitViewTab {
   return {
     id, url: `https://${id}.example/`, sleeping: id === 'reference', lastActiveAt: 0,
-    view: {} as View, webContents: { isDestroyed: () => false } as unknown as WebContents
+    view: {} as View, webContents: { isDestroyed: () => false, isLoadingMainFrame: () => false } as unknown as WebContents
   }
 }
 

@@ -58,19 +58,28 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   // A sandboxed frame or page has an opaque origin and sends no referrer, as a click in it does. It is read now, since
   // the frame can be gone by the time an item is chosen.
   const sandboxedFrame = hasOpaqueOrigin(params.frame)
-  const openBackgroundTab = (url: string): void => {
+  const createBackgroundTab = (url: string): Promise<Tab> => {
     const referrer = sandboxedFrame ? undefined : openedResourceReferrer(params.frameURL, policy)
-    void access.createTab({
+    return access.createTab({
       url,
       active: false,
       mcpGroupId: tab.mcpGroupId,
       openedFrom: { tabId: tab.id, background: true },
       ...(referrer ? { loadOptions: { httpReferrer: referrer } } : {})
     })
+  }
+  const openBackgroundTab = (url: string): void => {
+    void createBackgroundTab(url)
       .catch((error) => {
         console.error(`[browser] Could not open context-menu URL ${url}:`, error)
         access.options().onActionFailed?.('open link in new tab', error)
       })
+  }
+  // Chrome's Open Link in Split View: the link opens in a new tab beside this page, which keeps the keyboard.
+  const openLinkInSplitView = (url: string): void => {
+    void createBackgroundTab(url)
+      .then((created) => access.showBeside(tab, created.id))
+      .catch((error) => reportActionFailure('open link in split view', error))
   }
   const download = (url: string, linkName = ''): void => {
     const referrer = sandboxedFrame ? undefined : savedResourceReferrer(params.frameURL, url, policy)
@@ -198,6 +207,13 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
         label: access.text('native.context.openLink'),
         enabled: webLink,
         click: () => openBackgroundTab(params.linkURL)
+      },
+      {
+        id: 'open-link-split-view',
+        label: access.text('native.context.openLinkSplit'),
+        // Home is never shown in split view.
+        enabled: webLink && !isHronautHomeUrl(tab.url),
+        click: () => openLinkInSplitView(params.linkURL)
       },
       {
         id: 'copy-link-address',

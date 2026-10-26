@@ -3692,6 +3692,7 @@ export const deDE: MessageSchema = {
       "reopenClosed": "Geschlossenen Tab erneut öffnen",
       "bookmarkAllTabs": "Alle Tabs als Lesezeichen speichern…",
       "openLink": "Link in neuem Tab öffnen",
+      "openLinkSplit": "Link in geteilter Ansicht öffnen",
       "copyLink": "Linkadresse kopieren",
       "copyLinkToHighlight": "Link zur Markierung kopieren",
       "copyEmail": "E-Mail-Adresse kopieren",

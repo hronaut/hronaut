@@ -3692,6 +3692,7 @@ export const ptBR: MessageSchema = {
       "reopenClosed": "Reabrir guia fechada",
       "bookmarkAllTabs": "Adicionar todas as guias aos favoritos…",
       "openLink": "Abrir link em nova guia",
+      "openLinkSplit": "Abrir link na visualização dividida",
       "copyLink": "Copiar endereço do link",
       "copyLinkToHighlight": "Copiar link para destaque",
       "copyEmail": "Copiar endereço de e-mail",

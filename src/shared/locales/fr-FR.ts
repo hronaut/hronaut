@@ -3692,6 +3692,7 @@ export const frFR: MessageSchema = {
       "reopenClosed": "Rouvrir l’onglet fermé",
       "bookmarkAllTabs": "Ajouter tous les onglets aux favoris…",
       "openLink": "Ouvrir le lien dans un nouvel onglet",
+      "openLinkSplit": "Ouvrir le lien en vue fractionnée",
       "copyLink": "Copier l’adresse du lien",
       "copyLinkToHighlight": "Copier le lien vers le texte surligné",
       "copyEmail": "Copier l’adresse e-mail",

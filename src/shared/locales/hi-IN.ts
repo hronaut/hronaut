@@ -3692,6 +3692,7 @@ export const hiIN: MessageSchema = {
       "reopenClosed": "बंद किया गया टैब फिर से खोलें",
       "bookmarkAllTabs": "सभी टैब को बुकमार्क करें…",
       "openLink": "लिंक को नए टैब में खोलें",
+      "openLinkSplit": "लिंक को स्प्लिट व्यू में खोलें",
       "copyLink": "लिंक का पता कॉपी करें",
       "copyLinkToHighlight": "हाइलाइट किए गए हिस्से का लिंक कॉपी करें",
       "copyEmail": "ईमेल पता कॉपी करें",

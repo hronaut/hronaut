@@ -90,8 +90,41 @@ export function openSplitView<Tab extends SplitViewTab>(access: SplitViewAccess<
   access.addChildView(target.view)
   access.layout()
   access.focusTabOrTrustedChrome(current)
+  keepKeyboardFromLoadingPane(access, current, target)
   access.changed()
   return access.getState()
+}
+
+/**
+ * A page still loading its first document, such as a link just opened beside the page, takes the keyboard when its
+ * view first shows, though the person is on the other pane. Until that document arrives, the keyboard goes back to
+ * the active pane, unless the person or an agent made the loading pane active meanwhile or the split changed.
+ */
+function keepKeyboardFromLoadingPane<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>, active: Tab, loading: Tab): void {
+  const contents = loading.webContents
+  if (!contents.isLoadingMainFrame()) return
+  const generation = access.splitViewGeneration()
+  // Chromium can ignore a focus change made from the focus event itself, so it is given back on the next turn.
+  const giveBack = (): void => {
+    setImmediate(() => {
+      if (access.splitViewGeneration() !== generation || access.activeTabId() !== active.id) return
+      if (access.findTab(active.id) !== active || active.webContents.isDestroyed()) return
+      if (contents.isDestroyed() || !contents.isFocused()) return
+      access.focusTabOrTrustedChrome(active)
+    })
+  }
+  const stop = (): void => {
+    contents.off('focus', giveBack)
+    contents.off('did-navigate', stop)
+    contents.off('did-fail-load', stop)
+    contents.off('did-stop-loading', stop)
+    contents.off('destroyed', stop)
+  }
+  contents.on('focus', giveBack)
+  contents.on('did-navigate', stop)
+  contents.on('did-fail-load', stop)
+  contents.on('did-stop-loading', stop)
+  contents.on('destroyed', stop)
 }
 
 /** Changes the open split view's orientation or ratio, or swaps its tabs. */

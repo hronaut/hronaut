@@ -22,6 +22,7 @@ vi.mock('electron', () => {
         session: { partition: 'workspace' },
         isDestroyed: () => false,
         isDevToolsOpened: () => false,
+        isLoadingMainFrame: () => false,
         setAudioMuted() {},
         on: (name: string, listener: (...args: unknown[]) => void) => events.on(name, listener),
         once: (name: string, listener: (...args: unknown[]) => void) => events.once(name, listener),

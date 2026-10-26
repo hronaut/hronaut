@@ -1,0 +1,100 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ContextMenuParams, MenuItemConstructorOptions, WebContents } from 'electron'
+
+const built = vi.hoisted(() => ({ templates: [] as MenuItemConstructorOptions[][] }))
+
+vi.mock('electron', () => ({
+  Menu: {
+    buildFromTemplate: (template: MenuItemConstructorOptions[]) => {
+      built.templates.push(template)
+      return { popup: () => undefined }
+    }
+  }
+}))
+
+const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
+type PageTab = { id: string, url: string, mcpGroupId?: string, webContents: WebContents }
+type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+
+// A link's menu had no Open Link in Split View, which Chrome's has to open the link in a new tab beside the page.
+
+const PAGE = 'https://docs.example/guide/start?lang=en#install'
+
+function linkMenu(linkURL: string, options: { page?: string, createTab?: () => Promise<PageTab>, showBeside?: () => Promise<void> } = {}) {
+  const webContents = {
+    id: 7,
+    isDestroyed: () => false,
+    navigationHistory: { canGoBack: () => false, canGoForward: () => false }
+  } as unknown as WebContents
+  const tab: PageTab = { id: 'tab', url: options.page ?? PAGE, mcpGroupId: 'client', webContents }
+  const created: PageTab = { id: 'beside', url: linkURL, mcpGroupId: 'client', webContents }
+  const createTab = vi.fn(options.createTab ?? (async () => created))
+  const showBeside = vi.fn(options.showBeside ?? (async () => undefined))
+  const onActionFailed = vi.fn()
+  const access = {
+    findTab: () => tab,
+    window: () => ({}),
+    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed }),
+    text: (key: string) => key,
+    isHumanInteractionLocked: () => false,
+    createTab,
+    showBeside
+  } as unknown as PageContextMenuAccess
+  showContextMenu(access, tab, {
+    x: 10, y: 20, linkURL, srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
+    pageURL: tab.url, frameURL: tab.url, referrerPolicy: 'strict-origin-when-cross-origin'
+  } as unknown as ContextMenuParams)
+  const items = built.templates.at(-1)!
+  const item = items.find(entry => entry.id === 'open-link-split-view')
+  return { tab, created, items, item, createTab, showBeside, onActionFailed, choose: () => (item!.click as () => void)() }
+}
+
+afterEach(() => {
+  built.templates.length = 0
+})
+
+describe('Open Link in Split View in a link\'s page menu', () => {
+  it('follows Open Link in New Tab', () => {
+    const { items, item } = linkMenu('https://docs.example/guide/api')
+    const ids = items.map(entry => entry.id)
+    expect(ids.indexOf('open-link-split-view')).toBe(ids.indexOf('open-link-new-tab') + 1)
+    expect(item).toMatchObject({ label: 'native.context.openLinkSplit', enabled: true })
+  })
+
+  it('opens the link in a background tab as Open Link in New Tab does, then shows it beside the page', async () => {
+    const { tab, created, createTab, showBeside, choose } = linkMenu('https://docs.example/guide/api')
+    choose()
+    await vi.waitFor(() => expect(showBeside).toHaveBeenCalledExactlyOnceWith(tab, created.id))
+    expect(createTab).toHaveBeenCalledExactlyOnceWith({
+      url: 'https://docs.example/guide/api',
+      active: false,
+      mcpGroupId: 'client',
+      openedFrom: { tabId: 'tab', background: true },
+      loadOptions: { httpReferrer: { url: 'https://docs.example/guide/start?lang=en', policy: 'strict-origin-when-cross-origin' } }
+    })
+  })
+
+  it('reports a tab that could not open or be shown beside the page', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const unopened = new Error('workspace closed')
+      const failedOpen = linkMenu('https://docs.example/guide/api', { createTab: async () => { throw unopened } })
+      failedOpen.choose()
+      await vi.waitFor(() => expect(failedOpen.onActionFailed).toHaveBeenCalledWith('open link in split view', unopened))
+      expect(failedOpen.showBeside).not.toHaveBeenCalled()
+
+      const unshown = new Error('tab closed')
+      const failedSplit = linkMenu('https://docs.example/guide/api', { showBeside: async () => { throw unshown } })
+      failedSplit.choose()
+      await vi.waitFor(() => expect(failedSplit.onActionFailed).toHaveBeenCalledWith('open link in split view', unshown))
+    } finally {
+      error.mockRestore()
+    }
+  })
+
+  it('is unavailable for a link that is not a web address and on Home, which split view never shows', () => {
+    expect(linkMenu('mailto:team@docs.example').item?.enabled).toBe(false)
+    expect(linkMenu('javascript:void(0)').item?.enabled).toBe(false)
+    expect(linkMenu('https://docs.example/guide/api', { page: 'hronaut://home/' }).item?.enabled).toBe(false)
+  })
+})
