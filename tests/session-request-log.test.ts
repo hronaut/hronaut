@@ -17,6 +17,7 @@ function hookedSession(debuggerRecords = false) {
     onBeforeSendHeaders: listen('beforeSendHeaders'),
     onHeadersReceived: listen('headersReceived'),
     onSendHeaders: listen('sendHeaders'),
+    onBeforeRedirect: listen('beforeRedirect'),
     onCompleted: listen('completed'),
     onErrorOccurred: listen('errorOccurred')
   }
@@ -68,20 +69,45 @@ it('records a page\'s requests before its debugger does without holding any of t
   expect(notify).toHaveBeenCalledTimes(2)
 })
 
-it('records a request that failed before it was sent, and records each request once', () => {
-  const { listeners, tab } = hookedSession()
-  listeners.errorOccurred!({ ...request, error: 'net::ERR_NAME_NOT_RESOLVED' })
-  listeners.sendHeaders!({ ...request, id: 42 })
-  listeners.errorOccurred!({ ...request, id: 42, error: 'net::ERR_CONNECTION_REFUSED' })
-  expect(tab.networkRequests.map(({ id, error }) => ({ id, error }))).toEqual([
-    { id: 'web:41', error: 'net::ERR_NAME_NOT_RESOLVED' },
-    { id: 'web:42', error: 'net::ERR_CONNECTION_REFUSED' }
+it('keeps a record for each address a redirected request goes to, as the debugger does', () => {
+  // A redirect sends the request again under the same id: its target used to be left out, or recorded and never
+  // completed, while the first address took the final status.
+  const { listeners, tab, notify } = hookedSession()
+  listeners.sendHeaders!({ ...request, url: 'https://example.test/old', method: 'POST', resourceType: 'mainFrame' })
+  listeners.beforeRedirect!({ ...request, url: 'https://example.test/old', statusCode: 303, fromCache: false, redirectURL: 'https://example.test/new' })
+  listeners.sendHeaders!({ ...request, url: 'https://example.test/new', method: 'GET', resourceType: 'mainFrame' })
+  listeners.beforeRedirect!({ ...request, url: 'https://example.test/new', statusCode: 302, fromCache: true, redirectURL: 'https://example.test/end' })
+  listeners.sendHeaders!({ ...request, url: 'https://example.test/end', method: 'GET', resourceType: 'mainFrame' })
+  listeners.completed!({ ...request, url: 'https://example.test/end', statusCode: 200, fromCache: false })
+  expect(tab.networkRequests.map(({ id, url, method, status, responseSource, completedAt }) => ({ id, url, method, status, responseSource, completed: completedAt !== undefined }))).toEqual([
+    { id: 'web:41', url: 'https://example.test/old', method: 'POST', status: 303, responseSource: 'network', completed: true },
+    { id: 'web:41-1', url: 'https://example.test/new', method: 'GET', status: 302, responseSource: 'other-cache', completed: true },
+    { id: 'web:41-2', url: 'https://example.test/end', method: 'GET', status: 200, responseSource: 'network', completed: true }
   ])
+  expect(notify).toHaveBeenCalledTimes(6)
 })
 
-it('leaves the requests of a page whose debugger records them to the debugger', () => {
-  const { listeners, tab } = hookedSession(true)
+it('records how a request failed, and leaves a request whose record was cleared out of the log', () => {
+  const { listeners, tab, notify } = hookedSession()
   listeners.sendHeaders!(request)
-  listeners.errorOccurred!({ ...request, id: 42, error: 'net::ERR_FAILED' })
+  listeners.errorOccurred!({ ...request, error: 'net::ERR_CONNECTION_REFUSED' })
+  expect(tab.networkRequests.map(({ id, error }) => ({ id, error }))).toEqual([{ id: 'web:41', error: 'net::ERR_CONNECTION_REFUSED' }])
+  expect(notify).toHaveBeenCalledTimes(2)
+  // A navigation clears the log while the previous page's requests are still open; their ends do not bring them back.
+  listeners.sendHeaders!({ ...request, id: 42 })
+  listeners.sendHeaders!({ ...request, id: 43 })
+  tab.networkRequests.splice(0)
+  listeners.errorOccurred!({ ...request, id: 42, error: 'net::ERR_ABORTED' })
+  listeners.completed!({ ...request, id: 43, statusCode: 200, fromCache: false })
   expect(tab.networkRequests).toEqual([])
+})
+
+it('completes a request it recorded after the debugger starts recording, and leaves the rest to the debugger', () => {
+  const { listeners, tab } = hookedSession()
+  listeners.sendHeaders!(request)
+  tab.networkDebuggerEnabled = true
+  listeners.sendHeaders!({ ...request, id: 42 })
+  listeners.completed!({ ...request, statusCode: 204, fromCache: false })
+  listeners.errorOccurred!({ ...request, id: 42, error: 'net::ERR_FAILED' })
+  expect(tab.networkRequests.map(({ id, status }) => ({ id, status }))).toEqual([{ id: 'web:41', status: 204 }])
 })
