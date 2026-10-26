@@ -14,6 +14,14 @@ describe('preload panel requests', () => {
     expect(later).not.toHaveBeenCalled()
   })
 
+  it('retains a request of none, as Bookmark all tabs asks for the tabs in no workspace', () => {
+    const requests = createPanelRequestBuffer<string | null>()
+    requests.receive(null)
+    const listener = vi.fn()
+    requests.subscribe(listener)
+    expect(listener).toHaveBeenCalledExactlyOnceWith(null)
+  })
+
   it('delivers live requests in order to active subscriptions', () => {
     const requests = createPanelRequestBuffer()
     const first = vi.fn()

@@ -99,6 +99,13 @@ import type { UndoOffer } from '../shared/undo.js'
 import type { SiteSearchDraft } from '../shared/site-search.js'
 import type { SecureDnsMode } from '../shared/secure-dns.js'
 
+// Main asks a panel window it has just opened for Bookmark all tabs' name once the window has loaded, which can be
+// before its shell mounts and listens.
+const bookmarkAllTabsRequests = createPanelRequestBuffer<string | null>()
+ipcRenderer.on('browser:bookmark-all-tabs-requested', (_event, workspaceId: unknown) => {
+  bookmarkAllTabsRequests.receive(typeof workspaceId === 'string' ? workspaceId : null)
+})
+
 const api: HronautApi = {
   getState: () => ipcRenderer.invoke('browser:get-state'),
   getUserAttention: () => ipcRenderer.invoke('attention:get'),
@@ -322,11 +329,7 @@ const api: HronautApi = {
     ipcRenderer.on('browser:qr-code-requested', handler)
     return () => ipcRenderer.removeListener('browser:qr-code-requested', handler)
   },
-  onBookmarkAllTabsRequested: (listener: (workspaceId: string | null) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, workspaceId: unknown): void => listener(typeof workspaceId === 'string' ? workspaceId : null)
-    ipcRenderer.on('browser:bookmark-all-tabs-requested', handler)
-    return () => ipcRenderer.removeListener('browser:bookmark-all-tabs-requested', handler)
-  },
+  onBookmarkAllTabsRequested: bookmarkAllTabsRequests.subscribe,
   onAddressPasteAndGo: (listener: (text: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, text: unknown): void => {
       if (typeof text === 'string') listener(text)
