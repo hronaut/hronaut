@@ -633,6 +633,11 @@ const ABORTED_LOAD_ERROR = -3
 const MEMORY_SAVER_SWEEP_MS = 30_000
 /** How often the tabs' history is saved, with their pages' scroll and form state, as Chrome saves its session a moment after each change. */
 const TAB_HISTORY_SAVE_MS = 5_000
+/**
+ * The shortest time between two publications of the browser state. Pages loading together change it many times a
+ * second, and each publication sends every tab to the shell, which draws them all again.
+ */
+const STATE_PUBLISH_MS = 33
 const require = createRequire(import.meta.url)
 const webVitalsPath = require.resolve('web-vitals/attribution')
 const webVitalsSource = readFileSync(webVitalsPath, 'utf8')
@@ -901,7 +906,10 @@ export interface TabsManagerOptions {
   /** A tab opened a web page, or opened the one it showed again: samePage. */
   onPageVisited?: (visit: { url: string; title: string; samePage: boolean }) => void
   onPageTitleUpdated?: (page: { url: string; title: string }) => void
+  /** The browser state as it was published, at most once every STATE_PUBLISH_MS. */
   onStateChanged?: (state: BrowserState) => void
+  /** Something changed, called at once rather than with the publication: a page view may have been attached. */
+  onChanged?: () => void
   /** A page took or left full screen, which nothing of the shell's is drawn over. */
   onPageFullscreenChanged?: () => void
   onPageTargetUrl?: PageTargetUrlEventsOptions['onPageTargetUrl']
@@ -1193,6 +1201,9 @@ export class BrowserTabsManager {
   private destroyed = false
   private restoringLayout = false
   private persistTimer: NodeJS.Timeout | null = null
+  private statePublishTimer: NodeJS.Timeout | null = null
+  private lastStatePublishAt = Number.NEGATIVE_INFINITY
+  private lastPublishedState: string | undefined
   private tabHistoryStore: TabHistoryStore | undefined
   private closedTabsStore: ClosedTabsStore | undefined
   private tabHistoryTimer: NodeJS.Timeout | null = null
@@ -1658,6 +1669,15 @@ export class BrowserTabsManager {
   }
 
   getState(): BrowserState {
+    // The caller may hand this state to the shell as an action's reply, which the shell drops for a publication that
+    // arrived meanwhile: a change still waiting is published first, so the publication the shell keeps is never older.
+    if (this.statePublishTimer) {
+      clearTimeout(this.statePublishTimer)
+      this.statePublishTimer = null
+      this.publishStateNow()
+    }
+    // The shell may then show this state instead of the one published last.
+    this.lastPublishedState = undefined
     return getState(this.browserStateAccess())
   }
 
@@ -5603,6 +5623,7 @@ export class BrowserTabsManager {
     this.mcpActivityFollower.dispose()
     this.stopPresentationWatcher?.()
     if (this.persistTimer) clearTimeout(this.persistTimer)
+    if (this.statePublishTimer) clearTimeout(this.statePublishTimer)
     if (this.tabHistoryTimer) clearInterval(this.tabHistoryTimer)
     if (this.memorySaverTimer) clearInterval(this.memorySaverTimer)
     this.downloadController.clearPendingNotification()
@@ -6809,15 +6830,48 @@ export class BrowserTabsManager {
 
   private changed(persist = true): void {
     if (this.destroyed || this.window.isDestroyed() || this.restoringLayout) return
-    const state = this.getState()
-    if (!this.window.webContents.isDestroyed()) this.window.webContents.send('browser:state-changed', state)
-    this.options.onStateChanged?.(state)
+    this.options.onChanged?.()
+    this.publishState()
     if (!persist) return
     if (this.persistTimer) clearTimeout(this.persistTimer)
     this.persistTimer = setTimeout(() => {
       this.persistTimer = null
       void this.store.save(() => this.persistedState()).catch((error) => console.error('[browser] Failed to persist tabs:', error))
     }, 250)
+  }
+
+  /**
+   * Publishes the browser state to the shell and the state hooks: a change after a quiet moment at once, and the
+   * changes of a burst, such as many pages loading, together once STATE_PUBLISH_MS passed since the last publication,
+   * from the state as it is then. A state equal to the last one published is not sent again, unless the state was
+   * read meanwhile.
+   */
+  private publishState(): void {
+    if (this.statePublishTimer) return
+    const wait = this.lastStatePublishAt + STATE_PUBLISH_MS - performance.now()
+    if (wait <= 0) {
+      this.publishStateNow()
+      return
+    }
+    this.statePublishTimer = setTimeout(() => {
+      this.statePublishTimer = null
+      try {
+        this.publishStateNow()
+      } catch (error) {
+        console.error('[browser] Could not publish the browser state:', error)
+      }
+    }, wait)
+  }
+
+  private publishStateNow(): void {
+    if (this.destroyed || this.window.isDestroyed() || this.restoringLayout) return
+    this.lastStatePublishAt = performance.now()
+    const state = getState(this.browserStateAccess())
+    const serialized = JSON.stringify(state)
+    if (serialized === this.lastPublishedState) return
+    this.lastPublishedState = serialized
+    if (!this.window.webContents.isDestroyed()) this.window.webContents.send('browser:state-changed', state)
+    this.options.onStateChanged?.(state)
   }
 
   private orderedTabs(): BrowserTab[] {

@@ -1219,8 +1219,10 @@ async function createWindow(startMinimized = false): Promise<void> {
       reconcileUserAttention(state)
       sendToPanelWindow('browser:state-changed', state)
       scheduleAgentPresencePublish()
+    },
+    onChanged: () => {
       // A page view attached meanwhile goes on top of the open rail's, the toast's and the card's views; put them back
-      // above it, the toast above the rail and the card above the toast.
+      // above it at once, the toast above the rail and the card above the toast.
       statusBubble.restack()
       sidebarOverlay.restack()
       toastOverlay.restack()
