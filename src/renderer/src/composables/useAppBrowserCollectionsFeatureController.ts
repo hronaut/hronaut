@@ -34,8 +34,9 @@ export interface AppBrowserCollectionsFeatureControllerOptions {
   /** The browser state, whose tab in view and workspaces Bookmark all tabs reads. */
   browserState?: () => Pick<BrowserState, 'tabs' | 'activeTabId' | 'mcpTabGroups'>
   /**
-   * Settles once the shell has read the browser state and mounted its panels. A panel window main opens to ask for
-   * Bookmark all tabs' name gets the request before then.
+   * Settles once the shell has read the browser state and mounted its panels. A Bookmarks window main opens to ask for
+   * Bookmark all tabs' name gets the request before then; the main window has no such wait, so a request that comes
+   * before its state, which it cannot act on, does not act later over what the person did since.
    */
   browserStateReady?: () => Promise<void>
   /** Whether Bookmarks shows in its own window, which then asks for Bookmark all tabs' name; never in that window. */

@@ -2,7 +2,7 @@
 import LicenseAskCard from './components/LicenseAskCard.vue'
 import { isHronautHomeUrl } from '../../shared/home-url.js'
 import { bind as bindFoley } from '@foleyjs/core'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { BrowserState } from '../../shared/types'
@@ -338,20 +338,6 @@ const {
   openTransfer: appTransientShellLayerController.openWorkspaceTransfer,
   onError: reportShellActionError
 })
-/**
- * Settles once the first browser state is read. The startup tasks read it after the shell has mounted, so its panels
- * are there too; a panel window main opens for Bookmark all tabs gets that request before either.
- */
-function browserStateReady(): Promise<void> {
-  if (browserStateInitialized.value) return Promise.resolve()
-  return new Promise(resolve => {
-    const stop = watch(browserStateInitialized, (ready) => {
-      if (!ready) return
-      stop()
-      resolve()
-    })
-  })
-}
 const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureController({
   browser,
   downloadsApi: window.hronautDownloads,
@@ -361,7 +347,8 @@ const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureContr
   tabSearchOpen,
   syncState,
   browserState: () => state.value,
-  browserStateReady,
+  // The startup tasks read the browser state once the shell has mounted, so its panels are there by then too.
+  browserStateReady: isDetachedPanelWindow ? browserStore.whenInitialized : undefined,
   bookmarksInOwnWindow: panelsInOwnWindow,
   panelWindow: window.hronautPanelWindow
 })

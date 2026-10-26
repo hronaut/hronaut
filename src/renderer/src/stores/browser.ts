@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { translate } from '../../../shared/i18n.js'
 import type {
@@ -100,6 +100,18 @@ export const useBrowserStore = defineStore('browser', () => {
     return initializePromise
   }
 
+  /** Settles once the first browser state is read; after a failed read, once a retry reads it. */
+  function whenInitialized(): Promise<void> {
+    if (initialized.value) return Promise.resolve()
+    return new Promise((resolve) => {
+      const stop = watch(initialized, (ready) => {
+        if (!ready) return
+        stop()
+        resolve()
+      })
+    })
+  }
+
   function dispose(): void {
     generation += 1
     pendingOperations.clear()
@@ -164,6 +176,7 @@ export const useBrowserStore = defineStore('browser', () => {
     initializing,
     initializationError,
     initialize,
+    whenInitialized,
     dispose,
     acceptAuthoritativeState,
     syncOperation,
