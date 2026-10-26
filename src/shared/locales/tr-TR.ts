@@ -275,6 +275,10 @@ export const trTR: MessageSchema = {
       "systemOption": "Sistem varsayılanı — {language}",
       "changeFailed": "Dil tercihi kaydedilemedi. Önceki diliniz hâlâ etkin."
     },
+    "spellCheck": {
+      "label": "Yazım denetimi",
+      "description": "Web sitelerinde metin yazarken yazım hatalarını denetle."
+    },
     "interfaceSize": {
       "label": "Arayüz boyutu",
       "description": "Web sitelerinin yakınlaştırma düzeyini değiştirmeden Hronaut’un denetimlerini ve metnini büyütün.",
@@ -3705,6 +3709,8 @@ export const trTR: MessageSchema = {
       "saveAudio": "Sesi kaydet",
       "copyAudioAddress": "Ses adresini kopyala",
       "addDictionary": "“{word}” sözcüğünü sözlüğe ekle",
+      "spellCheck": "Yazım denetimi",
+      "checkSpelling": "Metin alanlarında yazımı denetle",
       "undo": "Geri al",
       "redo": "Yinele",
       "cut": "Kes",

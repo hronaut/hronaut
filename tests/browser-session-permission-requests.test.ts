@@ -74,7 +74,8 @@ async function createHarness(locale: SupportedLocale = 'en-US') {
     state: { persistentSession: null, sitePermissionStore: store },
     sendToShellWindows: (...args) => { sent.push(args) },
     partition: 'persist:test',
-    websitesMaySaveFiles: () => false
+    websitesMaySaveFiles: () => false,
+    trackSpellCheck: () => undefined
   })
   const workspaceSession = (workspaceId?: string) => {
     const handlers = { request: undefined as RequestHandler | undefined, check: undefined as CheckHandler | undefined }

@@ -6,6 +6,7 @@ vi.mock('electron', () => ({ app: { getPath: () => '' }, nativeTheme: {} }))
 
 const { registerSettingsIpc } = await import('../src/main/settings-ipc.js')
 const { DEFAULT_SETTINGS } = await import('../src/main/settings-store.js')
+const { commitRuntimeSetting } = await import('../src/main/runtime-setting-commit.js')
 
 // Reset to default in Appearance also set back the language, startup and tray, and agent activity rows, which moved to
 // General; each section's reset now sets back only the settings it shows.
@@ -25,6 +26,7 @@ const CHANGED: Partial<AppSettings> = {
   showAgentCursor: false,
   pinAgentLiveStatus: true,
   languagePreference: 'uk-UA',
+  spellCheck: false,
   searchEngine: 'bing',
   memorySaverEnabled: false,
   memorySaverTimeoutMinutes: 15,
@@ -33,11 +35,11 @@ const CHANGED: Partial<AppSettings> = {
 const APPEARANCE_KEYS = ['theme', 'interfaceScale', 'tabPosition', 'useSystemTitleBar'] as const
 const GENERAL_KEYS = [
   'hideInTray', 'launchAtStartup', 'launchMinimized', 'attentionSound', 'attentionSoundCue',
-  'showAgentCursor', 'pinAgentLiveStatus', 'languagePreference'
+  'showAgentCursor', 'pinAgentLiveStatus', 'languagePreference', 'spellCheck'
 ] as const
 const PERFORMANCE_KEYS = ['memorySaverEnabled', 'memorySaverTimeoutMinutes', 'graphicsAcceleration'] as const
 
-function settingsIpc(packaged = false) {
+function settingsIpc(packaged = false, saveFails = false) {
   const handlers = new Map<string, Handler>()
   const ipcMain = { handle: (channel: string, handler: Handler) => { handlers.set(channel, handler) }, on: () => ipcMain } as unknown as IpcMain
   let settings: AppSettings = { ...DEFAULT_SETTINGS, ...CHANGED }
@@ -50,14 +52,21 @@ function settingsIpc(packaged = false) {
     isPackaged: () => packaged,
     startupLaunchManager: () => startupLaunchManager,
     settings: () => settings,
+    // As settings-runtime does: the runtime change first, then the save, with the previous settings put back on failure.
     updateSettings: vi.fn(async (patch: Partial<AppSettings>, apply?: (next: AppSettings) => Promise<void>) => {
       const next = { ...settings, ...patch }
-      await apply?.(next)
+      await commitRuntimeSetting({
+        previous: settings,
+        next,
+        apply: apply ?? (() => undefined),
+        persist: async () => { if (saveFails) throw new Error('disk full') }
+      })
       settings = next
     }),
     applyTheme: vi.fn(),
     applyInterfaceScale: vi.fn(),
     applyLanguagePreferenceRuntime: vi.fn(async () => { host.publishSettings() }),
+    applySpellCheck: vi.fn(),
     publishSettings: vi.fn(),
     currentRendererSettingsState: () => ({ settings })
   }
@@ -91,8 +100,20 @@ describe('Reset to default in Settings', () => {
     expect(settings().searchEngine).toBe('bing')
     expect(startupLaunchManager.setEnabled).toHaveBeenCalledWith(DEFAULT_SETTINGS.launchAtStartup)
     expect(host.applyLanguagePreferenceRuntime).toHaveBeenCalledWith(DEFAULT_SETTINGS.languagePreference)
+    // Spell check turns back on in every browser session, not only in the saved settings.
+    expect(host.applySpellCheck).toHaveBeenCalledWith(true)
     expect(host.applyTheme).not.toHaveBeenCalled()
     expect(host.publishSettings).toHaveBeenCalledOnce()
+  })
+
+  it('turns spell checking back off in every browser session when the General reset cannot be saved', async () => {
+    const { invoke, host, settings, startupLaunchManager } = settingsIpc(true, true)
+    await expect(invoke('settings:reset-general')).rejects.toThrow('disk full')
+
+    expect(host.applySpellCheck.mock.calls).toEqual([[true], [false]])
+    expect(startupLaunchManager.setEnabled.mock.calls).toEqual([[DEFAULT_SETTINGS.launchAtStartup], [true]])
+    expect(pick(settings(), GENERAL_KEYS)).toEqual(pick({ ...DEFAULT_SETTINGS, ...CHANGED }, GENERAL_KEYS))
+    expect(host.publishSettings).not.toHaveBeenCalled()
   })
 
   it('resets Appearance in a packaged build without the startup integration, which only General needs', async () => {

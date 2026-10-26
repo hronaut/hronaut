@@ -42,7 +42,9 @@ function menu(params: Partial<ContextMenuParams>, tabOpen = true) {
     options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed }),
     text: (key: string) => key === 'native.context.emojiSymbols' ? 'Emoji & Symbols' : key,
     isHumanInteractionLocked: () => false,
-    searchEngine: () => 'google'
+    searchEngine: () => 'google',
+    spellCheck: () => true,
+    setSpellCheck: async () => undefined
   } as unknown as PageContextMenuAccess
   showContextMenu(access, tab, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},

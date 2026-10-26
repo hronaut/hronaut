@@ -247,6 +247,10 @@ export const ukUA: MessageSchema = {
       systemOption: 'Системна — {language}',
       changeFailed: 'Не вдалося зберегти вибір мови. Попередня мова залишається активною.'
     },
+    spellCheck: {
+      label: 'Перевірка правопису',
+      description: 'Перевіряти орфографію під час введення тексту на сайтах.'
+    },
     interfaceSize: {
       label: 'Розмір інтерфейсу',
       description: 'Збільшуйте елементи керування й текст Hronaut, не змінюючи масштаб сайтів.',
@@ -855,7 +859,7 @@ export const ukUA: MessageSchema = {
       newTab: 'Нова вкладка', reloadTab: 'Перезавантажити вкладку', reloadNoCache: 'Перезавантажити вкладку без кешу', duplicateTab: 'Дублювати вкладку', muteTab: 'Вимкнути звук вкладки', unmuteTab: 'Увімкнути звук вкладки', pinTab: 'Закріпити вкладку', unpinTab: 'Відкріпити вкладку', freezePage: 'Заморозити сторінку для перевірки', resumePage: 'Відновити сторінку', pageLifecycleUnknown: 'Результат зупинки сторінки невідомий', wakeTab: 'Пробудити вкладку', sleepTab: 'Приспати вкладку',
       moveLeft: 'Перемістити вкладку ліворуч', moveRight: 'Перемістити вкладку праворуч', moveUp: 'Перемістити вкладку вгору', moveDown: 'Перемістити вкладку вниз', closeTab: 'Закрити вкладку', closeOthers: 'Закрити інші вкладки', closeRight: 'Закрити вкладки праворуч', closeBelow: 'Закрити вкладки нижче', closeDuplicates: 'Закрити дублікати вкладок', reopenClosed: 'Відкрити закриту вкладку', bookmarkAllTabs: 'Додати всі вкладки в закладки…',
       openLink: 'Відкрити посилання в новій вкладці', copyLink: 'Копіювати адресу посилання', copyLinkToHighlight: 'Копіювати посилання на виділений текст', copyEmail: 'Копіювати електронну адресу', saveLink: 'Зберегти посилання', openImage: 'Відкрити зображення в новій вкладці', copyImage: 'Копіювати зображення', copyImageAddress: 'Копіювати адресу зображення', saveImage: 'Зберегти зображення', openVideo: 'Відкрити відео в новій вкладці', saveVideo: 'Зберегти відео', copyVideoAddress: 'Копіювати адресу відео', copyVideoFrame: 'Копіювати кадр відео', saveVideoFrame: 'Зберегти кадр відео', openAudio: 'Відкрити аудіофайл у новій вкладці', saveAudio: 'Зберегти аудіофайл', copyAudioAddress: 'Копіювати адресу аудіофайлу',
-      addDictionary: 'Додати «{word}» до словника', undo: 'Скасувати', redo: 'Повторити', cut: 'Вирізати', copy: 'Копіювати', paste: 'Вставити', pasteMatchStyle: 'Вставити у стилі призначення', pasteAndGo: 'Вставити й перейти', pasteAndGoTo: 'Вставити й перейти на {text}', pasteAndSearchFor: 'Вставити й шукати «{text}»', delete: 'Видалити', selectAll: 'Вибрати все', emoji: 'Емодзі', emojiSymbols: 'Емодзі та символи',
+      addDictionary: 'Додати «{word}» до словника', spellCheck: 'Перевірка правопису', checkSpelling: 'Перевіряти правопис у текстових полях', undo: 'Скасувати', redo: 'Повторити', cut: 'Вирізати', copy: 'Копіювати', paste: 'Вставити', pasteMatchStyle: 'Вставити у стилі призначення', pasteAndGo: 'Вставити й перейти', pasteAndGoTo: 'Вставити й перейти на {text}', pasteAndSearchFor: 'Вставити й шукати «{text}»', delete: 'Видалити', selectAll: 'Вибрати все', emoji: 'Емодзі', emojiSymbols: 'Емодзі та символи',
       back: 'Назад', forward: 'Уперед', reload: 'Перезавантажити', reloadWithoutCache: 'Перезавантажити без кешу', copyPageAddress: 'Копіювати адресу сторінки', createQrCodePage: "Створити QR-код для цієї сторінки", createQrCodeImage: "Створити QR-код для цього зображення", inspect: 'Перевірити', print: 'Друк…', showFullHistory: 'Показати всю історію', viewSource: 'Переглянути код сторінки', viewFrameSource: 'Переглянути код фрейму', reloadFrame: 'Перезавантажити фрейм', searchFor: 'Шукати «{text}» в {engine}', goTo: 'Перейти на {text}', savePage: 'Зберегти як…'
     },
     pageProblem: {

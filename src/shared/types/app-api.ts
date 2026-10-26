@@ -163,6 +163,7 @@ export interface HronautSettingsApi {
   setFollowAgentActivity(enabled: boolean): Promise<AppSettings>
   setShowAgentCursor(enabled: boolean): Promise<AppSettings>
   setPinAgentLiveStatus(enabled: boolean): Promise<AppSettings>
+  setSpellCheck(enabled: boolean): Promise<AppSettings>
   setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
   setOmitAgentUrlDetail(enabled: boolean): Promise<AppSettings>
   setAllowWebsiteFileSaving(enabled: boolean): Promise<AppSettings>

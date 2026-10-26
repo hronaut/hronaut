@@ -275,6 +275,10 @@ export const hiIN: MessageSchema = {
       "systemOption": "सिस्टम डिफ़ॉल्ट — {language}",
       "changeFailed": "भाषा की प्राथमिकता सेव नहीं हो सकी। आपकी पिछली भाषा अब भी लागू है।"
     },
+    "spellCheck": {
+      "label": "वर्तनी जांच",
+      "description": "वेबसाइटों पर टेक्स्ट लिखते समय वर्तनी की गलतियां जांचें।"
+    },
     "interfaceSize": {
       "label": "इंटरफ़ेस का साइज़",
       "description": "वेबसाइट का ज़ूम बदले बिना Hronaut के कंट्रोल और टेक्स्ट बड़े करें।",
@@ -3705,6 +3709,8 @@ export const hiIN: MessageSchema = {
       "saveAudio": "ऑडियो सेव करें",
       "copyAudioAddress": "ऑडियो का पता कॉपी करें",
       "addDictionary": "“{word}” को शब्दकोश में जोड़ें",
+      "spellCheck": "वर्तनी जांच",
+      "checkSpelling": "टेक्स्ट फ़ील्ड की वर्तनी जांचें",
       "undo": "पहले जैसा करें",
       "redo": "फिर से करें",
       "cut": "काटें",

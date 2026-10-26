@@ -104,7 +104,8 @@ describe('SettingsStore', () => {
       memorySaverTimeoutMinutes: 15,
       graphicsAcceleration: false,
       checkForUpdatesOnStartup: false,
-      languagePreference: 'uk-UA'
+      languagePreference: 'uk-UA',
+      spellCheck: false
     })
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({
       theme: 'matrix',
@@ -136,7 +137,8 @@ describe('SettingsStore', () => {
       memorySaverTimeoutMinutes: 15,
       graphicsAcceleration: false,
       checkForUpdatesOnStartup: false,
-      languagePreference: 'uk-UA'
+      languagePreference: 'uk-UA',
+      spellCheck: false
     })
     expect(await store.load()).toEqual({
       theme: 'matrix',
@@ -168,7 +170,8 @@ describe('SettingsStore', () => {
       memorySaverTimeoutMinutes: 15,
       graphicsAcceleration: false,
       checkForUpdatesOnStartup: false,
-      languagePreference: 'uk-UA'
+      languagePreference: 'uk-UA',
+      spellCheck: false
     })
   })
 
@@ -240,7 +243,8 @@ describe('SettingsStore', () => {
       memorySaverTimeoutMinutes: 60,
       graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
-      languagePreference: 'system'
+      languagePreference: 'system',
+      spellCheck: true
     })
   })
 
@@ -359,6 +363,18 @@ describe('SettingsStore', () => {
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify({ memorySaverTimeoutMinutes }), 'utf8')
     expect((await store.load()).memorySaverTimeoutMinutes).toBe(60)
+  })
+
+  it.each([
+    { spellCheck: false, expected: false },
+    { spellCheck: true, expected: true },
+    { spellCheck: 'off', expected: true },
+    { spellCheck: undefined, expected: true }
+  ])('checks spelling unless the saved settings turned it off: $spellCheck', async ({ spellCheck, expected }) => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify({ spellCheck }), 'utf8')
+    expect((await store.load()).spellCheck).toBe(expected)
   })
 
   it('accepts only absolute download directories', () => {

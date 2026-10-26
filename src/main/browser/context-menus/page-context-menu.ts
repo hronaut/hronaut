@@ -297,6 +297,23 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     ])
     const search = searchSelection()
     if (search.length) groups.push(search)
+    // Chrome's Spell check submenu turns checking on or off for every website, as Settings does. A password field is
+    // never checked, so its menu has none.
+    if (params.formControlType !== 'input-password') {
+      groups.push([{
+        id: 'spell-check',
+        label: access.text('native.context.spellCheck'),
+        submenu: [{
+          id: 'check-spelling',
+          type: 'checkbox',
+          label: access.text('native.context.checkSpelling'),
+          checked: access.spellCheck(),
+          click: (item) => {
+            void access.setSpellCheck(item.checked).catch((error) => reportActionFailure('change spell check', error))
+          }
+        }]
+      }])
+    }
   } else if (params.selectionText) {
     groups.push([
       { id: 'copy-selection', label: access.text('native.context.copy'), click: withLiveContents('copy selection', () => webContents.copy()) },

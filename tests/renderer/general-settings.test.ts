@@ -41,7 +41,8 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       memorySaverTimeoutMinutes: 60,
       graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
-      languagePreference: locale
+      languagePreference: locale,
+      spellCheck: true
     },
     systemTheme: 'light',
     systemLocale: locale,
@@ -97,6 +98,7 @@ describe('GeneralSettings', () => {
     expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual(['General', 'Startup and tray', 'Agent activity'])
     expect(screen.getAllByRole('combobox').map((control) => control.getAttribute('aria-label'))).toEqual(['Interface language', 'Attention sound'])
     expect(screen.getAllByRole('checkbox').map((control) => control.id)).toEqual([
+      'setting-spell-check',
       'setting-hide-in-tray',
       'setting-launch-at-startup',
       'setting-launch-minimized',
@@ -205,12 +207,44 @@ describe('GeneralSettings', () => {
     expect(pin).not.toBeChecked()
   })
 
+  it('turns spell check off and on, and keeps the switch as it was when the change fails', async () => {
+    let fail = false
+    const setSpellCheck = vi.fn(async (spellCheck: boolean) => {
+      if (fail) throw new Error('disk full')
+      return { ...snapshot('en-US').settings, spellCheck }
+    })
+    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { setSpellCheck } })
+    const pinia = createTestingPinia({
+      stubActions: false,
+      createSpy: vi.fn,
+      initialState: { settings: { ...snapshot('en-US'), settings: snapshot('en-US').settings } }
+    })
+    const rendered = render(GeneralSettings, { global: { plugins: [pinia, createHronautI18n('en-US')] } })
+
+    const spelling = screen.getByRole('checkbox', { name: /^Spell check/ })
+    expect(spelling).toBeChecked()
+    expect(spelling).toHaveAccessibleName(/Check for spelling errors when you type text on websites/)
+    const user = userEvent.setup()
+    await user.click(spelling)
+    expect(setSpellCheck).toHaveBeenLastCalledWith(false)
+    expect(spelling).not.toBeChecked()
+    fail = true
+    await user.click(spelling)
+    expect(setSpellCheck).toHaveBeenLastCalledWith(true)
+    await vi.waitFor(() => expect(spelling).not.toBeChecked())
+    expect(rendered.emitted().settingError).toHaveLength(1)
+  })
+
   it('has the agent cursor setting and the General section in every language', () => {
     for (const locale of SUPPORTED_LOCALES) {
       const i18n = createHronautI18n(locale).global
       for (const key of [
         'appearance.agentCursor.label',
         'appearance.agentCursor.description',
+        'appearance.spellCheck.label',
+        'appearance.spellCheck.description',
+        'native.context.spellCheck',
+        'native.context.checkSpelling',
         'shell.agentCard.cursor',
         'settings.nav.general',
         'settings.nav.generalDescription',

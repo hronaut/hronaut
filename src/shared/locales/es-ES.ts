@@ -275,6 +275,10 @@ export const esES: MessageSchema = {
       "systemOption": "Predeterminado del sistema — {language}",
       "changeFailed": "No se pudo guardar la preferencia de idioma. El idioma anterior sigue activo."
     },
+    "spellCheck": {
+      "label": "Corrector ortográfico",
+      "description": "Comprobar si hay errores ortográficos al escribir texto en sitios web."
+    },
     "interfaceSize": {
       "label": "Tamaño de la interfaz",
       "description": "Amplía los controles y el texto de Hronaut sin cambiar el zoom de los sitios web.",
@@ -3705,6 +3709,8 @@ export const esES: MessageSchema = {
       "saveAudio": "Guardar audio",
       "copyAudioAddress": "Copiar dirección del audio",
       "addDictionary": "Añadir «{word}» al diccionario",
+      "spellCheck": "Corrector ortográfico",
+      "checkSpelling": "Revisar la ortografía de los campos de texto",
       "undo": "Deshacer",
       "redo": "Rehacer",
       "cut": "Cortar",

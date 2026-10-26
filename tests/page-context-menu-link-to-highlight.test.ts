@@ -40,6 +40,8 @@ function openMenu(params: Partial<ContextMenuParams>, url = PAGE, pageText?: () 
     isHumanInteractionLocked: () => false,
     createTab: vi.fn(async () => tab),
     searchEngine: () => 'google',
+    spellCheck: () => true,
+    setSpellCheck: async () => undefined,
     browserContentOccluded: () => false
   } as unknown as PageContextMenuAccess
   showContextMenu(access, tab, {

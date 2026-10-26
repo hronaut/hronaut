@@ -868,6 +868,10 @@ export interface TabsManagerOptions {
   /** Agents see tab addresses without query or fragment (the person's setting); read at each publication. */
   getOmitAgentUrlDetail?: () => boolean
   getSearchEngine?: () => SearchEngineName
+  /** Whether websites' text fields check spelling; on unless this says false. */
+  getSpellCheck?: () => boolean
+  /** Turns spell checking on or off for every website and saves it, as Settings does. */
+  setSpellCheck?: (enabled: boolean) => Promise<unknown>
   getLocale: () => SupportedLocale
   getTabPosition: () => TabPosition
   /** Whether an address is one of Hronaut's own windows, which the Task manager lists as Hronaut's and never ends. */
@@ -6316,6 +6320,8 @@ export class BrowserTabsManager {
       viewFrameSource: (tab, frameUrl) => viewFrameSource(this.pageSourceAccess(), tab, frameUrl),
       savePage: (tab) => savePageAs(this.pageSaveAccess(), tab),
       searchEngine: () => this.options.getSearchEngine?.() ?? DEFAULT_SEARCH_ENGINE,
+      spellCheck: () => this.options.getSpellCheck?.() !== false,
+      setSpellCheck: async (enabled) => { await this.options.setSpellCheck?.(enabled) },
       browserContentOccluded: () => this.browserContentOccluded,
       expectSavedLinkName: (webContents, url, linkName) => this.downloadController.expectSavedLinkName(webContents.id, url, linkName)
     }

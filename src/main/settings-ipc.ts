@@ -47,6 +47,8 @@ interface SettingsIpcHost {
   applyLanguagePreferenceRuntime(preference: LanguagePreference): void
   applyMainWindowTitleBarOverlay(): void
   applyMainWindowBackground(): void
+  /** Has every browser session check spelling, or stop, as the value says. */
+  applySpellCheck(enabled: boolean): void
   startupLaunchManager(): Pick<StartupLaunchManager, 'setEnabled'> | null
   defaultDownloadDirectory(): string
   effectiveDownloadDirectory(): string
@@ -136,12 +138,13 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.publishSettings()
     return host.currentRendererSettingsState()
   })
-  // Reset to default in Settings → General: language, startup and tray, and how agent activity shows.
+  // Reset to default in Settings → General: language and spell check, startup and tray, and how agent activity shows.
   ipcMain.handle('settings:reset-general', async (event) => {
     host.assertTrustedSender(event)
     if (host.isPackaged() && !host.startupLaunchManager()) {
       throw new LocalizedError('appErrors.settings.startupIntegrationUnavailable')
     }
+    const startupLaunch = host.isPackaged() ? host.startupLaunchManager() : null
     await host.updateSettings({
       hideInTray: DEFAULT_SETTINGS.hideInTray,
       launchAtStartup: DEFAULT_SETTINGS.launchAtStartup,
@@ -150,10 +153,12 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
       attentionSoundCue: DEFAULT_SETTINGS.attentionSoundCue,
       showAgentCursor: DEFAULT_SETTINGS.showAgentCursor,
       pinAgentLiveStatus: DEFAULT_SETTINGS.pinAgentLiveStatus,
-      languagePreference: DEFAULT_SETTINGS.languagePreference
-    }, host.isPackaged()
-      ? (next) => host.startupLaunchManager()!.setEnabled(next.launchAtStartup)
-      : undefined)
+      languagePreference: DEFAULT_SETTINGS.languagePreference,
+      spellCheck: DEFAULT_SETTINGS.spellCheck
+    }, async (next) => {
+      host.applySpellCheck(next.spellCheck)
+      await startupLaunch?.setEnabled(next.launchAtStartup)
+    })
     // Publishes the reset settings too, also when the language stays the same.
     await host.applyLanguagePreferenceRuntime(host.settings().languagePreference)
     return host.currentRendererSettingsState()
