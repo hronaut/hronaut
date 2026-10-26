@@ -8,7 +8,8 @@
 .debug-report-summary span { @apply text-muted [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)]; }
 .debug-report-summary article.error strong { @apply text-danger-copy; }
 .debug-report-summary article.warning strong { @apply [color:color-mix(in_srgb,_var(--text)_80%,_var(--warning))]; }
-.debug-report-empty { @apply [min-height:260px]; }
+/* An empty report gives up height before the footer's actions leave the panel, as in a window 760 px high. */
+.debug-report-empty { @apply min-h-0 [flex:0_1_260px] overflow-y-auto [align-content:safe_center]; }
 .debug-report-evidence { @apply min-h-0 overflow-y-auto [padding:12px]; }
 .debug-report-evidence > section + section { @apply [margin-top:16px]; }
 .debug-report-evidence h3 { @apply flex items-center justify-between [gap:10px] [margin:0_0_7px] [font-size:var(--type-small-size)] [letter-spacing:.04em] uppercase; }
