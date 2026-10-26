@@ -427,6 +427,7 @@ import type { PersistedStateAccess, WorkspaceBeingDeleted } from './browser-stat
 import { persistedState } from './browser-state/persisted-state.js'
 import type { BrowserStateAccess } from './browser-state/browser-state-access.js'
 import { getState } from './browser-state/browser-state.js'
+import { StatePublication } from './browser-state/state-publication.js'
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
@@ -901,7 +902,10 @@ export interface TabsManagerOptions {
   /** A tab opened a web page, or opened the one it showed again: samePage. */
   onPageVisited?: (visit: { url: string; title: string; samePage: boolean }) => void
   onPageTitleUpdated?: (page: { url: string; title: string }) => void
+  /** The browser state as it was published: the changes of a burst together (see StatePublication). */
   onStateChanged?: (state: BrowserState) => void
+  /** Something changed, called at once rather than with the publication: a page view may have been attached. */
+  onChanged?: () => void
   /** A page took or left full screen, which nothing of the shell's is drawn over. */
   onPageFullscreenChanged?: () => void
   onPageTargetUrl?: PageTargetUrlEventsOptions['onPageTargetUrl']
@@ -1193,6 +1197,15 @@ export class BrowserTabsManager {
   private destroyed = false
   private restoringLayout = false
   private persistTimer: NodeJS.Timeout | null = null
+  private readonly statePublication = new StatePublication({
+    canPublish: () => !this.destroyed && !this.window.isDestroyed() && !this.restoringLayout,
+    read: () => getState(this.browserStateAccess()),
+    loadingTabIds: () => [...this.tabs.values()].filter((tab) => tab.loading).map((tab) => tab.id),
+    send: (state) => {
+      if (!this.window.webContents.isDestroyed()) this.window.webContents.send('browser:state-changed', state)
+      this.options.onStateChanged?.(state)
+    }
+  })
   private tabHistoryStore: TabHistoryStore | undefined
   private closedTabsStore: ClosedTabsStore | undefined
   private tabHistoryTimer: NodeJS.Timeout | null = null
@@ -1657,7 +1670,9 @@ export class BrowserTabsManager {
     }
   }
 
+  /** The browser state as it is now. A change still waiting to be published goes out first (see StatePublication). */
   getState(): BrowserState {
+    this.statePublication.beforeRead()
     return getState(this.browserStateAccess())
   }
 
@@ -5603,6 +5618,7 @@ export class BrowserTabsManager {
     this.mcpActivityFollower.dispose()
     this.stopPresentationWatcher?.()
     if (this.persistTimer) clearTimeout(this.persistTimer)
+    this.statePublication.dispose()
     if (this.tabHistoryTimer) clearInterval(this.tabHistoryTimer)
     if (this.memorySaverTimer) clearInterval(this.memorySaverTimer)
     this.downloadController.clearPendingNotification()
@@ -6809,9 +6825,8 @@ export class BrowserTabsManager {
 
   private changed(persist = true): void {
     if (this.destroyed || this.window.isDestroyed() || this.restoringLayout) return
-    const state = this.getState()
-    if (!this.window.webContents.isDestroyed()) this.window.webContents.send('browser:state-changed', state)
-    this.options.onStateChanged?.(state)
+    this.options.onChanged?.()
+    this.statePublication.changed()
     if (!persist) return
     if (this.persistTimer) clearTimeout(this.persistTimer)
     this.persistTimer = setTimeout(() => {
