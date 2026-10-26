@@ -3699,6 +3699,8 @@ export const viVN: MessageSchema = {
       "openVideo": "Mở video trong thẻ mới",
       "saveVideo": "Lưu video",
       "copyVideoAddress": "Sao chép địa chỉ video",
+      "copyVideoFrame": "Sao chép khung hình video",
+      "saveVideoFrame": "Lưu khung hình video",
       "openAudio": "Mở âm thanh trong thẻ mới",
       "saveAudio": "Lưu âm thanh",
       "copyAudioAddress": "Sao chép địa chỉ âm thanh",

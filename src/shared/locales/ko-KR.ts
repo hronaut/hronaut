@@ -3699,6 +3699,8 @@ export const koKR: MessageSchema = {
       "openVideo": "새 탭에서 동영상 열기",
       "saveVideo": "동영상 저장",
       "copyVideoAddress": "동영상 주소 복사",
+      "copyVideoFrame": "동영상 프레임 복사",
+      "saveVideoFrame": "동영상 프레임 저장",
       "openAudio": "새 탭에서 오디오 열기",
       "saveAudio": "오디오 저장",
       "copyAudioAddress": "오디오 주소 복사",

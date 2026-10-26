@@ -50,7 +50,8 @@ export const ptBRAppErrors: AppErrorMessages = {
     "textRejected": "O texto foi preparado, mas a área de transferência do sistema não o aceitou",
     "screenshotRejected": "A captura de tela foi feita, mas a área de transferência do sistema não aceitou a imagem",
     "pageClosed": "A página foi fechada antes que a imagem dela pudesse ser copiada",
-    "imageRejected": "A imagem da página foi selecionada, mas a área de transferência do sistema não a aceitou"
+    "imageRejected": "A imagem da página foi selecionada, mas a área de transferência do sistema não a aceitou",
+    "videoFrameRejected": "O vídeo não tinha um quadro para copiar, ou a área de transferência do sistema não o aceitou"
   },
   "tabs": {
     "noActiveTab": "Não há guia ativa",

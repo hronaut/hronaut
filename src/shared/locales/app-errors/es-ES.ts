@@ -50,7 +50,8 @@ export const esESAppErrors: AppErrorMessages = {
     "textRejected": "El texto se preparó, pero el portapapeles del sistema no lo aceptó.",
     "screenshotRejected": "La captura de pantalla se tomó, pero el portapapeles del sistema no aceptó la imagen.",
     "pageClosed": "La página se cerró antes de que se pudiera copiar su imagen.",
-    "imageRejected": "La imagen de la página se seleccionó, pero el portapapeles del sistema no la aceptó."
+    "imageRejected": "La imagen de la página se seleccionó, pero el portapapeles del sistema no la aceptó.",
+    "videoFrameRejected": "El vídeo no tenía ningún fotograma que copiar, o el portapapeles del sistema no lo aceptó."
   },
   "tabs": {
     "noActiveTab": "No hay ninguna pestaña activa.",

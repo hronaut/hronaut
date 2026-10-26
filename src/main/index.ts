@@ -484,7 +484,8 @@ const {
   copyTextToClipboard,
   reportClipboardFailure,
   copyPngToClipboard,
-  copyPageImageToClipboard
+  copyPageImageToClipboard,
+  copyVideoFrameToClipboard
 } = createClipboardOperations({
   text,
   mainWindow: () => mainWindowRefs.window
@@ -1202,6 +1203,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     onShortcutRequested: runPageShortcut,
     copyText: copyTextToClipboard,
     copyImageAt: copyPageImageToClipboard,
+    copyVideoFrameAt: copyVideoFrameToClipboard,
     onClipboardCopyFailed: reportClipboardFailure,
     onActionFailed: reportBrowserActionFailure,
     offerUndo: (action) => undoOffers.offer(action),

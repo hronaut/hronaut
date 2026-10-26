@@ -3699,6 +3699,8 @@ export const esES: MessageSchema = {
       "openVideo": "Abrir vídeo en pestaña nueva",
       "saveVideo": "Guardar vídeo",
       "copyVideoAddress": "Copiar dirección del vídeo",
+      "copyVideoFrame": "Copiar fotograma del vídeo",
+      "saveVideoFrame": "Guardar fotograma del vídeo",
       "openAudio": "Abrir audio en pestaña nueva",
       "saveAudio": "Guardar audio",
       "copyAudioAddress": "Copiar dirección del audio",

@@ -54,7 +54,8 @@ export const enUSAppErrors = {
     "textRejected": "The text was prepared, but the system clipboard did not accept it",
     "screenshotRejected": "The screenshot was captured, but the system clipboard did not accept the image",
     "pageClosed": "The page closed before its image could be copied",
-    "imageRejected": "The page image was selected, but the system clipboard did not accept it"
+    "imageRejected": "The page image was selected, but the system clipboard did not accept it",
+    "videoFrameRejected": "The video had no frame to copy, or the system clipboard did not accept it"
   },
   "tabs": {
     "noActiveTab": "There is no active tab",
