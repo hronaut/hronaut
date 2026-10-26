@@ -30,6 +30,8 @@ export function expectFixtureSuccess(result: CallToolResult, operation: string):
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
 const testTraces = new WeakMap<TestInfo, ElectronTraceRecorder>()
 const applicationTraces = new WeakMap<ElectronApplication, ElectronTraceRecorder>()
+// Launches whose processes print their native stack when a fatal signal reaches them.
+const stackDumpingApps = new WeakSet<ElectronApplication>()
 
 export interface HronautInstance {
   app: ElectronApplication
@@ -151,6 +153,7 @@ export async function launchHronaut(
     }
   })
   if (testInfo) readNativeCrashStacks(testInfo, app.process().stderr)
+  if (environment.ELECTRON_ENABLE_STACK_DUMPING) stackDumpingApps.add(app)
   try {
     await app.evaluate(({ app }) => {
       const exits: { reason: string; exitCode: number; webContentsId: number; type: string; surface: string; occurredAt: number }[] = []
@@ -274,11 +277,17 @@ export async function closeHronaut(app: ElectronApplication): Promise<void> {
   }).catch(() => undefined), 1_000)
   const closePromise = app.close().catch(() => undefined)
   await settleWithin(closePromise, 3_000)
-  if (child.exitCode === null) {
+  if (!exited(child)) {
     child.kill('SIGTERM')
     await waitForExit(child, 2_000)
   }
-  if (child.exitCode === null) {
+  if (!exited(child) && stackDumpingApps.has(app)) {
+    // A main process that takes neither app.close() nor SIGTERM is stuck. SIGABRT has its main thread print where it
+    // waits, which a failed test attaches with the crash traces.
+    child.kill('SIGABRT')
+    await waitForExit(child, 2_000)
+  }
+  if (!exited(child)) {
     child.kill('SIGKILL')
     await waitForExit(child, 2_000)
   }
@@ -296,11 +305,16 @@ async function settleWithin(promise: Promise<unknown>, timeoutMs: number): Promi
   if (timer) clearTimeout(timer)
 }
 
+/** A process a signal ended keeps a null exit code and names the signal instead. */
+function exited(child: ReturnType<ElectronApplication['process']>): boolean {
+  return child.exitCode !== null || Boolean(child.signalCode)
+}
+
 async function waitForExit(
   child: ReturnType<ElectronApplication['process']>,
   timeoutMs: number
 ): Promise<void> {
-  if (child.exitCode !== null) return
+  if (exited(child)) return
   await new Promise<void>((resolve) => {
     const finish = (): void => {
       clearTimeout(timer)

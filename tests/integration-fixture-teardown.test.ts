@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import { createServer, get } from 'node:http'
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -25,6 +26,47 @@ describe('integration fixture teardown', () => {
       expect(close).toHaveBeenCalledOnce()
     } finally {
       launch.mockRestore()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it.each([
+    ['prints its native stack first', '1', ['SIGTERM', 'SIGABRT']],
+    ['is killed', undefined, ['SIGTERM', 'SIGKILL']]
+  ] as const)('a main process stuck past SIGTERM %s', async (_case, stackDumping, signals) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-stuck-main-'))
+    try {
+      const failure = new Error('simulated monitor startup failure')
+      const kills: string[] = []
+      const child = Object.assign(new EventEmitter(), {
+        exitCode: null,
+        signalCode: null as string | null,
+        stderr: null,
+        kill(signal: string) {
+          kills.push(signal)
+          // A stuck main process ignores SIGTERM; a fatal signal ends it.
+          if (signal === 'SIGTERM') return true
+          child.signalCode = signal
+          child.emit('exit', null, signal)
+          return true
+        }
+      })
+      const evaluate = vi.fn().mockRejectedValueOnce(failure).mockReturnValue(new Promise<never>(() => undefined))
+      const app = { evaluate, close: vi.fn(async () => undefined), process: () => child } as unknown as ElectronApplication
+      const launch = vi.spyOn(electron, 'launch').mockResolvedValue(app)
+      try {
+        const outcome = launchHronaut(directory, undefined, 1, [], [], { ELECTRON_ENABLE_STACK_DUMPING: stackDumping }).catch(error => error)
+        await vi.waitFor(() => expect(evaluate).toHaveBeenCalledTimes(2))
+        await vi.runAllTimersAsync()
+        expect(await outcome).toBe(failure)
+        expect(kills).toEqual(signals)
+        expect(vi.getTimerCount()).toBe(0)
+      } finally {
+        launch.mockRestore()
+      }
+    } finally {
+      vi.useRealTimers()
       await rm(directory, { recursive: true, force: true })
     }
   })
