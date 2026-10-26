@@ -159,18 +159,24 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   // Chrome's Copy Video Frame and Save Video Frame, for the frame the video shows, taken from the frame of the page the
   // video is in, which the click's page coordinates reach even across sites. Electron tells nothing of whether the video
   // has a frame to give, so only a video in error has them unavailable: a copy without a frame reports it failed, and a
-  // save without one saves nothing, as does either from a frame the page has removed since. The save goes through the
-  // downloads, as Save Video does.
+  // save without one saves nothing. The save goes through the downloads, as Save Video does.
   const videoFrameItems = (): MenuItemConstructorOptions[] => {
-    const videoFrame = params.frame ?? webContents.mainFrame
-    const enabled = !params.mediaFlags.inError
+    const enabled = !params.mediaFlags.inError && Boolean(params.frame)
+    // The frame as it is when an item is chosen. Electron gives none once it has navigated or gone, and then, as in
+    // Chrome, nothing is copied or saved from the document now in its place.
+    const videoFrame = (): WebFrameMain | undefined => {
+      const current = params.frame
+      return current && !current.isDestroyed() && !current.detached ? current : undefined
+    }
     return [
       {
         id: 'copy-video-frame',
         label: access.text('native.context.copyVideoFrame'),
         enabled,
         click: withLiveContents('copy video frame', () => {
-          void access.options().copyVideoFrameAt(videoFrame, params.x, params.y)
+          const current = videoFrame()
+          if (!current) return
+          void access.options().copyVideoFrameAt(current, params.x, params.y)
             .catch((error) => reportCopyFailure('image', error))
         })
       },
@@ -178,10 +184,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
         id: 'save-video-frame',
         label: access.text('native.context.saveVideoFrame'),
         enabled,
-        click: withLiveContents('save video frame', () => {
-          if (videoFrame.isDestroyed() || videoFrame.detached) return
-          videoFrame.saveVideoFrameAs(params.x, params.y)
-        })
+        click: withLiveContents('save video frame', () => videoFrame()?.saveVideoFrameAs(params.x, params.y))
       }
     ]
   }

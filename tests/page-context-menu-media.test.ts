@@ -57,15 +57,17 @@ function mediaMenu(params: Partial<ContextMenuParams>) {
     expectSavedLinkName: vi.fn(),
     createTab
   } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, {
+  // Electron's params give the frame of the click until it navigates or goes, and then none.
+  const menuParams = {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
-    mediaFlags: { canSave: true, inError: false },
+    mediaFlags: { canSave: true, inError: false }, frame: mainFrame,
     pageURL: PAGE, frameURL: PAGE, referrerPolicy: 'strict-origin-when-cross-origin', ...params
-  } as unknown as ContextMenuParams)
+  } as unknown as ContextMenuParams
+  showContextMenu(access, tab, menuParams)
   const items = built.templates.at(-1)!
   const item = (id: string) => items.find(entry => entry.id === id)
   const click = (id: string) => (item(id)!.click as () => void)()
-  return { items, item, click, createTab, downloadURL, copyText, copyVideoFrameAt, onClipboardCopyFailed, mainFrame }
+  return { items, item, click, createTab, downloadURL, copyText, copyVideoFrameAt, onClipboardCopyFailed, mainFrame, params: menuParams as { frame: WebFrameMain | null } }
 }
 
 afterEach(() => {
@@ -122,14 +124,36 @@ describe('the page menu on a video or audio', () => {
     expect(menu.mainFrame.saveVideoFrameAs).not.toHaveBeenCalled()
   })
 
-  it('saves nothing from a frame the page removed while the menu was open', () => {
+  it('copies and saves nothing from a frame the page removed while the menu was open', () => {
     const state = { parent: {}, detached: false }
     const frame = pageFrame(state)
     const menu = mediaMenu({ mediaType: 'video', srcURL: VIDEO, frame: frame as unknown as WebFrameMain })
     state.detached = true
+    menu.click('copy-video-frame')
     menu.click('save-video-frame')
+    expect(menu.copyVideoFrameAt).not.toHaveBeenCalled()
     expect(frame.saveVideoFrameAs).not.toHaveBeenCalled()
     expect(menu.mainFrame.saveVideoFrameAs).not.toHaveBeenCalled()
+  })
+
+  it('copies and saves nothing from the page once the frame of the click has navigated, as Chrome does', () => {
+    // The menu kept the frame it was opened on, or fell back to the page's own frame, so it could copy a frame of a
+    // video in the document that had replaced the one clicked.
+    const frame = pageFrame({ parent: {} })
+    const menu = mediaMenu({ mediaType: 'video', srcURL: VIDEO, frame: frame as unknown as WebFrameMain })
+    menu.params.frame = null
+    menu.click('copy-video-frame')
+    menu.click('save-video-frame')
+    expect(menu.copyVideoFrameAt).not.toHaveBeenCalled()
+    expect(frame.saveVideoFrameAs).not.toHaveBeenCalled()
+    expect(menu.mainFrame.saveVideoFrameAs).not.toHaveBeenCalled()
+  })
+
+  it('keeps the frame items unavailable when the frame of the click is already gone', () => {
+    const menu = mediaMenu({ mediaType: 'video', srcURL: VIDEO, frame: null })
+    expect(menu.item('copy-video-frame')?.enabled).toBe(false)
+    expect(menu.item('save-video-frame')?.enabled).toBe(false)
+    expect(menu.item('copy-video-address')!.enabled).not.toBe(false)
   })
 
   it('keeps the frame items unavailable for a video in error, and offers none for an audio', () => {

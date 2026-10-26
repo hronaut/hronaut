@@ -1,8 +1,12 @@
+import { execFile } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 import { closeFixtureServer, expect, test } from './fixtures.js'
+
+const exec = promisify(execFile)
 
 /** Half a second of silence as a WAV file, so the page has an audio Chromium can load and save. */
 function silentWav(): Buffer {
@@ -110,8 +114,9 @@ test('opens, saves and copies an audio from the page menu, as Chrome does', asyn
 // A 128x72 VP9 video whose first frame is red, shown at 320x180.
 const RED_FIRST_FRAME = readFileSync(fileURLToPath(new URL('../fixtures/first-frame/red-green.webm', import.meta.url)))
 
-test('copies and saves the frame a video shows, in the page and in a frame of it, as Chrome does', async ({ appWindow, electronApp, profileDirectory }) => {
+test('copies and saves the frame a video shows, in the page and in a frame of another site, as Chrome does', async ({ appWindow, electronApp, profileDirectory }) => {
   const video = '<video id="video" muted preload="auto" src="/clip.webm" style="width:320px;height:180px"></video>'
+  let frameUrl = ''
   const server = createServer((request, response) => {
     if (request.url === '/clip.webm') {
       response.writeHead(200, { 'content-type': 'video/webm', 'content-length': RED_FIRST_FRAME.length }).end(RED_FIRST_FRAME)
@@ -119,12 +124,14 @@ test('copies and saves the frame a video shows, in the page and in a frame of it
     }
     response.writeHead(200, { 'content-type': 'text/html' }).end(request.url === '/frame'
       ? `<!doctype html><body style="margin:0">${video}</body>`
-      : `<!doctype html><title>Video menu fixture</title><body style="margin:0">${video}<iframe id="frame" src="/frame" style="display:block;border:0;width:340px;height:200px"></iframe></body>`)
+      : `<!doctype html><title>Video menu fixture</title><body style="margin:0">${video}<iframe id="frame" src="${frameUrl}" style="display:block;border:0;width:340px;height:200px"></iframe></body>`)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('Missing fixture port')
   const url = `http://127.0.0.1:${address.port}/watch`
+  // Another site, as an embedded player is, so the frame runs in a process of its own.
+  frameUrl = `http://localhost:${address.port}/frame`
   type Target = 'page' | 'frame'
   // The video's center in the page, and whether it has a frame to show.
   const videoState = (target: Target) => electronApp.evaluate(async ({ webContents }, { url, target }) => {
@@ -142,20 +149,30 @@ test('copies and saves the frame a video shows, in the page and in a frame of it
     for (const target of ['page', 'frame'] as const) {
       await expect.poll(async () => (await videoState(target))?.readyState ?? 0).toBeGreaterThanOrEqual(2)
     }
+    expect(await electronApp.evaluate(({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
+      return page.mainFrame.frames[0]!.osProcessId !== page.mainFrame.osProcessId
+    }, url)).toBe(true)
     await electronApp.evaluate(({ Menu }) => {
       Menu.prototype.popup = function (): void {
         ;(globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu = this
       }
     })
+    // A real right-click on the screen: an input event sent to the page goes to its own frame, never into a frame of
+    // another site.
     const openMenu = async (target: Target): Promise<MenuItemState[]> => {
       const point = (await videoState(target))!
-      await electronApp.evaluate(({ webContents }, { url, point }) => {
+      const screen = await electronApp.evaluate(({ BrowserWindow, WebContentsView }, { url, point }) => {
         ;(globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu = undefined
-        const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
-        page.focus()
-        page.sendInputEvent({ type: 'mouseDown', button: 'right', clickCount: 1, x: point.x, y: point.y })
-        page.sendInputEvent({ type: 'mouseUp', button: 'right', clickCount: 1, x: point.x, y: point.y })
+        const window = BrowserWindow.getAllWindows()[0]!
+        const view = window.contentView.children
+          .find((child): child is InstanceType<typeof WebContentsView> => child instanceof WebContentsView && child.webContents.getURL() === url)
+        if (!view) throw new Error('Video menu fixture view was not found')
+        const origin = window.getContentBounds()
+        const bounds = view.getBounds()
+        return { x: origin.x + bounds.x + point.x, y: origin.y + bounds.y + point.y }
       }, { url, point })
+      await exec('python3', [join(process.cwd(), 'tests/integration/x11-input.py'), String(screen.x), String(screen.y), '--right-click'])
       let items: MenuItemState[] = []
       await expect.poll(async () => {
         items = await electronApp.evaluate(() => (globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu?.items

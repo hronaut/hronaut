@@ -51,7 +51,7 @@ export const deDEAppErrors: AppErrorMessages = {
     "screenshotRejected": "Der Screenshot wurde aufgenommen, aber die Zwischenablage des Systems hat das Bild nicht angenommen.",
     "pageClosed": "Die Seite wurde geschlossen, bevor ihr Bild kopiert werden konnte.",
     "imageRejected": "Das Bild auf der Seite wurde ausgewählt, aber die Zwischenablage des Systems hat es nicht angenommen.",
-    "videoFrameRejected": "Das Video hatte kein Bild zum Kopieren, oder die Zwischenablage des Systems hat es nicht angenommen."
+    "videoFrameRejected": "Das Video hatte keinen Videoframe zum Kopieren, oder die Zwischenablage des Systems hat ihn nicht angenommen."
   },
   "tabs": {
     "noActiveTab": "Es gibt keinen aktiven Tab.",

@@ -3,6 +3,8 @@ import { writeVerifiedClipboardText } from './verified-clipboard.js'
 import { LocalizedError, personErrorMessage } from './localized-error.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 
+type ClipboardRecord = ConstructorParameters<typeof ClipboardItem>[0]
+
 interface ClipboardOperationsHost {
   /** Translates into the current interface language; read on every use because the language can change. */
   text(key: MessageKey, parameters?: MessageParameters): string
@@ -83,15 +85,43 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
     return queueClipboardOperation(() => writePngToClipboard(data))
   }
 
-  /** Has the page copy an image itself, then reads it back and writes it again as a verified PNG. */
+  /** What the clipboard holds, by media type, so a failed copy can put it back. */
+  async function clipboardContents(): Promise<ClipboardRecord[]> {
+    try {
+      return await Promise.all((await clipboard.read()).map(async item => Object.fromEntries(
+        await Promise.all(item.types.map(async type => [type, await item.getType(type)] as const))
+      )))
+    } catch {
+      return []
+    }
+  }
+
+  async function restoreClipboard(contents: ClipboardRecord[]): Promise<void> {
+    if (contents.length === 0) return
+    try {
+      await clipboard.write(contents.map(record => new ClipboardItem(record)))
+    } catch {
+      // The copy has failed already; that is what the person hears about.
+    }
+  }
+
+  /**
+   * Has the page copy an image itself, then reads it back and writes it again as a verified PNG. Each try clears the
+   * clipboard first, so a copy that fails puts back what the person had copied before.
+   */
   async function copyImageThePageGives(
     pageGone: () => boolean,
     copy: () => void,
     rejected: 'appErrors.clipboard.imageRejected' | 'appErrors.clipboard.videoFrameRejected'
   ): Promise<void> {
     await queueClipboardOperation(async () => {
+      if (pageGone()) throw new LocalizedError('appErrors.clipboard.pageClosed')
+      const before = await clipboardContents()
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        if (pageGone()) throw new LocalizedError('appErrors.clipboard.pageClosed')
+        if (pageGone()) {
+          await restoreClipboard(before)
+          throw new LocalizedError('appErrors.clipboard.pageClosed')
+        }
         clipboard.clear()
         copy()
         await new Promise<void>((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
@@ -99,11 +129,17 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
         if (!image.isEmpty()) {
           const png = image.toPNG()
           if (png.byteLength > 0) {
-            await writePngToClipboard(png)
-            return
+            try {
+              await writePngToClipboard(png)
+              return
+            } catch (error) {
+              await restoreClipboard(before)
+              throw error
+            }
           }
         }
       }
+      await restoreClipboard(before)
       throw new LocalizedError(rejected)
     })
   }
