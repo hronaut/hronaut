@@ -103,6 +103,12 @@ test('Home manages workspaces across themes and narrow windows', async ({ appWin
   await editor.getByLabel('Workspace name', { exact: true }).fill('Personal browsing')
   await editor.getByRole('button', { name: 'Save changes' }).click()
   await expect(editor).toBeHidden()
+  // The editor leaves the accessibility tree as its exit starts, while Home's view stays hidden under the still image
+  // the exit plays over, and a hidden view drops clicks. Home takes clicks once the exit ends and its view shows again.
+  await expect(appWindow.locator('.tab-group-editor-overlay')).toHaveCount(0)
+  await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some(window => window.contentView.children.some(child => (
+    (child as unknown as { webContents?: { getURL(): string } }).webContents?.getURL().startsWith('hronaut://home') === true && child.getVisible()
+  ))))).toBe(true)
   await expect(library.getByRole('article', { name: 'Personal browsing' })).toBeVisible()
   await library.getByRole('button', { name: 'Portable workspace templates', exact: true }).click()
   await expect(appWindow.getByRole('dialog', { name: 'Portable workspace templates', exact: true })).toBeVisible()
