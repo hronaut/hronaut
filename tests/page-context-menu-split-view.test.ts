@@ -92,9 +92,11 @@ describe('Open Link in Split View in a link\'s page menu', () => {
     }
   })
 
-  it('is unavailable for a link that is not a web address and on Home, which split view never shows', () => {
+  it('is unavailable for a link that is not a web address, and left out on Home, which split view never shows', () => {
     expect(linkMenu('mailto:team@docs.example').item?.enabled).toBe(false)
     expect(linkMenu('javascript:void(0)').item?.enabled).toBe(false)
-    expect(linkMenu('https://docs.example/guide/api', { page: 'hronaut://home/' }).item?.enabled).toBe(false)
+    const home = linkMenu('https://docs.example/guide/api', { page: 'hronaut://home/' })
+    expect(home.item).toBeUndefined()
+    expect(home.items.map(entry => entry.id)).toContain('open-link-new-tab')
   })
 })

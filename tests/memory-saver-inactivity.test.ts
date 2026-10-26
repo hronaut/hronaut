@@ -12,13 +12,13 @@ interface Tab {
   sleeping: boolean
   lastActiveAt: number
   view: { id: string }
-  webContents: { id: number; isDestroyed: () => boolean; isLoadingMainFrame: () => boolean }
+  webContents: { id: number; isDestroyed: () => boolean }
 }
 
 function page(id: string, number: number, lastActiveAt: number): Tab {
   return {
     id, url: `https://example.test/${id}`, sleeping: false, lastActiveAt,
-    view: { id: `view-${id}` }, webContents: { id: number, isDestroyed: () => false, isLoadingMainFrame: () => false }
+    view: { id: `view-${id}` }, webContents: { id: number, isDestroyed: () => false }
   }
 }
 

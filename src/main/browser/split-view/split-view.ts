@@ -1,3 +1,4 @@
+import type { WebContents } from 'electron'
 import type { BrowserState } from '../../../shared/types.js'
 import { isBrowserSplitOrientation, normalizeSplitViewRatio, type BrowserSplitOrientation } from '../../../shared/split-view.js'
 import { isHronautHomeUrl } from '../url.js'
@@ -11,7 +12,7 @@ import { LocalizedError } from '../../localized-error.js'
  * state without opening, even when a wake failed. Asking for the split view
  * is itself a selection, so a tab still waking for an earlier one stays out.
  */
-export async function openSplitViewAndWait<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>, tabId: string): Promise<BrowserState> {
+export async function openSplitViewAndWait<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>, tabId: string, options: OpenSplitViewOptions = {}): Promise<BrowserState> {
   const current = access.getActiveTab()
   const target = access.getTab(tabId)
   if (current.id === target.id) throw new LocalizedError('appErrors.splitView.sameTab')
@@ -43,14 +44,19 @@ export async function openSplitViewAndWait<Tab extends SplitViewTab>(access: Spl
     throw error
   }
   if (superseded()) return access.getState()
-  return openSplitView(access, target.id)
+  return openSplitView(access, target.id, options)
+}
+
+export interface OpenSplitViewOptions {
+  /** The chosen tab was just opened for a link beside the page, which the person keeps reading. */
+  openedBeside?: boolean
 }
 
 /**
  * Shows the chosen tab beside the active one, replacing any other split, and
  * wakes either tab that sleeps without waiting for it.
  */
-export function openSplitView<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>, tabId: string): BrowserState {
+export function openSplitView<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>, tabId: string, options: OpenSplitViewOptions = {}): BrowserState {
   const current = access.getActiveTab()
   const target = access.getTab(tabId)
   if (current.id === target.id) throw new LocalizedError('appErrors.splitView.sameTab')
@@ -90,10 +96,13 @@ export function openSplitView<Tab extends SplitViewTab>(access: SplitViewAccess<
   access.addChildView(target.view)
   access.layout()
   access.focusTabOrTrustedChrome(current)
-  keepKeyboardFromLoadingPane(access, current, target)
+  if (options.openedBeside) keepKeyboardFromLoadingPane(access, current, target)
   access.changed()
   return access.getState()
 }
+
+// Stops each pane's keyboard guard, so a pane opened beside again keeps a single one.
+const keyboardGuards = new WeakMap<WebContents, () => void>()
 
 /**
  * A page still loading its first document, such as a link just opened beside the page, takes the keyboard when its
@@ -102,24 +111,31 @@ export function openSplitView<Tab extends SplitViewTab>(access: SplitViewAccess<
  */
 function keepKeyboardFromLoadingPane<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>, active: Tab, loading: Tab): void {
   const contents = loading.webContents
-  if (!contents.isLoadingMainFrame()) return
+  keyboardGuards.get(contents)?.()
+  // A new tab's load may not have started yet, so only a page that already shows a document is left alone.
+  if (contents.getURL() !== '' && !contents.isLoadingMainFrame()) return
   const generation = access.splitViewGeneration()
+  const superseded = (): boolean => access.splitViewGeneration() !== generation || access.activeTabId() !== active.id
+    || access.findTab(active.id) !== active || active.webContents.isDestroyed() || contents.isDestroyed()
   // Chromium can ignore a focus change made from the focus event itself, so it is given back on the next turn.
   const giveBack = (): void => {
     setImmediate(() => {
-      if (access.splitViewGeneration() !== generation || access.activeTabId() !== active.id) return
-      if (access.findTab(active.id) !== active || active.webContents.isDestroyed()) return
-      if (contents.isDestroyed() || !contents.isFocused()) return
-      access.focusTabOrTrustedChrome(active)
+      if (superseded()) {
+        stop()
+        return
+      }
+      if (contents.isFocused()) access.focusTabOrTrustedChrome(active)
     })
   }
   const stop = (): void => {
+    if (keyboardGuards.get(contents) === stop) keyboardGuards.delete(contents)
     contents.off('focus', giveBack)
     contents.off('did-navigate', stop)
     contents.off('did-fail-load', stop)
     contents.off('did-stop-loading', stop)
     contents.off('destroyed', stop)
   }
+  keyboardGuards.set(contents, stop)
   contents.on('focus', giveBack)
   contents.on('did-navigate', stop)
   contents.on('did-fail-load', stop)

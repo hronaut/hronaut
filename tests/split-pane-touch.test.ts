@@ -19,7 +19,6 @@ vi.mock('electron', () => {
         session: { partition: 'workspace' },
         isDestroyed: () => false,
         isDevToolsOpened: () => false,
-        isLoadingMainFrame: () => false,
         setAudioMuted() {},
         focus: () => { focused.push(String(id)) },
         loadURL: () => Promise.resolve(),

@@ -208,13 +208,13 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
         enabled: webLink,
         click: () => openBackgroundTab(params.linkURL)
       },
-      {
+      // Hronaut Home is never shown in split view.
+      ...isHronautHomeUrl(tab.url) ? [] : [{
         id: 'open-link-split-view',
         label: access.text('native.context.openLinkSplit'),
-        // Home is never shown in split view.
-        enabled: webLink && !isHronautHomeUrl(tab.url),
+        enabled: webLink,
         click: () => openLinkInSplitView(params.linkURL)
-      },
+      }],
       {
         id: 'copy-link-address',
         label: access.text(email ? 'native.context.copyEmail' : 'native.context.copyLink'),

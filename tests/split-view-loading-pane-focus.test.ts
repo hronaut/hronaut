@@ -9,11 +9,13 @@ import type { BrowserSplitViewState } from '../src/shared/split-view.js'
 // A link opened beside the page took the keyboard when its pane first showed, though the person was still reading
 // the page they opened it from.
 
-type FakeContents = EventEmitter & { loading: boolean, focused: boolean, destroyed: boolean }
+type FakeContents = EventEmitter & { shown: string, loading: boolean, focused: boolean, destroyed: boolean }
 
+/** A tab whose page shows its address, or, still loading its first document, nothing yet. */
 function tab(id: string, loading = false): SplitViewTab & { webContents: WebContents & FakeContents } {
-  const contents = Object.assign(new EventEmitter(), { loading, focused: false, destroyed: false })
+  const contents = Object.assign(new EventEmitter(), { shown: loading ? '' : `https://${id}.example/`, loading, focused: false, destroyed: false })
   Object.assign(contents, {
+    getURL: () => contents.shown,
     isDestroyed: () => contents.destroyed,
     isLoadingMainFrame: () => contents.loading,
     isFocused: () => contents.focused
@@ -55,6 +57,8 @@ function browser() {
   return { access, state, guide, link, focusTabOrTrustedChrome }
 }
 
+const beside = { openedBeside: true }
+
 /** The loading pane's view shows and Chromium gives it the keyboard. */
 async function takesKeyboard(contents: FakeContents): Promise<void> {
   contents.focused = true
@@ -65,7 +69,7 @@ async function takesKeyboard(contents: FakeContents): Promise<void> {
 describe('the keyboard while a pane beside the page loads its first document', () => {
   it('goes back to the active pane until that document arrives', async () => {
     const { access, guide, link, focusTabOrTrustedChrome } = browser()
-    openSplitView(access, 'link')
+    openSplitView(access, 'link', beside)
     expect(focusTabOrTrustedChrome).toHaveBeenCalledExactlyOnceWith(guide)
 
     await takesKeyboard(link.webContents)
@@ -82,13 +86,13 @@ describe('the keyboard while a pane beside the page loads its first document', (
 
   it('stays with the loading pane once the person or an agent made it active, or the split changed', async () => {
     const madeActive = browser()
-    openSplitView(madeActive.access, 'link')
+    openSplitView(madeActive.access, 'link', beside)
     madeActive.state.activeTabId = 'link'
     await takesKeyboard(madeActive.link.webContents)
     expect(madeActive.focusTabOrTrustedChrome).toHaveBeenCalledOnce()
 
     const changed = browser()
-    openSplitView(changed.access, 'link')
+    openSplitView(changed.access, 'link', beside)
     changed.state.splitViewGeneration += 1
     await takesKeyboard(changed.link.webContents)
     expect(changed.focusTabOrTrustedChrome).toHaveBeenCalledOnce()
@@ -96,7 +100,7 @@ describe('the keyboard while a pane beside the page loads its first document', (
 
   it('is left alone when the keyboard already moved on, the load failed or the pane was destroyed', async () => {
     const movedOn = browser()
-    openSplitView(movedOn.access, 'link')
+    openSplitView(movedOn.access, 'link', beside)
     movedOn.link.webContents.emit('focus')
     movedOn.link.webContents.focused = false
     await new Promise(resolve => setImmediate(resolve))
@@ -104,7 +108,7 @@ describe('the keyboard while a pane beside the page loads its first document', (
 
     for (const end of ['did-fail-load', 'did-stop-loading', 'destroyed']) {
       const { access, link, focusTabOrTrustedChrome } = browser()
-      openSplitView(access, 'link')
+      openSplitView(access, 'link', beside)
       link.webContents.emit(end)
       expect(link.webContents.eventNames()).toEqual([])
       await takesKeyboard(link.webContents)
@@ -112,12 +116,41 @@ describe('the keyboard while a pane beside the page loads its first document', (
     }
   })
 
-  it('is not watched for a pane that already shows its page', async () => {
-    const { access, link, focusTabOrTrustedChrome } = browser()
+  it('is not watched for a pane that already shows its page, or that the person put beside the page', async () => {
+    const shown = browser()
+    shown.link.webContents.loading = false
+    shown.link.webContents.shown = 'https://link.example/'
+    openSplitView(shown.access, 'link', beside)
+    expect(shown.link.webContents.eventNames()).toEqual([])
+    await takesKeyboard(shown.link.webContents)
+    expect(shown.focusTabOrTrustedChrome).toHaveBeenCalledOnce()
+
+    // Chosen from the tab strip, the tab is what the person wants to look at.
+    const chosen = browser()
+    openSplitView(chosen.access, 'link')
+    expect(chosen.link.webContents.eventNames()).toEqual([])
+  })
+
+  it('is watched for a new tab whose load has not started yet', async () => {
+    const { access, link, guide, focusTabOrTrustedChrome } = browser()
     link.webContents.loading = false
-    openSplitView(access, 'link')
-    expect(link.webContents.eventNames()).toEqual([])
+    openSplitView(access, 'link', beside)
     await takesKeyboard(link.webContents)
-    expect(focusTabOrTrustedChrome).toHaveBeenCalledOnce()
+    expect(focusTabOrTrustedChrome).toHaveBeenLastCalledWith(guide)
+    expect(focusTabOrTrustedChrome).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps one watch on a pane opened beside again, and drops it once the split changed', async () => {
+    const { access, state, link, focusTabOrTrustedChrome } = browser()
+    openSplitView(access, 'link', beside)
+    openSplitView(access, 'link', beside)
+    expect(link.webContents.listenerCount('focus')).toBe(1)
+    await takesKeyboard(link.webContents)
+    expect(focusTabOrTrustedChrome).toHaveBeenCalledTimes(3)
+
+    state.splitViewGeneration += 1
+    await takesKeyboard(link.webContents)
+    expect(focusTabOrTrustedChrome).toHaveBeenCalledTimes(3)
+    expect(link.webContents.eventNames()).toEqual([])
   })
 })
