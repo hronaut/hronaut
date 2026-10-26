@@ -203,30 +203,37 @@ export async function waitForSavedWorkspaces(window: Page): Promise<void> {
   ]).then(() => undefined)`)
 }
 
+/**
+ * What the main process knows of each renderer when a test fails: its exits, and whether each page still answers a
+ * script, which tells a busy shell or page from a busy main process, as that answers nothing at all.
+ */
 export async function collectRendererDiagnostics(app: ElectronApplication): Promise<unknown> {
-  const pending = app.evaluate(({ webContents }) => {
+  const pending = app.evaluate(async ({ webContents }) => {
     const scope = globalThis as typeof globalThis & {
       __hronautQaRendererExits?: { exits: { reason: string; exitCode: number; webContentsId: number; type: string }[] }
     }
-    const nativeContents = webContents.getAllWebContents().slice(0, 32).map(contents => {
+    const within = <T>(promise: Promise<T>, fallback: T): Promise<T> => Promise.race([promise, new Promise<T>(resolve => setTimeout(() => resolve(fallback), 400))])
+    const nativeContents = await Promise.all(webContents.getAllWebContents().slice(0, 32).map(async contents => {
       try {
         const url = contents.getURL()
+        const crashed = contents.isCrashed()
         return {
           id: contents.id,
           type: contents.getType(),
           surface: url.startsWith('hronaut://home') ? 'home' : url.startsWith('file:') ? 'app' : !url || url === 'about:blank' ? 'blank' : 'page',
           loading: contents.isLoadingMainFrame(),
-          crashed: contents.isCrashed(),
-          processId: contents.getOSProcessId()
+          crashed,
+          processId: contents.getOSProcessId(),
+          answered: !crashed && await within(contents.executeJavaScript('0').then(() => true, () => false), false)
         }
       } catch {
         return { id: contents.id, unavailable: true }
       }
-    })
+    }))
     return { rendererExits: scope.__hronautQaRendererExits?.exits ?? [], nativeContents }
   }).catch(() => ({ unavailable: 'Main process closed before diagnostics could be collected' }))
-  let diagnostics: unknown = { unavailable: 'Main process did not respond to diagnostics within 1000ms' }
-  await settleWithin(pending.then(result => { diagnostics = result }), 1_000)
+  let diagnostics: unknown = { unavailable: 'Main process did not respond to diagnostics within 2000ms' }
+  await settleWithin(pending.then(result => { diagnostics = result }), 2_000)
   return diagnostics
 }
 

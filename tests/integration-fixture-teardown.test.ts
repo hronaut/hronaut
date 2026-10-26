@@ -80,9 +80,9 @@ describe('integration fixture teardown', () => {
     try {
       const app = { evaluate: () => new Promise<never>(() => undefined) } as unknown as ElectronApplication
       const diagnostics = collectRendererDiagnostics(app)
-      await vi.advanceTimersByTimeAsync(1_000)
+      await vi.advanceTimersByTimeAsync(2_000)
       await expect(diagnostics).resolves.toEqual({
-        unavailable: 'Main process did not respond to diagnostics within 1000ms'
+        unavailable: 'Main process did not respond to diagnostics within 2000ms'
       })
       expect(vi.getTimerCount()).toBe(0)
     } finally {
