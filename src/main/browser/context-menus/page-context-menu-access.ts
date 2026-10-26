@@ -1,4 +1,4 @@
-import type { BrowserWindow, LoadURLOptions, WebContents } from 'electron'
+import type { BrowserWindow, LoadURLOptions, WebContents, WebFrameMain } from 'electron'
 import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
 import type { BrowserState } from '../../../shared/types.js'
 import type { SearchEngineName } from '../../../shared/search-engine.js'
@@ -15,6 +15,8 @@ export interface PageContextMenuTab {
 export interface PageContextMenuOptions {
   copyText: (text: string) => Promise<void>
   copyImageAt: (webContents: WebContents, x: number, y: number) => Promise<void>
+  /** Copies the frame a video shows at (x, y), in the page's coordinates, from the frame of the page it is in. */
+  copyVideoFrameAt: (frame: WebFrameMain, x: number, y: number) => Promise<void>
   onClipboardCopyFailed?: (error: unknown) => void
   onActionFailed?: (action: string, error: unknown) => void
 }

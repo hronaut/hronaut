@@ -50,7 +50,8 @@ export const zhTWAppErrors: AppErrorMessages = {
     "textRejected": "文字已準備好，但系統剪貼簿不接受",
     "screenshotRejected": "已擷取螢幕畫面，但系統剪貼簿不接受該圖片",
     "pageClosed": "網頁在複製圖片前已關閉",
-    "imageRejected": "已選取網頁圖片，但系統剪貼簿不接受"
+    "imageRejected": "已選取網頁圖片，但系統剪貼簿不接受",
+    "videoFrameRejected": "影片沒有可複製的畫面，或系統剪貼簿不接受"
   },
   "tabs": {
     "noActiveTab": "沒有使用中的分頁",

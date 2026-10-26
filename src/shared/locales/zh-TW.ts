@@ -3699,6 +3699,8 @@ export const zhTW: MessageSchema = {
       "openVideo": "在新分頁中開啟影片",
       "saveVideo": "儲存影片",
       "copyVideoAddress": "複製影片網址",
+      "copyVideoFrame": "複製影片畫面",
+      "saveVideoFrame": "儲存影片畫面",
       "openAudio": "在新分頁中開啟音訊",
       "saveAudio": "儲存音訊",
       "copyAudioAddress": "複製音訊網址",

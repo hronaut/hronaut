@@ -3699,6 +3699,8 @@ export const ruRU: MessageSchema = {
       "openVideo": "Открыть видео в новой вкладке",
       "saveVideo": "Сохранить видео",
       "copyVideoAddress": "Копировать адрес видео",
+      "copyVideoFrame": "Копировать кадр видео",
+      "saveVideoFrame": "Сохранить кадр видео",
       "openAudio": "Открыть аудиофайл в новой вкладке",
       "saveAudio": "Сохранить аудиофайл",
       "copyAudioAddress": "Копировать адрес аудиофайла",

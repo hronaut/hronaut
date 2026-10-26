@@ -206,6 +206,7 @@ import {
   type Rectangle,
   type Session,
   type WebContents,
+  type WebFrameMain,
   type WebPreferences
 } from 'electron'
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
@@ -885,6 +886,8 @@ export interface TabsManagerOptions {
   agentWorkingOnTab?: (tabId: string, workspaceId: string | undefined) => boolean
   copyText: (text: string) => Promise<void>
   copyImageAt: (webContents: WebContents, x: number, y: number) => Promise<void>
+  /** Copies the frame a video shows at (x, y), in the page's coordinates, from the frame of the page it is in. */
+  copyVideoFrameAt: (frame: WebFrameMain, x: number, y: number) => Promise<void>
   onClipboardCopyFailed?: (error: unknown) => void
   onActionFailed?: (action: string, error: unknown) => void
   /** The person did something Undo can put back. */

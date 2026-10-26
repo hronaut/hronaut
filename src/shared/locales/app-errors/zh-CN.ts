@@ -50,7 +50,8 @@ export const zhCNAppErrors: AppErrorMessages = {
     "textRejected": "文本已准备好，但系统剪贴板未接受它",
     "screenshotRejected": "屏幕截图已截取，但系统剪贴板未接受该图片",
     "pageClosed": "在复制图片之前，页面已关闭",
-    "imageRejected": "已选择页面图片，但系统剪贴板未接受它"
+    "imageRejected": "已选择页面图片，但系统剪贴板未接受它",
+    "videoFrameRejected": "视频没有可复制的帧，或系统剪贴板未接受它"
   },
   "tabs": {
     "noActiveTab": "没有活动的标签页",

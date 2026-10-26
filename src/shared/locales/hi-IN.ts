@@ -3699,6 +3699,8 @@ export const hiIN: MessageSchema = {
       "openVideo": "वीडियो को नए टैब में खोलें",
       "saveVideo": "वीडियो सेव करें",
       "copyVideoAddress": "वीडियो का पता कॉपी करें",
+      "copyVideoFrame": "वीडियो फ़्रेम कॉपी करें",
+      "saveVideoFrame": "वीडियो फ़्रेम सेव करें",
       "openAudio": "ऑडियो को नए टैब में खोलें",
       "saveAudio": "ऑडियो सेव करें",
       "copyAudioAddress": "ऑडियो का पता कॉपी करें",

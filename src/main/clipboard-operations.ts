@@ -1,7 +1,9 @@
-import { clipboard, ClipboardItem, nativeImage, type BrowserWindow, type NativeImage, type WebContents } from 'electron'
+import { clipboard, ClipboardItem, nativeImage, type BrowserWindow, type NativeImage, type WebContents, type WebFrameMain } from 'electron'
 import { writeVerifiedClipboardText } from './verified-clipboard.js'
 import { LocalizedError, personErrorMessage } from './localized-error.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
+
+type ClipboardRecord = ConstructorParameters<typeof ClipboardItem>[0]
 
 interface ClipboardOperationsHost {
   /** Translates into the current interface language; read on every use because the language can change. */
@@ -12,13 +14,14 @@ interface ClipboardOperationsHost {
 
 /**
  * Copying text and images to the system clipboard, one operation at a time, each read back to confirm the clipboard
- * accepted it. A page image is copied by the page and then written again as a verified PNG.
+ * accepted it. A page image or video frame is copied by the page and then written again as a verified PNG.
  */
 export function createClipboardOperations(host: ClipboardOperationsHost): {
   copyTextToClipboard(text: string): Promise<void>
   reportClipboardFailure(error: unknown): void
   copyPngToClipboard(data: Buffer): Promise<{ width: number; height: number }>
   copyPageImageToClipboard(webContents: WebContents, x: number, y: number): Promise<void>
+  copyVideoFrameToClipboard(frame: WebFrameMain, x: number, y: number): Promise<void>
 } {
   let clipboardOperationQueue: Promise<void> = Promise.resolve()
 
@@ -82,25 +85,76 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
     return queueClipboardOperation(() => writePngToClipboard(data))
   }
 
-  async function copyPageImageToClipboard(webContents: WebContents, x: number, y: number): Promise<void> {
+  /** What the clipboard holds, by media type, so a failed copy can put it back. */
+  async function clipboardContents(): Promise<ClipboardRecord[]> {
+    try {
+      return await Promise.all((await clipboard.read()).map(async item => Object.fromEntries(
+        await Promise.all(item.types.map(async type => [type, await item.getType(type)] as const))
+      )))
+    } catch {
+      return []
+    }
+  }
+
+  async function restoreClipboard(contents: ClipboardRecord[]): Promise<void> {
+    if (contents.length === 0) return
+    try {
+      await clipboard.write(contents.map(record => new ClipboardItem(record)))
+    } catch {
+      // The copy has failed already; that is what the person hears about.
+    }
+  }
+
+  /**
+   * Has the page copy an image itself, then reads it back and writes it again as a verified PNG. Each try clears the
+   * clipboard first, so a copy that fails puts back what the person had copied before.
+   */
+  async function copyImageThePageGives(
+    pageGone: () => boolean,
+    copy: () => void,
+    rejected: 'appErrors.clipboard.imageRejected' | 'appErrors.clipboard.videoFrameRejected'
+  ): Promise<void> {
     await queueClipboardOperation(async () => {
+      if (pageGone()) throw new LocalizedError('appErrors.clipboard.pageClosed')
+      const before = await clipboardContents()
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        if (webContents.isDestroyed()) throw new LocalizedError('appErrors.clipboard.pageClosed')
+        if (pageGone()) {
+          await restoreClipboard(before)
+          throw new LocalizedError('appErrors.clipboard.pageClosed')
+        }
         clipboard.clear()
-        webContents.copyImageAt(x, y)
+        copy()
         await new Promise<void>((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
         const image = await readClipboardImage()
         if (!image.isEmpty()) {
           const png = image.toPNG()
           if (png.byteLength > 0) {
-            await writePngToClipboard(png)
-            return
+            try {
+              await writePngToClipboard(png)
+              return
+            } catch (error) {
+              await restoreClipboard(before)
+              throw error
+            }
           }
         }
       }
-      throw new LocalizedError('appErrors.clipboard.imageRejected')
+      await restoreClipboard(before)
+      throw new LocalizedError(rejected)
     })
   }
 
-  return { copyTextToClipboard, reportClipboardFailure, copyPngToClipboard, copyPageImageToClipboard }
+  async function copyPageImageToClipboard(webContents: WebContents, x: number, y: number): Promise<void> {
+    await copyImageThePageGives(() => webContents.isDestroyed(), () => webContents.copyImageAt(x, y), 'appErrors.clipboard.imageRejected')
+  }
+
+  /**
+   * Copies the frame a video shows at (x, y), in the page's coordinates, from the frame of the page the video is in.
+   * A video with no frame to give, such as one not loaded yet, copies nothing, which reads as a rejected copy.
+   */
+  async function copyVideoFrameToClipboard(frame: WebFrameMain, x: number, y: number): Promise<void> {
+    await copyImageThePageGives(() => frame.isDestroyed() || frame.detached, () => frame.copyVideoFrameAt(x, y), 'appErrors.clipboard.videoFrameRejected')
+  }
+
+  return { copyTextToClipboard, reportClipboardFailure, copyPngToClipboard, copyPageImageToClipboard, copyVideoFrameToClipboard }
 }
