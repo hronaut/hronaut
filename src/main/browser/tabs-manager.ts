@@ -168,7 +168,7 @@ import {
 import { ensureHumanWorkspace } from './workspace-creation/human-workspace.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
 import { pinnedWorkspacesFirst } from '../../shared/workspace-rail.js'
-import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
+import { reconcilePresentedViewVisibility, showResumedPresentedView, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { resizeViewport } from './emulation/resize-viewport.js'
 import { setEmulationViewSize } from './emulation/emulation-view-size.js'
 import { createSplitDivider } from './split-view/split-divider.js'
@@ -2722,8 +2722,8 @@ export class BrowserTabsManager {
 
   /**
    * The narrow view freezing and resuming a page gets of this manager's
-   * private tabs, debugger queue, dialog monitoring, DevTools opening, page
-   * presentation and state publication. It is a prototype method rather than a
+   * private tabs, debugger queue, dialog monitoring, DevTools opening, the
+   * showing of a resumed page and state publication. It is a prototype method rather than a
    * field, so managers created without the constructor (as unit tests do)
    * still provide it. The delegates below return the feature's promise
    * directly, so callers see the same ticks as before.
@@ -2736,7 +2736,10 @@ export class BrowserTabsManager {
       inDebuggerQueue: (webContentsId, operation) => this.debuggerQueue.run(webContentsId, operation),
       dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
       isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
-      reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
+      showResumedPage: (tab, wasFrozen) => {
+        if (wasFrozen) showResumedPresentedView(this.window, tab.view)
+        else this.reconcileTabPresentation(tab)
+      },
       changed: (persist) => this.changed(persist),
       getState: () => this.getState()
     }

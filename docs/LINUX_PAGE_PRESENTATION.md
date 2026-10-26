@@ -24,6 +24,12 @@ implementation calls `WasHidden` / `WasShown`. It is feature-checked and limited
 to Linux / Electron 44. Reassess it when changing Electron major versions.
 It preserves the document, focus and background-throttling setting.
 
+Resuming a page Hronaut froze applies the same repair at once, without the
+check: Chromium's freeze calls `WasHidden` and its resume only unfreezes, so the
+page is known to be hidden, and waiting for the check left its timers and frames
+throttled for as long as the answer took. A page whose freeze may not have
+reached Chromium is checked first, as above.
+
 The exact original agent command sequence that caused the live failure remains
 unconfirmed. The regression deliberately induces the observed native mismatch
 using Chromium's real freeze/thaw lifecycle, rather than mocking visibility.
