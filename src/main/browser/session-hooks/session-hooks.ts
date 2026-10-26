@@ -29,24 +29,29 @@ export function installSessionHooks<Tab extends SessionHooksTab>(access: Session
   }
   if (!access.networkHookSessions().has(browserSession)) {
     access.networkHookSessions().add(browserSession)
-    browserSession.webRequest.onBeforeRequest((details, callback) => {
+    // The record of a request for a tab whose debugger does not record it yet, made when it is first seen.
+    const record = (details: { id: number, url: string, method: string, resourceType: string, timestamp: number, webContentsId?: number }): Tab | undefined => {
       const tabId = details.webContentsId ? access.tabIdForWebContents(details.webContentsId) : undefined
       const tab = tabId ? access.findTab(tabId) : undefined
-      if (tab && !tab.networkDebuggerEnabled) {
-        tab.networkRequests.push({
-          id: `web:${details.id}`,
-          captureSequence: ++tab.networkCaptureSequence,
-          observationGeneration: tab.observationGeneration,
-          url: details.url,
-          method: details.method,
-          resourceType: details.resourceType,
-          startedAt: new Date(details.timestamp).toISOString(),
-          detailsAvailable: false
-        })
-        trimNetworkRequests(tab)
-        access.networkWaitController().notify(tab)
-      }
-      callback({})
+      if (!tab || tab.networkDebuggerEnabled || tab.networkRequests.some((candidate) => candidate.id === `web:${details.id}`)) return undefined
+      tab.networkRequests.push({
+        id: `web:${details.id}`,
+        captureSequence: ++tab.networkCaptureSequence,
+        observationGeneration: tab.observationGeneration,
+        url: details.url,
+        method: details.method,
+        resourceType: details.resourceType,
+        startedAt: new Date(details.timestamp).toISOString(),
+        detailsAvailable: false
+      })
+      trimNetworkRequests(tab)
+      return tab
+    }
+    // Requests are only watched, never held: a listener with a callback, such as onBeforeRequest, makes every request
+    // of every tab wait for Hronaut's main process, which is busiest while many pages load at once.
+    browserSession.webRequest.onSendHeaders((details) => {
+      const tab = record(details)
+      if (tab) access.networkWaitController().notify(tab)
     })
     browserSession.webRequest.onCompleted((details) => {
       const tabId = details.webContentsId ? access.tabIdForWebContents(details.webContentsId) : undefined
@@ -60,6 +65,8 @@ export function installSessionHooks<Tab extends SessionHooksTab>(access: Session
       if (tab) access.networkWaitController().notify(tab)
     })
     browserSession.webRequest.onErrorOccurred((details) => {
+      // A request that failed before its headers were sent is recorded here.
+      record(details)
       const tabId = details.webContentsId ? access.tabIdForWebContents(details.webContentsId) : undefined
       const request = tabId ? access.findTab(tabId)?.networkRequests.find((candidate) => candidate.id === `web:${details.id}`) : undefined
       if (!request) return
