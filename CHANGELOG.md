@@ -27,6 +27,7 @@ All notable changes to Hronaut are documented in this file.
 - A **Copy Image** that fails no longer empties the clipboard: what you had copied before stays there.
 - **Resume Page** on Linux shows the page again at once. Freezing a page hides it in Chromium, which resuming does not undo, so a resumed page kept its timers and animations slowed down and reported itself hidden until Hronaut's visibility check, which first asks the page, got its answer, which under load could take long enough to notice. The same goes for an agent's resume (`browser_page_lifecycle`).
 - **Debug report** keeps **Refresh** and **Copy report** in view in a short window or dock: the report scrolls as a whole between the panel's header and these buttons, where an empty report pushed them partly out of view and a report with messages could squeeze its list into a small box of its own.
+- **Request conditions** turn a rule on or off right after another rule was used up by a request. The short refresh that follows refused the change as if the rules' state were unknown, telling the person or agent to clear every condition; the change now waits for the refresh or settles the rules itself, and is still refused while another change is applying. Removing or changing a rule that is refused also no longer cancels that refresh, which left the rules marked unconfirmed until the next change.
 
 ## [3.12.0] - 2026-10-25
 

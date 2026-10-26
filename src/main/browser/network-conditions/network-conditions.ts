@@ -15,6 +15,13 @@ import type { BrowserNetworkRouteRecord, NetworkConditionsAccess, NetworkConditi
 /** How many request-condition rules one tab can retain. */
 const MAX_NETWORK_ROUTES = 50
 
+/**
+ * How many changes to each tab's rules are applying natively. A rule used up
+ * by a request and the refresh that follows also leave the application
+ * pending, but only a change can leave it unknown.
+ */
+const changesApplying = new WeakMap<NetworkConditionsTab, number>()
+
 /** A rule removed meanwhile, for example by an agent. The Network panel shows its key; its English message names the rule's ID. */
 function conditionGone(routeId: string): LocalizedError {
   return networkRouteRefusal(new LocalizedError('appErrors.networkConditions.conditionGone', undefined, { message: `Network route not found: ${routeId}` }))
@@ -87,8 +94,11 @@ export async function addNetworkRoute<Tab extends NetworkConditionsTab>(access: 
 }
 
 /**
- * Enables or disables one rule. The tab, its debugger epoch, a confirmed
+ * Enables or disables one rule. The tab, its debugger epoch, a known
  * application and the rule are checked before and again at native admission.
+ * It is refused at once while another change is applying, which may still
+ * leave the rules unknown, and waits behind a refresh after a used-up rule,
+ * which its own application settles too.
  */
 export async function setNetworkRouteEnabled<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId: string | undefined, routeId: string, enabled: boolean, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
   if (typeof enabled !== 'boolean' || !routeId) throw new TypeError('routeId and boolean enabled are required')
@@ -98,10 +108,11 @@ export async function setNetworkRouteEnabled<Tab extends NetworkConditionsTab>(a
   const admission = (): void => {
     validate()
     if (access.isDestroyed() || contents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before toggle')
-    if (tab.networkConditionApplication !== 'confirmed') throw new Error('Request-condition application must be confirmed before enabling or disabling a rule. Explicitly clear unknown conditions to recover.')
+    if (tab.networkConditionApplication === 'unknown') throw new Error('Request-condition application must be confirmed before enabling or disabling a rule. Explicitly clear unknown conditions to recover.')
     if (!tab.networkRoutes.some(route => route.id === routeId)) throw conditionGone(routeId)
   }
   admission()
+  if (changesApplying.has(tab)) throw new Error('Another request-condition change is still applying. Wait for it to settle before enabling or disabling a rule.')
   await applyNetworkRoutes(access, tab, validate, false, () => {
     // Read the current record only at admission: a paused request may already
     // have reserved its budget. Never restore a caller's earlier snapshot.
@@ -172,13 +183,11 @@ function networkRouteSummary(route: BrowserNetworkRouteRecord): BrowserNetworkRo
  * refuses while the application is unknown unless recovering, and when the
  * tab, its page or its debugger epoch changed. A failure before anything was
  * sent restores the earlier rules; after that the application becomes
- * unknown. It cancels a scheduled refresh.
+ * unknown. Once admitted, it replaces a scheduled refresh, which it schedules
+ * again if it fails before sending anything.
  */
 export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tab: Tab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
   const contents = tab.webContents
-  const scheduled = access.networkRouteRefreshTimers().get(contents.id)
-  if (scheduled) clearTimeout(scheduled)
-  access.networkRouteRefreshTimers().delete(contents.id)
   const debuggerEpoch = tab.networkDebuggerEpoch
   await access.withDebugger(contents, async () => {
     validate()
@@ -186,6 +195,10 @@ export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(acces
     if (access.isDestroyed() || contents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before application')
     const previousRoutes = tab.networkRoutes
     mutate?.()
+    // This application settles the rules a scheduled refresh would have applied.
+    const scheduled = access.networkRouteRefreshTimers().get(contents.id)
+    if (scheduled) clearTimeout(scheduled)
+    access.networkRouteRefreshTimers().delete(contents.id)
     let epoch = tab.networkConditionEpoch
     const routes = tab.networkRoutes
     // One immutable projection for Fetch and throttling, never reread between phases.
@@ -205,6 +218,7 @@ export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(acces
       return contents.debugger.sendCommand(method, params)
     }
     tab.networkConditionApplication = 'pending'
+    if (mutate) changesApplying.set(tab, (changesApplying.get(tab) ?? 0) + 1)
     try {
       access.changed(false)
       const interception = projection.filter(route => route.enabled && route.behavior !== 'throttle')
@@ -222,10 +236,16 @@ export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(acces
         else {
           tab.networkRoutes = previousRoutes
           tab.networkConditionApplication = previous
+          // Pending here means a used-up rule still waits for the refresh this application replaced.
+          if (previous === 'pending') scheduleNetworkRouteRefresh(access, tab)
         }
         access.changed(false)
       }
       throw error
+    } finally {
+      const applying = (changesApplying.get(tab) ?? 0) - (mutate ? 1 : 0)
+      if (applying > 0) changesApplying.set(tab, applying)
+      else changesApplying.delete(tab)
     }
     access.changed(false)
     validate()
