@@ -151,11 +151,25 @@ export class ClosedTabsStore {
   private written: string | undefined
   /** The closed tabs the file holds, as last saved, which a save of the same ones does not write again. */
   private savedTabs: readonly SavedClosedTab[] | undefined
+  /** Whether Recently closed was discarded while the file was read, so the closed tabs read do not come back. */
+  private discardedWhileLoading: boolean | undefined
 
   constructor(private readonly path: string) {}
 
-  /** The closed tabs the file kept, oldest first. */
+  /** The closed tabs the file kept, oldest first; none once Recently closed was discarded meanwhile. */
   async load(): Promise<SavedClosedTab[]> {
+    this.discardedWhileLoading = false
+    try {
+      const saved = await this.read()
+      if (!this.discardedWhileLoading) return saved
+      this.written = undefined
+      return []
+    } finally {
+      this.discardedWhileLoading = undefined
+    }
+  }
+
+  private async read(): Promise<SavedClosedTab[]> {
     let contents: string
     try {
       // lstat refuses a link, which the profile never holds here.
@@ -202,6 +216,7 @@ export class ClosedTabsStore {
 
   /** Removes the saved Recently closed, as when its history was cleared while it could not be saved. */
   discard(): Promise<void> {
+    if (this.discardedWhileLoading === false) this.discardedWhileLoading = true
     return this.queue(() => this.remove())
   }
 

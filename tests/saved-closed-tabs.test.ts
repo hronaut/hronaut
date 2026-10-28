@@ -190,6 +190,19 @@ describe('the saved recently closed tabs file', () => {
     expect(await new ClosedTabsStore(path).load()).toEqual(saved)
   })
 
+  it('gives no closed tabs when Recently closed is discarded while the file is read', async () => {
+    // Clearing the history as Hronaut starts discards the saved Recently closed, which the start reads meanwhile.
+    const path = join(await directory(), 'closed-tabs.json')
+    const tabs = browser()
+    tabs.close([address('cleared')], 0)
+    await new ClosedTabsStore(path).save(() => savedClosedTabs(tabs.saving))
+    const store = new ClosedTabsStore(path)
+    const loaded = store.load()
+    await store.discard()
+    expect(await loaded).toEqual([])
+    await expect(lstat(path)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it('writes only when Recently closed changed, and nothing once the browser closes', async () => {
     const path = join(await directory(), 'closed-tabs.json')
     const tabs = browser()

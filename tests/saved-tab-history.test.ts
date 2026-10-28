@@ -173,6 +173,30 @@ describe('the saved tab history file', () => {
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ version: 1, tabs: { [TAB_ID]: history(['b'], 0) } })
   })
 
+  it('writes the pages clearing the history forgot while a save was writing the history before', async () => {
+    const path = join(await directory(), 'tab-history.json')
+    const store = new TabHistoryStore(path)
+    const stringify = JSON.stringify.bind(JSON)
+    vi.spyOn(JSON, 'stringify').mockImplementationOnce((value: unknown) => {
+      store.forgetPages((url) => url === page('a'), undefined)
+      return stringify(value)
+    })
+    await store.save(() => new Map([[TAB_ID, history(['a', 'b'], 1)]]))
+    await store.save((previous) => new Map(previous))
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ version: 1, tabs: { [TAB_ID]: history(['b'], 0) } })
+  })
+
+  it('forgets the pages clearing the history forgot while the file was read, and writes the file without them', async () => {
+    const path = join(await directory(), 'tab-history.json')
+    await new TabHistoryStore(path).save(() => new Map([[TAB_ID, history(['a', 'b'], 1)], [OTHER_TAB_ID, history(['a'], 0)]]))
+    const store = new TabHistoryStore(path)
+    const loaded = store.load()
+    store.forgetPages((url) => url === page('a'), new Set([TAB_ID]))
+    expect(await loaded).toEqual(new Map([[TAB_ID, history(['b'], 0)], [OTHER_TAB_ID, history(['a'], 0)]]))
+    await store.save((previous) => new Map(previous))
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ version: 1, tabs: { [TAB_ID]: history(['b'], 0), [OTHER_TAB_ID]: history(['a'], 0) } })
+  })
+
   it('gives no history when the file is missing, unreadable or not a saved history, so the tabs open their addresses', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const folder = await directory()

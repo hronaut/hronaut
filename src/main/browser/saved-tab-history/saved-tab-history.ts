@@ -213,6 +213,10 @@ export class TabHistoryStore {
   private written: string | undefined
   /** The file holds `saved`, so a save that keeps every tab's saved history has nothing to write. */
   private holdsSaved = false
+  /** How many times clearing the history forgot pages in `saved`, which a write that started before does not hold. */
+  private forgets = 0
+  /** What clearing the history forgot while the file is read, which the history read forgets too. */
+  private forgottenWhileLoading: Array<{ matches: (url: string) => boolean; tabIds: ReadonlySet<string> | undefined }> | undefined
   /** The history of each tab as last read or saved, which a tab whose history cannot be read keeps. */
   private saved: Map<string, NavigationHistorySnapshot> = new Map()
 
@@ -220,7 +224,26 @@ export class TabHistoryStore {
 
   /** The saved history of each tab, by tab. */
   async load(): Promise<Map<string, NavigationHistorySnapshot>> {
-    const histories = new Map<string, NavigationHistorySnapshot>()
+    this.forgottenWhileLoading = []
+    try {
+      const histories = await this.read()
+      if (!histories) return new Map()
+      for (const { matches, tabIds } of this.forgottenWhileLoading) {
+        for (const [tabId, history] of histories) {
+          if (!tabIds || tabIds.has(tabId)) histories.set(tabId, withoutForgottenPages(history, matches))
+        }
+      }
+      // The file holds the history read, unless clearing the history forgot some of its pages meanwhile.
+      this.saved = new Map(histories)
+      this.holdsSaved = this.forgottenWhileLoading.length === 0
+      return histories
+    } finally {
+      this.forgottenWhileLoading = undefined
+    }
+  }
+
+  /** The history the file holds, or undefined when it is missing or cannot be read. */
+  private async read(): Promise<Map<string, NavigationHistorySnapshot> | undefined> {
     let contents: string
     try {
       // lstat refuses a link, which the profile never holds here.
@@ -229,22 +252,22 @@ export class TabHistoryStore {
       contents = await readFile(this.path, 'utf8')
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') console.warn('[browser] The saved tab history could not be read; tabs open without Back and Forward history.')
-      return histories
+      return undefined
     }
     try {
       const data = JSON.parse(contents) as unknown
       if (!isRecord(data) || data.version !== TAB_HISTORY_VERSION || !isRecord(data.tabs)) throw new Error('Not a saved tab history')
+      const histories = new Map<string, NavigationHistorySnapshot>()
       for (const [tabId, value] of Object.entries(data.tabs)) {
         const history = parsedTabHistory(value)
         if (history && isUuidV7(tabId)) histories.set(tabId, history)
       }
       this.written = contents
-      this.saved = new Map(histories)
-      this.holdsSaved = true
+      return histories
     } catch {
       console.warn('[browser] The saved tab history could not be read; tabs open without Back and Forward history.')
+      return undefined
     }
-    return histories
   }
 
   /**
@@ -258,12 +281,13 @@ export class TabHistoryStore {
       if (this.holdsSaved && current.size === this.saved.size && [...current].every(([tabId, history]) => this.saved.get(tabId) === history)) return
       this.saved = new Map(current)
       this.holdsSaved = false
+      const forgets = this.forgets
       const contents = `${JSON.stringify({ version: TAB_HISTORY_VERSION, tabs: Object.fromEntries(current) })}\n`
       if (contents !== this.written) {
         await writeTextFileAtomically(this.path, contents, 0o600)
         this.written = contents
       }
-      this.holdsSaved = true
+      this.holdsSaved = this.forgets === forgets
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation
@@ -274,10 +298,12 @@ export class TabHistoryStore {
    * whose history cannot be read when it is saved next does not bring them back.
    */
   forgetPages(matches: (url: string) => boolean, tabIds: ReadonlySet<string> | undefined): void {
+    this.forgottenWhileLoading?.push({ matches, tabIds })
     for (const [tabId, history] of this.saved) {
       if (!tabIds || tabIds.has(tabId)) this.saved.set(tabId, withoutForgottenPages(history, matches))
     }
-    // The file still holds the forgotten pages until the next save writes.
+    // The file still holds the forgotten pages until the next save writes, also one written meanwhile.
+    this.forgets += 1
     this.holdsSaved = false
   }
 }

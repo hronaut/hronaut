@@ -1,14 +1,15 @@
 import { nativeImage, WebContentsView, type NativeImage, type WebContents } from 'electron'
 
-/** Decodes an image as a 32 pixel PNG data URL, or answers null. */
+/** Decodes an image as a 32 pixel PNG data URL, or answers null, also once the signal aborted before its turn. */
 export interface FaviconImageDecoder {
-  decodeImage(source: string): Promise<unknown>
+  decodeImage(source: string, signal?: AbortSignal): Promise<unknown>
 }
 
 export async function decodeWebsiteFavicon(
   bytes: Buffer,
   mimeType: string,
-  decoder: FaviconImageDecoder
+  decoder: FaviconImageDecoder,
+  signal?: AbortSignal
 ): Promise<NativeImage> {
   const native = nativeImage.createFromBuffer(bytes)
   if (!native.isEmpty()) return native
@@ -20,7 +21,7 @@ export async function decodeWebsiteFavicon(
     ? 'image/x-icon'
     : mimeType.split(';')[0]!.trim().toLowerCase()
   if (!/^image\/(svg\+xml|x-icon|vnd\.microsoft\.icon|webp|gif|avif)$/.test(type)) return native
-  const result = await decoder.decodeImage(`data:${type};base64,${bytes.toString('base64')}`)
+  const result = await decoder.decodeImage(`data:${type};base64,${bytes.toString('base64')}`, signal)
   return typeof result === 'string' && result.length <= 32 * 1024 && result.startsWith('data:image/png;base64,')
     ? nativeImage.createFromDataURL(result)
     : native
@@ -29,6 +30,9 @@ export async function decodeWebsiteFavicon(
 /** How long the decoding page stays after its last icon, for the icons of the other pages loading meanwhile. */
 export const FAVICON_DECODER_IDLE_MS = 30_000
 
+/** How many icons wait for the decoding page at most; one more is not decoded, as an icon that cannot be. */
+export const MAX_FAVICON_DECODES_WAITING = 32
+
 /**
  * Decodes the website icons Electron's own decoder cannot, one at a time, in a page of its own: not in Hronaut's
  * window, which draws the tabs while many pages load at once and should never take a website's image. The page holds
@@ -36,13 +40,21 @@ export const FAVICON_DECODER_IDLE_MS = 30_000
  */
 export class FaviconDecoder implements FaviconImageDecoder {
   private page: Promise<WebContents> | undefined
-  private contents: WebContents | undefined
+  /** The decoding page's view, kept while the page is open. */
+  private view: WebContentsView | undefined
   private queue: Promise<unknown> = Promise.resolve()
+  private waiting = 0
   private idleTimer: ReturnType<typeof setTimeout> | undefined
   private disposed = false
 
-  decodeImage(source: string): Promise<unknown> {
-    const decoded = this.queue.then(() => this.decodeNow(source))
+  /** Decodes the image once the icons before it were; an icon whose page went on, which aborts it, is skipped. */
+  decodeImage(source: string, signal?: AbortSignal): Promise<unknown> {
+    if (this.waiting >= MAX_FAVICON_DECODES_WAITING) return Promise.resolve(null)
+    this.waiting += 1
+    const decoded = this.queue.then(() => {
+      this.waiting -= 1
+      return signal?.aborted ? null : this.decodeNow(source)
+    })
     this.queue = decoded.catch(() => undefined)
     return decoded
   }
@@ -86,7 +98,7 @@ export class FaviconDecoder implements FaviconImageDecoder {
   }
 
   private openPage(): Promise<WebContents> {
-    if (this.page && this.contents && !this.contents.isDestroyed()) return this.page
+    if (this.page && this.view && !this.view.webContents.isDestroyed()) return this.page
     const view = new WebContentsView({
       webPreferences: {
         partition: 'hronaut-favicon-decoder',
@@ -102,8 +114,8 @@ export class FaviconDecoder implements FaviconImageDecoder {
     contents.setWindowOpenHandler(() => ({ action: 'deny' }))
     contents.on('will-navigate', (event) => event.preventDefault())
     // A decoding page that stopped working is replaced by the next icon's.
-    contents.once('render-process-gone', () => { if (this.contents === contents) this.close() })
-    this.contents = contents
+    contents.once('render-process-gone', () => { if (this.view === view) this.close() })
+    this.view = view
     this.page = contents.loadURL('about:blank').then(() => contents)
     return this.page
   }
@@ -111,8 +123,8 @@ export class FaviconDecoder implements FaviconImageDecoder {
   private close(): void {
     clearTimeout(this.idleTimer)
     this.idleTimer = undefined
-    const contents = this.contents
-    this.contents = undefined
+    const contents = this.view?.webContents
+    this.view = undefined
     this.page = undefined
     if (contents && !contents.isDestroyed()) contents.close()
   }

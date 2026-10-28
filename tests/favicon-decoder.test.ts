@@ -36,7 +36,7 @@ vi.mock('electron', () => ({
     }
   }
 }))
-import { decodeWebsiteFavicon, FAVICON_DECODER_IDLE_MS, FaviconDecoder } from '../src/main/browser/favicon.js'
+import { decodeWebsiteFavicon, FAVICON_DECODER_IDLE_MS, FaviconDecoder, MAX_FAVICON_DECODES_WAITING } from '../src/main/browser/favicon.js'
 
 const PNG_URL = 'data:image/png;base64,AAAA'
 const ICO = Buffer.from([0, 0, 1, 0, 1, 0])
@@ -51,6 +51,13 @@ it('decodes an icon Electron reads itself without the decoding page', async () =
   const decoder = { decodeImage: vi.fn() }
   expect(await decodeWebsiteFavicon(Buffer.from('\x89PNG', 'latin1'), 'image/png', decoder)).toMatchObject({ source: 'native' })
   expect(decoder.decodeImage).not.toHaveBeenCalled()
+})
+
+it('hands the decoder the signal of the page the icon is for', async () => {
+  const decoder = { decodeImage: vi.fn(async () => PNG_URL) }
+  const page = new AbortController()
+  await decodeWebsiteFavicon(ICO, '', decoder, page.signal)
+  expect(decoder.decodeImage).toHaveBeenCalledWith(`data:image/x-icon;base64,${ICO.toString('base64')}`, page.signal)
 })
 
 it('decodes an ICO icon in a page of its own, with its own empty session, and keeps only a small PNG', async () => {
@@ -114,4 +121,25 @@ it('replaces a decoding page that stopped working, and decodes nothing once clos
   decoder.dispose()
   expect(await decoder.decodeImage('data:image/x-icon;base64,Aw==')).toBeNull()
   expect(fake.pages).toHaveLength(2)
+})
+
+it('skips the icons of a page that went on before their turn, and decodes none past the icons waiting already', async () => {
+  // A page's eight icon candidates waited for the decoding page after one of them was shown, and the icons of 45 pages
+  // loading together could wait without end.
+  const decoder = new FaviconDecoder()
+  const first = decoder.decodeImage('data:image/x-icon;base64,AQ==')
+  const page = new AbortController()
+  const skipped = decoder.decodeImage('data:image/x-icon;base64,Ag==', page.signal)
+  const waiting = Array.from({ length: MAX_FAVICON_DECODES_WAITING - 2 }, () => decoder.decodeImage('data:image/x-icon;base64,Aw=='))
+  expect(await decoder.decodeImage('data:image/x-icon;base64,BA==')).toBeNull()
+  page.abort()
+  await vi.waitFor(() => expect(fake.answers).toHaveLength(1))
+  fake.answers[0]!.answer(PNG_URL)
+  expect(await first).toBe(PNG_URL)
+  expect(await skipped).toBeNull()
+  await vi.waitFor(() => expect(fake.answers).toHaveLength(2))
+  expect(fake.answers[1]!.script).toContain('Aw==')
+  decoder.dispose()
+  fake.answers[1]!.answer(PNG_URL)
+  expect(await Promise.all(waiting)).toEqual([PNG_URL, ...Array(MAX_FAVICON_DECODES_WAITING - 3).fill(null)])
 })
