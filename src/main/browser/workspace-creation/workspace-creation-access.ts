@@ -14,6 +14,8 @@ export interface WorkspaceCreationTabOptions {
   active: boolean
   focus?: boolean
   mcpGroupId: string
+  /** Whether the tab starts asleep and loads in its turn among the tabs opened behind the one shown. */
+  loadsInTurn?: boolean
 }
 
 /**

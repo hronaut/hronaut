@@ -142,11 +142,14 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
     const previousLoading = tab.loading
     const previousSuppressInitialHistory = tab.suppressInitialHistory
     const navigationGeneration = tab.navigationGeneration
+    // A tab opened to load in its turn loads its page for the first time, which is a visit as when it loads at once.
+    const firstLoad = tab.waitsForTurn === true
+    tab.waitsForTurn = false
     tab.sleeping = false
     access.tabOverviewSleepPreviews().delete(tab.id)
     tab.sleepNavigationHistory = undefined
     tab.loading = true
-    tab.suppressInitialHistory = true
+    if (!firstLoad) tab.suppressInitialHistory = true
     access.changed(false)
     try {
       await returnFromSleepingPage(tab.webContents, restoreUrl)
@@ -214,10 +217,13 @@ async function awaitWake(tab: TabSleepTab, wake: Promise<void>): Promise<void> {
   if (!tab.webContents.isDestroyed() && tab.webContents.getURL() !== SLEEPING_PAGE_URL) {
     shownWakes.add(wake)
     forgetSleepingPage(tab.webContents)
-    // The wake is over for every caller, while the page goes on loading. Its load is not a visit, and the next page's is.
+    // The wake is over for every caller, while the page goes on loading. The load of a page it loads again is not a
+    // visit, and the next page's is; a first load stays a visit, recorded once the page loaded.
     if (tab.wakePromise === wake) tab.wakePromise = undefined
-    tab.suppressInitialHistory = false
-    tab.pendingHistoryUrl = null
+    if (tab.suppressInitialHistory) {
+      tab.suppressInitialHistory = false
+      tab.pendingHistoryUrl = null
+    }
     return
   }
   throw new LocalizedError('appErrors.page.loadTimedOut')
@@ -493,7 +499,12 @@ export async function putTabToSleep<Tab extends TabSleepTab>(access: TabSleepAcc
       return false
     }
   }
-  if (!isCurrent() || tab.sleeping) return false
+  if (!isCurrent()) return false
+  if (tab.sleeping) {
+    // A tab still waiting to load in its turn stays asleep.
+    tab.waitsForTurn = false
+    return false
+  }
   const blockReason = sleepBlockReason(access, tab)
   if (blockReason) {
     if (reportBlocked) throw new LocalizedError(blockReason)

@@ -21,8 +21,9 @@ export async function importWorkspaceTemplate(access: WorkspaceCreationAccess, t
       return workspace.id
     },
     openStartPages: async (workspaceId, urls) => {
+      // A template can open many pages at once; they load a few at a time.
       for (const url of urls) {
-        await access.createTab({ url, active: false, focus: false, mcpGroupId: workspaceId })
+        await access.createTab({ url, active: false, focus: false, mcpGroupId: workspaceId, loadsInTurn: true })
       }
     },
     remove: async (workspaceId) => { await access.closeMcpTabGroup(workspaceId) }

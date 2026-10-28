@@ -40,6 +40,11 @@ export interface TabSleepTab extends Pick<BrowserProfilingState, 'codeCoverage' 
    * sleeping page, and the session cookies its workspace's pages wait for.
    */
   pageReady?: Promise<void>
+  /**
+   * Whether the tab was created asleep to load in its turn, such as by Open all, and has not woken since. Its first load
+   * is a visit, as when a tab loads at once, and putting it to sleep takes it out of its turn.
+   */
+  waitsForTurn?: boolean
   sleepNavigationHistory?: { entries: NavigationEntry[]; index: number }
   pageLifecycleState: BrowserPageLifecycleState
   pageLifecycleOperation?: {

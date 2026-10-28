@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { SLEEPING_PAGE_WAIT_MS, sleepBeforeFirstLoad, wakeTab } from '../src/main/browser/tab-sleep/tab-sleep.js'
+import { putTabToSleep, SLEEPING_PAGE_WAIT_MS, sleepBeforeFirstLoad, wakeTab } from '../src/main/browser/tab-sleep/tab-sleep.js'
+import { PAGE_LOAD_WAIT_MS } from '../src/main/browser/page-waits/page-load-limit.js'
 import { SLEEPING_PAGE_URL } from '../src/main/browser/tab-sleep/sleeping-page.js'
 
 // A restart loaded every restored tab at once, so 45 tabs came back as 45 pages loading together. The tabs behind the
@@ -52,10 +53,11 @@ function newPage() {
   return { webContents, entries: () => entries, index: () => index }
 }
 
-function asleepTab(page: ReturnType<typeof newPage>, pageReady: Promise<void>) {
+function asleepTab(page: ReturnType<typeof newPage>, pageReady: Promise<void>, opened: { waitsForTurn?: boolean } = {}) {
   const tab = {
-    id: 'tab', url: 'https://example.test/shown', sleeping: true, loading: false, suppressInitialHistory: true, navigationGeneration: 0,
-    lastActiveAt: 0, sleepNavigationHistory: history, pageReady, webContents: page.webContents
+    id: 'tab', url: 'https://example.test/shown', sleeping: true, loading: false, suppressInitialHistory: !opened.waitsForTurn, navigationGeneration: 0,
+    lastActiveAt: 0, sleepNavigationHistory: history, pageReady, webContents: page.webContents, pendingHistoryUrl: null as string | null,
+    waitsForTurn: opened.waitsForTurn
   }
   const access = {
     getTab: () => tab,
@@ -159,4 +161,47 @@ it('wakes a restored tab whose sleeping page never finishes after a while, and k
   } finally {
     vi.useRealTimers()
   }
+})
+
+it('records the first load of a tab opened to load in its turn as a visit, and a restored tab\'s load again as none', async () => {
+  // Open all's pages loaded at once were visits; loading them in their turn left them out of History.
+  const opened = newPage()
+  const { tab: openedTab, wake: wakeOpened } = asleepTab(opened, sleepBeforeFirstLoad(opened.webContents as never, undefined, Promise.resolve()), { waitsForTurn: true })
+  await wakeOpened()
+  expect(openedTab).toMatchObject({ sleeping: false, suppressInitialHistory: false, waitsForTurn: false })
+  const restored = newPage()
+  const { tab: restoredTab, wake: wakeRestored } = asleepTab(restored, sleepBeforeFirstLoad(restored.webContents as never, undefined, Promise.resolve()))
+  await wakeRestored()
+  expect(restoredTab).toMatchObject({ sleeping: false, suppressInitialHistory: true })
+})
+
+it('keeps the visit of a tab loading in its turn whose page goes on loading after the wait', async () => {
+  vi.useFakeTimers()
+  try {
+    for (const waitsForTurn of [true, false]) {
+      const page = newPage()
+      const { tab, wake } = asleepTab(page, sleepBeforeFirstLoad(page.webContents as never, undefined, Promise.resolve()), { waitsForTurn })
+      await vi.advanceTimersByTimeAsync(0)
+      const load = page.webContents.loadURL.getMockImplementation()!
+      // The page commits, which makes its address the visit waiting for its load to end, and its image never comes.
+      page.webContents.loadURL.mockImplementationOnce(async (url: string) => {
+        await load(url)
+        tab.pendingHistoryUrl = url
+        await new Promise(() => undefined)
+      })
+      const woken = wake()
+      await vi.advanceTimersByTimeAsync(PAGE_LOAD_WAIT_MS)
+      await woken
+      expect(tab).toMatchObject({ sleeping: false, suppressInitialHistory: false, pendingHistoryUrl: waitsForTurn ? tab.url : null })
+    }
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('keeps a tab waiting for its turn asleep once it is put to sleep', async () => {
+  const page = newPage()
+  const { tab } = asleepTab(page, Promise.resolve(), { waitsForTurn: true })
+  expect(await putTabToSleep({} as never, tab as never, true)).toBe(false)
+  expect(tab).toMatchObject({ sleeping: true, waitsForTurn: false })
 })

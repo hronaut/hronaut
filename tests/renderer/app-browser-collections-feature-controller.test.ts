@@ -156,7 +156,7 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     const h = createHarness()
     h.controller.historyOpen.value = true
     await h.controller.openHistoryEntryInBackground(historyEntry('docs'))
-    expect(h.newTab).toHaveBeenCalledExactlyOnceWith({ url: historyEntry('docs').url, active: false, focus: false })
+    expect(h.newTab).toHaveBeenCalledExactlyOnceWith({ url: historyEntry('docs').url, active: false, focus: false, loadsInTurn: true })
     expect(h.syncState).toHaveBeenCalledWith(h.newTabResult)
     expect(h.controller.historyOpen.value).toBe(true)
     h.controller.dispose()
@@ -166,7 +166,7 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     const h = createHarness()
     h.controller.bookmarksOpen.value = true
     await h.controller.openBookmarkInBackground(bookmark('docs'))
-    expect(h.newTab).toHaveBeenCalledWith({ url: bookmark('docs').url, active: false, focus: false })
+    expect(h.newTab).toHaveBeenCalledWith({ url: bookmark('docs').url, active: false, focus: false, loadsInTurn: true })
     expect(h.syncState).toHaveBeenCalledWith(h.newTabResult)
     expect(h.controller.bookmarksOpen.value).toBe(true)
     h.controller.dispose()
