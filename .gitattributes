@@ -1,6 +1,0 @@
-# The Claude Code plugin's headers helpers run as checked out, including from clones on Windows, where Git turns line
-# endings into CRLF by default and sh can't run the script. Git never converts these files: the .sh is committed with
-# LF and the .cmd with CRLF. Anthropic's plugin directory doesn't validate a repository whose attributes rewrite file
-# contents, as converting line endings does.
-plugins/hronaut/scripts/*.sh -text
-plugins/hronaut/scripts/*.cmd -text

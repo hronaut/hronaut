@@ -22,6 +22,8 @@ All notable changes to Hronaut are documented in this file.
 - Turning off **Automatically sleep inactive tabs** leaves the sleeping tabs asleep until each is shown or used, as in Chrome, instead of loading them all at once.
 - The Claude Code plugin takes Hronaut's MCP address from its **Hronaut MCP address** option, `http://127.0.0.1:47812/mcp` by default, which `/config` shows, instead of the `HRONAUT_MCP_PORT` variable, and sends the owner token only when that address is a port on this computer. Its manifest now carries the links and the address option that Anthropic's plugin directory asks for.
 - Pages opened behind the shown one many at a time, by **Open all**, a workspace template or opening an archived workspace, load three at a time in the order they were opened. Each waits asleep for its turn, loads at once when it is shown or an agent uses it, and stays asleep when it is put to sleep; a page still loading after 10 seconds lets the next one start.
+- The Claude Code plugin moved to its own repository, [hronaut/hronaut-claude-plugin](https://github.com/hronaut/hronaut-claude-plugin), with its own versions. To keep it updated, add that marketplace instead of hronaut/hronaut: `/plugin marketplace remove hronaut`, then `/plugin marketplace add hronaut/hronaut-claude-plugin` and `/plugin install hronaut@hronaut`.
+- The VS Code extension moved to its own repository, [hronaut/hronaut-vscode](https://github.com/hronaut/hronaut-vscode), with its own versions. Install it from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=hronaut.hronaut).
 
 ### Fixed
 

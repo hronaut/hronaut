@@ -203,10 +203,9 @@ the immutable-image proof supplied by the authoritative Docker gate.
 Document user-visible changes under `CHANGELOG.md`'s Unreleased section. The
 release workflow builds from an immutable `v<package version>` tag and publishes
 only after validation and platform packaging succeed; do not hand-publish local
-artifacts. A version bump also sets the version in
-`plugins/hronaut/.claude-plugin/plugin.json` and
-`extensions/vscode/package.json`, which installed plugins and extensions
-update to; auto-tag refuses to tag a bump that missed one.
+artifacts. The Claude Code plugin and the VS Code extension live in their own
+repositories, hronaut/hronaut-claude-plugin and hronaut/hronaut-vscode, with
+their own versions.
 
 The deployed commercial website is maintained separately in the sibling
 `../hronaut-page` repository. Changes there have independent tests, history,
