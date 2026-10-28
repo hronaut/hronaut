@@ -1,4 +1,5 @@
 import type { WebContents } from 'electron'
+import type { FaviconImageDecoder } from '../favicon.js'
 
 /**
  * The tab fields loading a website's icon reads and writes: the page, whose
@@ -14,11 +15,11 @@ export interface TabFaviconTab {
 
 /**
  * What loading a website's icon needs from the tab manager, which keeps its
- * destroyed flag, the shell's own page, which decodes icon formats the native
- * decoder cannot, and state publication private.
+ * destroyed flag, the page that decodes icon formats the native decoder
+ * cannot, and state publication private.
  */
 export interface TabFaviconAccess {
   isDestroyed(): boolean
-  windowWebContents(): WebContents
+  faviconDecoder(): FaviconImageDecoder
   changed(persist?: boolean): void
 }

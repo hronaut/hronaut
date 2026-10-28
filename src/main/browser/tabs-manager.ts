@@ -174,6 +174,7 @@ import { setEmulationViewSize } from './emulation/emulation-view-size.js'
 import { createSplitDivider } from './split-view/split-divider.js'
 import type { TabFaviconAccess } from './tab-favicon/tab-favicon-access.js'
 import { loadFavicon } from './tab-favicon/tab-favicon.js'
+import { FaviconDecoder } from './favicon.js'
 import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
@@ -953,6 +954,7 @@ export class BrowserTabsManager {
   private readonly unconfirmedNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
   /** Pages where an agent's touch contact may still be down: neither its end nor a cancel was acknowledged. */
   private readonly pageFind = new PageFindController()
+  private readonly faviconDecoder = new FaviconDecoder()
   private readonly metadata = new PageMetadataController<BrowserTab>({
     getTab: (tabId) => this.getTab(tabId),
     findTab: (tabId) => this.tabs.get(tabId)
@@ -1400,8 +1402,8 @@ export class BrowserTabsManager {
   }
 
   reactInspectionBootstrap(contents: WebContents) {
-    const tab = [...this.tabs.values()].find(candidate => candidate.webContents === contents)
-    return tab ? this.reactInspectionController.bootstrap(tab.id) : { enabled: false }
+    const tab = this.tabs.get(this.webContentsToTab.get(contents.id) ?? '')
+    return tab?.webContents === contents ? this.reactInspectionController.bootstrap(tab.id) : { enabled: false }
   }
 
   reactInspection(tabId: string, command: ReactInspectionCommand, authority: ReactInspectionAuthority) {
@@ -5657,6 +5659,7 @@ export class BrowserTabsManager {
     this.cancelFocusAfterTrustedChrome()
     this.destroyed = true
     this.pwaLifecycleRecorder.dispose()
+    this.faviconDecoder.dispose()
     this.mcpActivityFollower.dispose()
     this.stopPresentationWatcher?.()
     if (this.persistTimer) clearTimeout(this.persistTimer)
@@ -6410,7 +6413,7 @@ export class BrowserTabsManager {
 
   /**
    * The narrow view loading a website's icon gets of this manager's destroyed
-   * flag, the shell's own page and state publication. It is a prototype method
+   * flag, its icon decoder and state publication. It is a prototype method
    * rather than a field, so managers created without the constructor (as unit
    * tests do) still provide it. The delegate below returns the feature's
    * promise directly.
@@ -6418,7 +6421,7 @@ export class BrowserTabsManager {
   private tabFaviconAccess(): TabFaviconAccess {
     return {
       isDestroyed: () => this.destroyed,
-      windowWebContents: () => this.window.webContents,
+      faviconDecoder: () => this.faviconDecoder,
       changed: (persist) => this.changed(persist)
     }
   }

@@ -8,7 +8,7 @@ import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
 import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
 import { registerNetworkRoutesIpc } from './network-routes-ipc.js'
 import { registerTaskManagerIpc } from './task-manager-ipc.js'
-import { registerFixedDateIpc } from './fixed-date-ipc.js'
+import { registerPageBootstrapIpc } from './page-bootstrap-ipc.js'
 import { registerWalletIpc } from './wallet/ipc.js'
 import type { FollowSuspensionState } from './agent-card-overlay.js'
 import { createShellOverlays } from './windows/shell-overlays.js'
@@ -1283,11 +1283,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     onPageTitleUpdated: updatePageTitle,
     onCredentialSubmitted: offerToSaveCredential
   })
-  ipcMain.on('react-inspection:bootstrap', event => {
-    event.returnValue = event.senderFrame === event.sender.mainFrame
-      ? tabRuntime.tabs!.reactInspectionBootstrap(event.sender) : { enabled: false }
-  })
-  registerFixedDateIpc({ ipcMain, tabs: () => tabRuntime.tabs })
+  registerPageBootstrapIpc({ ipcMain, tabs: () => tabRuntime.tabs })
   registerIpc()
 
   mainWindowRefs.window.on('blur', () => tabRuntime.tabs?.cancelSplitDivider())
