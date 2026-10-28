@@ -74,6 +74,11 @@ export async function navigate<Tab extends PageNavigationTab>(access: PageNaviga
     // does for a typed address.
     access.forgetTabsOpenedFrom(tab.mcpGroupId)
   }
+  // A tab restored asleep loads nothing before its sleeping page is in place, which would take the new page back. A
+  // sleeping tab wakes first, so the page the new one replaces is its own; one already waking is replaced, as a load
+  // replaces the one before it in Chrome.
+  if (tab.pageReady) await tab.pageReady
+  if (tab.sleeping && !tab.wakePromise) await access.wakeTab(tab.id)
   // A workspace's sites get the session cookies it saved at the last quit, as its first page does, which this load
   // then replaces.
   if (!isHronautHomeUrl(normalized)) await keepSessionCookies(tab.webContents.session)
@@ -205,6 +210,8 @@ async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigation
 /** Goes back in the tab's history, unless the workspace's navigation policy denies the entry. */
 export async function back<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tabId?: string): Promise<BrowserState> {
   const tab = access.getTab(tabId)
+  // A sleeping tab wakes first, so Back goes from the page it wakes to, not from its sleeping page.
+  if (tab.sleeping || tab.wakePromise) await access.wakeTab(tab.id)
   if (tab.webContents.navigationHistory.canGoBack()) {
     const history = tab.webContents.navigationHistory
     const target = history.getAllEntries()[history.getActiveIndex() - 1]
@@ -220,6 +227,8 @@ export async function back<Tab extends PageNavigationTab>(access: PageNavigation
 /** Goes forward in the tab's history, unless the workspace's navigation policy denies the entry. */
 export async function forward<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tabId?: string): Promise<BrowserState> {
   const tab = access.getTab(tabId)
+  // A sleeping tab wakes first, so Forward goes from the page it wakes to, not from its sleeping page.
+  if (tab.sleeping || tab.wakePromise) await access.wakeTab(tab.id)
   if (tab.webContents.navigationHistory.canGoForward()) {
     const history = tab.webContents.navigationHistory
     const target = history.getAllEntries()[history.getActiveIndex() + 1]

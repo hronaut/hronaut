@@ -2653,7 +2653,6 @@ export class BrowserTabsManager {
       memorySaverSettingsGeneration: () => this.memorySaverSettingsGeneration,
       setMemorySaverSettingsGeneration: (generation) => { this.memorySaverSettingsGeneration = generation },
       memorySaverSweeps: () => this.memorySaverSweeps,
-      wakeTab: (tabId) => this.wakeTab(tabId),
       putTabToSleep: (tab, reportBlocked, isCurrent) => this.putTabToSleep(tab, reportBlocked, isCurrent),
       getState: () => this.getState()
     }

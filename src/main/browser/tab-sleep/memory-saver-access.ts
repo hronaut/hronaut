@@ -34,8 +34,6 @@ export interface MemorySaverAccess<Tab extends MemorySaverTab> {
   setMemorySaverSettingsGeneration(generation: number): void
   /** The queue that runs one sweep at a time. */
   memorySaverSweeps(): MemorySaverSweepQueue
-  /** Wakes the sleeping tab. */
-  wakeTab(tabId: string): Promise<BrowserState>
   /** Puts the tab to sleep unless something keeps it awake; returns whether it went to sleep. */
   putTabToSleep(tab: Tab, reportBlocked: boolean, isCurrent?: () => boolean): Promise<boolean>
   /** The browser state. */

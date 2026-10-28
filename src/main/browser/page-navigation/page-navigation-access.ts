@@ -16,6 +16,8 @@ export interface PageNavigationTab {
   navigationPolicyDenialSequence: number
   sleeping: boolean
   wakePromise?: Promise<void>
+  /** Until a tab restored asleep shows its sleeping page: what its first wake waits for. */
+  pageReady?: Promise<void>
   pageProblem?: BrowserPageProblem
   webContents: WebContents
 }

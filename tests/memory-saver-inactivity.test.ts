@@ -108,4 +108,15 @@ describe('Memory Saver inactivity', () => {
     // The open tabs were walked live, so the new order started the sweep again and asked the tabs a second time.
     expect(askedToSleep().sort()).toEqual(['idle', 'other', 'reading'])
   })
+
+  it('leaves the sleeping tabs asleep when Memory Saver is turned off, as Chrome does, until each is shown or used', () => {
+    const { manager, tabs } = browser()
+    tabs.get('idle')!.sleeping = true
+    tabs.get('other')!.sleeping = true
+    manager.setMemorySaverSettings(false, 60)
+    // Turning it off woke every sleeping tab at once, such as the dozens restored asleep, which loaded all their pages
+    // together.
+    expect((manager as unknown as { wakeTab: ReturnType<typeof vi.fn> }).wakeTab).not.toHaveBeenCalled()
+    expect([...tabs.values()].filter(tab => tab.sleeping).map(tab => tab.id)).toEqual(['other', 'idle'])
+  })
 })

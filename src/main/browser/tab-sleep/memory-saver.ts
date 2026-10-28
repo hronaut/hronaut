@@ -4,7 +4,9 @@ import type { MemorySaverAccess, MemorySaverTab } from './memory-saver-access.js
 
 /**
  * Turns Memory Saver on or off and sets its timeout. A change ends any sweep
- * started before it; turning Memory Saver off wakes every sleeping tab.
+ * started before it. Turning Memory Saver off leaves the sleeping tabs asleep,
+ * as Chrome does, until each is shown or used: waking them all at once, such as
+ * the tabs restored asleep, would load every page together.
  */
 export function setMemorySaverSettings<Tab extends MemorySaverTab>(access: MemorySaverAccess<Tab>, enabled: boolean, timeoutMinutes: MemorySaverTimeoutMinutes): void {
   if (!isMemorySaverTimeoutMinutes(timeoutMinutes)) throw new TypeError('Unsupported Memory Saver timeout')
@@ -13,11 +15,6 @@ export function setMemorySaverSettings<Tab extends MemorySaverTab>(access: Memor
   }
   access.setMemorySaverEnabled(enabled)
   access.setMemorySaverTimeoutMinutes(timeoutMinutes)
-  if (!enabled) {
-    for (const tab of access.tabs()) {
-      if (tab.sleeping) void access.wakeTab(tab.id).catch((error) => console.error('[browser] Could not wake tab after disabling Memory Saver:', error))
-    }
-  }
 }
 
 /** Puts every tab that may sleep to sleep now, whatever its last activity, after any sweep already running. */
