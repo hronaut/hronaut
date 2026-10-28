@@ -18,6 +18,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Hronaut now runs on Electron 45.0 (Chromium 156.0.8078.48), which brings that release's security and stability fixes. A website's request to share the screen, a window or a tab is still refused without asking, now that Electron reports it as its own permission.
+- After a restart, only the tabs shown load at once: the window's, and the one each workspace shows, where its agent reads and acts. The others come back asleep with their **Back** and **Forward** pages, scroll and form fields, and load when they are shown or used, as in Chrome, so a restart with dozens of tabs no longer loads them all together.
 
 ### Fixed
 

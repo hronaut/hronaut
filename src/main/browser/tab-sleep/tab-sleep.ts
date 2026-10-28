@@ -136,6 +136,11 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
   // Its callers went on with the page it showed, which an agent may already use.
   const handedOver = (): boolean => shownWakes.has(wake)
   const wake = (async () => {
+    if (tab.pageReady) {
+      await tab.pageReady
+      tab.pageReady = undefined
+      if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed()) return
+    }
     tab.sleeping = false
     access.tabOverviewSleepPreviews().delete(tab.id)
     tab.sleepNavigationHistory = undefined
@@ -434,6 +439,27 @@ const WATCH_FORM_EDITS_SCRIPT = `(() => {
 export function watchUnsavedFormEdits(tab: TabSleepTab, frame?: WebFrameMain): void {
   const run = frame ? frame.executeJavaScript(WATCH_FORM_EDITS_SCRIPT, false) : tab.webContents.executeJavaScript(WATCH_FORM_EDITS_SCRIPT, false)
   void run.catch(() => undefined)
+}
+
+/**
+ * Shows the sleeping page in a new tab whose own page has not loaded, such as a tab restored behind the one shown, as
+ * Chrome restores them: the tab wakes when it is shown or used, from its history as from any sleep. The sleeping page
+ * takes its place in that history, right after the page the tab shows, so the pages before and after it stay. Returns
+ * what the tab's first wake waits for: the sleeping page, and what its page waits for before it loads.
+ */
+export function sleepBeforeFirstLoad(webContents: WebContents, history: NavigationHistorySnapshot | undefined, pageCanLoad: Promise<void>): Promise<void> {
+  const sleepingPage = history
+    ? webContents.navigationHistory.restore({
+      entries: [...history.entries.slice(0, history.index + 1), { url: SLEEPING_PAGE_URL, title: '' }, ...history.entries.slice(history.index + 1)],
+      index: history.index + 1
+    })
+    : webContents.loadURL(SLEEPING_PAGE_URL)
+  // A history Electron cannot take leaves the sleeping page alone, and the tab wakes at its address.
+  const shown = sleepingPage.catch(async (error: unknown) => {
+    console.warn('[browser] Could not restore the history of a tab created asleep:', error)
+    if (history && !webContents.isDestroyed() && webContents.getURL() !== SLEEPING_PAGE_URL) await webContents.loadURL(SLEEPING_PAGE_URL).catch(() => undefined)
+  })
+  return Promise.all([shown, pageCanLoad.catch(() => undefined)]).then(() => undefined)
 }
 
 /**
