@@ -6,8 +6,15 @@
 # MCP authentication is off. The header goes only to Claude Code's connection, never into the conversation.
 set -u
 
-# The port is part of the address the header goes to, so anything but a number could send it elsewhere.
-case ${HRONAUT_MCP_PORT-47812} in
+# Claude Code names the address the header goes to, which the plugin's MCP address option sets. The token goes only to
+# a numbered port on this computer: anything after the port but a path could send it to another host.
+case ${CLAUDE_CODE_MCP_SERVER_URL-} in
+  http://127.0.0.1:*) port=${CLAUDE_CODE_MCP_SERVER_URL#http://127.0.0.1:} ;;
+  http://localhost:*) port=${CLAUDE_CODE_MCP_SERVER_URL#http://localhost:} ;;
+  'http://[::1]:'*) port=${CLAUDE_CODE_MCP_SERVER_URL#'http://[::1]:'} ;;
+  *) port= ;;
+esac
+case ${port%%/*} in
   '' | *[!0-9]*) printf '{}\n'; exit 0 ;;
 esac
 

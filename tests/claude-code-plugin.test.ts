@@ -14,12 +14,26 @@ const HEADERS_HELPER = 'sh "${CLAUDE_PLUGIN_ROOT}/scripts/hronaut-headers.sh" ||
 const STORE_DESCRIPTION = 'Connects your coding agent to Hronaut — a visible desktop browser it can drive over MCP. '
   + 'Watch every step, pause and take over, keep logins between sessions. Requires the Hronaut app (free 10-day trial at hronaut.dev).'
 const TOKEN = 'a'.repeat(20) + '-_B9'.repeat(5)
+/** The address Claude Code gives the headers helper for the plugin's default address option. */
+const SERVER_URL = `http://127.0.0.1:${DEFAULT_MCP_PORT}/mcp`
+/** Addresses that start like Hronaut's but go to another host, or in cleartext to a host that only looks local. */
+const LOOPBACK_LOOKALIKES = [
+  'http://127.0.0.1:47812@attacker.example/mcp',
+  'http://127.0.0.1:47812?@attacker.example/',
+  'http://127.0.0.1:47812#@attacker.example/',
+  'http://127.0.0.1.attacker.example:47812/mcp',
+  'http://localhost.attacker.example:47812/mcp',
+  'https://attacker.example/mcp',
+  'http://127.0.0.1:/mcp',
+  ''
+]
 
 interface PluginManifest {
   name: string
   version: string
   description: string
   icon: string
+  userConfig: Record<string, { type: string; title: string; description: string; default: string }>
   mcpServers: Record<string, { type: string; url: string; headers: Record<string, string>; headersHelper: string }>
 }
 
@@ -73,10 +87,14 @@ describe('the Claude Code plugin in this repository', () => {
 
   it('connects to the local endpoint with the owner token, from the token file or HRONAUT_MCP_TOKEN', async () => {
     const plugin = await json<PluginManifest>('plugins/hronaut/.claude-plugin/plugin.json')
+    // Anthropic's plugin directory accepts only an https:// address or an option's, so the local address is an option.
+    expect(plugin.userConfig).toEqual({
+      mcp_url: expect.objectContaining({ type: 'string', default: `http://127.0.0.1:${DEFAULT_MCP_PORT}/mcp` })
+    })
     expect(plugin.mcpServers).toEqual({
       hronaut: {
         type: 'http',
-        url: `http://127.0.0.1:\${HRONAUT_MCP_PORT:-${DEFAULT_MCP_PORT}}/mcp`,
+        url: '${user_config.mcp_url}',
         // Claude Code hides variables named like a token from a headers helper, so the variable is read here.
         headers: { Authorization: 'Bearer ${HRONAUT_MCP_TOKEN:-}' },
         // Claude Code runs it with the system shell, so on Windows cmd.exe runs the .cmd when sh is not on the PATH.
@@ -95,8 +113,29 @@ describe('the Claude Code plugin in this repository', () => {
   })
 
   it('keeps its helpers runnable when Git for Windows checks them out', async () => {
-    // Git for Windows turns line endings into CRLF by default, which sh can't run.
-    expect(await readFile('.gitattributes', 'utf8')).toContain('plugins/hronaut/scripts/*.sh text eol=lf')
+    // Git for Windows turns line endings into CRLF by default, which sh can't run. Anthropic's plugin directory doesn't
+    // validate a repository whose attributes rewrite file contents, so Git leaves the helpers as they are committed.
+    const attributes = await readFile('.gitattributes', 'utf8')
+    expect(attributes).toContain('plugins/hronaut/scripts/*.sh -text\n')
+    expect(attributes).toContain('plugins/hronaut/scripts/*.cmd -text\n')
+    expect(attributes).not.toMatch(/\b(eol|filter|export-ignore|export-subst|working-tree-encoding|ident)\b/)
+    expect(await readFile(HELPER, 'utf8')).not.toContain('\r')
+    expect(await readFile('plugins/hronaut/scripts/hronaut-headers.cmd', 'utf8')).toMatch(/^(?:[^\r\n]*\r\n)+$/)
+  })
+
+  it('gives Anthropic’s plugin directory its listing details', async () => {
+    const plugin = await json<Record<string, unknown>>('plugins/hronaut/.claude-plugin/plugin.json')
+    expect(plugin).toMatchObject({
+      displayName: 'Hronaut',
+      privacyPolicyUrl: 'https://hronaut.dev/privacy',
+      termsOfServiceUrl: 'https://hronaut.dev/terms',
+      documentationUrl: 'https://hronaut.dev/claude-code-browser-mcp',
+      supportUrl: 'https://github.com/hronaut/hronaut/issues',
+      icon: './.claude-plugin/icon.png'
+    })
+    // The directory shows the README as the listing and asks for at least 40 words outside code blocks.
+    const readme = (await readFile('plugins/hronaut/README.md', 'utf8')).replace(/```[\s\S]*?```/g, '')
+    expect(readme.split(/\s+/).filter(Boolean).length).toBeGreaterThanOrEqual(40)
   })
 
   it('ships the same Hronaut skill as the repository', async () => {
@@ -140,7 +179,8 @@ describe.skipIf(process.platform === 'win32')('the plugin’s headers helper', (
       await writeFile(join(bin, 'uname'), `#!/bin/sh\necho ${system}\n`)
       await chmod(join(bin, 'uname'), 0o755)
     }
-    const { stdout, stderr } = await run('sh', [HELPER], { env: { PATH: `${bin}:/usr/bin:/bin`, ...(withHome ? { HOME: home } : {}), ...environment } })
+    const env = { PATH: `${bin}:/usr/bin:/bin`, CLAUDE_CODE_MCP_SERVER_URL: SERVER_URL, ...(withHome ? { HOME: home } : {}), ...environment }
+    const { stdout, stderr } = await run('sh', [HELPER], { env })
     // Claude Code takes the helper's output as the headers, so it prints nothing else and never fails.
     expect(stderr).toBe('')
     return JSON.parse(stdout)
@@ -199,17 +239,22 @@ describe.skipIf(process.platform === 'win32')('the plugin’s headers helper', (
 
   it('sends the token only to a numbered port on this computer', async () => {
     await writeToken(join(home, '.config', folder), `${TOKEN}\n`)
-    expect(await headers({ HRONAUT_MCP_PORT: '48000' }, 'Linux')).toEqual({ Authorization: `Bearer ${TOKEN}` })
-    // Claude Code puts the variable into the address as it is, so these would send the header to another host or port 80.
-    for (const port of ['1@attacker.example:8080', '48000/x', '']) {
-      expect(await headers({ HRONAUT_MCP_PORT: port }, 'Linux')).toEqual({})
+    for (const url of ['http://127.0.0.1:48000/mcp', 'http://localhost:47812/mcp', 'http://[::1]:47812/mcp', 'http://127.0.0.1:47812']) {
+      expect(await headers({ CLAUDE_CODE_MCP_SERVER_URL: url }, 'Linux')).toEqual({ Authorization: `Bearer ${TOKEN}` })
     }
+    // The plugin's address option can name any address; these would send the header to another host, or in cleartext
+    // to a host that only looks local.
+    for (const url of LOOPBACK_LOOKALIKES) {
+      expect(await headers({ CLAUDE_CODE_MCP_SERVER_URL: url }, 'Linux')).toEqual({})
+    }
+    const { stdout } = await run('sh', [HELPER], { env: { PATH: '/usr/bin:/bin', HOME: home } })
+    expect(JSON.parse(stdout)).toEqual({})
   })
 
   it('is what the plugin’s command runs on macOS and Linux', async () => {
     // This runs the system's own uname, so the profile is named rather than found.
     await writeToken(join(home, 'profile'), `${TOKEN}\n`)
-    const environment = { PATH: '/usr/bin:/bin', HOME: home, HRONAUT_USER_DATA_DIR: join(home, 'profile') }
+    const environment = { PATH: '/usr/bin:/bin', HOME: home, HRONAUT_USER_DATA_DIR: join(home, 'profile'), CLAUDE_CODE_MCP_SERVER_URL: SERVER_URL }
     const { stdout, stderr } = await runCommand(headersHelperCommand(), { shell: '/bin/sh', env: environment })
     expect(stderr).toBe('')
     expect(JSON.parse(stdout)).toEqual({ Authorization: `Bearer ${TOKEN}` })
@@ -234,7 +279,7 @@ describe.runIf(process.platform === 'win32')('the plugin’s headers helper on W
   }
 
   async function headers(environment: Record<string, string>): Promise<unknown> {
-    const env: Record<string, string | undefined> = { ...process.env, Path: pathWithoutSh(), ...environment }
+    const env: Record<string, string | undefined> = { ...process.env, Path: pathWithoutSh(), CLAUDE_CODE_MCP_SERVER_URL: SERVER_URL, ...environment }
     delete env.PATH
     const { stdout } = await runCommand(headersHelperCommand(), { env, timeout: 30_000 })
     return JSON.parse(stdout)
@@ -243,14 +288,17 @@ describe.runIf(process.platform === 'win32')('the plugin’s headers helper on W
   it('sends the token from the profile without sh on the PATH', async () => {
     await writeToken(join(home, 'profile'), `\uFEFF${TOKEN}\r\n`)
     expect(await headers({ HRONAUT_USER_DATA_DIR: join(home, 'profile') })).toEqual({ Authorization: `Bearer ${TOKEN}` })
-    expect(await headers({ HRONAUT_USER_DATA_DIR: join(home, 'profile'), HRONAUT_MCP_PORT: '48000' })).toEqual({ Authorization: `Bearer ${TOKEN}` })
+    expect(await headers({ HRONAUT_USER_DATA_DIR: join(home, 'profile'), CLAUDE_CODE_MCP_SERVER_URL: 'http://localhost:48000/mcp' }))
+      .toEqual({ Authorization: `Bearer ${TOKEN}` })
   })
 
-  it('sends no header for a missing or malformed token, or a port that is not a number', async () => {
+  it('sends no header for a missing or malformed token, or an address off this computer', async () => {
     expect(await headers({ HRONAUT_USER_DATA_DIR: join(home, 'missing') })).toEqual({})
     await writeToken(join(home, 'profile'), `${TOKEN}"}\r\n`)
     expect(await headers({ HRONAUT_USER_DATA_DIR: join(home, 'profile') })).toEqual({})
     await writeToken(join(home, 'profile'), `${TOKEN}\r\n`)
-    expect(await headers({ HRONAUT_USER_DATA_DIR: join(home, 'profile'), HRONAUT_MCP_PORT: '1@attacker.example:8080' })).toEqual({})
+    for (const url of LOOPBACK_LOOKALIKES) {
+      expect(await headers({ HRONAUT_USER_DATA_DIR: join(home, 'profile'), CLAUDE_CODE_MCP_SERVER_URL: url })).toEqual({})
+    }
   })
 })
