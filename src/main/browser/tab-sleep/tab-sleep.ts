@@ -47,8 +47,8 @@ export function withoutSleepingPage(history: NavigationHistorySnapshot): Navigat
 
 /**
  * Starts a load with start and settles as Electron's `loadURL` does: once the page, or the error page of a failed load,
- * finishes loading, with the load's error when it failed; as aborted when another navigation replaces it; and as failed
- * when loading stops without either. A load start refuses by throwing settles with that error.
+ * finishes loading, with the load's error when it failed; as aborted when another navigation replaces it or the tab
+ * closes; and as failed when loading stops without either. A load start refuses by throwing settles with that error.
  */
 function settledAsLoad(webContents: WebContents, url: string, start: () => void): Promise<void> {
   return new Promise<void>((resolve, reject) => {
@@ -70,12 +70,13 @@ function settledAsLoad(webContents: WebContents, url: string, start: () => void)
       navigationStarted = true
     }
     const stopped = () => settle(failure ?? loadError(-2, 'ERR_FAILED'))
+    const closed = () => settle(loadError(-3, 'ERR_ABORTED'))
     function settle(error?: Error): void {
       webContents.removeListener('did-finish-load', finished)
       webContents.removeListener('did-fail-load', failed)
       webContents.removeListener('did-start-navigation', started)
       webContents.removeListener('did-stop-loading', stopped)
-      webContents.removeListener('destroyed', stopped)
+      webContents.removeListener('destroyed', closed)
       if (error) reject(error)
       else resolve()
     }
@@ -83,7 +84,7 @@ function settledAsLoad(webContents: WebContents, url: string, start: () => void)
     webContents.on('did-fail-load', failed)
     webContents.on('did-start-navigation', started)
     webContents.on('did-stop-loading', stopped)
-    webContents.on('destroyed', stopped)
+    webContents.on('destroyed', closed)
     try {
       start()
     } catch (error) {

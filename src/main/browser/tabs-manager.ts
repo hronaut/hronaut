@@ -2726,6 +2726,11 @@ export class BrowserTabsManager {
       firstLoadStarts: (tab) => {
         firstLoadStarts(tab.webContents)
         void this.ensureDialogMonitoring(tab)
+        // The browser process applies the input lock without the page's renderer, so it holds from the first document
+        // rather than once the page's monitoring is in place.
+        if (this.isHumanInteractionLocked(tab) && tab.webContents.debugger.isAttached()) {
+          void tab.webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true }).catch(() => undefined)
+        }
       },
       changed: (persist) => this.changed(persist),
       getState: () => this.getState()

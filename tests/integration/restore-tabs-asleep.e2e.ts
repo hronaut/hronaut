@@ -167,9 +167,32 @@ test('a restart\'s tabs asleep take the input lock, and once woken keep it and h
     expect(await restartedWindow.evaluate(() => (window as unknown as RestartWindow).hronaut.setAllHumanInteractionLocked(true)))
       .toMatchObject({ allHumanInteractionLocked: true })
 
+    // The DevTools commands sent to the pages asleep, to see when the browser process's input barrier reaches them.
+    await app.evaluate(({ webContents }) => {
+      const commands: Array<[number, string, unknown]> = []
+      Object.assign(globalThis, { restoredPageCommands: commands })
+      for (const contents of webContents.getAllWebContents().filter((candidate) => candidate.getURL() === '')) {
+        const send = contents.debugger.sendCommand.bind(contents.debugger)
+        contents.debugger.sendCommand = (method: string, params?: object, sessionId?: string) => {
+          commands.push([contents.id, method, params])
+          return send(method, params, sessionId)
+        }
+      }
+    })
     await restartedWindow.evaluate(async (id) => (window as unknown as RestartWindow).hronaut.selectTab(id), (await tabAt(restartedWindow, behind))!.id)
     await expect.poll(async () => (await tabAt(restartedWindow, behind))?.loading).toBe(false)
     expect(await tabAt(restartedWindow, behind)).toMatchObject({ sleeping: false, humanInteractionInputLocked: true })
+    const sent = () => app.evaluate(({ webContents }, url) => {
+      const id = webContents.getAllWebContents().find((contents) => contents.getURL() === url)!.id
+      return (globalThis as { restoredPageCommands?: Array<[number, string, unknown]> }).restoredPageCommands!
+        .filter(([page]) => page === id)
+        .map(([, method, params]) => (method === 'Input.setIgnoreInputEvents' ? `${method} ${JSON.stringify(params)}` : method))
+    }, behind)
+    await expect.poll(sent).toContain('Network.enable')
+    // The lock reaches the page as its first load starts, before its monitoring waits on the new renderer.
+    const commands = await sent()
+    expect(commands.indexOf('Input.setIgnoreInputEvents {"ignore":true}')).toBeGreaterThan(-1)
+    expect(commands.indexOf('Input.setIgnoreInputEvents {"ignore":true}')).toBeLessThan(commands.indexOf('Network.enable'))
     const blocked = await app.evaluate(async ({ webContents }, url) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)!
       const point = await page.executeJavaScript('(() => { const box = document.querySelector("#action").getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 } })()') as { x: number; y: number }

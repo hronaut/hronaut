@@ -181,6 +181,20 @@ it('leaves the first load that a newer navigation replaced to that navigation, a
   expect(tab.sleeping).toBe(false)
 })
 
+it('ends the wake of a tab closed while its first page loads, without loading it again', async () => {
+  const page = newPage()
+  const { wake } = asleepTab(page, sleepBeforeFirstLoad(Promise.resolve()))
+  page.webContents.navigationHistory.restore.mockImplementationOnce(() => {
+    page.calls.push('restore')
+    page.emit('did-start-navigation', 'https://example.test/shown', false, true)
+    page.webContents.isDestroyed = () => true
+    page.emit('destroyed')
+    return new Promise(() => undefined)
+  })
+  await wake()
+  expect(page.calls).toEqual(['first load starts', 'restore'])
+})
+
 it('loads the address again when the restored page stops loading without finishing', async () => {
   const page = newPage()
   const { tab, wake } = asleepTab(page, sleepBeforeFirstLoad(Promise.resolve()))
