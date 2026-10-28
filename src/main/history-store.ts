@@ -17,6 +17,8 @@ const MAX_RECENT_VISITS = 100
 // Visits and new titles are saved together at most once a second: saving the whole history for each one, while dozens of
 // pages loaded, kept the main process busy writing.
 const SAVE_DELAY_MS = 1_000
+// A save that failed, as on a full disk, is tried again later, less often after each failure.
+const MAX_SAVE_RETRY_MS = 60_000
 
 /**
  * A page as the history file keeps it. As Chrome keeps each visit, it keeps the times of its visits from the last four
@@ -144,6 +146,8 @@ export class HistoryStore {
   private saveTimer: NodeJS.Timeout | undefined
   /** Visits or new titles are not saved yet. */
   private unsaved = false
+  /** The timed saves that failed in a row. */
+  private failedSaves = 0
   /** The pages visited or retitled, and those that left the history, since the windows last heard. */
   private readonly changedIds = new Set<string>()
   private readonly removedIds = new Set<string>()
@@ -442,14 +446,18 @@ export class HistoryStore {
     return removed
   }
 
-  /** Saves the visits and new titles of the next second together. */
-  private scheduleSave(): void {
+  /** Saves the visits and new titles of the next second together; ones a failed save left are saved again later. */
+  private scheduleSave(delay = SAVE_DELAY_MS): void {
     this.unsaved = true
     if (this.saveTimer || this.disposed) return
     this.saveTimer = setTimeout(() => {
       this.saveTimer = undefined
-      void this.queueMutation(() => this.saveUnsaved()).catch((error) => console.error('[history] Failed to save visits:', error))
-    }, SAVE_DELAY_MS)
+      void this.queueMutation(() => this.saveUnsaved()).then(() => { this.failedSaves = 0 }, (error: unknown) => {
+        console.error('[history] Failed to save visits:', error)
+        this.failedSaves += 1
+        if (this.unsaved) this.scheduleSave(Math.min(SAVE_DELAY_MS * 2 ** this.failedSaves, MAX_SAVE_RETRY_MS))
+      })
+    }, delay)
     this.saveTimer.unref()
   }
 

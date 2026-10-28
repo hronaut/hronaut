@@ -319,6 +319,38 @@ describe('HistoryStore', () => {
     }
   })
 
+  it('saves the visits a failed save left again after a while, without waiting for another visit', async () => {
+    // A save that failed, as on a full disk, left the visits in memory only until the next visit, title or quit.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const reportError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const errorReported = new Promise<void>((resolve) => { reportError.mockImplementation(() => resolve()) })
+    const { path, store } = await storeAt()
+    const saved = async (): Promise<boolean> => {
+      for (let turn = 0; turn < 200; turn += 1) {
+        if (await readFile(path, 'utf8').then(() => true, () => false)) return true
+        await new Promise((resolve) => setImmediate(resolve))
+      }
+      return false
+    }
+    try {
+      await mkdir(path)
+      await store.record({ url: 'https://kept.example/', title: 'Kept' })
+      await vi.advanceTimersByTimeAsync(1_000)
+      await errorReported
+      expect(reportError).toHaveBeenCalledWith('[history] Failed to save visits:', expect.anything())
+      await rm(path, { recursive: true })
+      await vi.advanceTimersByTimeAsync(1_999)
+      await expect(readFile(path, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+      await vi.advanceTimersByTimeAsync(1)
+      expect(await saved()).toBe(true)
+      expect(JSON.parse(await readFile(path, 'utf8')).entries.map((entry: { title: string }) => entry.title)).toEqual(['Kept'])
+    } finally {
+      store.dispose()
+      reportError.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
   it('never saves a visit back after the history was cleared', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const { path, store } = await storeAt()
