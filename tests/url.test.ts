@@ -9,6 +9,30 @@ describe('isHronautHomeUrl', () => {
     expect(isHronautHomeUrl('hronaut://home@other.example/')).toBe(false)
     expect(isHronautHomeUrl('hronaut://homepage/')).toBe(false)
   })
+
+  it('parses an address once while it is asked about again, and keeps answering right after many others', () => {
+    const Parser = globalThis.URL
+    let parses = 0
+    globalThis.URL = class extends Parser { constructor(...input: ConstructorParameters<typeof URL>) { super(...input); parses += 1 } }
+    try {
+      for (let round = 0; round < 3; round++) {
+        expect(isHronautHomeUrl('hronaut://home/?repeat')).toBe(true)
+        expect(isHronautHomeUrl('https://example.test/repeat')).toBe(false)
+      }
+      expect(parses).toBe(2)
+      for (let index = 0; index < 600; index++) isHronautHomeUrl(`https://example.test/${index}`)
+      expect(isHronautHomeUrl('hronaut://home/?repeat')).toBe(true)
+      expect(isHronautHomeUrl('hronaut://home@other.example/?repeat')).toBe(false)
+      // A long address, such as a data: page, is parsed each time instead of being kept.
+      const long = `data:text/html,${'x'.repeat(4096)}`
+      parses = 0
+      expect(isHronautHomeUrl(long)).toBe(false)
+      expect(isHronautHomeUrl(long)).toBe(false)
+      expect(parses).toBe(2)
+    } finally {
+      globalThis.URL = Parser
+    }
+  })
 })
 
 describe('normalizeAddress', () => {

@@ -117,6 +117,24 @@ function options(): string[] {
 }
 
 describe('WorkspaceSwitcher', () => {
+  it('works out no workspace while closed, as pages load and change the browser state, and lists them once opened', async () => {
+    let reads = 0
+    const counted = (): BrowserState => {
+      const state = browserState()
+      const groups = state.mcpTabGroups
+      return Object.defineProperty(state, 'mcpTabGroups', { enumerable: true, get: () => { reads += 1; return groups } })
+    }
+    const { wrapper, openPanel } = await setup()
+    for (let change = 0; change < 3; change++) {
+      await wrapper.setProps({ state: counted() })
+      await nextTick()
+    }
+    expect(reads).toBe(0)
+    await openPanel()
+    expect(reads).toBeGreaterThan(0)
+    expect(options()).toContain('Docs')
+  })
+
   it('lists workspaces by who needs them and recent use, and Enter goes back to the previous one', async () => {
     const { wrapper, calls, openPanel } = await setup({ agents: { ops: [agent('Claude Code', 'working')] } })
     await openPanel()

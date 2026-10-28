@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, ref, toRaw, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { translate } from '../../../shared/i18n.js'
 import type {
@@ -6,6 +6,7 @@ import type {
   NavigateOptions,
   NewTabOptions
 } from '../../../shared/types.js'
+import { reuseUnchangedBrowserState } from './browser-state-reuse.js'
 import { useSettingsStore } from './settings.js'
 
 export function emptyBrowserState(): BrowserState {
@@ -47,7 +48,7 @@ export const useBrowserStore = defineStore('browser', () => {
 
   function acceptAuthoritativeState(next: BrowserState): void {
     revision += 1
-    state.value = next
+    state.value = reuseUnchangedBrowserState(toRaw(state.value), next)
   }
 
   function detachListener(): void {

@@ -483,6 +483,34 @@ describe('address bar controller', () => {
     expect(input).toHaveValue('https://second.example/unsaved-form')
   })
 
+  it('hides the suggestions a reloaded shell may have left on screen when it starts', async () => {
+    // Its first sync sends nothing for a view it never showed; closing for the tab in view hides them.
+    const rendered = createHarness({ history: [visit('first')] })
+    await nextTick()
+    expect(rendered.overlay.show).not.toHaveBeenCalled()
+    expect(rendered.overlay.hide).toHaveBeenCalled()
+  })
+
+  it('sends main nothing while its suggestions are not shown and the pages they come from change', async () => {
+    // Each page that loads changes the open tabs and visits the suggestions come from; a hide for each was a message.
+    const rendered = createHarness({ history: [visit('first')] })
+    await nextTick()
+    const hidden = rendered.overlay.hide.mock.calls.length
+    for (const entries of [[visit('first'), visit('second')], [visit('third')], [visit('third'), visit('fourth')]]) {
+      rendered.history.value = entries
+      await nextTick()
+      await nextTick()
+    }
+    expect(rendered.overlay.show).not.toHaveBeenCalled()
+    expect(rendered.overlay.hide).toHaveBeenCalledTimes(hidden)
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'fourth')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    await fireEvent.keyDown(input, { key: 'Escape' })
+    await waitFor(() => expect(rendered.overlay.hide.mock.calls.length).toBeGreaterThan(hidden))
+  })
+
   it('opens a suggestion in a new tab behind for a middle-click on its row, and gives the field the keyboard back', async () => {
     const saved: BrowserBookmark = {
       id: 'saved',
