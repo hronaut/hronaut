@@ -27,6 +27,8 @@ vi.mock('electron', () => {
         once: (name: string, listener: (...args: unknown[]) => void) => events.once(name, listener),
         removeListener: (name: string, listener: (...args: unknown[]) => void) => events.removeListener(name, listener),
         focus: () => { focused.push(String(id)); electronFocus.id = id },
+        isLoading: () => false,
+        getURL: () => '',
         loadURL: () => Promise.resolve(),
         navigationHistory: { restore: () => Promise.resolve() }
       }
