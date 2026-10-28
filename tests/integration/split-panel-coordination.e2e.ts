@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises'
 import type { HronautApi, HronautSettingsApi } from '../../src/shared/types.js'
 import { expect, test } from './fixtures.js'
+import { waitForSettledTitleBar } from './settled-title-bar.js'
 
 for (const width of [760, 1200]) {
   test(`keeps split pages usable when opening a left dock after the Split view menu at ${width}px`, async ({ appWindow, electronApp }, testInfo) => {
@@ -25,6 +26,9 @@ for (const width of [760, 1200]) {
       })
       await browser.openSplitView(firstTabId)
     })
+    // The new interface size moves the toolbar once the title bar gives the window controls their new room; a click
+    // before then could press Page tools and let go over the button that slid under the pointer, opening nothing.
+    await waitForSettledTitleBar(appWindow, width / 1.25)
 
     const nativePages = () => electronApp.evaluate(({ BrowserWindow, WebContentsView }) => (
       BrowserWindow.getAllWindows()[0]!.contentView.children
