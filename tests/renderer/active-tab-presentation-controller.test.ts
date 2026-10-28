@@ -205,6 +205,47 @@ describe('active tab presentation controller', () => {
     expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.complete:new.zip]')
   })
 
+  it('keeps each tab’s tooltip until the tab, the language, or the lock or split view it mentions changes', () => {
+    // The shell reads every tab's tooltip on each change of the browser state; translating them all again for 45
+    // loading tabs took a fifth of the window's time while they loaded.
+    const locale = ref('en')
+    let translations = 0
+    const translate = (key: string, parameters?: Record<string, unknown>): string => {
+      translations += 1
+      return `${locale.value}:${key}${parameters ? `:${Object.values(parameters).join(',')}` : ''}`
+    }
+    const shown = tab({ mcpGroupName: 'Research' })
+    const browserState = ref(state(shown))
+    const controller = useActiveTabPresentationController({
+      state: browserState,
+      activeTab: ref(shown),
+      sitePermissions: ref([]),
+      credentials: ref([]),
+      downloads: ref([]),
+      bookmarks: ref([]),
+      translate,
+      formatNumber: (value) => String(value),
+      describeEmulation: () => ''
+    })
+    const first = controller.tabTooltip(shown)
+    expect(first).toContain('en:runtimeDetails.tab.workspace:Research')
+    translations = 0
+    // Another state of the browser in which this tab did not change.
+    browserState.value = { ...state(shown), mcpUrl: 'http://127.0.0.1:1/mcp' }
+    expect(controller.tabTooltip(shown)).toBe(first)
+    expect(translations).toBe(0)
+
+    browserState.value = { ...state(shown), allHumanInteractionLocked: true }
+    expect(controller.tabTooltip(shown)).toContain('en:runtimeDetails.tab.locked')
+    browserState.value = { ...state(shown), splitView: { firstTabId: shown.id, secondTabId: 'other', orientation: 'horizontal', ratio: 0.5 } }
+    expect(controller.tabTooltip(shown)).toContain('en:runtimeDetails.tab.split')
+    expect(controller.tabTooltip({ ...shown, pinned: true })).toContain('en:runtimeDetails.tab.pinned')
+
+    locale.value = 'de'
+    expect(controller.tabTooltip(shown)).toContain('de:runtimeDetails.tab.workspace:Research')
+    expect(controller.tabTooltip(shown)).not.toContain('en:')
+  })
+
   it('includes protected tab state in tooltips and formats renderer failures', () => {
     const active = tab({
       title: '',

@@ -376,9 +376,11 @@ watch(
   { immediate: true }
 )
 
+// Measuring the strip lays out the whole shell, so it waits for what can move or resize tabs. A title cannot: a tab's
+// size does not follow its title, which loading pages change many times a second.
 watch(
   [
-    () => props.state.tabs.map((tab) => `${tab.id}:${tab.label ?? ''}:${tab.title}:${tab.pinned}:${tab.mcpGroupId ?? ''}`).join('|'),
+    () => props.state.tabs.map((tab) => `${tab.id}:${tab.label ?? ''}:${tab.pinned}:${tab.mcpGroupId ?? ''}`).join('|'),
     () => props.state.mcpTabGroups.map((group) => `${group.id}:${group.name}:${group.description}`).join('|'),
     () => [...collapsedTabGroupIds.value].sort().join('|'),
     // Workspaces fold in and out of a long rail as the active tab or a request moves, and the row comes and goes.
