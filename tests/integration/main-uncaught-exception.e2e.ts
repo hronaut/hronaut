@@ -17,3 +17,20 @@ test('an uncaught exception in the main process is logged and the app keeps answ
   // Caused on purpose, so the fixture that fails a test over one leaves this one alone.
   mainUncaughtExceptions(testInfo).splice(0)
 })
+
+// The first CI run with the check above caught one: the toast view's last message arrived after the closing window
+// closed the view, and the listener's sender check threw. A one-way message has no one to take the error back to.
+test('a one-way message the main process refuses is dropped, not an uncaught exception', async ({ electronApp, appWindow }, testInfo) => {
+  await electronApp.evaluate(({ ipcMain, BrowserWindow }) => new Promise<void>((resolve) => {
+    setTimeout(() => {
+      try {
+        // As if sent by the shell, which is not the toast view.
+        ipcMain.emit('toast-overlay-view:measured', { sender: BrowserWindow.getAllWindows()[0]!.webContents, senderFrame: null }, { height: 40 })
+      } finally {
+        resolve()
+      }
+    }, 0)
+  }))
+  expect(await appWindow.evaluate('window.hronaut.getState().then((state) => typeof state.activeTabId)')).toBe('string')
+  expect(mainUncaughtExceptions(testInfo)).toEqual([])
+})

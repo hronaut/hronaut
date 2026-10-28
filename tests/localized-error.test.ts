@@ -87,7 +87,24 @@ describe('withTranslatedIpcErrors', () => {
 
     await expect(handlers.get('value')!(invokeEvent(SHELL_URL), 7)).resolves.toEqual({ value: 7 })
     await expect(Promise.resolve(handlers.get('raw')!(invokeEvent(SHELL_URL))).catch((error: unknown) => error)).resolves.toBe(raw)
-    expect(listeners.get('ping')).toBe(onListener)
+    const event = invokeEvent(SHELL_URL)
+    ;(listeners.get('ping') as (...args: unknown[]) => void)(event, 1, 'two')
+    expect(onListener).toHaveBeenCalledWith(event, 1, 'two')
+  })
+
+  // An overlay view's last message could arrive after the window closed it, and its sender check then threw from the
+  // listener: an uncaught exception in main, which Electron showed in an error box that froze the app.
+  it('drops a message whose listener throws, logging why, since nothing waits for an answer to take the error', () => {
+    const { ipcMain, listeners } = fakeIpcMain()
+    const translated = withTranslatedIpcErrors(ipcMain, { isHronautPage: () => true, text: ukrainian })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      translated.on('toast-overlay-view:measured', () => { throw new Error('Rejected IPC from a non-toast renderer') })
+      expect(() => (listeners.get('toast-overlay-view:measured') as (...args: unknown[]) => void)(invokeEvent(SHELL_URL), {})).not.toThrow()
+      expect(warn).toHaveBeenCalledWith('[ipc] Dropped a toast-overlay-view:measured message:', 'Rejected IPC from a non-toast renderer')
+    } finally {
+      warn.mockRestore()
+    }
   })
 })
 
