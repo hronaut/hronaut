@@ -376,13 +376,19 @@ watch(
   { immediate: true }
 )
 
+// Measuring the strip lays out the whole shell, so it waits for what can move or resize what the strip holds. A title
+// cannot: a tab's size does not follow its title, which loading pages change many times a second.
 watch(
   [
-    () => props.state.tabs.map((tab) => `${tab.id}:${tab.label ?? ''}:${tab.title}:${tab.pinned}:${tab.mcpGroupId ?? ''}`).join('|'),
-    () => props.state.mcpTabGroups.map((group) => `${group.id}:${group.name}:${group.description}`).join('|'),
+    // A tab's worker capture adds its Stop button beside the tab.
+    () => props.state.tabs.map((tab) => `${tab.id}:${tab.label ?? ''}:${tab.pinned}:${tab.mcpGroupId ?? ''}:${tab.pwaLifecycleActive === true}`).join('|'),
+    // A workspace that needs you widens its header with a dot.
+    () => props.state.mcpTabGroups.map((group) => `${group.id}:${group.name}:${group.description}:${workspaceNeedsYou(group.id)}`).join('|'),
     () => [...collapsedTabGroupIds.value].sort().join('|'),
     // Workspaces fold in and out of a long rail as the active tab or a request moves, and the row comes and goes.
-    () => `${railWorkspaces.value.map((group) => group.id).join('|')}:${allWorkspacesRow.value}`
+    () => `${railWorkspaces.value.map((group) => group.id).join('|')}:${allWorkspacesRow.value}`,
+    // The rail adds a Following row under the workspace an agent is followed in.
+    () => followedWorkspaceId.value
   ],
   async () => {
     const activeWasVisible = activeTabIntersectsVisibleStrip()

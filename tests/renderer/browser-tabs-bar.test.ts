@@ -140,6 +140,49 @@ describe('BrowserTabsBar', () => {
     expect(formatNumber.mock.calls.filter(([value]) => value === 7)).toEqual([])
   })
 
+  it('measures the strip again when tabs come and go, not when a loading page changes its title', async () => {
+    // Measuring lays out the whole shell, and 45 loading pages change their titles about a hundred times.
+    const first = tab('first')
+    const state = browserState({ tabs: [first, tab('second', { loading: true })] })
+    const view = renderTabs(state)
+    // The strip is measured once it is mounted.
+    await flushPromises()
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+    let measured = 0
+    Object.defineProperty(strip, 'scrollWidth', { configurable: true, get: () => { measured += 1; return 1_280 } })
+
+    await view.rerender({ state: { ...state, tabs: [first, tab('second', { title: 'Loaded', loading: false })] } })
+    await flushPromises()
+    expect(screen.getByRole('tab', { name: 'Loaded' })).toBeTruthy()
+    expect(measured).toBe(0)
+
+    await view.rerender({ state: { ...state, tabs: [first, tab('second', { title: 'Loaded' }), tab('third')] } })
+    await flushPromises()
+    expect(measured).toBeGreaterThan(0)
+  })
+
+  it('measures the rail again when a Stop button, a needs-you dot or a Following row changes what it holds', async () => {
+    const first = tab('first', { active: true })
+    const state = browserState({ tabs: [first, tab('second')], activeTabId: first.id })
+    const view = renderTabs(state, true, 'vertical')
+    await flushPromises()
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+    let measured = 0
+    Object.defineProperty(strip, 'scrollHeight', { configurable: true, get: () => { measured += 1; return 960 } })
+    const remeasured = async (props: Record<string, unknown>): Promise<number> => {
+      measured = 0
+      await view.rerender(props)
+      await flushPromises()
+      return measured
+    }
+
+    const capturing = { ...state, tabs: [first, tab('second', { pwaLifecycleActive: true })] }
+    expect(await remeasured({ state: capturing })).toBeGreaterThan(0)
+    expect(await remeasured({ userAttention: { id: 'attention-1', reason: 'Human decision required: provide-input', requestedAt: '2026-10-28T00:00:00.000Z', tabId: 'second' } })).toBeGreaterThan(0)
+    expect(await remeasured({ state: { ...capturing, agentFollow: { tabId: first.id, agentName: 'Claude Code' } } })).toBeGreaterThan(0)
+    expect(screen.getByTestId('workspace-following')).toBeTruthy()
+  })
+
   it.each(['horizontal', 'vertical'] as const)('normalizes wheel units in the %s tab strip', async orientation => {
     renderTabs(browserState(), true, orientation)
     const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
@@ -1508,7 +1551,9 @@ describe('BrowserTabsBar', () => {
       else await view.rerender({ state: { ...initial, tabs: [first, { ...focused, title: 'Loaded document title' }, active] } })
       await nextTick()
       expect(focusedControl).toHaveFocus()
-      expect(revealFocused).toHaveBeenCalled()
+      // A resize reveals the keyboard target again; a new title moves no tab, so nothing scrolls.
+      if (change === 'resize') expect(revealFocused).toHaveBeenCalled()
+      else expect(revealFocused).not.toHaveBeenCalled()
       expect(scrollBy).not.toHaveBeenCalled()
 
       // A genuine selection change must still reveal the selected page even

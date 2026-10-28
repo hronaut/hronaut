@@ -1,5 +1,5 @@
 import { baseCompile, type CompileError } from '@intlify/message-compiler'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   formatBytes,
   formatDateTime,
@@ -231,6 +231,27 @@ describe('locale-aware presentation formatting', () => {
     expect(formatNumber('uk-UA', 12_345.6)).toMatch(/12[\s\u00a0\u202f]345,6/)
     expect(formatPercent('en-US', 0.125, { maximumFractionDigits: 1 })).toBe('12.5%')
     expect(formatPercent('uk-UA', 0.125, { maximumFractionDigits: 1 })).toMatch(/12,5\s?%/)
+  })
+
+  it('makes one plain number format per language, however many counts a list shows', () => {
+    // Making a format costs far more than using one; the tab strip formats counts for every workspace each update.
+    const NumberFormat = Intl.NumberFormat
+    let made = 0
+    const counted = vi.spyOn(Intl, 'NumberFormat').mockImplementation(function (this: unknown, ...args: ConstructorParameters<typeof Intl.NumberFormat>) {
+      made += 1
+      return new NumberFormat(...args)
+    } as unknown as typeof Intl.NumberFormat)
+    try {
+      expect(formatNumber('pl-PL', 1_234)).toMatch(/1[\s\u00a0\u202f]?234/)
+      expect(formatNumber('pl-PL', 5)).toBe('5')
+      expect(formatNumber('pl-PL', 7)).toBe('7')
+      expect(made).toBeLessThanOrEqual(1)
+      // A format with options of its own is still made for that call, with them.
+      expect(formatNumber('pl-PL', 0.5, { style: 'percent' })).toBe('50%')
+      expect(formatNumber('de-DE', 1_234)).toBe('1.234')
+    } finally {
+      counted.mockRestore()
+    }
   })
 
   it('formats byte sizes and durations while preserving exact technical units', () => {

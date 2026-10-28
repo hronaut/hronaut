@@ -1,11 +1,20 @@
 import type { SupportedLocale } from './locale.js'
 
+/** One plain number format per language: making a format costs far more than using it, and lists format many counts. */
+const plainNumberFormats = new Map<SupportedLocale, Intl.NumberFormat>()
+
 export function formatNumber(
   locale: SupportedLocale,
   value: number,
   options?: Intl.NumberFormatOptions
 ): string {
-  return new Intl.NumberFormat(locale, options).format(value)
+  if (options) return new Intl.NumberFormat(locale, options).format(value)
+  let format = plainNumberFormats.get(locale)
+  if (!format) {
+    format = new Intl.NumberFormat(locale)
+    plainNumberFormats.set(locale, format)
+  }
+  return format.format(value)
 }
 
 export function formatPercent(
