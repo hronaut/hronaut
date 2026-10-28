@@ -99,8 +99,8 @@ export interface BrowserStateAccess<Tab extends BrowserStateTab> {
   listMcpTabGroups(): BrowserTabGroupState[]
   /** The archived workspaces as the shell shows them. */
   listSavedTabGroups(): BrowserSavedTabGroupState[]
-  /** The tab's history entries and its place in them, kept while it sleeps. */
-  navigationHistorySnapshot(tab: Tab): { entries: readonly unknown[]; index: number }
+  /** Whether the tab can go Back and Forward, also while it sleeps. */
+  navigationButtons(tab: Tab): { canGoBack: boolean; canGoForward: boolean }
   /** Whether the person's input to the tab's page is locked. */
   isHumanInteractionLocked(tab: Tab): boolean
   /** Whether the tab's agent is paused. */

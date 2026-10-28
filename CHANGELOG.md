@@ -37,6 +37,7 @@ All notable changes to Hronaut are documented in this file.
 - With many pages loading at once, the **tab strip** and **rail** draw again only the tabs whose page changed, instead of every tab for each change, and the address bar and workspace switcher do no work while they are not shown.
 - Pages no longer wait for Hronaut before each request they send. Hronaut lists a page's requests itself until the page's debugger takes over, and it now only watches them, so many pages loading at once no longer hold up each other's requests while Hronaut is busy. A request that redirects is listed once for each address it goes to, with that address's status, and a request cleared from the list stays cleared when it ends.
 - With many pages loading at once, Hronaut saves the browsing history once a second rather than after each visit and title, and sends the windows only the pages that changed instead of the whole history each time.
+- With many tabs open, Hronaut does less work for each change a page makes: **Back** and **Forward** are checked without reading each tab's whole history, a page's requests are found without copying its list of them, and the tabs' history saved for the next start is read again only for the tabs shown and those whose history moved, and written only when it changed. At startup, the saved history and **Recently closed** are read together.
 
 ## [3.12.0] - 2026-10-25
 

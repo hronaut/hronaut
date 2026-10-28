@@ -241,7 +241,7 @@ import {
   type BrowserSnapshotDeltaContext
 } from '../../shared/snapshot-delta.js'
 import { safeNavigationHistorySnapshot, type NavigationHistorySnapshot } from './navigation-history.js'
-import { historyAroundShownPage, savedTabHistories, savedTabHistory, TabHistoryStore, type SavedTabHistoryAccess } from './saved-tab-history/saved-tab-history.js'
+import { historyAroundShownPage, savedHistoryPosition, savedTabHistories, savedTabHistory, TabHistoryStore, type SavedTabHistoryAccess } from './saved-tab-history/saved-tab-history.js'
 import { ClosedTabsStore, restoredClosedTabs, savedClosedTabs, type SavedClosedTabsAccess } from './saved-closed-tabs/saved-closed-tabs.js'
 import { keepSessionCookies } from './session-cookies/saved-session-cookies.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
@@ -553,6 +553,7 @@ import {
   watchUnsavedFormEdits,
   withoutSleepingPage
 } from './tab-sleep/tab-sleep.js'
+import { SLEEPING_PAGE_URL } from './tab-sleep/sleeping-page.js'
 import type { MemorySaverAccess } from './tab-sleep/memory-saver-access.js'
 import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
 import { BackgroundLoads } from './tab-sleep/background-loads.js'
@@ -748,6 +749,8 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   pageReady?: Promise<void>
   /** Whether the tab waits asleep to load in its turn, among the tabs opened behind the one shown. */
   waitsForTurn?: boolean
+  /** Where the tab's history stood when it was last saved for the next start, to read it again only once it moved. */
+  savedHistoryPosition?: string
   humanInteractionLocked: boolean
   tabAgentPaused: boolean
   /** Runtime only: the tab as it was when the person took it over from its agent. */
@@ -1509,6 +1512,10 @@ export class BrowserTabsManager {
 
   async initialize(): Promise<void> {
     this.restoringLayout = true
+    // The tabs' saved history and Recently closed are read meanwhile: neither waits for the workspaces' storage. Neither
+    // read fails; one that cannot read its file starts empty.
+    const historiesRead = this.tabHistoryStore?.load()
+    const closedRead = this.closedTabsStore?.load()
     // Full, nonmutating validation precedes both deletion and normalization.
     const accepted = await this.store.load({ persistRepairs: false, requireExisting: this.options.requireExistingMetadata })
     const cleanup = accepted && this.options.sessionDataPath
@@ -1524,8 +1531,8 @@ export class BrowserTabsManager {
     this.allTabsMuted = saved?.allTabsMuted === true
     this.allHumanInteractionLocked = saved?.allHumanInteractionLocked === true
     const persistedTabs = saved?.tabs ?? []
-    const savedHistories = await this.tabHistoryStore?.load() ?? new Map<string, NavigationHistorySnapshot>()
-    const savedClosed = await this.closedTabsStore?.load() ?? []
+    const savedHistories = await historiesRead ?? new Map<string, NavigationHistorySnapshot>()
+    const savedClosed = await closedRead ?? []
     for (const group of saved?.mcpTabGroups ?? []) {
       this.mcpTabGroups.set(group.id, {
         ...group,
@@ -1670,7 +1677,7 @@ export class BrowserTabsManager {
       options: () => this.options,
       listMcpTabGroups: () => this.listMcpTabGroups(),
       listSavedTabGroups: () => this.listSavedTabGroups(),
-      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
+      navigationButtons: (tab) => this.navigationButtons(tab),
       isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
       isTabAgentPaused: (tabId) => this.isTabAgentPaused(tabId),
       isTabTakenOver: (tabId) => this.isTabTakenOver(tabId),
@@ -2529,7 +2536,7 @@ export class BrowserTabsManager {
     // Recently closed cannot be saved yet, so the saved one goes.
     this.tabHistoryStore?.forgetPages(matches, workspaceId === undefined ? undefined : new Set(tabs.map((tab) => tab.id)))
     if (!this.initialized) void this.closedTabsStore?.discard().catch((error: unknown) => console.error('[browser] Failed to remove recently closed tabs:', error))
-    void this.saveForNextStart()
+    void this.saveForNextStart(true)
   }
 
   /**
@@ -5583,18 +5590,19 @@ export class BrowserTabsManager {
   }
 
   async flushPersist(): Promise<void> {
-    await Promise.all([flushPersist(this.quitFlushAccess()), this.saveForNextStart(), this.downloadController.saveHistory()])
+    await Promise.all([flushPersist(this.quitFlushAccess()), this.saveForNextStart(true), this.downloadController.saveHistory()])
   }
 
   /**
    * Saves the tabs' Back and Forward history and Recently closed for the next start, once the saved tabs are back and
    * until the browser closes. A failure is logged: the tabs then restart at their addresses, and Recently closed starts
-   * empty.
+   * empty. Every few seconds only the histories that moved are read again, and the shown tabs' for their scroll and
+   * form state; `everyTab` reads all, as when the browser closes.
    */
-  private async saveForNextStart(): Promise<void> {
+  private async saveForNextStart(everyTab = false): Promise<void> {
     if (!this.initialized) return
     await Promise.all([
-      this.tabHistoryStore?.save((previous) => this.destroyed ? undefined : savedTabHistories(this.savedTabHistoryAccess(), previous))
+      this.tabHistoryStore?.save((previous) => this.destroyed ? undefined : savedTabHistories(this.savedTabHistoryAccess(everyTab), previous))
         .catch((error: unknown) => console.error('[browser] Failed to save tab history:', error)),
       this.closedTabsStore?.save(() => this.destroyed ? undefined : savedClosedTabs(this.savedClosedTabsAccess()))
         .catch((error: unknown) => console.error('[browser] Failed to save recently closed tabs:', error))
@@ -5612,7 +5620,7 @@ export class BrowserTabsManager {
   }
 
   /** The narrow view saving the tabs' history gets of this manager's tabs, their history and the workspaces' rules. */
-  private savedTabHistoryAccess(): SavedTabHistoryAccess<BrowserTab> {
+  private savedTabHistoryAccess(everyTab: boolean): SavedTabHistoryAccess<BrowserTab> {
     return {
       tabs: () => this.tabs.values(),
       navigationHistory: (tab) => {
@@ -5620,6 +5628,14 @@ export class BrowserTabsManager {
         if (tab.webContents.isDestroyed()) return undefined
         const history = historyAroundShownPage(tab.webContents.navigationHistory)
         return history && withoutSleepingPage(history)
+      },
+      unchanged: (tab) => {
+        const position = savedHistoryPosition(tab)
+        const unchanged = !everyTab && position !== undefined && position === tab.savedHistoryPosition
+          // The pages shown change their scroll and form state as people use them, which moves no history.
+          && tab.id !== this.activeTabId && !this.splitViewContains(tab.id)
+        tab.savedHistoryPosition = position
+        return unchanged
       },
       navigationPolicy: (workspaceId) => this.mcpTabGroups.get(workspaceId)?.navigationPolicy
     }
@@ -6447,6 +6463,31 @@ export class BrowserTabsManager {
       }
     }
     return withoutSleepingPage(safeNavigationHistorySnapshot(tab.webContents))
+  }
+
+  /**
+   * Whether the tab can go Back and Forward, read without its history's pages: the state is built many times a second
+   * while pages load, and reading every tab's whole history took a good part of it. The sleeping page is none to go to.
+   */
+  private navigationButtons(tab: BrowserTab): { canGoBack: boolean; canGoForward: boolean } {
+    const history = tab.sleepNavigationHistory
+    if (history) return { canGoBack: history.index > 0, canGoForward: history.index < history.entries.length - 1 }
+    if (tab.webContents.isDestroyed()) return { canGoBack: false, canGoForward: false }
+    try {
+      const navigation = tab.webContents.navigationHistory
+      const shown = navigation.getActiveIndex()
+      const length = navigation.length()
+      const pageTo = (step: number): boolean => {
+        for (let index = shown + step; index >= 0 && index < length; index += step) {
+          if (navigation.getEntryAtIndex(index)?.url !== SLEEPING_PAGE_URL) return true
+        }
+        return false
+      }
+      return shown < 0 ? { canGoBack: false, canGoForward: false } : { canGoBack: pageTo(-1), canGoForward: pageTo(1) }
+    } catch {
+      // Electron can destroy the page between the calls.
+      return { canGoBack: false, canGoForward: false }
+    }
   }
 
   private validateTarget(target: { ref?: string; selector?: string }): void {

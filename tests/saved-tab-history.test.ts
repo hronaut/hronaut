@@ -97,15 +97,30 @@ describe('the history a restart keeps of a tab', () => {
     // A save while a tab went Back, as at quit, left the tab without its history, so it restarted without Back.
     const tabs = [{ id: TAB_ID, url: page('c'), mcpGroupId: 'workspace' }]
     const before = new Map([[TAB_ID, history(['a', 'b', 'c'], 2)]])
-    const goingBack = savedTabHistories({ tabs: () => tabs, navigationHistory: () => history(['a', 'b', 'c'], 1), navigationPolicy: () => anywhere }, before)
+    const goingBack = savedTabHistories({ tabs: () => tabs, navigationHistory: () => history(['a', 'b', 'c'], 1), navigationPolicy: () => anywhere, unchanged: () => false }, before)
     expect(goingBack).toEqual(before)
-    const unreadable = savedTabHistories({ tabs: () => tabs, navigationHistory: () => undefined, navigationPolicy: () => anywhere }, before)
+    const unreadable = savedTabHistories({ tabs: () => tabs, navigationHistory: () => undefined, navigationPolicy: () => anywhere, unchanged: () => false }, before)
     expect(unreadable).toEqual(before)
     // Once it is on the page before, that is what is saved; a history saved for another page is not.
     const back = [{ ...tabs[0]!, url: page('b') }]
-    expect(savedTabHistories({ tabs: () => back, navigationHistory: () => history(['a', 'b', 'c'], 1), navigationPolicy: () => anywhere }, before))
+    expect(savedTabHistories({ tabs: () => back, navigationHistory: () => history(['a', 'b', 'c'], 1), navigationPolicy: () => anywhere, unchanged: () => false }, before))
       .toEqual(new Map([[TAB_ID, history(['a', 'b', 'c'], 1)]]))
-    expect(savedTabHistories({ tabs: () => back, navigationHistory: () => undefined, navigationPolicy: () => anywhere }, before)).toEqual(new Map())
+    expect(savedTabHistories({ tabs: () => back, navigationHistory: () => undefined, navigationPolicy: () => anywhere, unchanged: () => false }, before)).toEqual(new Map())
+  })
+
+  it('reads again only the histories that moved, and keeps the one saved for a history read again unchanged', () => {
+    // Reading every tab's history every few seconds took the main process a while with dozens of tabs.
+    const tabs = [{ id: TAB_ID, url: page('b'), mcpGroupId: 'workspace' }, { id: OTHER_TAB_ID, url: page('b'), mcpGroupId: 'workspace' }]
+    const before = new Map([[TAB_ID, history(['a', 'b'], 1)], [OTHER_TAB_ID, history(['a', 'b'], 1)]])
+    const read = vi.fn(() => history(['a', 'b'], 1))
+    const saved = savedTabHistories({ tabs: () => tabs, navigationHistory: read, navigationPolicy: () => anywhere, unchanged: (tab) => tab.id === TAB_ID }, before)
+    expect(read).toHaveBeenCalledOnce()
+    expect(read).toHaveBeenCalledWith(tabs[1])
+    expect(saved.get(TAB_ID)).toBe(before.get(TAB_ID))
+    expect(saved.get(OTHER_TAB_ID)).toBe(before.get(OTHER_TAB_ID))
+    // A tab not saved before is read whatever its position says.
+    expect(savedTabHistories({ tabs: () => tabs, navigationHistory: read, navigationPolicy: () => anywhere, unchanged: () => true }, new Map()))
+      .toEqual(new Map([[TAB_ID, history(['a', 'b'], 1)], [OTHER_TAB_ID, history(['a', 'b'], 1)]]))
   })
 
   it('keeps the history of each open workspace tab, and none of Home or a tab whose workspace is gone', () => {
@@ -117,7 +132,8 @@ describe('the history a restart keeps of a tab', () => {
     const saved = savedTabHistories({
       tabs: () => tabs,
       navigationHistory: () => history(['a', 'b'], 1),
-      navigationPolicy: (workspaceId) => workspaceId === 'workspace' ? anywhere : undefined
+      navigationPolicy: (workspaceId) => workspaceId === 'workspace' ? anywhere : undefined,
+      unchanged: () => false
     }, new Map([[OTHER_TAB_ID, history(['a', 'b'], 1)]]))
     expect([...saved]).toEqual([[TAB_ID, history(['a', 'b'], 1)]])
   })
@@ -141,6 +157,19 @@ describe('the saved tab history file', () => {
     await store.save(() => undefined)
     await expect(lstat(path)).rejects.toMatchObject({ code: 'ENOENT' })
     await store.save(() => new Map([[TAB_ID, history(['b'], 0)]]))
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ version: 1, tabs: { [TAB_ID]: history(['b'], 0) } })
+  })
+
+  it('writes nothing for a save that keeps every tab\'s saved history, but writes the pages it forgot', async () => {
+    const path = join(await directory(), 'tab-history.json')
+    const store = new TabHistoryStore(path)
+    await store.save(() => new Map([[TAB_ID, history(['a', 'b'], 1)]]))
+    const stringify = vi.spyOn(JSON, 'stringify')
+    await store.save((previous) => new Map(previous))
+    expect(stringify).not.toHaveBeenCalled()
+    // A history cleared of a page is saved without it, though the tab kept its history.
+    store.forgetPages((url) => url === page('a'), undefined)
+    await store.save((previous) => new Map(previous))
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ version: 1, tabs: { [TAB_ID]: history(['b'], 0) } })
   })
 
