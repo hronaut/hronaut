@@ -31,7 +31,7 @@ Hronaut is not an agent framework, hosted browser fleet, no-code platform, or un
 
 [![Hronaut — the browser your coding agent can come back to](https://hronaut.dev/hronaut-social-card.png)](https://hronaut.dev/#demo)
 
-Watch the [35-second product overview](https://hronaut.dev/#demo), then download Hronaut for Windows, macOS, or Linux.
+Watch the [product overview](https://hronaut.dev/#demo), then download Hronaut for Windows, macOS, or Linux.
 
 Not sure which browser model fits your workflow? Read the source-backed [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide), which compares Hronaut with Playwright MCP, Chrome DevTools MCP, and an extension-based Browser MCP without claiming persistence is unique.
 
