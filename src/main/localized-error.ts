@@ -44,10 +44,6 @@ interface TranslatedIpcErrorsHost {
  * The ipcMain Hronaut's handlers register on. A LocalizedError a handler throws reaches Hronaut's own pages in the
  * interface language; only an error's message crosses IPC, so the translated error replaces it. Every other error,
  * and every error for a website, passes through unchanged.
- *
- * A message sent without waiting for an answer has no one to take an error back to, so one its listener throws would
- * be an uncaught exception in main. Such a message is dropped and the error's message logged instead: a sender check
- * refuses, for one, the last message of an overlay view that closed with the window while it was on its way.
  */
 export function withTranslatedIpcErrors(
   ipcMain: Pick<IpcMain, 'handle' | 'on'>,
@@ -65,13 +61,7 @@ export function withTranslatedIpcErrors(
       })
     },
     on(channel, listener) {
-      return ipcMain.on(channel, (event, ...args: unknown[]) => {
-        try {
-          listener(event, ...args)
-        } catch (error) {
-          console.warn(`[ipc] Dropped a ${channel} message:`, error instanceof Error ? error.message : String(error))
-        }
-      })
+      return ipcMain.on(channel, listener)
     }
   }
 }

@@ -746,8 +746,9 @@ describe('sidebar overlay IPC', () => {
       ['sidebar-overlay-view:tooltip-show', { id: 1, text: 'Home', anchor: { x: 0, y: 0, width: 32, height: 32 }, placement: 'right', theme: 'dark' }],
       ['sidebar-overlay-view:tooltip-hide', 1]
     ] as const) {
-      expect(() => send(channel, fromPage, value)).toThrow('Rejected IPC from a non-sidebar renderer')
-      expect(() => send(channel, fromShell, value)).toThrow('Rejected IPC from a non-sidebar renderer')
+      // Dropped: nothing waits for an answer, and a throw would be an uncaught exception in main.
+      send(channel, fromPage, value)
+      send(channel, fromShell, value)
     }
     expect(overlay.rendered).not.toHaveBeenCalled()
     expect(overlay.received).not.toHaveBeenCalled()

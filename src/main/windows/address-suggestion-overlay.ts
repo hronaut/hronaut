@@ -30,8 +30,11 @@ interface AddressSuggestionOverlayHost {
 }
 
 export interface AddressSuggestionOverlay {
-  /** Admits only the suggestions page in the view that shows now. */
-  assertAddressOverlaySender(event: IpcMainEvent): void
+  /**
+   * Whether a report came from the suggestions page in the view that shows now. A report from a view the window closed
+   * meanwhile is not, and is dropped.
+   */
+  isAddressOverlaySender(event: IpcMainEvent): boolean
   /** Shows the shell's suggestions under the address field, loading the view first if needed. */
   show(request: AddressSuggestionOverlayRequest, sender: Pick<WebContents, 'getZoomFactor'>): void
   /** Hides the suggestions when the shell asks, including after a dismissal it acknowledges. */
@@ -72,15 +75,10 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
     return pathToFileURL(join(__dirname, '../renderer/address-overlay.html')).href
   }
 
-  function assertAddressOverlaySender(event: Electron.IpcMainEvent): void {
-    const actual = event.senderFrame?.url
-    if (
-      !addressSuggestionSurface
-      || event.sender !== addressSuggestionSurface.webContents
-      || !host.trustedUrlMatches(actual, trustedAddressOverlayUrl())
-    ) {
-      throw new Error('Rejected IPC from a non-address-overlay renderer')
-    }
+  function isAddressOverlaySender(event: Electron.IpcMainEvent): boolean {
+    return !!addressSuggestionSurface
+      && event.sender === addressSuggestionSurface.webContents
+      && host.trustedUrlMatches(event.senderFrame?.url, trustedAddressOverlayUrl())
   }
 
   function hideAddressSuggestionOverlay(): void {
@@ -291,5 +289,5 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
     addressSuggestionOverlayDismissalPending = false
   }
 
-  return { assertAddressOverlaySender, show, hide, measured, select, returnFocus, currentView, owns, setZoomFactor, mainWindowClosed }
+  return { isAddressOverlaySender, show, hide, measured, select, returnFocus, currentView, owns, setZoomFactor, mainWindowClosed }
 }

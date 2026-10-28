@@ -14,7 +14,7 @@ interface AddressOverlayIpcHost {
   /** Why saved workspaces could not start, if they could not; read on every message. */
   workspaceStartupFailure(): Error | undefined
   /** The suggestions view and its state, which the main window's closing resets too. */
-  addressOverlay(): Pick<AddressSuggestionOverlay, 'assertAddressOverlaySender' | 'show' | 'hide' | 'measured' | 'select' | 'returnFocus'>
+  addressOverlay(): Pick<AddressSuggestionOverlay, 'isAddressOverlaySender' | 'show' | 'hide' | 'measured' | 'select' | 'returnFocus'>
 }
 
 function validAddressSuggestion(value: unknown): value is AddressSuggestion {
@@ -94,8 +94,9 @@ function validatedAddressOverlayRequest(value: unknown): AddressSuggestionOverla
 
 /**
  * The shell's requests to show and hide the address field's suggestions, and the suggestions page's own reports.
- * Each message is checked against its sender and validated here before the overlay acts on it. Dependencies stay
- * lazy because handlers are registered before the window loads.
+ * Each message is checked against its sender and validated here before the overlay acts on it; a report from a
+ * suggestions view that is no longer the current one is dropped. Dependencies stay lazy because handlers are
+ * registered before the window loads.
  */
 export function registerAddressOverlayIpc(ipcMain: Pick<IpcMain, 'on'>, host: AddressOverlayIpcHost): void {
   ipcMain.on('address-overlay:show', (event, value: unknown) => {
@@ -116,12 +117,12 @@ export function registerAddressOverlayIpc(ipcMain: Pick<IpcMain, 'on'>, host: Ad
   })
   ipcMain.on('address-overlay:measured', (event, value: unknown) => {
     if (host.workspaceStartupFailure()) return
-    host.addressOverlay().assertAddressOverlaySender(event)
+    if (!host.addressOverlay().isAddressOverlaySender(event)) return
     host.addressOverlay().measured(value, event.sender)
   })
   ipcMain.on('address-overlay:select', (event, value: unknown) => {
     if (host.workspaceStartupFailure()) return
-    host.addressOverlay().assertAddressOverlaySender(event)
+    if (!host.addressOverlay().isAddressOverlaySender(event)) return
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new TypeError('Invalid address suggestion selection')
     }
