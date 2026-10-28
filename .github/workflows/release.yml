@@ -233,10 +233,6 @@ jobs:
       - name: Test the packaged stdio-to-HTTP connection
         run: npm test -- tests/mcpb-adapter.test.ts tests/mcpb-packaging.test.ts
 
-      # Claude Code runs the plugin's headers helper with each system's own shell.
-      - name: Test the Claude Code plugin's headers helper
-        run: npm test -- tests/claude-code-plugin.test.ts
-
   build-mcpb:
     name: Build registry-compatible MCPB adapter
     needs:

@@ -332,7 +332,6 @@ describe('release quality gates', () => {
       expect(testMcpb).toContain(`- ${os}`)
     }
     expect(testMcpb).toContain('npm test -- tests/mcpb-adapter.test.ts tests/mcpb-packaging.test.ts')
-    expect(testMcpb).toContain('npm test -- tests/claude-code-plugin.test.ts')
     expect(buildMcpb).toContain('- test-mcpb')
     expect(buildMcpb).toContain('npm run package:mcpb')
     expect(buildMcpb).toContain('dist/hronaut-operator-manifest.json')

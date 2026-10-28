@@ -82,7 +82,7 @@ Transfers include cookies and local storage, not history, saved passwords, Index
 Connect through Hronaut's local Streamable HTTP MCP endpoint. Choose the focused guide for your client, or start with the [generic setup](https://hronaut.dev/setup):
 
 - **Terminal and desktop agents:** [Codex](https://hronaut.dev/codex-browser-mcp), [Claude Code](https://hronaut.dev/claude-code-browser-mcp), [Gemini CLI](https://hronaut.dev/gemini-cli-browser-mcp), [Goose](https://hronaut.dev/goose-browser-mcp), [OpenCode](https://hronaut.dev/opencode-browser-mcp), [Devin Local](https://hronaut.dev/devin-local-browser-mcp), [Mistral Vibe](https://hronaut.dev/mistral-vibe-browser-mcp), [Grok Build](https://hronaut.dev/grok-build-browser-mcp), [Qwen Code](https://hronaut.dev/qwen-code-browser-mcp), and [Warp](https://hronaut.dev/warp-browser-mcp).
-- **Editor agents:** [Cursor](https://hronaut.dev/cursor-browser-mcp), [VS Code / GitHub Copilot](https://hronaut.dev/github-copilot-browser-mcp), [Cline](https://hronaut.dev/cline-browser-mcp), [Zoo Code](https://hronaut.dev/zoo-code-browser-mcp), [Kiro](https://hronaut.dev/kiro-browser-mcp), [Kilo Code](https://hronaut.dev/kilo-code-browser-mcp), [JetBrains Junie](https://hronaut.dev/jetbrains-junie-browser-mcp), [Zed](https://hronaut.dev/zed-browser-mcp), and [Windsurf](https://hronaut.dev/setup#client-configurations).
+- **Editor agents:** [Cursor](https://hronaut.dev/cursor-browser-mcp), [VS Code / GitHub Copilot](https://hronaut.dev/github-copilot-browser-mcp) (or the [Hronaut extension](https://marketplace.visualstudio.com/items?itemName=hronaut.hronaut) from the VS Code Marketplace), [Cline](https://hronaut.dev/cline-browser-mcp), [Zoo Code](https://hronaut.dev/zoo-code-browser-mcp), [Kiro](https://hronaut.dev/kiro-browser-mcp), [Kilo Code](https://hronaut.dev/kilo-code-browser-mcp), [JetBrains Junie](https://hronaut.dev/jetbrains-junie-browser-mcp), [Zed](https://hronaut.dev/zed-browser-mcp), and [Windsurf](https://hronaut.dev/setup#client-configurations).
 - **Other clients:** use the [generic Streamable HTTP setup](https://hronaut.dev/setup).
 
 ## When Hronaut is the right browser
@@ -229,14 +229,14 @@ After trying it, share a short [setup report](https://github.com/hronaut/hronaut
 
 ### Claude Code plugin
 
-Claude Code users can install the Hronaut MCP server and the Hronaut Agent Skill together as a plugin from this repository:
+Claude Code users can install the Hronaut MCP server and the Hronaut Agent Skill together as a plugin. It lives in its own repository, [hronaut/hronaut-claude-plugin](https://github.com/hronaut/hronaut-claude-plugin), with its own versions:
 
 ```text
-/plugin marketplace add hronaut/hronaut
+/plugin marketplace add hronaut/hronaut-claude-plugin
 /plugin install hronaut@hronaut
 ```
 
-On Claude Code 2.1.275 or later, `/plugin install hronaut --marketplace hronaut/hronaut` does both in one step. Start Hronaut first; `/mcp` then shows Hronaut as connected. The plugin connects to the address in its **Hronaut MCP address** option, `http://127.0.0.1:47812/mcp` by default, and reads Hronaut's owner token from the token file in Hronaut's profile each time it connects, so the token is never written to Claude Code's settings or shown to the agent; it sends the token only to a port on this computer, and on Windows without `sh` on the PATH it reads it with Windows PowerShell. If you changed Hronaut's MCP port, change it in that option in `/config`; if Hronaut uses another profile folder, set `HRONAUT_USER_DATA_DIR`. If you start Hronaut with `HRONAUT_MCP_TOKEN`, give Claude Code the same variable and delete the profile's `mcp-token` file if an earlier start left one, since the plugin sends the file's token first. If you added Hronaut with `claude mcp add` before, Claude Code keeps using that server and the token it stored instead of the plugin's, so remove it with `claude mcp remove hronaut --scope user`.
+On Claude Code 2.1.275 or later, `/plugin install hronaut --marketplace hronaut/hronaut-claude-plugin` does both in one step. Start Hronaut first; `/mcp` then shows Hronaut as connected. The [plugin's README](https://github.com/hronaut/hronaut-claude-plugin#readme) covers the connection, its address option and the owner token.
 
 ### First successful run
 
