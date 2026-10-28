@@ -22,7 +22,7 @@ export function changelogReleaseNotes(changelog: string, version: string): strin
 const RELEASE_NOTES_MARKER = '<!-- hronaut-release-notes -->'
 const GENERATED_NOTES_MARKER = '<!-- hronaut-generated-notes -->'
 const UNSIGNED_WARNING_MARKER = '<!-- unsigned-release-warning -->'
-const UNSIGNED_WARNING = '> [!WARNING]\n> These desktop artifacts are not platform code-signed or Apple-notarized. macOS Gatekeeper and Windows SmartScreen may warn before first launch. [Verify the download with SHA-256 and GitHub artifact attestations](https://hronaut.dev/security#verify-release) before overriding either warning.'
+const UNSIGNED_WARNING = '> [!WARNING]\n> The Windows artifacts are not code-signed, so Windows SmartScreen may warn before first launch. [Verify the download with SHA-256 and GitHub artifact attestations](https://hronaut.dev/security#verify-release) before overriding that warning. The macOS packages are signed with the Hronaut Developer ID certificate and notarized by Apple.'
 
 function withoutLegacyOnboarding(notes: string): string {
   const lines = notes.split(/\r?\n/)

@@ -165,8 +165,13 @@ describe('release quality gates', () => {
     expect(validate).not.toContain('run: npm run build\n')
     expect(releaseCandidate).toContain("if: github.event_name == 'workflow_dispatch' && startsWith(github.ref_name, 'release/')")
     expect(releaseCandidate).toContain('command: package:linux')
-    expect(releaseCandidate).toContain('command: package:mac')
     expect(releaseCandidate).toContain('command: package:win')
+    // The Mac packages are signed in their own job, which builds and packages as package:mac does.
+    const macCandidate = job(workflow, 'package-macos-release-candidate')
+    expect(macCandidate).toContain("if: github.event_name == 'workflow_dispatch' && startsWith(github.ref_name, 'release/')")
+    expect(macCandidate).toContain('run: npm run build:app')
+    expect(macCandidate).toContain('npx electron-builder --mac --publish never')
+    expect(packageJson.scripts['package:mac']).toBe('npm run build:app && electron-builder --mac --publish never')
     for (const platform of ['linux', 'mac', 'win']) {
       expect(packageJson.scripts[`package:${platform}`]).toContain('npm run build:app')
       expect(packageJson.scripts[`package:${platform}`]).not.toContain('npm run build &&')
