@@ -15,6 +15,7 @@ describe('the status bubble view\'s reports', () => {
     const bubble = { measured: vi.fn() }
     const view = { webContents: {} }
     registerOverlayViewsIpc({ on: (channel: string, handler: (event: IpcMainEvent, value?: unknown) => void) => { handlers.set(channel, handler) } } as never, {
+      isMainShellSender: () => true,
       assertMainShellSender: vi.fn(),
       workspaceStartupFailure: () => undefined,
       shellTooltips: () => ({}) as never,

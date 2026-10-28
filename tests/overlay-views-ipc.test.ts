@@ -7,7 +7,7 @@ import { registerOverlayViewsIpc } from '../src/main/overlay-views-ipc.js'
 // anything else, the shell or a page, has no effect and throws nothing.
 
 describe('overlay views\' reports', () => {
-  function registered() {
+  function registered(options: { startupFailure?: Error } = {}) {
     const handlers = new Map<string, (event: IpcMainEvent, value?: unknown) => void>()
     const views = {
       agentCard: { webContents: { getZoomFactor: () => 1 } },
@@ -23,8 +23,9 @@ describe('overlay views\' reports', () => {
     const sidebarOverlay = { refused: vi.fn(), show: vi.fn(), hide: vi.fn(), rendered: vi.fn(), pointer: vi.fn(), received: vi.fn(), tooltip: vi.fn((request: unknown) => request) }
     const statusBubble = { measured: vi.fn() }
     registerOverlayViewsIpc({ on: (channel: string, handler: (event: IpcMainEvent, value?: unknown) => void) => { handlers.set(channel, handler) } } as never, {
+      isMainShellSender: (event) => event.sender === shell,
       assertMainShellSender: vi.fn(),
-      workspaceStartupFailure: () => undefined,
+      workspaceStartupFailure: () => options.startupFailure,
       shellTooltips: () => shellTooltips as never,
       agentCards: () => agentCards as never,
       toastOverlay: () => toastOverlay as never,
@@ -55,8 +56,9 @@ describe('overlay views\' reports', () => {
       { channel: 'sidebar-overlay-view:tooltip-hide', view: views.sidebar, value: 1, effect: shellTooltips.hide }
     ]
     const send = (channel: string, sender: object, value: unknown) => handlers.get(channel)!({ sender } as IpcMainEvent, value)
-    return { handlers, reports, send }
+    return { handlers, reports, send, agentCards, toastOverlay, sidebarOverlay }
   }
+  const shell = { getZoomFactor: () => 1 }
 
   it('take effect from the view that draws them', () => {
     const { reports, send } = registered()
@@ -71,7 +73,6 @@ describe('overlay views\' reports', () => {
     // Every report channel the module listens on is covered here.
     expect([...handlers.keys()].filter((channel) => channel.includes('-view:') || channel.endsWith(':measured')).sort())
       .toEqual(reports.map(({ channel }) => channel).sort())
-    const shell = { getZoomFactor: () => 1 }
     const page = { getZoomFactor: () => 1 }
     const closedView = { getZoomFactor: () => 1 }
     for (const { channel, value, effect } of reports) {
@@ -80,5 +81,22 @@ describe('overlay views\' reports', () => {
       }
       expect(effect, channel).not.toHaveBeenCalled()
     }
+  })
+
+  // The shell keeps its own toast, or opens its own rail beside the page, once it hears the request is refused.
+  it('after a failed startup, are not drawn: the main window\'s shell hears so, and another sender\'s id ends nothing', () => {
+    const { send, toastOverlay, sidebarOverlay } = registered({ startupFailure: new Error('workspaces did not start') })
+    const toast = { toast: { id: 4 }, theme: 'dark' }
+    const panelShell = { getZoomFactor: () => 1 }
+    send('toast-overlay:show', panelShell, toast)
+    send('sidebar-overlay:show', panelShell, { id: 5 })
+    expect(toastOverlay.refused).not.toHaveBeenCalled()
+    expect(sidebarOverlay.refused).not.toHaveBeenCalled()
+    send('toast-overlay:show', shell, toast)
+    send('sidebar-overlay:show', shell, { id: 5 })
+    expect(toastOverlay.refused).toHaveBeenCalledExactlyOnceWith(4)
+    expect(sidebarOverlay.refused).toHaveBeenCalledExactlyOnceWith(5)
+    expect(toastOverlay.show).not.toHaveBeenCalled()
+    expect(sidebarOverlay.show).not.toHaveBeenCalled()
   })
 })

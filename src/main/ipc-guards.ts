@@ -53,6 +53,7 @@ interface IpcGuardsHost {
 export function createIpcGuards(host: IpcGuardsHost): {
   assertTrustedShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
   isShellWindowSender(event: IpcMainInvokeEvent | IpcMainEvent): boolean
+  isMainShellSender(event: IpcMainInvokeEvent | IpcMainEvent): boolean
   assertMainShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
   assertPanelShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
   isHronautPageSender(event: IpcMainInvokeEvent): boolean
@@ -81,12 +82,15 @@ export function createIpcGuards(host: IpcGuardsHost): {
     if (!isShellWindowSender(event)) throw new Error('Rejected IPC from an untrusted renderer')
   }
 
+  /** Whether a message came from the main window's shell document, whether or not saved workspaces started. */
+  function isMainShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean {
+    const actual = event.senderFrame?.url
+    return Boolean(host.mainWindowRefs.window && event.sender === host.mainWindowRefs.window.webContents && trustedUrlMatches(actual, trustedShellUrl()))
+  }
+
   function assertMainShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
     if (host.workspaceStartupFailure()) throw host.workspaceStartupFailure()
-    const actual = event.senderFrame?.url
-    if (!host.mainWindowRefs.window || event.sender !== host.mainWindowRefs.window.webContents || !trustedUrlMatches(actual, trustedShellUrl())) {
-      throw new Error('Rejected IPC from a non-primary renderer')
-    }
+    if (!isMainShellSender(event)) throw new Error('Rejected IPC from a non-primary renderer')
   }
 
   function assertPanelShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
@@ -143,6 +147,7 @@ export function createIpcGuards(host: IpcGuardsHost): {
   return {
     assertTrustedShellSender,
     isShellWindowSender,
+    isMainShellSender,
     assertMainShellSender,
     assertPanelShellSender,
     isHronautPageSender,

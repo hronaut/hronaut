@@ -713,10 +713,14 @@ describe('sidebar overlay IPC', () => {
     const overlay = { refused: vi.fn(), show: vi.fn(), hide: vi.fn(), rendered: vi.fn(), pointer: vi.fn(), received: vi.fn(), tooltip: vi.fn((request: unknown) => request) }
     const tooltips = { show: vi.fn(), hide: vi.fn(), measured: vi.fn(), shownId: undefined as number | undefined }
     const view = { webContents: {} }
+    const isMainShellSender = (event: IpcMainEvent) => (event as unknown as { shell?: boolean }).shell === true
+    // As the app's check does, it refuses every sender, the shell too, once startup has failed.
     const assertMainShellSender = vi.fn((event: IpcMainEvent) => {
-      if ((event as unknown as { shell?: boolean }).shell !== true) throw new Error('Rejected IPC from a non-shell renderer')
+      if (options.startupFailure) throw options.startupFailure
+      if (!isMainShellSender(event)) throw new Error('Rejected IPC from a non-shell renderer')
     })
     registerOverlayViewsIpc({ on: (channel: string, handler: (event: IpcMainEvent, value?: unknown) => void) => { handlers.set(channel, handler) } } as never, {
+      isMainShellSender,
       assertMainShellSender,
       workspaceStartupFailure: () => options.startupFailure,
       shellTooltips: () => tooltips as never,
@@ -776,7 +780,7 @@ describe('sidebar overlay IPC', () => {
     expect(failed.overlay.refused).toHaveBeenCalledWith(3)
     expect(failed.overlay.show).not.toHaveBeenCalled()
     // Another sender's id ends nothing, which could keep the shell's later reveals from opening.
-    expect(() => failed.send('sidebar-overlay:show', failed.fromPage, { id: 1_000_000, model: model() })).toThrow('Rejected IPC from a non-shell renderer')
+    failed.send('sidebar-overlay:show', failed.fromPage, { id: 1_000_000, model: model() })
     expect(failed.overlay.refused).toHaveBeenCalledTimes(1)
   })
 
