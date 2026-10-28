@@ -66,7 +66,10 @@ for (const action of ['baseline', 'compare'] as const) for (const stage of ['dom
           return result
         }
         cookieStore.get = async filter => {
-          probe.cookieUrls.push(filter.url ?? '')
+          // Only the capture's own read, for the page's address: Hronaut also reads all of a workspace's cookies a
+          // second after a session cookie changes, to keep them across a restart, and that read is not held.
+          if (filter.url === undefined) return get(filter)
+          probe.cookieUrls.push(filter.url)
           const result = await get(filter)
           if (stage === 'cookies') { probe.held = true; await gate }
           return result
