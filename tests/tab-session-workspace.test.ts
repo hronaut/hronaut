@@ -7,6 +7,8 @@ vi.mock('electron', () => {
       session: { partition: 'workspace' },
       isDestroyed: () => false,
       setAudioMuted: () => undefined,
+      isLoading: () => false,
+      getURL: () => '',
       loadURL: () => Promise.resolve(),
       navigationHistory: { restore: () => Promise.resolve() }
     }

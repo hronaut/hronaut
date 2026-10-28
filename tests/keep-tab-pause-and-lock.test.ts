@@ -14,6 +14,8 @@ vi.mock('electron', () => {
       isDestroyed: () => false,
       isDevToolsOpened: () => false,
       setAudioMuted() {},
+      isLoading: () => false,
+      getURL: () => '',
       loadURL: () => Promise.resolve(),
       navigationHistory: { restore: () => Promise.resolve() }
     }

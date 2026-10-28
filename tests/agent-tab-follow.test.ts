@@ -8,6 +8,8 @@ vi.mock('electron', () => {
       session: {},
       isDestroyed: () => false,
       setAudioMuted: () => undefined,
+      isLoading: () => false,
+      getURL: () => '',
       loadURL: () => Promise.resolve(),
       navigationHistory: { restore: () => Promise.resolve() }
     }
