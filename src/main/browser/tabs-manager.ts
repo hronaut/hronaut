@@ -317,7 +317,7 @@ import { uuidV7 } from '../uuid-v7.js'
 import { LocalizedError } from '../localized-error.js'
 import { RendererRecovery } from './renderer-recovery.js'
 import { EndedByPersonMarks, endTaskManagerProcess, taskManagerProcesses, type TaskManagerAccess } from './task-manager/task-manager.js'
-import { guardPageCallsAcrossRendererExit } from './renderer-exit-guard.js'
+import { firstLoadStarts, guardPageCallsAcrossRendererExit, holdUntilFirstLoad } from './renderer-exit-guard.js'
 import { refusePageScriptsInSourceView } from './source-view-guard.js'
 import { guardPageCallsDuringPrintDialog } from './print-dialog-guard.js'
 import { runPageScriptsOnceDocumentReady } from './page-script-readiness.js'
@@ -2723,6 +2723,10 @@ export class BrowserTabsManager {
       tabOverviewSleepPreviews: () => this.tabOverviewSleepPreviews,
       mcpTabGroups: () => this.mcpTabGroups,
       withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      firstLoadStarts: (tab) => {
+        firstLoadStarts(tab.webContents)
+        void this.ensureDialogMonitoring(tab)
+      },
       changed: (persist) => this.changed(persist),
       getState: () => this.getState()
     }
@@ -5923,6 +5927,8 @@ export class BrowserTabsManager {
     this.webContentsToTab.set(view.webContents.id, id)
     this.options.configureSession?.(view.webContents.session, isHronautHomeUrl(url) ? undefined : workspace?.id)
     this.installSessionHooks(view.webContents.session)
+    // A tab created asleep loads nothing, so it has no renderer to answer the page's calls until it wakes.
+    if (asleep) holdUntilFirstLoad(view.webContents)
     this.attachTabEvents(tab)
     // A page opened for a window closes its tab when it closes itself. Other tabs keep their recovery from a page
     // destroyed under them, as tests and Electron destroy pages for other reasons.

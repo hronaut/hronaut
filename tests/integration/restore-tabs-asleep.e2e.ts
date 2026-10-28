@@ -12,7 +12,8 @@ interface RestartWindow {
     back(tabId?: string): Promise<unknown>
     forward(tabId?: string): Promise<unknown>
     selectTab(tabId: string): Promise<unknown>
-    getState(): Promise<{ tabs: Array<{ id: string; url: string; loading: boolean; sleeping: boolean; canGoBack: boolean; canGoForward: boolean }> }>
+    setAllHumanInteractionLocked(locked: boolean): Promise<{ allHumanInteractionLocked: boolean }>
+    getState(): Promise<{ tabs: Array<{ id: string; url: string; loading: boolean; sleeping: boolean; canGoBack: boolean; canGoForward: boolean; humanInteractionInputLocked: boolean }> }>
   }
 }
 
@@ -119,6 +120,86 @@ test('a restart loads the tabs shown, the window\'s and each workspace\'s, and b
     expect(await tabAt(restarted, [behind])).toMatchObject({ sleeping: true })
     expect(Object.fromEntries(requests)).toEqual({ '/shown': 1, '/client': 1, '/first': 1, '/forward': 1 })
   } finally {
+    if (before) await closeHronaut(before.app)
+    if (after) await closeHronaut(after.app)
+    await closeFixtureServer(server)
+  }
+})
+
+test('a restart\'s tabs asleep take the input lock, and once woken keep it and have their page\'s dialogs watched from its first document', async ({ profileDirectory, mcpPort }) => {
+  // Asleep, they have no renderer: locking every tab's input waited on them and failed as a busy page.
+  let restarted = false
+  const server = createServer((request, response) => {
+    request.resume()
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+    if (request.url === '/dialog') {
+      response.end(`<!doctype html><title>Dialog</title>${restarted ? "<script>alert('Opened as it loads')</script>" : ''}<main>Dialog fixture</main>`)
+      return
+    }
+    response.end('<!doctype html><title>Page</title><button id="action" style="width:160px;height:50px">Act</button>'
+      + '<script>window.clicks=0;document.querySelector("#action").addEventListener("click",()=>window.clicks++)</script>')
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture port')
+  const [shown, behind, dialog] = ['shown', 'behind', 'dialog'].map((name) => `http://127.0.0.1:${address.port}/${name}`) as [string, string, string]
+  const tabAt = (window: Page, url: string) => window.evaluate(async (url) => (await (window as unknown as RestartWindow).hronaut.getState()).tabs
+    .find((candidate) => candidate.url === url), url)
+  let before: Awaited<ReturnType<typeof launchHronaut>> | undefined
+  let after: Awaited<ReturnType<typeof launchHronaut>> | undefined
+  try {
+    before = await launchHronaut(profileDirectory, mcpPort)
+    const window = before.window
+    await window.evaluate((url) => (window as unknown as RestartWindow).hronaut.newTab({ url, active: true }), shown)
+    for (const url of [behind, dialog]) await window.evaluate((url) => (window as unknown as RestartWindow).hronaut.newTab({ url, active: false }), url)
+    await expect.poll(async () => (await tabAt(window, dialog))?.loading).toBe(false)
+    await expect.poll(async () => (await readFile(join(profileDirectory, 'tab-history.json'), 'utf8').catch(() => '')).includes(dialog), { timeout: 15_000 }).toBe(true)
+    await closeHronaut(before.app)
+    before = undefined
+    restarted = true
+
+    after = await launchHronaut(profileDirectory, mcpPort)
+    const app = after.app
+    const restartedWindow = after.window
+    await expect.poll(async () => (await tabAt(restartedWindow, shown))?.loading).toBe(false)
+    expect(await tabAt(restartedWindow, behind)).toMatchObject({ sleeping: true })
+    expect(await tabAt(restartedWindow, dialog)).toMatchObject({ sleeping: true })
+    expect(await restartedWindow.evaluate(() => (window as unknown as RestartWindow).hronaut.setAllHumanInteractionLocked(true)))
+      .toMatchObject({ allHumanInteractionLocked: true })
+
+    await restartedWindow.evaluate(async (id) => (window as unknown as RestartWindow).hronaut.selectTab(id), (await tabAt(restartedWindow, behind))!.id)
+    await expect.poll(async () => (await tabAt(restartedWindow, behind))?.loading).toBe(false)
+    expect(await tabAt(restartedWindow, behind)).toMatchObject({ sleeping: false, humanInteractionInputLocked: true })
+    const blocked = await app.evaluate(async ({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)!
+      const point = await page.executeJavaScript('(() => { const box = document.querySelector("#action").getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 } })()') as { x: number; y: number }
+      const observed = new Promise<boolean>((resolve) => {
+        page.on('before-mouse-event', (event, mouse) => { if (mouse.type === 'mouseUp') resolve(event.defaultPrevented) })
+      })
+      page.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...point })
+      page.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...point })
+      return await observed
+    }, behind)
+    expect(blocked).toBe(true)
+    expect(await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find((contents) => contents.getURL() === url)!
+      .executeJavaScript('window.clicks'), behind)).toBe(0)
+
+    // The dialog its page opens as it first loads reaches the page's monitoring, which then has to be in place.
+    await app.evaluate(({ webContents }) => {
+      const asleep = webContents.getAllWebContents().filter((contents) => contents.getURL() === '')
+      if (asleep.length !== 1) throw new Error(`Expected one page asleep, found ${asleep.length}`)
+      const dialogs: string[] = []
+      Object.assign(globalThis, { restoredPageDialogs: dialogs })
+      asleep[0]!.debugger.on('message', (_event, method, params: { message?: string }) => {
+        if (method === 'Page.javascriptDialogOpening') dialogs.push(params.message ?? '')
+      })
+    })
+    await restartedWindow.evaluate(async (id) => (window as unknown as RestartWindow).hronaut.selectTab(id), (await tabAt(restartedWindow, dialog))!.id)
+    await expect.poll(() => app.evaluate(() => (globalThis as { restoredPageDialogs?: string[] }).restoredPageDialogs)).toEqual(['Opened as it loads'])
+    await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+      ?.debugger.sendCommand('Page.handleJavaScriptDialog', { accept: true }).catch(() => undefined), dialog)
+  } finally {
+    if (after) await after.window.evaluate(() => (window as unknown as RestartWindow).hronaut.setAllHumanInteractionLocked(false)).catch(() => undefined)
     if (before) await closeHronaut(before.app)
     if (after) await closeHronaut(after.app)
     await closeFixtureServer(server)

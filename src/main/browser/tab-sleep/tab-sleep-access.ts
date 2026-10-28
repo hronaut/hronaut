@@ -126,6 +126,11 @@ export interface TabSleepAccess<Tab extends TabSleepTab> {
   mcpTabGroups(): ReadonlyMap<string, unknown>
   /** Runs a debugger operation on the page in its turn. */
   withDebugger<T>(webContents: WebContents, operation: () => Promise<T>): Promise<T>
+  /**
+   * Lets the page of a tab created asleep take calls as its first load starts, and starts monitoring its dialogs and
+   * network then, as for a new tab, so they are watched from its first document.
+   */
+  firstLoadStarts(tab: Tab): void
   /** Publishes the browser state, and saves it unless persist is false. */
   changed(persist?: boolean): void
   /** The browser state. */

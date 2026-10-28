@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { guardPageCallsAcrossRendererExit, RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
+import { firstLoadStarts, guardPageCallsAcrossRendererExit, holdUntilFirstLoad, RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 
 function deferred(): { promise: Promise<unknown>; resolve(value: unknown): void; reject(error: unknown): void } {
   let resolve!: (value: unknown) => void
@@ -178,6 +178,24 @@ describe('page calls across a renderer exit', () => {
     await expect(evaluated).resolves.toEqual({ result: 1 })
     await expect(script).rejects.toThrow('Script failed')
     await expect(isolated).resolves.toBe(2)
+  })
+
+  // A tab restored asleep loads nothing and has no renderer until it wakes, and Electron held its page's calls until
+  // then: locking every tab's input waited on it and failed as a busy page.
+  it('refuses the calls of a page held until its first load at once and unsent, and lets them through as it starts', async () => {
+    const { page, calls } = fakePage()
+    holdUntilFirstLoad(page)
+    await expect(page.executeJavaScript('1')).rejects.toMatchObject({ name: 'NotLoadedYetError', sent: false })
+    await expect(page.executeJavaScriptInIsolatedWorld(7, [{ code: '2' }])).rejects.toBeInstanceOf(RendererExitedError)
+    await expect(page.debugger.sendCommand('Page.enable')).rejects.toThrow('has not loaded its page yet')
+    await expect(page.capturePage()).rejects.toBeInstanceOf(RendererExitedError)
+    await expect(page.printToPDF({})).rejects.toBeInstanceOf(RendererExitedError)
+    // The browser process answers the input barrier without a renderer.
+    void page.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true })
+    expect(calls.map(call => call.args)).toEqual([['Input.setIgnoreInputEvents', { ignore: true }]])
+    firstLoadStarts(page)
+    void page.debugger.sendCommand('Page.enable')
+    expect(calls.map(call => call.args).at(-1)).toEqual(['Page.enable'])
   })
 
   it('leaves calls that settled before an exit alone', async () => {

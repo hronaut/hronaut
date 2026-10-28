@@ -71,6 +71,7 @@ export const zhTWAppErrors: AppErrorMessages = {
   "page": {
     "rendererExitedDuringAction": "網頁在執行這項動作時因轉譯器結束而停止，動作的影響不明。請重新載入或關閉分頁，然後檢查最新狀態。",
     "rendererExitedBeforeAction": "網頁因轉譯器結束而未在執行，因此沒有傳送任何內容。請重新載入或關閉分頁，然後檢查最新狀態。",
+    "notLoadedYet": "這個分頁正在休眠，尚未載入網頁，因此沒有傳送任何內容。請先喚醒這個分頁，然後再試一次。",
     "printDialogOpenedDuringAction": "網頁在執行這項動作時開啟了列印對話方塊；在使用者列印或取消之前，對話方塊會鎖住網頁，且動作的影響不明。請使用者關閉對話方塊，然後檢查最新狀態。",
     "printDialogOpenBeforeAction": "網頁正在顯示列印對話方塊，在使用者列印或取消之前會鎖住網頁，因此沒有傳送任何內容。請使用者關閉對話方塊，然後再試一次。",
     "sourceViewRunsNoScripts": "這個分頁顯示的是網頁原始碼（view-source: 網址），網頁指令碼永遠不會執行完成，因此沒有傳送任何內容。請在分頁中開啟網頁本身來進行檢查。",

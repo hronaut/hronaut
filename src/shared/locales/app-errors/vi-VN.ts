@@ -71,6 +71,7 @@ export const viVNAppErrors: AppErrorMessages = {
   "page": {
     "rendererExitedDuringAction": "Trang đã dừng trong lúc thực hiện thao tác này vì trình kết xuất của trang đã thoát; chưa rõ thao tác đã có tác dụng gì. Hãy tải lại hoặc đóng thẻ, rồi kiểm tra lại trạng thái mới.",
     "rendererExitedBeforeAction": "Trang không chạy vì trình kết xuất của trang đã thoát; chưa có gì được gửi đến trang. Hãy tải lại hoặc đóng thẻ, rồi kiểm tra lại trạng thái mới.",
+    "notLoadedYet": "Thẻ đang ngủ và chưa tải trang của thẻ; chưa có gì được gửi đến trang. Hãy đánh thức thẻ, rồi thử lại.",
     "printDialogOpenedDuringAction": "Trang đã mở hộp thoại in trong lúc thực hiện thao tác này; hộp thoại giữ trang cho đến khi người dùng in hoặc hủy, và chưa rõ thao tác đã có tác dụng gì. Hãy nhờ người dùng đóng hộp thoại, rồi kiểm tra lại trạng thái mới.",
     "printDialogOpenBeforeAction": "Trang đang hiển thị hộp thoại in, hộp thoại này giữ trang cho đến khi người dùng in hoặc hủy; chưa có gì được gửi đến trang. Hãy nhờ người dùng đóng hộp thoại, rồi thử lại.",
     "sourceViewRunsNoScripts": "Thẻ này hiển thị nguồn của một trang (địa chỉ view-source:), nơi tập lệnh của trang không bao giờ chạy xong; chưa có gì được gửi đến trang. Hãy mở chính trang đó trong thẻ để kiểm tra.",

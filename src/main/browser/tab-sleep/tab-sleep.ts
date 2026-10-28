@@ -46,18 +46,11 @@ export function withoutSleepingPage(history: NavigationHistorySnapshot): Navigat
 }
 
 /**
- * Goes back from the sleeping page to the page the tab slept on, so the tab keeps the pages before it in its history:
- * Electron restores saved history only into a page that never loaded one, and the sleeping page is one. When the
- * sleeping page is not the current entry right after the tab's address, the address is loaded instead. It settles as
- * Electron's `loadURL` does: once the page, or the error page of a failed load, finishes loading, with the load's error
- * when it failed; as aborted when another navigation replaces it; and as failed when loading stops without either.
+ * Starts a load with start and settles as Electron's `loadURL` does: once the page, or the error page of a failed load,
+ * finishes loading, with the load's error when it failed; as aborted when another navigation replaces it; and as failed
+ * when loading stops without either. A load start refuses by throwing settles with that error.
  */
-function returnFromSleepingPage(webContents: WebContents, url: string): Promise<void> {
-  const history = webContents.navigationHistory
-  const sleepingIndex = history.getActiveIndex()
-  if (history.getEntryAtIndex(sleepingIndex)?.url !== SLEEPING_PAGE_URL || history.getEntryAtIndex(sleepingIndex - 1)?.url !== url) {
-    return webContents.loadURL(url)
-  }
+function settledAsLoad(webContents: WebContents, url: string, start: () => void): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     let navigationStarted = false
     let failure: Error | undefined
@@ -92,7 +85,7 @@ function returnFromSleepingPage(webContents: WebContents, url: string): Promise<
     webContents.on('did-stop-loading', stopped)
     webContents.on('destroyed', stopped)
     try {
-      history.goToIndex(sleepingIndex - 1)
+      start()
     } catch (error) {
       settle(error instanceof Error ? error : new Error(String(error)))
     }
@@ -100,16 +93,42 @@ function returnFromSleepingPage(webContents: WebContents, url: string): Promise<
 }
 
 /**
- * Loads the page of a tab created asleep, which never loaded one, with the pages before and after it in its history.
- * When Electron cannot take that history, the address loads alone. It settles as Electron's `loadURL` does.
+ * Goes back from the sleeping page to the page the tab slept on, so the tab keeps the pages before it in its history:
+ * Electron restores saved history only into a page that never loaded one, and the sleeping page is one. When the
+ * sleeping page is not the current entry right after the tab's address, the address is loaded instead. It settles as
+ * Electron's `loadURL` does.
+ */
+function returnFromSleepingPage(webContents: WebContents, url: string): Promise<void> {
+  const history = webContents.navigationHistory
+  const sleepingIndex = history.getActiveIndex()
+  if (history.getEntryAtIndex(sleepingIndex)?.url !== SLEEPING_PAGE_URL || history.getEntryAtIndex(sleepingIndex - 1)?.url !== url) {
+    return webContents.loadURL(url)
+  }
+  return settledAsLoad(webContents, url, () => history.goToIndex(sleepingIndex - 1))
+}
+
+/**
+ * Loads the page of a tab created asleep, which never loaded one, with the pages before and after it in its history and
+ * where it was scrolled. A history that holds nothing but the address, such as that of a tab Open all opened, loads the
+ * address as a new page, as when the tab loads at once. When Electron refuses the history, the address loads alone. It
+ * settles as Electron's `loadURL` does.
  */
 async function loadFirstPage(webContents: WebContents, url: string, history: NavigationHistorySnapshot | undefined): Promise<void> {
-  if (history?.entries[history.index]?.url !== url) return webContents.loadURL(url)
+  const shown = history?.entries[history.index]
+  if (!history || shown?.url !== url || (history.entries.length === 1 && !shown.pageState)) return webContents.loadURL(url)
+  let refused = false
   try {
-    await webContents.navigationHistory.restore(history)
+    await settledAsLoad(webContents, url, () => {
+      try {
+        // Its own promise settles only once a page finishes or fails loading, also when another navigation replaced it.
+        void webContents.navigationHistory.restore(history).catch(() => undefined)
+      } catch (error) {
+        refused = true
+        throw error
+      }
+    })
   } catch (error) {
-    // A load that failed or that another navigation replaced settles the wake as such.
-    if (isAbortedLoad(error) || webContents.isDestroyed() || webContents.getURL() !== '') throw error
+    if (!refused || webContents.isDestroyed()) throw error
     console.warn('[browser] Could not restore the history of a tab created asleep:', error)
     await webContents.loadURL(url)
   }
@@ -178,8 +197,12 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
     access.changed(false)
     try {
       // A tab created asleep never loaded a page, so it has had no renderer process until now, as in Chrome.
-      if (tab.webContents.getURL() === '') await loadFirstPage(tab.webContents, restoreUrl, navigationHistory)
-      else await returnFromSleepingPage(tab.webContents, restoreUrl)
+      if (tab.webContents.getURL() === '') {
+        access.firstLoadStarts(tab)
+        await loadFirstPage(tab.webContents, restoreUrl, navigationHistory)
+      } else {
+        await returnFromSleepingPage(tab.webContents, restoreUrl)
+      }
     } catch (error) {
       if (handedOver()) return
       const wakeWasSuperseded = () => access.findTab(tab.id) !== tab

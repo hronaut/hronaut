@@ -71,6 +71,7 @@ export const idIDAppErrors: AppErrorMessages = {
   "page": {
     "rendererExitedDuringAction": "Halaman berhenti selama tindakan ini karena renderernya keluar; efeknya tidak diketahui. Muat ulang atau tutup tab, lalu periksa status terbaru.",
     "rendererExitedBeforeAction": "Halaman tidak berjalan karena renderernya keluar; tidak ada yang dikirim ke halaman. Muat ulang atau tutup tab, lalu periksa status terbaru.",
+    "notLoadedYet": "Tab sedang tidur dan belum memuat halamannya; tidak ada yang dikirim ke halaman. Bangunkan tab, lalu coba lagi.",
     "printDialogOpenedDuringAction": "Halaman membuka dialog cetak selama tindakan ini; dialog tersebut menahan halaman hingga orang tersebut mencetak atau membatalkan, dan efek tindakan tidak diketahui. Minta orang tersebut menutup dialog, lalu periksa status terbaru.",
     "printDialogOpenBeforeAction": "Halaman sedang menampilkan dialog cetak, yang menahannya hingga orang tersebut mencetak atau membatalkan; tidak ada yang dikirim ke halaman. Minta orang tersebut menutup dialog, lalu coba lagi.",
     "sourceViewRunsNoScripts": "Tab ini menampilkan sumber halaman (alamat view-source:), tempat skrip halaman tidak pernah selesai; tidak ada yang dikirim ke halaman. Buka halamannya sendiri di tab untuk memeriksanya.",

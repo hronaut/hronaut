@@ -71,6 +71,7 @@ export const zhCNAppErrors: AppErrorMessages = {
   "page": {
     "rendererExitedDuringAction": "由于渲染程序已退出，页面在此操作期间停止运行；其效果未知。请重新加载或关闭该标签页，然后检查最新状态。",
     "rendererExitedBeforeAction": "由于渲染程序已退出，页面未在运行；未向其发送任何内容。请重新加载或关闭该标签页，然后检查最新状态。",
+    "notLoadedYet": "该标签页正在休眠，尚未加载其页面；未向其发送任何内容。请先唤醒该标签页，然后重试。",
     "printDialogOpenedDuringAction": "页面在此操作期间打开了打印对话框；在用户打印或取消之前，该对话框会占用页面，且此操作的效果未知。请让用户关闭对话框，然后检查最新状态。",
     "printDialogOpenBeforeAction": "页面正在显示打印对话框，在用户打印或取消之前，该对话框会占用页面；未向其发送任何内容。请让用户关闭对话框，然后重试。",
     "sourceViewRunsNoScripts": "此标签页显示的是页面源代码（view-source: 地址），其中的页面脚本永远不会完成；未向其发送任何内容。请在标签页中打开页面本身以进行检查。",

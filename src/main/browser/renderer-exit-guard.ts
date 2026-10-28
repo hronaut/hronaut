@@ -1,4 +1,5 @@
 import type { Debugger, WebContents } from 'electron'
+import type { MessageKey } from '../../shared/i18n.js'
 import { LocalizedError } from '../localized-error.js'
 
 /** A page load, page script, DevTools command, capture or print that cannot finish because the page's renderer exited. */
@@ -6,11 +7,41 @@ export class RendererExitedError extends LocalizedError {
   /** Whether the call reached the page before its renderer exited; false when it was refused unsent. */
   readonly sent: boolean
 
-  constructor(sent: boolean) {
-    super(sent ? 'appErrors.page.rendererExitedDuringAction' : 'appErrors.page.rendererExitedBeforeAction')
+  constructor(sent: boolean, key: MessageKey = sent ? 'appErrors.page.rendererExitedDuringAction' : 'appErrors.page.rendererExitedBeforeAction') {
+    super(key)
     this.name = 'RendererExitedError'
     this.sent = sent
   }
+}
+
+/** A call refused unsent because the page has not loaded yet, such as a tab restored asleep, and so has no renderer. */
+export class NotLoadedYetError extends RendererExitedError {
+  constructor() {
+    super(false, 'appErrors.page.notLoadedYet')
+    this.name = 'NotLoadedYetError'
+  }
+}
+
+// Pages that have not loaded yet and wait without a renderer until their first load, such as tabs restored asleep.
+const pagesHeldUntilFirstLoad = new WeakSet<object>()
+
+/**
+ * Refuses the page's page scripts, renderer DevTools commands, captures and prints at once, unsent, until
+ * firstLoadStarts: a page that has not loaded yet, such as a tab restored asleep, has no renderer, and Electron holds
+ * those calls until one starts, which may be never.
+ */
+export function holdUntilFirstLoad(page: object): void {
+  pagesHeldUntilFirstLoad.add(page)
+}
+
+/** Lets the calls of a page held until its first load through again, as that load starts its renderer. */
+export function firstLoadStarts(page: object): void {
+  pagesHeldUntilFirstLoad.delete(page)
+}
+
+/** Whether the page is held without a renderer until its first load. */
+export function heldUntilFirstLoad(page: object): boolean {
+  return pagesHeldUntilFirstLoad.has(page)
 }
 
 type GuardedPage = Pick<WebContents, 'isDestroyed' | 'isCrashed' | 'executeJavaScript' | 'executeJavaScriptInIsolatedWorld' | 'capturePage' | 'printToPDF'> & {
@@ -45,7 +76,8 @@ const EXIT_REPORT_WAIT_MS = 100
  * tab's page, this makes those calls fail with RendererExitedError when the
  * renderer exits and fail at once, unsent, while it stays gone, so operations
  * settle and run their cleanup. A new load starts a new renderer and calls
- * work again. Nothing is retried or replayed.
+ * work again. A page held until its first load is refused the same way until
+ * then. Nothing is retried or replayed.
  */
 export function guardPageCallsAcrossRendererExit(page: GuardedPage): void {
   // Only calls in flight are held, so a long-lived page keeps nothing per call.
@@ -57,6 +89,7 @@ export function guardPageCallsAcrossRendererExit(page: GuardedPage): void {
   })
   const rendererExited = (): boolean => !page.isDestroyed() && page.isCrashed()
   const settleBeforeExit = <T>(call: () => Promise<T>): Promise<T> => {
+    if (!page.isDestroyed() && heldUntilFirstLoad(page)) return Promise.reject(new NotLoadedYetError())
     if (rendererExited()) return Promise.reject(new RendererExitedError(false))
     const pending = call()
     return new Promise<T>((resolve, reject) => {

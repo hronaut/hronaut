@@ -71,6 +71,7 @@ export const frFRAppErrors: AppErrorMessages = {
   "page": {
     "rendererExitedDuringAction": "La page s’est arrêtée pendant cette action, car son processus s’est terminé ; ses effets sont inconnus. Rechargez ou fermez l’onglet, puis vérifiez son état actuel.",
     "rendererExitedBeforeAction": "La page ne s’exécute pas, car son processus s’est terminé ; rien ne lui a été envoyé. Rechargez ou fermez l’onglet, puis vérifiez son état actuel.",
+    "notLoadedYet": "L’onglet est en veille et n’a pas encore chargé sa page ; rien ne lui a été envoyé. Réveillez l’onglet, puis réessayez.",
     "printDialogOpenedDuringAction": "La page a ouvert sa boîte de dialogue d’impression pendant cette action ; elle bloque la page jusqu’à ce que la personne imprime ou annule, et les effets de l’action sont inconnus. Demandez-lui de fermer la boîte de dialogue, puis vérifiez l’état actuel.",
     "printDialogOpenBeforeAction": "La page affiche sa boîte de dialogue d’impression, qui la bloque jusqu’à ce que la personne imprime ou annule ; rien ne lui a été envoyé. Demandez-lui de fermer la boîte de dialogue, puis réessayez.",
     "sourceViewRunsNoScripts": "Cet onglet affiche le code source d’une page (une adresse view-source:), où les scripts de page ne se terminent jamais ; rien ne lui a été envoyé. Ouvrez la page elle-même dans l’onglet pour l’inspecter.",

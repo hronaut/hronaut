@@ -75,6 +75,7 @@ export const enUSAppErrors = {
   "page": {
     "rendererExitedDuringAction": "The page stopped during this action because its renderer exited; its effects are unknown. Reload or close the tab, then inspect fresh state.",
     "rendererExitedBeforeAction": "The page is not running because its renderer exited; nothing was sent to it. Reload or close the tab, then inspect fresh state.",
+    "notLoadedYet": "The tab is asleep and has not loaded its page yet; nothing was sent to it. Wake the tab, then try again.",
     "printDialogOpenedDuringAction": "The page opened its print dialog during this action; the dialog holds the page until the person prints or cancels, and the action's effects are unknown. Ask the person to close the dialog, then inspect fresh state.",
     "printDialogOpenBeforeAction": "The page is showing its print dialog, which holds it until the person prints or cancels; nothing was sent to it. Ask the person to close the dialog, then try again.",
     "sourceViewRunsNoScripts": "This tab shows a page's source (a view-source: address), where page scripts never finish; nothing was sent to it. Open the page itself in the tab to inspect it.",

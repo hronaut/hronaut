@@ -71,6 +71,7 @@ export const trTRAppErrors: AppErrorMessages = {
   "page": {
     "rendererExitedDuringAction": "Oluşturucusu kapandığı için sayfa bu eylem sırasında durdu; eylemin etkileri bilinmiyor. Sekmeyi yeniden yükleyin veya kapatın, ardından güncel durumu inceleyin.",
     "rendererExitedBeforeAction": "Oluşturucusu kapandığı için sayfa çalışmıyor; sayfaya hiçbir şey gönderilmedi. Sekmeyi yeniden yükleyin veya kapatın, ardından güncel durumu inceleyin.",
+    "notLoadedYet": "Sekme uyuyor ve sayfasını henüz yüklemedi; sayfaya hiçbir şey gönderilmedi. Sekmeyi uyandırın, ardından yeniden deneyin.",
     "printDialogOpenedDuringAction": "Sayfa bu eylem sırasında yazdırma iletişim kutusunu açtı; kişi yazdırana veya iptal edene kadar iletişim kutusu sayfayı bekletir ve eylemin etkileri bilinmiyor. Kişiden iletişim kutusunu kapatmasını isteyin, ardından güncel durumu inceleyin.",
     "printDialogOpenBeforeAction": "Sayfa yazdırma iletişim kutusunu gösteriyor; kişi yazdırana veya iptal edene kadar sayfa bekler. Sayfaya hiçbir şey gönderilmedi. Kişiden iletişim kutusunu kapatmasını isteyin, ardından tekrar deneyin.",
     "sourceViewRunsNoScripts": "Bu sekme bir sayfanın kaynağını gösteriyor (view-source: adresi); burada sayfa betikleri hiçbir zaman tamamlanmaz ve sayfaya hiçbir şey gönderilmedi. İncelemek için sayfanın kendisini sekmede açın.",
