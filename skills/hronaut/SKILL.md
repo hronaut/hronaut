@@ -1,7 +1,7 @@
 ---
 name: hronaut
 description: Use the Hronaut desktop Browser MCP for visible, persistent web workflows in isolated agent workspaces. Use for authenticated browser QA with human handoff, localhost or responsive testing, accessibility and performance diagnosis, or tasks that should survive one agent session while the user watches or takes over.
-license: Hronaut Subscription and Trial License
+license: MIT
 metadata:
   author: hronaut
   homepage: https://hronaut.dev
