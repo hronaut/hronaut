@@ -410,7 +410,10 @@ export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
   mainUncaughtExceptions: [async ({}, use, testInfo) => {
     const exceptions = trackMainUncaughtExceptions(testInfo)
     try { await use() } finally { untrackMainUncaughtExceptions(testInfo) }
-    if (exceptions.length > 0) throw new Error(`The main process logged ${exceptions.length === 1 ? 'an uncaught exception' : 'uncaught exceptions'}:\n${exceptions.join('\n')}`)
+    if (exceptions.length > 0) {
+      const logged = exceptions.map((exception) => exception.lines.join('\n')).join('\n')
+      throw new Error(`The main process logged ${exceptions.length === 1 ? 'an uncaught exception' : 'uncaught exceptions'}:\n${logged}`)
+    }
   }, { auto: true }],
 
   profileDirectory: async ({}, use) => {

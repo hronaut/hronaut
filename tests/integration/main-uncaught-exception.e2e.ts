@@ -8,7 +8,7 @@ test('an uncaught exception in the main process is logged and the app keeps answ
   await electronApp.evaluate(() => {
     setTimeout(() => { throw new Error('Deliberate uncaught exception') }, 0)
   })
-  await expect.poll(() => mainUncaughtExceptions(testInfo)).toEqual([
+  await expect.poll(() => mainUncaughtExceptions(testInfo).map((exception) => exception.lines.join('\n'))).toEqual([
     expect.stringMatching(/^\[main\] Uncaught exception: Error: Deliberate uncaught exception\n\s+at /)
   ])
   // A main process held by the box answers nothing, neither Playwright nor the window's own calls.
