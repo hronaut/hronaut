@@ -1,10 +1,11 @@
 import { expect, type Page } from '@playwright/test'
 
 /**
- * A new interface scale or window size changes how many CSS pixels the native window controls take. The title bar
- * keeps their old room until the overlay's new report has held for a moment (useTitleBarPresentationController), and
- * with tabs on the left the toolbar moves when it lands. Wait until the viewport has its new CSS width and the
- * published insets match the overlay's own report before reading where to click with native input.
+ * A new interface scale changes how many CSS pixels the native window controls take, and a new window size reaches the
+ * viewport and the overlay at different moments. The title bar gives the controls their new room once the overlay
+ * reports it (useTitleBarPresentationController), and with tabs on the left the toolbar moves when it lands. Wait until
+ * the viewport has its new CSS width and the published insets match the overlay's own report before reading where to
+ * click with native input.
  */
 export async function waitForSettledTitleBar(appWindow: Page, viewportWidth: number): Promise<void> {
   await expect.poll(() => appWindow.evaluate((viewportWidth) => {
