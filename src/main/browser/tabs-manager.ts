@@ -555,6 +555,7 @@ import {
 } from './tab-sleep/tab-sleep.js'
 import type { MemorySaverAccess } from './tab-sleep/memory-saver-access.js'
 import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
+import { BackgroundLoads } from './tab-sleep/background-loads.js'
 import type { DebuggerEvaluationAccess } from './debugger-evaluation/debugger-evaluation-access.js'
 import { evaluateWithAttachedDebugger, mainWorldContextId, releaseDebuggerEvaluationObjects } from './debugger-evaluation/debugger-evaluation.js'
 import type { DebuggerLeaseAccess } from './debugger-lease/debugger-lease-access.js'
@@ -1139,6 +1140,7 @@ export class BrowserTabsManager {
   private readonly snapshotBaselines = new Map<string, BrowserSnapshotBaselineRecord>()
   private readonly snapshotBaselineIdsByTab = new Map<string, string>()
   private readonly webMcpDescriptorCache = new Map<string, string>()
+  private backgroundTabLoads?: BackgroundLoads
   private readonly workspaceRegistry = new WorkspaceRegistry({
     maxTabs: MAX_TABS,
     maxArchived: MAX_SAVED_TAB_GROUPS,
@@ -2717,6 +2719,18 @@ export class BrowserTabsManager {
 
   wakeTab(tabId: string): Promise<BrowserState> {
     return wakeTab(this.tabSleepAccess(), tabId)
+  }
+
+  /** The tabs waiting asleep to load in their turn. Made when first used, as managers made without the constructor are. */
+  private backgroundLoads(): BackgroundLoads {
+    this.backgroundTabLoads ??= new BackgroundLoads({
+      waiting: (tabId) => {
+        const tab = this.tabs.get(tabId)
+        return Boolean(!this.destroyed && tab?.sleeping && !tab.wakePromise && !tab.webContents.isDestroyed())
+      },
+      wake: (tabId) => this.wakeTab(tabId)
+    })
+    return this.backgroundTabLoads
   }
 
   /** Every process of Hronaut's with its memory and CPU use, for the Task manager. */
@@ -5732,6 +5746,11 @@ export class BrowserTabsManager {
      * as Chrome restores the tabs behind the one shown. Only a website tab that is not pinned does.
      */
     asleep?: boolean
+    /**
+     * Whether the tab starts asleep as above and loads in its turn among the tabs opened behind the one shown,
+     * BACKGROUND_LOADS at a time, as when Open all opens many at once.
+     */
+    loadsInTurn?: boolean
     loadOptions?: LoadURLOptions
     /**
      * The page Chromium created for a window a workspace tab opened, which this tab shows; it loads itself. The
@@ -5758,7 +5777,7 @@ export class BrowserTabsManager {
       this.assertWorkspaceNavigationAllowed(options.mcpGroupId, url, 'direct')
     }
     const defaultFontSize = isHronautHomeUrl(url) ? undefined : normalizeDefaultFontSize(options.defaultFontSize)
-    const asleep = options.asleep === true && !options.adopt && options.pinned !== true && isWebUrl(url) && !isHronautHomeUrl(url)
+    const asleep = (options.asleep === true || options.loadsInTurn === true) && !options.adopt && options.pinned !== true && isWebUrl(url) && !isHronautHomeUrl(url)
     const opener = options.adopt?.openerTabId ? this.tabs.get(options.adopt.openerTabId) : undefined
     const workspace = options.mcpGroupId ? this.mcpTabGroups.get(options.mcpGroupId) : undefined
     const partition = isHronautHomeUrl(url)
@@ -5922,6 +5941,7 @@ export class BrowserTabsManager {
       this.changed()
       console.error(`[browser] Failed to load ${url}:`, error)
     })
+    if (asleep && options.loadsInTurn) this.backgroundLoads().add(tab.id)
     options.onCreated?.(tab)
     this.changed()
     return tab

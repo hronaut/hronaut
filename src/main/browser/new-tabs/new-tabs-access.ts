@@ -20,6 +20,7 @@ export interface NewTabCreation<Tab extends NewTabsTab> {
   focus?: boolean
   zoomIsolated: boolean
   defaultFontSize?: number
+  loadsInTurn?: boolean
   onCreated?: (tab: Tab) => void
   onCreationAttempt?: () => void
 }

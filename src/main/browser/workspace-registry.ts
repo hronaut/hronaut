@@ -61,7 +61,7 @@ interface WorkspaceRuntimePorts {
   withArchivedOperation<T>(id: string, action: WorkspaceOperationAction, run: () => Promise<T>): Promise<T>
   closeActive(id: string, preserveStorage: boolean): Promise<unknown>
   createTab(tab: { label?: string; title: string; url: string; pinned: boolean; zoomIsolated: boolean; defaultFontSize?: number; muted: boolean
-    tabAgentPaused: boolean; humanInteractionLocked: boolean; mcpGroupId: string; allowBusyWorkspace: true; active: false }): Promise<unknown>
+    tabAgentPaused: boolean; humanInteractionLocked: boolean; mcpGroupId: string; allowBusyWorkspace: true; active: false; loadsInTurn: boolean }): Promise<unknown>
   selectTab(id: string): unknown
   remapDownloads(from: string, to: string): void
   changed(): void
@@ -144,10 +144,14 @@ export class WorkspaceRegistry {
       try {
         return await host.withActiveOperation(id, 'restoring the archived workspace', async () => {
           try {
-            for (const tab of saved.tabs) {
+            // The tab shown loads at once, in the window or for the agent that opened the workspace; the others load in
+            // their turn, a few at a time.
+            const shownIndex = saved.shownTabIndex !== undefined && saved.shownTabIndex < saved.tabs.length ? saved.shownTabIndex : saved.tabs.length - 1
+            for (const [index, tab] of saved.tabs.entries()) {
               await host.createTab({ label: tab.label, title: tab.title, url: tab.url, pinned: tab.pinned, zoomIsolated: tab.zoomIsolated === true,
                 defaultFontSize: tab.defaultFontSize, muted: tab.muted === true, tabAgentPaused: tab.tabAgentPaused === true,
-                humanInteractionLocked: tab.humanInteractionLocked === true, mcpGroupId: id, allowBusyWorkspace: true, active: false })
+                humanInteractionLocked: tab.humanInteractionLocked === true, mcpGroupId: id, allowBusyWorkspace: true, active: false,
+                loadsInTurn: index !== shownIndex })
             }
             // The tabs open in the order they were saved, so the tab shown when it was archived is shown again.
             const tabs = host.tabs().filter(tab => tab.mcpGroupId === id)

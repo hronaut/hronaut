@@ -82,6 +82,7 @@ function browser() {
     withTabLabelLifecycle: (run: () => Promise<unknown>) => run(), getState: () => ({}), text: (key: string) => key,
     orderedTabs(this: Manager) { return [...this.tabs.values()] }
   }) as Manager
+  const opened: Array<{ url: string; loadsInTurn: boolean }> = []
   const registry: InstanceType<typeof WorkspaceRegistry> = new WorkspaceRegistry({
     maxTabs: 50,
     maxArchived: 50,
@@ -91,7 +92,10 @@ function browser() {
     withActiveOperation: (_id, _action, run) => run(),
     withArchivedOperation: (_id, _action, run) => run(),
     closeActive: async () => undefined,
-    createTab: (tab) => manager.createTab(tab as never) as never,
+    createTab: (tab) => {
+      opened.push({ url: tab.url, loadsInTurn: tab.loadsInTurn })
+      return manager.createTab(tab as never) as never
+    },
     selectTab: (id) => { manager.selectTab(id) },
     remapDownloads: () => undefined,
     changed: () => undefined
@@ -107,7 +111,7 @@ function browser() {
     ]
   } as never)
   Object.assign(manager, { mcpTabGroups: registry.active, savedTabGroups: registry.archived, workspaceRegistry: registry })
-  return { manager }
+  return { manager, opened }
 }
 
 /** The person compares two of their pages side by side and works in one of them. */
@@ -122,6 +126,21 @@ async function personInSplitView(manager: Manager) {
 }
 
 const agentTab = (manager: Manager, url: string) => [...manager.tabs.values()].find((tab) => tab.url === url)!
+
+it('opens the tab it shows at once and the others to load in their turn, a few at a time', async () => {
+  // An archived workspace opened every tab's page at once.
+  const shown = browser()
+  await shown.manager.restoreSavedTabGroup(AGENT)
+  expect(shown.opened).toEqual([
+    { url: 'https://agent.example/sources', loadsInTurn: true },
+    { url: 'https://agent.example/draft', loadsInTurn: false },
+    { url: 'https://agent.example/notes', loadsInTurn: true }
+  ])
+  // Restored for an agent, the tab it shows is the agent's, which tools that do not wake tabs read.
+  const hidden = browser()
+  await hidden.manager.restoreSavedTabGroupForAgent(AGENT)
+  expect(hidden.opened).toEqual(shown.opened)
+})
 
 describe('restoring an archived workspace', () => {
   it('for an agent leaves the person\'s split view, shown tab and keyboard focus alone', async () => {

@@ -72,12 +72,13 @@ export function useAppBrowserCollectionsFeatureController(
   })
   let disposed = false
 
+  // Pages opened behind the one shown load a few at a time, so Open all does not load every bookmark together.
   async function openBookmarkInBackground(bookmark: BrowserBookmark): Promise<void> {
-    await options.syncState(options.browser.newTab({ url: bookmark.url, active: false, focus: false }))
+    await options.syncState(options.browser.newTab({ url: bookmark.url, active: false, focus: false, loadsInTurn: true }))
   }
 
   async function openHistoryEntryInBackground(entry: BrowserHistoryEntry): Promise<void> {
-    await options.syncState(options.browser.newTab({ url: entry.url, active: false, focus: false }))
+    await options.syncState(options.browser.newTab({ url: entry.url, active: false, focus: false, loadsInTurn: true }))
   }
 
   /**

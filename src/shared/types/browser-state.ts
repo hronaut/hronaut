@@ -305,6 +305,11 @@ export interface NewTabOptions {
   zoomIsolated?: boolean
   /** Browser default (standard) font size in CSS px for this tab; 16 is the browser default. */
   defaultFontSize?: number
+  /**
+   * For a tab opened behind the one shown: it starts asleep and loads in its turn among such tabs, a few at a time, so
+   * opening many at once, as Open all does, does not load them all together.
+   */
+  loadsInTurn?: boolean
 }
 
 export interface NavigateOptions {

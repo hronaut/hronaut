@@ -69,6 +69,7 @@ export async function createNewTab<Tab extends NewTabsTab>(access: NewTabsAccess
       focus: options.focus,
       zoomIsolated: options.zoomIsolated === true,
       defaultFontSize: options.defaultFontSize,
+      loadsInTurn: options.loadsInTurn === true && options.active === false,
       onCreated,
       onCreationAttempt
     })
