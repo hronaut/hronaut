@@ -118,15 +118,16 @@ describe('isHronautPageSender', () => {
 
   it('still admits the shell, and only the shell, for answers after saved workspaces failed to start', () => {
     const mainContents = {}
+    const panelContents = {}
     const failure = new LocalizedError('appErrors.startup.unavailable')
-    const { assertTrustedShellSender, isShellWindowSender } = createIpcGuards({
+    const { assertTrustedShellSender, isShellWindowSender, assertMainShellSender, isMainShellSender } = createIpcGuards({
       ipcMain: fakeIpcMain().ipcMain,
       workspaceStartupFailure: () => failure,
       tabsInitializationPromise: () => null,
       tabs: () => null,
       initializedTabs: () => null,
       mainWindowRefs: { window: { webContents: mainContents } as never },
-      panelWindowRefs: { window: null, url: null },
+      panelWindowRefs: { window: { webContents: panelContents } as never, url: 'http://127.0.0.1:5173/#panel' },
       workspaceStartupReads: { run: vi.fn() as never }
     })
 
@@ -135,6 +136,11 @@ describe('isHronautPageSender', () => {
     expect(isShellWindowSender(invokeEvent(SHELL_URL, mainContents))).toBe(true)
     expect(isShellWindowSender(invokeEvent('https://site.example/', mainContents))).toBe(false)
     expect(isShellWindowSender(invokeEvent(SHELL_URL, {}))).toBe(false)
+    // The main window's shell alone, which a request it numbers is refused back to rather than thrown at.
+    expect(() => assertMainShellSender(invokeEvent(SHELL_URL, mainContents))).toThrow(failure)
+    expect(isMainShellSender(invokeEvent(SHELL_URL, mainContents))).toBe(true)
+    expect(isMainShellSender(invokeEvent('http://127.0.0.1:5173/#panel', panelContents))).toBe(false)
+    expect(isMainShellSender(invokeEvent('https://site.example/', mainContents))).toBe(false)
   })
 })
 

@@ -724,6 +724,7 @@ const hronautIpcMain = withTranslatedIpcErrors(ipcMain, {
 const {
   assertTrustedShellSender,
   isShellWindowSender,
+  isMainShellSender,
   assertMainShellSender,
   assertPanelShellSender,
   isHronautPageSender,
@@ -745,6 +746,7 @@ const {
 
 function registerIpc(): void {
   registerOverlayViewsIpc(hronautIpcMain, {
+    isMainShellSender,
     assertMainShellSender,
     workspaceStartupFailure: () => tabRuntime.startupFailure,
     shellTooltips: () => shellTooltips,

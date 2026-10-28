@@ -32,7 +32,9 @@ import {
 } from '../shared/toast-overlay.js'
 
 interface OverlayViewsIpcHost {
-  /** Admits only the main window's shell document, not a detached panel window. */
+  /** Whether a message came from the main window's shell document, whether or not saved workspaces started. */
+  isMainShellSender(event: IpcMainEvent): boolean
+  /** Admits only the main window's shell document, not a detached panel window, and nothing after a failed startup. */
   assertMainShellSender(event: IpcMainEvent): void
   /** Why saved workspaces could not start, if they could not; read on every check. */
   workspaceStartupFailure(): Error | undefined
@@ -128,9 +130,10 @@ export function registerOverlayViewsIpc(ipcMain: Pick<IpcMain, 'on'>, host: Over
       const id = toastOverlayRequestId(value)
       if (id !== undefined) host.toastOverlay().refused(id)
     }
-    // As for the other shell overlays, nothing is drawn while startup has stopped; the shell keeps its own copy.
+    // As for the other shell overlays, nothing is drawn while startup has stopped; the shell keeps its own copy. Only the
+    // main window's shell hears so, as for the rail below.
     if (host.workspaceStartupFailure()) {
-      refuse()
+      if (host.isMainShellSender(event)) refuse()
       return
     }
     host.assertMainShellSender(event)
@@ -160,12 +163,13 @@ export function registerOverlayViewsIpc(ipcMain: Pick<IpcMain, 'on'>, host: Over
       if (id !== undefined) host.sidebarOverlay().refused(id)
     }
     // Only the main window's shell numbers reveals; another sender's id could end one that is still to come.
-    host.assertMainShellSender(event)
-    // Nothing is drawn while startup has stopped; the shell opens its own rail beside the page.
+    // Nothing is drawn while startup has stopped: the shell hears so and opens its own rail beside the page. The sender
+    // check below throws then for the shell as well, so the shell is recognized here first.
     if (host.workspaceStartupFailure()) {
-      refuse()
+      if (host.isMainShellSender(event)) refuse()
       return
     }
+    host.assertMainShellSender(event)
     let request: SidebarOverlayRequest
     try {
       request = parseSidebarOverlayRequest(value)
