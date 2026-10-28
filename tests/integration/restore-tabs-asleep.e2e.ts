@@ -103,6 +103,10 @@ test('a restart loads the tabs shown, the window\'s and each workspace\'s, and b
     expect(await tabAt(restarted, [behind])).toMatchObject({ url: behind, sleeping: true, loading: false })
     expect(await tabAt(restarted, [clientBehind])).toMatchObject({ url: clientBehind, sleeping: true, loading: false })
     expect(Object.fromEntries(requests)).toEqual({ '/shown': 1, '/client': 1 })
+    // Asleep, they hold no page and so no renderer process, as in Chrome: the sleeping page they first showed started
+    // one for each of them.
+    expect(await after.app.evaluate(({ webContents }) => webContents.getAllWebContents()
+      .filter((contents) => contents.getURL() === '').map((contents) => contents.getOSProcessId()))).toEqual([0, 0, 0])
 
     // Shown, the tab loads its page where it was scrolled, with the page Forward of it, and the other stays asleep.
     await restarted.evaluate((id) => (window as unknown as RestartWindow).hronaut.selectTab(id), historyTabId)

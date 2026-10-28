@@ -5937,7 +5937,7 @@ export class BrowserTabsManager {
     const cookiesBack = isHronautHomeUrl(url) ? Promise.resolve() : keepSessionCookies(view.webContents.session)
     if (asleep) {
       tab.sleepNavigationHistory = options.navigationHistory ?? { entries: [{ url, title: tab.title }], index: 0 }
-      tab.pageReady = sleepBeforeFirstLoad(view.webContents, options.navigationHistory, cookiesBack)
+      tab.pageReady = sleepBeforeFirstLoad(cookiesBack)
     }
     const loading = options.adopt || asleep
       ? Promise.resolve()

@@ -35,13 +35,13 @@ function sleepingTab(options: { pageReady?: Promise<void>; waking?: boolean } = 
   return { tab, access, calls }
 }
 
-it('loads an address in a tab restored asleep once its sleeping page is there, after waking it', async () => {
-  let pageShown!: () => void
-  const { access, calls } = sleepingTab({ pageReady: new Promise<void>(resolve => { pageShown = resolve }) })
+it('loads an address in a tab restored asleep once its session cookies are back, after waking it', async () => {
+  let cookiesBack!: () => void
+  const { access, calls } = sleepingTab({ pageReady: new Promise<void>(resolve => { cookiesBack = resolve }) })
   const loaded = navigate(access as never, 'https://next.example/')
   await new Promise(resolve => setTimeout(resolve, 10))
   expect(calls).toEqual([])
-  pageShown()
+  cookiesBack()
   await loaded
   expect(calls).toEqual(['wake', 'load https://next.example/'])
 })

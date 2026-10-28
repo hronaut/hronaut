@@ -1,10 +1,11 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { putTabToSleep, SLEEPING_PAGE_WAIT_MS, sleepBeforeFirstLoad, wakeTab } from '../src/main/browser/tab-sleep/tab-sleep.js'
+import { FIRST_WAKE_WAIT_MS, putTabToSleep, sleepBeforeFirstLoad, wakeTab } from '../src/main/browser/tab-sleep/tab-sleep.js'
 import { PAGE_LOAD_WAIT_MS } from '../src/main/browser/page-waits/page-load-limit.js'
-import { SLEEPING_PAGE_URL } from '../src/main/browser/tab-sleep/sleeping-page.js'
 
 // A restart loaded every restored tab at once, so 45 tabs came back as 45 pages loading together. The tabs behind the
 // one shown now come back asleep and load once shown, as in Chrome; the e2e restore-tabs-asleep drives the real app.
+// They first showed a sleeping page, which still started a renderer process for each of them: 45 restored tabs kept 48
+// renderers running. They now load nothing until they wake.
 
 afterEach(() => { vi.restoreAllMocks() })
 
@@ -53,10 +54,10 @@ function newPage() {
   return { webContents, entries: () => entries, index: () => index }
 }
 
-function asleepTab(page: ReturnType<typeof newPage>, pageReady: Promise<void>, opened: { waitsForTurn?: boolean } = {}) {
+function asleepTab(page: ReturnType<typeof newPage>, pageReady: Promise<void>, opened: { waitsForTurn?: boolean; history?: typeof history } = { history }) {
   const tab = {
     id: 'tab', url: 'https://example.test/shown', sleeping: true, loading: false, suppressInitialHistory: !opened.waitsForTurn, navigationGeneration: 0,
-    lastActiveAt: 0, sleepNavigationHistory: history, pageReady, webContents: page.webContents, pendingHistoryUrl: null as string | null,
+    lastActiveAt: 0, sleepNavigationHistory: opened.history, pageReady, webContents: page.webContents, pendingHistoryUrl: null as string | null,
     waitsForTurn: opened.waitsForTurn
   }
   const access = {
@@ -69,41 +70,29 @@ function asleepTab(page: ReturnType<typeof newPage>, pageReady: Promise<void>, o
   return { tab, wake: () => wakeTab(access as never, tab.id) }
 }
 
-it('puts the sleeping page right after the page a restored tab shows, keeping the pages before and after it', async () => {
+it('loads nothing in a tab created asleep until it wakes, so it starts no renderer process', async () => {
   const page = newPage()
-  await sleepBeforeFirstLoad(page.webContents as never, history, Promise.resolve())
-  expect(page.webContents.navigationHistory.restore).toHaveBeenCalledWith({
-    entries: [history.entries[0], history.entries[1], { url: SLEEPING_PAGE_URL, title: '' }, history.entries[2]],
-    index: 2
-  })
+  const { tab } = asleepTab(page, sleepBeforeFirstLoad(Promise.resolve()))
+  await new Promise(resolve => setTimeout(resolve, 10))
   expect(page.webContents.loadURL).not.toHaveBeenCalled()
+  expect(page.webContents.navigationHistory.restore).not.toHaveBeenCalled()
+  expect(page.entries()).toEqual([''])
+  expect(tab.sleeping).toBe(true)
 })
 
-it('shows only the sleeping page in a tab without saved history, and when Electron cannot take the history', async () => {
-  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-  const plain = newPage()
-  await sleepBeforeFirstLoad(plain.webContents as never, undefined, Promise.resolve())
-  expect(plain.webContents.loadURL).toHaveBeenCalledWith(SLEEPING_PAGE_URL)
-  const refused = newPage()
-  refused.webContents.navigationHistory.restore.mockRejectedValueOnce(new Error('Invalid history'))
-  await sleepBeforeFirstLoad(refused.webContents as never, history, Promise.resolve())
-  expect(refused.webContents.loadURL).toHaveBeenCalledWith(SLEEPING_PAGE_URL)
-  expect(warn).toHaveBeenCalledWith('[browser] Could not restore the history of a tab created asleep:', expect.any(Error))
-})
-
-it('wakes a restored tab only once its sleeping page and session cookies are there, at its page with the pages around it', async () => {
+it('wakes a restored tab only once its session cookies are there, at its page with the pages around it', async () => {
   const page = newPage()
   let cookiesBack!: () => void
-  const pageReady = sleepBeforeFirstLoad(page.webContents as never, history, new Promise<void>(resolve => { cookiesBack = resolve }))
-  const { tab, wake } = asleepTab(page, pageReady)
+  const { tab, wake } = asleepTab(page, sleepBeforeFirstLoad(new Promise<void>(resolve => { cookiesBack = resolve })))
   const woken = wake()
   await new Promise(resolve => setTimeout(resolve, 10))
   // The page would otherwise load without the sign-ins its workspace keeps across a restart.
   expect(tab.sleeping).toBe(true)
-  expect(page.webContents.navigationHistory.goToIndex).not.toHaveBeenCalled()
+  expect(page.webContents.navigationHistory.restore).not.toHaveBeenCalled()
   cookiesBack()
   await woken
-  expect(page.webContents.navigationHistory.goToIndex).toHaveBeenCalledWith(1)
+  expect(page.webContents.navigationHistory.restore).toHaveBeenCalledWith(history)
+  expect(page.webContents.loadURL).not.toHaveBeenCalled()
   expect(tab).toMatchObject({ sleeping: false, pageReady: undefined, sleepNavigationHistory: undefined })
   expect(page.entries()).toEqual(['https://example.test/first', 'https://example.test/shown', 'https://example.test/forward'])
   expect(page.index()).toBe(1)
@@ -111,53 +100,69 @@ it('wakes a restored tab only once its sleeping page and session cookies are the
 
 it('wakes a tab without saved history at its address', async () => {
   const page = newPage()
-  const { tab, wake } = asleepTab(page, sleepBeforeFirstLoad(page.webContents as never, undefined, Promise.resolve()))
+  const { tab, wake } = asleepTab(page, sleepBeforeFirstLoad(Promise.resolve()), {})
   await wake()
   expect(page.webContents.loadURL).toHaveBeenLastCalledWith(tab.url)
   expect(page.entries()).toEqual([tab.url])
   expect(tab.sleeping).toBe(false)
 })
 
-it('wakes a restored tab from what it holds once its sleeping page is there, not from what it held before', async () => {
+it('wakes a restored tab from what it holds once its session cookies are back, not from what it held before', async () => {
   const page = newPage()
   let cookiesBack!: () => void
-  const { tab, wake } = asleepTab(page, sleepBeforeFirstLoad(page.webContents as never, history, new Promise<void>(resolve => { cookiesBack = resolve })))
+  const { tab, wake } = asleepTab(page, sleepBeforeFirstLoad(new Promise<void>(resolve => { cookiesBack = resolve })))
   const woken = wake()
   // Clearing the browsing data takes the shown page out of the history the tab sleeps with meanwhile.
+  const cleared = { entries: [{ url: 'https://example.test/first', title: 'First' }], index: 0 }
   tab.url = 'https://example.test/first'
-  tab.sleepNavigationHistory = { entries: [{ url: 'https://example.test/first', title: 'First' }], index: 0 }
+  tab.sleepNavigationHistory = cleared
   cookiesBack()
   await woken
-  expect(page.webContents.loadURL).toHaveBeenLastCalledWith('https://example.test/first')
-  expect(page.webContents.navigationHistory.goToIndex).not.toHaveBeenCalled()
+  expect(page.webContents.navigationHistory.restore).toHaveBeenLastCalledWith(cleared)
+  expect(page.entries()).toEqual(['https://example.test/first'])
 })
 
-it('shows the sleeping page when Electron throws on the history instead of refusing it', async () => {
+it('loads the address alone when Electron refuses the history or throws on it', async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-  const page = newPage()
-  page.webContents.navigationHistory.restore.mockImplementationOnce(() => { throw new Error('Invalid history') })
-  await sleepBeforeFirstLoad(page.webContents as never, history, Promise.resolve())
-  expect(page.webContents.loadURL).toHaveBeenCalledWith(SLEEPING_PAGE_URL)
-  expect(warn).toHaveBeenCalledOnce()
+  const refused = newPage()
+  refused.webContents.navigationHistory.restore.mockRejectedValueOnce(new Error('Invalid history'))
+  const { tab, wake } = asleepTab(refused, sleepBeforeFirstLoad(Promise.resolve()))
+  await wake()
+  expect(refused.webContents.loadURL).toHaveBeenCalledOnce()
+  expect(refused.webContents.loadURL).toHaveBeenCalledWith(tab.url)
+  const thrown = newPage()
+  thrown.webContents.navigationHistory.restore.mockImplementationOnce(() => { throw new Error('Invalid history') })
+  await asleepTab(thrown, sleepBeforeFirstLoad(Promise.resolve())).wake()
+  expect(thrown.webContents.loadURL).toHaveBeenCalledOnce()
+  expect(warn).toHaveBeenCalledWith('[browser] Could not restore the history of a tab created asleep:', expect.any(Error))
 })
 
-it('wakes a restored tab whose sleeping page never finishes after a while, and keeps that page from replacing its own', async () => {
+it('leaves the first load that a newer navigation replaced to that navigation', async () => {
+  const page = newPage()
+  const { tab, wake } = asleepTab(page, sleepBeforeFirstLoad(Promise.resolve()))
+  page.webContents.navigationHistory.restore.mockImplementationOnce(async () => {
+    // An agent loads another address before the restored page committed.
+    tab.navigationGeneration += 1
+    page.webContents.isLoading = () => true
+    throw Object.assign(new Error("ERR_ABORTED (-3) loading 'https://example.test/shown'"), { errno: -3, code: 'ERR_ABORTED' })
+  })
+  await wake()
+  expect(page.webContents.loadURL).not.toHaveBeenCalled()
+  expect(tab.sleeping).toBe(false)
+})
+
+it('wakes a restored tab whose session cookies never come back after a while', async () => {
   vi.useFakeTimers()
   try {
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const page = newPage()
-    let refuse!: (error: Error) => void
-    page.webContents.navigationHistory.restore.mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { refuse = reject }))
-    const { tab, wake } = asleepTab(page, sleepBeforeFirstLoad(page.webContents as never, history, Promise.resolve()))
+    const { tab, wake } = asleepTab(page, sleepBeforeFirstLoad(new Promise<void>(() => undefined)))
     const woken = wake()
-    await vi.advanceTimersByTimeAsync(SLEEPING_PAGE_WAIT_MS)
+    await vi.advanceTimersByTimeAsync(FIRST_WAKE_WAIT_MS - 1)
+    expect(page.webContents.navigationHistory.restore).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
     await woken
     expect(tab.sleeping).toBe(false)
-    expect(page.webContents.loadURL).toHaveBeenLastCalledWith(tab.url)
-    // The history Electron could not take fails only now, after the tab woke.
-    refuse(new Error('Renderer gone'))
-    await vi.advanceTimersByTimeAsync(0)
-    expect(page.webContents.loadURL).not.toHaveBeenCalledWith(SLEEPING_PAGE_URL)
+    expect(page.webContents.navigationHistory.restore).toHaveBeenCalledWith(history)
   } finally {
     vi.useRealTimers()
   }
@@ -166,11 +171,11 @@ it('wakes a restored tab whose sleeping page never finishes after a while, and k
 it('records the first load of a tab opened to load in its turn as a visit, and a restored tab\'s load again as none', async () => {
   // Open all's pages loaded at once were visits; loading them in their turn left them out of History.
   const opened = newPage()
-  const { tab: openedTab, wake: wakeOpened } = asleepTab(opened, sleepBeforeFirstLoad(opened.webContents as never, undefined, Promise.resolve()), { waitsForTurn: true })
+  const { tab: openedTab, wake: wakeOpened } = asleepTab(opened, sleepBeforeFirstLoad(Promise.resolve()), { waitsForTurn: true })
   await wakeOpened()
   expect(openedTab).toMatchObject({ sleeping: false, suppressInitialHistory: false, waitsForTurn: false })
   const restored = newPage()
-  const { tab: restoredTab, wake: wakeRestored } = asleepTab(restored, sleepBeforeFirstLoad(restored.webContents as never, undefined, Promise.resolve()))
+  const { tab: restoredTab, wake: wakeRestored } = asleepTab(restored, sleepBeforeFirstLoad(Promise.resolve()), {})
   await wakeRestored()
   expect(restoredTab).toMatchObject({ sleeping: false, suppressInitialHistory: true })
 })
@@ -180,7 +185,7 @@ it('keeps the visit of a tab loading in its turn whose page goes on loading afte
   try {
     for (const waitsForTurn of [true, false]) {
       const page = newPage()
-      const { tab, wake } = asleepTab(page, sleepBeforeFirstLoad(page.webContents as never, undefined, Promise.resolve()), { waitsForTurn })
+      const { tab, wake } = asleepTab(page, sleepBeforeFirstLoad(Promise.resolve()), { waitsForTurn })
       await vi.advanceTimersByTimeAsync(0)
       const load = page.webContents.loadURL.getMockImplementation()!
       // The page commits, which makes its address the visit waiting for its load to end, and its image never comes.
