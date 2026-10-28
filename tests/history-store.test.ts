@@ -25,11 +25,13 @@ describe('HistoryStore', () => {
     const url = `https://${hostname}/`
     const saved = await store.record({ url, title: '   ' })
     expect(saved!.title).toBe(hostname.slice(0, 200))
+    await store.flush()
     await expect(new HistoryStore(path, () => now).load()).resolves.toEqual([saved])
 
     await store.updateTitle({ url, title: 'Explicit title' })
     const updated = await store.updateTitle({ url, title: '' })
     expect(updated!.title).toBe(hostname.slice(0, 200))
+    await store.flush()
     await expect(new HistoryStore(path, () => now).load()).resolves.toEqual([updated])
   })
 
@@ -41,6 +43,7 @@ describe('HistoryStore', () => {
     const exactTitle = `${'T'.repeat(198)}🧪`
     expect((await store.updateTitle({ url, title: exactTitle }))!.title).toBe(exactTitle)
     expect((await store.updateTitle({ url, title: `${prefix}🚀` }))!.title).toBe(prefix)
+    await store.flush()
     expect((await new HistoryStore(path, () => Date.UTC(2026, 7, 13)).load())[0]!.title).toBe(prefix)
   })
 
@@ -74,6 +77,7 @@ describe('HistoryStore', () => {
     const visitedUrl = `${pageUrl}#${'section'.repeat(800)}`
 
     expect(await store.record({ url: visitedUrl, title: 'Fragment page' })).toMatchObject({ url: pageUrl })
+    await store.flush()
     expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual([
       expect.objectContaining({ url: pageUrl, title: 'Fragment page' })
     ])
@@ -95,6 +99,7 @@ describe('HistoryStore', () => {
     expect(await store.record({ url: privateUrl, title: 'Account page' })).toMatchObject({
       url: 'https://example.com/page', title: 'Account page'
     })
+    await store.flush()
     expect(await readFile(path, 'utf8')).not.toContain('private-credential')
   })
 
@@ -105,6 +110,7 @@ describe('HistoryStore', () => {
     expect(store.list()).toEqual([
       expect.objectContaining({ url: 'https://example.com/page', title: 'Updated title', visitCount: 2 })
     ])
+    await store.flush()
     const restored = new HistoryStore(path, () => Date.UTC(2026, 7, 13))
     await restored.load()
     expect(restored.list()).toEqual(store.list())
@@ -173,6 +179,7 @@ describe('HistoryStore', () => {
     const store = new HistoryStore(path, Date.now, onExpired)
     try {
       await store.record({ url: 'https://retained.example/', title: 'Retained visit' })
+      await store.flush()
       const saved = await readFile(path, 'utf8')
       await rename(path, `${path}.backup`)
       await mkdir(path)
@@ -209,6 +216,7 @@ describe('HistoryStore', () => {
     const store = new HistoryStore(path, Date.now, onExpired)
     try {
       await store.record({ url: 'https://retained.example/', title: 'Retained visit' })
+      await store.flush()
       const saved = await readFile(path, 'utf8')
       store.dispose()
       await vi.advanceTimersByTimeAsync(91 * 24 * 60 * 60 * 1_000)
@@ -233,6 +241,7 @@ describe('HistoryStore', () => {
     expect((await store.load())[0]?.visitCount).toBe(Number.MAX_SAFE_INTEGER)
     expect(JSON.parse(await readFile(path, 'utf8')).entries[0].visitCount).toBe(Number.MAX_SAFE_INTEGER)
     expect((await store.record({ url, title: 'Frequent page' }))?.visitCount).toBe(Number.MAX_SAFE_INTEGER)
+    await store.flush()
     expect(JSON.parse(await readFile(path, 'utf8')).entries[0].visitCount).toBe(Number.MAX_SAFE_INTEGER)
   })
 
@@ -254,6 +263,7 @@ describe('HistoryStore', () => {
       ['https://example.com/dashboard', 1],
       ['https://example.com/other', 1]
     ])
+    await store.flush()
     const restored = new HistoryStore(path, () => now)
     await restored.load()
     expect(restored.list()).toEqual(store.list())
@@ -281,9 +291,113 @@ describe('HistoryStore', () => {
         visitCount: 1
       })
     ])
+    await store.flush()
     const restored = new HistoryStore(path, () => Date.UTC(2026, 7, 13))
     await restored.load()
     expect(restored.list()).toEqual(store.list())
+  })
+
+  it('saves the visits and new titles of a second together, without indenting the file', async () => {
+    // Saving the whole history for each visit and title kept the main process writing while dozens of pages loaded.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const { path, store } = await storeAt()
+    try {
+      await store.record({ url: 'https://one.example/', title: 'One' })
+      await store.updateTitle({ url: 'https://one.example/', title: 'One, loaded' })
+      await store.record({ url: 'https://two.example/', title: 'Two' })
+      await expect(readFile(path, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+      await vi.advanceTimersByTimeAsync(999)
+      await expect(readFile(path, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+      await vi.advanceTimersByTimeAsync(1)
+      await store.flush()
+      const saved = await readFile(path, 'utf8')
+      expect(saved).toBe(`${JSON.stringify({ version: 1, entries: JSON.parse(saved).entries })}\n`)
+      expect(JSON.parse(saved).entries.map((entry: { title: string }) => entry.title)).toEqual(['One, loaded', 'Two'])
+    } finally {
+      store.dispose()
+      vi.useRealTimers()
+    }
+  })
+
+  it('saves the visits a failed save left again after a while, without waiting for another visit', async () => {
+    // A save that failed, as on a full disk, left the visits in memory only until the next visit, title or quit.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const reportError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const errorReported = new Promise<void>((resolve) => { reportError.mockImplementation(() => resolve()) })
+    const { path, store } = await storeAt()
+    const saved = async (): Promise<boolean> => {
+      for (let turn = 0; turn < 200; turn += 1) {
+        if (await readFile(path, 'utf8').then(() => true, () => false)) return true
+        await new Promise((resolve) => setImmediate(resolve))
+      }
+      return false
+    }
+    try {
+      await mkdir(path)
+      await store.record({ url: 'https://kept.example/', title: 'Kept' })
+      await vi.advanceTimersByTimeAsync(1_000)
+      await errorReported
+      expect(reportError).toHaveBeenCalledWith('[history] Failed to save visits:', expect.anything())
+      await rm(path, { recursive: true })
+      await vi.advanceTimersByTimeAsync(1_999)
+      await expect(readFile(path, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+      await vi.advanceTimersByTimeAsync(1)
+      expect(await saved()).toBe(true)
+      expect(JSON.parse(await readFile(path, 'utf8')).entries.map((entry: { title: string }) => entry.title)).toEqual(['Kept'])
+    } finally {
+      store.dispose()
+      reportError.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('never saves a visit back after the history was cleared', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const { path, store } = await storeAt()
+    try {
+      await store.record({ url: 'https://private.example/', title: 'Private' })
+      await store.clear()
+      await vi.advanceTimersByTimeAsync(1_000)
+      await store.flush()
+      expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual([])
+    } finally {
+      store.dispose()
+      vi.useRealTimers()
+    }
+  })
+
+  it('tells the windows only what visits and new titles changed since they last heard', async () => {
+    const { store } = await storeAt()
+    const one = await store.record({ url: 'https://one.example/', title: 'One' })
+    const two = await store.record({ url: 'https://two.example/', title: 'Two' })
+    expect(store.takeChanges()).toEqual({ entries: [one, two], removedIds: [] })
+    expect(store.takeChanges()).toEqual({ entries: [], removedIds: [] })
+    const retitled = await store.updateTitle({ url: 'https://one.example/', title: 'One, loaded' })
+    expect(store.takeChanges()).toEqual({ entries: [retitled], removedIds: [] })
+    // A page gone by the time the windows hear leaves their list.
+    await store.record({ url: 'https://three.example/', title: 'Three' })
+    const [three] = store.list().filter((entry) => entry.title === 'Three')
+    await store.remove(three!.id)
+    expect(store.takeChanges()).toEqual({ entries: [], removedIds: [three!.id] })
+    await store.flush()
+  })
+
+  it('lets the oldest page go when a visit puts the history over its limit, and tells the windows', async () => {
+    let now = Date.UTC(2026, 7, 13)
+    const { path } = await storeAt()
+    await writeFile(path, JSON.stringify({ version: 1, entries: Array.from({ length: 2_000 }, (_, index) => ({
+      id: `page-${index}`, url: `https://page-${index}.example/`, title: `Page ${index}`,
+      visitedAt: new Date(now - index * 1_000).toISOString(), visitCount: 1
+    })) }), 'utf8')
+    const store = new HistoryStore(path, () => now)
+    await store.load()
+    now += 1_000
+    const added = await store.record({ url: 'https://new.example/', title: 'New' })
+    expect(store.list()).toHaveLength(2_000)
+    expect(store.list()[0]).toEqual(added)
+    expect(store.list().some((entry) => entry.id === 'page-1999')).toBe(false)
+    expect(store.takeChanges()).toEqual({ entries: [added], removedIds: ['page-1999'] })
+    await store.flush()
   })
 
   it('lets shutdown wait for already-queued history writes', async () => {
@@ -314,6 +428,7 @@ describe('HistoryStore', () => {
       url: 'https://example.com/private',
       title: 'https://example.com/private'
     })
+    await store.flush()
     expect(await readFile(path, 'utf8')).not.toContain('history-secret')
   })
 
@@ -323,9 +438,11 @@ describe('HistoryStore', () => {
     const title = `https://person:history-secret@example.com/${suffix}`
 
     expect(await store.record({ url, title })).toMatchObject({ url, title: url })
+    await store.flush()
     expect(await readFile(path, 'utf8')).not.toContain('history-secret')
     await store.updateTitle({ url, title: 'Ordinary title' })
     expect(await store.updateTitle({ url, title })).toMatchObject({ title: url, visitCount: 1 })
+    await store.flush()
     expect(await readFile(path, 'utf8')).not.toContain('history-secret')
   })
 
@@ -337,6 +454,7 @@ describe('HistoryStore', () => {
       url: 'https://fragment.example/page',
       title: 'https://fragment.example/page'
     })
+    await store.flush()
     expect(await readFile(path, 'utf8')).not.toContain('private-fragment-token')
   })
 
@@ -361,6 +479,7 @@ describe('HistoryStore', () => {
     expect(await store.record({ url, title })).toMatchObject({ title: saved })
     await store.updateTitle({ url, title: 'Ordinary title' })
     expect(await store.updateTitle({ url, title })).toMatchObject({ title: saved })
+    await store.flush()
     expect(await readFile(path, 'utf8')).not.toContain('history-secret')
   })
 
@@ -377,6 +496,7 @@ describe('HistoryStore', () => {
     const { path, store } = await storeAt()
     const saved = normalizeHistoryUrl(url)
     expect(await store.record({ url, title })).toMatchObject({ title: saved })
+    await store.flush()
     expect(await readFile(path, 'utf8')).not.toContain('history-secret')
   })
 
@@ -617,6 +737,7 @@ describe('HistoryStore', () => {
       await store.record({ url: 'https://earlier.example/', title: 'Earlier' })
       await store.record({ url: 'https://busy.example/', title: 'Busy' })
     }
+    await store.flush()
     const saved = JSON.parse(await readFile(path, 'utf8')).entries as Array<{ url: string; recentVisits: number[]; earlierVisitAt?: number }>
     expect(saved.map((entry) => [entry.url, entry.recentVisits.length, entry.earlierVisitAt])).toEqual([
       ['https://busy.example/', 100, Date.UTC(2026, 7, 13, 14)],
@@ -633,6 +754,7 @@ describe('HistoryStore', () => {
     // A visit older than four weeks is let go as the page's earlier visit.
     now += 29 * 24 * hour
     await store.record({ url: 'https://aging.example/', title: 'Aging' })
+    await store.flush()
     const [aged] = JSON.parse(await readFile(path, 'utf8')).entries as Array<{ url: string; recentVisits: number[]; earlierVisitAt: number }>
     expect(aged).toEqual(expect.objectContaining({ url: 'https://aging.example/', visitCount: 2, recentVisits: [now], earlierVisitAt: Date.UTC(2026, 7, 13, 12) }))
     await expect(store.clearSince(Number.NaN)).rejects.toThrow('Invalid history time range')
@@ -789,18 +911,21 @@ describe('HistoryStore', () => {
     expect(new Set((JSON.parse(await readFile(path, 'utf8')) as { entries: Array<{ id: string }> }).entries.map((entry) => entry.id)).size).toBe(2)
   })
 
-  it('keeps history unchanged when mutations cannot be persisted', async () => {
+  it('keeps history unchanged when removals cannot be saved, and keeps visits for a save that can', async () => {
     const { path, store } = await storeAt()
     const first = await store.record({ url: 'https://one.example/', title: 'One' })
     await store.record({ url: 'https://two.example/', title: 'Two' })
-    const before = store.list()
+    await store.flush()
     expect(first).not.toBeNull()
     const backupPath = `${path}.backup`
     await rename(path, backupPath)
     await mkdir(path)
 
-    await expect(store.record({ url: 'https://three.example/', title: 'Lost visit' })).rejects.toThrow()
-    expect(store.list()).toEqual(before)
+    // A visit stays listed while the file cannot be written, as in Chrome, and is saved once it can be.
+    await expect(store.record({ url: 'https://three.example/', title: 'Kept visit' })).resolves.toMatchObject({ title: 'Kept visit' })
+    const before = store.list()
+    expect(before.map((entry) => entry.title)).toEqual(['Kept visit', 'One', 'Two'])
+    await expect(store.flush()).rejects.toThrow()
     await expect(store.remove(first!.id)).rejects.toThrow()
     expect(store.list()).toEqual(before)
     await expect(store.clearOrigin('https://one.example')).rejects.toThrow()
@@ -810,6 +935,7 @@ describe('HistoryStore', () => {
 
     await rm(path, { recursive: true })
     await rename(backupPath, path)
+    await store.flush()
     const restored = new HistoryStore(path, () => Date.UTC(2026, 7, 13))
     expect(await restored.load()).toEqual(before)
   })

@@ -52,7 +52,11 @@ export function createRuntimeShutdown(host: RuntimeShutdownHost): { releaseRunti
     const broker = host.walletRuntime.broker
     host.mcpRuntime.server = null
     runtimeShutdown = (async () => {
-      host.bookmarksAndHistory.history?.dispose()
+      // The visits of the last second are saved at once: the steps below can last until the exit is forced. Visits
+      // recorded meanwhile are saved with the other stores.
+      const history = host.bookmarksAndHistory.history
+      const recentVisitsSaved = Promise.allSettled([history?.flush()])
+      history?.dispose()
       const results = [
         ...await Promise.allSettled([server?.stop()]),
         ...await Promise.allSettled([host.agentServices.auditReceipts?.stopAll()]),
@@ -72,7 +76,8 @@ export function createRuntimeShutdown(host: RuntimeShutdownHost): { releaseRunti
           host.flushWindowState(),
           host.flushPanelWindowState(),
           host.flushBrowserProfile()
-        ])
+        ]),
+        ...await recentVisitsSaved
       ]
       for (const result of results) {
         if (result.status === 'rejected') console.error('[shutdown] Runtime cleanup failed:', result.reason)

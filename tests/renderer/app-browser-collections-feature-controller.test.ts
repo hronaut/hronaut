@@ -92,7 +92,8 @@ function createHarness(bookmarkAllTabsOptions: Pick<AppBrowserCollectionsFeature
     list: vi.fn(async () => []),
     remove: vi.fn(async () => []),
     clear: vi.fn(async () => []),
-    onChanged: vi.fn(() => unsubscribeHistory)
+    onChanged: vi.fn(() => unsubscribeHistory),
+    onUpdated: vi.fn(() => () => undefined)
   }
   const settingsOpen = ref(true)
   const tabSearchOpen = ref(true)
