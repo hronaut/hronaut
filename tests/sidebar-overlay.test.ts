@@ -738,7 +738,7 @@ describe('sidebar overlay IPC', () => {
   }
 
   it('admits the view\'s reports only from the view, and the shell\'s requests only from the shell', () => {
-    const { overlay, send, fromView, fromShell, fromPage } = registered()
+    const { overlay, tooltips, send, fromView, fromShell, fromPage } = registered()
     for (const [channel, value] of [
       ['sidebar-overlay-view:rendered', { revision: 1 }],
       ['sidebar-overlay-view:pointer', { hovered: true, held: false }],
@@ -751,7 +751,11 @@ describe('sidebar overlay IPC', () => {
       send(channel, fromShell, value)
     }
     expect(overlay.rendered).not.toHaveBeenCalled()
+    expect(overlay.pointer).not.toHaveBeenCalled()
     expect(overlay.received).not.toHaveBeenCalled()
+    expect(overlay.tooltip).not.toHaveBeenCalled()
+    expect(tooltips.show).not.toHaveBeenCalled()
+    expect(tooltips.hide).not.toHaveBeenCalled()
     expect(() => send('sidebar-overlay:show', fromView, { id: 1, model: model() })).toThrow('Rejected IPC from a non-shell renderer')
     expect(() => send('sidebar-overlay:hide', fromPage, 1)).toThrow('Rejected IPC from a non-shell renderer')
     expect(overlay.show).not.toHaveBeenCalled()

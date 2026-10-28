@@ -15,9 +15,10 @@ function registered() {
     addressOverlay: () => overlay as never
   })
   const select = (value: unknown) => handlers.get('address-overlay:select')!({ sender: {} } as IpcMainEvent, value)
+  const measured = (value: unknown) => handlers.get('address-overlay:measured')!({ sender: {} } as IpcMainEvent, value)
   const returnFocus = () => handlers.get('address-overlay:return-focus')!({ sender: {} } as IpcMainEvent)
   const show = (value: unknown) => handlers.get('address-overlay:show')!({ sender: {} } as IpcMainEvent, value)
-  return { overlay, assertMainShellSender, select, returnFocus, show }
+  return { overlay, assertMainShellSender, select, measured, returnFocus, show }
 }
 
 function request(suggestions: unknown[], selectedIndex = -1, selectedAction?: unknown) {
@@ -45,11 +46,16 @@ describe('a pick from the address suggestions view', () => {
   })
 
   // The view's last pick could arrive after the window closed it, when a throw would be an uncaught exception in main.
-  it('drops a pick from anything but the current suggestions view', () => {
-    const { overlay, select } = registered()
+  it('drops a pick or a measurement from anything but the current suggestions view', () => {
+    const { overlay, select, measured } = registered()
     overlay.isAddressOverlaySender.mockReturnValue(false)
     select({ sessionId: 2, suggestionId: 'history:docs' })
+    measured({ sessionId: 2, height: 120 })
     expect(overlay.select).not.toHaveBeenCalled()
+    expect(overlay.measured).not.toHaveBeenCalled()
+    overlay.isAddressOverlaySender.mockReturnValue(true)
+    measured({ sessionId: 2, height: 120 })
+    expect(overlay.measured).toHaveBeenCalledOnce()
   })
 
   it('refuses a pick with anything else for where it opens', () => {

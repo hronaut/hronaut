@@ -30,10 +30,7 @@ interface AddressSuggestionOverlayHost {
 }
 
 export interface AddressSuggestionOverlay {
-  /**
-   * Whether a report came from the suggestions page in the view that shows now. A report from a view the window closed
-   * meanwhile is not, and is dropped.
-   */
+  /** Whether a report came from the suggestions page in the current view, which a view the window closed is not. */
   isAddressOverlaySender(event: IpcMainEvent): boolean
   /** Shows the shell's suggestions under the address field, loading the view first if needed. */
   show(request: AddressSuggestionOverlayRequest, sender: Pick<WebContents, 'getZoomFactor'>): void

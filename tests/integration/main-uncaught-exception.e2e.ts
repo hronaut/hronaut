@@ -25,8 +25,8 @@ test('an overlay view report from anything but the current view is dropped, not 
     setTimeout(() => {
       let listened = false
       try {
-        // As if sent by the shell, which is not the toast view.
-        listened = ipcMain.emit('toast-overlay-view:measured', { sender: BrowserWindow.getAllWindows()[0]!.webContents, senderFrame: null }, { height: 40 })
+        // A well-formed report, as if sent by the shell, which is not the toast view.
+        listened = ipcMain.emit('toast-overlay-view:measured', { sender: BrowserWindow.getAllWindows()[0]!.webContents, senderFrame: null }, { revision: 1, height: 40 })
       } finally {
         resolve(listened)
       }
