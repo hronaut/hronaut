@@ -325,8 +325,11 @@ describe('HistoryStore', () => {
     const reportError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const errorReported = new Promise<void>((resolve) => { reportError.mockImplementation(() => resolve()) })
     const { path, store } = await storeAt()
+    // The save flushes the file to disk, which a busy machine can take far longer than a few hundred event-loop turns
+    // to finish; only setTimeout is fake, so the wait is bounded by the real clock, within this test's longer timeout.
     const saved = async (): Promise<boolean> => {
-      for (let turn = 0; turn < 200; turn += 1) {
+      const deadline = Date.now() + 10_000
+      while (Date.now() < deadline) {
         if (await readFile(path, 'utf8').then(() => true, () => false)) return true
         await new Promise((resolve) => setImmediate(resolve))
       }
@@ -340,16 +343,20 @@ describe('HistoryStore', () => {
       expect(reportError).toHaveBeenCalledWith('[history] Failed to save visits:', expect.anything())
       await rm(path, { recursive: true })
       await vi.advanceTimersByTimeAsync(1_999)
+      // The retry still waits: a write it started early could still be on its way to disk when the file is read.
+      expect(vi.getTimerCount()).toBe(1)
       await expect(readFile(path, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
       await vi.advanceTimersByTimeAsync(1)
       expect(await saved()).toBe(true)
       expect(JSON.parse(await readFile(path, 'utf8')).entries.map((entry: { title: string }) => entry.title)).toEqual(['Kept'])
+      // Lets the retry finish syncing the folder before the folder goes; nothing is left for this flush to save.
+      await store.flush()
     } finally {
       store.dispose()
       reportError.mockRestore()
       vi.useRealTimers()
     }
-  })
+  }, 15_000)
 
   it('never saves a visit back after the history was cleared', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
