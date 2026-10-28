@@ -89,7 +89,12 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture', 'close', 'pop
         const showInactive = main.showInactive
         // Each request names its page, the window focused then and the caller, so a failure says which code moved the keyboard.
         prototype.focus = function (this: Electron.WebContents) {
-          state.__qaFocusRequests!.push(`${this.getURL().slice(0, 100)} (focused window: ${BrowserWindow.getFocusedWindow()?.getTitle() ?? 'none'})\n${new Error().stack?.split('\n').slice(2, 14).join('\n')}`)
+          // The main process keeps ten frames by default; async callers sit deeper than that.
+          const stackTraceLimit = Error.stackTraceLimit
+          Error.stackTraceLimit = 20
+          const stack = new Error().stack
+          Error.stackTraceLimit = stackTraceLimit
+          state.__qaFocusRequests!.push(`${this.getURL().slice(0, 100)} (focused window: ${BrowserWindow.getFocusedWindow()?.getTitle() ?? 'none'})\n${stack?.split('\n').slice(2).join('\n')}`)
           return focus.call(this)
         }
         main.showInactive = function () { state.__qaRaiseRequests! += 1; return showInactive.call(this) }
