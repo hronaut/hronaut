@@ -548,6 +548,7 @@ import {
   sleepBlockReason,
   sleepFallbackTab,
   sleepWorkspaceTabs,
+  sleepBeforeFirstLoad,
   wakeTab,
   watchUnsavedFormEdits,
   withoutSleepingPage
@@ -742,6 +743,8 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   lastActiveAt: number
   sleepNavigationHistory?: { entries: NavigationEntry[]; index: number }
   wakePromise?: Promise<void>
+  /** What a tab created asleep waits for before it first wakes. */
+  pageReady?: Promise<void>
   humanInteractionLocked: boolean
   tabAgentPaused: boolean
   /** Runtime only: the tab as it was when the person took it over from its agent. */
@@ -1550,6 +1553,13 @@ export class BrowserTabsManager {
     rememberSavedClosedTabs(this.closedTabs, restoredClosedTabs(savedClosed, (workspaceId) => this.mcpTabGroups.get(workspaceId)?.navigationPolicy))
     if (persistedTabs.length) {
       let restoredHome = false
+      // The tabs shown come back loaded: the window's, and each workspace's own, which its agent reads and acts in as
+      // Chrome loads each window's. The tabs behind them come back asleep, as in Chrome: each loads its page once it is
+      // shown or used, so a restart loads the shown pages rather than every tab's.
+      const shownTabIds = new Set([
+        saved?.activeTabId, saved?.splitView?.firstTabId, saved?.splitView?.secondTabId,
+        ...[...this.mcpTabGroups.values()].map(group => group.activeTabId)
+      ])
       for (const tab of persistedTabs) {
         if (this.tabs.size >= MAX_TABS) break
         if (isHronautHomeUrl(tab.url)) {
@@ -1575,6 +1585,7 @@ export class BrowserTabsManager {
             ? undefined
             : tab.mcpGroupId,
           ...(navigationHistory ? { navigationHistory } : {}),
+          asleep: !shownTabIds.has(tab.id),
           suppressInitialHistory: true,
           active: false
         })
@@ -2642,7 +2653,6 @@ export class BrowserTabsManager {
       memorySaverSettingsGeneration: () => this.memorySaverSettingsGeneration,
       setMemorySaverSettingsGeneration: (generation) => { this.memorySaverSettingsGeneration = generation },
       memorySaverSweeps: () => this.memorySaverSweeps,
-      wakeTab: (tabId) => this.wakeTab(tabId),
       putTabToSleep: (tab, reportBlocked, isCurrent) => this.putTabToSleep(tab, reportBlocked, isCurrent),
       getState: () => this.getState()
     }
@@ -5717,6 +5727,11 @@ export class BrowserTabsManager {
     navigationGeneration?: number
     suppressInitialHistory?: boolean
     navigationHistory?: { entries: NavigationEntry[]; index: number }
+    /**
+     * Whether the tab starts asleep, with its address and history, and loads its page only once it is shown or used,
+     * as Chrome restores the tabs behind the one shown. Only a website tab that is not pinned does.
+     */
+    asleep?: boolean
     loadOptions?: LoadURLOptions
     /**
      * The page Chromium created for a window a workspace tab opened, which this tab shows; it loads itself. The
@@ -5743,6 +5758,7 @@ export class BrowserTabsManager {
       this.assertWorkspaceNavigationAllowed(options.mcpGroupId, url, 'direct')
     }
     const defaultFontSize = isHronautHomeUrl(url) ? undefined : normalizeDefaultFontSize(options.defaultFontSize)
+    const asleep = options.asleep === true && !options.adopt && options.pinned !== true && isWebUrl(url) && !isHronautHomeUrl(url)
     const opener = options.adopt?.openerTabId ? this.tabs.get(options.adopt.openerTabId) : undefined
     const workspace = options.mcpGroupId ? this.mcpTabGroups.get(options.mcpGroupId) : undefined
     const partition = isHronautHomeUrl(url)
@@ -5784,7 +5800,7 @@ export class BrowserTabsManager {
         options.title || (url === HRONAUT_HOME_URL ? 'Hronaut Home' : url === 'about:blank' ? UNTITLED_TAB_TITLE : url)
       ),
       url,
-      loading: true,
+      loading: !asleep,
       navigationGeneration: options.navigationGeneration ?? 0,
       walletNavigationGeneration: options.navigationGeneration ?? 0,
       documentGeneration: 0,
@@ -5797,7 +5813,7 @@ export class BrowserTabsManager {
       overviewPreviewSequence: 0,
       navigationPolicyDenialSequence: 0,
       pinned: options.pinned === true && !isHronautHomeUrl(url),
-      sleeping: false,
+      sleeping: asleep,
       pageLifecycleState: 'active',
       lastActiveAt: Date.now(),
       tabAgentPaused: options.tabAgentPaused === true,
@@ -5879,7 +5895,11 @@ export class BrowserTabsManager {
     if (options.navigationHistory) tab.discoveryTitle.restoring(options.navigationHistory.entries)
     // A workspace's first page waits for its session cookies saved at the last quit, so its sites keep the sign-ins.
     const cookiesBack = isHronautHomeUrl(url) ? Promise.resolve() : keepSessionCookies(view.webContents.session)
-    const loading = options.adopt
+    if (asleep) {
+      tab.sleepNavigationHistory = options.navigationHistory ?? { entries: [{ url, title: tab.title }], index: 0 }
+      tab.pageReady = sleepBeforeFirstLoad(view.webContents, options.navigationHistory, cookiesBack)
+    }
+    const loading = options.adopt || asleep
       ? Promise.resolve()
       : cookiesBack.then(() => {
         if (view.webContents.isDestroyed()) return undefined

@@ -35,6 +35,11 @@ export interface TabSleepTab extends Pick<BrowserProfilingState, 'codeCoverage' 
   pendingHistoryUrl: string | null
   walletPageUnloading?: boolean
   wakePromise?: Promise<void>
+  /**
+   * What a tab created asleep, such as one restored behind the tab shown, waits for before it first wakes: its
+   * sleeping page, and the session cookies its workspace's pages wait for.
+   */
+  pageReady?: Promise<void>
   sleepNavigationHistory?: { entries: NavigationEntry[]; index: number }
   pageLifecycleState: BrowserPageLifecycleState
   pageLifecycleOperation?: {

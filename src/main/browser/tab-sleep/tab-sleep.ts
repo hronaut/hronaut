@@ -127,15 +127,21 @@ export async function wakeTab<Tab extends TabSleepTab>(access: TabSleepAccess<Ta
     return access.getState()
   }
   if (!tab.sleeping) return access.getState()
-  const restoreUrl = tab.url
-  // Clearing the history while the tab wakes also reaches the history it goes back to sleep with if waking fails.
-  const navigationHistory = holdTabHistory(tab.sleepNavigationHistory)
-  const previousLoading = tab.loading
-  const previousSuppressInitialHistory = tab.suppressInitialHistory
-  const navigationGeneration = tab.navigationGeneration
   // Its callers went on with the page it showed, which an agent may already use.
   const handedOver = (): boolean => shownWakes.has(wake)
   const wake = (async () => {
+    // A tab restored asleep wakes once its sleeping page is in place, from the tab as it is then.
+    if (tab.pageReady) {
+      await tab.pageReady
+      tab.pageReady = undefined
+      if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed() || !tab.sleeping) return
+    }
+    const restoreUrl = tab.url
+    // Clearing the history while the tab wakes also reaches the history it goes back to sleep with if waking fails.
+    const navigationHistory = holdTabHistory(tab.sleepNavigationHistory)
+    const previousLoading = tab.loading
+    const previousSuppressInitialHistory = tab.suppressInitialHistory
+    const navigationGeneration = tab.navigationGeneration
     tab.sleeping = false
     access.tabOverviewSleepPreviews().delete(tab.id)
     tab.sleepNavigationHistory = undefined
@@ -434,6 +440,38 @@ const WATCH_FORM_EDITS_SCRIPT = `(() => {
 export function watchUnsavedFormEdits(tab: TabSleepTab, frame?: WebFrameMain): void {
   const run = frame ? frame.executeJavaScript(WATCH_FORM_EDITS_SCRIPT, false) : tab.webContents.executeJavaScript(WATCH_FORM_EDITS_SCRIPT, false)
   void run.catch(() => undefined)
+}
+
+/** How long the first wake of a tab restored asleep waits for its sleeping page and its session cookies. */
+export const SLEEPING_PAGE_WAIT_MS = 10_000
+
+/**
+ * Shows the sleeping page in a new tab whose own page has not loaded, such as a tab restored behind the one shown, as
+ * Chrome restores them: the tab wakes when it is shown or used, from its history as from any sleep. The sleeping page
+ * takes its place in that history, right after the page the tab shows, so the pages before and after it stay. Returns
+ * what the tab's first wake waits for: the sleeping page, and what its page waits for before it loads.
+ */
+export function sleepBeforeFirstLoad(webContents: WebContents, history: NavigationHistorySnapshot | undefined, pageCanLoad: Promise<void>): Promise<void> {
+  let sleepingPage: Promise<void>
+  try {
+    sleepingPage = history
+      ? webContents.navigationHistory.restore({
+        entries: [...history.entries.slice(0, history.index + 1), { url: SLEEPING_PAGE_URL, title: '' }, ...history.entries.slice(history.index + 1)],
+        index: history.index + 1
+      })
+      : webContents.loadURL(SLEEPING_PAGE_URL)
+  } catch (error) {
+    sleepingPage = Promise.reject(error)
+  }
+  let waking = false
+  // A history Electron cannot take leaves the sleeping page alone, and the tab wakes at its address.
+  const shown = sleepingPage.catch(async (error: unknown) => {
+    console.warn('[browser] Could not restore the history of a tab created asleep:', error)
+    if (history && !waking && !webContents.isDestroyed() && webContents.getURL() !== SLEEPING_PAGE_URL) await webContents.loadURL(SLEEPING_PAGE_URL).catch(() => undefined)
+  })
+  // A sleeping page that never finishes, as when its renderer is gone, holds the tab's first wake only so long; the
+  // wake then loads the tab's address, which the sleeping page may no longer replace.
+  return settledWithin(Promise.all([shown, pageCanLoad.catch(() => undefined)]), SLEEPING_PAGE_WAIT_MS).then(() => { waking = true })
 }
 
 /**

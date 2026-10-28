@@ -74,7 +74,8 @@ test('serializes Memory Saver settings and sleeps eligible tabs without stale sh
     await automatic.uncheck()
     await expect(automatic).not.toBeChecked()
     await expect(sleepNow).toBeDisabled()
-    await expect(appWindow.getByText('0 sleeping')).toBeVisible()
+    // The sleeping tab stays asleep, as in Chrome, until it is shown or used.
+    await expect(appWindow.getByText('1 sleeping')).toBeVisible()
 
     const restoreSettingsFileAfterReset = await blockFileDestination(settingsPath)
     try {

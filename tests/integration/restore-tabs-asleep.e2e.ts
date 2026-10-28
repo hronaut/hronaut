@@ -1,0 +1,122 @@
+import { createServer } from 'node:http'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import type { ElectronApplication, Page } from '@playwright/test'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+
+interface RestartWindow {
+  hronaut: {
+    newTab(options: { url: string; active: boolean; mcpGroupId?: string }): Promise<unknown>
+    createWorkspace(options: { name: string; storage: 'scratch' }): Promise<{ tabs: Array<{ id: string; mcpGroupId?: string }>; mcpTabGroups: Array<{ id: string; name: string }> }>
+    navigate(options: { tabId?: string; url: string }): Promise<unknown>
+    back(tabId?: string): Promise<unknown>
+    forward(tabId?: string): Promise<unknown>
+    selectTab(tabId: string): Promise<unknown>
+    getState(): Promise<{ tabs: Array<{ id: string; url: string; loading: boolean; sleeping: boolean; canGoBack: boolean; canGoForward: boolean }> }>
+  }
+}
+
+test('a restart loads the tabs shown, the window\'s and each workspace\'s, and brings the others back asleep, each loading with its history once shown, as Chrome', async ({ profileDirectory, mcpPort }) => {
+  // A restart loaded every restored tab at once: 45 tabs came back as 45 pages loading together.
+  const requests = new Map<string, number>()
+  const server = createServer((request, response) => {
+    const path = request.url ?? '/'
+    request.resume()
+    // Only the pages: Chromium also asks for each site's icon.
+    if (path !== '/favicon.ico') requests.set(path, (requests.get(path) ?? 0) + 1)
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+    response.end(`<!doctype html><title>Page ${path.slice(1)}</title><main style="height: 5000px">Restore fixture</main>`)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture port')
+  const [first, forward, shown, behind, client, clientBehind] = ['first', 'forward', 'shown', 'behind', 'client', 'client-behind']
+    .map((name) => `http://127.0.0.1:${address.port}/${name}`) as [string, string, string, string, string, string]
+  const tabAt = (window: Page, urls: string[]) => window.evaluate(async (urls) => (await (window as unknown as RestartWindow).hronaut.getState()).tabs
+    .find((candidate) => urls.includes(candidate.url)), urls)
+  const showing = async (window: Page, urls: string[], url: string) => {
+    const tab = await tabAt(window, urls)
+    return tab?.url === url && !tab.loading && !tab.sleeping
+  }
+  const inPage = (app: ElectronApplication, url: string, script: string) => app.evaluate(({ webContents }, { url, script }) => webContents
+    .getAllWebContents().find((contents) => contents.getURL() === url)?.executeJavaScript(script) as Promise<unknown> | undefined, { url, script })
+  const pageState = (app: ElectronApplication, url: string) => app.evaluate(({ webContents }, url) => {
+    const history = webContents.getAllWebContents().find((contents) => contents.getURL() === url)?.navigationHistory
+    return history?.getEntryAtIndex(history.getActiveIndex())?.pageState
+  }, url)
+  /** Scrolls the page and waits until its history entry holds the scroll, which Chromium saves a moment later. */
+  const scroll = async (app: ElectronApplication, window: Page, url: string, top: number) => {
+    let settled = await pageState(app, url)
+    await expect.poll(async () => {
+      await window.waitForTimeout(1_500)
+      const latest = await pageState(app, url)
+      const still = latest === settled
+      settled = latest
+      return still
+    }, { timeout: 15_000 }).toBe(true)
+    await inPage(app, url, `window.scrollTo(0, ${top})`)
+    await expect.poll(() => inPage(app, url, 'window.scrollY')).toBe(top)
+    await expect.poll(() => pageState(app, url), { timeout: 10_000 }).not.toBe(settled)
+  }
+  const historyTab = [first, forward]
+  let before: Awaited<ReturnType<typeof launchHronaut>> | undefined
+  let after: Awaited<ReturnType<typeof launchHronaut>> | undefined
+  try {
+    before = await launchHronaut(profileDirectory, mcpPort)
+    const window = before.window
+    // A tab behind the shown one, at its first page with a page Forward of it.
+    await window.evaluate((url) => (window as unknown as RestartWindow).hronaut.newTab({ url, active: true }), first)
+    await expect.poll(() => showing(window, historyTab, first)).toBe(true)
+    await scroll(before.app, window, first, 1200)
+    const { id: historyTabId } = (await tabAt(window, historyTab))!
+    await window.evaluate(({ id, url }) => (window as unknown as RestartWindow).hronaut.navigate({ tabId: id, url }), { id: historyTabId, url: forward })
+    await expect.poll(() => showing(window, historyTab, forward)).toBe(true)
+    await window.evaluate((id) => (window as unknown as RestartWindow).hronaut.back(id), historyTabId)
+    await expect.poll(() => showing(window, historyTab, first)).toBe(true)
+    await window.evaluate((url) => (window as unknown as RestartWindow).hronaut.newTab({ url, active: true }), shown)
+    await expect.poll(() => showing(window, [shown], shown)).toBe(true)
+    await window.evaluate((url) => (window as unknown as RestartWindow).hronaut.newTab({ url, active: false }), behind)
+    await expect.poll(() => showing(window, [behind], behind)).toBe(true)
+    // Another workspace, whose agent reads and acts in the tab it shows, with a tab behind that one.
+    await window.evaluate(async (urls) => {
+      const { hronaut } = window as unknown as RestartWindow
+      const created = await hronaut.createWorkspace({ name: 'Client', storage: 'scratch' })
+      const mcpGroupId = created.mcpTabGroups.find((group) => group.name === 'Client')!.id
+      // A new workspace starts with an empty tab, shown.
+      await hronaut.navigate({ tabId: created.tabs.find((tab) => tab.mcpGroupId === mcpGroupId)!.id, url: urls[0]! })
+      await hronaut.newTab({ url: urls[1]!, active: false, mcpGroupId })
+    }, [client, clientBehind])
+    await expect.poll(() => showing(window, [client], client)).toBe(true)
+    await expect.poll(() => showing(window, [clientBehind], clientBehind)).toBe(true)
+    await window.evaluate(async (id) => (window as unknown as RestartWindow).hronaut.selectTab(id), (await tabAt(window, [shown]))!.id)
+    const historyPath = join(profileDirectory, 'tab-history.json')
+    await expect.poll(async () => (await readFile(historyPath, 'utf8').catch(() => '')).includes(forward), { timeout: 15_000 }).toBe(true)
+    await closeHronaut(before.app)
+    before = undefined
+    requests.clear()
+
+    after = await launchHronaut(profileDirectory, mcpPort)
+    const restarted = after.window
+    await expect.poll(() => showing(restarted, [shown], shown)).toBe(true)
+    await expect.poll(() => showing(restarted, [client], client)).toBe(true)
+    expect(await tabAt(restarted, historyTab)).toMatchObject({ url: first, sleeping: true, loading: false, canGoBack: false, canGoForward: true })
+    expect(await tabAt(restarted, [behind])).toMatchObject({ url: behind, sleeping: true, loading: false })
+    expect(await tabAt(restarted, [clientBehind])).toMatchObject({ url: clientBehind, sleeping: true, loading: false })
+    expect(Object.fromEntries(requests)).toEqual({ '/shown': 1, '/client': 1 })
+
+    // Shown, the tab loads its page where it was scrolled, with the page Forward of it, and the other stays asleep.
+    await restarted.evaluate((id) => (window as unknown as RestartWindow).hronaut.selectTab(id), historyTabId)
+    await expect.poll(() => showing(restarted, historyTab, first)).toBe(true)
+    await expect.poll(() => inPage(after!.app, first, 'window.scrollY')).toBe(1200)
+    expect(await tabAt(restarted, historyTab)).toMatchObject({ canGoBack: false, canGoForward: true })
+    await restarted.evaluate((id) => (window as unknown as RestartWindow).hronaut.forward(id), historyTabId)
+    await expect.poll(() => showing(restarted, historyTab, forward)).toBe(true)
+    expect(await tabAt(restarted, historyTab)).toMatchObject({ canGoBack: true, canGoForward: false })
+    expect(await tabAt(restarted, [behind])).toMatchObject({ sleeping: true })
+    expect(Object.fromEntries(requests)).toEqual({ '/shown': 1, '/client': 1, '/first': 1, '/forward': 1 })
+  } finally {
+    if (before) await closeHronaut(before.app)
+    if (after) await closeHronaut(after.app)
+    await closeFixtureServer(server)
+  }
+})
